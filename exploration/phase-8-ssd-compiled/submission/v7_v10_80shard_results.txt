@@ -1,0 +1,28 @@
+=== V7 ===
+logs/v7.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=64 headdim=64 ngroups=1 chunk_size=64
+model_params:31878420
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9315 train_time:2529ms step_avg:2529.27ms tok/s:207288
+step:2/20000 train_loss:6.7275 train_time:4972ms step_avg:2485.99ms tok/s:210897
+step:3/20000 train_loss:6.7033 train_time:7538ms step_avg:2512.58ms tok/s:208666
+step:4/20000 train_loss:6.6869 train_time:10111ms step_avg:2527.86ms tok/s:207404
+step:5/20000 train_loss:6.6513 train_time:12708ms step_avg:2541.54ms tok/s:206288
+step:6/20000 train_loss:6.6313 train_time:15306ms step_avg:2551.06ms tok/s:205518
+step:7/20000 train_loss:6.5946 train_time:17880ms step_avg:2554.35ms tok/s:205253
+step:8/20000 train_loss:6.5641 train_time:20451ms step_avg:2556.35ms tok/s:205092
+step:9/20000 train_loss:6.5318 train_time:23025ms step_avg:2558.34ms tok/s:204933
+step:10/20000 train_loss:6.5028 train_time:25632ms step_avg:2563.22ms tok/s:204543

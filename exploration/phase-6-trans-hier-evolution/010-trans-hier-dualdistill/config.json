@@ -1,0 +1,31 @@
+{
+  "run_id": "20260326-010-trans-hier-dualdistill",
+  "date": "2026-03-26",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "20260326-008-trans-hier-sidechannel",
+  "hypothesis": "Upgrade the transformer's macro sidechannel from shift+predict+MSE to dual-pass+cosine. Teacher runs under no_grad on current-interval summaries. Student runs with grad on previous-interval summaries. Same macro_pred weights, different inputs. Cosine distillation replaces MSE for collapse resistance. Should improve over 008's 1.349 BPB by giving macro_pred a cleaner learning signal.",
+  "hyperparameters": {
+    "model_arch": "GPT-HierDualDistill",
+    "model_dim": 512,
+    "num_layers": 10,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "block_schedule": "parallel",
+    "macro_interval": 16,
+    "macro_xattn_dim": 128,
+    "macro_distill_weight": 0.15,
+    "seq_len": 2048,
+    "batch_tokens": 393216,
+    "max_wallclock_sec": 600,
+    "seed": 42
+  },
+  "changes_from_parent": {
+    "distillation": {"from": "shift + macro_pred + MSE", "to": "dual-pass (teacher no_grad, student with grad) + cosine"},
+    "teacher": {"from": "raw shifted summary", "to": "enriched via macro_pred under no_grad"},
+    "student": {"from": "shifted + macro_pred(shifted)", "to": "same, but teacher is also enriched (harder target)"},
+    "loss": {"from": "MSE(student, raw_teacher)", "to": "cosine(student, enriched_teacher)"},
+    "new_params": 0,
+    "extra_compute": "one no_grad macro_pred pass on 128 intervals — negligible"
+  }
+}

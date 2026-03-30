@@ -1,0 +1,52 @@
+{
+    "variant": "d_triple_fusion",
+    "description": "Triple fusion: ablation-3 (bifurcated A_log) + ablation-2 (no vertical state carry) + ablation-8 (no autocast enabled=False)",
+    "base": "ablation-3 (champion, val_bpb=1.873)",
+    "changes_applied": [
+        "ablation-3: bifurcated A_log init (25% induction heads at -4.0, 75% local heads at 0.3-0.6) -- ALREADY IN BASE",
+        "ablation-2: vertical_states=None in _core_forward loop (disable vertical state carry)",
+        "ablation-8: remove torch.amp.autocast(enabled=False) wrapper in _prepare_ssd_inputs"
+    ],
+    "hyperparameters": {
+        "model_dim": 1536,
+        "n_blocks": 1,
+        "n_iters": 4,
+        "expand": 2,
+        "d_state": 64,
+        "d_conv": 4,
+        "headdim": 64,
+        "ngroups": 1,
+        "chunk_size": 64,
+        "mlp_ratio": 2.0,
+        "qat_group_size": 128,
+        "vocab_size": 1024,
+        "train_seq_len": 1024,
+        "train_batch_tokens": 131072,
+        "logit_softcap": 30.0,
+        "tie_embeddings": true,
+        "tied_embed_init_std": 0.005,
+        "embed_lr": 0.03,
+        "matrix_lr": 0.03,
+        "scalar_lr": 0.03,
+        "tied_embed_lr": 0.03,
+        "muon_momentum": 0.95,
+        "muon_backend_steps": 5,
+        "lr_warmup_steps": 200,
+        "warmup_steps": 5,
+        "warmdown_iters": 1200,
+        "grad_clip_norm": 1.0,
+        "max_wallclock_seconds": 600.0
+    },
+    "ablation_scores": {
+        "ablation-3_bifurcated_alog": 1.873,
+        "ablation-2_no_vertical_carry": 1.910,
+        "ablation-8_no_autocast_disabled": 1.915,
+        "baseline_all_features": 1.966
+    },
+    "predicted_bpb_if_independent": 1.77,
+    "decision_tree": {
+        "below_1.80": "All three stack independently. Submission candidate.",
+        "1.80_to_1.87": "Partial stacking. Two of three interact.",
+        "above_1.87": "Ablations NOT independent -- they share a common cause."
+    }
+}

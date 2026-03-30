@@ -9,3 +9,27 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+__pycache__/
+*.pyc
+.DS_Store
+
+#internal iteration workspace
+experiments/
+tasks/
+CLAUDE.md
+.claude/
+*.ptz
+*.pt
+final_model.*
+.idea/
+.junie/
+.archive/
+.mcp.json
+train_gpt_iter003.py
+STATUS.md
+OPTIMAL_CONFIG.md
+AGENT.md
+AGENTS.md
+REPO_REORG_PLAN.md
+docs/
+exploration/phase-5-macro-sidechannel-genesis

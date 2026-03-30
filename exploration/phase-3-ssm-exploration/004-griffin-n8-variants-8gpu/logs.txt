@@ -1,0 +1,52 @@
+logs/run_004.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:33256613
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:551ms step_avg:550.87ms tok/s:237937
+step:2/20000 train_loss:6.7549 train_time:1027ms step_avg:513.40ms tok/s:255300
+step:3/20000 train_loss:6.5070 train_time:1512ms step_avg:503.85ms tok/s:260139
+step:4/20000 train_loss:6.2138 train_time:1994ms step_avg:498.62ms tok/s:262868
+step:5/20000 train_loss:5.8820 train_time:2476ms step_avg:495.18ms tok/s:264696
+step:6/20000 train_loss:5.6068 train_time:2959ms step_avg:493.19ms tok/s:265764
+step:7/20000 train_loss:5.4515 train_time:3440ms step_avg:491.45ms tok/s:266706
+step:8/20000 train_loss:5.3664 train_time:3922ms step_avg:490.24ms tok/s:267362
+step:9/20000 train_loss:5.3447 train_time:4403ms step_avg:489.27ms tok/s:267895
+step:10/20000 train_loss:5.2554 train_time:4885ms step_avg:488.54ms tok/s:268292
+step:100/20000 train_loss:3.6294 train_time:47638ms step_avg:476.38ms tok/s:275140
+step:200/20000 train_loss:3.3317 train_time:95170ms step_avg:475.85ms tok/s:275447
+step:300/20000 train_loss:3.1544 train_time:142668ms step_avg:475.56ms tok/s:275615
+step:400/20000 train_loss:3.1518 train_time:190179ms step_avg:475.45ms tok/s:275682
+step:500/20000 train_loss:3.1081 train_time:237694ms step_avg:475.39ms tok/s:275716
+step:600/20000 train_loss:3.1433 train_time:285250ms step_avg:475.42ms tok/s:275700
+step:700/20000 train_loss:2.9403 train_time:332791ms step_avg:475.42ms tok/s:275700
+step:800/20000 train_loss:3.0052 train_time:380440ms step_avg:475.55ms tok/s:275622
+step:900/20000 train_loss:3.0817 train_time:428024ms step_avg:475.58ms tok/s:275603
+step:1000/20000 train_loss:2.8968 train_time:475582ms step_avg:475.58ms tok/s:275604
+step:1000/20000 val_loss:2.8913 val_bpb:1.7124 train_time:475591ms step_avg:475.59ms
+swa:start step:1000
+step:1100/20000 train_loss:2.8299 train_time:523247ms step_avg:475.68ms tok/s:275547
+step:1200/20000 train_loss:2.7614 train_time:571086ms step_avg:475.90ms tok/s:275417
+step:1261/20000 val_loss:2.7534 val_bpb:1.6307 train_time:600247ms step_avg:476.01ms
+stopping_early: wallclock_cap train_time:600247ms step:1261/20000
+peak memory allocated: 13629 MiB reserved: 23090 MiB
+total_tokens_seen:165281792
+swa:applying averaged 6 checkpoints
+Serialized model (raw): 130414227 bytes
+Code size: 82026 bytes
+Serialized model int4+zlib: 13992269 bytes (int4:16448256 passthrough:2713930)
+Total submission size int4+zlib: 14074295 bytes
+final_int4_zlib_roundtrip val_loss:2.7694 val_bpb:1.6402 eval_time:71669ms
+final_int4_zlib_roundtrip_exact val_loss:2.76935433 val_bpb:1.64016763

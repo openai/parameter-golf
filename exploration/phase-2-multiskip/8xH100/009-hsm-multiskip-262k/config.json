@@ -1,0 +1,37 @@
+{
+  "run_id": "8xH100-009-hsm-multiskip-262k",
+  "date": "2026-03-23",
+  "type": "full",
+  "gpu": "8xH100",
+  "parent_run_id": "20260323-009-hsm-multiskip-262k (1xH100: val_bpb=1.8317)",
+  "hypothesis": "HSM (learned state retrieval) + multi-skip x0 on 8xH100. Smoothest curve on 1xH100, stable training, healthy train-val gap. HSM's selective state retrieval may compound in value with 8x more training — more data means the state bank has richer snapshots to retrieve from. With ~2B tokens on 8xH100, expect significant improvement over the 255M token 1xH100 run.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf + HSM",
+    "model_dim": 1536,
+    "n_iters": 4,
+    "d_state": 64,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 262144,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "embed_lr": 0.03,
+    "head_lr": 0.0,
+    "tie_embeddings": true,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 1.0,
+    "warmdown_iters": 2400,
+    "warmdown_frac": 0.6,
+    "hsm_rank": 16,
+    "hsm_write_iters": 2,
+    "hsm_gate_init": -2.0,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "gpu": {"from": "1xH100", "to": "8xH100"}
+  }
+}

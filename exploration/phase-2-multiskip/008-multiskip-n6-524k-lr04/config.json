@@ -1,0 +1,35 @@
+{
+  "run_id": "20260323-008-multiskip-n6-524k-lr04",
+  "date": "2026-03-23",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "20260323-006-frac-warmdown-multiskip-524k",
+  "hypothesis": "Aggressive config: n_iters=6 (deeper recurrence) + 524K batch (better gradients) + matrix_lr=0.04 (push learning speed) + frac warmdown (proper LR schedule) + multi-skip (gradient highway). On 1xH100 this will be undercooked (~350 steps) but tests whether the config is stable. The real payoff is on 8xH100 where it gets ~1200 steps at full 0.04 LR for 40% of training.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf",
+    "model_dim": 1536,
+    "n_iters": 6,
+    "d_state": 64,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 524288,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.04,
+    "scalar_lr": 0.04,
+    "embed_lr": 0.03,
+    "head_lr": 0.03,
+    "tie_embeddings": true,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 1.0,
+    "warmdown_frac": 0.6,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "n_iters": {"from": 4, "to": 6},
+    "matrix_lr": {"from": 0.03, "to": 0.04},
+    "scalar_lr": {"from": 0.03, "to": 0.04}
+  }
+}

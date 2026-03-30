@@ -1,0 +1,53 @@
+{
+  "variant": "variant_b_abl3_dstate32",
+  "parent": "ablation-3 (bifurcated A_log init)",
+  "hypothesis": "d_state=32 + bifurcated A_log combines two independent winners",
+  "changes_from_parent": {
+    "d_state": {
+      "parent_value": 64,
+      "new_value": 32
+    }
+  },
+  "hyperparameters": {
+    "model_dim": 1536,
+    "n_blocks": 1,
+    "n_iters": 4,
+    "expand": 2,
+    "d_state": 32,
+    "d_conv": 4,
+    "headdim": 64,
+    "ngroups": 1,
+    "chunk_size": 64,
+    "mlp_ratio": 2.0,
+    "qat_group_size": 128,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "logit_softcap": 30.0,
+    "train_seq_len": 1024,
+    "train_batch_tokens": 131072,
+    "max_wallclock_seconds": 600.0,
+    "iterations": 20000,
+    "warmup_steps": 5,
+    "warmdown_iters": 1200,
+    "lr_warmup_steps": 200,
+    "embed_lr": 0.03,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "muon_momentum": 0.95,
+    "muon_backend_steps": 5,
+    "grad_clip_norm": 1.0,
+    "seed": 1337
+  },
+  "decision_tree": {
+    "val_bpb < 1.85": "d_state=32 + bifurcated is the optimal combo. Use for submission.",
+    "val_bpb 1.85-1.90": "d_state=32 matches d_state=64 -- state dimension is not a significant factor.",
+    "val_bpb > 1.90": "d_state=64 was actually helping. Revert to ablation-3 as-is."
+  },
+  "param_impact": {
+    "d_state_64_in_proj_size": "2 * 3072 + 2 * 1 * 64 + 48 = 6320 (in_proj out_features)",
+    "d_state_32_in_proj_size": "2 * 3072 + 2 * 1 * 32 + 48 = 6256 (in_proj out_features)",
+    "d_state_64_theta_proj_size": "1536 -> 32 (ngroups * d_state//2 = 1*32)",
+    "d_state_32_theta_proj_size": "1536 -> 16 (ngroups * d_state//2 = 1*16)",
+    "note": "d_state=32 saves ~100K params, freeing budget for other uses"
+  }
+}

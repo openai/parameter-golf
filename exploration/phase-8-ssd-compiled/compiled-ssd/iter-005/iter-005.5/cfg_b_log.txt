@@ -1,0 +1,63 @@
+logs/cfg_b_2048.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:30182612
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:True embed_lr:0.02 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:300.000 grad_clip_norm:1.0
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+train_stateful:enabled micro_batch_seqs=8
+step:0/20000 val_loss:7.9620 val_bpb:4.7156 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.9657 train_time:2660ms step_avg:2659.99ms tok/s:49275
+step:2/20000 train_loss:6.8749 train_time:2970ms step_avg:1485.00ms tok/s:88264
+step:3/20000 train_loss:6.8331 train_time:3286ms step_avg:1095.17ms tok/s:119682
+step:4/20000 train_loss:6.7599 train_time:3602ms step_avg:900.44ms tok/s:145564
+step:5/20000 train_loss:6.6617 train_time:3914ms step_avg:782.90ms tok/s:167419
+step:6/20000 train_loss:6.5199 train_time:4232ms step_avg:705.40ms tok/s:185811
+step:7/20000 train_loss:6.3797 train_time:4548ms step_avg:649.68ms tok/s:201749
+step:8/20000 train_loss:6.2182 train_time:4864ms step_avg:608.06ms tok/s:215559
+step:9/20000 train_loss:6.0797 train_time:5180ms step_avg:575.57ms tok/s:227727
+step:10/20000 train_loss:5.9230 train_time:5496ms step_avg:549.59ms tok/s:238491
+step:50/20000 train_loss:5.3802 train_time:17667ms step_avg:353.33ms tok/s:370960
+step:100/20000 train_loss:4.6685 train_time:32910ms step_avg:329.10ms tok/s:398277
+step:150/20000 train_loss:4.4012 train_time:48177ms step_avg:321.18ms tok/s:408096
+step:200/20000 train_loss:4.3270 train_time:63454ms step_avg:317.27ms tok/s:413126
+step:200/20000 val_loss:4.3391 val_bpb:2.5698 train_time:63461ms step_avg:317.31ms
+step:250/20000 train_loss:4.2069 train_time:78753ms step_avg:315.01ms tok/s:416088
+step:300/20000 train_loss:4.1248 train_time:94040ms step_avg:313.47ms tok/s:418139
+step:350/20000 train_loss:4.0095 train_time:109342ms step_avg:312.41ms tok/s:419556
+step:400/20000 train_loss:3.9542 train_time:124649ms step_avg:311.62ms tok/s:420612
+step:400/20000 val_loss:3.9360 val_bpb:2.3311 train_time:124657ms step_avg:311.64ms
+step:450/20000 train_loss:3.7714 train_time:139955ms step_avg:311.01ms tok/s:421437
+step:500/20000 train_loss:3.7231 train_time:155274ms step_avg:310.55ms tok/s:422068
+step:550/20000 train_loss:3.6492 train_time:170595ms step_avg:310.17ms tok/s:422576
+step:600/20000 train_loss:3.6355 train_time:185917ms step_avg:309.86ms tok/s:423001
+step:600/20000 val_loss:3.5767 val_bpb:2.1183 train_time:185927ms step_avg:309.88ms
+step:650/20000 train_loss:3.4536 train_time:201228ms step_avg:309.58ms tok/s:423385
+step:700/20000 train_loss:3.3781 train_time:216543ms step_avg:309.35ms tok/s:423705
+step:750/20000 train_loss:3.4246 train_time:231849ms step_avg:309.13ms tok/s:424001
+step:800/20000 train_loss:3.3968 train_time:247224ms step_avg:309.03ms tok/s:424140
+step:800/20000 val_loss:3.4013 val_bpb:2.0144 train_time:247232ms step_avg:309.04ms
+step:850/20000 train_loss:3.3909 train_time:262540ms step_avg:308.87ms tok/s:424360
+step:900/20000 train_loss:3.4602 train_time:277860ms step_avg:308.73ms tok/s:424548
+step:950/20000 train_loss:3.3366 train_time:293185ms step_avg:308.62ms tok/s:424709
+step:973/20000 val_loss:3.3192 val_bpb:1.9658 train_time:300242ms step_avg:308.57ms
+stopping_early: wallclock_cap train_time:300242ms step:973/20000
+peak memory allocated: 7696 MiB reserved: 14038 MiB
+total_tokens_seen:127533056
+Serialized model (raw): 120737292 bytes
+Code size: 75994 bytes
+Serialized model int4+zlib: 13838808 bytes (int4:15548544 passthrough:55720)
+Total submission size int4+zlib: 13914802 bytes
+final_int4_zlib_roundtrip val_loss:3.3184 val_bpb:1.9654 eval_time:51099ms
+final_int4_zlib_roundtrip_exact val_loss:3.31844584 val_bpb:1.96537055
+Read from remote host 216.243.220.228: Connection reset by peer
+client_loop: send disconnect: Broken pipe

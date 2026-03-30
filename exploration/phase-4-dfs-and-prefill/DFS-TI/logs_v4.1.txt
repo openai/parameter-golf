@@ -1,0 +1,102 @@
+logs/v4_1_force500.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=8 n_iters=8 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:105384969
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+d2s:tracker_interval:500 force_step:500 heal_lr_scale:0.300
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9315 train_time:676ms step_avg:675.88ms tok/s:193928
+step:2/20000 train_loss:6.8136 train_time:1306ms step_avg:653.14ms tok/s:200679
+step:3/20000 train_loss:6.6431 train_time:1946ms step_avg:648.52ms tok/s:202110
+step:4/20000 train_loss:6.4307 train_time:2589ms step_avg:647.23ms tok/s:202513
+step:5/20000 train_loss:6.1630 train_time:3233ms step_avg:646.51ms tok/s:202739
+step:6/20000 train_loss:5.8956 train_time:3873ms step_avg:645.56ms tok/s:203036
+step:7/20000 train_loss:5.6868 train_time:4515ms step_avg:644.94ms tok/s:203231
+step:8/20000 train_loss:5.5601 train_time:5155ms step_avg:644.43ms tok/s:203392
+step:9/20000 train_loss:5.5026 train_time:5797ms step_avg:644.10ms tok/s:203496
+step:10/20000 train_loss:5.4152 train_time:6439ms step_avg:643.89ms tok/s:203562
+step:50/20000 train_loss:3.9626 train_time:31774ms step_avg:635.48ms tok/s:206257
+step:100/20000 train_loss:3.5649 train_time:63457ms step_avg:634.57ms tok/s:206552
+step:150/20000 train_loss:3.2976 train_time:95137ms step_avg:634.25ms tok/s:206658
+step:200/20000 train_loss:3.2883 train_time:126968ms step_avg:634.84ms tok/s:206464
+step:250/20000 train_loss:3.1169 train_time:158643ms step_avg:634.57ms tok/s:206551
+step:250/20000 val_loss:3.1822 val_bpb:1.8847 train_time:158653ms step_avg:634.61ms
+step:300/20000 train_loss:3.1030 train_time:190310ms step_avg:634.37ms tok/s:206619
+step:350/20000 train_loss:3.0489 train_time:221975ms step_avg:634.21ms tok/s:206669
+step:400/20000 train_loss:3.1048 train_time:253651ms step_avg:634.13ms tok/s:206697
+step:450/20000 train_loss:2.9544 train_time:285453ms step_avg:634.34ms tok/s:206627
+step:500/20000 train_loss:3.0187 train_time:317110ms step_avg:634.22ms tok/s:206667
+step:500/20000 val_loss:2.9983 val_bpb:1.7758 train_time:317117ms step_avg:634.23ms
+D2S FORCE STEP: initiating swap at step:500 elapsed_frac:0.530 resonance:na
+  D2S blocks[0].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[0].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[0].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[0].mlp.w_up -> MonarchQATLinear
+  D2S blocks[0].mlp.w_down -> MonarchQATLinear
+  D2S blocks[1].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[1].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[1].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[1].mlp.w_up -> MonarchQATLinear
+  D2S blocks[1].mlp.w_down -> MonarchQATLinear
+  D2S blocks[2].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[2].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[2].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[2].mlp.w_up -> MonarchQATLinear
+  D2S blocks[2].mlp.w_down -> MonarchQATLinear
+  D2S blocks[3].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[3].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[3].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[3].mlp.w_up -> MonarchQATLinear
+  D2S blocks[3].mlp.w_down -> MonarchQATLinear
+  D2S blocks[4].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[4].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[4].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[4].mlp.w_up -> MonarchQATLinear
+  D2S blocks[4].mlp.w_down -> MonarchQATLinear
+  D2S blocks[5].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[5].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[5].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[5].mlp.w_up -> MonarchQATLinear
+  D2S blocks[5].mlp.w_down -> MonarchQATLinear
+  D2S blocks[6].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[6].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[6].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[6].mlp.w_up -> MonarchQATLinear
+  D2S blocks[6].mlp.w_down -> MonarchQATLinear
+  D2S blocks[7].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[7].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[7].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[7].mlp.w_up -> MonarchQATLinear
+  D2S blocks[7].mlp.w_down -> MonarchQATLinear
+D2S patch complete: 40 heavy layers swapped to Monarch block-diagonal
+Clearing Dynamo cache and re-compiling patched model...
+D2S patch complete. Heavy-only sparse phase active from step 500. params:52562953
+step:550/20000 train_loss:3.6009 train_time:362800ms step_avg:659.64ms tok/s:198703
+step:600/20000 train_loss:3.4619 train_time:399611ms step_avg:666.02ms tok/s:196799
+step:650/20000 train_loss:3.2400 train_time:436416ms step_avg:671.41ms tok/s:195219
+step:700/20000 train_loss:3.1615 train_time:473227ms step_avg:676.04ms tok/s:193882
+step:750/20000 train_loss:3.1711 train_time:510040ms step_avg:680.05ms tok/s:192738
+step:750/20000 val_loss:3.1847 val_bpb:1.8862 train_time:510050ms step_avg:680.07ms
+step:800/20000 train_loss:3.1249 train_time:547786ms step_avg:684.73ms tok/s:191421
+step:850/20000 train_loss:3.1135 train_time:584776ms step_avg:687.97ms tok/s:190519
+step:871/20000 val_loss:3.0802 val_bpb:1.8243 train_time:600260ms step_avg:689.16ms
+stopping_early: wallclock_cap train_time:600260ms step:871/20000
+peak memory allocated: 13751 MiB reserved: 23418 MiB
+total_tokens_seen:114163712
+Serialized model (raw): 207695721 bytes
+Code size: 99385 bytes
+Serialized model int4+zlib: 22316071 bytes (int4:26357760 passthrough:2889746)
+Total submission size int4+zlib: 22415456 bytes
+final_int4_zlib_roundtrip val_loss:3.0802 val_bpb:1.8243 eval_time:93345ms
+final_int4_zlib_roundtrip_exact val_loss:3.08019530 val_bpb:1.82426516

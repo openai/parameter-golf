@@ -1,0 +1,200 @@
+logs/distill_chunk32_dualpass.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=2 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=32 macro_chunk_size=16
+model_params:31107333
+self_distill:weight=0.3
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+prefix_state_prefill_tokens:1024 processed_batch_tokens:196608 train_vertical_carry:False eval_vertical_carry:False
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.1112 train_time:428ms step_avg:427.87ms tok/s:459506 loss_tok/s:306338
+step:2/20000 train_loss:6.9326 train_time:874ms step_avg:437.12ms tok/s:449783 loss_tok/s:299855
+step:3/20000 train_loss:6.7124 train_time:1325ms step_avg:441.80ms tok/s:445021 loss_tok/s:296680
+step:4/20000 train_loss:6.4323 train_time:1743ms step_avg:435.65ms tok/s:451300 loss_tok/s:300867
+step:5/20000 train_loss:6.1418 train_time:2163ms step_avg:432.55ms tok/s:454532 loss_tok/s:303021
+step:6/20000 train_loss:5.8832 train_time:2620ms step_avg:436.75ms tok/s:450164 loss_tok/s:300109
+step:7/20000 train_loss:5.6960 train_time:3076ms step_avg:439.46ms tok/s:447381 loss_tok/s:298254
+step:8/20000 train_loss:5.5905 train_time:3439ms step_avg:429.87ms tok/s:457370 loss_tok/s:304913
+step:9/20000 train_loss:5.5799 train_time:3824ms step_avg:424.90ms tok/s:462719 loss_tok/s:308480
+step:10/20000 train_loss:5.5181 train_time:4253ms step_avg:425.32ms tok/s:462261 loss_tok/s:308174
+step:50/20000 train_loss:3.9835 train_time:21674ms step_avg:433.47ms tok/s:453565 loss_tok/s:302377
+step:100/20000 train_loss:3.4051 train_time:41639ms step_avg:416.39ms tok/s:472171 loss_tok/s:314781
+step:150/20000 train_loss:3.3121 train_time:60883ms step_avg:405.89ms tok/s:484392 loss_tok/s:322928
+step:200/20000 train_loss:3.3595 train_time:80374ms step_avg:401.87ms tok/s:489235 loss_tok/s:326157
+step:250/20000 train_loss:3.2813 train_time:96863ms step_avg:387.45ms tok/s:507437 loss_tok/s:338291
+step:250/20000 val_loss:3.2342 val_bpb:1.9155 train_time:96871ms step_avg:387.48ms
+step:300/20000 train_loss:3.1469 train_time:113996ms step_avg:379.99ms tok/s:517410 loss_tok/s:344940
+step:350/20000 train_loss:3.1446 train_time:132359ms step_avg:378.17ms tok/s:519896 loss_tok/s:346597
+step:400/20000 train_loss:3.1317 train_time:150550ms step_avg:376.38ms tok/s:522372 loss_tok/s:348248
+step:450/20000 train_loss:3.1015 train_time:168500ms step_avg:374.44ms tok/s:525065 loss_tok/s:350044
+step:500/20000 train_loss:3.1141 train_time:185926ms step_avg:371.85ms tok/s:528727 loss_tok/s:352485
+step:500/20000 val_loss:3.0978 val_bpb:1.8347 train_time:185933ms step_avg:371.87ms
+step:550/20000 train_loss:3.0561 train_time:204625ms step_avg:372.05ms tok/s:528451 loss_tok/s:352300
+step:600/20000 train_loss:3.1753 train_time:221714ms step_avg:369.52ms tok/s:532059 loss_tok/s:354706
+step:650/20000 train_loss:3.0304 train_time:238764ms step_avg:367.33ms tok/s:535237 loss_tok/s:356825
+step:700/20000 train_loss:3.0566 train_time:256493ms step_avg:366.42ms tok/s:536567 loss_tok/s:357711
+step:750/20000 train_loss:2.9732 train_time:273444ms step_avg:364.59ms tok/s:539256 loss_tok/s:359504
+step:750/20000 val_loss:3.0477 val_bpb:1.8050 train_time:273451ms step_avg:364.60ms
+step:800/20000 train_loss:3.0194 train_time:290884ms step_avg:363.61ms tok/s:540718 loss_tok/s:360479
+step:850/20000 train_loss:3.1091 train_time:307783ms step_avg:362.10ms tok/s:542970 loss_tok/s:361980
+step:900/20000 train_loss:3.0405 train_time:325101ms step_avg:361.22ms tok/s:544285 loss_tok/s:362856
+step:950/20000 train_loss:2.9909 train_time:342995ms step_avg:361.05ms tok/s:544549 loss_tok/s:363033
+step:1000/20000 train_loss:3.1590 train_time:360237ms step_avg:360.24ms tok/s:545774 loss_tok/s:363849
+step:1000/20000 val_loss:2.9894 val_bpb:1.7705 train_time:360244ms step_avg:360.24ms
+step:1050/20000 train_loss:2.9757 train_time:379534ms step_avg:361.46ms tok/s:543926 loss_tok/s:362617
+step:1100/20000 train_loss:2.9565 train_time:396670ms step_avg:360.61ms tok/s:545211 loss_tok/s:363474
+step:1150/20000 train_loss:2.9884 train_time:413889ms step_avg:359.90ms tok/s:546280 loss_tok/s:364187
+step:1200/20000 train_loss:2.9274 train_time:431701ms step_avg:359.75ms tok/s:546511 loss_tok/s:364341
+step:1250/20000 train_loss:2.9059 train_time:448796ms step_avg:359.04ms tok/s:547598 loss_tok/s:365065
+step:1250/20000 val_loss:2.9228 val_bpb:1.7311 train_time:448803ms step_avg:359.04ms
+step:1300/20000 train_loss:2.8958 train_time:465967ms step_avg:358.44ms tok/s:548516 loss_tok/s:365677
+step:1350/20000 train_loss:2.8668 train_time:483929ms step_avg:358.47ms tok/s:548470 loss_tok/s:365647
+step:1400/20000 train_loss:2.9517 train_time:501077ms step_avg:357.91ms tok/s:549320 loss_tok/s:366213
+step:1450/20000 train_loss:2.8334 train_time:517941ms step_avg:357.20ms tok/s:550413 loss_tok/s:366942
+step:1500/20000 train_loss:2.8040 train_time:534590ms step_avg:356.39ms tok/s:551660 loss_tok/s:367773
+step:1500/20000 val_loss:2.8046 val_bpb:1.6610 train_time:534596ms step_avg:356.40ms
+step:1550/20000 train_loss:2.7992 train_time:553132ms step_avg:356.86ms tok/s:550940 loss_tok/s:367293
+step:1600/20000 train_loss:2.8064 train_time:570245ms step_avg:356.40ms tok/s:551645 loss_tok/s:367763
+step:1650/20000 train_loss:2.6972 train_time:588485ms step_avg:356.66ms tok/s:551251 loss_tok/s:367501
+step:1680/20000 val_loss:2.7431 val_bpb:1.6246 train_time:600186ms step_avg:357.25ms
+stopping_early: wallclock_cap train_time:600186ms step:1680/20000
+peak memory allocated: 12009 MiB reserved: 16910 MiB
+total_tokens_seen:330301440
+supervised_tokens_seen:220200960
+Serialized model (raw): 121822755 bytes
+Code size: 91388 bytes
+Serialized model int4+zlib: 12633955 bytes (int4:15341568 passthrough:2707978)
+Total submission size int4+zlib: 12725343 bytes
+final_int4_zlib_roundtrip val_loss:2.7429 val_bpb:1.6245 eval_time:27663ms
+final_int4_zlib_roundtrip_exact val_loss:2.74294020 val_bpb:1.62452369
+[rank0]:W0326 22:02:58.554000 15200 torch/_dynamo/convert_frame.py:1358] [2/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0326 22:02:58.554000 15200 torch/_dynamo/convert_frame.py:1358] [2/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1218)
+[rank0]:W0326 22:02:58.554000 15200 torch/_dynamo/convert_frame.py:1358] [2/8]    last reason: 2/7: tensor 'x' size mismatch at index 1. expected 2048, actual 64
+[rank0]:W0326 22:02:58.554000 15200 torch/_dynamo/convert_frame.py:1358] [2/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0326 22:02:58.554000 15200 torch/_dynamo/convert_frame.py:1358] [2/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 2059, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 2028, in main
+[rank0]:     sw_val_loss, sw_val_bpb = eval_val_sliding(
+[rank0]:                               ^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 349, in eval_val_sliding
+[rank0]:     logits = model(x)
+[rank0]:              ^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1509, in forward
+[rank0]:     logits, _, distill_loss = self._core_forward(
+[rank0]:                               ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1396, in _core_forward
+[rank0]:     x, h_state_0, chunk_states_micro = self.blocks[0](
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1446, in torch_dynamo_resume_in__core_forward_at_1396
+[rank0]:     x_macro_teacher, _, _ = macro_block(
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1452, in torch_dynamo_resume_in__core_forward_at_1446
+[rank0]:     x_macro_student, h_state_1, _ = macro_block(
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1480, in torch_dynamo_resume_in__core_forward_at_1452
+[rank0]:     x, h_state_i, chunk_states_for_vertical = self.blocks[0](
+[rank0]:                                               ^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1224, in forward
+[rank0]:     h, new_state, chunk_states = self.mixer(h, ssd_state=ssd_state, vertical_states=vertical_states)
+[rank0]:                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1100, in forward
+[rank0]:     Y, new_ssd_state, chunk_states = self._ssd_chunk(
+[rank0]:                                      ^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1040, in _ssd_chunk
+[rank0]:     return self._ssd_chunk_triton(
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1002, in _ssd_chunk_triton
+[rank0]:     chunk_states = torch.empty((batch, nchunks, nheads, d_state, headdim), device=X.device, dtype=dtype)
+[rank0]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 8.00 GiB. GPU 0 has a total capacity of 79.19 GiB of which 754.50 MiB is free. Including non-PyTorch memory, this process has 78.44 GiB memory in use. Of the allocated memory 74.75 GiB is allocated by PyTorch, and 2.41 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]:[W326 22:03:00.161069757 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0326 22:03:02.867000 15132 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 15200) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-26_22:03:02
+  host      : 8743c7d81071
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 15200)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

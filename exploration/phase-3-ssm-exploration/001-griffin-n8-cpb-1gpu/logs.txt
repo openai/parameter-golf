@@ -1,0 +1,78 @@
+logs/run_010_c_P_b.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=8 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:33281193
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+[rank0]:W0324 15:54:00.826000 5016 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0324 15:54:00.826000 5016 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1143)
+[rank0]:W0324 15:54:00.826000 5016 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: len(blocks) == 5                                         # V = torch.stack(blocks + [partial_block], dim=0)  # (N+1, B, L, D)  # orkspace/parameter-golf/train_gpt.py:1152 in forward
+[rank0]:W0324 15:54:00.826000 5016 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0324 15:54:00.826000 5016 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:912ms step_avg:911.51ms tok/s:143796
+step:2/20000 train_loss:6.7549 train_time:1778ms step_avg:888.99ms tok/s:147439
+step:3/20000 train_loss:6.5072 train_time:2658ms step_avg:886.15ms tok/s:147912
+step:4/20000 train_loss:6.2135 train_time:3539ms step_avg:884.84ms tok/s:148130
+step:5/20000 train_loss:5.8826 train_time:4420ms step_avg:884.02ms tok/s:148268
+step:6/20000 train_loss:5.6077 train_time:5300ms step_avg:883.39ms tok/s:148373
+step:7/20000 train_loss:5.4520 train_time:6180ms step_avg:882.89ms tok/s:148458
+step:8/20000 train_loss:5.3654 train_time:7063ms step_avg:882.89ms tok/s:148457
+step:9/20000 train_loss:5.3448 train_time:7945ms step_avg:882.78ms tok/s:148476
+step:10/20000 train_loss:5.2582 train_time:8826ms step_avg:882.60ms tok/s:148506
+step:100/20000 train_loss:3.6239 train_time:88098ms step_avg:880.98ms tok/s:148780
+step:200/20000 train_loss:3.3389 train_time:176439ms step_avg:882.20ms tok/s:148575
+step:300/20000 train_loss:3.1390 train_time:264488ms step_avg:881.63ms tok/s:148671
+step:400/20000 train_loss:3.0983 train_time:352478ms step_avg:881.19ms tok/s:148743
+step:500/20000 train_loss:3.0046 train_time:440709ms step_avg:881.42ms tok/s:148706
+swa:start step:550
+step:600/20000 train_loss:2.9495 train_time:529042ms step_avg:881.74ms tok/s:148652
+step:681/20000 val_loss:2.8410 val_bpb:1.6826 train_time:600502ms step_avg:881.79ms
+stopping_early: wallclock_cap train_time:600502ms step:681/20000
+peak memory allocated: 18138 MiB reserved: 45432 MiB
+total_tokens_seen:89260032
+swa:applying averaged 3 checkpoints
+Serialized model (raw): 130512531 bytes
+Code size: 82019 bytes
+Serialized model int4+zlib: 14054690 bytes (int4:16448256 passthrough:2763090)
+Total submission size int4+zlib: 14136709 bytes
+final_int4_zlib_roundtrip val_loss:2.8588 val_bpb:1.6931 eval_time:135101ms
+final_int4_zlib_roundtrip_exact val_loss:2.85879149 val_bpb:1.69313735

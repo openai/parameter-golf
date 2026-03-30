@@ -1,0 +1,42 @@
+=== CONFIG A: d=1536 N=4 LR=0.03 ===
+logs/triton_d1536_n4.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:31755476
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:1024 iterations:10000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:1.0
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/10000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.01ms
+step:1/10000 train_loss:6.9315 train_time:643ms step_avg:642.72ms tok/s:203934
+step:2/10000 train_loss:6.7391 train_time:1221ms step_avg:610.34ms tok/s:214753
+step:3/10000 train_loss:6.5511 train_time:1838ms step_avg:612.57ms tok/s:213970
+step:4/10000 train_loss:6.3520 train_time:2464ms step_avg:616.09ms tok/s:212749
+step:5/10000 train_loss:6.1092 train_time:3095ms step_avg:618.97ms tok/s:211757
+step:6/10000 train_loss:5.8355 train_time:3727ms step_avg:621.23ms tok/s:210988
+step:7/10000 train_loss:5.5992 train_time:4344ms step_avg:620.63ms tok/s:211193
+step:8/10000 train_loss:5.3127 train_time:4971ms step_avg:621.43ms tok/s:210921
+step:9/10000 train_loss:5.1234 train_time:5588ms step_avg:620.91ms tok/s:211097
+step:10/10000 train_loss:4.9278 train_time:6209ms step_avg:620.91ms tok/s:211097
+step:50/10000 train_loss:4.1768 train_time:30605ms step_avg:612.10ms tok/s:214135
+step:100/10000 train_loss:3.6923 train_time:61096ms step_avg:610.96ms tok/s:214536
+step:150/10000 train_loss:2.6122 train_time:91592ms step_avg:610.61ms tok/s:214656
+step:200/10000 train_loss:2.3519 train_time:122088ms step_avg:610.44ms tok/s:214717
+step:200/10000 val_loss:2.2609 val_bpb:1.3390 train_time:122149ms step_avg:610.75ms
+step:250/10000 train_loss:1.5071 train_time:152559ms step_avg:610.24ms tok/s:214789
+step:300/10000 train_loss:0.6637 train_time:183016ms step_avg:610.05ms tok/s:214853
+step:350/10000 train_loss:0.4960 train_time:213484ms step_avg:609.96ms tok/s:214888
+step:400/10000 train_loss:0.2121 train_time:243940ms step_avg:609.85ms tok/s:214925
+step:400/10000 val_loss:0.6417 val_bpb:0.3800 train_time:243990ms step_avg:609.97ms
+step:450/10000 train_loss:0.4877 train_time:274400ms step_avg:609.78ms tok/s:214951
+step:500/10000 train_loss:0.1418 train_time:304856ms step_avg:609.71ms tok/s:214974
+step:550/10000 train_loss:0.0909 train_time:335313ms step_avg:609.66ms tok/s:214992
+Connection to 64.247.201.30 closed by remote host.

@@ -1,0 +1,92 @@
+logs/batch262k_prefill.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=2 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:29010181
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+prefix_state_prefill_tokens:1024 processed_batch_tokens:196608 train_vertical_carry:False eval_vertical_carry:False
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9315 train_time:443ms step_avg:443.50ms tok/s:443313 loss_tok/s:295542
+step:2/20000 train_loss:6.8124 train_time:859ms step_avg:429.73ms tok/s:457517 loss_tok/s:305011
+step:3/20000 train_loss:6.6501 train_time:1263ms step_avg:420.97ms tok/s:467033 loss_tok/s:311355
+step:4/20000 train_loss:6.4232 train_time:1667ms step_avg:416.86ms tok/s:471638 loss_tok/s:314425
+step:5/20000 train_loss:6.1673 train_time:2074ms step_avg:414.83ms tok/s:473943 loss_tok/s:315962
+step:6/20000 train_loss:5.9067 train_time:2506ms step_avg:417.63ms tok/s:470770 loss_tok/s:313847
+step:7/20000 train_loss:5.6785 train_time:2910ms step_avg:415.76ms tok/s:472890 loss_tok/s:315260
+step:8/20000 train_loss:5.5468 train_time:3312ms step_avg:414.04ms tok/s:474850 loss_tok/s:316567
+step:9/20000 train_loss:5.5200 train_time:3716ms step_avg:412.91ms tok/s:476147 loss_tok/s:317432
+step:10/20000 train_loss:5.4653 train_time:4120ms step_avg:412.02ms tok/s:477185 loss_tok/s:318123
+step:100/20000 train_loss:3.3670 train_time:39871ms step_avg:398.71ms tok/s:493107 loss_tok/s:328738
+step:200/20000 train_loss:3.3209 train_time:79513ms step_avg:397.57ms tok/s:494530 loss_tok/s:329687
+step:300/20000 train_loss:3.1055 train_time:119148ms step_avg:397.16ms tok/s:495034 loss_tok/s:330023
+step:400/20000 train_loss:3.1273 train_time:158790ms step_avg:396.98ms tok/s:495264 loss_tok/s:330176
+step:500/20000 train_loss:3.1193 train_time:198696ms step_avg:397.39ms tok/s:494747 loss_tok/s:329831
+step:500/20000 val_loss:3.0917 val_bpb:1.8311 train_time:198717ms step_avg:397.43ms
+step:600/20000 train_loss:3.1963 train_time:239172ms step_avg:398.62ms tok/s:493222 loss_tok/s:328815
+step:700/20000 train_loss:3.0394 train_time:278850ms step_avg:398.36ms tok/s:493548 loss_tok/s:329032
+step:800/20000 train_loss:2.9971 train_time:318530ms step_avg:398.16ms tok/s:493788 loss_tok/s:329192
+step:900/20000 train_loss:2.9907 train_time:358186ms step_avg:397.98ms tok/s:494009 loss_tok/s:329339
+step:1000/20000 train_loss:3.1610 train_time:397847ms step_avg:397.85ms tok/s:494180 loss_tok/s:329454
+step:1000/20000 val_loss:2.9825 val_bpb:1.7664 train_time:397866ms step_avg:397.87ms
+step:1100/20000 train_loss:2.9487 train_time:438309ms step_avg:398.46ms tok/s:493416 loss_tok/s:328944
+swa:start step:1150
+step:1200/20000 train_loss:2.9340 train_time:478348ms step_avg:398.62ms tok/s:493218 loss_tok/s:328812
+step:1300/20000 train_loss:2.8817 train_time:518267ms step_avg:398.67ms tok/s:493163 loss_tok/s:328776
+step:1400/20000 train_loss:2.9331 train_time:557967ms step_avg:398.55ms tok/s:493311 loss_tok/s:328874
+step:1500/20000 train_loss:2.8099 train_time:597748ms step_avg:398.50ms tok/s:493371 loss_tok/s:328914
+step:1500/20000 val_loss:2.7895 val_bpb:1.6521 train_time:597767ms step_avg:398.51ms
+step:1506/20000 val_loss:2.7764 val_bpb:1.6443 train_time:600158ms step_avg:398.51ms
+stopping_early: wallclock_cap train_time:600158ms step:1506/20000
+peak memory allocated: 9193 MiB reserved: 15528 MiB
+total_tokens_seen:296091648
+supervised_tokens_seen:197394432
+swa:applying averaged 8 checkpoints
+Serialized model (raw): 113433954 bytes
+Code size: 85986 bytes
+Serialized model int4+zlib: 12176793 bytes (int4:14260224 passthrough:2707978)
+Total submission size int4+zlib: 12262779 bytes
+final_int4_zlib_roundtrip val_loss:2.7904 val_bpb:1.6526 eval_time:42316ms
+final_int4_zlib_roundtrip_exact val_loss:2.79039737 val_bpb:1.65263050
+E0326 02:01:51.069000 834 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 0 (pid: 902) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+====================================================
+train_gpt.py FAILED
+----------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+----------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-26_02:01:51
+  host      : 88be35c8cc3d
+  rank      : 0 (local_rank: 0)
+  exitcode  : -9 (pid: 902)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 902
+====================================================

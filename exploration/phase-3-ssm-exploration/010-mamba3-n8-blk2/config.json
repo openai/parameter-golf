@@ -1,0 +1,37 @@
+{
+  "run_id": "20260323-010-mamba3-n8-blk2",
+  "date": "2026-03-23",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "004-iter004-fused-multiskip",
+  "hypothesis": "N=8 depth recurrence with block_size=2 — deepest config, tests if 2x more iterations compensate for throughput loss.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf",
+    "model_dim": 1536,
+    "n_iters": 8,
+    "block_size": 2,
+    "d_state": 32,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 524288,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "embed_lr": 0.6,
+    "head_lr": 0.008,
+    "tie_embeddings": false,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 0.3,
+    "warmdown_frac": 0.6,
+    "swa_enabled": true,
+    "bigram_vocab_size": 10240,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "n_iters": {"from": 4, "to": 8},
+    "block_size": {"from": null, "to": 2}
+  }
+}

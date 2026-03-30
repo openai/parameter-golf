@@ -1,0 +1,63 @@
+logs/run_009_hsm_multiskip_262k.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=64 headdim=64 ngroups=1 chunk_size=64
+model_params:30307652
+hsm:rank=16 write_iters=2 gate_init=-2.0 params=2096
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:262144 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:1.0
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step:0/20000 val_loss:7.9595 val_bpb:4.7141 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.9619 train_time:645ms step_avg:645.38ms tok/s:406183
+step:2/20000 train_loss:6.6440 train_time:1252ms step_avg:626.21ms tok/s:418618
+step:3/20000 train_loss:6.2706 train_time:1864ms step_avg:621.28ms tok/s:421945
+step:4/20000 train_loss:5.9510 train_time:2474ms step_avg:618.38ms tok/s:423923
+step:5/20000 train_loss:5.7791 train_time:3088ms step_avg:617.64ms tok/s:424426
+step:6/20000 train_loss:5.6706 train_time:3704ms step_avg:617.25ms tok/s:424694
+step:7/20000 train_loss:5.6590 train_time:4324ms step_avg:617.76ms tok/s:424347
+step:8/20000 train_loss:5.5723 train_time:4935ms step_avg:616.92ms tok/s:424927
+step:9/20000 train_loss:5.5495 train_time:5547ms step_avg:616.29ms tok/s:425361
+step:10/20000 train_loss:5.5378 train_time:6158ms step_avg:615.80ms tok/s:425699
+step:200/20000 train_loss:4.1162 train_time:123084ms step_avg:615.42ms tok/s:425959
+step:400/20000 train_loss:3.4397 train_time:246321ms step_avg:615.80ms tok/s:425695
+step:600/20000 train_loss:3.2714 train_time:369765ms step_avg:616.28ms tok/s:425368
+step:800/20000 train_loss:3.0364 train_time:493167ms step_avg:616.46ms tok/s:425242
+step:974/20000 val_loss:3.0929 val_bpb:1.8318 train_time:600609ms step_avg:616.64ms
+stopping_early: wallclock_cap train_time:600609ms step:974/20000
+peak memory allocated: 14937 MiB reserved: 20574 MiB
+total_tokens_seen:255328256
+Serialized model (raw): 121234383 bytes
+Code size: 80738 bytes
+Serialized model int4+zlib: 13731301 bytes (int4:15611904 passthrough:60040)
+Total submission size int4+zlib: 13812039 bytes
+final_int4_zlib_roundtrip val_loss:3.0927 val_bpb:1.8317 eval_time:57527ms
+final_int4_zlib_roundtrip_exact val_loss:3.09269608 val_bpb:1.83166882

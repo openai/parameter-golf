@@ -1,0 +1,33 @@
+{
+  "run_id": "8xH100-008-multiskip-n6-524k-lr04",
+  "date": "2026-03-23",
+  "type": "full",
+  "gpu": "8xH100",
+  "parent_run_id": "20260323-008-multiskip-n6-524k-lr04 (1xH100: val_bpb=1.9428, only 343 steps)",
+  "hypothesis": "Highest-ceiling candidate. N=6 depth recurrence + 524K batch + LR=0.04 + frac warmdown + multi-skip. On 1xH100 only got 343 steps (1750ms/step) but reached 1.9428 with loss still steeply declining. On 8xH100: ~220ms/step, ~2700 steps, ~1.4B tokens. The deeper recurrence needs more steps to converge — this is where it gets them.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf",
+    "model_dim": 1536,
+    "n_iters": 6,
+    "d_state": 64,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 524288,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.04,
+    "scalar_lr": 0.04,
+    "embed_lr": 0.03,
+    "head_lr": 0.03,
+    "tie_embeddings": true,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 1.0,
+    "warmdown_frac": 0.6,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "gpu": {"from": "1xH100", "to": "8xH100"}
+  }
+}

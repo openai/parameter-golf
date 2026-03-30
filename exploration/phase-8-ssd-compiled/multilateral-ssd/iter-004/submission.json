@@ -1,0 +1,11 @@
+{
+  "author": "FF-GardenFn",
+  "github_id": "FF-GardenFn",
+  "name": "SSDGolf — Mamba-3 SSD + Depth Recurrence + 4-bit QAT",
+  "blurb": "First SSM-based submission. Mamba-3 enhanced SSD (BCNorm, RoPE on B/C, trapezoidal discretization, log-uniform timescale init) with depth recurrence (N=4 shared block iterations), x0 gradient highway, untied embeddings, 4-bit QAT. d=1536, 31.8M params, 14.0MB artifact.",
+  "date": "2026-03-20",
+  "val_loss": 2.22806060,
+  "val_bpb": 1.31958299,
+  "bytes_total": 14023411,
+  "bytes_code": 59374
+}

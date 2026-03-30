@@ -1,0 +1,160 @@
+W0328 18:33:04.656000 60946 torch/distributed/run.py:803] 
+W0328 18:33:04.656000 60946 torch/distributed/run.py:803] *****************************************
+W0328 18:33:04.656000 60946 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 18:33:04.656000 60946 torch/distributed/run.py:803] *****************************************
+logs/behemoth_8gpu_v9.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.01 scalar_lr:0.01
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=False head_diversity=0.01 gated_skips=True aux_obf=0.0
+aux_obf_schedule: every=150 start=1000 sample_len=128 sample_seqs=1
+nonfinite_guard:True max_consecutive_skips:8
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.2327 train_time:174ms step_avg:173.75ms tok/s:3017550
+step:2/20000 train_loss:9.6950 train_time:277ms step_avg:138.63ms tok/s:3781790
+step:3/20000 train_loss:6.8483 train_time:380ms step_avg:126.67ms tok/s:4139053
+step:4/20000 train_loss:8.4138 train_time:482ms step_avg:120.49ms tok/s:4351337
+step:5/20000 train_loss:8.7619 train_time:584ms step_avg:116.79ms tok/s:4489089
+step:6/20000 train_loss:9.5526 train_time:685ms step_avg:114.25ms tok/s:4589029
+step:7/20000 train_loss:7.9665 train_time:788ms step_avg:112.64ms tok/s:4654645
+step:8/20000 train_loss:7.1247 train_time:890ms step_avg:111.26ms tok/s:4712092
+step:9/20000 train_loss:6.7948 train_time:992ms step_avg:110.17ms tok/s:4759024
+step:10/20000 train_loss:6.8749 train_time:1093ms step_avg:109.33ms tok/s:4795445
+step:50/20000 train_loss:4.3828 train_time:5110ms step_avg:102.19ms tok/s:5130477
+step:100/20000 train_loss:3.8300 train_time:10129ms step_avg:101.29ms tok/s:5176026
+step:150/20000 train_loss:3.6272 train_time:15182ms step_avg:101.21ms tok/s:5180154
+step:200/20000 train_loss:3.4363 train_time:20330ms step_avg:101.65ms tok/s:5157830
+step:250/20000 train_loss:3.3785 train_time:25344ms step_avg:101.38ms tok/s:5171633
+step:250/20000 val_loss:2.7420 val_bpb:1.6239 train_time:25348ms step_avg:101.39ms
+step:300/20000 train_loss:3.1247 train_time:30365ms step_avg:101.22ms tok/s:5179911
+step:350/20000 train_loss:3.2708 train_time:35378ms step_avg:101.08ms tok/s:5186834
+step:400/20000 train_loss:3.0045 train_time:40485ms step_avg:101.21ms tok/s:5180087
+step:450/20000 train_loss:3.1413 train_time:45508ms step_avg:101.13ms tok/s:5184364
+step:500/20000 train_loss:3.1268 train_time:50521ms step_avg:101.04ms tok/s:5188791
+step:500/20000 val_loss:2.4864 val_bpb:1.4726 train_time:50525ms step_avg:101.05ms
+step:550/20000 train_loss:3.0450 train_time:55537ms step_avg:100.98ms tok/s:5192140
+step:600/20000 train_loss:3.1653 train_time:60642ms step_avg:101.07ms tok/s:5187408
+step:650/20000 train_loss:3.0612 train_time:65653ms step_avg:101.00ms tok/s:5190722
+step:700/20000 train_loss:3.0906 train_time:70673ms step_avg:100.96ms tok/s:5192981
+step:750/20000 train_loss:2.9593 train_time:75698ms step_avg:100.93ms tok/s:5194503
+step:750/20000 val_loss:2.4017 val_bpb:1.4224 train_time:75703ms step_avg:100.94ms
+step:800/20000 train_loss:2.9756 train_time:80821ms step_avg:101.03ms tok/s:5189605
+step:850/20000 train_loss:3.3689 train_time:85837ms step_avg:100.98ms tok/s:5191742
+step:900/20000 train_loss:3.0127 train_time:90855ms step_avg:100.95ms tok/s:5193547
+step:950/20000 train_loss:3.0710 train_time:95878ms step_avg:100.92ms tok/s:5194879
+step:1000/20000 train_loss:3.0401 train_time:101005ms step_avg:101.00ms tok/s:5190715
+step:1000/20000 val_loss:2.3511 val_bpb:1.3925 train_time:101008ms step_avg:101.01ms
+step:1050/20000 train_loss:3.1498 train_time:106024ms step_avg:100.98ms tok/s:5192230
+step:1100/20000 train_loss:2.9593 train_time:111038ms step_avg:100.94ms tok/s:5193873
+step:1150/20000 train_loss:2.9557 train_time:116152ms step_avg:101.00ms tok/s:5190870
+step:1200/20000 train_loss:3.0825 train_time:121167ms step_avg:100.97ms tok/s:5192397
+step:1250/20000 train_loss:2.9255 train_time:126192ms step_avg:100.95ms tok/s:5193347
+step:1250/20000 val_loss:2.3331 val_bpb:1.3818 train_time:126196ms step_avg:100.96ms
+nonfinite_guard:skip planned_step:1294 stage:grad offending_rank:7 grad_norms:[inf,inf,inf,inf,inf,inf,inf,inf] detail:remote_or_norm_only
+nonfinite_guard:skip planned_step:1295 stage:grad offending_rank:7 grad_norms:[inf,inf,inf,inf,inf,inf,inf,inf] detail:remote_or_norm_only
+nonfinite_guard:skip planned_step:1296 stage:grad offending_rank:7 grad_norms:[inf,inf,inf,inf,inf,inf,inf,inf] detail:remote_or_norm_only
+nonfinite_guard:skip planned_step:1299 stage:grad offending_rank:7 grad_norms:[inf,inf,inf,inf,inf,inf,inf,inf] detail:remote_or_norm_only
+[rank0] nonfinite_grad planned_step:1300 param:macro_gate
+[rank1] nonfinite_grad planned_step:1300 param:macro_gate[rank6] nonfinite_grad planned_step:1300 param:macro_gate
+
+nonfinite_guard:skip planned_step:1300 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+[rank3] nonfinite_grad planned_step:1300 param:macro_gate[rank5] nonfinite_grad planned_step:1300 param:macro_gate
+
+[rank7] nonfinite_grad planned_step:1300 param:macro_gate
+[rank2] nonfinite_grad planned_step:1300 param:macro_gate
+[rank4] nonfinite_grad planned_step:1300 param:macro_gate
+[rank1] nonfinite_grad planned_step:1301 param:macro_gate[rank0] nonfinite_grad planned_step:1301 param:macro_gate[rank6] nonfinite_grad planned_step:1301 param:macro_gate[rank4] nonfinite_grad planned_step:1301 param:macro_gate
+
+
+
+[rank3] nonfinite_grad planned_step:1301 param:macro_gate[rank5] nonfinite_grad planned_step:1301 param:macro_gate
+nonfinite_guard:skip planned_step:1301 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+
+[rank2] nonfinite_grad planned_step:1301 param:macro_gate[rank7] nonfinite_grad planned_step:1301 param:macro_gate
+
+[rank0] nonfinite_grad planned_step:1302 param:macro_gate[rank1] nonfinite_grad planned_step:1302 param:macro_gate[rank4] nonfinite_grad planned_step:1302 param:macro_gate
+[rank6] nonfinite_grad planned_step:1302 param:macro_gate[rank3] nonfinite_grad planned_step:1302 param:macro_gate
+
+
+
+[rank5] nonfinite_grad planned_step:1302 param:macro_gatenonfinite_guard:skip planned_step:1302 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+
+[rank7] nonfinite_grad planned_step:1302 param:macro_gate[rank2] nonfinite_grad planned_step:1302 param:macro_gate
+
+[rank1] nonfinite_grad planned_step:1303 param:macro_gate[rank0] nonfinite_grad planned_step:1303 param:macro_gate
+[rank4] nonfinite_grad planned_step:1303 param:macro_gate
+[rank6] nonfinite_grad planned_step:1303 param:macro_gate
+[rank2] nonfinite_grad planned_step:1303 param:macro_gate
+[rank3] nonfinite_grad planned_step:1303 param:macro_gate
+
+nonfinite_guard:skip planned_step:1303 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate[rank5] nonfinite_grad planned_step:1303 param:macro_gate
+
+[rank7] nonfinite_grad planned_step:1303 param:macro_gate
+[rank1] nonfinite_grad planned_step:1304 param:macro_gate[rank0] nonfinite_grad planned_step:1304 param:macro_gate[rank4] nonfinite_grad planned_step:1304 param:macro_gate
+
+[rank6] nonfinite_grad planned_step:1304 param:macro_gate
+[rank3] nonfinite_grad planned_step:1304 param:macro_gate
+
+[rank5] nonfinite_grad planned_step:1304 param:macro_gatenonfinite_guard:skip planned_step:1304 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+
+[rank7] nonfinite_grad planned_step:1304 param:macro_gate
+[rank2] nonfinite_grad planned_step:1304 param:macro_gate
+[rank4] nonfinite_grad planned_step:1305 param:macro_gate[rank6] nonfinite_grad planned_step:1305 param:macro_gate[rank3] nonfinite_grad planned_step:1305 param:macro_gate
+[rank1] nonfinite_grad planned_step:1305 param:macro_gate
+
+
+[rank2] nonfinite_grad planned_step:1305 param:macro_gate[rank0] nonfinite_grad planned_step:1305 param:macro_gate
+
+[rank7] nonfinite_grad planned_step:1305 param:macro_gate
+nonfinite_guard:skip planned_step:1305 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+[rank5] nonfinite_grad planned_step:1305 param:macro_gate
+[rank0] nonfinite_grad planned_step:1306 param:macro_gate[rank4] nonfinite_grad planned_step:1306 param:macro_gate[rank1] nonfinite_grad planned_step:1306 param:macro_gate[rank6] nonfinite_grad planned_step:1306 param:macro_gate
+
+
+
+[rank3] nonfinite_grad planned_step:1306 param:macro_gate[rank5] nonfinite_grad planned_step:1306 param:macro_gate
+[rank7] nonfinite_grad planned_step:1306 param:macro_gate
+nonfinite_guard:skip planned_step:1306 stage:grad offending_rank:7 grad_norms:[nan,nan,nan,nan,nan,nan,nan,nan] detail:macro_gate
+
+[rank2] nonfinite_grad planned_step:1306 param:macro_gate
+nonfinite_guard:abort consecutive_skips:8 planned_step:1306
+step:1306/20000 val_loss:2.6534 val_bpb:1.5715 train_time:131705ms step_avg:100.85ms
+stopping_early: wallclock_cap train_time:131705ms step:1306/20000
+peak memory allocated: 19273 MiB reserved: 20006 MiB
+total_tokens_seen:684720128
+Serialized model (raw): 136296271 bytes
+Code size: 86216 bytes
+Serialized model int4+zlib: 15935825 bytes (int4:17064960 passthrough:1660650)
+Total submission size int4+zlib: 16022041 bytes
+final_eval_mode:standard
+final_int4_zlib_roundtrip val_loss:2.6536 val_bpb:1.5716 eval_time:6783ms
+final_int4_zlib_roundtrip_exact val_loss:2.65357504 val_bpb:1.57159661

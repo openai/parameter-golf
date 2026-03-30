@@ -1,0 +1,270 @@
+logs/dfs_ti_v2.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=4 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:54462981
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+[rank0]:[W325 19:39:20.330238263 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:362ms step_avg:361.60ms tok/s:362481
+step:2/20000 train_loss:6.8136 train_time:666ms step_avg:333.13ms tok/s:393455
+step:3/20000 train_loss:6.6434 train_time:977ms step_avg:325.59ms tok/s:402564
+step:4/20000 train_loss:6.4316 train_time:1287ms step_avg:321.85ms tok/s:407247
+step:5/20000 train_loss:6.1649 train_time:1598ms step_avg:319.53ms tok/s:410200
+step:6/20000 train_loss:5.8984 train_time:1908ms step_avg:317.99ms tok/s:412187
+step:7/20000 train_loss:5.6897 train_time:2218ms step_avg:316.87ms tok/s:413646
+step:8/20000 train_loss:5.5618 train_time:2528ms step_avg:316.05ms tok/s:414720
+step:9/20000 train_loss:5.5037 train_time:2839ms step_avg:315.41ms tok/s:415558
+step:10/20000 train_loss:5.4200 train_time:3149ms step_avg:314.91ms tok/s:416222
+step:100/20000 train_loss:3.5834 train_time:31103ms step_avg:311.03ms tok/s:421412
+step:200/20000 train_loss:3.3143 train_time:62177ms step_avg:310.88ms tok/s:421612
+step:300/20000 train_loss:3.1331 train_time:93261ms step_avg:310.87ms tok/s:421631
+step:400/20000 train_loss:3.1372 train_time:124322ms step_avg:310.81ms tok/s:421717
+step:500/20000 train_loss:3.0879 train_time:155390ms step_avg:310.78ms tok/s:421753
+step:500/20000 val_loss:3.0694 val_bpb:1.8179 train_time:155393ms step_avg:310.79ms
+step:600/20000 train_loss:3.1191 train_time:186521ms step_avg:310.87ms tok/s:421633
+step:700/20000 train_loss:2.9619 train_time:217558ms step_avg:310.80ms tok/s:421728
+step:800/20000 train_loss:3.0614 train_time:249149ms step_avg:311.44ms tok/s:420863
+step:900/20000 train_loss:3.1481 train_time:280197ms step_avg:311.33ms tok/s:421006
+step:1000/20000 train_loss:3.0026 train_time:311253ms step_avg:311.25ms tok/s:421110
+step:1000/20000 val_loss:3.0032 val_bpb:1.7786 train_time:311256ms step_avg:311.26ms
+resonance:0.46718 step:1000 elapsed_frac:0.519 frozen:False
+step:1100/20000 train_loss:2.9531 train_time:342347ms step_avg:311.22ms tok/s:421150
+step:1200/20000 train_loss:2.9002 train_time:373432ms step_avg:311.19ms tok/s:421191
+step:1300/20000 train_loss:2.9175 train_time:404516ms step_avg:311.17ms tok/s:421228
+step:1400/20000 train_loss:2.8141 train_time:435600ms step_avg:311.14ms tok/s:421260
+step:1500/20000 train_loss:2.8632 train_time:466684ms step_avg:311.12ms tok/s:421287
+step:1500/20000 val_loss:2.8167 val_bpb:1.6682 train_time:466686ms step_avg:311.12ms
+resonance:0.67418 step:1500 elapsed_frac:0.778 frozen:False
+D2S FALLBACK: forcing swap at 77.8% wallclock (resonance not frozen)
+  D2S blocks[0].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[0].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[0].mixer.r_proj -> MonarchQATLinear
+  D2S blocks[0].mixer.i_proj -> MonarchQATLinear
+  D2S blocks[0].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[0].mlp.w_up -> MonarchQATLinear
+  D2S blocks[0].mlp.w_down -> MonarchQATLinear
+  D2S blocks[1].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[1].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[1].mixer.r_proj -> MonarchQATLinear
+  D2S blocks[1].mixer.i_proj -> MonarchQATLinear
+  D2S blocks[1].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[1].mlp.w_up -> MonarchQATLinear
+  D2S blocks[1].mlp.w_down -> MonarchQATLinear
+  D2S blocks[2].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[2].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[2].mixer.r_proj -> MonarchQATLinear
+  D2S blocks[2].mixer.i_proj -> MonarchQATLinear
+  D2S blocks[2].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[2].mlp.w_up -> MonarchQATLinear
+  D2S blocks[2].mlp.w_down -> MonarchQATLinear
+  D2S blocks[3].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[3].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[3].mixer.r_proj -> MonarchQATLinear
+  D2S blocks[3].mixer.i_proj -> MonarchQATLinear
+  D2S blocks[3].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[3].mlp.w_up -> MonarchQATLinear
+  D2S blocks[3].mlp.w_down -> MonarchQATLinear
+D2S patch complete: 28 layers swapped to Monarch block-diagonal
+D2S patch complete. Sparse phase active from step 1500. params:29952517
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py:3546: UserWarning: The use of `x.T` on tensors of dimension other than 2 to reverse their shape is deprecated and it will throw an error in a future release. Consider `x.mT` to transpose batches of matrices or `x.permute(*torch.arange(x.ndim - 1, -1, -1))` to reverse the dimensions of a tensor. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4416.)
+  return node.target(*args, **kwargs)  # type: ignore[operator]
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4] failed while attempting to run meta for aten.bmm.default
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4] Traceback (most recent call last):
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_subclasses/fake_tensor.py", line 2755, in _dispatch_impl
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     r = func(*args, **kwargs)
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_ops.py", line 841, in __call__
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     return self._op(*args, **kwargs)
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_meta_registrations.py", line 4392, in meta_bmm
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     return common_meta_baddbmm_bmm(self, mat2, True)
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_meta_registrations.py", line 4362, in common_meta_baddbmm_bmm
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     torch._check(
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/__init__.py", line 1695, in _check
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     _check_with(RuntimeError, cond, message)
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]   File "/usr/local/lib/python3.12/dist-packages/torch/__init__.py", line 1677, in _check_with
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4]     raise error_type(message_evaluated)
+[rank0]:E0325 19:50:27.963000 8217 torch/_subclasses/fake_tensor.py:2759] [12/4] RuntimeError: Expected size for first two dimensions of batch2 tensor to be: [s85, s85] but got: [s85, s36].
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 2241, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 2024, in main
+[rank0]:     opt.step()
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/optimizer.py", line 517, in wrapper
+[rank0]:     out = func(*args, **kwargs)
+[rank0]:           ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+[rank0]:     return func(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 183, in step
+[rank0]:     g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank0]:     result = self._torchdynamo_orig_backend(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1625, in __call__
+[rank0]:     result = self._inner_convert(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank0]:     result = _compile(
+[rank0]:              ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1434, in _compile
+[rank0]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank0]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_utils_internal.py", line 92, in wrapper_function
+[rank0]:     return function(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1117, in compile_inner
+[rank0]:     return _compile_inner(code, one_graph, hooks)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1151, in _compile_inner
+[rank0]:     dynamo_output = compile_frame(
+[rank0]:                     ^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1032, in compile_frame
+[rank0]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank0]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1592, in transform_code_object
+[rank0]:     tracer_output = transformations(instructions, code_options)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1004, in transform
+[rank0]:     tracer_output = trace_frame(
+[rank0]:                     ^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 312, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 815, in trace_frame
+[rank0]:     run_tracer()
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 797, in run_tracer
+[rank0]:     tracer.run()
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/symbolic_convert.py", line 1500, in run
+[rank0]:     while self.step():
+[rank0]:           ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/symbolic_convert.py", line 1348, in step
+[rank0]:     self.dispatch_table[inst.opcode](self, inst)
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/symbolic_convert.py", line 3368, in BINARY_OP
+[rank0]:     return _binary_op_lookup[inst.arg](self, inst)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/symbolic_convert.py", line 462, in impl
+[rank0]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/builtin.py", line 1347, in call_function
+[rank0]:     return handler(tx, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/builtin.py", line 1307, in _handle_insert_op_in_graph
+[rank0]:     return wrap_fx_proxy(tx, proxy)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/builder.py", line 2645, in wrap_fx_proxy
+[rank0]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/builder.py", line 2711, in wrap_fx_proxy_cls
+[rank0]:     return _wrap_fx_proxy(
+[rank0]:            ^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/builder.py", line 2809, in _wrap_fx_proxy
+[rank0]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 3478, in get_fake_value
+[rank0]:     raise TorchRuntimeError(str(e)).with_traceback(e.__traceback__) from None
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 3376, in get_fake_value
+[rank0]:     ret_val = wrap_fake_exception(
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 2864, in wrap_fake_exception
+[rank0]:     return fn()
+[rank0]:            ^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 3377, in <lambda>
+[rank0]:     lambda: run_node(tx.output, node, args, kwargs, nnmodule)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 3587, in run_node
+[rank0]:     raise RuntimeError(make_error_message(e)).with_traceback(
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/utils.py", line 3546, in run_node
+[rank0]:     return node.target(*args, **kwargs)  # type: ignore[operator]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_prims_common/wrappers.py", line 307, in _fn
+[rank0]:     result = fn(*args, is_out=(out is not None), **kwargs)  # type: ignore[arg-type]
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_decomp/decompositions.py", line 4608, in matmul
+[rank0]:     return tensor1_expanded.bmm(tensor2_expanded).view(output_shape)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/utils/_stats.py", line 28, in wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_subclasses/fake_tensor.py", line 1376, in __torch_dispatch__
+[rank0]:     return self.dispatch(func, types, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_subclasses/fake_tensor.py", line 2096, in dispatch
+[rank0]:     return self._cached_dispatch_impl(func, types, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_subclasses/fake_tensor.py", line 1511, in _cached_dispatch_impl
+[rank0]:     output = self._dispatch_impl(func, types, args, kwargs)
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_subclasses/fake_tensor.py", line 2755, in _dispatch_impl
+[rank0]:     r = func(*args, **kwargs)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_ops.py", line 841, in __call__
+[rank0]:     return self._op(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_meta_registrations.py", line 4392, in meta_bmm
+[rank0]:     return common_meta_baddbmm_bmm(self, mat2, True)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_meta_registrations.py", line 4362, in common_meta_baddbmm_bmm
+[rank0]:     torch._check(
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/__init__.py", line 1695, in _check
+[rank0]:     _check_with(RuntimeError, cond, message)
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/__init__.py", line 1677, in _check_with
+[rank0]:     raise error_type(message_evaluated)
+[rank0]: torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_function <built-in function matmul>(*(FakeTensor(..., device='cuda:0', size=(1, s36, s85), dtype=torch.bfloat16), FakeTensor(..., device='cuda:0', size=(s85, s36, 1), dtype=torch.bfloat16)), **{}): got RuntimeError('Expected size for first two dimensions of batch2 tensor to be: [s85, s85] but got: [s85, s36].')
+
+[rank0]: from user code:
+[rank0]:    File "/workspace/parameter-golf/train_gpt.py", line 134, in zeropower_via_newtonschulz5
+[rank0]:     A = X @ X.T
+
+[rank0]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank0]:[W325 19:50:29.741692958 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0325 19:50:30.913000 8135 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 8217) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-25_19:50:30
+  host      : 31dc0b332ca7
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 8217)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

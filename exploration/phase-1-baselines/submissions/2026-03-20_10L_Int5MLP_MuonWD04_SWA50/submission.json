@@ -1,0 +1,9 @@
+{
+  "name": "10L Int5-MLP + BigramHash(10240) + SWA(frac=0.4) + WD=0.04",
+  "val_loss": 1.14276,
+  "bytes_total": 15900000,
+  "blurb": "10 layers with mixed int5/int6 quantization. BigramHash 10240 buckets (up from 4096). SWA start_frac=0.4 (24 converged checkpoints). WD=0.04 global, warmdown=3000. Mean of 3 seeds: 1.14276 (std 0.00016). SmearGate + OrthoInit + zstd-22.",
+  "author": "thwu1",
+  "github_id": "thwu1",
+  "date": "2026-03-20"
+}

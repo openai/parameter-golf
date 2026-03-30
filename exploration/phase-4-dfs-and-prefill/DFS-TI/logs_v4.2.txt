@@ -1,0 +1,86 @@
+logs/v4_2_force500.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=6 n_iters=6 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:79923975
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:262144 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+d2s:tracker_interval:500 force_step:500 heal_lr_scale:0.300
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:915ms step_avg:914.55ms tok/s:286638
+step:2/20000 train_loss:6.8088 train_time:1782ms step_avg:890.94ms tok/s:294234
+step:3/20000 train_loss:6.6372 train_time:2661ms step_avg:886.90ms tok/s:295573
+step:4/20000 train_loss:6.4133 train_time:3540ms step_avg:884.99ms tok/s:296212
+step:5/20000 train_loss:6.1433 train_time:4419ms step_avg:883.89ms tok/s:296580
+step:6/20000 train_loss:5.8708 train_time:5299ms step_avg:883.10ms tok/s:296845
+step:7/20000 train_loss:5.6850 train_time:6178ms step_avg:882.58ms tok/s:297021
+step:8/20000 train_loss:5.5314 train_time:7057ms step_avg:882.10ms tok/s:297180
+step:9/20000 train_loss:5.4563 train_time:7936ms step_avg:881.77ms tok/s:297293
+step:10/20000 train_loss:5.4119 train_time:8814ms step_avg:881.45ms tok/s:297402
+step:50/20000 train_loss:3.9326 train_time:43717ms step_avg:874.33ms tok/s:299821
+step:100/20000 train_loss:3.3082 train_time:87379ms step_avg:873.79ms tok/s:300008
+step:150/20000 train_loss:3.2105 train_time:131043ms step_avg:873.62ms tok/s:300066
+step:200/20000 train_loss:3.1258 train_time:174703ms step_avg:873.52ms tok/s:300102
+step:250/20000 train_loss:3.0575 train_time:218357ms step_avg:873.43ms tok/s:300132
+step:250/20000 val_loss:3.0542 val_bpb:1.8089 train_time:218367ms step_avg:873.47ms
+step:300/20000 train_loss:3.0232 train_time:262023ms step_avg:873.41ms tok/s:300138
+step:350/20000 train_loss:2.8787 train_time:305681ms step_avg:873.37ms tok/s:300151
+step:400/20000 train_loss:2.8924 train_time:349811ms step_avg:874.53ms tok/s:299755
+step:450/20000 train_loss:2.9282 train_time:393457ms step_avg:874.35ms tok/s:299816
+step:500/20000 train_loss:2.8365 train_time:437108ms step_avg:874.22ms tok/s:299862
+step:500/20000 val_loss:2.8224 val_bpb:1.6716 train_time:437117ms step_avg:874.23ms
+D2S FORCE STEP: initiating swap at step:500 elapsed_frac:0.730 resonance:na
+  D2S blocks[0].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[0].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[0].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[0].mlp.w_up -> MonarchQATLinear
+  D2S blocks[0].mlp.w_down -> MonarchQATLinear
+  D2S blocks[1].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[1].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[1].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[1].mlp.w_up -> MonarchQATLinear
+  D2S blocks[1].mlp.w_down -> MonarchQATLinear
+  D2S blocks[2].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[2].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[2].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[2].mlp.w_up -> MonarchQATLinear
+  D2S blocks[2].mlp.w_down -> MonarchQATLinear
+  D2S blocks[3].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[3].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[3].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[3].mlp.w_up -> MonarchQATLinear
+  D2S blocks[3].mlp.w_down -> MonarchQATLinear
+  D2S blocks[4].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[4].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[4].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[4].mlp.w_up -> MonarchQATLinear
+  D2S blocks[4].mlp.w_down -> MonarchQATLinear
+  D2S blocks[5].mixer.in_proj -> MonarchQATLinear
+  D2S blocks[5].mixer.out_proj -> MonarchQATLinear
+  D2S blocks[5].mlp.w_gate -> MonarchQATLinear
+  D2S blocks[5].mlp.w_up -> MonarchQATLinear
+  D2S blocks[5].mlp.w_down -> MonarchQATLinear
+D2S patch complete: 30 heavy layers swapped to Monarch block-diagonal
+Clearing Dynamo cache and re-compiling patched model...
+D2S patch complete. Heavy-only sparse phase active from step 500. params:40307463
+step:550/20000 train_loss:3.6001 train_time:504198ms step_avg:916.72ms tok/s:285958
+step:600/20000 train_loss:3.3745 train_time:554851ms step_avg:924.75ms tok/s:283475
+step:645/20000 val_loss:3.3121 val_bpb:1.9616 train_time:600446ms step_avg:930.92ms
+stopping_early: wallclock_cap train_time:600446ms step:645/20000
+peak memory allocated: 19771 MiB reserved: 27788 MiB
+total_tokens_seen:169082880
+Serialized model (raw): 158658329 bytes
+Code size: 99385 bytes
+Serialized model int4+zlib: 17017631 bytes (int4:20055552 passthrough:2823694)
+Total submission size int4+zlib: 17117016 bytes
+final_int4_zlib_roundtrip val_loss:3.3121 val_bpb:1.9616 eval_time:69256ms
+final_int4_zlib_roundtrip_exact val_loss:3.31211814 val_bpb:1.96162292

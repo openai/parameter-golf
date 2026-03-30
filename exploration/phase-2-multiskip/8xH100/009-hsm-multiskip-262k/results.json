@@ -1,0 +1,16 @@
+{
+  "run_id": "8xH100-009-hsm-multiskip-262k",
+  "status": "completed",
+  "val_bpb": 2.3182,
+  "val_loss": 3.9141,
+  "val_bpb_stateful": null,
+  "train_loss_final": 3.7921,
+  "total_tokens_seen": 1855455232,
+  "tokens_per_sec": 3091354,
+  "wall_time_sec": 600.0,
+  "artifact_bytes": 12821910,
+  "code_bytes": 80956,
+  "n_params": 30307652,
+  "peak_memory_mib": 14749,
+  "notes": "Diverged on 8xH100. iter-based warmdown_iters=2400 with grad_accum=1 causes instability. val_bpb went 2.12->2.30->2.27->2.22->2.18 (oscillating, never converged). int4 roundtrip penalty massive (2.18->2.32). Frac warmdown is MANDATORY for 8xH100."
+}

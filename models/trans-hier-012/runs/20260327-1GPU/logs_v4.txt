@@ -1,0 +1,178 @@
+logs/trans_hier_012_v4.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=True head_diversity=0.01 gated_skips=True
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9276 val_bpb:4.1029 train_time:0ms step_avg:0.02ms
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+step:1/20000 train_loss:7.2321 train_time:42111ms step_avg:42110.62ms tok/s:9338
+step:2/20000 train_loss:9.6885 train_time:42761ms step_avg:21380.56ms tok/s:18391
+step:3/20000 train_loss:9.6780 train_time:43462ms step_avg:14487.24ms tok/s:27142
+step:4/20000 train_loss:9.6322 train_time:44184ms step_avg:11045.91ms tok/s:35598
+step:5/20000 train_loss:9.5907 train_time:44863ms step_avg:8972.59ms tok/s:43824
+step:6/20000 train_loss:9.4262 train_time:45570ms step_avg:7594.92ms tok/s:51774
+step:7/20000 train_loss:9.3619 train_time:46281ms step_avg:6611.60ms tok/s:59474
+step:8/20000 train_loss:9.0749 train_time:46997ms step_avg:5874.62ms tok/s:66935
+step:9/20000 train_loss:8.8886 train_time:47698ms step_avg:5299.76ms tok/s:74195
+step:10/20000 train_loss:8.6735 train_time:48368ms step_avg:4836.84ms tok/s:81296
+swa:start step:50
+step:50/20000 train_loss:5.5917 train_time:77014ms step_avg:1540.28ms tok/s:255288
+step:100/20000 train_loss:4.5598 train_time:112463ms step_avg:1124.63ms tok/s:349641
+step:150/20000 train_loss:4.0013 train_time:147066ms step_avg:980.44ms tok/s:401061
+step:200/20000 train_loss:3.7973 train_time:182214ms step_avg:911.07ms tok/s:431599
+step:250/20000 train_loss:3.6584 train_time:217163ms step_avg:868.65ms tok/s:452674
+step:250/20000 val_loss:3.1013 val_bpb:1.8368 train_time:217294ms step_avg:869.18ms
+step:300/20000 train_loss:3.5374 train_time:252279ms step_avg:840.93ms tok/s:467597
+step:350/20000 train_loss:3.4569 train_time:286379ms step_avg:818.23ms tok/s:480571
+step:400/20000 train_loss:3.3767 train_time:321279ms step_avg:803.20ms tok/s:489563
+step:450/20000 train_loss:3.2870 train_time:356375ms step_avg:791.95ms tok/s:496519
+step:500/20000 train_loss:3.3157 train_time:391375ms step_avg:782.75ms tok/s:502352
+step:500/20000 val_loss:2.6594 val_bpb:1.5751 train_time:391516ms step_avg:783.03ms
+step:550/20000 train_loss:3.2988 train_time:427489ms step_avg:777.25ms tok/s:505905
+step:600/20000 train_loss:3.2182 train_time:461881ms step_avg:769.80ms tok/s:510802
+step:650/20000 train_loss:3.1986 train_time:496784ms step_avg:764.28ms tok/s:514490
+step:700/20000 train_loss:3.2398 train_time:531382ms step_avg:759.12ms tok/s:517991
+step:750/20000 train_loss:3.1652 train_time:566289ms step_avg:755.05ms tok/s:520780
+step:750/20000 val_loss:2.5346 val_bpb:1.5011 train_time:566496ms step_avg:755.33ms
+step:797/20000 val_loss:2.5225 val_bpb:1.4940 train_time:600228ms step_avg:753.11ms
+stopping_early: wallclock_cap train_time:600228ms step:797/20000
+peak memory allocated: 14787 MiB reserved: 15760 MiB
+total_tokens_seen:313393152
+swa:applying averaged 15 checkpoints
+Serialized model (raw): 136296271 bytes
+Code size: 78855 bytes
+Serialized model int4+zlib: 15885210 bytes (int4:17064960 passthrough:1660650)
+Total submission size int4+zlib: 15964065 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+  sliding_eval [  0.0%] 32/969088 windows running_bpb=1.720954
+  sliding_eval [  0.2%] 1632/969088 windows running_bpb=1.769498
+  sliding_eval [  0.3%] 3232/969088 windows running_bpb=1.726586
+  sliding_eval [  0.5%] 4832/969088 windows running_bpb=1.729418
+  sliding_eval [  0.7%] 6432/969088 windows running_bpb=1.746861
+  sliding_eval [  0.8%] 8032/969088 windows running_bpb=1.747819
+  sliding_eval [  1.0%] 9632/969088 windows running_bpb=1.751719
+  sliding_eval [  1.2%] 11232/969088 windows running_bpb=1.744324
+  sliding_eval [  1.3%] 12832/969088 windows running_bpb=1.742320
+  sliding_eval [  1.5%] 14432/969088 windows running_bpb=1.744207
+  sliding_eval [  1.7%] 16032/969088 windows running_bpb=1.751629
+  sliding_eval [  1.8%] 17632/969088 windows running_bpb=1.747933
+  sliding_eval [  2.0%] 19232/969088 windows running_bpb=1.749240
+  sliding_eval [  2.1%] 20832/969088 windows running_bpb=1.749348
+  sliding_eval [  2.3%] 22432/969088 windows running_bpb=1.748888
+  sliding_eval [  2.5%] 24032/969088 windows running_bpb=1.751487
+  sliding_eval [  2.6%] 25632/969088 windows running_bpb=1.752942
+  sliding_eval [  2.8%] 27232/969088 windows running_bpb=1.753739
+  sliding_eval [  3.0%] 28832/969088 windows running_bpb=1.758079
+  sliding_eval [  3.1%] 30432/969088 windows running_bpb=1.755342
+  sliding_eval [  3.3%] 32032/969088 windows running_bpb=1.759137
+  sliding_eval [  3.5%] 33632/969088 windows running_bpb=1.757727
+  sliding_eval [  3.6%] 35232/969088 windows running_bpb=1.757245
+  sliding_eval [  3.8%] 36832/969088 windows running_bpb=1.756997
+  sliding_eval [  4.0%] 38432/969088 windows running_bpb=1.757323
+  sliding_eval [  4.1%] 40032/969088 windows running_bpb=1.759694
+  sliding_eval [  4.3%] 41632/969088 windows running_bpb=1.759355
+  sliding_eval [  4.5%] 43232/969088 windows running_bpb=1.759990
+  sliding_eval [  4.6%] 44832/969088 windows running_bpb=1.760918
+  sliding_eval [  4.8%] 46432/969088 windows running_bpb=1.760036
+  sliding_eval [  5.0%] 48032/969088 windows running_bpb=1.759188
+  sliding_eval [  5.1%] 49632/969088 windows running_bpb=1.760240
+  sliding_eval [  5.3%] 51232/969088 windows running_bpb=1.761532
+  sliding_eval [  5.5%] 52832/969088 windows running_bpb=1.762031
+  sliding_eval [  5.6%] 54432/969088 windows running_bpb=1.761815
+  sliding_eval [  5.8%] 56032/969088 windows running_bpb=1.762906
+  sliding_eval [  5.9%] 57632/969088 windows running_bpb=1.762954
+  sliding_eval [  6.1%] 59232/969088 windows running_bpb=1.760737
+  sliding_eval [  6.3%] 60832/969088 windows running_bpb=1.760423
+  sliding_eval [  6.4%] 62432/969088 windows running_bpb=1.760309
+  sliding_eval [  6.6%] 64032/969088 windows running_bpb=1.760567
+  sliding_eval [  6.8%] 65632/969088 windows running_bpb=1.760049
+  sliding_eval [  6.9%] 67232/969088 windows running_bpb=1.758838
+  sliding_eval [  7.1%] 68832/969088 windows running_bpb=1.758457
+  sliding_eval [  7.3%] 70432/969088 windows running_bpb=1.757396
+  sliding_eval [  7.4%] 72032/969088 windows running_bpb=1.757182
+  sliding_eval [  7.6%] 73632/969088 windows running_bpb=1.757500
+  sliding_eval [  7.8%] 75232/969088 windows running_bpb=1.757643
+  sliding_eval [  7.9%] 76832/969088 windows running_bpb=1.757359
+  sliding_eval [  8.1%] 78432/969088 windows running_bpb=1.757266
+  sliding_eval [  8.3%] 80032/969088 windows running_bpb=1.757815
+  sliding_eval [  8.4%] 81632/969088 windows running_bpb=1.758161
+  sliding_eval [  8.6%] 83232/969088 windows running_bpb=1.759513
+  sliding_eval [  8.8%] 84832/969088 windows running_bpb=1.760905
+  sliding_eval [  8.9%] 86432/969088 windows running_bpb=1.759874
+  sliding_eval [  9.1%] 88032/969088 windows running_bpb=1.760859
+  sliding_eval [  9.2%] 89632/969088 windows running_bpb=1.760964
+  sliding_eval [  9.4%] 91232/969088 windows running_bpb=1.760904
+  sliding_eval [  9.6%] 92832/969088 windows running_bpb=1.760778
+  sliding_eval [  9.7%] 94432/969088 windows running_bpb=1.761283
+  sliding_eval [  9.9%] 96032/969088 windows running_bpb=1.761368
+  sliding_eval [ 10.1%] 97632/969088 windows running_bpb=1.763775
+  sliding_eval [ 10.2%] 99232/969088 windows running_bpb=1.763917
+  sliding_eval [ 10.4%] 100832/969088 windows running_bpb=1.763791
+  sliding_eval [ 10.6%] 102432/969088 windows running_bpb=1.763758
+  sliding_eval [ 10.7%] 104032/969088 windows running_bpb=1.763257
+  sliding_eval [ 10.9%] 105632/969088 windows running_bpb=1.762662
+  sliding_eval [ 11.1%] 107232/969088 windows running_bpb=1.762792
+  sliding_eval [ 11.2%] 108832/969088 windows running_bpb=1.763266
+  sliding_eval [ 11.4%] 110432/969088 windows running_bpb=1.763343
+  sliding_eval [ 11.6%] 112032/969088 windows running_bpb=1.762988
+  sliding_eval [ 11.7%] 113632/969088 windows running_bpb=1.763817
+  sliding_eval [ 11.9%] 115232/969088 windows running_bpb=1.763896
+  sliding_eval [ 12.1%] 116832/969088 windows running_bpb=1.763798
+  sliding_eval [ 12.2%] 118432/969088 windows running_bpb=1.764427
+  sliding_eval [ 12.4%] 120032/969088 windows running_bpb=1.764659
+  sliding_eval [ 12.6%] 121632/969088 windows running_bpb=1.764936
+  sliding_eval [ 12.7%] 123232/969088 windows running_bpb=1.764892
+E0327 23:36:16.727000 742 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 0 (pid: 810) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+====================================================
+train_gpt.py FAILED
+----------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+----------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-27_23:36:16
+  host      : c89a82d30abd
+  rank      : 0 (local_rank: 0)
+  exitcode  : -9 (pid: 810)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 810
+====================================================

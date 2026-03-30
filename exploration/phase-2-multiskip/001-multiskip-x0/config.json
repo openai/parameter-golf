@@ -1,0 +1,33 @@
+{
+  "run_id": "20260323-001-multiskip-x0",
+  "date": "2026-03-23",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "archive/final_contenders/contender_a_batch262k_wd2400.py (val_bpb=1.8046)",
+  "hypothesis": "Direct ungated x0 addition after each depth iteration creates a guaranteed gradient highway, preventing vanishing gradients through the 4-deep recurrence chain. Inspired by multi-skip residuals (stable-deep-rl-at-scale).",
+  "hyperparameters": {
+    "model_arch": "SSDGolf",
+    "model_dim": 1536,
+    "n_iters": 4,
+    "d_state": 64,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 262144,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "embed_lr": 0.03,
+    "head_lr": 0.03,
+    "tie_embeddings": true,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 1.0,
+    "warmdown_iters": 2400,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "_core_forward": {"from": "no x0 addition after block", "to": "x = x + x0 after each block output"}
+  }
+}
