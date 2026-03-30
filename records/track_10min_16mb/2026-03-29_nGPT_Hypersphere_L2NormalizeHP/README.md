@@ -1,76 +1,71 @@
 # nGPT on the Hypersphere: Making Normalized Transformers Work at 16MB
 
-**Not a record submission** — this is a research contribution documenting how to make nGPT (hypersphere-normalized transformers) viable under Parameter Golf constraints, including a novel fix for a torch.compile precision bug.
+This is a research contribution, not a record submission. I wanted to see if nGPT (Loshchilov et al., ICLR 2025) could be made competitive under Parameter Golf constraints after PR #831 dismissed it. It can — and the investigation uncovered some interesting findings about torch.compile, quantization, and what happens when you try to squeeze a hypersphere-constrained architecture into 16MB.
 
-**val_bpb: 1.1502** (seed 1337, int6 sliding window stride=64, 8xH200 SXM)
+**val_bpb: 1.1502** (seed 1337, int6 sliding window stride=64, 8xH200 SXM, 560s)
 
-## Summary
+## What I found
 
-- **Made full nGPT trainable** at small scale by fixing three interacting bugs that caused PR #831 to dismiss it (BPB improved from 1.6915 → 1.2714)
-- **Solved a torch.compile precision compounding bug** via opaque autograd function (`allow_in_graph`), enabling bf16 matmuls + fp32 normalizes with zero graph breaks — 25% faster than the fp32 workaround
-- **Post-dequant renormalization** reduces nGPT's quantization gap from 0.35 → 0.008 BPB (44x reduction, 3 lines of code)
-- **Re-enabled XSA + Partial RoPE** on nGPT for an additional -0.007 BPB (free improvement, zero overhead)
-- **Systematic ablation** across 15+ configurations mapping the nGPT design space (layer count, MLP width, quantization, weight normalization, attention features, paper-faithfulness)
+1. **PR #831's nGPT failure (1.69 BPB) was caused by three init bugs, not architectural incompatibility.** Fixing them takes nGPT to 1.27 BPB — only 0.015 behind the standard model at equal params.
+2. **torch.compile has a precision compounding bug with sequential L2 normalization.** nGPT's ~86 normalize calls per forward cause bf16 errors to compound catastrophically. I found a fix using `allow_in_graph` that preserves fp32 precision with zero graph breaks. This applies to any model with many sequential normalizations. (Related: pytorch/pytorch#168126)
+3. **Renormalizing weight rows after int6 dequantization cuts nGPT's quantization gap from +0.35 to +0.008 BPB.** Three lines of code, 44x improvement. Weight normalization during training is required — without it the quant gap balloons to +1.6 BPB.
+4. **nGPT's compression advantage is a mirage.** At short training, normalized weights compress to 0.41 bytes/param vs standard's 0.59. At full training length, both converge to 0.59. The early advantage comes from undertrained weights sitting near their orthogonal initialization.
+5. **The nGPT paper's design choices (signed alpha, s_z scaling) hurt at 5000 steps.** These features need long training (100K+ steps) to be useful. At our budget, constraining alpha to be positive and skipping s_z scaling actually works better.
 
 ## Hardware
 
-All results on **ORCD cluster** (MIT) using 8xH200 SXM (141GB HBM3e), CUDA 12.4, PyTorch 2.6.0. Training wallclock: 560 seconds (conservative budget leaving room for GPTQ). The bf16 compile fix (`L2NormalizeHP`) is compatible with PyTorch 2.6+ and RunPod 8xH100 SXM.
+All experiments on MIT ORCD cluster, 8xH200 SXM (141GB HBM3e), CUDA 12.4, PyTorch 2.6. Training wallclock capped at 560s. The `L2NormalizeHP` fix works on PyTorch 2.6+ including RunPod's 2.9.
 
-Step time on 8xH200: **119ms/step** (bf16 compile with opaque normalize). Estimated 8xH100: ~125ms/step.
+## Results
 
-## Best Result
+Best config: 12L, 512d, 3x MLP, GQA 8/4, BigramHash 8192, XSA on last 4 layers, Partial RoPE (16 of 64 dims), int6 QAT + Full GPTQ + renorm dequant + adaptive pruning.
 
-Best configuration: Full nGPT, 12L 3x MLP, 512-dim, BigramHash 8192, XSA last 4, Partial RoPE 16, int6 + adaptive pruning.
+| Seed | val_bpb (sliding) | artifact | steps | ms/step |
+|------|-------------------|----------|-------|---------|
+| 1337 | **1.1502** | 15.9 MB | 4562 | 121 |
 
-| Seed | val_bpb (sliding) | artifact_bytes | steps | ms/step |
-|------|-------------------|----------------|-------|---------|
-| 1337 | **1.15018** | 15,889,025 | 4562 | ~121 |
+3-seed validation on the base config (no XSA/RoPE):
 
-3-seed validation on base config (without XSA/RoPE):
+| Seed | val_bpb (sliding) | artifact |
+|------|-------------------|----------|
+| 1337 | 1.1570 | 15.9 MB |
+| 42 | 1.1583 | 15.9 MB |
+| 7 | 1.1594 | 15.9 MB |
+| **Mean ± std** | **1.1582 ± 0.0012** | |
 
-| Seed | val_bpb (sliding) | artifact_bytes | steps | ms/step |
-|------|-------------------|----------------|-------|---------|
-| 1337 | 1.15704 | 15,911,222 | 4646 | 120 |
-| 42 | 1.15833 | 15,927,208 | ~4590 | 122 |
-| 7 | 1.15937 | ~15,900,000 | ~4590 | 122 |
-| **Mean** | **1.15825 ± 0.00117** | | | |
+Adding XSA + Partial RoPE gives another -0.007 BPB at zero cost.
 
-XSA + Partial RoPE add -0.007 BPB with zero speed cost (single-seed validated).
+## The three init fixes (PR #831 revisited)
 
-## Novel Contributions
+PR #831 tested nGPT and reported 1.69 BPB — concluding nGPT is incompatible with int6 quantization. The actual problems were simpler:
 
-### 1. Three Fixes That Make Full nGPT Trainable
+**A. Zero-init projections + normalize = dead blocks.** Output projections are zero-initialized. `F.normalize(0) = 0`. The interpolation `h + α*(0 - h)` just decays the input. Every block does nothing.
+→ Fix: small random init (std=0.01) for projection weights.
 
-PR #831 tested nGPT and got 1.6915 BPB — catastrophically bad. The diagnosis was "unit-norm weights incompatible with int6 quantization." We found three interacting bugs, each trivial to fix:
+**B. Unit-norm hidden states produce tiny logits.** `F.linear(x, emb.weight)` gives cosine similarities in [-1, 1]. The model can't express confidence.
+→ Fix: learnable `logit_scale` initialized to √dim ≈ 22.6.
 
-**Bug A: Zero-init + normalize = stuck at zero.** Standard zero-init on output projections (`proj._zero_init = True`) produces zero output. `F.normalize(0)` stays 0. The nGPT interpolation becomes `(1-α)*input + α*0 = (1-α)*input` — every block just decays the signal.
+**C. Don't normalize token embeddings.** The logit head needs embedding magnitude to distinguish tokens.
 
-**Fix:** Small random init (std=0.01) for projection weights in nGPT mode.
+Together: 1.69 → **1.27 BPB**.
 
-**Bug B: Unit-norm hidden states → tiny logits.** With hidden states on the unit sphere, `F.linear(x, tok_emb.weight)` produces cosine similarities in [-1, 1]. Even with softcap=30, the model can't express confidence.
+## The torch.compile precision bug
 
-**Fix:** Learnable `logit_scale` parameter initialized to √dim ≈ 22.6.
+This was the hardest problem and the most generalizable finding.
 
-**Bug C: Don't normalize token embeddings.** Normalizing embeddings destroys the magnitude information that the logit computation needs.
+nGPT runs ~86 `F.normalize` calls per forward pass. Each one internally upcasts to float32 for the norm computation. Under `torch.compile`, Inductor fuses these ops and eliminates the intermediate float32 casts. Each normalize picks up ~1e-3 bf16 rounding error. Across 86 sequential calls, errors compound to ~1e-2 — the model diverges from step 1.
 
-**Combined result:** 1.6915 → **1.2714 BPB** (only 0.015 behind standard model at equal params).
+I tried five different approaches before finding one that works:
 
-### 2. torch.compile Precision Compounding Bug (Novel Finding)
+| Approach | Result | Why it failed |
+|----------|--------|---------------|
+| Manual `x.float()` in the normalize function | Diverged | Inductor fuses through the cast |
+| `emulate_precision_casts = True` | Diverged | Doesn't cover fused matmul accumulation |
+| Nested `autocast(enabled=False)` | Diverged | Inductor fuses across context boundaries |
+| `@torch.compiler.disable` on normalize | Converged but 86 graph breaks | Slower than not compiling at all |
+| Fused Triton kernel (bf16 in, fp32 accum, bf16 out) | Converged | 17% slower than PyTorch ops at dim=512 |
 
-nGPT's forward pass executes ~86 L2 normalize calls. torch.compile's Inductor fuses bf16 operations, eliminating intermediate float32 casts in `F.normalize`. Each normalize introduces ~1e-3 error in bf16; across 86 sequential calls, errors compound to ~1e-2, causing catastrophic divergence from step 1.
-
-**What we tried and why it failed:**
-
-| Approach | Result | Root Cause |
-|----------|--------|------------|
-| Manual `x.float()` in normalize | Diverged (6.45) | Inductor fuses through float() casts |
-| `emulate_precision_casts = True` | Diverged (6.43) | Not comprehensive for fused ops |
-| `autocast(enabled=False)` locally | Diverged (1.70) | Inductor fuses across context managers |
-| `@torch.compiler.disable` | Converges, 86+ graph breaks | Slower than eager mode |
-| Custom Triton kernel | 17% slower | PyTorch ops already optimal at dim=512 |
-| **Disable autocast globally (fp32)** | **Works, 126ms/step** | **Correct but slow** |
-
-**The fix: `@torch._dynamo.allow_in_graph` on a custom `autograd.Function`.**
+**What worked:** wrapping normalize in a `torch.autograd.Function` decorated with `@torch._dynamo.allow_in_graph`. This tells Dynamo to treat the function as a single opaque node — Inductor never sees the internal ops, so it can't fuse away the float32 precision. Everything outside (matmuls, attention, elementwise) still runs in compiled bf16. Zero graph breaks.
 
 ```python
 @torch._dynamo.allow_in_graph
@@ -92,208 +87,120 @@ class L2NormalizeHP(torch.autograd.Function):
         return ((dy32 - y32 * dot) * inv_norm).to(dy.dtype)
 ```
 
-Key insight: `allow_in_graph` tells Dynamo to include the function as a single opaque node without tracing into it. Inductor never sees the internal float() casts, so it can't fuse them away. The function runs in eager Python with fp32 precision, while everything outside (matmuls, attention) runs in compiled bf16. Zero graph breaks.
+| Mode | ms/step | Steps in 560s |
+|------|---------|---------------|
+| Eager (no compile) | 912 | ~620 |
+| Compile, fp32 forward (workaround) | 126 | ~4400 |
+| **Compile, bf16 + L2NormalizeHP** | **119** | **~4700** |
+| Standard model, bf16 compile | 88 | ~6400 |
 
-| Mode | ms/step | Steps in 560s | Converges? |
-|------|---------|---------------|------------|
-| NO_COMPILE (eager) | 912ms | ~620 | Yes |
-| Compile + fp32 forward | 126ms | ~4431 | Yes |
-| **Compile + bf16 + L2NormalizeHP** | **119ms** | **~4706** | **Yes** |
-| Standard model bf16 (reference) | 88ms | ~6400 | Yes |
+The remaining 31ms gap vs the standard model comes from 86 opaque Python function calls per forward — each exits the compiled graph, runs 4 eager CUDA kernels, and re-enters. This is the fundamental cost of the approach.
 
-This generalizes to any model with many sequential normalization steps under torch.compile. Related: [PyTorch Issue #168126](https://github.com/pytorch/pytorch/issues/168126).
+## Post-dequant renormalization
 
-### 3. Post-Dequantization Renormalization
-
-nGPT's int6 quantization gap was 0.35 BPB (the reason PR #831 rejected nGPT). The fix is 3 lines:
+The original 0.35 BPB quantization gap that sank PR #831 comes from int6 adding magnitude noise to unit-norm weight rows. Renormalizing each row after dequantization projects the weights back onto the hypersphere:
 
 ```python
-# After int6 dequantization:
 if ngpt_quant == "renorm" and deq.ndim == 2 and "blocks." in name:
     deq = F.normalize(deq.float(), dim=-1).to(orig_dtype)
 ```
 
-Int6 quantization adds magnitude noise to each weight row. Since nGPT weight rows should be unit-norm, renormalizing after dequant projects them back to the hypersphere.
+Quant gap drops from +0.35 to +0.008 BPB. But this only works if weights are actually unit-norm — which requires `NGPT_WEIGHT_NORM=1` during training. Without it, renormalization destroys learned scale information and the gap shoots to +1.6 BPB.
 
-| Condition | Quantization Gap |
-|-----------|-----------------|
-| Standard int6 dequant | +0.35 BPP |
-| **Renorm dequant** | **+0.008 BPB** |
-| Reduction | **44x** |
+## Configuration sweep
 
-Critical requirement: **weight normalization during training** (`NGPT_WEIGHT_NORM=1`) is required for renorm dequant to work. Without it, weights aren't unit-norm and renormalization destroys learned scale information (quant gap becomes +1.6 BPB).
+I ran 15+ configurations to map the design space. All on 8xH200, 560s, bf16 compile.
 
-### 4. The Compression Paradox
+### Model size (base config, no XSA/RoPE)
 
-Early nGPT results showed dramatically better compression (0.414 bytes/param at 1870 steps vs standard's 0.589). We discovered this is a mirage:
-
-| Training Steps | Artifact (35.5M params) | bytes/param |
-|---------------|------------------------|-------------|
-| ~1870 (undertrained) | 14.7 MB | 0.414 |
-| ~3640 (medium) | 17.8 MB | 0.501 |
-| ~6300 (full) | 20.9 MB | 0.589 |
-| Standard model (full training) | 15.9 MB (27M params) | **0.589** |
-
-At full training length, nGPT compresses at exactly the same rate as standard models. The early advantage was from undertrained weights being close to orthogonal initialization (highly structured, compresses well). This has implications for any structured-weight approach: compression benefits measured at short training don't transfer.
-
-### 5. Stochastic RYS (SRYS) on the Hypersphere
-
-We developed Stochastic RYS: randomly repeat target layers during training with probability p, teaching layers to produce refinable representations for free depth at inference.
-
-**On standard transformers:** -0.0005 BPB (the model learns near-identity repeats, cos_sim→0.999).
-**On nGPT:** -0.006 BPB — **12x amplification.**
-
-| Architecture | Baseline | + SRYS | Δ |
-|-------------|----------|--------|---|
-| Standard 512×11 | 1.2562 | 1.2557 | -0.0005 |
-| nGPT-lite 512×11 | 1.3140 | 1.3081 | **-0.0059** |
-
-The hypersphere constraint prevents the identity-collapse strategy (cos_sim can't reach 1.0 because unit-norm representations have geometric constraints). This forces the model to actually USE the second pass.
-
-Note: Effect diminishes at higher param count (neutral at 35M+) and on full nGPT. Most effective on nGPT-lite at 27M params.
-
-## Full Configuration Sweep
-
-All runs: 8xH200 SXM, 560s wallclock, bf16 compile + L2NormalizeHP, seed 1337.
-
-### Architecture sweep (base config: 12L 3x, no XSA/RoPE)
-
-| Config | ms/step | Steps | Sliding BPB | Artifact | Fits? |
-|--------|---------|-------|-------------|----------|-------|
+| Config | ms/step | Steps | BPB | Artifact | Fits? |
+|--------|---------|-------|-----|----------|-------|
 | **12L 3x int6** | **120** | **4646** | **1.1570** | **15.9 MB** | **Yes** |
-| 12L 3x int5 | 121 | ~4628 | 1.1647 | 13.1 MB | Yes |
 | 12L 4x int5 | 130 | 4293 | 1.1599 | 14.9 MB | Yes |
 | 12L 5x int5 | 137 | 4103 | 1.1720 | 15.0 MB | Yes |
 | 11L 3x int6 | 110 | 5087 | 1.1736 | 14.3 MB | Yes |
 | 11L 4x int5 | 118 | ~4735 | 1.1797 | 13.6 MB | Yes |
 | 12L 3.5x int6 | 128 | ~4375 | 1.1754 | 16.1 MB | No |
-| 13L 3x int5 | 128 | ~4375 | 1.1787 | 13.8 MB | Yes |
-| 12L 3x no wn | 118 | ~4745 | 2.7842 | 16.6 MB | Broken |
+| 12L 3x, no weight norm | 118 | ~4745 | 2.7842 | — | Broken |
 
-### Feature stacking (on 12L 3x int6 base)
+More parameters consistently lose to the step-time cost. The 12L 3x sweet spot balances model capacity against training steps within the wallclock.
 
-| Feature | Sliding BPB | Δ vs base | Cost |
-|---------|-------------|-----------|------|
-| Base (no XSA/RoPE) | 1.1570 | — | — |
-| + XSA last 4 | 1.1532 | **-0.004** | Zero |
-| + Partial RoPE 16 | 1.1525 | **-0.005** | Zero |
-| **+ Both** | **1.1502** | **-0.007** | **Zero** |
+### Feature stacking
 
-### Paper-faithfulness experiments
+| Addition | BPB | Δ |
+|----------|-----|---|
+| Base | 1.1570 | — |
+| + XSA last 4 | 1.1532 | -0.004 |
+| + Partial RoPE 16 | 1.1525 | -0.005 |
+| + Both | **1.1502** | **-0.007** |
 
-| Change | Sliding BPB | Δ vs base | Lesson |
-|--------|-------------|-----------|--------|
-| Remove alpha `.abs()` | 1.3458 | +0.189 | Negative alpha needs >100K steps to learn |
-| + s_z output scaling | Crashed | — | Extra params hurt at 5000 steps |
-| + Constrained residual mix | (included above) | — | Unnecessary with subsequent normalize |
+### Paper-faithful nGPT
 
-Key findings:
-- **12L 3x is the sweet spot** — fewer layers lose quality, more layers lose speed
-- **Int6 + adaptive pruning beats int5** by 0.008 BPB despite needing 7.8% pruning
-- **Weight normalization is non-negotiable** — removing it causes catastrophic quant failure (+1.6 BPB)
-- **XSA + Partial RoPE are free wins** — -0.007 BPB combined, zero overhead
-- **Paper design choices hurt at short training** — `.abs()`, s_z, constrained mix all regress
-- **More params don't help** — the step-time cost outweighs the per-step quality gain
+I tested whether following the original paper more closely would help. It didn't — at this training length.
+
+| Change | BPB | Δ |
+|--------|-----|---|
+| Remove `.abs()` from alpha (allow negative) | 1.3458 | +0.189 |
+| Add s_z output scaling params | Crashed | — |
+
+The paper allows negative alpha for "anti-learning" interpolation, but 5000 steps isn't enough for the optimizer to discover which dimensions benefit from it. The extra s_z parameters spread the optimization budget too thin.
+
+### TTT (negative result)
+
+Test-time training produces NaN on nGPT with renorm dequantization, regardless of learning rate (tested 5e-5 to 2e-3), with or without weight renormalization after TTT steps, even with 10/12 blocks frozen. The renorm dequant computational graph is too numerically fragile for gradient-based weight updates. Standard GPTQ (without renorm) tolerates TTT at very low LR — the renorm step is what breaks it.
 
 ## Architecture
 
 ```
-Token Embeddings → BigramHash (8192) → 12× nGPT Blocks → Tied Head
-                                           ↓
-                                    normalize(input)
-                                    attention(h_norm)
-                                    normalize(attn_out)
-                                    slerp(h_norm, attn_norm, α_a)  ← hypersphere interpolation
-                                    mlp(x_out)
-                                    normalize(mlp_out)
-                                    slerp(x_out, mlp_norm, α_m)    ← hypersphere interpolation
+Embeddings → BigramHash(8192) → 12× nGPT Blocks → Tied Head
+                                      │
+                               normalize(input)
+                               attention(h_norm)
+                               normalize(attn_out)
+                               slerp(h_norm, attn_norm, α_a)
+                               mlp(x_out)
+                               normalize(mlp_out)
+                               slerp(x_out, mlp_norm, α_m)
 ```
 
-| Component | Setting |
-|-----------|---------|
-| Layers | 12 |
-| Model dim | 512 |
-| Attention | GQA 8 heads / 4 KV heads |
-| MLP | 3x expansion, LeakyReLU(0.5)² |
-| BigramHash | 8192 vocab |
-| U-Net skip connections | Yes |
-| XSA | Last 4 layers |
-| Partial RoPE | 16 of 64 head dims |
-| Normalization | Full nGPT (L2 normalize both sides) |
-| Weight normalization | Yes (forward-pass row-wise L2 norm) |
-| Parameters | 30M |
+12 layers, 512d, GQA 8/4, 3x MLP with LeakyReLU(0.5)², U-Net skips, XSA on last 4 layers, Partial RoPE 16/64, full nGPT normalization on both sides of interpolation, forward-pass weight normalization. 30M params total.
 
-## Training
+Training: Muon (matrix_lr=0.025, WD=0.04, momentum=0.99) + AdamW for non-matrix params. 786K token batches, seq_len=2048, 20-step warmup, 3500-iter warmdown with SWA. Int6 QAT with STE, Full GPTQ, renorm dequant, zstd-22 compression, adaptive Hessian-weighted pruning (~7.8%).
 
-| Hyperparameter | Value |
-|----------------|-------|
-| Optimizer | Muon (matrix_lr=0.025, WD=0.04, momentum=0.99) + AdamW (embed_lr=0.035, scalar_lr=0.025) |
-| Batch | 786K tokens |
-| Sequence length | 2048 |
-| Warmup | 20 steps |
-| Warmdown | 3500 iters |
-| SWA | Last ~10% of warmdown |
-| Quantization | Int6 QAT with STE + Full GPTQ + renorm dequant |
-| Compression | zstd level 22 |
-| Pruning | Adaptive Hessian-weighted (~7.8% to fit 16MB) |
-| Eval | Sliding window, stride=64 |
+## Interpretability
 
-## Interpretability (Layer Analysis)
+Logit lens and layer knockout analysis on the 11L standard model (used to guide RYS target selection):
 
-We performed logit lens, layer knockout, and CKA similarity analysis on our 11L standard model to understand the layer structure:
-
-| Layer | BPB (logit lens) | Knockout Δ | Function |
-|-------|-----------------|------------|----------|
-| 0 | 5.46 (-4.88) | +2.31 | Basic token patterns (most critical) |
-| 1-2 | 3.82 | +0.58-0.65 | Pattern matching (encoder) |
-| 3-5 | 5.29 (+1.47) | +0.15-0.29 | U-Net transition (BPP **increases**) |
-| 6-7 | 2.57 (-2.72) | +0.18-0.19 | Critical "thinking" layers |
+| Layer | Logit lens BPB | Knockout Δ | Role |
+|-------|---------------|------------|------|
+| 0 | 5.46 (-4.88) | +2.31 | Token patterns (critical) |
+| 1-2 | 3.82 | +0.58-0.65 | Encoder |
+| 3-5 | 5.29 (+1.47) | +0.15-0.29 | U-Net transition (BPB increases) |
+| 6-7 | 2.57 (-2.72) | +0.18-0.19 | "Thinking" layers |
 | 8-10 | 1.19 (-1.38) | +0.14-0.16 | Prediction refinement |
 
-Three functional circuits: Encoder (L0-2, CKA 0.83), Transition (L3-6), Prediction (L7-10, CKA 0.88). The prediction circuit is the tightest — layers 7-8-9 work as a single unit.
+CKA similarity reveals three circuits: Encoder (L0-2, mutual CKA 0.83), Transition (L3-6), and Prediction (L7-10, CKA 0.88). Layers 7-8-9 are the tightest functional cluster in the network.
 
-## What We Tried That Didn't Work
+## What didn't work
 
-| Idea | Result | Lesson |
-|------|--------|--------|
-| RYS (layer repetition) at eval | +0.021 to +0.638 BPB damage | Layers too specialized at 27M params |
-| Stochastic RYS on standard model | -0.0005 BPB (negligible) | Model learns to make repeats identity |
-| Riemannian Muon (tangent-plane projection) | 0.19 BPB behind at 2000 steps | Convergence speed dominates at short training |
-| Triton fused normalize kernel | 17% slower than PyTorch ops | Kernel launch overhead > compute savings at dim=512 |
-| No weight normalization | +1.6 BPB quant failure | Renorm dequant requires unit-norm weights |
-| 13L / wider MLP (more params) | All worse than 12L 3x | Step-time cost > per-step quality gain |
-| Paper-faithful alpha (no `.abs()`) | +0.189 BPB | Negative alpha needs >100K steps to learn |
-| Paper-faithful s_z output scaling | Crashed (SDPA kernel error) | Extra params + overhead at 5000 steps |
-| TTT (any LR, with/without renorm) | NaN on all configs | GPTQ + renorm dequant weights are too fragile for gradient updates |
+| Idea | Outcome | Takeaway |
+|------|---------|----------|
+| Riemannian Muon (tangent-plane projection) | 0.19 BPB behind standard Muon | Convergence speed matters more than geometric correctness at short training |
+| Triton fused normalize kernel | 17% slower | Kernel launch overhead dominates at dim=512; PyTorch's vectorized ops are already fast enough |
+| Removing weight normalization | +1.6 BPB | Renorm dequant is useless without unit-norm weights |
+| Scaling up (wider MLP, more layers) | All worse | Extra step-time cost outweighs per-step quality |
+| Paper-faithful alpha / s_z | +0.189 / crashed | Extra DOF needs training time we don't have |
+| TTT on nGPT + renorm dequant | NaN | Renorm dequant graph too fragile for gradients |
 
-### TTT Incompatibility (Important Negative Result)
+## Gap to SOTA
 
-Test-time training produces NaN on nGPT models regardless of:
-- Learning rate (tested 0.00005 to 0.002)
-- With or without weight renormalization after TTT steps
-- Freezing 10/12 blocks (only last 2 unfrozen)
+1.1502 is 0.031 behind SOTA (1.1194). The gap comes from two things: nGPT runs at 121ms/step vs the standard model's 88ms (fewer training steps), and TTT is broken on renorm-dequantized weights (SOTA uses TTT for ~-0.002). Both are fundamental costs of the hypersphere architecture under these constraints, not something I could optimize away.
 
-The root cause: renorm dequantization during the forward pass creates a numerically fragile computational graph. Gradients flowing through the dequant→renormalize→forward path become unstable. This is specific to the combination of Full GPTQ + renorm dequantization — standard GPTQ (without renorm) tolerates TTT at very low LRs.
-
-## Discussion
-
-**Gap to SOTA:** Our best nGPT result (1.1502) is 0.031 behind SOTA (1.1194). Two factors:
-1. **Step time:** nGPT at 121ms/step gets ~4600 steps vs the standard model's ~6800 at 88ms/step. The 33ms overhead from ~86 opaque normalize calls is a fundamental architectural cost.
-2. **No TTT:** GPTQ + renorm dequant weights are incompatible with gradient-based adaptation. SOTA uses TTT for ~-0.002 BPB.
-
-**Research value:** The contributions here aren't about BPB — they're about understanding what happens when you constrain representations to the hypersphere under extreme compression:
-
-1. **nGPT was dismissed too early.** Three trivial initialization fixes close the gap from 0.43 to 0.015 BPB.
-2. **Post-dequant renormalization is a general technique.** Any unit-norm weight model benefits from re-projecting after quantization.
-3. **torch.compile has a precision compounding bug.** The `allow_in_graph` fix applies to any model with many sequential normalizations.
-4. **Compression advantages from structured weights vanish at full training.** This is a cautionary result for the weight-sharing community.
-5. **RYS amplification on the hypersphere** is a genuinely novel interaction — the geometry prevents identity collapse, enabling 12x stronger layer repetition effects.
-6. **Paper design choices don't transfer to short training.** Signed alpha, s_z scaling, and other nGPT paper features that improve long-training performance actually hurt at 5000 steps — the optimizer doesn't have time to exploit the extra degrees of freedom.
+The point of this PR isn't the BPB number — it's the findings. nGPT was written off by this competition after one failed attempt, but the failure was three trivial init bugs. The architecture actually works, compresses well, and has interesting properties (the compile precision bug, the compression paradox, the quantization-renormalization interaction). I hope this is useful to anyone thinking about constrained-norm architectures for small models.
 
 ## References
 
 - [nGPT: Normalized Transformer with Representation Learning on the Hypersphere](https://arxiv.org/abs/2410.01131) (Loshchilov et al., ICLR 2025)
-- [Parameter Golf PR #831: Why Novel Architectures Fail at 16MB](https://github.com/openai/parameter-golf/pull/831)
-- [Parameter Golf PR #579: The Frugendorff](https://github.com/openai/parameter-golf/pull/579) — weight sharing research
-- [dnhkng RYS blog](https://dnhkng.github.io/posts/rys/) — original RYS technique on Qwen2-72B
-- [PyTorch Issue #168126](https://github.com/pytorch/pytorch/issues/168126) — torch.compile precision divergence
+- [PR #831: Why Novel Architectures Fail at 16MB](https://github.com/openai/parameter-golf/pull/831)
+- [PR #579: The Frugendorff](https://github.com/openai/parameter-golf/pull/579) (weight sharing)
+- [PyTorch Issue #168126](https://github.com/pytorch/pytorch/issues/168126) (compile precision divergence)
