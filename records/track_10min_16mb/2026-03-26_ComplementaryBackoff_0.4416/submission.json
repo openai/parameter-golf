@@ -1,0 +1,27 @@
+{
+  "version": "v11",
+  "bpb": 0.4416,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42": 0.4416,
+    "1337": 0.4416
+  },
+  "model_params": 26993766,
+  "artifact_bytes": 15875857,
+  "training_steps": 4648,
+  "training_time_ms": 600028,
+  "eval_time_ms": 457870,
+  "gpu": "8xH100 SXM 80GB",
+  "techniques": [
+    "Complementary training (COMPLEMENT_ALPHA=0.5)",
+    "BackoffNgramMixer (orders 2-10, 4M flat hash buckets)",
+    "Entropy-adaptive alpha (0.20 + 0.55*sigmoid(2*(H-3.0)))",
+    "AdamW TTT (lr=5e-4, 4 epochs, freeze 2 blocks, Polyak 0.998)",
+    "VRL (Value Residual Learning)",
+    "LeakyReLU(0.5)^2",
+    "XSA-4 (last 4 layers)",
+    "Int6 mixed quantization + lzma",
+    "Sliding window eval stride=64"
+  ],
+  "run_command": "VRL_ENABLED=1 LEAKY_RELU=1 GATED_ATTENTION=0 TTT_ENABLED=1 TTT_OPTIMIZER=adamw TTT_LR=0.0005 TTT_EPOCHS=4 TTT_FREEZE_BLOCKS=2 TTT_TEMPERATURE=0.98 USE_HEDGE_MIXER=1 NGRAM_ORDER=10 NGRAM_BUCKETS=4194304 ALPHA_BASE=0.20 ALPHA_RANGE=0.55 ALPHA_CENTER=3.0 COMPLEMENT_ALPHA=0.5 TRAIN_LOG_EVERY=500 SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py"
+}
