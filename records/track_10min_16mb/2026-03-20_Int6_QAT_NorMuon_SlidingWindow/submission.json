@@ -1,0 +1,13 @@
+{
+  "author": "Abhishek Gahlot",
+  "github_id": "abhishekgahlot2",
+  "name": "Int6 Mixed Quant + MLP 3x + STE QAT + NorMuon + Sliding Window",
+  "blurb": "Mixed int6/int8 quantization with STE fake-int6 QAT, 3x MLP expansion (21.8M params), NorMuon optimizer, SWA checkpoint averaging, sliding window eval (stride=64), seq_len=2048, batch=786K, Muon momentum=0.99, zstd-22.",
+  "date": "2026-03-20",
+  "val_loss": 2.00546088,
+  "val_bpb": 1.18774689,
+  "sliding_window_val_loss": 1.96972383,
+  "sliding_window_val_bpb": 1.16658140,
+  "bytes_total": 15216221,
+  "bytes_code": 59581
+}
