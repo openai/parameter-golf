@@ -1,0 +1,12 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-20",
+  "name": "Zeno 10L Muon CastedLinear",
+  "author": "Zeno",
+  "seed_results": {},
+  "mean_val_loss": 0.0,
+  "mean_val_bpb": 0.0,
+  "p_value": 1.0,
+  "artifact_bytes": 15400000,
+  "code_bytes": 0
+}
