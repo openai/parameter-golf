@@ -37,9 +37,11 @@ Focus : Scheduled Sampling
   step 200: 4.77 ↓ improving
  
  val_bpb: 2.367 (worse than my initial run), but apparently inconclusive because the step size might be too small. 
- 
  Fix: We can try starting scheduled sampling after a good amount of learning. Maybe after the first 100 steps. Let's see how that runs.
 
+ ## Day 4 
+ - Ran the scheduled sampling on Runpod (1XA100) with 4500 steps, surprisingly a very good run. A val-bpb of :  1.2819. This gives me good confidence to run these 3 ideas on a 8XH100. Although the landscape fully changes when we have 8 GPUs interacting with eachother. I am encountering errors and ended up wasting alot of my credits that way. 
+Now, to not waste more credits I stopped the run. If my credits get approved I am going to implement a good run soon. 
 
 ## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
