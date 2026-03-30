@@ -22,6 +22,7 @@ run_arm() {
     echo "  ${arm_id} — ${label}"
     echo "================================================================"
 
+    env \
     MAX_WALLCLOCK_SECONDS=350 \
     WARMDOWN_ITERS=0 \
     SEED="${SEED}" \
