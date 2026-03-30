@@ -199,7 +199,7 @@ class Hyperparameters:
     negative_slope = float(os.environ.get("NEGATIVE_SLOPE", 0.3))
     use_gptq = bool(int(os.environ.get("USE_GPTQ", "0")))
     gptq_calib_samples = int(os.environ.get("GPTQ_CALIB_SAMPLES", "64"))
-    gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", "14000"))
+    gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", "9000"))
     quant_clip_range = int(os.environ.get("QUANT_CLIP_RANGE", 31))
 
 # --- Batched Newton-Schulz orthogonalization ---
