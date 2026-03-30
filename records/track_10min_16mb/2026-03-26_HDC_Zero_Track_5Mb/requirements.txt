@@ -9,5 +9,4 @@ datasets
 tiktoken
 sentencepiece
 scipy
-blake3
 cupy-cuda12x
