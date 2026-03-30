@@ -1,0 +1,9 @@
+{
+  "name": "Shared ValueEmbedding (tok_emb reuse, layers 5-10) + Legal TTT",
+  "val_bpb": 1.1201,
+  "bytes_total": 15896722,
+  "blurb": "Reuses tied tok_emb for ValueEmbedding instead of training a separate table, with learned projection + per-layer scales expanded to layers 5-10. Built on PR #549 stack (LeakyReLU(0.5)² + Parameter Banking + Legal TTT). 3-seed mean: 1.1201 (std 0.0002). Pre-TTT mean: 1.1223.",
+  "author": "mradassaad",
+  "github_id": "mradassaad",
+  "date": "2026-03-25"
+}
