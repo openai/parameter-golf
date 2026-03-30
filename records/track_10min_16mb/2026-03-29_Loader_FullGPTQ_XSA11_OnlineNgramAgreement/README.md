@@ -4,6 +4,8 @@
 
 Improves the current README leader at `1.1194` by **0.00592984 nats/byte** and **0.00855495 bpb** on the consistent 3-seed reruns.
 
+All three bundled seed logs and the included code files correspond to the packaged submission in this folder.
+
 ## Results (8xH100 80GB SXM)
 
 | Seed | step_avg | steps | Standard sliding bpb | Online-pass LLM bpb | **Online best-agree bpb** | Online gain | Eval time | Total bytes |
@@ -53,7 +55,6 @@ The implementation also keeps the metric calculation honest:
 The integrated online eval stays under the 10-minute evaluation budget on 8xH100.
 
 - 3-seed mean online eval wallclock: `468.34s` (std `11.01s`)
-- 8-GPU full-val benchmark log: `online_eval_benchmark.log`
 - benchmark result: `1.11265002 -> 1.10955484 bpb` in `462.67s`
 
 The measured bottlenecks in the benchmark were the online overlay itself rather than the neural forward pass:
@@ -87,12 +88,12 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Included Files
 
 - `train_gpt.py`
+- `requirements.txt`
 - `online_best_agree_eval.py`
 - `online_ngram_state.c`
 - `train_seed1337.log`
 - `train_seed2025.log`
 - `train_seed42.log`
-- `online_eval_benchmark.log`
 
 ## Credits
 

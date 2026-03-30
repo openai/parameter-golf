@@ -1,4 +1,0 @@
-eval-pass-online: using eager logits path
-online_best_agree:start total_targets=62021632 seq_len=2048 stride=64 chunk_tokens=131072 batch_seqs=32 token_order=16 word_order=4 startup_max=0.01s
-online_best_agree:done llm_bpb=1.11265002 best_agree_bpb=1.10955484 gain_bpb=0.00309518 startup_max=0.01s loop_total_max=456.11s state_max=208.43s input_max=13.49s forward_max=45.67s blend_max=191.95s
-benchmark_result {"best_agree_bpb": 1.1095548424734833, "best_agree_nats_per_byte": 0.7690848107371291, "blend_max_s": 191.94552205101354, "elapsed_s": 462.6741171660251, "forward_max_s": 45.67069003765937, "gain_bpb": 0.003095179322863073, "gain_nats_per_byte": 0.002145414820970082, "input_max_s": 13.494760453759227, "llm_bpb": 1.1126500217963464, "llm_nats_per_byte": 0.7712302255580992, "loop_total_max_s": 456.10853924701223, "startup_max_s": 0.007909381005447358, "state_max_s": 208.42646151524968, "val_loss": 1.8734319156257797, "world_size": 8}
