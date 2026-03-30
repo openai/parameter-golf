@@ -1,0 +1,15 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Meta-Learned TTT + Error-Guided Adaptation Analysis",
+  "author": "Xiaoan Liu",
+  "github_id": "sseanliu",
+  "blurb": "Research submission exploring Reptile meta-learning for test-time training initialization and error-guided adaptation strategies under 16MB compression. Key findings: (1) Reptile meta-learning improves SmearGate models by 0.011 BPB (10x naive TTT), (2) Error-guided TTT is a negative result — concentrating adaptation on high-loss tokens does not help, (3) 13-layer models beat 10-layer on 8xH100 despite fewer training steps.",
+  "seed_results": {
+    "1337": {"val_loss": 1.9668, "val_bpb": 1.1645, "steps": 7630, "ms_per_step": 78.6}
+  },
+  "mean_val_bpb": 1.1645,
+  "artifact_bytes": 12719790,
+  "code_bytes": 69256,
+  "notes": "Non-record research submission. Single seed. Sliding window eval stride=64. Base model uses PR#198 recipe (11L, int6, 3x MLP, SmearGate, BigramHash, SWA). Focus is on methodology and findings rather than leaderboard score."
+}
