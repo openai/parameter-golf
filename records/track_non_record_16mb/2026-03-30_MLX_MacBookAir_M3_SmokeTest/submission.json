@@ -1,0 +1,15 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-30",
+  "name": "MLX Smoke Test on MacBook Air M3",
+  "author": "Aleksandr Gaun",
+  "github_id": "Rhoahndur",
+  "blurb": "Baseline MLX smoke test on Apple Silicon (MacBook Air M3, 200 steps) to validate local dev workflow before scaling to H100s.",
+  "val_bpb": 2.3029,
+  "val_loss": 3.8884,
+  "bytes_total": 9693033,
+  "bytes_code": 50195,
+  "bytes_model_int8_zlib": 9642838,
+  "step_stop": 200,
+  "wallclock_seconds": 204
+}
