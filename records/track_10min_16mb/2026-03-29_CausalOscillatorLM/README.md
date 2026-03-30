@@ -35,6 +35,29 @@ This submission was developed on a budget of ~$20 in RunPod credits over 2 days.
 
 The architecture has significant room for improvement: we have not explored larger batch sizes, gradient accumulation tuning, EMA weight averaging, learning rate schedules beyond linear warmup + cosine warmdown, or the many compression tricks (int6, GPTQ, lzma) used by top submissions. The current BPB of 1.34 reflects a novel architecture with minimal optimization, not a tuned system.
 
+## Quantization advantage
+
+The architecture has a structural advantage for compression that we have not yet fully exploited.
+
+The oscillator bank parameters (ω₀, γ) are physics-critical — a small shift in frequency moves the entire resonance curve — but there are only 384 of them (2 per oscillator × 192 oscillators). The attention weights (14.7M parameters) are compression-tolerant. This natural separation means:
+
+- **Current:** float16 physics + int8 attention = 11.2MB, round-trip gap 0.002 BPB
+- **Predicted with int4 attention:** float32 physics (~1.5KB) + int4 attention (~7.4MB) = ~7.4MB total
+- **At 7.4MB we have 8.6MB of headroom** — enough for a **24M+ parameter model** within 16MB
+
+No other architecture has this clean split between precision-critical and compression-tolerant parameters. Transformer submissions must quantize uniformly or spend engineering effort (GPTQ, mixed-precision sweeps) to find which weights tolerate compression. Our architecture tells you structurally: physics needs precision, coupling doesn't.
+
+With 8xH100 and int4 quantization, we predict:
+- 24M params fitting in 16MB (vs current 14.8M)
+- 8x batch size enabling ~40K steps in 10 minutes (vs ~5K on 1xH100)
+- BPB well below 1.22 baseline, potentially approaching 1.10
+
+We have not validated this on 8xH100 yet — the current result is from 1xH100 with minimal optimization.
+
+## Paper
+
+[Causal Oscillator Network: A Neural Network Built from Damped Harmonic Oscillator Dynamics](https://zenodo.org/records/19326054)
+
 ## Code
 
 Architecture source: https://github.com/rolandnsharp/resonance
