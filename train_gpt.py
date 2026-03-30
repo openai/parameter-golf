@@ -31,6 +31,15 @@ except ImportError:
 # Prefer LZMA for best compression ratio
 _USE_LZMA = bool(int(os.environ.get("USE_LZMA", "0")))
 
+# Brotli gives ~6% better compression than LZMA (from PR #1105)
+_USE_BROTLI = bool(int(os.environ.get("USE_BROTLI", "0")))
+try:
+    import brotli as _brotli_mod
+except ImportError:
+    _brotli_mod = None
+    if _USE_BROTLI:
+        _USE_BROTLI = False
+
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -1654,7 +1663,10 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    if _USE_LZMA:
+    if _USE_BROTLI and _brotli_mod is not None:
+        quant_blob = _brotli_mod.compress(quant_raw, quality=11)
+        _comp_name = "brotli"
+    elif _USE_LZMA:
         quant_blob = _lzma_mod.compress(quant_raw, format=_lzma_mod.FORMAT_ALONE, preset=9)
         _comp_name = "lzma"
     elif _COMPRESSOR == "zstd":
@@ -1675,7 +1687,9 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    if _USE_LZMA:
+    if _USE_BROTLI and _brotli_mod is not None:
+        quant_decompressed = _brotli_mod.decompress(quant_blob_disk)
+    elif _USE_LZMA:
         quant_decompressed = _lzma_mod.decompress(quant_blob_disk, format=_lzma_mod.FORMAT_ALONE)
     elif _COMPRESSOR == "zstd":
         quant_decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
