@@ -1,0 +1,10 @@
+{
+  "name": "Vihaan Ovalekar",
+  "github_id": "WinterBlossom0",
+  "submission_date": "2026-03-30",
+  "val_bpb": 2.09341885,
+  "val_loss": 3.53465004,
+  "model_architecture": "GELU MLP",
+  "key_changes": "Replaced ReLU² with GELU activation in MLP",
+  "notes": "Local RTX 5080 runs with 3 seeds/config variants logged in train_v0.txt, train_v1.txt, and train_v2.txt. Best run: gelu_local_v0_small final_int8_zlib_roundtrip_exact."
+}
