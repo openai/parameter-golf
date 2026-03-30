@@ -159,6 +159,7 @@ def static_bottleneck_model(train_script: Path) -> list[dict[str, str]]:
             "step_avg_ms": "N/A",
             "post_ema_bpb": "N/A",
             "final_val_bpb": "N/A",
+            "final_ngram_bpb": "N/A",
             "notes": (
                 f"padded_rs_bytes_per_step_rank={padded_rs_bytes}; "
                 f"no_pad_rs_bytes_per_step_rank={no_pad_rs_bytes}; "
@@ -178,6 +179,7 @@ def static_bottleneck_model(train_script: Path) -> list[dict[str, str]]:
             "step_avg_ms": "N/A",
             "post_ema_bpb": "N/A",
             "final_val_bpb": "N/A",
+            "final_ngram_bpb": "N/A",
             "notes": f"replicated_grad_tensors={grad_tensors}; replicated_grad_bytes={grad_bytes}",
             "logfile": "",
         },
@@ -234,6 +236,33 @@ def build_dynamic_cases() -> list[AblationCase]:
             test="Compare step_avg and post_ema val_bpb vs compiled baseline.",
             env_overrides={"COMPILE_ENABLED": "0", "COMPILE_FULLGRAPH": "0"},
         ),
+        AblationCase(
+            name="sparse_skipgram_ngram",
+            issue="Structured-text long-gap context at eval",
+            hypothesis=(
+                "Sparse skip-gram contexts (e.g., -1,-3,-5) can capture HTML/code/text structure "
+                "and improve final sliding+ngram BPB with no extra table memory."
+            ),
+            ablation=(
+                "Enable hashed n-gram eval with sparse gap patterns sharing same hash tables."
+            ),
+            test="Compare final_sliding_window_ngram*_exact BPB vs baseline (same seed/steps).",
+            env_overrides={
+                "SKIP_FINAL_EVAL": "0",
+                "NGRAM_EVAL_ORDER": "7",
+                "NGRAM_EVAL_MIN_ORDER": "2",
+                "NGRAM_EVAL_ALPHA": "0.30",
+                "NGRAM_EVAL_ADAPTIVE": "1",
+                "NGRAM_EVAL_MAX_SECONDS": "180",
+                "NGRAM_SPARSE_PATTERNS": (
+                    "1,3;1,2;"
+                    "1,3,5;1,2,4;"
+                    "1,3,5,7;1,2,4,8;"
+                    "1,3,5,7,9;1,2,4,8,16;"
+                    "1,3,5,7,9,11;1,2,4,8,16,32"
+                ),
+            },
+        ),
     ]
 
 
@@ -282,6 +311,7 @@ def run_case(
             "step_avg_ms": "N/A",
             "post_ema_bpb": "N/A",
             "final_val_bpb": "N/A",
+            "final_ngram_bpb": "N/A",
             "notes": "",
             "logfile": str(log_file),
         }
@@ -308,6 +338,7 @@ def run_case(
     step_avg_ms = parse_last_float(text, r"step:\d+/\d+\s+train_loss:[^\n]*step_avg:([0-9.]+)ms")
     post_ema_bpb = parse_last_float(text, r"DIAGNOSTIC post_ema .*?val_bpb:([0-9.]+)")
     final_val_bpb = parse_last_float(text, r"step:\d+/\d+\s+val_loss:[^\n]*val_bpb:([0-9.]+)")
+    final_ngram_bpb = parse_last_float(text, r"final_sliding_window_ngram\d+_exact .*?val_bpb:([0-9.]+)")
     peak_mem_mib = parse_last_float(text, r"peak memory allocated:\s*([0-9.]+)\s*MiB")
 
     status = "ok" if exit_code == 0 else f"failed({exit_code})"
@@ -323,6 +354,7 @@ def run_case(
         "step_avg_ms": fmt(step_avg_ms),
         "post_ema_bpb": fmt(post_ema_bpb),
         "final_val_bpb": fmt(final_val_bpb),
+        "final_ngram_bpb": fmt(final_ngram_bpb),
         "notes": "" if peak_mem_mib is None else f"peak_mem_mib={peak_mem_mib:.0f}",
         "logfile": str(log_file),
     }
@@ -469,6 +501,7 @@ def main() -> int:
         "step_avg_ms",
         "post_ema_bpb",
         "final_val_bpb",
+        "final_ngram_bpb",
         "notes",
         "logfile",
     ]
@@ -483,7 +516,8 @@ def main() -> int:
     for row in rows:
         print(
             f"{row['name']:>22} | {row['kind']:>7} | {row['status']:>10} | "
-            f"step_avg_ms={row['step_avg_ms']} | post_ema_bpb={row['post_ema_bpb']}"
+            f"step_avg_ms={row['step_avg_ms']} | post_ema_bpb={row['post_ema_bpb']} "
+            f"| final_ngram_bpb={row['final_ngram_bpb']}"
         )
     print(f"\nCSV={summary_csv}")
     return 0
