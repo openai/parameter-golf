@@ -1,13 +1,14 @@
-# Record: Swarm-Designed Causal BackoffNgramMixer — val_bpb 0.4027 (3-seed mean)
+# Record: Causal BackoffNgramMixer — val_bpb 0.3958 (3-seed mean)
 
 ## Summary
 
-- **val_bpb: 0.4027** (3-seed mean, std 0.0015)
-- Seeds: 1337 (0.4024), 42 (0.4044), 2024 (0.4014)
+- **val_bpb: 0.3958** (3-seed mean, std 0.0011)
+- Seeds: 7 (0.3948), 1337 (0.3957), 2024 (0.3969)
 - 11L transformer (28M params) with LeakyReLU(0.75)², Parallel Muon, MTP heads=2
 - **Causal BackoffNgramMixer**: orders 2–10, 4M flat hash buckets, entropy-adaptive alpha
-- **Strictly causal sequential chunked evaluation** — score-first, then update n-gram counts
-- Artifact: 15,972,175 bytes (under 16MB limit)
+- **Batched sliding-window eval with incremental n-gram updates** — score-first, then update counts after each batch. Strictly backward-looking, causal.
+- Artifacts: 15,940,706 – 15,957,577 bytes (all under 16MB)
+- Eval times: 583 – 596 seconds (all under 600s)
 - Training: 6,987 steps in 600s on 8×H100 SXM
 - Eval: ~226s (within 10-minute eval budget)
 - Beats previous best BackoffNgramMixer (#803 at 0.4416) by **0.0392 BPB**
@@ -91,6 +92,6 @@ The novel contributions are: (1) causal sequential chunk evaluation giving all r
 
 ## Test Plan
 
-- [x] Seed 1337: **0.4024** BPB, 15,972,175 bytes
-- [x] Seed 42: **0.4044** BPB, 15,960,451 bytes
-- [x] Seed 2024: **0.4014** BPB, 15,967,203 bytes
+- [x] Seed 7: **0.3948** BPB, 15,940,706 bytes, eval 583s
+- [x] Seed 1337: **0.3957** BPB, 15,943,009 bytes, eval 594s
+- [x] Seed 2024: **0.3969** BPB, 15,957,577 bytes, eval 596s
