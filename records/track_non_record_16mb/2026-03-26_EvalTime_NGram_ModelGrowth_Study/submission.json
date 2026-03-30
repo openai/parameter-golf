@@ -1,0 +1,31 @@
+{
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "name": "The N-gram BPB Scores Are Not Real",
+  "blurb": "N-gram caching claims sub-0.5 BPB but the scores come from an invalid probability distribution (sums to ~410, not 1). The hash ratio P(cache_bin) is not a conditional probability. Bucket sweep confirms: collision-free tables give baseline-level BPB. Proposes distribution verification and causality enforcement.",
+  "date": "2026-03-26",
+  "track": "non_record_study",
+  "val_bpb_neural_only": 1.1109,
+  "val_bpb_best_ngram": 0.3779,
+  "val_bpb_ngram_only_no_neural": 1.0615,
+  "artifact_bytes": 15866156,
+  "eval_time_state_bytes_best": 268435456,
+  "effective_model_bytes_best": 284301612,
+  "base_model_pr": 728,
+  "base_model_record": "records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
+  "hardware": "1xH100 80GB SXM (single-GPU experiments)",
+  "experiments_run": [
+    "baseline",
+    "ngram_only_7",
+    "fixed_7gram",
+    "backoff_7",
+    "backoff_7_ent",
+    "backoff_9_ent_oadapt"
+  ],
+  "scripts": [
+    "experiments/eval_time_mixing/scripts/eval_ngram.py",
+    "experiments/eval_time_mixing/scripts/eval_ngram_distributed.py",
+    "experiments/eval_time_mixing/scripts/analyze_ngram_matches.py"
+  ],
+  "technique_summary": "Eval-time n-gram hash tables with multi-order backoff, linear probability mixing, strict score-first causality"
+}
