@@ -1,6 +1,6 @@
-# Knowledge Distillation: A Negative Result (val_bpb: 1.1553, no improvement over baseline)
+# Knowledge Distillation: A Negative Result (val_bpb: 1.1529, no improvement over baseline)
 
-**val_bpb: 1.1553** (best distillation config, soft KL alpha=0.1; baseline without distillation: 1.1522) | **15.4 MB artifact** | 4xH200, unlimited compute track
+**val_bpb: 1.1529** (best distillation config, seed 42, 8xH100 SXM) | baseline: **1.1401** | **15.6 MB artifact**
 
 ## The Question
 
