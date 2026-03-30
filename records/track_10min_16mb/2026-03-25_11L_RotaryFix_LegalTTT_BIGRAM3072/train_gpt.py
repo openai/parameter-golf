@@ -641,11 +641,6 @@ class CausalSelfAttention(nn.Module):
         self.rope_dims = 0  # set by GPT.__init__ for partial RoPE
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len)
         self.use_xsa = False  # set by GPT.__init__ for deep layers only
-        # --- SSA (Selective Synchronization Attention) ---
-        # Kuramoto-Modell: Token als Phasen-Oszillatoren, Attention via Phasensynchronisation.
-        # O(T) via Additionstheorem: cos(φᵢ-φⱼ)=⟨pᵢ,pⱼ⟩, kausaler cumsum.
-        # Gate γ (init=-5 → σ≈0.007) → SSA startet near-inaktiv.
-        # Module werden nur für SSA-Layer instanziert (set by GPT.__init__).
         # Gated attention and value residual (non-banked small params)
         self.gated_attention = gated_attention
         if gated_attention:
@@ -687,22 +682,14 @@ class CausalSelfAttention(nn.Module):
             y = flash_attn_3_func(q, k, v, causal=True)
         else:
             # Fallback: F.scaled_dot_product_attention (CPU/debug only — flash_attn required for SOTA)
-            # SDPA expects [B, H, T, D]; flash_attn uses [B, T, H, D] — must transpose.
             assert not dist.is_initialized() or dist.get_world_size() == 1, \
                 "flash_attn_3_func unavailable on distributed CUDA rank — install flash-attn!"
-            q_sdpa = q.permute(0, 2, 1, 3)  # [B, H, T, D]
-            k_sdpa = k.permute(0, 2, 1, 3)  # [B, Hkv, T, D]
-            v_sdpa = v.permute(0, 2, 1, 3)  # [B, Hkv, T, D]
-            # GQA: expand kv heads to match query heads for SDPA
-            if self.num_kv_heads != self.num_heads:
-                group = self.num_heads // self.num_kv_heads
-                k_sdpa = k_sdpa.unsqueeze(2).expand(bsz, self.num_kv_heads, group, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
-                v_sdpa = v_sdpa.unsqueeze(2).expand(bsz, self.num_kv_heads, group, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
-            y = F.scaled_dot_product_attention(q_sdpa, k_sdpa, v_sdpa, is_causal=True)
-            y = y.permute(0, 2, 1, 3)  # back to [B, T, H, D]
-        # --- SSA Gated-Residual Mixing ---
-        # Kuramoto phase synchronization: ℝ²-reparametrized phase vectors.
-        # SSA-Logits werden mit Standard-Attention gemischt via learned γ-gate.
+            y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        if self.use_xsa:
+            y = self._xsa_efficient(y, v)
+        if self.gated_attention:
+            # gate shape: (bsz, seqlen, num_heads) -> (bsz, seqlen, num_heads, 1) for B,T,H,D layout
+            gate = torch.sigmoid(self.attn_gate(x)).unsqueeze(-1)
             y = y * gate
         y = y.reshape(bsz, seqlen, dim)
         return F.linear(y, out_w.to(x.dtype)), raw_v
