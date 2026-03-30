@@ -124,7 +124,6 @@ class Hyperparameters:
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
     ngram_entropy_shift = bool(int(os.environ.get("NGRAM_ENTROPY_SHIFT", "0")))
     ngram_order_mults_str = os.environ.get("NGRAM_ORDER_MULTS", "")
-    ngram_sparse_patterns_str = os.environ.get("NGRAM_SPARSE_PATTERNS", "")
     cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))
     skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
     post_ema_diagnostic = bool(int(os.environ.get("POST_EMA_DIAGNOSTIC", "1")))
@@ -1453,54 +1452,24 @@ class GPT(nn.Module):
 
 # --- N-gram bulk update and hashed n-gram sliding eval ---
 
-def _parse_sparse_gap_patterns(raw: str) -> list[tuple[int, ...]]:
-    """Parse semicolon-separated sparse context gap patterns.
-    Example: '1,3;1,3,5;1,2,4,8'
-    Gaps are positive offsets from target token index.
-    """
-    if not raw.strip():
-        return []
-    out: list[tuple[int, ...]] = []
-    for item in raw.split(";"):
-        item = item.strip()
-        if not item:
-            continue
-        try:
-            gaps = tuple(int(x.strip()) for x in item.split(",") if x.strip())
-        except ValueError:
-            continue
-        if not gaps or any(g <= 0 for g in gaps):
-            continue
-        out.append(gaps)
-    return out
-
 def _ngram_bulk_update(val_np, start, end, ctx_tables, full_tables,
-                       min_order, max_order, primes, mask,
-                       sparse_patterns_by_order: dict[int, list[tuple[int, ...]]] | None = None):
+                       min_order, max_order, primes, mask):
     """Bulk update n-gram tables with a contiguous range of tokens.
     All ranks call this with the SAME token range -> identical tables everywhere."""
     t = val_np[start:end].astype(np.uint64)
     n = len(t)
     for order in range(min_order, max_order + 1):
+        if n < order:
+            continue
         ctx_width = order - 1
-        gap_patterns = [tuple(range(ctx_width, 0, -1))]
-        if sparse_patterns_by_order is not None:
-            gap_patterns.extend(sparse_patterns_by_order.get(order, []))
-        for gaps in gap_patterns:
-            if len(gaps) != ctx_width:
-                continue
-            max_gap = max(gaps)
-            if n <= max_gap:
-                continue
-            # target positions idx=max_gap..n-1
-            tgt = t[max_gap:]
-            ctx_hash = np.zeros(tgt.shape[0], dtype=np.uint64)
-            for k, gap in enumerate(gaps):
-                ctx_hash ^= t[max_gap - gap:n - gap] * primes[k % len(primes)]
-            ctx_key = (ctx_hash & mask).astype(np.int64)
-            full_key = ((ctx_hash ^ (tgt * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
-            ctx_tables[order] += np.bincount(ctx_key, minlength=len(ctx_tables[order])).astype(np.uint32)
-            full_tables[order] += np.bincount(full_key, minlength=len(full_tables[order])).astype(np.uint32)
+        ctx_hash = np.zeros(n - order + 1, dtype=np.uint64)
+        for k in range(ctx_width):
+            ctx_hash ^= t[k:n - order + 1 + k] * primes[k % len(primes)]
+        ctx_key = (ctx_hash & mask).astype(np.int64)
+        tgt = t[order - 1:]
+        full_key = ((ctx_hash ^ (tgt * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
+        ctx_tables[order] += np.bincount(ctx_key, minlength=len(ctx_tables[order])).astype(np.uint32)
+        full_tables[order] += np.bincount(full_key, minlength=len(full_tables[order])).astype(np.uint32)
 
 def eval_val_sliding_hashed_ngram(
     args: Hyperparameters,
@@ -1576,11 +1545,6 @@ def eval_val_sliding_hashed_ngram(
          np.uint64(131071), np.uint64(174763), np.uint64(233017)],
         dtype=np.uint64,
     )
-    sparse_patterns = _parse_sparse_gap_patterns(args.ngram_sparse_patterns_str)
-    sparse_by_order: dict[int, list[tuple[int, ...]]] = {
-        n: [g for g in sparse_patterns if len(g) == (n - 1)]
-        for n in range(min_order, max_order + 1)
-    }
 
     loss_sum = 0.0
     token_count = 0.0
@@ -1612,10 +1576,8 @@ def eval_val_sliding_hashed_ngram(
     cutoff_hit = False
 
     if rank == 0:
-        sparse_total = sum(len(v) for v in sparse_by_order.values())
-        sparse_msg = f" sparse_patterns={sparse_total}" if sparse_total > 0 else ""
         print(f"ngram_eval:chunks={num_chunks} chunk_tokens={chunk_tokens} "
-              f"windows={len(all_window_starts)} shared_tables=True{sparse_msg}", flush=True)
+              f"windows={len(all_window_starts)} shared_tables=True", flush=True)
 
     with torch.inference_mode():
         for ci in range(num_chunks):
@@ -1687,49 +1649,28 @@ def eval_val_sliding_hashed_ngram(
 
                     for n in range(max_order, min_order - 1, -1):
                         ctx_width = n - 1
-                        gap_patterns = [tuple(range(ctx_width, 0, -1))]
-                        gap_patterns.extend(sparse_by_order.get(n, []))
-                        valid = (global_j >= 1) & (~ng_matched)
+                        valid = (global_j >= ctx_width) & (~ng_matched)
                         if not valid.any():
                             continue
-                        best_p = np.full(seg_len, -1.0, dtype=np.float64)
-                        best_ctx = np.zeros(seg_len, dtype=np.float64)
-                        for gaps in gap_patterns:
-                            if len(gaps) != ctx_width:
-                                continue
-                            max_gap = max(gaps)
-                            valid_g = (global_j >= max_gap) & (~ng_matched)
-                            if not valid_g.any():
-                                continue
-                            v_idx = np.nonzero(valid_g)[0]
-                            jv = global_j[v_idx]
-                            ctx_hash = np.zeros(len(jv), dtype=np.uint64)
-                            for k, gap in enumerate(gaps):
-                                tok = val_np[jv - gap].astype(np.uint64)
-                                ctx_hash ^= tok * primes[k % len(primes)]
-                            ctx_key = (ctx_hash & mask).astype(np.int64)
-                            full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
-                            ctx_counts = ctx_tables[n][ctx_key].astype(np.float64)
-                            full_counts = full_tables[n][full_key].astype(np.float64)
-                            has_data = ctx_counts >= float(min_count)
-                            if not has_data.any():
-                                continue
+                        v_idx = np.nonzero(valid)[0]
+                        jv = global_j[v_idx]
+                        ctx_hash = np.zeros(len(jv), dtype=np.uint64)
+                        for k in range(ctx_width):
+                            tok = val_np[jv - (ctx_width - k)].astype(np.uint64)
+                            ctx_hash ^= tok * primes[k % len(primes)]
+                        ctx_key = (ctx_hash & mask).astype(np.int64)
+                        full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
+                        ctx_counts = ctx_tables[n][ctx_key].astype(np.float64)
+                        full_counts = full_tables[n][full_key].astype(np.float64)
+                        has_data = ctx_counts >= float(min_count)
+                        if has_data.any():
                             p = np.minimum(full_counts, ctx_counts) / np.maximum(ctx_counts, 1.0)
                             p = np.clip(p, 0.0, 1.0)
                             hit_idx = v_idx[has_data]
-                            p_hit = p[has_data]
-                            ctx_hit = ctx_counts[has_data]
-                            better = p_hit > best_p[hit_idx]
-                            if better.any():
-                                chosen = hit_idx[better]
-                                best_p[chosen] = p_hit[better]
-                                best_ctx[chosen] = ctx_hit[better]
-                        has_best = best_p >= 0.0
-                        if has_best.any():
-                            p_ng[has_best] = best_p[has_best]
-                            ng_matched[has_best] = True
-                            _ng_ord[has_best] = n
-                            _ng_ctx_count[has_best] = best_ctx[has_best]
+                            p_ng[hit_idx] = p[has_data]
+                            ng_matched[hit_idx] = True
+                            _ng_ord[hit_idx] = n
+                            _ng_ctx_count[hit_idx] = ctx_counts[has_data]
 
                     # Mix where n-gram matched (PR #809 style or cubric 3D fallback)
                     if ng_matched.any():
@@ -1782,7 +1723,7 @@ def eval_val_sliding_hashed_ngram(
             chunk_end = min((ci + 1) * chunk_tokens, total_tokens)
             _ngram_bulk_update(val_np, chunk_start, chunk_end + 1,
                                ctx_tables, full_tables, min_order, max_order,
-                               primes, mask, sparse_by_order)
+                               primes, mask)
 
             # Cubric 2D c-step: adapt per (order x entropy_bin)
             if _con:
@@ -2005,12 +1946,7 @@ def main() -> None:
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     if args.ngram_eval_order >= 2:
-        sparse_cfg = args.ngram_sparse_patterns_str if args.ngram_sparse_patterns_str else "off"
-        log0(
-            f"ngram_eval:order={args.ngram_eval_order} alpha={args.ngram_eval_alpha} "
-            f"min_count={args.ngram_eval_min_count} buckets={args.ngram_eval_buckets} "
-            f"sparse_patterns={sparse_cfg}"
-        )
+        log0(f"ngram_eval:order={args.ngram_eval_order} alpha={args.ngram_eval_alpha} min_count={args.ngram_eval_min_count} buckets={args.ngram_eval_buckets}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
     CastedLinear._qat_enabled = args.qat_enabled
