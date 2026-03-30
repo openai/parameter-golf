@@ -92,6 +92,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 0))  # 0 = full RoPE; e.g. 16 = partial RoPE on first 16 dims
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # 1/sqrt(layer+1) scaling on sublayer inputs
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # XSA on last N layers (0 = disabled)
+    smear_gate = bool(int(os.environ.get("SMEAR_GATE", "0")))  # causal shift gate in GPT forward
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
@@ -1031,6 +1032,18 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+class SmearGate(nn.Module):
+    """Causal shift gate: mix each position with its predecessor."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return (1 - g) * x + g * x_prev
+
+
 class BigramHashEmbedding(nn.Module):
     """Hash consecutive token pairs into a learned embedding table."""
     def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int):
@@ -1113,6 +1126,7 @@ class GPT(nn.Module):
         rope_dims: int = 0,
         ln_scale: bool = False,
         xsa_last_n: int = 0,
+        smear_gate: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1123,6 +1137,7 @@ class GPT(nn.Module):
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.smear = SmearGate(model_dim) if smear_gate else None
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1175,6 +1190,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
+        if self.smear is not None:
+            x = self.smear(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -1227,6 +1244,8 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
+        if self.smear is not None:
+            x = self.smear(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -1367,6 +1386,7 @@ def main() -> None:
         rope_dims=args.rope_dims,
         ln_scale=args.ln_scale,
         xsa_last_n=args.xsa_last_n,
+        smear_gate=args.smear_gate,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
