@@ -109,13 +109,15 @@ Running the teacher live during training is a non-starter. The forward pass over
 
 Self-distillation (student as its own teacher, same architecture):
 
-| Seed | Baseline BPB | Distillation BPB | Delta |
-|------|-------------|-----------------|-------|
-| 42   | 1.140       | 1.153           | +0.013 |
-| 1337 | 1.139       | 1.140           | +0.001 |
-| 2024 | 1.140       | 1.141           | +0.001 |
+| Seed | Baseline BPB | Distillation BPB | Delta | Notes |
+|------|-------------|-----------------|-------|-------|
+| 42   | 1.140       | 1.153           | +0.013 | |
+| 1337 | 1.139       | 1.140           | +0.001 | baseline artifact slightly over 16MB* |
+| 2024 | 1.140       | 1.141           | +0.001 | distill artifact slightly over 16MB* |
 
 Distillation never beats baseline across any seed. The average gap (+0.005) is consistent with the H200 findings. Seed 42 shows a larger gap, likely due to random variation in warmdown timing.
+
+*Seeds 1337 baseline (16.15 MB) and 2024 distillation (16.17 MB) are slightly over the 16,000,000-byte artifact limit due to seed-dependent quantization variance. Included as auxiliary evidence for the negative result, not as compliant runs. The remaining 4 of 6 runs are within limits and independently confirm the finding.
 
 ## Architecture
 
