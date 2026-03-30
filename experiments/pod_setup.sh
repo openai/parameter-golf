@@ -141,15 +141,36 @@ fi
 # 6. Dataset (sp1024)
 # =============================================================================
 echo ""
-echo "[6/6] FineWeb dataset (sp1024)..."
+echo "[6/6] Tokenizer + FineWeb dataset (sp1024)..."
 
+# Tokenizer
+TOKENIZER="${WORKSPACE}/data/tokenizers/fineweb_1024_bpe.model"
+if [ -f "${TOKENIZER}" ]; then
+    echo "  Tokenizer already present"
+else
+    echo "  Downloading tokenizer..."
+    if command -v huggingface-cli &>/dev/null; then
+        huggingface-cli download sproos/parameter-golf-tokenizers \
+            --include "tokenizers/*" --local-dir "${WORKSPACE}/data"
+    else
+        python3 -c "
+from huggingface_hub import snapshot_download
+snapshot_download('sproos/parameter-golf-tokenizers',
+    allow_patterns='tokenizers/*',
+    local_dir='${WORKSPACE}/data')
+"
+    fi
+    echo "  Tokenizer downloaded"
+fi
+
+# Dataset shards
 TRAIN_COUNT=$(ls "${WORKSPACE}/data/datasets/fineweb10B_sp1024/fineweb_train_"*.bin 2>/dev/null | wc -l)
 VAL_COUNT=$(ls "${WORKSPACE}/data/datasets/fineweb10B_sp1024/fineweb_val_"*.bin 2>/dev/null | wc -l)
 
 if [ "$TRAIN_COUNT" -ge 10 ]; then
     echo "  Already have $TRAIN_COUNT train / $VAL_COUNT val shards"
 else
-    echo "  Downloading ($TRAIN_COUNT train shards found, need 10+)..."
+    echo "  Downloading dataset ($TRAIN_COUNT train shards found, need 10+)..."
     if command -v huggingface-cli &>/dev/null; then
         huggingface-cli download sproos/parameter-golf-tokenizers \
             --include "datasets/fineweb10B_sp1024/*" --local-dir "${WORKSPACE}/data"
@@ -161,7 +182,7 @@ snapshot_download('sproos/parameter-golf-tokenizers',
     local_dir='${WORKSPACE}/data')
 "
     fi
-    echo "  Downloaded"
+    echo "  Dataset downloaded"
 fi
 
 # =============================================================================
