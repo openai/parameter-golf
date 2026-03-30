@@ -1,14 +1,20 @@
 #!/bin/bash
 set -euo pipefail
-# BANDIT_WAGON: Bandit (crawler + X-WING oracle) with extra headroom ablations
+# BANDIT_WAGON: Crawler headroom ablation (NGRAM removed, optimal post-CL1 config)
 #
-# Bandit baseline: 0.4961 BPB @ 9.35 MB (6.65 MB headroom to 16 MB limit)
-# Ablation arms — one variable at a time:
-#   BW-00  dim=512  4F+1C×4  (anchor == Bandit)
-#   BW-01  dim=576  4F+1C×4  (+2.28 MB — width lever)
-#   BW-02  dim=640  4F+1C×4  (+4.83 MB — width lever max)
-#   BW-03  dim=512  5F+1C×4  (+1.68 MB — depth lever)
-#   BW-04  dim=512  6F+1C×4  (+3.36 MB — depth lever max)
+# Config locked to CL1/Ablations_v1 research findings:
+#   CRAWLER_LOOPS=3        (CL1-01: −0.088 BPB vs loops=4)
+#   CRAWLER_MLP_MULT=5.0   (CL1-07: −0.098 BPB vs mlp=4.0)
+#   CRAWLER_QUANT_INT8=1   (CL1-08: mandatory, +0.197 BPB if disabled)
+#   LOOP_AWARE_GPTQ=1      (Ablations_v1-B: −0.040 BPB)
+#   COMPILE_FULLGRAPH=1    (Ablations_v1-E: −0.026 BPB; safe now NGRAM removed)
+#
+# Headroom arms — one variable at a time:
+#   BW-00  dim=512  4F+1C×3  (anchor)
+#   BW-01  dim=576  4F+1C×3  (width lever)
+#   BW-02  dim=640  4F+1C×3  (width lever max)
+#   BW-03  dim=512  5F+1C×3  (depth lever)
+#   BW-04  dim=512  6F+1C×3  (depth lever max)
 #
 # Override: MODEL_DIM=640 NUM_FLAT_LAYERS=4 bash experiments/Bandit_Wagon/run.sh
 
@@ -57,19 +63,17 @@ except ImportError:
 " 2>/dev/null || echo "  WARNING: no flash_attn found"
 
 echo "============================================"
-echo "  BANDIT_WAGON — crawler + X-WING oracle (headroom ablation)"
+echo "  BANDIT_WAGON — crawler headroom ablation (no ngram)"
 echo "  Seed: ${SEED}"
-echo "  MODEL_DIM=${MODEL_DIM} | inst_dim=32 FLOW | ${NUM_FLAT_LAYERS} flat + 1 crawler x 4 loops | DN=0"
-echo "  EMA_START_STEP=4400 | EMA_DECAY=0.99 | LOOP_AWARE_GPTQ=1"
-echo "  NGRAM_EVAL_ORDER=9 | CUBRIC_CADENCE=32 | COMPLEMENT_ALPHA=0.5"
-echo "  Shared n-gram tables | 3D Cubric 54-cell warm-start"
+echo "  MODEL_DIM=${MODEL_DIM} | inst_dim=32 FLOW | ${NUM_FLAT_LAYERS}F+1C x 3 loops | DN=0"
+echo "  mlp_mult=5.0 | COMPILE_FULLGRAPH=1 | LOOP_AWARE_GPTQ=1 | CRAWLER_QUANT_INT8=1"
+echo "  EMA_START_STEP=4400 | EMA_DECAY=0.99"
 echo "  NITRUST_ENABLE=${NITRUST_ENABLE} | NITRUST_STRICT=${NITRUST_STRICT}"
 echo "============================================"
 
 SEED="$SEED" \
 MAX_WALLCLOCK_SECONDS=600 \
 WARMDOWN_ITERS=2000 \
-COMPLEMENT_ALPHA=0.5 \
 XSA_LAST_N=11 \
 BIGRAM_VOCAB_SIZE=2048 \
 ROPE_DIMS=16 \
@@ -78,29 +82,19 @@ MTP_NUM_HEADS=0 \
 LATE_QAT_THRESHOLD=0 \
 MATRIX_LR=0.03 \
 TORCHDYNAMO_OPTIMIZE_DDP=0 \
-COMPILE_FULLGRAPH=0 \
+COMPILE_FULLGRAPH=1 \
 MODEL_DIM="${MODEL_DIM}" \
 USE_CRAWLER=1 \
 NUM_FLAT_LAYERS="${NUM_FLAT_LAYERS}" \
 NUM_CRAWLER_LAYERS=1 \
-CRAWLER_LOOPS=4 \
+CRAWLER_LOOPS=3 \
+CRAWLER_MLP_MULT=5.0 \
 INST_DIM=32 \
 CRAWLER_QUANT_INT8=1 \
 DELTA_NET_HEADS=0 \
 EMA_START_STEP=4400 \
 EMA_DECAY=0.99 \
 LOOP_AWARE_GPTQ=1 \
-NGRAM_EVAL_ORDER=9 \
-NGRAM_EVAL_MIN_ORDER=2 \
-NGRAM_EVAL_ADAPTIVE=1 \
-NGRAM_EVAL_ALPHA=0.30 \
-NGRAM_EVAL_ALPHA_MIN=0.20 \
-NGRAM_EVAL_ALPHA_MAX=0.75 \
-NGRAM_EVAL_ENTROPY_CENTER=3.0 \
-NGRAM_EVAL_ENTROPY_SCALE=2.0 \
-NGRAM_EVAL_MIN_COUNT=2 \
-NGRAM_EVAL_BUCKETS=8388608 \
-CUBRIC_CADENCE=32 \
 NITRUST_ENABLE="${NITRUST_ENABLE}" \
 NITRUST_STRICT="${NITRUST_STRICT}" \
 NITRUST_SO_PATH="${NITRUST_SO_PATH}" \
