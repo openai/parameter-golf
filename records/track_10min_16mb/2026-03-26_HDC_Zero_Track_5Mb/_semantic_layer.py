@@ -253,6 +253,131 @@ class DirectionalSemanticVec:
 
         return scores  # (vocab_size,)
 
+    def vote_scores_for_context_tok_batch(
+        self, ctx_toks: np.ndarray, codebook: np.ndarray
+    ) -> np.ndarray:
+        """Vectorized batch version: Score all vocab candidates for multiple context tokens.
+
+        Parameters
+        ----------
+        ctx_toks : (K,) int32
+            Array of unique context tokens to compute scores for.
+        codebook : (vocab_size, W) uint64
+            Token codebook for similarity computation.
+
+        Returns
+        -------
+        scores : (K, vocab_size) float32
+            Score matrix where scores[k] = vote_scores_for_context_tok(ctx_toks[k]).
+        """
+        K = len(ctx_toks)
+        vocab_size = codebook.shape[0]
+        W = self.W
+
+        # Extract windows for all context tokens at once: (K, W) uint64
+        win_starts = ctx_toks * W
+        win_ends = win_starts + W
+
+        # Use advanced indexing to gather windows
+        fwd_windows = np.zeros((K, W), dtype=np.uint64)
+        bwd_windows = np.zeros((K, W), dtype=np.uint64)
+        for k in range(K):
+            fwd_windows[k] = self.sem_fwd[win_starts[k]:win_ends[k]]
+            bwd_windows[k] = self.sem_bwd[win_starts[k]:win_ends[k]]
+
+        # Broadcast XOR: (K, vocab_size, W)
+        # fwd_windows[:, None, :] broadcasts to (K, 1, W), codebook broadcasts to (vocab_size, W)
+        fwd_signals = fwd_windows[:, None, :] ^ codebook[None, :, :]  # (K, vocab_size, W)
+        bwd_signals = bwd_windows[:, None, :] ^ codebook[None, :, :]  # (K, vocab_size, W)
+
+        # Popcount via uint8 view + unpackbits
+        # (K, vocab_size, W) uint64 → (K, vocab_size, W*8) uint8 → (K, vocab_size, W*64) bits
+        fwd_pc = np.unpackbits(fwd_signals.view(np.uint8), axis=2).sum(axis=2)  # (K, vocab_size)
+        bwd_pc = np.unpackbits(bwd_signals.view(np.uint8), axis=2).sum(axis=2)  # (K, vocab_size)
+
+        # Signed score: positive = co-occurrence, negative = anti-correlation
+        scores = (
+            (fwd_pc.astype(np.float32) - self._neutral_f)
+            + (bwd_pc.astype(np.float32) - self._neutral_f)
+        ) / self._neutral_f
+
+        return scores  # (K, vocab_size)
+
+    def vote_scores_for_context_tok_gpu(
+        self, ctx_tok: int, codebook: np.ndarray, gpu_manager
+    ) -> np.ndarray:
+        """GPU-accelerated version using TensorCoreGPUManager.
+
+        Uses GPU for the XOR+popcount operations which are the computational bottleneck.
+        Falls back to CPU if GPU is not available or on error.
+
+        Parameters
+        ----------
+        ctx_tok : int
+            Context token to query.
+        codebook : (vocab_size, W) uint64
+            Token codebook for similarity computation.
+        gpu_manager : TensorCoreGPUManager
+            GPU manager from train_gpt.py for GPU operations.
+
+        Returns
+        -------
+        scores : (vocab_size,) float32
+            Score array for all vocabulary tokens.
+        """
+        try:
+            import cupy as cp
+
+            win = slice(ctx_tok * self.W, (ctx_tok + 1) * self.W)
+            fwd_win = self.sem_fwd[win]  # (W,) uint64
+            bwd_win = self.sem_bwd[win]  # (W,) uint64
+
+            # Move to GPU
+            fwd_win_gpu = gpu_manager.to_gpu(fwd_win)
+            bwd_win_gpu = gpu_manager.to_gpu(bwd_win)
+            codebook_gpu = gpu_manager.to_gpu(codebook)
+
+            # Broadcast XOR on GPU: (vocab_size, W)
+            fwd_signals = fwd_win_gpu[None, :] ^ codebook_gpu
+            bwd_signals = bwd_win_gpu[None, :] ^ codebook_gpu
+
+            # Popcount on GPU using vectorized popcount
+            # cupy doesn't have unpackbits, so we use a manual popcount
+            # For uint64, popcount = sum of bits set
+            def gpu_popcount_uint64(arr):
+                """Vectorized popcount for uint64 array on GPU."""
+                # Use lookup table approach or builtin popcount
+                # CuPy supports cp.count_nonzero for boolean, so we unpack bits
+                # Alternative: use the fact that popcount(x) = x - (x>>1)&0x5555... etc
+                # For simplicity, use the SWAR approach
+                x = arr.view(cp.uint8).reshape(arr.shape[0], -1)  # (vocab_size, W*8)
+                # Use numpy-style bit counting via lookup
+                # Actually, use cp.unpackbits if available, else fallback
+                try:
+                    bits = cp.unpackbits(x, axis=1)  # (vocab_size, W*64)
+                    return bits.sum(axis=1)
+                except (AttributeError, NotImplementedError):
+                    # Fallback: use CPU for popcount
+                    return None
+
+            fwd_pc = gpu_popcount_uint64(fwd_signals)
+            bwd_pc = gpu_popcount_uint64(bwd_signals)
+
+            if fwd_pc is None or bwd_pc is None:
+                # GPU popcount failed, fall back to CPU
+                return self.vote_scores_for_context_tok(ctx_tok, codebook)
+
+            # Compute scores on GPU
+            neutral = self._neutral_f
+            scores = ((fwd_pc.astype(cp.float32) - neutral) +
+                      (bwd_pc.astype(cp.float32) - neutral)) / neutral
+
+            return gpu_manager.to_cpu(scores).astype(np.float32)
+
+        except (ImportError, RuntimeError, Exception):
+            # GPU not available or error occurred, fall back to CPU
+            return self.vote_scores_for_context_tok(ctx_tok, codebook)
+
     def augment_predictions(
         self,
         preds: np.ndarray,         # (chunk_n,) uint16 — current predictions
@@ -281,16 +406,30 @@ class DirectionalSemanticVec:
         if not np.any(low_conf_mask):
             return preds, 0
 
-        # Accumulate semantic vote scores over all context positions
-        sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+        # Accumulate semantic vote scores over all context positions (VECTORIZED)
         ctx_len = context_matrix.shape[0]
 
-        for c in range(ctx_len):
-            ctx_slice = context_matrix[c]  # (chunk_n,) int32
-            for ctx_tok in np.unique(ctx_slice):
-                pos_mask = ctx_slice == ctx_tok
-                scores = self.vote_scores_for_context_tok(int(ctx_tok), codebook)
-                sem_vote[pos_mask] += scores[None, :] if pos_mask.sum() > 1 else scores
+        # Collect all unique context tokens across all positions
+        all_ctx_toks = np.unique(context_matrix)
+        all_ctx_toks = all_ctx_toks[all_ctx_toks >= 0]  # Filter out padding (-1)
+
+        # Batch compute scores for all unique context tokens at once
+        if len(all_ctx_toks) > 0:
+            batch_scores = self.vote_scores_for_context_tok_batch(all_ctx_toks, codebook)  # (K, vocab_size)
+
+            # Create lookup map: ctx_tok -> index in all_ctx_toks
+            ctx_to_idx = {tok: idx for idx, tok in enumerate(all_ctx_toks)}
+
+            # Accumulate scores using vectorized indexing
+            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+            for c in range(ctx_len):
+                ctx_slice = context_matrix[c]  # (chunk_n,) int32
+                for k, ctx_tok in enumerate(all_ctx_toks):
+                    pos_mask = ctx_slice == ctx_tok
+                    if np.any(pos_mask):
+                        sem_vote[pos_mask] += batch_scores[k]
+        else:
+            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
 
         # Best semantic candidate per position
         sem_preds = np.argmax(sem_vote, axis=1).astype(np.uint16)
@@ -307,6 +446,148 @@ class DirectionalSemanticVec:
         preds_out[override_mask] = sem_preds[override_mask]
 
         return preds_out, n_overrides
+
+    def continuous_attention_blend(
+        self,
+        table_preds: np.ndarray,    # (chunk_n,) uint16 — Boyer-Moore predictions
+        table_conf: np.ndarray,    # (chunk_n,) int32 — Boyer-Moore confidence
+        context_matrix: np.ndarray,# (CTX_LEN, chunk_n) int32 — context tokens
+        codebook: np.ndarray,      # (vocab_size, W) uint64
+        blend_mode: str = "confidence_weighted",
+        max_table_weight: float = 0.85,
+        min_sem_weight: float = 0.15,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Continuous attention blending — semantic layer contributes at ALL confidence levels.
+
+        This transforms the semantic layer from a fallback mechanism into a continuous
+        attention-like system that always contributes to predictions, similar to how
+        transformer attention combines multiple heads.
+
+        Blending Modes
+        --------------
+        "confidence_weighted": Weight = sigmoid(table_conf). High conf → more table weight.
+        "additive": Semantic scores added to table confidence for each token.
+        "multiplicative": Table confidence multiplied by semantic agreement.
+        "cluster_enhanced": Semantic layer clusters relationships and amplifies patterns.
+
+        Parameters
+        ----------
+        table_preds : (chunk_n,) uint16
+            Predictions from Boyer-Moore table lookup.
+        table_conf : (chunk_n,) int32
+            Confidence values from Boyer-Moore (higher = more confident).
+        context_matrix : (CTX_LEN, chunk_n) int32
+            Context tokens for each position.
+        codebook : (vocab_size, W) uint64
+            Token codebook for similarity computation.
+        blend_mode : str
+            How to blend table and semantic predictions.
+        max_table_weight : float
+            Maximum weight given to table predictions (even at high confidence).
+        min_sem_weight : float
+            Minimum weight given to semantic layer (even at high table confidence).
+
+        Returns
+        -------
+        blended_preds : (chunk_n,) uint16
+            Final predictions after blending.
+        blend_weights : (chunk_n,) float32
+            Weight given to table predictions (1 - weight = semantic weight).
+        sem_vote_scores : (chunk_n, vocab_size) float32
+            Full semantic vote matrix for analysis.
+        """
+        chunk_n = len(table_preds)
+        ctx_len = context_matrix.shape[0]
+
+        # 1. Compute semantic vote scores for ALL positions (VECTORIZED)
+        # Collect all unique context tokens across all positions
+        all_ctx_toks = np.unique(context_matrix)
+        all_ctx_toks = all_ctx_toks[all_ctx_toks >= 0]  # Filter out padding (-1)
+
+        # Batch compute scores for all unique context tokens at once
+        if len(all_ctx_toks) > 0:
+            batch_scores = self.vote_scores_for_context_tok_batch(all_ctx_toks, codebook)  # (K, vocab_size)
+
+            # Create lookup map: ctx_tok -> index in all_ctx_toks
+            ctx_to_idx = {tok: idx for idx, tok in enumerate(all_ctx_toks)}
+
+            # Accumulate scores using vectorized indexing
+            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+            for c in range(ctx_len):
+                ctx_slice = context_matrix[c]  # (chunk_n,) int32
+                for k, ctx_tok in enumerate(all_ctx_toks):
+                    pos_mask = ctx_slice == ctx_tok
+                    if np.any(pos_mask):
+                        sem_vote[pos_mask] += batch_scores[k]
+        else:
+            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+
+        # Normalize semantic votes to [-1, 1] range per position
+        sem_max = np.abs(sem_vote).max(axis=1, keepdims=True)
+        sem_max = np.maximum(sem_max, 1e-6)  # Avoid division by zero
+        sem_vote_norm = sem_vote / sem_max
+
+        # 2. Compute blend weights based on table confidence
+        # Higher confidence → more weight to table, but semantic ALWAYS contributes
+        # sigmoid-like weighting: w_table = max_table_weight * sigmoid(conf)
+        conf_scaled = np.clip(table_conf / 10.0, -2, 2)  # Scale to reasonable range
+        table_weight = max_table_weight * (1.0 / (1.0 + np.exp(-conf_scaled)))
+        table_weight = np.clip(table_weight, min_sem_weight, max_table_weight)
+
+        # 3. Get best semantic predictions
+        sem_preds = np.argmax(sem_vote, axis=1).astype(np.uint16)
+        sem_best_score = sem_vote[np.arange(chunk_n), sem_preds.astype(np.int64)]
+
+        # 4. Blend based on mode
+        blended_preds = table_preds.copy()
+
+        if blend_mode == "confidence_weighted":
+            # Use semantic prediction when it strongly disagrees with table
+            # AND has high semantic confidence
+            table_agrees = (sem_preds == table_preds)
+            sem_confident = sem_best_score > SEM_CONFIDENCE_MIN
+
+            # Blend: use semantic when table is uncertain OR semantic is very confident
+            use_semantic = (~table_agrees) & sem_confident & (table_weight < 0.7)
+            blended_preds[use_semantic] = sem_preds[use_semantic]
+
+        elif blend_mode == "additive":
+            # Add semantic vote to table confidence for the predicted token
+            # This amplifies patterns where both agree
+            for i in range(chunk_n):
+                tok = int(table_preds[i])
+                combined_conf = table_conf[i] + sem_vote[i, tok] * 5.0
+                # If another token has higher combined score, use it
+                sem_vote_adjusted = sem_vote[i] * 5.0 + table_conf[i] * (np.arange(self.vocab_size) == tok)
+                best_combined = np.argmax(sem_vote_adjusted)
+                if sem_vote[i, best_combined] > sem_vote[i, tok] + 0.5:
+                    blended_preds[i] = best_combined
+
+        elif blend_mode == "multiplicative":
+            # Multiply table confidence by semantic agreement
+            # Strong agreement → boost, disagreement → consider alternatives
+            for i in range(chunk_n):
+                tok = int(table_preds[i])
+                agreement = sem_vote_norm[i, tok]
+                if agreement < -0.3 and sem_best_score[i] > SEM_CONFIDENCE_MIN:
+                    # Semantic strongly disagrees — use semantic prediction
+                    blended_preds[i] = sem_preds[i]
+
+        elif blend_mode == "cluster_enhanced":
+            # Cluster-enhanced: semantic layer identifies relationship clusters
+            # and amplifies predictions that match cluster patterns
+            for i in range(chunk_n):
+                tok = int(table_preds[i])
+                sem_score_for_tok = sem_vote[i, tok]
+
+                # Check if semantic layer has a strong alternative
+                if sem_best_score[i] > sem_score_for_tok + 0.3:
+                    # Semantic layer has a better candidate
+                    # Blend based on confidence
+                    if table_weight[i] < 0.6:  # Table not very confident
+                        blended_preds[i] = sem_preds[i]
+
+        return blended_preds, table_weight.astype(np.float32), sem_vote
 
     # ------------------------------------------------------------------
     # Sleep / consolidation
