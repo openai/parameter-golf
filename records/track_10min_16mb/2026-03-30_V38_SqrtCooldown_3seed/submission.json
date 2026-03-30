@@ -1,0 +1,31 @@
+{
+  "author": "Ethan Yang",
+  "github_id": "EthanYangTW",
+  "name": "CROWN-Q + Full GPTQ + Legal TTT + Sqrt Cooldown",
+  "blurb": "CROWN-Q quantization-aware penalty during warmdown, full Cholesky GPTQ, score-first AdamW TTT, sqrt LR cooldown schedule. 11L GQA, XSA-all, EMA 0.997, coprime data loader.",
+  "date": "2026-03-30T09:45:00Z",
+  "val_loss": 1.8863,
+  "val_loss_std": 0.0006,
+  "val_bpb": 1.1174,
+  "val_bpb_std": 0.0004,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.1170,
+      "val_loss": 1.8860,
+      "bytes": 15961751
+    },
+    "42": {
+      "val_bpb": 1.1176,
+      "val_loss": 1.8871,
+      "bytes": 15850151
+    },
+    "7": {
+      "val_bpb": 1.1176,
+      "val_loss": 1.8870,
+      "bytes": 15844080
+    }
+  },
+  "bytes_total": 15961751,
+  "bytes_code": 86451
+}
