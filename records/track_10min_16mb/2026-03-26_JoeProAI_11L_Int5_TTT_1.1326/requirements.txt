@@ -1,0 +1,7 @@
+torch>=2.4.0
+numpy
+zstandard
+huggingface_hub
+datasets
+sentencepiece
+tqdm
