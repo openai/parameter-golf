@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+from typing import Mapping
+
+
+EXACT_SUFFIX = "_exact"
+PRIMARY_SUBMISSION_LABELS = (
+    "legal_ttt_exact",
+    "final_int6_sliding_window_exact",
+)
+
+
+def _base_metric_label(label: str) -> str:
+    return label[: -len(EXACT_SUFFIX)] if label.endswith(EXACT_SUFFIX) else label
+
+
+def _exact_metric_label(label: str) -> str:
+    return label if label.endswith(EXACT_SUFFIX) else f"{label}{EXACT_SUFFIX}"
+
+
+def metric_payload_by_label(metrics: Mapping[str, object] | None, label: str) -> dict[str, object] | None:
+    if not isinstance(metrics, Mapping):
+        return None
+    base_label = _base_metric_label(label)
+    named_exact = metrics.get("named_evals_exact")
+    if isinstance(named_exact, Mapping):
+        for key in (label, base_label):
+            candidate = named_exact.get(key)
+            if isinstance(candidate, dict) and candidate.get("val_bpb") is not None:
+                return candidate
+    named = metrics.get("named_evals")
+    if isinstance(named, Mapping):
+        for key in (label, base_label):
+            candidate = named.get(key)
+            if isinstance(candidate, dict) and candidate.get("val_bpb") is not None:
+                return candidate
+    candidate = metrics.get(label)
+    if isinstance(candidate, dict) and candidate.get("val_bpb") is not None:
+        return candidate
+    if base_label != label:
+        candidate = metrics.get(base_label)
+        if isinstance(candidate, dict) and candidate.get("val_bpb") is not None:
+            return candidate
+    return None
+
+
+def _best_eval_from_mapping(
+    evals: Mapping[str, object] | None,
+    *,
+    exact_labels: bool,
+) -> tuple[str | None, dict[str, object] | None]:
+    if not isinstance(evals, Mapping):
+        return None, None
+    best_label: str | None = None
+    best_payload: dict[str, object] | None = None
+    best_bpb: float | None = None
+    for label, payload in evals.items():
+        if not isinstance(payload, dict) or payload.get("val_bpb") is None:
+            continue
+        val_bpb = float(payload["val_bpb"])
+        if best_bpb is None or val_bpb < best_bpb:
+            best_label = _exact_metric_label(str(label)) if exact_labels else str(label)
+            best_payload = payload
+            best_bpb = val_bpb
+    return best_label, best_payload
+
+
+def canonical_submission_eval(metrics: Mapping[str, object] | None) -> tuple[str | None, dict[str, object] | None]:
+    if not isinstance(metrics, Mapping):
+        return None, None
+
+    named_exact = metrics.get("named_evals_exact")
+    if isinstance(named_exact, Mapping):
+        for label in PRIMARY_SUBMISSION_LABELS:
+            candidate = metric_payload_by_label({"named_evals_exact": named_exact}, label)
+            if candidate is not None:
+                return label, candidate
+        best_label, best_payload = _best_eval_from_mapping(named_exact, exact_labels=True)
+        if best_payload is not None:
+            return best_label, best_payload
+
+    named = metrics.get("named_evals")
+    if isinstance(named, Mapping):
+        for label in PRIMARY_SUBMISSION_LABELS:
+            candidate = metric_payload_by_label({"named_evals": named}, label)
+            if candidate is not None:
+                return label, candidate
+        best_label, best_payload = _best_eval_from_mapping(named, exact_labels=False)
+        if best_payload is not None:
+            return best_label, best_payload
+
+    for legacy_label in ("final_roundtrip_exact", "final_roundtrip", "last_val"):
+        candidate = metric_payload_by_label(metrics, legacy_label)
+        if candidate is not None:
+            return legacy_label, candidate
+    return None, None
+
+
+def canonical_submission_fields(metrics: Mapping[str, object] | None) -> dict[str, object]:
+    return canonical_submission_fields_for_status(metrics, status="completed")
+
+
+def canonical_submission_fields_for_status(
+    metrics: Mapping[str, object] | None,
+    *,
+    status: str | None,
+) -> dict[str, object]:
+    if status != "completed":
+        return {
+            "final_submission_metric_label": None,
+            "official_submission_metric_label": None,
+            "final_submission_loss": None,
+            "final_submission_bpb": None,
+        }
+    label, payload = canonical_submission_eval(metrics)
+    if payload is None:
+        return {
+            "final_submission_metric_label": None,
+            "official_submission_metric_label": None,
+            "final_submission_loss": None,
+            "final_submission_bpb": None,
+        }
+    return {
+        "final_submission_metric_label": label,
+        "official_submission_metric_label": label,
+        "final_submission_loss": payload.get("val_loss"),
+        "final_submission_bpb": payload.get("val_bpb"),
+    }
