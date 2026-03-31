@@ -16,33 +16,37 @@
 
 ---
 
-## Ablation Results
+## Run 1 Results — 2026-03-31 (SLOT crashed, partial)
 
 | Case | post_ema_bpb | delta | sliding_bpb | delta | step_avg_ms |
 |------|-------------|-------|-------------|-------|-------------|
-| baseline | | — | | — | |
-| qk_gain4 | | | | | |
-| slot_only | | | | | |
-| qk_gain4_slot | | | | | |
+| baseline | 1.302300 | — | 1.362200 | — | 746.81 |
+| qk_gain4 | 1.303300 | +0.0010 | 1.362500 | +0.0003 | 703.38 |
+| slot_only | 1.302900 | +0.0006 | **CRASHED** | — | 703.11 |
+| qk_gain4_slot | 1.303600 | +0.0013 | **CRASHED** | — | 711.08 |
 
-## Cross-Correlation
+**SLOT crash root cause:** `RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn`
+SLOT optimization loop was inside `torch.no_grad()` context — gradient tracking was suppressed.
+**Fix:** Added `with torch.enable_grad():` wrapping the delta optimization loop. Training ran correctly; only the SLOT eval pass crashed.
 
-| | Value |
-|---|---|
-| QK_GAIN delta (sliding) | |
-| SLOT delta (sliding) | |
-| Predicted sum | |
-| Actual combo | |
-| Interaction residual | |
-| Compatible? | |
+**QK_GAIN_INIT=4.0 verdict: DEAD.** +0.0010 post_ema (wrong direction). Not pursuing.
+
+---
+
+## Run 2 — SLOT fix (pending)
+
+Re-run slot_only only: `CASES="slot_only" bash gate.sh`
+
+| Case | post_ema_bpb | delta | sliding_bpb | delta |
+|------|-------------|-------|-------------|-------|
+| slot_only | | | TBD | |
 
 ---
 
 ## Decision
 
-- [ ] QK_GAIN signal validated (≥ 0.001 post_ema improvement)
-- [ ] SLOT signal validated (≥ 0.003 sliding improvement)
-- [ ] Signals additive (interaction < 0.002)
-- [ ] Full gate run authorised
+- [x] QK_GAIN signal validated → **NO SIGNAL. Drop.**
+- [ ] SLOT signal validated (need run 2 sliding_bpb)
+- [ ] Full gate authorised
 
-**Outcome:** TBD
+**Outcome:** Pending SLOT re-run.

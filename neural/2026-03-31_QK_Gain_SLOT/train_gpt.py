@@ -1908,16 +1908,17 @@ def eval_val_sliding(
                 delta = torch.zeros(1, 1, hidden.size(-1), device=device,
                                     dtype=hidden.dtype, requires_grad=True)
                 opt = torch.optim.AdamW([delta], lr=slot_lr, weight_decay=1e-8, eps=1e-5)
-                for _ in range(slot_steps):
-                    opt.zero_grad(set_to_none=True)
-                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        logits_s = base_model.compute_logits_from_hidden(hidden, delta)
-                    loss_s = F.cross_entropy(
-                        logits_s.reshape(-1, logits_s.size(-1)).float(),
-                        y_batch.reshape(-1),
-                    )
-                    loss_s.backward()
-                    opt.step()
+                with torch.enable_grad():
+                    for _ in range(slot_steps):
+                        opt.zero_grad(set_to_none=True)
+                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                            logits_s = base_model.compute_logits_from_hidden(hidden, delta)
+                        loss_s = F.cross_entropy(
+                            logits_s.reshape(-1, logits_s.size(-1)).float(),
+                            y_batch.reshape(-1),
+                        )
+                        loss_s.backward()
+                        opt.step()
                 with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     logits = base_model.compute_logits_from_hidden(hidden, delta.detach())
             else:
