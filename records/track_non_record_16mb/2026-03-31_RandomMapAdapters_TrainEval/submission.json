@@ -1,0 +1,18 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Random-Map Adapter Train/Eval Ablations (best: LoRA TTT control)",
+  "blurb": "Non-record 8xH100 submission studying train-time random-map adapters and document-aware evaluation adapters. The best score in this ablation set came from the LoRA TTT control at 1.1917 val_bpb; the best random-map variant (train + random-map TTT) reached 1.2008. Final counted artifact size was 15,883,798 bytes.",
+  "date": "2026-03-31T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.0122,
+  "val_bpb": 1.1917,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 13507,
+  "wallclock_seconds": 600.012,
+  "bytes_total": 15883798,
+  "bytes_model_int8_zlib": 15817937,
+  "bytes_code": 65861,
+  "gpu": "8xH100"
+}
