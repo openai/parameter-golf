@@ -1,0 +1,15 @@
+{
+  "id": "1",
+  "slug": "causal-inference-training",
+  "mode": "standard",
+  "status": "active",
+  "created": "2026-03-24T12:57:20.718072+00:00",
+  "branch": "feature/1-causal-inference-training",
+  "brainstorm_source": "docs/brainstorms/20260324-000000-causal-inference-training.prd.md",
+  "lastCompletedPhase": null,
+  "phases": {
+    "brainstorm": {
+      "started": "2026-03-24T12:57:20.717802+00:00"
+    }
+  }
+}
