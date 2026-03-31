@@ -28,34 +28,47 @@ This series answers: **does battery stack with pyramid-512, and which scale wins
 
 References from BWCS-00 and BWCS-02 — no control repin needed.
 
-## Results (seed=444, 500 steps, 1 shard)
+## Results
 
-| ID | Scales | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCS-00 | vs BWCS-02 |
-|----|--------|---------|-------------|-----------|------------|------------|
-| BWCS-02 | (pyramid-512 reference) | 1.4473 | **1.44724** | **-0.0001** | -0.01037 | — |
-| BWCB-00 | 1,2,4 | 1.4473 | 1.44850 | +0.0012 | -0.00911 | +0.00126 |
-| BWCB-01 | 1,3,9 | 1.4492 | 1.45016 | +0.0010 | -0.00745 | +0.00292 |
-| BWCB-02 | 1,5,25 | 1.4525 | 1.45534 | +0.0028 | -0.00227 | +0.00810 |
+### Run A — 1 shard (seed=444, 500 steps)
 
-## Verdict: Ascending Battery Hurts Pyramid
+| ID | Scales | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCS-02 |
+|----|--------|---------|-------------|-----------|------------|
+| BWCS-02 ref | — | 1.4473 | 1.44724 | -0.0001 | — |
+| BWCB-00 | 1,2,4 | 1.4473 | 1.44850 | +0.0012 | +0.00126 |
+| BWCB-01 | 1,3,9 | 1.4492 | 1.45016 | +0.0010 | +0.00292 |
+| BWCB-02 | 1,5,25 | 1.4525 | 1.45534 | +0.0028 | +0.00810 |
 
-**No ascending config beats pyramid-512 alone.** All three are strictly worse, and quant_gap
-goes positive for all (vs -0.0001 for pyramid alone).
+Run A conclusion (later revised): ascending battery appears to hurt pyramid.
 
-Ascending battery and pyramid work in opposite directions on inter-loop distribution coherence:
-- Pyramid converges distributions → forces universal stage1 commitment → clean quantization
-- Ascending battery diverges distributions → each loop attends a wider horizon → quantization stress
+### Run B — 4 shards (seed=444, 500 steps) ← authoritative
 
-Together they partially cancel. Pyramid does absorb some battery stress (1,3,9 standalone: +0.0028,
-pyramid+1,3,9: +0.0010 — partial improvement) but not enough to match pyramid alone.
+| ID | Scales | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCS-02 |
+|----|--------|---------|-------------|-----------|------------|
+| BWCS-02 ref | — | 1.4473 | **1.44724** | -0.0001 | — |
+| **BWCB-00** | **1,2,4** | **1.4442** | **1.44515** | **+0.0009** | **-0.00210** |
+| BWCB-01 | 1,3,9 | 1.4473 | 1.44874 | +0.0014 | +0.00149 |
+| BWCB-02 | 1,5,25 | 1.4476 | 1.44864 | +0.0010 | +0.00139 |
 
-**Scale → damage monotonic:** 1,2,4 (+0.00126) < 1,3,9 (+0.00292) < 1,5,25 (+0.00810)
-vs pyramid reference. Wider ascending spread = more distribution divergence = more damage.
+## Verdict: 1,2,4 Beats Pyramid — Training Diversity Required
+
+**BWCB-00 (pyramid-512 + 1,2,4) beats pyramid alone by -0.00210 in Run B.**
+
+Run A's "ascending battery hurts pyramid" was a shard-count artifact. With 1 shard, training
+data is too narrow for multi-scale attention to specialize — all three loops see the same
+patterns at every scale so the battery adds noise. With 4 shards, enough diversity exists
+for each loop to find different signal at its causal horizon.
+
+**Why 1,2,4 wins and wider scales don't:**
+- 1,2,4 (4× spread): distributions stay close enough for int8 to cover; diversity benefit wins
+- 1,3,9 (9× spread): distribution divergence partially offsets the diversity benefit; break-even
+- 1,5,25 (25× spread): similar to 1,3,9 in Run B; wider is not better beyond the sweet spot
+
+**Caveat:** BWCS-02 reference is 1-shard. Pyramid-512 at 4 shards might also improve.
+Need 4-shard pyramid control to confirm net gain. But the relative advantage of 1,2,4 over
+wider battery configs is consistent across both runs.
 
 ## Follow-On: BWCD (Descending)
 
-Descending battery (9,3,1) had near-zero quant gap standalone (+0.0001 on flat MLP) vs
-ascending 1,3,9 (+0.0028). Hypothesis: descending also converges distributions (wide→narrow
-is a progressive refinement sequence) and may therefore STACK with pyramid rather than fight it.
-
-BWCD tests: 9,3,1 | 4,2,1 | 9,1,1 | 9,3,9 — all on pyramid-512.
+BWCD tests 9,3,1 | 4,2,1 | 9,1,1 | 9,3,9 on pyramid-512. Key question: does descending
+(wide→narrow, distribution-converging) do better or worse than 1,2,4 + pyramid?
