@@ -1,0 +1,18 @@
+{
+    "author": "xuafeng",
+    "github_id": "xuafeng",
+    "name": "QAT Int5/Int6 + TTT LoRA (non-record)",
+    "blurb": "Non-record submission exploring two techniques on top of the #1 entry: (1) STE fake-quantization during training (int5 MLP, int6 attn) — discovered that post-training quant + SWA outperforms QAT by ~0.002 bpb. (2) TTT LoRA eval exploiting 430s of unused eval budget — implemented but untested due to budget. Best completed run: val_bpb 1.14476 (seed 1337).",
+    "date": "2026-03-21T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 1.93287172,
+    "val_bpb": 1.14475854,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": 1.1628,
+    "step_stop": 6649,
+    "wallclock_seconds": 600,
+    "bytes_total": 15793963,
+    "bytes_model_int8_zlib": 15737697,
+    "bytes_code": 56266,
+    "gpu": "8xH100_SXM"
+}
