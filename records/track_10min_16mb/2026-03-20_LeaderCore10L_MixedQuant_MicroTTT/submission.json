@@ -1,0 +1,20 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "LeaderCore10L MixedQuant MicroTTT",
+  "author": "simon-marcus",
+  "github_id": "simon-marcus",
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.09827313,
+      "val_bpb": 1.24271554,
+      "steps": 12348,
+      "ms_per_step": 48.59
+    }
+  },
+  "mean_val_loss": 2.09827313,
+  "mean_val_bpb": 1.24271554,
+  "artifact_bytes": 10401310,
+  "code_bytes": 61427,
+  "notes": "Non-record submission. Valid 10L run testing aggressive mixed int5/int6 export plus tiny control-only eval-time adaptation. Stop metric before export was val_bpb 1.2060, but post-roundtrip quality regressed sharply."
+}
