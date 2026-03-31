@@ -133,6 +133,7 @@ class Hyperparameters:
     sqrt_warmdown = bool(int(os.environ.get("SQRT_WARMDOWN", "0")))  # sqrt decay holds LR higher longer
     cosine_warmdown = bool(int(os.environ.get("COSINE_WARMDOWN", "0")))  # cosine annealing warmdown
     vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))  # Value Residual Learning
+    ortho_init = bool(int(os.environ.get("ORTHO_INIT", "1")))  # orthogonal init for linear layers
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -1182,11 +1183,12 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+        use_ortho = bool(int(os.environ.get("ORTHO_INIT", "1")))
         for module in self.modules():
             if isinstance(module, nn.Linear) and module.weight.ndim == 2:
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
-                else:
+                elif use_ortho:
                     nn.init.orthogonal_(module.weight, gain=1.0)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
