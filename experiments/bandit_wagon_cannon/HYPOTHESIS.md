@@ -59,7 +59,14 @@ All arms: pyramid-512 + CRAWLER_LOOP_ROPE_SCALES=9,1,1
 
 | ID | Type | Step avg | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCD-02 |
 |----|------|:--------:|:-------:|:-----------:|:---------:|:----------:|
-| BWE-00 | none | TBD | TBD | TBD | TBD | control |
-| BWE-01 | scalar | TBD | TBD | TBD | TBD | TBD |
-| BWE-02 | channel | TBD | TBD | TBD | TBD | TBD |
-| BWE-03 | rmsnorm | TBD | TBD | TBD | TBD | TBD |
+| BWE-00 | none | 663.15ms | 1.4359 | 1.44165584 | +0.0058 | +0.00635 |
+| BWE-01 | scalar | 745.65ms | 1.4414 | 1.44336814 | +0.0020 | +0.00806 |
+| BWE-02 | channel | 608.84ms | 1.4366 | 1.43589764 | -0.0007 | +0.00059 |
+| BWE-03 | rmsnorm | 554.28ms | 1.4531 | 1.46352025 | +0.0104 | +0.02821 |
+
+### Readout (seed 444, 500-step proxy, nproc=1)
+
+- No cannon arm beat BWCD-02 (1.43531057).
+- Best cannon arm was BWE-02 (channel), but still +0.00059 behind BWCD-02.
+- Scalar cannon regressed quality and slowed throughput substantially.
+- RMSNorm cannon was the worst quality arm (+0.02821 vs BWCD-02).
