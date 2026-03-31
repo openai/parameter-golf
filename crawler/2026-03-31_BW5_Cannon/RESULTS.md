@@ -40,3 +40,32 @@ Pass criteria: scalar step_avg < control step_avg.
 
 **Finding:** Scalar cannon is real signal. Tiny speed gain, tiny quality gain, but notable size cost.
 Proceed to `Bandit_Wagon_V_PyramidCannon` — the combined pyramid+cannon test is the next gate.
+
+---
+
+## Full Production Run: 8×H100, 600s, seed=444
+
+| Metric | BW5_Cannon | BW5 Champion | Delta |
+|--------|-----------|--------------|-------|
+| steps | 8034 | 8035 | −1 |
+| step_avg | 74.69ms | 74.68ms | +0.01ms |
+| raw_bpb | 1.1990 | 1.1987 | +0.0003 |
+| int6_sw_bpb | **1.18692423** | **1.18672385** | **+0.00020** |
+| quant_gap | −0.0121 | −0.0120 | −0.0001 |
+| size_bytes | 8,845,120 (8.44MB) | 9,024,399 (8.61MB) | −179KB |
+| checkpoint | `BW5Cannon_s444_20260331_221134_bpb1.18692423.pt` | — | — |
+
+## Verdict: DOES NOT PROMOTE
+
+**int6_sw_bpb is +0.00020 worse than BW5.** The 2000-step gate showed −0.00016 (positive), but the signal did not compound — it reversed at production scale.
+
+**Step time matched BW5 exactly (74.69ms vs 74.68ms).** Cannon adds no overhead.
+
+**Size:** −179KB smaller than BW5 (8.44MB vs 8.61MB). Counterintuitive given the +343KB at 2000 steps — the quant_gap tightened slightly (−0.0121 vs −0.0120) which reduced the zstd artifact.
+
+**Root cause:** Scalar cannon's 3-param output scale gives no meaningful benefit at production training length. The gate signal was real noise riding within the cross-run variance band (~0.0003 BPB). The cannon's architectural concept (output calibration per loop) requires a stronger mechanism — channel-level or coupled with a larger structural change — to show signal above noise at 8000+ steps.
+
+**Cannon concept notes for future:**
+- Channel cannon (1.5K params) was never tested at 8GPU full run — may have stronger signal
+- Cannon may be most useful as a pairing with another architectural change that creates amplitude mismatch (e.g., delta anchor, wider choke)
+- The +343KB size regression at gate → −179KB at full run suggests quant behavior changes significantly across training length

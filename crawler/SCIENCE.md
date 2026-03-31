@@ -34,14 +34,19 @@ Notes: BW5 seed=300 does NOT individually confirm vs Leg 3. Mean is better (1.18
 
 Hypothesis: scalar cannon feed-forward gives the crawler loop a faster compiled path and calibrated output scale.
 
-| Date | Leg | Change vs Parent | 1GPU Gate | 8GPU Gate | BPB (seed 444) | Size | Verdict | Key Finding |
-|------|-----|-----------------|-----------|-----------|----------------|------|---------|-------------|
-| 2026-03-31 | BW5_Cannon | BW5 + CRAWLER_CANNON_TYPE=scalar | ✓ | ✓ speed gate | — | +343KB | → SPEED PROMOTED | 74.81ms vs 74.84ms control (≤74.68+δ). Raw BPB slightly positive. Size regression +343KB. Speed gate passes — cannon is a valid building block. |
+| Date | Leg | Change vs Parent | 1GPU Gate | 8GPU Gate | Full Run BPB (seed 444) | Size | Verdict | Key Finding |
+|------|-----|-----------------|-----------|-----------|------------------------|------|---------|-------------|
+| 2026-03-31 | BW5_Cannon | BW5 + CRAWLER_CANNON_TYPE=scalar | ✓ | ✓ speed | 1.18692423 | 8.44MB | ✗ DOES NOT PROMOTE | Gate signal (−0.00016) reversed at full run (+0.00020 vs BW5). Cross-run variance swamped cannon signal. No step overhead. Size actually −179KB vs BW5 at full run. |
 
 8GPU gate detail (seed=444, 2000 steps):
 - BWVC-00 control: 74.84ms · raw_bpb 1.28870981 · int6_sw_bpb 1.28787686
 - BWVC-01 scalar cannon: 74.81ms · raw_bpb 1.28854887 · int6_sw_bpb 1.28820687
 - Delta: −0.03ms speed (passes) · raw_bpb −0.00016 · size +343KB
+
+Full run detail (seed=444, 600s, 8034 steps):
+- BW5_Cannon: 74.69ms · raw_bpb 1.1990 · int6_sw_bpb **1.18692423** · 8,845,120 bytes
+- BW5 champion: 74.68ms · raw_bpb 1.1987 · int6_sw_bpb **1.18672385** · 9,024,399 bytes
+- Delta: +0.01ms · +0.00020 BPB · −179KB (zstd artifact smaller despite cannon)
 
 ---
 
@@ -91,7 +96,7 @@ Two-variable combined test. Cannon already validated for speed; pyramid sought q
 | 1 | BW6 — Skipgrams in crawler | Ngram/Bigram | BW5 champion | NGRAM_EVAL_ORDER or BIGRAM in crawler context. Neural track uses this; crawler doesn't yet. |
 | 2 | Delta Anchor | Recurrence | BW5 champion | Per-loop causal time state. Battery differentiates reading, delta anchor differentiates writing. |
 | 3 | Warmdown tuning | Schedule | BW5 | BW5 seed=300 ⚠️ — warmdown length or learning rate taper may close the seed gap. |
-| 4 | Cannon on BW5 full run | Cannon | Cannon speed gate ✓ | Cannon promoted on speed gate; full run with cannon to see quality at 600s. |
+| 4 | ~~Cannon on BW5 full run~~ | Cannon | CLOSED | Full run ran: +0.00020 vs BW5. Does not promote. See PIPELINE.md for future cannon paths. |
 
 ---
 
