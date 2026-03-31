@@ -863,6 +863,17 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    # Default ./data/... is relative to repository root (not process cwd), so torchrun from any cwd works.
+    _repo_root = Path(__file__).resolve().parents[3]
+
+    def _abs_from_repo(p: str) -> str:
+        q = Path(p)
+        return str(q.resolve()) if q.is_absolute() else str((_repo_root / q).resolve())
+
+    args.data_path = _abs_from_repo(args.data_path)
+    args.train_files = os.path.join(args.data_path, "fineweb_train_*.bin")
+    args.val_files = os.path.join(args.data_path, "fineweb_val_*.bin")
+    args.tokenizer_path = _abs_from_repo(args.tokenizer_path)
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
@@ -931,12 +942,26 @@ def main() -> None:
 
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
-    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    tokenizer_file = Path(args.tokenizer_path).expanduser().resolve()
+    if not tokenizer_file.is_file():
+        raise FileNotFoundError(
+            f"Tokenizer model not found: {tokenizer_file}\n"
+            "From repository root, run:\n"
+            "  python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1\n"
+            "Then re-run training (or set TOKENIZER_PATH to the downloaded .model path)."
+        )
+    sp = spm.SentencePieceProcessor(model_file=str(tokenizer_file))
     if int(sp.vocab_size()) != args.vocab_size:
         raise ValueError(
             f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
         )
-    dataset_dir = Path(args.data_path).resolve()
+    dataset_dir = Path(args.data_path).expanduser().resolve()
+    if not dataset_dir.is_dir():
+        raise FileNotFoundError(
+            f"DATA_PATH is not a directory: {dataset_dir}\n"
+            "From repository root, run:\n"
+            "  python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1"
+        )
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
