@@ -1,0 +1,51 @@
+{
+  "run_name": "BitNet_Recurrent_4x6_1024d",
+  "author": "Rafael Ferraz",
+  "github_id": "devferrazZz",
+  "val_bpb": null,
+  "val_loss": null,
+  "artifact_bytes": null,
+  "artifact_mb": null,
+  "date": "2026-03-23",
+  "hardware": "8\u00d7H100 SXM",
+  "training_time_seconds": null,
+  "seeds_tested": [
+    1337,
+    42,
+    7
+  ],
+  "mean_val_bpb": null,
+  "summary": "BitNet b1.58 ternary QAT + depth recurrence. 4 unique transformer blocks applied 6\u00d7 per pass (24 effective layers), 12\u00d7 at eval (free test-time compute). LSQ learnable quantization scale initialized from median(|W|). Muon+WD for matrix params. Sliding-window BPB eval (stride=64). ~62M unique params, ~14.2MB compressed artifact.",
+  "techniques": [
+    "BitNet b1.58 ternary QAT with LSQ scale (arXiv:2402.17764, 2407.09527)",
+    "Depth recurrence: 4 unique \u00d7 6 train loops = 24 effective layers",
+    "Eval-time loop scaling: 12 loops at inference (free test-time compute)",
+    "Muon optimizer + weight decay (0.02) for matrix params",
+    "Sliding window evaluation (stride=64, seq=1024)",
+    "FP16 tied embeddings at export",
+    "RoPE, GQA (16 heads / 4 KV heads), QK-Norm, ReLU\u00b2, logit softcap",
+    "Residual mixing: x blended with initial embedding x0"
+  ],
+  "model_config": {
+    "vocab_size": 1024,
+    "model_dim": 1024,
+    "num_heads": 16,
+    "num_kv_heads": 4,
+    "mlp_mult": 6,
+    "num_unique_layers": 4,
+    "num_recurrences": 6,
+    "num_eval_recurrences": 12,
+    "effective_depth_train": 24,
+    "effective_depth_eval": 48,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0
+  },
+  "optimizer_config": {
+    "matrix_params": "Muon (lr=0.04, momentum=0.95, wd=0.02)",
+    "embed_params": "Adam (lr=0.05)",
+    "scalar_params": "Adam (lr=0.04)",
+    "warmdown_iters": 1200,
+    "max_wallclock_seconds": 600
+  },
+  "notes": "Results TBD pending H100 grant run. Approach validated on M1 Max 64GB: compression confirmed at ~14.2MB for 61.9M unique ternary params. Fill val_bpb, val_loss, artifact_mb, date from actual run logs before final PR."
+}
