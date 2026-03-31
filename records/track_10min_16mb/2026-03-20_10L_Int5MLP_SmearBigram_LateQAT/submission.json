@@ -1,0 +1,18 @@
+{
+  "author": "Christopher Buckley",
+  "github_id": "chris-buckley",
+  "name": "10L Int5-MLP + SmearGate + BigramHash + Late QAT",
+  "blurb": "Mixed int5/int6 export funds a 10-layer ReLU^2 model with SmearGate, BigramHash, orthogonal init, Muon weight decay, SWA, and late mixed QAT under the 16MB cap.",
+  "date": "2026-03-20",
+  "val_loss": 1.96338430,
+  "val_bpb": 1.16282670,
+  "pre_quant_val_loss": 2.0105,
+  "pre_quant_val_bpb": 1.1907,
+  "step_stop": 4354,
+  "wallclock_seconds": 602,
+  "eval_time_seconds": 171,
+  "bytes_total": 15481841,
+  "bytes_model_mixed_int5int6": 15425120,
+  "bytes_code": 56721,
+  "notes": "Single seed (1337) on 8xH100 SXM. SWA averaged 15 checkpoints. Did not beat MLP3x (1.1598). Needs seeds 42 and 7 for statistical significance if submitting."
+}
