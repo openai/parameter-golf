@@ -6,7 +6,7 @@
 
 Non-record submission (`track_non_record_16mb`). Trained on 2×A100 PCIe 40GB for ~2.2 hours (7,185 steps). Artifact fits within the 16,000,000-byte cap.
 
-**Contribution**: Demonstrates end-to-end TTT-Linear refinement combined with 1-step flow matching, compressed into a 10-layer architecture that fits under the 16 MB artifact limit. Includes a three-variant comparison (11L over-budget, 10L legal, 11L+int5 legal) as supplementary data.
+**Contribution**: Demonstrates end-to-end TTT-Linear refinement combined with 1-step flow matching, compressed into a 10-layer architecture that fits under the 16 MB artifact limit. The lightweight FlowRefiner is inspired in part by FLOWR's use of learned flow-matching vector fields with efficient Euler-style updates, but adapted here into a tiny hidden-state refiner rather than a pocket-conditioned 3D ligand generator. Includes a three-variant comparison (11L over-budget, 10L legal, 11L+int5 legal) as supplementary data.
 
 ## Results (seed=42, 2×A100 PCIe 40GB)
 
@@ -45,7 +45,7 @@ Non-record submission (`track_non_record_16mb`). Trained on 2×A100 PCIe 40GB fo
 
 **E2E TTT-Linear** (Sun et al., 2024): Per-head inner-loop SGD on learned projections during both training and inference. Learned projection matrices θ_K, θ_V, θ_Q ∈ ℝ^{512×512}. Per-head W ∈ ℝ^{num_heads × head_dim × head_dim} + bias. 8 heads, 16-token mini-batches, lr=1.0. Sigmoid-gated additive output (init=−5.0). 1,083,905 parameters.
 
-**1-Step FlowRefiner**: Single-step flow matching in latent space. Down-project 512D → 64D, velocity network 64D → 256D (GELU) → 64D, up-project 64D → 512D. 1-step Euler integration: z_refined = z + v_net(z). Sigmoid-gated residual (init=−5.0). 98,625 parameters.
+**1-Step FlowRefiner**: Single-step flow matching in latent space. Down-project 512D → 64D, velocity network 64D → 256D (GELU) → 64D, up-project 64D → 512D. 1-step Euler integration: z_refined = z + v_net(z). Sigmoid-gated residual (init=−5.0). 98,625 parameters. The formulation is inspired by the FLOWR paper's use of learned vector fields and Euler-style transport updates for efficient refinement, but our version is much smaller and operates on transformer hidden states rather than molecular coordinates or pocket-conditioned ligand graphs.
 
 ## Training Config
 
@@ -129,6 +129,34 @@ We explored three strategies to fit the combined E2E-TTT + FlowRefiner architect
 
 Variant A and C training logs are included in `supplementary/` for reproducibility.
 
+## Prior 11L Ablations on the Same Refiner Pair
+
+To understand whether FlowRefiner helps on its own or mainly in combination with E2E TTT, we also ran an earlier 11-layer ablation study on the same refiner formulation. These are **not** the main numbers for this 10-layer legal submission; they are prior supporting experiments from `experiments_pr549/`.
+
+| Prior 11L run | Sliding BPB | Δ vs 11L baseline | Roundtrip BPB | Post-EMA BPB |
+|---------------|-------------|-------------------|---------------|--------------|
+| Baseline | 1.12440473 | — | 1.14795319 | 1.1424 |
+| + E2E-TTT only | 1.12414225 | -0.00026 | 1.14782916 | 1.1423 |
+| + Flow only | 1.12531495 | +0.00091 | 1.14870788 | 1.1426 |
+| + Both (Combined) | 1.12344104 | -0.00096 | 1.14698496 | 1.1412 |
+
+### Synergy Discussion
+
+In that earlier 11-layer study, FlowRefiner alone regressed after quantization, while the combined E2E-TTT + Flow model was the best of the four. Using the isolated deltas, the additive expectation would have been worse than baseline:
+
+- Expected additive BPB = $1.12440473 + (1.12414225 - 1.12440473) + (1.12531495 - 1.12440473) = 1.12505247$
+- Actual combined BPB = $1.12344104$
+- Gap vs additive expectation = $1.12344104 - 1.12505247 = -0.00161143$
+
+So in that prior 11-layer setting, the combined model outperformed the additive expectation by about **0.00161 BPB**, which is consistent with a positive interaction between E2E TTT and FlowRefiner. We treat this as evidence that FlowRefiner is most useful when paired with TTT, but we do **not** claim that the same four-way ablation has been rerun separately for the present 10-layer legal submission.
+
+For provenance, the earlier ablation logs are:
+
+- `experiments_pr549/exp_baseline/logs/train_55374937.txt`
+- `experiments_pr549/exp_e2e_ttt/logs/train_55374938.txt`
+- `experiments_pr549/exp_flow/logs/train_55374939.txt`
+- `experiments_pr549/exp_combined/logs/train_55374940.txt`
+
 ## Variant Details
 
 ### Variant A: 11 Layers + 60% Warmdown (Over Budget)
@@ -161,6 +189,7 @@ Variant A and C training logs are included in `supplementary/` for reproducibili
 | Runtime | 03:02:11 (wall), ~8020s training loop |
 | Exit code | 0 |
 | stderr | Empty (no warnings or errors) |
+| Prior 11L ablation study | `experiments_pr549/exp_{baseline,e2e_ttt,flow,combined}/logs/` |
 
 ## Limitations
 
@@ -188,10 +217,13 @@ This submission builds on work from many contributors to the parameter-golf comp
 - **Partial RoPE** — PR #315 (jfprincz), PR #374 (unnir)
 - **LN Scale** — PR #315 (jfprincz), PR #374 (unnir)
 - **Legal TTT framework** — PR #77 (samacqua)
+- **Flow-inspired refinement framing** — informed by FLOWR (Cremer et al., arXiv:2504.10564), adapted here into a tiny hidden-state vector-field refiner rather than a pocket-conditioned ligand generator
 - **LeakyReLU² / ReLU², GQA** — Baseline (`modded-nanogpt`), PR #549 variant uses slope=0.5
 
 **TTT-Linear reference**: Sun, Y., et al. "Learning to (Learn at Test Time): RNNs with Expressive Hidden States." arXiv:2407.04620 (2024).
 
 **Flow Matching reference**: Lipman, Y., et al. "Flow Matching for Generative Modeling." ICLR 2023.
+
+**FLOWR inspiration**: Cremer, J., Irwin, R., Tibo, A., Janet, J. P., Olsson, S., Clevert, D.-A. "FLOWR: Flow Matching for Structure-Aware De Novo, Interaction- and Fragment-Based Ligand Generation." arXiv:2504.10564 (2025).
 
 Built on the [parameter-golf](https://github.com/openai/parameter-golf) starter code by Beren Millidge & Keller Jordan.
