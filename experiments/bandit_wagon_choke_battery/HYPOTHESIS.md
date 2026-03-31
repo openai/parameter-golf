@@ -68,6 +68,18 @@ for each loop to find different signal at its causal horizon.
 Need 4-shard pyramid control to confirm net gain. But the relative advantage of 1,2,4 over
 wider battery configs is consistent across both runs.
 
+### Run C — 1 shard, different pod (seed=444, 500 steps) — DIFFERENT ENVIRONMENT
+
+| ID | Scales | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCS-02 |
+|----|--------|---------|-------------|-----------|------------|
+| BWCB-00 | 1,2,4 | 1.4473 | 1.44850 | +0.0012 | +0.00126 |
+| BWCB-01 | 1,3,9 | 1.4492 | 1.45016 | +0.0010 | +0.00292 |
+| BWCB-02 | 1,5,25 | 1.4525 | 1.45534 | +0.0028 | +0.00810 |
+
+**NOT DIRECTLY COMPARABLE** — `train_shards:1`, different val set (62M vs 58M tokens),
+no flash_attn, val_bpb at step 0 = 4.1048. Matches BWCB Run A pattern exactly.
+Confirms: ascending battery on 1-shard starves loop specialization.
+
 ## Follow-On: BWCD (Descending)
 
 BWCD tests 9,3,1 | 4,2,1 | 9,1,1 | 9,3,9 on pyramid-512. Key question: does descending

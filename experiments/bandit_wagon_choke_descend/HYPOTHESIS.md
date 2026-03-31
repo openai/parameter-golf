@@ -86,6 +86,28 @@ that prevents loop divergence during warmup, regardless of RoPE scales.
 This stability has implications for scaling: stable crawler = tighter LR tolerances,
 less sensitivity to multi-node gradient variance on 8×H100.
 
+## Run C — 1 shard, different pod (seed=444, 500 steps) — DIFFERENT ENVIRONMENT
+
+| ID | Scales | Raw BPB | INT6_SW_BPB | Quant Gap | vs BWCS-02 |
+|----|--------|---------|-------------|-----------|------------|
+| BWCD-00 | 9,3,1 | 1.4496 | 1.45323 | +0.0036 | +0.00598 |
+| **BWCD-01** | **4,2,1** | **1.4452** | **1.44551** | **+0.0003** | **-0.00173** |
+| BWCD-02 | 9,1,1 | 1.4493 | 1.45067 | +0.0014 | +0.00343 |
+| BWCD-03 | 9,3,9 | 1.4480 | 1.44833 | +0.0003 | +0.00109 |
+
+**WARNING — NOT DIRECTLY COMPARABLE to Run B.** Different pod conditions:
+- `train_shards:1` (vs 80 on first pod) — battery cannot specialize without data diversity
+- `val tokens: 62,021,632` (vs 58,230,784) — different validation set
+- No flash_attn — using PyTorch fallback attention
+- `val_bpb at step 0: 4.1048` (vs 3.8624) — confirms different val data
+
+This is the 1-shard regime where battery needs diversity to work (same as BWCB Run A).
+9,1,1 requires wide-context training diversity to leverage scale=9; it regresses to pyramid-level without it.
+
+**New signal from Run C:** 4,2,1 is the most data-efficient battery config — best in 1-shard
+regime and second-best in the 80-shard regime. It is robust across data regimes.
+9,1,1 has higher ceiling but is data-hungry.
+
 ## Follow-On
 
 **BWCE** (or similar): validate 9,1,1 + pyramid at 4+ shards (match BWCB-00 shard count).
