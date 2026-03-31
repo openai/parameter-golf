@@ -13,14 +13,13 @@ HELIX combines four novel techniques:
    - GQA (8Q/4KV), QK-norm, learnable Q-gain per head
    - Partial RoPE (16/64 dims), extreme scaling at layer 768→384 via group norm
 
-2. **SwiGLU FFN**
-   - Replaces LeakyReLU² with `silu(gate) * fc`
-   - Isoparametric: both use 6d² weight entries
-   - At d=768: 3×768×1536 = 3.5M params per block → int6 fits well
+2. **LeakyReLU(0.5)² FFN**
+   - Two-layer MLP: `leaky_relu(fc(x), 0.5)²`
+   - Isoparametric to SwiGLU/relu²: 6d² weight entries, but only 2 matmuls (vs 3 for SwiGLU)
+   - At d=768, hidden=2304: 2×768×2304 = 3.5M params per block
 
-3. **Peri-LN (Sandwich Norm)**
-   - Pre-norm + post-norm at every sublayer
-   - Stabilizes training through deep MoR iterations
+3. **Pre-LN (Standard)**
+   - Pre-norm only at every sublayer (removed post-norms to save 2 RMSNorm/block)
 
 4. **MoR (Mixture of Recurrence)**
    - 5 unique HELIXBlocks → 3 iterations = 15 virtual layers
@@ -37,8 +36,8 @@ NUM_HEADS=8
 NUM_KV_HEADS=4
 DTPA_RANK=4
 NUM_UNIQUE_BLOCKS=5
-NUM_ITERATIONS=3
-FFN_HIDDEN=1536
+NUM_ITERATIONS=2
+FFN_HIDDEN=2304
 ROPE_DIMS=16
 XSA_LAST_N=2  # Extreme scaling attention on last 2 blocks
 TRAIN_SEQ_LEN=2048
@@ -69,7 +68,7 @@ TIED_EMBED_LR=0.05
 MUON_WD=0.04
 ADAM_WD=0.01
 WARMUP_ITERS=1000
-WARMDOWN_ITERS=3500
+WARMDOWN_ITERS=2000
 GRAD_ACCUM_STEPS=3
 GRAD_CLIP_NORM=0.3
 EMA_DECAY=0.997
@@ -82,18 +81,18 @@ MOR_LB_DECAY_STEPS=1000   # Decay steps for MoR lb_weight
 ## Training Command
 
 ```bash
-RUN_ID=helix_v1 \
+RUN_ID=helix_v2 \
 MODEL_DIM=768 \
 NUM_HEADS=8 \
 NUM_KV_HEADS=4 \
 DTPA_RANK=4 \
 NUM_UNIQUE_BLOCKS=5 \
-NUM_ITERATIONS=3 \
-FFN_HIDDEN=1536 \
+NUM_ITERATIONS=2 \
+FFN_HIDDEN=2304 \
 ROPE_DIMS=16 \
 XSA_LAST_N=2 \
 TRAIN_SEQ_LEN=2048 \
-WARMDOWN_ITERS=3500 \
+WARMDOWN_ITERS=2000 \
 MATRIX_LR=0.023 \
 SCALAR_LR=0.04 \
 TIED_EMBED_LR=0.05 \

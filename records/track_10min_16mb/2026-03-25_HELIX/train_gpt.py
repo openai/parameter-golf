@@ -41,7 +41,7 @@ class Hyperparameters:
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
@@ -106,8 +106,8 @@ class Hyperparameters:
     # --- HELIX architecture fields ---
     dtpa_rank = int(os.environ.get("DTPA_RANK", 4))
     num_unique_blocks = int(os.environ.get("NUM_UNIQUE_BLOCKS", 5))
-    num_iterations = int(os.environ.get("NUM_ITERATIONS", 3))
-    ffn_hidden = int(os.environ.get("FFN_HIDDEN", 1536))
+    num_iterations = int(os.environ.get("NUM_ITERATIONS", 2))
+    ffn_hidden = int(os.environ.get("FFN_HIDDEN", 2304))
     # HELIX overrides: d=768, 8Q/4KV, rope_dims=16, xsa_last_n=2
     # (override existing SOTA defaults in the same fields)
     # MoR load-balancing
@@ -683,17 +683,16 @@ class DTPA(nn.Module):
         # ---- Step 1: Factored Q/K/V reconstruction ----
         # W_cQ projects h to context codes, then einsum with static basis A_q
         dtype = h.dtype
-        c_Q = self.W_cQ(h).view(B, T, 2 * self.n_heads, self.rank)   # [B, T, 16, 4]
-        # Broadcast einsum: code[b,t,head,r] × basis[head,r,d] → sum over r
-        Q_all = (c_Q.unsqueeze(-1) * self.A_q.to(dtype=dtype)).sum(-2)  # [B, T, 16, 48]
+        c_Q = self.W_cQ(h).view(B, T, 2 * self.n_heads, self.rank)   # [B, T, 16, R]
+        Q_all = torch.einsum('bthr,hrd->bthd', c_Q, self.A_q.to(dtype=dtype))  # [B, T, 16, 48]
         Q1, Q2 = Q_all.chunk(2, dim=2)                                # each [B, T, 8, 48]
 
-        c_K = self.W_cK(h).view(B, T, 2 * self.n_kv, self.rank)      # [B, T, 8, 4]
-        K_all = (c_K.unsqueeze(-1) * self.A_k.to(dtype=dtype)).sum(-2)  # [B, T, 8, 48]
+        c_K = self.W_cK(h).view(B, T, 2 * self.n_kv, self.rank)      # [B, T, 8, R]
+        K_all = torch.einsum('bthr,hrd->bthd', c_K, self.A_k.to(dtype=dtype))  # [B, T, 8, 48]
         K1, K2 = K_all.chunk(2, dim=2)                                # each [B, T, 4, 48]
 
-        c_V = self.W_cV(h).view(B, T, 2 * self.n_kv, self.rank)
-        V_all = (c_V.unsqueeze(-1) * self.A_v.to(dtype=dtype)).sum(-2)  # [B, T, 8, 48]
+        c_V = self.W_cV(h).view(B, T, 2 * self.n_kv, self.rank)      # [B, T, 8, R]
+        V_all = torch.einsum('bthr,hrd->bthd', c_V, self.A_v.to(dtype=dtype))  # [B, T, 8, 48]
         V1, V2 = V_all.chunk(2, dim=2)                                # each [B, T, 4, 48]
 
         # ---- Step 2: Partial RoPE on reconstructed Q/K ----
@@ -730,14 +729,15 @@ class DTPA(nn.Module):
             out = out.reshape(B, T, self.n_heads * self.d_head_half)   # [B, T, 384]
             return self.W_O_xsa(out)                                   # [B, T, 768]
 
-        # ---- Step 5: Differential attention ----
-        # FA3 requires bf16/fp16; explicitly cast in case inductor promotes to fp32
-        Q1, Q2 = Q1.to(torch.bfloat16), Q2.to(torch.bfloat16)
-        K1, K2 = K1.to(torch.bfloat16), K2.to(torch.bfloat16)
-        V1, V2 = V1.to(torch.bfloat16), V2.to(torch.bfloat16)
-        # FA3 handles GQA natively (Q:8 heads, K/V:4 heads → output:8 heads)
-        out1 = flash_attn_3_func(Q1, K1, V1, causal=True)             # [B, T, 8, 48]
-        out2 = flash_attn_3_func(Q2, K2, V2, causal=True)             # [B, T, 8, 48]
+        # ---- Step 5: Differential attention (fused into one FA3 call) ----
+        # Concat Q1+Q2 → 16 heads, K/V → 8 heads: preserves 2:1 GQA ratio
+        # FA3 requires bf16/fp16
+        Q_cat = torch.cat([Q1, Q2], dim=2).to(torch.bfloat16)         # [B, T, 16, 48]
+        K_cat = torch.cat([K1, K2], dim=2).to(torch.bfloat16)         # [B, T, 8, 48]
+        V_cat = torch.cat([V1, V2], dim=2).to(torch.bfloat16)         # [B, T, 8, 48]
+        out_cat = flash_attn_3_func(Q_cat, K_cat, V_cat, causal=True) # [B, T, 16, 48]
+        out1 = out_cat[:, :, :self.n_heads, :].to(h.dtype)            # [B, T, 8, 48]
+        out2 = out_cat[:, :, self.n_heads:, :].to(h.dtype)            # [B, T, 8, 48]
         lam  = self.lam.to(dtype=h.dtype)[None, None, :, None]        # [1, 1, 8, 1]
         out  = out1 - lam * out2                                       # [B, T, 8, 48]
 
@@ -800,21 +800,20 @@ class ValueEmbedding(nn.Module):
 
 class SwiGLU(nn.Module):
     """
-    SwiGLU FFN with hidden = 2 * dim.
-    Isoparametric to relu²(3*dim): both use 6d² weight entries.
-      SwiGLU(h=2d): gate(d→2d) + fc(d→2d) + proj(2d→d) = 3×d×2d = 6d²
-      relu²(h=3d): fc1(d→3d) + fc2(3d→d)               = 2×d×3d = 6d²
-    At d=768, hidden=1536: 3×768×1536 = 3,538,944 params per block.
+    Two-layer MLP with LeakyReLU(0.5)² activation.
+    Isoparametric to SwiGLU(h=2d) and relu²(h=3d): all use 6d² weights.
+      fc1(d→3d) + proj(3d→d) = 2×d×3d = 6d²  (at d=768, hidden=2304)
+    Saves one matmul vs SwiGLU (2 vs 3), with comparable expressiveness.
+    LeakyReLU(0.5)² empirically outperforms relu² (SOTA validated).
     """
     def __init__(self, dim: int, hidden: int):
         super().__init__()
-        self.gate = CastedLinear(dim, hidden, bias=False)
         self.fc   = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.proj(F.silu(self.gate(x)) * self.fc(x))
+        return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.5).square())
 
 class HELIXBlock(nn.Module):
     """
@@ -849,11 +848,9 @@ class HELIXBlock(nn.Module):
         # SwiGLU FFN
         self.swiglu = SwiGLU(dim, ffn_hidden)
 
-        # Peri-LN: 4 RMSNorm instances (2 per sublayer)
+        # Pre-LN normalization (one per sublayer)
         self.pre_norm_attn  = RMSNorm()
-        self.post_norm_attn = RMSNorm()
         self.pre_norm_mlp   = RMSNorm()
-        self.post_norm_mlp  = RMSNorm()
 
         # Per-iteration adaptation scalars (named to match CONTROL_TENSOR_NAME_PATTERNS)
         # "attn_scale", "mlp_scale", "resid_mix" → float32, scalar AdamW
@@ -879,17 +876,15 @@ class HELIXBlock(nn.Module):
         mix = self.iter_resid_mix[r].to(dtype=x.dtype)       # [2, dim]
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
 
-        # Attention sublayer (Peri-LN: pre + post)
+        # Attention sublayer (pre-LN)
         h = self.pre_norm_attn(x)
         h = self.dtpa(h, x_residual=x, layer_r=r)
-        h = self.post_norm_attn(h)
         attn_s = self.iter_attn_scale[r].to(dtype=x.dtype)[None, None, :]
         x = x + attn_s * h
 
-        # MLP sublayer (Peri-LN: pre + post)
+        # MLP sublayer (pre-LN)
         h = self.pre_norm_mlp(x)
         h = self.swiglu(h)
-        h = self.post_norm_mlp(h)
         mlp_s = self.iter_mlp_scale[r].to(dtype=x.dtype)[None, None, :]
         x = x + mlp_s * h
 
