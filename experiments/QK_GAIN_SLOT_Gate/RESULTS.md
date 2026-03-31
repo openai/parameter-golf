@@ -8,9 +8,11 @@
 
 ## Smoke Test
 
-| step_avg_ms | Status |
-|-------------|--------|
-| TBD | TBD |
+| step_avg_ms | GPU | NPROC | Status |
+|-------------|-----|-------|--------|
+| 739ms | H100 80GB HBM3 | 1 | PASSED |
+
+**Key finding:** 739ms/step is correct for NPROC=1. `grad_accum = 8 / world_size = 8` on a single GPU — each logical step processes the same total batch as the 8×H100 run, just in 8 sequential micro-steps. Expected = 91ms × 8 = ~728ms. This is a healthy pod.
 
 ---
 
