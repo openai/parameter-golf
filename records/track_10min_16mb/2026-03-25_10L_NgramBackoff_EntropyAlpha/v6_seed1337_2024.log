@@ -1,0 +1,260 @@
+=== Seed 1337 ===
+W0326 02:49:04.490000 131659747332736 torch/distributed/run.py:779] 
+W0326 02:49:04.490000 131659747332736 torch/distributed/run.py:779] *****************************************
+W0326 02:49:04.490000 131659747332736 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 02:49:04.490000 131659747332736 torch/distributed/run.py:779] *****************************************
+logs/2236ee0d-b3f5-4169-a4bc-93283c9719e1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:24730705
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:1/20000 train_loss:6.9296 train_time:202ms step_avg:201.96ms
+step:2/20000 train_loss:7.8829 train_time:289ms step_avg:144.61ms
+step:3/20000 train_loss:7.1437 train_time:388ms step_avg:129.20ms
+step:4/20000 train_loss:7.6901 train_time:486ms step_avg:121.41ms
+step:5/20000 train_loss:8.1498 train_time:583ms step_avg:116.64ms
+step:6/20000 train_loss:8.0248 train_time:681ms step_avg:113.53ms
+step:7/20000 train_loss:7.6134 train_time:780ms step_avg:111.37ms
+step:8/20000 train_loss:7.1269 train_time:878ms step_avg:109.74ms
+step:9/20000 train_loss:6.7005 train_time:976ms step_avg:108.44ms
+step:10/20000 train_loss:6.4465 train_time:1086ms step_avg:108.56ms
+step:100/20000 train_loss:3.1764 train_time:9893ms step_avg:98.93ms
+step:200/20000 train_loss:2.3873 train_time:19778ms step_avg:98.89ms
+step:300/20000 train_loss:2.5480 train_time:29664ms step_avg:98.88ms
+step:400/20000 train_loss:2.4215 train_time:39584ms step_avg:98.96ms
+step:500/20000 train_loss:2.3991 train_time:49465ms step_avg:98.93ms
+step:600/20000 train_loss:2.3343 train_time:59437ms step_avg:99.06ms
+step:700/20000 train_loss:2.3452 train_time:69418ms step_avg:99.17ms
+step:800/20000 train_loss:2.2350 train_time:79410ms step_avg:99.26ms
+step:900/20000 train_loss:2.1321 train_time:89403ms step_avg:99.34ms
+step:1000/20000 train_loss:2.2784 train_time:99337ms step_avg:99.34ms
+step:1100/20000 train_loss:2.3178 train_time:109329ms step_avg:99.39ms
+step:1200/20000 train_loss:2.3546 train_time:119325ms step_avg:99.44ms
+step:1300/20000 train_loss:2.1032 train_time:129307ms step_avg:99.47ms
+step:1400/20000 train_loss:2.1856 train_time:139303ms step_avg:99.50ms
+step:1500/20000 train_loss:2.2236 train_time:149226ms step_avg:99.48ms
+step:1600/20000 train_loss:2.0802 train_time:159204ms step_avg:99.50ms
+step:1700/20000 train_loss:2.1439 train_time:169184ms step_avg:99.52ms
+step:1800/20000 train_loss:2.1605 train_time:179166ms step_avg:99.54ms
+step:1900/20000 train_loss:2.1317 train_time:189115ms step_avg:99.53ms
+step:2000/20000 train_loss:2.0698 train_time:199093ms step_avg:99.55ms
+step:2100/20000 train_loss:2.0486 train_time:209078ms step_avg:99.56ms
+step:2200/20000 train_loss:2.1455 train_time:219060ms step_avg:99.57ms
+step:2300/20000 train_loss:2.1091 train_time:229034ms step_avg:99.58ms
+step:2400/20000 train_loss:2.0668 train_time:238959ms step_avg:99.57ms
+step:2500/20000 train_loss:2.1744 train_time:248943ms step_avg:99.58ms
+step:2600/20000 train_loss:2.1116 train_time:258921ms step_avg:99.58ms
+step:2700/20000 train_loss:2.0964 train_time:268892ms step_avg:99.59ms
+step:2800/20000 train_loss:2.1509 train_time:278862ms step_avg:99.59ms
+step:2900/20000 train_loss:2.0205 train_time:288763ms step_avg:99.57ms
+step:3000/20000 train_loss:2.1526 train_time:298723ms step_avg:99.57ms
+step:3100/20000 train_loss:2.0227 train_time:308683ms step_avg:99.58ms
+step:3200/20000 train_loss:2.1615 train_time:318647ms step_avg:99.58ms
+step:3300/20000 train_loss:2.0566 train_time:328559ms step_avg:99.56ms
+step:3400/20000 train_loss:2.0045 train_time:338519ms step_avg:99.56ms
+step:3500/20000 train_loss:2.1602 train_time:348488ms step_avg:99.57ms
+step:3600/20000 train_loss:2.0773 train_time:358446ms step_avg:99.57ms
+step:3700/20000 train_loss:2.0728 train_time:368407ms step_avg:99.57ms
+step:3800/20000 train_loss:2.0488 train_time:378319ms step_avg:99.56ms
+step:3900/20000 train_loss:2.0530 train_time:388281ms step_avg:99.56ms
+step:4000/20000 train_loss:1.9521 train_time:398246ms step_avg:99.56ms
+step:4100/20000 train_loss:1.9892 train_time:408207ms step_avg:99.56ms
+step:4200/20000 train_loss:2.1251 train_time:418176ms step_avg:99.57ms
+step:4300/20000 train_loss:2.0324 train_time:428085ms step_avg:99.55ms
+step:4400/20000 train_loss:2.0079 train_time:438047ms step_avg:99.56ms
+step:4500/20000 train_loss:2.1006 train_time:448015ms step_avg:99.56ms
+step:4600/20000 train_loss:1.8171 train_time:457980ms step_avg:99.56ms
+step:4700/20000 train_loss:2.2117 train_time:467882ms step_avg:99.55ms
+step:4800/20000 train_loss:2.4033 train_time:477842ms step_avg:99.55ms
+step:4900/20000 train_loss:2.0217 train_time:487801ms step_avg:99.55ms
+step:5000/20000 train_loss:2.0761 train_time:497766ms step_avg:99.55ms
+step:5100/20000 train_loss:2.0999 train_time:507716ms step_avg:99.55ms
+step:5200/20000 train_loss:2.0152 train_time:517610ms step_avg:99.54ms
+step:5300/20000 train_loss:1.9789 train_time:527572ms step_avg:99.54ms
+step:5400/20000 train_loss:2.0207 train_time:537533ms step_avg:99.54ms
+step:5500/20000 train_loss:1.9874 train_time:547490ms step_avg:99.54ms
+step:5600/20000 train_loss:1.9250 train_time:557451ms step_avg:99.54ms
+step:5700/20000 train_loss:1.9831 train_time:567362ms step_avg:99.54ms
+step:5800/20000 train_loss:1.9653 train_time:577406ms step_avg:99.55ms
+step:5900/20000 train_loss:1.8742 train_time:587364ms step_avg:99.55ms
+step:6000/20000 train_loss:1.9150 train_time:597321ms step_avg:99.55ms
+step:6028/20000 val_loss:1.9521 val_bpb:1.1561 train_time:600095ms step_avg:99.55ms
+stopping_early: wallclock_cap train_time:600095ms step:6028/20000
+peak memory allocated: 25196 MiB reserved: 25954 MiB
+ema:applying shadow model
+Serialized model: 96864150 bytes
+Code size: 68444 bytes
+Total submission size: 96932594 bytes
+Serialized model int6+zstd: 15565623 bytes
+Total submission size: 15634067 bytes (15.63 MB)
+SIZE CHECK PASSED: 15.63 MB < 16.00 MB
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+final_eval_mode:sliding_ngram orders=2-7 alpha=0.4 entropy=True stride:64
+ngram_cache:enabled orders=2-7 backoff entropy=True alpha=0.4 ent_base=0.05 ent_range=0.55 min_count=2 buckets=4194304
+  ngram_eval [ 10.6%] bpb=1.114368 t=27s
+  ngram_eval [ 21.2%] bpb=1.096085 t=41s
+  ngram_eval [ 31.8%] bpb=1.072011 t=55s
+  ngram_eval [ 42.3%] bpb=1.043196 t=68s
+  ngram_eval [ 52.9%] bpb=1.015398 t=82s
+  ngram_eval [ 63.5%] bpb=0.989285 t=96s
+  ngram_eval [ 74.0%] bpb=0.967902 t=110s
+  ngram_eval [ 84.6%] bpb=0.947068 t=124s
+  ngram_eval [ 95.2%] bpb=0.926718 t=138s
+  ngram_eval DONE: bpb=0.912141 tokens=62023616 t=158s
+final_int8_zlib_roundtrip val_loss:1.5401 val_bpb:0.9121 eval_time:158096ms
+final_int8_zlib_roundtrip_exact val_loss:1.54010812 val_bpb:0.91214120
+=== Seed 2024 ===
+W0326 03:03:59.020000 133054078444160 torch/distributed/run.py:779] 
+W0326 03:03:59.020000 133054078444160 torch/distributed/run.py:779] *****************************************
+W0326 03:03:59.020000 133054078444160 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 03:03:59.020000 133054078444160 torch/distributed/run.py:779] *****************************************
+logs/5e38a299-e6cc-493f-a92b-b0f1b276d42a.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:24730705
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+seed:2024
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:1/20000 train_loss:6.9305 train_time:197ms step_avg:197.21ms
+step:2/20000 train_loss:7.8500 train_time:285ms step_avg:142.45ms
+step:3/20000 train_loss:7.1338 train_time:383ms step_avg:127.73ms
+step:4/20000 train_loss:7.7812 train_time:481ms step_avg:120.33ms
+step:5/20000 train_loss:8.1436 train_time:580ms step_avg:116.01ms
+step:6/20000 train_loss:7.9960 train_time:680ms step_avg:113.29ms
+step:7/20000 train_loss:7.6734 train_time:778ms step_avg:111.08ms
+step:8/20000 train_loss:7.2128 train_time:875ms step_avg:109.43ms
+step:9/20000 train_loss:6.5919 train_time:973ms step_avg:108.15ms
+step:10/20000 train_loss:6.3320 train_time:1083ms step_avg:108.32ms
+step:100/20000 train_loss:3.1827 train_time:9926ms step_avg:99.26ms
+step:200/20000 train_loss:2.3904 train_time:19812ms step_avg:99.06ms
+step:300/20000 train_loss:2.5369 train_time:29748ms step_avg:99.16ms
+step:400/20000 train_loss:2.4103 train_time:39707ms step_avg:99.27ms
+step:500/20000 train_loss:2.3940 train_time:49644ms step_avg:99.29ms
+step:600/20000 train_loss:2.3301 train_time:59647ms step_avg:99.41ms
+step:700/20000 train_loss:2.3469 train_time:69650ms step_avg:99.50ms
+step:800/20000 train_loss:2.2375 train_time:79657ms step_avg:99.57ms
+step:900/20000 train_loss:2.1259 train_time:89651ms step_avg:99.61ms
+step:1000/20000 train_loss:2.2782 train_time:99606ms step_avg:99.61ms
+step:1100/20000 train_loss:2.3212 train_time:109590ms step_avg:99.63ms
+step:1200/20000 train_loss:2.3558 train_time:119589ms step_avg:99.66ms
+step:1300/20000 train_loss:2.1057 train_time:129585ms step_avg:99.68ms
+step:1400/20000 train_loss:2.1860 train_time:139575ms step_avg:99.70ms
+step:1500/20000 train_loss:2.2268 train_time:149514ms step_avg:99.68ms
+step:1600/20000 train_loss:2.0769 train_time:159512ms step_avg:99.69ms
+step:1700/20000 train_loss:2.1489 train_time:169508ms step_avg:99.71ms
+step:1800/20000 train_loss:2.1528 train_time:179508ms step_avg:99.73ms
+step:1900/20000 train_loss:2.1279 train_time:189464ms step_avg:99.72ms
+step:2000/20000 train_loss:2.0704 train_time:199447ms step_avg:99.72ms
+step:2100/20000 train_loss:2.0534 train_time:209440ms step_avg:99.73ms
+step:2200/20000 train_loss:2.1535 train_time:219426ms step_avg:99.74ms
+step:2300/20000 train_loss:2.1110 train_time:229422ms step_avg:99.75ms
+step:2400/20000 train_loss:2.0698 train_time:239342ms step_avg:99.73ms
+step:2500/20000 train_loss:2.1724 train_time:249332ms step_avg:99.73ms
+step:2600/20000 train_loss:2.1099 train_time:259325ms step_avg:99.74ms
+step:2700/20000 train_loss:2.0988 train_time:269301ms step_avg:99.74ms
+step:2800/20000 train_loss:2.1513 train_time:279286ms step_avg:99.75ms
+step:2900/20000 train_loss:2.0195 train_time:289288ms step_avg:99.75ms
+step:3000/20000 train_loss:2.1573 train_time:299265ms step_avg:99.75ms
+step:3100/20000 train_loss:2.0244 train_time:309237ms step_avg:99.75ms
+step:3200/20000 train_loss:2.1597 train_time:319210ms step_avg:99.75ms
+step:3300/20000 train_loss:2.0578 train_time:329129ms step_avg:99.74ms
+step:3400/20000 train_loss:2.0050 train_time:339104ms step_avg:99.74ms
+step:3500/20000 train_loss:2.1617 train_time:349084ms step_avg:99.74ms
+step:3600/20000 train_loss:2.0753 train_time:359048ms step_avg:99.74ms
+step:3700/20000 train_loss:2.0756 train_time:369029ms step_avg:99.74ms
+step:3800/20000 train_loss:2.0522 train_time:378955ms step_avg:99.73ms
+step:3900/20000 train_loss:2.0542 train_time:388923ms step_avg:99.72ms
+step:4000/20000 train_loss:1.9538 train_time:398905ms step_avg:99.73ms
+step:4100/20000 train_loss:1.9919 train_time:408873ms step_avg:99.73ms
+step:4200/20000 train_loss:2.1284 train_time:418857ms step_avg:99.73ms
+step:4300/20000 train_loss:2.0319 train_time:428768ms step_avg:99.71ms
+step:4400/20000 train_loss:2.0114 train_time:438736ms step_avg:99.71ms
+step:4500/20000 train_loss:2.1011 train_time:448704ms step_avg:99.71ms
+step:4600/20000 train_loss:1.8148 train_time:458677ms step_avg:99.71ms
+step:4700/20000 train_loss:2.2173 train_time:468596ms step_avg:99.70ms
+step:4800/20000 train_loss:2.4029 train_time:478553ms step_avg:99.70ms
+step:4900/20000 train_loss:2.0207 train_time:488521ms step_avg:99.70ms
+step:5000/20000 train_loss:2.0810 train_time:498486ms step_avg:99.70ms
+step:5100/20000 train_loss:2.1044 train_time:508449ms step_avg:99.70ms
+step:5200/20000 train_loss:2.0161 train_time:518362ms step_avg:99.69ms
+step:5300/20000 train_loss:1.9831 train_time:528326ms step_avg:99.68ms
+step:5400/20000 train_loss:2.0235 train_time:538292ms step_avg:99.68ms
+step:5500/20000 train_loss:1.9933 train_time:548262ms step_avg:99.68ms
+step:5600/20000 train_loss:1.9257 train_time:558233ms step_avg:99.68ms
+step:5700/20000 train_loss:1.9870 train_time:568131ms step_avg:99.67ms
+step:5800/20000 train_loss:1.9716 train_time:578101ms step_avg:99.67ms
+step:5900/20000 train_loss:1.8747 train_time:588063ms step_avg:99.67ms
+step:6000/20000 train_loss:1.9170 train_time:598026ms step_avg:99.67ms
+step:6020/20000 val_loss:1.9546 val_bpb:1.1576 train_time:600016ms step_avg:99.67ms
+stopping_early: wallclock_cap train_time:600016ms step:6020/20000
+peak memory allocated: 25196 MiB reserved: 25954 MiB
+ema:applying shadow model
+Serialized model: 96864150 bytes
+Code size: 68444 bytes
+Total submission size: 96932594 bytes
+Serialized model int6+zstd: 15258786 bytes
+Total submission size: 15327230 bytes (15.33 MB)
+SIZE CHECK PASSED: 15.33 MB < 16.00 MB
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+/workspace/train_gpt.py:1498: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")
+final_eval_mode:sliding_ngram orders=2-7 alpha=0.4 entropy=True stride:64
+ngram_cache:enabled orders=2-7 backoff entropy=True alpha=0.4 ent_base=0.05 ent_range=0.55 min_count=2 buckets=4194304
+  ngram_eval [ 10.6%] bpb=1.115965 t=26s
+  ngram_eval [ 21.2%] bpb=1.098010 t=40s
+  ngram_eval [ 31.8%] bpb=1.073715 t=54s
+  ngram_eval [ 42.3%] bpb=1.044457 t=68s
+  ngram_eval [ 52.9%] bpb=1.016426 t=82s
+  ngram_eval [ 63.5%] bpb=0.989973 t=96s
+  ngram_eval [ 74.0%] bpb=0.968386 t=110s
+  ngram_eval [ 84.6%] bpb=0.947327 t=124s
+  ngram_eval [ 95.2%] bpb=0.926810 t=138s
+  ngram_eval DONE: bpb=0.912061 tokens=62023616 t=157s
+final_int8_zlib_roundtrip val_loss:1.5400 val_bpb:0.9121 eval_time:157534ms
+final_int8_zlib_roundtrip_exact val_loss:1.53997207 val_bpb:0.91206062
