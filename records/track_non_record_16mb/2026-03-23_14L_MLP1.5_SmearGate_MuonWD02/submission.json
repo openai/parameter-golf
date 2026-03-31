@@ -1,0 +1,13 @@
+{
+  "name": "Nitesh Subedi",
+  "github_id": "nitSubedi",
+  "val_bpb": 1.3661,
+  "model_params": 20742256,
+  "mlp_mult": 1.5,
+  "optimizer": "Muon",
+  "features": ["SmearGate", "int6 quantization", "zstd"],
+  "wallclock_seconds": 600.567,
+  "compute_credit_request": {
+    "tier": "Development grant",
+    "justification": "Architecture verified at 1.366 BPB on RTX 5090. Local throughput prevents scaling to the full 16MB/42M param capacity within the 10-minute limit. Credits will be used to scale MLP_MULT to 4.2 on H100 nodes."
+}
