@@ -1,0 +1,4 @@
+__pycache__/
+logs/
+final_model.pt
+final_model.int6.ptz
