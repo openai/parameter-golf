@@ -85,10 +85,14 @@ if [[ "${SKIP_SMOKE}" == "0" ]]; then
     echo ""
     echo "[smoke] step_avg: ${STEP_AVG}ms"
 
-    # Integer comparison (strip decimal)
+    # Threshold scales with GPU count:
+    #   8xH100 → ~91ms/step (grad_accum=1)
+    #   1xH100 → ~730ms/step (grad_accum=8, same total batch)
+    # Formula: 91ms * (8 / NPROC) * 2.5 safety margin
+    THRESHOLD=$(( 91 * 8 / NPROC * 5 / 2 ))
     STEP_INT="${STEP_AVG%%.*}"
-    if [[ "${STEP_INT}" -gt 200 ]]; then
-        echo "ABORT: step_avg=${STEP_AVG}ms exceeds 200ms threshold."
+    if [[ "${STEP_INT}" -gt "${THRESHOLD}" ]]; then
+        echo "ABORT: step_avg=${STEP_AVG}ms exceeds ${THRESHOLD}ms threshold (nproc=${NPROC})."
         echo "This pod is broken (wrong GPU, throttling, or driver issue)."
         echo "Destroy and reprovision before spending money on ablations."
         exit 1
