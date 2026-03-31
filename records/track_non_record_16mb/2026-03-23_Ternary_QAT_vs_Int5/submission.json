@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Ternary QAT vs Int5 Proxy Study (1xRTX2060)",
+  "blurb": "Non-record 16MB submission documenting a FineWeb-based proxy study of BitNet-style ternary QAT. Full ternary underperformed, but mixed ternary scaled to 11L d=640 reached 3.2609 post-quant val_bpb at 13.61MB total and repeated at 3.2611 on a second seed, effectively matching a proxy int5 baseline while using fewer bytes.",
+  "date": "2026-03-30",
+  "track": "non-record-16mb",
+  "val_loss": 5.50657913,
+  "val_bpb": 3.26090698,
+  "pre_quant_val_loss": 5.4857,
+  "pre_quant_val_bpb": 3.2485,
+  "step_stop": 600,
+  "wallclock_seconds": 395,
+  "bytes_total": 13609639,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": 62303,
+  "gpu": "1xRTX2060 Max-Q",
+  "dataset": "fineweb10B_sp1024_proxy"
+}
