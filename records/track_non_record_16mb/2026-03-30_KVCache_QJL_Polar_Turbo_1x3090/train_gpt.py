@@ -2235,6 +2235,97 @@ def eval_val_autoregressive_kv(
     }
 
 
+def final_eval_after_roundtrip(
+    args: Hyperparameters,
+    *,
+    base_model: GPT,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    distributed: bool,
+    master_process: bool,
+    log0,
+) -> None:
+    if args.eval_autoregressive_kv:
+        if distributed and not master_process:
+            dist.barrier()
+            return
+        backend_names = resolve_eval_backend_names(args)
+        mode_suffix = " rank0_only:True" if distributed else ""
+        log0(
+            f"final_eval_mode:autoregressive_kv context_len:{args.kv_eval_context_len} "
+            f"max_tokens:{args.kv_eval_max_tokens} backends:{','.join(backend_names)}{mode_suffix}"
+        )
+        for backend_name in backend_names:
+            metrics = eval_val_autoregressive_kv(
+                args,
+                base_model,
+                device,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+                backend_name=backend_name,
+                log0=log0,
+            )
+            log0(
+                f"final_kv_cache_eval backend:{metrics['backend']} val_loss:{metrics['val_loss']:.4f} "
+                f"val_bpb:{metrics['val_bpb']:.4f} eval_time:{metrics['eval_ms']}ms "
+                f"tok_s:{metrics['tokens_per_sec']:.2f} peak_cache_bytes:{metrics['peak_cache_bytes']} "
+                f"peak_cache_tensor_bytes:{metrics['peak_cache_tensor_bytes']} tokens:{metrics['tokens']}"
+            )
+            log0(
+                f"final_kv_cache_eval_exact backend:{metrics['backend']} val_loss:{metrics['val_loss']:.8f} "
+                f"val_bpb:{metrics['val_bpb']:.8f}"
+            )
+        if distributed:
+            dist.barrier()
+        return
+
+    t_qeval = time.perf_counter()
+    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
+        q_val_loss, q_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+            batch_seqs=args.eval_batch_seqs,
+        )
+    else:
+        log0("final_eval_mode:standard")
+        q_val_loss, q_val_bpb = eval_val(
+            args,
+            model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+    torch.cuda.synchronize()
+    log0(
+        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+    )
+    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -2259,8 +2350,6 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    if world_size != 1 and args.eval_autoregressive_kv:
-        raise ValueError("Autoregressive KV-cache evaluation is only implemented for WORLD_SIZE=1 in this submission")
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
@@ -2631,71 +2720,22 @@ def main() -> None:
         dist.barrier()
     load_quantized_artifact_into_model(base_model, artifact_path)
     torch.cuda.synchronize()
-    if args.eval_autoregressive_kv:
-        backend_names = resolve_eval_backend_names(args)
-        log0(
-            f"final_eval_mode:autoregressive_kv context_len:{args.kv_eval_context_len} "
-            f"max_tokens:{args.kv_eval_max_tokens} backends:{','.join(backend_names)}"
-        )
-        for backend_name in backend_names:
-            metrics = eval_val_autoregressive_kv(
-                args,
-                base_model,
-                device,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-                backend_name=backend_name,
-                log0=log0,
-            )
-            log0(
-                f"final_kv_cache_eval backend:{metrics['backend']} val_loss:{metrics['val_loss']:.4f} "
-                f"val_bpb:{metrics['val_bpb']:.4f} eval_time:{metrics['eval_ms']}ms "
-                f"tok_s:{metrics['tokens_per_sec']:.2f} peak_cache_bytes:{metrics['peak_cache_bytes']} "
-                f"peak_cache_tensor_bytes:{metrics['peak_cache_tensor_bytes']} tokens:{metrics['tokens']}"
-            )
-            log0(
-                f"final_kv_cache_eval_exact backend:{metrics['backend']} val_loss:{metrics['val_loss']:.8f} "
-                f"val_bpb:{metrics['val_bpb']:.8f}"
-            )
-    else:
-        t_qeval = time.perf_counter()
-        if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
-            log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
-            q_val_loss, q_val_bpb = eval_val_sliding(
-                args,
-                base_model,
-                rank,
-                world_size,
-                device,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-                stride=args.eval_stride,
-                batch_seqs=args.eval_batch_seqs,
-            )
-        else:
-            log0("final_eval_mode:standard")
-            q_val_loss, q_val_bpb = eval_val(
-                args,
-                model,
-                rank,
-                world_size,
-                device,
-                grad_accum_steps,
-                val_tokens,
-                base_bytes_lut,
-                has_leading_space_lut,
-                is_boundary_token_lut,
-            )
-        torch.cuda.synchronize()
-        log0(
-            f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
-        )
-        log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    final_eval_after_roundtrip(
+        args,
+        base_model=base_model,
+        model=model,
+        rank=rank,
+        world_size=world_size,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        distributed=distributed,
+        master_process=master_process,
+        log0=log0,
+    )
 
     if distributed:
         dist.destroy_process_group()
