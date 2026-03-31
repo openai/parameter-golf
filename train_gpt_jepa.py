@@ -963,8 +963,8 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     n_predictor = sum(p.numel() for p in base_model.latent_predictor.parameters())
-    log0(f"model_params:{n_params} (jepa_predictor:{n_predictor} train-only)")
-    log0(f"jepa_loss_weight:{args.jepa_loss_weight} jepa_bottleneck:{args.jepa_bottleneck}")
+    log0(f"model_params:{n_params} (jepa_predictor:{n_predictor})")
+    log0(f"jepa: weight={args.jepa_loss_weight} bottleneck={args.jepa_bottleneck} horizons={args.jepa_horizons}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
