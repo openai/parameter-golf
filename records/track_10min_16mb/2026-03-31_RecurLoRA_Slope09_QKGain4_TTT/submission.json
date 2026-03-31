@@ -2,7 +2,7 @@
   "track": "10min_16mb",
   "date": "2026-03-31",
   "author": "Tanush1912",
-  "title": "Shallow Recurrence + LoRA + LeakyReLU(0.9)^2 + QK-Gain 4.0 + TTT",
+  "title": "RecurLoRA: Shallow Recurrence with Low-Rank Corrective Adapters",
   "status": "pending_compute",
   "base_submission": "PR #1179 (Split-LR + BigramHash(2816x160) + Full GPTQ + Brotli, 1.1105 BPB)",
   "novel_contribution": "Shallow recurrence (layers 4,5 repeated once each) with rank-2 LoRA corrections on attention projections + RMSNorm + learnable alpha scaling",
