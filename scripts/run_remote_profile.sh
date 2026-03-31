@@ -241,9 +241,109 @@ case "$PROFILE" in
     export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
     export Z_LOSS_COEF="${Z_LOSS_COEF:-0.0001}"
     ;;
+  hunt_locked_best)
+    export RUN_ID="${RUN_ID:-hunt_locked_best}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_11l_wd04)
+    export RUN_ID="${RUN_ID:-hunt_11l_wd04}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_11l_wd04_warm4000)
+    export RUN_ID="${RUN_ID:-hunt_11l_wd04_warm4000}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
+    ;;
+  hunt_11l_mlp3_leaky)
+    export RUN_ID="${RUN_ID:-hunt_11l_mlp3_leaky}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export MLP_MULT="${MLP_MULT:-3}"
+    export MLP_ACT="${MLP_ACT:-leaky2}"
+    export LEAKY_RELU_SLOPE="${LEAKY_RELU_SLOPE:-0.5}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
+    ;;
+  hunt_11l_mlp3_leaky_ema)
+    export RUN_ID="${RUN_ID:-hunt_11l_mlp3_leaky_ema}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export MLP_MULT="${MLP_MULT:-3}"
+    export MLP_ACT="${MLP_ACT:-leaky2}"
+    export LEAKY_RELU_SLOPE="${LEAKY_RELU_SLOPE:-0.5}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
+    export EMA_DECAY="${EMA_DECAY:-0.997}"
+    export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
+    export SWA_STRIDE="${SWA_STRIDE:-50}"
+    ;;
+  hunt_11l_layerwise)
+    export RUN_ID="${RUN_ID:-hunt_11l_layerwise}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ATTN_TWICE_ALPHA_SLOPE="${ATTN_TWICE_ALPHA_SLOPE:-0.5}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_11l_fullheads)
+    export RUN_ID="${RUN_ID:-hunt_11l_fullheads}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export NUM_KV_HEADS="${NUM_KV_HEADS:-8}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_11l_untied)
+    export RUN_ID="${RUN_ID:-hunt_11l_untied}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export TIE_EMBEDDINGS="${TIE_EMBEDDINGS:-0}"
+    export HEAD_LR="${HEAD_LR:-0.008}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_shared11_mid)
+    export RUN_ID="${RUN_ID:-hunt_shared11_mid}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export SHARED_DEPTH_N="${SHARED_DEPTH_N:-5}"
+    export SHARED_DEPTH_EDGE_UNIQUE="${SHARED_DEPTH_EDGE_UNIQUE:-2}"
+    export SHARED_DEPTH_GAIN="${SHARED_DEPTH_GAIN:-0.05}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  hunt_11l_mtp)
+    export RUN_ID="${RUN_ID:-hunt_11l_mtp}"
+    export NUM_LAYERS="${NUM_LAYERS:-11}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export MTP_DEPTH="${MTP_DEPTH:-2}"
+    export MTP_LOSS_WEIGHT="${MTP_LOSS_WEIGHT:-0.05}"
+    ;;
   *)
     echo "Unknown profile: $PROFILE" >&2
-    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1 winner_locked winner_ema_swa winner_wd03 winner_wd04 winner_warm3500 winner_lr18 winner_wd03_ema winner_mlp3 wd04_locked wd04_warm3500 wd04_warm4000 wd04_lr18 wd04_lr19 wd04_scalar18 wd04_tied28 wd04_ema_swa wd04_warm3500_lr18 wd04_zloss" >&2
+    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1 winner_locked winner_ema_swa winner_wd03 winner_wd04 winner_warm3500 winner_lr18 winner_wd03_ema winner_mlp3 wd04_locked wd04_warm3500 wd04_warm4000 wd04_lr18 wd04_lr19 wd04_scalar18 wd04_tied28 wd04_ema_swa wd04_warm3500_lr18 wd04_zloss hunt_locked_best hunt_11l_wd04 hunt_11l_wd04_warm4000 hunt_11l_mlp3_leaky hunt_11l_mlp3_leaky_ema hunt_11l_layerwise hunt_11l_fullheads hunt_11l_untied hunt_shared11_mid hunt_11l_mtp" >&2
     exit 1
     ;;
 esac
