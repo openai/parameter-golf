@@ -27,9 +27,15 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # flash_attn_3 replaced with PyTorch built-in SDPA for portability
 def flash_attn_3_func(q, k, v, causal=True):
     # flash_attn layout: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
-    return F.scaled_dot_product_attention(
-        q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), is_causal=causal
-    ).transpose(1, 2)
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    # Expand K,V for GQA (math backend requires equal head counts)
+    if k.size(1) != q.size(1):
+        groups = q.size(1) // k.size(1)
+        k = k.repeat_interleave(groups, dim=1)
+        v = v.repeat_interleave(groups, dim=1)
+    return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
