@@ -920,11 +920,28 @@ def mixed_quantize_int6(state_dict: dict, int6_cats: set, tensor_sensitivities: 
     clip_range_map: dict[str, int] = {}
     if tensor_sensitivities and len(tensor_sensitivities) > 0:
         svals = sorted(tensor_sensitivities.values()); n_s = len(svals)
-        thr_int5 = svals[max(0, int(int5_frac * n_s) - 1)]; thr_int7 = svals[min(n_s - 1, int((1.0 - int7_frac) * n_s))]
+        thr_int5 = None
+        thr_int7 = None
+        # Explicitly handle edge fractions so 0.0 yields an empty tier and 1.0 covers all tensors
+        if n_s > 0:
+            # int5 tier (low-sensitivity tensors)
+            if int5_frac >= 1.0:
+                # All tensors go to int5 tier
+                thr_int5 = svals[-1]
+            elif int5_frac > 0.0:
+                idx5 = max(0, min(n_s - 1, int(int5_frac * n_s) - 1))
+                thr_int5 = svals[idx5]
+            # int7 tier (high-sensitivity tensors)
+            if int7_frac >= 1.0:
+                # All tensors go to int7 tier
+                thr_int7 = svals[0]
+            elif int7_frac > 0.0:
+                idx7 = max(0, min(n_s - 1, int((1.0 - int7_frac) * n_s)))
+                thr_int7 = svals[idx7]
         for (name, sens) in tensor_sensitivities.items():
-            if sens <= thr_int5:
+            if thr_int5 is not None and sens <= thr_int5:
                 clip_range_map[name] = 15
-            elif sens >= thr_int7:
+            elif thr_int7 is not None and sens >= thr_int7:
                 clip_range_map[name] = 63
             else:
                 clip_range_map[name] = 31
