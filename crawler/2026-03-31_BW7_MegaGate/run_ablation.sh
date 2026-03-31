@@ -48,10 +48,13 @@ python3 -c "
 try:
     import flash_attn_interface; print('  FA3 (hopper) OK')
 except ImportError:
-    import flash_attn; v=flash_attn.__version__
-    if v.startswith('3'): print(f'  FA3 v{v} OK')
-    else: print(f'  WARNING: FA{v[0]} — want FA3')
-" 2>/dev/null || { echo "  ERROR: no flash_attn found — abort"; exit 1; }
+    try:
+        import flash_attn; v=flash_attn.__version__
+        if v.startswith('3'): print(f'  FA3 v{v} OK')
+        else: print(f'  WARNING: FA{v[0]} — want FA3, will use SDPA fallback')
+    except ImportError:
+        print('  WARNING: no flash_attn — using PyTorch SDPA fallback (slower but correct)')
+" 2>/dev/null || echo "  WARNING: flash_attn check failed — using PyTorch SDPA fallback"
 
 echo "[preflight] checking data..."
 python3 -c "
