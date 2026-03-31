@@ -1,0 +1,11 @@
+{
+  "name": "Multi-Agent Orchestrator Framework",
+  "author": "genji0306",
+  "github_id": "genji0306",
+  "organization": "Opensens Research",
+  "date": "2026-03-27",
+  "track": "non_record_tooling",
+  "description": "A multi-agent orchestration framework for systematic analysis, hypothesis generation, and automated experimentation on the Parameter Golf challenge.",
+  "repository": "https://github.com/genji0306/parameter-golf-orchestrator",
+  "status": "active_development"
+}
