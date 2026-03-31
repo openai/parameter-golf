@@ -15,7 +15,14 @@ set -euo pipefail
 
 REPO_URL="https://github.com/newjordan/parameter-golf.git"
 BRANCH="TEST_LAB"
-WORKSPACE="/workspace/parameter-golf"
+# Auto-detect repo root from script location; fall back for curl-pipe scenario
+_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || true
+_CANDIDATE="$(cd -- "${_SCRIPT_DIR}/.." && pwd 2>/dev/null)" || true
+if [[ -d "${_CANDIDATE}/.git" ]]; then
+    WORKSPACE="${_CANDIDATE}"
+else
+    WORKSPACE="/workspace/parameter-golf"
+fi
 
 echo "============================================"
 echo "  POD SETUP"
