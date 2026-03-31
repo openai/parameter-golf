@@ -10,3 +10,12 @@ data/docs_selected.jsonl
 .venv
 logs/
 experiments/archive/checkpoints/
+
+# Large binaries — never commit
+*.pt
+*.ptz
+junkyard/results/
+junkyard/checkpoints/
+junkyard/experiments/archive/checkpoints/
+junkyard/experiments/GreenRod_X_1/lab_protocol_20260327/research_hub_*/
+junkyard/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/
