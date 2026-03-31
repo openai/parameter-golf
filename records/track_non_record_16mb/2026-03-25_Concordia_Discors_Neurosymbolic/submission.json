@@ -1,0 +1,1 @@
+{"name":"Giulio Catanzariti","github_id":"sargonxg","val_bpb":"1.2930 (1xH100, neural) / 5.0425 (hybrid best)","description":"Concordia Discors: neurosymbolic hybrid with LZ77 match model (+0.04 BPB), order-8 n-gram cache (+0.01 BPB), FST grammar, CTW Bayesian mixing. Systematic ablation study of eval-time prediction mixing.","date":"2026-03-25","track":"non-record"}
