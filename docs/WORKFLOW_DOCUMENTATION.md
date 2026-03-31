@@ -148,6 +148,13 @@ On each meaningful change in the conversation or repo:
 
 ## 10. Changelog
 
+### 2026-03-22 — LeakyReLU² ablation hook + tests (`/create` from PLAN-leaderboard-novel-improve)
+
+- **Code:** `records/.../2026-03-21_OrchestratedStack_10LInt5/train_gpt.py` — `LEAKY_RELU_SLOPE` env (default `0` = `relu²`, `>0` = `F.leaky_relu(..., negative_slope).square()`), threaded through `GPT` → `Block` → `MLP`.
+- **Docs:** Record `README.md` — usage + pointer to `docs/PLAN-leaderboard-novel-improve.md`.
+- **Tests:** `tests/test_orchestrated_mlp_activation.py` — `python -m unittest tests.test_orchestrated_mlp_activation`.
+- **Agents:** `backend-specialist` (implementation), `test-engineer` (unit tests), `documentation-writer` (README + changelog).
+
 ### 2026-03-21 — `torchrun` debug: run script uses venv + `python -m torch.distributed.run`
 
 - **Fixed:** `scripts/run_orchestrated_stack_8xh100.sh` — resolves `.venv/bin/python`, checks `import torch` and **CUDA** before launch; falls back from `torchrun` to `python -m torch.distributed.run`; clear errors if PyTorch missing or on macOS without CUDA (points to `train_gpt_mlx.py`).

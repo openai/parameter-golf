@@ -19,6 +19,7 @@
 
 - **Default `EVAL_BATCH_SEQS=64`** (was 32): same **val_bpb** math, faster sliding eval (helps stay under **eval time** cap).
 - **Startup warning** if `zstandard` is missing (zlib fallback inflates artifact size).
+- **Optional LeakyReLU² MLP** (`LEAKY_RELU_SLOPE`, default `0`): set e.g. `LEAKY_RELU_SLOPE=0.5` for `F.leaky_relu(..., negative_slope=0.5).square()` instead of `relu²`, aligned with the top record line (see `2026-03-23_LeakyReLU_LegalTTT_ParallelMuon`). **A/B this vs baseline on the same seed** for a distinct submission story (`docs/PLAN-leaderboard-novel-improve.md`).
 - Module docstring + removed stray end-of-file comments.
 
 ## Dependencies
@@ -39,12 +40,32 @@ export TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model
 export RUN_ID=orchestrated_10l_int5
 export MAX_WALLCLOCK_SECONDS=600
 export SEED=42
+# Optional ablation (top-SOTA family uses 0.5):
+# export LEAKY_RELU_SLOPE=0.5
 
 torchrun --standalone --nproc_per_node=8 \
   records/track_10min_16mb/2026-03-21_OrchestratedStack_10LInt5/train_gpt.py
 ```
 
 Or use [`scripts/run_orchestrated_stack_8xh100.sh`](../../../scripts/run_orchestrated_stack_8xh100.sh) from the repository root (`bash scripts/run_orchestrated_stack_8xh100.sh`).
+
+## Budget smoke (~$25 workflow)
+
+For **NCCL / compile / OOM** checks without paying for full sliding eval + export, use **`SMOKE_MODE=1`** (skips validation during training and skips int export + final eval). **Do not** report `val_bpb` from a smoke run as a leaderboard number.
+
+```bash
+bash scripts/smoke_orchestrated_8xh100.sh
+# optional: LEAKY_RELU_SLOPE=0.5 bash scripts/smoke_orchestrated_8xh100.sh
+```
+
+Full **A/B** (baseline vs LeakyReLU²) with production protocol:
+
+```bash
+bash scripts/run_orchestrated_full_ab.sh baseline
+bash scripts/run_orchestrated_full_ab.sh leaky
+```
+
+Schedule and env rationale: [`docs/PLAN-h100-novel-budget.md`](../../../docs/PLAN-h100-novel-budget.md).
 
 ## Submission checklist (official README)
 

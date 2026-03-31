@@ -102,6 +102,12 @@ class Hyperparameters:
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
 
+    # MLP: ReLU² (default) vs LeakyReLU² when > 0 (see PLAN-leaderboard-novel-improve.md; SOTA ref: LeakyReLU(0.5)²).
+    leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", "0.0"))
+
+    # Budget smoke: skip all val during train + skip quant/export/sliding (see docs/PLAN-h100-novel-budget.md).
+    smoke_mode = bool(int(os.environ.get("SMOKE_MODE", "0")))
+
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -569,16 +575,21 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: float):
+    def __init__(self, dim: int, mlp_mult: float, leaky_relu_slope: float = 0.0):
         super().__init__()
         hidden = int(mlp_mult * dim)
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
+        self.leaky_relu_slope = float(leaky_relu_slope)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
+        h = self.fc(x)
+        if self.leaky_relu_slope > 0.0:
+            h = F.leaky_relu(h, negative_slope=self.leaky_relu_slope)
+        else:
+            h = torch.relu(h)
+        return self.proj(h.square())
 
 
 class SmearGate(nn.Module):
@@ -621,12 +632,21 @@ class BigramHashEmbedding(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: float, rope_base: float, qk_gain_init: float):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: float,
+        rope_base: float,
+        qk_gain_init: float,
+        leaky_relu_slope: float = 0.0,
+    ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, leaky_relu_slope=leaky_relu_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -656,6 +676,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 128,
+        leaky_relu_slope: float = 0.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -672,7 +693,15 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.blocks = nn.ModuleList(
             [
-                Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+                Block(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                    leaky_relu_slope=leaky_relu_slope,
+                )
                 for _ in range(num_layers)
             ]
         )
@@ -932,6 +961,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        leaky_relu_slope=args.leaky_relu_slope,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1009,6 +1039,8 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    log0(f"leaky_relu_slope:{args.leaky_relu_slope} (0=relu^2 else leaky_relu^2)")
+    log0(f"smoke_mode:{int(args.smoke_mode)} (1=skip val during train + skip export/final eval)")
 
     # DATA LOADER & MODEL WARMUP
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -1068,7 +1100,10 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        should_validate = (
+            not args.smoke_mode
+            and (last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0))
+        )
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
@@ -1166,6 +1201,15 @@ def main() -> None:
             for name, tensor in swa_state.items()
         }
         base_model.load_state_dict(avg_state, strict=True)
+
+    if args.smoke_mode:
+        log0(
+            "SMOKE_MODE:1 exit — skipped int6 export + final eval. "
+            "val_bpb here is NOT valid for leaderboard. See docs/PLAN-h100-novel-budget.md"
+        )
+        if distributed:
+            dist.destroy_process_group()
+        return
 
     # SERIALIZATION + ROUNDTRIP VALIDATION
     if master_process:
