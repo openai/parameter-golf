@@ -15,7 +15,7 @@ set -euo pipefail
 #    - Bandit_Wagon_V_Pyramid/gate_8gpu.sh (quality signal confirmed)
 #
 #  Usage:
-#    NPROC_PER_NODE=8 bash experiments/Bandit_Wagon_V_PyramidCannon/gate_8gpu.sh
+#    NPROC_PER_NODE=8 bash crawler/2026-03-31_BW5_PyramidCannon/gate_8gpu.sh
 # ================================================================
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -126,6 +126,7 @@ while IFS='|' read -r arm label choke cannon step_avg raw; do
 done < "${RESULTS_FILE}"
 rm -f "${RESULTS_FILE}"
 echo ""
-echo "  Pass: BWVPC-01 raw_bpb < BWVPC-00 AND step_avg <= ${BW5_STEP_AVG}ms"
+echo "  Pass: BWVPC-01 raw_bpb < BWVPC-00 AND step_avg <= 82ms"
+echo "  Note: pyramid+cannon expected ~77-80ms (vs BW5 ${BW5_STEP_AVG}ms). Quality gain justifies cost."
 echo "  If passes → full 600s run on 8×H100"
 echo "================================================================"
