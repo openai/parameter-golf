@@ -1,0 +1,23 @@
+{
+  "batch_id": "stage1_frontier_family_r2",
+  "slot": "P4",
+  "name": "m11_sliding_eval64",
+  "family": "M11",
+  "hypothesis": "evaluation_time_context",
+  "role": "exploit",
+  "label": "a100",
+  "nproc_per_node": 1,
+  "why": "Directly test sliding-window evaluation with minimal training changes.",
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_BATCH_SEQS": "256",
+    "EVAL_STRIDE": "64",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "NUM_HEADS": "8",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

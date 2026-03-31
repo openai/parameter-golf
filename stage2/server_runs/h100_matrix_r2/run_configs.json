@@ -1,0 +1,233 @@
+{
+  "batch_id": "stage2_h100_matrix_r2",
+  "description": "Budget-aware Stage 2 pipeline: 8x1xH100 parallel sanity/screen, 1xH100 final proxy, optional 8xH100 champion confirmation.",
+  "benchmarks": {
+    "training_trunk_bpb": 1.20143417,
+    "record_sota_bpb": 1.1574404
+  },
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "slots": [
+        "S2-C0",
+        "S2-C1",
+        "S2-E1",
+        "S2-E2",
+        "S2-E3",
+        "S2-E4",
+        "S2-R0",
+        "S2-R1"
+      ]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "slots": [
+        "S2-C0",
+        "S2-C1",
+        "S2-E1",
+        "S2-E2",
+        "S2-E3",
+        "S2-E4",
+        "S2-R0",
+        "S2-R1"
+      ]
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "S2-C0",
+      "name": "trunk_control_seq4096",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "trunk_control",
+      "why": "Clean public training trunk control for all trunk-family screens.",
+      "validates": "The current branch can reproduce the seq4096 trunk regime on this hardware.",
+      "falsifies": "Any trunk-family screen is untrustworthy because the control itself is drifting.",
+      "env": {
+        "TRAIN_SEQ_LEN": "4096",
+        "TRAIN_BATCH_TOKENS": "393216",
+        "TIED_EMBED_LR": "0.03",
+        "MATRIX_LR": "0.02",
+        "SCALAR_LR": "0.02",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "WARMDOWN_ITERS": "3000"
+      },
+      "notes": [
+        "Training-side trunk target is 1.20143417."
+      ]
+    },
+    {
+      "slot": "S2-C1",
+      "name": "trunk_fp16_embed_control",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": "S2-C0",
+      "compare_to": "S2-C0",
+      "family": "fp16_export_control",
+      "why": "Shared control for branches that naturally sit on top of fp16 tied-embedding export.",
+      "validates": "Whether fp16 embedding export alone is already a useful step over the clean trunk.",
+      "falsifies": "The fp16 export path is not strong enough to serve as a child-control.",
+      "env": {
+        "INT8_KEEP_TOK_EMB_FP16": "1",
+        "MLP_HIDDEN": "992"
+      },
+      "notes": [
+        "This control both tests fp16 export and serves as the matched parent for Muon WD and adaptive Muon."
+      ]
+    },
+    {
+      "slot": "S2-E1",
+      "name": "trunk_plus_sliding_eval64",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "S2-C0",
+      "compare_to": "S2-C0",
+      "family": "evaluation_time_context",
+      "why": "Tests whether eval-only context remains a first-order gain on the clean trunk.",
+      "validates": "Final BPB improves enough to justify keeping eval policy as an active frontier.",
+      "falsifies": "Sliding eval is too small or too expensive to matter in our budgeted search loop.",
+      "env": {
+        "EVAL_STRIDE": "64",
+        "EVAL_BATCH_SEQS": "128"
+      },
+      "notes": [
+        "Compared directly against the trunk control."
+      ]
+    },
+    {
+      "slot": "S2-E2",
+      "name": "trunk_plus_quant_quality",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "S2-C0",
+      "compare_to": "S2-C0",
+      "family": "quant_quality",
+      "why": "Direct transfer test for our strongest quant-fidelity mutation from earlier runs.",
+      "validates": "The post-quant gap shrinks on real H100 screens.",
+      "falsifies": "The quant-fidelity win was mostly proxy noise or regime-specific.",
+      "env": {
+        "INT8_CLIP_PERCENTILE": "99.99995",
+        "INT8_PER_ROW_SCALE_DTYPE": "float32"
+      },
+      "notes": [
+        "Compared directly against the trunk control."
+      ]
+    },
+    {
+      "slot": "S2-E3",
+      "name": "trunk_fp16_plus_muon_wd",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "S2-C1",
+      "compare_to": "S2-C1",
+      "family": "muon_weight_decay",
+      "why": "Tests whether the Muon WD story transfers once fp16 embed export is already present.",
+      "validates": "Muon WD improves final BPB or tightens the quantization gap over the fp16 control.",
+      "falsifies": "Muon WD adds complexity without moving the controlled fp16 branch.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.02"
+      },
+      "notes": [
+        "Matched against the fp16 export control, not the raw trunk."
+      ]
+    },
+    {
+      "slot": "S2-E4",
+      "name": "trunk_fp16_plus_adaptive_muon",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "S2-C1",
+      "compare_to": "S2-C1",
+      "family": "adaptive_muon_throughput",
+      "why": "Tests whether lower step cost buys enough extra steps to help the fp16 trunk branch.",
+      "validates": "step_avg falls and final BPB holds or improves against the fp16 control.",
+      "falsifies": "The throughput gain is too small or the quality loss dominates again.",
+      "env": {
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS": "5",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      },
+      "notes": [
+        "This is the main throughput reclaim candidate."
+      ]
+    },
+    {
+      "slot": "S2-R0",
+      "name": "record_like_control_2048_int6",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "record_like_control",
+      "why": "Public-style control for record-derivative experiments.",
+      "validates": "We can evaluate derivative mutations in the same qualitative regime as the current record stack.",
+      "falsifies": "The record-like branch itself is drifting too much to support derivative comparisons.",
+      "env": {
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.03",
+        "MATRIX_LR": "0.02",
+        "SCALAR_LR": "0.02",
+        "MUON_BACKEND_STEPS": "5",
+        "MLP_HIDDEN": "1536",
+        "INTX_BITS": "6",
+        "INT8_KEEP_TOK_EMB_FP16": "1",
+        "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "256",
+        "EVAL_BATCH_SEQS": "256"
+      },
+      "notes": [
+        "Local record target is 1.15744040."
+      ]
+    },
+    {
+      "slot": "S2-R1",
+      "name": "record_like_plus_adaptive_muon",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "S2-R0",
+      "compare_to": "S2-R0",
+      "family": "record_plus_our_winner",
+      "why": "Tests whether our adaptive-Muon win is a derivative improvement on top of a record-like public stack.",
+      "validates": "The hybrid beats or matches the record-like control while improving step efficiency.",
+      "falsifies": "Our throughput winner does not transfer onto the public-style branch.",
+      "env": {
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      },
+      "notes": [
+        "This is the strongest public-stack derivative screen in the pack."
+      ]
+    }
+  ]
+}

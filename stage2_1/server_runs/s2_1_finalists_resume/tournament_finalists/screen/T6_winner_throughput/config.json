@@ -1,0 +1,58 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament_finalists",
+  "phase": "screen",
+  "slot": "T6",
+  "name": "winner_throughput",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "weight_perturbation",
+    "fa3"
+  ],
+  "label": "s2_1_finalists_resume",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T6"
+  ],
+  "compare_to": "T0",
+  "why": "Tests whether FA3 amplifies the geometry/compressibility gain by buying more effective updates.",
+  "validates": "The flatness win is partially compute-limited.",
+  "falsifies": "Geometry improvements are not bottlenecked by attention throughput.",
+  "notes": [
+    "synthetic_from=U7",
+    "winner_of=throughput"
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "FA3_ENABLE": "1",
+    "GRAD_CLIP_NORM": "0.3",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

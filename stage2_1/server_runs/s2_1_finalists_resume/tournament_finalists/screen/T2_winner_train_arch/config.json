@@ -1,0 +1,59 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament_finalists",
+  "phase": "screen",
+  "slot": "T2",
+  "name": "winner_train_arch",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "partial_rope",
+    "ln_scale"
+  ],
+  "label": "s2_1_finalists_resume",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T2"
+  ],
+  "compare_to": "T0",
+  "why": "Small-but-real refinement bundle copied from the merged SOTA pattern.",
+  "validates": "These low-cost helpers survive on top of the stronger base.",
+  "falsifies": "Their effect is too small to justify first-wave attention.",
+  "notes": [
+    "This is intentionally a refinement bundle, not a mechanism-level purity test.",
+    "synthetic_from=B7",
+    "winner_of=train_arch"
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "LN_SCALE_ENABLE": "1",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "ROPE_PARTIAL_DIM": "16",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500"
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "batch_id": "stage2_h100_matrix_r1",
+  "description": "Concrete Stage 2 8xH100 run matrix built on public record baselines and internal derivative winners.",
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "slots": [
+    {
+      "slot": "S2-B0",
+      "name": "training_opt_seq4096_trunk",
+      "role": "gate",
+      "implementation_state": "ready",
+      "parent": null,
+      "family": "stage2_trunk",
+      "why": "Exact replay of the strongest clean public training-side baseline.",
+      "validates": "The branch and hardware can reproduce the clean seq4096 public trunk.",
+      "falsifies": "The current substrate cannot even reproduce the trunk cleanly.",
+      "env": {
+        "TRAIN_SEQ_LEN": "4096",
+        "TRAIN_BATCH_TOKENS": "393216",
+        "TIED_EMBED_LR": "0.03",
+        "MATRIX_LR": "0.02",
+        "SCALAR_LR": "0.02",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "WARMDOWN_ITERS": "3000"
+      },
+      "notes": [
+        "Primary comparison target: public TrainingOptSeq4096 record at 1.20143417.",
+        "Read this run with fixed-chunk eval first."
+      ]
+    },
+    {
+      "slot": "S2-E1",
+      "name": "trunk_plus_sliding_eval64",
+      "role": "extension",
+      "implementation_state": "ready",
+      "parent": "S2-B0",
+      "family": "evaluation_time_context",
+      "why": "Tests whether the clean training trunk still has eval-only headroom.",
+      "validates": "Sliding eval materially improves the seq4096 trunk.",
+      "falsifies": "Sliding eval gives too little gain or too much eval cost.",
+      "env": {
+        "EVAL_STRIDE": "64",
+        "EVAL_BATCH_SEQS": "128"
+      },
+      "notes": [
+        "Secondary readout by design.",
+        "This slot is still useful even if it is not submission-legal as the final default."
+      ]
+    },
+    {
+      "slot": "S2-E2",
+      "name": "trunk_plus_fp16_embed_export",
+      "role": "extension",
+      "implementation_state": "ready",
+      "parent": "S2-B0",
+      "family": "export_aware_quantization",
+      "why": "Tests whether the cleanest public export trick transfers to the seq4096 trunk.",
+      "validates": "Embedding precision is still a first-order export bottleneck.",
+      "falsifies": "The size trade is not worth it on the seq4096 trunk.",
+      "env": {
+        "INT8_KEEP_TOK_EMB_FP16": "1",
+        "MLP_HIDDEN": "992"
+      },
+      "notes": [
+        "Use if bytes remain legal after export."
+      ]
+    },
+    {
+      "slot": "S2-E3",
+      "name": "trunk_plus_quant_quality",
+      "role": "extension",
+      "implementation_state": "ready",
+      "parent": "S2-B0",
+      "family": "quant_quality",
+      "why": "Direct transfer test for our strongest A100 quant-fidelity winner.",
+      "validates": "Quant-quality improvements survive on real 8xH100.",
+      "falsifies": "The post-quant gap barely moves.",
+      "env": {
+        "INT8_CLIP_PERCENTILE": "99.99995",
+        "INT8_PER_ROW_SCALE_DTYPE": "float32"
+      },
+      "notes": [
+        "Derivative internal winner candidate."
+      ]
+    },
+    {
+      "slot": "S2-E4",
+      "name": "trunk_fp16_embed_plus_muon_wd",
+      "role": "extension",
+      "implementation_state": "ready",
+      "parent": "S2-E2",
+      "family": "muon_weight_decay",
+      "why": "Tests whether the public top-2 Muon WD claim transfers without also requiring depth/init changes.",
+      "validates": "Muon WD helps final score or shrinks quant gap on the strong trunk.",
+      "falsifies": "No real gain over the simpler fp16-export stack.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.02"
+      },
+      "notes": [
+        "Public-recipe transfer experiment."
+      ]
+    },
+    {
+      "slot": "S2-E5",
+      "name": "trunk_fp16_embed_muon_wd_plus_overtone",
+      "role": "extension",
+      "implementation_state": "needs_patch",
+      "parent": "S2-E4",
+      "family": "init_transfer",
+      "why": "Tests overtone/spectral init plus phase-structured residual mixing on top of a strong trunk.",
+      "validates": "The public init story is portable to our path.",
+      "falsifies": "The earlier curve and final score are flat.",
+      "env": {
+        "OVERTONE_INIT": "1",
+        "PHASE_RESID_MIX_INIT": "1"
+      },
+      "notes": [
+        "Requires code support not yet present in repo train_gpt.py."
+      ]
+    },
+    {
+      "slot": "S2-E6",
+      "name": "trunk_fp16_embed_plus_adaptive_muon",
+      "role": "throughput",
+      "implementation_state": "ready",
+      "parent": "S2-E2",
+      "family": "adaptive_muon_throughput",
+      "why": "Tests whether lower step cost can buy enough extra updates to improve the strong trunk.",
+      "validates": "step_avg drops, steps reached rises, and score improves or holds.",
+      "falsifies": "step_avg barely changes or the score regresses again.",
+      "env": {
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS": "5",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      },
+      "notes": [
+        "Direct throughput-reclaim branch."
+      ]
+    },
+    {
+      "slot": "S2-E6B",
+      "name": "record_like_2048_int6_plus_adaptive_muon",
+      "role": "throughput",
+      "implementation_state": "ready",
+      "parent": null,
+      "family": "record_plus_our_winner",
+      "why": "Tests whether our adaptive-Muon winner is a derivative improvement on top of a record-like public stack.",
+      "validates": "The hybrid beats the simpler record-like branch or improves step efficiency materially.",
+      "falsifies": "No improvement over the public-style branch.",
+      "env": {
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.03",
+        "MATRIX_LR": "0.02",
+        "SCALAR_LR": "0.02",
+        "MUON_BACKEND_STEPS": "5",
+        "MLP_HIDDEN": "1536",
+        "INTX_BITS": "6",
+        "INT8_KEEP_TOK_EMB_FP16": "1",
+        "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "256",
+        "EVAL_BATCH_SEQS": "256",
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      },
+      "notes": [
+        "Derivative hybrid of record baseline plus our throughput winner.",
+        "This is the strongest record-plus-our-winner test in the matrix."
+      ]
+    },
+    {
+      "slot": "S2-E7",
+      "name": "depth10_supported_stack",
+      "role": "architecture",
+      "implementation_state": "needs_patch",
+      "parent": "S2-E5",
+      "family": "depth_challenge",
+      "why": "Fairly tests the 10-layer story only after the public support stack is present.",
+      "validates": "10L only failed earlier because it lacked the supporting recipe.",
+      "falsifies": "10L still loses even with support.",
+      "env": {
+        "NUM_LAYERS": "10"
+      },
+      "notes": [
+        "Requires the overtone/phase-init patch first."
+      ]
+    },
+    {
+      "slot": "S2-E8",
+      "name": "warmdown_revisit_branch",
+      "role": "schedule",
+      "implementation_state": "ready",
+      "parent": "S2-E2",
+      "family": "warmdown_retest",
+      "why": "Resolves the biggest disagreement between Stage 1 proxy results and public 8xH100 reports.",
+      "validates": "The schedule branch improves final score once tested on real 8xH100.",
+      "falsifies": "It is still unstable or clearly worse.",
+      "env": {
+        "WARMDOWN_ITERS": "20000",
+        "TIED_EMBED_LR": "0.05",
+        "MATRIX_LR": "0.04",
+        "SCALAR_LR": "0.04",
+        "GRAD_CLIP_NORM": "1.0",
+        "EVAL_SEQ_LEN": "1408"
+      },
+      "notes": [
+        "Intentionally conservative relative to the catastrophic A100 branch."
+      ]
+    }
+  ]
+}

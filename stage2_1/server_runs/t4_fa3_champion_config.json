@@ -1,0 +1,2093 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "description": "Stage 2_1 frontier-aligned portfolio for parameter-golf. Rebased around the 2026-03-24 upstream scan: stronger 11L control, GPTQ-class deployment lane, XSA4 as a runnable proxy for XSA-all, and deferred curriculum plus TTT-protocol branches.",
+  "default_pack": "manual_champion",
+  "benchmarks": {
+    "ours_bpb": 1.1631,
+    "merged_sota_bpb": 1.1233,
+    "frontier_no_ttt_bpb": 1.1163,
+    "frontier_ttt_bpb": 0.6864
+  },
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "11",
+    "MLP_MULT": "3",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TIED_EMBED_LR": "0.035",
+    "MATRIX_LR": "0.025",
+    "SCALAR_LR": "0.025",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "GRAD_CLIP_NORM": "0.3",
+    "WARMDOWN_ITERS": "3500",
+    "EVAL_STRIDE": "64"
+  },
+  "packs": {
+    "eval_export": [
+      "A0",
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7"
+    ],
+    "train_arch": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7"
+    ],
+    "context_all": [
+      "D0",
+      "D1",
+      "D2",
+      "D3",
+      "D4",
+      "D5",
+      "D6",
+      "D7"
+    ],
+    "curriculum": [
+      "E0",
+      "E1",
+      "E2",
+      "E3",
+      "E4",
+      "E5",
+      "E6",
+      "E7"
+    ],
+    "geometry": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6",
+      "F7"
+    ],
+    "throughput": [
+      "U0",
+      "U1",
+      "U2",
+      "U3",
+      "U4",
+      "U5",
+      "U6",
+      "U7"
+    ],
+    "reference": [
+      "R0",
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7"
+    ],
+    "children": [
+      "C0",
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
+      "C7"
+    ],
+    "tournament_finalists": [
+      "T0",
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7"
+    ],
+    "manual_champion": [
+      "T8"
+    ]
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "slots": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7"
+      ]
+    },
+    "screen": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "slots": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7"
+      ]
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "A0",
+      "name": "shared_checkpoint_frontier_deploy_control",
+      "role": "control",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "parent": null,
+      "compare_to": null,
+      "family": "deployment_control",
+      "why": "Shared-checkpoint deployment control on a frontier-aligned trained checkpoint.",
+      "validates": "Late-stage attribution works on the stronger base.",
+      "falsifies": "Deployment-lane readouts are too unstable or unsupported to trust.",
+      "env": {},
+      "notes": [
+        "This pack is intentionally centered on same-checkpoint attribution rather than retraining."
+      ]
+    },
+    {
+      "slot": "A1",
+      "name": "shared_checkpoint_frontier_deploy_repeat",
+      "role": "control",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "parent": null,
+      "compare_to": "A0",
+      "family": "deployment_control_repeat",
+      "why": "Noise floor for deployment-lane attribution on the same checkpoint.",
+      "validates": "Small deployment deltas can be interpreted.",
+      "falsifies": "The deployment lane is too noisy for fine ranking.",
+      "env": {},
+      "notes": [
+        "Use before trusting GPTQ-lite-sized gains."
+      ]
+    },
+    {
+      "slot": "A2",
+      "name": "shared_checkpoint_sliding_eval64",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patch_id": "P201",
+      "patches": [
+        "sliding_eval"
+      ],
+      "parent": "A0",
+      "compare_to": "A0",
+      "family": "evaluation_policy",
+      "why": "Retains the strongest late-stage scoring lever, but now on top of a stronger base and deployment path.",
+      "validates": "Sliding eval still contributes meaningful score lift after the frontier base shift.",
+      "falsifies": "The remaining leaderboard gap is mostly elsewhere.",
+      "env": {
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "64"
+      },
+      "notes": [
+        "Keep this checkpoint-matched. Do not mix with training changes in first readout."
+      ]
+    },
+    {
+      "slot": "A3",
+      "name": "shared_checkpoint_doc_isolated_sliding",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patches": [
+        "sliding_eval",
+        "doc_isolated_eval"
+      ],
+      "parent": "A2",
+      "compare_to": "A2",
+      "family": "evaluation_policy_child",
+      "why": "Tests whether doc-aware boundaries stack with sliding on the stronger base.",
+      "validates": "Doc isolation adds real lift beyond plain sliding.",
+      "falsifies": "Continuous context is already the stronger policy for this setup.",
+      "env": {
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "64",
+        "DOC_ISOLATED_EVAL": "1"
+      },
+      "notes": [
+        "Treat as a child of sliding, not an independent first-wave claim."
+      ]
+    },
+    {
+      "slot": "A4",
+      "name": "shared_checkpoint_gptq_lite_export",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patch_id": "P218",
+      "patches": [
+        "gptq_lite"
+      ],
+      "parent": "A0",
+      "compare_to": "A0",
+      "family": "deployment_quantization",
+      "why": "Cheap export-side fallback if full GPTQ is delayed.",
+      "validates": "Even the lightweight clip-search path materially beats the current export.",
+      "falsifies": "Deployment gap is too large for half-measures.",
+      "env": {
+        "GPTQ_LITE_ENABLE": "1"
+      },
+      "notes": [
+        "Use as the fast baseline for the GPTQ lane."
+      ]
+    },
+    {
+      "slot": "A5",
+      "name": "shared_checkpoint_full_gptq_int6",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patch_id": "P217",
+      "patches": [
+        "gptq_full"
+      ],
+      "parent": "A0",
+      "compare_to": "A0",
+      "family": "deployment_quantization",
+      "why": "Highest-priority deployment technique in the current no-TTT frontier.",
+      "validates": "The export lane is truly first-order for us too.",
+      "falsifies": "Our current stack is bottlenecked somewhere else before GPTQ matters.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6"
+      },
+      "notes": [
+        "This is the main deployment bet."
+      ]
+    },
+    {
+      "slot": "A6",
+      "name": "shared_checkpoint_full_gptq_zstd22",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patches": [
+        "gptq_full",
+        "zstd_export"
+      ],
+      "parent": "A5",
+      "compare_to": "A5",
+      "family": "deployment_quantization_child",
+      "why": "Tests whether stronger compression meaningfully improves the GPTQ deployment lane.",
+      "validates": "Bytes saved by zstd matter after GPTQ.",
+      "falsifies": "Compression backend is only secondary after GPTQ.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Judge first on legality margin, then score."
+      ]
+    },
+    {
+      "slot": "A7",
+      "name": "shared_checkpoint_full_gptq_fp16_embedding",
+      "role": "candidate",
+      "runner_mode": "shared_checkpoint",
+      "implementation_state": "needs_runner",
+      "patches": [
+        "gptq_full",
+        "fp16_embedding_export"
+      ],
+      "parent": "A5",
+      "compare_to": "A5",
+      "family": "deployment_quantization_child",
+      "why": "Tests whether the old embedding passthrough still matters after moving to the GPTQ lane.",
+      "validates": "Embedding fragility remains one of the main deployment bottlenecks.",
+      "falsifies": "GPTQ already solves most of that bottleneck.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "INT8_KEEP_TOK_EMB_FP16": "1"
+      },
+      "notes": [
+        "Useful only as a GPTQ child, not a standalone headline now."
+      ]
+    },
+    {
+      "slot": "B0",
+      "name": "frontier_base_control_a",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [],
+      "parent": null,
+      "compare_to": null,
+      "family": "frontier_base_control",
+      "why": "Primary frontier-aligned training control. This replaces the older root-like baseline as the main anchor.",
+      "validates": "The stronger 11L/2048/3500 warmdown env base is stable enough for patch ranking.",
+      "falsifies": "All patch ranking is suspect because the control itself is still underpowered or unstable.",
+      "env": {},
+      "notes": [
+        "This control already includes the stronger env profile. Patches are judged relative to this, not to the older 9L root recipe."
+      ]
+    },
+    {
+      "slot": "B1",
+      "name": "frontier_base_control_b",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [],
+      "parent": null,
+      "compare_to": "B0",
+      "family": "frontier_base_control_repeat",
+      "why": "Noise floor for the revised frontier-aligned training screen.",
+      "validates": "Observed gains exceed rerun noise on the stronger base.",
+      "falsifies": "The new base is too noisy for subtle patch attribution.",
+      "env": {},
+      "notes": [
+        "Use B0/B1 spread before trusting small helper gains."
+      ]
+    },
+    {
+      "slot": "B2",
+      "name": "frontier_base_plus_muon_wd04",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patch_id": "P204",
+      "patches": [
+        "muon_weight_decay"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "training_to_deployment_bridge",
+      "why": "Still one of the easiest frontier-aligned helpers and already supported in the local patch set.",
+      "validates": "MuonWD remains additive even after the stronger env base shift.",
+      "falsifies": "It was only compensating for the older weaker baseline.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04"
+      },
+      "notes": [
+        "Treat as a helper candidate inside a stronger stack, not the lead story."
+      ]
+    },
+    {
+      "slot": "B3",
+      "name": "frontier_base_plus_leakyrelu2",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patch_id": "P214",
+      "patches": [
+        "leaky_relu_sq"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "training_dynamics",
+      "why": "One-line frontier patch with unusually strong cross-submission recurrence.",
+      "validates": "The activation really is one of the remaining first-order bottlenecks.",
+      "falsifies": "The effect was contingent on other missing stack pieces.",
+      "env": {
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5"
+      },
+      "notes": [
+        "Highest-priority pure training patch."
+      ]
+    },
+    {
+      "slot": "B4",
+      "name": "frontier_base_plus_ema997",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patch_id": "P215",
+      "patches": [
+        "ema"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "training_to_deployment_bridge",
+      "why": "EMA has become more frontier-typical than SWA-first smoothing.",
+      "validates": "EMA improves deployment quality on the stronger base.",
+      "falsifies": "EMA is only a tiny helper with no practical leverage for us.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1"
+      },
+      "notes": [
+        "Judge on deployed score, not only on raw pre-quant curve."
+      ]
+    },
+    {
+      "slot": "B5",
+      "name": "frontier_base_plus_xsa4",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patch_id": "P216",
+      "patches": [
+        "xsa4"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "architecture_context",
+      "why": "XSA is now one of the strongest architecture/context signals in the no-TTT frontier.",
+      "validates": "Cross-sequence context is a remaining major gap in our base model.",
+      "falsifies": "The frontier dependence on XSA does not transfer cleanly here.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4"
+      },
+      "notes": [
+        "Start with the last four layers, not XSA-everywhere."
+      ]
+    },
+    {
+      "slot": "B6",
+      "name": "frontier_base_plus_gptq_lite_proxy",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patch_id": "P218",
+      "patches": [
+        "gptq_lite"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "deployment_quantization_proxy",
+      "why": "Shared-checkpoint deployment attribution is not wired yet, so GPTQ-lite is screened here as a full-run export proxy.",
+      "validates": "Even the lightweight deployment lane already beats the current export path on a full run.",
+      "falsifies": "The deployment lane needs full GPTQ before it is visible, or training quality is the bigger bottleneck.",
+      "env": {
+        "GPTQ_LITE_ENABLE": "1"
+      },
+      "notes": [
+        "Temporary B-pack proxy until the shared-checkpoint runner exists. VRL stays a deferred child."
+      ]
+    },
+    {
+      "slot": "B7",
+      "name": "frontier_base_plus_partial_rope_lnscale",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "partial_rope",
+        "ln_scale"
+      ],
+      "parent": "B0",
+      "compare_to": "B0",
+      "family": "architecture_refinement_bundle",
+      "why": "Small-but-real refinement bundle copied from the merged SOTA pattern.",
+      "validates": "These low-cost helpers survive on top of the stronger base.",
+      "falsifies": "Their effect is too small to justify first-wave attention.",
+      "env": {
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": [
+        "This is intentionally a refinement bundle, not a mechanism-level purity test."
+      ]
+    },
+    {
+      "slot": "C0",
+      "name": "promoted_frontier_parent",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "parent": null,
+      "compare_to": null,
+      "family": "promoted_parent",
+      "why": "Placeholder for the best promoted frontier-base survivor.",
+      "validates": "A clean parent exists for stack composition.",
+      "falsifies": "No single revised training patch was strong enough to promote.",
+      "env": {},
+      "notes": [
+        "Fill from the best B-pack winner."
+      ]
+    },
+    {
+      "slot": "C1",
+      "name": "promoted_frontier_parent_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "parent": null,
+      "compare_to": "C0",
+      "family": "promoted_parent_repeat",
+      "why": "Noise floor for child-stack composition on the revised frontier base.",
+      "validates": "Composition gains exceed rerun noise.",
+      "falsifies": "The remaining signal is too small or too unstable.",
+      "env": {},
+      "notes": [
+        "Only use after C0 exists."
+      ]
+    },
+    {
+      "slot": "C2",
+      "name": "core_stack_muonwd_leakyrelu2",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq"
+      ],
+      "parent": "C0",
+      "compare_to": "C0",
+      "family": "core_stack",
+      "why": "Tests whether the easiest two frontier helpers stack cleanly.",
+      "validates": "Core gains are additive early.",
+      "falsifies": "The two mechanisms are mostly redundant.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5"
+      },
+      "notes": [
+        "Populate only after the single-patch wins are real."
+      ]
+    },
+    {
+      "slot": "C3",
+      "name": "core_stack_muonwd_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "patches": [
+        "muon_weight_decay",
+        "ema"
+      ],
+      "parent": "C0",
+      "compare_to": "C0",
+      "family": "core_stack",
+      "why": "Tests whether training-side regularization and smoothing complement each other.",
+      "validates": "MuonWD and EMA are additive rather than substitutive.",
+      "falsifies": "They are both solving the same deployment problem.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1"
+      },
+      "notes": [
+        "Only after both parents survive."
+      ]
+    },
+    {
+      "slot": "C4",
+      "name": "core_stack_muonwd_xsa4",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "patches": [
+        "muon_weight_decay",
+        "xsa4"
+      ],
+      "parent": "C0",
+      "compare_to": "C0",
+      "family": "core_stack",
+      "why": "Tests whether the main optimizer helper stacks with the main context helper.",
+      "validates": "Their gains are distinct enough to matter together.",
+      "falsifies": "Only one of them is actually carrying signal.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4"
+      },
+      "notes": [
+        "Useful bridge to the core no-TTT stack."
+      ]
+    },
+    {
+      "slot": "C5",
+      "name": "frontier_core_nottt_stack",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa4"
+      ],
+      "parent": "C0",
+      "compare_to": "C0",
+      "family": "core_stack",
+      "why": "Main no-TTT composition target for the revised portfolio.",
+      "validates": "The strongest revised single wins compose into a credible frontier core.",
+      "falsifies": "The frontier stack is more interaction-sensitive than expected.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4"
+      },
+      "notes": [
+        "This is the main composition candidate."
+      ]
+    },
+    {
+      "slot": "C6",
+      "name": "frontier_core_plus_best_deploy",
+      "role": "candidate",
+      "runner_mode": "train_plus_eval",
+      "implementation_state": "deferred",
+      "parent": "C5",
+      "compare_to": "C5",
+      "family": "cross_lane_stack",
+      "why": "Tests the best no-TTT core stack with the best deployment winner attached.",
+      "validates": "The training and deployment wins are genuinely complementary.",
+      "falsifies": "One lane dominates and the stack is not worth the extra complexity.",
+      "env": {},
+      "notes": [
+        "Populate using the Pack A winner."
+      ]
+    },
+    {
+      "slot": "C7",
+      "name": "frontier_core_plus_best_arch_helper",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "deferred",
+      "parent": "C5",
+      "compare_to": "C5",
+      "family": "cross_lane_stack",
+      "why": "Spends remaining budget on the strongest surviving architecture helper such as VRL or VE128.",
+      "validates": "There is still meaningful headroom after the core stack is built.",
+      "falsifies": "The core stack already captures most of the available no-TTT gain.",
+      "env": {},
+      "notes": [
+        "Prefer VRL first; VE128 only if deployment headroom exists."
+      ]
+    },
+    {
+      "slot": "D0",
+      "name": "context_all_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "context_control",
+      "why": "Control for the XSA-all escalation pack.",
+      "validates": "The broader context pack has a stable no-TTT reference.",
+      "falsifies": "Context-pack readouts are too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "D1",
+      "name": "context_all_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "D0",
+      "family": "context_control_repeat",
+      "why": "Noise floor for the XSA-all escalation pack.",
+      "validates": "Small context deltas are interpretable.",
+      "falsifies": "This pack is too noisy for fine ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "D2",
+      "name": "xsa_all_solo",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all"
+      ],
+      "parent": "D0",
+      "compare_to": "D0",
+      "family": "context_upgrade",
+      "why": "Directly tests whether the frontier destination is broader XSA coverage rather than XSA4.",
+      "validates": "XSA-all has standalone signal on the stronger 11L base.",
+      "falsifies": "The XSA4 proxy already captures most of the available context gain.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "D3",
+      "name": "xsa_all_plus_partial_rope",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "partial_rope"
+      ],
+      "parent": "D2",
+      "compare_to": "D2",
+      "family": "context_refinement",
+      "why": "Checks whether broader XSA and partial RoPE are complementary rather than redundant.",
+      "validates": "The context lane still has geometry headroom.",
+      "falsifies": "XSA-all already captures the available long-context gain.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16"
+      },
+      "notes": []
+    },
+    {
+      "slot": "D4",
+      "name": "xsa_all_plus_ln_scale",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "ln_scale"
+      ],
+      "parent": "D2",
+      "compare_to": "D2",
+      "family": "context_refinement",
+      "why": "Tests whether broader context wants extra norm discipline in deeper layers.",
+      "validates": "LN-scale helps the stronger context path stabilize.",
+      "falsifies": "The added scaling is just compensating for a weaker XSA4 regime.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "D5",
+      "name": "xsa_all_refinement_bundle",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "partial_rope",
+        "ln_scale"
+      ],
+      "parent": "D2",
+      "compare_to": "D2",
+      "family": "context_refinement_bundle",
+      "why": "Tests the modern context bundle rather than a single helper in isolation.",
+      "validates": "The current frontier context story is additive.",
+      "falsifies": "The bundle is mostly overfitting to older stacks.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "D6",
+      "name": "xsa_all_plus_muonwd",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "muon_weight_decay"
+      ],
+      "parent": "D2",
+      "compare_to": "D2",
+      "family": "context_optimizer_bridge",
+      "why": "Checks whether the main optimizer helper and broader context mechanism stack cleanly.",
+      "validates": "Context gain survives tighter matrix regularization.",
+      "falsifies": "One of the two is solving the same deployed-loss problem.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "MUON_WEIGHT_DECAY": "0.04"
+      },
+      "notes": []
+    },
+    {
+      "slot": "D7",
+      "name": "xsa_all_plus_leakyrelu2",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "leaky_relu_sq"
+      ],
+      "parent": "D2",
+      "compare_to": "D2",
+      "family": "context_training_bridge",
+      "why": "Checks whether the strongest cheap training win stacks with XSA-all.",
+      "validates": "The context gain is not just compensating for weaker local features.",
+      "falsifies": "XSA-all mostly helps only on the unrefined baseline trunk.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "LEAKY_RELU_SLOPE": "0.5"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E0",
+      "name": "curriculum_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "curriculum_control",
+      "why": "Control for shard-ordering screens under equal wallclock.",
+      "validates": "The curriculum pack has a stable reference.",
+      "falsifies": "Order-sensitive runs are too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "E1",
+      "name": "curriculum_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "E0",
+      "family": "curriculum_control_repeat",
+      "why": "Noise floor for shard-ordering experiments.",
+      "validates": "Small equal-wallclock ordering deltas are interpretable.",
+      "falsifies": "The curriculum lane needs more repeats before ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "E2",
+      "name": "curriculum_reverse_order",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "parent": "E0",
+      "compare_to": "E0",
+      "family": "curriculum_probe",
+      "why": "Cheap probe for whether simple order reversal matters under the time cap.",
+      "validates": "Data order is first-order enough to move the short-horizon endpoint.",
+      "falsifies": "Simple reorderings are mostly neutral on this base.",
+      "env": {
+        "SHARD_ORDER": "reverse"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E3",
+      "name": "curriculum_random_order",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "parent": "E0",
+      "compare_to": "E0",
+      "family": "curriculum_probe",
+      "why": "Tests whether non-lexicographic exposure alone changes the 600-second endpoint.",
+      "validates": "The lane is worth a stronger externally ranked order.",
+      "falsifies": "Most of the reported gain depends on a specific quality-ranked schedule.",
+      "env": {
+        "SHARD_ORDER": "random",
+        "SHARD_ORDER_SEED": "1337"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E4",
+      "name": "curriculum_size_desc",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "parent": "E0",
+      "compare_to": "E0",
+      "family": "curriculum_probe",
+      "why": "Uses file size as a cheap proxy ordering instead of an explicit external score file.",
+      "validates": "Crude information-ordering heuristics already move the endpoint.",
+      "falsifies": "The curriculum lane likely needs a smarter externally ranked order.",
+      "env": {
+        "SHARD_ORDER": "size_desc"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E5",
+      "name": "curriculum_size_asc",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "parent": "E0",
+      "compare_to": "E0",
+      "family": "curriculum_probe",
+      "why": "Counter-control to size-desc so we can see if order direction matters.",
+      "validates": "A directional schedule is doing something real rather than random drift.",
+      "falsifies": "File-size heuristics are just noise.",
+      "env": {
+        "SHARD_ORDER": "size_asc"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E6",
+      "name": "curriculum_reverse_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order",
+        "ema"
+      ],
+      "parent": "E2",
+      "compare_to": "E2",
+      "family": "curriculum_child",
+      "why": "Checks whether phase smoothing preserves any curriculum gain.",
+      "validates": "Ordering effects survive the train-to-export bridge.",
+      "falsifies": "The ordering win is too brittle to survive averaging.",
+      "env": {
+        "SHARD_ORDER": "reverse",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "E7",
+      "name": "curriculum_size_desc_plus_leakyrelu2",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order",
+        "leaky_relu_sq"
+      ],
+      "parent": "E4",
+      "compare_to": "E4",
+      "family": "curriculum_child",
+      "why": "Checks whether a cheap training-shape win stacks with a crude curriculum heuristic.",
+      "validates": "Curriculum interacts constructively with improved local feature learning.",
+      "falsifies": "The curriculum effect is just a weak proxy for better optimization.",
+      "env": {
+        "SHARD_ORDER": "size_desc",
+        "LEAKY_RELU_SLOPE": "0.5"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F0",
+      "name": "geometry_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "geometry_control",
+      "why": "Control for deploy-quality geometry screens on the frontier-aligned base.",
+      "validates": "The geometry pack has a stable reference.",
+      "falsifies": "Deploy-oriented geometry effects are too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "F1",
+      "name": "geometry_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "F0",
+      "family": "geometry_control_repeat",
+      "why": "Noise floor for the geometry pack.",
+      "validates": "Small deploy-quality geometry deltas are interpretable.",
+      "falsifies": "This pack needs more repeats before ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "F2",
+      "name": "weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "parent": "F0",
+      "compare_to": "F0",
+      "family": "flatness_geometry",
+      "why": "Biases training toward flatter, more quantization-robust minima without changing the base architecture.",
+      "validates": "A cheap post-step noise process can improve deployed quality even when raw fp32 quality is unchanged.",
+      "falsifies": "The stage3 win was narrow to that setup and does not transfer to the stronger frontier base.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": [
+        "Judge primarily on deployed metrics, not only pre-quant quality."
+      ]
+    },
+    {
+      "slot": "F3",
+      "name": "gradient_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "grad_centralization"
+      ],
+      "parent": "F0",
+      "compare_to": "F0",
+      "family": "gradient_geometry",
+      "why": "Removes the DC component of matrix gradients before the optimizer step, which may improve both training and deployed quality.",
+      "validates": "Gradient preprocessing is a real remaining optimizer surface on the frontier-aligned base.",
+      "falsifies": "The stage3 signal was only marginal and does not survive rebasing.",
+      "env": {
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F4",
+      "name": "late_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "parent": "F0",
+      "compare_to": "F0",
+      "family": "flatness_geometry_late",
+      "why": "Tests whether noise helps most as a late flatness/compressibility bias rather than throughout training.",
+      "validates": "The weight-noise mechanism is phase-sensitive and should be applied only after useful features are formed.",
+      "falsifies": "The main gain comes from full-run noise rather than late-stage basin shaping.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "WEIGHT_PERTURB_START_FRAC": "0.70",
+        "WEIGHT_PERTURB_END_FRAC": "1.00"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F5",
+      "name": "weight_perturbation_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "ema"
+      ],
+      "parent": "F2",
+      "compare_to": "F2",
+      "family": "flatness_phase_bridge",
+      "why": "Tests whether flatter minima and EMA-based export selection stack cleanly.",
+      "validates": "The flatness win survives and improves further after late smoothing.",
+      "falsifies": "EMA washes out the geometry win or both mechanisms solve the same thing.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F6",
+      "name": "gradient_centralization_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "grad_centralization",
+        "ema"
+      ],
+      "parent": "F3",
+      "compare_to": "F3",
+      "family": "gradient_phase_bridge",
+      "why": "Tests whether a small training-side geometry win stacks with deployment smoothing.",
+      "validates": "Gradient geometry and late export averaging are distinct enough to compose.",
+      "falsifies": "The centralization win is too small or too brittle to survive averaging.",
+      "env": {
+        "GRAD_CENTRALIZATION": "1",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F7",
+      "name": "weight_perturbation_plus_grad_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "grad_centralization"
+      ],
+      "parent": "F0",
+      "compare_to": "F0",
+      "family": "geometry_compound",
+      "why": "Tests whether the two validated stage3 geometry mechanisms are additive on the stronger base.",
+      "validates": "Flatness bias and gradient preprocessing attack distinct optimizer surfaces.",
+      "falsifies": "One of the two is mostly proxying the other or the interaction is destabilizing.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R0",
+      "name": "reference_base_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "reference_control",
+      "why": "Reference control so the stage can be compared against a strong trunk and explicit SOTA-like anchors in one pack.",
+      "validates": "Reference comparisons are anchored to the same local baseline.",
+      "falsifies": "Reference pack noise makes anchor comparison unreliable.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "U0",
+      "name": "throughput_base_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "throughput_control",
+      "why": "Baseline for isolating whether direct FA3 calls buy useful step-time and score improvements.",
+      "validates": "The FA3 lane can be measured against an unchanged trunk.",
+      "falsifies": "FA3 results are too noisy to interpret against the current baseline.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "U1",
+      "name": "throughput_base_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "fa3"
+      ],
+      "parent": "U0",
+      "compare_to": "U0",
+      "family": "throughput_base",
+      "why": "Directly tests whether FA3 is a free enough speedup to matter on the plain 11L trunk.",
+      "validates": "Kernel-only attention changes can buy useful extra steps under the wallclock cap.",
+      "falsifies": "FA3 is neutral or harmful even before stacking with heavier lanes.",
+      "env": {
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U2",
+      "name": "throughput_xsa_all_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "U0",
+      "family": "throughput_xsa_control",
+      "why": "Heavier attention/control stack without FA3, to isolate whether FA3 helps a broader-context lane.",
+      "validates": "The XSA-all lane is heavy enough that FA3 could matter.",
+      "falsifies": "The chosen context lane is too cheap for FA3 to move.",
+      "patches": [
+        "xsa_all"
+      ],
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U3",
+      "name": "throughput_xsa_all_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "fa3"
+      ],
+      "parent": "U2",
+      "compare_to": "U2",
+      "family": "throughput_xsa",
+      "why": "Tests whether FA3 specifically helps a heavier XSA-all attention path.",
+      "validates": "FA3 is more useful once attention is the bottleneck.",
+      "falsifies": "FA3 does not materially help even a broader attention stack.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U4",
+      "name": "throughput_frontier_lite_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "U0",
+      "family": "throughput_frontier_control",
+      "why": "Strong assembled no-TTT proxy without FA3, to check whether the kernel helps a near-frontier stack.",
+      "validates": "The frontier-lite stack is a meaningful base for throughput rebasing.",
+      "falsifies": "This proxy is too cheap or too noisy for FA3 to move.",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U5",
+      "name": "throughput_frontier_lite_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export",
+        "fa3"
+      ],
+      "parent": "U4",
+      "compare_to": "U4",
+      "family": "throughput_frontier",
+      "why": "Tests whether FA3 still helps once a strong local frontier-lite stack is already assembled.",
+      "validates": "Throughput gains survive rebasing onto a strong stack.",
+      "falsifies": "FA3 only helps weak trunks or its benefit disappears after rebasing.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U6",
+      "name": "throughput_geometry_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "U0",
+      "family": "throughput_geometry_control",
+      "why": "Geometry-side winner without FA3, to see whether throughput helps a deploy-quality-biased lane.",
+      "validates": "The flatness lane still benefits from extra steps.",
+      "falsifies": "FA3 and geometry are mostly orthogonal in practice.",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "U7",
+      "name": "throughput_geometry_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "fa3"
+      ],
+      "parent": "U6",
+      "compare_to": "U6",
+      "family": "throughput_geometry",
+      "why": "Tests whether FA3 amplifies the geometry/compressibility gain by buying more effective updates.",
+      "validates": "The flatness win is partially compute-limited.",
+      "falsifies": "Geometry improvements are not bottlenecked by attention throughput.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R1",
+      "name": "reference_base_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": "R0",
+      "family": "reference_control_repeat",
+      "why": "Noise floor for the explicit reference pack.",
+      "validates": "Distance-to-anchor claims exceed rerun noise.",
+      "falsifies": "The reference pack needs more repeats before interpretation.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "R2",
+      "name": "merged_sota_proxy_a",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "ema",
+        "xsa4",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "parent": "R0",
+      "compare_to": "R0",
+      "family": "reference_merged_sota_proxy",
+      "why": "Best locally reproducible proxy for the merged SOTA recipe using currently implemented stage2_1 patches.",
+      "validates": "We can measure distance against a strong merged-SOTA-like stack, not only against the frontier trunk.",
+      "falsifies": "Even the merged-SOTA-like local proxy is not stable enough to use as an anchor.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy, not an exact reconstruction of merged PR #414."
+      ]
+    },
+    {
+      "slot": "R3",
+      "name": "merged_sota_proxy_b",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "ema",
+        "xsa4",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "parent": "R0",
+      "compare_to": "R0",
+      "family": "reference_merged_sota_proxy",
+      "why": "Repeat of the merged-SOTA-like proxy for local noise estimation.",
+      "validates": "Distance-to-merged-proxy claims exceed anchor rerun noise.",
+      "falsifies": "The proxy itself is too unstable to serve as a useful bar.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy, not an exact reconstruction of merged PR #414."
+      ]
+    },
+    {
+      "slot": "R4",
+      "name": "frontier_proxy_lite_a",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "parent": "R0",
+      "compare_to": "R0",
+      "family": "reference_frontier_proxy",
+      "why": "Best locally reproducible no-TTT frontier proxy in stage2_1 without the full GPTQ port.",
+      "validates": "We can compare new stage2_1 winners against a serious frontier-like assembled stack, not only isolated mutations.",
+      "falsifies": "The current local frontier proxy is too weak or unstable to serve as a distance estimate.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy only. Full frontier export quality still belongs in hailmary with full GPTQ."
+      ]
+    },
+    {
+      "slot": "R5",
+      "name": "frontier_proxy_lite_b",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "parent": "R0",
+      "compare_to": "R0",
+      "family": "reference_frontier_proxy",
+      "why": "Repeat of the stage2_1 frontier-like proxy.",
+      "validates": "Distance-to-frontier-proxy claims exceed rerun noise.",
+      "falsifies": "The stage2_1 proxy is too noisy to be informative.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy only. Full frontier export quality still belongs in hailmary with full GPTQ."
+      ]
+    },
+    {
+      "slot": "R6",
+      "name": "frontier_proxy_lite_plus_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export",
+        "weight_perturbation"
+      ],
+      "parent": "R4",
+      "compare_to": "R4",
+      "family": "reference_frontier_proxy_child",
+      "why": "Tests whether the new flatness/compressibility win improves a frontier-like local stack.",
+      "validates": "The geometry win still matters once a strong proxy stack is already present.",
+      "falsifies": "Weight perturbation only helps weaker trunks and does not move a strong assembled stack.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22",
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R7",
+      "name": "frontier_proxy_lite_plus_grad_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export",
+        "grad_centralization"
+      ],
+      "parent": "R4",
+      "compare_to": "R4",
+      "family": "reference_frontier_proxy_child",
+      "why": "Tests whether gradient geometry still helps once the stack is already close to the current frontier proxy.",
+      "validates": "Gradient preprocessing remains useful even on a strong assembled stack.",
+      "falsifies": "The centralization gain disappears once major frontier ingredients are present.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "EMA_EXPORT_ONLY": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22",
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T0",
+      "name": "tournament_control_a",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [],
+      "parent": null,
+      "compare_to": null,
+      "family": "tournament_control",
+      "why": "Primary frontier-aligned training control. This replaces the older root-like baseline as the main anchor.",
+      "validates": "The stronger 11L/2048/3500 warmdown env base is stable enough for patch ranking.",
+      "falsifies": "All patch ranking is suspect because the control itself is still underpowered or unstable.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64"
+      },
+      "notes": [
+        "This control already includes the stronger env profile. Patches are judged relative to this, not to the older 9L root recipe.",
+        "synthetic_from=B0",
+        "stage=tournament_finalists"
+      ]
+    },
+    {
+      "slot": "T1",
+      "name": "tournament_control_b",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "tournament_control_repeat",
+      "why": "Noise floor for the revised frontier-aligned training screen.",
+      "validates": "Observed gains exceed rerun noise on the stronger base.",
+      "falsifies": "The new base is too noisy for subtle patch attribution.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64"
+      },
+      "notes": [
+        "Use B0/B1 spread before trusting small helper gains.",
+        "synthetic_from=B1",
+        "stage=tournament_finalists"
+      ]
+    },
+    {
+      "slot": "T2",
+      "name": "winner_train_arch",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "partial_rope",
+        "ln_scale"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "pack_winner",
+      "why": "Small-but-real refinement bundle copied from the merged SOTA pattern.",
+      "validates": "These low-cost helpers survive on top of the stronger base.",
+      "falsifies": "Their effect is too small to justify first-wave attention.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": [
+        "This is intentionally a refinement bundle, not a mechanism-level purity test.",
+        "synthetic_from=B7",
+        "winner_of=train_arch"
+      ]
+    },
+    {
+      "slot": "T3",
+      "name": "winner_context_all",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "ln_scale"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "pack_winner",
+      "why": "Tests whether broader context wants extra norm discipline in deeper layers.",
+      "validates": "LN-scale helps the stronger context path stabilize.",
+      "falsifies": "The added scaling is just compensating for a weaker XSA4 regime.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": [
+        "synthetic_from=D4",
+        "winner_of=context_all"
+      ]
+    },
+    {
+      "slot": "T4",
+      "name": "winner_curriculum",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "pack_winner",
+      "why": "Uses file size as a cheap proxy ordering instead of an explicit external score file.",
+      "validates": "Crude information-ordering heuristics already move the endpoint.",
+      "falsifies": "The curriculum lane likely needs a smarter externally ranked order.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "SHARD_ORDER": "size_desc"
+      },
+      "notes": [
+        "synthetic_from=E4",
+        "winner_of=curriculum"
+      ]
+    },
+    {
+      "slot": "T5",
+      "name": "winner_geometry",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "pack_winner",
+      "why": "Biases training toward flatter, more quantization-robust minima without changing the base architecture.",
+      "validates": "A cheap post-step noise process can improve deployed quality even when raw fp32 quality is unchanged.",
+      "falsifies": "The stage3 win was narrow to that setup and does not transfer to the stronger frontier base.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": [
+        "Judge primarily on deployed metrics, not only pre-quant quality.",
+        "synthetic_from=F2",
+        "winner_of=geometry"
+      ]
+    },
+    {
+      "slot": "T6",
+      "name": "winner_throughput",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "fa3"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "pack_winner",
+      "why": "Tests whether FA3 amplifies the geometry/compressibility gain by buying more effective updates.",
+      "validates": "The flatness win is partially compute-limited.",
+      "falsifies": "Geometry improvements are not bottlenecked by attention throughput.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "FA3_ENABLE": "1"
+      },
+      "notes": [
+        "synthetic_from=U7",
+        "winner_of=throughput"
+      ]
+    },
+    {
+      "slot": "T7",
+      "name": "mix_train_context",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "partial_rope",
+        "ln_scale",
+        "xsa_all"
+      ],
+      "parent": null,
+      "compare_to": "T0",
+      "family": "tournament_mix",
+      "why": "Tests whether the strongest train-side and broader-context survivors stack cleanly.",
+      "validates": "The training and context winners attack distinct bottlenecks and should compose.",
+      "falsifies": "The two strongest winners are mostly redundant on the 11L frontier base.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": [
+        "synthetic_composite=B7+D4"
+      ]
+    },
+    {
+      "slot": "T8",
+      "name": "winner_curriculum_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order",
+        "fa3"
+      ],
+      "parent": null,
+      "compare_to": null,
+      "family": "manual_champion",
+      "why": "Uses file size as a cheap proxy ordering instead of an explicit external score file.",
+      "validates": "Crude information-ordering heuristics already move the endpoint.",
+      "falsifies": "The curriculum lane likely needs a smarter externally ranked order.",
+      "env": {
+        "MAX_WALLCLOCK_SECONDS": "600",
+        "TRAIN_LOG_EVERY": "50",
+        "VAL_LOSS_EVERY": "4000",
+        "VOCAB_SIZE": "1024",
+        "NUM_HEADS": "8",
+        "NUM_KV_HEADS": "4",
+        "MODEL_DIM": "512",
+        "NUM_LAYERS": "11",
+        "MLP_MULT": "3",
+        "TIE_EMBEDDINGS": "1",
+        "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+        "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+        "TRAIN_SEQ_LEN": "2048",
+        "TRAIN_BATCH_TOKENS": "786432",
+        "TIED_EMBED_LR": "0.035",
+        "MATRIX_LR": "0.025",
+        "SCALAR_LR": "0.025",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "GRAD_CLIP_NORM": "0.3",
+        "WARMDOWN_ITERS": "3500",
+        "EVAL_STRIDE": "64",
+        "SHARD_ORDER": "size_desc",
+        "FA3_ENABLE": "1"
+      },
+      "notes": [
+        "synthetic_from=E4",
+        "winner_of=curriculum",
+        "manual=curriculum_plus_fa3"
+      ]
+    }
+  ]
+}

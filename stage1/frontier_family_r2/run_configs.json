@@ -1,0 +1,120 @@
+{
+  "batch_id": "stage1_frontier_family_r2",
+  "description": "Evidence-updated Stage 1 frontier family for A100 ranking and later 8xH100 promotion.",
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "slots": [
+    {
+      "slot": "P0",
+      "name": "baseline",
+      "family": "baseline",
+      "hypothesis": "none",
+      "role": "comparator",
+      "why": "Pure baseline comparator for the public-frontier family.",
+      "env": {}
+    },
+    {
+      "slot": "P1",
+      "name": "m02_seq2048_train",
+      "family": "M02",
+      "hypothesis": "long_context_training_geometry",
+      "role": "scout",
+      "why": "Public evidence says longer training context is real; this is the cleanest first geometry scout.",
+      "env": {
+        "TRAIN_SEQ_LEN": "2048",
+        "TIED_EMBED_LR": "0.04",
+        "MATRIX_LR": "0.032",
+        "SCALAR_LR": "0.032"
+      }
+    },
+    {
+      "slot": "P2",
+      "name": "m09_fp16_embed_export",
+      "family": "M09",
+      "hypothesis": "export_aware_quantization",
+      "role": "exploit",
+      "why": "Test whether selective fp16 export on the tied embedding pays back immediately.",
+      "env": {
+        "INT8_KEEP_TOK_EMB_FP16": "1",
+        "MLP_HIDDEN": "992"
+      }
+    },
+    {
+      "slot": "P3",
+      "name": "m06_adamw_partition",
+      "family": "M06",
+      "hypothesis": "optimizer_partitioning",
+      "role": "exploit",
+      "why": "Public top records validate AdamW on embedding/scalar groups with Muon left on matrices.",
+      "env": {
+        "TOKEN_OPTIMIZER": "adamw",
+        "SCALAR_OPTIMIZER": "adamw",
+        "TOKEN_WEIGHT_DECAY": "0.01",
+        "SCALAR_WEIGHT_DECAY": "0.01"
+      }
+    },
+    {
+      "slot": "P4",
+      "name": "m11_sliding_eval64",
+      "family": "M11",
+      "hypothesis": "evaluation_time_context",
+      "role": "exploit",
+      "why": "Directly test sliding-window evaluation with minimal training changes.",
+      "env": {
+        "EVAL_STRIDE": "64",
+        "EVAL_BATCH_SEQS": "256"
+      }
+    },
+    {
+      "slot": "P5",
+      "name": "m08_always_decay",
+      "family": "M08",
+      "hypothesis": "wallclock_aware_schedule",
+      "role": "exploit",
+      "why": "Test the public always-decaying schedule direction as its own family recipe.",
+      "env": {
+        "WARMDOWN_ITERS": "20000",
+        "MATRIX_LR": "0.06",
+        "TIED_EMBED_LR": "0.07",
+        "SCALAR_LR": "0.06",
+        "GRAD_CLIP_NORM": "1.0"
+      }
+    },
+    {
+      "slot": "P6",
+      "name": "m01_depth10_width480",
+      "family": "M01",
+      "hypothesis": "matched_budget_architecture",
+      "role": "alternate",
+      "why": "Keep one architecture reallocation family alive while the public frontier is ranked.",
+      "env": {
+        "NUM_LAYERS": "10",
+        "MODEL_DIM": "480",
+        "NUM_KV_HEADS": "4",
+        "MLP_MULT": "2"
+      }
+    },
+    {
+      "slot": "P7",
+      "name": "m07_adaptive_muon",
+      "family": "M07",
+      "hypothesis": "adaptive_muon_compute",
+      "role": "alternate",
+      "why": "Keep our best Muon timing family available while optimizer partitioning is ranked.",
+      "env": {
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS": "5",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      }
+    }
+  ]
+}

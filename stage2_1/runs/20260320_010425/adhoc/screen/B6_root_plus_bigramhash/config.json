@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "adhoc",
+  "phase": "screen",
+  "slot": "B6",
+  "name": "root_plus_bigramhash",
+  "role": "candidate",
+  "family": "front_end_memory",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": "P209",
+  "patches": [
+    "bigramhash"
+  ],
+  "label": "20260320_010425",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "B0",
+    "B6"
+  ],
+  "compare_to": "B0",
+  "why": "Higher-capacity local memory family that appears repeatedly in top public stacks.",
+  "validates": "The score gain is large enough to justify the byte cost.",
+  "falsifies": "The bytes eat the gain or the family needs too much support to stand alone.",
+  "notes": [
+    "Read against a byte-matched control if parameter count rises materially."
+  ],
+  "env": {
+    "BIGRAM_HASH_BUCKETS": "4096",
+    "BIGRAM_HASH_DIM": "128",
+    "BIGRAM_HASH_ENABLE": "1",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

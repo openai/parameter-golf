@@ -1,0 +1,44 @@
+{
+  "pack": "manual_champion",
+  "phase": "champion_8x",
+  "results": {
+    "T8": {
+      "steps": 6645,
+      "step_avg_ms": 90.3,
+      "pre_quant_bpb": 1.1574,
+      "post_quant_bpb": 1.15972647,
+      "ttt_lora_bpb": null,
+      "sliding_bpb": null,
+      "doc_sliding_bpb": null,
+      "submission_size_bytes": 24521744,
+      "score_bpb": 1.15972647,
+      "returncode": 0
+    }
+  },
+  "comparisons": [],
+  "best_result": {
+    "slot": "T8",
+    "name": "winner_curriculum_plus_fa3",
+    "role": "candidate",
+    "family": "manual_champion",
+    "runner_mode": "train",
+    "patches": [
+      "curriculum_shard_order",
+      "fa3"
+    ],
+    "score_bpb": 1.15972647,
+    "pre_quant_bpb": 1.1574,
+    "post_quant_bpb": 1.15972647,
+    "ttt_lora_bpb": null,
+    "sliding_bpb": null,
+    "doc_sliding_bpb": null,
+    "step_avg_ms": 90.3,
+    "steps": 6645,
+    "submission_size_bytes": 24521744,
+    "gap_to_ours": -0.003373529999999958,
+    "gap_to_merged_sota": 0.0364264700000001,
+    "gap_to_frontier_no_ttt": 0.043426469999999995,
+    "gap_to_frontier_ttt": 0.47332647000000005
+  },
+  "recommended_promotions": []
+}

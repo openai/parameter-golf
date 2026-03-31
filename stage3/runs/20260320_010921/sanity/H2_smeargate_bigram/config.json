@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H2",
+  "name": "smeargate_bigram",
+  "role": "candidate",
+  "family": "BIG",
+  "label": "20260320_010921",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H2"
+  ],
+  "compare_to": "R0A",
+  "why": "SmearGate blends each token with its predecessor (learned sigmoid gate). BigramHash adds a 4096-bucket hash table for token-pair context projected to model_dim. Together they inject cheap bigram features the model cannot learn in 10 minutes of training. Used by 7 of top 10 submissions.",
+  "validates": "Better val_bpb at matched wallclock despite ~524K extra params.",
+  "falsifies": "The extra parameters hurt quantization more than the bigram features help.",
+  "patches": [
+    "smeargate_bigram"
+  ],
+  "notes": [
+    "SmearGate: ~512 params. BigramHash: ~524K params (4096x128 embed + 128x512 proj).",
+    "Both init to near-zero so they start as near no-ops and learn during training.",
+    "Watch artifact size: extra params should still fit in 16MB with int8+zlib."
+  ],
+  "env": {
+    "BIGRAM_HASH": "1",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "SMEARGATE": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

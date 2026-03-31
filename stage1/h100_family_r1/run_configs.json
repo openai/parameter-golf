@@ -1,0 +1,112 @@
+{
+  "batch_id": "stage1_h100_family_r1",
+  "description": "First H100 single-GPU Enigma family for Parameter Golf Stage 1.",
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "slots": [
+    {
+      "slot": "P0",
+      "name": "baseline",
+      "hypothesis": "none",
+      "family": "baseline",
+      "role": "comparator",
+      "why": "Pure baseline comparator for all Stage 1 single-family scouts.",
+      "env": {}
+    },
+    {
+      "slot": "P1",
+      "name": "h01_depth10_width480",
+      "hypothesis": "H01",
+      "family": "architecture",
+      "role": "scout",
+      "why": "Depth-up width-down matched-size allocation scout.",
+      "env": {
+        "NUM_LAYERS": "10",
+        "MODEL_DIM": "480",
+        "NUM_KV_HEADS": "4",
+        "MLP_MULT": "2"
+      }
+    },
+    {
+      "slot": "P2",
+      "name": "h03_kv2_width544",
+      "hypothesis": "H03",
+      "family": "architecture",
+      "role": "scout",
+      "why": "More aggressive GQA with reinvested width so the test is not just a smaller model.",
+      "env": {
+        "NUM_LAYERS": "9",
+        "MODEL_DIM": "544",
+        "NUM_KV_HEADS": "2",
+        "MLP_MULT": "2"
+      }
+    },
+    {
+      "slot": "P3",
+      "name": "h05_alt_share",
+      "hypothesis": "H05",
+      "family": "structural",
+      "role": "wildcard",
+      "why": "Alternate-layer sharing scout imported from parameter-limited model design.",
+      "env": {
+        "ALTERNATE_LAYER_SHARING": "1"
+      }
+    },
+    {
+      "slot": "P4",
+      "name": "h08_seq512",
+      "hypothesis": "H08",
+      "family": "throughput",
+      "role": "scout",
+      "why": "Direct test of whether shorter context buys enough effective steps to win.",
+      "env": {
+        "TRAIN_SEQ_LEN": "512"
+      }
+    },
+    {
+      "slot": "P5",
+      "name": "h11_adaptive_muon",
+      "hypothesis": "H11",
+      "family": "optimizer",
+      "role": "exploit",
+      "why": "Adaptive Muon backend-depth schedule to trade early step cost for later update quality.",
+      "env": {
+        "ADAPTIVE_MUON_BACKEND": "1",
+        "MUON_BACKEND_STEPS": "5",
+        "MUON_BACKEND_STEPS_EARLY": "3",
+        "MUON_BACKEND_WARMUP_STEPS": "2000"
+      }
+    },
+    {
+      "slot": "P6",
+      "name": "h17_quant_bytes",
+      "hypothesis": "H17",
+      "family": "artifact",
+      "role": "exploit",
+      "why": "Shrink float passthrough budget to test whether artifact bytes are the easier export win.",
+      "env": {
+        "INT8_KEEP_FLOAT_MAX_NUMEL": "8192"
+      }
+    },
+    {
+      "slot": "P7",
+      "name": "h18_quant_quality",
+      "hypothesis": "H18",
+      "family": "artifact",
+      "role": "exploit",
+      "why": "Improve quantizer fidelity by relaxing clipping and using higher-precision row scales.",
+      "env": {
+        "INT8_CLIP_PERCENTILE": "99.99995",
+        "INT8_PER_ROW_SCALE_DTYPE": "float32"
+      }
+    }
+  ]
+}

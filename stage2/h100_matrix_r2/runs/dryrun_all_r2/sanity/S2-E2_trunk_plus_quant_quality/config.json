@@ -1,0 +1,46 @@
+{
+  "batch_id": "stage2_h100_matrix_r2",
+  "phase": "sanity",
+  "slot": "S2-E2",
+  "name": "trunk_plus_quant_quality",
+  "role": "candidate",
+  "family": "quant_quality",
+  "label": "dryrun_all_r2",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "S2-C0",
+    "S2-E2"
+  ],
+  "compare_to": "S2-C0",
+  "why": "Direct transfer test for our strongest quant-fidelity mutation from earlier runs.",
+  "validates": "The post-quant gap shrinks on real H100 screens.",
+  "falsifies": "The quant-fidelity win was mostly proxy noise or regime-specific.",
+  "notes": [
+    "Compared directly against the trunk control."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "INT8_CLIP_PERCENTILE": "99.99995",
+    "INT8_PER_ROW_SCALE_DTYPE": "float32",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "393216",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "4096",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

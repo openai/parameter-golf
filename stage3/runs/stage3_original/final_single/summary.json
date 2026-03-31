@@ -1,0 +1,15 @@
+{
+  "phase": "final_single",
+  "results": {
+    "H4": {
+      "steps": 10365,
+      "step_avg_ms": 57.88,
+      "pre_quant_bpb": 1.2307,
+      "post_quant_bpb": 1.23998065,
+      "submission_size_bytes": 20184553,
+      "returncode": 0
+    }
+  },
+  "comparisons": [],
+  "recommended_promotions": []
+}

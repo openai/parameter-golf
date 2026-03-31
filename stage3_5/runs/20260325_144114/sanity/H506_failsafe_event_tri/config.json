@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_5_event_branch_tournament",
+  "phase": "sanity",
+  "slot": "H506",
+  "name": "failsafe_event_tri",
+  "role": "candidate",
+  "family": "FAILSAFE_EVENT_TRI",
+  "lane": "branch_tournament",
+  "label": "20260325_144114",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H506"
+  ],
+  "compare_to": "R0A",
+  "why": "This tests whether event sensitivity plus a hard safety branch point is more robust than a purely adaptive or purely fixed trigger.",
+  "validates": "Hybrid event-plus-failsafe branching is more robust than one trigger style alone.",
+  "falsifies": "Adaptive trigger logic does not buy useful robustness.",
+  "patches": [
+    "event_branch_tournament"
+  ],
+  "notes": [
+    "Hybrid trigger test."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"trigger\":{\"min_frac\":0.62,\"max_frac\":0.78,\"scale_below\":0.15,\"plateau_tol\":0.010},\"finishers\":[{\"kind\":\"ema_heavy\",\"name\":\"ema_heavy\",\"export_modes\":[\"ema\",\"raw\"]},{\"kind\":\"deploy_qat\",\"name\":\"deploy_qat\",\"export_modes\":[\"ema\",\"raw\"]},{\"kind\":\"matrix_push\",\"name\":\"matrix_push\",\"export_modes\":[\"ema\",\"raw\"]}]}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}
