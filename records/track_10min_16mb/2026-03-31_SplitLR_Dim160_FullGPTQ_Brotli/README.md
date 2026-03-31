@@ -2,7 +2,7 @@
 
 **val_bpb: 1.1105** (3-seed mean, std 0.0006) | **1.8751 nats** | **~15.81 MB** | 8×H100 SXM, 600s | No TTT
 
-Built on [PR #1019](https://github.com/openai/parameter-golf/pull/1019) by @abaybektursun (our previous merged SOTA).
+Built on [PR #1019](https://github.com/openai/parameter-golf/pull/1019) by @abaybektursun (current merged SOTA).
 Previous: PR #549 (1.1194) -> PR #1019 (1.1147) -> this (1.1105).
 
 ## Changes from PR #1019
