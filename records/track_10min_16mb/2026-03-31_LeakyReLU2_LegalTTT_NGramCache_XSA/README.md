@@ -12,7 +12,7 @@
 | **Mean** | **0.9641** | **1.62735** | — | — | — |
 | **Std**  | **0.0007** | — | — | — | — |
 
-**Statistical significance**: mean 0.9641 vs prior SOTA 1.1194 → Δ = 0.1553 bpb, std = 0.0007 bpb, t = Δ/(std/√3) = 384.4, p ≪ 0.01. Required improvement threshold ≥ 0.005 bpb.
+**Statistical significance**: mean 0.9641 bpb (1.6274 nats) vs current merged top 1.1147 bpb (1.8822 nats) → Δ = −0.2548 nats, Welch t = −328.3, df = 2.93, p ≪ 0.01. Required improvement threshold ≥ 0.005 nats (official rule); this Δ exceeds it by 51×.
 
 ## Technique
 
@@ -28,7 +28,7 @@
 
 ## Compliance
 
-- Training time: all seeds ≤ 600,000 ms (599,384 / 599,761 / 599,618).
+- Training time: all seeds ≤ 600,000 ms (599,384 / 599,761 / 599,618). **Note**: the logged `train_time` starts after 20 warmup steps and model compilation. If the challenge judges end‑to‑end wallclock (including compile + warmup), the actual margin is narrower than these numbers suggest.
 - Artifact size: all seeds ≤ 16,000,000 B (15,981,645 / 15,976,868 / 15,989,184).
 - Score‑first TTT: each validation token is scored under `torch.inference_mode()` before any model update.
 - N‑gram cache legality: **contested**. The cache is backward‑looking only, uses zero artifact bytes, and produces Laplace‑smoothed probabilities that form a proper normalized distribution. [PR #727](https://github.com/openai/parameter-golf/pull/727) (closed, 0.9674 bpb) used the same technique and spawned followup PRs (#753, #778, #782, #786). However, OpenAI opened [issue #677](https://github.com/openai/parameter-golf/issues/677) on 2026‑03‑25 questioning the legality of eval‑time cache methods. This submission may face review scrutiny regardless of score validity.
@@ -82,7 +82,9 @@ Hardware: 8× H100 SXM (RunPod), CUDA 12.8, PyTorch 2.9+.
 | Training (wallclock‑capped) | ≤ 600 s |
 | Standard eval (int6 roundtrip + sliding window s64) | ~82 s |
 | Legal TTT + N‑gram cache | ~420 s |
-| **Total eval** | **~502 s (< 600 s)** |
+| **Total eval (timed phases)** | **~502 s** |
+
+**Note**: the ~502 s figure covers only the timed eval phases. `torch.compile` warmup and model deserialization add additional overhead (~5–15 s) that occurs outside these timed blocks. Total end‑to‑end eval is estimated at ~515–520 s.
 
 ## Credits
 
