@@ -1,0 +1,8 @@
+{
+  "author": "mohosy",
+  "date": "2026-03-19",
+  "description": "Non-record: QAT + LAWA + LR scheduling research (pending 8xH100 verification)",
+  "status": "non-record",
+  "val_bpb": null,
+  "notes": "Script implements 7 toggleable improvements. Awaiting compute credits for 8xH100 verification runs."
+}
