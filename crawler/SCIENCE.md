@@ -30,52 +30,68 @@ Notes: BW5 seed=300 does NOT individually confirm vs Leg 3. Mean is better (1.18
 
 ---
 
-## Thread: MLP Choke Architecture
+## Thread: Cannon (gate feed-forward type)
 
-Hypothesis: pyramid-shaped MLP bottleneck (CRAWLER_MLP_CHOKE_DIM=512) gives the loop
-more representational pressure at each recurrence → better quality even at lower BPB.
+Hypothesis: scalar cannon feed-forward gives the crawler loop a faster compiled path and calibrated output scale.
 
 | Date | Leg | Change vs Parent | 1GPU Gate | 8GPU Gate | BPB (seed 444) | Size | Verdict | Key Finding |
 |------|-----|-----------------|-----------|-----------|----------------|------|---------|-------------|
-| 2026-03-31 | BW5_Pyramid | BW5 + CHOKE_DIM=512, shape=pyramid, groups=8 | ✓ −0.00987 int6_sw_bpb | ⏳ PENDING | — | — | ⏳ PENDING | 1GPU signal one of strongest in series. +1.57M params, +747KB. Speed +3.4ms/microbatch — needs 8GPU confirm. |
+| 2026-03-31 | BW5_Cannon | BW5 + CRAWLER_CANNON_TYPE=scalar | ✓ | ✓ speed gate | — | +343KB | → SPEED PROMOTED | 74.81ms vs 74.84ms control (≤74.68+δ). Raw BPB slightly positive. Size regression +343KB. Speed gate passes — cannon is a valid building block. |
 
-Gate 1GPU detail (500 steps, seed=444, grad_accum=8):
-- BWVP-00 (flat): step_avg 583.99ms · int6_sw_bpb 1.44668780 · 6,750,039 bytes
-- BWVP-01 (pyramid): step_avg 611.21ms · int6_sw_bpb **1.43681894** · 7,497,734 bytes
-- Delta: +27.22ms (÷8 ≈ +3.4ms real) · **−0.00987** bpb · +747KB
+8GPU gate detail (seed=444, 2000 steps):
+- BWVC-00 control: 74.84ms · raw_bpb 1.28870981 · int6_sw_bpb 1.28787686
+- BWVC-01 scalar cannon: 74.81ms · raw_bpb 1.28854887 · int6_sw_bpb 1.28820687
+- Delta: −0.03ms speed (passes) · raw_bpb −0.00016 · size +343KB
 
 ---
 
-## Thread: Cannon (gate feed-forward type)
+## Thread: MLP Choke Architecture
 
-Hypothesis: scalar cannon feed-forward gives the crawler loop a faster compiled path.
-NOTE: BW5_Cannon must be individually gated for speed BEFORE combining with Pyramid.
+Hypothesis: pyramid-shaped MLP bottleneck (CRAWLER_MLP_CHOKE_DIM=512) gives the loop
+more representational pressure at each recurrence → better quality.
+
+VERDICT: Current implementation (CHOKE_DIM=512) is **incompatible**. Concept not dead — see notes.
 
 | Date | Leg | Change vs Parent | 1GPU Gate | 8GPU Gate | BPB (seed 444) | Size | Verdict | Key Finding |
 |------|-----|-----------------|-----------|-----------|----------------|------|---------|-------------|
-| — | BW5_Cannon | BW5 + CRAWLER_CANNON_TYPE=scalar | — | — | — | — | NOT STARTED | Speed gate required first. Must not exceed 74.68ms/step. |
+| 2026-03-31 | BW5_Pyramid | BW5 + CHOKE_DIM=512, shape=pyramid, groups=8 | ✓ −0.00987 int6_sw_bpb | SKIPPED | — | — | ✗ CONCEPT DEFERRED | Proxy inflation trap. 1GPU signal strong but 8GPU proxy run (via PyramidCannon control) shows cold param burden dominates at 2000 steps. |
+
+1GPU gate detail (500 steps, seed=444, grad_accum=8):
+- BWVP-00 (flat): step_avg 583.99ms · int6_sw_bpb 1.44668780
+- BWVP-01 (pyramid): step_avg 611.21ms · int6_sw_bpb 1.43681894
+- Delta: +27.22ms (÷8 ≈ +3.4ms real) · −0.00987 bpb (MISLEADING — see PyramidCannon)
+
+Pyramid future paths (if revisited):
+- Smaller choke dim (128 or 256) — less cold param burden
+- Warm initialization of bottleneck weights
+- Dedicated LR schedule for choke layers
+- Investigate benefit at very long training (>>8000 steps)
 
 ---
 
 ## Thread: Combined — Pyramid + Cannon
 
-Run ONLY after BW5_Cannon (speed) AND BW5_Pyramid (quality) both individually confirm on 8GPU.
-This is a 2-variable test by design — combines validated Pyramid + validated Cannon.
+Two-variable combined test. Cannon already validated for speed; pyramid sought quality synergy.
 
 | Date | Leg | Change vs Parent | 1GPU Gate | 8GPU Gate | BPB (seed 444) | Size | Verdict | Key Finding |
 |------|-----|-----------------|-----------|-----------|----------------|------|---------|-------------|
-| 2026-03-31 | BW5_PyramidCannon | BW5 + CHOKE_DIM=512 + CANNON_TYPE=scalar | BLOCKED | BLOCKED | — | — | BLOCKED | Waiting on: Pyramid 8GPU + Cannon 8GPU |
+| 2026-03-31 | BW5_PyramidCannon | BW5 + CHOKE_DIM=512 + CANNON_TYPE=scalar | ✓ −0.0091 | ✗ +0.03440 int6_sw_bpb | — | — | ✗ DOES NOT PROMOTE | Hard failure. Proxy passed but 8GPU decisive regression. Root: 1.57M cold choke params compound over time. Crossover ~step 500, diverges through step 2000. |
+
+8GPU gate detail (seed=444, 2000 steps):
+- BWVPC-00 control: 74.40ms · raw_bpb 1.3069 · int6_sw_bpb 1.28787686 · 9,415,826 bytes
+- BWVPC-01 pyramid+cannon: 79.33ms · raw_bpb 1.3283 · int6_sw_bpb 1.32227987 · 10,408,358 bytes
+- Delta: +4.93ms · +0.0214 raw_bpb · **+0.03440 int6_sw_bpb** · +993KB
 
 ---
 
-## Planned Hypotheses
+## Planned Hypotheses (post-pyramid/cannon screw)
 
 | Priority | Hypothesis | Thread | Prerequisite | Rationale |
 |----------|-----------|--------|-------------|-----------|
-| 1 | BW5_Cannon (speed gate) | Cannon | BW5_Pyramid 8GPU result | Need cannon individual speed confirm before combo |
-| 2 | BW5_Pyramid (8GPU gate) | MLP Choke | Pod run | 1GPU signal is strong; confirm step_avg on 8GPU |
-| 3 | BW5_PyramidCannon | Combined | Pyramid 8GPU ✓ + Cannon 8GPU ✓ | Combine both if individually validated |
-| 4 | Seed 300 alignment | Baseline | Any | BW5 seed=300 ⚠️ — does a warmdown tweak help? |
+| 1 | BW6 — Skipgrams in crawler | Ngram/Bigram | BW5 champion | NGRAM_EVAL_ORDER or BIGRAM in crawler context. Neural track uses this; crawler doesn't yet. |
+| 2 | Delta Anchor | Recurrence | BW5 champion | Per-loop causal time state. Battery differentiates reading, delta anchor differentiates writing. |
+| 3 | Warmdown tuning | Schedule | BW5 | BW5 seed=300 ⚠️ — warmdown length or learning rate taper may close the seed gap. |
+| 4 | Cannon on BW5 full run | Cannon | Cannon speed gate ✓ | Cannon promoted on speed gate; full run with cannon to see quality at 600s. |
 
 ---
 
