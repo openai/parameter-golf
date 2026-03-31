@@ -1,0 +1,11 @@
+{
+  "name": "11L + XSA + VRL + SWA + seq4096 + cross-doc TTT",
+  "val_loss": 1.9990,
+  "val_bpb": 1.1839,
+  "bytes_total": 16102053,
+  "bytes_code": 74966,
+  "blurb": "11 layers, seq_len=4096 long-context training. Exclusive Self-Attention (XSA) on deepest 4 layers. Value Residual Learning (VRL) with per-layer lambdas. SmearGate. SWA (24 ckpts, frac=0.4). Cross-doc TTT with rank-8 LoRA at eval. Warmdown-QAT, sliding window stride=64, FP16 tied embeddings, Muon WD=0.02. 13137 steps on 8xH100 in 600s.",
+  "author": "carlesonielfa",
+  "github_id": "carlesonielfa",
+  "date": "2026-03-22"
+}
