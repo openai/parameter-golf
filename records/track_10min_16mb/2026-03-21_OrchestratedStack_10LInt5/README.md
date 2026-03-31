@@ -24,9 +24,28 @@
 
 ## Dependencies
 
+**Important:** `requirements.txt` is only at the **repository root**. **`requirements-record.txt` is only in this folder**, not in the root — so `pip install -r requirements-record.txt` must be run **from this directory**, or use the **full path** from the root (see below).
+
+From **repository root** (folder that contains `requirements.txt`):
+
 ```bash
 source .venv/bin/activate
-uv pip install -r requirements-record.txt
+pip install -U pip wheel setuptools
+pip install -r requirements.txt
+pip install -r records/track_10min_16mb/2026-03-21_OrchestratedStack_10LInt5/requirements-record.txt
+```
+
+Or a single root file (same end result):
+
+```bash
+pip install -r requirements-orchestrated-stack.txt
+```
+
+From **this** record directory only:
+
+```bash
+cd records/track_10min_16mb/2026-03-21_OrchestratedStack_10LInt5
+pip install -r requirements-record.txt   # zstd only; install repo root requirements.txt first
 ```
 
 ## Run (8×H100 SXM, ~600s training cap)
