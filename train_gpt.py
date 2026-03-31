@@ -93,6 +93,7 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))  # 1/sqrt(layer+1) scaling on sublayer inputs
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # XSA on last N layers (0 = disabled)
     smear_gate = bool(int(os.environ.get("SMEAR_GATE", "0")))  # causal shift gate in GPT forward
+    vrl_mix = float(os.environ.get("VRL_MIX", 0.5))  # VRL mixing ratio (0=no VRL, 1=all first-layer V)
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
@@ -1006,7 +1007,8 @@ class CausalSelfAttention(nn.Module):
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         # VRL: mix first-layer V into current V
         if v_residual is not None:
-            v = 0.5 * v + 0.5 * v_residual
+            _vrl_mix = float(os.environ.get("VRL_MIX", 0.5))
+            v = (1.0 - _vrl_mix) * v + _vrl_mix * v_residual
         y = F.scaled_dot_product_attention(
             q,
             k,
