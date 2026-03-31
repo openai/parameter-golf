@@ -41,13 +41,26 @@ an 8×H100 full run (~$3-4). Never skip the gate.
 4. Never push FROM the pod
 5. Pod gets destroyed after the run — save checkpoints before destroying
 
-## New leg
-```bash
-bash scripts/new_leg.sh neural <name>    # scaffold neural leg
-bash scripts/new_leg.sh crawler <name>   # scaffold crawler leg
+## Test cycle: Hypothesis → Ablation → Results
+
+Every leg follows this sequence. No skipping steps.
+
 ```
-Creates a dated directory, copies the current leader's train_gpt.py, and drops
-a hypothesis.md template. Fill in hypothesis.md before touching the code.
+hypothesis.md    ← write FIRST. ONE variable. Why. Gate target.
+train_gpt.py     ← copy from leader, make the ONE change
+gate.sh          ← commit+push → pod pulls TEST_LAB → run (1-GPU, 2000 steps)
+ablation.md      ← fill gate result. Pass? Proceed. Fail? Stop.
+run.sh           ← commit+push → pod pulls TEST_LAB → run (8×H100, 600s, seed=444)
+ablation.md      ← fill full run result. Beats leader? Run confirmation.
+                    confirmation run (8×H100, 600s, seed=300)
+RESULTS.md       ← verdict (PROMOTES / DOES NOT PROMOTE), what we learned, next hyp
+```
+
+New legs are scaffolded with all three files pre-created:
+```bash
+bash scripts/new_leg.sh neural <name>
+bash scripts/new_leg.sh crawler <name>
+```
 
 ## Seeds
 - Primary: 444

@@ -28,24 +28,73 @@ LEADER_TRAIN="${REPO_ROOT}/${LEADER_LEG}/train_gpt.py"
 [[ -f "${LEADER_TRAIN}" ]] || { echo "Leader train_gpt.py not found: ${LEADER_TRAIN}"; exit 1; }
 cp "${LEADER_TRAIN}" "${LEG_DIR}/train_gpt.py"
 
-# Blank hypothesis template
+# 1. HYPOTHESIS
 cat > "${LEG_DIR}/hypothesis.md" <<EOF
 # Hypothesis: ${NAME}
 Date: ${TODAY}
 Track: ${TRACK}
 Parent: ${LEADER_LEG}
 
-## What changes
-<!-- ONE variable. Describe exactly what is different from the parent leg. -->
+## What changes (ONE variable only)
+<!-- Describe exactly what is different from the parent leg. -->
 
 ## Why
 <!-- What signal or reasoning motivates this change? -->
 
 ## Gate target
-<!-- What do you need to see at 2000 steps to proceed to 8x? -->
+<!-- What step_avg / loss trend do you need to see at 2000 steps to proceed? -->
+EOF
 
-## Result
-<!-- Fill in after gate / full run -->
+# 2. ABLATION log (filled during gate + run)
+cat > "${LEG_DIR}/ablation.md" <<EOF
+# Ablation: ${NAME}
+Date: ${TODAY}
+Track: ${TRACK}
+Parent: ${LEADER_LEG}
+
+## Gate (1-GPU, 2000 steps, seed=444)
+Status: [ ] pending  [ ] pass  [ ] fail
+step_avg:
+loss @2000:
+Notes:
+
+## Full run (8×H100, 600s, seed=444)
+Status: [ ] pending  [ ] pass  [ ] fail
+step_avg:
+steps:
+val_bpb (post-EMA):
+int6_sw_bpb:
+artifact_bytes:
+Code size:
+
+## Confirmation (8×H100, 600s, seed=300)
+Status: [ ] pending  [ ] pass  [ ] fail
+int6_sw_bpb:
+artifact_bytes:
+EOF
+
+# 3. RESULTS (filled after confirmation)
+cat > "${LEG_DIR}/RESULTS.md" <<EOF
+# Results: ${NAME}
+Date: ${TODAY}
+Track: ${TRACK}
+Parent: ${LEADER_LEG}
+
+## Verdict
+[ ] PROMOTES  [ ] DOES NOT PROMOTE
+
+## Scores
+| Seed | int6_sw_bpb | artifact | vs leader |
+|------|-------------|----------|-----------|
+| 444  |             |          |           |
+| 300  |             |          |           |
+| mean |             |          |           |
+
+## What we learned
+<!-- Even if it doesn't promote, what does the result tell us? -->
+
+## Next hypothesis
+<!-- What should the next leg test, based on this result? -->
 EOF
 
 # Blank gate script stub
@@ -73,9 +122,12 @@ chmod +x "${LEG_DIR}/gate.sh"
 echo ""
 echo "New leg created: ${LEG_DIR}"
 echo ""
-echo "  1. Edit ${LEG_DIR}/hypothesis.md — write what ONE thing changed"
-echo "  2. Edit ${LEG_DIR}/train_gpt.py — make the change"
-echo "  3. bash ${LEG_DIR}/gate.sh      — 1-GPU gate (~\$0.50)"
-echo "  4. If gate passes: write run.sh and launch 8x"
+echo "  1. hypothesis.md  ← fill in: what changes + why + gate target"
+echo "  2. train_gpt.py   ← make ONE change from parent"
+echo "  3. gate.sh        ← commit+push, then run on pod (1-GPU, ~\$0.50)"
+echo "  4. ablation.md    ← fill gate results"
+echo "  5. run.sh         ← write it, commit+push, run 8x on pod (~\$3-4)"
+echo "  6. ablation.md    ← fill full run + confirmation results"
+echo "  7. RESULTS.md     ← verdict, what we learned, next hypothesis"
 echo ""
-echo "GATE FIRST. THEN 8x."
+echo "HYPOTHESIS → ABLATION → RESULTS. Gate before 8x. Always."
