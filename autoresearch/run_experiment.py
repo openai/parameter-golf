@@ -54,7 +54,7 @@ def run_experiment(name: str, iters: int = 1000, extra_env: dict = None):
             env=env,
             stdout=f,
             stderr=subprocess.STDOUT,
-            timeout=3600,  # 1 hour max
+            timeout=7200,  # 2 hour max
             cwd=str(Path(__file__).parent.parent),
         )
     elapsed = time.time() - t0

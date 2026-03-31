@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, ".")
 from autoresearch.run_experiment import run_experiment, print_leaderboard
 
-ITERS = 2000  # ~15 min each on M3 Ultra at 42K tok/s
+ITERS = 1000  # ~8 min train + ~20 min eval = ~28 min each on M3 Ultra
 
 experiments = [
     # Baseline: our current best config
