@@ -1,0 +1,22 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-31",
+  "author": "Tanush1912",
+  "title": "RecurLoRA: Shallow Recurrence with Low-Rank Corrective Adapters",
+  "status": "pending_compute",
+  "base_submission": "PR #1179 (Split-LR + BigramHash(2816x160) + Full GPTQ + Brotli, 1.1105 BPB)",
+  "novel_contribution": "Shallow recurrence (layers 4,5 repeated once each) with rank-2 LoRA corrections on attention projections + RMSNorm + learnable alpha scaling",
+  "changes": [
+    "NEGATIVE_SLOPE: 0.5 -> 0.9",
+    "QK_GAIN_INIT: 1.5 -> 4.0",
+    "TTT_ENABLED: 0 -> 1",
+    "WARMDOWN_ITERS: 3500 -> 4000",
+    "RECUR_LAYERS: 4,5 (shallow recurrence with LoRA corrections)"
+  ],
+  "expected_val_bpb": "~1.085-1.095",
+  "lora_overhead_bytes": 28676,
+  "results": {
+    "note": "Awaiting compute credits. Will update with 3-seed results.",
+    "seeds": [1337, 42, 2025]
+  }
+}
