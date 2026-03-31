@@ -2,7 +2,7 @@
 
 Date: 2026-03-28
 Track: non_record_16mb
-Status: Pre-run (script complete, awaiting first measured Pegasus run)
+Status: Complete (first measured Pegasus `8xH100` run finished)
 
 ## What this is
 
@@ -104,4 +104,32 @@ python3 -u records/track_non_record_16mb/2026-03-28_pre_ttt_anchor/train_gpt.py
 
 ## Run results
 
-(To be filled after first measured Pegasus run)
+Measured run:
+
+- node: `serv-3342`
+- GPU: `8x NVIDIA H100 80GB HBM3 (SXM5)`
+- container: `nvcr.io_nvidia_pytorch_26.03-py3.sqsh`
+- launcher: Slurm-native `srun --ntasks=8 --gpus-per-task=1 --gpu-bind=none`
+- remote log: `/netscratch/ayach/pre_ttt_anchor_8xh100_600s.log`
+
+Exact outputs:
+
+| Metric | Value |
+|--------|-------|
+| Steps completed | 6,564 / 9,000 |
+| Step average | 91.37 ms |
+| Pre-quant EMA val_bpb | 1.14472403 |
+| Int6 roundtrip val_bpb | 1.15247273 |
+| Sliding s64 val_bpb | 1.12904446 |
+| Model bytes (`int6+zstd`) | 15,692,752 |
+| Code bytes | 58,572 |
+| Total bytes | 15,751,324 |
+| Headroom to 16 MB cap | 248,676 |
+| Peak memory | 21,274 MiB allocated / 22,070 MiB reserved |
+
+Interpretation:
+
+- This validates the Session 03 anchor as a real competition-phase improvement over the root `8xH100` baseline.
+- The final sliding result improves on the root `8xH100` baseline by `0.10464065` BPB (`1.23368511 -> 1.12904446`).
+- The remaining gap to the public 2026-03-21 donor is small (`+0.00419944` on final sliding), which means the anchor port is close enough that Session 04 should stay narrow and attributable.
+- The next step is not a broad architecture rewrite. The next step is isolated Session 04 delta measurement on top of this anchor.

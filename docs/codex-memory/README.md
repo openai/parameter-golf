@@ -1,10 +1,10 @@
-# Codex Memory Pack
+# Shared Memory Pack
 
-This directory is the shared, file-based memory layer for Codex work on `parameter-golf`.
+This directory is the shared, file-based memory layer for all agent tools (Claude Code, Codex, Antigravity).
 
 Design goals:
-- separate from Claude Code's built-in memory and `CLAUDE.md` workflows
-- durable across fresh Codex sessions
+- separate from each tool's built-in memory system
+- durable across fresh sessions for any tool
 - easy to inspect and edit as plain Markdown
 - syncable into Codex's private memory area at `~/.codex/memories/parameter-golf/`
 

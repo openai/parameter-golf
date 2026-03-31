@@ -1,6 +1,6 @@
 # Session 05b: Full Hessian GPTQ
 
-**Status**: Smoke-tested, correctness bug found; PR-grounded repair landed, rerun pending
+**Status**: Smoke-tested, correctness bug found; smaller Hessian-path repair also failed, fuller PR-slice transplant next
 **Parent**: `records/track_non_record_16mb/2026-03-28_pre_ttt_anchor`
 **Delta**: Replace naive int6 per-row quantization with Full Hessian GPTQ (Cholesky error compensation)
 
@@ -172,9 +172,32 @@ Interpretation:
 - Expanding `block_size` to full-width is effectively identical to `block_size=128` once `actorder=0`, so block partitioning is not the root cause either.
 - The remaining bug is systematic and still points upstream of the inner loop, most likely in Hessian construction / interpretation rather than clip search, actorder, or block slicing.
 
+### 2026-03-30 Hessian-path repair replay
+
+Patch tested:
+
+- forward hooks instead of forward pre-hooks
+- PR-style Hessian finalization (`H /= num_batches`, then `0.01 * diag(H).mean().clamp_min(1e-6) * I`)
+- bf16 autocast during Hessian collection
+
+Replay reference after that patch (`replay_ref_hfix`, `actorder=1`, `block_size=128`):
+
+- pre-quant EMA exact `1.82064877`
+- roundtrip exact `2.15770170`
+- gap `+0.33705293`
+- `gptq_diag`: worse than legacy row-max on `66/66`, worse than percentile-naive on `66/66`
+
+Interpretation:
+
+- This patch changed the per-layer error profile but did **not** fix the export path.
+- The roundtrip metric is slightly worse than the earlier `replay_ref`.
+- So the smaller forward-hook + average+damp repair is not sufficient.
+- The next debug step should be a more faithful transplant of one complete working PR Hessian/quantization slice, not more small Hessian nudges.
+
 ### Next move
 
-1. Compare `collect_hessians` and the PR Hessian path line-by-line against PRs `#634`, `#1019`, and `#1060`.
-2. Focus on matrix orientation, normalization, damping placement, and any dead-column handling.
+1. Use one full PR path as the ground truth instead of mixing partial semantics:
+   - prefer PR `#1019` first because its module-hook Hessian collection matches the current unbanked local model more closely
+2. Transplant that Hessian/quantization slice faithfully.
 3. Keep using export-only replay on the same `final_model.pt` while debugging.
 4. Only after the roundtrip gap is sane, rerun `1xH100`, then `8xH100`.

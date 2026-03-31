@@ -1,6 +1,6 @@
 # Coordination Rules
 
-This repo uses one shared handoff protocol for Claude Code and Codex.
+This repo uses one shared handoff protocol for Claude Code, Codex, and Antigravity.
 
 ## Entry Point
 
@@ -21,11 +21,17 @@ This file (`CLAUDE.md`) contains **stable standing rules only**. Do not duplicat
 2. Before starting new work, check `docs/campaign/artifacts/` and `records/` to avoid duplicating completed work.
 3. If you change the objective, next step, or interpretation of results, update `docs/campaign/AGENT_SYNC.md`.
 4. If you make a campaign-level decision or disagree with an earlier recommendation, record it in `docs/codex-memory/decisions.md`.
-5. If you finish a meaningful session, update `docs/codex-memory/project-state.md` and `docs/codex-memory/next-session.md`.
-6. If the task touches campaign strategy or prior experiments, also read:
+5. If a run produces a measured result, append one JSON record to `docs/campaign/results_log.jsonl`. Do not rewrite prior lines.
+6. If you finish a meaningful session, update `docs/codex-memory/project-state.md` and `docs/codex-memory/next-session.md`.
+7. If the task touches campaign strategy or prior experiments, also read:
    - `docs/codex-memory/project-state.md`
    - `docs/codex-memory/next-session.md`
    - `docs/codex-memory/decisions.md`
+8. For competition re-implementations, use source priority:
+   - `openai/parameter-golf` PR code first
+   - local repo code second
+   - papers and generic web sources only to resolve ambiguous math or API details
+9. If a post-training export path looks wrong, debug it on the same checkpoint before spending more H100 time on retraining.
 
 ## Working Agreement
 
@@ -34,6 +40,16 @@ This file (`CLAUDE.md`) contains **stable standing rules only**. Do not duplicat
 - RunPod is reserved for final validation only.
 - `git clone` and `git pull` are the default sync path for remote workspaces.
 - Use `rsync` only to push local uncommitted changes quickly.
+
+## Challenge Submission Rules
+
+These are stable public rules from the challenge README and should not be rediscovered every session.
+
+- Official leaderboard entry is **record-gated**, not top-5-open-entry.
+- A record submission must beat the current official SOTA by at least `0.005` nats and provide enough logs for `p < 0.01`.
+- Train and eval must each run under `10 minutes` on `8xH100`.
+- Total artifact size is `16,000,000` bytes decimal for code plus compressed model.
+- If a submission does not beat the current record bar, it is a non-record submission, not official leaderboard entry.
 
 ## Pegasus Operational Rules
 
