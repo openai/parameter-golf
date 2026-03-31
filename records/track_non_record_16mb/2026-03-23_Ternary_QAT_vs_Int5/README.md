@@ -82,7 +82,7 @@ TIED_EMBED_LR=0.003 HEAD_LR=0.001 WEIGHT_DECAY=0.0 MUON_MOMENTUM=0.95 \
 GRAD_CLIP_NORM=0.1 python3 train_gpt.py
 ```
 
-The helper launcher used for the recorded runs is [run_proxy_experiment.sh](/home/alpha/dev/research/competition/parameter-golf/records/track_non_record_16mb/2026-03-23_Ternary_QAT_vs_Int5/run_proxy_experiment.sh).
+The helper launcher used for the recorded runs is `run_proxy_experiment.sh`.
 
 ## Included Files
 
@@ -99,4 +99,4 @@ The helper launcher used for the recorded runs is [run_proxy_experiment.sh](/hom
 - These runs do not claim an official challenge score on the full FineWeb validation split.
 - The larger mixed result is promising, but still local and proxy-based.
 - Mixed runs consistently saturated the last MLP projection to `1.000` zero fraction, which is a likely quality bottleneck.
-- `author` and `github_id` in `submission.json` still need to be filled before opening a PR.
+- `submission.json` is populated for the current draft PR, but the displayed author value is still a GitHub handle rather than a full real name.

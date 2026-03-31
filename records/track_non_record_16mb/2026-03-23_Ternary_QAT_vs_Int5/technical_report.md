@@ -4,7 +4,7 @@
 
 This experiment is no longer at the "does ternary run at all?" stage. The code path is implemented, local proxy evaluation is working end to end, and the current question is narrower: can mixed ternary use the 16 MB artifact budget more efficiently than the current int5-style baseline?
 
-As of `2026-03-29`, the answer from local proxy experiments is:
+As of `2026-03-31`, the answer from local proxy experiments is:
 
 - Full ternary is not the best next branch.
 - Mixed ternary is the only ternary branch that remains competitive.
@@ -29,7 +29,7 @@ This proxy is suitable for directional decisions, not for claims about final lea
 
 All experiment changes live in this folder. The repo root script was left alone.
 
-The modified [train_gpt.py](/home/alpha/dev/research/competition/parameter-golf/records/track_non_record_16mb/2026-03-23_Ternary_QAT_vs_Int5/train_gpt.py) adds:
+The modified `train_gpt.py` adds:
 
 - `QUANT_MODE=int5|ternary|mixed`
 - `TernaryLinear`, using STE-based ternary weights in `{-1, 0, +1}`
@@ -191,7 +191,7 @@ That pattern matters. It suggests the last MLP projection is especially vulnerab
 
 The current evidence is still limited in four important ways:
 
-1. The decisive larger mixed result is only one seed so far.
+1. The decisive larger mixed result has only been checked on two seeds so far.
 2. The proxy dataset is development-only and may not preserve ranking perfectly against official FineWeb validation.
 3. Training time was measured on a local `1x RTX 2060`, not on `8xH100`.
 4. The current mixed path still shows per-layer saturation in the last MLP projection.
