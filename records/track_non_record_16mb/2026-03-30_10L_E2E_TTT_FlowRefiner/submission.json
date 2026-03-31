@@ -1,6 +1,13 @@
 {
   "track": "non_record_16mb",
-  "val_bpb": 1.13472408,
+  "val_bpb": 1.13353331,
+  "val_bpb_std": 0.00095351,
+  "val_bpb_seeds": {
+    "42": 1.13472408,
+    "99": 1.13387877,
+    "1337": 1.13269366,
+    "2025": 1.13283672
+  },
   "model_file": "final_model.int6.ptz",
   "model_bytes": 15094152,
   "code_bytes": 104955,
@@ -18,5 +25,12 @@
   "refiner_params": 1182530,
   "total_params": 26931928,
   "seed": 42,
-  "date": "2026-03-30"
+  "seeds_completed": [42, 99, 1337, 2025],
+  "date": "2026-03-30",
+  "slurm_jobs": {
+    "seed42": 55383562,
+    "seed99": 55392385,
+    "seed1337": 55392383,
+    "seed2025": 55392384
+  }
 }

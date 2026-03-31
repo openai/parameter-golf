@@ -1,14 +1,27 @@
 # 10L E2E TTT-Linear + FlowRefiner (Non-Record)
 
-**val_bpb: 1.1347** (int6 sliding window, stride=64, seed=42) | **15.20 MB** artifact | 2×A100 PCIe 40GB
+**val_bpb: 1.1335 ± 0.0010** (4-seed mean ± std, int6 sliding window, stride=64) | **~15.1 MB** artifact | 2×A100 PCIe 40GB
 
 ## Track
 
-Non-record submission (`track_non_record_16mb`). Trained on 2×A100 PCIe 40GB for ~2.2 hours (7,185 steps). Artifact fits within the 16,000,000-byte cap.
+Non-record submission (`track_non_record_16mb`). Trained on 2×A100 PCIe 40GB for ~2.2 hours (7,185 steps). Artifact fits within the 16,000,000-byte cap. **4-seed reproducibility established** (seeds 42, 99, 1337, 2025).
 
 **Contribution**: Demonstrates end-to-end TTT-Linear refinement combined with 1-step flow matching, compressed into a 10-layer architecture that fits under the 16 MB artifact limit. The lightweight FlowRefiner is inspired in part by FLOWR's use of learned flow-matching vector fields with efficient Euler-style updates, but adapted here into a tiny hidden-state refiner rather than a pocket-conditioned 3D ligand generator. Includes a three-variant comparison (11L over-budget, 10L legal, 11L+int5 legal) as supplementary data.
 
-## Results (seed=42, 2×A100 PCIe 40GB)
+## Results
+
+### Multi-Seed Reproducibility (4 seeds, 2×A100 PCIe 40GB)
+
+| Seed | SLURM Job | Int6 Roundtrip BPB | Int6 Sliding Window BPB | Artifact Size |
+|------|-----------|-------------------|------------------------|---------------|
+| 42 | 55383562 | 1.15790913 | 1.13472408 | 15,094,152 |
+| 99 | 55392385 | 1.15743221 | 1.13387877 | 15,198,948 |
+| 1337 | 55392383 | 1.15614893 | 1.13269366 | 15,070,964 |
+| 2025 | 55392384 | 1.15630189 | 1.13283672 | 15,117,416 |
+| **Mean** | — | **1.15694804** | **1.13353331** | — |
+| **Std** | — | **0.00085911** | **0.00095351** | — |
+
+### Primary (seed=42, this artifact)
 
 | Metric | Value |
 |--------|-------|
@@ -119,7 +132,7 @@ We explored three strategies to fit the combined E2E-TTT + FlowRefiner architect
 | Variant | Layers | Quant | val_bpb (sw) | Model Size | Code Size | Total | Status |
 |---------|--------|-------|--------------|------------|-----------|-------|--------|
 | A: 11L + 60% warmdown | 11 | int6/int8 | **1.12356295** | 16,576,172 | 104,955 | 16,681,127 | Over budget |
-| **B: 10L (this submission)** | **10** | **int6/int8** | **1.13472408** | **15,094,152** | **104,955** | **15,199,107** | **Legal** |
+| **B: 10L (this submission)** | **10** | **int6/int8** | **1.13353 ± 0.00095 (4-seed)** | **~15.1 MB** | **104,955** | **~15.2 MB** | **Legal** |
 | C: 11L + int5 MLP | 11 | int5/int6/int8 | 1.15074174 | 14,196,568 | 106,694 | 14,303,262 | Legal |
 
 **Key observations:**
@@ -180,24 +193,25 @@ For provenance, the earlier ablation logs are:
 
 | Item | Value |
 |------|-------|
-| SLURM Job ID | 55383562 |
+| SLURM Job ID (seed=42) | 55383562 |
+| SLURM Job ID (seed=99) | 55392385 |
+| SLURM Job ID (seed=1337) | 55392383 |
+| SLURM Job ID (seed=2025) | 55392384 |
 | Node | g022 |
 | GPU | 2×NVIDIA A100-PCIE-40GB |
-| Run directory | `experiments_16mb/varB_10L/runs/seed42_55383562/` |
-| Training log | `train.log` (this directory) |
-| Training script | `run_seed42.sh` (in `supplementary/`) |
-| Runtime | 03:02:11 (wall), ~8020s training loop |
-| Exit code | 0 |
-| stderr | Empty (no warnings or errors) |
+| Run directory | `experiments_16mb/varB_10L/runs/seed{42,99,1337,2025}_<jobid>/` |
+| Training log | `train.log` (seed=42, this directory); additional seeds in `supplementary/` |
+| Training scripts | `run_seed{42,99,1337,2025}.sh` (in `supplementary/`) |
+| Runtime | ~3 hours per seed |
+| Exit code | 0 (all seeds) |
 | Prior 11L ablation study | `experiments_pr549/exp_{baseline,e2e_ttt,flow,combined}/logs/` |
 
 ## Limitations
 
-1. **Single seed**: Only seed=42 was run for this variant. Multi-seed statistical significance was not established.
-2. **Non-record hardware**: 2×A100 PCIe 40GB, not the required 8×H100 SXM for record-track submissions.
-3. **Non-record training time**: ~2.2 hours, exceeding the 10-minute record-track constraint.
-4. **No post-training TTT**: The sliding window result (1.1347) does not include score-first TTT adaptation, which could improve results further.
-5. **10L vs 11L tradeoff**: The 10-layer variant sacrifices ~0.011 BPB relative to the 11-layer Variant A to fit within the artifact size budget.
+1. **Non-record hardware**: 2×A100 PCIe 40GB, not the required 8×H100 SXM for record-track submissions.
+2. **Non-record training time**: ~2.2 hours, exceeding the 10-minute record-track constraint.
+3. **No post-training TTT**: The sliding window result (1.1335 mean) does not include score-first TTT adaptation, which could improve results further.
+4. **10L vs 11L tradeoff**: The 10-layer variant sacrifices ~0.011 BPB relative to the 11-layer Variant A to fit within the artifact size budget.
 
 ## Credits
 
