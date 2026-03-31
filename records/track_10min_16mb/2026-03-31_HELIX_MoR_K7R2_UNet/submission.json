@@ -1,0 +1,7 @@
+{
+  "run_id": "helix_mor_k7r2_unet",
+  "date": "2026-03-31",
+  "val_bpb": null,
+  "bytes_total": null,
+  "notes": "MoR weight sharing on proven SOTA base. K=7 unique blocks × R=2 iterations = 14 virtual layers. All SOTA techniques preserved."
+}
