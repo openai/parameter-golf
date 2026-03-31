@@ -1,0 +1,26 @@
+{
+    "author": "Brian Mwai",
+    "github_id": "brn-mwai",
+    "val_bpb": null,
+    "artifact_bytes": null,
+    "code_bytes": null,
+    "total_bytes": null,
+    "gpu_config": "8xH100",
+    "wallclock_seconds": null,
+    "training_steps": null,
+    "techniques": [
+        "int6_quantization",
+        "zstd22_compression",
+        "11_layers",
+        "mlp_3x",
+        "smear_gate",
+        "bigram_hash",
+        "muon_weight_decay",
+        "stochastic_weight_averaging",
+        "sliding_window_eval",
+        "orthogonal_init",
+        "fp16_embedding_passthrough",
+        "depth_recurrence_optional"
+    ],
+    "notes": "Depth-recurrent transformer with full competitive recipe. Optional depth recurrence mode shares blocks to free parameter budget for wider models."
+}
