@@ -1,228 +1,699 @@
-import lzma as L,base64 as B
-__wrapper_size__=23349
-exec(L.decompress(B.b85decode(";TBUyW?cX?9Eu`uszf$Krci>25I-HuUNjF`N?9VI&1P%41Wt3M0HcnGi85w-CJ8_DYWqCUhZ{>g4nvkJcgHT-RDPNuEud#fAnQaL"
-"SNvkmp$G^X{d(AZjRFxFy>2wf?R)sc9i|_R`TJuej!(A6t?t2t=+vR+ec}DB7#mA!0U3ZPbPd!4VG0zt<mgm>IP9Y`Qh|Y5(~*gP"
-"Uu|L4Sm$iKcMKwI^Xm?&;!d4_(?pkoFq&`({X<p6<RxlkcxQ0&2;cwx6?hk3*)Ee5h(;!E+O#eeSyMhFD~;;=)_um7J#?>;YasmK"
-"ijVu_E?FVOr018tgy@qyX@~WH+K-{#(pQ3sorfjje*Nqq`A<W-k}*tDPN5<hE}}4ru_E7Yy03%?Ks=<eKAD<M-B{5Bq+(Cxey#zk"
-"H%r@S`e-aNv9Gefe2K_1S0;XdLh1O={-?Jat0WgbolQlCIqmPOz^9qH^8L~67x-RTVrp)Am)r(;c56{?AX)h|()WPH&xdh{O~vLC"
-"LYWiD?Q#`mKK3*uV@)6J%HBuT&?(D04`{M?hH98rb7(fxYl@GgASafVr!=N4$v;L~mUvG60r7IppV)ozz}9hMZo|bWQ<sdk(0L<)"
-"=Z2TR?s83^2$B*i2Nm&1k7l<JAfjpQTTJ=W7A9?5bereX2R7il_hPJPyYq^FQoFd)4Ek^i1Y#&nxuLBw@p(&LWR`PfYpzI+nR1t&"
-"258@776@j#3s&ntg(uhWUVX5V{AL3H6@W33*&%i~0I`KO)F2Ic&nFebOP=7+HF0RR<oA1Pg{#^|5<I9j9d;_}Co;Ugo*f!=FR1b#"
-"<d+Xk$f1)F49KV;cdpUr(5})5j}0;O<hnJv0C6eaJx~$uInhw(GtGPz7x|n1dOzqL;H#5jVFs3+jyb~s;H44A|GzixXLcbO>jnAH"
-"#2oqxm<dtbD~f+>Y=ERi&#v}WlLw)|zW>xaD0R(Xii$i~3lIJSNYhuO;!r(0jIG}Mj)~w>w<o>{F9*RCJ?e-N=g~oga2Dww6Q(2Z"
-"Qnkf1d)+V-e+yFgmA)BGt=5*Ym<40o?9<_oU}`tCF`w=UrX(o<_#FV!AcE#rhRFf|eRF~3Cjq5wZ=`#2v$GndICM8;50c{)-(6Pv"
-"m6W1aAqaI7KfqNozgRm8V*(YZGw*&-o><sNY9q`y<{wM2soQB(GqmuSDu%DFRWPiZ<g}BEo`W^cYIxp%x!}L`nwITX!-|Osx$JfT"
-"1L>D$c<FiS)28DYQRSsl&=}rfm-S--L>r~1a(o`+us6bu$Dk<nk8KTpQ!I87!e|JGj81vMrSN`_{yforiZtrK$3|!*>pQd1Cn&2q"
-"85g02HR^skp|5m`b5?2gKu-HF<A;Gc!r-|<2Aqs%FIY9e1WZyBb&V88a4EC2QFC-+9?LH$#9_8~+n~yjds5$PCr|5gjNwi3fqD`~"
-"KY#_Qepg>d2ygiroiK(k`X~d1yS3C?oyQLL1J10OdE=d958oL1P4tcVKW;f)cF^7gQ=Zv3e0GnxN);;yWTj_Ge0G+07^HQcg%}14"
-"d>ww#&%HCEtU6^UkHU;t50#Z0tB+=G)x1HK>6(Jj%9FHqpGhOK2oqlkrCXFz!3w+ibOxHCTcmP%5-b*AErx0=^6N=n_ol^4;hQ1="
-"*Gz_l_2ve;*DDCf+=6B><yn1R1*qT?MYQcstgreH#Jn>^c3YU@<~&j$lrD#^=|V!JNXSbQ18=nd-7u8c<FyC4B4NDCA79q70T#R-"
-"Uucw}=5<kcxbteBFHTfM%kz%hfXJXN$${e87K`8Ok0d$gzHv^WF-bbKV+^b98aMTPo0+zm%s5l&rr+3~K+XXGX6prP!MmvX3a~63"
-"n#de`0i9-m76~li$Q@g<CEB|L@h{}`1=5{d2QX;9)$}@?6>ifrEg=&ND-sSl<HuwX@xO+Gww?1Q0z|sRPe;@s@dXRgQ#2$<_%iPh"
-"H2KB0LVq3(;<o8sa;-6yfw|aoMLg4M^C*NxnU5rep*{k_RU5XJ&>YV>x0vL!1n8$Ei^xW%QH+<dN;eG7ApeGt;CEcZ+jMJba=zX("
-"cJ{v9O{vu){9eU}U2=Y($R)B+3e#32YqlrIMiJo`1k);iwk<8Hwtpa?rRxOW0)qRp<2(XSCp0FEc)X}XE&F6M+|2vVEr@hdtRI`O"
-"?`Ra7G;=qgXj1b}S7fH3vS*{;A^Mg+qxx>hEvsZvJllS3yr>snOw+lTjIj`{z@UxNNTtQ1Ck^prKdoM{F`;>LPCyV`#dJwgp^Vav"
-"9}&kM$~E6Ty}O1uyAK+sUr{ggHgmN>FZ-KhFbAhPeQRwh4_S;KPThZo(3UZc<#VkCL5XBbg#JSsWw?CMeEp;zh<XB-wXaGm3R<jp"
-"<jmUn+O1Xiey8{;(gM|3Tnpp*V|?U@snvP7Dnv^YFt{_O%!ee(cy)G%oli@O?u7;5vr>hSxe|Q=J%YQz>mobcRCy$IC32LAHtkys"
-"%;npjvY!O(1W#l8lkn(p2*}i=k8yNF{k2UVOC%ALD^`AKo|R*-u&V82Y1gjHL$+&r1tVk?Lm!3mJ&rm`xN`V$!?8G|^7ez8HN-fH"
-"N(y6hHy=V{1YbD^D7-F(`(Q`{M5DbR4|TUozLQwV=_tXYi-M^C1G7pNbohKEjpf{gf`6li`WV`&pW@-&G2$ti)*@Q3Djks|%AaZX"
-")t5r7o{cAHk@dIIMhY!%oreu6!J&o@0)WfPJF*xa8Q@>%BIVl%EB2{90cxcM>aHc)ZN>Y;RC|4d5qv0B2d!07YzFIA{$eU1?E+aY"
-"l97Ik$AfzqoQ<Yw%nVh#<EF&1*R_L4HOwIxv`dq`!80sa?!*O2vf!F<>pzKzx!6cHIQGPkIbkK09lOwS*vY3O>An2+w-2Yo#@Eg$"
-"IXV{ga_?#)Al9FNu!7}K+U)`k`t;E@;V>C8luA%?`fg@M;??|;eaM{|Rjt{cr8Jp<y=5j%_+Pt{+GVK0YB=*f9=REb{;p|eSs@FT"
-"WxkEscBF81HROmT%<*{BIfw(5)Qc&@_7X?qr)crcHL^xq{SovaWK#AOivoh)7<-{OxKTqj?Hp`TC_FACb=9xRJVXtwwp_jCdBQxA"
-"9f*_K@g2BSX|-F`5aKJq1j10?RI>zn757f65;B0+T8y1kgRCb=Dv?ThR`heT)a*j+3<`vp9LW454gEbcL3sQ`iR4Vf@TUGw5N7Qf"
-"mAP!g16qGeV6$x4;&sPhii)s!63xnl{XZ&&Plk*-^6M`);d47O3kfCzr_%<SFqllW$R0mxxG0@dhdDdmzJoUeO&KM(UV6)nLZtbi"
-"$O&b^S*BLOL54JKj3d55{6A^xjk?yc^7e-jmPq$hq@{Mp_x;DocngI#CufDOY%)W?Lr4}Av#UJ;1h~p2)`q8ieBcAt(aw)sy*)tv"
-";p&~cw6EI8V@wy}{Sw>UpH<zi^|Zv6VM&${dY3w4gyYW#G!vi^YYC`g4&IfH!lvrL5p!F+%^|?-CMG1}P8lLjP8*O)m*g?3qpq(*"
-"Np`lws{rXANLndlaGtCSdu**@qEe14XY7u8DE=Y*Z}3@+Z$SajZcxKuZZ5nRf?O*ZZabgaiwaV;AClad-wlTABApLN|3S+^vlg}+"
-"mCi+c$wPuomPmD12V573?zG=HU=p4ceZq?jh5q@}c1|Z8Q1cg@=U5lCYWuTGVtz3-keyH;N$t1tg%-V*pxSeS;gJ@pOl-4hI&JkD"
-"Mn1RU@*bHi0Ge3jz$k`sWaYETqsB^EZ=59dbeq6CWm860_IHT>YgY;IAsShVCt4eR>U^A+Am|j~{8P9cQ61!x&9_B}sBL!ksV*ep"
-"(8sn?fhPQ~WZ1vB2r;S0lgp$^E%9Lk=ro>FEk<j*hf&K74Ty5H``Pg%U^d_B$7FYJNL1DKBJ@}?8i^TN!r=$@F1`n*&%0F+eK_RN"
-"6GH)fQmeHM;c}1n;VL9x9as5r>_jK;7aP@cW+@bey=GxtHz%a(K8R)}&gg}(pe-YASvw4eZEaR1r5(J&oPQjLRQG?M({8T5$M(J4"
-"ZI_`=-+-x-jUjXU-Qlixn$6YtBH}csW##=W4Zf40N=XFestH-y{@y=cYqXq$Lww(HRQS4;;OO@&$IE6Jef8ZGn@*jO8B$9x=1VCz"
-"tiAR9`S2Kx?&|SSLY6c?*$4rh8R$x*_y|7`2}c9n-JDpJoj*kMv{sg_vyIW+QC72@==xH+9q%v*kPl@bi(A+_F}AovA%xSPOupBM"
-"X!<GtDoVwUOgAy+gE5HMMP_E=-|otFq=ZGQfpu-M6dc4w@<zQ?I?$(#Q%Z-?0V#1>bF+m!BP!Db(EUJsTb_HfJKUv?xJ-~qKo1Z}"
-"{Ua7HHuI5ECE=itzw^AXvLn38AJ9OGczhOby<avOr;LeBhhzPb&QhkQQPa*idVrsG<N3lJ7R)}Yo0?t0!o5CQ%AJ}eR0F_d@pzee"
-"n_s@ZCBCF9-2)A)PV9E5ew_}G7*5K!C)qrq`JZXV2}3!5q_ua>UYhaD92BP$#>(CT0NM!t01RAryQkWrQpnI?X;k~?UO_4B1im%z"
-"<&rNuz|VW@XyLB>g6O0wHdE+D8Er}L+$U|BQq8W}v%x`K!caZgf(^Di##VDW_PqR<*aAz30x{8_pIKi{c-J>+^`IXLZp@4a!>;7S"
-"D-*4#drki2ued3nKJ`-`Z^he$JBvRnxs;&*vp|^l4apU2$OQ#l-buz0XeZZJn!bO>k8@84bjD@oWP5FE7<&RNH4k#;_(U+w==9Ma"
-"b4T=lc4D4BLU8$Bb{f1)`%nps(`PHWO!IRZut`f6;$tKZ+%YufXhL|GAufo-9R$HD{lnMq8g2^;&qC6YsILKP$3wRep|ycyOqF%="
-"!P^t3U6vVAX)zlQ+7<Q-Vhg0L9BsYoMWNIrRn=19eKzSez>1=Fv+M>m^;TRU5inPd|8+p*!^)k59O)VAp|&PMzwS*ToaxiF5dOI4"
-"=}$~qcu@Cv$UJTyA{HOrLdY(`sez6e;-7SLGo<*YEH>~^#_Y{_v<WGYd<3y6y6))wvxr>h?tKCPRzY_mHR%}FXFxG;XaVprh5-~-"
-"S+P6REJOkDQ_ZraWdCEGDO^-5_}C~xZ*$0kvO=w_6hGU{!di*QV-riw`nkgET<owecinL~%6kwt<P8@1Zcy!xUS$W_nw=aguUDaT"
-"fYS`d6QyoO{fv}qIEWGyF1s1z5=LEpX6bdTJPfEP(3H+uDtLYU)IP;|vW8YNu-YT=;T4vAFdGWW(RVb47ZY5qmCg6PlN;l7yCmA}"
-"<XJcE!pSPXsApv_LZ`v7rx=eY(ty}r_KzRWGai<ZD#PGt2L$Ckepf0GWUzQeh6fY@z;g=REo=u>rg`;1XQ?SCDDbxCmMU6}S67>_"
-"8iGt)i7aoo9kB`KmuFnChdf!#E??K+SC@#<M{js;i^XJ?nZa<a(zOm}niVUoRt?W?AdcORie7>2gl_FoS*%<BqHut*<kjG$+Lm->"
-"*Ad@F9XSV15jh+rTWy@SqaO|fiE5I7-CrCENCr20l0qK5of&9m3V>}YjEUwjDz%SDrnT+`UdE})m&QRB(2IZyKas`kBma#b{7t?0"
-"1X?u%=W%nE;7C9(qtS<zY1qi!M((G$K=k^3wqz$Clr1=j?f1}Y4x*m(1wTvrR_kTTiyZs3fs7MEOKLfFx0=~#pM2NY=)I(sD+XZX"
-"swrp9f`jz@pt|O`Cpw=MIzgZO!+vG}atWT%Eio_IUb&wQCKq0j9n`uTfaldaY3q=)521YGEa-~R00N6r<*`If-Rg$IXUZ9GhkNoI"
-"Sx_RM7`o+(>I7s%PM=0N;$PKKb7Cn4CumeooMtF)=5jjY8&NlI0*rUFIZjf}-&~;$_a2>|`T-}c$NgrMbjZUOOwOs@^A=JRRW8U7"
-"XbY?z7!uu^b>+ro;+VneU$S~?b~&CBhm`$&GQ4k&vm0yN{hIVrt7~rLmUo3wtIJ`!^H=r-m*2+a?eFUoUoTGGkWs<Z#XMJ0a54=*"
-"RUx?0@@*ro9i|YVc$4&*AEWP-e!MP_WExfj;=~0OiL7<St8cPc82g_5$_;?$NJ;Uf67rQ%CBc^_aQAPXHyE?hv{xp-p-4d^SGNh3"
-"b-0A=RXVqocM1W>eMbQQIloTLrJTbE3($ZDz=%u4@poGjg(}7icWu9~cEsB>7T7D@6p3Ybd=KXv?+sc>yW?4ALD&Px9)c-EvJ)dB"
-"+=xNZ@WflGMyQ*a(c98NI^{aO&DAlZljm6U9CD;i6!cE1_gJGF+$+2T;nxvS`VD7%JbbNp0SN2ot+&ul89B$ze&P%<<KZ}l5Lfw$"
-"jdXOq0wcS)GNm{bR`g)W<%Mm@pETqA0&EM=t`}Ufkc8Ef%h$r`GY`>;Jb&8~h*Y;hHiZa_UWv9AM4vEq^%`^?#sl(F=l|iksTqtn"
-")dRo=N+4(i5v{)%bU%UAZ0`Av{+g?)2VqR+&IZ_@rN9|dNr(VlDxOz+C|#WYmr_&y^aj%dp`n^XO%ZY{0oEzZP!2vJi(nl-%K;?D"
-"4y`5n{Z89?l`GHIQ;>7VccD=gl!ZFI&Wz;f1$U>XJL8~2VwL)`8n+G4f7!y3<~3!}k#1aNgugmS3uTa#!`AqH<_bFQUN;DGn(no~"
-"c^Mqn%pCuiKt#swOscwCly&ummdMj|e*?vEIdrIm0xblKBF4-nCEo6U=^THik{+HkQ=*)a9ZNAjnjJvo%N!)JqKXbO3kICY@SjmP"
-"B*n-+ZxH@`<}j;26A<BDsEK9ca<%Ihev92s&SgEanwzDPgM(R8UD4WIhl@a)%7~ANt81z~<l+h@okbPkrB_7mdATw(8A5SuNh2h0"
-"c5(y&<unKA>qX)K2gVor1P9&I77!`H5ws*eL+|nBN3XanDen;VmIwftJahG7%ux9uyM)`POxYA$>1YAxvL)D4Gkz6@jZV!6j1YUr"
-"%#JaQ@S;O1haVVqsN&>iVW^-mtl7;FjLuM7QJvTl*(_vuBayARqRgQC(x7wF3MG3A6@+=j6H5Kmq0}<v9$lhnM_(|lyPdEnDv3Wz"
-"JOckiaSO`P5{JM+MGtbk5MKSR3&7>FzqZ{27_mjPy~@4^+EF!i6+=5*vE#UrJdY4x5$<E|vl^fkDX2jzPBWWiQFra(BooW7!&|?&"
-"np&&LUnOVWE&+rYUasIW!Q5}hKd$5==`H5QjUg!2ari!FkfGR@fTkgdv`&i531sr0$5#n}9~*k$Unif<H+xDDMrfCcFXc6<B4Q-Q"
-">!R%gy>n!!J<*eb%jGvghVfi;9@1%ez%LCSE*rEO;<Td@HHr*&k;PS<e}%uDqFs5MqLpe|^S9P^slakOo6|mRV${!ail<iqK;XlM"
-"cbpwiLW6RcC=&nC_*ezt@*Rn<dt}=?HeLATj2g)MzN8H+TsG2}>7s!%9xYCd>LY}q8C6m7PabZ8>;G2YN1&U(5mGRQhUtGnAq-9I"
-"B-WI>6UB!Lnx5Hr$CU|z8CJr3oWNRu)H^ZX*EniR4iZMpPqHT@eRG4`g)3F3=SUz;9uw#^F9+Q+yg1N?hSfFP4@jZn#v2|^8WXUn"
-"P9U&h)AjK~unzZtnDC*k!NV{@Vfy}6k_vg+#gV{N$LNRbwwjntVXYx(XEz~Hiqo#u%I!G5lI(z(iMz_~V%7o%v+Y+t?Q;=uztF_R"
-"{{0Tlq?sdi4U){T2Pes@=kN<GAm(8}t%h92VmyGBd4|?i%yhA~LJ!$FBUU7QOK|8`9SrWmlFl8JH6TwsPTi%dCixT1QY<9fJvmtv"
-"i``|pgp8XcAK^K}r)Ku0`Fk~lIjuHEtxDbgD03K$07)l=p$YlFLRSrKI^x(76pwoaLd1!4fInEBqmT=JoMxsRC?%63t<ze##4lUN"
-"4xI0|B?%h}Ej}9{7wu};?Q;~u>U?#&+PGEXQlSpvb6$%{JS`ukp#`puv*3sSnGFqTGbchN4(kb3T?ckBu{tiboBgQFoCIN0*D3P6"
-"Cs`aHdI)px41S!j>X){3;8@Zq<|WH$)Sy<n;=FWP4+oclH9sk-_rg8`$|E2+&85nK9NqJ~#4iZ46y2hSF84hx2>S#d?fufl2ASw7"
-"C_z}j)<*$210aI-Z$YlQyaevpS%@m|38DEU($3+)Mn9)jX&;7;O7=h(;-zzRfUZWe@tK;ay$sNeM5hXBSz(Y*=j8p8C4F?=Ou02~"
-"@@2)S?^4@4@WxkzQ^#ySrTY7q=~K%3k#DL+a3#>y*IA72JI;hGEqQDV!(Jmp9-i0COafprb;}q0bMA$b2U|+l(-8Zy?gf9WP!kB|"
-"Tvl1m^%gwOx-WAYx!~=&i`=*2Q<-uy_QjX~wf5b87$h?d!v#`s*%6k;x<C%!5Lz|FEnm&TVvzMg1c;k(Ma0ymTbCUy?%gaBJReUN"
-"BU(`hw9i{qNtLm5fton5X>5LY#X0NcbX6zK@`&mbZy;u_#QFi9XLTA_7$`D4Z&JSMVycX_2|{%7%jltA{b)2uh?&gh3+3#`^U-TH"
-"=X_%AyigC=>oh?{jFw#0H@gJZTEmcrCvB|BXM)>f+450ODew(IP44u>D^s-0+pWUSZHcGzzs{W8ut1`}%I#kE7VkBPKC(i&+I|6~"
-"X;*mEiiZ2SXig7cYL2Tr0;d$HtN|Y&N%jbT;t)+s6-xZy;SQ}U&^`t|l>uZpC8R^pPrgI*RYC)de0#seOXB^l4nXb}3XhlMiRj}K"
-"{CoCK){>^HrPE9ZF_oq9q64@9x$80PNo!|IMbbS?3y=e;I7T^JYf4@lYdy`V>+0#w*dgo3&j3y>^e>jkf(6y7oIvs~;#RrIMkqg#"
-"0aD2yn+KGLY;|{jH-xHzCm~?;za<`T5+rqc+R}0)B-GzkMc;6zCEVY>z(z<e1JnTzK3?$gvd-;E%dUQajJ5WxsH3?p7-@p^ic(Jk"
-"2zc`bDt--`s+2d64N@3B7jEF5u;<@?eljNF7R1zw{pCI)#HN0$=Y|o%o*>=r>H?w6qge`)F`&RDMA=CMe5;#*-wQ>q`G|AJ`5~sy"
-"6&4=;$f=dJ!7vxfHF8xT!jIAPBVKoYQD?;~@Hdj_z_E+sa9~X;$qOXSu-SNmf&CkWrWIOfk{eQ(<i)EFQ;2<pg?CSf%M09o!bD*T"
-"bD|(Z(RN9c<R<<tbiI@F9L#tR2~RdL$sbx2JYs^sHsjIuOX?d0(P$>+2n5&pHf6ltuj2#pVQ3UQPM5^i6Ks#&UAm2{@LnrXdzB+v"
-"jM*^!j4rf6M8&!eXj1a&bI@n{mKHB{v0Na*>OTP$$Et<BgzD`GL3YZ%1byUVfFl_yvZjM6XAti$uIu*@EU<}|5~lF=t8Sh0=bUGz"
-"rg!JK-EzWU6ME39z53ORRa%oxm%3MEQb3nDC49FrnTP7$lQT;YZjkI%aFTl?Eg^jxxMbYHfVkRNP1#@4a;Q6x+P=gl>b|h4s;XN9"
-"_KSt8;I8eGm!X}O&M@4joN_uuR%brPghuz>ko*<}dg$Yb31gKL1^M!vQe0I%sN6JQ$US%dsW11Rn**z!{M;!SaKuA1FUxtipBY)x"
-"q@%!t*w*P)0EAX|)pS{E=!$xaseA8DOUFsa1m(x+*UAJ(?<*H|fOeqiHmiY=&e+6i_dbI~%UOZ9)nC9|r0z<g`{sqT1Ls~A@rN-@"
-"Ga%jhui&aHu7G|bR9x8z)3#8{G?&E6Kn@^1VvC_eub)affXMeA@FrdIU?N0%6(L?LowG$km7Rz?QgMD$NL(NmzpC%nMO=TmMy*Hl"
-"2~Hu8;0_nqqvT2*VV1RX#wZGOiYAG>NtN^FzNPCx&R!Drm&fMs{A+tX-Z^UcLj6io|IWgPPcQ1UCZSDrp;C;w>;gAC?uDi2o+5k}"
-"8XI=UVNL^iz6$%g&r&ZJFYpsfL8GmEoF#*OLH^Acx->N+qKC4YlqcG-n5RJ^7yf`Wf5=oRSEn^21;PqAzd$UN+Hp@h;JQJk9*%k)"
-"ly6<m!FW*l0|G)u177L_=g2=G;lF}j0y6z_D3vHC9xw!qRF_FuBH{xhBeh-AEUkVOSd}I8s2fb9nr_I<CS2)YQN;Iu9C=uw@l)ca"
-"+VIHlQ^%Iw1G}{O)|qNkJ?AQvyG{<B)kKi|SQzR~u_W(kh8ZZWlhOVGB1ek?<DZ(9E@GeT^;m%!>LVD;`qfPHPTEBEa&y}!#C)>e"
-"Ic=MSbaiUKe<RA~N04ZjrV|*pfp6ID<h!qBIY6|*q0~JAiW0!B($j=mvM+^@*&7Fxxn&1O%pJ&`NOjE-3~{r<%kT(-lVONcs?XW6"
-")*i0~BgS9Wsld!x(eM;;$|rdW&4FXpn`6c~3hk`rAy~fe2aSvWv(1nd{#nU})o$5FhvbMl^DKQE^*m$F?}h?#JjIo7tbMt8h!oQn"
-"Zot0O8LDPWc)(YRZ0u2G$Ang^__+qED3WKFjR{y%+qf9DHB{-#sf_ZEX_rcaGQgphqqlLC4oy~>E<T0Gf`&f7NpnM<09(22yF6Gm"
-"fpG6&E&6sNVb^of0Hm?JFx%7|$;yM^ooGe0U3Btu&Os~4nec*<AWt?$t;W#8&p4P2#k5~=VG&QP(Bo;Fj{6W38IGNgf9kV-cunQP"
-"h}Pqyeq<iP>m9Oe*CG^-Z92xkN!7ZncfC$}ALj<L$3bT|qth|@gdtG~I2vHJ^)-0g9p`Lw78{p+1EzAvqlAI|C|%ZD1<+{a+)+vW"
-"twI%epU~p$JxsF3M;~qUi@X;mE%ID9pq$^q4ghgf`UmenZgUsam87Wt^_pop0+D%<1Y4Q{EAw8L3fNe>AEA<aaRI$WA(v-yYZIej"
-"bldU3zut7HXpv$W=+-Z-Lkp_ZG^)yfI4MNyPcGe}>u?<RYwW~#BeLjT+O@`LT>|=5>~i38+b1F|W(*Z(xr@>xTgm_zz+RAd*wqEM"
-"Q2#BvwLD%>sl5>PEbiJAvUQ4&o&W(Sgn{?5ARs504)6Z#f^<!Z3xuaoH^f3%ET+)doggNif0SR$pG6>V1*n*s@Yu-*O!^{=lKrPI"
-"1@9L#{Dc<ko@g%?J5eMSYuNfUwgx9{StFK2hf5Bcth_1PKAI3nU!es+^(B?o(9Ilea&f=v2r#?W$LLOInmf71rz!jT6r4BU0c}S("
-"$nctK24ohhZz8oLsriq1`CjyY({YY>A4?C&X$&{Xw0<1%2A$+#`>izZh{$ssx4UUQ`BR})FuYekT$KREU#T)yjl-<@a_@TIAFMUx"
-"YOqcpd6%0$PSor|8Iqgrv0XTWg~)iFlJ%X4Q?Rv9R+5U{|J8H?qYL5FuhKp8BsOCYdj`UbV9N9iR(+WUgebb&7yD1ypp7H}SfF=!"
-"Qs_iM-g3Wp-Hfr15S;xn$B(#ph~&+`Qq}>ur}~qmst9$qr}WSAinMP)pn-trpttU+wXr(*KvfULWB5|n{Tbqa>G&tI&or#ck4@Um"
-"A#5lhI^*QfxyqTCYf2+26*iO579JlQ>9l445>OA&>K|CfN(jtJtobV@=KY23wdk^-r}|8;x!D~V+Q1#RQ3j>ekgA5yr)_uINuMC}"
-"{_B8V7{zymRVtYV7ll!3G~Eg+QX&7mL`r?a+`G*bVF9(tB%B*~WYL4iV+e=Orln`muAQ0zFB|ya9NE1Spe~YW9U!n;EKDz(9c5Z%"
-"@*b_#UTaDlz8u={1OH9ru$C=QgIi{G)LsaNxEi2MkX3>ALKJt<V0bZN9D$||sC0265$oPtV=XQ;WB@;tg%%zyS|MLBHF?}u8IdR}"
-")@2!ify%!BvkpP2C;X(Q2Z2?niy|EAp^Z&h*OA?xEmGThei|Oy^pzr&%qh0hP%o!c;1RhwTwe{wAxr%X2A#NNC7pnWP-O*`eCdY8"
-"iAi+UGHL(i+ZO5wc7{`?EPZhJKE~VRo31DACB)WIlawRK!aWJTM`coQCvM^=WTdc>OFjTJf=Dd>#h}_bVhiJnNt!vF`~KsZY?V=J"
-"cb;GXQ7_5tLwyxkluhH~%SqjPZeU5c*Gwbw)YB$y4cNterJt5`ySSW7jm>WqF-PRf^jFnbeUc|;!wZaZC%=xpGH;Pz4cAEol6<Un"
-"{9Gam3#tOSUazbvk|4+QRG+QUVKB<?f;x1R>DZ&Y>Uv7NssS_#yOqy9>TXqrFHN$KvT}(URY=F#A3y4~F;QUU9$Iw#s@1fLxpt{Q"
-"5aHpA<MX-!tPw`$TYRvSnEzmmwl>}!CifNozfI&5;bh9ALQ89hJHiOTEZZq!dVrMfLgm#HlybUPkwkFYR~gKw5+w}WB>`dS6tZ1E"
-"t_b8^HYWMKDWC-z^1KEN#Z$;UO17y@{)sPmngTSGZ^#4^t-fT_2>lT>xJ3qrb=?{Z=*-JHiPW%J^+TdmkmIvhcK%LvwNnJP6}}7<"
-"%g^Gm0uj5OLFa{ydE={oP&N@BX<NYOfrQn|@W>rW3VIU1O!u7gGVnrM^`cE^8i5Mjc6m`kCK)e%86A2{2O^?lEa<F%La;xq^zNw|"
-"bvGkxMc8dSvOoU0*L3y^MOTLjpu4^pPXv4or0x-2s5-+}h?=4xg`)kcT#W_IQXyFZTQqw?Y{lV9T8t4GrO@RSd{Rr$oD`LGXODCT"
-"4>qiK+rD;q)s5SU9#?K9z{uMwSFDnwH5(W;Lg%?Cexe92hR_E+F|_L})reRtxR8o7E@(*b)dD)T328K-P<{VjL!eTq&L+JqjJ8B}"
-"0@}iduhXM~x2GRWkfWRuW?^pK$hMq)`N%i?71kKYWR@7zqOY|~o}5ujNYppEq_L8)J_zLPTC3njjSkkD2W0^1<J|&gw79|pZr!4F"
-"a==K)XDpgg6cZ_qkQ0&0B)2Hr>>^EHzRJ42fuS>5)TiiEkR+G|g<=)EHaz$ur?BOzXtO5lA>r<ml)p+T_z8P)-EwV+S=81jAsot5"
-")O@-_XOESfm7|~&OP$0Y=sOlidn}8Pe)r#fGRinH0a%H5#lAv^UVgv=NYN_Cb(N|Nw8j(fHd%Ly;UJ?2yE-JK$UnPoFH)$i9Xlt^"
-"dh|JKP~HJC+}Rqpt%P$ezV3eZbR2ZLZenhPWk36DndaoXJN7P6+Mw4rXfIS>b9RSvbYfxXEe;ogsm^4j*s=^hJSUgN+ec#NsvPt`"
-"(FfZ!-RfV1k*m+uaC)9HS9}QUjRd(K8H(sLbGN{e{tTK+1xc_NZ_-<)<jQ^s0If$*kGM1&HZqo=z#Oe(q&bOuX{b4JDO-#W1JK5n"
-"eYYlPKN$E1KEzVf<#IQjJXl);Lcy-Wq4w5I2v%<oRAE2bll1{XNs}i~K*t1eiuYEPR@~8+_L|hxsZOy?@C#*$q2WhY6-!Ovk(KJ~"
-"+ii1gyM~Ej#{SR9z}dSIL)R-vpA}GII%kT_cfB<*j5V=Sj*AmgV18HT*~tjs!OW?kpn5Snfz`X*8tu~}Ihl|Mw3m+V%?3W)88KYO"
-"1pxF&@BoPyOX#-fty25OJyD5gL?V_&ceq58yWH)^LT`a%Fa_+?g$*2oBheacmR+WxV$MK$!){;}3rWj!&Y1@`I21dn+{ZWsiqW!u"
-"+~n5$B9zr2qDZd3;omMBCtunb#&DgdLhsgksA03Bajvn5R?A(Z2d4Kf!UVzaHXoIgpfhR`lHvp1;f@}@MC7+;EN}2hCL{oH^2nD("
-"BNa*4Dh_xW31)=@02NRy3#!T{1YPZ|wREai5Ap<iKQsu)80MvPsj{d*@56wcH*__n0{b)2NUSe2V6-*lH8NHzvg`R<Zf;WRf44CC"
-">}qG0QF3oEdBS))LL}bFDg9xUWn$SNv&qC&DW|<ZQ9)zJOsAS6*C%D?kJ3!7yQ+s~apCpzAkALLNPd?nJvg~#5U>M{gB)ED?hxb?"
-"7C^u<5ZAX!A>5_4X<ecnKPFuje-wYgHhAUeeOy!>T-@P?u{5Lz$$B?hhZjgh<X;NyXie_Uj5fzAFYGC%*ss6|M{sGg|DlVdtzbps"
-"@|nb&x*#++=X(HzE0U5j3m#kG8+Sg!WC=&zD&r=Dy?aSEpL;$2R=Jl3Q!+E6$P%Ux_X`!3R%L?`l0?8fJ6?oE2sr<>ado|s9iRcW"
-"ss-5RR&|(0ld534%J$Q0709V?lN%f&*xC&Nl+_sxTB`Je$#{-5D1K^CTYkxp1a~@bK;1fdd0>Isu8_1`h8AkMgC!f#vvMFnRdx`G"
-"Uws7kUg;j#@Vv))dllE4i20<3AE(#`W9Y*QL=#4BMU7ScP?boIPW|*_IjK*vTqylnfH-Lk5=fP1mX#GnhT2xUju;v7#I;2uzWSFp"
-"qE2((YH}MhJ`j1Z%vxzNC&r*n{f+Z%dg;QqE?dSWunraqi!;77Kp5d{JAJt-j){X}Eb!_=*!f+z6Nam%c$7{W<~R|Qz8`<7I*DVy"
-"B-5w$lZrr^A&ddHbX(ogvAcyNdXdkptBOhOK#BCN>1M~#LuSwp(Q=W7(eBU%P=IX-1h(7gQMi+w9bdF=PTYq<O<=i}!!nX5PRCFj"
-"S+7T@VTryc@CH4vLpEB@yocSR20nLT1(sB6l4+&PI#D|<*m5+U=QXab2}e2iVOwUYS~f#50?_yTfaFF^og>lV`wQqiaEnL?KBd0T"
-"4^O=O4i<1Br?|bhAoaWA>O<H;X&LPY&J_dEEwatVI2tvl3$iD-r30RJ)3Q9+{*~MbFtvXg2`^`ft3TPVCWq;YJ*@#zU^04PnLPoA"
-"ngc2zXA_7CmRw_gFn$B8J@)5z<XQr-&g($$IG9=+5yihu<*S<xbN{%!fg&c44yRDgd*A3;H)k=`VPc{Mp0)vocL+~P>O%2Yf0!$N"
-"MGvtpPveu35NpK33r;_y)YW=m>VeYE1GmMc4TLpg6VL)nx{B}O71u2LOK*=h@y_vbMHoOLg~~K*PW~Dc;o$)nBBJMG_8kGUp5U+T"
-"_l{0y%warcWQH<y{2jy!no89Bw~l{?gb^9zl*6C__@>xMfji@vhc9b&s>33DfS^U1)f{W1cGOw<xKFV==MJqrb2~|BUjR2@*B`B~"
-"ahl_KG6HtNO)r!@Ne>=IK7jHW6$k90mBtVY<5D0%?)&3{d>2<UPun2R?TD4<qZ5{uOLRA;oBBLn4+oH);3Yw%lOp`gJ3GxA0GR?Q"
-"0Q@t52J!yRajMS^?ojex%^|>V%kD#qd02ChhrHx1ffl<HBZQe-nmn{7(NkgCz;90R`8@km`O2bk8=DR<7ZWko$cV`@V@F$OG5(y?"
-"-(u{HirJviJ?r4Mpe*O_xyryp`S}G4`u*K)So#4%5>hC&hR}Awsxx+y@o}#6wefyU<+NMORPFB%P2W0nWiUQSA!jq@!@0{f)A@+d"
-"eckOifyWJt!W=bFlBU9nKST6(IM~k&5|kMbqfvO<{_u;N6QfmWsgJ4s<5C}KTszka)YIg*iL)Y`HyrDInzOmLEDlicDl-cne#ez+"
-"mu!jz{BZX@OjPuKV1WnFdr=|=#-9n(UkiNFh$X&X4kX@|4K@g>N0|hgs*j*Bv-)VSiR2gC0)k$E_^hE`lx(oL6~K*y1^PfLmmSn_"
-"=V1ymF@vwnM$=S#zAX@@NwUZbS1h1Pw3X#^%YsWC&tDNqU;<o<E2r@Q6qlYQ^dAmvd+q~8R4=ZkS$^0wu`Y@1vk>ytjynoZZ$A#A"
-"6s+Dhq?OpC++2*;qqHZS5P{gb)s4bVSz$zy*y*a3Q<NX){IDTLBXg|7z0slT>S2^`l*ED>BwXC!CzIEiEOk~PMv87f#t~2*!LphK"
-"F_BlB5+q<3Ue?Ia*Q{q`BLXLJLm(-NpnRP5gBlCwCOoYRGI>GGQwxYkf9%*3MC+%)@aV*h^y-XmtMRy)x(~;g1&1?3SKlijPpaRX"
-"h?t@mxnq?so&)SE6)9O<rH6MJJ3;^*oUr{9m`opm2%i545J}d+_UfG12Oob#U_;~_*tk<SjeCb{$nKC{#V1s`(nmSF`{LOl&i1!C"
-"J>=L=)i(qnR;pvHarmN-ig3Wzy7X~26$m@QIi+&B^0ruC6d)9$r(y3<a21AKc}NWboxiSU0)}aT>oHKfb*oNS27r1zu>kp+vu7Jx"
-";fL@$eHYADw+4(>JFaK52vPQsV!XgqVXY5znoULX*2=dG5l6c3&bo|#Y(d`WOh`}csMz!zzvWUW8B^=M*&J(c@jcp6Icfj_+J2Z+"
-"!U9{+3r6Cdosfzqu)9)Uuk!wRbJoV%6q7F}MW6@{_CajN6rb4f7D_r(uwa}vg?lYfShJI3%bS%NoF~?Uh{kQ3BB_9~6|5<jhrXqh"
-"XVp9`fw(hU1E$2dGnv8zZxqK&2&NLJ8BR}Z?cZDb-QGwx<q}=?Mg+O$?<%bVdxWK>&NZvPLtS{Ymrkey!Royo6>4NenrKGqzfIy>"
-"1M3nbyE|}@;t=x?XIU-sZ~|;jB^Qek6oH@(+H7M+%CY`;#y&~6%i$i^o!DV<M~9K6HIG{ruQ_uFlJso<j(^b;mSpIMm{yNT?~{q8"
-"e(aRKccELD&{VnrhCnMU6x}=mJ4?X}lPj{O5F&Q}=g}@Rm=}i)7Pm0Q>G*9S#qzduW;Lg}UG=ayN4y2RknMGYD$)ce0P}uoV4d)^"
-"4-&FSxY;LYVK-;by<mKIPGvE^CP05w-R0h@!tU|@a8N&O(XEc@(jozES$aQV_cib;NG-n*n$<)+NtwX_;JmUfxf7#5KihittZH-_"
-"@TZd2WuuLjJJARax8^u_Qv(+C)uXa|h!K|d*ld}7XbaL>(yrHUp0`9I=r8#m35A7K(qA7b2w&nT{zY<>r@(&=j*0=Z;)GX@Bh#jO"
-"|F)%T!F1??sUcW9I(MOlv2bf-Lt>p-YmIIW^8MY-(<rHM#?di^*{>f6_F61Uo~{nlpdXe6bEp-Ih(Vbv$i{3XiYYs-Xgm`i*w|}="
-"Dg!U0ZRWf|XF|Qbq2AVe$h8Pzyc@K%ykkh6df@UOTif~Kj;71*cZw7<>uFo()heQ79#4}W+j(!!7E{XD4w~n2YeXRX38}r+cbl3{"
-"^K6WLPkL<p2-mZSUb*0sOsR3`t%hHEAdCoXF<CTUS?OcLO=55bP0!5Y!|S-ezpabP&ubue>i8eVtN1&w9$&GzRPke(EGcwYw7q|q"
-"1_?_i-WpCEwk*3ciQ{>(ku@q{OY_p6bD1EQt$K1K>UEfX8kVv3#A)o~BfU>?oHmn{fe^lZ1xgsEW5yD)WeZUA)uw$AM$!%I;5*)J"
-">Ynq1P}G(UhCZ(2k(YEe6OGV-Zgfzp>A86>e_4r~+)33TEqno5GQQ)}Qtay^qF&ium}t8JG0csqT(Y^W1kp^qr7x;6Xg{vBWMCO6"
-"5WVfjAt5T)mFe5h$u2}ltlH&2h=|m7IL2{o<lP!i?y9Yq0>a;#oNpB)mjwBLZ;vnkIoDIT<D$QDuiU#gdoQ)tW0mfNHY-0M0UGDN"
-"m+<+CmAX0~2iY`jRFv|cVk1JIrKUqJ*v|)|pC1Lq7Z}F{>WBM+F+z*EDHpMbym4R?^1#5ly$#w?<iU@Y&&U1Pev^1QLR>YPMMe-5"
-"L!-fq`$Ul!3lW9kvMRa4f25V^@QmlV#98xWlquCPm*Zdh6+D7^gmU_<xP|(I=gNibHqtot8ZgNkPw@$fj%Oy_+#$|z^ny?5p#NXR"
-"*K7Ag^6r{GIsjgvNZ)U@?lgKBb=(=_8LcF3S4zGN(`Tl;gCZ0{0HyUxnu4NhpP+e9ee1YJt30YlCojQ}bc_;&>L>MBE>$FqVxmr)"
-"2v7URgzZt9uznvzj-Hv?y!C<h$m7{w<Us-Np&t`yR#?y}XFunfJ9+Y)eu|noj4NcE4|F(=`JZjBp^va-TPdF`Utx}MP}h&%qk5%!"
-"{q6@vR-}DLvkIBX9A0KaOQ)?G?q;bEgZG$xVr-l2t@rpVQ8!W+axB@{t}0rXMvSzV&5*sYA=M+uYM_o2g0>S$klQJe*n?RyqCY%I"
-"HMsfYgbzqL-d1;l@*o$Kb#7Yl#K{f}(BezN65ez30C#P)>e=<;x2(sRLC?f1Y(*sZoHY$B=BWddxk_dCK^Ud3qk?ZWVO@zDOwZ#K"
-"JfNHiMgTHdXEf3cIwqLKv2geD9%nVidX@OzAhx)EEAUmM1fg_{`iky)miVO0>wUQLo-wsbNUn89bw#TNIyxFR5?Q~h_$4`vIw`Bb"
-"wiHv%M9n&&%7h=p*+#8){8dU7y^0dlnp}Mkta>7$0U9x&hQv}ZUpwdzC2;Po)?F&>-&i$bl!%D!!)ob-U@Q@Ygp7nr{WLKN!SgTq"
-"GYA|h)jO{#kmnum5J8X-=nX0aA{;X>CPUl$r?R|N5ogPWBoMNvi?3EeyEst4Nn#4z+~bZKvQEjQo6dWh)(Y|Ixao80IKidPgy6Nt"
-"29Vdtm^TwP{>Z-5Z*P|V7<RK_RP1ZKDuf=OlW+@vGxOe~x|kl@KVCK?yN8i|*Vr0bwe-7QC<?ND5?1V)mN$*5;k#GkR{v{(uK0&1"
-"IR^om)!6h|h(%^v+AZh~cSCm}<cHrRyBo6FZg4by94OTb0amLLwlrO&`Jf5YpudY*1Ez-`ZH-1nK2B?8f5=={N?n!51f;*eAi<&("
-"wN#12J1<Nkr2X6ZF{N9>nRd|#Fy%0&{&6C`@Z3zK{ZxFBX<r+q!O92!)S)vs9oVJ)-9E3a_Wh~~2^tJ2OIi=l3D;Mn4Pp|)<#f@}"
-"u5a*W_>x1WdiRx3;YMMU!;MP6C<4nKYM`51)x!++<B%F__vzEgGGr>8`n#3Gh@~u}nB|!GTr2i)RKp5?6Gq^fqLdO70~e=EmKc77"
-"ynX~0?cIUs`(o-&#{~P`G1%`h9;{$LNEIf8kXE-Xj>+Ngrky|gaA9XD9I6zkB>BN~<rP!~9Qo8xPIVV!K#cJkW)GV}>i8YpoL-gA"
-"Fg}~;4x4x&TC!!Mq?zNSO;yn%z6;|hHZLu_AiejypqhwuC?6~_K5zl9g+V3n^@joz(a^L`W6CMH)04(vFthv{P9@Fy=cVUbLIXYe"
-"u{Q*x2fc|XblZP=J$PItrs%&83t;jJ<CU#roIeDe9Pn?Ae3Rizei~wB3?IsV$a4NvK@4xO;%`+-(fr1JTvt5|unz|RJ@@dB%Y@l`"
-"*ILXE9S}|hs$esi%po{UBj-x^kcr9J_nmc|K_TW+01ibUe`vB(HiE5km7agqLhHky$9YWo@6nXH4!b~4wT$Lni-2|YN5uHp)be&_"
-"POkOsbc`rR{nz0U{xzz7E7CMQdU+o#6pDhMwAe5<Y=JXG{ZeB1<SN|L%~C1%q&$@n_H{Y6Y&|_Va1>o5+?DaG%qb@bvb;OcSWToY"
-"rR!(KIA_9@%|2sKo^;}&vziU0AMk$tC>u2+e&2w9HQH~6B|}9vt@q%FH`QV_GD*Lb%Q6R;SAJmyqs`45@mgmICFRLGK#1k5!@o`{"
-"%Xp;wYG<fr7lbhHZKv|-Kz+<%dNQSGPtoFPhXZb^M=Wqu3B|T*#*k95!u8RnhSoZGb;mkJ@LrjN{vp9N%x+nG7#Bn>6;)@92=(@5"
-"ggvy6do&eKX1LT7W`Sm)f7ZIL*Rh&TaQYUm`zv1gAJw>#u-?=IiOcMw9ZT{1R|bEQ=~%`m2NiwRcN`?mBX4i}HQRyd_oTJ9_KI={"
-"ATaZ(<|_V&k%zb_nXH4JqK98DUS(lrZU4c^L%u2h`--}7oxOsl1yGYux!*)sve`n>@QrG&VAt*Fl&R{Oa44F3znW_(K%RG&;W;j+"
-"f*AzTAMA%TK#gS9G%nw0(%M-9R?*q|eDsDrd}}F`dVtE9kvIG$?B-(Lc>{u`Y8;!hiF14+3xBm=voJ)Olo3YDqxsXB$J!-r6P~4~"
-"jBp5nz#A<Lh7i6-X)w;9KE>oTF%ursXGoE%_Jg55y>&fyg^|m7XBhK4@2X1mTU`<GJcc@bQyL`b#7gNgtdcw*#G3WNwb>26sEW`_"
-"8#QD>&L-sqt9E@A_ci|eTKK%Jo2J4n4_~a0nVc!wf<b3|cR}CvR%zUll(U^OlM-DngT$^mFtVdG=?`l{xzjg$t3*=>s0u*%>~)?0"
-"s7XrNSSUog(~;4ua7xU|^>D2+tZd!Tr)%Wy3cfYbdpVPh)8c@Xi9A!Ej_wGSbqxuCt=>XtMCVWfLLR=!qBL{y!1T?(=qFgnDB#(U"
-"jpqv}SDprQgt@r7WPv2;XZb`UFsdVVE)aI;911a{w^z7B$9#fGwcYt3|C?)ks}Y&xItD>Bp*T8U3Sk!rT@}qn3Z%*1iIb1$J(eZ2"
-"0ucIiV%;>N;9hvW8SCB*_QjAE{LOrN)odJ0-l~vUsYkR2LdCFppR8?G;1Gik!cMpgSRR#yx4NnMbg_{0)QdVTRg)U|zY7EjWA<mo"
-"T(5Z<khswZL_&%vQ{`@vgI=_dA+^fRVq!+>p}hhsp@U<4L;h;MAr?S^bUep_<))8qZ`blj@@Fe3EH3|_$QfAprKjDx+H%qfZmJNp"
-"wl{b2ZDcSZKPR0g=*>l`bsj=?iR#Yqsw1pGo)DIAEh4pCt}7f0qBtRw3oS7KeW6o_gtoxBu|R!fSa?Njy>RftK5Hd45I~;PIr{VV"
-"xh2AUxlH&wG<Cs)q@}0Nd}X)5I!>;sE)h_28aT@r56dLC`uksCc7>DJO(0q8AS0N`PBHHUEueqbgt9Dmlt;JA5G%h8Ma2^w*LF^-"
-">cv(Yq`8QkHT>^JGqN~tzVoN*9f)ws#sSB(i{otxquW|DD+4)5_jnd{XwxWcC=E?Op({t1r!#wUAL6I$?gG0<xp%<1&XZVoG-k~Z"
-"FDvvTROD{p?aT$AH8`#Q5}&Q(PtapVrBBZP9Q^?Usx2;R66h24nPjj;tr6^A5QD+LvJ8tiW6aVCdJSM$b}^LX6*Wa+YuBZWNRr1m"
-"s?y{WjJ7Yd<zl_OT<x$aeKl0_--<t3ASAp#gE<Y|QoFFcZ+lxC#hpoeW;x>>jXO8;(Dw(a%C0a6bdru+ir1fpW!T~s5;#PAb29Pt"
-"FRLBi*r35iT@-~Qf?yecqZ&!v-kip4X_h+A%t|EO0lG`=2uZBIiF%25y}*pO0FnoU0LfnIxA!r5q+i&837DW*)RH-nJ}r*bkI7kJ"
-"8L7gXQbcHnEQ`;^zfVFOGm%^ft^o6!a2~}5H0HM?aY9rCmkjdPa1d6E+i#{@->-GQb)p!$;|qlT=ICf;pVaHCn`1Wj=u<5Y4PK#3"
-"FAkKs1C|4BLZixvAX(E_I+*8$c~8XrXU<L76i$-|G{OL6@__afw>9F=s?bxZ=-6KxA<c`1Qw@v+@I|IgCkH}SRt+Z{SMTgN)g|Re"
-"Yr?8_Gdu#Rvzyt2ZA6QCH+exU{5^71xc`)Z?YWkdoG9Rmjc<0HQ&*Z+6*p@Ik<2^*BTG2bSiAnBHgjd+7Scf<?K*lIQX2Tf#K<1e"
-"W^9`br`{FXs4Fdgj8XiQ1pB(t)u6ca@dFZ1$3^ok1SEgWF<5YyE&-u|s@>^Ev-m4vAARbdcD-i1@G=InWl_q5g&o6pv`-H?KjG9;"
-"oOPmRcJ(M63vCE53_Z&>Q4r_F?#@)g<dyY^tBeEH&xEB8XlUyDq4PDMRVQ8OuUhEcT#8>Dxl)<t^c|NMD+IO)9R#r1!3ycNOPBvl"
-"`XA+B{BcZ$%1m+!nA|8vyK{~Uv#`r5m%;2_8XxAoyNTat!63bt___-U>A0sfH*Efz5sF$W{3#3)L&8Mn0OZJQtA|z!%OX%<OkZ7%"
-"FVglfN6bJC3llPVLeILF1YkaF+<TnY>qMT7!4S2%#eCp=YYMk+V4}4$OgfQhvI;k`jFnNai&C-wP~NPNd$Pz9_Az?*?~jH>jI<Af"
-"+8${_Y})2h9;CTY1h6mKa>QdPy%B}uu-ozUh*GC^)x6CDhjP8bVu7uj>P0&|*sB0WQ4|M`+g}C*69Y@;5X$(VhPDvQofkb`a|`Sw"
-">;K|~-GHeKvERay+FTsKLGO9;c$*y;F&`mDS2b?-41r-;yDMeMm;BnBouC`gz-k#e1stI<M{X%NNL4K@ib(89f>C=Vm;(9N0Nm;$"
-"7bJ6CQ4n6j;NT>_aa|1~D*J}M7xVtm_9V8OhP&U<21&@UIMDxFREVvR({a^g>arbxO4US>4Z@$k5j(K>>_$M#(|VrmD;+87c^*%;"
-"h_oc(Pp{G$%i&SzYnyMpsAT4Co!^4#D0?pqg}(w+Y218c|5)O+2a9YusEbOanuRXc;}(?H@u44L=$`R)sM*AYy8B?I{UR~87j3Ot"
-"-BX4dW{iK^*Z6Q9?E*qHA$)&y=c#nw*tuyMI^G?d<?zT~{|tqJmh>&+UyY?zcDov-Ada47e06rkdT<;mZBV)u3)K^utBrKZ?Jcc%"
-"#JVlwB@(>99<|siu46&%n%#Or7!V~pO?jZufD$hR?|3BMZuzQ*3&#0f!wp_G-CX6)mi4i<*dp#WwVOn{v*9g9H7AOqyCSGJ{$MqF"
-"3(W(#9>e;i<z+I1V>@oca&>*c&kIFoe>&>B@e)4+n04BUB03hwKw3QrG(R^;`ysWMRlmT#HsEM7xSO?}sSI>gb?Azai%?2Wpxg+o"
-"x@!l*-grP7-8CccZlD%Tc*cZa?U0K;QwfRj)1B{osj%35op4&^DtKI$$68AprfN>}=}|(@`awd*=_b>uO-UiipEd#~|NKt2p+moy"
-"D!*$={w&a4nas$P^epK3y!p6FKw_`j&h>yv7y(WP|I^aeqcc7n{#%ssU-E-`Z9x%AI|Mj=v8uFJroPK7sEuBbR6&{ysHbm<>50RM"
-"-m&XMS7I$X%>HcKUTaGYFMLumm@|<9(ud2?7>dV7wWjuV=!@t=S%}fXF*TXiyDTp~(TJC#79?<Ws*wxvq{H9FYm;vVWbD%-6>gA("
-"3wa@!H1Wp7VzGIPQ8v*OTVhB!z>$rcjz<OuvO-Zr1Xdfo^gtBhFF^K=@#TW^-&o<cImI^W!$c6k$#wK|N(7m9#FYrIZ8RG-#hkYg"
-"W6iSc4&S=8D1lg~XvDhHmh=h;?rh*#$`6t5Zy(shn&g5BZLt9z8_wVt7;Ur}&A?{LI~N<dO8U~mjf$+f&LC{btfvtLEmS1@(5`Eq"
-"Y^Bke=x)6?MtV6H%M8kTJB=kINP`Aqk>=S74wdZU_}3Pjd$lR7-2^=XRr~*}CKeT$sy6bp<a<~K0}f|{{<|*;q9jw*ExV(XL?X1!"
-"Jw;vW4Ag!DY=&>sckmDtTKHp_LOM|cx?3-yK$kVkZ}0t{Wb5O1eE9xP|I2>DJ8D&xi+35qM9mjIXp>4x*xsjG7i6djGnI*BGUo*y"
-"Qlo%Bb$o{8?u?Y_^}m(-qkcz`ePd`%bOJm=$K%L^i!LE0iJ)k3+WG*@^-1|#Kh|<Z;VnmKQr(35<oUj=$c&xFeTin)K<p70h$sgT"
-"Apu*-M*pejHS}z7K4pqm8)C4rGF5(P9gubAwU7?1J?@}!Z`$|J%gjR!QS0I}=oE;#_jH~Gl(c(b;mBq1#+Iuy+p2Z8Alm<UJj95X"
-"&4HjD=Barx7JDb;dO}d!12WgkA&@oYmxMuf7yt"),format=L.FORMAT_RAW,filters=[{"id":L.FILTER_LZMA2}]))
+from __future__ import annotations
+_i='passthrough_ctrl'
+_h='passthrough_orig_dtypes'
+_g='dtypes'
+_f='scales'
+_e='quantized'
+_d='per_row'
+_c='scheme'
+_b='torch.'
+_a='momentum'
+_Z='shard_mom'
+_Y='padded_grad'
+_X='fineweb_train_*.bin'
+_W='little'
+_V='.scale'
+_U='mlp_down_bank'
+_T='mlp_up_bank'
+_S='kv_bank'
+_R='qo_bank'
+_Q='<u2'
+_P='cpu'
+_O='shard'
+_N='_save_gptq'
+_M='<i4'
+_L='passthrough'
+_K='scale'
+_J='full_update'
+_I='utf-8'
+_H='lr'
+_G='params'
+_F='cuda'
+_E=.0
+_D=1.
+_C=False
+_B=True
+_A=None
+import copy,glob,io,brotli,math,os,random,subprocess,sys,time,uuid
+from pathlib import Path
+import numpy as np,sentencepiece as spm,torch,torch.distributed as dist,torch.nn.functional as F
+from torch import Tensor,nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+from flash_attn_interface import flash_attn_func as flash_attn_3_func
+def _byte_shuffle(data,stride=2):
+	n=len(data);arr=bytearray(n);dst=0
+	for s in range(stride):
+		for i in range(s,n,stride):arr[dst]=data[i];dst+=1
+	return b'BSHF'+stride.to_bytes(2,_W)+bytes(arr)
+def _byte_unshuffle(data):
+	if data[:4]!=b'BSHF':return data
+	stride=int.from_bytes(data[4:6],_W);payload=data[6:];n=len(payload);arr=bytearray(n);src=0
+	for s in range(stride):
+		for i in range(s,n,stride):arr[i]=payload[src];src+=1
+	return bytes(arr)
+class Hyperparameters:data_path=os.environ.get('DATA_PATH','./data/datasets/fineweb10B_sp1024');train_files=os.path.join(data_path,_X);val_files=os.path.join(data_path,'fineweb_val_*.bin');tokenizer_path=os.environ.get('TOKENIZER_PATH','./data/tokenizers/fineweb_1024_bpe.model');run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));seed=int(os.environ.get('SEED',1337));val_batch_size=int(os.environ.get('VAL_BATCH_SIZE',524288));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_iters=int(os.environ.get('WARMDOWN_ITERS',3500));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',1.5));vocab_size=int(os.environ.get('VOCAB_SIZE',1024));num_layers=int(os.environ.get('NUM_LAYERS',11));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));model_dim=int(os.environ.get('MODEL_DIM',512));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',3.));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));rope_base=float(os.environ.get('ROPE_BASE',1e4));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.035));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.03));matrix_lr_early=float(os.environ.get('MATRIX_LR_EARLY',.025));matrix_lr_late=float(os.environ.get('MATRIX_LR_LATE',.03));bank_split=int(os.environ.get('BANK_SPLIT',5));scalar_lr=float(os.environ.get('SCALAR_LR',.025));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));swa_enabled=bool(int(os.environ.get('SWA_ENABLED','1')));swa_every=int(os.environ.get('SWA_EVERY',50));muon_wd=float(os.environ.get('MUON_WD',.04));adam_wd=float(os.environ.get('ADAM_WD',.04));bigram_vocab_size=int(os.environ.get('BIGRAM_VOCAB_SIZE',2816));bigram_dim=int(os.environ.get('BIGRAM_DIM',112));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));rope_dims=int(os.environ.get('ROPE_DIMS',16));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));ve_enabled=bool(int(os.environ.get('VE_ENABLED','1')));ve_dim=int(os.environ.get('VE_DIM',128));ve_layers=os.environ.get('VE_LAYERS','9,10');ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.002));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));ttt_freeze_blocks=int(os.environ.get('TTT_FREEZE_BLOCKS',2));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_batch_seqs=int(os.environ.get('TTT_BATCH_SEQS',32));ttt_grad_clip=float(os.environ.get('TTT_GRAD_CLIP',_D));negative_slope=float(os.environ.get('NEGATIVE_SLOPE',.5));use_gptq=bool(int(os.environ.get('USE_GPTQ','1')));gptq_calib_samples=int(os.environ.get('GPTQ_CALIB_SAMPLES','64'));gptq_reserve_ms=float(os.environ.get('GPTQ_RESERVE_MS','9000'));late_qat_threshold=float(os.environ.get('LATE_QAT_THRESHOLD',.15));quant_clip_range=int(os.environ.get('QUANT_CLIP_RANGE',31));slot_enabled=bool(int(os.environ.get('SLOT_ENABLED','0')));slot_lr=float(os.environ.get('SLOT_LR',.003));slot_steps=int(os.environ.get('SLOT_STEPS',5))
+def zeropower_via_newtonschulz5(G,steps=5,eps=1e-07):
+	a,b,c=3.4445,-4.775,2.0315;was_2d=G.ndim==2
+	if was_2d:G=G.unsqueeze(0)
+	X=G.bfloat16();transposed=X.size(-2)>X.size(-1)
+	if transposed:X=X.mT
+	X=X/(X.norm(dim=(-2,-1),keepdim=_B)+eps)
+	for _ in range(steps):A=X@X.mT;B=b*A+c*(A@A);X=a*X+B@X
+	if transposed:X=X.mT
+	if was_2d:X=X.squeeze(0)
+	return X
+class Muon(torch.optim.Optimizer):
+	def __init__(self,params,lr,momentum,backend_steps,nesterov=_B,weight_decay=_E):super().__init__(params,dict(lr=lr,momentum=momentum,backend_steps=backend_steps,nesterov=nesterov,weight_decay=weight_decay));self._built=_C
+	def _build(self):
+		self._distributed=dist.is_available()and dist.is_initialized();self._world_size=dist.get_world_size()if self._distributed else 1;self._rank=dist.get_rank()if self._distributed else 0;ws=self._world_size;self._bank_meta=[]
+		for group in self.param_groups:
+			for p in group[_G]:B=p.shape[0];padded_B=(B+ws-1)//ws*ws;shard_B=padded_B//ws;tail=p.shape[1:];dev=p.device;self._bank_meta.append({'p':p,'B':B,_Y:torch.zeros(padded_B,*tail,device=dev,dtype=torch.bfloat16),_O:torch.zeros(shard_B,*tail,device=dev,dtype=torch.bfloat16),_Z:torch.zeros(shard_B,*tail,device=dev,dtype=torch.bfloat16),_J:torch.zeros(padded_B,*tail,device=dev,dtype=torch.bfloat16),_K:max(1,p.shape[-2]/p.shape[-1])**.5})
+		self._bank_meta.sort(key=lambda m:-m['p'].numel());self._built=_B
+	def launch_reduce_scatters(self):
+		if not self._built:self._build()
+		if not self._distributed:return
+		self._rs_futures=[]
+		for m in self._bank_meta:
+			p=m['p']
+			if p.grad is _A:self._rs_futures.append(_A);continue
+			pg=m[_Y];pg[:m['B']].copy_(p.grad.bfloat16())
+			if pg.shape[0]>m['B']:pg[m['B']:].zero_()
+			fut=dist.reduce_scatter_tensor(m[_O],pg,op=dist.ReduceOp.AVG,async_op=_B);self._rs_futures.append(fut)
+	@torch.no_grad()
+	def step(self,closure=_A):
+		B='_rs_futures';A='momentum_buffer';loss=_A
+		if closure is not _A:
+			with torch.enable_grad():loss=closure()
+		if not self._built:self._build()
+		for group in self.param_groups:
+			lr=group[_H];momentum=group[_a];backend_steps=group['backend_steps'];nesterov=group['nesterov'];wd=group.get('weight_decay',_E);prev_ag_handle=_A;prev_m=_A;sharded=self._distributed and hasattr(self,B)
+			for(i,m)in enumerate(self._bank_meta):
+				p=m['p']
+				if p.grad is _A:continue
+				if prev_ag_handle is not _A:
+					prev_ag_handle.wait();pp=prev_m['p'];upd=prev_m[_J][:prev_m['B']]
+					if wd>_E:pp.data.mul_(_D-lr*wd)
+					pp.add_(upd.to(dtype=pp.dtype),alpha=-lr*prev_m[_K])
+				if sharded and self._rs_futures[i]is not _A:self._rs_futures[i].wait();g=m[_O];buf=m[_Z]
+				else:
+					g=p.grad.bfloat16();state=self.state[p]
+					if A not in state:state[A]=torch.zeros_like(g)
+					buf=state[A]
+				buf.mul_(momentum).add_(g)
+				if nesterov:update=g.add(buf,alpha=momentum)
+				else:update=buf
+				update=zeropower_via_newtonschulz5(update,steps=backend_steps)
+				if sharded:prev_ag_handle=dist.all_gather_into_tensor(m[_J],update,async_op=_B);prev_m=m
+				else:
+					if wd>_E:p.data.mul_(_D-lr*wd)
+					p.add_(update.to(dtype=p.dtype),alpha=-lr*m[_K])
+			if prev_ag_handle is not _A:
+				prev_ag_handle.wait();pp=prev_m['p'];upd=prev_m[_J][:prev_m['B']]
+				if wd>_E:pp.data.mul_(_D-lr*wd)
+				pp.add_(upd.to(dtype=pp.dtype),alpha=-lr*prev_m[_K])
+			if hasattr(self,B):del self._rs_futures
+		return loss
+def build_sentencepiece_luts(sp,vocab_size,device):
+	sp_vocab_size=int(sp.vocab_size());table_size=max(sp_vocab_size,vocab_size);base_bytes_np=np.zeros((table_size,),dtype=np.int16);has_leading_space_np=np.zeros((table_size,),dtype=np.bool_);is_boundary_token_np=np.ones((table_size,),dtype=np.bool_)
+	for token_id in range(sp_vocab_size):
+		if sp.is_control(token_id)or sp.is_unknown(token_id)or sp.is_unused(token_id):continue
+		is_boundary_token_np[token_id]=_C
+		if sp.is_byte(token_id):base_bytes_np[token_id]=1;continue
+		piece=sp.id_to_piece(token_id)
+		if piece.startswith('▁'):has_leading_space_np[token_id]=_B;piece=piece[1:]
+		base_bytes_np[token_id]=len(piece.encode(_I))
+	return torch.tensor(base_bytes_np,dtype=torch.int16,device=device),torch.tensor(has_leading_space_np,dtype=torch.bool,device=device),torch.tensor(is_boundary_token_np,dtype=torch.bool,device=device)
+def load_validation_tokens(pattern,seq_len):
+	files=[Path(p)for p in sorted(glob.glob(pattern))]
+	if not files:raise FileNotFoundError(f"No files found for pattern: {pattern}")
+	tokens=torch.cat([load_data_shard(file)for file in files]).contiguous();usable=(tokens.numel()-1)//seq_len*seq_len
+	if usable<=0:raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
+	return tokens[:usable+1]
+def eval_val(args,model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,eval_seq_len=_A):
+	seq_len=eval_seq_len or args.train_seq_len;local_batch_tokens=args.val_batch_size//(world_size*grad_accum_steps)
+	if local_batch_tokens<seq_len:raise ValueError(f"VAL_BATCH_SIZE must provide at least one sequence per rank; got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, GRAD_ACCUM_STEPS={grad_accum_steps}, seq_len={seq_len}")
+	local_batch_seqs=local_batch_tokens//seq_len;total_seqs=(val_tokens.numel()-1)//seq_len;seq_start=total_seqs*rank//world_size;seq_end=total_seqs*(rank+1)//world_size;val_loss_sum=torch.zeros((),device=device,dtype=torch.float64);val_token_count=torch.zeros((),device=device,dtype=torch.float64);val_byte_count=torch.zeros((),device=device,dtype=torch.float64);model.eval()
+	with torch.inference_mode():
+		for batch_seq_start in range(seq_start,seq_end,local_batch_seqs):
+			batch_seq_end=min(batch_seq_start+local_batch_seqs,seq_end);raw_start=batch_seq_start*seq_len;raw_end=batch_seq_end*seq_len+1;local=val_tokens[raw_start:raw_end].to(device=device,dtype=torch.int64,non_blocking=_B);x=local[:-1].reshape(-1,seq_len);y=local[1:].reshape(-1,seq_len)
+			with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):batch_loss=model(x,y).detach()
+			batch_token_count=float(y.numel());val_loss_sum+=batch_loss.to(torch.float64)*batch_token_count;val_token_count+=batch_token_count;prev_ids=x.reshape(-1);tgt_ids=y.reshape(-1);token_bytes=base_bytes_lut[tgt_ids].to(dtype=torch.int16);token_bytes+=(has_leading_space_lut[tgt_ids]&~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16);val_byte_count+=token_bytes.to(torch.float64).sum()
+	if dist.is_available()and dist.is_initialized():dist.all_reduce(val_loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(val_token_count,op=dist.ReduceOp.SUM);dist.all_reduce(val_byte_count,op=dist.ReduceOp.SUM)
+	val_loss=val_loss_sum/val_token_count;bits_per_token=val_loss.item()/math.log(2.);tokens_per_byte=val_token_count.item()/val_byte_count.item();model.train();return float(val_loss.item()),float(bits_per_token*tokens_per_byte)
+CONTROL_TENSOR_NAME_PATTERNS=tuple(pattern for pattern in os.environ.get('CONTROL_TENSOR_NAME_PATTERNS','attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda').split(',')if pattern)
+INT8_KEEP_FLOAT_FP32_NAME_PATTERNS=tuple(pattern for pattern in os.environ.get('INT8_KEEP_FLOAT_FP32_NAME_PATTERNS',','.join(CONTROL_TENSOR_NAME_PATTERNS)).split(',')if pattern)
+INT8_KEEP_FLOAT_MAX_NUMEL=65536
+INT8_KEEP_FLOAT_STORE_DTYPE=torch.float16
+INT8_PER_ROW_SCALE_DTYPE=torch.float16
+INT8_CLIP_PERCENTILE=99.99984
+INT8_CLIP_Q=INT8_CLIP_PERCENTILE/1e2
+def tensor_nbytes(t):return int(t.numel())*int(t.element_size())
+def keep_float_tensor(name,t,passthrough_orig_dtypes):
+	if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):return t.float().contiguous()
+	if t.dtype in{torch.float32,torch.bfloat16}:passthrough_orig_dtypes[name]=str(t.dtype).removeprefix(_b);return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+	return t
+def quantize_float_tensor(t):
+	t32=t.float()
+	if t32.ndim==2:clip_abs=torch.quantile(t32.abs(),INT8_CLIP_Q,dim=1)if t32.numel()else torch.empty((t32.shape[0],),dtype=torch.float32);clipped=torch.maximum(torch.minimum(t32,clip_abs[:,_A]),-clip_abs[:,_A]);scale=(clip_abs/127.).clamp_min(_D/127.);q=torch.clamp(torch.round(clipped/scale[:,_A]),-127,127).to(torch.int8).contiguous();return q,scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+	clip_abs=float(torch.quantile(t32.abs().flatten(),INT8_CLIP_Q).item())if t32.numel()else _E;scale=torch.tensor(clip_abs/127. if clip_abs>0 else _D,dtype=torch.float32);q=torch.clamp(torch.round(torch.clamp(t32,-clip_abs,clip_abs)/scale),-127,127).to(torch.int8).contiguous();return q,scale
+def quantize_state_dict_int8(state_dict):
+	F='baseline_tensor_bytes';E='num_nonfloat_tensors';D='num_float_tensors';C='num_tensors';B='param_count';A='int8_payload_bytes';quantized={};scales={};dtypes={};passthrough={};passthrough_orig_dtypes={};qmeta={};stats=dict.fromkeys((B,C,D,E,F,A),0)
+	for(name,tensor)in state_dict.items():
+		t=tensor.detach().to(_P).contiguous();stats[B]+=int(t.numel());stats[C]+=1;stats[F]+=tensor_nbytes(t)
+		if not t.is_floating_point():stats[E]+=1;passthrough[name]=t;stats[A]+=tensor_nbytes(t);continue
+		if t.numel()<=INT8_KEEP_FLOAT_MAX_NUMEL:kept=keep_float_tensor(name,t,passthrough_orig_dtypes);passthrough[name]=kept;stats[A]+=tensor_nbytes(kept);continue
+		stats[D]+=1;q,s=quantize_float_tensor(t)
+		if s.ndim>0:qmeta[name]={_c:_d,'axis':0}
+		quantized[name]=q;scales[name]=s;dtypes[name]=str(t.dtype).removeprefix(_b);stats[A]+=tensor_nbytes(q)+tensor_nbytes(s)
+	obj={'__quant_format__':'int8_clean_per_row_v1',_e:quantized,_f:scales,_g:dtypes,_L:passthrough}
+	if qmeta:obj['qmeta']=qmeta
+	if passthrough_orig_dtypes:obj[_h]=passthrough_orig_dtypes
+	return obj,stats
+def dequantize_state_dict_int8(obj):
+	out={};qmeta=obj.get('qmeta',{});passthrough_orig_dtypes=obj.get(_h,{})
+	for(name,q)in obj[_e].items():
+		dtype=getattr(torch,obj[_g][name]);s=obj[_f][name]
+		if qmeta.get(name,{}).get(_c)==_d or s.ndim>0:s=s.to(dtype=torch.float32);out[name]=(q.float()*s.view(q.shape[0],*[1]*(q.ndim-1))).to(dtype=dtype).contiguous()
+		else:scale=float(s.item());out[name]=(q.float()*scale).to(dtype=dtype).contiguous()
+	for(name,t)in obj[_L].items():
+		out_t=t.detach().to(_P).contiguous();orig_dtype=passthrough_orig_dtypes.get(name)
+		if isinstance(orig_dtype,str):out_t=out_t.to(dtype=getattr(torch,orig_dtype)).contiguous()
+		out[name]=out_t
+	return out
+def load_data_shard(file):
+	header_bytes=256*np.dtype(_M).itemsize;token_bytes=np.dtype(_Q).itemsize;header=np.fromfile(file,dtype=_M,count=256)
+	if header.size!=256 or int(header[0])!=20240520 or int(header[1])!=1:raise ValueError(f"Unexpected shard header for {file}")
+	num_tokens=int(header[2]);expected_size=header_bytes+num_tokens*token_bytes
+	if file.stat().st_size!=expected_size:raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+	tokens_np=np.fromfile(file,dtype=_Q,count=num_tokens,offset=header_bytes)
+	if tokens_np.size!=num_tokens:raise ValueError(f"Short read for {file}")
+	return torch.from_numpy(tokens_np.astype(np.uint16,copy=_C))
+_SHARD_HEADER_BYTES=256*np.dtype(_M).itemsize
+_SHARD_NTOKENS_CACHE={}
+_MMAP_CACHE={}
+def _read_num_tokens(file):
+	key=str(file);cached=_SHARD_NTOKENS_CACHE.get(key)
+	if cached is not _A:return cached
+	header=np.fromfile(file,dtype=_M,count=256)
+	if header.size!=256 or int(header[0])!=20240520 or int(header[1])!=1:raise ValueError(f"Unexpected shard header for {file}")
+	n=int(header[2]);_SHARD_NTOKENS_CACHE[key]=n;return n
+def _get_shard_memmap(file):
+	key=str(file);mm=_MMAP_CACHE.get(key)
+	if mm is not _A:return mm
+	n=_read_num_tokens(file);mm=np.memmap(file,mode='r',dtype=_Q,offset=_SHARD_HEADER_BYTES,shape=(n,));_MMAP_CACHE[key]=mm;return mm
+class DistributedTokenLoader:
+	def __init__(self,pattern,rank,world_size,device):
+		self.rank=rank;self.world_size=world_size;self.device=device;self.files=[Path(p)for p in sorted(glob.glob(pattern))]
+		if not self.files:raise FileNotFoundError(f"No files found for pattern: {pattern}")
+		self._num_tokens=np.array([_read_num_tokens(f)for f in self.files],dtype=np.int64);seed=0
+		for f in self.files:
+			for b in str(f).encode():seed=(seed^b)*1099511628211&0xffffffffffffffff
+		self._rng=np.random.Generator(np.random.PCG64(seed));self._cfg=_A;self._eligible_shards=_A;self._base_block_counts=_A;n=len(self.files);self._cursor_phase=np.zeros(n,dtype=np.int64);self._cursor_block_count=np.zeros(n,dtype=np.int64);self._cursor_next=np.zeros(n,dtype=np.int64);self._cursor_start=np.zeros(n,dtype=np.int64);self._cursor_stride=np.ones(n,dtype=np.int64);self._cursor_init=np.zeros(n,dtype=np.bool_);self._batches_built=0
+	def _pick_coprime_stride(self,n):
+		if n<=1:return 1
+		while _B:
+			s=int(self._rng.integers(1,n))
+			if math.gcd(s,n)==1:return s
+	def _reset_cursor(self,si,seq_len):nt=int(self._num_tokens[si]);max_phase=min(seq_len-1,max(0,nt-seq_len-1));phase=int(self._rng.integers(max_phase+1))if max_phase>0 else 0;bc=(nt-1-phase)//seq_len;self._cursor_phase[si]=phase;self._cursor_block_count[si]=bc;self._cursor_next[si]=0;self._cursor_start[si]=int(self._rng.integers(bc))if bc>1 else 0;self._cursor_stride[si]=self._pick_coprime_stride(bc);self._cursor_init[si]=_B
+	def _ensure_cursor(self,si,seq_len):
+		if not self._cursor_init[si]or self._cursor_next[si]>=self._cursor_block_count[si]:self._reset_cursor(si,seq_len)
+	def _take_from_shard(self,si,seq_len,count,out):
+		rem=count
+		while rem>0:
+			self._ensure_cursor(si,seq_len);bc=int(self._cursor_block_count[si]);ni=int(self._cursor_next[si]);take=min(rem,bc-ni);phase=int(self._cursor_phase[si]);start=int(self._cursor_start[si]);stride=int(self._cursor_stride[si])
+			for j in range(take):bi=(start+(ni+j)*stride)%bc;out.append((si,phase+bi*seq_len))
+			self._cursor_next[si]=ni+take;rem-=take
+	def _init_pipeline(self,global_tokens,seq_len,grad_accum_steps):local_tokens=global_tokens//(self.world_size*grad_accum_steps);num_seqs=local_tokens//seq_len;global_num_seqs=num_seqs*self.world_size;self._cfg=local_tokens,seq_len,num_seqs,global_num_seqs;bbc=(self._num_tokens-1)//seq_len;eligible=bbc>0;self._eligible_shards=np.nonzero(eligible)[0].astype(np.int64);self._base_block_counts=bbc[self._eligible_shards].astype(np.int64)
+	def _sample_global_windows(self):
+		_,seq_len,_,gns=self._cfg;ec=int(self._eligible_shards.size);progress=min(self._batches_built/18e2,_D);remaining=np.empty(ec,dtype=np.float64)
+		for(i,si)in enumerate(self._eligible_shards.tolist()):
+			if self._cursor_init[si]:r=int(self._cursor_block_count[si])-int(self._cursor_next[si]);remaining[i]=float(max(r,1))
+			else:remaining[i]=float(self._base_block_counts[i])
+		alpha=.9-.4*progress;weights=np.power(remaining,alpha);ws=float(weights.sum())
+		if not np.isfinite(ws)or ws<=_E:weights=np.ones(ec,dtype=np.float64);ws=float(weights.sum())
+		probs=weights/ws;low=min(max(8,self.world_size),ec,gns);high=min(max(32,self.world_size*8),ec,gns);mix=max(1,min(int(round(low+progress*(high-low))),ec,gns));cp=self._rng.choice(ec,size=mix,replace=_C,p=probs);cs=self._eligible_shards[cp];cpr=probs[cp].copy();cpr/=cpr.sum();counts=np.ones(mix,dtype=np.int64);extra=gns-mix
+		if extra>0:counts+=self._rng.multinomial(extra,cpr).astype(np.int64)
+		perm=self._rng.permutation(mix);cs,counts=cs[perm],counts[perm];buckets=[]
+		for(si,cnt)in zip(cs.tolist(),counts.tolist()):
+			b=[];self._take_from_shard(int(si),seq_len,int(cnt),b)
+			if b:
+				if len(b)>1:bp=self._rng.permutation(len(b));b=[b[int(k)]for k in bp.tolist()]
+				buckets.append(b)
+		windows=[];active=[i for(i,bk)in enumerate(buckets)if bk]
+		while active:
+			order=self._rng.permutation(len(active));new_active=[]
+			for oi in order.tolist():
+				bi=active[oi]
+				if buckets[bi]:windows.append(buckets[bi].pop())
+				if buckets[bi]:new_active.append(bi)
+			active=new_active
+		return windows
+	def next_batch(self,global_tokens,seq_len,grad_accum_steps):
+		if self._cfg is _A:self._init_pipeline(global_tokens,seq_len,grad_accum_steps)
+		_,_,num_seqs,gns=self._cfg;gw=self._sample_global_windows();local_w=gw[self.rank::self.world_size];x=torch.empty((num_seqs,seq_len),dtype=torch.int64);y=torch.empty((num_seqs,seq_len),dtype=torch.int64)
+		for(slot,(si,pos))in enumerate(local_w):mm=_get_shard_memmap(self.files[si]);window=torch.as_tensor(np.array(mm[pos:pos+seq_len+1],dtype=np.int64));x[slot]=window[:-1];y[slot]=window[1:]
+		self._batches_built+=1;return x.to(self.device,non_blocking=_B),y.to(self.device,non_blocking=_B)
+class RMSNorm(nn.Module):
+	def __init__(self,eps=_A):super().__init__();self.eps=eps
+	def forward(self,x):return F.rms_norm(x,(x.size(-1),),eps=self.eps)
+class CastedLinear(nn.Linear):
+	_qat_enabled=_C;_qat_alpha=_D
+	def forward(self,x):
+		w=self.weight.to(x.dtype)
+		if CastedLinear._qat_enabled and self.training and w.ndim==2:w32=self.weight.float();row_max=w32.abs().amax(dim=1);s=(row_max/31.).clamp_min(_D/31.);scaled=w32/s[:,_A];alpha=CastedLinear._qat_alpha;frac=scaled-scaled.floor();soft_rounded=scaled.floor()+torch.sigmoid(alpha*(frac-.5));w_q=(torch.clamp(soft_rounded,-31,31)*s[:,_A]).to(x.dtype);w=w_q
+		bias=self.bias.to(x.dtype)if self.bias is not _A else _A;return F.linear(x,w,bias)
+def restore_low_dim_params_to_fp32(module):
+	with torch.no_grad():
+		for(name,param)in module.named_parameters():
+			if(param.ndim<2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS))and param.dtype!=torch.float32:param.data=param.data.float()
+class Rotary(nn.Module):
+	def __init__(self,dim,base=1e4,train_seq_len=1024,rope_dims=0):super().__init__();self.dim=dim;self.base=base;self.train_seq_len=train_seq_len;self.rope_dims=rope_dims if rope_dims>0 else dim;inv_freq=_D/base**(torch.arange(0,self.rope_dims,2,dtype=torch.float32)/self.rope_dims);self.register_buffer('inv_freq',inv_freq,persistent=_C);self._seq_len_cached=0;self._cos_cached=_A;self._sin_cached=_A
+	def forward(self,seq_len,device,dtype):
+		if self._cos_cached is _A or self._sin_cached is _A or self._seq_len_cached!=seq_len or self._cos_cached.device!=device:
+			rd=self.rope_dims
+			if seq_len>self.train_seq_len:scale=seq_len/self.train_seq_len;new_base=self.base*scale**(rd/(rd-2));inv_freq=_D/new_base**(torch.arange(0,rd,2,dtype=torch.float32,device=device)/rd)
+			else:inv_freq=self.inv_freq.to(device)
+			t=torch.arange(seq_len,device=device,dtype=inv_freq.dtype);freqs=torch.outer(t,inv_freq);self._cos_cached=freqs.cos()[_A,:,_A,:];self._sin_cached=freqs.sin()[_A,:,_A,:];self._seq_len_cached=seq_len
+		return self._cos_cached.to(dtype=dtype),self._sin_cached.to(dtype=dtype)
+def apply_rotary_emb(x,cos,sin,rope_dims=0):
+	if rope_dims>0 and rope_dims<x.size(-1):x_rope,x_pass=x[...,:rope_dims],x[...,rope_dims:];half=rope_dims//2;x1,x2=x_rope[...,:half],x_rope[...,half:];x_rope=torch.cat((x1*cos+x2*sin,x1*-sin+x2*cos),dim=-1);return torch.cat((x_rope,x_pass),dim=-1)
+	half=x.size(-1)//2;x1,x2=x[...,:half],x[...,half:];return torch.cat((x1*cos+x2*sin,x1*-sin+x2*cos),dim=-1)
+class CausalSelfAttention(nn.Module):
+	def __init__(self,dim,num_heads,num_kv_heads,rope_base,qk_gain_init):
+		super().__init__()
+		if dim%num_heads!=0:raise ValueError('model_dim must be divisible by num_heads')
+		if num_heads%num_kv_heads!=0:raise ValueError('num_heads must be divisible by num_kv_heads')
+		self.num_heads=num_heads;self.num_kv_heads=num_kv_heads;self.head_dim=dim//num_heads
+		if self.head_dim%2!=0:raise ValueError('head_dim must be even for RoPE')
+		self.q_gain=nn.Parameter(torch.full((num_heads,),qk_gain_init,dtype=torch.float32));self.rope_dims=0;self.rotary=Rotary(self.head_dim,base=rope_base,train_seq_len=1024);self.use_xsa=_C
+	def _xsa_efficient(self,y,v):B,T,H,D=y.shape;Hkv=v.size(-2);group=H//Hkv;y_g=y.reshape(B,T,Hkv,group,D);vn=F.normalize(v,dim=-1).unsqueeze(-2);proj=(y_g*vn).sum(dim=-1,keepdim=_B)*vn;return(y_g-proj).reshape(B,T,H,D)
+	def forward(self,x,q_w,k_w,v_w,out_w,v_embed=_A):
+		if getattr(self,_N,_C):self._gptq_qkv_in=x.detach()
+		bsz,seqlen,dim=x.shape;q=F.linear(x,q_w.to(x.dtype)).reshape(bsz,seqlen,self.num_heads,self.head_dim);k=F.linear(x,k_w.to(x.dtype)).reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);v=F.linear(x,v_w.to(x.dtype))
+		if v_embed is not _A:v=v+v_embed
+		v=v.reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);q=F.rms_norm(q,(q.size(-1),));k=F.rms_norm(k,(k.size(-1),));cos,sin=self.rotary(seqlen,x.device,q.dtype);q=apply_rotary_emb(q,cos,sin,self.rope_dims);k=apply_rotary_emb(k,cos,sin,self.rope_dims);q=q*self.q_gain.to(dtype=q.dtype)[_A,_A,:,_A];y=flash_attn_3_func(q,k,v,causal=_B)
+		if self.use_xsa:y=self._xsa_efficient(y,v)
+		y=y.reshape(bsz,seqlen,dim)
+		if getattr(self,_N,_C):self._gptq_o_in=y.detach()
+		return F.linear(y,out_w.to(x.dtype))
+class SmearGate(nn.Module):
+	def __init__(self,dim):super().__init__();self.gate=nn.Parameter(torch.zeros(dim,dtype=torch.float32))
+	def forward(self,x):g=torch.sigmoid(self.gate.to(dtype=x.dtype))[_A,_A,:];x_prev=F.pad(x[:,:-1],(0,0,1,0));return(1-g)*x+g*x_prev
+class BigramHashEmbedding(nn.Module):
+	def __init__(self,bigram_vocab_size,bigram_dim,model_dim):
+		super().__init__();self.bigram_vocab_size=bigram_vocab_size;self.embed=nn.Embedding(bigram_vocab_size,bigram_dim);nn.init.zeros_(self.embed.weight);self.proj=CastedLinear(bigram_dim,model_dim,bias=_C)if bigram_dim!=model_dim else _A
+		if self.proj is not _A:nn.init.zeros_(self.proj.weight)
+		self.scale=nn.Parameter(torch.tensor(.05,dtype=torch.float32))
+	def bigram_hash(self,tokens):t=tokens.to(torch.int32);mod=self.bigram_vocab_size-1;out=torch.empty_like(t);out[...,0]=mod;out[...,1:]=torch.bitwise_xor(36313*t[...,1:],27191*t[...,:-1])%mod;return out.long()
+	def forward(self,token_ids):
+		h=self.embed(self.bigram_hash(token_ids))
+		if self.proj is not _A:h=self.proj(h)
+		return h*self.scale.to(dtype=h.dtype)
+class ValueEmbedding(nn.Module):
+	def __init__(self,vocab_size,ve_dim,model_dim):
+		super().__init__();self.embed=nn.Embedding(vocab_size,ve_dim);nn.init.normal_(self.embed.weight,std=.01);self.proj=CastedLinear(ve_dim,model_dim,bias=_C)if ve_dim!=model_dim else _A
+		if self.proj is not _A:nn.init.zeros_(self.proj.weight)
+		self.scale=nn.Parameter(torch.tensor(.1,dtype=torch.float32))
+	def forward(self,token_ids):
+		h=self.embed(token_ids)
+		if self.proj is not _A:h=self.proj(h)
+		return h*self.scale.to(dtype=h.dtype)
+class MLP(nn.Module):
+	def __init__(self,dim,mlp_mult,neg_slope=.5):super().__init__();self.neg_slope=neg_slope
+	def forward(self,x,up_w,down_w):
+		if getattr(self,_N,_C):self._gptq_up_in=x.detach()
+		x=F.leaky_relu(F.linear(x,up_w.to(x.dtype)),negative_slope=self.neg_slope);x2=x.square()
+		if getattr(self,_N,_C):self._gptq_down_in=x2.detach()
+		return F.linear(x2,down_w.to(x.dtype))
+class Block(nn.Module):
+	def __init__(self,dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,layer_idx=0,ln_scale=_C,neg_slope=.5):super().__init__();self.layer_idx=layer_idx;self.attn_norm=RMSNorm();self.mlp_norm=RMSNorm();self.attn=CausalSelfAttention(dim,num_heads,num_kv_heads,rope_base,qk_gain_init);self.mlp=MLP(dim,mlp_mult,neg_slope=neg_slope);self.attn_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.mlp_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.resid_mix=nn.Parameter(torch.stack((torch.ones(dim),torch.zeros(dim))).float());self.ln_scale_factor=_D/math.sqrt(layer_idx+1)if ln_scale else _D
+	def forward(self,x,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=_A):mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][_A,_A,:]*x+mix[1][_A,_A,:]*x0;attn_out=self.attn(self.attn_norm(x_in)*self.ln_scale_factor,q_w,k_w,v_w,out_w,v_embed=v_embed);x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[_A,_A,:]*attn_out;mlp_out=self.mlp_scale.to(dtype=x_out.dtype)[_A,_A,:]*self.mlp(self.mlp_norm(x_out)*self.ln_scale_factor,up_w,down_w);return x_out+mlp_out
+class GPT(nn.Module):
+	def __init__(self,vocab_size,num_layers,model_dim,num_heads,num_kv_heads,mlp_mult,tie_embeddings,tied_embed_init_std,logit_softcap,rope_base,qk_gain_init,bigram_vocab_size=0,bigram_dim=128,xsa_last_n=0,rope_dims=0,ln_scale=_C,ve_enabled=_C,ve_dim=128,ve_layers='9,10',neg_slope=.5):
+		super().__init__();self._ve_target_dim=num_kv_heads*(model_dim//num_heads)
+		if logit_softcap<=_E:raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+		self.tie_embeddings=tie_embeddings;self.tied_embed_init_std=tied_embed_init_std;self.logit_softcap=logit_softcap;self.tok_emb=nn.Embedding(vocab_size,model_dim);self.bigram=BigramHashEmbedding(bigram_vocab_size,bigram_dim,model_dim)if bigram_vocab_size>0 else _A;self.smear=SmearGate(model_dim);self.num_encoder_layers=num_layers//2;self.num_decoder_layers=num_layers-self.num_encoder_layers;self.num_skip_weights=min(self.num_encoder_layers,self.num_decoder_layers);self.skip_weights=nn.Parameter(torch.ones(self.num_skip_weights,model_dim,dtype=torch.float32));self.skip_gates=nn.Parameter(torch.zeros(self.num_skip_weights,model_dim,dtype=torch.float32));head_dim=model_dim//num_heads;kv_dim=num_kv_heads*head_dim;mlp_dim=int(mlp_mult*model_dim);self.num_layers=num_layers;self.qo_bank=nn.Parameter(torch.empty(2*num_layers,model_dim,model_dim));self.kv_bank=nn.Parameter(torch.empty(2*num_layers,kv_dim,model_dim));self.mlp_up_bank=nn.Parameter(torch.empty(num_layers,mlp_dim,model_dim));self.mlp_down_bank=nn.Parameter(torch.empty(num_layers,model_dim,mlp_dim));self.blocks=nn.ModuleList([Block(model_dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,layer_idx=i,ln_scale=ln_scale,neg_slope=neg_slope)for i in range(num_layers)])
+		if rope_dims>0:
+			head_dim=model_dim//num_heads
+			for block in self.blocks:block.attn.rope_dims=rope_dims;block.attn.rotary=Rotary(head_dim,base=rope_base,train_seq_len=1024,rope_dims=rope_dims)
+		self.ve_layer_indices=[int(x)for x in ve_layers.split(',')if x.strip()]if ve_enabled else[];kv_dim_ve=self._ve_target_dim
+		if self.ve_layer_indices:self.ve_shared=ValueEmbedding(vocab_size,ve_dim,kv_dim_ve);self.ve_layer_scales=nn.ParameterList([nn.Parameter(torch.ones(1,dtype=torch.float32))for _ in self.ve_layer_indices])
+		else:self.ve_shared=_A;self.ve_layer_scales=nn.ParameterList()
+		self.value_embeds=nn.ModuleList();self.final_norm=RMSNorm();self.lm_head=_A if tie_embeddings else CastedLinear(model_dim,vocab_size,bias=_C)
+		if self.lm_head is not _A:self.lm_head._zero_init=_B
+		if xsa_last_n>0:
+			for i in range(max(0,num_layers-xsa_last_n),num_layers):self.blocks[i].attn.use_xsa=_B
+		self._init_weights()
+	def _init_weights(self):
+		if self.tie_embeddings:nn.init.normal_(self.tok_emb.weight,mean=_E,std=self.tied_embed_init_std)
+		n=self.num_layers;proj_scale=_D/math.sqrt(2*n)
+		for i in range(n):nn.init.orthogonal_(self.qo_bank.data[i],gain=_D);nn.init.zeros_(self.qo_bank.data[n+i]);nn.init.orthogonal_(self.kv_bank.data[i],gain=_D);nn.init.orthogonal_(self.kv_bank.data[n+i],gain=_D);nn.init.orthogonal_(self.mlp_up_bank.data[i],gain=_D);nn.init.zeros_(self.mlp_down_bank.data[i]);self.qo_bank.data[n+i].mul_(proj_scale);self.mlp_down_bank.data[i].mul_(proj_scale)
+		for(name,module)in self.named_modules():
+			if isinstance(module,nn.Linear):
+				if getattr(module,'_zero_init',_C):nn.init.zeros_(module.weight)
+				elif module.weight.ndim==2 and module.weight.shape[0]>=64 and module.weight.shape[1]>=64:nn.init.orthogonal_(module.weight,gain=_D)
+	def _get_ve(self,layer_idx,input_ids,ve_cache=_A):
+		A='ve'
+		if self.ve_shared is _A or layer_idx not in self.ve_layer_indices:return
+		if ve_cache is not _A and A not in ve_cache:ve_cache[A]=self.ve_shared(input_ids)
+		ve_base=ve_cache[A]if ve_cache is not _A else self.ve_shared(input_ids);ve_idx=self.ve_layer_indices.index(layer_idx);return ve_base*self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+	def forward(self,input_ids,target_ids):
+		n=self.num_layers;x=self.tok_emb(input_ids)
+		if self.bigram is not _A:x=x+self.bigram(input_ids)
+		x=F.rms_norm(x,(x.size(-1),));x=self.smear(x);x0=x;skips=[];ve_cache={}
+		for i in range(self.num_encoder_layers):ve=self._get_ve(i,input_ids,ve_cache);x=self.blocks[i](x,x0,self.qo_bank[i],self.kv_bank[i],self.kv_bank[n+i],self.qo_bank[n+i],self.mlp_up_bank[i],self.mlp_down_bank[i],v_embed=ve);skips.append(x)
+		for i in range(self.num_decoder_layers):
+			bi=self.num_encoder_layers+i
+			if skips:g=torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[_A,_A,:];scaled_skip=self.skip_weights[i].to(dtype=x.dtype)[_A,_A,:]*skips.pop();x=torch.lerp(scaled_skip,x,g)
+			ve=self._get_ve(bi,input_ids,ve_cache);x=self.blocks[bi](x,x0,self.qo_bank[bi],self.kv_bank[bi],self.kv_bank[n+bi],self.qo_bank[n+bi],self.mlp_up_bank[bi],self.mlp_down_bank[bi],v_embed=ve)
+		x=self.final_norm(x);x_flat=x.reshape(-1,x.size(-1));targets=target_ids.reshape(-1)
+		if self.tie_embeddings:logits_proj=F.linear(x_flat,self.tok_emb.weight)
+		else:
+			if self.lm_head is _A:raise RuntimeError('lm_head is required when tie_embeddings=False')
+			logits_proj=self.lm_head(x_flat)
+		logits=self.logit_softcap*torch.tanh(logits_proj/self.logit_softcap);return F.cross_entropy(logits.float(),targets,reduction='mean')
+	def forward_hidden(self,input_ids):
+		n=self.num_layers;x=self.tok_emb(input_ids)
+		if self.bigram is not _A:x=x+self.bigram(input_ids)
+		x=F.rms_norm(x,(x.size(-1),));x=self.smear(x);x0=x;skips=[];ve_cache={}
+		for i in range(self.num_encoder_layers):ve=self._get_ve(i,input_ids,ve_cache);x=self.blocks[i](x,x0,self.qo_bank[i],self.kv_bank[i],self.kv_bank[n+i],self.qo_bank[n+i],self.mlp_up_bank[i],self.mlp_down_bank[i],v_embed=ve);skips.append(x)
+		for i in range(self.num_decoder_layers):
+			bi=self.num_encoder_layers+i
+			if skips:g=torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[_A,_A,:];scaled_skip=self.skip_weights[i].to(dtype=x.dtype)[_A,_A,:]*skips.pop();x=torch.lerp(scaled_skip,x,g)
+			ve=self._get_ve(bi,input_ids,ve_cache);x=self.blocks[bi](x,x0,self.qo_bank[bi],self.kv_bank[bi],self.kv_bank[n+bi],self.qo_bank[n+bi],self.mlp_up_bank[bi],self.mlp_down_bank[bi],v_embed=ve)
+		return self.final_norm(x)
+	def compute_logits(self,hidden):
+		if self.tie_embeddings:logits_proj=F.linear(hidden,self.tok_emb.weight)
+		else:logits_proj=self.lm_head(hidden)
+		return self.logit_softcap*torch.tanh(logits_proj/self.logit_softcap)
+	def forward_logits(self,input_ids):return self.compute_logits(self.forward_hidden(input_ids))
+def eval_val_sliding(args,base_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride,batch_seqs=32,eval_seq_len=_A):
+	seq_len=eval_seq_len or args.train_seq_len;total_tokens=val_tokens.numel()-1;window_starts=[ws for ws in range(0,total_tokens,stride)if min(ws+seq_len,total_tokens)-ws>=1];total_windows=len(window_starts);my_s=total_windows*rank//world_size;my_e=total_windows*(rank+1)//world_size;my_windows=window_starts[my_s:my_e];loss_sum=torch.zeros((),device=device,dtype=torch.float64);token_count=torch.zeros((),device=device,dtype=torch.float64);byte_count=torch.zeros((),device=device,dtype=torch.float64);base_model.eval();use_slot=getattr(args,'slot_enabled',_C);compiled_logits=torch.compile(base_model.forward_logits,dynamic=_C,fullgraph=_B);compiled_hidden=torch.compile(base_model.forward_hidden,dynamic=_C,fullgraph=_B)if use_slot else _A
+	for bi in range(0,len(my_windows),batch_seqs):
+		batch_ws=my_windows[bi:bi+batch_seqs];bsz=len(batch_ws);x_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);y_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);wlens=[]
+		for(i,ws)in enumerate(batch_ws):end=min(ws+seq_len,total_tokens);wlen=end-ws;wlens.append(wlen);chunk=val_tokens[ws:end+1].to(dtype=torch.int64,device=device);x_batch[i,:wlen]=chunk[:-1];y_batch[i,:wlen]=chunk[1:]
+		if use_slot:
+			with torch.no_grad(),torch.autocast(device_type=_F,dtype=torch.bfloat16):H=compiled_hidden(x_batch)
+			H=H.detach().float();delta=torch.zeros(1,1,H.shape[-1],device=device,dtype=H.dtype,requires_grad=_B);slot_opt=torch.optim.AdamW([delta],lr=args.slot_lr,weight_decay=1e-08,eps=1e-05)
+			for _ in range(args.slot_steps):slot_opt.zero_grad();adapted=base_model.compute_logits((H+delta).to(torch.bfloat16)).float();slot_loss=F.cross_entropy(adapted[:,:-1].reshape(-1,adapted.size(-1)),y_batch[:,:seq_len-1].reshape(-1),reduction='mean');slot_loss.backward();slot_opt.step()
+			with torch.no_grad():logits=base_model.compute_logits((H+delta.detach()).to(torch.bfloat16))
+		else:
+			with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):logits=compiled_logits(x_batch)
+		with torch.no_grad():
+			nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y_batch.reshape(-1),reduction='none').reshape(bsz,seq_len)
+			for(i,ws)in enumerate(batch_ws):wlen=wlens[i];s=0 if ws==0 else max(wlen-stride,0);scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt=y_batch[i,s:wlen];prev=x_batch[i,s:wlen];tb=base_bytes_lut[tgt].to(torch.float64);tb+=(has_leading_space_lut[tgt]&~is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()
+	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
+	val_loss=(loss_sum/token_count).item();bits_per_token=val_loss/math.log(2.);tokens_per_byte=token_count.item()/byte_count.item();base_model.train();return val_loss,bits_per_token*tokens_per_byte
+def eval_val_sliding_ttt(args,base_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride,batch_seqs=32,log0=print):
+	seq_len=args.train_seq_len;total_tokens=val_tokens.numel()-1;ttt_chunk=args.ttt_chunk_tokens;window_starts=[ws for ws in range(0,total_tokens,stride)if min(ws+seq_len,total_tokens)-ws>=stride or ws==0];num_chunks=(total_tokens+ttt_chunk-1)//ttt_chunk;chunk_windows=[[]for _ in range(num_chunks)]
+	for ws in window_starts:end=min(ws+seq_len,total_tokens);wlen=end-ws;s=0 if ws==0 else max(wlen-stride,0);scored_start=ws+s;ci=min(scored_start//ttt_chunk,num_chunks-1);chunk_windows[ci].append(ws)
+	log0(f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} total_windows={len(window_starts)} stride={stride} ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}");loss_sum=torch.zeros((),device=device,dtype=torch.float64);token_count=torch.zeros((),device=device,dtype=torch.float64);byte_count=torch.zeros((),device=device,dtype=torch.float64);frozen_block_ids=set(range(min(args.ttt_freeze_blocks,len(base_model.blocks))));ttt_params=[]
+	for(name,p)in base_model.named_parameters():
+		freeze=_C
+		for bi in frozen_block_ids:
+			if f"blocks.{bi}."in name:freeze=_B;break
+		if freeze:p.requires_grad_(_C)
+		else:p.requires_grad_(_B);ttt_params.append(p)
+	log0(f"ttt_sliding:params unfrozen={sum(p.numel()for p in ttt_params)} frozen={sum(p.numel()for p in base_model.parameters()if not p.requires_grad)}");optimizer=torch.optim.SGD(ttt_params,lr=args.ttt_lr,momentum=args.ttt_momentum);t0=time.perf_counter()
+	for ci in range(num_chunks):
+		windows=chunk_windows[ci]
+		if not windows:continue
+		chunk_start=ci*ttt_chunk;chunk_end=min((ci+1)*ttt_chunk,total_tokens);my_s=len(windows)*rank//world_size;my_e=len(windows)*(rank+1)//world_size;my_windows=windows[my_s:my_e];base_model.eval()
+		with torch.inference_mode():
+			for bi in range(0,len(my_windows),batch_seqs):
+				batch_ws=my_windows[bi:bi+batch_seqs];bsz=len(batch_ws);x_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);y_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);wlens=[]
+				for(i,ws)in enumerate(batch_ws):end=min(ws+seq_len,total_tokens);wlen=end-ws;wlens.append(wlen);chunk_tok=val_tokens[ws:end+1].to(dtype=torch.int64,device=device);x_batch[i,:wlen]=chunk_tok[:-1];y_batch[i,:wlen]=chunk_tok[1:]
+				with torch.autocast(device_type=_F,dtype=torch.bfloat16):logits=base_model.forward_logits(x_batch)
+				nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y_batch.reshape(-1),reduction='none').reshape(bsz,seq_len)
+				for(i,ws)in enumerate(batch_ws):wlen=wlens[i];s=0 if ws==0 else max(wlen-stride,0);scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt,prev=y_batch[i,s:wlen],x_batch[i,s:wlen];tb=base_bytes_lut[tgt].to(torch.float64);tb+=(has_leading_space_lut[tgt]&~is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()
+		is_last_chunk=ci==num_chunks-1
+		if not is_last_chunk and args.ttt_epochs>0:
+			base_model.train();chunk_seqs=(chunk_end-chunk_start)//seq_len
+			if chunk_seqs>0:
+				cos_lr=args.ttt_lr*.5*(_D+math.cos(math.pi*ci/max(num_chunks-1,1)))
+				for pg in optimizer.param_groups:pg[_H]=cos_lr
+				my_seq_s=chunk_seqs*rank//world_size;my_seq_e=chunk_seqs*(rank+1)//world_size;my_chunk_seqs=my_seq_e-my_seq_s
+				for _ep in range(args.ttt_epochs):
+					for bs in range(0,my_chunk_seqs,args.ttt_batch_seqs):
+						be=min(bs+args.ttt_batch_seqs,my_chunk_seqs);actual_bs=my_seq_s+bs;start_tok=chunk_start+actual_bs*seq_len;end_tok=chunk_start+(my_seq_s+be)*seq_len+1
+						if end_tok>val_tokens.numel():continue
+						local=val_tokens[start_tok:end_tok].to(device=device,dtype=torch.int64);x=local[:-1].reshape(-1,seq_len);y=local[1:].reshape(-1,seq_len);optimizer.zero_grad(set_to_none=_B)
+						with torch.autocast(device_type=_F,dtype=torch.bfloat16):loss=base_model(x,y)
+						loss.backward()
+						if world_size>1:
+							for p in ttt_params:
+								if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+						torch.nn.utils.clip_grad_norm_(ttt_params,args.ttt_grad_clip);optimizer.step()
+		if rank==0 and(ci%10==0 or ci==num_chunks-1):elapsed=time.perf_counter()-t0;rl=loss_sum.item()/max(token_count.item(),1);rbpb=rl/math.log(2.)*(token_count.item()/max(byte_count.item(),1))if token_count.item()>0 else _E;log0(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={rbpb:.6f} time={elapsed:.1f}s")
+	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
+	val_loss=(loss_sum/token_count).item();val_bpb=val_loss/math.log(2.)*(token_count.item()/byte_count.item())
+	for p in base_model.parameters():p.requires_grad_(_B)
+	base_model.eval();log0(f"ttt_sliding:done val_loss={val_loss:.6f}{ val_bpb=:.6f} elapsed={time.perf_counter()-t0:.1f}s");return val_loss,val_bpb
+def _classify_param(name):
+	A='.mlp.'
+	if'tok_emb'in name or'lm_head'in name:return'embed'
+	if A in name:return'mlp'
+	if'.attn.'in name or'.proj.'in name and A not in name:return'attn'
+	return'other'
+def quantize_int6_per_row(t,clip_range=31):
+	t32=t.float()
+	if t32.ndim==2:
+		best_q,best_s,best_err=_A,_A,float('inf')
+		for pct in[.999,.9995,.9999,.99999,_D]:
+			if pct<_D:row_clip=torch.quantile(t32.abs(),pct,dim=1)
+			else:row_clip=t32.abs().amax(dim=1)
+			s=(row_clip/clip_range).clamp_min(_D/clip_range).to(torch.float16);q=torch.clamp(torch.round(t32/s.float()[:,_A]),-clip_range,clip_range).to(torch.int8);recon=q.float()*s.float()[:,_A];err=(t32-recon).pow(2).mean().item()
+			if err<best_err:best_q,best_s,best_err=q,s,err
+		return best_q,best_s
+	amax=t32.abs().max().item();scale=torch.tensor(amax/clip_range if amax>0 else _D,dtype=torch.float16);q=torch.clamp(torch.round(t32/scale.float()),-clip_range,clip_range).to(torch.int8);return q,scale
+def _unbank_state_dict(sd,num_layers):
+	out={};n=num_layers
+	for(name,tensor)in sd.items():
+		if name==_R:
+			for i in range(n):out[f"blocks.{i}.attn.c_q.weight"]=tensor[i];out[f"blocks.{i}.attn.proj.weight"]=tensor[n+i]
+		elif name==_S:
+			for i in range(n):out[f"blocks.{i}.attn.c_k.weight"]=tensor[i];out[f"blocks.{i}.attn.c_v.weight"]=tensor[n+i]
+		elif name==_T:
+			for i in range(n):out[f"blocks.{i}.mlp.fc.weight"]=tensor[i]
+		elif name==_U:
+			for i in range(n):out[f"blocks.{i}.mlp.proj.weight"]=tensor[i]
+		else:out[name]=tensor
+	return out
+def _rebank_state_dict(sd,num_layers,template_sd):
+	out={};n=num_layers;qo_slices=[_A]*(2*n);kv_slices=[_A]*(2*n);up_slices=[_A]*n;down_slices=[_A]*n;consumed=set()
+	for i in range(n):
+		qk=f"blocks.{i}.attn.c_q.weight"
+		if qk in sd:qo_slices[i]=sd[qk];consumed.add(qk)
+		ok=f"blocks.{i}.attn.proj.weight"
+		if ok in sd:qo_slices[n+i]=sd[ok];consumed.add(ok)
+		kk=f"blocks.{i}.attn.c_k.weight"
+		if kk in sd:kv_slices[i]=sd[kk];consumed.add(kk)
+		vk=f"blocks.{i}.attn.c_v.weight"
+		if vk in sd:kv_slices[n+i]=sd[vk];consumed.add(vk)
+		fk=f"blocks.{i}.mlp.fc.weight"
+		if fk in sd:up_slices[i]=sd[fk];consumed.add(fk)
+		dk=f"blocks.{i}.mlp.proj.weight"
+		if dk in sd:down_slices[i]=sd[dk];consumed.add(dk)
+	out[_R]=torch.stack(qo_slices).to(dtype=template_sd[_R].dtype);out[_S]=torch.stack(kv_slices).to(dtype=template_sd[_S].dtype);out[_T]=torch.stack(up_slices).to(dtype=template_sd[_T].dtype);out[_U]=torch.stack(down_slices).to(dtype=template_sd[_U].dtype)
+	for(name,tensor)in sd.items():
+		if name not in consumed:out[name]=tensor
+	return out
+def mixed_quantize_int6(state_dict,int6_cats,clip_range=31,hessians=_A):
+	A='type';num_layers_total=max((int(k.split('.')[1])for k in state_dict if k.startswith('blocks.')),default=0)+1;late_k_layers=set(range(num_layers_total-2,num_layers_total));result={};meta={};gptq_count,naive_count=0,0
+	for(name,tensor)in state_dict.items():
+		t=tensor.detach().cpu().contiguous();cat=_classify_param(name)
+		if not t.is_floating_point()or t.numel()<=65536:result[name]=t.to(torch.float16)if t.is_floating_point()else t;meta[name]=_L;continue
+		if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):result[name]=t.float();meta[name]=_i;continue
+		if cat in int6_cats and t.ndim>=1:
+			H=hessians.get(name)if hessians else _A
+			if H is not _A and t.ndim==2:q,s=gptq_quantize_weight(t,H.cpu(),clip_range=clip_range);gptq_count+=1
+			else:q,s=quantize_int6_per_row(t,clip_range=clip_range);naive_count+=1
+			result[name+'.q']=q;result[name+_V]=s;meta[name]={A:'int6'}
+		else:q,s=quantize_float_tensor(t);result[name+'.q']=q;result[name+_V]=s;meta[name]={A:'int8'}
+	if hessians:print(f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers",flush=_B)
+	return result,meta
+def dequantize_mixed_int6(result,meta,template_sd):
+	out={}
+	for(name,orig)in template_sd.items():
+		info=meta.get(name)
+		if info is _A:continue
+		orig_dtype=orig.dtype
+		if info in(_L,_i,'passthrough_fp16'):
+			t=result[name]
+			if t.dtype==torch.float16 and orig_dtype in(torch.float32,torch.bfloat16):t=t.to(orig_dtype)
+			out[name]=t;continue
+		q,s=result[name+'.q'],result[name+_V]
+		if s.ndim>0:out[name]=(q.float()*s.float().view(q.shape[0],*[1]*(q.ndim-1))).to(orig_dtype)
+		else:out[name]=(q.float()*float(s.item())).to(orig_dtype)
+	return out
+def gptq_quantize_weight(W,H,clip_range=31,block_size=128,percdamp=.01):
+	W_orig=W.float().clone();rows,cols=W_orig.shape;H=H.float().clone();dead=torch.diag(H)==0;H[dead,dead]=1;damp=percdamp*H.diag().mean();H.diagonal().add_(damp);perm=torch.argsort(H.diag(),descending=_B);invperm=torch.argsort(perm);W_perm=W_orig[:,perm].clone();W_perm[:,dead[perm]]=0;H=H[perm][:,perm]
+	try:Hinv=torch.cholesky_inverse(torch.linalg.cholesky(H));Hinv=torch.linalg.cholesky(Hinv,upper=_B)
+	except torch.linalg.LinAlgError:return quantize_int6_per_row(W_orig,clip_range)
+	best_q,best_scale,best_err=_A,_A,float('inf')
+	for pct in[.999,.9995,.9999,.99999,_D]:
+		if pct<_D:row_clip=torch.quantile(W_orig.abs(),pct,dim=1)
+		else:row_clip=W_orig.abs().amax(dim=1)
+		s=(row_clip/clip_range).clamp_min(_D/clip_range).to(torch.float16);sf=s.float();Q=torch.zeros(rows,cols,dtype=torch.int8);W_work=W_perm.clone()
+		for i1 in range(0,cols,block_size):
+			i2=min(i1+block_size,cols);W_block=W_work[:,i1:i2].clone();Hinv_block=Hinv[i1:i2,i1:i2];Err=torch.zeros(rows,i2-i1)
+			for j in range(i2-i1):w_col=W_block[:,j];d=Hinv_block[j,j];q_col=torch.clamp(torch.round(w_col/sf),-clip_range,clip_range);Q[:,i1+j]=q_col.to(torch.int8);err=(w_col-q_col.float()*sf)/d;Err[:,j]=err;W_block[:,j:]-=err.unsqueeze(1)*Hinv_block[j,j:].unsqueeze(0)
+			if i2<cols:W_work[:,i2:]-=Err@Hinv[i1:i2,i2:]
+		recon=Q.float()*sf[:,_A];mse=(W_perm-recon).pow(2).mean().item()
+		if mse<best_err:best_q,best_scale,best_err=Q,s,mse
+	best_q=best_q[:,invperm];return best_q,best_scale
+def _init_hessians(nl,dim,mlp_dim,device):
+	h={}
+	for i in range(nl):
+		for k in['c_q','c_k','c_v']:h[f"blocks.{i}.attn.{k}.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device)
+		h[f"blocks.{i}.attn.proj.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device);h[f"blocks.{i}.mlp.fc.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device);h[f"blocks.{i}.mlp.proj.weight"]=torch.zeros(mlp_dim,mlp_dim,dtype=torch.float32,device=device)
+	return h
+def _accum_hessians(hessians,blocks,dim,mlp_dim):
+	for(i,block)in enumerate(blocks):qkv_in=block.attn._gptq_qkv_in.float().reshape(-1,dim);h_qkv=qkv_in.t()@qkv_in;hessians[f"blocks.{i}.attn.c_q.weight"]+=h_qkv;hessians[f"blocks.{i}.attn.c_k.weight"]+=h_qkv;hessians[f"blocks.{i}.attn.c_v.weight"]+=h_qkv;o_in=block.attn._gptq_o_in.float().reshape(-1,dim);hessians[f"blocks.{i}.attn.proj.weight"]+=o_in.t()@o_in;up_in=block.mlp._gptq_up_in.float().reshape(-1,dim);hessians[f"blocks.{i}.mlp.fc.weight"]+=up_in.t()@up_in;down_in=block.mlp._gptq_down_in.float().reshape(-1,mlp_dim);hessians[f"blocks.{i}.mlp.proj.weight"]+=down_in.t()@down_in
+def _finalize_hessians(hessians,num_batches):
+	for name in hessians:hessians[name]=hessians[name].cpu()/num_batches;damp=.01*torch.diag(hessians[name]).mean().clamp_min(1e-06);hessians[name]+=damp*torch.eye(hessians[name].shape[0])
+def gptq_collect_hessians(base_model,train_loader,device,num_batches,batch_tokens,seq_len,grad_accum_steps):
+	nl=base_model.num_layers;dim=base_model.tok_emb.weight.shape[1];mlp_dim=base_model.mlp_up_bank.shape[1];hessians=_init_hessians(nl,dim,mlp_dim,device)
+	for block in base_model.blocks:block.attn._save_gptq=_B;block.mlp._save_gptq=_B
+	base_model.eval()
+	with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):
+		for _ in range(num_batches):x,y=train_loader.next_batch(batch_tokens,seq_len,grad_accum_steps);base_model(x,y);_accum_hessians(hessians,base_model.blocks,dim,mlp_dim)
+	for block in base_model.blocks:block.attn._save_gptq=_C;block.mlp._save_gptq=_C
+	_finalize_hessians(hessians,num_batches);base_model.train();return hessians
+def main():
+	F='final_model.int6.ptz';E='final_model.pt';D='WORLD_SIZE';C='RANK';B='__wrapper_size__';A='base_lr';code=Path(__file__).read_text(encoding=_I)
+	if B in dir()or B in globals():code='x'*globals().get(B,len(code))
+	args=Hyperparameters();distributed=C in os.environ and D in os.environ;rank=int(os.environ.get(C,'0'));world_size=int(os.environ.get(D,'1'));local_rank=int(os.environ.get('LOCAL_RANK','0'))
+	if world_size<=0:raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+	if 8%world_size!=0:raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+	grad_accum_steps=8//world_size;grad_scale=_D/grad_accum_steps
+	if not torch.cuda.is_available():raise RuntimeError('CUDA is required')
+	device=torch.device(_F,local_rank);torch.cuda.set_device(device)
+	if distributed:dist.init_process_group(backend='nccl',device_id=device);dist.barrier()
+	master_process=rank==0;torch.backends.cuda.matmul.allow_tf32=_B;torch.backends.cudnn.allow_tf32=_B;from torch.backends.cuda import enable_cudnn_sdp,enable_flash_sdp,enable_math_sdp,enable_mem_efficient_sdp;enable_cudnn_sdp(_C);enable_flash_sdp(_B);enable_mem_efficient_sdp(_C);enable_math_sdp(_C);logfile=_A
+	if master_process:os.makedirs('logs',exist_ok=_B);logfile=f"logs/{args.run_id}.txt";print(logfile)
+	def log0(msg,console=_B):
+		if not master_process:return
+		if console:print(msg)
+		if logfile is not _A:
+			with open(logfile,'a',encoding=_I)as f:print(msg,file=f)
+	log0(code,console=_C);log0('='*100,console=_C);log0(f"Running Python {sys.version}",console=_C);log0(f"Running PyTorch {torch.__version__}",console=_C);log0(subprocess.run(['nvidia-smi'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=_B,check=_C).stdout,console=_C);log0('='*100,console=_C);random.seed(args.seed);np.random.seed(args.seed);torch.manual_seed(args.seed);torch.cuda.manual_seed_all(args.seed)
+	if not args.tokenizer_path.endswith('.model'):raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+	sp=spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+	if int(sp.vocab_size())!=args.vocab_size:raise ValueError(f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}")
+	dataset_dir=Path(args.data_path).resolve();actual_train_files=len(list(dataset_dir.glob(_X)));effective_eval_seq_len=args.eval_seq_len if args.eval_seq_len>0 else args.train_seq_len;val_seq_len=max(args.train_seq_len,effective_eval_seq_len);val_tokens=load_validation_tokens(args.val_files,val_seq_len);base_bytes_lut,has_leading_space_lut,is_boundary_token_lut=build_sentencepiece_luts(sp,args.vocab_size,device);log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}");log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}");log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel()-1}");base_model=GPT(vocab_size=args.vocab_size,num_layers=args.num_layers,model_dim=args.model_dim,num_heads=args.num_heads,num_kv_heads=args.num_kv_heads,mlp_mult=args.mlp_mult,tie_embeddings=args.tie_embeddings,tied_embed_init_std=args.tied_embed_init_std,logit_softcap=args.logit_softcap,rope_base=args.rope_base,qk_gain_init=args.qk_gain_init,bigram_vocab_size=args.bigram_vocab_size,bigram_dim=args.bigram_dim,xsa_last_n=args.xsa_last_n,rope_dims=args.rope_dims,ln_scale=args.ln_scale,ve_enabled=args.ve_enabled,ve_dim=args.ve_dim,ve_layers=args.ve_layers,neg_slope=args.negative_slope).to(device).bfloat16();base_model.qo_bank.data=base_model.qo_bank.data.float();base_model.kv_bank.data=base_model.kv_bank.data.float();base_model.mlp_up_bank.data=base_model.mlp_up_bank.data.float();base_model.mlp_down_bank.data=base_model.mlp_down_bank.data.float()
+	for module in base_model.modules():
+		if isinstance(module,CastedLinear):module.float()
+	restore_low_dim_params_to_fp32(base_model);compiled_model=torch.compile(base_model,dynamic=_C,fullgraph=_B);model=compiled_model;matrix_params=[base_model.qo_bank,base_model.kv_bank,base_model.mlp_up_bank,base_model.mlp_down_bank];block_named_params=list(base_model.blocks.named_parameters());scalar_params=[p for(name,p)in block_named_params if p.ndim<2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)]
+	if base_model.skip_weights.numel()>0:scalar_params.append(base_model.skip_weights);scalar_params.append(base_model.skip_gates)
+	scalar_params.append(base_model.smear.gate)
+	if base_model.bigram is not _A:scalar_params.append(base_model.bigram.scale)
+	token_lr=args.tied_embed_lr if args.tie_embeddings else args.embed_lr;tok_params=[{_G:[base_model.tok_emb.weight],_H:token_lr,A:token_lr}]
+	if base_model.bigram is not _A:
+		tok_params.append({_G:[base_model.bigram.embed.weight],_H:token_lr,A:token_lr})
+		if base_model.bigram.proj is not _A:scalar_params.append(base_model.bigram.proj.weight)
+	if base_model.ve_shared is not _A:
+		tok_params.append({_G:[base_model.ve_shared.embed.weight],_H:token_lr,A:token_lr})
+		if base_model.ve_shared.proj is not _A:scalar_params.append(base_model.ve_shared.proj.weight)
+		scalar_params.append(base_model.ve_shared.scale)
+		for s in base_model.ve_layer_scales:scalar_params.append(s)
+	optimizer_tok=torch.optim.AdamW(tok_params,betas=(args.beta1,args.beta2),eps=args.adam_eps,weight_decay=args.adam_wd,fused=_B);optimizer_muon=Muon(matrix_params,lr=args.matrix_lr,momentum=args.muon_momentum,backend_steps=args.muon_backend_steps,weight_decay=args.muon_wd)
+	for group in optimizer_muon.param_groups:group[A]=args.matrix_lr
+	optimizer_scalar=torch.optim.AdamW([{_G:scalar_params,_H:args.scalar_lr,A:args.scalar_lr}],betas=(args.beta1,args.beta2),eps=args.adam_eps,weight_decay=args.adam_wd,fused=_B);replicated_params=list(optimizer_tok.param_groups[0][_G])
+	for pg in optimizer_tok.param_groups[1:]:replicated_params.extend(pg[_G])
+	replicated_params.extend(scalar_params);optimizer_head=_A
+	if base_model.lm_head is not _A:optimizer_head=torch.optim.Adam([{_G:[base_model.lm_head.weight],_H:args.head_lr,A:args.head_lr}],betas=(args.beta1,args.beta2),eps=args.adam_eps,fused=_B);replicated_params.append(base_model.lm_head.weight)
+	optimizers=[optimizer_tok,optimizer_muon,optimizer_scalar]
+	if optimizer_head is not _A:optimizers.append(optimizer_head)
+	log0(f"model_params:{sum(p.numel()for p in base_model.parameters())}");xsa_layers=[i for(i,b)in enumerate(base_model.blocks)if b.attn.use_xsa];log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}");log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}");log0('sdp_backends:cudnn=False flash=True mem_efficient=False math=False');log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}");log0(f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} head_lr:{args.head_lr if base_model.lm_head is not _A else _E} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}");log0(f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} iterations:{args.iterations} warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}");log0(f"seed:{args.seed}");train_loader=DistributedTokenLoader(args.train_files,rank,world_size,device)
+	def zero_grad_all():
+		for opt in optimizers:opt.zero_grad(set_to_none=_B)
+	max_wallclock_ms=1e3*args.max_wallclock_seconds if args.max_wallclock_seconds>0 else _A
+	if args.use_gptq and max_wallclock_ms is not _A:max_wallclock_ms-=args.gptq_reserve_ms;log0(f"gptq:reserving {args.gptq_reserve_ms:.0f}ms from training budget, effective={max_wallclock_ms:.0f}ms")
+	def lr_mul(step,elapsed_ms):
+		if args.warmdown_iters<=0:return _D
+		if max_wallclock_ms is _A:warmdown_start=max(args.iterations-args.warmdown_iters,0);return max((args.iterations-step)/max(args.warmdown_iters,1),_E)if warmdown_start<=step<args.iterations else _D
+		step_ms=elapsed_ms/max(step,1);warmdown_ms=args.warmdown_iters*step_ms;remaining_ms=max(max_wallclock_ms-elapsed_ms,_E);return remaining_ms/max(warmdown_ms,1e-09)if remaining_ms<=warmdown_ms else _D
+	if args.warmup_steps>0:
+		initial_model_state={name:tensor.detach().cpu().clone()for(name,tensor)in base_model.state_dict().items()};initial_optimizer_states=[copy.deepcopy(opt.state_dict())for opt in optimizers];model.train()
+		for warmup_step in range(args.warmup_steps):
+			zero_grad_all()
+			for micro_step in range(grad_accum_steps):
+				x,y=train_loader.next_batch(args.train_batch_tokens,args.train_seq_len,grad_accum_steps)
+				with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):warmup_loss=model(x,y)
+				(warmup_loss*grad_scale).backward()
+			if distributed:
+				for p in base_model.parameters():
+					if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+			for opt in optimizers:opt.step()
+			zero_grad_all()
+			if args.warmup_steps<=20 or(warmup_step+1)%10==0 or warmup_step+1==args.warmup_steps:log0(f"warmup_step:{warmup_step+1}/{args.warmup_steps}")
+		base_model.load_state_dict(initial_model_state,strict=_B)
+		for(opt,state)in zip(optimizers,initial_optimizer_states,strict=_B):opt.load_state_dict(state)
+		zero_grad_all();train_loader=DistributedTokenLoader(args.train_files,rank,world_size,device)
+	swa_state=_A;swa_count=0;ema_state={name:t.detach().float().clone()for(name,t)in base_model.state_dict().items()};ema_decay=.997;training_time_ms=_E;stop_after_step=_A;torch.cuda.synchronize();t0=time.perf_counter();step=0
+	while _B:
+		last_step=step==args.iterations or stop_after_step is not _A and step>=stop_after_step;should_validate=last_step or args.val_loss_every>0 and step%args.val_loss_every==0
+		if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(args,model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut);log0(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms/max(step,1):.2f}ms");torch.cuda.synchronize();t0=time.perf_counter()
+		if last_step:
+			if stop_after_step is not _A and step<args.iterations:log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
+			break
+		elapsed_ms=training_time_ms+1e3*(time.perf_counter()-t0);scale=lr_mul(step,elapsed_ms);zero_grad_all();train_loss=torch.zeros((),device=device)
+		for micro_step in range(grad_accum_steps):
+			x,y=train_loader.next_batch(args.train_batch_tokens,args.train_seq_len,grad_accum_steps)
+			with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):loss=model(x,y)
+			train_loss+=loss.detach();(loss*grad_scale).backward()
+		train_loss/=grad_accum_steps;frac=min(step/args.muon_momentum_warmup_steps,_D)if args.muon_momentum_warmup_steps>0 else _D;muon_momentum=(1-frac)*args.muon_momentum_warmup_start+frac*args.muon_momentum
+		for group in optimizer_muon.param_groups:group[_a]=muon_momentum
+		for opt in optimizers:
+			for group in opt.param_groups:group[_H]=group[A]*scale
+		if args.grad_clip_norm>0:torch.nn.utils.clip_grad_norm_(base_model.parameters(),args.grad_clip_norm)
+		if args.matrix_lr_early!=args.matrix_lr or args.matrix_lr_late!=args.matrix_lr:
+			s=args.bank_split;n=args.num_layers;es=args.matrix_lr_early/args.matrix_lr;ls=args.matrix_lr_late/args.matrix_lr
+			with torch.no_grad():
+				for bank in[base_model.qo_bank,base_model.kv_bank]:
+					if bank.grad is not _A:bank.grad[:s].mul_(es);bank.grad[s:n].mul_(ls);bank.grad[n:n+s].mul_(es);bank.grad[n+s:].mul_(ls)
+				for bank in[base_model.mlp_up_bank,base_model.mlp_down_bank]:
+					if bank.grad is not _A:bank.grad[:s].mul_(es);bank.grad[s:].mul_(ls)
+		optimizer_muon.launch_reduce_scatters()
+		if distributed:
+			for p in replicated_params:
+				if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+		optimizer_tok.step();optimizer_scalar.step()
+		if optimizer_head is not _A:optimizer_head.step()
+		optimizer_muon.step();zero_grad_all()
+		with torch.no_grad():
+			for(name,t)in base_model.state_dict().items():ema_state[name].mul_(ema_decay).add_(t.detach().float(),alpha=_D-ema_decay)
+		step+=1;approx_training_time_ms=training_time_ms+1e3*(time.perf_counter()-t0)
+		if args.late_qat_threshold>0 and scale<args.late_qat_threshold and step>=2000:
+			if not CastedLinear._qat_enabled:CastedLinear._qat_enabled=_B;CastedLinear._qat_start_step=step;log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+			qat_progress=min((step-CastedLinear._qat_start_step)/max(500,1),_D);CastedLinear._qat_alpha=_D+15.*qat_progress
+		if args.swa_enabled and scale<.2 and step%args.swa_every==0:
+			if swa_state is _A:swa_state={name:t.detach().cpu().clone()for(name,t)in base_model.state_dict().items()};swa_count=1;log0(f"swa:start step:{step}")
+			else:
+				for(name,t)in base_model.state_dict().items():swa_state[name]+=t.detach().cpu()
+				swa_count+=1
+		should_log_train=args.train_log_every>0 and(step<=10 or step%args.train_log_every==0 or stop_after_step is not _A)
+		if should_log_train:log0(f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/step:.2f}ms")
+		reached_cap=max_wallclock_ms is not _A and approx_training_time_ms>=max_wallclock_ms
+		if distributed and max_wallclock_ms is not _A:reached_cap_tensor=torch.tensor(int(reached_cap),device=device);dist.all_reduce(reached_cap_tensor,op=dist.ReduceOp.MAX);reached_cap=bool(reached_cap_tensor.item())
+		if stop_after_step is _A and reached_cap:stop_after_step=step
+	log0(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log0('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=_B);torch.cuda.synchronize();t_diag=time.perf_counter();diag_val_loss,diag_val_bpb=eval_val(args,compiled_model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut);torch.cuda.synchronize();log0(f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_diag):.0f}ms");export_sd=base_model.state_dict()
+	if master_process:torch.save(export_sd,E);model_bytes=os.path.getsize(E);code_bytes=len(code.encode(_I));log0(f"Serialized model: {model_bytes} bytes");log0(f"Code size: {code_bytes} bytes")
+	sd_cpu={k:v.detach().cpu()for(k,v)in export_sd.items()};unbanked_sd=_unbank_state_dict(sd_cpu,args.num_layers);gptq_hessians=_A
+	if args.use_gptq:t_gptq=time.perf_counter();log0(f"gptq:calibrating with {args.gptq_calib_samples} batches (training data)...");calib_loader=DistributedTokenLoader(args.train_files,rank,world_size,device);gptq_hessians=gptq_collect_hessians(base_model,calib_loader,device,num_batches=args.gptq_calib_samples,batch_tokens=args.train_batch_tokens,seq_len=args.train_seq_len,grad_accum_steps=grad_accum_steps);del calib_loader;gptq_elapsed=time.perf_counter()-t_gptq;log0(f"gptq:calibrated {len(gptq_hessians)} layers in {gptq_elapsed:.1f}s");torch.cuda.empty_cache()
+	quant_result,quant_meta=mixed_quantize_int6(unbanked_sd,{'mlp','attn'},clip_range=args.quant_clip_range,hessians=gptq_hessians);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=brotli.compress(_byte_shuffle(quant_raw),quality=11)
+	if master_process:
+		with open(F,'wb')as f:f.write(quant_blob)
+		quant_file_bytes=len(quant_blob);code_bytes=len(code.encode(_I));log0(f"Serialized model int6+brotli: {quant_file_bytes} bytes");log0(f"Total submission size int6+brotli: {quant_file_bytes+code_bytes} bytes")
+	if distributed:dist.barrier()
+	with open(F,'rb')as f:quant_blob_disk=f.read()
+	quant_state=torch.load(io.BytesIO(_byte_unshuffle(brotli.decompress(quant_blob_disk))),map_location=_P);deq_unbanked=dequantize_mixed_int6(quant_state['w'],quant_state['m'],unbanked_sd);deq_state=_rebank_state_dict(deq_unbanked,args.num_layers,sd_cpu);eval_model=GPT(vocab_size=args.vocab_size,num_layers=args.num_layers,model_dim=args.model_dim,num_heads=args.num_heads,num_kv_heads=args.num_kv_heads,mlp_mult=args.mlp_mult,tie_embeddings=args.tie_embeddings,tied_embed_init_std=args.tied_embed_init_std,logit_softcap=args.logit_softcap,rope_base=args.rope_base,qk_gain_init=args.qk_gain_init,bigram_vocab_size=args.bigram_vocab_size,bigram_dim=args.bigram_dim,xsa_last_n=args.xsa_last_n,rope_dims=args.rope_dims,ln_scale=args.ln_scale,ve_enabled=args.ve_enabled,ve_dim=args.ve_dim,ve_layers=args.ve_layers,neg_slope=args.negative_slope).to(device).bfloat16();eval_model.qo_bank.data=eval_model.qo_bank.data.float();eval_model.kv_bank.data=eval_model.kv_bank.data.float();eval_model.mlp_up_bank.data=eval_model.mlp_up_bank.data.float();eval_model.mlp_down_bank.data=eval_model.mlp_down_bank.data.float()
+	for m in eval_model.modules():
+		if isinstance(m,CastedLinear):m.float()
+	restore_low_dim_params_to_fp32(eval_model);eval_model.load_state_dict(deq_state,strict=_B);compiled_eval=torch.compile(eval_model,dynamic=_C,fullgraph=_B);torch.cuda.synchronize();t_qeval=time.perf_counter();q_val_loss,q_val_bpb=eval_val(args,compiled_eval,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,eval_seq_len=effective_eval_seq_len);torch.cuda.synchronize();log0(f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_qeval):.0f}ms");log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}");sw_seq_len=effective_eval_seq_len
+	if args.eval_stride>0 and args.eval_stride<sw_seq_len:torch.cuda.synchronize();t_slide=time.perf_counter();sw_val_loss,sw_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=args.eval_stride,eval_seq_len=sw_seq_len);torch.cuda.synchronize();log0(f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} stride:{args.eval_stride} eval_time:{1e3*(time.perf_counter()-t_slide):.0f}ms");log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+	if args.eval_stride!=64 and 64<sw_seq_len:torch.cuda.synchronize();t_slide64=time.perf_counter();sw64_val_loss,sw64_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=64,eval_seq_len=sw_seq_len);torch.cuda.synchronize();log0(f"final_int6_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} stride:64 eval_time:{1e3*(time.perf_counter()-t_slide64):.0f}ms");log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+	if args.ttt_enabled:torch.cuda.synchronize();t_ttt=time.perf_counter();ttt_loss,ttt_bpb=eval_val_sliding_ttt(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=args.eval_stride,log0=log0);torch.cuda.synchronize();log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_ttt):.0f}ms");log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+	if distributed:dist.destroy_process_group()
+if __name__=='__main__':main()
