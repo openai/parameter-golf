@@ -159,9 +159,91 @@ case "$PROFILE" in
     export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
     export MLP_MULT="${MLP_MULT:-3}"
     ;;
+  wd04_locked)
+    export RUN_ID="${RUN_ID:-wd04_locked}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    ;;
+  wd04_warm3500)
+    export RUN_ID="${RUN_ID:-wd04_warm3500}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-3500}"
+    ;;
+  wd04_warm4000)
+    export RUN_ID="${RUN_ID:-wd04_warm4000}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
+    ;;
+  wd04_lr18)
+    export RUN_ID="${RUN_ID:-wd04_lr18}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export MATRIX_LR="${MATRIX_LR:-0.018}"
+    ;;
+  wd04_lr19)
+    export RUN_ID="${RUN_ID:-wd04_lr19}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export MATRIX_LR="${MATRIX_LR:-0.019}"
+    ;;
+  wd04_scalar18)
+    export RUN_ID="${RUN_ID:-wd04_scalar18}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export SCALAR_LR="${SCALAR_LR:-0.018}"
+    ;;
+  wd04_tied28)
+    export RUN_ID="${RUN_ID:-wd04_tied28}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export TIED_EMBED_LR="${TIED_EMBED_LR:-0.028}"
+    ;;
+  wd04_ema_swa)
+    export RUN_ID="${RUN_ID:-wd04_ema_swa}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export EMA_DECAY="${EMA_DECAY:-0.997}"
+    export SWA_START_FRAC="${SWA_START_FRAC:-0.6}"
+    export SWA_STRIDE="${SWA_STRIDE:-50}"
+    ;;
+  wd04_warm3500_lr18)
+    export RUN_ID="${RUN_ID:-wd04_warm3500_lr18}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export WARMDOWN_ITERS="${WARMDOWN_ITERS:-3500}"
+    export MATRIX_LR="${MATRIX_LR:-0.018}"
+    ;;
+  wd04_zloss)
+    export RUN_ID="${RUN_ID:-wd04_zloss}"
+    export ATTN_TWICE_ALPHA="${ATTN_TWICE_ALPHA:-0.05}"
+    export ROUNDTRIP_EVAL_SEQ_LEN="${ROUNDTRIP_EVAL_SEQ_LEN:-2048}"
+    export TTT_EVAL_SEQ_LEN="${TTT_EVAL_SEQ_LEN:-1024}"
+    export MUON_WEIGHT_DECAY="${MUON_WEIGHT_DECAY:-0.04}"
+    export Z_LOSS_COEF="${Z_LOSS_COEF:-0.0001}"
+    ;;
   *)
     echo "Unknown profile: $PROFILE" >&2
-    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1 winner_locked winner_ema_swa winner_wd03 winner_wd04 winner_warm3500 winner_lr18 winner_wd03_ema winner_mlp3" >&2
+    echo "Profiles: base10l zloss_low zloss_med twice_low twice_layerwise zloss_twice eval2048 twice_eval2048_ttt1024 drope_eval yarn_eval mtp_low muon_balance hybrid_delta shared_depth shared_depth_midshare copycore_v1 winner_locked winner_ema_swa winner_wd03 winner_wd04 winner_warm3500 winner_lr18 winner_wd03_ema winner_mlp3 wd04_locked wd04_warm3500 wd04_warm4000 wd04_lr18 wd04_lr19 wd04_scalar18 wd04_tied28 wd04_ema_swa wd04_warm3500_lr18 wd04_zloss" >&2
     exit 1
     ;;
 esac
