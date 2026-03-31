@@ -1,0 +1,35 @@
+{
+  "name": "10L Int5-MLP + BigramHash(10240) + Delayed PPM K=15",
+  "author": "thwu1",
+  "github_id": "thwu1",
+  "date": "2026-03-23",
+  "val_bpb": 1.14173730,
+  "val_bpb_std": 0.00076951,
+  "baseline_val_bpb": 1.14299494,
+  "delta_bpb": -0.00125764,
+  "delta_bpb_std": 0.00001979,
+  "paired_p_value_one_sided": 0.00004125,
+  "bytes_total": 15850793,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42": {
+      "baseline_val_bpb": 1.14253746,
+      "val_bpb": 1.14125711,
+      "delta_bpb": -0.00128035,
+      "bytes_total": 15649761
+    },
+    "1337": {
+      "baseline_val_bpb": 1.14387335,
+      "val_bpb": 1.14262486,
+      "delta_bpb": -0.00124849,
+      "bytes_total": 15673878
+    },
+    "2024": {
+      "baseline_val_bpb": 1.14257402,
+      "val_bpb": 1.14132993,
+      "delta_bpb": -0.00124409,
+      "bytes_total": 15850793
+    }
+  },
+  "blurb": "Same 10L Int5-MLP + BigramHash(10240) base model, with a strictly causal delayed PPM bank added only at inference. The bank is delayed by 2048 tokens so it can only use targets outside the model's current context window. Fixed config: k_values=[16,12,8,6], min_confs=[1.0,1.0,1.0,0.95], min_counts=[1,1,1,1], boost_k=15. Mean over 3 seeds improves baseline by -0.00125764 bpb, and all seeds remain under the 16MB limit."
+}
