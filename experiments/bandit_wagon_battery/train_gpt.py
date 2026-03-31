@@ -667,7 +667,7 @@ class MLP(nn.Module):
         self.mlp_leaky_slope = mlp_leaky_slope
         if self.mlp_act not in {"relu_sq", "leaky_relu_sq"}:
             raise ValueError(f"Unsupported MLP_ACT '{self.mlp_act}'. Use 'relu_sq' or 'leaky_relu_sq'.")
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, loop_idx: int | None = None) -> Tensor:
         x = self.fc(x)
         if self.mlp_act == "leaky_relu_sq":
             x = F.leaky_relu(x, negative_slope=self.mlp_leaky_slope)
