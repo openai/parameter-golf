@@ -136,7 +136,6 @@ python3 -m torch.distributed.run --nproc_per_node=8 train_gpt.py
 ## References
 
 - H-Net: [arXiv:2507.07955](https://arxiv.org/abs/2507.07955) (Hwang, Wang, Gu 2025)
-- Token Merging: [arXiv:2210.09461](https://arxiv.org/abs/2210.09461) (Bolya et al., 2022)
 
 ## Included Files
 
