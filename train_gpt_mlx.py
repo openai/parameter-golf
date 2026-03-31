@@ -1043,6 +1043,11 @@ def main() -> None:
         train_loss_value = float(train_loss.item())
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
+        if step % 20 == 0:
+            mx.metal.clear_cache() # Clear unused GPU buffers
+            time.sleep(0.04) 
+
+        step_ms = 1000.0 * (time.perf_counter() - step_t0)
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
         approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
