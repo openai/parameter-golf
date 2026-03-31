@@ -1,0 +1,9 @@
+{
+  "name": "Turbo-Muon + EngramLite + ParamBanking + GPTQ Reserve Optimization",
+  "val_bpb": 1.1126,
+  "bytes_total": 15985912,
+  "blurb": "PR #1089 stack (Turbo-Muon, EngramLite, Parameter Banking, mixed GPTQ, brotli) with GPTQ reserve optimization (14s to 9s, +55 training steps). Includes experimental fused Triton MLP kernel architecture (disabled, pending PT2.11 compat). 3-seed mean: 1.1126 (std 0.0003). Built on PR #1089.",
+  "author": "Bortlesboat",
+  "github_id": "Bortlesboat",
+  "date": "2026-03-30"
+}
