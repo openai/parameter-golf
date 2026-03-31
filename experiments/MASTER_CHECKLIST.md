@@ -8,11 +8,10 @@ _Updated: 2026-03-31_
 - [x] BW4 gate — baseline 74.80ms/step, 1.18730643 int6_sw_bpb (seed=444)
 - [x] Tier 1 gate — COMPILE_FULLGRAPH=1 validated (74.51ms, 0 graph breaks, 2.77× faster roundtrip eval)
 - [x] BW5 run.sh — BW4 + COMPILE_FULLGRAPH=1 (one variable, verified)
-- [ ] **BW5 seed=444 production run** ← FIRING NOW
-  - Runner: `SEED=444 NPROC_PER_NODE=8 bash experiments/Bandit_Wagon_V/run.sh`
-  - Checkpoint auto-saves to `checkpoints/BW5_s444_*.pt`
-  - Target: int6_sw_bpb < 1.18731 (BW4 baseline)
-- [ ] Record BW5 seed=444 results in `experiments/Bandit_Wagon_V/RESULTS.md`
+- [x] **BW5 seed=444 production run** — **1.18672385** ✓
+  - 8035 steps, raw_bpb 1.1987, quant_gap -0.0120, 8.61MB
+  - vs BW4: **-0.00058** | vs Leg 3 SOTA: **-0.00074**
+- [x] Record BW5 seed=444 results in `experiments/Bandit_Wagon_V/RESULTS.md`
 - [ ] BW5 seed=300 confirmation run (after seed=444 lands)
   - Runner: `SEED=300 NPROC_PER_NODE=8 bash experiments/Bandit_Wagon_V/run.sh`
   - Or full multi-seed: `NPROC_PER_NODE=8 bash experiments/Bandit_Wagon_V/run_multi_seed.sh`
@@ -93,7 +92,7 @@ _Status: concept stage, no scripts yet_
 | Rascal II (neural) | 1.10987 | 15.44MB | SOTA — submitted |
 | Leg 3 (crawler) | 1.18746 | 8.84MB | Previous SOTA |
 | BW4 (battery, no choke) | 1.18731 | 8.97MB | Current crawler SOTA |
-| **BW5 (BW4 + fullgraph)** | **TBD** | **~8.97MB** | **IN FLIGHT** |
+| **BW5 seed=444 (BW4 + fullgraph)** | **1.18672** | **8.61MB** | **NEW CRAWLER SOTA** |
 | FX_WING_DELTA (compression) | 0.2233 | — | SOTA — model lost, needs re-run |
 
 ---
