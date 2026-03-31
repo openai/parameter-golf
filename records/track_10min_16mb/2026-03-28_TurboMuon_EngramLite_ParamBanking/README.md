@@ -52,6 +52,13 @@ Reinjects token identity into attention values at deep layers (9, 10). Projects 
 
 Efficient XSA applied to all 11 layers (`XSA_LAST_N=11`). Subtracts the self-value projection from attention output via GQA-aware reshape (no `repeat_interleave`), encouraging the model to attend to context rather than the current token's own representation.
 
+### ASQU v3 Per-Layer Activation Slopes
+
+Fixed per-layer LeakyReLU negative slopes discovered through 3 rounds of Adaptive Slope parameter tuning:
+`[-0.014, 0.131, 0.225, 0.265, 0.310, 0.354, 0.421, 0.429, 0.417, 0.358, 0.468]`
+
+Layer 0 uses near-ReLU² (slope ≈ 0) for aggressive feature selection, while deeper layers use progressively larger negative slopes (up to 0.468) to allow smoother gradient flow. Hard-coded converged endpoints eliminate learnable slope parameters.
+
 ### Mimetic V-O Initialization
 
 Output projections initialized as `O_h = -alpha * V_h` per head (alpha=0.05), creating a small residual-like identity at init for improved early training stability.
@@ -106,7 +113,7 @@ Key features:
 | Component | Setting |
 |-----------|---------|
 | Layers | 11 (512d, 8H, 4KV GQA) |
-| MLP | 3.5x with LeakyReLU(0.3)^2 |
+| MLP | 3.5x with LeakyReLU(ASQU v3 per-layer)^2 |
 | XSA | All 11 layers |
 | EngramLite | 2 heads x 2 orders, 8192 buckets |
 | Skip connections | U-Net sigmoid-gated |

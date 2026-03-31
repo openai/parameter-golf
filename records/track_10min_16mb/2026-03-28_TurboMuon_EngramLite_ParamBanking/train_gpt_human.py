@@ -922,13 +922,17 @@ class ValueEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: float):
+    # Fixed per-layer negative slopes from ASQU v3 converged endpoints
+    _LAYER_SLOPES = [-0.014, 0.131, 0.225, 0.265, 0.310, 0.354, 0.421, 0.429, 0.417, 0.358, 0.468]
+    def __init__(self, dim: int, mlp_mult: float, layer_idx: int = 0, num_layers: int = 1):
         super().__init__()
-        # No CastedLinear -- weights come from banks
+        self.neg_slope = self._LAYER_SLOPES[layer_idx] if layer_idx < len(self._LAYER_SLOPES) else 0.3
     def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor) -> Tensor:
         _qb = CastedLinear._qat_default_bits
-        x = F.leaky_relu(F.linear(x, _apply_bank_qat(up_w, _qb, x.dtype)), negative_slope=0.3)
-        return F.linear(x.square(), _apply_bank_qat(down_w, _qb, x.dtype))
+        x = F.linear(x, _apply_bank_qat(up_w, _qb, x.dtype))
+        # Fused leaky_relu²: avoids materializing intermediate leaky_relu tensor
+        x = torch.where(x > 0, x * x, (self.neg_slope * self.neg_slope) * (x * x))
+        return F.linear(x, _apply_bank_qat(down_w, _qb, x.dtype))
 
 class Block(nn.Module):
     def __init__(
@@ -941,12 +945,13 @@ class Block(nn.Module):
         qk_gain_init: float,
         layer_idx: int = 0,
         ln_scale: bool = False,
+        num_layers: int = 1,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, layer_idx=layer_idx, num_layers=num_layers)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -1019,6 +1024,7 @@ class GPT(nn.Module):
                     qk_gain_init,
                     layer_idx=i,
                     ln_scale=ln_scale,
+                    num_layers=num_layers,
                 )
                 for i in range(num_layers)
             ]
@@ -1816,20 +1822,23 @@ class _HessianAttn(nn.Module):
 
 class _HessianMLP(nn.Module):
     """Non-banked MLP with CastedLinear layers for Hessian hooks."""
-    def __init__(self, dim, mlp_mult):
+    def __init__(self, dim, mlp_mult, layer_idx=0, num_layers=1):
         super().__init__()
         self.fc = CastedLinear(dim, int(mlp_mult * dim), bias=False)
         self.proj = CastedLinear(int(mlp_mult * dim), dim, bias=False)
+        self.neg_slope = MLP._LAYER_SLOPES[layer_idx] if layer_idx < len(MLP._LAYER_SLOPES) else 0.3
     def forward(self, x):
-        return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.3).square())
+        h = self.fc(x)
+        h = torch.where(h > 0, h * h, (self.neg_slope * self.neg_slope) * (h * h))
+        return self.proj(h)
 
 class _HessianBlock(nn.Module):
-    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, layer_idx=0, ln_scale=False):
+    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, layer_idx=0, ln_scale=False, num_layers=1):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = _HessianAttn(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = _HessianMLP(dim, mlp_mult)
+        self.mlp = _HessianMLP(dim, mlp_mult, layer_idx=layer_idx, num_layers=num_layers)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -1863,7 +1872,7 @@ class _HessianGPT(nn.Module):
         self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList([
             _HessianBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                          layer_idx=i, ln_scale=ln_scale)
+                          layer_idx=i, ln_scale=ln_scale, num_layers=num_layers)
             for i in range(num_layers)
         ])
         if rope_dims > 0:
@@ -2418,6 +2427,23 @@ def main() -> None:
                 zero_grad_all()
                 if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                     log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+            # Pre-compile QAT graph to avoid mid-training recompile stall
+            if args.late_qat:
+                CastedLinear._qat_enabled = True
+                CastedLinear._qat_soft_round = bool(args.soft_round_qat)
+                if CastedLinear._qat_soft_round:
+                    CastedLinear._qat_soft_alpha = torch.tensor(1.0, device=device)
+                log0("warmup:pre-compiling QAT graph...")
+                zero_grad_all()
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    warmup_loss = model(x, y)
+                (warmup_loss * grad_scale).backward()
+                zero_grad_all()
+                CastedLinear._qat_enabled = False
+                CastedLinear._qat_soft_round = False
+                CastedLinear._qat_soft_alpha = None  # type: ignore[assignment]
+                log0("warmup:QAT graph cached")
             base_model.load_state_dict(initial_model_state, strict=True)
             for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
                 opt.load_state_dict(state)
@@ -2430,10 +2456,18 @@ def main() -> None:
         swa_state: dict[str, Tensor] | None = None
         swa_count = 0
         ema_state: dict[str, Tensor] | None = None
-        _ema_pairs: list[tuple[Tensor, Tensor]] | None = None
+        _ema_fp32_bufs: list[Tensor] = []
+        _ema_fp32_srcs: list[Tensor] = []
+        _ema_cast_pairs: list[tuple[Tensor, nn.Parameter]] = []
         if args.ema_enabled:
             ema_state = {name: p.data.detach().float().clone() for name, p in base_model.named_parameters()}
-            _ema_pairs = [(ema_state[name], p) for name, p in base_model.named_parameters()]
+            for name, p in base_model.named_parameters():
+                buf = ema_state[name]
+                if p.data.dtype == torch.float32:
+                    _ema_fp32_bufs.append(buf)
+                    _ema_fp32_srcs.append(p.data)
+                else:
+                    _ema_cast_pairs.append((buf, p))
         training_time_ms = 0.0
         _qat_start_step = 0
         _qat_total_steps = 0
@@ -2531,15 +2565,14 @@ def main() -> None:
             # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
             optimizer_muon.step()
             zero_grad_all()
-            # EMA update (skip .float() for already-fp32 bank params)
-            if _ema_pairs is not None:
+            # EMA update — foreach for fp32 params, per-element cast for bf16 embeddings
+            if ema_state is not None:
                 _ema_weight = 1.0 - args.ema_decay
                 with torch.no_grad():
-                    for ema_buf, p in _ema_pairs:
-                        ema_buf.lerp_(
-                            p.data if p.data.dtype == torch.float32 else p.data.float(),
-                            _ema_weight,
-                        )
+                    if _ema_fp32_bufs:
+                        torch._foreach_lerp_(_ema_fp32_bufs, _ema_fp32_srcs, _ema_weight)
+                    for ema_buf, p in _ema_cast_pairs:
+                        ema_buf.lerp_(p.data.float(), _ema_weight)
             step += 1
             approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
             if args.swa_enabled and scale < args.swa_threshold and step % args.swa_every == 0:
