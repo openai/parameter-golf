@@ -495,6 +495,10 @@ def _classify_param(name):
 	return'other'
 def _parse_layer_list(layers_str):
 	return[int(x)for x in layers_str.split(',')if x.strip()]
+def _get_block_idx_from_name(name):
+	parts=name.split('.')
+	if len(parts)>2 and parts[0]=='blocks'and parts[1].isdigit():return int(parts[1])
+	return _A
 def quantize_int6_per_row(t,clip_range=31):
 	t32=t.float()
 	if t32.ndim==2:
@@ -746,7 +750,13 @@ def main():
 	sd_cpu={k:v.detach().cpu()for(k,v)in export_sd.items()};unbanked_sd=_drop_disabled_layer0_attn_unbanked(_unbank_state_dict(sd_cpu,args.num_layers),args.disable_layer0_attn);gptq_hessians=_A
 	if args.use_gptq:t_gptq=time.perf_counter();log0(f"gptq:calibrating with {args.gptq_calib_samples} batches (training data)...");calib_loader=DistributedTokenLoader(args.train_files,rank,world_size,device);recur_was_active=base_model._recurrence_active;base_model.set_recurrence_active(_C);gptq_hessians=gptq_collect_hessians(base_model,calib_loader,device,num_batches=args.gptq_calib_samples,batch_tokens=args.train_batch_tokens,seq_len=args.train_seq_len,grad_accum_steps=grad_accum_steps);base_model.set_recurrence_active(recur_was_active);del calib_loader;gptq_elapsed=time.perf_counter()-t_gptq;log0(f"gptq:calibrated {len(gptq_hessians)} layers in {gptq_elapsed:.1f}s");torch.cuda.empty_cache()
 	clip_ranges=_A
-	if args.mixed_quant and gptq_hessians is not _A:quant_names=[n for n in unbanked_sd if _classify_param(n)in{'mlp','attn'}and unbanked_sd[n].ndim>=1 and unbanked_sd[n].numel()>65536];sens={n:gptq_hessians[n].diag().sum().item()if n in gptq_hessians else 0.0 for n in quant_names};ranked=sorted(sens.items(),key=lambda x:-x[1]);clip_ranges={n:15 for n in quant_names};[clip_ranges.__setitem__(name,31) for name,_ in ranked[:args.n_int6_layers]];int6_names=[n for n,cr in clip_ranges.items()if cr==31];int5_names=[n for n,cr in clip_ranges.items()if cr==15];log0(f"mixed_quant: {len(int6_names)} int6, {len(int5_names)} int5");log0(f"mixed_quant: int6 layers: {int6_names[:5]}...")
+	if args.mixed_quant and gptq_hessians is not _A:
+		quant_names=[n for n in unbanked_sd if _classify_param(n)in{'mlp','attn'}and unbanked_sd[n].ndim>=1 and unbanked_sd[n].numel()>65536];sens={n:gptq_hessians[n].diag().sum().item()if n in gptq_hessians else 0.0 for n in quant_names};ranked=sorted(sens.items(),key=lambda x:-x[1]);clip_ranges={n:15 for n in quant_names};recur_layer_set=set(recur_layers);recur_quant_names=[name for name in quant_names if _get_block_idx_from_name(name)in recur_layer_set];recur_ranked=sorted(recur_quant_names,key=lambda name:-sens[name]);forced_int6=min(args.n_int6_layers,len(recur_ranked));selected_int6_names=recur_ranked[:forced_int6];selected_int6_set=set(selected_int6_names)
+		for(name,_)in ranked:
+			if len(selected_int6_names)>=args.n_int6_layers:break
+			if name in selected_int6_set:continue
+			selected_int6_names.append(name);selected_int6_set.add(name)
+		[clip_ranges.__setitem__(name,31) for name in selected_int6_names];int6_names=[n for n,cr in clip_ranges.items()if cr==31];int5_names=[n for n,cr in clip_ranges.items()if cr==15];log0(f"mixed_quant: {len(int6_names)} int6, {len(int5_names)} int5");log0(f"mixed_quant: forced_recur_int6={forced_int6}/{len(recur_ranked)} recur_layers={recur_layers}");log0(f"mixed_quant: int6 layers: {int6_names[:5]}...")
 	quant_result,quant_meta=mixed_quantize_int6(unbanked_sd,{'mlp','attn'},clip_range=args.quant_clip_range,hessians=gptq_hessians,clip_ranges=clip_ranges);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=brotli.compress(_byte_shuffle(quant_raw),quality=11)
 	if master_process:
 		with open(F,'wb')as f:f.write(quant_blob)
