@@ -150,11 +150,50 @@ The training SLURM script and both evaluation SLURM scripts are included in `sup
 
 > **Code size note:** The submitted `train_gpt.py` (115,032 bytes) reflects the version used at evaluation time. The training log (`train.log`) reports a code size of 104,738 bytes, reflecting the version at training time. The code evolved between training and evaluation but the model checkpoint is unchanged. Supplementary SLURM scripts reference the working filename `train_gpt_pr940.py`; rename to `train_gpt.py` for reproduction.
 
+## Ablation Studies
+
+Ablation studies isolating the NFM contribution and exploring hyperparameter sensitivity. All runs use seed=42, 7,000 steps, identical architecture and optimizer settings.
+
+### 2×2 Matrix: NFM × TTT
+
+Isolates the NFM and legal-TTT contributions independently.
+
+| Configuration | Params | No TTT (BPB) | Legal TTT (BPB) | Δ (TTT effect) |
+|---------------|--------|--------------|-----------------|-----------------|
+| Base (no NFM) | 27,137,223 | 1.12087 | *pending* | *pending* |
+| NFM (hd=256, lw=0.1) | 27,530,952 | 1.12312 | **1.11991** | −0.00321 |
+| **Δ (NFM effect)** | **+393,729** | **+0.00225** | *pending* | — |
+
+> **Status:** Base no-TTT (1.12087) is from the original training log. Base + legal TTT is pending (SLURM job 55398695, dependent on base retraining job 55398693). Three-seed NFM reproducibility runs are also pending (SLURM jobs 55398556–55398561).
+
+### Loss Weight Sweep (hidden_dim=256)
+
+Explores the balance between NFM auxiliary loss and AR cross-entropy loss.
+
+| loss_weight | No TTT (BPB) | Δ vs default |
+|-------------|--------------|--------------|
+| 0.01 | *pending* (job 55398696→55398699) | — |
+| 0.05 | *pending* (job 55398697→55398700) | — |
+| **0.10 (default)** | **1.12312** | **0** |
+| 0.20 | *pending* (job 55398698→55398701) | — |
+
+### Hidden Dim Sweep (loss_weight=0.1)
+
+Explores the capacity of the NFM velocity network.
+
+| hidden_dim | NFM Params | Total Params | No TTT (BPB) | Δ vs default |
+|------------|------------|--------------|--------------|--------------|
+| 128 | ~164K | ~27.3M | *pending* (job 55398702→55398704) | — |
+| **256 (default)** | **393,729** | **27,530,952** | **1.12312** | **0** |
+| 512 | ~789K | ~27.9M | *pending* (job 55398703→55398705) | — |
+
+> **Note:** Results will be updated as SLURM jobs complete. Run `nfm_ablation/collect_results.sh` to generate the full results table from logs.
+
 ## Limitations
 
-1. **Single seed:** Only seed=42 results are available. Three-seed runs (seeds 42, 1337, 2025) were attempted on a PR #549 codebase port but failed due to `RuntimeError('Invalid backend')` in `scaled_dot_product_attention` under `torch.compile` on A100 PCIe hardware. Statistical significance is not established.
+1. **Single seed:** Only seed=42 results are available. Three-seed reproducibility runs (seeds 1337, 2025) are now pending on the corrected PR #940 codebase (SLURM jobs 55398556–55398561). Statistical significance is not yet established.
 
-2. **No matched baseline:** There is no 7k-step base-only (no NFM) run with the exact same architecture and evaluation protocol. The training-time val_bpb of 1.1380 cannot be directly compared to the sliding-window eval BPB of 1.12312 due to different evaluation methodologies.
+2. **Matched baseline now available:** The original training run (job 55341229) produced a 7k-step base sliding-window BPB of 1.12087. A retraining + legal-TTT evaluation is pending (SLURM job 55398693→55398695) to complete the 2×2 ablation matrix.
 
 3. **Non-competitive BPB:** The best result (1.11991) is above the current leaderboard SOTA. This submission documents the NFM idea rather than competing for a record.
 
