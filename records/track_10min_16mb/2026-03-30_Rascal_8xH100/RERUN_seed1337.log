@@ -1,0 +1,101 @@
+[evaluate.py] WARNING: REVIEW: load_data_shard uses np.int32 cast — candidate may be incorrect as written
+[evaluate.py] WARNING: REVIEW: optimize.py is 103437 bytes — large code eats into 16MB artifact budget
+[evaluate.py] WARNING: REVIEW: fineweb_val referenced outside eval functions — ensure val data not used during training
+=== evaluate.py: Starting training ===
+optimize.py: 103437 bytes
+NPROC: 8
+timeout: 1200s
+cwd: /home/dex/parameter-golf-with-cc
+
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+logs/a2b93bfa-a0a1-4ef1-ba1e-234c7aa6ddf7.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/home/dex/parameter-golf-with-cc/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 mode:default fullgraph=1
+mlp_kernel_mode:eager
+scale_init:attn=1.0000 mlp=1.0000 resid_mix=(1.0000,0.0000) ln_scale=1
+seed:1337
+loader:sequential shards:80
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+loader_reset:loader:sequential shards:80
+step:0/20000 val_loss:6.9309 val_bpb:4.1049 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9317 train_time:130ms step_avg:129.70ms
+step:2/20000 train_loss:8.6728 train_time:161ms step_avg:80.63ms
+step:3/20000 train_loss:7.5836 train_time:245ms step_avg:81.69ms
+step:4/20000 train_loss:7.3018 train_time:330ms step_avg:82.46ms
+step:5/20000 train_loss:7.2497 train_time:414ms step_avg:82.86ms
+step:6/20000 train_loss:7.1165 train_time:499ms step_avg:83.08ms
+step:7/20000 train_loss:6.9426 train_time:583ms step_avg:83.28ms
+step:8/20000 train_loss:6.8206 train_time:667ms step_avg:83.37ms
+step:9/20000 train_loss:6.4419 train_time:752ms step_avg:83.51ms
+step:10/20000 train_loss:6.0552 train_time:836ms step_avg:83.60ms
+step:500/20000 train_loss:2.3772 train_time:43248ms step_avg:86.50ms
+step:1000/20000 train_loss:2.2540 train_time:86680ms step_avg:86.68ms
+step:1500/20000 train_loss:2.2011 train_time:130176ms step_avg:86.78ms
+step:2000/20000 train_loss:2.0477 train_time:173749ms step_avg:86.87ms
+step:2500/20000 train_loss:2.1551 train_time:217343ms step_avg:86.94ms
+step:3000/20000 train_loss:2.1459 train_time:260938ms step_avg:86.98ms
+step:3500/20000 train_loss:2.1623 train_time:304544ms step_avg:87.01ms
+step:4000/20000 train_loss:1.9539 train_time:348138ms step_avg:87.03ms
+step:4000/20000 val_loss:2.0464 val_bpb:1.2120 train_time:348195ms step_avg:87.05ms
+step:4500/20000 train_loss:2.1047 train_time:391717ms step_avg:87.05ms
+step:5000/20000 train_loss:2.0886 train_time:435292ms step_avg:87.06ms
+step:5500/20000 train_loss:2.0022 train_time:478859ms step_avg:87.07ms
+step:6000/20000 train_loss:1.9256 train_time:522409ms step_avg:87.07ms
+swa:start step:6200
+late_qat:enabled step:6362 scale:0.1498
+step:6500/20000 train_loss:2.0625 train_time:566403ms step_avg:87.14ms
+step:6881/20000 val_loss:1.9213 val_bpb:1.1379 train_time:600120ms step_avg:87.21ms
+stopping_early: wallclock_cap train_time:600120ms step:6881/20000
+peak memory allocated: 22850 MiB reserved: 23004 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9196 val_bpb:1.1369 eval_time:2072ms
+Serialized model: 106158518 bytes
+Code size: 103437 bytes
+final_sliding_window val_loss:1.8801 val_bpb:1.1135 stride:64 eval_time:83235ms
+final_sliding_window_exact val_loss:1.88009865 val_bpb:1.11350327
+
+=== evaluate.py: Finished in 741.9s (exit code: 0) ===
+
+=== EVALUATE.PY TRAINING ANALYSIS ===
+total_steps: 6881
+avg_step_ms: 87.2
+train_loss: 6.9317 -> 2.0625 (drop: 4.8692)
+convergence_rate: 0.7076 per 1000 steps
+swa_checkpoints: 0
+WARNING: step_avg 87.2ms > 70ms threshold. Possible torch.compile issue.
+=== END TRAINING ANALYSIS ===
+
+FINAL_METRIC val_bpb: 1.11350327
+EVAL_RESULT_JSON {"candidate": "/home/dex/parameter-golf-with-cc/optimize.py", "seed": 1337, "val_bpb": 1.11350327, "val_loss": 1.88009865, "method": "sliding_window", "metric_name": "final_sliding_window_exact", "metric_source": "legacy_exact_log", "artifact_size_bytes": null, "artifact_limit_bytes": 16000000, "artifact_headroom_bytes": null, "total_steps": 6881, "avg_step_ms": 87.21, "elapsed_seconds": 741.8804285526276, "eval_time_ms": 85307, "eval_budget_ms": 600000, "eval_budget_exceeded": false, "status": "pass"}
