@@ -1,0 +1,19 @@
+{
+  "author": "Sree Harinandan",
+  "github_id": "SHN2004",
+  "name": "Compiled LeakyReLU2 + Slide64 Eval (1xRTX4090)",
+  "blurb": "Non-record 1xRTX4090 submission showing that slide64 evaluation transfers cleanly to the compiled leaky 9-layer proxy. The same 600s training setup improves from 1.36461125 flat-eval val_bpb to 1.33207082 with sliding evaluation, while staying under the 16MB artifact cap.",
+  "date": "2026-03-27T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.24914289,
+  "val_bpb": 1.33207082,
+  "pre_quant_val_loss": 2.2462,
+  "pre_quant_val_bpb": 1.3303,
+  "step_stop": 2301,
+  "wallclock_seconds": 600.007,
+  "eval_time_seconds": 990.944,
+  "bytes_total": 14864024,
+  "bytes_model_int8_zlib": 14801183,
+  "bytes_code": 62841,
+  "gpu": "1xRTX4090"
+}
