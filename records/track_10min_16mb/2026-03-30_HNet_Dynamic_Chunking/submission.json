@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "H-Net: Dynamic Chunking for Hierarchical Sequence Modeling",
+  "blurb": "First H-Net submission. Dynamic Chunking (Hwang et al., 2025): cosine similarity routing finds content-dependent chunk boundaries, EMA smoothing makes chunking differentiable. Encoder at compressed resolution (~T/2), decoder at full resolution. Eval: sliding window.",
+  "date": "2026-03-30T00:00:00Z",
+  "val_loss": 2.3029,
+  "val_bpb": 1.3639,
+  "bytes_total": 10394755,
+  "bytes_code": 81190,
+  "gpu": "8xH100 PCIe"
+}
