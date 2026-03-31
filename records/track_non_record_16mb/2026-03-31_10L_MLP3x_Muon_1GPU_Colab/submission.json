@@ -1,0 +1,14 @@
+{
+  "name": "Durlabh Kumar Jha",
+  "github_id": "durlabhkumarjha",
+  "val_bpb": 1.3365,
+  "val_loss": 2.2566,
+  "hardware": "1x Colab GPU",
+  "training_time_seconds": 1535,
+  "steps": 3000,
+  "num_layers": 10,
+  "mlp_mult": 3,
+  "vocab_size": 1024,
+  "seq_len": 2048,
+  "notes": "Non-record submission. Single GPU Colab run exploring 10-layer 3x MLP architecture with Muon optimizer."
+}
