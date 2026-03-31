@@ -1,0 +1,11 @@
+{
+  "name": "Phase Coherence Gated Gradients",
+  "val_bpb": 1.31011907,
+  "bytes_total": 14545165,
+  "blurb": "Exploratory PIC-GD adaptation with Parallel Muon, LeakyReLU(0.5)^2, layer-wise norm scaling, and a late PIC-GD fade into plain Adam/Muon fine-tuning. Latest 8xH100 reference run reached 1.31011907 val_bpb at 14,545,165 bytes total, but this record remains exploratory pending proper multi-seed baseline-vs-PIC-GD evidence.",
+  "author": "jzgdev",
+  "github_id": "jzgdev",
+  "date": "2026-03-27",
+  "track": "10min-16mb",
+  "status": "reference-unbenchmarked"
+}
