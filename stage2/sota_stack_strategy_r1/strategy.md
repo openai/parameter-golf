@@ -4,7 +4,7 @@ This is the first-principles direct strategy.
 
 ## Classification Of `hypotheses_v2`
 
-The good part of [hypotheses_v2.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r1/hypotheses_v2.md) is the pivot:
+The good part of [hypotheses_v2.md]( nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r1/hypotheses_v2.md) is the pivot:
 
 - stop treating the seq4096 trunk as the frontier
 - move the control to the record-like SOTA stack

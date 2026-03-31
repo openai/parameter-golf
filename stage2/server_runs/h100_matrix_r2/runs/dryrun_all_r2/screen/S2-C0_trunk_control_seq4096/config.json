@@ -19,7 +19,7 @@
     "Training-side trunk target is 1.20143417."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "MATRIX_LR": "0.02",
     "MAX_WALLCLOCK_SECONDS": "180",
     "MODEL_DIM": "512",
@@ -32,7 +32,7 @@
     "SCALAR_LR": "0.02",
     "TIED_EMBED_LR": "0.03",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "393216",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "4096",

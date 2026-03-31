@@ -26,7 +26,7 @@
     "At 180s screen: early phase is ~36s, enough to see the 7-step effect."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "GRAD_CLIP_NORM": "0.3",
     "MLP_MULT": "3",
     "MUON_BACKEND_STEPS": "5",
@@ -34,7 +34,7 @@
     "NS_STEPS_EARLY": "7",
     "NS_STEPS_LATE": "3",
     "NS_STEPS_MID": "5",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "524288",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "2048",

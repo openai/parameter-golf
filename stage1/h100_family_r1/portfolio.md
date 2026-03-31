@@ -17,7 +17,7 @@ It follows the Enigma pattern:
 ## Proxy Caveat
 
 These runs are intentionally `1xH100` scouts.
-They are not perfect proxies for final `8xH100` leaderboard conditions because `world_size` changes gradient-accumulation behavior in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py).
+They are not perfect proxies for final `8xH100` leaderboard conditions because `world_size` changes gradient-accumulation behavior in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py).
 
 Use them to:
 

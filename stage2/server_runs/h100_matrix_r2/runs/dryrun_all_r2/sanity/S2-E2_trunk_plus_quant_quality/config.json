@@ -20,7 +20,7 @@
     "Compared directly against the trunk control."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "INT8_CLIP_PERCENTILE": "99.99995",
     "INT8_PER_ROW_SCALE_DTYPE": "float32",
     "MATRIX_LR": "0.02",
@@ -35,7 +35,7 @@
     "SCALAR_LR": "0.02",
     "TIED_EMBED_LR": "0.03",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "393216",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "4096",

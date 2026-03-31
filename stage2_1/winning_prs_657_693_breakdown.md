@@ -1,6 +1,6 @@
 # Winning PRs #657 And #693 Breakdown
 
-This note complements [winning_pr_639_breakdown.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/winning_pr_639_breakdown.md).
+This note complements [winning_pr_639_breakdown.md]( nanoevolve/pgolf/parameter-golf/stage2_1/winning_pr_639_breakdown.md).
 
 The goal is not to repeat leaderboard summaries. The goal is to isolate:
 

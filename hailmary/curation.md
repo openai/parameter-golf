@@ -2,7 +2,7 @@
 
 This is the post-subagent curation pass for the moonshot set.
 
-The raw [`hypotheses.md`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/hailmary/hypotheses.md) was intentionally broad. The steelman and fault-finding pass says the set is useful, but too duplicated to be a clean patch pack.
+The raw [`hypotheses.md`]( nanoevolve/pgolf/parameter-golf/hailmary/hypotheses.md) was intentionally broad. The steelman and fault-finding pass says the set is useful, but too duplicated to be a clean patch pack.
 
 ## 2026-03-24 Update
 
@@ -37,7 +37,7 @@ The next lead moonshot set must be anchored more heavily in:
 So the right reading now is:
 
 - current packs are useful runnable probes
-- the real rebuild target is the principle-aligned pack in [`run_configs.json`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/hailmary/run_configs.json) and the design note in [rebuild.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/hailmary/rebuild.md)
+- the real rebuild target is the principle-aligned pack in [`run_configs.json`]( nanoevolve/pgolf/parameter-golf/hailmary/run_configs.json) and the design note in [rebuild.md]( nanoe lmary/rebuild.md)
 
 ## What The Subagents Agreed On
 

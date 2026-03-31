@@ -1,0 +1,261 @@
+{
+  "batch_id": "stage3_4_branch_finishers",
+  "description": "Stage 3.4: shared-trunk late branching. Train one common trunk, then spend the remaining wallclock on multiple short late finishers and export the best deployed branch.",
+  "benchmarks": {
+    "current_default_bpb": 1.1233,
+    "record_sota_bpb": 1.1194
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_BACKEND_STEPS": "5",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "description": "Crash check and early branch-trigger verification.",
+      "slots": ["R0A", "R0B", "H401", "H402", "H403", "H404", "H405", "H406"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Short branch-finishers screen on deployed score.",
+      "slots": ["R0A", "R0B", "H401", "H402", "H403", "H404", "H405", "H406"]
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Long single-GPU runs for promoted branch strategies."
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Alias for decision."
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8,
+      "description": "Full-box confirmation run for the best branch strategy."
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "static_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "lane": "branching",
+      "why": "Primary static control. No late branching.",
+      "validates": "The strong static base remains the reference point for branch-stage deltas.",
+      "falsifies": "All branch comparisons are suspect if control is unstable.",
+      "env": {},
+      "notes": ["Reference for all branching candidates."]
+    },
+    {
+      "slot": "R0B",
+      "name": "static_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "lane": "branching",
+      "why": "Noise-floor control with a different seed.",
+      "validates": "Short-run variance is low enough to judge branch candidates.",
+      "falsifies": "If controls spread too much, branch-stage deltas are not separable.",
+      "env": {
+        "SEED": "42"
+      },
+      "notes": ["Used to estimate variance."]
+    },
+    {
+      "slot": "H401",
+      "name": "tri_branch_default",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "SHARED_TRUNK_TRI_BRANCH",
+      "lane": "branching",
+      "broken_invariant": "One late trajectory is enough.",
+      "mechanism": "Train a shared trunk until 74% of wallclock, then split the remaining budget evenly across three finishers: EMA-heavy, deploy-aligned QAT, and family-split warmdown. Export the best deployed branch.",
+      "why": "The dominant uncertainty is in late consolidation, not early representation. Shared-trunk branching lets us test multiple late stories without paying the full early-training cost multiple times.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.004, 0.012]},
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Branch trigger log appears on time, all three finishers run, and the winning branch is not trivially the default EMA path.",
+      "failure_mode": "Each branch gets too little late budget, so none of the finishers improve enough to justify splitting.",
+      "kill_rule": "No deployed improvement vs control by screen, or the chosen branch is always the trivial EMA finisher.",
+      "code_burden": "patchable",
+      "validates": "Shared-trunk late branching is better than one committed late path.",
+      "falsifies": "Late branching wastes too much budget and one late trajectory is still superior.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.74,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.5,\"export_surrogate_weight\":0.0006,\"use_ema\":1},{\"name\":\"family_split\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.45,\"scalar_lr_mult\":0.6,\"matrix_lr_mult\":1.1,\"use_ema\":1}]}"
+      },
+      "notes": ["Lead branch hypothesis."]
+    },
+    {
+      "slot": "H402",
+      "name": "earlier_tri_branch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "SHARED_TRUNK_TRI_BRANCH_EARLY",
+      "lane": "branching",
+      "broken_invariant": "The late-branch window should be tiny.",
+      "mechanism": "Same three finisher families as H401, but branch earlier at 68% to give each finisher more continuation budget.",
+      "why": "If late branching is real but underpowered, the failure mode is not branching itself but insufficient finisher time.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.003, 0.010]},
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Winning branch should separate more clearly than H401 if branch-time starvation was the main issue.",
+      "failure_mode": "Branching too early weakens the common trunk and hurts all finishers.",
+      "kill_rule": "Worse than H401 and control by screen, or trunk quality visibly collapses.",
+      "code_burden": "patchable",
+      "validates": "Earlier branching gives finishers enough time to matter.",
+      "falsifies": "The shared trunk must stay intact for longer; earlier branch is harmful.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.68,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.5,\"export_surrogate_weight\":0.0006,\"use_ema\":1},{\"name\":\"family_split\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.45,\"scalar_lr_mult\":0.6,\"matrix_lr_mult\":1.1,\"use_ema\":1}]}"
+      },
+      "notes": ["Branch timing variant."]
+    },
+    {
+      "slot": "H403",
+      "name": "late_dual_branch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "SHARED_TRUNK_DUAL_BRANCH_LATE",
+      "lane": "branching",
+      "broken_invariant": "More finishers are always better.",
+      "mechanism": "Branch later at 80% and only test two finishers: EMA-heavy and deploy-aligned QAT, giving each branch more budget.",
+      "why": "The main trade is breadth versus depth. Two stronger finishers may beat three shallow ones.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.003, 0.011]},
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "One of the two finishers should win decisively if branch depth matters more than finisher count.",
+      "failure_mode": "The omitted family-split finisher was the one that mattered, or branching later leaves too little time overall.",
+      "kill_rule": "No score gain vs control and no gain vs H401/H402.",
+      "code_burden": "patchable",
+      "validates": "Finisher budget per branch matters more than branching breadth.",
+      "falsifies": "Late-branch depth is not the bottleneck.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.80,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.55,\"export_surrogate_weight\":0.0007,\"use_ema\":1}]}"
+      },
+      "notes": ["Breadth-vs-depth test."]
+    },
+    {
+      "slot": "H404",
+      "name": "deploy_vs_family_duel",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "LATE_DUEL_DEPLOY_VS_FAMILY",
+      "lane": "branching",
+      "broken_invariant": "EMA is the only reasonable late baseline finisher.",
+      "mechanism": "Branch at 76% and directly duel a deploy-aligned QAT finisher against a family-split finisher, dropping the EMA branch entirely.",
+      "why": "If the purpose of the branch stage is to test differentiated late mechanisms, keeping a trivial EMA path may waste budget.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "small_to_medium", "bpb_range": [0.002, 0.008]},
+      "expected_horizon": "screen",
+      "early_signal": "One of the mechanism-heavy finishers should win; if neither does, the branch stage is not adding value.",
+      "failure_mode": "Removing EMA makes the whole branch set less robust and both mechanism-heavy finishers underperform.",
+      "kill_rule": "Both finishers lose to control or the winner is weaker than H401.",
+      "code_burden": "patchable",
+      "validates": "Mechanism-heavy late branches are the real value, not the trivial EMA path.",
+      "falsifies": "EMA remains the dominant late fallback and should stay in the finisher set.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.76,\"finishers\":[{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.55,\"export_surrogate_weight\":0.0007,\"use_ema\":1},{\"name\":\"family_split\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.45,\"scalar_lr_mult\":0.6,\"matrix_lr_mult\":1.1,\"use_ema\":1}]}"
+      },
+      "notes": ["Finisher-set composition test."]
+    },
+    {
+      "slot": "H405",
+      "name": "raw_ema_deploy_triple",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "STATE_STYLE_TRIPLE",
+      "lane": "branching",
+      "broken_invariant": "The only late uncertainty is finisher mechanism, not export state style.",
+      "mechanism": "Branch at 75% into three style-separated finishers: raw late continuation, EMA-heavy continuation, and deploy-aligned continuation.",
+      "why": "This isolates whether the gain is coming from export-state style, not just from late policy mechanics.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "small_to_medium", "bpb_range": [0.002, 0.007]},
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Winning branch identity should tell us whether state style or policy style dominates late performance.",
+      "failure_mode": "The branches are too similar and the budget split just adds noise.",
+      "kill_rule": "No branch separates from control or the chosen branch is unstable across horizons.",
+      "code_burden": "patchable",
+      "validates": "Late export-state style is a first-order branching dimension.",
+      "falsifies": "Policy mechanics dominate and state style is secondary.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.75,\"finishers\":[{\"name\":\"raw_finish\",\"ema_decay\":0.997,\"use_ema\":0},{\"name\":\"ema_heavy\",\"ema_decay\":0.9996,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.45,\"export_surrogate_weight\":0.0005,\"use_ema\":1}]}"
+      },
+      "notes": ["State-style separation test."]
+    },
+    {
+      "slot": "H406",
+      "name": "aggressive_tri_branch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["late_branch_finishers"],
+      "family": "AGGRESSIVE_TRI_BRANCH",
+      "lane": "branching",
+      "broken_invariant": "Late finisher policies should stay mild to be safe.",
+      "mechanism": "Use the same tri-branch structure as H401 but with a more aggressive deploy branch and a stronger family-split branch.",
+      "why": "If branching works, it gives permission to swing harder in the finishers because the run can discard bad branches afterward.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.003, 0.013]},
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Winning branch should not be the mild EMA path if branching really enables harder late swings.",
+      "failure_mode": "All aggressive finishers destabilize and the branch stage just falls back to trivial behavior.",
+      "kill_rule": "No branch beats control or branch winner is always the conservative EMA finisher.",
+      "code_burden": "patchable",
+      "validates": "Branching enables harder late finisher policies than a single committed run would tolerate.",
+      "falsifies": "Even with branching, mild finishers remain superior.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.72,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat_aggr\",\"ema_decay\":0.999,\"qat_alpha\":0.7,\"export_surrogate_weight\":0.0009,\"use_ema\":1},{\"name\":\"family_split_aggr\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.35,\"scalar_lr_mult\":0.55,\"matrix_lr_mult\":1.2,\"use_ema\":1}]}"
+      },
+      "notes": ["Aggression test."]
+    }
+  ]
+}

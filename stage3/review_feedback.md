@@ -59,7 +59,7 @@ Result:
 
 Concretely:
 
-- `patch_label_smoothing()` in [`stage3/patches.py`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3/patches.py) searches for an older `F.cross_entropy(...)` call shape that no longer exists.
+- `patch_label_smoothing()` in [`stage3/patches.py`]( nanoevolve/pgolf/parameter-golf/stage3/patches.py) searches for an older `F.cross_entropy(...)` call shape that no longer exists.
 - So `H6` is not just weak as a hypothesis. It is currently broken as an executable slot.
 
 That means stage3 is now both:

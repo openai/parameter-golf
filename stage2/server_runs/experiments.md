@@ -23,9 +23,9 @@ Only later, if the `1xH100` finalist is strong enough, promote it to optional `8
 
 The active matrix for this is:
 
-- [portfolio.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/portfolio.md)
-- [run_configs.json](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/run_configs.json)
-- [orchestrate_stage2.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/orchestrate_stage2.py)
+- [portfolio.md]( nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/portfolio.md)
+- [run_configs.json]( nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/run_configs.json)
+- [orchestrate_stage2.py]( nanoevolve/pgolf/parameter-golf/stage2/h100_matrix_r2/orchestrate_stage2.py)
 
 ## Two Baselines
 
@@ -37,9 +37,9 @@ Use the current best public record in the repo as the score target:
 
 Authoritative local source:
 
-- [submission.json](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/submission.json)
-- [train.log](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train.log)
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
+- [submission.json]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/submission.json)
+- [train.log]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train.log)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
 
 Important repo-state caveat:
 
@@ -58,8 +58,8 @@ This defines the score to beat, but it is not the best controlled training trunk
 
 Use the strongest clean training-side public record as the Stage 2 trunk:
 
-- [README.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/train_gpt.py)
+- [README.md]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/train_gpt.py)
 
 Reason:
 
@@ -214,7 +214,7 @@ Promote from Wave B to three-seed confirmation only if:
 
 ## What The Stage 1 Postmortem Changes
 
-The postmortem in [postmortem_r1_r2.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage1/postmortem_r1_r2.md) gives three hard constraints for Stage 2:
+The postmortem in [postmortem_r1_r2.md]( nanoevolve/pgolf/parameter-golf/stage1/postmortem_r1_r2.md) gives three hard constraints for Stage 2:
 
 - `seq2048` is a real positive prior
 - `adaptive_muon` is unstable enough that it must be retested only on the exact strong stack

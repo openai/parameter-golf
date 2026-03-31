@@ -1,6 +1,6 @@
 # Parameter Golf Hypotheses
 
-This revision updates `stage2_1` using the 2026-03-23 frontier read in [stage3/attack_surfaces.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3/attack_surfaces.md).
+This revision updates `stage2_1` using the 2026-03-23 frontier read in [stage3/attack_surfaces.md]( nanoevolve/pgolf/parameter-golf/stage3/attack_surfaces.md).
 
 The important change is strategic, not cosmetic: the old `stage2_1` set overweighted older public winners such as NorMuon, OrthoInit, and solo SmearGate. The current frontier says the dominant no-TTT stack is now:
 

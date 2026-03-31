@@ -2,7 +2,7 @@
 
 This is the revised `stage2_1` patch slate after the 2026-03-24 upstream PR update.
 
-Implemented today in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py):
+Implemented today in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py):
 
 - `P201` sliding eval port
 - `P204` Muon weight decay
@@ -28,7 +28,7 @@ The old `P206/P207/P208/P209/P212` cluster is now secondary rather than primary.
 
 Primary file:
 
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
 
 Implementation rule:
 

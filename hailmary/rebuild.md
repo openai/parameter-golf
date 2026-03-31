@@ -78,7 +78,7 @@ That policy is now reflected in code:
 - `phase_split` is the new default pack and is fully runnable
 - `checkpoint_selection` and `staged_curriculum` are now also runnable lead packs
 - `alternating_objective`, `moonshot_core`, `moonshot_second_wave`, `moonshot_geometry`, and `moonshot_throughput` remain runnable support packs
-- `parameter_family_split` and `context_stage` remain explicit rebuild lanes in [`run_configs.json`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/hailmary/run_configs.json)
+- `parameter_family_split` and `context_stage` remain explicit rebuild lanes in [`run_configs.json`]( nanoevolve/pgolf/parameter-golf/hailmary/run_configs.json)
 - the tournament runner now reads lead/support/deferred pack roles from config instead of hardcoding the older moonshot pack list
 
 ## Practical Rule

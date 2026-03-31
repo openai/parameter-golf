@@ -24,14 +24,14 @@
     "Use repeated control deltas as the short-run noise floor."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "MAX_WALLCLOCK_SECONDS": "90",
     "MODEL_DIM": "512",
     "NUM_HEADS": "8",
     "NUM_KV_HEADS": "4",
     "NUM_LAYERS": "9",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "524288",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "1024",

@@ -19,7 +19,7 @@
     "This is the exact control for all six candidates."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "EVAL_BATCH_SEQS": "256",
     "EVAL_SEQ_LEN": "2048",
     "EVAL_STRIDE": "256",
@@ -37,7 +37,7 @@
     "SCALAR_LR": "0.02",
     "TIED_EMBED_LR": "0.03",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "786432",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "2048",

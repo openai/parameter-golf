@@ -13,18 +13,18 @@ It is:
 
 References:
 
-- [community_pr_survey.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/community_pr_survey.md)
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-- [experiments.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/experiments.md)
+- [community_pr_survey.md]( nanoevolve/pgolf/parameter-golf/stage2/community_pr_survey.md)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+- [experiments.md]( nanoevolve/pgolf/parameter-golf/stage2/experiments.md)
 
 ## Read This First
 
 The current root script already exposes some important mutation hooks:
 
-- model size and shape: `VOCAB_SIZE`, `NUM_LAYERS`, `MODEL_DIM`, `MLP_MULT` in [train_gpt.py#L63](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
-- optimizer knobs: `MATRIX_LR`, `MUON_MOMENTUM`, warmup, `BETA1`, `BETA2`, `ADAM_EPS`, `GRAD_CLIP_NORM` in [train_gpt.py#L73](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L73)
-- export knobs: int8 quantizer, keep-float rules, per-row scales in [train_gpt.py#L287](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L287)
-- LoRA TTT is already implemented in [train_gpt.py#L746](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L746)
+- model size and shape: `VOCAB_SIZE`, `NUM_LAYERS`, `MODEL_DIM`, `MLP_MULT` in [train_gpt.py#L63]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
+- optimizer knobs: `MATRIX_LR`, `MUON_MOMENTUM`, warmup, `BETA1`, `BETA2`, `ADAM_EPS`, `GRAD_CLIP_NORM` in [train_gpt.py#L73]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L73)
+- export knobs: int8 quantizer, keep-float rules, per-row scales in [train_gpt.py#L287]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L287)
+- LoRA TTT is already implemented in [train_gpt.py#L746]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L746)
 
 The current root script still does **not** expose several public-record surfaces directly:
 
@@ -47,7 +47,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `NorMuon`
 - Impact expectation: medium, around the survey's `0.005-0.01` range.
-- Current status: not present in root `train_gpt.py`; current Muon is a simple momentum + Newton-Schulz path in [train_gpt.py#L119](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L119).
+- Current status: not present in root `train_gpt.py`; current Muon is a simple momentum + Newton-Schulz path in [train_gpt.py#L119]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L119).
 - Mutation class: medium patch.
 - Why it is worth testing: public recurrence across multiple strong records makes this a real family, not a one-off.
 - Validate on: lower post-quant gap or better final round-tripped BPB at similar throughput.
@@ -55,7 +55,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `Muon Weight Decay`
 - Impact expectation: medium-high.
-- Current status: not present in root Muon; root Muon update is pure `p.add_(g, alpha=-lr)` in [train_gpt.py#L170](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L170).
+- Current status: not present in root Muon; root Muon update is pure `p.add_(g, alpha=-lr)` in [train_gpt.py#L170]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L170).
 - Mutation class: easy-medium patch.
 - Best mutation shape: add Muon-only weight decay with schedule and compare `0.02`, `0.03`, `0.04`.
 - Validate on: smaller post-quant gap and stable or better final BPB.
@@ -71,7 +71,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `FlashAttention 3`
 - Impact expectation: mostly throughput.
-- Current status: root uses `scaled_dot_product_attention` with flash backend enabled in [train_gpt.py#L604](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L604) and [train_gpt.py#L994](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L994).
+- Current status: root uses `scaled_dot_product_attention` with flash backend enabled in [train_gpt.py#L604]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L604) and [train_gpt.py#L994]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L994).
 - Mutation class: probably low priority in root.
 - Reason: the public gain may already be mostly captured by PyTorch SDPA on H100.
 - Validate on: lower `ms/step` and more steps reached before wallclock cap.
@@ -79,7 +79,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `OrthoInit + muP`
 - Impact expectation: small-medium.
-- Current status: root init is minimal and does not do orthogonal init or muP-style output scaling in [train_gpt.py#L706](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L706).
+- Current status: root init is minimal and does not do orthogonal init or muP-style output scaling in [train_gpt.py#L706]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L706).
 - Mutation class: easy-medium patch.
 - Why it is attractive: cheap to implement and low artifact risk.
 - Validate on: better early curve and better final score with no byte penalty.
@@ -95,14 +95,14 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `Grad Clip 0.3`
 - Impact expectation: small, but very cheap.
-- Current status: already exposed as `GRAD_CLIP_NORM` in [train_gpt.py#L87](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L87) and applied in [train_gpt.py#L1262](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1262).
+- Current status: already exposed as `GRAD_CLIP_NORM` in [train_gpt.py#L87]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L87) and applied in [train_gpt.py#L1262]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1262).
 - Mutation class: env-only.
 - Validate on: stabler training and better final score on longer-seq or deeper branches.
 - Kill if: no curve change.
 
 `Momentum warmup`
 - Impact expectation: already known-live.
-- Current status: already exposed in [train_gpt.py#L82](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L82) and used in [train_gpt.py#L1253](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1253).
+- Current status: already exposed in [train_gpt.py#L82]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L82) and used in [train_gpt.py#L1253]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1253).
 - Mutation class: env-only.
 - Best use: treat as a tuning surface, not a new family.
 
@@ -116,7 +116,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `10-11 layers`
 - Impact expectation: medium-high if export budget is recovered elsewhere.
-- Current status: already mutable via `NUM_LAYERS` in [train_gpt.py#L64](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L64).
+- Current status: already mutable via `NUM_LAYERS` in [train_gpt.py#L64]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L64).
 - Mutation class: env-only, but only meaningful on an export-aware branch.
 - Validate on: better final BPB despite fewer steps.
 - Kill if: naked depth still loses after export improvements are present.
@@ -139,7 +139,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `U-Net skip connections`
 - Impact expectation: already partly absorbed.
-- Current status: root model already has encoder/decoder skip reuse via `skip_weights` in [train_gpt.py#L683](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L683) and [train_gpt.py#L727](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L727).
+- Current status: root model already has encoder/decoder skip reuse via `skip_weights` in [train_gpt.py#L683]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L683) and [train_gpt.py#L727]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L727).
 - Mutation class: low priority as a new family.
 - Better mutation: change skip initialization or skip weighting policy rather than "add U-Net".
 
@@ -159,7 +159,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `SwiGLU`
 - Impact expectation: low prior because the survey marks it neutral.
-- Current status: root uses `relu^2` in [train_gpt.py#L616](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L616).
+- Current status: root uses `relu^2` in [train_gpt.py#L616]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L616).
 - Mutation class: easy patch.
 - Best use: only as a cheap control if an MLP-family branch is already open.
 
@@ -167,7 +167,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `STE Int6 QAT`
 - Impact expectation: medium if export is currently the bottleneck.
-- Current status: absent in root; root export is post-training int8 only in [train_gpt.py#L349](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L349).
+- Current status: absent in root; root export is post-training int8 only in [train_gpt.py#L349]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L349).
 - Mutation class: medium patch.
 - Why it is attractive: direct attack on post-quant gap.
 - Validate on: quantized score improves more than pre-quant score moves.
@@ -183,7 +183,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `zstd-22`
 - Impact expectation: small-medium but direct on artifact bytes.
-- Current status: root uses `zlib.compress(..., level=9)` in [train_gpt.py#L1312](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1312).
+- Current status: root uses `zlib.compress(..., level=9)` in [train_gpt.py#L1312]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1312).
 - Mutation class: easy-medium patch.
 - Why it is attractive: cheap export-only move.
 - Validate on: smaller artifact at equal round-tripped score.
@@ -191,7 +191,7 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `fp16 tied embedding`
 - Impact expectation: high prior because the survey calls it standard.
-- Current status: not first-class in root, though keep-float logic exists in [train_gpt.py#L320](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L320).
+- Current status: not first-class in root, though keep-float logic exists in [train_gpt.py#L320]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L320).
 - Mutation class: easy patch.
 - Best mutation shape: explicit name-based passthrough for embedding matrix.
 - Validate on: smaller post-quant gap at acceptable bytes.
@@ -217,13 +217,13 @@ Those are still fair mutation targets. They just need patches, not env-only swee
 
 `LoRA TTT`
 - Impact expectation: already live.
-- Current status: already implemented and used in final eval in [train_gpt.py#L848](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L848) and [train_gpt.py#L1353](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1353).
+- Current status: already implemented and used in final eval in [train_gpt.py#L848]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L848) and [train_gpt.py#L1353]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1353).
 - Mutation class: env-only and tuning.
 - Best use: tune rank, LR, chunk size, and eval window. Do not treat it as a missing family.
 
 `Doc-isolated eval`
 - Impact expectation: medium.
-- Current status: standard eval is still continuous fixed-chunk in [train_gpt.py#L226](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L226); document structure is only used in the TTT path.
+- Current status: standard eval is still continuous fixed-chunk in [train_gpt.py#L226]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L226); document structure is only used in the TTT path.
 - Mutation class: medium patch.
 - Why it is interesting: it is orthogonal to training and export and could combine with sliding eval.
 - Validate on: benchmark score improves on the same checkpoint under a rule-clean implementation.

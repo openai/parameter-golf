@@ -10,16 +10,16 @@ There are two baseline roles in Stage 2.
 
 Training trunk baseline:
 
-- [README.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/train_gpt.py)
+- [README.md]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/train_gpt.py)
 
 Benchmark target baseline:
 
 Current public record baseline to explain and extend:
 
-- [submission.json](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/submission.json)
-- [train.log](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train.log)
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
+- [submission.json]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/submission.json)
+- [train.log]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train.log)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
 
 Important caveat for the benchmark target:
 
@@ -28,10 +28,10 @@ Important caveat for the benchmark target:
 
 ## Active Stage 2 Doc
 
-- [experiments.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/experiments.md)
-- [strategy.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/strategy.md)
-- [run_configs.json](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_configs.json)
-- [run_strategy.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_strategy.py)
+- [experiments.md]( nanoevolve/pgolf/parameter-golf/stage2/experiments.md)
+- [strategy.md]( nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/strategy.md)
+- [run_configs.json]( nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_configs.json)
+- [run_strategy.py]( nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_strategy.py)
 
 ## Design Principles
 
@@ -69,8 +69,8 @@ Important caveat for the benchmark target:
 
 Ready scaffold:
 
-- [run_strategy.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_strategy.py)
-- [run_configs.json](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_configs.json)
+- [run_strategy.py]( nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_strategy.py)
+- [run_configs.json]( nanoevolve/pgolf/parameter-golf/stage2/sota_stack_strategy_r1/run_configs.json)
 
 Current rule:
 

@@ -1,6 +1,6 @@
 # Hailmary Attack Surfaces
 
-This document is grounded in the current merged [`train_gpt.py`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py).
+This document is grounded in the current merged [`train_gpt.py`]( nanoevolve/pgolf/parameter-golf/train_gpt.py).
 
 It is not a list of community tricks. It is a first-principles map of where the score can move a lot.
 
@@ -49,8 +49,8 @@ A drastic move is one that attacks one of those four terms directly.
 
 Reference:
 
-- [`train_gpt.py:39`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L39)
-- [`train_gpt.py:87`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L87)
+- [`train_gpt.py:39`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L39)
+- [`train_gpt.py:87`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L87)
 
 Current assumptions:
 
@@ -81,8 +81,8 @@ High-upside mutations:
 
 Reference:
 
-- [`train_gpt.py:96`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L96)
-- [`train_gpt.py:168`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L168)
+- [`train_gpt.py:96`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L96)
+- [`train_gpt.py:168`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L168)
 
 Current assumptions:
 
@@ -119,8 +119,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:219`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L219)
-- [`train_gpt.py:278`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L278)
+- [`train_gpt.py:219`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L219)
+- [`train_gpt.py:278`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L278)
 
 Current assumptions:
 
@@ -154,8 +154,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:288`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L288)
-- [`train_gpt.py:422`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L422)
+- [`train_gpt.py:288`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L288)
+- [`train_gpt.py:422`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L422)
 
 Current assumptions:
 
@@ -197,8 +197,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:429`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L429)
-- [`train_gpt.py:494`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L494)
+- [`train_gpt.py:429`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L429)
+- [`train_gpt.py:494`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L494)
 
 Current assumptions:
 
@@ -233,8 +233,8 @@ This lane is risky because it is easier to make wrong than to make strong.
 
 Reference:
 
-- [`train_gpt.py:500`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L500)
-- [`train_gpt.py:724`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L724)
+- [`train_gpt.py:500`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L500)
+- [`train_gpt.py:724`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L724)
 
 Current assumptions:
 
@@ -255,8 +255,8 @@ Why this matters:
 
 Reference:
 
-- [`train_gpt.py:555`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L555)
-- [`train_gpt.py:603`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L603)
+- [`train_gpt.py:555`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L555)
+- [`train_gpt.py:603`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L603)
 
 Drastic levers:
 
@@ -275,8 +275,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:606`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L606)
-- [`train_gpt.py:617`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L617)
+- [`train_gpt.py:606`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L606)
+- [`train_gpt.py:617`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L617)
 
 Drastic levers:
 
@@ -294,8 +294,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:669`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L669)
-- [`train_gpt.py:724`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L724)
+- [`train_gpt.py:669`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L669)
+- [`train_gpt.py:724`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L724)
 
 Drastic levers:
 
@@ -317,8 +317,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:693`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L693)
-- [`train_gpt.py:698`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L698)
+- [`train_gpt.py:693`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L693)
+- [`train_gpt.py:698`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L698)
 
 Current assumptions:
 
@@ -343,8 +343,8 @@ This lane looks more helper-grade than lead-grade in the newer frontier.
 
 Reference:
 
-- [`train_gpt.py:736`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L736)
-- [`train_gpt.py:844`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L844)
+- [`train_gpt.py:736`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L736)
+- [`train_gpt.py:844`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L844)
 
 Current assumptions:
 
@@ -375,8 +375,8 @@ This is a real lane, but it is not the dominant lane unless it buys a lot of ste
 
 Reference:
 
-- [`train_gpt.py:846`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L846)
-- [`train_gpt.py:894`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L894)
+- [`train_gpt.py:846`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L846)
+- [`train_gpt.py:894`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L894)
 
 Current assumptions:
 
@@ -398,8 +398,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:924`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L924)
-- [`train_gpt.py:961`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L961)
+- [`train_gpt.py:924`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L924)
+- [`train_gpt.py:961`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L961)
 
 Current assumptions:
 
@@ -422,8 +422,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:972`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L972)
-- [`train_gpt.py:1056`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1056)
+- [`train_gpt.py:972`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L972)
+- [`train_gpt.py:1056`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1056)
 
 Current assumptions:
 
@@ -454,8 +454,8 @@ Moonshot candidates:
 
 Reference:
 
-- [`train_gpt.py:1068`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1068)
-- [`train_gpt.py:1119`](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1119)
+- [`train_gpt.py:1068`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1068)
+- [`train_gpt.py:1119`]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1119)
 
 Current assumptions:
 

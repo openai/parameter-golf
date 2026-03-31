@@ -28,7 +28,7 @@
     "synthetic_composite=B3+F2"
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "EVAL_STRIDE": "64",
     "GRAD_CLIP_NORM": "0.3",
     "LEAKY_RELU_SLOPE": "0.5",
@@ -46,7 +46,7 @@
     "SCALAR_LR": "0.025",
     "TIED_EMBED_LR": "0.035",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "786432",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "2048",

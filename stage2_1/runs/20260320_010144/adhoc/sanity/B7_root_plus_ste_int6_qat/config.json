@@ -28,7 +28,7 @@
     "Judge primarily on quant-gap reduction, not raw pre-quant gain."
   ],
   "env": {
-    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
     "MAX_WALLCLOCK_SECONDS": "90",
     "MODEL_DIM": "512",
     "NUM_HEADS": "8",
@@ -38,7 +38,7 @@
     "STE_QAT_ENABLE": "1",
     "STE_QAT_START_STEP": "0",
     "TIE_EMBEDDINGS": "1",
-    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
     "TRAIN_BATCH_TOKENS": "524288",
     "TRAIN_LOG_EVERY": "50",
     "TRAIN_SEQ_LEN": "1024",

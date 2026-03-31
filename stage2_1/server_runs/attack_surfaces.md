@@ -10,13 +10,13 @@ The point is not just to list ideas from the survey. The point is to identify:
 
 Primary code targets:
 
-- [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-- record reference: [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
-- public survey: [community_pr_survey.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2/community_pr_survey.md)
+- [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+- record reference: [train_gpt.py]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py)
+- public survey: [community_pr_survey.md]( nanoevolve/pgolf/parameter-golf/stage2/community_pr_survey.md)
 
 ## 2026-03-24 Reprioritization
 
-The original `stage2_1` surface map is still useful, but the priority order has changed after the new `stage3` leaderboard intelligence in [stage3/attack_surfaces.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3/attack_surfaces.md).
+The original `stage2_1` surface map is still useful, but the priority order has changed after the new `stage3` leaderboard intelligence in [stage3/attack_surfaces.md]( nanoevolve/pgolf/parameter-golf/stage3/attack_surfaces.md).
 
 The main shift is:
 
@@ -30,9 +30,9 @@ The main shift is:
 
 So this document should now be read with the revised `stage2_1` slate in:
 
-- [hypotheses.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/hypotheses.md)
-- [portfolio.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/portfolio.md)
-- [patch_specs.md](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patch_specs.md)
+- [hypotheses.md]( nanoevolve/pgolf/parameter-golf/stage2_1/hypotheses.md)
+- [portfolio.md]( nanoevolve/pgolf/parameter-golf/stage2_1/portfolio.md)
+- [patch_specs.md]( nanoevolve/pgolf/parameter-golf/stage2_1/patch_specs.md)
 
 ## Metric Channels
 
@@ -41,15 +41,15 @@ There is not one `val_bpb`.
 For this repo, there are four distinct score channels:
 
 1. Pre-quant fixed-chunk `val_bpb`
-- Produced by the standard validation path in [train_gpt.py#L226](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L226).
+- Produced by the standard validation path in [train_gpt.py#L226]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L226).
 - This is the cleanest readout of pure training quality.
 
 2. Post-quant fixed-chunk `val_bpb`
-- Produced after round-trip quantization in [train_gpt.py#L1308](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1308).
+- Produced after round-trip quantization in [train_gpt.py#L1308]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1308).
 - This is where export quality shows up.
 
 3. Post-quant sliding-window `val_bpb`
-- Not in the root script today, but implemented in the record reference at [record train_gpt.py#L779](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L779).
+- Not in the root script today, but implemented in the record reference at [record train_gpt.py#L779]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L779).
 - This is a major eval-policy lane.
 
 4. Post-quant TTT `val_bpb`
@@ -69,7 +69,7 @@ Different patch families should be judged on different channels:
 
 Target:
 
-- [train_gpt.py#L226](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L226)
+- [train_gpt.py#L226]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L226)
 
 Mechanism:
 
@@ -101,8 +101,8 @@ Retire if:
 
 Reference:
 
-- [record train_gpt.py#L59](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L59)
-- [record train_gpt.py#L779](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L779)
+- [record train_gpt.py#L59]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L59)
+- [record train_gpt.py#L779]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L779)
 
 Mechanism:
 
@@ -152,8 +152,8 @@ Retire if:
 
 Targets:
 
-- [train_gpt.py#L805](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L805) for existing doc boundary logic
-- [train_gpt.py#L226](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L226) for standard eval path
+- [train_gpt.py#L805]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L805) for existing doc boundary logic
+- [train_gpt.py#L226]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L226) for standard eval path
 
 Mechanism:
 
@@ -171,8 +171,8 @@ Expected effect on `val_bpb`:
 
 Target:
 
-- [train_gpt.py#L328](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L328)
-- [train_gpt.py#L349](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L349)
+- [train_gpt.py#L328]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L328)
+- [train_gpt.py#L349]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L349)
 
 Mechanism:
 
@@ -195,13 +195,13 @@ Patch families:
 
 Reference implementation:
 
-- int6 export in [record train_gpt.py#L326](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L326)
+- int6 export in [record train_gpt.py#L326]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L326)
 
 ### B2. Passthrough rules
 
 Target:
 
-- [train_gpt.py#L320](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L320)
+- [train_gpt.py#L320]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L320)
 
 Mechanism:
 
@@ -222,13 +222,13 @@ Patch families:
 
 Reference:
 
-- fp16 embedding and late-K in [record train_gpt.py#L374](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L374)
+- fp16 embedding and late-K in [record train_gpt.py#L374]( nanoevolve/pgolf/parameter-golf/records/track_10min_16mb/2026-03-19_WarmdownQuantization/train_gpt.py#L374)
 
 ### B3. Compression backend
 
 Target:
 
-- [train_gpt.py#L1312](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1312)
+- [train_gpt.py#L1312]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1312)
 
 Mechanism:
 
@@ -251,7 +251,7 @@ Patch families:
 
 Target:
 
-- [train_gpt.py#L119](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L119)
+- [train_gpt.py#L119]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L119)
 
 Mechanism:
 
@@ -279,8 +279,8 @@ Survey tie-in:
 
 Targets:
 
-- [train_gpt.py#L1156](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1156)
-- [train_gpt.py#L1253](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1253)
+- [train_gpt.py#L1156]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1156)
+- [train_gpt.py#L1253]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1253)
 
 Mechanism:
 
@@ -303,7 +303,7 @@ Patch families:
 
 Target:
 
-- [train_gpt.py#L1262](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1262)
+- [train_gpt.py#L1262]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1262)
 
 Mechanism:
 
@@ -319,7 +319,7 @@ Expected effect on `val_bpb`:
 
 Best insertion point:
 
-- around linear weight use in [train_gpt.py#L516](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L516) or module-level forward paths
+- around linear weight use in [train_gpt.py#L516]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L516) or module-level forward paths
 
 Mechanism:
 
@@ -340,8 +340,8 @@ Survey tie-in:
 
 Targets:
 
-- [train_gpt.py#L63](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
-- [train_gpt.py#L616](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L616)
+- [train_gpt.py#L63]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
+- [train_gpt.py#L616]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L616)
 
 Mechanism:
 
@@ -367,7 +367,7 @@ Important constraint:
 
 Best insertion point:
 
-- embedding path around [train_gpt.py#L714](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L714)
+- embedding path around [train_gpt.py#L714]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L714)
 
 Mechanism:
 
@@ -404,9 +404,9 @@ Expected effect on `val_bpb`:
 
 Targets:
 
-- [train_gpt.py#L706](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L706)
-- [train_gpt.py#L587](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L587)
-- [train_gpt.py#L647](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L647)
+- [train_gpt.py#L706]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L706)
+- [train_gpt.py#L587]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L587)
+- [train_gpt.py#L647]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L647)
 
 Mechanism:
 
@@ -432,7 +432,7 @@ Survey tie-in:
 
 Target:
 
-- [train_gpt.py#L683](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L683)
+- [train_gpt.py#L683]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L683)
 
 Mechanism:
 
@@ -448,8 +448,8 @@ Expected effect on `val_bpb`:
 
 Targets:
 
-- [train_gpt.py#L63](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
-- [train_gpt.py#L1037](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1037)
+- [train_gpt.py#L63]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L63)
+- [train_gpt.py#L1037]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1037)
 
 Mechanism:
 
@@ -470,8 +470,8 @@ Best use:
 
 Targets:
 
-- [train_gpt.py#L44](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L44)
-- [data/download_hf_docs_and_tokenize.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/download_hf_docs_and_tokenize.py)
+- [train_gpt.py#L44]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L44)
+- [data/download_hf_docs_and_tokenize.py]( nanoevolve/pgolf/parameter-golf/data/download_hf_docs_and_tokenize.py)
 
 Mechanism:
 
@@ -487,9 +487,9 @@ Expected effect on `val_bpb`:
 
 Targets:
 
-- compilation and warmup path in [train_gpt.py#L1167](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1167)
-- attention path in [train_gpt.py#L604](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L604)
-- validation cadence in [train_gpt.py#L1208](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1208)
+- compilation and warmup path in [train_gpt.py#L1167]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1167)
+- attention path in [train_gpt.py#L604]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L604)
+- validation cadence in [train_gpt.py#L1208]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1208)
 
 Mechanism:
 
@@ -510,7 +510,7 @@ Patch families:
 
 Target:
 
-- [train_gpt.py#L1156](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py#L1156)
+- [train_gpt.py#L1156]( nanoevolve/pgolf/parameter-golf/train_gpt.py#L1156)
 
 Mechanism:
 

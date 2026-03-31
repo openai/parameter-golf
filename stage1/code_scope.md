@@ -2,7 +2,7 @@
 
 ## Core Claim
 
-The real editable surface is still concentrated in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py), but Stage 1 should not treat every exposed env var as a distinct search family.
+The real editable surface is still concentrated in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py), but Stage 1 should not treat every exposed env var as a distinct search family.
 
 The right split is:
 

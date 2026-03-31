@@ -1,0 +1,397 @@
+{
+  "batch_id": "stage3_3_adaptive_hyperparams",
+  "description": "Stage 3.3: State-dependent hyperparameters. Every hypothesis makes a currently-static hyperparameter a function of training state (scale, loss velocity, step). All patches are Lane A (training). The false invariant is: one hyperparameter value is optimal across all training phases.",
+  "benchmarks": {
+    "our_best_bpb": 1.1233,
+    "frontier_bpb": 1.1194,
+    "frontier_pr": "LeakyReLU² + TTT + Parallel Muon (abaybektursun)",
+    "record_sota_bpb": 1.1194,
+    "our_pre_quant_bpb": 1.1427,
+    "our_quant_damage": 0.0067,
+    "our_sliding_lift": 0.0266
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_BACKEND_STEPS": "5",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "EMA_DECAY": "0.997",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "description": "Crash check. All slots are Lane A (training).",
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Short training screen. Ranked against Lane A controls.",
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8"]
+    },
+    "composite": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Best winners composed pairwise.",
+      "slots": null
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Full-length runs for promoted finalists."
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Alias for decision. Backward compat."
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "baseline_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "lane": "A",
+      "why": "Primary control: 1.1233 frontier code, unpatched.",
+      "validates": "The base code is correct and the patching pipeline doesn't break it.",
+      "falsifies": "All derivative results are suspect if this doesn't match expected range.",
+      "env": {},
+      "notes": ["Expected post-quant BPB at 180s: ~1.18-1.20 range (1-GPU short run)."]
+    },
+    {
+      "slot": "R0B",
+      "name": "baseline_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "lane": "A",
+      "why": "Noise floor calibration. R0A vs R0B spread sets the kill threshold.",
+      "validates": "Short-run variance is small enough for meaningful pruning.",
+      "falsifies": "Screen is too noisy to separate signal from noise.",
+      "env": {"SEED": "42"},
+      "notes": ["Different seed from R0A to measure inter-seed variance."]
+    },
+    {
+      "slot": "H1",
+      "name": "step_lr_schedule",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["step_lr"],
+      "family": "SCHEDULE_REGIME",
+      "lane": "A",
+      "broken_invariant": "Smooth cosine warmdown over 3500 steps. Spends thousands of steps at intermediate LRs (0.3x-0.7x) that are too low for productive learning but too high for fine convergence. Neither fish nor fowl.",
+      "mechanism": "Replace cosine warmdown with step function: full LR (scale=1.0) for 85% of wallclock, then sharp drop to scale=0.05 for final 15%. The lr_mul function returns 1.0 until 85% of wallclock budget is consumed, then returns 0.05.",
+      "why": "Cosine warmdown is a compromise between bulk learning and convergence. A step schedule gives MORE productive bulk steps (85% vs ~50% at full LR) AND a sharper convergence phase (0.05x is much lower than cosine's gradual decay). The model gets 35% more steps at full learning rate, then snaps into a low-LR convergence basin. Step schedules consistently match or beat cosine in large-scale training (Zhai et al., 2021; Touvron et al., 2023).",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.002, 0.008]},
+      "expected_horizon": "screen",
+      "early_signal": "Total steps at full LR should be more than R0A. pre_quant_bpb should improve. val_bpb at 180s should be better.",
+      "failure_mode": "The sharp LR drop causes instability or the 15% convergence window is too short for the model to settle. Or the model needs the gradual cosine shape to navigate QAT smoothly.",
+      "kill_rule": "pre_quant_bpb worse than R0A at 180s, or training becomes unstable after the LR drop.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: The cosine warmdown in this code was chosen by competitive submitters — it is not a naive default. Cosine specifically gives smooth QAT entry and gradual convergence. Step-LR trades this for more bulk steps. Raw calculation: ~35% more wallclock at full LR = more gradient updates. But on a SOTA system: (1) the cosine shape may be near-optimal for QAT transition — step-LR's abrupt drop could hurt quant_damage, (2) the late learning curve on a well-optimized model flattens faster than on a weak model — extra bulk steps have diminishing returns, (3) the convergence penalty from only 15% warmdown may be larger than on an unoptimized system because the SOTA model needs careful settling. Realistic estimate: the extra bulk steps are worth 0.005-0.010 raw, but the convergence/QAT penalty claws back 0.003-0.007 of that. Net: 0.002-0.008. The idea is genuinely unexplored (nobody in the competition compared schedule shapes), so the variance is high.",
+        "anchors": ["base is SOTA — cosine was a deliberate choice", "step gives ~35% more full-LR time", "convergence penalty is larger on well-optimized models", "schedule shape is unexplored in competition"]
+      },
+      "code_burden": "patchable",
+      "validates": "Step LR schedule beats cosine for fixed-wallclock training.",
+      "falsifies": "Cosine warmdown's smooth shape is necessary for QAT and convergence quality.",
+      "env": {
+        "STEP_LR": "1",
+        "STEP_LR_BULK_FRAC": "0.85",
+        "STEP_LR_FINAL_SCALE": "0.05"
+      },
+      "notes": [
+        "Step schedules are standard in ViT training (Zhai et al., 2021) and LLaMA pretraining (Touvron et al., 2023).",
+        "The QAT late_qat_threshold may need adjustment since scale stays at 1.0 for 85% of training."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "throughput_ns_steps",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["ns_steps_adaptive"],
+      "family": "THROUGHPUT_REALLOC",
+      "lane": "A",
+      "broken_invariant": "One Newton-Schulz iteration count for the entire run. 5 NS steps cost the same whether LR is 0.025 (bulk) or 0.001 (deep warmdown), but the update quality matters far less when LR is tiny.",
+      "mechanism": "Muon backend_steps = 7 when scale >= 0.5 (bulk: higher quality updates worth the cost). backend_steps = 3 when scale < 0.5 (warmdown: faster steps, more gradient updates in remaining wallclock).",
+      "why": "During warmdown, LR is already small so update direction quality matters less — a rough direction with small step is nearly as good as a precise direction with small step. But each NS iteration costs the same wallclock. Fewer NS steps = faster steps = more total parameter updates in the remaining time budget.",
+      "dominant_metric": "throughput",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.004]},
+      "expected_horizon": "screen",
+      "early_signal": "step_avg_ms should drop when scale drops below 0.5. Total steps completed should increase vs R0A at same wallclock.",
+      "failure_mode": "3 NS steps produce updates too noisy to converge well. Or the throughput gain is smaller than expected because NS is not the bottleneck.",
+      "kill_rule": "Total steps not meaningfully higher than R0A, or post_quant_bpb worsens despite more steps.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: backend_steps=5 looks like a default, but on a 512-dim model the NS iterations are cheap relative to the full step (small matrices). The actual NS fraction of Muon step time may be 20-30%, not 40%. Going 5→3 saves ~40% of that = 8-12% of Muon time. Muon is ~50-60% of step compute. Net: 4-7% faster steps during warmdown. Warmdown is ~50% of training. So 2-3.5% more total steps. On a SOTA learning curve that's already efficient, each 1% more steps gives less than on a weak model — maybe 0.0005-0.001 BPB per 1%. Net throughput gain: 0.001-0.003. The bulk improvement from 7 NS steps is uncertain — 5 may already be sufficient for this model size, so 7 could waste compute. Realistic: 0.001-0.004 total, with risk of negative if 7 bulk steps are slower than 5 without quality gain.",
+        "anchors": ["base is SOTA — backend_steps=5 may already be appropriate", "512-dim matrices are small — NS is cheap", "2-3.5% more total steps", "SOTA curve: ~0.0005-0.001 BPB per 1% more steps"]
+      },
+      "code_burden": "patchable",
+      "validates": "Adaptive compute allocation across training phases improves total training efficiency.",
+      "falsifies": "NS step count is not a material throughput lever at this model size.",
+      "env": {
+        "NS_ADAPTIVE": "1",
+        "NS_BULK_STEPS": "7",
+        "NS_WARMDOWN_STEPS": "3",
+        "NS_SWITCH_SCALE": "0.5"
+      },
+      "notes": [
+        "NS 7→3 should save ~40% of Muon step time. At ~50% of training being Muon, that's ~20% faster steps during warmdown."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "three_phase_seq_curriculum",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["phase_seq_len"],
+      "family": "THROUGHPUT_REALLOC",
+      "lane": "A",
+      "broken_invariant": "One sequence length for the whole run. Attention is O(n²) — using 2048 from step 1 wastes massive compute on long-range patterns the model can't exploit in early training, while forgoing the throughput of shorter sequences.",
+      "mechanism": "3-phase sequence length curriculum: Phase 1 (scale>=0.7, early bulk): seq_len=512, attention 16x cheaper than 2048. Phase 2 (0.3<=scale<0.7, late bulk): seq_len=1024. Phase 3 (scale<0.3, warmdown): seq_len=2048 for eval-aligned convergence. train_batch_tokens stays constant throughout — only sequences-per-batch changes.",
+      "why": "Early training builds local features (MLP, single-head patterns) that don't need long context. By phase 2, multi-head attention patterns emerge and benefit from medium context. Only during warmdown does the model need full 2048 context for eval-aligned convergence. The throughput gain during phase 1 is enormous: at seq_len=512, each step is ~50% cheaper than at 2048, giving ~100% more gradient updates per wallclock in the first 30% of training.",
+      "dominant_metric": "throughput",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.003, 0.010]},
+      "expected_horizon": "screen",
+      "early_signal": "step_avg_ms should drop materially during phase 1. Total steps at 180s should exceed R0A.",
+      "failure_mode": "512-token context hurts representation quality fundamentally — the model can't learn basic attention patterns. Or the context transitions cause training instability. Or flash attention is already so optimized for 2048 that the theoretical FLOP savings don't translate to wallclock savings.",
+      "kill_rule": "pre_quant_bpb worse than R0A at 180s despite more steps, or training loss spikes at context transitions.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: The FLOP argument (27% more gradient updates) is sound in theory. But on a SOTA system several factors reduce the actual gain: (1) Flash attention is highly optimized for power-of-2 seq_lens — the wallclock speedup from shorter sequences is less than the FLOP ratio suggests (maybe 15-20% faster steps in phase 1, not 2.5x), (2) This model uses flash_attn_3 which has less seq_len sensitivity than naive attention, (3) The short-context quality penalty on a well-tuned SOTA model may be larger than on a generic model — the SOTA model's attention patterns may develop earlier and need context from the start, (4) The learning curve on SOTA is already efficient — extra steps have diminishing returns (~0.0005-0.001 BPB per 1% more steps). Realistic throughput gain: maybe 10-15% more total steps, not 27%. At SOTA diminishing returns: 0.005-0.010. Context penalty on SOTA: 0.002-0.005. Net: 0.003-0.010. This is the highest-variance hypothesis — could be a real win if flash attention actually speeds up proportionally, or zero if context penalty dominates.",
+        "anchors": ["base is SOTA — flash_attn_3 may not scale as theory predicts", "realistic throughput gain: 10-15% more steps, not 27%", "SOTA curve: ~0.0005-0.001 per 1% more steps", "context penalty unknown — high variance"]
+      },
+      "code_burden": "patchable",
+      "validates": "Aggressive context curriculum is a first-order throughput lever.",
+      "falsifies": "Full context is needed from early training, or context transitions destabilize learning.",
+      "env": {
+        "PHASE_SEQ_LEN": "1",
+        "PHASE_SEQ_LEN_PHASE1": "512",
+        "PHASE_SEQ_LEN_PHASE2": "1024",
+        "PHASE_SEQ_LEN_PHASE3": "2048",
+        "PHASE_SEQ_LEN_SWITCH1": "0.7",
+        "PHASE_SEQ_LEN_SWITCH2": "0.3"
+      },
+      "notes": [
+        "3-phase: 512 (scale>=0.7) → 1024 (0.3<=scale<0.7) → 2048 (scale<0.3).",
+        "train_batch_tokens stays constant — only sequences-per-batch changes.",
+        "Context transitions should be smooth since the model can always attend to the full available context."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "per_family_warmdown",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["per_family_decay"],
+      "family": "PARAM_FAMILY_SPLIT",
+      "lane": "A",
+      "broken_invariant": "All parameter families decay at the same rate during warmdown. Embeddings, matrices, and scalars all use lr *= scale, despite having fundamentally different roles and quantization sensitivity.",
+      "mechanism": "Per-family LR decay: embed_lr *= scale^1.5 (faster decay — converge embeddings first), matrix_lr *= scale (normal), scalar_lr *= sqrt(scale) (slower decay — keep adapting LN/gates). Applied by modifying the lr_mul computation per param group.",
+      "why": "Embeddings are the most quantization-sensitive (int6 per row) and should stabilize first. Scalars (LN weights, gates) stay in fp32 at export — they benefit from continued fine-tuning. One decay rate for all families is a false uniformity.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.004]},
+      "expected_horizon": "screen",
+      "early_signal": "val_bpb should improve at 180s. Embedding weights should have smaller magnitude variance than R0A at export.",
+      "failure_mode": "The default uniform decay is already well-balanced. Or faster embedding decay makes the shared embedding (tied to output) converge too early, hurting the head.",
+      "kill_rule": "No val_bpb or post_quant_bpb improvement vs R0A at 180s.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: The base already has different per-family LRs (embed=0.035, matrix=0.025, scalar=0.025) — the submitters tuned the initial ratios. The warmdown decay rate is uniform, but if per-family decay mattered a lot, someone may have tried it. The embedding quant contribution is small: embeddings are ~15% of quantized params, so even a 20% improvement in their quant damage saves ~15% * 0.0067 * 20% = 0.0002 BPB. The scalar continuation benefit is real but scalars are tiny (5K params, fp32) — their ability to compensate for decaying matrix quality is limited by their capacity. On a SOTA system where the decay timing was already productive, the marginal gain from reshaping the decay curve is modest. Realistic: 0.001-0.003 from scalar continuation, 0.0002-0.001 from embedding settling. Net: 0.001-0.004.",
+        "anchors": ["base already has tuned per-family LR ratios", "embedding quant contribution ~0.001", "scalar params are tiny (5K)", "marginal gain on already-productive warmdown"]
+      },
+      "code_burden": "patchable",
+      "validates": "Per-family optimization schedules beat uniform schedules.",
+      "falsifies": "All parameter families have similar optimal decay profiles.",
+      "env": {
+        "PER_FAMILY_DECAY": "1",
+        "EMBED_DECAY_POW": "1.5",
+        "SCALAR_DECAY_POW": "0.5"
+      },
+      "notes": [
+        "Matrix params use default scale (power=1.0). Only embed and scalar families change.",
+        "With tied embeddings, embed and head share parameters — faster embed decay also affects the head."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "velocity_warmdown_gate",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["velocity_gate"],
+      "family": "PROCESS_CONTROL",
+      "lane": "A",
+      "broken_invariant": "Warmdown starts at a fixed wallclock fraction, regardless of whether the model is still rapidly improving. The schedule assumes a fixed learning curve shape.",
+      "mechanism": "Track EMA of loss velocity: v = ema(loss[t] - loss[t-1]). While v < -threshold (model still improving fast), delay warmdown by holding scale=1.0 even past the wallclock warmdown point. Cap the delay at 20% of warmdown budget to preserve convergence time.",
+      "why": "Fixed wallclock-based warmdown may start too early, wasting productive bulk training steps on premature LR decay. Loss velocity is a direct, zero-cost signal of whether bulk learning is exhausted.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.005]},
+      "expected_horizon": "screen",
+      "early_signal": "warmdown should start later than R0A's schedule when loss is still dropping. val_bpb at 180s should improve from more productive bulk steps.",
+      "failure_mode": "Loss velocity is too noisy at this batch size to gate reliably. Or the delayed warmdown leaves insufficient time for convergence.",
+      "kill_rule": "warmdown_start is not meaningfully delayed (velocity was already low), or val_bpb worse than R0A because warmdown was too short.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: The wallclock-adaptive warmdown (warmdown_iters=3500) was tuned by competitive submitters. It's already somewhat data-driven — it adapts to actual step throughput, just not to loss curvature. The key question is: does the loss velocity actually still show productive learning at the default warmdown entry point? On a SOTA system the learning curve flattens earlier than on a weak model, so velocity may already be near-zero when warmdown starts. If so, the gate never triggers and the effect is zero. In the best case (velocity is still -0.001/step at warmdown entry), a 20% delay = 700 extra bulk steps. On a SOTA learning curve, those 700 steps might yield 0.003-0.005 loss improvement = 0.004-0.007 BPB. Warmdown penalty: 0.002-0.004 from less convergence time. Net best case: 0.002-0.005. But the most likely outcome is that velocity has already flattened, making the gate a no-op. Expected value accounting for this: 0.001-0.005 with high probability of zero.",
+        "anchors": ["base warmdown timing was competitively tuned", "SOTA learning curve flattens earlier", "most likely outcome: gate doesn't trigger", "best case: 700 extra steps at diminishing returns"]
+      },
+      "code_burden": "patchable",
+      "validates": "Data-driven warmdown timing beats fixed schedules.",
+      "falsifies": "The fixed wallclock schedule is already well-calibrated, or loss velocity is too noisy to use.",
+      "env": {
+        "VELOCITY_GATE": "1",
+        "VELOCITY_EMA": "0.95",
+        "VELOCITY_THRESHOLD": "0.001",
+        "VELOCITY_MAX_DELAY_FRAC": "0.20"
+      },
+      "notes": [
+        "Velocity = EMA of (loss[t] - loss[t-1]). Negative = improving. Gate holds scale=1.0 while velocity < -threshold.",
+        "Max delay is 20% of warmdown_iters to ensure at least 80% of warmdown budget for convergence."
+      ]
+    },
+    {
+      "slot": "H6",
+      "name": "muon_to_adam_switch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["muon_adam_switch"],
+      "family": "OPTIMIZER_REGIME",
+      "lane": "A",
+      "broken_invariant": "One optimizer for matrix params for the whole run. Muon (Newton-Schulz orthogonalization) is used from step 1 to final step, despite the optimization task changing fundamentally from bulk learning to quantization-aware fine convergence.",
+      "mechanism": "At scale < 0.3 (deep warmdown), switch matrix params from Muon to AdamW. Create a fresh AdamW optimizer for matrix params with the current LR, copy nothing (let Adam build its own momentum/variance from scratch). Muon continues to be used for bulk phase. The switch is one-way and permanent.",
+      "why": "Muon is designed for bulk learning — Newton-Schulz finds the steepest descent direction in natural geometry, which is ideal for rapid representation learning. But during deep warmdown under QAT, the task is fine convergence into a quantization-friendly basin. Adam's per-parameter adaptive learning rates are better for this: different weights need different step sizes to settle into their respective quantization grids. Muon's 'one orthogonal direction for all matrix params' treats them uniformly, which is the wrong tool for heterogeneous fine convergence.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.002, 0.008]},
+      "expected_horizon": "screen",
+      "early_signal": "post_quant_bpb should improve vs R0A. quant_damage should shrink. step_avg_ms should drop after switch (no NS).",
+      "failure_mode": "Adam without momentum history is too slow to converge in the remaining warmdown steps. Or Muon was already doing fine during warmdown. Or the switch creates a transient instability.",
+      "kill_rule": "post_quant_bpb worse than R0A at 180s, or val_loss spikes after the switch point.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: Optimizer switching is genuinely unexplored in this competition — nobody has tried it. That makes it high-variance. But on a SOTA system several factors temper the estimate: (1) Muon's NS orthogonalization may actually HELP during warmdown by keeping weight matrices well-conditioned for quantization — the 'Adam is better for fine convergence' story assumes quantization prefers per-param adaptation, but Muon's structure-preserving updates may be better for int6 row-quantization, (2) Adam cold-starting without momentum/variance history needs ~100-200 steps to build useful statistics, which burns 10-20% of the remaining warmdown on warmup, (3) The throughput bonus from dropping NS is real but modest on 512-dim matrices (~10-15% faster steps for 30% of training = 3-5% more total steps). Conservative: 0.001-0.003 from throughput + 0.001-0.005 from per-param convergence (if Adam IS better for quant). Net: 0.002-0.008. Risk of negative is real — Muon may be the right tool even during warmdown.",
+        "anchors": ["genuinely unexplored — high variance", "Muon's structure-preserving property may help quant", "Adam cold-start burns 100-200 steps", "throughput bonus: 3-5% more total steps", "risk of negative is real"]
+      },
+      "code_burden": "patchable",
+      "validates": "Phase-aware optimizer selection beats one-optimizer-for-all-phases.",
+      "falsifies": "Muon is good enough for warmdown, or the Adam cold-start is too slow.",
+      "env": {
+        "MUON_ADAM_SWITCH": "1",
+        "MUON_ADAM_SWITCH_SCALE": "0.3"
+      },
+      "notes": [
+        "Fresh AdamW for matrix params — no momentum/variance transfer from Muon (incompatible state formats).",
+        "Adam is cheaper per step (no NS iterations), so this also gives a throughput bonus.",
+        "Switch at scale=0.3 gives ~1000 steps of Adam during deep warmdown."
+      ]
+    },
+    {
+      "slot": "H7",
+      "name": "stochastic_depth_bulk",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["stochastic_depth"],
+      "family": "COMPUTE_REALLOC",
+      "lane": "A",
+      "broken_invariant": "All 11 layers execute on every step. During bulk training, the model is learning coarse features that don't require all layers — running all 11 blocks per step wastes compute that could be traded for more gradient updates.",
+      "mechanism": "Add stochastic depth to Block.forward: during bulk (scale>=0.5), each block independently skips with probability p=0.3 (returns input unchanged). During warmdown (scale<0.5), p=0.0 (all blocks execute). This is Huang et al. 2016. On average ~7.7 of 11 blocks execute per step during bulk, giving ~25% faster steps. All parameters still receive gradients on ~70% of steps.",
+      "why": "Stochastic depth is a proven throughput multiplier that also acts as regularization during bulk. The key insight: during early/mid training the model is building coarse representations — any random subset of layers can contribute to this. The full 11-layer stack is only needed during warmdown for fine convergence and quantization alignment. This converts unused layer compute directly into more gradient updates.",
+      "dominant_metric": "throughput",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.005, 0.015]},
+      "expected_horizon": "screen",
+      "early_signal": "step_avg_ms should drop ~20-25% during bulk vs R0A. Total steps at 180s should exceed R0A by 10-15%. The dropout should NOT hurt training loss — stochastic depth typically helps or is neutral during bulk.",
+      "failure_mode": "The U-Net skip connections don't tolerate dropped blocks well — missing encoder blocks produce wrong skip tensors for the decoder. Or 30% drop rate is too aggressive for an 11-layer model. Or flash_attn dominates step time so block skipping saves less than expected.",
+      "kill_rule": "pre_quant_bpb worse than R0A at 180s, or step_avg_ms improvement less than 10%.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: Stochastic depth is a well-established technique (ResNet, ViT, DeiT all use it) but it is NOT used in this competition's SOTA code — genuinely unexplored. With 11 blocks and p=0.3, average blocks per step = 7.7. Block compute is ~80% of total step cost. Savings: 30% * 80% = 24% faster steps during bulk. Bulk is ~50% of training. Net: 12% more total steps. On SOTA learning curve (~0.0005-0.001 BPB per 1% more steps): 12% more steps = 0.006-0.012 BPB from throughput alone. Stochastic depth also regularizes — preventing overfitting to training data distribution, worth 0.001-0.003. BUT: the U-Net architecture with skip connections is more fragile than a plain transformer stack. Dropped encoder blocks pass identity through the skip stack, which may confuse decoder blocks expecting transformed features. This could cost 0.002-0.005 in quality. Net: 0.005-0.015 with medium-high variance. The throughput component is the most reliable part.",
+        "anchors": ["stochastic depth is proven but unused in competition SOTA", "24% faster steps during bulk", "12% more total steps", "U-Net skip connections add risk vs plain transformer"]
+      },
+      "code_burden": "patchable",
+      "validates": "Stochastic depth as phase-aware compute reallocation improves throughput enough to beat full-depth training.",
+      "falsifies": "11 layers are all needed on every step even during bulk, or U-Net skip connections don't tolerate dropped blocks.",
+      "env": {
+        "STOCH_DEPTH": "1",
+        "STOCH_DEPTH_DROP": "0.3",
+        "STOCH_DEPTH_SWITCH": "0.5"
+      },
+      "notes": [
+        "Drop is applied per-block per-step independently (Bernoulli). Not layer-wise scheduled.",
+        "During eval (model.eval()), drop prob is always 0 — full model for validation.",
+        "Skip connections: if an encoder block is dropped, its identity output is still pushed to the skip stack."
+      ]
+    },
+    {
+      "slot": "H8",
+      "name": "ema_self_distillation",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["ema_distill"],
+      "family": "OBJECTIVE_STAGING",
+      "lane": "A",
+      "broken_invariant": "One objective (CE) for the whole run, and EMA is only used passively for averaging. The EMA represents a smoother, more stable version of the model but is never used as a teaching signal during training.",
+      "mechanism": "During warmdown (scale<0.5), on micro_step==0 of each gradient accumulation: (1) snapshot EMA state into model, (2) forward pass to get EMA logits, (3) restore training state, (4) forward pass to get student logits, (5) add KL(student || EMA) loss scaled by 0.5. The EMA acts as a soft teacher that guides the current model toward the averaged trajectory, smoothing convergence.",
+      "why": "During warmdown, the model is trying to converge to a good basin while navigating QAT deformation. The EMA represents where the model 'should be' on average — it's a denoised version of the training trajectory. Self-distilling from EMA penalizes the current model for deviating from its own smoothed history, acting as a convergence regularizer. This is different from standard distillation (no external teacher) and from stage3_1's H7 (which distills from quantized model, not EMA).",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.003, 0.010]},
+      "expected_horizon": "screen",
+      "early_signal": "val_bpb should improve vs R0A during warmdown. The KL loss between student and EMA should decrease over warmdown steps (model converging toward EMA trajectory).",
+      "failure_mode": "The EMA is too similar to the current model (decay=0.997) for the KL signal to matter — the logits are nearly identical. Or the extra forward pass costs too many steps, offsetting the convergence benefit.",
+      "kill_rule": "No val_bpb improvement vs R0A at 180s, or step_avg_ms worse by >20% with no compensating quality gain.",
+      "plausible_lift": {
+        "reasoning": "SOTA-base calibration: Self-distillation from EMA is used in semi-supervised learning (Mean Teacher, BYOL) but not in this competition's training code — genuinely unexplored for LLM warmdown. The mechanism: EMA at decay=0.997 diverges from the current model by ~0.3% per step. Over 100 warmdown steps, the accumulated divergence is meaningful — EMA represents a trajectory-averaged model that has less noise from individual batch gradients. The KL penalty guides the current model back toward this smooth trajectory, preventing oscillation during convergence. Cost: one extra forward pass on micro_step==0 = ~12% overhead (1 extra forward out of 8 microsteps, forward is ~half of forward+backward). Benefit: smoother convergence should improve both pre_quant and post_quant by reducing the 'noise floor' of the final weights. On SOTA: the warmdown is already well-structured (cosine + QAT), so the marginal smoothing benefit is smaller than on a noisy system. Realistic: 0.003-0.005 from convergence smoothing, minus 0.001-0.002 from throughput cost. Net: 0.002-0.008. If EMA divergence is too small to provide useful signal, effect could be near zero.",
+        "anchors": ["EMA divergence ~0.3% per step accumulates over warmdown", "extra forward pass = ~12% overhead on micro_step==0", "self-distillation proven in semi-supervised but unexplored for LLM warmdown", "SOTA warmdown already well-structured — marginal smoothing benefit is modest"]
+      },
+      "code_burden": "patchable",
+      "validates": "EMA self-distillation during warmdown improves convergence quality beyond what the schedule alone achieves.",
+      "falsifies": "EMA is too similar to current model for useful distillation signal, or the overhead costs more than the smoothing gains.",
+      "env": {
+        "EMA_DISTILL": "1",
+        "EMA_DISTILL_WEIGHT": "0.5",
+        "EMA_DISTILL_SWITCH": "0.5"
+      },
+      "notes": [
+        "Only runs on micro_step==0 to limit overhead to ~12% of step time.",
+        "Uses model's own EMA (already computed) — no external teacher needed.",
+        "KL(student || EMA) not KL(EMA || student) — student learns to match EMA's distribution."
+      ]
+    }
+  ]
+}

@@ -39,9 +39,9 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If the late alignment starts too early, it damages representation quality before the model has stabilized.
 - Patch surfaces:
-  - phase gate in the main training loop of [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - export/quantization block in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - late-only patch gates in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - phase gate in the main training loop of [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - export/quantization block in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - late-only patch gates in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
 - Concrete patch idea:
   Late-only QAT or late-only quantization-noise injection.
 
@@ -58,9 +58,9 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If the deployed optimum is flat across late checkpoints, the extra evaluation buys little.
 - Patch surfaces:
-  - late training loop checkpoint hooks in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - export/eval block in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - runner summary parsing in [orchestrate_stage2_1.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/orchestrate_stage2_1.py)
+  - late training loop checkpoint hooks in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - export/eval block in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - runner summary parsing in [orchestrate_stage2_1.py]( nanoevolve/pgolf/parameter-golf/stage2_1/orchestrate_stage2_1.py)
 - Concrete patch idea:
   Best-of-last-`4` selection across raw and EMA checkpoints.
 
@@ -77,8 +77,8 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If the two orders are too similar, the stage split is fake and the result stays within noise.
 - Patch surfaces:
-  - dataset file ordering in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - shard-order env handling in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - dataset file ordering in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - shard-order env handling in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
 - Concrete patch idea:
   `size_desc` before warmdown, then either natural order or hard-shard order during warmdown.
 
@@ -95,8 +95,8 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If the phase boundaries are wrong, this becomes a noisy retune of the current schedule.
 - Patch surfaces:
-  - momentum and lr schedule logic in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - late-only env switches in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - momentum and lr schedule logic in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - late-only env switches in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
 - Concrete patch idea:
   slower matrix warmup, unchanged bulk, then late decay increase plus perturbation off.
 
@@ -113,8 +113,8 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   Freeze the wrong family and the model underfits the final phase.
 - Patch surfaces:
-  - optimizer group construction in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - main loop phase gate in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - optimizer group construction in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - main loop phase gate in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
 - Concrete patch idea:
   freeze embeddings and head late, keep only matrix trunk adapting.
 
@@ -131,8 +131,8 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If the consolidation step is too weak, it does nothing; if too strong, it becomes another destabilizing penalty.
 - Patch surfaces:
-  - micro-step logic in the main loop of [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - patch scheduling in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - micro-step logic in the main loop of [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - patch scheduling in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
 - Concrete patch idea:
   every `N` steps, run a late alignment step with quant-noise or consolidation-only updates.
 
@@ -149,8 +149,8 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   If early short context damages the learned representation too much, the late switch cannot recover it.
 - Patch surfaces:
-  - batch/sequence arguments and loader calls in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - schedule env parsing in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - batch/sequence arguments and loader calls in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - schedule env parsing in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
 - Concrete patch idea:
   `1024` or `1536` early, `2048` during the final phase.
 
@@ -167,9 +167,9 @@ A next-wave hypothesis is only worth running if it satisfies all of:
 - Likely failure mode:
   if all tracks collapse to the same deployed optimum, the extra bookkeeping is wasted
 - Patch surfaces:
-  - EMA state logic in [patches.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
-  - export block in [train_gpt.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py)
-  - runner summary code in [orchestrate_stage2_1.py](/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage2_1/orchestrate_stage2_1.py)
+  - EMA state logic in [patches.py]( nanoevolve/pgolf/parameter-golf/stage2_1/patches.py)
+  - export block in [train_gpt.py]( nanoevolve/pgolf/parameter-golf/train_gpt.py)
+  - runner summary code in [orchestrate_stage2_1.py]( nanoevolve/pgolf/parameter-golf/stage2_1/orchestrate_stage2_1.py)
 - Concrete patch idea:
   export raw, EMA, and late-aligned variants and keep the best deployed artifact.
 

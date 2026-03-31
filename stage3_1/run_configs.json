@@ -1,0 +1,402 @@
+{
+  "batch_id": "stage3_1_cross_field",
+  "description": "Stage 3.1: Cross-field mechanism transfer. Lane B (export-only) patches test on existing checkpoint. Lane A (training) patches require full training runs. Each hypothesis imports a structural concept from a non-ML field.",
+  "benchmarks": {
+    "our_best_bpb": 1.1233,
+    "frontier_bpb": 1.1194,
+    "frontier_pr": "LeakyReLU² + TTT + Parallel Muon (abaybektursun)",
+    "record_sota_bpb": 1.1194,
+    "our_pre_quant_bpb": 1.1427,
+    "our_quant_damage": 0.0067,
+    "our_sliding_lift": 0.0266
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_BACKEND_STEPS": "5",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "EMA_DECAY": "0.997",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "description": "Crash check for Lane A (training) slots only. Lane B uses lane_b_bakeoff.",
+      "slots": ["R0A", "R0B", "H4", "H5", "H6", "H7", "H8"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Short training screen for Lane A candidates. Ranked against Lane A controls only.",
+      "slots": ["R0A", "R0B", "H4", "H5", "H6", "H7", "H8"]
+    },
+    "lane_b_bakeoff": {
+      "max_wallclock_seconds": 120,
+      "nproc_per_slot": 1,
+      "description": "Lane B export-only: load control checkpoint, apply export patch, quantize, eval. No training. Ranked against Lane B control (same checkpoint, no patch).",
+      "checkpoint_source": "R0A",
+      "slots": ["R0A_export", "H1", "H2", "H3", "H1H3"]
+    },
+    "composite": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Best Lane A winner + best Lane B winner composed. Also best train-process + best export child.",
+      "slots": null
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Alias for decision phase. Kept for backward compatibility."
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Full-length runs for promoted finalists from both lanes."
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "baseline_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "lane": "A",
+      "why": "Primary control: 1.1233 frontier code, unpatched. Reproduces the known-best result.",
+      "validates": "The base code is correct and the patching pipeline doesn't break it.",
+      "falsifies": "All derivative results are suspect if this doesn't match expected range.",
+      "env": {},
+      "notes": ["Expected post-quant BPB at 180s: ~1.18-1.20 range (1-GPU short run)."]
+    },
+    {
+      "slot": "R0B",
+      "name": "baseline_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "lane": "A",
+      "why": "Noise floor calibration. R0A vs R0B spread sets the kill threshold.",
+      "validates": "Short-run variance is small enough for meaningful pruning.",
+      "falsifies": "Screen is too noisy to separate signal from noise.",
+      "env": {"SEED": "42"},
+      "notes": ["Different seed from R0A to measure inter-seed variance."]
+    },
+    {
+      "slot": "R0A_export",
+      "name": "baseline_export_control",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_export_control",
+      "lane": "B",
+      "why": "Lane B control: same checkpoint as candidates, no export patch. All Lane B candidates must beat this to prove their export modification helps.",
+      "validates": "The export-only pipeline reproduces the control checkpoint's deployed score.",
+      "falsifies": "Lane B comparisons are invalid if this control diverges from expected range.",
+      "env": {},
+      "notes": ["Export-only: loads R0A checkpoint, runs standard export pipeline, no patches."]
+    },
+    {
+      "slot": "H1",
+      "name": "companding_mu100",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": ["companding"],
+      "family": "EXPORT_QUANT",
+      "lane": "B",
+      "broken_invariant": "One quantization bin spacing for all weight magnitudes. Uniform int6 allocates equal bin width across the whole range.",
+      "mechanism": "Replace uniform int6 quantization with mu-law companding: compress(w) before quantize, expand(w) after dequantize. Concentrates bins near zero where weight density is highest.",
+      "why": "Weight distributions are heavy-tailed. Uniform int6 wastes resolution on sparse tails while under-resolving the dense near-zero region. mu-law companding from telecom (ITU-T G.711) directly addresses this.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.003]},
+      "expected_horizon": "lane_b_bakeoff",
+      "early_signal": "quant_damage (post_quant_bpb - pre_quant_bpb) should shrink vs R0A_export control.",
+      "failure_mode": "mu=100 is too aggressive, distorting tails. Or percentile clipping in the original quantizer already adapts well enough.",
+      "kill_rule": "No improvement in post_quant_bpb vs R0A_export at lane_b_bakeoff.",
+      "code_burden": "patchable",
+      "validates": "Nonlinear requantization reduces quant damage. Opens the quantization function itself as an attack surface.",
+      "falsifies": "The percentile search in int6 quantization already adapts well enough. Linear binning with good clipping is near-optimal.",
+      "env": {
+        "COMPAND_MU": "100"
+      },
+      "notes": [
+        "Cross-domain: telecommunications mu-law companding (1972).",
+        "Lane B: can be tested on existing checkpoint without retraining.",
+        "mu=100 is between telephone standard (255) and mild (50). If too strong, try mu=50."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "fisher_bit_allocation",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": ["fisher_bits"],
+      "family": "EXPORT_QUANT",
+      "lane": "B",
+      "broken_invariant": "One bit-width for all layers. Uniform int6 treats every layer as equally sensitive to quantization.",
+      "mechanism": "Compute diagonal Fisher approximation (E[grad^2]) per layer from 3 forward-backward passes. Allocate int8 to top-K highest-Fisher layers, int4 to bottom-K, int6 to rest. Budget-neutral: int4 savings offset int8 cost.",
+      "why": "Marginal loss increase per quantization error is not uniform across layers. High-Fisher layers (near output) are far more loss-sensitive. Uniform int6 wastes bits on insensitive early layers.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.002, 0.004]},
+      "expected_horizon": "lane_b_bakeoff",
+      "early_signal": "quant_damage should shrink vs R0A_export. Artifact size should stay within budget (int4 savings offset int8).",
+      "failure_mode": "All layers are roughly equally sensitive. Or int4 on low-Fisher layers causes disproportionate damage. Or Fisher estimate from 3 batches is too noisy.",
+      "kill_rule": "No improvement in post_quant_bpb vs R0A_export, or artifact size exceeds budget.",
+      "code_burden": "patchable",
+      "validates": "Non-uniform bit allocation beats uniform int6. Opens per-layer export policy as an attack surface.",
+      "falsifies": "All layers are equally sensitive to quantization. Uniform allocation is already near-optimal.",
+      "env": {
+        "FISHER_BITS": "1",
+        "FISHER_N_INT8": "2",
+        "FISHER_N_INT4": "2"
+      },
+      "notes": [
+        "Cross-domain: Bayesian inference / Fisher information matrix.",
+        "Budget-neutral: int4 layers save bytes that offset the int8 layers."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "sparsify_5pct",
+      "role": "support",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": ["sparsify_before_quant"],
+      "family": "EXPORT_COMPRESS",
+      "lane": "B",
+      "broken_invariant": "All near-zero weights are kept. Tiny weights quantize to +/-1 and waste compression bandwidth without contributing to model output.",
+      "mechanism": "Per-tensor: compute magnitude threshold at the sparsify_frac percentile, zero out all weights below it before quantization. Creates long runs of exact zeros that zstd compresses efficiently.",
+      "why": "Near-zero weights that quantize to +/-1 in int6 contribute almost nothing to model output but consume compression bandwidth. Zeroing them frees bytes for the artifact budget.",
+      "dominant_metric": "artifact_size",
+      "expected_impact": {"magnitude": "tiny", "bpb_range": [-0.001, 0.001]},
+      "expected_horizon": "lane_b_bakeoff",
+      "early_signal": "submission_size_bytes should drop 3-5%. post_quant_bpb should not worsen by more than 0.001.",
+      "failure_mode": "5% sparsity degrades quality more than the compression gain is worth. Or zstd already compresses near-zero int6 values well enough.",
+      "kill_rule": "post_quant_bpb worsens by more than 0.002 vs R0A_export, or artifact shrinks less than 2%.",
+      "code_burden": "patchable",
+      "validates": "Pre-quantization sparsification improves compression ratio without killing quality.",
+      "falsifies": "Even 5% sparsity degrades quality more than the compression gain is worth.",
+      "env": {
+        "SPARSIFY_FRAC": "0.05"
+      },
+      "notes": [
+        "Cross-domain: compressed sensing / sparse coding.",
+        "If 5% is too aggressive, try 2%."
+      ]
+    },
+    {
+      "slot": "H1H3",
+      "name": "companding_plus_sparsify",
+      "role": "support",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": ["companding", "sparsify_before_quant"],
+      "family": "EXPORT_COMPOUND",
+      "lane": "B",
+      "broken_invariant": "One export transform is sufficient. Sparsification and companding attack different parts of the pipeline (zeros for compression, bin spacing for quantization).",
+      "mechanism": "Apply sparsify_before_quant (zero smallest 5%), then companding (mu-law compress before int6 quantize). Two sequential export transforms.",
+      "why": "Sparsification creates zeros for better compression. Companding concentrates bins for better quantization of nonzero weights. These are orthogonal improvements that should compose.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.004]},
+      "expected_horizon": "lane_b_bakeoff",
+      "early_signal": "post_quant_bpb should improve vs R0A_export. Improvement should exceed max(H1, H3) solo if the mechanisms compose.",
+      "failure_mode": "Combined distortion exceeds compression gain. Or the two transforms interfere (sparsifying changes the distribution that companding expects).",
+      "kill_rule": "H1H3 < max(H1, H3) — interference, not composition. Or no improvement vs R0A_export.",
+      "code_burden": "patchable",
+      "validates": "Two export improvements from different fields compose additively.",
+      "falsifies": "Over-processing: the combined distortion exceeds the compression gain.",
+      "env": {
+        "COMPAND_MU": "100",
+        "SPARSIFY_FRAC": "0.05"
+      },
+      "notes": [
+        "Only interpretable after H1 and H3 solo results."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "byte_weighted_loss",
+      "role": "support",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["byte_weighted_loss"],
+      "family": "LOSS_ALIGNMENT",
+      "lane": "A",
+      "broken_invariant": "One weight per token in CE loss. All tokens contribute equally to training loss regardless of their byte count, but the eval metric (BPB) weights by bytes.",
+      "mechanism": "Build a byte-weight LUT from the tokenizer. In cross_entropy, use per-token weights = bytes_per_token / mean_bpt. Uses reduction='none' + manual weighted mean.",
+      "why": "BPB weights tokens by byte count. A 4-byte token matters 4x more for BPB but gets equal CE signal. Weighting CE by bytes/token directly optimizes what's measured.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.001, 0.005]},
+      "expected_horizon": "screen",
+      "early_signal": "val_bpb should improve relative to R0A at 180s, even if val_loss (unweighted) doesn't change much.",
+      "failure_mode": "Byte-count distribution is too uniform across tokens to matter. Or reweighting destabilizes optimization by over-emphasizing rare long tokens.",
+      "kill_rule": "No val_bpb improvement vs R0A at 180s screen, or training loss diverges.",
+      "code_burden": "patchable",
+      "validates": "Metric-aligned training improves the metric. Opens loss weighting as an attack surface.",
+      "falsifies": "The byte-count distribution is too uniform to matter, or the reweighting destabilizes training.",
+      "env": {
+        "BYTE_WEIGHTED_LOSS": "1"
+      },
+      "notes": [
+        "Cross-domain: decision theory / proper scoring rules.",
+        "Zero new hyperparameters (weights derived from tokenizer)."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "tapered_mlp_4_3_2",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["tapered_mlp"],
+      "family": "ARCHITECTURE",
+      "lane": "A",
+      "broken_invariant": "One MLP width for all layers. Uniform 3x multiplier ignores that information density varies by depth.",
+      "mechanism": "Per-layer MLP multipliers: 4x for layers 0-3 (early), 3x for layers 4-7 (mid), 2x for layers 8-10 (late). Total params roughly constant. Passed as a list to GPT constructor.",
+      "why": "Early layers build low-level representations and need capacity. Late layers refine and must quantize well — narrower MLPs have less quantization damage per parameter. Redistributes the same byte budget to where it helps most.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.005, 0.010]},
+      "expected_horizon": "screen",
+      "early_signal": "pre_quant_bpb should improve at 180s. Also check post_quant_bpb — narrower late layers should quantize better.",
+      "failure_mode": "Uniform 3x is already well-balanced. Or narrower late layers lose too much quality, offsetting the early-layer gain.",
+      "kill_rule": "No pre_quant_bpb improvement vs R0A at 180s, or post_quant_bpb worsens.",
+      "code_burden": "patchable",
+      "validates": "Non-uniform capacity allocation beats uniform. Opens per-layer architecture as an attack surface.",
+      "falsifies": "Uniform 3x is already well-balanced, or the narrower late layers lose too much quality.",
+      "env": {
+        "TAPERED_MLP": "1",
+        "TAPERED_MLP_EARLY": "4.0",
+        "TAPERED_MLP_LATE": "2.0"
+      },
+      "notes": [
+        "Total params roughly constant (4+3+3+3+3+3+3+2+2+2+2 = 30 vs 3*11=33 — slightly fewer)."
+      ]
+    },
+    {
+      "slot": "H6",
+      "name": "quant_anneal",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["quant_anneal"],
+      "family": "TRAIN_DEPLOY",
+      "lane": "A",
+      "broken_invariant": "One QAT regime (binary on/off). Late QAT switches abruptly at 15% LR scale — a discontinuous phase transition in the loss landscape.",
+      "mechanism": "Replace binary QAT with continuous alpha: w_eff = w + alpha * (w_q - w).detach(). Alpha ramps from 0 at warmdown start to 1 at end. CastedLinear._qat_alpha tracks the interpolation.",
+      "why": "Abrupt QAT is a quench — the optimizer suddenly sees a different landscape. Gradual annealing lets the optimizer track the continuously deforming landscape, finding better quantized minima.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.002, 0.005]},
+      "expected_horizon": "screen",
+      "early_signal": "quant_damage (post_quant_bpb - pre_quant_bpb) should shrink vs R0A. The gap reduction should be visible even at 180s.",
+      "failure_mode": "Optimizer already adapts to abrupt QAT fast enough. Or gradual annealing wastes effective training steps on intermediate alpha values.",
+      "kill_rule": "No quant_damage improvement vs R0A at 180s, or step_avg_ms worsens materially.",
+      "code_burden": "patchable",
+      "validates": "Gradual QAT annealing beats abrupt QAT. Opens the QAT schedule as an attack surface.",
+      "falsifies": "The optimizer already adapts to QAT fast enough. Gradual annealing just wastes effective training steps.",
+      "env": {
+        "QUANT_ANNEAL": "1"
+      },
+      "notes": [
+        "Replaces late_qat_threshold — the alpha ramp subsumes the binary switch."
+      ]
+    },
+    {
+      "slot": "H7",
+      "name": "staged_objective",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["staged_objective"],
+      "family": "OBJECTIVE_SPLIT",
+      "lane": "A",
+      "broken_invariant": "One objective for the whole run. Training uses CE throughout with a late binary QAT switch, ignoring that different phases have fundamentally different goals.",
+      "mechanism": "Three-phase objective: Phase 1 (scale>=0.8): pure CE. Phase 2 (0.3<=scale<0.8): CE + quant-gap KL penalty (penalize divergence between real and quantized outputs). Phase 3 (scale<0.3): CE + quant-gap + deploy alignment. Extra forward pass with quantized weights on micro_step==0 only.",
+      "why": "Bulk training should focus on representation quality. Pre-warmdown should prepare for quantization. Deep warmdown should fully align with deployed score. Staging the objective gives each phase a specialized engine.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "medium", "bpb_range": [0.005, 0.010]},
+      "expected_horizon": "screen",
+      "early_signal": "quant_damage should shrink vs R0A. post_quant_bpb should improve. Check step_avg_ms for extra overhead from quant-gap forward pass.",
+      "failure_mode": "Quant-gap penalty hurts representation quality more than it helps deployment. Or extra forward pass costs too many steps, reducing total training.",
+      "kill_rule": "No post_quant_bpb improvement vs R0A at 180s, or step_avg_ms worse by >15% with no compensating gain.",
+      "code_burden": "patchable",
+      "validates": "Multi-phase objectives beat single-objective training. Opens the objective schedule as an attack surface.",
+      "falsifies": "The quant-gap penalty hurts training quality more than it helps deployment, or the extra forward pass costs too many steps.",
+      "env": {
+        "STAGED_OBJ": "1",
+        "STAGED_OBJ_PHASE2": "0.8",
+        "STAGED_OBJ_PHASE3": "0.3",
+        "STAGED_OBJ_GAP_WEIGHT": "0.3"
+      },
+      "notes": [
+        "CAUTION: extra forward pass for quant-gap costs ~50% more FLOPs on those steps.",
+        "Only runs quant-gap forward on micro_step==0 to limit overhead."
+      ]
+    },
+    {
+      "slot": "H8",
+      "name": "best_checkpoint_selection",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["best_checkpoint"],
+      "family": "CHECKPOINT_SELECTION",
+      "lane": "A",
+      "broken_invariant": "One checkpoint is always the right export target. The code always exports EMA of the final state, assuming the last step is best.",
+      "mechanism": "During warmdown (scale < 0.3), every 100 steps: snapshot EMA state, run fast quant-roundtrip eval (quantize->dequantize->eval), track best deployed val_bpb. At export, use the best-deployed checkpoint instead of final EMA.",
+      "why": "Deployed score = raw quality + quant damage. These trade off non-monotonically during warmdown — raw quality improves while quant damage may worsen. The minimum deployed score may occur at an intermediate step, not the final one.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {"magnitude": "small", "bpb_range": [0.002, 0.005]},
+      "expected_horizon": "screen",
+      "early_signal": "best_ckpt:probe logs should show deployed_bpb variance during warmdown. If the best probe is earlier than the final step, the mechanism is working.",
+      "failure_mode": "EMA of the final state is already near the deployed-score minimum. Or the periodic quant-eval overhead reduces total training steps enough to offset the selection gain.",
+      "kill_rule": "No improvement in post_quant_bpb vs R0A at 180s screen, or best_ckpt_step == final_step (selection found nothing better).",
+      "code_burden": "patchable",
+      "validates": "Checkpoint selection by deployed metric beats blind last-step export. Opens the export-target decision as an attack surface.",
+      "falsifies": "EMA of the final state is already near the deployed-score minimum, making selection pointless.",
+      "env": {
+        "BEST_CKPT": "1",
+        "BEST_CKPT_EVERY": "100",
+        "BEST_CKPT_START": "0.3"
+      },
+      "notes": [
+        "Periodic quant-eval adds overhead. BEST_CKPT_EVERY=100 limits it to ~10-30 probes per warmdown."
+      ]
+    }
+  ]
+}
