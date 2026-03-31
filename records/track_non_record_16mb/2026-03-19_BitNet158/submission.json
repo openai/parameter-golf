@@ -1,0 +1,18 @@
+{
+    "author": "Etai Zilberman",
+    "github_id": "ksang123",
+    "name": "BitNet b1.58: 12x768 MLP3x Ternary + Chinchilla Scaling",
+    "blurb": "64.5M ternary-weight transformer (12 layers, 768 dim, MLP 3x) packed at 1.6 bits/param via base-3 encoding. Trains with STE ternary quantization and fp16 scale simulation for near-zero roundtrip gap (0.002 BPB). Beats 4-hour baseline in 10 minutes via Chinchilla-optimal scaling: 3.8x more params in same artifact size. No hyperparameter sweep, no eval tricks.",
+    "track": "non_record_16mb",
+    "date": "2026-03-19",
+    "val_loss": 2.03099029,
+    "val_bpb": 1.20286685,
+    "pre_quant_val_loss": 2.0284,
+    "pre_quant_val_bpb": 1.2013,
+    "step_stop": 4713,
+    "wallclock_seconds": 600.041,
+    "eval_time_seconds": 64.36,
+    "bytes_total": 15111456,
+    "bytes_model": 15057568,
+    "bytes_code": 53888
+}
