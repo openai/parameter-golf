@@ -1,0 +1,17 @@
+{
+  "author": "Arjun Krishna",
+  "github_id": "arjun-krishna1",
+  "name": "ArjunAutoResearch",
+  "blurb": "SP-1024 9x512 KV4 with MLP_MULT=3.0 (hidden=1536), seq_len=4096, lower LRs (matrix/scalar 0.02, embed 0.03), Muon momentum 0.99, warmdown 3000 steps, STE fake int6 QAT on CastedLinear weights during training, int6 per-row quantization on MLP+attention with fp16 tied embedding passthrough, zstd-22 compression, and sliding window evaluation at stride=64 with 4096-token context windows.",
+  "date": "2026-03-19T14:31:28Z",
+  "val_loss": 1.96461316,
+  "val_bpb": 1.16356083,
+  "pre_quant_val_loss": 1.9871,
+  "pre_quant_val_bpb": 1.1769,
+  "step_stop": 9211,
+  "wallclock_seconds": 600.072,
+  "eval_time_seconds": 157.100,
+  "bytes_total": 15265243,
+  "bytes_model_int6_zstd": 15208042,
+  "bytes_code": 57201
+}
