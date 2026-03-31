@@ -1,0 +1,7 @@
+__pycache__/
+final_model.pt
+final_model.*.ptz
+logs/*.pid
+logs/*.out
+logs/*.exitcode
+logs/*.finished_at
