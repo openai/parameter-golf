@@ -1,0 +1,9 @@
+# Parameter Golf - train_gpt.py dependencies
+# PyTorch 2.9+ with CUDA 12.8 (8xH100 SXM target)
+torch>=2.9.0
+numpy>=1.26.0
+sentencepiece>=0.2.0
+
+# Optional but recommended for best performance
+zstandard>=0.23.0        # zstd compression (falls back to zlib if missing)
+flash-attn-hopper>=2.0   # FlashAttention 3 for Hopper GPUs (falls back to SDPA if missing)

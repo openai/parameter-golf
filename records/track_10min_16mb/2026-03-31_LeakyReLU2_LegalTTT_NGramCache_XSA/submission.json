@@ -1,0 +1,57 @@
+{
+  "author": "Koustav Sarkar",
+  "github_id": "skoustav",
+  "name": "LeakyReLU² + Legal Score-First TTT + N-gram Backoff Cache + Gated Attention",
+  "blurb": "11L XSA-5 + Score-first TTT (SGD, 3ep, 32K chunks, stride 64) + multi-order N-gram backoff cache (order 9, Laplace-smoothed, entropy-adaptive alpha) + gated attention + value residual + VE(128) on layers 8,9,10 + MTP-2 + BigramHash(2048) + CROWN-Q + LeakyReLU(0.5)². N-gram cache uses community-contested eval-time technique (see PR #727, issue #677). 3-seed exact mean: 0.96412237 BPB / 1.62735261 nats.",
+  "date": "2026-03-30",
+  "track": "10min_16mb",
+  "val_loss": 1.62735261,
+  "val_bpb": 0.96412237,
+  "val_loss_std": 0.00120441,
+  "val_bpb_std": 0.00071386,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.62740282,
+      "val_bpb": 0.96415208,
+      "artifact_bytes": 15981645,
+      "steps": 7185,
+      "step_avg_ms": 83.42,
+      "train_time_ms": 599384
+    },
+    "42": {
+      "val_loss": 1.62853112,
+      "val_bpb": 0.96482092,
+      "artifact_bytes": 15976868,
+      "steps": 7182,
+      "step_avg_ms": 83.51,
+      "train_time_ms": 599761
+    },
+    "2025": {
+      "val_loss": 1.62612388,
+      "val_bpb": 0.96339412,
+      "artifact_bytes": 15989184,
+      "steps": 7196,
+      "step_avg_ms": 83.32,
+      "train_time_ms": 599618
+    }
+  },
+  "comparison_baseline_pr": 549,
+  "implementation_lineage_pr": 727,
+  "delta_vs_pr549_nats": -0.26266807,
+  "delta_vs_pr549_bpb": -0.15525730,
+  "t_statistic": 384.4,
+  "artifact_bytes_mean": 15982566,
+  "artifact_bytes_max": 15989184,
+  "bytes_total": 15989184,
+  "bytes_code": 115370,
+  "bytes_model_max": 15873814,
+  "train_steps_mean": 7187.67,
+  "step_avg_ms_mean": 83.42,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "2.8.3 (FA3 Hopper kernels)",
+  "ngram_cache_note": "Eval-time N-gram backoff cache with Laplace smoothing. Legality is community-contested: see PR #727 (closed), issue #677 (open). Cache uses zero artifact bytes, is backward-looking only, and forms a proper normalized distribution via add-1 smoothing.",
+  "technique_summary": "Score-first TTT + N-gram backoff cache (order 9) + Gated Attention + Value Residual + XSA-5 + VE + MTP-2 + BigramHash 2048 + CROWN-Q + LeakyReLU²"
+}
