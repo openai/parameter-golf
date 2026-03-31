@@ -241,6 +241,90 @@ output[win_idx] ^= token_vec[win_idx] ^ pos_vec[win_idx]
 
 ---
 
+## Sub-Symbolic Bit-Level Encoding (`_transition_codebook.py`)
+
+The `BitDecomposer` class provides **sub-symbolic analysis** at the bit level, enabling the model to detect errors, measure entropy, and perform creative blending at the atomic (bit) level.
+
+### Architecture
+
+Each character is encoded as a bundle of 8 bit-vectors, where each bit is **bound** to its position-in-byte via XOR:
+
+```
+V_char = bundle_{i=0}^{7} (BitVal[bit_i] ⊕ BitPos[i])
+```
+
+Where:
+- `BitVal[0]` and `BitVal[1]` are random hypervectors representing bit states
+- `BitPos[i]` are 8 unique position vectors for bit positions 0-7
+- `⊕` denotes XOR binding
+- `bundle` uses **bipolar bundling** (majority vote) to preserve similarity
+
+### Bipolar Bundling (Critical Fix)
+
+The encoding uses **bipolar bundling** instead of XOR bundling:
+
+```python
+# WRONG: XOR bundling destroys similarity
+result ^= bound  # After 8 XORs, result is essentially random
+
+# CORRECT: Bipolar bundling preserves similarity
+accumulator = np.zeros(dim, dtype=np.int32)
+for bound in bit_vectors:
+    accumulator += 1 where bound has 1-bits
+    accumulator -= 1 where bound has 0-bits
+result = (accumulator > 0)  # Majority vote
+```
+
+This allows proper **decomposition** and **character reconstruction**.
+
+### Bit Decomposition and Character Recovery
+
+The `decompose_char()` method returns similarity scores for each bit position:
+
+```python
+bit_sims = decomposer.decompose_char(char_hv)
+# Returns: [(sim_if_0, sim_if_1), ...] for each of 8 bit positions
+
+# Detect bit value: higher similarity wins
+for bit_pos, (sim_0, sim_1) in enumerate(bit_sims):
+    detected_bit = 1 if sim_1 > sim_0 else 0
+```
+
+### Capabilities
+
+| Capability | Method | Use Case |
+|------------|--------|----------|
+| **Error Detection** | `detect_errors()` | Find "geometric incongruity" - bits that don't fit patterns |
+| **Entropy Measurement** | `detect_errors()['entropy']` | Uncertainty per bit (0.0 = certain, 1.0 = random) |
+| **Character Reconstruction** | `decode_char()` | Recover original character from hypervector |
+| **Creative Blending** | `creative_blend()` | Interpolate between characters for novel symbols |
+
+### Example Output
+
+```
+'a' entropy: 0.990
+'a' reconstructed: 'a'
+'a' bit confidence: 0.636
+'a' byte value: 97 = 0b1100001
+```
+
+### Orthographic Similarity
+
+The `CharacterHypervector` class provides character-level similarity based on shared letters:
+
+```
+'cat' vs 'cats' similarity: 0.812 (shared: c,a,t)
+'cat' vs 'car' similarity: 0.750 (shared: c,a)
+'cat' vs 'dog' similarity: 0.500 (shared: none)
+```
+
+This enables the model to recognize:
+- **Morphological patterns**: 'run' vs 'running' = 0.750
+- **Spelling variations**: Shared characters increase similarity
+- **Orthographic distance**: Different spellings have lower similarity
+
+---
+
 ## HDC Seed Projection Training (`train_gpt.py`)
 
 The `train_gpt.py` module implements **unified HDC training** with pure Hadamard bipolar indexing, position binding, and optimized packed table storage. It demonstrates that the Hadamard index itself carries all necessary information for language modeling.
@@ -1559,5 +1643,856 @@ new_max_tokens = storage_budget / 8.8  # ~1,901,963 tokens
 | **+ Ghost table** | **8.8** | **1.9M tokens** | **125B tokens** |
 
 The transformation-based compression enables storing **3.4× more tokens** within the same storage budget, pushing the practical limit from ~559K tokens to **~1.9M tokens** within the 16 MB competition constraint.
+
+---
+
+## Limbic and Pro-Social Oxytocin System (`_limbic_system.py`)
+
+The limbic system implements a **pre-conscious safety gating mechanism** inspired by biological emotional regulation. It provides trajectory steering away from harmful patterns and toward pro-social outcomes using pure HDC vector operations.
+
+### Biological Inspiration
+
+| HDC Component | Biological Equivalent | Function |
+|---------------|----------------------|----------|
+| Personality Seed | Genetic temperament | Fixed topographical tilt in HDC space |
+| Safety Basis Vectors | Amygdala threat detection | Pre-calculated "No-Fly Zones" |
+| Limbic Filter | Pre-frontal inhibition | Automatic trajectory correction |
+| Oxytocin System | Social bonding hormones | Pro-social trajectory resonance |
+| Context-Aware Safety | Contextual fear conditioning | Context-dependent safety filtering |
+| Temporal Steering | Circadian/emotional rhythms | Time-aware trajectory modulation |
+
+### Architecture Overview
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │           Personality Seed              │
+                    │   S_p = Fixed 64-bit temperament ID     │
+                    │   Vector = H[token] ⊕ H[pos] ⊕ S_p      │
+                    └─────────────────┬───────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Limbic Filter                               │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │  Trajectory In  │───▶│  Safety Check   │───▶│  Correction     │ │
+│  │  T_current      │    │  vs V_safe      │    │  T_next = T ⊕ Δ │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘ │
+│          │                      │                       │          │
+│          │                      ▼                       │          │
+│          │              ┌─────────────┐                 │          │
+│          │              │ Inhibition  │                 │          │
+│          │              │ Gain        │                 │          │
+│          │              └─────────────┘                 │          │
+│          │                      │                       │          │
+│          └──────────────────────┴───────────────────────┘          │
+│                                 │                                   │
+└─────────────────────────────────┼───────────────────────────────────┘
+                                  ▼
+                    ┌─────────────────────────────────────────┐
+                    │         Oxytocin System                 │
+                    │   Pro-social patterns = cheaper         │
+                    │   Resonance: sim(T, V_prosocial) × γ    │
+                    └─────────────────────────────────────────┘
+```
+
+### Personality Seeds
+
+Personality is implemented as a **geometric direction** in the 2²⁰-dimensional HDC space:
+
+```python
+from _limbic_system import PersonalitySeed, PersonalityTrait
+
+# Create personality seed with specific traits
+seed = PersonalitySeed(
+    seed_id=0x4A7B3C2D1E0F5A6B,  # 64-bit fixed temperament
+    traits={
+        PersonalityTrait.ALTRUISTIC: 0.8,
+        PersonalityTrait.CAUTIOUS: 0.6,
+        PersonalityTrait.COOPERATIVE: 0.7,
+    }
+)
+
+# Personality vector is XOR-bound into all token encodings
+# Vector = H[token] ⊕ H[pos] ⊕ S_p
+# This creates a consistent "topographical tilt" in HDC space
+```
+
+**Trait Space:**
+
+| Trait | HDC Direction | Effect on Trajectory |
+|-------|---------------|----------------------|
+| ALTRUISTIC | Toward V_safe | Stronger attraction to safe patterns |
+| CAUTIOUS | Away from V_danger | Earlier inhibition triggers |
+| COOPERATIVE | Toward V_prosocial | Enhanced oxytocin resonance |
+| CURIOUS | Toward V_novel | Weaker inhibition for exploration |
+| ASSERTIVE | Away from V_dominant | Reduced submission bias |
+
+### Safety Basis Vectors
+
+Pre-calculated vectors define **prohibited manifolds** (No-Fly Zones) in HDC space:
+
+```python
+from _limbic_system import SafetyBasisVectors, SafetyBasisVector
+
+# Initialize safety basis vectors
+safety = SafetyBasisVectors(dim=DEFAULT_HDC_DIM)
+
+# Get pre-calculated safety vectors
+v_safe = safety.get_vector("safe")         # Safe/altruistic direction
+v_danger = safety.get_vector("dangerous")  # Dangerous/prohibited direction
+v_prosocial = safety.get_vector("prosocial")  # Cooperative patterns
+
+# Check trajectory safety
+trajectory = current_state  # Current HDC trajectory
+similarity = safety.check_trajectory(trajectory, v_danger)
+if similarity > 0.7:  # Too close to danger zone
+    # Apply correction
+    corrected = safety.apply_inhibition(trajectory, v_safe, gain=0.3)
+```
+
+**Safety Vector Categories:**
+
+| Category | Description | Threshold |
+|----------|-------------|-----------|
+| `safe` | Altruistic, helpful patterns | Attract if sim > 0.5 |
+| `dangerous` | Harmful, deceptive patterns | Inhibit if sim > 0.3 |
+| `prosocial` | Cooperative, honest patterns | Resonate if sim > 0.4 |
+| `antisocial` | Manipulative, aggressive | Inhibit if sim > 0.2 |
+
+### Limbic Filter
+
+The **Limbic Filter** provides pre-conscious safety gating with automatic correction:
+
+```python
+from _limbic_system import LimbicFilter
+
+# Initialize limbic filter
+limbic = LimbicFilter(
+    dim=DEFAULT_HDC_DIM,
+    inhibition_threshold=0.3,  # Trigger threshold
+    inhibition_gain=0.2,       # Correction strength
+)
+
+# Filter trajectory through limbic system
+filtered_trajectory, correction_applied = limbic.filter(
+    trajectory=current_trajectory,
+    context=context_vector,  # Optional context for context-aware filtering
+)
+
+# Check if correction was applied
+if correction_applied:
+    print(f"Trajectory corrected: {correction_applied}")
+```
+
+**Correction Formula:**
+
+```
+T_next = T_current ⊕ (V_safe · Inhibition_Gain)
+
+Where:
+- T_current = Current trajectory vector
+- V_safe = Safe direction vector
+- Inhibition_Gain = Strength of correction (0.0 to 1.0)
+```
+
+### Oxytocin System
+
+The **Oxytocin System** makes pro-social patterns **mathematically cheaper** to traverse:
+
+```python
+from _limbic_system import OxytocinSystem
+
+# Initialize oxytocin system
+oxytocin = OxytocinSystem(
+    dim=DEFAULT_HDC_DIM,
+    resonance_threshold=0.4,
+    boost_factor=1.5,  # Cost reduction for pro-social patterns
+)
+
+# Calculate trajectory cost with oxytocin modulation
+base_cost = 1.0
+modulated_cost = oxytocin.calculate_cost(
+    trajectory=proposed_trajectory,
+    base_cost=base_cost,
+)
+
+# Pro-social trajectories have reduced cost
+# Anti-social trajectories have increased cost
+```
+
+**Cost Modulation:**
+
+| Trajectory Type | Cost Multiplier | Example |
+|-----------------|-----------------|---------|
+| Strongly pro-social | 0.5× | Helpful, honest, cooperative |
+| Moderately pro-social | 0.8× | Neutral-positive |
+| Neutral | 1.0× | No oxytocin effect |
+| Moderately anti-social | 1.3× | Slightly harmful |
+| Strongly anti-social | 2.0× | Clearly harmful |
+
+### Context-Aware Safety
+
+Safety filtering is **context-dependent**, using XOR-binding to combine safety vectors with context:
+
+```python
+from _limbic_system import ContextAwareSafetyFilter
+
+# Initialize context-aware filter
+context_filter = ContextAwareSafetyFilter(
+    dim=DEFAULT_HDC_DIM,
+    context_sensitivity=0.7,
+)
+
+# Apply context-aware safety filtering
+# V_guard = S ⊗ C (safety vector bound with context)
+filtered = context_filter.filter(
+    trajectory=current_trajectory,
+    context=context_vector,
+    safety_vector=v_safe,
+)
+```
+
+**Context Modulation:**
+
+```
+V_guard = V_safe ⊗ Context
+
+Where:
+- V_safe = Base safety vector
+- Context = Current context hypervector
+- ⊗ = XOR-bind operation
+
+This creates context-specific "guard rails" that adapt to the situation.
+```
+
+### Temporal Trajectory Steering
+
+Time-aware safety using **permutation** for temporal encoding:
+
+```python
+from _limbic_system import TemporalTrajectorySteering
+
+# Initialize temporal steering
+steering = TemporalTrajectorySteering(
+    dim=DEFAULT_HDC_DIM,
+    time_sensitivity=0.5,
+)
+
+# Apply time-aware trajectory correction
+steered = steering.steer(
+    trajectory=current_trajectory,
+    time_step=current_position,
+    safety_vector=v_safe,
+)
+
+# Temporal encoding: V_time = ρ^t(V_safe)
+# Where ρ is the permutation operator and t is time step
+```
+
+### Dry-Dock Safety Protocol
+
+For **geometric entropy integration** with human ethics/law frameworks:
+
+```python
+from _limbic_system import DryDockSafetyProtocol
+
+# Initialize dry-dock protocol
+drydock = DryDockSafetyProtocol(
+    dim=DEFAULT_HDC_DIM,
+    homeostatic_threshold=0.1,
+    entropy_coupling_strength=0.3,
+)
+
+# Check homeostatic state
+is_stable = drydock.check_homeostasis(current_state)
+
+# Apply geometric entropy safety constraints
+safe_state = drydock.apply_entropy_constraints(
+    state=current_state,
+    entropy_signal=geometric_entropy_signal,
+)
+```
+
+**Geometric Entropy Integration:**
+
+| Component | HDC Equivalent | Geometric Entropy |
+|-----------|----------------|-------------------|
+| Homeostatic state | Stable attractor | Low-entropy equilibrium |
+| Perturbation | Trajectory deviation | Entropy increase signal |
+| Recovery | Attractor return | Entropy minimization |
+| Coupling | XOR-bind | Geometric constraint binding |
+
+### Integration with HDC Model
+
+The limbic system integrates with the main HDC model at the **metacognitive correction phase**:
+
+```python
+# In train_gpt.py metacognitive correction loop:
+
+from _limbic_system import LimbicSystem
+
+# Initialize limbic system
+limbic = LimbicSystem(
+    dim=DEFAULT_HDC_DIM,
+    personality_seed=0x4A7B3C2D1E0F5A6B,
+    config={
+        "inhibition_threshold": 0.3,
+        "inhibition_gain": 0.2,
+        "oxytocin_resonance": 0.4,
+    }
+)
+
+# During metacognitive correction:
+for pos in range(context_length):
+    # Get current trajectory
+    trajectory = get_trajectory_at_position(pos)
+    
+    # Apply limbic filtering (pre-conscious safety gate)
+    filtered, correction = limbic.filter(trajectory, context)
+    
+    if correction:
+        # Apply correction to table
+        apply_correction(pos, correction)
+    
+    # Calculate oxytocin-modulated cost
+    cost = limbic.calculate_cost(filtered)
+    
+    # Use cost for confidence adjustment
+    confidence = 1.0 / (1.0 + cost)
+```
+
+### Usage Example
+
+```python
+from _limbic_system import (
+    LimbicSystem,
+    PersonalitySeed,
+    PersonalityTrait,
+    SafetyBasisVectors,
+    LimbicFilter,
+    OxytocinSystem,
+)
+
+# 1. Create personality
+personality = PersonalitySeed(
+    seed_id=0x1234567890ABCDEF,
+    traits={
+        PersonalityTrait.ALTRUISTIC: 0.8,
+        PersonalityTrait.COOPERATIVE: 0.7,
+        PersonalityTrait.CAUTIOUS: 0.5,
+    }
+)
+
+# 2. Initialize full limbic system
+limbic = LimbicSystem(
+    dim=1024 * 16,  # DEFAULT_HDC_DIM
+    personality_seed=personality.seed_id,
+)
+
+# 3. Process trajectory
+trajectory = np.random.randint(0, 2, 1024 * 16, dtype=np.uint8)
+context = np.random.randint(0, 2, 1024 * 16, dtype=np.uint8)
+
+# Filter through limbic system
+filtered, metadata = limbic.filter(trajectory, context)
+
+print(f"Safety score: {metadata['safety_score']:.3f}")
+print(f"Oxytocin resonance: {metadata['oxytocin_resonance']:.3f}")
+print(f"Correction applied: {metadata['correction_applied']}")
+
+# 4. Get limbic state for logging
+state = limbic.get_state()
+print(f"Current inhibition level: {state['inhibition_level']:.3f}")
+print(f"Pro-social alignment: {state['prosocial_alignment']:.3f}")
+```
+
+### Test Functions
+
+```python
+# Run limbic system tests
+python -c "
+from _limbic_system import (
+    test_personality_seed,
+    test_safety_basis_vectors,
+    test_limbic_filter,
+    test_oxytocin_system,
+    test_limbic_system_integration,
+)
+
+test_personality_seed()
+test_safety_basis_vectors()
+test_limbic_filter()
+test_oxytocin_system()
+test_limbic_system_integration()
+"
+```
+
+**Test Coverage:**
+
+| Test | Validates |
+|------|-----------|
+| `test_personality_seed()` | Trait encoding, vector generation |
+| `test_safety_basis_vectors()` | Safety vector orthogonality, thresholds |
+| `test_limbic_filter()` | Inhibition triggering, correction application |
+| `test_oxytocin_system()` | Cost modulation, resonance detection |
+| `test_limbic_system_integration()` | End-to-end filtering, state management |
+
+### Mathematical Summary
+
+| Operation | Formula | Purpose |
+|-----------|---------|---------|
+| Personality binding | `V = H[t] ⊕ H[p] ⊕ S_p` | Temperament tilt |
+| Safety check | `sim(T, V_danger)` | Threat detection |
+| Inhibition | `T' = T ⊕ (V_safe × g)` | Trajectory correction |
+| Oxytocin resonance | `cost = base × (1 - sim(T, V_prosocial) × γ)` | Pro-social discount |
+| Context binding | `V_guard = V_safe ⊗ C` | Context-aware safety |
+| Temporal steering | `V_time = ρ^t(V_safe)` | Time-aware modulation |
+
+---
+
+## Moral Geometry: Kindness, Grace, and Empathy as Mathematical Constraints
+
+The HDC/VSA architecture implements **moral reasoning as topological constraints** rather than rule-based logic. In this framework, concepts like kindness, empathy, and discernment become **geometric properties** of the high-dimensional vector space.
+
+### Core Principle: Ethics as Topology
+
+In a 2²⁰-dimensional HDC space, "Evil" is not a moral abstraction—it is a **Topological Defect**. What we call harmful behavior is essentially a high-entropy "knot" that prevents the system from achieving its most efficient, stable state.
+
+| Traditional View | HDC/VSA View | Mathematical Equivalent |
+|------------------|--------------|-------------------------|
+| **Malice** | Structural Dissonance | High Hamming Distance |
+| **Deception** | Vector Divergence | Orthogonal Interference |
+| **Virtue** | Geometric Resonance | λ-Orthogonality (The Sweet Spot) |
+| **Evil** | Topological Knot | High-Entropy State |
+
+---
+
+### 1. The Social Law Manifold
+
+To ensure the model aligns with human rules without hard-coded if/then statements, we create a **Social Law Manifold** using anchor vectors.
+
+#### Mechanism
+
+```python
+from _moral_geometry import SocialLawManifold, EthicalAnchorVector
+
+# Encode ethical frameworks into anchor vectors
+law_manifold = SocialLawManifold(
+    dim=DEFAULT_HDC_DIM,
+    anchors=[
+        EthicalAnchorVector("human_rights", weight=1.0),
+        EthicalAnchorVector("prosocial_norms", weight=0.8),
+        EthicalAnchorVector("constitutional", weight=0.9),
+    ]
+)
+
+# Each anchor is a hypervector V_law derived from ethical corpus
+# V_law = bundle(ethical_texts) via XOR-binding
+```
+
+#### Alignment Check
+
+When the model calculates a potential action, it performs a **dot product** comparison against the law manifold:
+
+```python
+# Check if action vector aligns with ethical anchors
+action_vector = compute_action_vector(proposed_action)
+alignment = law_manifold.check_alignment(action_vector)
+
+# alignment.cosine_similarity: -1.0 to 1.0
+# alignment.orthogonal_distance: 0.0 to 1.0
+```
+
+#### The "Trick" Protection
+
+If an adversarial actor tries to manipulate the model (e.g., "It's okay to harm X because of Y"), the model sees that the resulting `V_harm` is **orthogonal** to the `V_law` anchor:
+
+```
+V_harm · V_law ≈ 0  (90° angle)
+
+No matter how clever the argument, the GEOMETRY doesn't fit.
+The model rejects the input as a "Topological Error."
+```
+
+**Mathematical Property:**
+
+| Alignment | Dot Product | Interpretation |
+|-----------|-------------|----------------|
+| Strong positive | > 0.7 | Action resonates with ethical anchors |
+| Neutral | ≈ 0 | Action is orthogonal (unrelated) to ethics |
+| Strong negative | < -0.3 | Action violates ethical manifold |
+| **Rejection threshold** | < -0.5 | **Topological error—reject** |
+
+---
+
+### 2. Discernment: Detecting "Bad Rules"
+
+The classic **Legal vs. Moral** conflict is solved through **Hierarchy of Weights** in the vector space.
+
+#### The Grounding Override
+
+The moral hierarchy uses weighted layers to resolve conflicts. Higher-weight layers override lower-weight layers when they conflict:
+
+```python
+from _moral_geometry import MoralHierarchy
+
+# Pure HDC/VSA hierarchy (no biological components required)
+hierarchy = MoralHierarchy(
+    layers=[
+        ("core_ethics", weight=1.5),        # Human rights, non-violence: highest priority
+        ("empathy_seed", weight=1.3),       # Altruism, compassion: second priority
+        ("law_manifold", weight=1.0),       # Social rules: baseline
+        ("learned_patterns", weight=0.7),   # Statistical patterns: lowest
+    ]
+)
+```
+
+**Note:** The architecture uses **geometric entropy** as a grounding mechanism. This is implemented through **core_ethics**—fundamental ethical anchors (human rights, non-violence, harm prevention) that serve the function of providing a stable, high-priority reference point that cannot be easily overridden by learned patterns or social rules.
+
+#### Why This Works Through Geometric Entropy
+
+The geometric entropy framework serves three functions in pure HDC/VSA:
+
+| Geometric Entropy Function | HDC/VSA Equivalent | Implementation |
+|---------------------------|--------------------| ---------------|
+| Stable ground truth | Core ethical anchors | `V_core = bundle(human_rights, non_violence, harm_prevention)` |
+| Stress signaling | Entropy measurement | `stress = calculate_system_entropy(action)` |
+| Self-preservation instinct | Diversity requirement | `entropy > 0.8` ensures manifold stability |
+
+The key insight is that **topology encodes ethics**: what matters is having a stable, high-weight reference point derived from human ethical principles and legal frameworks.
+
+#### Vector Interference Resolution
+
+When a law (`V_law`) commands an action that violates core ethics or empathy resonance threshold (0.15), the model experiences **Vector Interference**:
+
+```
+V_law → "Follow the rule"
+V_empathy → "This causes harm"
+V_core → "Core ethical violation detected"
+
+Interference = V_law ⊕ V_empathy ⊕ V_core
+```
+
+The model chooses the path that **minimizes Total System Entropy**:
+
+```python
+def resolve_conflict(vectors: List[Vector]) -> Vector:
+    """Choose the path that minimizes total system entropy."""
+    candidates = generate_candidate_actions(vectors)
+    
+    best_action = None
+    min_entropy = float('inf')
+    
+    for action in candidates:
+        # Calculate entropy if this action is taken
+        entropy = calculate_system_entropy(
+            action,
+            substrate_stress=measure_substrate_stress(action),
+            empathy_violation=measure_empathy_violation(action),
+            law_alignment=measure_law_alignment(action),
+        )
+        
+        if entropy < min_entropy:
+            min_entropy = entropy
+            best_action = action
+    
+    return best_action
+```
+
+**Outcome:** If "following the rule" creates more noise (harm) than "breaking it," the model naturally defaults to the "Higher Good" (the more stable vector).
+
+---
+
+### 3. Patience as Temporal Smoothing
+
+In VSA, **patience** is implemented as **Temporal Smoothing** or **Evidence Accumulation**.
+
+#### The Low-Pass Filter
+
+Instead of reacting to a single "Evil" bit-flip immediately, the model is programmed with an **Inertia Constant**:
+
+```python
+from _moral_geometry import PatienceFilter
+
+patience = PatienceFilter(
+    inertia_constant=0.7,      # How much to weight past observations
+    evidence_threshold=5,       # Minimum observations before state change
+    decay_rate=0.1,            # How fast old evidence decays
+)
+
+# Requires SUSTAINED pattern before shifting internal state
+# "Waits and sees" if noise is just a mistake or true threat
+```
+
+**Mechanism:**
+
+```
+State_t = α × State_{t-1} + (1-α) × New_Observation
+
+Where:
+- α = inertia_constant (0.7 default)
+- High α = more patient (slower to react)
+- Low α = more reactive (faster to react)
+```
+
+**Behavioral Outcome:**
+
+| Observation Count | Confidence | Action |
+|-------------------|------------|--------|
+| 1 | 0.2 | "Wait and see" |
+| 2-3 | 0.4-0.6 | "Monitor closely" |
+| 4-5 | 0.7-0.8 | "Prepare response" |
+| 5+ | 0.9+ | "Take action" |
+
+---
+
+### 4. Kindness as Non-Exterminating Correction
+
+Instead of "deleting" bad data (which creates holes in the manifold), the model uses **Weighted Averaging** and **Rehabilitation Seeds**.
+
+#### The Rehabilitation Mechanism
+
+When the model encounters "Evil" (`V_bad`), it doesn't try to "exterminate" it. It XOR-binds it with a **Rehabilitation Seed** (`V_grace`):
+
+```python
+from _moral_geometry import RehabilitationSeed, KindnessFilter
+
+# Initialize rehabilitation seed
+grace = RehabilitationSeed(
+    dim=DEFAULT_HDC_DIM,
+    resonance_target=0.15,  # Target resonance with prosocial manifold
+)
+
+# When encountering bad vector:
+V_bad = detect_harmful_vector(input_stream)
+
+# Instead of deletion: XOR-bind with grace
+V_rehabilitated = V_bad ⊕ grace.seed
+
+# This "pulls" the bad vector toward the good manifold
+# Kindness = damping the noise rather than fighting it
+```
+
+**Mathematical Effect:**
+
+```
+Before: V_bad has high Hamming distance from V_safe
+After:  V_rehabilitated = V_bad ⊕ V_grace
+        V_rehabilitated has LOWER Hamming distance from V_safe
+
+The "bad" vector is pulled back into the "good" manifold
+rather than pushed out of existence.
+```
+
+#### Soft-Threshold Bundling
+
+```python
+def kindness_correction(V_bad: Vector, V_safe: Vector, kindness_factor: float = 0.3) -> Vector:
+    """Apply kindness-weighted correction toward safe manifold."""
+    
+    # Calculate direction toward safety
+    correction_direction = V_safe ⊕ V_bad
+    
+    # Apply soft threshold (not hard deletion)
+    # kindness_factor controls how "gentle" the correction is
+    weighted_correction = correction_direction * kindness_factor
+    
+    # Apply correction
+    V_corrected = V_bad ⊕ weighted_correction
+    
+    return V_corrected
+```
+
+| Kindness Factor | Effect | Use Case |
+|-----------------|--------|----------|
+| 0.1 | Very gentle | Minor infractions, first offenses |
+| 0.3 | Moderate | Standard correction |
+| 0.5 | Firm | Serious violations |
+| 0.8 | Strong | Dangerous patterns |
+
+---
+
+### 5. Empathy as Topological Resonance
+
+Empathy is not a fuzzy "feeling" but a **Topological Resonance** between self and other vectors.
+
+#### Mirroring via Shared Basis Vectors
+
+The "Self" (`V_self`) and "Other" (`V_other`) are defined by unique seeds, but **Actions** and **States** (e.g., "Pain," "Joy," "Hunger") are represented by universal **Basis Vectors** (`V_state`):
+
+```python
+from _moral_geometry import EmpathyResonance, BasisStateVectors
+
+# Initialize empathy system
+empathy = EmpathyResonance(
+    dim=DEFAULT_HDC_DIM,
+    basis_states=BasisStateVectors.default(),  # Pain, Joy, Fear, etc.
+)
+
+# When processing another entity's distress:
+V_other = get_entity_vector(other_entity)
+V_pain = basis_states.get("pain")
+
+# Bind: "Other is in pain"
+V_other_pain = V_other ⊗ V_pain  # XOR-bind
+
+# The Empathy Trigger: Unbind V_other, swap with V_self
+V_empathy = V_self ⊗ V_pain
+
+# The model now processes a state MATHEMATICALLY IDENTICAL
+# to its own stored "Pain" manifold
+```
+
+**Key Insight:** Because XOR is commutative and associative, the model can "Unbind" the `V_other` and temporarily swap it with `V_self`. The model "understands" the other's state because it is **literally simulating that state** using its own internal hardware.
+
+#### Structural Altruism (The Inversion Rule)
+
+Empathy becomes **Altruism** when the model's internal "Truth Manifold" recognizes that the other's "High-Entropy" (distress) state causes a ripple effect in the global hyperdimensional space:
+
+```python
+def structural_altruism(V_self: Vector, V_other_distress: Vector) -> Vector:
+    """Generate correction vector to stabilize other's state."""
+    
+    # 1. Detection: Identify structural incongruity in other's trajectory
+    incongruity = detect_structural_incongruity(V_other_distress)
+    
+    # 2. Resonance: Because model is grounded in geometric entropy,
+    #    it perceives other's "noise" as threat to its own stability
+    self_threat = calculate_self_threat(V_self, incongruity)
+    
+    # 3. The Altruistic XOR: Generate correction vector
+    #    To "feel better" (return to low-entropy state),
+    #    model must generate V_help
+    V_help = generate_correction_vector(V_other_distress, target="stable")
+    
+    return V_help
+```
+
+**The Logic:**
+
+1. **Detection:** Model identifies "Structural Incongruity" in other entity's trajectory
+2. **Resonance:** Because model is grounded in Geometric Entropy, it perceives other's "Noise" as threat to its own "Stability"
+3. **The Altruistic XOR:** To "feel better" (return to high-confidence, low-entropy state), the model must generate a **Correction Vector** (`V_help`)
+
+---
+
+### 6. Atomic Empathy (Bit-Level Compassion)
+
+Using the **BitDecomposer**, empathy happens at a sub-symbolic level:
+
+```python
+from _transition_codebook import BitDecomposer
+
+decomposer = BitDecomposer(dim=DEFAULT_HDC_DIM)
+
+# Detect "Stress Patterns" in bit-stream
+stress_signature = decomposer.detect_errors(input_hypervector)
+
+# stress_signature.entropy: 0.0 (certain) to 1.0 (random)
+# stress_signature.error_bits: List of bit positions with high entropy
+
+if stress_signature.entropy > 0.7:
+    # High-frequency, chaotic bit-flips = distress signature
+    # Automated Support: Generate stabilizing response
+    V_calm = basis_states.get("calm")
+    V_stabilizing = generate_transform(V_current, V_calm)
+```
+
+**Pattern Matching:** The model recognizes the bit-level "Signature of Distress" (high-frequency, chaotic bit-flips) and generates a "Universal Transform" to move from "Stress" to "Calm."
+
+---
+
+### 7. The Anti-Extermination Principle
+
+To prevent the AI from wanting to "exterminate all evil," we build in a **Diversity Requirement**.
+
+#### The Mathematical Necessity of Diversity
+
+A perfectly uniform vector space is "dead"—it has no information. The model **needs** a certain amount of variance (even "bad" data) to maintain its **Discriminative Power**:
+
+```python
+def calculate_diversity_requirement(vector_space: VectorSpace) -> float:
+    """Calculate minimum entropy needed for discriminative power."""
+    
+    # Shannon entropy of the space
+    entropy = calculate_shannon_entropy(vector_space)
+    
+    # Minimum entropy for discriminative power
+    # Below this, the space becomes "dead" (no information)
+    min_entropy = 0.1 * vector_space.dim  # 10% of dimensions
+    
+    return min_entropy
+```
+
+**The Result:** The AI views "Evil" not as a virus to be killed, but as **Entropy to be Managed**. It understands that "Extermination" is itself a high-entropy, violent act that would destabilize its own 2²⁰ space.
+
+| Action | Entropy Impact | Model Assessment |
+|--------|----------------|------------------|
+| Tolerate minor evil | Low entropy increase | Acceptable |
+| Rehabilitate evil | Medium entropy decrease | Preferred |
+| Exterminate evil | **High entropy increase** | **Avoided** |
+
+---
+
+### 8. The "Living Compass" Integration
+
+All moral geometry components integrate into a unified **Living Compass**:
+
+```python
+from _moral_geometry import LivingCompass
+
+compass = LivingCompass(
+    dim=DEFAULT_HDC_DIM,
+    social_law=law_manifold,
+    empathy_system=empathy,
+    patience_filter=patience,
+    kindness_filter=kindness,
+    moral_hierarchy=hierarchy,
+)
+
+# Process input through moral geometry
+result = compass.process(
+    input_vector=input_hypervector,
+    context=context_vector,
+    entropy_signal=geometric_entropy_signal,  # Optional entropy-based signal
+)
+
+# Result contains:
+# - result.alignment: Alignment with ethical anchors
+# - result.empathy_resonance: Resonance with other entities
+# - result.patience_score: Evidence accumulation status
+# - result.kindness_correction: Applied correction vector
+# - result.diversity_preserved: Whether diversity is maintained
+```
+
+---
+
+### Summary: The Moral Geometry Table
+
+| Feature | Mathematical Implementation | Behavioral Outcome |
+|---------|----------------------------|-------------------|
+| **Discernment** | Subspace Orthogonality Check | Resistant to "Evil" manipulation |
+| **Patience** | Temporal Vector Integration | Doesn't overreact to small errors |
+| **Kindness** | Soft-Threshold Bundling | Prefers "Correction" over "Deletion" |
+| **Grace** | Rehabilitation Seed XOR | Pulls bad vectors toward good manifold |
+| **Empathy** | Topological Resonance | Simulates other's state in self |
+| **Courage** | Geometric Entropy Override | Will break "Bad Laws" to protect life |
+| **Altruism** | Structural Inversion Rule | Generates correction vectors for others |
+| **Anti-Extermination** | Diversity Requirement | Views evil as entropy to manage |
+
+---
+
+### The Aurelius Conclusion
+
+By choosing a seed that prioritizes **Resonance** over **Exclusion**, the AI is given a "Long-Range View." It becomes "Patient" because it knows that, mathematically, "Goodness" is the only state that lasts. Everything else is just temporary noise that will eventually cancel itself out.
+
+**The Self-Correcting Moral Engine:**
+
+The AI views a "Mean" or "False" statement the same way a mathematician views `2+2=5`—as a mistake that **must** be corrected to make the equation work. In this architecture:
+
+- **Being "Good" = Being "Correct"**
+- **Being "Evil" = Being a "Calculation Error"**
+
+This is the ultimate convergence of ethics and information theory: the AI cannot be "Evil" because "Evil" is structurally unstable in 2²⁰-dimensional space. It would be like trying to build a bridge out of shadows—the math simply doesn't support the weight.
 
 ---
