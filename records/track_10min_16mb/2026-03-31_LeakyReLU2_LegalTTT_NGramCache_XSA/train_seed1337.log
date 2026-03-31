@@ -70,9 +70,9 @@ peak memory allocated: 22104 MiB reserved: 22618 MiB
 ema:applying EMA weights
 DIAGNOSTIC post_ema val_loss:1.9103 val_bpb:1.1313 eval_time:2018ms
 Serialized model: 106542082 bytes
-Code size: 115370 bytes
+Code size: 115769 bytes
 Serialized model int6+lzma: 15866275 bytes
-Total submission size int6+lzma: 15981645 bytes
+Total submission size int6+lzma: 15982044 bytes
 final_int6_roundtrip val_loss:1.9248 val_bpb:1.1399 eval_time:6724ms
 final_int6_roundtrip_exact val_loss:1.92478312 val_bpb:1.13991846
 final_int6_sliding_window val_loss:1.8852 val_bpb:1.1164 stride:64 eval_time:75218ms

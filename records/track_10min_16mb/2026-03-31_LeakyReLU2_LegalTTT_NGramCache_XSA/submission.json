@@ -14,7 +14,7 @@
     "1337": {
       "val_loss": 1.62740282,
       "val_bpb": 0.96415208,
-      "artifact_bytes": 15981645,
+      "artifact_bytes": 15982044,
       "steps": 7185,
       "step_avg_ms": 83.42,
       "train_time_ms": 599384
@@ -22,7 +22,7 @@
     "42": {
       "val_loss": 1.62853112,
       "val_bpb": 0.96482092,
-      "artifact_bytes": 15976868,
+      "artifact_bytes": 15977267,
       "steps": 7182,
       "step_avg_ms": 83.51,
       "train_time_ms": 599761
@@ -30,13 +30,13 @@
     "2025": {
       "val_loss": 1.62612388,
       "val_bpb": 0.96339412,
-      "artifact_bytes": 15989184,
+      "artifact_bytes": 15989583,
       "steps": 7196,
       "step_avg_ms": 83.32,
       "train_time_ms": 599618
     }
   },
-  "comparison_baseline_pr": 609,
+  "comparison_baseline_pr": 1019,
   "comparison_baseline_bpb": 1.11473509,
   "comparison_baseline_nats": 1.88217853,
   "implementation_lineage_pr": 727,
@@ -44,10 +44,10 @@
   "delta_vs_baseline_bpb": -0.15061272,
   "t_statistic": -328.29,
   "welch_df": 2.93,
-  "artifact_bytes_mean": 15982566,
-  "artifact_bytes_max": 15989184,
-  "bytes_total": 15989184,
-  "bytes_code": 115370,
+  "artifact_bytes_mean": 15982965,
+  "artifact_bytes_max": 15989583,
+  "bytes_total": 15989583,
+  "bytes_code": 115769,
   "bytes_model_max": 15873814,
   "train_steps_mean": 7187.67,
   "step_avg_ms_mean": 83.42,

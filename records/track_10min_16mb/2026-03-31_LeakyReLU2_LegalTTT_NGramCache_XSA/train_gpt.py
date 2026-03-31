@@ -45,10 +45,15 @@ def attention_kernel(q: Tensor, k: Tensor, v: Tensor, *, causal: bool) -> Tensor
     )
     return y.transpose(1, 2).contiguous()
 class Hyperparameters:
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    # Default paths resolve relative to the repo root.
+    # When this script lives under records/track_10min_16mb/<submission>/,
+    # _REPO_ROOT walks up to the repo root so ./data/... paths work.
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    _REPO_ROOT = os.path.normpath(os.path.join(_SCRIPT_DIR, "..", "..", ".."))
+    data_path = os.environ.get("DATA_PATH", os.path.join(_REPO_ROOT, "data", "datasets", "fineweb10B_sp1024"))
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", os.path.join(_REPO_ROOT, "data", "tokenizers", "fineweb_1024_bpe.model"))
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))

@@ -6,13 +6,13 @@
 
 | Seed | val\_bpb | val\_loss | Artifact Size | Train Steps | Train Time |
 |------|---------|----------|--------------|-------------|------------|
-| 1337 | 0.9642  | 1.6274   | 15,981,645 B | 7,185       | 599,384 ms |
-| 42   | 0.9648  | 1.6285   | 15,976,868 B | 7,182       | 599,761 ms |
-| 2025 | 0.9634  | 1.6261   | 15,989,184 B | 7,196       | 599,618 ms |
+| 1337 | 0.9642  | 1.6274   | 15,982,044 B | 7,185       | 599,384 ms |
+| 42   | 0.9648  | 1.6285   | 15,977,267 B | 7,182       | 599,761 ms |
+| 2025 | 0.9634  | 1.6261   | 15,989,583 B | 7,196       | 599,618 ms |
 | **Mean** | **0.9641** | **1.62735** | — | — | — |
 | **Std**  | **0.0007** | — | — | — | — |
 
-**Statistical significance**: mean 0.9641 bpb (1.6274 nats) vs current merged top 1.1147 bpb (1.8822 nats) → Δ = −0.2548 nats, Welch t = −328.3, df = 2.93, p ≪ 0.01. Required improvement threshold ≥ 0.005 nats (official rule); this Δ exceeds it by 51×.
+**Statistical significance**: mean 0.9641 bpb (1.6274 nats) vs current merged top 1.1147 bpb (1.8822 nats, [PR #1019](https://github.com/openai/parameter-golf/pull/1019)) → Δ = −0.2548 nats, Welch t = −328.3, df = 2.93, p ≪ 0.01. Required improvement threshold ≥ 0.005 nats ([official rule](https://github.com/openai/parameter-golf/blob/main/README.md#L191)); this Δ exceeds it by 51×.
 
 ## Technique
 
@@ -29,7 +29,7 @@
 ## Compliance
 
 - Training time: all seeds ≤ 600,000 ms (599,384 / 599,761 / 599,618). **Note**: the logged `train_time` starts after 20 warmup steps and model compilation. If the challenge judges end‑to‑end wallclock (including compile + warmup), the actual margin is narrower than these numbers suggest.
-- Artifact size: all seeds ≤ 16,000,000 B (15,981,645 / 15,976,868 / 15,989,184).
+- Artifact size: all seeds ≤ 16,000,000 B (15,982,044 / 15,977,267 / 15,989,583).
 - Score‑first TTT: each validation token is scored under `torch.inference_mode()` before any model update.
 - N‑gram cache legality: **contested**. The cache is backward‑looking only, uses zero artifact bytes, and produces Laplace‑smoothed probabilities that form a proper normalized distribution. [PR #727](https://github.com/openai/parameter-golf/pull/727) (closed, 0.9674 bpb) used the same technique and spawned followup PRs (#753, #778, #782, #786). However, OpenAI opened [issue #677](https://github.com/openai/parameter-golf/issues/677) on 2026‑03‑25 questioning the legality of eval‑time cache methods. This submission may face review scrutiny regardless of score validity.
 - Phase‑1 TTT (`TTT_PHASE1_ENABLED`): disabled by default (rule‑violating).
@@ -37,26 +37,34 @@
 
 ## Reproduce
 
+The script auto‑resolves data paths relative to the repo root (via `_REPO_ROOT`), so it works from both the repo root and from within `records/track_10min_16mb/<submission>/`.
+
 ```bash
+# From repo root after cloning:
+cd parameter-golf
+python3 data/cached_challenge_fineweb.py --variant sp1024
+
 # Seed 1337
-SEED=1337 RUN_ID=seed_1337 \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=1337 RUN_ID=seed_1337 VOCAB_SIZE=1024 \
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-31_LeakyReLU2_LegalTTT_NGramCache_XSA/train_gpt.py
 
 # Seed 42
-SEED=42 RUN_ID=seed_42 \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=42 RUN_ID=seed_42 VOCAB_SIZE=1024 \
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-31_LeakyReLU2_LegalTTT_NGramCache_XSA/train_gpt.py
 
 # Seed 2025
-SEED=2025 RUN_ID=seed_2025 \
+SEED=2025 RUN_ID=seed_2025 VOCAB_SIZE=1024 \
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-03-31_LeakyReLU2_LegalTTT_NGramCache_XSA/train_gpt.py
+```
+
+Alternatively, override paths explicitly:
+```bash
 DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
+SEED=1337 VOCAB_SIZE=1024 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
