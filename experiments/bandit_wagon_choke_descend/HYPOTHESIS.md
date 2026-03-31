@@ -37,9 +37,7 @@ BWCD tests descending + bracket configurations on pyramid-512 (BWCS winner).
 | BWCD-00 | 9,3,1 | 1.4354 | 1.43779 | +0.0024 | -0.00945 |
 | BWCD-01 | 4,2,1 | 1.4356 | 1.43749 | +0.0019 | -0.00975 |
 | **BWCD-02** | **9,1,1** | **1.4352** | **1.43531** | **+0.0001** | **-0.01193** |
-| BWCD-03 | 9,3,9 | 1.4363 | TBD (sw pending) | TBD | TBD |
-
-Note: BWCD-03 roundtrip = 1.46346 (worst of group — sw pending but quant gap will be large).
+| BWCD-03 | 9,3,9 | 1.4363 | 1.44248 | +0.0062 | -0.00476 |
 
 ## Verdict: 9,1,1 Wins — Identical Trailing Loops is the Mechanism
 
