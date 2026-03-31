@@ -1,6 +1,6 @@
 {
   "author": "",
-  "github_id": "",
+  "github_id": "imitation-alpha",
   "name": "Ternary QAT vs Int5 Proxy Study (1xRTX2060)",
   "blurb": "Non-record 16MB submission documenting a FineWeb-based proxy study of BitNet-style ternary QAT. Full ternary underperformed, but mixed ternary scaled to 11L d=640 reached 3.2609 post-quant val_bpb at 13.61MB total and repeated at 3.2611 on a second seed, effectively matching a proxy int5 baseline while using fewer bytes.",
   "date": "2026-03-30",
