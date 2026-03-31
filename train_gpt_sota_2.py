@@ -1512,7 +1512,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     hessian_model.train()
     return hessians
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None, block_size: int = 64):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1535,7 +1535,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             cr = 31  # int6 for all weights
             H = hessians.get(name) if hessians else None
             if H is not None:
-                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=args.gptq_block_size)
+                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=block_size)
             else:
                 q, s = quantize_int6_per_row(t, clip_range=cr)
             result[name + ".q"] = q
@@ -2013,7 +2013,7 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians, block_size=args.gptq_block_size)
     # NOVEL: Selective ±1 pruning by reconstruction error
     # Sort ±1 quantized values by their reconstruction error (scale²),
     # prune least-impactful first until artifact fits target size.
