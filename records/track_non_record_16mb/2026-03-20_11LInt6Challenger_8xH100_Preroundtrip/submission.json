@@ -1,0 +1,17 @@
+{
+  "author": "James Boyce",
+  "github_id": "JWLBOYCE",
+  "name": "11L Int6 Challenger 8xH100 Pre-Roundtrip",
+  "blurb": "Non-record 8xH100 main-track-style attempt using an 11-layer int6 challenger workbench. Training reached 1.1624 pre-roundtrip BPB at the 600s cap, but the provider terminated the pod during export before a final post-roundtrip score could be recorded.",
+  "date": "2026-03-20T11:58:14Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "pre_quant_val_loss": 1.9627,
+  "pre_quant_val_bpb": 1.1624,
+  "step_stop": 5193,
+  "wallclock_seconds": 600.022,
+  "bytes_total": null,
+  "bytes_code": 35761,
+  "notes": "RunPod terminated the strongest 8xH100 run during export before final roundtrip evaluation completed."
+}
