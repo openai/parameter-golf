@@ -1,0 +1,1 @@
+[{"quartile": "Q1", "pr_range": "PR 21\u2013359", "total": 102, "invalid": 4, "rate": 3.9}, {"quartile": "Q2", "pr_range": "PR 360\u2013664", "total": 102, "invalid": 25, "rate": 24.5}, {"quartile": "Q3", "pr_range": "PR 665\u2013851", "total": 102, "invalid": 50, "rate": 49.0}, {"quartile": "Q4", "pr_range": "PR 852\u20131034", "total": 103, "invalid": 53, "rate": 51.5}]
