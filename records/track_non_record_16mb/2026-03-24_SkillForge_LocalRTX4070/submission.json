@@ -1,0 +1,11 @@
+{
+  "author": "Flynn Cruse",
+  "github_id": "FlynnCruse",
+  "name": "Skill Forge: Autonomous Experiment System (Local RTX 4070 Validation)",
+  "blurb": "Non-record submission demonstrating an autonomous ML experimentation system (Skill Forge) built with Claude Code skills. Inspired by Karpathy autoresearch + DeepMind AlphaEvolve. Local validation on RTX 4070 Laptop (8GB VRAM) at reduced model dimensions (7L/512d, seq512). Compute grant pending for 8×H100 competition runs.",
+  "date": "2026-03-24T14:00:00Z",
+  "val_loss": null,
+  "val_bpb": 1.8990,
+  "bytes_total": null,
+  "notes": "Local-only run on RTX 4070 Laptop (8GB VRAM). Model scaled to 7L/512d/seq512 to fit VRAM. Not comparable to competition baseline (9L/512d/seq1024 on H100 = 1.2244 BPB). This submission demonstrates the approach and tooling, not a competitive BPB score. Full competition run planned after compute grant award."
+}
