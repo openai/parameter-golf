@@ -61,9 +61,12 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", "0"))
+    lr_warmup_init_scale = float(os.environ.get("LR_WARMUP_INIT_SCALE", "0.0"))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    finalize_budget_seconds = float(os.environ.get("FINALIZE_BUDGET_SECONDS", "15.0"))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -101,6 +104,7 @@ class Hyperparameters:
     kv_eval_compare_backends = os.environ.get("KV_EVAL_COMPARE_BACKENDS", "").strip().lower()
     kv_backend_selftest = bool(int(os.environ.get("KV_BACKEND_SELFTEST", "0")))
     enable_torch_compile = bool(int(os.environ.get("ENABLE_TORCH_COMPILE", "0")))
+    log_sync_to_disk = bool(int(os.environ.get("LOG_SYNC_TO_DISK", "1")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -2352,6 +2356,26 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
+    if args.lr_warmup_steps < 0:
+        raise ValueError(f"LR_WARMUP_STEPS must be non-negative, got {args.lr_warmup_steps}")
+    if not 0.0 <= args.lr_warmup_init_scale <= 1.0:
+        raise ValueError(f"LR_WARMUP_INIT_SCALE must be in [0, 1], got {args.lr_warmup_init_scale}")
+    if args.finalize_budget_seconds < 0.0:
+        raise ValueError(f"FINALIZE_BUDGET_SECONDS must be non-negative, got {args.finalize_budget_seconds}")
+    if args.max_wallclock_seconds > 0 and args.finalize_budget_seconds >= args.max_wallclock_seconds:
+        raise ValueError(
+            "FINALIZE_BUDGET_SECONDS must be smaller than MAX_WALLCLOCK_SECONDS so training has positive budget"
+        )
+    if args.train_batch_tokens % (world_size * grad_accum_steps) != 0:
+        raise ValueError(
+            f"TRAIN_BATCH_TOKENS={args.train_batch_tokens} must divide WORLD_SIZE*grad_accum_steps="
+            f"{world_size * grad_accum_steps}"
+        )
+    local_tokens_per_micro_step = args.train_batch_tokens // (world_size * grad_accum_steps)
+    if local_tokens_per_micro_step % args.train_seq_len != 0:
+        raise ValueError(
+            f"Per-rank microbatch tokens {local_tokens_per_micro_step} must divide TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
     device = torch.device("cuda", local_rank)
@@ -2360,6 +2384,7 @@ def main() -> None:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
+    run_wallclock_t0 = time.perf_counter()
 
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -2383,10 +2408,13 @@ def main() -> None:
         if not master_process:
             return
         if console:
-            print(msg)
+            print(msg, flush=True)
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
-                print(msg, file=f)
+                print(msg, file=f, flush=True)
+                if args.log_sync_to_disk:
+                    f.flush()
+                    os.fsync(f.fileno())
 
     log0(code, console=False)
     log0("=" * 100, console=False)
@@ -2505,6 +2533,10 @@ def main() -> None:
     effective_depth = args.num_layers * args.num_loops
     log0(f"model_params:{n_params} (unique_layers:{args.num_layers} loops:{args.num_loops} effective_depth:{effective_depth} lora_rank:{args.lora_rank} lora_params:{n_lora})")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(
+        f"batch_layout:global_tokens:{args.train_batch_tokens} global_seqs:{args.train_batch_tokens // args.train_seq_len} "
+        f"local_microbatch_tokens:{local_tokens_per_micro_step} local_microbatch_seqs:{local_tokens_per_micro_step // args.train_seq_len}"
+    )
     log0(f"sdp_backends:cudnn=False flash=True mem_efficient=False math={allow_math_sdp}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(f"triton_kv_available:{triton_is_available()}")
@@ -2516,10 +2548,22 @@ def main() -> None:
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
-        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+        f"lr_warmup_steps:{args.lr_warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    if args.max_wallclock_seconds > 0:
+        training_budget_seconds = args.max_wallclock_seconds - args.finalize_budget_seconds
+        log0(
+            f"wallclock_budget:train={training_budget_seconds:.3f}s finalize={args.finalize_budget_seconds:.3f}s "
+            f"total={args.max_wallclock_seconds:.3f}s"
+        )
+    else:
+        training_budget_seconds = 0.0
+        log0("wallclock_budget:uncapped")
     log0(f"seed:{args.seed}")
     log0(f"torch_compile:{args.enable_torch_compile}")
+    log0(f"log_sync_to_disk:{args.log_sync_to_disk}")
+    if args.max_wallclock_seconds > 0 and not args.enable_torch_compile and args.warmup_steps > 0:
+        log0("warmup_note: WARMUP_STEPS replays training outside the timed loop; set WARMUP_STEPS=0 for record runs")
     log0(
         f"kv_eval:enabled={args.eval_autoregressive_kv} backend={args.kv_quant_backend} "
         f"bits_mode={args.kv_bits_mode} group_size={args.kv_group_size} "
@@ -2537,18 +2581,29 @@ def main() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
 
-    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    max_training_wallclock_ms = 1000.0 * training_budget_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        if args.lr_warmup_steps > 0:
+            warmup_frac = min((step + 1) / args.lr_warmup_steps, 1.0)
+            warmup_scale = args.lr_warmup_init_scale + (1.0 - args.lr_warmup_init_scale) * warmup_frac
+        else:
+            warmup_scale = 1.0
         if args.warmdown_iters <= 0:
-            return 1.0
-        if max_wallclock_ms is None:
+            return warmup_scale
+        if max_training_wallclock_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
+            warmdown_scale = (
+                max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
+                if warmdown_start <= step < args.iterations
+                else 1.0
+            )
+            return warmup_scale * warmdown_scale
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = args.warmdown_iters * step_ms
-        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+        remaining_ms = max(max_training_wallclock_ms - elapsed_ms, 0.0)
+        warmdown_scale = remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+        return warmup_scale * warmdown_scale
 
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
@@ -2618,7 +2673,7 @@ def main() -> None:
             if stop_after_step is not None and step < args.iterations:
                 log0(
                     f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
-                    f"step:{step}/{args.iterations}"
+                    f"step:{step}/{args.iterations} reserved_finalize_seconds:{args.finalize_budget_seconds:.3f}"
                 )
             break
 
@@ -2660,12 +2715,13 @@ def main() -> None:
         if should_log_train:
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms "
+                f"lr_scale:{scale:.4f} muon_momentum:{muon_momentum:.4f}"
             )
 
         # Needed to sync whether we've reached the wallclock cap.
-        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
-        if distributed and max_wallclock_ms is not None:
+        reached_cap = max_training_wallclock_ms is not None and approx_training_time_ms >= max_training_wallclock_ms
+        if distributed and max_training_wallclock_ms is not None:
             reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
             dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
             reached_cap = bool(reached_cap_tensor.item())
@@ -2736,6 +2792,8 @@ def main() -> None:
         master_process=master_process,
         log0=log0,
     )
+    total_wallclock_ms = 1000.0 * (time.perf_counter() - run_wallclock_t0)
+    log0(f"total_wallclock:{total_wallclock_ms:.0f}ms")
 
     if distributed:
         dist.destroy_process_group()
