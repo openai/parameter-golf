@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-31",
+  "name": "Retrodiction Training (Petz Recovery Map) — 16L on M1 Max",
+  "author": "Sheng-Kai Huang",
+  "github_id": "akaiHuang",
+  "val_bpb": 1.508,
+  "hardware": "M1 Max 64GB (not 8xH100)",
+  "params": 39000000,
+  "quantization": "Int6 + lzma (14.8MB)"
+}
