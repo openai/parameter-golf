@@ -135,3 +135,16 @@ echo "  quant_gap:   ${quant_gap}"
 echo "  bytes:       ${bytes}"
 echo "  log:         ${LOG}"
 echo "============================================"
+
+# ----------------------------------------------------------------
+# Auto-save checkpoint
+# ----------------------------------------------------------------
+CKPT_DIR="${REPO_ROOT}/checkpoints"
+mkdir -p "${CKPT_DIR}"
+CKPT_NAME="BW3_s${SEED}_$(date +%Y%m%d_%H%M%S)_bpb${int6_bpb}.pt"
+if [[ -f "${REPO_ROOT}/final_model.pt" ]]; then
+    cp "${REPO_ROOT}/final_model.pt" "${CKPT_DIR}/${CKPT_NAME}"
+    echo "  checkpoint: ${CKPT_DIR}/${CKPT_NAME}"
+else
+    echo "  WARNING: final_model.pt not found — checkpoint not saved"
+fi
