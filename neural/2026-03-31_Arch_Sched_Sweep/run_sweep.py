@@ -88,6 +88,11 @@ CASES = [
         post_only=True,
     ),
     Case(
+        name="gptq_full",
+        env={"SKIP_GPTQ": "0"},
+        note="SKIP_GPTQ 1→0 — full training + GPTQ (30s reserve, ~170 fewer steps on 4xGPU)",
+    ),
+    Case(
         name="warmdown_4k",
         env={"WARMDOWN_ITERS": "4000"},
         note="WARMDOWN_ITERS 3500→4000 — longer warmdown, matches competition leaders",
