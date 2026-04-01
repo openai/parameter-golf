@@ -1,0 +1,52 @@
+{
+  "submission_name": "10L_Int5MLP3x_BigramHash4096_SlidingEval",
+  "author": "suchihype",
+  "description": "10L MLP3x with Int5 MLP quantization, BigramHash(4096/128), full-run Int6 QAT, Optuna-tuned schedule, sliding eval stride 64",
+  "track": "10min_16mb",
+  "architecture": {
+    "num_layers": 10,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3.0,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "bigram_vocab_size": 4096,
+    "bigram_dim": 128,
+    "rope_base": 50000
+  },
+  "training": {
+    "matrix_lr": 0.035,
+    "tied_embed_lr": 0.045,
+    "scalar_lr": 0.035,
+    "muon_weight_decay": 0.045,
+    "warmdown_iters": 2000,
+    "grad_clip_norm": 0.35,
+    "max_wallclock_seconds": 600,
+    "train_batch_tokens": 786432,
+    "train_seq_len": 2048
+  },
+  "quantization": {
+    "method": "mixed_int5_int6_qat",
+    "mlp": "int5",
+    "attention": "int6",
+    "embeddings": "fp16",
+    "compression": "zstd-22"
+  },
+  "evaluation": {
+    "mode": "sliding_window",
+    "eval_stride": 64
+  },
+  "results": {
+    "seeds": [1337, 42, 7],
+    "val_bpb": [1.1646, 1.1654, 1.1649],
+    "roundtrip_bpb": [1.1486, 1.1492, 1.1488],
+    "submission_bytes": [15429019, 15392360, 15432974],
+    "steps": [5596, 5567, 5593],
+    "mean_val_bpb": 1.1650,
+    "mean_roundtrip_bpb": 1.1489,
+    "std_roundtrip_bpb": 0.0003
+  },
+  "hardware": "8xH100_SXM",
+  "pytorch_version": "2.4.1"
+}
