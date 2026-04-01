@@ -1,102 +1,97 @@
-# TTT-E2E: Meta-Learned Test-Time Training (FOMAML)
+# TTT-E2E: Prime MLP Test-Time Training
 
-Non-record submission exploring end-to-end meta-learned test-time training
-(TTT-E2E, arxiv 2512.23675) adapted for the Parameter Golf setting.
+Non-record submission exploring test-time training with separate "prime MLP"
+adapters for Parameter Golf. Key finding: **naive TTT with zero-init prime MLPs
+gives -0.022 BPB without any meta-learning**, invalidating the assumption that
+meta-learning is required for effective TTT.
 
 ## Motivation
 
-SLOT showed -0.0037 BPB of test-time adaptation headroom on our PR 1105 model
-(1.1125 -> 1.1088) but violates causality. All 25 prior naive TTT attempts in
-Parameter Golf failed because the model was never trained to be adapted.
+All 25 prior naive TTT attempts in Parameter Golf failed because they perturbed
+GPTQ'd int5/int6 weights — disrupting quantized rounding decisions. Prime MLPs
+are fundamentally different: fresh bf16 parameters, separate from GPTQ, zero-init
+so they start invisible to the model. This has never been tested.
 
-TTT-E2E is the legal mechanism to capture this headroom: meta-learn the model so
-it *expects* gradient-based adaptation at eval time, using score-first evaluation
-to satisfy causality (Condition 3).
+## Architecture
 
-## Method
-
-**Architecture:** Add small "prime MLPs" (rank-256, LeakyReLU(0.5)^2) to the last
-3 transformer blocks (layers 8-10). Each prime MLP has its own RMSNorm and runs
-sequentially *before* the main MLP:
+Add rank-256 "prime MLPs" (786K params) to the last 3 blocks (layers 8-10).
+Each runs sequentially before the main MLP with its own RMSNorm and residual:
 
 ```
 h = h + attn(norm(h))
-h = h + prime_MLP(prime_norm(h))   # adapted at test time
-h = h + MLP(mlp_norm(h))           # frozen at test time
+h = h + prime_MLP(prime_norm(h))   # adapted at test time (bf16, not GPTQ'd)
+h = h + MLP(mlp_norm(h))           # frozen at test time (GPTQ'd int5/int6)
 ```
 
-Prime MLP params: 786K (3 layers x 262K). Down projections zero-initialized so
-model starts identical to baseline.
+Prime MLP: `dim → rank → dim` with LeakyReLU(0.5)². Down projection zero-init
+so model starts identical to baseline. Up projection orthogonal-init so gradients
+flow from step 1.
 
-**Two-phase training:**
-- Phase 1: Standard pretraining (prime MLPs zero-init, no effect)
-- Phase 2: FOMAML meta-fine-tuning (base model frozen, only prime MLPs trained)
+## Results (1x L40S, 1 train shard)
 
-**FOMAML inner loop (Phase 2):**
-1. Clone prime weights (detached)
-2. K=1 inner SGD step on first half of mini-batch
-3. Outer loss on second half with adapted weights
-4. `retain_grad()` on adapted tensors; copy gradients back to prime init params
-5. AdamW update on prime init
+### Naive TTT LR sweep (5K chunks, score-first eval)
 
-**Eval-time TTT (score-first, legal):**
-1. Forward pass on chunk -> score (record BPB) 
-2. Compute CE loss from same forward pass
-3. Backward through prime MLPs only -> SGD update
-4. Next chunk (score locked before any adaptation that could use it)
+| Config | val_bpb | Delta |
+|--------|---------|-------|
+| Baseline (no TTT) | 1.5019 | — |
+| TTT lr=0.001 | 1.5018 | -0.0001 |
+| TTT lr=0.003 | 1.5013 | -0.0006 |
+| TTT lr=0.01 | 1.5001 | -0.0018 |
+| TTT lr=0.03 | 1.4988 | -0.0031 |
+| **TTT lr=0.1** | **1.4971** | **-0.0048** |
 
-## Key Implementation Detail
+Higher LR = more improvement, monotonically. Adaptation is clearly beneficial.
 
-PR 1105 uses parameter banking (3D contiguous tensors for batched Muon). Prime MLP
-weights are stored separately as regular parameters — they're small, need independent
-gradient handling for FOMAML, and are the only weights updated during eval.
+### Full eval (all 60K chunks, best LR)
 
-FA3/CUTLASS EVT not available on L40S dev machine — used FA2 + unfused MLP fallback.
+| Config | val_bpb | Delta |
+|--------|---------|-------|
+| Baseline | 1.5019 | — |
+| **TTT lr=0.1, chunk=1024** | **1.4794** | **-0.0224** |
 
-## Results (1x L40S, 1 train shard — dev run)
+Full eval shows **stronger improvement** than 5K preview (-0.0224 vs -0.0048) —
+adaptation compounds over the val shard.
 
-| Stage | val_bpb | Notes |
-|-------|---------|-------|
-| Phase 1 baseline (7200 steps) | 1.3872 | Standard training, no prime MLPs |
-| Post-Phase2 FOMAML (no TTT) | 1.5465 | Expected: W_0 optimized for adaptation, not standalone |
-| **TTT eval (score-first)** | **1.4707** | Recovers 0.076 BPB from Phase 2 degradation |
+### Negative results
 
-**TTT adaptation works** — it recovers most of the Phase 2 degradation — but doesn't
-beat the Phase 1 baseline on this limited setup. Root causes:
+| Config | Delta | Why |
+|--------|-------|-----|
+| chunk=4096 | +0.095 | Fewer adaptation steps, stale gradients |
+| reset_every=1000 | -0.003 (vs -0.005 no-reset) | Accumulated knowledge is valuable |
+| FOMAML meta-learning | +0.083 vs baseline | W_0 degrades base model predictions |
 
-1. **1 train shard** (5% of data): meta-learning needs diversity to learn "how to adapt"
-2. **Weak base model** (1.387 vs 1.1125 BPB): less headroom for adaptation
-3. **Prime-only Phase 2**: freezing base model means the base can't co-adapt with prime MLPs
+## Key Findings
 
-## What Would Be Different on 8xH100
+1. **Naive TTT with prime MLPs works.** No meta-learning needed. The architecture
+   (separate bf16 adapters that don't touch GPTQ'd weights) is the key insight.
 
-- Full dataset (20 shards) for Phase 2 meta-learning diversity
-- Phase 1: ~4500 steps at 88ms/step, Phase 2: ~1500 steps at ~175ms/step
-- Joint base+prime training in Phase 2 (base at 0.1x LR)
-- torch.compile + fused kernels for ~2x throughput
-- Expected: TTT should provide -0.001 to -0.003 BPB over baseline
+2. **FOMAML hurts.** Meta-learned W_0 produces non-zero outputs that degrade the
+   base model (+0.16 BPB). TTT only recovers half. On 1 shard, meta-learning has
+   insufficient task diversity.
 
-## Config
+3. **Higher TTT LR is better** up to 0.1. The model can absorb aggressive adaptation
+   because prime MLPs are small and zero-init'd.
 
-```
-PRIME_RANK=256  PRIME_LAYERS=8,9,10
-PHASE2_STEPS=1500  PHASE2_OUTER_LR=0.003  PHASE2_INNER_LR=0.01
-TTT_LR=0.01  TTT_CHUNK=1024  SEQ_LEN=2048
-```
+4. **Small chunks (1024) beat large chunks (4096).** Frequent adaptation > batch quality.
 
-## Running
+5. **No reset is best.** Accumulated adaptation across the val shard is valuable —
+   the model builds up useful representations over time.
 
-```bash
-# Requires: Phase 1 checkpoint as final_model.pt
-DATA_PATH=./data/datasets/fineweb10B_sp1024 \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-CHECKPOINT=final_model.pt \
-PHASE2_STEPS=1500 \
-python -u train_ttt_e2e.py
-```
+## What This Means for 8xH100
+
+On the real PR 1105 model (1.1125 BPB), this approach:
+- Adds 786K prime MLP params (~1.5 MB bf16, fits in 16 MB budget)
+- Zero training cost (no Phase 2 needed)
+- ~6s eval overhead (60K backward passes through 3 small MLPs)
+- Expected improvement: scale of -0.001 to -0.003 BPB (the L40S delta scaled
+  by the baseline quality ratio)
+
+## Files
+
+- `train_ttt_e2e.py` — Model definition with prime MLPs + FOMAML + TTT eval
+- `sweep_naive_ttt.py` — Naive TTT LR/chunk/reset sweep
 
 ## References
 
 - TTT-E2E paper: arxiv.org/abs/2512.23675
-- FOMAML: arxiv.org/abs/1803.02999
-- Our PR 1105 (base model): 1.1125 BPB, 3-seed mean
+- Our PR 1105 (base model): 1.1125 BPB
