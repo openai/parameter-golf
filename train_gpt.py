@@ -35,15 +35,15 @@ class Hyperparameters:
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
 
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 16384))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 500))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 50))
 
-    iterations = int(os.environ.get("ITERATIONS", 20000))
+    iterations = int(os.environ.get("ITERATIONS", 10000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 8192))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 512))  # Shorter seq for RTX 2050
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -261,8 +261,8 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
+    local_batch_tokens = max(args.val_batch_size // (world_size * grad_accum_steps), args.train_seq_len)
+    local_batch_seqs = max(local_batch_tokens // args.train_seq_len, 1)
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
@@ -271,29 +271,31 @@ def eval_val(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    # Initialize Evaluative Structures
+    # Initialize Evaluative Structures - simplified for memory
     ngram_mixer = BackoffNgramMixer(vocab_size=args.vocab_size, max_order=9)
     slot_delta = torch.zeros(
-        (1, args.model_dim), device=device, dtype=torch.bfloat16, requires_grad=True
+        (1, args.model_dim), device=device, dtype=torch.bfloat16, requires_grad=False  # No grad for eval
     )
-    slot_opt = torch.optim.SGD([slot_delta], lr=0.002, momentum=0.9)
 
-    for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-        batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-        raw_start = batch_seq_start * args.train_seq_len
-        raw_end = batch_seq_end * args.train_seq_len + 1
+    # Fixed number of val batches for faster evaluation
+    max_val_batches = 20
+    
+    for batch_idx in range(max_val_batches):
+        # Sample random positions in validation set
+        max_start = val_tokens.numel() - args.train_seq_len - 1
+        raw_start = torch.randint(0, max_start, (1,)).item()
+        raw_end = raw_start + args.train_seq_len + 1
         local = val_tokens[raw_start:raw_end].to(
             device=device, dtype=torch.int64, non_blocking=True
         )
-        x = local[:-1].reshape(-1, args.train_seq_len)
-        y = local[1:].reshape(-1, args.train_seq_len)
+        x = local[:-1].reshape(1, args.train_seq_len)
+        y = local[1:].reshape(1, args.train_seq_len)
 
-        # 1. SCORE PHASE: Strictly stateless, left-to-right causal evaluation
+        # SCORE PHASE: Stateless, left-to-right causal evaluation
         model.eval()
         with torch.inference_mode():
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 logits = model(x, y, return_logits=True, slot_delta=slot_delta)
-                # Future expansion: Apply N-gram mixer sequentially here
                 batch_loss = F.cross_entropy(
                     logits.float(), y.reshape(-1), reduction="mean"
                 ).detach()
@@ -309,17 +311,6 @@ def eval_val(
             has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
         ).to(dtype=torch.int16)
         val_byte_count += token_bytes.to(torch.float64).sum()
-
-        # 2. ADAPT PHASE: Legal Score-First TTT using SLOT vector
-        model.train()
-        with torch.enable_grad():
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                logits_ttt = model(x, y, return_logits=True, slot_delta=slot_delta)
-                loss_ttt = F.cross_entropy(logits_ttt.float(), y.reshape(-1))
-
-            slot_opt.zero_grad()
-            loss_ttt.backward()
-            slot_opt.step()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -700,12 +691,14 @@ def main() -> None:
     device = torch.device("cuda", int(os.environ.get("LOCAL_RANK", "0")))
     torch.cuda.set_device(device)
 
-    if dist.is_available() and not dist.is_initialized():
+    # Only init distributed when we have proper multi-GPU env vars
+    distributed = dist.is_available() and world_size > 1
+    if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
 
     sp = spm.SentencePieceProcessor()
     sp.Load(args.tokenizer_path)
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len).cpu()  # Keep on CPU
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = (
         build_sentencepiece_luts(sp, args.vocab_size, device)
     )
@@ -729,7 +722,7 @@ def main() -> None:
     )
     model = (
         DDP(base_model, device_ids=[device.index], broadcast_buffers=False)
-        if dist.is_initialized()
+        if distributed
         else base_model
     )
 
@@ -751,9 +744,22 @@ def main() -> None:
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # Momentum warmup for Muon
+    base_momentum = args.muon_momentum
+    momentum = args.muon_momentum_warmup_start
+    momentum_step = (
+        base_momentum - args.muon_momentum_warmup_start
+    ) / args.muon_momentum_warmup_steps
+
     step = 0
     t0 = time.perf_counter()
     while step < args.iterations:
+        # Update Muon momentum warmup
+        if step < args.muon_momentum_warmup_steps:
+            momentum = args.muon_momentum_warmup_start + step * momentum_step
+            for group in optimizer_muon.param_groups:
+                group["momentum"] = momentum
+
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
         for _ in range(grad_accum_steps):
@@ -763,11 +769,52 @@ def main() -> None:
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 loss = model(x, y)
             (loss / grad_accum_steps).backward()
+
+        # Gradient clipping if enabled
+        if args.grad_clip_norm > 0:
+            model.clip_grad_norm_(args.grad_clip_norm)
+
         for opt in optimizers:
             opt.step()
         step += 1
 
+        # Logging
+        if step % args.train_log_every == 0:
+            elapsed = time.perf_counter() - t0
+            tokens_per_sec = (
+                args.train_batch_tokens * step / elapsed
+            )
+            print(
+                f"step {step}/{args.iterations} | "
+                f"loss={loss.item():.4f} | "
+                f"lr_momentum={momentum:.4f} | "
+                f"tokens/s={tokens_per_sec:.0f} | "
+                f"elapsed={elapsed:.1f}s"
+            )
+
+        # Validation
+        if step % args.val_loss_every == 0 and step > 0:
+            val_loss, val_bpb = eval_val(
+                args,
+                model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+            )
+            print(f"val_loss={val_loss:.4f} | val_bpb={val_bpb:.4f}")
+
+        # Max wallclock safety check
+        if time.perf_counter() - t0 > args.max_wallclock_seconds:
+            print(f"Max wallclock reached ({args.max_wallclock_seconds}s), stopping.")
+            break
+
     train_loader.close()
+    print("Training complete!")
 
 
 if __name__ == "__main__":
