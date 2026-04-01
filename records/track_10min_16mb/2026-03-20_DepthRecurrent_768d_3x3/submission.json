@@ -1,0 +1,87 @@
+{
+  "name": "MrINVISO",
+  "github_id": "MrINVISO",
+  "val_bpb": 1.2271,
+  "run_name": "ultimate_run1",
+  "model_dim": 768,
+  "num_unique_layers": 3,
+  "num_passes": 3,
+  "effective_depth": 9,
+  "seq_len": 2048,
+  "num_heads": 8,
+  "num_kv_heads": 2,
+  "vocab_size": 1024,
+  "mlp_mult": 2,
+  "num_experts": 1,
+  "rope_base": 500000,
+  "architecture": "ultimate_recurrent_phase1",
+  "tie_embeddings": true,
+  "sliding_window_eval": true,
+  "val_stride": 64,
+  "muon_weight_decay": 0.01,
+  "lora_ttt": true,
+  "lora_rank": 4,
+  "lora_ttt_steps": 3,
+  "phase1_optimizations": {
+    "lowrank_k_projection": {
+      "rank": 32,
+      "params_saved": "415K"
+    },
+    "lowrank_td_projection": {
+      "rank": 16,
+      "params_saved": "565K"
+    },
+    "lowrank_gru_state": {
+      "rank": 16,
+      "params_saved": "516K"
+    },
+    "linear_attention_layer1": {
+      "type": "O(n) kernel",
+      "benefit": "faster compute"
+    }
+  },
+  "total_params_estimate": "12.8M",
+  "size_estimate_mb": "13.5MB",
+  "techniques_proven": [
+    "depth_recurrence_3x3",
+    "wider_dim_768",
+    "seq_len_2048",
+    "gqa_8q_2kv",
+    "sliding_window_eval_stride64",
+    "rope_base_500k",
+    "spectral_embed_init",
+    "muon_wd_0.01",
+    "value_embeddings",
+    "per_pass_control_params",
+    "unet_skip_connections",
+    "adaptive_depth_exit_gate",
+    "confidence_conditioning",
+    "compression_aware_loss"
+  ],
+  "techniques_novel": [
+    "gradient_memory_recurrence",
+    "thermodynamic_compression_loss",
+    "temporal_difference_recurrence_lowrank",
+    "resonant_position_encoding",
+    "selective_state_carry_gru_lowrank"
+  ],
+  "techniques_leaderboard_proven": [
+    "lora_test_time_training"
+  ],
+  "techniques_phase1": [
+    "lowrank_k_projection_rank32",
+    "lowrank_td_projection_rank16",
+    "lowrank_gru_state_carry_rank16",
+    "linear_attention_middle_layer"
+  ],
+  "notes": "Run 1: 8xH100 SXM, 600s wallclock, 6956 steps, 86ms/step. No LoRA TTT. val_bpb=1.2271. Model 11.1MB + code 63KB = 10.7MB total, under 16MB. 21 techniques: 14 proven + 6 novel + Phase 1 optimizations.",
+  "use_lora_ttt": false,
+  "total_steps": 6956,
+  "ms_per_step": 86.26,
+  "model_bytes": 11125178,
+  "code_bytes": 64664,
+  "total_bytes": 11189842,
+  "param_count": 12836768,
+  "hardware": "8xH100 SXM",
+  "wallclock_seconds": 600
+}
