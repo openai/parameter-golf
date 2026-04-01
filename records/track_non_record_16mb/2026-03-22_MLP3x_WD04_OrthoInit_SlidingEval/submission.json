@@ -1,0 +1,17 @@
+{
+  "author": "Ayman Mahfuz",
+  "github_id": "AymanMahfuz27",
+  "name": "MLP3x + WD0.04 + OrthoInit + Sliding Eval",
+  "blurb": "Non-record local run (RTX 3060, 1000 steps): MLP_MULT=3 widens the feedforward, decoupled weight decay 0.04 in Muon improves quantization, orthogonal init adds a small gain, and sliding-window eval with stride 64 recovers ~0.035 BPB; final int8+zlib roundtrip scores 1.4536 BPB at 14.6 MB under the 16 MB cap.",
+  "date": "2026-03-22T12:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.45434858,
+  "val_bpb": 1.45360348,
+  "pre_quant_val_loss": 2.4521,
+  "pre_quant_val_bpb": 1.4522,
+  "step_stop": 1000,
+  "wallclock_seconds": 662.069,
+  "bytes_total": 14660530,
+  "bytes_model_int8_zlib": 14595701,
+  "bytes_code": 64829
+}
