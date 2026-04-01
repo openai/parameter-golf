@@ -13,6 +13,9 @@ NPROC=1
 TORCHRUN="${TORCHRUN:-$(find /venv /usr /opt -name torchrun -type f 2>/dev/null | head -1)}"
 DATA_PATH="${DATA_PATH:-${REPO_ROOT}/data/datasets/fineweb10B_sp1024}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model}"
+REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
+REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
+REQUIRE_FA3="${REQUIRE_FA3:-1}"
 PYTHONPATH_EXTRA=""
 if [[ -d "${REPO_ROOT}/flash-attention/hopper" ]]; then
     PYTHONPATH_EXTRA="${REPO_ROOT}/flash-attention/hopper:"
@@ -20,7 +23,14 @@ fi
 
 cuda_ver=$(python3 -c "import torch; print(torch.version.cuda or 'NONE')" 2>/dev/null) || { echo "FATAL: python3/torch failed"; exit 1; }
 torch_ver=$(python3 -c "import torch; print(torch.__version__)" 2>/dev/null)
-[[ "${cuda_ver}" == "12.4"* ]] || { echo "FATAL: wrong CUDA: ${cuda_ver} (torch ${torch_ver}) — SOTA requires cu124"; exit 1; }
+[[ "${cuda_ver}" == "${REQUIRED_CUDA_PREFIX}"* ]] || { echo "FATAL: wrong CUDA: ${cuda_ver} (torch ${torch_ver}) — SOTA requires ${REQUIRED_CUDA_PREFIX}x"; exit 1; }
+[[ "${torch_ver}" == "${REQUIRED_TORCH_VERSION}" ]] || { echo "FATAL: wrong torch: ${torch_ver} — SOTA requires ${REQUIRED_TORCH_VERSION}"; exit 1; }
+if [[ "${REQUIRE_FA3}" == "1" ]]; then
+    python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1 || {
+        echo "FATAL: flash_attn_interface missing — refusing fallback backend"
+        exit 1
+    }
+fi
 echo "env: torch=${torch_ver}  cuda=${cuda_ver}  OK"
 echo "=== Rascal_III_SLOT gate  seed=${SEED}  nproc=${NPROC} ==="
 echo "Torchrun: ${TORCHRUN}"

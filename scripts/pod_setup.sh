@@ -16,6 +16,11 @@ export PIP_ROOT_USER_ACTION=ignore   # suppress "running as root" pip warning
 
 REPO_URL="https://github.com/newjordan/parameter-golf.git"
 BRANCH="TEST_LAB"
+PIP_TORCH_INDEX_URL="${PIP_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu124}"
+REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
+# Pinned for the known-good 8xH100 stack.
+REQUIRED_TORCH_PKGS="${REQUIRED_TORCH_PKGS:-torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1}"
+REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
 # Auto-detect repo root from script location; fall back for curl-pipe scenario
 _SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || true
 _CANDIDATE="$(cd -- "${_SCRIPT_DIR}/.." && pwd 2>/dev/null)" || true
@@ -54,14 +59,52 @@ else
 fi
 
 # =============================================================================
-# 2. Verify base environment (system Python + PyTorch must already exist)
+# 2. Verify/repair base environment (system Python + exact SOTA PyTorch)
 # =============================================================================
 echo ""
-echo "[2/6] Checking base environment..."
+echo "[2/6] Checking base environment (must be cu124)..."
 
 python3 --version || { echo "FATAL: python3 not found"; exit 1; }
-python3 -c "import torch; print(f'  PyTorch {torch.__version__}  CUDA {torch.version.cuda}')" \
-    || { echo "FATAL: PyTorch not installed in system Python"; exit 1; }
+
+torch_state() {
+python3 - <<PY
+import sys
+required = "${REQUIRED_CUDA_PREFIX}"
+required_torch = "${REQUIRED_TORCH_VERSION}"
+try:
+    import torch
+except Exception as e:
+    print(f"  PyTorch import failed: {type(e).__name__}: {e}")
+    raise SystemExit(10)
+cuda = torch.version.cuda or "NONE"
+print(f"  PyTorch {torch.__version__}  CUDA {cuda}")
+if not cuda.startswith(required):
+    raise SystemExit(20)
+if torch.__version__ != required_torch:
+    raise SystemExit(21)
+PY
+}
+
+if torch_state; then
+    echo "  Base torch stack OK"
+else
+    rc=$?
+    if [ "${rc}" -eq 10 ]; then
+        echo "  PyTorch missing/broken in system Python; installing pinned cu124 stack..."
+    elif [ "${rc}" -eq 20 ]; then
+        echo "  Wrong CUDA backend detected; reinstalling pinned cu124 stack..."
+    elif [ "${rc}" -eq 21 ]; then
+        echo "  Wrong torch version detected; reinstalling pinned SOTA torch stack..."
+    else
+        echo "  Unexpected torch check failure (rc=${rc}); reinstalling pinned cu124 stack..."
+    fi
+    python3 -m pip install --upgrade pip >/dev/null
+    # Clean old torch family first to avoid stale binary mixes.
+    python3 -m pip uninstall -y torch torchvision torchaudio triton >/dev/null 2>&1 || true
+    python3 -m pip install --no-cache-dir --force-reinstall \
+        --index-url "${PIP_TORCH_INDEX_URL}" ${REQUIRED_TORCH_PKGS}
+    torch_state || { echo "FATAL: torch stack still invalid after reinstall"; exit 1; }
+fi
 
 GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())" 2>/dev/null || echo "0")
 if [ "$GPU_COUNT" -eq 0 ]; then
@@ -81,9 +124,9 @@ fi
 echo ""
 echo "[3/6] Installing pip packages..."
 
-pip install --upgrade pip -q 2>&1 | tail -1
+python3 -m pip install --upgrade pip -q 2>&1 | tail -1
 
-pip install numpy tqdm huggingface-hub kernels setuptools \
+python3 -m pip install numpy tqdm huggingface-hub kernels setuptools \
     "typing-extensions==4.15.0" datasets tiktoken sentencepiece attr -q 2>&1 | tail -1
 echo "  Core packages OK"
 
@@ -96,7 +139,7 @@ echo "[4/6] zstandard..."
 if python3 -c "import zstandard" 2>/dev/null; then
     echo "  Already installed"
 else
-    pip install zstandard -q
+    python3 -m pip install zstandard -q
     echo "  Installed"
 fi
 python3 -c "import zstandard; print(f'  zstandard {zstandard.__version__}')"
@@ -108,42 +151,19 @@ echo ""
 echo "[5/6] FlashAttention-3..."
 
 install_fa3() {
-    echo "  Attempting FA3 abi3 wheel (cu128)..."
-    if pip install --no-cache-dir \
-        "https://download.pytorch.org/whl/cu128/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-        2>&1 | tail -3; then
-        return 0
-    fi
-
-    echo "  cu128 failed, trying cu124..."
-    if pip install --no-cache-dir \
+    echo "  Attempting FA3 abi3 wheel (cu124)..."
+    if python3 -m pip install --no-cache-dir \
         "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
         2>&1 | tail -3; then
         return 0
     fi
-
-    echo "  Wheels failed. Checking for local flash-attention/hopper source..."
-    if [ -d "${WORKSPACE}/flash-attention/hopper" ]; then
-        SITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
-        SRC="${WORKSPACE}/flash-attention/hopper/flash_attn_interface.py"
-        if [ -f "$SRC" ]; then
-            ln -sf "$SRC" "${SITE}/flash_attn_interface.py"
-            echo "  Symlinked flash_attn_interface.py into site-packages"
-            return 0
-        fi
-    fi
-
-    echo "  WARNING: Could not install FA3. Will fall back to PyTorch SDPA."
+    echo "  ERROR: Could not install FA3 cu124 wheel."
     return 1
 }
 
-if python3 -c "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')" 2>/dev/null; then
-    : # already good
-elif python3 -c "import flash_attn; v=flash_attn.__version__; assert v.startswith('3'); print(f'  FA3 v{v} OK')" 2>/dev/null; then
-    : # flash_attn v3 package works
-else
-    install_fa3
-fi
+python3 -c "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')" 2>/dev/null \
+    || install_fa3 \
+    || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
 
 # =============================================================================
 # 6. Dataset (sp1024)

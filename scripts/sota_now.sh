@@ -12,6 +12,9 @@ EXPECTED_HASH="0ec1f462ab39fd601b18f2b086f6283a0c8db3d2a9780a92dfb206ec46e067cb"
 SEED="${SEED:-444}"
 NPROC="${NPROC_PER_NODE:-8}"
 LOG_DIR="${REPO_ROOT}/logs/sota_runs"
+REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
+REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
+REQUIRE_FA3="${REQUIRE_FA3:-1}"
 
 die() { echo "FATAL: $*" >&2; exit 1; }
 
@@ -23,12 +26,18 @@ actual=$(sha256sum "${LOCKED_SRC}" | awk '{print $1}')
 echo "      OK ${actual:0:16}..."
 
 # ── 2. CUDA must be 12.x (not 13.x / cu130) ─────────────────
-echo "[2/3] CUDA version (must be 12.x, not 13.x)..."
+echo "[2/3] CUDA version (must be cu124 SOTA stack)..."
 cuda_ver=$(python3 -c "import torch; print(torch.version.cuda or 'NONE')" 2>/dev/null) \
     || die "python3/torch failed — fix environment"
 torch_ver=$(python3 -c "import torch; print(torch.__version__)" 2>/dev/null)
-[[ "${cuda_ver}" == "12."* ]] || \
-    die "wrong CUDA: '${cuda_ver}' (torch ${torch_ver}). cu13x gave ~93ms/step on H100 — invalid."
+[[ "${cuda_ver}" == "${REQUIRED_CUDA_PREFIX}"* ]] || \
+    die "wrong CUDA: '${cuda_ver}' (torch ${torch_ver}). SOTA requires ${REQUIRED_CUDA_PREFIX}x"
+[[ "${torch_ver}" == "${REQUIRED_TORCH_VERSION}" ]] || \
+    die "wrong torch: '${torch_ver}'. SOTA requires ${REQUIRED_TORCH_VERSION}"
+if [[ "${REQUIRE_FA3}" == "1" ]]; then
+    python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1 \
+        || die "flash_attn_interface missing — refusing fallback backend"
+fi
 echo "      torch=${torch_ver}  cuda=${cuda_ver}  OK"
 
 # ── 3. Run — same env as original submission ──────────────────
