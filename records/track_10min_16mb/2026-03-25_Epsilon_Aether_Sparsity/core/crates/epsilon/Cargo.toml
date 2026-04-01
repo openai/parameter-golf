@@ -1,0 +1,21 @@
+[package]
+name = "epsilon"
+version = "0.1.0"
+edition = "2021"
+authors = ["Teerth Sharma"]
+license = "MIT"
+description = """
+Epsilon: Zero-Shot Context Context Transfer via Topological Surgery.
+
+Pre-Print Reference Implementation (v0.1.0).
+Implements O(1) context transfer between AEGIS-powered autonomous agents
+via topological surgery on hollow SÂ² manifolds with Betti number Î²â‚‚ = 1.
+"""
+
+[dependencies]
+libm = { workspace = true }
+serde-big-array = { version = "0.5", optional = true }
+serde = { workspace = true, optional = true }
+
+[features]
+serde = ["dep:serde", "dep:serde-big-array"]
