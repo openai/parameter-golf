@@ -1,0 +1,17 @@
+{
+  "author": "Aaron Beavers",
+  "github_id": "riatzukiza",
+  "name": "Local RTX 4070 SP1024 7x512 KV4 500-step run",
+  "blurb": "Non-record local consumer-GPU track: SP-1024 7x512 with KV4 on 1x RTX 4070 Laptop GPU; trained for 500 steps on one published train shard and evaluated on the full published validation split; final int8+zlib roundtrip scored 1.65718316 under the 16,000,000-byte cap.",
+  "date": "2026-03-20T19:18:40Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.79808286,
+  "val_bpb": 1.65718316,
+  "pre_quant_val_loss": 2.7972,
+  "pre_quant_val_bpb": 1.6567,
+  "step_stop": 500,
+  "wallclock_seconds": 637.013,
+  "bytes_total": 10296829,
+  "bytes_model_int8_zlib": 10249187,
+  "bytes_code": 47642
+}
