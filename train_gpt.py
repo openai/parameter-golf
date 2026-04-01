@@ -341,38 +341,15 @@ def eval_val(
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
     with file.open("rb") as f:
-        header = np.fromfile(f, dtype="<i4", count=256)
-    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
-        raise ValueError(f"Unexpected shard header for {file}")
-    num_tokens = int(header[2])
-    tokens_np = np.memmap(
-        file,
-        dtype="<u2",
-        mode="r",
-        offset=header_bytes,
-        shape=(num_tokens,),
-    )
-    arr = np.array(tokens_np, dtype=np.uint16)   # materialize memmap
-    t = torch.from_numpy(arr)
-    return t.pin_memory()
+        header = np.frombuffer(f.read(header_bytes), dtype="<i4")
+        if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+            raise ValueError(f"Unexpected shard header for {file}")
+        num_tokens = int(header[2])
+        tokens_np = np.frombuffer(f.read(num_tokens * 2), dtype="<u2").copy()
+    return torch.from_numpy(tokens_np)
 
 
-class AsyncShardPrefetcher:
-    def __init__(self, files: list[Path]):
-        self.files = files
-        self.executor = ThreadPoolExecutor(max_workers=1)
-        self.future = None
 
-    def submit(self, file_idx: int) -> None:
-        self.future = self.executor.submit(load_data_shard, self.files[file_idx])
-
-    def result(self) -> Tensor:
-        if self.future is None:
-            raise RuntimeError("Prefetch was not submitted")
-        return self.future.result()
-
-    def close(self) -> None:
-        self.executor.shutdown(wait=True)
 
 
 class TokenStream:
@@ -380,36 +357,26 @@ class TokenStream:
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
-        self.file_idx = 0
+        
+        # Preload all shards into RAM once — eliminates disk I/O during training
+        print(f"Preloading {len(self.files)} shards into RAM...", flush=True)
+        chunks = []
+        for f in self.files:
+            chunks.append(load_data_shard(f))
+        self.tokens = torch.cat(chunks).pin_memory()  # pin entire dataset
+        print(f"Loaded {self.tokens.numel():,} tokens into RAM", flush=True)
+        
         self.pos = 0
-        self.prefetcher = AsyncShardPrefetcher(self.files)
-        self.tokens = load_data_shard(self.files[0])
-        self.prefetcher.submit((self.file_idx + 1) % len(self.files))
-
-    def _advance_file(self) -> None:
-        self.file_idx = (self.file_idx + 1) % len(self.files)
-        self.tokens = self.prefetcher.result()
-        self.pos = 0
-        self.prefetcher.submit((self.file_idx + 1) % len(self.files))
 
     def take(self, n: int) -> Tensor:
-        chunks: list[Tensor] = []
-        remaining = n
-        while remaining > 0:
-            avail = self.tokens.numel() - self.pos
-            if avail <= 0:
-                self._advance_file()
-                continue
-            k = min(remaining, avail)
-            chunks.append(self.tokens[self.pos : self.pos + k])
-            self.pos += k
-            remaining -= k
-        if len(chunks) == 1:
-            return chunks[0]
-        return torch.cat(chunks)
+        if self.pos + n > self.tokens.numel():
+            self.pos = 0  # wrap around
+        chunk = self.tokens[self.pos : self.pos + n]
+        self.pos += n
+        return chunk
 
     def close(self) -> None:
-        self.prefetcher.close()
+        pass
 
 
 class DistributedTokenLoader:
