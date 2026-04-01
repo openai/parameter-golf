@@ -14,6 +14,7 @@ A non-record submission targeting significant improvement over [PR #549](https:/
 | 2025     | 83.4ms     | 6,334     | 1.1351      | **1.1155**              | -0.0197     | 588s      | 15,995,558 |
 | **Mean** | **83.5ms** | **6,332** | **1.1359**  | **1.1163 (std 0.0013)** | **-0.0196** | **~578s** |            |
 
+We significantly beat the [PR #549](https://github.com/openai/parameter-golf/pull/549) LeakyReLU² baseline (1.1194 mean bpb) by **-0.0031 bpb** across all three seeds, achieving the goal we set out with.
 
 ## Progressive Recurrence Architecture
 
