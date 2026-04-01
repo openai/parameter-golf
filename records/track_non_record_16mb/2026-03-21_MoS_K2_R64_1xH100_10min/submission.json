@@ -1,0 +1,31 @@
+{
+  "author": "billyendson",
+  "github_id": "User123331",
+  "name": "MoS K=2 Rank=64 Pilot (1xH100, 10min)",
+  "blurb": "First pilot of Mixture of Softmax (K=2, low-rank=64) on 1xH100 SXM for 10 minutes. Tests softmax bottleneck breaking with minimal parameter overhead (~99K params, 97KB). Artifact 12.8MB, well under 16MB cap. No TTT eval. Loss still dropping at wallclock stop.",
+  "date": "2026-03-21T19:48:40Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.35234121,
+  "val_bpb": 1.39318897,
+  "pre_quant_val_loss": 2.3505,
+  "pre_quant_val_bpb": 1.3921,
+  "step_stop": 1113,
+  "wallclock_seconds": 600.423,
+  "bytes_total": 12827837,
+  "bytes_model_int8_zlib": 12764492,
+  "bytes_code": 63345,
+  "gpu": "1xH100_SXM",
+  "config": {
+    "USE_MOS": 1,
+    "MOS_K": 2,
+    "MOS_RANK": 64,
+    "VOCAB_SIZE": 1024,
+    "NUM_LAYERS": 9,
+    "MODEL_DIM": 512,
+    "NUM_HEADS": 8,
+    "NUM_KV_HEADS": 4,
+    "MLP_MULT": 2,
+    "SEED": 42,
+    "TRAIN_SEQ_LEN": 1024
+  }
+}
