@@ -1,0 +1,42 @@
+{
+  "name": "Recurrent Depth with Progressive Pass Growth + Error Feedback",
+  "val_bpb": 1.1163,
+  "val_bpb_std": 0.0013,
+  "bytes_total": 15995558,
+  "bytes_code": 58186,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.88375543,
+      "val_bpb": 1.11566902,
+      "pre_ttt_val_bpb": 1.1353,
+      "ttt_time_seconds": 565.6,
+      "steps": 6328,
+      "bytes_model_int6_lzma": 15850832,
+      "bytes_total": 15909018
+    },
+    "42": {
+      "val_loss": 1.88715720,
+      "val_bpb": 1.11768375,
+      "pre_ttt_val_bpb": 1.1372,
+      "ttt_time_seconds": 579.0,
+      "steps": 6334,
+      "bytes_model_int6_lzma": 15839344,
+      "bytes_total": 15897530
+    },
+    "2025": {
+      "val_loss": 1.88338589,
+      "val_bpb": 1.11545016,
+      "pre_ttt_val_bpb": 1.1351,
+      "ttt_time_seconds": 588.0,
+      "steps": 6334,
+      "bytes_model_int6_lzma": 15937372,
+      "bytes_total": 15995558
+    }
+  },
+  "wallclock_seconds": 600,
+  "blurb": "Progressive depth recurrence (1->2->3 passes) with error feedback + jacobian proxy stabilization. Late growth preserves fast step times for most of training, avoiding the step/capacity trade-off that makes naive recurrence impractical. 3-seed mean: 1.1163 (std 0.0013), -0.0031 vs PR #549 LeakyReLU baseline (1.1194). Built on PR #414 stack with Parallel Muon (PR #399). All artifacts under 16MB, all eval under 10 min.",
+  "author": "nestamidavaine",
+  "github_id": "nestamidavaine",
+  "date": "2026-04-01"
+}
