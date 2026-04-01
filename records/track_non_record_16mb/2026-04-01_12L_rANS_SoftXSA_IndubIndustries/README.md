@@ -8,7 +8,7 @@ reproduce: `script-log-evalcode-etc/eval/reproduce_results.sh` (full training + 
 
 ## About me
 
-I'm not a language model guy at all. I'm a deep learning practitioner who tends to focus on small models, and I've done some kernel work to offload stats operations using tiling patterns. That background is what drew me to check out this competition. Some of my knowledge transferred — the compression instincts, the kernel work, the comfort with squeezing models into tight budgets — but this spawned a huge research and testing project on my side. It's been a lot of fun and very informative on transformer architectures for language. It's also made me think deeply about compression itself and how far down you can actually get in terms of source compression, both for this domain and others that might be closer to my own wheelhouse.  I enjoyed making this submission a lot, and plan to improve it throughout the duration of the competition.  
+I'm not a language model guy at all. I'm a deep learning practitioner who tends to focus on small models with tabular data - typically generated from appliances of various sorts. I've done some kernel work to offload stats operations using tiling patterns. That background is what drew me to check out this competition. Some of my knowledge transferred — the compression instincts, the kernel work, the comfort with squeezing models into tight budgets.  The methods I started to see here spawned a huge research and testing project on my side. It's been a lot of fun and very informative on transformer architectures for language. It's also made me think deeply about compression itself and how far down you can actually get in terms of source compression, both for this domain and others that might be closer to my own wheelhouse.  I enjoyed making this submission a lot, and plan to improve it throughout the duration of the competition.  
 
 
 ## Methodology note
@@ -19,7 +19,7 @@ All ablation experiments were 500-step runs on 1×H100 with torch.compile. I was
 ## Writeup note
 
 If I didn't mention a PR that had an item before today - I apologize, I may have missed you, and if that's the case I want to apologize for not providing prior refrence. 
-As of a hour or two ago I believe my accredidations for inspiration and where I started are all accurate.  This is a late night submission, I don't want to wake up and find out someone else got the rANS thing and did it better than me - so there will be more information coming, and maybe better phrasing in some parts.  
+As of a hour or two ago I believe my accredidations for inspiration and where I started are all accurate.  This is a late night submission, I don't want to wake up and find out someone else got the rANS thing and did it better than me - so there will be more information coming, and maybe better phrasing in some parts.
 
 
 ## The story
@@ -44,15 +44,21 @@ The rANS savings opened up enough headroom to move from 11L to 12L. From there w
 
 - **LeakyReLU(0.95)² activation.** Inspired by PR #885 which used slope=0.9. Ran a sweep across relu², leaky 0.01², 0.05², 0.9², 0.95², 1.0², and silu². 0.95 was the peak. A win at -0.014 BPB.
 
-- **Soft XSA with learned per-head alpha on all 12 layers.** Inspired by XSA4 from PR #549 and PR #374. My favorite thing to do with all magic numbers - param them up and make the tell me.  And since we're at it, do it differenly per layer (or similar).  However running this and the initial naive PyTorch implementation exploded twice.  First it became apparent the memory shape was wrong (more on this below) creating a massive iteration issue and even after that was resovled through first-pass kerenel the step time was still too high. from ~485ms to ~856ms (+76% overhead). The progression: a first Triton kernel (v2) using per-position programsbut lost gradients flow through q/k (bad implementation). Next a position-tiled v3 kernel ala-flash-attention-style.  This brought the forward pass down significantly. BPB still was a loss though.  Then finally saw that we needed a custom backward to preserve q/k versus what we were doing.  I didn't plan to go about it this way either so I'm curious what folks think.  Regardless this recovered most of the quality and landed at 512ms (+5.5% overhead). There's likely more performance to be found — the tiling and online softmax patterns in the forward kernel could be further optimized — but we called it done for now. Hopefully someone will pick up on tweaks here, I feel like there's something we've left on the table.
+- **Soft XSA with learned per-head alpha on all 12 layers.** Inspired by XSA4 from PR #549 and PR #374. My favorite thing to do with all magic numbers - param them up and make the tell me.  And since we're at it, do it differenly per layer (or similar).  However running this and the initial naive PyTorch implementation exploded twice.  First it became apparent the memory shape was wrong (more on this below) creating a massive iteration issue and even after that was resovled through first-pass kerenel the step time was still too high. from ~485ms to ~856ms.
+
+The first Triton kernel (v2) using per-position programsbut lost gradients flow through q/k (bad implementation). Next a position-tiled v3 kernel ala-flash-attention-style.  This brought the forward pass down significantly. BPB still was a loss though.  Then I finally saw the implementation issue, added backward to preserve q/k.  This scopecrept on me but I left it in, I'm curious what other people will say about the work.  
+
+Regardless this recovered most of the quality and landed at 512ms. There's likely more performance to be found — the tiling and online softmax patterns in the forward kernel could be further optimized I think, possibly there's an adjacent but much faster method I'm not aware of that could replace this.  Either way, step time recovered I called it done for now. Hopefully someone will pick up on tweaks here, I am sure there's something we've left on the table.
 
 ### Eval-time augmentation
 
-- **CMS n-gram eval cache with bilateral confidence gating.** Count-min sketch (64M counters, 4 hash functions, orders 3-7) built from backward-looking scored tokens during sliding window eval. The mixing gates on both sides: neural uncertainty (PR #727 style) AND n-gram confidence (novel) - we saw what was being done with n-gram and while I don't include it right now and really want to focus on the neural approach we'll do it and update this in a day or two with that number for reference.  I still didn't want to use something that was already out there verbatim, so we took a slight change.  This took roughly 30 iterations to get from catastrophic (+0.125 BPB) to helpful (-0.008 BPB), and threw me off of topics I'm familar with.  This was fun and if anyone see's the direction I was heading instead with it I hope it opens up more ideas for those who are more familar with n-grams.  Early versions used fingerprint verification / cache and top-K truncation - all of which turned out to be the wrong approach. 
+- **CMS n-gram eval cache with bilateral confidence gating.** First - not included in score right now.  Eval assist in this competition is interesting, and not something I expected to see work so well.  I tried to do something similar with at twist so it's not a direct copy.  I spent more time here than I would have anticipated as well - this is a fascinating set of solutions to use.  
+
+What I was playing with:  Count-min sketch (64M counters, 4 hash functions, orders 3-7) built from backward-looking scored tokens during sliding window eval. The mixing gates on both sides: neural uncertainty (PR #727 style) AND n-gram confidence (my twist).  This took roughly 30 iterations to get from catastrophic (+0.125 BPB) to helpful (-0.008 BPB), and launched me off into a few topics I was not familar with.  This was fun and if anyone see's the direction I was heading instead with it I hope it opens up more ideas for those who are more familar with n-grams and similar methods.  My earl failures here: using fingerprint verification / cache and top-K truncation.  These turned out to be the wrong approach. 
 
 ## What didn't work at 12L
 
-500-step ablations on 1×H100 with torch.compile (see methodology caveat above). Basically everything the 11L leaderboard relies on was neutral or negative at 12L in SHORT runs:
+500-step ablations on 1×H100 with torch.compile (see methodology caveat above). Lots of methods on the 11L leaderboard at the time were neutral or negative at 12L in SHORT runs:
 
 | Technique | Delta vs baseline | Verdict |
 |---|---|---|
@@ -74,7 +80,7 @@ The rANS savings opened up enough headroom to move from 11L to 12L. From there w
 | SiLU² | +0.000 | Noise |
 | OHEM (hard example replay) | +0.108 | Catastrophic |
 
-Our read: 12L isn't capacity-starved, it's data-hungry. Regularization and capacity-focusing techniques solve a problem 12L doesn't have. The things that really helped were gradient flow (activation) and attention efficiency (learned XSA). More data and longer warmdown are where the remaining BPB lives.  
+Our read: 12L isn't capacity-starved, it's data-hungry. Regularization and capacity-focusing techniques are solving a problem 12L doesn't have. The things that really helped were gradient flow (activation) and attention efficiency (learned XSA). More data and longer warmdown are where the remaining BPB lives. My search for step-time gains will continue.
 
 ## Training curve
 
@@ -101,8 +107,7 @@ Roundtrip:  1.1601 (post int5/int6 + rANS, sliding stride=64)
 ```
 
 The warmdown dropped 0.1005 BPB in 3000 steps after the model sat on a plateau for ~8000 steps. The quant roundtrip cost 0.0106 BPB.
-
-I immediately think, if I could just run this longer....  But it's more nuanced than that of course:
+I immediately think, if I could just run this longer....  But it's more nuanced than that of course.  Regardless, the warmdown period has one heck of a slope - obviously a place to concentrate more investigation.  This also falls into situations that happen outside of language models during training - and I have a series of things to start messing with here next from my usual tricks bag.  I hope I can get some extra compute time even on 1xH100 pods to keep going with longer runs as I'm not sure anything at 12L is gonna show up on cheap 500 step ablations like I was doing - this arch just wants to run further before stopping.
 
 ## What's next
 
@@ -110,11 +115,10 @@ I immediately think, if I could just run this longer....  But it's more nuanced 
 - 8×H100 3-seed validation for record submission  (anyone with runpod credits still reading?  my previous PR was the onne from the form, I'll link it again shortly)
 - Several eval-time augmentation methods we haven't had compute to test yet
 - Some training-time ideas that specifically target what 12L seems to respond to
-- Better understanding of the rANS compression variance across training methods - what if we can find what lays out better for it, and not kill BPB but enforece it during training?  
-  Wider MLP's come back?  More.... something else?
+- Better understanding of the rANS compression variance across training methods - what if I can find what sort of training makes weights that are the most compressable to it.  And a long shot: Enforce that during training (weight penalization, something) and still not kill BPB?  Perhaps we can buy another few hundred K for more bells and whistles, broader MLP layers (find the next value UP the size curve that interacts well with XSA), etc...
 - The n-gram CMS stack on this checkpoint (expect improvements of -0.005 to -0.01 at eval time)
 
-Should the RunPod credit granters see this, hi! I could use some more time. I ran everything on 1×H100 extrapolating the 8×H100 token budget but can't really swing more testing on 8 right now and there are several angles I'd like to investigate. I'll get a more structured writeup of the full ablation history as we progress. Happy to be exploring the higher layer count even if the first results aren't going to top the leaderboard today.
+Should the RunPod credit granters see this, hi! I could use some more time. I ran everything on 1×H100 extrapolating the 8×H100 token budget but can't really swing more testing on 8 right now and there are several angles I'd like to investigate. I'll get a more structured writeup of the full ablation history as we progress. Happy to be exploring the higher layer count and odd compression algo's even if the first results aren't going to top the leaderboard today.
 
 ## Reproduction
 
@@ -134,12 +138,7 @@ DATA_PATH=./data/datasets/fineweb10B_sp1024 \
   TORCH_COMPILE=1 SEED=42 USE_RANS=1 \
   MAX_WALLCLOCK_SECONDS=0 \
   python train_gpt.py
-
-# 8×H100 submission equivalent
-MAX_WALLCLOCK_SECONDS=600 TRAIN_BATCH_TOKENS=786432 \
-  torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-
 ## contributions
 
 1. Per-tensor adaptive rANS replacing zstd-22 (consistently better, varies by weight distribution)
@@ -148,4 +147,5 @@ MAX_WALLCLOCK_SECONDS=600 TRAIN_BATCH_TOKENS=786432 \
 4. MLP width × XSA capacity interaction (neat)
 5. Bilateral confidence-gated CMS n-gram cache with product mixing
 6. Comprehensive 12L ablation results (19 techniques tested, 2 helped)
-7. Odds and ends (fused QKV, Bigram0, other small items in submission)
+7. Kernels!  Int8matmul failed to be better, but the work I did for XSA the only way to make the learned kind work without step time explosion
+9. Odds and ends (fused QKV, other small items in submission)
