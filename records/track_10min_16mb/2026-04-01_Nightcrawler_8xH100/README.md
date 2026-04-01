@@ -1,4 +1,4 @@
-# Crawler II
+# Nightcrawler
 
 Adds a fifth flat transformer layer on each side of the crawler bottleneck (5F+1C+5F vs 4F+1C+4F), with shared TAP encoder connections to each crawler loop.
 
@@ -7,8 +7,8 @@ Adds a fifth flat transformer layer on each side of the crawler bottleneck (5F+1
 | Seed | val_bpb (sliding window) | Steps | Size |
 |------|--------------------------|-------|------|
 | 444  | 1.17651313               | 7074  | 10048191 B |
-| 300  | PENDING                  | —     | — |
-| **mean** | **PENDING**          |       | **PENDING** |
+| 300  | 1.17490448               | 7077  | 10343385 B |
+| **mean** | **1.1757**           |       | **10343385 B** |
 
 Hardware: 8×H100 SXM · 600s wallclock · `bytes_code`: 119294
 
@@ -21,7 +21,7 @@ Hardware: 8×H100 SXM · 600s wallclock · `bytes_code`: 119294
 ```bash
 # From repo root, with flash-attention/hopper on PYTHONPATH
 SEED=444 NPROC_PER_NODE=8 torchrun --standalone --nproc_per_node=8 \
-  records/track_10min_16mb/2026-04-01_Crawler_II_8xH100/train_gpt.py
+  records/track_10min_16mb/2026-04-01_Nightcrawler_8xH100/train_gpt.py
 ```
 
 Full env (copy-paste ready):
@@ -66,5 +66,5 @@ env \
     FLAT_WEIGHT_SHARE=0 \
     NPROC_PER_NODE=8 \
     torchrun --standalone --nproc_per_node=8 \
-    records/track_10min_16mb/2026-04-01_Crawler_II_8xH100/train_gpt.py
+    records/track_10min_16mb/2026-04-01_Nightcrawler_8xH100/train_gpt.py
 ```

@@ -42,7 +42,17 @@ the remaining 0.011 gap.
 
 ## Confirmation Run (8×H100, seed=300)
 
-_Pending._
+| metric | value |
+|--------|-------|
+| raw BPB | 1.1874 |
+| int6_sw BPB | **1.17490448** |
+| quant gap | 0.01395 |
+| step_avg | ~85ms |
+| steps | 7077 (wallclock stop) |
+| bytes | 10,343,385 (10.34MB) |
+
+**Confirmed.** seed=300 beats champion (1.18672385) by −0.01182 BPB.
+Mean across seeds 444+300: **1.1757 BPB**
 
 ---
 

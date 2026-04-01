@@ -1,7 +1,7 @@
 {
   "author": "Frosty40",
   "github_id": "newjordan",
-  "name": "Crawler II",
+  "name": "Nightcrawler",
   "blurb": "Adds a fifth flat transformer layer on each side of the crawler bottleneck (5F+1C+5F vs 4F+1C+4F), with shared TAP encoder connections to each crawler loop.",
   "date": "2026-04-01T00:00:00Z",
   "seed_444": {
@@ -13,15 +13,15 @@
     "bytes_total": 10048191
   },
   "seed_300": {
-    "val_bpb": 0.0000,
-    "val_bpb_exact": 0.00000000,
-    "int6_sw_bpb": 0.00000000,
-    "steps": 0,
-    "bytes_total": 0,
+    "val_bpb": 1.1749,
+    "val_bpb_exact": 1.17490448,
+    "int6_sw_bpb": 1.17490448,
+    "steps": 7077,
+    "bytes_total": 10343385,
     "train_time_s": 600
   },
-  "val_bpb": 0.0000,
-  "bytes_total": 0,
+  "val_bpb": 1.1757,
+  "bytes_total": 10343385,
   "bytes_code": 119294,
   "hardware": "8xH100 SXM"
 }
