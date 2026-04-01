@@ -2,12 +2,23 @@
     "name": "CoDA_GQA_DifferentialAttention",
     "author": "Anthony Maio",
     "github_id": "anthony-maio",
+    "date": "2026-03-26",
     "track": "non_record_16mb",
     "num_gpus": 8,
     "gpu_type": "H100 SXM",
     "training_time_seconds": 600,
+    "val_loss": 1.9553,
     "val_bpb": 1.1580,
+    "seed_results": {
+        "1337": {
+            "val_loss": 1.9553,
+            "val_bpb": 1.1580,
+            "steps": 4404,
+            "ms_per_step": 136.25
+        }
+    },
     "bytes_total": 15705522,
+    "bytes_model_int6_lzma": 15636872,
     "bytes_code": 68650,
     "blurb": "CoDA-GQA differential attention (Maio, 2026) applied to Parameter Golf. Orthogonal noise query rotation + input-dependent lambda gating. Ablation: +0.012 bpb vs baseline due to 30% step overhead. First differential attention submission."
 }
