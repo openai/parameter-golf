@@ -352,7 +352,9 @@ def load_data_shard(file: Path) -> Tensor:
         offset=header_bytes,
         shape=(num_tokens,),
     )
-    return torch.from_numpy(tokens_np)
+    arr = np.array(tokens_np, dtype=np.uint16)   # materialize memmap
+    t = torch.from_numpy(arr)
+    return t.pin_memory()
 
 
 class AsyncShardPrefetcher:
@@ -414,24 +416,43 @@ class DistributedTokenLoader:
     def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
         self.rank, self.world_size, self.device = rank, world_size, device
         self.stream = TokenStream(pattern)
+        self._prefetch_stream = torch.cuda.Stream()   # dedicated transfer stream
+        self._next_batch: tuple[Tensor, Tensor] | None = None
 
-    def next_batch(
-        self, global_tokens: int, seq_len: int, grad_accum_steps: int
-    ) -> tuple:
-        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+    def _to_gpu(self, chunk: Tensor, local_tokens: int, seq_len: int) -> tuple[Tensor, Tensor]:
         per_rank_span = local_tokens + 1
-        chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
-        return x.to(self.device, non_blocking=True), y.to(
-            self.device, non_blocking=True
+        # non_blocking=True works because source is pinned
+        return (
+            x.to(self.device, non_blocking=True),
+            y.to(self.device, non_blocking=True),
         )
+
+    def _prefetch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> None:
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        with torch.cuda.stream(self._prefetch_stream):
+            self._next_batch = self._to_gpu(chunk, local_tokens, seq_len)
+
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple:
+        if self._next_batch is None:
+            # cold start — first call only
+            self._prefetch(global_tokens, seq_len, grad_accum_steps)
+
+        # wait for the in-flight transfer to finish
+        torch.cuda.current_stream().wait_stream(self._prefetch_stream)
+        x, y = self._next_batch  # type: ignore[misc]
+
+        # kick off next batch transfer in background
+        self._prefetch(global_tokens, seq_len, grad_accum_steps)
+        return x, y
 
     def close(self) -> None:
         self.stream.close()
-
 
 # -----------------------------
 # TRANSFORMER MODULES
@@ -705,7 +726,7 @@ def main() -> None:
 
     sp = spm.SentencePieceProcessor()
     sp.Load(args.tokenizer_path)
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len).pin_memory()
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = (
         build_sentencepiece_luts(sp, args.vocab_size, device)
     )
@@ -728,10 +749,11 @@ def main() -> None:
         .bfloat16()
     )
     model = (
-        DDP(base_model, device_ids=[device.index], broadcast_buffers=False)
-        if dist.is_initialized()
-        else base_model
+    DDP(base_model, device_ids=[device.index], broadcast_buffers=False)
+    if dist.is_initialized()
+    else base_model
     )
+    model = torch.compile(model)
 
     matrix_params = [
         p for name, p in base_model.blocks.named_parameters() if p.ndim == 2
