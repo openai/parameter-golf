@@ -146,55 +146,67 @@ fi
 python3 -c "import zstandard; print(f'  zstandard {zstandard.__version__}')"
 
 # =============================================================================
-# 5. FlashAttention-3
+# 5. FlashAttention-3 — discover custom FA3 from pod's Python envs first
 # =============================================================================
 echo ""
 echo "[5/6] FlashAttention-3..."
 
-FA3_LOCAL_PYTHONPATH="${WORKSPACE}/flash-attention/hopper:${PYTHONPATH:-}"
-FA3_SYSTEM_PYTHONPATH="${PYTHONPATH:-}"
 FA3_SELECTED_PYTHONPATH=""
 
-check_fa3_path() {
-    local pypath="${1:-}"
-    PYTHONPATH="${pypath}" python3 -c "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')"
-}
+# Scan all Python candidates on the pod to find the one with custom FA3 installed.
+# The pod image (e.g. Vast.ai H100 SXM) pre-installs FA3 in a conda/system env that
+# may differ from the current shell's python3. We must discover it.
+mapfile -t _fa3_candidates < <(
+    which -a python3 2>/dev/null | awk '!seen[$0]++'
+    printf '%s\n' \
+        /usr/bin/python3 \
+        /opt/conda/bin/python3 /opt/conda/bin/python \
+        /usr/local/bin/python3 \
+        /root/miniconda3/bin/python3 /root/miniconda3/bin/python \
+        /workspace/miniconda3/bin/python3 /workspace/miniconda3/bin/python
+    find /opt/conda/envs /root/.conda/envs /workspace/miniconda3/envs \
+        -maxdepth 3 \( -name python3 -o -name python \) 2>/dev/null | head -20
+)
 
-install_fa3() {
-    echo "  Attempting FA3 abi3 wheel (cu124)..."
-    if python3 -m pip install --no-cache-dir \
+_FA3_DIR=""
+_FA3_SOURCE_PYTHON=""
+for _py in "${_fa3_candidates[@]}"; do
+    [ -x "${_py}" ] || continue
+    if _dir="$("${_py}" - 2>/dev/null <<'PY'
+import inspect, os
+import flash_attn_interface
+print(os.path.dirname(inspect.getfile(flash_attn_interface)))
+PY
+)"; then
+        _FA3_DIR="${_dir}"
+        _FA3_SOURCE_PYTHON="${_py}"
+        break
+    fi
+done
+
+if [ -n "${_FA3_DIR}" ]; then
+    FA3_SELECTED_PYTHONPATH="${_FA3_DIR}:${PYTHONPATH:-}"
+    echo "  Found custom FA3 at: ${_FA3_DIR}"
+    echo "  (discovered via ${_FA3_SOURCE_PYTHON})"
+elif python3 -c "from flash_attn_interface import flash_attn_func" >/dev/null 2>&1; then
+    FA3_SELECTED_PYTHONPATH="${PYTHONPATH:-}"
+    echo "  FA3 already in current python3 site-packages"
+elif [ "${ALLOW_FA3_WHEEL_INSTALL}" = "1" ]; then
+    echo "  Custom FA3 not found — falling back to cu124 wheel..."
+    python3 -m pip install --no-cache-dir \
         "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-        2>&1 | tail -3; then
-        return 0
-    fi
-    echo "  ERROR: Could not install FA3 cu124 wheel."
-    return 1
-}
-
-if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
-    FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
-    echo "  Using FA3 provider: local hopper path"
-elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
-    FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
-    echo "  Using FA3 provider: system/site-packages"
+        2>&1 | tail -3 || { echo "FATAL: FA3 wheel install failed"; exit 1; }
+    FA3_SELECTED_PYTHONPATH="${PYTHONPATH:-}"
 else
-    if [ "${ALLOW_FA3_WHEEL_INSTALL}" = "1" ]; then
-        install_fa3 || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
-    else
-        echo "FATAL: FA3 unavailable from custom/system paths and wheel install is disabled (ALLOW_FA3_WHEEL_INSTALL=0)."
-        exit 1
-    fi
-    if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
-        FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
-        echo "  Using FA3 provider: local hopper path"
-    elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
-        FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
-        echo "  Using FA3 provider: system/site-packages"
-    else
-        echo "FATAL: FA3 import failed (missing or ABI mismatch, e.g. undefined symbol)."
-        exit 1
-    fi
+    echo "FATAL: FA3 (flash_attn_interface) not found in any Python env on this pod."
+    echo "       Use ALLOW_FA3_WHEEL_INSTALL=1 to fall back to the cu124 generic wheel."
+    exit 1
 fi
+
+# Verify FA3 is importable and has no ABI mismatch
+PYTHONPATH="${FA3_SELECTED_PYTHONPATH}" python3 -c \
+    "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')" \
+    || { echo "FATAL: FA3 import failed — ABI mismatch or missing symbol. Check torch/FA3 version pairing."; exit 1; }
 
 # =============================================================================
 # 6. Dataset (sp1024)
