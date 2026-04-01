@@ -52,7 +52,7 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -88,6 +88,7 @@ class Hyperparameters:
 
     # Bigram table — built from training data in Phase 1
     bigram_smoothing = float(os.environ.get("BIGRAM_SMOOTHING", 1.0))  # Laplace smoothing
+    bigram_scale_mode = os.environ.get("BIGRAM_SCALE", "fixed")  # "fixed" | "learnable" | "0"
 
 # -----------------------------------------------------------------------------
 # MUON OPTIMIZER
@@ -586,6 +587,7 @@ class HybridGPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         bigram_table: Tensor | None = None,
+        bigram_scale_mode: str = "fixed",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -594,6 +596,7 @@ class HybridGPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.vocab_size = vocab_size
+        self.bigram_scale_mode = bigram_scale_mode
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -615,6 +618,14 @@ class HybridGPT(nn.Module):
             self.register_buffer("bigram_table", bigram_table)
         else:
             self.register_buffer("bigram_table", torch.zeros(vocab_size, vocab_size, dtype=torch.float16))
+
+        # Bigram scale: "fixed"=1.0 constant, "learnable"=nn.Parameter, "0"=disabled
+        if bigram_scale_mode == "learnable":
+            self.bigram_scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
+        else:
+            self.register_buffer("bigram_scale", torch.tensor(
+                0.0 if bigram_scale_mode == "0" else 1.0, dtype=torch.float32
+            ))
 
         self._init_weights()
 
@@ -651,8 +662,8 @@ class HybridGPT(nn.Module):
         bigram_logits = self.bigram_table[input_ids.reshape(-1)]  # (B*T, V)
         bigram_logits = bigram_logits.to(dtype=neural_logits.dtype)
 
-        # --- Combine: table baseline + neural correction ---
-        combined = bigram_logits + neural_logits
+        # --- Combine: scale * table + neural correction ---
+        combined = self.bigram_scale * bigram_logits + neural_logits
         combined = self.logit_softcap * torch.tanh(combined / self.logit_softcap)
         return F.cross_entropy(combined.float(), targets, reduction="mean")
 
@@ -675,7 +686,7 @@ class HybridGPT(nn.Module):
         else:
             neural_logits = self.lm_head(x)
         bigram_logits = self.bigram_table[input_ids].to(dtype=neural_logits.dtype)
-        combined = bigram_logits + neural_logits
+        combined = self.bigram_scale * bigram_logits + neural_logits
         return self.logit_softcap * torch.tanh(combined / self.logit_softcap)
 
 # -----------------------------------------------------------------------------
@@ -799,6 +810,7 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         bigram_table=bigram_table,
+        bigram_scale_mode=args.bigram_scale_mode,
     ).to(device)
 
     if device.type == "cuda":
@@ -826,6 +838,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if args.bigram_scale_mode == "learnable":
+        scalar_params.append(base_model.bigram_scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -852,6 +866,7 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params} (neural only, bigram table is buffer)")
     log0(f"bigram_table_bytes:{bigram_table.numel() * 2}")
+    log0(f"bigram_scale_mode:{args.bigram_scale_mode} init_value:{base_model.bigram_scale.item():.4f}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
 
     # ----- DATA LOADER -----
@@ -974,9 +989,10 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
+            scale_str = f" bigram_scale:{base_model.bigram_scale.item():.4f}" if args.bigram_scale_mode == "learnable" else ""
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms{scale_str}"
             )
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1000,9 +1016,10 @@ def main() -> None:
     log0("PHASE 3: Quantizing neural weights + packaging artifact...")
 
     if master_process:
-        # Separate bigram table from neural weights
+        # Separate bigram table + scale from neural weights
         full_sd = base_model.state_dict()
         bigram_table_save = full_sd.pop("bigram_table").cpu().half()
+        bigram_scale_save = full_sd.pop("bigram_scale").cpu().float()
         neural_sd = {k: v.detach().cpu() for k, v in full_sd.items()}
 
         # Quantize neural weights to INT6
@@ -1011,6 +1028,7 @@ def main() -> None:
         # Package artifact
         artifact = {
             "bigram_table": bigram_table_save,
+            "bigram_scale": bigram_scale_save,
             "neural_weights": quant_result,
             "neural_meta": quant_meta,
             "config": {
@@ -1025,6 +1043,7 @@ def main() -> None:
                 "logit_softcap": args.logit_softcap,
                 "rope_base": args.rope_base,
                 "qk_gain_init": args.qk_gain_init,
+                "bigram_scale_mode": args.bigram_scale_mode,
             },
         }
         buf = io.BytesIO()
@@ -1051,6 +1070,7 @@ def main() -> None:
         blob = f.read()
     loaded = torch.load(io.BytesIO(lzma.decompress(blob)), map_location="cpu")
     loaded_bigram = loaded["bigram_table"].to(device)
+    loaded_scale = loaded["bigram_scale"].to(device)
     loaded_neural_sd = dequantize_state_dict_int6(loaded["neural_weights"], loaded["neural_meta"])
 
     eval_model = HybridGPT(
@@ -1063,9 +1083,10 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(
-        {**loaded_neural_sd, "bigram_table": loaded_bigram},
+        {**loaded_neural_sd, "bigram_table": loaded_bigram, "bigram_scale": loaded_scale},
         strict=True,
     )
+    log0(f"loaded bigram_scale:{eval_model.bigram_scale.item():.4f}")
 
     if device.type == "cuda":
         eval_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
