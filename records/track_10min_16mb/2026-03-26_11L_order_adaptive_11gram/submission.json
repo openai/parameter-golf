@@ -1,0 +1,9 @@
+{
+  "name": "11L XSA-all + order-adaptive 11-gram backoff",
+  "val_loss": 0.8881,
+  "bytes_total": 13991619,
+  "blurb": "11L XSA-all with order-adaptive entropy-gated 11-gram backoff. Mean 0.8881 (std 0.0006) across 3 seeds.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-26"
+}
