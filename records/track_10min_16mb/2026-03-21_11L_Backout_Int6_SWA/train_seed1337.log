@@ -1,0 +1,19 @@
+step:1000/9000 val_loss:2.2898 val_bpb:1.3562 train_time:83180ms step_avg:83.18ms
+step:2000/9000 val_loss:2.1546 val_bpb:1.2762 train_time:166291ms step_avg:83.15ms
+step:3000/9000 val_loss:2.1042 val_bpb:1.2462 train_time:249414ms step_avg:83.14ms
+step:4000/9000 val_loss:2.0807 val_bpb:1.2323 train_time:332605ms step_avg:83.15ms
+step:5000/9000 val_loss:2.0414 val_bpb:1.2090 train_time:415714ms step_avg:83.14ms
+swa:start step:5600
+step:6000/9000 val_loss:1.9846 val_bpb:1.1754 train_time:523229ms step_avg:87.20ms
+step:6642/9000 val_loss:1.9405 val_bpb:1.1493 train_time:599956ms step_avg:90.33ms
+stopping_early: wallclock_cap train_time:599956ms step:6642/9000
+peak memory allocated: 19807 MiB reserved: 20028 MiB
+swa:applying averaged 6 checkpoints
+Serialized model: 105784065 bytes
+Code size: 70854 bytes
+Serialized model int6+zstd: 16099197 bytes
+Total submission size int6+zstd: 16170051 bytes
+final_int6_roundtrip val_loss:1.9566 val_bpb:1.1588 eval_time:87796ms
+final_int6_roundtrip_exact val_loss:1.95664622 val_bpb:1.15883610
+final_int6_sliding_window val_loss:1.9188 val_bpb:1.1364 stride:64 eval_time:115552ms
+final_int6_sliding_window_exact val_loss:1.91882594 val_bpb:1.13643981
