@@ -84,7 +84,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 8192))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 6144))  # Reduced from 8192 for artifact headroom
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -94,7 +94,7 @@ class Hyperparameters:
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
-    prune_pct = float(os.environ.get("PRUNE_PCT", 0.05))  # 5% to guarantee <16MB across all seeds
+    prune_pct = float(os.environ.get("PRUNE_PCT", 0.10))  # 10% — 5% and 7% both failed on seed 1337
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -605,7 +605,7 @@ class GPT(nn.Module):
             self.ve_shared = None
             self.ve_layer_scales = nn.ParameterList()
         self.value_embeds = nn.ModuleList()
-        self.register_buffer('inference_temp', torch.tensor(0.98))
+        self.register_buffer('inference_temp', torch.tensor(1.0))
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
