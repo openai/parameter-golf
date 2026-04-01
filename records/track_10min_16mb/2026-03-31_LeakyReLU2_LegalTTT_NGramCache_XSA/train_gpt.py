@@ -149,6 +149,21 @@ class Hyperparameters:
     ngram_alpha_base = float(os.environ.get("NGRAM_ALPHA_BASE", 0.08))
     ngram_alpha_range = float(os.environ.get("NGRAM_ALPHA_RANGE", 0.65))
     ngram_entropy_center = float(os.environ.get("NGRAM_ENTROPY_CENTER", 3.5))
+    # Mixture-of-Depth style token routing (opt-in)
+    mod_enabled = bool(int(os.environ.get("MOD_ENABLED", "0")))
+    mod_attn_keep_ratio = float(os.environ.get("MOD_ATTN_KEEP_RATIO", 1.0))
+    mod_mlp_keep_ratio = float(os.environ.get("MOD_MLP_KEEP_RATIO", 1.0))
+    mod_min_keep_tokens = int(os.environ.get("MOD_MIN_KEEP_TOKENS", 64))
+    # SquareGLU gated MLP (opt-in)
+    squareglu_enabled = bool(int(os.environ.get("SQUAREGLU_ENABLED", "0")))
+    # EMA self-distillation during warmdown (opt-in)
+    ema_distill_enabled = bool(int(os.environ.get("EMA_DISTILL_ENABLED", "0")))
+    ema_distill_weight = float(os.environ.get("EMA_DISTILL_WEIGHT", 0.08))
+    ema_distill_temp = float(os.environ.get("EMA_DISTILL_TEMP", 1.6))
+    # Grokfast gradient low-pass (opt-in)
+    grokfast_enabled = bool(int(os.environ.get("GROKFAST_ENABLED", "0")))
+    grokfast_lambda = float(os.environ.get("GROKFAST_LAMBDA", 0.08))
+    grokfast_beta = float(os.environ.get("GROKFAST_BETA", 0.98))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -773,12 +788,19 @@ class ValueEmbedding(nn.Module):
         return h * self.scale.to(dtype=h.dtype)
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: int, squareglu: bool = False):
         super().__init__()
-        # No CastedLinear -- weights come from banks
-    def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor) -> Tensor:
-        x = F.leaky_relu(F.linear(x, up_w.to(x.dtype)), negative_slope=0.5)
-        return F.linear(x.square(), down_w.to(x.dtype))
+        self.squareglu = squareglu
+    def forward(self, x: Tensor, up_w: Tensor, down_w: Tensor, gate_w: Tensor | None = None) -> Tensor:
+        up = F.linear(x, up_w.to(x.dtype))
+        if self.squareglu:
+            if gate_w is None:
+                raise RuntimeError("SquareGLU requires gate_w.")
+            gate = F.linear(x, gate_w.to(x.dtype))
+            act = F.leaky_relu(up, negative_slope=0.5).square() * torch.sigmoid(gate)
+        else:
+            act = F.leaky_relu(up, negative_slope=0.5).square()
+        return F.linear(act, down_w.to(x.dtype))
 
 class Block(nn.Module):
     def __init__(
@@ -794,13 +816,32 @@ class Block(nn.Module):
         dtg: bool = False,
         gated_attention: bool = False,
         value_residual: bool = False,
+        squareglu: bool = False,
+        mod_enabled: bool = False,
+        mod_attn_keep_ratio: float = 1.0,
+        mod_mlp_keep_ratio: float = 1.0,
+        mod_min_keep_tokens: int = 64,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
                                         gated_attention=gated_attention, value_residual=value_residual)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, squareglu=squareglu)
+        self.mod_enabled = mod_enabled
+        self.mod_attn_keep_ratio = mod_attn_keep_ratio
+        self.mod_mlp_keep_ratio = mod_mlp_keep_ratio
+        self.mod_min_keep_tokens = mod_min_keep_tokens
+        if mod_enabled:
+            self.mod_attn_router = nn.Linear(dim, 1, bias=True)
+            self.mod_mlp_router = nn.Linear(dim, 1, bias=True)
+            nn.init.zeros_(self.mod_attn_router.weight)
+            nn.init.constant_(self.mod_attn_router.bias, 2.0)
+            nn.init.zeros_(self.mod_mlp_router.weight)
+            nn.init.constant_(self.mod_mlp_router.bias, 2.0)
+        else:
+            self.mod_attn_router = None
+            self.mod_mlp_router = None
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -811,12 +852,24 @@ class Block(nn.Module):
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, up_w: Tensor, down_w: Tensor, v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+    def _make_mod_mask(self, x: Tensor, router: nn.Linear | None, keep_ratio: float) -> Tensor:
+        if (not self.mod_enabled) or router is None or keep_ratio >= 0.999:
+            return torch.ones(x.shape[0], x.shape[1], 1, device=x.device, dtype=x.dtype)
+        scores = router(x.detach()).squeeze(-1)
+        bsz, seqlen = scores.shape
+        keep_k = max(self.mod_min_keep_tokens, int(math.ceil(keep_ratio * seqlen)))
+        keep_k = min(max(1, keep_k), seqlen)
+        topv = torch.topk(scores, k=keep_k, dim=1).values[:, -1:]
+        mask = (scores >= topv).to(dtype=x.dtype).unsqueeze(-1)
+        return mask
+    def forward(self, x: Tensor, x0: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, up_w: Tensor, down_w: Tensor, gate_w: Tensor | None = None, v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_mask = self._make_mod_mask(x_in, self.mod_attn_router, self.mod_attn_keep_ratio)
         attn_out, raw_v = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
-        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
-        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w)
+        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * (attn_out * attn_mask)
+        mlp_mask = self._make_mod_mask(x_out, self.mod_mlp_router, self.mod_mlp_keep_ratio)
+        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * (self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w, gate_w) * mlp_mask)
         if self.dtg_gate is not None:
             gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
             x_out = x_in + gate * (x_out - x_in)
@@ -849,6 +902,11 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         gated_attention: bool = False,
         value_residual: bool = False,
+        squareglu: bool = False,
+        mod_enabled: bool = False,
+        mod_attn_keep_ratio: float = 1.0,
+        mod_mlp_keep_ratio: float = 1.0,
+        mod_min_keep_tokens: int = 64,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -872,10 +930,12 @@ class GPT(nn.Module):
         kv_dim = num_kv_heads * head_dim
         mlp_dim = int(mlp_mult * model_dim)
         self.num_layers = num_layers
+        self.squareglu = squareglu
         self.qo_bank = nn.Parameter(torch.empty(2 * num_layers, model_dim, model_dim))
         self.kv_bank = nn.Parameter(torch.empty(2 * num_layers, kv_dim, model_dim))
         self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim))
         self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_dim))
+        self.mlp_gate_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim)) if squareglu else None
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -890,6 +950,11 @@ class GPT(nn.Module):
                     dtg=dtg,
                     gated_attention=gated_attention,
                     value_residual=value_residual,
+                    squareglu=squareglu,
+                    mod_enabled=mod_enabled,
+                    mod_attn_keep_ratio=mod_attn_keep_ratio,
+                    mod_mlp_keep_ratio=mod_mlp_keep_ratio,
+                    mod_min_keep_tokens=mod_min_keep_tokens,
                 )
                 for i in range(num_layers)
             ]
@@ -936,6 +1001,8 @@ class GPT(nn.Module):
             nn.init.orthogonal_(self.kv_bank.data[n + i], gain=1.0)    # V
             nn.init.orthogonal_(self.mlp_up_bank.data[i], gain=1.0)    # MLP up
             nn.init.zeros_(self.mlp_down_bank.data[i])                  # MLP down (zero init)
+            if self.mlp_gate_bank is not None:
+                nn.init.orthogonal_(self.mlp_gate_bank.data[i], gain=1.0)
             # Scale proj layers (out_proj and mlp_down are "proj" layers)
             self.qo_bank.data[n + i].mul_(proj_scale)
             self.mlp_down_bank.data[i].mul_(proj_scale)
@@ -971,6 +1038,7 @@ class GPT(nn.Module):
             x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                self.mlp_gate_bank[i] if self.mlp_gate_bank is not None else None,
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
@@ -983,6 +1051,7 @@ class GPT(nn.Module):
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                self.mlp_gate_bank[bi] if self.mlp_gate_bank is not None else None,
                 v_embed=ve, v0=v0)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
@@ -1029,6 +1098,7 @@ class GPT(nn.Module):
             x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                self.mlp_gate_bank[i] if self.mlp_gate_bank is not None else None,
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
@@ -1041,6 +1111,7 @@ class GPT(nn.Module):
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                self.mlp_gate_bank[bi] if self.mlp_gate_bank is not None else None,
                 v_embed=ve, v0=v0)
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -1075,6 +1146,8 @@ def _collect_ttt_trainables(
         ("mlp_up_bank", model.mlp_up_bank, 0.5, False),
         ("mlp_down_bank", model.mlp_down_bank, 3.0, False),
     )
+    if model.mlp_gate_bank is not None:
+        bank_specs = (*bank_specs, ("mlp_gate_bank", model.mlp_gate_bank, 0.6, False))
     all_blocks_frozen = len(frozen_block_ids) >= model.num_layers
     for _name, p, lr_mult, duplicate_block_axis in bank_specs:
         handled_ids.add(id(p))
@@ -2026,12 +2099,19 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
+        squareglu=args.squareglu_enabled,
+        mod_enabled=args.mod_enabled,
+        mod_attn_keep_ratio=args.mod_attn_keep_ratio,
+        mod_mlp_keep_ratio=args.mod_mlp_keep_ratio,
+        mod_min_keep_tokens=args.mod_min_keep_tokens,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
     base_model.kv_bank.data = base_model.kv_bank.data.float()
     base_model.mlp_up_bank.data = base_model.mlp_up_bank.data.float()
     base_model.mlp_down_bank.data = base_model.mlp_down_bank.data.float()
+    if base_model.mlp_gate_bank is not None:
+        base_model.mlp_gate_bank.data = base_model.mlp_gate_bank.data.float()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -2050,6 +2130,8 @@ def main() -> None:
         base_model.qo_bank, base_model.kv_bank,
         base_model.mlp_up_bank, base_model.mlp_down_bank,
     ]
+    if base_model.mlp_gate_bank is not None:
+        matrix_params.append(base_model.mlp_gate_bank)
     block_named_params = list(base_model.blocks.named_parameters())
     scalar_params = [
         p
@@ -2185,6 +2267,13 @@ def main() -> None:
     lawa_queue: deque[dict[str, Tensor]] = deque(maxlen=args.lawa_k)
     ema_state = {name: t.detach().float().clone() for name, t in tracked_state_items}
     ema_decay = 0.9985
+    ema_teacher: GPT | None = None
+    if args.ema_distill_enabled:
+        ema_teacher = copy.deepcopy(base_model).eval()
+        for p in ema_teacher.parameters():
+            p.requires_grad_(False)
+        log0(f"ema_distill:enabled weight={args.ema_distill_weight} temp={args.ema_distill_temp}")
+    grok_ema: dict[int, Tensor] = {}
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
@@ -2228,10 +2317,26 @@ def main() -> None:
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
+        distill_loss_meter = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
+                if args.ema_distill_enabled and ema_teacher is not None and scale < 0.35 and args.ema_distill_weight > 0:
+                    if step % 16 == 0 and micro_step == 0:
+                        teacher_sd = {k: v.to(dtype=ema_teacher.state_dict()[k].dtype, device=device) for k, v in ema_state.items()}
+                        ema_teacher.load_state_dict(teacher_sd, strict=True)
+                    with torch.no_grad():
+                        teacher_logits = ema_teacher.forward_logits(x)
+                    student_logits = base_model.forward_logits(x)
+                    temp = max(args.ema_distill_temp, 1e-4)
+                    kd = F.kl_div(
+                        F.log_softmax(student_logits.float() / temp, dim=-1),
+                        F.softmax(teacher_logits.float() / temp, dim=-1),
+                        reduction="batchmean",
+                    ) * (temp * temp)
+                    loss = loss + args.ema_distill_weight * kd
+                    distill_loss_meter += kd.detach()
             # CROWN-Q: add quantization-aware penalty during warmdown
             if args.crown_q_lambda > 0 and scale < args.crown_q_threshold:
                 crown_q_loss = torch.zeros((), device=device)
@@ -2256,6 +2361,19 @@ def main() -> None:
                 group["lr"] = group["base_lr"] * scale
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+        if args.grokfast_enabled and args.grokfast_lambda > 0:
+            with torch.no_grad():
+                beta = args.grokfast_beta
+                for p in base_model.parameters():
+                    if p.grad is None:
+                        continue
+                    key = id(p)
+                    g = p.grad.detach()
+                    if key not in grok_ema:
+                        grok_ema[key] = g.float().clone()
+                    else:
+                        grok_ema[key].mul_(beta).add_(g.float(), alpha=1.0 - beta)
+                    g.add_(grok_ema[key].to(dtype=g.dtype), alpha=args.grokfast_lambda)
         # === 3-phase overlapped optimizer step ===
         # Phase 1: Launch async reduce-scatter for banks (biggest first)
         optimizer_muon.launch_reduce_scatters()
@@ -2293,8 +2411,10 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
+            distill_avg = (distill_loss_meter / max(grad_accum_steps, 1)).item() if args.ema_distill_enabled else 0.0
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"distill:{distill_avg:.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
