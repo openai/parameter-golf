@@ -1,0 +1,10 @@
+{
+  "author": "Rhodrium",
+  "github_id": "Rhodrium",
+  "name": "10L MLP3x + BigramHash(2048) + SWA + Stride-32",
+  "blurb": "10-layer relu² MLP3x with BigramHash(2048), SmearGate, OrthoInit, mixed int5/int6 + zstd-22, SWA averaging, stride-32 sliding eval. Key contribution: dense stride-32 eval for better token-level context coverage.",
+  "date": "2026-03-21",
+  "val_bpb": 1.1487,
+  "bytes_total": 14902179,
+  "bytes_code": 46541
+}
