@@ -12,6 +12,14 @@
     "train_time_s": 600,
     "bytes_total": 10048191
   },
+  "seed_4": {
+    "val_bpb": 1.1768,
+    "val_bpb_exact": 1.17676091,
+    "int6_sw_bpb": 1.17676091,
+    "steps": 7074,
+    "bytes_total": 10266138,
+    "train_time_s": 600
+  },
   "seed_300": {
     "val_bpb": 1.1749,
     "val_bpb_exact": 1.17490448,
@@ -20,7 +28,7 @@
     "bytes_total": 10343385,
     "train_time_s": 600
   },
-  "val_bpb": 1.1757,
+  "val_bpb": 1.1761,
   "bytes_total": 10343385,
   "bytes_code": 119294,
   "hardware": "8xH100 SXM"

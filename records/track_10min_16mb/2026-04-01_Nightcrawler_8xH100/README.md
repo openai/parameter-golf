@@ -7,8 +7,9 @@ Adds a fifth flat transformer layer on each side of the crawler bottleneck (5F+1
 | Seed | val_bpb (sliding window) | Steps | Size |
 |------|--------------------------|-------|------|
 | 444  | 1.17651313               | 7074  | 10048191 B |
+| 4    | 1.17676091               | 7074  | 10266138 B |
 | 300  | 1.17490448               | 7077  | 10343385 B |
-| **mean** | **1.1757**           |       | **10343385 B** |
+| **mean** | **1.1761**           |       | **10343385 B** |
 
 Hardware: 8×H100 SXM · 600s wallclock · `bytes_code`: 119294
 
