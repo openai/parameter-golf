@@ -40,6 +40,9 @@ except ImportError:
 if os.environ.get("TORCHDYNAMO_SUPPRESS_ERRORS", "0") == "1":
     import torch._dynamo
     torch._dynamo.config.suppress_errors = True
+if os.environ.get("TORCHDYNAMO_OPTIMIZE_DDP", "0") == "0":
+    import torch._dynamo
+    torch._dynamo.config.optimize_ddp = False
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -1835,6 +1838,12 @@ def eval_val_sliding(
     my_windows = window_starts[my_s:my_e]
     if max_windows > 0:
         my_windows = my_windows[:max_windows]
+    # Separate window 0 so it never contaminates a SLOT batch
+    if slot_enabled:
+        my_windows_w0 = [ws for ws in my_windows if ws == 0]
+        my_windows = [ws for ws in my_windows if ws != 0]
+    else:
+        my_windows_w0 = []
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -1846,6 +1855,27 @@ def eval_val_sliding(
             fullgraph=args.compile_fullgraph,
         )
     with (torch.inference_mode() if not slot_enabled else torch.no_grad()):
+        # Process window 0 separately (no prior context for SLOT)
+        for ws in my_windows_w0:
+            end = min(ws + seq_len, total_tokens)
+            wlen = end - ws
+            x_w0 = val_tokens[ws:end].to(dtype=torch.int64, device=device).unsqueeze(0)
+            y_w0 = val_tokens[ws + 1:end + 1].to(dtype=torch.int64, device=device).unsqueeze(0)
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_w0 = base_model.forward_logits(x_w0)
+            nll_w0 = F.cross_entropy(
+                logits_w0.reshape(-1, logits_w0.size(-1)).float(),
+                y_w0.reshape(-1),
+                reduction="none",
+            ).reshape(1, wlen)
+            for s in range(wlen):
+                global_j = ws + s + 1
+                base_b = base_bytes_lut[val_tokens[global_j]].item()
+                nll_val = nll_w0[0, s].item()
+                loss_sum += nll_val
+                token_count += 1
+                byte_count += base_b
+        # Process remaining windows (with SLOT if enabled)
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
             bsz = len(batch_ws)
@@ -1859,7 +1889,7 @@ def eval_val_sliding(
                 chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
                 x_batch[i, :wlen] = chunk[:-1]
                 y_batch[i, :wlen] = chunk[1:]
-            if slot_enabled and not any(ws == 0 for ws in batch_ws):
+            if slot_enabled:
                 # Context-Only SLOT (legal): capture hidden via hook on final_norm,
                 # optimize delta on context positions only, score new positions.
                 # Body runs once; only the tiny head runs per opt step.
@@ -1894,10 +1924,6 @@ def eval_val_sliding(
                     lp = (F.linear(h, base_model.tok_emb.weight)
                           if base_model.tie_embeddings else base_model.lm_head(h))
                     logits = base_model.logit_softcap * torch.tanh(lp / base_model.logit_softcap)
-            elif slot_enabled:
-                # Window 0 batch: no prior context to optimize from, use base model.
-                with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits = base_model.forward_logits(x_batch)
             else:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     logits = compiled_logits(x_batch)
