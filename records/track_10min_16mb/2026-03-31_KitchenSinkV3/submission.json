@@ -1,0 +1,11 @@
+{
+  "author": "alejandro",
+  "github_id": "Gusanidas",
+  "name": "Kitchen Sink V3: 12L Window Attn + Mixed Seq_Len + Fused MLP",
+  "blurb": "12-layer split-bank U-Net with window attention (size=512 on layers 2,4,6,8,10), mixed seq_len training (5 GPUs at 2048 + 3 GPUs at 6144), fused Triton LeakyReLU-squared MLP, sigmoid-gated skip connections, brotli+byte-shuffle compression, bigram hash 5120, VE dim 128, Flash Attention 3, GPTQ int6, sliding window eval (stride=128, seq_len=6144). Eval: 1.1083 bpb (5-seed mean).",
+  "date": "2026-03-31",
+  "val_loss": 1.8755,
+  "val_bpb": 1.1083,
+  "bytes_total": 15726762,
+  "bytes_code": 34101
+}
