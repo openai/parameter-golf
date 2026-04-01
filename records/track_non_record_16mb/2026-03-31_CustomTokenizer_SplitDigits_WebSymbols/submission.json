@@ -1,0 +1,12 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-31",
+  "name": "Custom Tokenizer: split_digits=false + Web Symbols",
+  "author": "Mikeapedia",
+  "github_id": "mikeapedia",
+  "blurb": "Custom SentencePiece BPE with web-content user_defined_symbols and split_digits=false. Untested - seeking H100 access to evaluate.",
+  "val_bpb": null,
+  "val_loss": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
