@@ -1,0 +1,22 @@
+{
+  "author": "newjordan",
+  "github_id": "newjordan",
+  "name": "Sponge Bath — TTT 8ep + Stride 32",
+  "blurb": "Eval-only improvement on SOTA254 base: increase TTT epochs from 3 to 8 and reduce eval stride from 64 to 32. No model or training changes. 2-seed verified (1.1295 / 1.1307), mean 1.1301 BPB.",
+  "date": "2026-03-22T00:00:00Z",
+  "track": "10min-16mb",
+  "seed_1337": {
+    "val_bpb": 1.1295,
+    "bytes_total": 15740000
+  },
+  "seed_42": {
+    "val_bpb": 1.1307,
+    "bytes_total": 15690000
+  },
+  "val_bpb": 1.1295,
+  "baseline_val_bpb": 1.1303,
+  "improvement_bpb": -0.0008,
+  "bytes_total": 15740000,
+  "wallclock_seconds": 600,
+  "hardware": "8xH100 SXM"
+}
