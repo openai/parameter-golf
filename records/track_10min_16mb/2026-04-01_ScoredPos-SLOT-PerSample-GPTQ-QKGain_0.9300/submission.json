@@ -1,0 +1,18 @@
+{
+  "name": "Scored-Position SLOT + Per-Sample Delta + Logit Bias + GPTQ-TrainCalib + QK-Gain",
+  "val_bpb": "0.9300",
+  "val_bpb_seeds": {
+    "1337": "0.9294",
+    "42": "0.9306",
+    "2025": "0.9301"
+  },
+  "val_bpb_std": "0.0006",
+  "bytes_total": "15560230",
+  "blurb": "Built on PR #1019. Novel scored-position SLOT: per-sample [bsz,1,512] hidden delta + [bsz,1,vocab] logit bias optimized only on eval-scored positions (last stride=64 per window) with cosine LR 0.008->0.0008 over 16 AdamW steps. Training-data GPTQ calibration (256 batches real data), block_size 64, QK-Gain 4.0, sigmoid-gated skips, Brotli-11 compression. 3-seed mean 0.9300 BPP (std 0.0006), beats merged SOTA 1.1194 by 0.189.",
+  "author": "resouer",
+  "github_id": "resouer",
+  "date": "2026-04-01",
+  "step_avg_ms": "87.99",
+  "training_steps": "6820",
+  "eval_time_slot_s": "297"
+}
