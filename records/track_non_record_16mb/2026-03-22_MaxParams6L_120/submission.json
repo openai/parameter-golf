@@ -1,0 +1,9 @@
+{
+  "author": "NishantDahal",
+  "github_id": "NishantDahal",
+  "run_name": "01_MaxParams6L_120",
+  "val_bpb": 1.2374,
+  "val_loss": 2.0893,
+  "status": "completed_step6245",
+  "note": "Full run, 600s wallclock, int8+zlib roundtrip verified. Final val at step 6245."
+}
