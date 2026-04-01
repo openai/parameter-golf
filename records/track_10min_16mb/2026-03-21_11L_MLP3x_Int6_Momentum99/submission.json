@@ -1,0 +1,17 @@
+{
+  "author": "Kshitiz",
+  "github_id": "kshitizz36",
+  "name": "11L MLP3x + Int6 PTQ + Muon Momentum 0.99",
+  "blurb": "SP-4096 tokenizer with 11 transformer layers, 3x MLP expansion, int6 post-training quantization (levels=31) with zstd-22 compression, Muon momentum 0.99, decoupled weight decay 0.02, fp16 embedding passthrough, stride-64 sliding window eval.",
+  "date": "2026-03-21T12:00:00Z",
+  "val_loss": 2.66775005,
+  "val_bpb": 1.15955383,
+  "pre_quant_val_loss": 2.7156,
+  "pre_quant_val_bpb": 1.1803,
+  "step_stop": 9237,
+  "wallclock_seconds": 600.049,
+  "eval_time_seconds": 129.337,
+  "bytes_total": 15306785,
+  "bytes_model_int8_zstd": 15240644,
+  "bytes_code": 66141
+}
