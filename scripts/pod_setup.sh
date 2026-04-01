@@ -151,9 +151,12 @@ echo ""
 echo "[5/6] FlashAttention-3..."
 
 FA3_LOCAL_PYTHONPATH="${WORKSPACE}/flash-attention/hopper:${PYTHONPATH:-}"
+FA3_SYSTEM_PYTHONPATH="${PYTHONPATH:-}"
+FA3_SELECTED_PYTHONPATH=""
 
-check_fa3() {
-    PYTHONPATH="${FA3_LOCAL_PYTHONPATH}" python3 -c "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')"
+check_fa3_path() {
+    local pypath="${1:-}"
+    PYTHONPATH="${pypath}" python3 -c "from flash_attn_interface import flash_attn_func; print('  FA3 (flash_attn_interface) OK')"
 }
 
 install_fa3() {
@@ -167,11 +170,25 @@ install_fa3() {
     return 1
 }
 
-check_fa3 2>/dev/null \
-    || install_fa3 \
-    || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
-check_fa3 >/dev/null 2>&1 \
-    || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
+    FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
+    echo "  Using FA3 provider: local hopper path"
+elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
+    FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
+    echo "  Using FA3 provider: system/site-packages"
+else
+    install_fa3 || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
+        FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
+        echo "  Using FA3 provider: local hopper path"
+    elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
+        FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
+        echo "  Using FA3 provider: system/site-packages"
+    else
+        echo "FATAL: FA3 import failed (missing or ABI mismatch, e.g. undefined symbol)."
+        exit 1
+    fi
+fi
 
 # =============================================================================
 # 6. Dataset (sp1024)
@@ -233,7 +250,7 @@ echo "============================================"
 echo " Verification"
 echo "============================================"
 
-python3 - << 'PYEOF'
+PYTHONPATH="${FA3_SELECTED_PYTHONPATH}" python3 - << 'PYEOF'
 import sys, glob
 
 print(f"Python       : {sys.version.split()[0]}")
@@ -245,10 +262,9 @@ print(f"CUDA avail   : {torch.cuda.is_available()}")
 print(f"GPUs         : {torch.cuda.device_count()}")
 
 fa = "NOT FOUND"
-sys.path.insert(0, "./flash-attention/hopper")
 try:
     from flash_attn_interface import flash_attn_func
-    fa = "flash_attn_interface (FA3 hopper)"
+    fa = "flash_attn_interface (FA3)"
 except ImportError:
     pass
 print(f"FlashAttn    : {fa}")

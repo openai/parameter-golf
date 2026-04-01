@@ -20,17 +20,29 @@ PYTHONPATH_EXTRA=""
 if [[ -d "${REPO_ROOT}/flash-attention/hopper" ]]; then
     PYTHONPATH_EXTRA="${REPO_ROOT}/flash-attention/hopper:"
 fi
-FA3_PYTHONPATH="${PYTHONPATH_EXTRA}${PYTHONPATH:-}"
+FA3_DEFAULT_PYTHONPATH="${PYTHONPATH_EXTRA}${PYTHONPATH:-}"
+FA3_PYTHONPATH="${FA3_PYTHONPATH:-}"
+FA3_RUNTIME_PYTHONPATH="${PYTHONPATH:-}"
 
 cuda_ver=$(python3 -c "import torch; print(torch.version.cuda or 'NONE')" 2>/dev/null) || { echo "FATAL: python3/torch failed"; exit 1; }
 torch_ver=$(python3 -c "import torch; print(torch.__version__)" 2>/dev/null)
 [[ "${cuda_ver}" == "${REQUIRED_CUDA_PREFIX}"* ]] || { echo "FATAL: wrong CUDA: ${cuda_ver} (torch ${torch_ver}) — SOTA requires ${REQUIRED_CUDA_PREFIX}x"; exit 1; }
 [[ "${torch_ver}" == "${REQUIRED_TORCH_VERSION}" ]] || { echo "FATAL: wrong torch: ${torch_ver} — SOTA requires ${REQUIRED_TORCH_VERSION}"; exit 1; }
 if [[ "${REQUIRE_FA3}" == "1" ]]; then
-    PYTHONPATH="${FA3_PYTHONPATH}" python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1 || {
-        echo "FATAL: flash_attn_interface missing — refusing fallback backend"
+    if [[ -n "${FA3_PYTHONPATH}" ]]; then
+        PYTHONPATH="${FA3_PYTHONPATH}" python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1 || {
+            echo "FATAL: FA3 import failed under FA3_PYTHONPATH=${FA3_PYTHONPATH}"
+            exit 1
+        }
+        FA3_RUNTIME_PYTHONPATH="${FA3_PYTHONPATH}"
+    elif PYTHONPATH="${FA3_DEFAULT_PYTHONPATH}" python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1; then
+        FA3_RUNTIME_PYTHONPATH="${FA3_DEFAULT_PYTHONPATH}"
+    elif python3 -c "from flash_attn_interface import flash_attn_func; print('fa3_ok')" >/dev/null 2>&1; then
+        FA3_RUNTIME_PYTHONPATH="${PYTHONPATH:-}"
+    else
+        echo "FATAL: flash_attn_interface missing or ABI-mismatched (e.g. undefined symbol). Rebuild/install FA3 for torch=${torch_ver} cuda=${cuda_ver}."
         exit 1
-    }
+    fi
 fi
 echo "env: torch=${torch_ver}  cuda=${cuda_ver}  OK"
 echo "=== Rascal_III_SLOT gate  seed=${SEED}  nproc=${NPROC} ==="
@@ -73,7 +85,7 @@ run_arm() {
     SEED="${SEED}" \
     DATA_PATH="${DATA_PATH}" \
     TOKENIZER_PATH="${TOKENIZER_PATH}" \
-    PYTHONPATH="${PYTHONPATH_EXTRA}${PYTHONPATH:-}" \
+    PYTHONPATH="${FA3_RUNTIME_PYTHONPATH}" \
     "${TORCHRUN}" --standalone "--nproc_per_node=${NPROC}" "${SCRIPT_DIR}/train_gpt_slot.py" \
         2>&1 | tee "${log}"
     echo "[${name}] done"

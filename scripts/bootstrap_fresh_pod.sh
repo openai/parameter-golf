@@ -105,20 +105,37 @@ python -m pip install -r requirements.txt
 python -m pip install zstandard
 
 FA3_LOCAL_PYTHONPATH="${REPO_DIR}/flash-attention/hopper:${PYTHONPATH:-}"
+FA3_SYSTEM_PYTHONPATH="${PYTHONPATH:-}"
+FA3_SELECTED_PYTHONPATH=""
 
-check_fa3() {
-PYTHONPATH="${FA3_LOCAL_PYTHONPATH}" python - <<'PY'
+check_fa3_path() {
+PYTHONPATH="${1:-}" python - <<'PY'
 from flash_attn_interface import flash_attn_func  # noqa: F401
 PY
 }
 
 # Required FA3 install (no fallback)
-if ! check_fa3 >/dev/null 2>&1; then
+if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
+    FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
+    log "Using FA3 provider: local hopper path"
+elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
+    FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
+    log "Using FA3 provider: system/site-packages"
+else
     log "flash_attn_interface missing; attempting FA3 wheel (required)"
     python -m pip install --no-cache-dir \
       "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
       || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
-    check_fa3 >/dev/null 2>&1 || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
+        FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
+        log "Using FA3 provider: local hopper path"
+    elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
+        FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
+        log "Using FA3 provider: system/site-packages"
+    else
+        echo "FATAL: FA3 import failed (missing or ABI mismatch, e.g. undefined symbol)."
+        exit 1
+    fi
 fi
 
 mkdir -p "${REPO_DIR}/logs"
@@ -131,7 +148,7 @@ source "${MINICONDA_DIR}/etc/profile.d/conda.sh"
 conda activate "${CONDA_ENV}"
 cd "${REPO_DIR}"
 export PATH="${MINICONDA_DIR}/bin:\${PATH}"
-export PYTHONPATH="${REPO_DIR}/flash-attention/hopper:\${PYTHONPATH:-}"
+export PYTHONPATH="${FA3_SELECTED_PYTHONPATH}"
 ACTEOF
 chmod +x "${WORKSPACE}/activate_pglab.sh"
 
@@ -156,7 +173,7 @@ if not (torch.version.cuda or "NONE").startswith(required_cuda):
 PY
 
 if [ "${REQUIRE_FA3}" = "1" ]; then
-    PYTHONPATH="${FA3_LOCAL_PYTHONPATH}" python - <<'PY'
+    PYTHONPATH="${FA3_SELECTED_PYTHONPATH}" python - <<'PY'
 from flash_attn_interface import flash_attn_func  # noqa: F401
 print("flash_attn_interface: OK")
 PY
