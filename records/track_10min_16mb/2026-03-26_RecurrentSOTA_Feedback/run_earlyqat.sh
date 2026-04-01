@@ -62,7 +62,7 @@ export LATE_QAT_THRESHOLD=0.15
 export TTT_ENABLED=1
 export TTT_LR=0.002
 export TTT_EPOCHS=3
-export TTT_CHUNK_TOKENS=49152
+export TTT_CHUNK_TOKENS=32768 #49152
 export TTT_FREEZE_BLOCKS=0
 export TTT_MOMENTUM=0.9
 export TTT_BATCH_SEQS=32
@@ -72,17 +72,17 @@ export TTT_GRAD_CLIP=1.0
 export CORE_START=4
 export CORE_END=7
 export NUM_PASSES=1
-export EVAL_PASSES=4
+export EVAL_PASSES=3
 export CORE_QUANT_ENABLED=0
-# Progressive: 1-pass until step 4500, then ramp 2->3->4
-export PASSES_SCHEDULE="0:1,4500:2,5500:3,6000:4"
+# Progressive: 1-pass until step 4500, then ramp 2->3
+export PASSES_SCHEDULE="0:1,4500:2,5500:3"
 
 export SEED=1337
-export RUN_ID="bigram_ve_wd3500"
+export RUN_ID="bigram_ve_wd3500_3pass"
 
 torchrun --standalone --nproc_per_node=1 train_gpt.py \
     --feedback-mode diagonal --feedback-rank 2 \
     --residual-scale-init 0.5 \
     --jacobian-proxy-weight 0.1 \
     --no-interpass-rmsnorm \
-    2>&1 | tee logs/bigram_ve_wd3500.txt
+    2>&1 | tee logs/bigram_ve_wd3500_3pass.txt
