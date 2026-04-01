@@ -86,18 +86,24 @@ DO NOT CHANGE without explicit hypothesis:
 
 ## Thread: Quantization — GPTQ
 
-Biggest single gap vs competition. GPTQ code is already in the vault script (lines 552–643).
-We run SKIP_GPTQ=1 because original Rascal I was too large with GPTQ. Rascal II is 15.44MB —
-with GPTQ enabled, quantization quality improves, potentially offsetting the ~328 lost training
-steps from the 30s reserve window.
+Biggest single gap vs competition. quant_gap = +0.0217 BPB (int6 - float32) — confirmed in sweep.
+GPTQ code is already in the vault script (lines 552–643). We run SKIP_GPTQ=1 because original
+Rascal I was too large with GPTQ. Rascal II is 15.44MB — with GPTQ enabled, quantization quality
+improves, potentially offsetting the ~328 lost training steps from the 30s reserve window.
 
 Current calibration (when GPTQ enabled): 256 samples from training data, 2048 token context.
 PR #1019 uses AR self-generated data (64 seq × 2048 tok, temp=0.8) — better for deployment
 distribution; does NOT touch val data (legal).
 
+**BUG (2026-03-31)**: `gptq:calibrated 2 layers in 1.9s` → `gptq_quantize: 0 GPTQ layers`.
+Only 2 of ~many layers are hooked during calibration. Quantizer key lookup matches 0 calibrated layers.
+Likely cause: `torch.compile` changes module internals so hooks don't attach to the right places.
+`gptq_full` (full training with SKIP_GPTQ=0) is the next test.
+
 | Date | Leg | Change vs Parent | Gate | Full Run BPB | Size | Verdict | Key Finding |
 |------|-----|-----------------|------|-------------|------|---------|-------------|
-| — | Rascal_III_GPTQ | SKIP_GPTQ=0 (enable GPTQ, training-data calib) | — | — | — | NOT STARTED | Costs ~30s → ~328 fewer steps. GPTQ_RESERVE_MS=30000. Single variable. |
+| 2026-03-31 | gptq (post-train) | SKIP_GPTQ=0, SKIP_TRAIN=1 (reuse baseline ckpt) | ✗ | — | — | ✗ BUG | Only 2 layers hooked, 0 quantized. torch.compile hook mismatch. Model unchanged = 0 delta. |
+| — | Rascal_III_GPTQ | SKIP_GPTQ=0 (full training + GPTQ calib) | — | — | — | ⏳ PENDING | Costs ~30s → ~328 fewer steps. GPTQ_RESERVE_MS=30000. Single variable. |
 | — | Rascal_III_ARcal | AR self-gen calibration (replace training-data) | — | — | — | NOT STARTED | Requires ~20 lines new code. Do AFTER GPTQ gate passes. |
 
 ---
@@ -110,7 +116,8 @@ Size impact of 3072 (keep DIM=128): +1024 buckets × 128 dim = +131K params × 0
 
 | Date | Leg | Change vs Parent | Gate | Full Run BPB | Size | Verdict | Key Finding |
 |------|-----|-----------------|------|-------------|------|---------|-------------|
-| — | Rascal_III_Bigram3072 | BIGRAM_VOCAB_SIZE=3072 (keep DIM=128) | — | — | — | NOT STARTED | Single variable. Est. +50KB size increase. |
+| 2026-03-31 | bigram_3072 (sweep) | BIGRAM_VOCAB_SIZE=2048→3072 | proxy: 0.0000 | — | 14.30MB | ✗ DEAD | Zero measured signal at proxy scale. Size increases +0.78MB. Do not run 8×GPU. |
+| 2026-03-31 | bigram_4096 (sweep) | BIGRAM_VOCAB_SIZE=2048→4096 | proxy: +0.0006 | — | 14.42MB | ✗ DEAD | Hurts. Size risk (14.42MB). Dead permanently. |
 
 ---
 
@@ -118,7 +125,11 @@ Size impact of 3072 (keep DIM=128): +1024 buckets × 128 dim = +131K params × 0
 
 | Date | Leg | Change vs Parent | Gate | Full Run BPB | Size | Verdict | Key Finding |
 |------|-----|-----------------|------|-------------|------|---------|-------------|
-| — | Rascal_III_Warmdown4k | WARMDOWN_ITERS=4000 (was 3500) | — | — | — | NOT STARTED | Single variable. More steps in the cool-down. est. ~0.0005 BPB. |
+| 2026-03-31 | warmdown_4k (sweep) | WARMDOWN_ITERS=3500→4000 | proxy: +0.0034 | — | 13.79MB | ✗ DEAD | HURTS significantly. Root cause: time-based schedule → longer warmdown → QAT fires EARLIER (step 2297 vs 2376). Dead permanently. Do not retry without step-based schedule. |
+| 2026-03-31 | qat_early (sweep) | LATE_QAT_THRESHOLD=0.15→0.25 | proxy: +0.0004 | — | 14.23MB | ✗ DEAD | Hurts. QAT at step 2021 (355 earlier). No gain from earlier QAT at proxy scale. |
+| 2026-03-31 | qat_late (sweep) | LATE_QAT_THRESHOLD=0.15→0.05 | proxy: +0.0004 | — | 14.01MB | ✗ DEAD | Hurts. QAT at step 2721 (345 later). Symmetric with qat_early — threshold doesn't matter. |
+| 2026-03-31 | swa_dense (sweep) | SWA_EVERY=50→10 | proxy: +0.0010 | — | 13.60MB | ✗ DEAD | Hurts. More snapshots = worse averaging. Current SWA_EVERY=50 is correct. |
+| 2026-03-31 | rope_32 (sweep) | ROPE_DIMS=16→32 | proxy: -0.0004 | — | 13.56MB | ✗ BORDERLINE | Below noise floor (~0.001 needed). Do not run 8×GPU. |
 
 ---
 
@@ -189,7 +200,8 @@ Requires ~30 lines of code change in the eval function. Worth testing if current
 
 | Date | Leg | Change | Signal | Verdict |
 |------|-----|--------|--------|---------|
-| 2026-03-31 | QK_Gain_SLOT experiment | baseline vs slot_only (1200 steps, 1GPU) | ✓ −0.0085 proxy sw_bpb | ⚠️ AWAITING LEGALITY RULING |
+| 2026-03-31 | QK_Gain_SLOT experiment | baseline vs slot_only (1200 steps, 1GPU) | ✓ −0.0085 proxy sw_bpb | ⚠️ ILLEGAL — causality violation |
+| 2026-03-31 | QK_Gain_SLOT_Legal | Context-only SLOT (optimize on scored prefix only) | ✓ −0.0057 proxy sw_bpb | ✓ GATE PASSED — awaiting 8×GPU run |
 
 ---
 
@@ -205,19 +217,21 @@ Code minification potential: 118KB → ~28KB = ~90KB freed for model weights.
 
 ---
 
-## Recommended Hypothesis Order
+## Recommended Hypothesis Order (updated 2026-03-31 post-sweep)
 
-Priority based on expected BPB gain per complexity of change:
+Arch+Sched sweep verdict: **all 9 cases dead or borderline.** No 8×GPU runs from sweep.
+GPTQ is the only open win. Legal SLOT gate passed — queued for 8×GPU.
 
-| Priority | Leg Name | Change | Expected Gain | Risk | Est. Cost |
-|----------|---------|--------|--------------|------|-----------|
-| **1** | **Rascal_III_GPTQ** | SKIP_GPTQ=0, training-data calib | −0.003 to −0.009 BPB | Low (code exists) | 1 env var |
-| **2** | **Rascal_III_ARcal** | AR self-gen GPTQ calib (after GPTQ passes) | −0.001 to −0.003 more | Low | ~20 lines code |
-| **3** | **Rascal_III_Bigram3072** | BIGRAM_VOCAB_SIZE=3072 | −0.001 to −0.002 | Low | 1 env var |
-| 4 | Rascal_III_Warmdown4k | WARMDOWN_ITERS=4000 | ~−0.0005 | Very low | 1 env var |
-| 5 | SLOT (context-only) | Legal variant — adapt on scored prefix, score new | −0.0006 to −0.0017 | Medium (ruling needed) | ~30 lines code |
-| 6 | Rascal_Brotli | zstd → Brotli-11 | Frees budget | Medium (new dep) | New dep |
-| 7 | Rascal_Minified | Code minification | Frees ~90KB | Medium (infra) | Infra work |
+| Priority | Leg Name | Change | Expected Gain | Risk | Est. Cost | Status |
+|----------|---------|--------|--------------|------|-----------|--------|
+| **1** | **Rascal_III_GPTQ** | SKIP_GPTQ=0, full training + GPTQ calib | −0.003 to −0.009 BPB | Low (code exists) | 1 env var | ⏳ BUG TO FIX FIRST |
+| **2** | **QK_Gain_SLOT_Legal full run** | Context-only SLOT on 8×GPU | −0.0004 to −0.0011 BPB est. | Medium (ruling risk) | eval-only | ⏳ READY |
+| **3** | **Rascal_III_ARcal** | AR self-gen GPTQ calib (after GPTQ passes) | −0.001 to −0.003 more | Low | ~20 lines code | NOT STARTED |
+| 4 | Rascal_Brotli | zstd → Brotli-11 | Frees budget | Medium (new dep) | New dep | NOT STARTED |
+| 5 | Rascal_Minified | Code minification | Frees ~90KB | Medium (infra) | Infra work | NOT STARTED |
+| ✗ | ~~Bigram3072~~ | BIGRAM_VOCAB_SIZE=3072 | 0.0000 at proxy | — | — | DEAD (2026-03-31) |
+| ✗ | ~~Warmdown4k~~ | WARMDOWN_ITERS=4000 | +0.0034 (hurts) | — | — | DEAD PERMANENTLY (2026-03-31) |
+| ✗ | ~~rope_32~~ | ROPE_DIMS=16→32 | −0.0004 (noise) | — | — | DEAD (2026-03-31) |
 
 Gate target for all new legs: beat **1.10986874** BPB on seed 444 → confirm on seed 300.
 
@@ -229,3 +243,5 @@ Gate target for all new legs: beat **1.10986874** BPB on seed 444 → confirm on
 |-----|----------------|------|----------|--------|
 | (pre-Rascal history — junkyard) | — | — | — | — |
 | **Rascal_II** | **1.10986874** | **15.44MB** | **1.1099** | **CHAMPION (open PR #1120)** |
+
+| 2026-03-31 | **QK_Gain_SLOT_Legal** | context-only SLOT (eval-only) | ✓ gate −0.0057 proxy | — | — | — | ⏳ GATE PASSED, 8×GPU PENDING | |
