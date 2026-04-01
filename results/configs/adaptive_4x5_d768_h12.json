@@ -1,0 +1,25 @@
+{
+    "experiment": "adaptive_4x5_d768_h12",
+    "script": "our/models/train_gpt_mlx_recurrent.py",
+    "timestamp": "2026-03-19T08:38:54Z",
+    "config": {
+        "ITERATIONS": "200",
+        "TRAIN_BATCH_TOKENS": "8192",
+        "VAL_LOSS_EVERY": "0",
+        "VAL_BATCH_SIZE": "65536",
+        "VAL_SAMPLE_FRAC": "0.1",
+        "MODEL_DIM": "768",
+        "NUM_HEADS": "12",
+        "NUM_KV_HEADS": "4",
+        "NUM_UNIQUE_LAYERS": "4",
+        "NUM_RECURRENCES": "5",
+        "VOCAB_SIZE": "1024",
+        "MLP_MULT": "2",
+        "USE_SMEAR_GATE": "",
+        "USE_BACKOUT": "",
+        "MATRIX_LR": "0.04",
+        "SCALAR_LR": "0.04",
+        "TIED_EMBED_LR": "0.05",
+        "SEED": "1337"
+    }
+}
