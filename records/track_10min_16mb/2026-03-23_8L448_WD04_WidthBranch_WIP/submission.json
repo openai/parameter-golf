@@ -1,0 +1,11 @@
+{
+  "author": "Andy Luo",
+  "github_id": "andyluo22",
+  "name": "8L/448 Width Branch WIP",
+  "blurb": "Non-record WIP submission from local 1xGPU search. Confirmed 8L/448 width branch with sliding eval and Muon WD=0.04; best local exact roundtrip came from seed 42. Using this PR as a compute-grant reference while continuing official-track experiments.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_loss": 2.38410966,
+  "val_bpb": 1.41200403,
+  "bytes_total": 7063821,
+  "bytes_code": 67050
+}
