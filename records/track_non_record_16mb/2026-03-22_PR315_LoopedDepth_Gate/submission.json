@@ -1,0 +1,8 @@
+{
+  "author": "Divyesh Thirukonda",
+  "github_id": "Divyesh-Thirukonda",
+  "name": "Gate branch: PR315-derived looped depth",
+  "blurb": "Structural-depth gate branch forked from PR325's looped transformer design. Uses a PR315-style frontier base with EMA, Partial RoPE, LN Scale, XSA4, and a shared recurrent core. Intended for throughput and geometry testing rather than as the primary submission candidate. Fresh metrics pending.",
+  "date": "2026-03-22T00:00:00Z",
+  "track": "non-record-10min-16mb"
+}
