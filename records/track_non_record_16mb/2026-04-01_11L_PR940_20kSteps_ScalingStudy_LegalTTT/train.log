@@ -1,0 +1,111 @@
+=== Base 20k Training (SLURM 55364163) ===
+model_params:27137223
+step:1000/20000 val_loss:2.2015 val_bpb:1.3038 train_time:1918855ms step_avg:1918.85ms
+step:2000/20000 val_loss:2.1095 val_bpb:1.2494 train_time:3840500ms step_avg:1920.25ms
+step:3000/20000 val_loss:2.0737 val_bpb:1.2282 train_time:5763663ms step_avg:1921.22ms
+step:4000/20000 val_loss:2.0597 val_bpb:1.2198 train_time:7685345ms step_avg:1921.34ms
+step:5000/20000 val_loss:2.0458 val_bpb:1.2116 train_time:9606889ms step_avg:1921.38ms
+step:6000/20000 val_loss:2.0415 val_bpb:1.2091 train_time:11529103ms step_avg:1921.52ms
+step:7000/20000 val_loss:2.0370 val_bpb:1.2064 train_time:13452266ms step_avg:1921.75ms
+step:8000/20000 val_loss:2.0289 val_bpb:1.2016 train_time:15374444ms step_avg:1921.81ms
+step:9000/20000 val_loss:2.0187 val_bpb:1.1956 train_time:17296703ms step_avg:1921.86ms
+step:10000/20000 val_loss:2.0089 val_bpb:1.1898 train_time:19218844ms step_avg:1921.88ms
+step:11000/20000 val_loss:1.9987 val_bpb:1.1838 train_time:21141073ms step_avg:1921.92ms
+step:12000/20000 val_loss:1.9926 val_bpb:1.1801 train_time:23063088ms step_avg:1921.92ms
+step:13000/20000 val_loss:1.9786 val_bpb:1.1718 train_time:24985183ms step_avg:1921.94ms
+step:14000/20000 val_loss:1.9685 val_bpb:1.1658 train_time:26907465ms step_avg:1921.96ms
+step:15000/20000 val_loss:1.9558 val_bpb:1.1583 train_time:28830084ms step_avg:1922.01ms
+step:16000/20000 val_loss:1.9437 val_bpb:1.1511 train_time:30751453ms step_avg:1921.97ms
+step:17000/20000 val_loss:1.9280 val_bpb:1.1419 train_time:32672844ms step_avg:1921.93ms
+step:18000/20000 val_loss:1.9092 val_bpb:1.1307 train_time:34593021ms step_avg:1921.83ms
+step:19000/20000 val_loss:1.8887 val_bpb:1.1186 train_time:36512879ms step_avg:1921.73ms
+step:20000/20000 val_loss:1.8678 val_bpb:1.1062 train_time:38431736ms step_avg:1921.59ms
+peak memory allocated: 25443 MiB reserved: 25578 MiB
+Serialized model: 106503642 bytes
+Serialized model quant+zstd-16: 14358305 bytes
+Total submission size: 14463043 bytes
+final_int6_roundtrip val_loss:1.8795 val_bpb:1.1132 eval_time:52511ms
+final_int6_roundtrip_exact val_loss:1.87950945 val_bpb:1.11315136
+final_int6_sliding_window val_loss:1.8400 val_bpb:1.0898 stride:64 eval_time:1679705ms
+final_int6_sliding_window_exact val_loss:1.84003785 val_bpb:1.08977695
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+
+=== Flow 20k Training (SLURM 55364164) ===
+model_params:27235848
+step:1000/20000 val_loss:2.2073 val_bpb:1.3073 train_time:1956578ms step_avg:1956.58ms
+step:2000/20000 val_loss:2.1123 val_bpb:1.2510 train_time:3916516ms step_avg:1958.26ms
+step:3000/20000 val_loss:2.0758 val_bpb:1.2294 train_time:5877963ms step_avg:1959.32ms
+step:4000/20000 val_loss:2.0625 val_bpb:1.2216 train_time:7838070ms step_avg:1959.52ms
+step:5000/20000 val_loss:2.0476 val_bpb:1.2127 train_time:9797802ms step_avg:1959.56ms
+step:6000/20000 val_loss:2.0435 val_bpb:1.2103 train_time:11758074ms step_avg:1959.68ms
+step:7000/20000 val_loss:2.0371 val_bpb:1.2065 train_time:13720361ms step_avg:1960.05ms
+step:8000/20000 val_loss:2.0299 val_bpb:1.2022 train_time:15681146ms step_avg:1960.14ms
+step:9000/20000 val_loss:2.0203 val_bpb:1.1965 train_time:17641997ms step_avg:1960.22ms
+step:10000/20000 val_loss:2.0105 val_bpb:1.1907 train_time:19603362ms step_avg:1960.34ms
+step:11000/20000 val_loss:2.0002 val_bpb:1.1846 train_time:21563993ms step_avg:1960.36ms
+step:12000/20000 val_loss:1.9933 val_bpb:1.1805 train_time:23525540ms step_avg:1960.46ms
+step:13000/20000 val_loss:1.9789 val_bpb:1.1720 train_time:25487697ms step_avg:1960.59ms
+step:14000/20000 val_loss:1.9697 val_bpb:1.1666 train_time:27450234ms step_avg:1960.73ms
+step:15000/20000 val_loss:1.9561 val_bpb:1.1585 train_time:29412097ms step_avg:1960.81ms
+step:16000/20000 val_loss:1.9444 val_bpb:1.1516 train_time:31373881ms step_avg:1960.87ms
+step:17000/20000 val_loss:1.9281 val_bpb:1.1419 train_time:33335461ms step_avg:1960.91ms
+step:18000/20000 val_loss:1.9094 val_bpb:1.1309 train_time:35295627ms step_avg:1960.87ms
+step:19000/20000 val_loss:1.8888 val_bpb:1.1186 train_time:37255654ms step_avg:1960.82ms
+step:20000/20000 val_loss:1.8678 val_bpb:1.1062 train_time:39213211ms step_avg:1960.66ms
+peak memory allocated: 25403 MiB reserved: 25776 MiB
+Serialized model: 106703973 bytes
+Serialized model quant+zstd-16: 14520839 bytes
+Total submission size: 14625577 bytes
+final_int6_roundtrip val_loss:1.8793 val_bpb:1.1131 eval_time:54131ms
+final_int6_roundtrip_exact val_loss:1.87934362 val_bpb:1.11305315
+final_int6_sliding_window val_loss:1.8399 val_bpb:1.0897 stride:64 eval_time:1713000ms
+final_int6_sliding_window_exact val_loss:1.83990029 val_bpb:1.08969547
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+
+=== Base 20k Eval No-TTT (SLURM 55372104) ===
+model_params:27137223
+eval_only: loading /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/runs/base20k_ttt_55364163/models/final_model_pr940_base20k_ttt_55364163.pt, skipping training
+Total submission size: 14473337 bytes
+final_int6_roundtrip val_loss:1.8976 val_bpb:1.1239 eval_time:67048ms
+final_int6_roundtrip_exact val_loss:1.89762660 val_bpb:1.12388136
+final_int6_sliding_window val_loss:1.8581 val_bpb:1.1005 stride:64 eval_time:1680914ms
+final_int6_sliding_window_exact val_loss:1.85814829 val_bpb:1.10050299
+    eval_only_path = os.environ.get("EVAL_ONLY", "")
+    if eval_only_path:
+        base_model.load_state_dict(torch.load(eval_only_path, map_location=device, weights_only=False), strict=False)
+
+=== Base 20k Eval Legal TTT (SLURM 55372106) ===
+model_params:27137223
+eval_only: loading /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/runs/base20k_ttt_55364163/models/final_model_pr940_base20k_ttt_55364163.pt, skipping training
+Total submission size: 14473337 bytes
+final_int6_roundtrip val_loss:1.8976 val_bpb:1.1239 eval_time:67490ms
+final_int6_roundtrip_exact val_loss:1.89762662 val_bpb:1.12388137
+legal_ttt:start stride=64 optimizer=sgd lr=0.002 epochs=10 freeze_blocks=2
+ttt_sliding:done val_loss=1.845348 val_bpb=1.092922 elapsed=7136.1s
+final_int6_sliding_window val_loss:1.8453 val_bpb:1.0929 stride:64 eval_time:7136644ms
+final_int6_sliding_window_exact val_loss:1.84534819 val_bpb:1.09292203
+        log_fn(f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "
+
+=== Flow 20k Eval No-TTT (SLURM 55372105) ===
+model_params:27235848
+eval_only: loading /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/runs/flow20k_ttt_55364164/models/final_model_pr940_flow20k_ttt_55364164.pt, skipping training
+Total submission size: 14635871 bytes
+final_int6_roundtrip val_loss:1.8969 val_bpb:1.1235 eval_time:68485ms
+final_int6_roundtrip_exact val_loss:1.89690246 val_bpb:1.12345248
+final_int6_sliding_window val_loss:1.8573 val_bpb:1.1000 stride:64 eval_time:1708351ms
+final_int6_sliding_window_exact val_loss:1.85733832 val_bpb:1.10002329
+    eval_only_path = os.environ.get("EVAL_ONLY", "")
+    if eval_only_path:
+        base_model.load_state_dict(torch.load(eval_only_path, map_location=device, weights_only=False), strict=False)
+
+=== Flow 20k Eval Legal TTT (SLURM 55372109) ===
+model_params:27235848
+eval_only: loading /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/runs/flow20k_ttt_55364164/models/final_model_pr940_flow20k_ttt_55364164.pt, skipping training
+Total submission size: 14635871 bytes
+final_int6_roundtrip val_loss:1.8969 val_bpb:1.1235 eval_time:67520ms
+final_int6_roundtrip_exact val_loss:1.89690246 val_bpb:1.12345248
+legal_ttt:start stride=64 optimizer=sgd lr=0.002 epochs=10 freeze_blocks=2
+ttt_sliding:done val_loss=1.845119 val_bpb=1.092786 elapsed=7082.8s
+final_int6_sliding_window val_loss:1.8451 val_bpb:1.0928 stride:64 eval_time:7083262ms
+final_int6_sliding_window_exact val_loss:1.84511872 val_bpb:1.09278613
+        log_fn(f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "

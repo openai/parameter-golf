@@ -1,0 +1,21 @@
+{
+    "name": "Christopher Lee McClendon",
+    "github_id": "Christopher-Lee-McClendon",
+    "val_bpb": 1.0929,
+    "description": "11L PR940 stack + 20k steps + legal score-first TTT. Architectural improvements (gated attention, value residual, all-layer XSA, LeakyReLU²) over prior GEPA 20k (1.0983 BPB). FlowRefiner variant at 1.0928 BPB included for comparison.",
+    "base_pr": "#940",
+    "prior_submission": "GEPA 20k (submission/11L-gepa-20k-pure-int6-legal-ttt)",
+    "training_steps": 20000,
+    "warmdown_steps": 12000,
+    "hardware": "1xA100-40GB-PCIe",
+    "training_time_hours": 10.7,
+    "model_params": 27137223,
+    "artifact_bytes": 14473337,
+    "ttt_enabled": true,
+    "ttt_method": "legal_score_first_sgd",
+    "no_ttt_bpb": 1.1005,
+    "legal_ttt_bpb": 1.0929,
+    "flow_variant_bpb": 1.0928,
+    "flow_variant_params": 27235848,
+    "date": "2026-04-01"
+}
