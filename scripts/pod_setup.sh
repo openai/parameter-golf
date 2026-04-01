@@ -194,15 +194,50 @@ elif python3 -c "from flash_attn_interface import flash_attn_func" >/dev/null 2>
     FA3_SELECTED_PYTHONPATH="${PYTHONPATH:-}"
     echo "  FA3 already in current python3 site-packages"
 elif [ "${ALLOW_FA3_WHEEL_INSTALL}" = "1" ]; then
-    echo "  Custom FA3 not found — falling back to cu124 wheel..."
-    python3 -m pip install --no-cache-dir \
-        "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-        2>&1 | tail -3 || { echo "FATAL: FA3 wheel install failed"; exit 1; }
+    # The old pytorch WHL URL (flash_attn_3-3.0.0) is 403. Use GitHub releases.
+    # flash-attn 2.7.4 includes FA3 Hopper kernels; pre-built for cu124+torch2.4.
+    _pyver=$(python3 -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
+    _fa3_installed=0
+    for _abi in FALSE TRUE; do
+        _url="https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4/flash_attn-2.7.4+cu124torch2.4cxx11abi${_abi}-${_pyver}-${_pyver}-linux_x86_64.whl"
+        echo "  Trying GitHub release: flash_attn-2.7.4+cu124torch2.4cxx11abi${_abi} (${_pyver})..."
+        if python3 -m pip install --no-cache-dir "${_url}" 2>&1 | tail -2; then
+            _fa3_installed=1
+            break
+        fi
+    done
+    if [ "${_fa3_installed}" -eq 0 ]; then
+        echo "  GitHub wheels failed — trying pip install flash-attn (may compile ~20 min)..."
+        python3 -m pip install --no-cache-dir flash-attn --no-build-isolation 2>&1 | tail -3 \
+            || { echo "FATAL: FA3 install failed — no wheel matched and source build failed."; exit 1; }
+    fi
     FA3_SELECTED_PYTHONPATH="${PYTHONPATH:-}"
 else
     echo "FATAL: FA3 (flash_attn_interface) not found in any Python env on this pod."
-    echo "       Use ALLOW_FA3_WHEEL_INSTALL=1 to fall back to the cu124 generic wheel."
+    echo "       Use ALLOW_FA3_WHEEL_INSTALL=1 to install from flash-attn GitHub releases."
     exit 1
+fi
+
+# After any install, flash_attn_interface may live inside the flash_attn package rather than
+# as a top-level module. If so, symlink it into site-packages so the import resolves.
+if ! PYTHONPATH="${FA3_SELECTED_PYTHONPATH}" python3 -c \
+        "from flash_attn_interface import flash_attn_func" >/dev/null 2>&1; then
+    _fa3_in_pkg=$(PYTHONPATH="${FA3_SELECTED_PYTHONPATH}" python3 - 2>/dev/null <<'PY'
+import os, importlib.util
+for pkg in ("flash_attn", "flash_attn_3"):
+    spec = importlib.util.find_spec(pkg)
+    if spec and spec.origin:
+        p = os.path.join(os.path.dirname(spec.origin), "flash_attn_interface.py")
+        if os.path.exists(p):
+            print(p)
+            break
+PY
+)
+    if [ -n "${_fa3_in_pkg}" ]; then
+        _site=$(python3 -c "import site; print(site.getsitepackages()[0])")
+        ln -sf "${_fa3_in_pkg}" "${_site}/flash_attn_interface.py"
+        echo "  Symlinked flash_attn_interface.py → ${_site}"
+    fi
 fi
 
 # Verify FA3 is importable and has no ABI mismatch
