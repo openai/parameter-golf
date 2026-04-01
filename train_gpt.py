@@ -1032,13 +1032,25 @@ class MLP(nn.Module):
     # leaky relu^2 MLP — leaky relu allows negative signal to pass through
     def __init__(self, dim: int, mlp_mult: float, leaky_slope: float = 0.5):
         super().__init__()
-        hidden = int(mlp_mult * dim)
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.gated = bool(int(os.environ.get("GATED_MLP", "0")))
+        if self.gated:
+            hidden = int(mlp_mult * dim)
+            # SwiGLU-style: gate and up in one matrix, half each
+            self.fc = CastedLinear(dim, hidden * 2, bias=False)
+            self.proj = CastedLinear(hidden, dim, bias=False)
+        else:
+            hidden = int(mlp_mult * dim)
+            self.fc = CastedLinear(dim, hidden, bias=False)
+            self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
         self.leaky_slope = leaky_slope
 
     def forward(self, x: Tensor) -> Tensor:
+        if self.gated:
+            h = self.fc(x)
+            gate, up = h.chunk(2, dim=-1)
+            x = F.silu(gate) * up
+            return self.proj(x)
         x = F.leaky_relu(self.fc(x), negative_slope=self.leaky_slope)
         return self.proj(x.square())
 
