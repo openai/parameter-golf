@@ -1,0 +1,81 @@
+{
+  "run_id": "golf_v1",
+  "track": "record",
+  "val_bpb": null,
+  "artifact_bytes": null,
+  "training_time_seconds": null,
+  "hardware": "8xH100 SXM5 80GB",
+  "notes": "Fill val_bpb, artifact_bytes, training_time_seconds from train.log before submitting",
+
+  "architecture": {
+    "type": "XSA-VR Transformer",
+    "n_layers": 11,
+    "d_model": 384,
+    "n_heads": 6,
+    "n_kv_heads": 2,
+    "ffn_multiplier": 3,
+    "ffn_activation": "SwiGLU",
+    "positional_encoding": "ALiBi",
+    "train_seq_len": 512,
+    "eval_seq_len": 1536,
+    "embed_bottleneck": 64,
+    "window_size": 64,
+    "n_cross_heads": 2,
+    "value_residual": true,
+    "tied_embeddings": true,
+    "factorized_embeddings": true
+  },
+
+  "training": {
+    "optimizer_matrix": "Muon",
+    "optimizer_scalar": "AdamW",
+    "lr": 5e-3,
+    "warmup_steps": 80,
+    "grad_clip": 1.0,
+    "weight_decay": 0.1,
+    "batch_tokens": 524288,
+    "self_distillation": true,
+    "distill_frac": 0.70,
+    "distill_alpha": 0.25,
+    "distill_temp": 2.0,
+    "precision": "bfloat16"
+  },
+
+  "evaluation": {
+    "lora_ttt": true,
+    "lora_rank": 4,
+    "ttt_steps": 5,
+    "ttt_chunk_tokens": 256,
+    "ttt_optimizer": "AdamW",
+    "ttt_lr": 8e-4,
+    "ngram_mixer": true,
+    "ngram_alpha": 0.07,
+    "ngram_order": 2,
+    "temperature": 0.93,
+    "context_extension": "ALiBi extrapolation 512->1536"
+  },
+
+  "compression": {
+    "weight_quantization": "INT8 per-row",
+    "scale_dtype": "float16",
+    "entropy_coding": "zlib level=9",
+    "skip_quant": ["norm", "scale", "gate", "bias"]
+  },
+
+  "tokenizer": {
+    "type": "SentencePiece BPE",
+    "vocab_size": 1024,
+    "model_file": "fineweb_1024_bpe.model"
+  },
+
+  "innovations_vs_baseline": [
+    "XSA: local window attention + cross-chunk summary heads",
+    "Value Residual: prev-layer V mixed into current layer",
+    "ALiBi positional encoding enabling free context extension at eval",
+    "Factorized embeddings (vocab->64->384) reducing embedding params",
+    "Self-distillation: snapshot at 70%, soft KD for final 30%",
+    "LoRA TTT: rank-4 adapters on Q+V, 5 AdamW steps per 256-token chunk",
+    "N-gram mixer: PAQ-style bigram blended at 7% weight",
+    "Temperature calibration (0.93) tuned for bpb not perplexity"
+  ]
+}
