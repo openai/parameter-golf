@@ -1,0 +1,18 @@
+{
+    "author": "garindean",
+    "github_id": "garindean",
+    "name": "ANE GolfWide (Apple Neural Engine training)",
+    "blurb": "Non-record unlimited-compute submission: ANE-accelerated transformer training on Apple M4 Pro using reverse-engineered private APIs (maderix/ANE). Forward matmuls and backward activation gradients on ANE; weight gradients, optimizer, and unsupported ops on CPU via Accelerate/cblas. 9L SwiGLU GQA, dim=512, hidden=1024, 21.8M params. Sliding window eval stride=64.",
+    "date": "2026-03-25T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 5.4222,
+    "val_bpb": 3.2636,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": null,
+    "step_stop": 5000,
+    "wallclock_seconds": 193,
+    "bytes_total": 8860347,
+    "bytes_model_int8_zlib": 8830989,
+    "bytes_code": 29358,
+    "gpu": "Apple M4 Pro (Neural Engine + CPU)"
+}
