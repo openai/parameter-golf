@@ -149,10 +149,16 @@ python3 -m pip uninstall -y flash-attn flash_attn flash_attn_3 2>/dev/null || tr
 _pyver=$(python3 -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
 _fa3_installed=0
 
-# Try GitHub release wheels (cu124+torch2.4, both ABI variants)
-for _abi in FALSE TRUE; do
-    _url="https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4/flash_attn-2.7.4+cu124torch2.4cxx11abi${_abi}-${_pyver}-${_pyver}-linux_x86_64.whl"
-    echo "  Trying: flash_attn-2.7.4 cu124 cxx11abi${_abi} (${_pyver})..."
+# Try GitHub release wheels — newest first (2.8.3 has cp312, 2.7.4 has cp310/311)
+_wheel_urls=()
+for _ver_tag in "v2.8.3/flash_attn-2.8.3+cu12torch2.4" "v2.7.4/flash_attn-2.7.4+cu124torch2.4"; do
+    for _abi in FALSE TRUE; do
+        _wheel_urls+=("https://github.com/Dao-AILab/flash-attention/releases/download/${_ver_tag}cxx11abi${_abi}-${_pyver}-${_pyver}-linux_x86_64.whl")
+    done
+done
+
+for _url in "${_wheel_urls[@]}"; do
+    echo "  Trying: ${_url##*/}..."
     if python3 -m pip install --no-cache-dir "${_url}" -q 2>&1 | tail -2; then
         if python3 -c "import flash_attn" 2>/dev/null; then
             _fa3_installed=1
@@ -161,10 +167,10 @@ for _abi in FALSE TRUE; do
     fi
 done
 
-# Fallback: build from source if no pre-built wheel for this Python version
+# Fallback: build from source (cross-device link workaround: disable cache)
 if [[ "${_fa3_installed}" -eq 0 ]]; then
-    echo "  No pre-built wheel for ${_pyver} — building from source (~5-10 min)..."
-    python3 -m pip install --no-cache-dir flash-attn --no-build-isolation -q 2>&1 | tail -5 \
+    echo "  No pre-built wheel for ${_pyver} — building from source..."
+    TMPDIR=/tmp python3 -m pip install --no-cache-dir flash-attn --no-build-isolation -q 2>&1 | tail -5 \
         && _fa3_installed=1
 fi
 
