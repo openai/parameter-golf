@@ -23,11 +23,12 @@ Despite that pattern, I also tried the followup optimization from [modded-nanogp
 
 ## Mini Depth Recurrence
 
-After some early unsuccessful attempts at full recurrence, I took a step back and asked a more basic question: if I had extra parameters to spend, should they go into width or depth? I ran matched over-budget probes in both directions and found that both had promise, with broadly comparable headline metrics.
+Note: Most of the recurrence sweeps under this section were run on an older baseline, and I later transferred the final recipe over to the newer baseline used for this submission.
 
-| Probe | Change | Post-EMA val_bpb | Step avg | Steps in 1200s | Params | Size |
-|---|---|---:|---:|---:|---:|---:|
-| Width | `11L x 576` | `1.1277` | `~214ms` | `5,609` | `34.0M` | `19.5 MB` |
-| Depth | `12L x 512` | `1.1307` | `~174ms` | `6,878` | `29.4M` | `17.3 MB` |
+After some early failed attempts at full recurrence, I backed off to a much smaller version of the idea: instead of recurring the whole stack, I only repeated a couple of middle layers. I had already convinced myself from over-budget probes that extra depth was real, so the question became how much of that gain I could recover with minimal weight sharing.
 
-The results suggested that both width and depth were plausible directions. Since some of my earlier failed recurrence attempts had already explored the width side of the space, I decided to push on depth this time. That made the next question straightforward: how much of the benefit of a deeper model could I recover by reusing layers instead of paying for fully independent ones?
+The main sweeps were simple but informative. Repeating one layer helped, repeating two consecutive layers helped more, and repeating three was already losing to the step-time penalty. I also swept the position of the repeated pair and found a clear sweet spot at layers `4,5`, right around the U-Net hinge point. So the useful regime here was not “add recurrence everywhere”, it was “reuse a very small part of the middle of the stack.”
+
+The next improvement was to turn recurrence on only mid training. Since repeated layers slow every step down, I trained the cheaper non-recurrent model first and only activated recurrence later. In the earlier sweep, always-on recurrence reached about `1.1163` BPB post-TTT, while delayed recurrence improved that to about `1.1153`, with `RECUR_START_STEP=3000` working well.
+
+Finally, because mixed precision left me some parameter budget headroom, I found that the best place to spend it was untying the repeated MLPs while leaving the rest of the recurrent block shared. That gave another small but real improvement. Roughly speaking, mini depth recurrence was worth about `0.003-0.004` nats and `0.002-0.003` BPB over the best under-budget non-recurrent depth probe I had at the time.
