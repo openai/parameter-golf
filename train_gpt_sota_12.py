@@ -51,21 +51,11 @@ def _decompress(data: bytes) -> bytes:
         return brotli.decompress(data)
 
 
-# Flash Attention 3: use Hopper native kernels when available, fall back to SDPA
-_FA3_AVAILABLE = False
-try:
-    from flash_attn_interface import flash_attn_func as _fa3_impl
-    _FA3_AVAILABLE = True
-    print("FlashAttn3: using Hopper native kernels (~9% faster steps)")
-except ImportError:
-    pass
+# Flash Attention 3: using PyTorch built-in SDPA (portable, no install needed)
 
 
 def flash_attn_3_func(q, k, v, causal=True):
-    if _FA3_AVAILABLE:
-        # Native FA3: (B, T, H, D) format, GQA natively supported — no KV expand
-        return _fa3_impl(q, k, v, causal=causal)
-    # SDPA fallback
+    # flash_attn layout: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
     q = q.transpose(1, 2)
     k = k.transpose(1, 2)
     v = v.transpose(1, 2)

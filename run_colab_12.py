@@ -1,18 +1,10 @@
 # %% [markdown] {"jupyter":{"outputs_hidden":false}}
 # # Parameter Golf — SOTA_12 Training Run
-# 3 new techniques on top of sota_11 targeting sub-1.1 BPB:
-#
-# **Speed: Flash Attention 3 native Hopper kernels**
-# - Real FA3 (not SDPA wrapper): ~9% faster steps → ~380 free training steps on H100 SXM
-# - GQA supported natively — no K/V expand overhead
-#
-# **Better model via more training budget** (FA3 gives this automatically)
-#
-# **Legal Score-First TTT (PR #461 protocol)**
+# Adds Legal Score-First TTT (PR #461 protocol) on top of sota_11:
 # - After GPTQ quantization, adapt model on val tokens (score-first guarantee)
-# - Each 32K-token chunk: SCORE under inference_mode → TRAIN with SGD (lr=0.001, 3 epochs)
+# - Each 32K-token chunk: SCORE under inference_mode → TRAIN SGD (lr=0.001, 3 epochs)
 # - Last chunk scored but NOT trained on (no data leakage)
-# - Expected gain: -0.002 to -0.003 BPB like 2026-03-23 record
+# - Expected gain: -0.002 to -0.003 BPB
 
 # %% [markdown] {"jupyter":{"outputs_hidden":false}}
 # ## 1. Clone repo
@@ -38,17 +30,7 @@ print("cwd:", os.getcwd())
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 os.system("pip install -q sentencepiece zstandard brotli")
-# Flash Attention 3 — Hopper warp-specialized kernels (H100 SXM only)
-# Source: https://github.com/Dao-AILab/flash-attention/releases
-os.system(
-    "pip install --break-system-packages -q flash_attn_3 "
-    "--find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291"
-)
-os.system(
-    'python3 -c "import sentencepiece, zstandard, brotli; '
-    'from flash_attn_interface import flash_attn_func; '
-    'print(\'deps OK — FA3 loaded\')"'
-)
+os.system('python3 -c "import sentencepiece, zstandard, brotli; print(\'deps OK\')"')
 
 # %% [markdown] {"jupyter":{"outputs_hidden":false}}
 # ## 3. Set hyperparameters
