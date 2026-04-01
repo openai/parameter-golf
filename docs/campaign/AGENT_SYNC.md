@@ -142,15 +142,28 @@ Key findings:
 - PR #1089 achieves 3.5x MLP via mixed-precision GPTQ (int5/6/7), not via brotli alone
 - mixed-precision *naive* quantization (int5 for safe layers) is the actual lever and does NOT require GPTQ
 
-### Phase 7: Int5 tolerance probe (CONFIRMED — 924 KB real savings)
+### Phase 7: Int5 tolerance probe (CONFIRMED — 924 KB savings, but BPB gate FAILED)
 
-Mixed int5/int6 on 05c-plus float checkpoint confirmed:
+Mixed int5/int6 on 05c-plus float checkpoint:
 - Baseline (custom-shuffle + brotli-10): 15,377,614 bytes
-- Conservative schedule (9 tensors): 14,453,220 bytes
-- Real savings: 924,394 bytes
-- This unlocks MLP 3.25x (hidden=1664) within the 16MB cap.
+- Conservative schedule (9 tensors): 14,453,033 bytes
+- Real savings: 924,581 bytes
+- Byte savings are real, **but BPB damage is too large**.
 
-### Phase 8: Session 06a — width fork (IMPLEMENTATION READY, GATE PENDING)
+#### Export A/B gate result (2026-04-01, serv-3336, A100-80GB)
+
+| Metric | Path A (uniform int6) | Path B (conservative int5/int6) | Delta |
+|--------|----------------------|--------------------------------|-------|
+| Roundtrip BPB | 1.14983123 | 1.15627013 | **+0.006439** |
+| Sliding s512 BPB | 1.12625753 | 1.13258369 | **+0.006326** |
+| Model bytes | 15,377,614 | 14,453,033 | -924,581 |
+
+**GATE FAIL**: `delta_sw = +0.006326 >= 0.002 threshold`. Cosine similarity (≥0.9954) is a poor predictor of BPB damage — forward pass nonlinearities amplify weight errors.
+
+Conservative int5 tensor names (from probe):
+`blocks.{1,2,4,5,6,7,8,9,10}.mlp.fc.weight`
+
+### Phase 8: Session 06a — width fork (GATE FAILED, exploratory run in progress)
 
 Code: `records/track_non_record_16mb/2026-04-01_06a_width325_mixed_int5_coprime_lateqat/train_gpt.py`
 
@@ -161,10 +174,11 @@ Five deltas on 05c-plus base:
 4. Late QAT via STE fake-quant (env: `LATE_QAT_THRESHOLD=0.15`)
 5. Anchor/experiment string update
 
-**Gate**: Run `scripts/diagnostics/export_bpb_ab.py` on 05c-plus float checkpoint first.
-Gate criteria: `delta_sw < 0.002 BPB AND total_bytes(B) < 16,000,000`
+**Gate**: FAILED. Delta +0.006 BPB (3× threshold).
 
-**INT5_TENSOR_NAMES**: Placeholder names from probe design. **VERIFY against actual probe JSON before training.**
+**Exploratory 8×H100 run** launched anyway (job 2734510, serv-3341) to test whether late QAT during training can close the gap. First run was confounded — QAT triggered at step 1 due to wallclock-based `lr_mul` instability on slow early steps. Bug fixed: QAT now requires `step >= 200`.
+
+**Interpretation**: If the exploratory run's mixed-bit roundtrip gap is still > +0.002 vs uniform int6, mixed int5/int6 is dead on this model family. Salvageable parts (brotli, coprime loader, late QAT) can still go into a 3.0x or 3.10x fork without int5.
 
 **Not bundled** (06b scope):
 - Parameter banking + Parallel Muon

@@ -256,7 +256,8 @@ def run_export_path(
         "total_bytes": total_bytes,
         "fits_16mb": total_bytes < 16_000_000,
         "roundtrip_bpb": rt_bpb,
-        "sliding_s64_bpb": sw_bpb,
+        "sliding_bpb": sw_bpb,
+        "sw_stride": sw_stride,
     }
 
 
@@ -394,7 +395,8 @@ def main() -> None:
 
     # ---- Decision summary ----
     delta_rt  = result_b["roundtrip_bpb"]  - result_a["roundtrip_bpb"]
-    delta_sw  = result_b["sliding_s64_bpb"] - result_a["sliding_s64_bpb"]
+    delta_sw  = result_b["sliding_bpb"] - result_a["sliding_bpb"]
+    sw_stride = args_cli.sw_stride
     saved     = result_a["model_bytes"] - result_b["model_bytes"]
 
     print(f"\n{'='*60}")
@@ -402,8 +404,8 @@ def main() -> None:
     print(f"{'='*60}")
     print(f"  Roundtrip BPB:  A={result_a['roundtrip_bpb']:.8f}  "
           f"B={result_b['roundtrip_bpb']:.8f}  delta={delta_rt:+.6f}")
-    print(f"  Sliding s64:    A={result_a['sliding_s64_bpb']:.8f}  "
-          f"B={result_b['sliding_s64_bpb']:.8f}  delta={delta_sw:+.6f}")
+    print(f"  Sliding s{sw_stride}:    A={result_a['sliding_bpb']:.8f}  "
+          f"B={result_b['sliding_bpb']:.8f}  delta={delta_sw:+.6f}")
     print(f"  Model bytes:    A={result_a['model_bytes']:,}  "
           f"B={result_b['model_bytes']:,}  saved={saved:,}")
     print()
@@ -427,7 +429,7 @@ def main() -> None:
         "path_a": result_a,
         "path_b": result_b,
         "delta_roundtrip_bpb": delta_rt,
-        "delta_sliding_s64_bpb": delta_sw,
+        f"delta_sliding_s{sw_stride}_bpb": delta_sw,
         "saved_model_bytes": saved,
         "int5_names": sorted(int5_names),
         "gate_threshold": GATE_THRESHOLD,

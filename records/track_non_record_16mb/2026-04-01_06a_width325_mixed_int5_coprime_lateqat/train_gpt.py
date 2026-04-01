@@ -1732,7 +1732,10 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
+        # Late QAT: only evaluate after step 200 so wallclock-based lr_mul has stable step averages.
+        # Without this guard, compilation overhead on early steps makes scale appear low, triggering QAT at step 0-1.
+        if (args.late_qat_threshold > 0 and step >= 200
+                and scale < args.late_qat_threshold and not CastedLinear._qat_enabled):
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
