@@ -21,6 +21,7 @@ REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
 # Pinned for the known-good 8xH100 stack.
 REQUIRED_TORCH_PKGS="${REQUIRED_TORCH_PKGS:-torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1}"
 REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
+ALLOW_FA3_WHEEL_INSTALL="${ALLOW_FA3_WHEEL_INSTALL:-0}"
 # Auto-detect repo root from script location; fall back for curl-pipe scenario
 _SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || true
 _CANDIDATE="$(cd -- "${_SCRIPT_DIR}/.." && pwd 2>/dev/null)" || true
@@ -177,7 +178,12 @@ elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
     FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
     echo "  Using FA3 provider: system/site-packages"
 else
-    install_fa3 || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    if [ "${ALLOW_FA3_WHEEL_INSTALL}" = "1" ]; then
+        install_fa3 || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    else
+        echo "FATAL: FA3 unavailable from custom/system paths and wheel install is disabled (ALLOW_FA3_WHEEL_INSTALL=0)."
+        exit 1
+    fi
     if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
         FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
         echo "  Using FA3 provider: local hopper path"

@@ -34,6 +34,7 @@ PIP_TORCH_PACKAGES="${PIP_TORCH_PACKAGES:-torch==2.4.1 torchvision==0.19.1 torch
 REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
 REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
 REQUIRE_FA3="${REQUIRE_FA3:-1}"
+ALLOW_FA3_WHEEL_INSTALL="${ALLOW_FA3_WHEEL_INSTALL:-0}"
 
 mkdir -p "${WORKSPACE}"
 
@@ -122,10 +123,15 @@ elif check_fa3_path "${FA3_SYSTEM_PYTHONPATH}" >/dev/null 2>&1; then
     FA3_SELECTED_PYTHONPATH="${FA3_SYSTEM_PYTHONPATH}"
     log "Using FA3 provider: system/site-packages"
 else
-    log "flash_attn_interface missing; attempting FA3 wheel (required)"
-    python -m pip install --no-cache-dir \
-      "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-      || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    if [ "${ALLOW_FA3_WHEEL_INSTALL}" = "1" ]; then
+        log "flash_attn_interface missing; attempting FA3 wheel (required)"
+        python -m pip install --no-cache-dir \
+          "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
+          || { echo "FATAL: FA3 unavailable; refusing non-SOTA fallback stack"; exit 1; }
+    else
+        echo "FATAL: FA3 unavailable from custom/system paths and wheel install is disabled (ALLOW_FA3_WHEEL_INSTALL=0)."
+        exit 1
+    fi
     if check_fa3_path "${FA3_LOCAL_PYTHONPATH}" >/dev/null 2>&1; then
         FA3_SELECTED_PYTHONPATH="${FA3_LOCAL_PYTHONPATH}"
         log "Using FA3 provider: local hopper path"
