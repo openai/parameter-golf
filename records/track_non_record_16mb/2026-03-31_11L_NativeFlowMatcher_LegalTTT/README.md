@@ -1,11 +1,11 @@
 # Non-Record: 11L NativeFlowMatcher + Legal Score-First TTT
 
 **val_bpb: 1.11991** (seed=42, sliding window, stride=64, int6/int5 quantized, legal TTT)
-**3-seed mean sliding BPB (no TTT): 1.12252** ± 0.00151 (seeds 42, 1337, 2025)
+**3-seed mean sliding BPB (no TTT): 1.12252** ± 0.00151 | **3-seed mean legal TTT: 1.11928** ± 0.00146
 
 Non-record submission exploring **NativeFlowMatcher (NFM)** — a 393K-parameter OT-CFM (Optimal Transport Conditional Flow Matching) velocity network that applies gated hidden-state correction, jointly trained with the AR objective. Combined with legal score-first TTT for additional compression.
 
-> **Update (2026-03-31):** Three-seed reproducibility runs completed successfully. Legal TTT evaluation jobs are submitted and pending (SLURM jobs 55411651–55411654). Results will be updated when available.
+> **Update (2026-04-01):** All ablation studies complete. Three-seed legal TTT evals finished. NFM does not improve BPB vs matched base — see Ablation Studies section for full 2×2 matrix, loss weight sweep, and hidden dim sweep.
 
 ## Architecture
 
@@ -52,12 +52,12 @@ All three seeds trained identically: 7,000 steps, 1×A100 PCIe 40GB, same archit
 | Seed | SLURM Job | Training val_bpb | Roundtrip BPB | Sliding (no TTT) BPB | Legal TTT BPB | Artifact Bytes |
 |------|-----------|-----------------|---------------|----------------------|---------------|----------------|
 | 42 | 55342820 | 1.1380 | 1.14679034 | **1.12311579** | **1.11990650** | 15,745,776 |
-| 1337 | 55398556 | 1.1385 | 1.14729126 | **1.12366996** | *pending* | 15,736,933 |
-| 2025 | 55398557 | 1.1359 | 1.14444585 | **1.12077485** | *pending* | 15,745,950 |
-| **Mean** | | **1.1375** | **1.14617582** | **1.12252020** | — | — |
-| **Std** | | **0.0014** | **0.00157** | **0.00151** | — | — |
+| 1337 | 55398556 | 1.1385 | 1.14729126 | **1.12366996** | **1.12032079** | 15,736,933 |
+| 2025 | 55398557 | 1.1359 | 1.14444585 | **1.12077485** | **1.11761299** | 15,745,950 |
+| **Mean** | | **1.1375** | **1.14617582** | **1.12252020** | **1.11928009** | — |
+| **Std** | | **0.0014** | **0.00157** | **0.00151** | **0.00146** | — |
 
-> **Legal TTT evaluation jobs** (SLURM 55411651–55411654) are submitted and pending for seeds 1337 and 2025. Results will be updated when available.
+> Legal TTT evaluation complete for all seeds.
 
 ### Primary (Seed=42, This Submission)
 
@@ -164,14 +164,14 @@ All artifacts trace back to verifiable SLURM jobs:
 ### Seed 1337 (Reproducibility)
 1. **Training:** SLURM job 55398556 → `runs/nflow_s1337_55398556/models/final_model_pr940_nflow_s1337_55398556.pt`
 2. **Training-time sliding BPB (no TTT):** 1.12367, artifact = 15,736,933 bytes
-3. **Eval (legal TTT):** SLURM job 55411651 → *pending*
-4. **Eval (no TTT):** SLURM job 55411652 → *pending*
+3. **Eval (legal TTT):** SLURM job 55411651 → sliding BPB = 1.12032
+4. **Eval (no TTT):** SLURM job 55411652 → sliding BPB = 1.12367
 
 ### Seed 2025 (Reproducibility)
 1. **Training:** SLURM job 55398557 → `runs/nflow_s2025_55398557/models/final_model_pr940_nflow_s2025_55398557.pt`
 2. **Training-time sliding BPB (no TTT):** 1.12077, artifact = 15,745,950 bytes
-3. **Eval (legal TTT):** SLURM job 55411653 → *pending*
-4. **Eval (no TTT):** SLURM job 55411654 → *pending*
+3. **Eval (legal TTT):** SLURM job 55411653 → sliding BPB = 1.11761
+4. **Eval (no TTT):** SLURM job 55411654 → sliding BPB = 1.12077
 
 ### Supplementary
 5. **E2E TTT + FlowRefiner eval (complete):** SLURM job 55398555 → legal TTT BPB = 1.12418
@@ -195,52 +195,58 @@ Training completed for all three seeds. Sliding window (no TTT) results from tra
 | 2025 | 55398557 | 1.1359 | 1.12077 |
 | **Mean ± Std** | | **1.1375 ± 0.0014** | **1.12252 ± 0.00151** |
 
-Legal TTT evaluation jobs submitted: 55411651 (s1337), 55411653 (s2025).
+Legal TTT evaluation jobs submitted: 55411651 (s1337, **complete: 1.12032**), 55411653 (s2025, **complete: 1.11761**).
 
 ### 2×2 Matrix: NFM × TTT
 
-Isolates the NFM and legal-TTT contributions independently.
+Isolates the NFM and legal-TTT contributions independently. All runs use seed=42.
 
 | Configuration | Params | No TTT (BPB) | Legal TTT (BPB) | Δ (TTT effect) |
-|---------------|--------|--------------|-----------------|-----------------|
-| Base (no NFM) | 27,137,223 | 1.12087 | *pending* | *pending* |
-| NFM (hd=256, lw=0.1) | 27,530,952 | 1.12312 | **1.11991** | −0.00321 |
-| **Δ (NFM effect)** | **+393,729** | **+0.00225** | *pending* | — |
+|---------------|--------|--------------|-----------------|------------------|
+| Base (no NFM) | 27,137,223 | 1.12106 | 1.11861 | −0.00245 |
+| NFM (hd=256, lw=0.1) | 27,530,952 | 1.12312 | 1.11991 | −0.00321 |
+| **Δ (NFM effect)** | **+393,729** | **+0.00206** | **+0.00130** | — |
 
-> **Status:** Base no-TTT (1.12087) is from the original training log. Base retraining (SLURM job 55398693) is running at step ~5,000/7,000. Base + legal TTT eval is pending (SLURM job 55398695).
+**NFM hurts by +0.00206 BPB (no TTT) or +0.00130 BPB (with TTT).** The extra 393K parameters do not improve compression. Base ablation: SLURM 55398693 (train), 55398694 (eval no-TTT), 55398695 (eval TTT).
 
 ### Loss Weight Sweep (hidden_dim=256)
 
 Explores the balance between NFM auxiliary loss and AR cross-entropy loss.
 
-| loss_weight | No TTT (BPB) | Δ vs default |
-|-------------|--------------|--------------|
-| 0.01 | *pending* (job 55398696→55398699) | — |
-| 0.05 | *pending* (job 55398697→55398700) | — |
-| **0.10 (default)** | **1.12312** | **0** |
-| 0.20 | *pending* (job 55398698→55398701) | — |
+| loss_weight | No TTT (BPB) | Δ vs base |
+|-------------|--------------|----------|
+| 0.01 | 1.12344 | +0.00238 |
+| 0.05 | 1.12294 | +0.00188 |
+| **0.10 (default)** | **1.12312** | **+0.00206** |
+| 0.20 | 1.12368 | +0.00262 |
+
+Best loss weight is 0.05, but still +0.00188 BPB worse than base (1.12106).
 
 ### Hidden Dim Sweep (loss_weight=0.1)
 
 Explores the capacity of the NFM velocity network.
 
-| hidden_dim | NFM Params | Total Params | No TTT (BPB) | Δ vs default |
-|------------|------------|--------------|--------------|--------------|
-| 128 | ~164K | ~27.3M | *pending* (job 55398702→55398704) | — |
-| **256 (default)** | **393,729** | **27,530,952** | **1.12312** | **0** |
-| 512 | ~789K | ~27.9M | *pending* (job 55398703→55398705) | — |
+| hidden_dim | NFM Params | Total Params | No TTT (BPB) | Δ vs base |
+|------------|------------|--------------|--------------|----------|
+| 128 | ~197K | 27,334,088 | 1.12228 | +0.00122 |
+| **256 (default)** | **393,729** | **27,530,952** | **1.12312** | **+0.00206** |
+| 512 | ~787K | 27,924,680 | 1.12219 | +0.00113 |
 
-> **Note:** Results will be updated as SLURM jobs complete. Run `nfm_ablation/collect_results.sh` to generate the full results table from logs.
+Best hidden dim is 512, but still +0.00113 BPB worse than base (1.12106). Increasing NFM capacity does not help.
 
-## Limitations
+> **Conclusion:** NFM consistently hurts across all configurations tested. The auxiliary parameters are better allocated to the main AR model.
 
-1. **Three-seed reproducibility achieved (no-TTT):** All three seeds completed training and sliding window eval. Mean no-TTT sliding BPB: 1.12252 ± 0.00151 (std). Legal TTT eval jobs are pending.
+## Limitations & Conclusions
 
-2. **Matched baseline in progress:** The original training run (job 55341229) produced a 7k-step base sliding-window BPB of 1.12087. A retraining + legal-TTT evaluation is in progress (SLURM job 55398693→55398695) to complete the 2×2 ablation matrix.
+1. **NFM does not improve val_bpb.** Across all configurations tested (3 loss weights × 3 hidden dims), NFM consistently hurts by +0.001 to +0.003 BPB vs the matched base. The auxiliary parameters are better spent on the main AR model.
 
-3. **Non-competitive BPB:** The best result (1.11991) is above the current leaderboard SOTA. This submission documents the NFM idea rather than competing for a record.
+2. **Three-seed reproducibility achieved:** No-TTT mean = 1.12252 ± 0.00151, legal TTT mean = 1.11928 ± 0.00146.
 
-4. **E2E TTT + FlowRefiner eval completed:** SLURM job 55398555 completed the previously truncated evaluation, yielding legal TTT BPB = 1.12418.
+3. **Non-competitive BPB:** The best result (1.11991) is above the current leaderboard SOTA. This submission documents the NFM negative result and ablation methodology.
+
+4. **TTT interaction:** NFM shows slightly larger TTT gains (−0.00321) than base (−0.00245), but the absolute score with TTT is still worse than base+TTT (1.11991 vs 1.11861).
+
+5. **E2E TTT + FlowRefiner eval completed:** SLURM job 55398555 completed with legal TTT BPB = 1.12418.
 
 ## Reproduction
 
