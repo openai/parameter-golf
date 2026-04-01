@@ -3,7 +3,10 @@
 **Non-Record Submission (Untested - Community Contribution)**
 **Author:** Mikeapedia ([@mikeapedia](https://github.com/mikeapedia))
 **Date:** 2026-03-31
-**Status:** Tokenizer trained, corpus retokenized, pre-built data on HuggingFace. No H100 available to evaluate val_bpb.
+
+---
+
+> **I have not tested this.** I don't currently have H100 access, so I'm sharing the idea, the tooling, and a ready-to-use pre-tokenized dataset with the community in the hope that someone will pick it up and run with it. The tokenizer is trained, the corpus is retokenized, and everything is on HuggingFace -- all you need is a GPU and two env vars. If you test it, please post results in the PR comments or Discord, even if it's a negative result. That would still tell us whether tokenizer optimization is a viable axis for this competition.
 
 ---
 
@@ -14,7 +17,7 @@ The competition allows custom tokenizers ("we let you bring your own"), but nobo
 1. **`split_digits=false`**: Keep number sequences as single tokens (e.g., "2024" = 1 token instead of 4)
 2. **10 `user_defined_symbols`** for common web patterns (URLs, TLDs)
 
-The tokenizer and pre-tokenized binary shards are uploaded to HuggingFace. The existing `train_gpt.py` supports custom tokenizers out of the box via `TOKENIZER_PATH` and `DATA_PATH` env vars -- no code changes needed. I'm sharing this for anyone with H100 access who wants to test it.
+The tokenizer and pre-tokenized binary shards are uploaded to HuggingFace. The existing `train_gpt.py` supports custom tokenizers out of the box via `TOKENIZER_PATH` and `DATA_PATH` env vars -- no code changes needed.
 
 ---
 
@@ -174,15 +177,27 @@ A tokenizer that produces more tokens increases the `tokens/bytes` ratio, but if
 
 ---
 
-## Call for Testing
+## Looking for Someone to Test This
 
-I don't have H100 access to test this. If you do, the data is ready to go on HuggingFace -- just download, set two env vars, and run. I'd love to know:
+**I can't test this myself -- no H100 access.** Everything is ready to go: the tokenizer is trained, 82 binary shards are on HuggingFace, and `train_gpt.py` supports it natively with zero code changes. If you have compute and want to try something nobody else has explored yet, here's what to do:
+
+```bash
+# 1. Download (~16GB)
+huggingface-cli download Mikeapedia/parameter-golf-data --local-dir ./data
+
+# 2. Train (identical to normal, just two env vars)
+TOKENIZER_PATH=data/tokenizers/fineweb_1024_custom.model \
+DATA_PATH=data/datasets/fineweb10B_sp1024_custom \
+torchrun --nproc_per_node=8 train_gpt.py
+```
+
+**Questions I'd love answered:**
 
 1. Does the custom tokenizer improve, hurt, or not affect val_bpb?
 2. Does `split_digits=false` help with number-heavy validation passages?
 3. Is the 2.8% token count increase a problem for training throughput?
 
-If you run this experiment, please share results in the PR comments or Discord. Even a negative result would be valuable -- it would tell us whether tokenizer optimization is a viable axis for this competition.
+Please share results in the PR comments or on Discord -- even a negative result tells us something useful about whether tokenizer optimization matters for this competition.
 
 ---
 
