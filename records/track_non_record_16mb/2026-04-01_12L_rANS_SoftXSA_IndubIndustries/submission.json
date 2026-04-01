@@ -1,0 +1,11 @@
+{
+  "name": "12L rANS + LeakyReLU(0.95)² + Soft XSA",
+  "author": "Dan",
+  "github_id": "turbo-indubitable",
+  "val_bpb": 1.1601,
+  "val_loss": 1.9587,
+  "bytes_total": 15912601,
+  "track": "non_record_16mb",
+  "date": "2026-04-01",
+  "blurb": "12L enabled by per-tensor rANS compression. Soft XSA with learned per-head alpha on all layers via position-tiled Triton kernel. LeakyReLU(0.95)² activation. 10% magnitude pruning. 1xH100 extrapolating 8xH100 token budget. N-gram eval forthcoming."
+}
