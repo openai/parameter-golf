@@ -1,5 +1,6 @@
 numpy
 tqdm
+torch
 huggingface-hub
 kernels
 setuptools
@@ -7,4 +8,3 @@ typing-extensions==4.15.0
 datasets
 tiktoken
 sentencepiece
-brotli
