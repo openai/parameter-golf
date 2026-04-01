@@ -1,0 +1,9 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-02",
+  "name": "28 Experiments in 5 Days — What Works, What Fails, and Why Small-Scale Tests Lie",
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "val_bpb": null,
+  "notes": "Research report. 28 controlled experiments across architecture, training, quantization, and eval-time techniques. 14 dead techniques documented with specific numbers. Key finding: small-scale tests can be 180 degrees wrong (SSM: -18% local to +2.7% at scale). Self-funded on Mac Mini M4 + single H100 RunPod (~$12 GPU spend)."
+}
