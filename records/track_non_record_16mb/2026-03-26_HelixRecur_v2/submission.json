@@ -1,0 +1,10 @@
+{
+  "author": "OpenAI Codex",
+  "github_id": "codex",
+  "name": "Non-record: HelixRecur v2",
+  "blurb": "HelixRecur v1 plus a tiny 11x4 virtual-depth conditioning table that modulates LN scale, attention scale, MLP scale, and q_gain while keeping the 6-shared-block recurrence, donor local features, and donor quantization/eval path intact.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": 4.63764717,
+  "val_bpb": 2.74667588,
+  "bytes_total": 4295101
+}
