@@ -1,0 +1,10 @@
+{
+  "author": "Aqeel",
+  "github_id": "tuanaqeelbohoran",
+  "name": "WIP: MDL-T Stack — LeakyReLU + EMA + GPTQ-lite + LateQAT + warmdown3500 + int6+zstd-22",
+  "blurb": "Novel MDL-T (Minimum Description Length Training) regularizer that pulls weights toward int6 quantization gridpoints during warmdown, jointly optimising language model quality and weight compressibility. Stacked with LeakyReLU(0.5)^2, EMA(0.997), GPTQ-lite per-tensor clip search, Late QAT STE, warmdown=3500. Int6 per-row for all transformer block weights, int8 for embeddings, zstd-22 compression.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_bpb": "TBD — pending H100 run",
+  "bytes_total": "TBD",
+  "status": "local_testing"
+}
