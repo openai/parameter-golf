@@ -1,11 +1,1 @@
-data/tokenizers
-__pycache__/
-.DS_Store
-modded-nanogpt/
-modded-nanogpt
-data/datasets
-data/manifest.json
-data/docs_selected.jsonl
-.mypy_cache/
-.venv
-logs/
+records/track_10min_16mb/2026-03-20_Stride32_MuonWD_OvertoneInit/
