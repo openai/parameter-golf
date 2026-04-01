@@ -1,0 +1,10 @@
+{
+  "author": "Neopolita",
+  "github_id": "Neopolita",
+  "name": "11L AttnRes + Gated Attention + Looped Blocks + EMA + Cosine + QAT",
+  "blurb": "Block Attention Residuals (arXiv 2603.15031) replacing fixed skip_weights with learned depth routing, per-head sigmoid gated attention, looped middle blocks (layers 4-7 x2) for zero-param compute depth, EMA(0.995), cosine LR decay, QAT@0.15. 11L 3xMLP relu² baseline with 26.5M params.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null
+}
