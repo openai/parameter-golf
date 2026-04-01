@@ -132,7 +132,7 @@ echo "  sympy=${SYMPY_PIN}  OK"
 echo ""
 echo "[4/7] Core pip packages..."
 
-python3 -m pip install numpy tqdm huggingface-hub kernels setuptools \
+python3 -m pip install numpy tqdm huggingface-hub kernels setuptools wheel \
     "typing-extensions==4.15.0" datasets tiktoken sentencepiece attr zstandard -q 2>&1 | tail -1
 python3 -c "import zstandard; print(f'  zstandard {zstandard.__version__}')"
 echo "  Core packages OK"
