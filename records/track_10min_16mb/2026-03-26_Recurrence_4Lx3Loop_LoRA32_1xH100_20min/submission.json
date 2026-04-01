@@ -1,0 +1,9 @@
+{
+  "name": "Depth Recurrence 4Lx3Loop + LoRA32 + BigramHash + SWA on 1xH100 (20min)",
+  "val_loss": 1.37522461,
+  "bytes_total": 8330903,
+  "blurb": "Depth recurrence with 4 shared layers looped 3x (12 effective depth), per-loop LoRA rank 32 + level signals. 11.6M params, mixed int5/int6 QAT, BigramHash 10240, SWA frac=0.4, WD=0.04. 1xH100 20min, single seed, val_bpb=1.3752. Artifact only 8.3MB (7.7MB headroom under 16MB cap).",
+  "author": "henrycashe26",
+  "github_id": "henrycashe26",
+  "date": "2026-03-26"
+}
