@@ -1,6 +1,24 @@
+# Record: Parallel Residuals + Mini Depth Recurrence
+
+**val_bpb: 1.1063** (3-seed mean, std 0.0017) | **1.8679 nats** | **~15.94 MB** | 8×H100 SXM, 600s | No TTT
+
 I started this submission from [PR #1179](https://github.com/openai/parameter-golf/pull/1179), which gave me the base training stack I wanted to iterate on here. On top of that, I ported over the mixed-quantization and autoregressive GPTQ path from [PR #1105](https://github.com/openai/parameter-golf/pull/1105). That was partly a modeling choice and partly a practical one: AR self-generated GPTQ calibration was already a known acceptable path for this challenge, and it let me avoid having the quantization step depend on last-minute training-data access in a way that makes the 10-minute budget awkward to manage.
 
-From there, I ended up pursuing two main ideas:
+## Results (8×H100 80GB SXM, 600s, no TTT)
+
+| Seed | Steps | ms/step | Post-EMA BPB | **Sliding BPB** | val_loss (nats) | Artifact |
+|------|-------|---------|--------------|-----------------|-----------------|----------|
+| 1337 | 6,242 | 96.1 | 1.1232 | **1.1066** | 1.8684 | 15,942,395 |
+| 42 | 6,248 | 96.0 | 1.1235 | **1.1077** | 1.8704 | 15,919,617 |
+| 2024 | 6,240 | 96.2 | 1.1216 | **1.1044** | 1.8648 | 15,946,657 |
+| **Mean** | **6,243** | **96.1** | **1.1228** | **1.1063** | **1.8679** | **15,936,223** |
+
+Comparison baseline [PR #1179](https://github.com/openai/parameter-golf/pull/1179): **1.11053346 BPB** (**1.87508426 nats**).
+This run's exact 3-seed mean: **1.10625353 BPB** (**1.86785780 nats**).
+Delta vs PR #1179: **-0.00722646 nats** (**-0.00427993 BPB**).
+
+Current merged SOTA ([2026-03-25 AR Self-Gen GPTQ + XSA-all + BigramHash 3072×112](https://github.com/openai/parameter-golf/blob/main/records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md)): **1.11473509 BPB** (**1.88217853 nats**).
+Delta vs current merged SOTA: **-0.01432073 nats** (**-0.00848156 BPB**).
 
 ## Parallel residuals
 
@@ -38,7 +56,7 @@ Finally, because mixed precision left me some parameter budget headroom, I found
 The main training runs for this submission used the following command:
 
 ```bash
-SEED=$SEED POST_GPTQ_EVAL_ONLY=0 BIGRAM_DIM=160 MIXED_QUANT=1 N_INT6_LAYERS=32 NUM_LAYERS=11 RECUR_LAYERS=4,5 RECUR_START_STEP=3000 REPEAT_UNTIE_MLP=full REPEAT_UNTIE_MLP_LAYERS=4,5 DISABLE_LAYER0_ATTN=1 PARALLEL_RESIDUAL=1 PARALLEL_START_LAYER=7 torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=$SEED POST_GPTQ_EVAL_ONLY=0 BIGRAM_DIM=112 MIXED_QUANT=1 N_INT6_LAYERS=32 NUM_LAYERS=11 RECUR_LAYERS=4,5 RECUR_START_STEP=3000 REPEAT_UNTIE_MLP=full REPEAT_UNTIE_MLP_LAYERS=4,5 DISABLE_LAYER0_ATTN=1 PARALLEL_RESIDUAL=1 PARALLEL_START_LAYER=7 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 `brotli` also needs to be installed for the final artifact path. It is included in the copied [requirements.txt](/root/parameter-golf/records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence/requirements.txt).
