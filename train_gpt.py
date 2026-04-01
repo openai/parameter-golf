@@ -729,10 +729,13 @@ def _classify_param(name: str) -> str:
         return "attn"
     return "other"
 
+_QUANT_BITS = int(os.environ.get("QUANT_BITS", "6"))  # 6=int6 (range 31), 7=int7 (range 63)
+_QUANT_CLIP_RANGE = (1 << (_QUANT_BITS - 1)) - 1  # 6→31, 7→63, 8→127
+
 def quantize_int6_per_row(t: Tensor) -> tuple[Tensor, Tensor]:
     """GPTQ-lite: search over clip percentiles to minimize reconstruction error."""
     t32 = t.float()
-    clip_range = 31
+    clip_range = _QUANT_CLIP_RANGE
     if t32.ndim == 2:
         best_q, best_s, best_err = None, None, float('inf')
         for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
@@ -895,12 +898,13 @@ class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
-            # STE fake int6 quantization: forward uses quantized, backward uses original
+            # STE fake quantization: forward uses quantized, backward uses original
+            _cr = _QUANT_CLIP_RANGE
             with torch.no_grad():
                 w32 = self.weight.float()
                 row_max = w32.abs().amax(dim=1)
-                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
+                scale = (row_max / _cr).clamp_min(1.0 / _cr)
+                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -(_cr+1), _cr) * scale[:, None]).to(x.dtype)
             w = w + (w_q - w).detach()  # STE: gradient flows through as if w_q = w
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
