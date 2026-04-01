@@ -1,11 +1,11 @@
 # Non-Record: 11L NativeFlowMatcher + Legal Score-First TTT
 
-**val_bpb: 1.11991** (sliding window, stride=64, int6/int5 quantized, legal TTT)
-**val_bpb: 1.12312** (sliding window, stride=64, int6/int5 quantized, no TTT)
+**val_bpb: 1.11991** (seed=42, sliding window, stride=64, int6/int5 quantized, legal TTT)
+**3-seed mean sliding BPB (no TTT): 1.12252** ± 0.00151 (seeds 42, 1337, 2025)
 
-Single-seed (seed=42) non-record submission exploring NativeFlowMatcher (NFM) — a 393K-parameter OT-CFM (Optimal Transport Conditional Flow Matching) velocity network that applies gated hidden-state correction, jointly trained with the AR objective. Combined with legal score-first TTT for additional compression.
+Non-record submission exploring **NativeFlowMatcher (NFM)** — a 393K-parameter OT-CFM (Optimal Transport Conditional Flow Matching) velocity network that applies gated hidden-state correction, jointly trained with the AR objective. Combined with legal score-first TTT for additional compression.
 
-> **Note:** This is a single-seed exploratory submission. Three-seed reproducibility runs were attempted but failed due to an SDPA backend incompatibility on the evaluation cluster (A100 PCIe). Statistical significance is therefore not claimed. The purpose of this submission is to document the NFM architectural idea and its interaction with legal TTT, not to claim a new record.
+> **Update (2026-03-31):** Three-seed reproducibility runs completed successfully. Legal TTT evaluation jobs are submitted and pending (SLURM jobs 55411651–55411654). Results will be updated when available.
 
 ## Architecture
 
@@ -45,7 +45,21 @@ The NFM velocity network has zero-initialized output weights and a near-zero ini
 
 ## Results
 
-### Primary (This Submission)
+### Three-Seed Reproducibility (Training-Time Eval)
+
+All three seeds trained identically: 7,000 steps, 1×A100 PCIe 40GB, same architecture and optimizer config.
+
+| Seed | SLURM Job | Training val_bpb | Roundtrip BPB | Sliding (no TTT) BPB | Legal TTT BPB | Artifact Bytes |
+|------|-----------|-----------------|---------------|----------------------|---------------|----------------|
+| 42 | 55342820 | 1.1380 | 1.14679034 | **1.12311579** | **1.11990650** | 15,745,776 |
+| 1337 | 55398556 | 1.1385 | 1.14729126 | **1.12366996** | *pending* | 15,736,933 |
+| 2025 | 55398557 | 1.1359 | 1.14444585 | **1.12077485** | *pending* | 15,745,950 |
+| **Mean** | | **1.1375** | **1.14617582** | **1.12252020** | — | — |
+| **Std** | | **0.0014** | **0.00157** | **0.00151** | — | — |
+
+> **Legal TTT evaluation jobs** (SLURM 55411651–55411654) are submitted and pending for seeds 1337 and 2025. Results will be updated when available.
+
+### Primary (Seed=42, This Submission)
 
 | Evaluation | val_loss | val_bpb |
 |------------|----------|---------|
@@ -64,9 +78,9 @@ These are reference results from related configurations, included for context. A
 | Base (no refiners) 20k | 20,000 | ~27.1M | 1.10050 | 1.09292 |
 | FlowRefiner 20k | 20,000 | ~27.2M | 1.10002 | 1.09279 |
 | **NFM 7k (this submission)** | **7,000** | **27.5M** | **1.12312** | **1.11991** |
-| E2E TTT + FlowRefiner 7k | 7,000 | 28.3M | — | ~1.124† |
+| E2E TTT + FlowRefiner 7k | 7,000 | 28.3M | — | 1.12418 |
 
-† E2E TTT + FlowRefiner legal TTT eval was incomplete — SLURM job timed out at chunk 1271/1893. The BPB at truncation was 1.12408; final value is unknown.
+> **Update:** The E2E TTT + FlowRefiner legal TTT eval (SLURM 55398555) completed with val_bpb=1.12418. Previous submission had partial data (truncated at chunk 1271/1893).
 
 > **Important context:** The 20k-step results (base, flow) use a longer training schedule (20,000 steps vs 7,000). Direct BPB comparison between 7k and 20k is not meaningful for architecture evaluation. The NFM contribution should be assessed relative to the base architecture at matched step count, but no 7k-step base-only run exists in this evaluation set. The training-time val_bpb at step 7000 was 1.1380 (pre-quantization, non-sliding, no TTT).
 
@@ -106,20 +120,20 @@ The auto-downgrade mechanism progressively applies int5 quantization to middle M
 | SLURM job | 55342820 |
 | Peak GPU memory | 25,832 MiB |
 
-### Training Trajectory
+### Training Trajectory (All Seeds)
 
-| Step | val_bpb |
-|------|---------|
-| 0 | 4.1055 |
-| 500 | 1.3813 |
-| 1000 | 1.3058 |
-| 2000 | 1.2499 |
-| 3000 | 1.2283 |
-| 4000 | 1.2199 |
-| 5000 | 1.1975 |
-| 6000 | 1.1707 |
-| 6500 | 1.1527 |
-| 7000 | 1.1380 |
+| Step | Seed 42 | Seed 1337 | Seed 2025 |
+|------|---------|-----------|-----------|
+| 0 | 4.1055 | 4.1175 | 4.1065 |
+| 500 | 1.3813 | 1.3849 | 1.3859 |
+| 1000 | 1.3058 | 1.3100 | 1.3070 |
+| 2000 | 1.2499 | 1.2497 | 1.2490 |
+| 3000 | 1.2283 | 1.2285 | 1.2269 |
+| 4000 | 1.2199 | 1.2205 | 1.2190 |
+| 5000 | 1.1975 | 1.1983 | 1.1958 |
+| 6000 | 1.1707 | 1.1710 | 1.1686 |
+| 6500 | 1.1527 | 1.1532 | 1.1508 |
+| 7000 | 1.1380 | 1.1385 | 1.1359 |
 
 ## Legal TTT Configuration
 
@@ -141,18 +155,47 @@ Score-first test-time training that complies with the rule that training may onl
 
 All artifacts trace back to verifiable SLURM jobs:
 
+### Seed 42 (Primary)
 1. **Training:** SLURM job 55342820 → `runs/nflow_55342820/models/final_model_pr940_nflow_55342820.pt`
 2. **Eval (no TTT):** SLURM job 55375246 → sliding BPB = 1.12312, artifact = 15,745,776 bytes
 3. **Eval (legal TTT):** SLURM job 55375245 → sliding BPB = 1.11991, artifact = 15,745,776 bytes
 4. **Submitted model:** `final_model.int6.ptz` is the quantized+compressed artifact from eval job 55375245
 
-The training SLURM script and both evaluation SLURM scripts are included in `supplementary/` for full reproducibility.
+### Seed 1337 (Reproducibility)
+1. **Training:** SLURM job 55398556 → `runs/nflow_s1337_55398556/models/final_model_pr940_nflow_s1337_55398556.pt`
+2. **Training-time sliding BPB (no TTT):** 1.12367, artifact = 15,736,933 bytes
+3. **Eval (legal TTT):** SLURM job 55411651 → *pending*
+4. **Eval (no TTT):** SLURM job 55411652 → *pending*
+
+### Seed 2025 (Reproducibility)
+1. **Training:** SLURM job 55398557 → `runs/nflow_s2025_55398557/models/final_model_pr940_nflow_s2025_55398557.pt`
+2. **Training-time sliding BPB (no TTT):** 1.12077, artifact = 15,745,950 bytes
+3. **Eval (legal TTT):** SLURM job 55411653 → *pending*
+4. **Eval (no TTT):** SLURM job 55411654 → *pending*
+
+### Supplementary
+5. **E2E TTT + FlowRefiner eval (complete):** SLURM job 55398555 → legal TTT BPB = 1.12418
+
+The training SLURM scripts and evaluation SLURM scripts for all seeds are included in `supplementary/` for full reproducibility.
 
 > **Code size note:** The submitted `train_gpt.py` (115,032 bytes) reflects the version used at evaluation time. The training log (`train.log`) reports a code size of 104,738 bytes, reflecting the version at training time. The code evolved between training and evaluation but the model checkpoint is unchanged. Supplementary SLURM scripts reference the working filename `train_gpt_pr940.py`; rename to `train_gpt.py` for reproduction.
 
 ## Ablation Studies
 
 Ablation studies isolating the NFM contribution and exploring hyperparameter sensitivity. All runs use seed=42, 7,000 steps, identical architecture and optimizer settings.
+
+### Three-Seed Reproducibility
+
+Training completed for all three seeds. Sliding window (no TTT) results from training-time eval:
+
+| Seed | SLURM Job | Training val_bpb | Sliding BPB (no TTT) |
+|------|-----------|-----------------|---------------------|
+| 42 | 55342820 | 1.1380 | 1.12312 |
+| 1337 | 55398556 | 1.1385 | 1.12367 |
+| 2025 | 55398557 | 1.1359 | 1.12077 |
+| **Mean ± Std** | | **1.1375 ± 0.0014** | **1.12252 ± 0.00151** |
+
+Legal TTT evaluation jobs submitted: 55411651 (s1337), 55411653 (s2025).
 
 ### 2×2 Matrix: NFM × TTT
 
@@ -164,7 +207,7 @@ Isolates the NFM and legal-TTT contributions independently.
 | NFM (hd=256, lw=0.1) | 27,530,952 | 1.12312 | **1.11991** | −0.00321 |
 | **Δ (NFM effect)** | **+393,729** | **+0.00225** | *pending* | — |
 
-> **Status:** Base no-TTT (1.12087) is from the original training log. Base + legal TTT is pending (SLURM job 55398695, dependent on base retraining job 55398693). Three-seed NFM reproducibility runs are also pending (SLURM jobs 55398556–55398561).
+> **Status:** Base no-TTT (1.12087) is from the original training log. Base retraining (SLURM job 55398693) is running at step ~5,000/7,000. Base + legal TTT eval is pending (SLURM job 55398695).
 
 ### Loss Weight Sweep (hidden_dim=256)
 
@@ -191,13 +234,13 @@ Explores the capacity of the NFM velocity network.
 
 ## Limitations
 
-1. **Single seed:** Only seed=42 results are available. Three-seed reproducibility runs (seeds 1337, 2025) are now pending on the corrected PR #940 codebase (SLURM jobs 55398556–55398561). Statistical significance is not yet established.
+1. **Three-seed reproducibility achieved (no-TTT):** All three seeds completed training and sliding window eval. Mean no-TTT sliding BPB: 1.12252 ± 0.00151 (std). Legal TTT eval jobs are pending.
 
-2. **Matched baseline now available:** The original training run (job 55341229) produced a 7k-step base sliding-window BPB of 1.12087. A retraining + legal-TTT evaluation is pending (SLURM job 55398693→55398695) to complete the 2×2 ablation matrix.
+2. **Matched baseline in progress:** The original training run (job 55341229) produced a 7k-step base sliding-window BPB of 1.12087. A retraining + legal-TTT evaluation is in progress (SLURM job 55398693→55398695) to complete the 2×2 ablation matrix.
 
 3. **Non-competitive BPB:** The best result (1.11991) is above the current leaderboard SOTA. This submission documents the NFM idea rather than competing for a record.
 
-4. **Incomplete supplementary eval:** The E2E TTT + FlowRefiner legal TTT evaluation was truncated at chunk 1271/1893 due to SLURM time limits. Its partial BPB (~1.124) is included as supplementary data only.
+4. **E2E TTT + FlowRefiner eval completed:** SLURM job 55398555 completed the previously truncated evaluation, yielding legal TTT BPB = 1.12418.
 
 ## Reproduction
 
@@ -249,13 +292,23 @@ This submission builds on the work of many contributors to the parameter golf co
 README.md                   — This file
 submission.json             — Structured metadata
 train_gpt.py               — Training/eval script (2,601 lines)
-train.log                   — Training log (SLURM 55342820, 2,479 lines)
+train.log                   — Training log for seed=42 (SLURM 55342820)
 final_model.int6.ptz        — Quantized model artifact (15,630,744 bytes)
 supplementary/
-  eval_nflow7k_legal_ttt.log        — Legal TTT evaluation log (SLURM 55375245)
-  eval_nflow7k_nottt.log            — No-TTT evaluation log (SLURM 55375246)
-  eval_e2ettt_flow7k_legal_ttt.log  — E2E TTT+Flow eval (SLURM 55375247, INCOMPLETE)
-  slurm_pr940_nflow_7k.sh           — Training SLURM script
-  slurm_eval_nflow7k_legal_ttt.sh   — Legal TTT eval SLURM script
-  slurm_eval_nflow7k_nottt.sh       — No-TTT eval SLURM script
+  eval_nflow7k_legal_ttt.log                — Legal TTT eval log, seed=42 (SLURM 55375245)
+  eval_nflow7k_nottt.log                    — No-TTT eval log, seed=42 (SLURM 55375246)
+  eval_e2ettt_flow7k_legal_ttt.log          — E2E TTT+Flow eval, INCOMPLETE (SLURM 55375247)
+  eval_e2ettt_flow7k_legal_ttt_complete.log — E2E TTT+Flow eval, COMPLETE (SLURM 55398555)
+  slurm_pr940_nflow_7k.sh                   — Training SLURM script (seed=42)
+  slurm_eval_nflow7k_legal_ttt.sh           — Legal TTT eval SLURM script (seed=42)
+  slurm_eval_nflow7k_nottt.sh               — No-TTT eval SLURM script (seed=42)
+  seed_runs/
+    slurm_nflow_train_s1337.sh              — Training script (seed=1337)
+    slurm_nflow_train_s2025.sh              — Training script (seed=2025)
+    slurm_eval_s1337_legal_ttt.sh           — Legal TTT eval (seed=1337)
+    slurm_eval_s1337_nottt.sh               — No-TTT eval (seed=1337)
+    slurm_eval_s2025_legal_ttt.sh           — Legal TTT eval (seed=2025)
+    slurm_eval_s2025_nottt.sh               — No-TTT eval (seed=2025)
+    train_s1337.log                         — Training log (SLURM 55398556)
+    train_s2025.log                         — Training log (SLURM 55398557)
 ```
