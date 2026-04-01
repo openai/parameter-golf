@@ -11,7 +11,7 @@ data/docs_selected.jsonl
 logs/
 *.log
 *.txt
-!records/track_non_record_16mb/2026-03-26_RecurrentSOTA_Feedback/*.log
+!records/track_non_record_16mb/2026-03-26_Stable_Growing_Recurrance/*.log
 *.pt
 *.ptz
 *.wandb
