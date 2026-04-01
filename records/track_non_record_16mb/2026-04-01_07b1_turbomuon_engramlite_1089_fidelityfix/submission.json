@@ -1,0 +1,27 @@
+{
+  "description": "Session 07b1 Tier-0 fidelity fix on 07b: donor-faithful ValueEmbedding.proj zero-init, Muon routing for EngramLite/VE proj, and compile-stable fixed-table RoPE. Uniform int6 + brotli-10 export. No GPTQ, no TTT.",
+  "parent": "records/track_non_record_16mb/2026-04-01_07b_turbomuon_engramlite_1089",
+  "delta": "Minimal 07b follow-up: fix closest donor mismatches without broadening scope",
+  "status": "awaiting_measurement",
+  "container": "nvcr.io/nvidia/pytorch:26.03-py3",
+  "tier": "0",
+  "hyperparameters": {
+    "warmdown_iters": 2000,
+    "qk_gain_init": 4.0,
+    "muon_backend_steps": 4,
+    "muon_post_norm": "row_col",
+    "mlp_mult": 3.0,
+    "ngram_buckets": 4096,
+    "ngram_heads": 2,
+    "ngram_orders": 2,
+    "ngram_dim_per_head": 32,
+    "lr_floor": 0.05,
+    "embed_beta1": 0.7,
+    "head_beta1": 0.7,
+    "asqu_v3_slopes": [-0.014, 0.131, 0.225, 0.265, 0.310, 0.354, 0.421, 0.429, 0.417, 0.358, 0.468],
+    "skip_gates": true,
+    "mimetic_vo_init": true,
+    "swa_enabled": false,
+    "late_qat_threshold": 0.15
+  }
+}
