@@ -280,16 +280,23 @@ def amp_dtype_name(dtype: torch.dtype) -> str:
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
+    was_2d = G.ndim == 2
+    if was_2d:
+        G = G.unsqueeze(0)
     X = G.to(dtype=LOWP_DTYPE)
-    X /= X.norm() + eps
-    transposed = G.size(0) > G.size(1)
+    transposed = X.size(-2) > X.size(-1)
     if transposed:
-        X = X.T
+        X = X.mT
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
     for _ in range(steps):
-        A = X @ X.T
-        B = b * A + c * A @ A
+        A = X @ X.mT
+        B = b * A + c * (A @ A)
         X = a * X + B @ X
-    return X.T if transposed else X
+    if transposed:
+        X = X.mT
+    if was_2d:
+        X = X.squeeze(0)
+    return X
 
 
 class Muon(torch.optim.Optimizer):
@@ -1461,7 +1468,7 @@ def main() -> None:
         torch.cuda.set_device(device)
         LOWP_DTYPE = resolve_amp_dtype(args.amp_dtype)
 
-    zeropower_via_newtonschulz5 = maybe_compile(zeropower_via_newtonschulz5, enabled=compile_enabled)
+    # Batched Newton-Schulz should run eagerly; compiling it breaks the banked 3D matmuls.
     grad_scale = 1.0 / grad_accum_steps
 
     if distributed:
