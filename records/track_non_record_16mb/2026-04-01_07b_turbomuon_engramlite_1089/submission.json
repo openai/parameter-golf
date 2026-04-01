@@ -1,0 +1,27 @@
+{
+  "description": "Session 07b Tier-0: PR #1089 family port — Turbo-Muon (Polar Express + AOL, 4 steps), EngramLite (multi-head multi-order hash), ASQU v3 per-layer slopes, sigmoid-gated U-Net skips, mimetic V-O init, qk_gain=4.0, warmdown=2000, lr_floor=0.05, embed/head beta1=0.7. Uniform int6 + brotli-10 export. No GPTQ, no TTT.",
+  "parent": "records/track_non_record_16mb/2026-04-01_06b_parallel_muon_banking_brotli",
+  "delta": "Port core PR #1089 innovations onto 06b banking/Muon/brotli chassis",
+  "status": "awaiting_measurement",
+  "container": "nvcr.io/nvidia/pytorch:26.03-py3",
+  "tier": "0",
+  "hyperparameters": {
+    "warmdown_iters": 2000,
+    "qk_gain_init": 4.0,
+    "muon_backend_steps": 4,
+    "muon_post_norm": "row_col",
+    "mlp_mult": 3.0,
+    "ngram_buckets": 4096,
+    "ngram_heads": 2,
+    "ngram_orders": 2,
+    "ngram_dim_per_head": 32,
+    "lr_floor": 0.05,
+    "embed_beta1": 0.7,
+    "head_beta1": 0.7,
+    "asqu_v3_slopes": [-0.014, 0.131, 0.225, 0.265, 0.310, 0.354, 0.421, 0.429, 0.417, 0.358, 0.468],
+    "skip_gates": true,
+    "mimetic_vo_init": true,
+    "swa_enabled": false,
+    "late_qat_threshold": 0.15
+  }
+}
