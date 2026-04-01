@@ -161,6 +161,13 @@ for _abi in FALSE TRUE; do
     fi
 done
 
+# Fallback: build from source if no pre-built wheel for this Python version
+if [[ "${_fa3_installed}" -eq 0 ]]; then
+    echo "  No pre-built wheel for ${_pyver} — building from source (~5-10 min)..."
+    python3 -m pip install --no-cache-dir flash-attn --no-build-isolation -q 2>&1 | tail -5 \
+        && _fa3_installed=1
+fi
+
 # Symlink flash_attn_interface into site-packages if needed
 # (training script does "from flash_attn_interface import ..." at top level)
 if ! python3 -c "from flash_attn_interface import flash_attn_func" 2>/dev/null; then
