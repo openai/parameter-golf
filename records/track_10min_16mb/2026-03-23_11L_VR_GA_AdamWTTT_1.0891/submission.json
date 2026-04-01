@@ -1,0 +1,43 @@
+{
+  "track": "10min_16mb",
+  "val_bpb": 1.0891,
+  "val_bpb_exact": 1.08909943,
+  "seeds": {
+    "1337": 1.08909943
+  },
+  "artifact_bytes": 14195825,
+  "code_bytes": 78596,
+  "hardware": "8xH100 SXM",
+  "training_seconds": 600,
+  "training_steps": 6021,
+  "step_avg_ms": 99.66,
+  "ttt_epochs": 10,
+  "ttt_optimizer": "adamw",
+  "ttt_lr": 0.0005,
+  "ttt_seconds": 171.8,
+  "eval_stride": 64,
+  "eval_seq_len": 2048,
+  "model": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "vocab_size": 1024,
+    "params": 27137221
+  },
+  "techniques": [
+    "Value Residual (ResFormer)",
+    "Gated Attention",
+    "EMA (decay=0.997)",
+    "AdamW TTT (10 epochs)",
+    "SmearGate",
+    "BigramHash (4096 buckets)",
+    "Orthogonal init",
+    "U-Net skip connections",
+    "GPTQ-lite quantization",
+    "2% magnitude pruning",
+    "Int6 + zlib compression",
+    "Sliding window eval (stride=64)"
+  ]
+}
