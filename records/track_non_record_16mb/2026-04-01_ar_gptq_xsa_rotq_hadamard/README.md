@@ -124,12 +124,13 @@ torchrun --standalone --nproc_per_node=1 train_gpt.py
 ## Included Files
 
 - `train_gpt.py`: exact script used for the best export result in this folder
-- `train.log`: recovered auto-generated log for the long training run
-- `rotq_ablation.log`: recovered export-only ablation log
+- `train.log`: recovered copy of the auto-generated log for the long training run
+- `rotq_ablation.log`: recovered copy of the export-only ablation log
 - `submission.json`: metadata for this non-record submission
 
 ## Limitations
 
 - Single-seed evidence only
 - Not reproduced on `8xH100 SXM` within the `600s` training budget
+- The pod stopped before raw log sync completed, so the attached logs are recovered copies of the exact auto-generated log content captured from the pod session
 - The ROTQ gain is real but small; the main value of this PR is the new modular export idea and the evidence that it composes with the current strong AR-GPTQ/XSA stack
