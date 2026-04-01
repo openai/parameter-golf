@@ -10,3 +10,4 @@ data/docs_selected.jsonl
 .venv
 logs/
 local_runs
+local_docs
