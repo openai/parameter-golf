@@ -10,8 +10,8 @@ RECORDS_DIR="${1:-}"
 PASS=0
 FAIL=0
 
-ok()   { echo "  [OK]   $*"; ((PASS++)); }
-fail() { echo "  [FAIL] $*"; ((FAIL++)); }
+ok()   { echo "  [OK]   $*"; PASS=$((PASS+1)); }
+fail() { echo "  [FAIL] $*"; FAIL=$((FAIL+1)); }
 warn() { echo "  [WARN] $*"; }
 
 echo ""
@@ -38,7 +38,7 @@ for seed in 444 300 42; do
     log="${RECORDS_DIR}/train_seed${seed}.log"
     if [[ -f "${log}" ]]; then
         ok "train_seed${seed}.log exists"
-        ((LOGS_FOUND++))
+        LOGS_FOUND=$((LOGS_FOUND+1))
     else
         if [[ "${seed}" == "444" || "${seed}" == "300" ]]; then
             fail "train_seed${seed}.log MISSING (required)"
@@ -81,7 +81,7 @@ else
         fail "bytes_total=${BYTES} EXCEEDS 16MB limit (16,000,000 bytes)"
     elif [[ "${BYTES}" -gt 15500000 ]]; then
         warn "bytes_total=${BYTES} is close to 16MB limit — double-check"
-        ((PASS++))
+        PASS=$((PASS+1))
     elif [[ "${BYTES}" -gt 0 ]]; then
         ok "bytes_total=${BYTES} is legal (≤ 16MB)"
     else
