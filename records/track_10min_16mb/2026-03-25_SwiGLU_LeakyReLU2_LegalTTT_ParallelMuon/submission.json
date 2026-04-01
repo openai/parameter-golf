@@ -1,0 +1,21 @@
+{
+  "author": "shaur",
+  "github_id": "they-call-me-god",
+  "run_name": "SwiGLU + Legal TTT + Parallel Muon",
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [1337, 42, 2025],
+  "date": "2026-03-25",
+  "track": "10min_16mb",
+  "base": "2026-03-23_LeakyReLU_LegalTTT_ParallelMuon",
+  "key_change": "SwiGLU gated MLP replacing LeakyReLU(0.5)^2. Parameter-neutral: mlp_up_bank (L,2048,512) stores gate||up; mlp_down_bank (L,512,1024). Same 1,572,864 params/layer as before.",
+  "hardware": "8xH100 SXM",
+  "num_layers": 11,
+  "model_dim": 512,
+  "vocab_size": 1024,
+  "mlp_activation": "swiglu",
+  "swiglu_half_dim": 1024,
+  "use_ttt": true,
+  "ttt_optimizer": "sgd",
+  "quantization": "gptq_int6_lzma"
+}
