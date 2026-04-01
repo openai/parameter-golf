@@ -1,0 +1,96 @@
+logs/ctrl_seed314.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27067484
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:196608 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9300 train_time:550ms step_avg:550.16ms
+step:2/20000 train_loss:8.7825 train_time:1023ms step_avg:511.26ms
+step:3/20000 train_loss:8.3534 train_time:1538ms step_avg:512.69ms
+step:4/20000 train_loss:7.6774 train_time:2057ms step_avg:514.27ms
+step:5/20000 train_loss:7.0621 train_time:2576ms step_avg:515.11ms
+step:6/20000 train_loss:6.5916 train_time:3093ms step_avg:515.51ms
+step:7/20000 train_loss:6.3355 train_time:3776ms step_avg:539.43ms
+step:8/20000 train_loss:6.0481 train_time:4293ms step_avg:536.60ms
+step:9/20000 train_loss:5.9874 train_time:4822ms step_avg:535.75ms
+step:10/20000 train_loss:5.9259 train_time:5339ms step_avg:533.93ms
+swa:start step:400
+step:500/20000 train_loss:2.5956 train_time:256246ms step_avg:512.49ms
+late_qat:enabled step:567 scale:0.1500
+step:1000/20000 train_loss:2.4014 train_time:513333ms step_avg:513.33ms
+step:1168/20000 val_loss:2.3636 val_bpb:1.3998 train_time:600275ms step_avg:513.93ms
+stopping_early: wallclock_cap train_time:600275ms step:1168/20000
+peak memory allocated: 6168 MiB reserved: 6190 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.4292 val_bpb:1.4387 eval_time:48166ms
+Serialized model: 106289590 bytes
+Code size: 101850 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 197.4s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+selective_prune: 10633344 ±1 candidates, unpruned=7.63MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 7900108 bytes
+Total submission size int6+lzma: 8001958 bytes
+final_int6_roundtrip val_loss:2.6829 val_bpb:1.5890 eval_time:61200ms
+final_int6_roundtrip_exact val_loss:2.68292629 val_bpb:1.58898007
+W0401 16:35:31.680000 5135 torch/distributed/elastic/agent/server/api.py:725] Received 15 death signal, shutting down workers
+W0401 16:35:31.681000 5135 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 5172 closing signal SIGTERM
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 284, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 717, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 881, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/api.py", line 85, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 5135 got signal: 15
+[W401 16:35:32.505266161 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
