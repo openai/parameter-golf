@@ -814,6 +814,34 @@ def main() -> None:
             break
 
     train_loader.close()
+    
+    # Compute int8+zlib submission size (like actual benchmark)
+    model.eval()
+    with torch.no_grad():
+        import zlib
+        import struct
+        
+        # Serialize params to bytes
+        param_data = b''
+        for name, param in base_model.state_dict().items():
+            p = param.float().cpu()
+            if p.numel() < 32:
+                # Small params: store as fp32 bytes
+                param_data += p.numpy().tobytes()
+            else:
+                # Quantize to int8
+                scale = p.abs().max().item() / 127.0 if p.abs().max().item() > 1e-6 else 1.0
+                q = (p / scale).round().clamp(-127, 127).to(torch.int8)
+                param_data += q.numpy().tobytes()
+                param_data += struct.pack('<f', scale)
+        
+        compressed = zlib.compress(param_data, level=6)
+        code_size = len(open('train_gpt.py', 'rb').read())
+        total_submission = len(compressed) + code_size
+        
+        print(f"Submission size: model_int8+zlib={len(compressed)/1e6:.2f}MB + code={code_size/1e6:.2f}MB = {total_submission/1e6:.2f}MB")
+        print(f"Baseline: 15.86MB total. Under 16MB: {'YES' if total_submission < 16_000_000 else 'NO'}")
+    
     print("Training complete!")
 
 
