@@ -1,0 +1,9 @@
+{
+  "name": "11L Int4-MLP QAT + BigramHash(10240) + SWA(frac=0.4)",
+  "val_loss": null,
+  "bytes_total": null,
+  "blurb": "11 layers with int4 QAT for MLP (clip_range=7) and int6 for attention. STE fake quantization during training makes model robust to int4 precision. BigramHash 10240, SmearGate, SWA start_frac=0.4, 5% MLP magnitude pruning, zstd-22. Built on thwu1 SOTA.",
+  "author": "aravhawk",
+  "github_id": "aravhawk",
+  "date": "2026-03-21"
+}
