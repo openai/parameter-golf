@@ -2237,6 +2237,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
+    torch._dynamo.config.cache_size_limit = 64  # avoid recompile_limit hit on fresh eval model
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
