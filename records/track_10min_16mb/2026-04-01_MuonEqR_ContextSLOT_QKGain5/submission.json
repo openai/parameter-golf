@@ -12,7 +12,7 @@
     "2024": {"val_bpb": 1.10271384, "artifact_bytes": 15796779, "steps": 6653, "step_avg_ms": 88.85}
   },
   "bytes_total": 15796779,
-  "code_bytes": 71382,
+  "code_bytes": 22718,
   "hardware": "8xH100 80GB SXM",
   "base_pr": 1179,
   "technique_summary": "MuonEq-R optimizer + Context-Only SLOT + QK_GAIN=5.0 + Brotli compression"
