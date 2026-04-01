@@ -1,0 +1,17 @@
+{
+  "author": "Sergiu Nistor",
+  "github_id": "SergiuDeveloper",
+  "name": "Depth-Recurrent Test-Time Training",
+  "blurb": "Non-record 16MB track: SP-1024 9x512 KV4 run with depth-recurrence (encoder_loops=2, decoder_loops=2) and chunk-causal TTT LoRA (rank=8, chunk=256).",
+  "date": "2026-03-23T02:16:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.04161111,
+  "val_bpb": 1.20917777,
+  "pre_quant_val_loss": 2.09495555,
+  "pre_quant_val_bpb": 1.24076666,
+  "step_stop": 2570,
+  "wallclock_seconds": 600.183,
+  "bytes_total": 15544590,
+  "bytes_model_int8_zlib": 15485619,
+  "bytes_code": 58971
+}
