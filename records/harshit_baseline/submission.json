@@ -1,0 +1,16 @@
+{
+  "run_id": "harshit_baseline_v0",
+  "author": "Harshit Kulkarni",
+  "github": "kulharshit21",
+  "status": "draft",
+  "approach": {
+    "quantization": "Int4 NormalFloat (NF4) QAT",
+    "tokenizer": "BigramHash vocab=10240",
+    "architecture": "MLP3x + SmearGate + Depth Recurrence",
+    "test_time": "LoRA TTT rank-4 adapters"
+  },
+  "bpb": null,
+  "artifact_size_mb": null,
+  "train_time_minutes": null,
+  "notes": "Draft submission — results pending first full H100 run"
+}
