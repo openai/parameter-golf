@@ -108,21 +108,47 @@ echo ""
 echo "[5/6] FlashAttention-3..."
 
 install_fa3() {
-    echo "  Attempting FA3 abi3 wheel (cu128)..."
-    if pip install --no-cache-dir \
-        "https://download.pytorch.org/whl/cu128/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-        2>&1 | tail -3; then
-        return 0
+    # --- 1. Dao-AILab v2.8.3 wheel (auto-detect torch, python, ABI) ---
+    _torch_minor=$(python3 -c "import torch; print('.'.join(torch.__version__.split('.')[:2]))" 2>/dev/null)
+    _pyver=$(python3 -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')" 2>/dev/null)
+    _abi=$(python3 -c "import torch; print('TRUE' if torch._C._GLIBCXX_USE_CXX11_ABI else 'FALSE')" 2>/dev/null)
+    if [[ -n "${_torch_minor}" && -n "${_pyver}" && -n "${_abi}" ]]; then
+        _whl="flash_attn-2.8.3+cu12torch${_torch_minor}cxx11abi${_abi}-${_pyver}-${_pyver}-linux_x86_64.whl"
+        _url="https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/${_whl}"
+        echo "  Trying Dao-AILab v2.8.3: torch${_torch_minor} ${_pyver} abi=${_abi}"
+        if pip install --no-deps --no-cache-dir "${_url}" 2>&1 | tail -3; then
+            echo "  Installed ${_whl}"
+            return 0
+        fi
+        echo "  Dao-AILab wheel failed (${_url})"
     fi
 
-    echo "  cu128 failed, trying cu124..."
-    if pip install --no-cache-dir \
-        "https://download.pytorch.org/whl/cu124/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl" \
-        2>&1 | tail -3; then
-        return 0
-    fi
+    # --- 2. Search system for pre-installed FA3 (common on Vast.ai/RunPod) ---
+    echo "  Searching system for pre-installed flash_attn_interface..."
+    _fa3_path=""
+    for _py in $(which -a python3 2>/dev/null | awk '!seen[$0]++') /opt/conda/bin/python3 /usr/bin/python3; do
+        [ -x "${_py}" ] || continue
+        _fa3_path=$("${_py}" -c "
+import inspect, os
+try:
+    import flash_attn_interface
+    print(os.path.dirname(inspect.getfile(flash_attn_interface)))
+except ImportError:
+    pass
+" 2>/dev/null)
+        if [ -n "${_fa3_path}" ]; then
+            SITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
+            echo "  Found FA3 at ${_fa3_path} (via ${_py})"
+            for _f in "${_fa3_path}"/flash_attn_interface*; do
+                [ -e "${_f}" ] && ln -sf "${_f}" "${SITE}/"
+            done
+            echo "  Symlinked into ${SITE}"
+            return 0
+        fi
+    done
 
-    echo "  Wheels failed. Checking for local flash-attention/hopper source..."
+    # --- 3. Local flash-attention/hopper source ---
+    echo "  Checking for local flash-attention/hopper source..."
     if [ -d "${WORKSPACE}/flash-attention/hopper" ]; then
         SITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
         SRC="${WORKSPACE}/flash-attention/hopper/flash_attn_interface.py"
