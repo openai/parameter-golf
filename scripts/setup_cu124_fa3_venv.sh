@@ -17,6 +17,14 @@ echo "============================================"
 echo "  cu124 + FA3 venv setup"
 echo "============================================"
 
+# ── Step 0: Clean up space ──
+echo ""
+echo "[0/4] Cleaning up disk space..."
+pip cache purge 2>/dev/null || true
+rm -rf /tmp/pip-* /tmp/ccm* /workspace/flash-attention/hopper/build 2>/dev/null || true
+rm -rf "${VENV_DIR}" 2>/dev/null || true
+echo "  $(df -h / | awk 'NR==2{print $4}') available"
+
 # ── Step 1: Find system FA3 ──
 echo ""
 echo "[1/4] Locating system FA3..."
@@ -109,7 +117,7 @@ for TORCH_VER in 2.6.0 2.5.1 2.5.0 2.4.1; do
     VENV_SITE="${VENV_DIR}/lib/python3.12/site-packages"
     if [ -n "${FA3_SO:-}" ]; then
         mkdir -p "${VENV_SITE}/flash_attn_3"
-        cp "${FA3_SO}" "${VENV_SITE}/flash_attn_3/"
+        ln -sf "${FA3_SO}" "${VENV_SITE}/flash_attn_3/"
         touch "${VENV_SITE}/flash_attn_3/__init__.py"
     fi
 
@@ -123,7 +131,7 @@ for TORCH_VER in 2.6.0 2.5.1 2.5.0 2.4.1; do
         break
     else
         echo "  ✗ FA3 failed with torch==${TORCH_VER}"
-        # Clean up flash_attn_3 copy for next attempt
+        # Clean up flash_attn_3 symlink for next attempt
         rm -rf "${VENV_SITE}/flash_attn_3"
     fi
 done
