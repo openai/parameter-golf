@@ -1,0 +1,11 @@
+{
+  "author": "translatingthename",
+  "github_id": "translatingthename",
+  "name": "Record: Dynamic Eval + TTT on SOTA Pipeline (val_bpb=1.1364)",
+  "blurb": "Dynamic evaluation (Krause et al., ICML 2018) during sliding window scoring. 2.0% consistent improvement at zero artifact cost.",
+  "date": "2026-03-22",
+  "val_loss": 1.9187,
+  "val_bpb": 1.1364,
+  "bytes_total": 15650861,
+  "bytes_code": 77946
+}
