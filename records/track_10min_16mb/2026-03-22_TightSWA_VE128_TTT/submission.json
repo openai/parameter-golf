@@ -1,0 +1,11 @@
+{
+  "author": "kasimte",
+  "github_id": "kasimte",
+  "model_name": "TightSWA_VE128_TTT",
+  "description": "Record: 11L + Tight SWA + Shared VE128 + XSA4 + Partial RoPE + LN Scale + Late QAT + TTT (3-seed mean val_bpb=1.1299)",
+  "val_loss": 1.90649894,
+  "val_bpb": 1.12913905,
+  "bytes_total": 15787610,
+  "track": "10min_16mb",
+  "seed": 1337
+}
