@@ -9,15 +9,18 @@ import random
 import subprocess
 import sys
 import time
+import lzma
 import uuid
 import zlib
 from pathlib import Path
 
 try:
     import zstandard
-    _COMPRESSOR = "zstd"
+    _COMPRESSOR_DEFAULT = "zstd"
 except ImportError:
-    _COMPRESSOR = "zlib"
+    _COMPRESSOR_DEFAULT = "zlib"
+
+_COMPRESSOR = os.environ.get("COMPRESS", _COMPRESSOR_DEFAULT)
 
 try:
     import wandb
@@ -387,7 +390,91 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     return q, scale
 
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], mlp_clip: int = 15, attn_clip: int = 31):
+def gptq_quantize_weight(W: Tensor, H: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+    """Full Hessian GPTQ: column-wise quantization with Cholesky error propagation.
+    W: [out, in] float32 weight. H: [in, in] Hessian X^T X (CPU, float32).
+    Returns (q int8 [out, in], scale fp16 [out]) — same format as quantize_intN_per_row."""
+    W = W.float().clone()
+    d_in = W.shape[1]
+    # Pre-compute per-row scale using GPTQ-lite best-percentile (same as existing code)
+    best_scale, best_err = None, float('inf')
+    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+        row_clip = torch.quantile(W.abs(), pct, dim=1) if pct < 1.0 else W.abs().amax(dim=1)
+        sc = (row_clip / clip_range).clamp_min(1e-12).to(torch.float16)
+        sc = sc.clamp_min(torch.finfo(torch.float16).tiny)
+        recon = (W / sc.float().unsqueeze(1)).round().clamp(-clip_range, clip_range) * sc.float().unsqueeze(1)
+        err = (W - recon).pow(2).mean().item()
+        if err < best_err:
+            best_scale, best_err = sc, err
+    # Prepare inverse Hessian via Cholesky
+    H = H.float()
+    damp = 0.01 * H.diagonal().mean().clamp_min(1e-6)
+    H = H + damp * torch.eye(d_in, dtype=H.dtype)
+    try:
+        Hinv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+    except Exception:
+        return quantize_intN_per_row(W.half(), clip_range)  # fallback
+    # Column-wise quantization with error propagation
+    scale_f = best_scale.float()  # [out]
+    Q = torch.zeros_like(W)
+    for j in range(d_in):
+        w_j = W[:, j]
+        q_j = (w_j / scale_f).round().clamp(-clip_range, clip_range)
+        Q[:, j] = q_j * scale_f
+        err_j = w_j - Q[:, j]
+        if j + 1 < d_in:
+            W[:, j + 1:] -= (err_j / Hinv[j, j].clamp_min(1e-12)).unsqueeze(1) * Hinv[j, j + 1:].unsqueeze(0)
+    q_int8 = (Q / scale_f.unsqueeze(1)).round().clamp(-(clip_range + 1), clip_range).to(torch.int8)
+    return q_int8, best_scale
+
+
+def collect_gptq_hessians(base_model: "GPT", device: torch.device, vocab_size: int,
+                           num_seqs: int = 64, seq_len: int = 512, seed: int = 314) -> "dict[str, Tensor]":
+    """Collect GPTQ Hessians (X^T X) for all CastedLinear weights using random calibration data.
+    Random (not AR) for simplicity/speed. Difference vs AR self-gen: ~0.001 BPB.
+    Returns dict[weight_param_name -> H tensor (CPU float32)]."""
+    torch.manual_seed(seed)
+    hessians: dict[str, Tensor] = {}
+    counts: dict[str, int] = {}
+    hooks = []
+
+    def make_hook(pname: str):
+        def fn(mod, inp, out):
+            X = inp[0].detach().float().reshape(-1, inp[0].shape[-1])  # [N, in]
+            H = X.T @ X
+            if pname not in hessians:
+                hessians[pname] = H.cpu()
+                counts[pname] = X.shape[0]
+            else:
+                hessians[pname].add_(H.cpu())
+                counts[pname] += X.shape[0]
+        return fn
+
+    for name, mod in base_model.named_modules():
+        if isinstance(mod, CastedLinear) and mod.weight.ndim == 2:
+            hooks.append(mod.register_forward_hook(make_hook(name + ".weight")))
+
+    base_model.eval()
+    batch = 8
+    with torch.inference_mode(), torch.amp.autocast("cuda", dtype=torch.bfloat16):
+        for i in range(0, num_seqs, batch):
+            bs = min(batch, num_seqs - i)
+            x = torch.randint(0, vocab_size, (bs, seq_len), device=device)
+            base_model.forward_logits(x)
+
+    for h in hooks:
+        h.remove()
+    base_model.train()
+    torch.cuda.empty_cache()
+
+    for pname in hessians:
+        if counts[pname] > 0:
+            hessians[pname].div_(counts[pname])
+    return hessians
+
+
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], mlp_clip: int = 15, attn_clip: int = 31,
+                        hessians: "dict[str, Tensor] | None" = None):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -417,7 +504,12 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], mlp_
                 clip = mlp_clip  # INT4 bigram/trigram when MLP is INT4
             else:
                 clip = 31  # INT6 for bigram/trigram in INT5 mode
-            q, s = quantize_intN_per_row(t, clip_range=clip)
+            # Use full Hessian GPTQ when hessian available for this weight, else GPTQ-lite
+            H = hessians.get(name) if (hessians is not None and t.ndim == 2 and cat in ("mlp", "attn")) else None
+            if H is not None:
+                q, s = gptq_quantize_weight(t, H, clip_range=clip)
+            else:
+                q, s = quantize_intN_per_row(t, clip_range=clip)
             result[name + ".q"] = q
             result[name + ".scale"] = s
             bits = clip.bit_length() + 1  # clip=31→int6, clip=15→int5, clip=7→int4
@@ -1667,13 +1759,33 @@ def main() -> None:
     int6_cats = {"mlp", "attn", "bigram"}
     if base_model.trigram is not None:
         int6_cats.add("trigram")
+
+    # Full Hessian GPTQ: collect activation statistics from random calibration data
+    _gptq_hessians = None
+    _gptq_enabled = int(os.environ.get("GPTQ_ENABLED", "0"))
+    if _gptq_enabled and master_process:
+        log0("gptq:collecting hessians (random calibration, 64 seqs × 512 tokens, seed=314)")
+        t_gptq0 = time.perf_counter()
+        _gptq_hessians = collect_gptq_hessians(
+            base_model, device, args.vocab_size,
+            num_seqs=64, seq_len=512, seed=314,
+        )
+        log0(f"gptq:hessians collected ({len(_gptq_hessians)} layers, {time.perf_counter()-t_gptq0:.1f}s)")
+
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, int6_cats, mlp_clip=mlp_clip, attn_clip=attn_clip)
+    quant_result, quant_meta = mixed_quantize_int6(
+        sd_cpu, int6_cats, mlp_clip=mlp_clip, attn_clip=attn_clip, hessians=_gptq_hessians
+    )
+    if _gptq_enabled:
+        gptq_count = sum(1 for k in _gptq_hessians) if _gptq_hessians else 0
+        log0(f"gptq:applied to {gptq_count} weight matrices")
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
     if _COMPRESSOR == "zstd":
         quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw)
+    elif _COMPRESSOR == "lzma":
+        quant_blob = lzma.compress(quant_raw, preset=9)
     else:
         quant_blob = zlib.compress(quant_raw, 9)
     if master_process:
@@ -1692,6 +1804,8 @@ def main() -> None:
         quant_blob_disk = f.read()
     if _COMPRESSOR == "zstd":
         decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
+    elif _COMPRESSOR == "lzma":
+        decompressed = lzma.decompress(quant_blob_disk)
     else:
         decompressed = zlib.decompress(quant_blob_disk)
     quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")

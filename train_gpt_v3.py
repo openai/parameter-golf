@@ -731,9 +731,11 @@ class CausalSelfAttention(nn.Module):
             q, k, v, attn_mask=None, is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
-        y = y.transpose(1, 2).contiguous()
+        # Permute BHSD→BTHD in one op; if XSA is needed use contiguous for in-place ops
         if self.use_xsa:
-            y = self._xsa_efficient(y, v_bthd)
+            y = self._xsa_efficient(y.permute(0, 2, 1, 3).contiguous(), v_bthd)
+        else:
+            y = y.permute(0, 2, 1, 3)
         y = y.reshape(bsz, seqlen, dim)
         return F.linear(y, out_w.to(x.dtype))
 
@@ -1693,10 +1695,14 @@ def main() -> None:
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             # Without DDP: manually all-reduce all grads for warmup (simple, only 20 steps)
+            # Launch async to let NCCL pipeline multiple small ops.
             if distributed:
+                _wup_handles = []
                 for p in base_model.parameters():
                     if p.grad is not None:
-                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                        _wup_handles.append(dist.all_reduce(p.grad, op=dist.ReduceOp.AVG, async_op=True))
+                for _h in _wup_handles:
+                    _h.wait()
             for opt in optimizers:
                 opt.step()
             zero_grad_all()
@@ -1786,13 +1792,21 @@ def main() -> None:
         # Phase 1: Launch async reduce-scatter for banks (biggest first)
         optimizer_muon.launch_reduce_scatters()
         # Phase 2: All-reduce non-bank grads + step Adam (while bank RS is in-flight)
+        # Launch ALL all-reduces async simultaneously so NCCL can pipeline them.
         if distributed:
+            _ar_handles = []
             for p in replicated_params:
                 if p.grad is not None:
-                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-        for opt in optimizers:
-            if opt is not optimizer_muon:
-                opt.step()
+                    _ar_handles.append(dist.all_reduce(p.grad, op=dist.ReduceOp.AVG, async_op=True))
+            for opt in optimizers:
+                if opt is not optimizer_muon:
+                    opt.step()
+            for _h in _ar_handles:
+                _h.wait()
+        else:
+            for opt in optimizers:
+                if opt is not optimizer_muon:
+                    opt.step()
         # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
         optimizer_muon.step()
         zero_grad_all()

@@ -323,6 +323,74 @@ case "$CONFIG" in
     torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
     ;;
 
+  v11_proxy)
+    echo "=== Phase 11 PROXY: 11L INT6 + XSA-all + LZMA — 1×GPU smoke test ==="
+    # Verifies correctness and baseline step_ms. No wallclock cap, 500 steps, no TTT.
+    # Expected: step_avg ~250-300ms (1 GPU vs 8), val_bpb ~1.35-1.40 at step 500 (undertrained)
+    export RUN_ID=v11_proxy SEED=${SEED:-1} MAX_WALLCLOCK_SECONDS=0 \
+           ITERATIONS=500 VAL_LOSS_EVERY=100 TTT_ENABLED=0 \
+           NUM_LAYERS=11 MLP_QUANT_BITS=6 \
+           XSA_LAST_N=11 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 LATE_QAT_THRESHOLD=0.9 \
+           BIGRAM_VOCAB_SIZE=3072 BIGRAM_DIM=112 \
+           VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
+           COMPRESS=lzma WARMDOWN_ITERS=4000
+    torchrun --standalone --nproc_per_node=1 train_gpt_v2.py
+    ;;
+
+  v11_gptq)
+    echo "=== Phase 11 H100: 11L INT6 + XSA-all + LZMA + VE + Full Hessian GPTQ ==="
+    # Adds GPTQ on top of v11_int6_xsaall base. Expected: -0.003 to -0.005 BPB vs v11_int6_xsaall.
+    # GPTQ uses 64 random seqs × 512 tokens for Hessian collection (~2s post-training).
+    # TTT disabled initially (neutral with GPTQ on this stack per PR #1019 findings).
+    # Expected: ~110-115ms/step → ~5200-5450 steps → ~1.125-1.135 BPB
+    export RUN_ID=v11_gptq_seed${SEED:-1} SEED=${SEED:-1} \
+           NUM_LAYERS=11 MLP_QUANT_BITS=6 \
+           XSA_LAST_N=11 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 \
+           LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
+           LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=0 \
+           BIGRAM_VOCAB_SIZE=3072 BIGRAM_DIM=112 \
+           VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
+           COMPRESS=lzma WARMDOWN_ITERS=4000 \
+           GPTQ_ENABLED=1
+    torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
+    ;;
+
+  v11_int6_xsaall)
+    echo "=== Phase 11 H100: 11L INT6 + XSA-all + LZMA + VE — correct base stack ==="
+    # THE RIGHT STACK. Matches community consensus: 11L INT6, XSA-all, LZMA, LeakyReLU(0.5)².
+    # Expected: ~130-145ms/step → ~4100-4600 steps → ~1.130-1.140 BPB
+    # Note: VE adds ~28-38ms overhead. INT6 is already default when MLP_QUANT_BITS=6.
+    export RUN_ID=v11_int6_xsaall_seed${SEED:-1} SEED=${SEED:-1} \
+           NUM_LAYERS=11 MLP_QUANT_BITS=6 \
+           XSA_LAST_N=11 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 \
+           LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
+           LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=1 \
+           BIGRAM_VOCAB_SIZE=3072 BIGRAM_DIM=112 \
+           VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
+           COMPRESS=lzma WARMDOWN_ITERS=4000
+    torchrun --standalone --nproc_per_node=8 train_gpt_v2.py
+    ;;
+
+  v11_banked)
+    echo "=== Phase 11 H100: 11L INT6 + XSA-all + LZMA + VE + Parallel Muon banking (train_gpt_v3.py) ==="
+    # Banking variant: async RS+AG replaces DDP allreduce for matrix banks.
+    # Replicated param all_reduces are now launched async (NCCL can pipeline them).
+    # Expected: ~125-135ms/step → ~4450-4800 steps
+    export RUN_ID=v11_banked_seed${SEED:-1} SEED=${SEED:-1} \
+           NUM_LAYERS=11 MLP_QUANT_BITS=6 \
+           XSA_LAST_N=11 EMA_ENABLED=1 SWA_ENABLED=0 \
+           ROPE_DIMS=16 LN_SCALE=1 \
+           LATE_QAT_FRAC=0.65 VAL_LOSS_EVERY=1000 \
+           LATE_QAT_THRESHOLD=0.9 TTT_ENABLED=1 \
+           BIGRAM_VOCAB_SIZE=3072 BIGRAM_DIM=112 \
+           VALUE_EMBED_LAYERS=2 VALUE_EMBED_DIM=128 \
+           COMPRESS=lzma WARMDOWN_ITERS=4000
+    torchrun --standalone --nproc_per_node=8 train_gpt_v3.py
+    ;;
+
   *)
     echo "Unknown config: $CONFIG"
     echo "Available: baseline | baseline_full | v2_quick | v2_full | v2_h100"
@@ -330,9 +398,10 @@ case "$CONFIG" in
     echo "Phase 3:   v3_abl | proxy_v3 | v3_h100"
     echo "Phase 4:   proxy_v4 | v4_h100  (EMA+LateQAT fix, threshold=0.9)"
     echo "Phase 6:   v6_parallel  (Parallel Muon: DEPRECATED)"
-  echo "Phase 10:  v10_banked | v10_banked_proxy  (Model Banking + Parallel Muon, train_gpt_v3.py)"
+    echo "Phase 10:  v10_banked | v10_banked_proxy  (Model Banking + Parallel Muon, train_gpt_v3.py)"
     echo "Phase 7:   v7_ve | v7_ve_small  (Value Embeddings)"
     echo "Phase 8:   v8_static  (VE + DDP static_graph, overhead fix test — no improvement found)"
+    echo "Phase 11:  v11_proxy | v11_int6_xsaall | v11_banked | v11_gptq  (11L INT6 + XSA-all + LZMA)"
     echo "Phase 9:   v9_13l_int4attn  (13L + INT4 MLP + INT4 Attn + VE, novel depth bet)"
     exit 1
     ;;
