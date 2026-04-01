@@ -1,0 +1,7 @@
+{
+  "name": "Aarya",
+  "github_id": "Git-Aarya",
+  "val_bpb": 1.21683654,
+  "run_date": "2026-03-22",
+  "notes": "Optimal hyperparameter setup based on leaderboard research for local 3070 Ti testing, pending 8xH100 execution."
+}
