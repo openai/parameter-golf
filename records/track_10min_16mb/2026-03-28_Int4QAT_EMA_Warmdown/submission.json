@@ -1,0 +1,74 @@
+{
+  "author": "copilot-phase1-variant",
+  "github_id": "openai-parameter-golf",
+  "submission_variant": "Phase 1.1 - Int4 QAT with Adaptive Warmdown",
+  "date_created": "2026-03-28",
+  "challenge_track": "track_10min_16mb",
+  "val_bpb": "TBD_AFTER_TRAINING",
+  "hyperparameters": {
+    "model_architecture": {
+      "num_layers": 11,
+      "model_dim": 512,
+      "num_heads": 8,
+      "num_kv_heads": 4,
+      "mlp_mult": 3.0,
+      "vocab_size": 1024,
+      "seq_len": 2048,
+      "tie_embeddings": true,
+      "xsa_last_n": 4,
+      "bigram_enabled": true,
+      "smeargate_enabled": true
+    },
+    "quantization": {
+      "type": "int4_ste_qat",
+      "int_bits": 4,
+      "clip_range": 7,
+      "int_levels": 15,
+      "qat_start_step": 1000,
+      "qat_warmdown_start": 4000,
+      "qat_warmdown_end": 6500,
+      "qat_scale_factor_start": 0.8,
+      "qat_scale_factor_end": 0.6,
+      "compression": "zstd-22"
+    },
+    "training": {
+      "batch_tokens_per_step": 786432,
+      "iterations": 20000,
+      "warmup_steps": 20,
+      "warmdown_iters": 1200,
+      "max_wallclock_seconds": 600,
+      "optimizer": "Muon + Adam split",
+      "matrix_lr": 0.04,
+      "scalar_lr": 0.04,
+      "tied_embed_lr": 0.05,
+      "muon_momentum": 0.95,
+      "muon_wd": 0.02,
+      "adam_wd": 0.01,
+      "ema_enabled": true,
+      "ema_decay": 0.997
+    }
+  },
+  "notes": [
+    "Phase 1.1 variant: explores int4 quantization vs proven int6",
+    "Key innovation: adaptive QAT scale factor (0.8→0.6) during warmdown phase",
+    "Expects marginal improvement if int4 stability maintained",
+    "Should achieve model size ~14.8-15.2 MB (20-30% compression from int4)",
+    "Fallback: if roundtrip loss >0.005 vs training loss, revert to int6"
+  ],
+  "expected_performance": {
+    "best_case": "≤1.1180",
+    "target_case": "1.1180-1.1200",
+    "acceptable_case": "≤1.1220",
+    "fallback_baseline": "1.1271 (int6 record)"
+  },
+  "artifact_size_budget": {
+    "max_bytes": 16000000,
+    "model_bytes_target": 14800000,
+    "code_bytes_target": 66000,
+    "overhead_bytes": 100000
+  },
+  "files_included": [
+    "train_gpt.py (modified for int4 QAT)",
+    "final_model.int4.ptz (quantized weights)"
+  ]
+}
