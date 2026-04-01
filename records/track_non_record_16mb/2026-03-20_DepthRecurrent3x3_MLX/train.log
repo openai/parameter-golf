@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+"""
+from __future__ import annotations
+
+import glob
+import json
+import math
+import os
+import pickle
+import sys
+import time
+import uuid
+import zlib
+from collections.abc import Callable
+from pathlib import Path
+
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    val_loss = total_loss_sum / total_tokens
+    bits_per_token = val_loss / math.log(2.0)
+    val_bpb = bits_per_token * (total_tokens / total_bytes)
+    return val_loss, val_bpb
+    log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+        warm_val_loss = compiled_loss(x_val, y_val)
+        mx.eval(warm_val_loss)
+        if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            val_loss, val_bpb = eval_val(
+                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+    log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
+    quant_serialized_bytes = len(quant_raw)
+        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
+        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+    q_val_loss, q_val_bpb = eval_val(
+    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+step:1/2000 train_loss:6.9739 train_time:405ms step_avg:404.58ms tok_s:20249
+step:2/2000 train_loss:23.9462 train_time:841ms step_avg:420.37ms tok_s:18791
+step:3/2000 train_loss:20.2959 train_time:1298ms step_avg:432.66ms tok_s:17923
+step:4/2000 train_loss:14.7355 train_time:1743ms step_avg:435.63ms tok_s:18438
+step:5/2000 train_loss:10.8264 train_time:2178ms step_avg:435.52ms tok_s:18840
+step:6/2000 train_loss:8.4652 train_time:2611ms step_avg:435.21ms tok_s:18898
+step:7/2000 train_loss:7.3343 train_time:3046ms step_avg:435.12ms tok_s:18860
+step:8/2000 train_loss:6.7195 train_time:3479ms step_avg:434.87ms tok_s:18924
+step:9/2000 train_loss:6.4212 train_time:3913ms step_avg:434.82ms tok_s:18862
+step:10/2000 train_loss:6.1501 train_time:4345ms step_avg:434.47ms tok_s:19002
+step:200/2000 train_loss:3.9162 train_time:88613ms step_avg:443.06ms tok_s:17427
+step:400/2000 train_loss:3.6131 train_time:196127ms step_avg:490.32ms tok_s:13093
+step:600/2000 train_loss:3.5137 train_time:328915ms step_avg:548.19ms tok_s:12577
+step:800/2000 train_loss:3.4495 train_time:443301ms step_avg:554.13ms tok_s:13770
+step:1000/2000 train_loss:3.3922 train_time:546411ms step_avg:546.41ms tok_s:15933
+step:1200/2000 train_loss:3.2575 train_time:651329ms step_avg:542.77ms tok_s:14984
+step:1400/2000 train_loss:3.0074 train_time:758516ms step_avg:541.80ms tok_s:15349
+step:1600/2000 train_loss:3.0648 train_time:861898ms step_avg:538.69ms tok_s:15374
+step:1800/2000 train_loss:2.8332 train_time:966036ms step_avg:536.69ms tok_s:16199
+step:2000/2000 train_loss:2.5827 train_time:1068279ms step_avg:534.14ms tok_s:16136
+step:2000/2000 val_loss:2.8247 val_bpb:1.6729 train_time:1068279ms step_avg:534.14ms
+saved_model:logs/v2_2000steps_mlx_model.npz bytes:51199670
+serialized_model_int8_zlib:9354004 bytes (payload:13276256 raw_pickle:13279693 payload_ratio:3.86x)
