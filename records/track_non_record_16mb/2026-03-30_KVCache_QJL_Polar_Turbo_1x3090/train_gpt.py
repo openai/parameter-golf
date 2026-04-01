@@ -98,6 +98,7 @@ class Hyperparameters:
     kv_bits_mode = os.environ.get("KV_BITS_MODE", "balanced").strip().lower()
     kv_rotation_seed = int(os.environ.get("KV_ROTATION_SEED", 1234))
     kv_group_size = int(os.environ.get("KV_GROUP_SIZE", 16))
+    kv_recent_fp16_tokens = int(os.environ.get("KV_RECENT_FP16_TOKENS", "8"))
     kv_eval_context_len = int(os.environ.get("KV_EVAL_CONTEXT_LEN", os.environ.get("TRAIN_SEQ_LEN", "1024")))
     kv_eval_max_tokens = int(os.environ.get("KV_EVAL_MAX_TOKENS", "16384"))
     kv_cache_baseline = os.environ.get("KV_CACHE_BASELINE", "float").strip().lower()
@@ -1059,6 +1060,18 @@ def grouped_encoded_logical_nbytes(encoded: dict[str, Any] | None) -> int:
     return logical_bytes_from_bits(encoded["codes"].numel(), int(encoded["bits"])) + tensor_storage_nbytes(encoded["scales"])
 
 
+def trim_grouped_encoded_left(encoded: dict[str, Any] | None, drop_tokens: int) -> dict[str, Any] | None:
+    if encoded is None or drop_tokens <= 0:
+        return encoded
+    length = int(encoded["codes"].size(2))
+    if drop_tokens >= length:
+        return None
+    out = dict(encoded)
+    out["codes"] = encoded["codes"][:, :, drop_tokens:, :].contiguous()
+    out["scales"] = encoded["scales"][:, :, drop_tokens:, :].contiguous()
+    return out
+
+
 def build_lloyd_max_codebook(bits: int, *, limit: float = 4.0, grid_size: int = 16001, steps: int = 24) -> Tensor:
     levels = 1 << bits
     grid = torch.linspace(-limit, limit, grid_size, dtype=torch.float32)
@@ -1296,6 +1309,117 @@ class QJLKVCacheBackend(KVCacheBackend):
         key_bytes = tensor_storage_nbytes(cache["k"]["sign"]) + tensor_storage_nbytes(cache["k"]["norm"])
         val_bytes = grouped_encoded_actual_nbytes(cache["v"])
         return key_bytes + val_bytes
+
+
+class QJLRecentFP16KeyKVCacheBackend(QJLKVCacheBackend):
+    name = "qjl_recentk"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.recent_fp16_tokens = max(0, int(os.environ.get("KV_RECENT_FP16_TOKENS", "8")))
+
+    def _qjl_len(self, encoded_k: dict[str, Any] | None) -> int:
+        if encoded_k is None:
+            return 0
+        return int(encoded_k["sign"].size(2))
+
+    def _recent_len(self, recent_k: Tensor | None) -> int:
+        if recent_k is None:
+            return 0
+        return int(recent_k.size(2))
+
+    def _append_qjl(self, encoded_k: dict[str, Any] | None, spill_k: Tensor) -> dict[str, Any]:
+        new_k = self.encode_k(spill_k)
+        if encoded_k is None:
+            return new_k
+        return {
+            "sign": torch.cat((encoded_k["sign"], new_k["sign"]), dim=2),
+            "norm": torch.cat((encoded_k["norm"], new_k["norm"]), dim=2),
+        }
+
+    def _trim_qjl_left(self, encoded_k: dict[str, Any] | None, drop_tokens: int) -> dict[str, Any] | None:
+        if encoded_k is None or drop_tokens <= 0:
+            return encoded_k
+        length = self._qjl_len(encoded_k)
+        if drop_tokens >= length:
+            return None
+        return {
+            "sign": encoded_k["sign"][:, :, drop_tokens:, :].contiguous(),
+            "norm": encoded_k["norm"][:, :, drop_tokens:, :].contiguous(),
+        }
+
+    def _trim_recent_left(self, recent_k: Tensor | None, drop_tokens: int) -> Tensor | None:
+        if recent_k is None or drop_tokens <= 0:
+            return recent_k
+        length = self._recent_len(recent_k)
+        if drop_tokens >= length:
+            return None
+        return recent_k[:, :, drop_tokens:, :].contiguous()
+
+    def append(self, cache: dict[str, Any] | None, k: Tensor, v: Tensor, max_len: int) -> dict[str, Any]:
+        old_k = None if cache is None else cache["k"]["old"]
+        recent_k = None if cache is None else cache["k"]["recent"]
+        v_cache = None if cache is None else cache["v"]
+
+        new_recent = k.to(dtype=torch.float16).contiguous()
+        recent_k = new_recent if recent_k is None else torch.cat((recent_k, new_recent), dim=2).contiguous()
+        v_cache = append_grouped_encoded(v_cache, self.encode_v(v), max_len=0)
+
+        if self.recent_fp16_tokens <= 0:
+            old_k = self._append_qjl(old_k, recent_k.float())
+            recent_k = None
+        elif recent_k.size(2) > self.recent_fp16_tokens:
+            spill_tokens = int(recent_k.size(2) - self.recent_fp16_tokens)
+            spill_k = recent_k[:, :, :spill_tokens, :].float()
+            old_k = self._append_qjl(old_k, spill_k)
+            recent_k = recent_k[:, :, spill_tokens:, :].contiguous()
+
+        total_len = self._qjl_len(old_k) + self._recent_len(recent_k)
+        if max_len > 0 and total_len > max_len:
+            drop_tokens = total_len - max_len
+            drop_from_old = min(drop_tokens, self._qjl_len(old_k))
+            old_k = self._trim_qjl_left(old_k, drop_from_old)
+            drop_tokens -= drop_from_old
+            recent_k = self._trim_recent_left(recent_k, drop_tokens)
+            v_cache = trim_grouped_encoded_left(v_cache, total_len - max_len)
+
+        return {"k": {"old": old_k, "recent": recent_k}, "v": v_cache}
+
+    def score(self, q: Tensor, encoded_k: dict[str, Any]) -> Tensor:
+        parts = []
+        if encoded_k["old"] is not None:
+            parts.append(super().score(q, encoded_k["old"]))
+        if encoded_k["recent"] is not None:
+            recent = expand_kv_heads(encoded_k["recent"].to(dtype=q.dtype), self.num_heads)
+            parts.append(torch.matmul(q.float(), recent.transpose(-1, -2).float()) / math.sqrt(self.head_dim))
+        if not parts:
+            raise RuntimeError("qjl_recentk score requested with an empty cache")
+        return parts[0] if len(parts) == 1 else torch.cat(parts, dim=-1)
+
+    def apply(self, attn_probs: Tensor, encoded_v: dict[str, Any]) -> Tensor:
+        return super().apply(attn_probs, encoded_v)
+
+    def cache_nbytes(self, cache: dict[str, Any] | None) -> int:
+        if cache is None:
+            return 0
+        key_bytes = 0
+        if cache["k"]["old"] is not None:
+            key_bytes += logical_bytes_from_bits(cache["k"]["old"]["sign"].numel(), self.key_bits)
+            key_bytes += tensor_storage_nbytes(cache["k"]["old"]["norm"])
+        if cache["k"]["recent"] is not None:
+            key_bytes += tensor_storage_nbytes(cache["k"]["recent"])
+        return key_bytes + grouped_encoded_logical_nbytes(cache["v"])
+
+    def actual_cache_nbytes(self, cache: dict[str, Any] | None) -> int:
+        if cache is None:
+            return 0
+        key_bytes = 0
+        if cache["k"]["old"] is not None:
+            key_bytes += tensor_storage_nbytes(cache["k"]["old"]["sign"])
+            key_bytes += tensor_storage_nbytes(cache["k"]["old"]["norm"])
+        if cache["k"]["recent"] is not None:
+            key_bytes += tensor_storage_nbytes(cache["k"]["recent"])
+        return key_bytes + grouped_encoded_actual_nbytes(cache["v"])
 
 
 class QJLTritonKVCacheBackend(QJLKVCacheBackend):
@@ -1547,6 +1671,10 @@ def make_named_kv_backend(
         )
     if name == "qjl":
         return QJLKVCacheBackend(head_dim, num_heads, num_kv_heads, args.kv_bits_mode, args.kv_group_size, args.kv_rotation_seed, device)
+    if name == "qjl_recentk":
+        return QJLRecentFP16KeyKVCacheBackend(
+            head_dim, num_heads, num_kv_heads, args.kv_bits_mode, args.kv_group_size, args.kv_rotation_seed, device
+        )
     if name == "qjl_triton":
         return QJLTritonKVCacheBackend(
             head_dim, num_heads, num_kv_heads, args.kv_bits_mode, args.kv_group_size, args.kv_rotation_seed, device
@@ -2071,7 +2199,7 @@ def run_kv_backend_selftests(args: Hyperparameters, device: torch.device, log0) 
     float_cache = float_backend.append(float_cache, k2, v2, max_len=8)
     baseline_scores = float_backend.score(q, float_cache["k"])
 
-    backend_names = ["none", "qjl", "polar", "turbo"]
+    backend_names = ["none", "qjl", "qjl_recentk", "polar", "turbo"]
     if args.kv_cache_baseline == "int8_backend":
         backend_names[0] = "int8_backend"
     if triton_is_available():
@@ -2567,6 +2695,7 @@ def main() -> None:
     log0(
         f"kv_eval:enabled={args.eval_autoregressive_kv} backend={args.kv_quant_backend} "
         f"bits_mode={args.kv_bits_mode} group_size={args.kv_group_size} "
+        f"recent_fp16_tokens={args.kv_recent_fp16_tokens} "
         f"context_len={args.kv_eval_context_len} max_tokens={args.kv_eval_max_tokens} "
         f"baseline={args.kv_cache_baseline} compare={','.join(resolve_eval_backend_names(args))}"
     )
