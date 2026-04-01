@@ -35,7 +35,7 @@ Built on KitchenSinkV2 Improved with the following changes:
 
 | Metric | val_loss (nats) | val_bpb |
 |--------|----------------|---------|
-| Mean | 1.8755 | 1.1083 |
+| Mean | 1.8755 | 1.1108 |
 | Std | 0.0023 | 0.0013 |
 | Best | 1.8731 | 1.1094 |
 
@@ -43,7 +43,7 @@ Built on KitchenSinkV2 Improved with the following changes:
 
 Current leader: 1.1147 bpb.
 
-- **Improvement: 0.0064 bpb (5-seed mean)**
+- **Improvement: 0.0039 bpb (5-seed mean)**
 - t-test vs leader: t = -6.46, df = 4, **p < 0.002**
 
 ## Artifact size (worst-case, seed 2)
