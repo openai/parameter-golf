@@ -1,3 +1,6 @@
+> [!WARNING]
+> INVALIDATED: Per user directive on 2026-04-01, agent-authored notes edited after 2026-03-31 22:00 local time are not reliable and must not guide development.
+>
 # Neural Science Board
 
 Track: Rascal lineage · Goal: beat leaderboard #1 · Score: sliding-window BPB
@@ -251,3 +254,6 @@ Gate target for all new legs: beat **1.10986874** BPB on seed 444 → confirm on
 
 <!-- NEW LEG STUB -->
 | 2026-03-31 | RASCAL_WINDOWN_TESTING | 4-arm legal suite: CTRL / SLOT / Scale TTT / SLOT+Scale | ⏳ | ⏳ | — | — | ⏳ SUITE PENDING | |
+
+<!-- NEW LEG STUB -->
+| 2026-04-01 | RASCAL_III_SLOT_F | (fill in) | ⏳ | ⏳ | — | — | ⏳ PENDING | |
