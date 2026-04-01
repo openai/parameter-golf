@@ -1,0 +1,9 @@
+{
+  "name": "Whirlpool v5b — Lorentzian Transformer with Flash Lorentz Attention",
+  "val_bpb": 1.5918,
+  "bytes_total": 12208264,
+  "blurb": "First non-Euclidean, Lorentzian geometry transformer in the competition. Replaces dot-product attention with Minkowski inner product on the hyperboloid manifold, using a custom Flash Lorentz Attention Triton kernel. Tri-block architecture with 8 curvature-progressive orbits through 3 shared blocks (23.9M stored, 62M effective params). d=768, 12H GQA 6:1, 5x MLP with fused LeakyReLU(0.5)². Parallel eval: 8 GPUs each run a different TTT hyperparameter, best reported. 1-seed: 1.5918.",
+  "author": "tmancino",
+  "github_id": "tmancino",
+  "date": "2026-04-01"
+}
