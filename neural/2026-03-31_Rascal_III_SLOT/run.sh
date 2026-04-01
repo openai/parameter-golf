@@ -1,31 +1,36 @@
 #!/usr/bin/env bash
-# Rascal_III_SLOT full run — 8×H100, 600s wallclock, seed=444
-# Run ONLY after gate.sh passes. Commit+push before pod launch.
+# Rascal_III_SLOT — 8×H100 600s racer. One change vs SOTA: SLOT_ENABLED=1.
 # On pod: git pull && bash neural/2026-03-31_Rascal_III_SLOT/run.sh
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-LOG_DIR="${SCRIPT_DIR}/logs"
-mkdir -p "${LOG_DIR}"
-
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+SRC="${REPO_ROOT}/neural/2026-03-31_Rascal_III_SLOT/train_gpt.py"
+EXPECTED_HASH="6937ec89a1050966e3fc894ab07b55b99bbece2e282b697871cf1ef2223c07f1"
 SEED="${SEED:-444}"
-NPROC="${NPROC:-8}"
-TORCHRUN="${TORCHRUN:-$(find /venv /usr /opt -name torchrun -type f 2>/dev/null | head -1)}"
-DATA_PATH="${DATA_PATH:-${REPO_ROOT}/data/datasets/fineweb10B_sp1024}"
-TOKENIZER_PATH="${TOKENIZER_PATH:-${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model}"
-PYTHONPATH_EXTRA=""
-if [[ -d "${REPO_ROOT}/flash-attention/hopper" ]]; then
-    PYTHONPATH_EXTRA="${REPO_ROOT}/flash-attention/hopper:"
-fi
+NPROC="${NPROC_PER_NODE:-8}"
+LOG_DIR="${REPO_ROOT}/logs/slot_runs"
 
-LOG="${LOG_DIR}/run_s${SEED}.log"
+die() { echo "FATAL: $*" >&2; exit 1; }
 
-echo "=== Rascal_III_SLOT full run  seed=${SEED}  nproc=${NPROC} ==="
-echo "Torchrun: ${TORCHRUN}"
-echo "Data:     ${DATA_PATH}"
-echo "Log:      ${LOG}"
+echo "[1/3] source hash..."
+actual=$(sha256sum "${SRC}" | awk '{print $1}')
+[[ "${actual}" == "${EXPECTED_HASH}" ]] || die "hash mismatch — got ${actual}"
+echo "      OK ${actual:0:16}..."
 
+echo "[2/3] CUDA must be 12.x..."
+cuda_ver=$(python3 -c "import torch; print(torch.version.cuda or 'NONE')" 2>/dev/null) \
+    || die "python3/torch failed"
+[[ "${cuda_ver}" == "12."* ]] || die "wrong CUDA: ${cuda_ver}"
+echo "      cuda=${cuda_ver} OK"
+
+echo "[3/3] launching seed=${SEED} nproc=${NPROC}..."
+mkdir -p "${LOG_DIR}"
+LOG="${LOG_DIR}/slot_seed${SEED}_$(date +%Y%m%d_%H%M%S).log"
+export PYTHONPATH="${REPO_ROOT}/flash-attention/hopper:${PYTHONPATH:-}"
+
+SEED="${SEED}" \
+MAX_WALLCLOCK_SECONDS=600 \
+SKIP_GPTQ=1 \
 LOADER_MODE=coprime \
 COPRIME_MAX_LOADED_SHARDS=1 \
 COPRIME_SHARDS_PER_BATCH=1 \
@@ -40,27 +45,23 @@ TRIGRAM=0 \
 NGRAM_EVAL_ORDER=0 \
 CUBRIC_CADENCE=0 \
 NGRAM_ENTROPY_SHIFT=0 \
-LATE_QAT_THRESHOLD=0.15 \
-POST_EMA_DIAGNOSTIC=1 \
-EVAL_STRIDE=64 \
-SKIP_GPTQ=1 \
-MAX_WALLCLOCK_SECONDS=600 \
 SLOT_ENABLED=1 \
-SLOT_STEPS=8 \
-SLOT_LR=0.005 \
-SLOT_MAX_WINDOWS=0 \
-SEED="${SEED}" \
-DATA_PATH="${DATA_PATH}" \
-TOKENIZER_PATH="${TOKENIZER_PATH}" \
-PYTHONPATH="${PYTHONPATH_EXTRA}${PYTHONPATH:-}" \
-"${TORCHRUN}" --standalone "--nproc_per_node=${NPROC}" "${SCRIPT_DIR}/train_gpt.py" \
-    2>&1 | tee "${LOG}"
+torchrun --standalone --nproc_per_node="${NPROC}" "${SRC}" \
+2>&1 | tee "${LOG}"
 
 echo ""
-echo "=== RESULT ==="
-grep "final_sliding_window+slot" "${LOG}" | tail -1
-grep "final_int6_roundtrip_exact" "${LOG}" | tail -1
-grep "Total submission size" "${LOG}" | tail -1
+echo "LOG: ${LOG}"
+grep -E "step:500/|stopping_early|final_sliding_window|final_int6_roundtrip_exact|Total submission size" \
+    "${LOG}" | tail -20 || true
+
+step500=$(grep "step:500/" "${LOG}" | grep -oP 'step_avg:\K[0-9.]+' || true)
+if [[ -n "${step500}" ]]; then
+    echo "step_avg @ 500: ${step500}ms  (record: ~90.70ms)"
+    if awk "BEGIN {exit (${step500} < 93.0 ? 1 : 0)}"; then
+        echo "STACK PARITY FAILURE — ${step500}ms >= 93ms. Wrong env."
+        exit 2
+    fi
+fi
+
 echo ""
-echo "CRITICAL: copy final_model.pt to a safe location before destroying pod:"
-echo "  cp ${REPO_ROOT}/final_model.pt ${SCRIPT_DIR}/logs/final_model_s${SEED}.pt"
+echo "SAVE CHECKPOINT: cp \$(find ${REPO_ROOT} -name final_model.pt | head -1) ${LOG_DIR}/final_model_s${SEED}.pt"
