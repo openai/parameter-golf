@@ -1,0 +1,17 @@
+{
+  "author": "Ryan Estes",
+  "github_id": "estesryan",
+  "name": "Recurrent 512 L3 6K (8x H100)",
+  "blurb": "Shared-loop recurrent transformer (MODEL_DIM=512, NUM_LOOP_ITERS=3, MIN_LOOP_ITERS=1) trained for 6000 iterations on FineWeb SP1024 using 8x H100. Achieves stable convergence with sub-4 minute runtime well under the 10-minute constraint.",
+  "date": "2026-03-20T00:00:00Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": 2.70221700,
+  "val_bpb": 1.60040512,
+  "pre_quant_val_loss": 2.6830,
+  "pre_quant_val_bpb": 1.5890,
+  "step_stop": 6000,
+  "wallclock_seconds": 223.988,
+  "bytes_total": 2235966,
+  "bytes_model_int8_zlib": 2187599,
+  "bytes_code": 48367
+}
