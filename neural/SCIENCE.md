@@ -18,12 +18,16 @@ Legend: → PROMOTED · ✓ PASS · ✗ FAIL · ⏳ PENDING · — n/a
 | Open — we beat | #1135 | 1.1116 | barneywohl | Fused Triton MLP + Full GPTQ + Coprime + BH2816 | Clean |
 | Open — we beat | #1169 | 1.1126 | Bortlesboat | Turbo-Muon + EngramLite + ParamBanking + GPTQ Reserve | Clean |
 | Open — we beat | #1060 | 1.1122 | dexhunter | Coprime-stride loader + Full Hessian GPTQ + XSA-all | Clean |
-| ILLEGAL | #1176 | 1.0914 | — | SLOT + QK-Gain | SLOT ruled illegal (causality violation) |
-| ILLEGAL | #1172 | 1.1015 | — | SLOT | SLOT ruled illegal |
+| SLOT — no ruling | #1176 | 1.0914 | bigbag | SLOT + QK-Gain + Muon-TTT | Open. No organizer ruling. Community member flagged — not official. |
+| SLOT — no ruling | #1172 | 1.1015 | dexhunter | SLOT + Split-LR + Full GPTQ | Open. No organizer ruling. Organizer requested but not received. |
 | CONTESTED | #1185 | 0.9641 | — | N-gram backoff cache | Under dispute — likely invalid probability distributions |
 
 **Summary**: We hold the best legal score in the open PR queue. PR #1089 at 1.1091 is the only clean
 competitor ahead of us, by 0.00077 BPB — within 1-sigma seed variance.
+
+**SLOT status**: No official organizer (0hq/valerio-oai/xuandong-openai) has ruled on SLOT in any PR.
+The "causality violation" comment on #1176 came from community member msisovic (author_association: NONE).
+All SLOT PRs remain open. Organizer ruling formally requested but not received as of 2026-03-31.
 
 ---
 
@@ -118,6 +122,77 @@ Size impact of 3072 (keep DIM=128): +1024 buckets × 128 dim = +131K params × 0
 
 ---
 
+## Thread: SLOT (Sample-specific LM Optimisation at Test-time)
+
+**Proxy signal: −0.0085 BPB (1200 steps, 1-GPU, SLOT_MAX_WINDOWS=512, seed=444)**
+Proxy inflates 5-15×. Real signal estimate: −0.0006 to −0.0017 BPB at full run.
+
+### What our SLOT does (from code audit, lines 1903-1923 of experiment train_gpt.py)
+
+For each sliding window batch [ws .. ws+seq_len]:
+1. Compute frozen hidden states from base model (no gradient, model unchanged)
+2. Initialize per-batch delta = zeros(1,1,dim), requires_grad=True
+3. 8 steps AdamW: optimize delta via `cross_entropy(logits(hidden+delta), y_batch)`
+4. Score: `cross_entropy(logits(hidden+delta.detach()), y_batch)` (same y_batch)
+5. Only the new stride-64 positions are counted in BPB
+
+delta is a single broadcast vector (1×1×dim) — it shifts ALL positions by the same direction.
+Model weights are never modified. Training trajectory is identical to baseline.
+
+### Legality Analysis — Current Implementation
+
+The competition rule (README): **"you are only allowed to test-time train on validation set tokens you've already evaluated your model on"**
+
+| Window | Positions in y_batch used for delta opt | Positions already scored | Positions NEW (not yet scored) |
+|--------|----------------------------------------|--------------------------|-------------------------------|
+| First window (ws=0) | tokens[1..2047] | 0 (none) | 2047 (all) |
+| Subsequent windows | tokens[ws+1..ws+2047] | seq_len−stride = 1984 (96.9%) | stride = 64 (3.1%) |
+
+**Issue**: delta is optimized using `y_batch` which includes the 64 new-stride targets, then those same new targets are scored under the optimized delta. This is **not** strictly "score-first" — the optimization sees the targets before scoring them.
+
+**Magnitude**: 3.1% of gradient comes from not-yet-scored tokens. delta is a single shared vector so it cannot memorize per-position — it finds a direction that helps on average across the batch. But the rule doesn't have a "3.1% is fine" exception.
+
+**SLOT PRs that have this same structure**: #1084, #1105, #1128, #1150, #1172, #1176 — all open, all awaiting organizer ruling.
+
+### The Legal Fix — Context-Only SLOT
+
+Unambiguously compliant: optimize delta only on positions already scored, score only the new positions.
+
+```
+For window at ws with stride=64:
+  context_y = y_batch[:, :seq_len-stride]   # already scored — legal to train on
+  new_y      = y_batch[:, seq_len-stride:]   # not yet scored — score-first then stop
+
+  optimize delta on context_y (8 steps AdamW)
+  score only new_y under optimized delta
+```
+
+First window (no context): optimize on prefix of window 0 (arbitrary split, e.g. first 90%), score last 10%. Or skip SLOT on window 0.
+
+Requires ~30 lines of code change in the eval function. Worth testing if current SLOT proves illegal.
+
+### Status & Strategy
+
+| Question | Answer |
+|----------|--------|
+| Official organizer ruling on SLOT? | **None.** All SLOT PRs open as of 2026-03-31. |
+| Who said "causality violation"? | msisovic — community member (author_association: NONE), not organizer |
+| Does our impl strictly satisfy "already evaluated"? | **No** — 3.1% of gradient from new tokens, first window 100% new |
+| Is context-only SLOT strictly legal? | **Yes** — score first, then adapt on those scores |
+| Should we submit with current SLOT? | **NO** — wait for organizer ruling first |
+
+**Path forward**:
+1. Watch #1172 / #1176 for official organizer comment from @0hq / @valerio-oai
+2. If organizer blesses standard SLOT → current implementation is usable
+3. If organizer rules against → pivot to context-only SLOT and retest
+4. Do NOT include SLOT in any submission until ruling arrives
+
+| Date | Leg | Change | Signal | Verdict |
+|------|-----|--------|--------|---------|
+| 2026-03-31 | QK_Gain_SLOT experiment | baseline vs slot_only (1200 steps, 1GPU) | ✓ −0.0085 proxy sw_bpb | ⚠️ AWAITING LEGALITY RULING |
+
+---
+
 ## Thread: Artifact Compression
 
 Low-risk infrastructure wins. Brotli-11 vs zstd-22; code minification.
@@ -134,14 +209,15 @@ Code minification potential: 118KB → ~28KB = ~90KB freed for model weights.
 
 Priority based on expected BPB gain per complexity of change:
 
-| Priority | Leg Name | Change | Expected Gain | Est. Cost |
-|----------|---------|--------|--------------|-----------|
-| **1** | **Rascal_III_GPTQ** | SKIP_GPTQ=0, training-data calib | −0.003 to −0.009 BPB | 1 env var |
-| **2** | **Rascal_III_ARcal** | AR self-gen GPTQ calib (after GPTQ passes) | −0.001 to −0.003 more | ~20 lines code |
-| **3** | **Rascal_III_Bigram3072** | BIGRAM_VOCAB_SIZE=3072 | −0.001 to −0.002 | 1 env var |
-| 4 | Rascal_III_Warmdown4k | WARMDOWN_ITERS=4000 | ~−0.0005 | 1 env var |
-| 5 | Rascal_Brotli | zstd → Brotli-11 | Frees budget | New dep |
-| 6 | Rascal_Minified | Code minification | Frees ~90KB | Infra work |
+| Priority | Leg Name | Change | Expected Gain | Risk | Est. Cost |
+|----------|---------|--------|--------------|------|-----------|
+| **1** | **Rascal_III_GPTQ** | SKIP_GPTQ=0, training-data calib | −0.003 to −0.009 BPB | Low (code exists) | 1 env var |
+| **2** | **Rascal_III_ARcal** | AR self-gen GPTQ calib (after GPTQ passes) | −0.001 to −0.003 more | Low | ~20 lines code |
+| **3** | **Rascal_III_Bigram3072** | BIGRAM_VOCAB_SIZE=3072 | −0.001 to −0.002 | Low | 1 env var |
+| 4 | Rascal_III_Warmdown4k | WARMDOWN_ITERS=4000 | ~−0.0005 | Very low | 1 env var |
+| 5 | SLOT (context-only) | Legal variant — adapt on scored prefix, score new | −0.0006 to −0.0017 | Medium (ruling needed) | ~30 lines code |
+| 6 | Rascal_Brotli | zstd → Brotli-11 | Frees budget | Medium (new dep) | New dep |
+| 7 | Rascal_Minified | Code minification | Frees ~90KB | Medium (infra) | Infra work |
 
 Gate target for all new legs: beat **1.10986874** BPB on seed 444 → confirm on seed 300.
 
