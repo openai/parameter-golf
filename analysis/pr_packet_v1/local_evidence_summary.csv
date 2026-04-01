@@ -1,0 +1,9 @@
+evidence_id,source_file,evidence_type,status,verified_locally,pending_paid_run,speculative,notes
+trunk_context_locked,"analysis/record_pass_v5_4/final_report.md;analysis/record_pass_v5_5/final_report.md;analysis/record_pass_v5_7/final_report.md;analysis/record_pass_v5_8/final_report.md",documentation,available,yes,no,no,"V5.2A-style non-QAT trunk and donor/QAT demotions are documented as pre-existing context."
+v59_thresholds_locked,records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/launch_config.json,config,available,yes,no,no,"noise_floor/ref/success_cutoff/t1_trigger present and unchanged in this pass."
+v59_decision_logic_audit,analysis/record_pass_v5_9/decision_logic_audit.md,analysis,available,yes,no,no,"Decision token mapping and strict donor gate are documented and deterministic."
+runpod_cycle_1_strict_preflight,analysis/runpod_cycle_1/preflight_summary.md,execution_log,failed_gate,yes,no,no,"Strict preflight halted on cuda.runtime; no paid cycle started."
+runpod_cycle_1_final_status,analysis/runpod_cycle_1/final_status.json,status_file,available,yes,no,no,"preflight_ok=false; t0_completed=false; t1_completed=false; final_operator_token=PRECHECK_FAIL."
+paid_t0_quality_or_bytes,analysis/runpod_cycle_1/final_status.json,score_validation,missing,no,yes,no,"No paid T0 artifact bytes or roundtrip bpb recorded yet (null fields)."
+paid_t1_followup_validation,analysis/runpod_cycle_1/final_status.json,score_validation,missing,no,yes,no,"No paid T1 execution/validation recorded yet."
+leaderboard_submission_claim,none,claim_boundary,not_made,yes,no,no,"No leaderboard claim should be made in this draft PR."
