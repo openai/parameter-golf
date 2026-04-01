@@ -21,7 +21,9 @@ REQUIRED_CUDA_PREFIX="${REQUIRED_CUDA_PREFIX:-12.4}"
 # Pinned for the known-good 8xH100 stack.
 REQUIRED_TORCH_PKGS="${REQUIRED_TORCH_PKGS:-torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1}"
 REQUIRED_TORCH_VERSION="${REQUIRED_TORCH_VERSION:-2.4.1+cu124}"
-ALLOW_FA3_WHEEL_INSTALL="${ALLOW_FA3_WHEEL_INSTALL:-0}"
+# Standard 8xH100 SXM pods: install cu124 Hopper FA3 wheel when not pre-installed.
+# Custom-head pods (ABI incompatible): override with ALLOW_FA3_WHEEL_INSTALL=0.
+ALLOW_FA3_WHEEL_INSTALL="${ALLOW_FA3_WHEEL_INSTALL:-1}"
 # Auto-detect repo root from script location; fall back for curl-pipe scenario
 _SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || true
 _CANDIDATE="$(cd -- "${_SCRIPT_DIR}/.." && pwd 2>/dev/null)" || true
