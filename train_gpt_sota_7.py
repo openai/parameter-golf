@@ -110,7 +110,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     trigram_enabled = bool(int(os.environ.get("TRIGRAM", "0")))  # OFF to match record — saves compute per step
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL layers (our novel contribution)
@@ -118,6 +118,7 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.20))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", 2000))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
@@ -1874,9 +1875,12 @@ def main() -> None:
             break
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
-            CastedLinear._qat_enabled = True
-            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        if not CastedLinear._qat_enabled:
+            should_qat = (args.late_qat_threshold > 0 and scale < args.late_qat_threshold)
+            should_qat = should_qat or (args.qat_start_step > 0 and step >= args.qat_start_step)
+            if should_qat:
+                CastedLinear._qat_enabled = True
+                log0(f"qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
