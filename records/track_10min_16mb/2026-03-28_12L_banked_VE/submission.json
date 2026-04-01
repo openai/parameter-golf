@@ -1,0 +1,9 @@
+{
+  "name": "12L banked + Parallel Muon + Value Embeddings — ttt_bpb 1.1571",
+  "val_bpb": 1.1571,
+  "bytes_total": 16465445,
+  "blurb": "12-layer INT4 bQAT with model banking (3D weight tensors: qo/kv/mlp_up/mlp_down banks), Parallel Muon (async reduce-scatter over banked grads, no DDP), Value Embeddings (ve_dim=128, last 2 layers), EMA(0.997) with QAT-reset. Banking eliminates per-layer grad copy overhead: 138ms/step vs 148ms, yielding 4358 steps in 10 min (300 more than v7_ve). ttt_bpb=1.15711, new best.",
+  "author": "Harsh Soni",
+  "github_id": "SoHarshH",
+  "date": "2026-03-28"
+}
