@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "XSA + EMA + TTT (negative interaction study)",
+  "author": "Xiaoan Liu",
+  "github_id": "sseanliu",
+  "blurb": "Tests TTT on the XSA+EMA base (PR #287). Key finding: TTT hurts by 0.016 BPB — XSA and TTT are mechanistically redundant, both targeting local context modeling. Extends the TTT-XSA redundancy pattern from #290 and error-guided TTT negative result from #296.",
+  "seed_results": {
+    "1337": {"val_loss": 1.93099434, "val_bpb": 1.14364664, "steps": 6001, "ms_per_step": 99.88},
+    "42": {"val_loss": 1.93182801, "val_bpb": 1.14414039, "steps": 5978, "ms_per_step": 100.30}
+  },
+  "mean_val_bpb": 1.14389,
+  "artifact_bytes": 15283544,
+  "code_bytes": 70009,
+  "notes": "Non-record submission. TTT makes XSA+EMA model worse (1.1280 -> 1.1439). Used FA2 instead of FA3 (costs ~500 steps). TTT config: lr=0.002, momentum=0.9, 3 epochs, freeze first 2 blocks."
+}
