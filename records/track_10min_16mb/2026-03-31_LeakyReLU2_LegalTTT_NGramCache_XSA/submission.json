@@ -56,5 +56,5 @@
   "cuda_version": "12.8",
   "flash_attn_version": "2.8.3 (FA3 Hopper kernels)",
   "ngram_cache_note": "Eval-time N-gram backoff cache with Laplace smoothing. Legality is community-contested: see PR #727 (closed), issue #677 (open). Cache uses zero artifact bytes, is backward-looking only, and forms a proper normalized distribution via add-1 smoothing.",
-  "technique_summary": "Score-first TTT + N-gram backoff cache (order 9) + Gated Attention + Value Residual + XSA-5 + VE + MTP-2 + BigramHash 2048 + CROWN-Q + LeakyReLU²"
+  "technique_summary": "Score-first TTT + N-gram backoff cache (order 9) + Gated Attention + Value Residual + XSA-5 + VE + MTP-2 + BigramHash 2048 + CROWN-Q + LeakyReLU²; codebase additionally includes opt-in MoD routing, SquareGLU, EMA distillation, and Grokfast toggles (disabled in reported baseline)."
 }

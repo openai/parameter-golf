@@ -25,6 +25,7 @@
   - Score‑first, backward‑looking: `ngram_cache.update()` is called only *after* scoring each chunk.
 - **Legal score‑first TTT**: SGD (lr=0.002, momentum=0.9), 3 epochs, 32K‑token chunks, stride 64, cosine LR decay.
 - **Quantization**: int6 per‑row + lzma compression. CROWN‑Q penalty during late training.
+- **New optional upgrades in `train_gpt.py`** (off by default to preserve the reported baseline numbers): Mixture-of-Depth style token routing (`MOD_*` flags), SquareGLU gated MLP (`SQUAREGLU_ENABLED` + `mlp_gate_bank`), EMA warmdown self-distillation (`EMA_DISTILL_*`), and Grokfast gradient low-pass (`GROKFAST_*`).
 
 ## Compliance
 
@@ -82,6 +83,10 @@ Hardware: 8× H100 SXM (RunPod), CUDA 12.8, PyTorch 2.9+.
 | `XSA_LAST_N` | 5 | Layers using exclusive self‑attention |
 | `VE_ENABLED` | 1 | Value embedding on layers 8/9/10 |
 | `QAT_ENABLED` | 0 | Quantization‑aware training |
+| `MOD_ENABLED` | 0 | Enable token routing masks in attention/MLP blocks |
+| `SQUAREGLU_ENABLED` | 0 | Use SquareGLU gated MLP path |
+| `EMA_DISTILL_ENABLED` | 0 | Enable EMA teacher distillation in warmdown |
+| `GROKFAST_ENABLED` | 0 | Enable Grokfast gradient low-pass filtering |
 
 ## Eval Timing Budget (8×H100)
 
