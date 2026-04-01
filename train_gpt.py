@@ -231,7 +231,11 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
-    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    chunks = [load_data_shard(file) for file in files]
+    if len(chunks) == 1:
+        tokens = chunks[0].contiguous()
+    else:
+        tokens = torch.cat(chunks, dim=0).contiguous()
     usable = ((tokens.numel() - 1) // seq_len) * seq_len
     return tokens[: usable + 1]
 
@@ -327,12 +331,19 @@ def eval_val(
 
 def load_data_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
-    header = np.fromfile(file, dtype="<i4", count=256)
+    with file.open("rb") as f:
+        header = np.fromfile(f, dtype="<i4", count=256)
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
-    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
-    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+    tokens_np = np.memmap(
+        file,
+        dtype="<u2",
+        mode="r",
+        offset=header_bytes,
+        shape=(num_tokens,),
+    )
+    return torch.from_numpy(tokens_np)
 
 
 class TokenStream:
@@ -343,11 +354,15 @@ class TokenStream:
         self.file_idx = 0
         self.pos = 0
         self.tokens = load_data_shard(self.files[0])
+        self._next_file_idx = (self.file_idx + 1) % len(self.files)
+        self._next_tokens = load_data_shard(self.files[self._next_file_idx])
 
     def _advance_file(self) -> None:
         self.file_idx = (self.file_idx + 1) % len(self.files)
-        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.tokens = self._next_tokens
         self.pos = 0
+        self._next_file_idx = (self.file_idx + 1) % len(self.files)
+        self._next_tokens = load_data_shard(self.files[self._next_file_idx])
 
     def take(self, n: int) -> Tensor:
         chunks: list = []
@@ -361,7 +376,9 @@ class TokenStream:
             chunks.append(self.tokens[self.pos : self.pos + k])
             self.pos += k
             remaining -= k
-        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
+        if len(chunks) == 1:
+            return chunks[0]
+        return torch.cat(chunks)
 
 
 class DistributedTokenLoader:
