@@ -1,0 +1,16 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Depth Recurrence + Cross-Repeat Skip + Value Embeddings + Sliding Window",
+  "blurb": "3 unique blocks x 4 repeats (12 effective layers), dim=832, with Cross-Repeat Skip (stateful recurrence), 2 Value Embedding tables, LR x0.3, sliding window eval (stride=256). 4494 steps in 600s on 8xH100.",
+  "date": "2026-03-20T02:00:00Z",
+  "val_loss": 2.05921204,
+  "val_bpb": 1.21958209,
+  "roundtrip_val_loss": 2.11612232,
+  "roundtrip_val_bpb": 1.25328684,
+  "step_stop": 4494,
+  "wallclock_seconds": 600.133,
+  "bytes_total": 12829176,
+  "bytes_model_int8_zlib": 12771121,
+  "bytes_code": 58055
+}

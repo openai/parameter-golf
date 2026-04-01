@@ -1,7 +1,7 @@
 """
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 lines.
 """
 
 from __future__ import annotations
@@ -27,76 +27,6 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-
-class HedgeMixer:
-    """Online mixture of 5 experts via Hedge algorithm for eval-time improvement.
-    Experts: Neural, Unigram, Bigram, Trigram (hashed), Entropy."""
-    def __init__(self, vocab_size: int = 1024, device: str = "cuda", eta: float = 0.1):
-        self.V = vocab_size
-        self.device = device
-        self.eta = eta
-        self.log_weights = torch.zeros(5, device=device)
-        self.log_weights[0] = 2.0  # bias toward neural
-        self.uni_counts = torch.zeros(vocab_size, device=device)
-        self.bi_counts = torch.zeros(vocab_size, vocab_size, device=device)
-        self.total_tokens = 0
-        self.TRI_HASH = 65536
-        self.tri_counts = torch.zeros(self.TRI_HASH, vocab_size, device=device)
-        self.tri_row_totals = torch.zeros(self.TRI_HASH, device=device)
-
-    def update(self, tokens: Tensor) -> None:
-        t = tokens.to(self.device).long()
-        n = t.numel()
-        if n == 0:
-            return
-        self.total_tokens += n
-        ones = torch.ones(n, device=self.device)
-        self.uni_counts.scatter_add_(0, t, ones)
-        if n >= 2:
-            bi_idx = t[:-1] * self.V + t[1:]
-            self.bi_counts.reshape(-1).scatter_add_(0, bi_idx, torch.ones(n - 1, device=self.device))
-        if n >= 3:
-            tri_ctx = ((t[:-2] * 36313) ^ (t[1:-1] * 27191)) % self.TRI_HASH
-            tri_idx = tri_ctx * self.V + t[2:]
-            ones_tri = torch.ones(n - 2, device=self.device)
-            self.tri_counts.reshape(-1).scatter_add_(0, tri_idx, ones_tri)
-            self.tri_row_totals.scatter_add_(0, tri_ctx, ones_tri)
-
-    def mix_and_score(self, neural_logits: Tensor, x_batch: Tensor, y_batch: Tensor, wlens: list[int]) -> Tensor:
-        bsz, slen, V = neural_logits.shape
-        uniform_nll = math.log(self.V)
-        has_data = self.total_tokens > 0
-        neural_lp = F.log_softmax(neural_logits, dim=-1)
-        neural_nll = -neural_lp.gather(2, y_batch.unsqueeze(2)).squeeze(2)
-        if not has_data or self.total_tokens < 10000:
-            return neural_nll
-        uni_probs = (self.uni_counts + 0.1) / (self.total_tokens + 0.1 * self.V)
-        uni_nll = -uni_probs.log()[y_batch]
-        bi_total = self.bi_counts.sum(dim=1, keepdim=True)
-        bi_probs = (self.bi_counts + 0.1) / (bi_total + 0.1 * self.V)
-        bi_nll = -bi_probs.log()[x_batch.reshape(-1), y_batch.reshape(-1)].reshape(bsz, slen)
-        if slen >= 2:
-            prev2 = torch.zeros_like(x_batch)
-            prev2[:, 1:] = x_batch[:, :-1]
-            ctx_hash = ((prev2 * 36313) ^ (x_batch * 27191)) % self.TRI_HASH
-            tri_count = self.tri_counts[ctx_hash.reshape(-1).long(), y_batch.reshape(-1).long()]
-            tri_total = self.tri_row_totals[ctx_hash.reshape(-1).long()].clamp(min=1)
-            tri_nll = -(((tri_count + 0.01) / (tri_total + 0.01 * self.V)).log()).reshape(bsz, slen)
-        else:
-            tri_nll = torch.full((bsz, slen), uniform_nll, device=self.device)
-        entropy_nll = -(neural_lp.exp() * neural_lp).sum(-1)
-        expert_nll = torch.stack([neural_nll, uni_nll, bi_nll, tri_nll, entropy_nll], dim=-1)
-        log_w = self.log_weights - self.log_weights.logsumexp(0)
-        mixed_nll = -(-expert_nll + log_w.unsqueeze(0).unsqueeze(0)).logsumexp(dim=-1)
-        # Update weights
-        wlens_t = torch.tensor(wlens, device=self.device, dtype=torch.long)
-        mask = torch.arange(slen, device=self.device).unsqueeze(0) < wlens_t.unsqueeze(1)
-        masked_nll = expert_nll * mask.unsqueeze(-1).float()
-        expert_mean_loss = masked_nll.sum(dim=(0, 1)) / mask.sum().clamp(min=1)
-        self.log_weights -= self.eta * expert_mean_loss
-        return mixed_nll
-
-
 # HYPERPARAMETERS
 
 class Hyperparameters:
@@ -115,7 +45,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -140,10 +70,6 @@ class Hyperparameters:
     eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
-    # Hedge Mixer (eval-time n-gram ensemble).
-    use_hedge = bool(int(os.environ.get("USE_HEDGE", "1")))
-    hedge_eta = float(os.environ.get("HEDGE_ETA", 0.1))
-
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 3))
@@ -160,10 +86,10 @@ class Hyperparameters:
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.021))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.015))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.018))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.018))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.012))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.012))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -374,12 +300,9 @@ def eval_val_sliding(
     base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
-    use_hedge: bool = False,
-    hedge_eta: float = 0.1,
 ) -> tuple[float, float]:
     """Sliding window eval with batching. Windows of train_seq_len advance by eval_stride.
-    Only the last stride tokens per window are scored (first window scores all).
-    Optional Hedge Mixer: online n-gram ensemble over scored tokens."""
+    Only the last stride tokens per window are scored (first window scores all)."""
     seq_len = args.eval_seq_len
     stride = args.eval_stride
     batch_seqs = args.eval_batch_seqs
@@ -387,18 +310,10 @@ def eval_val_sliding(
 
     window_starts = [ws for ws in range(0, total_tokens, stride)
                      if min(ws + seq_len, total_tokens) - ws >= 1]
-
-    # With Hedge Mixer: process ALL windows on each rank (sequential, n-gram tables need full context)
-    # Without: distribute windows across ranks
-    if use_hedge:
-        my_windows = window_starts
-    else:
-        total_windows = len(window_starts)
-        my_s = (total_windows * rank) // world_size
-        my_e = (total_windows * (rank + 1)) // world_size
-        my_windows = window_starts[my_s:my_e]
-
-    mixer = HedgeMixer(vocab_size=args.vocab_size, device=device, eta=hedge_eta) if use_hedge else None
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
 
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -411,7 +326,7 @@ def eval_val_sliding(
             bsz = len(batch_ws)
             x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
             y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-            wlens: list[int] = []
+            wlens = []
 
             for i, ws in enumerate(batch_ws):
                 end = min(ws + seq_len, total_tokens)
@@ -424,14 +339,11 @@ def eval_val_sliding(
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 logits = base_model.forward_logits(x_batch)
 
-            if mixer is not None:
-                nll = mixer.mix_and_score(logits.float(), x_batch, y_batch, wlens)
-            else:
-                nll = F.cross_entropy(
-                    logits.reshape(-1, logits.size(-1)).float(),
-                    y_batch.reshape(-1),
-                    reduction="none",
-                ).reshape(bsz, seq_len)
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, seq_len)
 
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
@@ -445,14 +357,7 @@ def eval_val_sliding(
                 token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
                 val_byte_count += token_bytes.to(torch.float64).sum()
 
-            # Update n-gram tables with scored tokens
-            if mixer is not None:
-                for i, ws in enumerate(batch_ws):
-                    wlen = wlens[i]
-                    s = 0 if ws == 0 else max(wlen - stride, 0)
-                    mixer.update(y_batch[i, s:wlen])
-
-    if not use_hedge and dist.is_available() and dist.is_initialized():
+    if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
@@ -1472,23 +1377,6 @@ def main() -> None:
             f"eval_time:{1000.0 * (time.perf_counter() - t_sw):.0f}ms"
         )
         log0(f"final_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-
-        # Hedge Mixer eval (n-gram ensemble)
-        if args.use_hedge:
-            base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
-            torch.cuda.synchronize()
-            t_hm = time.perf_counter()
-            hm_val_loss, hm_val_bpb = eval_val_sliding(
-                args, base_model, rank, world_size, device,
-                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                use_hedge=True, hedge_eta=args.hedge_eta,
-            )
-            torch.cuda.synchronize()
-            log0(
-                f"final_hedge_mixer val_loss:{hm_val_loss:.4f} val_bpb:{hm_val_bpb:.4f} "
-                f"eval_time:{1000.0 * (time.perf_counter() - t_hm):.0f}ms"
-            )
-            log0(f"final_hedge_mixer_exact val_loss:{hm_val_loss:.8f} val_bpb:{hm_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
