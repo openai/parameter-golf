@@ -1,0 +1,88 @@
+✓ Initialized. View run at 
+https://modal.com/apps/anantdgoel/main/ap-UlFoNGXczckoZjPSTAZnjW
+✓ Created objects.
+├── 🔨 Created mount /Users/anant/dev/parameter-golf/experiments/modal_runner.py
+├── 🔨 Created function train_h100.
+├── 🔨 Created function train_a100.
+├── 🔨 Created function prepare_tokenized_data.
+└── 🔨 Created function eval_a100.
+
+============================================================
+TRAIN: dyneval_base (compile=off)
+Config: {'VOCAB_SIZE': '8192', 'NUM_LAYERS': '7', 'MTP_K': '2', 'MTP_ALPHA': '0.3'}
+============================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/data/tokenizers/fineweb_8192_bpe.model
+model_params:17055288
+layers:7
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:1/2000 train_loss:11.7104 train_time:1608ms step_avg:1608.15ms
+step:2/2000 train_loss:19.7763 train_time:3217ms step_avg:1608.49ms
+step:3/2000 train_loss:14.0780 train_time:4826ms step_avg:1608.58ms
+step:4/2000 train_loss:11.2854 train_time:6435ms step_avg:1608.67ms
+step:5/2000 train_loss:10.5623 train_time:8043ms step_avg:1608.63ms
+step:6/2000 train_loss:10.4800 train_time:9650ms step_avg:1608.41ms
+step:7/2000 train_loss:10.2226 train_time:11261ms step_avg:1608.78ms
+step:8/2000 train_loss:9.9966 train_time:12873ms step_avg:1609.07ms
+step:9/2000 train_loss:9.7024 train_time:14484ms step_avg:1609.29ms
+step:10/2000 train_loss:9.4551 train_time:16093ms step_avg:1609.27ms
+step:50/2000 train_loss:7.1308 train_time:80385ms step_avg:1607.71ms
+step:100/2000 train_loss:6.5744 train_time:160797ms step_avg:1607.97ms
+step:150/2000 train_loss:6.1023 train_time:241198ms step_avg:1607.99ms
+step:200/2000 train_loss:5.9257 train_time:321817ms step_avg:1609.08ms
+step:250/2000 train_loss:5.6954 train_time:402225ms step_avg:1608.90ms
+step:300/2000 train_loss:5.5550 train_time:482636ms step_avg:1608.79ms
+step:350/2000 train_loss:5.5717 train_time:563033ms step_avg:1608.67ms
+step:400/2000 train_loss:5.4868 train_time:643642ms step_avg:1609.11ms
+step:450/2000 train_loss:5.4131 train_time:724033ms step_avg:1608.96ms
+step:500/2000 train_loss:5.2522 train_time:804422ms step_avg:1608.84ms
+step:550/2000 train_loss:5.2125 train_time:884833ms step_avg:1608.79ms
+step:600/2000 train_loss:5.2619 train_time:965431ms step_avg:1609.05ms
+step:650/2000 train_loss:5.1891 train_time:1045840ms step_avg:1608.99ms
+step:700/2000 train_loss:5.0609 train_time:1126232ms step_avg:1608.90ms
+step:750/2000 train_loss:5.1835 train_time:1206627ms step_avg:1608.84ms
+step:800/2000 train_loss:5.1035 train_time:1287303ms step_avg:1609.13ms
+step:850/2000 train_loss:5.1435 train_time:1367691ms step_avg:1609.05ms
+step:900/2000 train_loss:5.0827 train_time:1448075ms step_avg:1608.97ms
+step:950/2000 train_loss:5.1144 train_time:1528469ms step_avg:1608.91ms
+step:1000/2000 train_loss:4.9878 train_time:1609176ms step_avg:1609.18ms
+step:1050/2000 train_loss:5.0595 train_time:1689530ms step_avg:1609.08ms
+step:1100/2000 train_loss:5.0212 train_time:1769929ms step_avg:1609.03ms
+step:1150/2000 train_loss:4.9833 train_time:1850515ms step_avg:1609.14ms
+step:1200/2000 train_loss:5.0807 train_time:1930914ms step_avg:1609.09ms
+step:1250/2000 train_loss:5.0646 train_time:2011290ms step_avg:1609.03ms
+step:1300/2000 train_loss:5.0172 train_time:2091663ms step_avg:1608.97ms
+step:1350/2000 train_loss:4.9707 train_time:2172393ms step_avg:1609.18ms
+step:1400/2000 train_loss:4.9333 train_time:2252762ms step_avg:1609.12ms
+step:1450/2000 train_loss:5.1630 train_time:2333146ms step_avg:1609.07ms
+step:1500/2000 train_loss:4.8754 train_time:2413542ms step_avg:1609.03ms
+step:1550/2000 train_loss:4.7900 train_time:2494058ms step_avg:1609.07ms
+step:1600/2000 train_loss:5.0327 train_time:2574467ms step_avg:1609.04ms
+step:1650/2000 train_loss:4.8630 train_time:2654835ms step_avg:1608.99ms
+step:1700/2000 train_loss:4.9523 train_time:2735223ms step_avg:1608.95ms
+step:1750/2000 train_loss:4.7715 train_time:2815897ms step_avg:1609.08ms
+step:1800/2000 train_loss:4.8558 train_time:2896275ms step_avg:1609.04ms
+step:1850/2000 train_loss:4.8768 train_time:2976657ms step_avg:1609.00ms
+step:1900/2000 train_loss:4.9180 train_time:3057059ms step_avg:1608.98ms
+step:1950/2000 train_loss:4.8655 train_time:3137672ms step_avg:1609.06ms
+step:2000/2000 train_loss:4.9241 train_time:3218059ms step_avg:1609.03ms
+step:2000/2000 val_loss:3.2947 val_bpb:1.2756 train_time:3218059ms step_avg:1609.03ms
+peak memory allocated: 20594 MiB reserved: 25728 MiB
+Serialized model: 59855747 bytes
+Serialized model int8+zlib: 15136809 bytes (payload:17162464 raw_torch:17197657 payload_ratio:3.49x)
+train_only: skipping eval, model saved.
+
+--- TRAIN: dyneval_base ---
+  model_params: 17,055,288
+  val_bpb: 1.2756
+  compressed_bytes: 15,136,809
+  train_seconds: 3276.3
+
+Result saved to /Users/anant/dev/parameter-golf/experiments/result_dyneval_base.json
+Model saved to /data/models/dyneval_base (train took 3276s)
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/anantdgoel/main/ap-UlFoNGXczckoZjPSTAZnjW

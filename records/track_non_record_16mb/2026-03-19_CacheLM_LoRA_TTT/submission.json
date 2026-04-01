@@ -1,0 +1,11 @@
+{
+  "author": "Anant Goel",
+  "github_id": "anantdgoel",
+  "name": "Cache LM + LoRA TTT",
+  "blurb": "Per-document LoRA TTT (rank-8 on Q/V/lm_head, Adam lr=0.01) + unigram cache LM (Grave et al. 2017). Explores cache language model interpolation as novel eval-time technique. Cache LM gave negative result (lambda=0.02 hurts on diverse web text), but LoRA TTT confirms -0.003 BPB. Trained 2000 steps on 1xA100 (1/10th budget).",
+  "date": "2026-03-20T00:00:00Z",
+  "val_loss": 3.2399,
+  "val_bpb": 1.2544,
+  "bytes_total": 15202151,
+  "bytes_code": 65342
+}
