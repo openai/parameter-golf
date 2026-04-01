@@ -1,0 +1,17 @@
+{
+  "author": "Pasquale",
+  "github_id": "raider99k",
+  "name": "Recurrent 0011 + g2 R768",
+  "blurb": "Non-record 16MB track submission using a stripped recurrent SP-1024 candidate with a fixed block_anchor 0011 + g2 schedule (R768, H12/KV6, shared corrective core) on 1xH100 for 600s; final int8+zlib roundtrip scored 1.35568780 BPB under the 16,000,000-byte cap.",
+  "date": "2026-03-31T21:47:49Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.29287744,
+  "val_bpb": 1.3556878,
+  "pre_quant_val_loss": 2.2774,
+  "pre_quant_val_bpb": 1.3465,
+  "step_stop": 7432,
+  "wallclock_seconds": 600.151,
+  "bytes_total": 12618732,
+  "bytes_model_int8_zlib": 12569851,
+  "bytes_code": 48881
+}
