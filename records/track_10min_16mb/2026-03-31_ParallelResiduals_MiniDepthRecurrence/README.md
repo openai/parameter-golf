@@ -32,3 +32,13 @@ The main sweeps were simple but informative. Repeating one layer helped, repeati
 The next improvement was to turn recurrence on only mid training. Since repeated layers slow every step down, I trained the cheaper non-recurrent model first and only activated recurrence later. In the earlier sweep, always-on recurrence reached about `1.1163` BPB post-TTT, while delayed recurrence improved that to about `1.1153`, with `RECUR_START_STEP=3000` working well.
 
 Finally, because mixed precision left me some parameter budget headroom, I found that the best place to spend it was untying the repeated MLPs while leaving the rest of the recurrent block shared. That gave another small but real improvement. Roughly speaking, mini depth recurrence was worth about `0.003-0.004` nats and `0.002-0.003` BPB over the best under-budget non-recurrent depth probe I had at the time.
+
+## Reproducibility
+
+The main training runs for this submission used the following command:
+
+```bash
+SEED=$SEED POST_GPTQ_EVAL_ONLY=0 BIGRAM_DIM=160 MIXED_QUANT=1 N_INT6_LAYERS=32 NUM_LAYERS=11 RECUR_LAYERS=4,5 RECUR_START_STEP=3000 REPEAT_UNTIE_MLP=full REPEAT_UNTIE_MLP_LAYERS=4,5 DISABLE_LAYER0_ATTN=1 PARALLEL_RESIDUAL=1 PARALLEL_START_LAYER=7 torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+`brotli` also needs to be installed for the final artifact path. It is included in the copied [requirements.txt](/root/parameter-golf/records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence/requirements.txt).
