@@ -225,17 +225,17 @@ def _custom_unpack(blob: bytes, shuffle: bool = True) -> tuple[dict[str, torch.T
 #       if sc['name'] == 'conservative':
 #           for n in sorted(sc['tensor_names']): print(f'    \"{n}\",')
 #   "
-_INT5_PLACEHOLDER = True  # flip to False after pasting real names
+_INT5_PLACEHOLDER = False
 INT5_TENSOR_NAMES: frozenset[str] = frozenset({
-    "blocks.0.mlp.fc.weight",
     "blocks.1.mlp.fc.weight",
+    "blocks.10.mlp.fc.weight",
     "blocks.2.mlp.fc.weight",
-    "blocks.3.mlp.fc.weight",
     "blocks.4.mlp.fc.weight",
     "blocks.5.mlp.fc.weight",
     "blocks.6.mlp.fc.weight",
     "blocks.7.mlp.fc.weight",
     "blocks.8.mlp.fc.weight",
+    "blocks.9.mlp.fc.weight",
 })
 
 
