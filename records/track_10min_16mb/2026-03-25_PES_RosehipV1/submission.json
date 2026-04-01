@@ -1,0 +1,7 @@
+{
+  "name": "Scry",
+  "github_id": "Tetrahedroned",
+  "val_bpb": null,
+  "track": "10min_16mb",
+  "notes": "Pending scored run. Novel architecture: PES (Precision Error Signal) inter-layer correction module inspired by the biological Rosehip neuron. Full frontier stack: XSA, VRL, EMA, LeakyReLU². Smoke tested CPU, all checks pass."
+}
