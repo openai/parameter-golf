@@ -1,0 +1,11 @@
+{
+  "author": "yahya010",
+  "github_id": "yahya010",
+  "name": "11L Int6 QAT + SmearGate + OrthoInit + SWA + TTT + NTK-RoPE",
+  "blurb": "11-layer 512dim MLP3x, STE int6 QAT, SmearGate, OrthoInit+muP, SWA(8 snapshots), TTT(SGD 3 epochs), NTK-RoPE base=50000, BigramHash(2048), Muon WD=0.04, sliding window stride=64.",
+  "date": "2026-03-20",
+  "val_loss": 1.93805905,
+  "val_bpb": 1.14782627,
+  "bytes_total": 15757600,
+  "bytes_code": 57500
+}
