@@ -1,0 +1,9 @@
+{
+  "name": "10L Value Residual + Gated Attention + XSA4 + SWA + Late QAT",
+  "val_loss": 1.1492,
+  "bytes_total": 15382567,
+  "blurb": "10 layers with Value Residual (ResFormer, -0.015 BPB), Gated Attention (-0.003 BPB), XSA last 4 layers, Partial RoPE 16/64, LN Scale, GPTQ-lite quantization, SWA (28 checkpoints), Late QAT, SmearGate, BigramHash(2048), OrthoInit, int5-MLP/int6-attn + zstd-22, sliding window eval stride=64.",
+  "author": "bigbag",
+  "github_id": "bigbag",
+  "date": "2026-03-22"
+}
