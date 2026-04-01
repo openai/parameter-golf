@@ -4,17 +4,11 @@ The `train_gpt.py` script upgraded with IFNSO, XSA, SLOT, and N-gram Backoff Cac
 
 from __future__ import annotations
 
-import copy
 import glob
-import io
 import math
 import os
-import random
-import subprocess
-import sys
 import time
 import uuid
-import zlib
 from collections import defaultdict
 from pathlib import Path
 
@@ -202,18 +196,30 @@ def build_sentencepiece_luts(
     base_bytes_np = np.zeros((table_size,), dtype=np.int16)
     has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
     is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+
+    id_to_piece = getattr(sp, "id_to_piece", None)
+    if id_to_piece is None:
+        id_to_piece = getattr(sp, "IdToPiece", None)
+    if id_to_piece is None:
+        raise AttributeError(
+            "SentencePieceProcessor does not expose an id-to-piece API"
+        )
+
     for token_id in range(sp_vocab_size):
-        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+        try:
+            piece = str(id_to_piece(token_id))
+        except Exception:
+            continue
+        if not piece or piece in ("<unk>", "<s>", "</s>"):
             continue
         is_boundary_token_np[token_id] = False
-        if sp.is_byte(token_id):
-            base_bytes_np[token_id] = 1
-            continue
-        piece = sp.id_to_piece(token_id)
-        if piece.startswith(" "):
+        if piece.startswith("▁"):
             has_leading_space_np[token_id] = True
             piece = piece[1:]
-        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+        try:
+            base_bytes_np[token_id] = len(piece.encode("utf-8"))
+        except Exception:
+            base_bytes_np[token_id] = 0
     return (
         torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
         torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
@@ -393,9 +399,9 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
-    def forward(self, x: Tensor) -> Tensor:
-        bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+    def forward(self, input: Tensor) -> Tensor:
+        bias = self.bias.to(input.dtype) if self.bias is not None else None
+        return F.linear(input, self.weight.to(input.dtype), bias)
 
 
 class Rotary(nn.Module):
@@ -403,18 +409,27 @@ class Rotary(nn.Module):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self._seq_len_cached, self._cos_cached, self._sin_cached = 0, None, None
+        self._seq_len_cached = 0
+        self._cos_cached: Tensor | None = None
+        self._sin_cached: Tensor | None = None
 
-    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple:
+    def forward(
+        self, seq_len: int, device: torch.device, dtype: torch.dtype
+    ) -> tuple[Tensor, Tensor]:
         if self._cos_cached is None or self._seq_len_cached != seq_len:
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
+            t = torch.arange(seq_len, device=device, dtype=torch.float32)
+            inv_freq = self.inv_freq
+            freqs = torch.outer(t, inv_freq)
             self._cos_cached, self._sin_cached = (
                 freqs.cos()[None, None, :, :],
                 freqs.sin()[None, None, :, :],
             )
             self._seq_len_cached = seq_len
-        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
+        cos = self._cos_cached
+        sin = self._sin_cached
+        if cos is None or sin is None:
+            raise RuntimeError("Rotary cache was not initialized")
+        return cos.to(dtype=dtype), sin.to(dtype=dtype)
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
@@ -523,7 +538,7 @@ class Block(nn.Module):
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[None, None, :] * x + mix[1][None, None, :] * x0
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(
             self.attn_norm(x)
         )
@@ -585,7 +600,7 @@ class GPT(nn.Module):
         input_ids: Tensor,
         target_ids: Tensor,
         return_logits: bool = False,
-        slot_delta: Tensor = None,
+        slot_delta: Tensor | None = None,
     ) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
@@ -608,7 +623,9 @@ class GPT(nn.Module):
 
         # SLOT Parameter Injection
         if slot_delta is not None:
-            x = x + slot_delta.to(x.dtype)
+            if slot_delta.numel() == 0:
+                raise ValueError("slot_delta must be non-empty when provided")
+            x = x + slot_delta.to(dtype=x.dtype)  # type: ignore[union-attr]
 
         targets = target_ids.reshape(-1)
         logits_proj = (
@@ -637,7 +654,8 @@ def main() -> None:
     if dist.is_available() and not dist.is_initialized():
         dist.init_process_group(backend="nccl", device_id=device)
 
-    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    sp = spm.SentencePieceProcessor()
+    sp.Load(args.tokenizer_path)
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = (
         build_sentencepiece_luts(sp, args.vocab_size, device)
