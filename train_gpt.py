@@ -94,6 +94,7 @@ class Hyperparameters:
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))  # XSA on last N layers (0 = disabled)
     smear_gate = bool(int(os.environ.get("SMEAR_GATE", "0")))  # causal shift gate in GPT forward
     vrl_mix = float(os.environ.get("VRL_MIX", 0.5))  # VRL mixing ratio (0=no VRL, 1=all first-layer V)
+    use_clamp_softcap = bool(int(os.environ.get("CLAMP_SOFTCAP", "0")))  # clamp instead of tanh
     parallel_block = bool(int(os.environ.get("PARALLEL_BLOCK", "0")))  # parallel attn+mlp
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
@@ -1251,7 +1252,10 @@ class GPT(nn.Module):
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if bool(int(os.environ.get("CLAMP_SOFTCAP", "0"))):
+            logits = logits_proj.clamp(-self.logit_softcap, self.logit_softcap)
+        else:
+            logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
 
         # Z-loss: penalize logit magnitude to improve training stability
@@ -1304,6 +1308,8 @@ class GPT(nn.Module):
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             logits_proj = self.lm_head(x)
+        if bool(int(os.environ.get("CLAMP_SOFTCAP", "0"))):
+            return logits_proj.clamp(-self.logit_softcap, self.logit_softcap)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
 
