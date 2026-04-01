@@ -10,6 +10,7 @@ import os
 import time
 import uuid
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -231,12 +232,20 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
-    chunks = [load_data_shard(file) for file in files]
+
+    total_tokens = 0
+    chunks: list[Tensor] = []
+    for file in files:
+        shard = load_data_shard(file)
+        chunks.append(shard)
+        total_tokens += shard.numel()
+
     if len(chunks) == 1:
         tokens = chunks[0].contiguous()
     else:
         tokens = torch.cat(chunks, dim=0).contiguous()
-    usable = ((tokens.numel() - 1) // seq_len) * seq_len
+
+    usable = ((total_tokens - 1) // seq_len) * seq_len
     return tokens[: usable + 1]
 
 
@@ -346,6 +355,24 @@ def load_data_shard(file: Path) -> Tensor:
     return torch.from_numpy(tokens_np)
 
 
+class AsyncShardPrefetcher:
+    def __init__(self, files: list[Path]):
+        self.files = files
+        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.future = None
+
+    def submit(self, file_idx: int) -> None:
+        self.future = self.executor.submit(load_data_shard, self.files[file_idx])
+
+    def result(self) -> Tensor:
+        if self.future is None:
+            raise RuntimeError("Prefetch was not submitted")
+        return self.future.result()
+
+    def close(self) -> None:
+        self.executor.shutdown(wait=True)
+
+
 class TokenStream:
     def __init__(self, pattern: str):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
@@ -353,19 +380,18 @@ class TokenStream:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
         self.file_idx = 0
         self.pos = 0
+        self.prefetcher = AsyncShardPrefetcher(self.files)
         self.tokens = load_data_shard(self.files[0])
-        self._next_file_idx = (self.file_idx + 1) % len(self.files)
-        self._next_tokens = load_data_shard(self.files[self._next_file_idx])
+        self.prefetcher.submit((self.file_idx + 1) % len(self.files))
 
     def _advance_file(self) -> None:
         self.file_idx = (self.file_idx + 1) % len(self.files)
-        self.tokens = self._next_tokens
+        self.tokens = self.prefetcher.result()
         self.pos = 0
-        self._next_file_idx = (self.file_idx + 1) % len(self.files)
-        self._next_tokens = load_data_shard(self.files[self._next_file_idx])
+        self.prefetcher.submit((self.file_idx + 1) % len(self.files))
 
     def take(self, n: int) -> Tensor:
-        chunks: list = []
+        chunks: list[Tensor] = []
         remaining = n
         while remaining > 0:
             avail = self.tokens.numel() - self.pos
@@ -379,6 +405,9 @@ class TokenStream:
         if len(chunks) == 1:
             return chunks[0]
         return torch.cat(chunks)
+
+    def close(self) -> None:
+        self.prefetcher.close()
 
 
 class DistributedTokenLoader:
@@ -399,6 +428,9 @@ class DistributedTokenLoader:
         return x.to(self.device, non_blocking=True), y.to(
             self.device, non_blocking=True
         )
+
+    def close(self) -> None:
+        self.stream.close()
 
 
 # -----------------------------
@@ -734,6 +766,8 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         step += 1
+
+    train_loader.close()
 
 
 if __name__ == "__main__":
