@@ -1,0 +1,36 @@
+{
+  "name": "QAT + NTK-4096 Eval + Cosine Warmdown + Aggressive SWA",
+  "author": "Rafael Andrews",
+  "github_id": "crony-io",
+  "date": "2026-03-21",
+  "track": "non_record_16mb",
+  "status": "incomplete",
+  "status_reason": "RunPod pod terminated during sliding window evaluation on all 8xH100 attempts",
+  "blurb": "QAT/STE fake quantization (int5 MLP, int6 attn), NTK-aware RoPE eval at seq_len=4096, cosine warmdown, aggressive SWA (frac=0.35, every=25, 48 checkpoints), 5% magnitude pruning, phase-transition resid_mix. Training completed (6606 steps in 600s) but pod killed before final roundtrip eval.",
+  "val_bpb": null,
+  "val_bpb_note": "Final roundtrip eval could not complete. Pre-quant val_bpb at step 6606: 1.1702",
+  "pre_quant_val_bpb": 1.1702,
+  "pre_quant_val_loss": 1.9758,
+  "step_stop": 6606,
+  "wallclock_seconds": 599.968,
+  "bytes_model_int6_lzma": 15818344,
+  "bytes_code": 56766,
+  "bytes_total": 15875110,
+  "model_params": 25517137,
+  "swa_checkpoints": 48,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss_prequant": 1.9758,
+      "val_bpb_prequant": 1.1702,
+      "steps": 6606,
+      "ms_per_step": 90.82,
+      "status": "training_complete_eval_interrupted"
+    }
+  },
+  "run_attempts": [
+    {"hardware": "8xH100 SXM", "seed": 42, "steps": 6606, "outcome": "pod_killed_during_eval"},
+    {"hardware": "8xH100 SXM", "seed": 42, "steps": 2000, "outcome": "pod_killed_mid_training"},
+    {"hardware": "1xGPU", "seed": 42, "steps": 872, "outcome": "completed_insufficient_steps", "roundtrip_val_bpb": 1.2890}
+  ]
+}
