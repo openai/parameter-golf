@@ -1,0 +1,6 @@
+step:20330/30000 val_loss:2.0281 val_bpb:1.2011 train_time:3900096ms
+stopping_early: wallclock_cap train_time:3900096ms step:20330/30000
+Serialized model int6+zstd: 16125217 bytes
+Total submission size int8+zlib: 16180242 bytes
+final_eval_mode:sliding_window stride:32 batch_seqs:512
+sliding_eval [ 11.9%] 230912/1938176 windows running_bpb=1.195432
