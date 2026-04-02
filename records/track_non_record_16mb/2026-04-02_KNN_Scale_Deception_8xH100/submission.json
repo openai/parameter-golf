@@ -1,0 +1,9 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-02",
+  "name": "KNN Hidden State Retrieval — Scale Deception from Weak to Strong Models",
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "val_bpb": null,
+  "notes": "Novel eval-time technique tested across 4 model quality levels. Helps weak models (-2 to -4%), HURTS strong competition-quality models (+1.5%). Definitive scale deception finding validated on 8xH100."
+}

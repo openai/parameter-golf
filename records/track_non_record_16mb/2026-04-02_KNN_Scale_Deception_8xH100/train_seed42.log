@@ -1,0 +1,87 @@
+=== SEED 42 FINAL RUN ===
+Started: Thu Apr  2 15:22:48 UTC 2026
+W0402 15:22:50.003000 147 torch/distributed/run.py:803] 
+W0402 15:22:50.003000 147 torch/distributed/run.py:803] *****************************************
+W0402 15:22:50.003000 147 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0402 15:22:50.003000 147 torch/distributed/run.py:803] *****************************************
+logs/013213b0-8bde-41cc-92da-66a76d8bb4e4.txt
+model_preset:merged_leader run_profile:full_8gpu_600s
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+param_breakdown:{"lexical": 852481, "skip": 2560, "upper_global": 25974872, "value_embedding": 163843}
+world_size:8 grad_accum_steps:1
+flash_attn_3_loaded:True
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+activation_mode:leaky_relu2 export_quantizer:rowclip_int6 ttt_optimizer:sgd
+muon:banking_enabled:False bank_min_tensors:2
+moonshot lower_replace_layers:0 local_shared_blocks:4 use_unet_skips:True
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9301 val_bpb:4.1044 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9318 train_time:168ms step_avg:167.70ms
+step:2/20000 train_loss:8.6373 train_time:278ms step_avg:139.04ms
+step:3/20000 train_loss:7.8688 train_time:389ms step_avg:129.55ms
+step:4/20000 train_loss:7.2352 train_time:499ms step_avg:124.72ms
+step:5/20000 train_loss:7.0081 train_time:609ms step_avg:121.89ms
+step:6/20000 train_loss:6.8995 train_time:720ms step_avg:120.04ms
+step:7/20000 train_loss:6.7618 train_time:831ms step_avg:118.66ms
+step:8/20000 train_loss:6.6891 train_time:941ms step_avg:117.58ms
+step:9/20000 train_loss:6.4117 train_time:1051ms step_avg:116.77ms
+step:10/20000 train_loss:6.0709 train_time:1162ms step_avg:116.17ms
+step:500/20000 train_loss:2.3806 train_time:52899ms step_avg:105.80ms
+step:1000/20000 train_loss:2.2605 train_time:105769ms step_avg:105.77ms
+step:1500/20000 train_loss:2.2076 train_time:158707ms step_avg:105.80ms
+step:2000/20000 train_loss:2.0490 train_time:211582ms step_avg:105.79ms
+step:2500/20000 train_loss:2.1516 train_time:264487ms step_avg:105.79ms
+step:3000/20000 train_loss:2.1320 train_time:317382ms step_avg:105.79ms
+step:3500/20000 train_loss:2.1375 train_time:370358ms step_avg:105.82ms
+step:4000/20000 train_loss:1.9271 train_time:423266ms step_avg:105.82ms
+step:4000/20000 val_loss:2.0157 val_bpb:1.1938 train_time:423274ms step_avg:105.82ms
+step:4500/20000 train_loss:2.0687 train_time:476138ms step_avg:105.81ms
+swa:start step:5000
+step:5000/20000 train_loss:2.0446 train_time:529043ms step_avg:105.81ms
+step:5500/20000 train_loss:1.9545 train_time:582413ms step_avg:105.89ms
+step:5665/20000 val_loss:1.9329 val_bpb:1.1448 train_time:600062ms step_avg:105.92ms
+stopping_early: wallclock_cap train_time:600062ms step:5665/20000
+peak memory allocated: 20758 MiB reserved: 20852 MiB
+ema:applying best EMA (decay=0.9970 bpb=inf)
+Saved post-train checkpoint: /workspace/seed42_model.pt (106177672 bytes)
+DIAGNOSTIC post_average val_loss:1.9325 val_bpb:1.1446 eval_time:1980ms
+export_grid block:128 refine:3 damp:0.0100 mse:0.00582124
+export_grid block:128 refine:5 damp:0.0100 mse:0.00582124
+export_grid block:128 refine:3 damp:0.0050 mse:0.00582124
+export_grid block:128 refine:5 damp:0.0050 mse:0.00582124
+gptq_quantize: 0 GPTQ layers, 0 naive layers
+mixed_precision: 0 int5 params, 25952256 int6 params
+Serialized model research_export: 15826144 bytes
+Code size: 192279 bytes
+Total submission size research_export: 16018423 bytes
+final_research_export_roundtrip val_loss:1.9473 val_bpb:1.1533 eval_time:8264ms
+final_research_export_sliding skipped
+final_research_export_exact val_loss:1.94730372 val_bpb:1.15330295
+final_knn val_loss:1.9758 val_bpb:1.1702 eval_time:168181ms k:8 lam:0.12
+final_knn_exact val_loss:1.97579965 val_bpb:1.17017984
+phase_timings:{"diagnostic_eval_ms": 1980.0734035670757, "quantize_ms": 4838.551789522171, "roundtrip_eval_ms": 43036.73002496362, "serialize_ms": 32567.488629370928, "skipped": {"diagnostic_eval": false, "export": false, "roundtrip_eval": false, "sliding_eval": true}, "sliding_eval_ms": 0.0}
+=== SEED 42 DONE: Thu Apr  2 15:38:02 UTC 2026 ===
