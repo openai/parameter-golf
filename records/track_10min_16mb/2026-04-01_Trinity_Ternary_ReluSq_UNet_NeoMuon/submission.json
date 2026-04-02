@@ -1,7 +1,7 @@
 {
     "name": "gHashTag",
     "github_id": "gHashTag",
-    "val_bpb": null,
+    "val_bpb": 1.8310,
     "summary": "Trinity-inspired ternary QAT (BitNet b1.58) + relu² + 4× MLP + U-Net skip + Partial RoPE + NeoMuon + EMA + Z-loss + base-3 ternary packing",
     "date": "2026-04-01",
     "track": "10min_16mb",
