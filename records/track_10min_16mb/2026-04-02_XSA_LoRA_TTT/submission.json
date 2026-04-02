@@ -1,0 +1,40 @@
+{
+  "author": "Elar Wei",
+  "github": "Elarwei001",
+  "val_bpb": 1.1070,
+  "pre_ttt_bpb": 1.361,
+  "artifact_size_mb": 14.4,
+  "training_time_minutes": 8,
+  "ttt_time_minutes": 2,
+  "total_time_minutes": 10,
+  "hardware": "8×H100 SXM",
+  "techniques": [
+    "XSA (Exclusive Self Attention)",
+    "LoRA TTT (Test-Time Training)",
+    "QAT (Int6 Quantization-Aware Training)",
+    "BPE-8192 tokenizer",
+    "LeakyReLU(0.5)²",
+    "GQA (Grouped Query Attention)"
+  ],
+  "attribution": {
+    "bpe_8192_tokenizer": ["HuggingFace sproos/parameter-golf-tokenizers (sproos)"],
+    "lora_ttt": ["PR #548 (LoquiAuris)", "PR #512 (MatoTeziTanka)"],
+    "xsa": ["PR #198 (jfprincz, unnir)"],
+    "leaky_relu": ["PR #549 (abaybektursun)"],
+    "qat_int6": ["PR #414 (signalrush)"],
+    "training_stack": ["PR #162 (raahilshah)", "PR #180 (thwu1)"]
+  },
+  "seed": 42,
+  "config": {
+    "dim": 416,
+    "n_layers": 11,
+    "n_heads": 8,
+    "n_kv_heads": 4,
+    "vocab_size": 8192,
+    "seq_len": 256,
+    "window_size": 192,
+    "lora_rank": 8,
+    "ttt_epochs": 2,
+    "qat_start_ratio": 0.15
+  }
+}
