@@ -1,0 +1,23 @@
+{
+    "name": "Ivo Brett",
+    "github_id": "oidebrett",
+    "val_bpb": 1.1444,
+    "val_loss": 1.9323,
+    "val_bpb_exact": 1.14442620,
+    "val_loss_exact": 1.93231059,
+    "artifact_size_bytes": 16018202,
+    "total_submission_size_bytes": 16070467,
+    "model_params": 22368841,
+    "steps": 7276,
+    "step_avg_ms": 82.48,
+    "training_time_s": 600.099,
+    "hardware": "8xH100 SXM",
+    "seed": 1337,
+    "compressor": "zstd-22",
+    "quantization": "int6",
+    "swa_checkpoints": 30,
+    "eval_mode": "sliding_window",
+    "eval_stride": 64,
+    "summary": "LeakyReLU(0.5)^2 activation on PR #162 stack (SmearGate + BigramHash + Int6 QAT + SWA + zstd-22). One-line change, -0.0015 BPB vs base.",
+    "track": "non_record_16mb"
+}
