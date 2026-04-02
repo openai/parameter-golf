@@ -121,7 +121,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.5))  # 3.5x: wider than SOTA's 3x, fits in 16MB with int6+pruning  # Trinity: 5x MLP (ternary compresses ~3.75x)
+    mlp_mult = float(os.environ.get("MLP_MULT", 3.25))  # 3.25x: wider than SOTA's 3x, fits in 16MB with int6+pruning  # Trinity: 5x MLP (ternary compresses ~3.75x)
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
