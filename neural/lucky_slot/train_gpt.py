@@ -730,45 +730,6 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             val = (q.float() * float(s.item())).to(orig_dtype)
         out[name] = val.reshape(orig.shape) if val.shape != orig.shape else val
     return out
-def _serialize_quant_raw(quant_result: dict[str, Tensor], quant_meta: dict) -> bytes:
-    """Serialize quantized model to raw bytes to avoid torch.save ZIP overhead."""
-    import json
-    import struct as _struct
-
-    tensor_dir = {}
-    chunks = []
-    offset = 0
-    for name, tensor in quant_result.items():
-        t = tensor.contiguous()
-        raw = t.numpy().tobytes()
-        tensor_dir[name] = {"shape": list(t.shape), "dtype": str(t.dtype), "offset": offset, "nbytes": len(raw)}
-        chunks.append(raw)
-        offset += len(raw)
-    header = json.dumps({"m": quant_meta, "t": tensor_dir}, separators=(",", ":")).encode("utf-8")
-    return _struct.pack("<Q", len(header)) + header + b"".join(chunks)
-def _deserialize_quant_raw(data: bytes) -> tuple[dict[str, Tensor], dict]:
-    """Deserialize raw bytes back to (quant_result, quant_meta)."""
-    import json
-    import struct as _struct
-
-    _np_dtypes = {
-        "torch.int8": np.int8,
-        "torch.float16": np.float16,
-        "torch.float32": np.float32,
-        "torch.int32": np.int32,
-        "torch.int64": np.int64,
-        "torch.uint8": np.uint8,
-    }
-    header_len = _struct.unpack("<Q", data[:8])[0]
-    header = json.loads(data[8:8 + header_len])
-    body = data[8 + header_len:]
-    result = {}
-    for name, info in header["t"].items():
-        raw = body[info["offset"]:info["offset"] + info["nbytes"]]
-        arr = np.frombuffer(raw, dtype=_np_dtypes[info["dtype"]]).reshape(info["shape"])
-        result[name] = torch.from_numpy(arr.copy())
-    return result, header["m"]
-
 # --- Data loading ---
 
 SHARD_HEADER_DTYPE = np.dtype("<i4")
@@ -2426,8 +2387,9 @@ def main() -> None:
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     # GPTQ quantization using Hessians collected from training data
     quant_result, quant_meta = mixed_quantize_int6_gptq(sd_cpu, {"mlp", "attn", "aux", "embed"}, gptq_hessians)
-    quant_raw = _serialize_quant_raw(quant_result, quant_meta)
-    log0(f"quant_raw_bytes:{len(quant_raw)} (pre-compression, raw format)")
+    quant_buf = io.BytesIO()
+    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+    quant_raw = quant_buf.getvalue()
     quant_blob = zstandard.ZstdCompressor(level=22).compress(quant_raw) if _COMPRESSOR == "zstd" else _zlib_module.compress(quant_raw, 9)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
@@ -2439,9 +2401,11 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_raw_disk = zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else _zlib_module.decompress(quant_blob_disk)
-    quant_result_rt, quant_meta_rt = _deserialize_quant_raw(quant_raw_disk)
-    deq_state = dequantize_mixed_int6(quant_result_rt, quant_meta_rt, sd_cpu)
+    quant_state = torch.load(
+        io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else _zlib_module.decompress(quant_blob_disk)),
+        map_location="cpu",
+    )
+    deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
         num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
@@ -2474,7 +2438,7 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    del eval_model, deq_state, quant_result_rt, quant_meta_rt, sd_cpu
+    del eval_model, deq_state, quant_state, sd_cpu
     torch.cuda.empty_cache()
     sw_seq_len = effective_eval_seq_len
     if args.skip_final_eval:
