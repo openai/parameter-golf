@@ -32,7 +32,11 @@ except ImportError:
 # Hardware Optimization Setup
 # ---------------------------------------------------------------------------
 if torch.cuda.is_available():
-    ptdtype = torch.float32  # Enforce Float32 for driver stability on Windows
+    # Use bfloat16 on capable GPUs (H100/A100/RTX 40xx), fall back to float32
+    if torch.cuda.get_device_capability()[0] >= 8:
+        ptdtype = torch.bfloat16
+    else:
+        ptdtype = torch.float32  # GTX 1650 Ti etc.
 else:
     ptdtype = torch.float32
 
@@ -45,28 +49,28 @@ def _e(k, d, t=str):
     return t(v)
 
 class Hyperparameters:
-    data_path = _e("DATA_PATH", "C:/Users/Public/parameter-golf/data/datasets/fineweb10B_sp1024", str)
-    tokenizer_path = _e("TOKENIZER_PATH", "C:/Users/Public/parameter-golf/data/tokenizers/fineweb_1024_bpe.model", str)
+    data_path = _e("DATA_PATH", "./data/datasets/fineweb10B_sp1024", str)
+    tokenizer_path = _e("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model", str)
     num_layers = _e("NUM_LAYERS", 8, int)
-    model_dim = _e("MODEL_DIM", 128, int)
+    model_dim = _e("MODEL_DIM", 768, int)
     vocab_size = _e("VOCAB_SIZE", 1024, int)
-    
+
     @property
     def train_files(self): return os.path.join(self.data_path, "fineweb_train_*.bin")
     @property
     def val_files(self): return os.path.join(self.data_path, "fineweb_val_*.bin")
     run_id = os.environ.get("RUN_ID", f"run_{int(time.time())}")
-    seed = _e("SEED", 1337, int)
-    compile_mode = "none"
-    val_batch_size = _e("VAL_BATCH_SIZE", 4096, int)
+    seed = _e("SEED", 42, int)
+    compile_mode = _e("COMPILE_MODE", "default", str)
+    val_batch_size = _e("VAL_BATCH_SIZE", 65536, int)
     val_loss_every = _e("VAL_LOSS_EVERY", 0, int)
     train_log_every = _e("TRAIN_LOG_EVERY", 100, int)
-    iterations = _e("ITERATIONS", 100000, int)
-    warmdown_fraction = _e("WARMDOWN_FRACTION", 0.5, float)
-    warmup_steps = _e("WARMUP_STEPS", 0, int)
-    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 4096, int)
-    train_seq_len = _e("TRAIN_SEQ_LEN", 1024, int)
-    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 21600.0, float)
+    iterations = _e("ITERATIONS", 10000, int)
+    warmdown_fraction = _e("WARMDOWN_FRACTION", 0.35, float)
+    warmup_steps = _e("WARMUP_STEPS", 5, int)
+    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 786432, int)
+    train_seq_len = _e("TRAIN_SEQ_LEN", 2048, int)
+    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
     num_kv_heads = _e("NUM_KV_HEADS", 4, int)
     num_heads = _e("NUM_HEADS", 8, int)
     mlp_mult = _e("MLP_MULT", 4, int)
@@ -74,59 +78,112 @@ class Hyperparameters:
     rope_base = _e("ROPE_BASE", 5000.0, float)
     rope_type = _e("ROPE_TYPE", "yarn")
     yarn_max_len = _e("YARN_MAX_LEN", 4096, int)
-    logit_softcap = 0.0
-    softcap_type = "none"
-    tied_embed_init_std = _e("TIED_EMBED_INIT_STD", 0.02, float)
-    qk_gain_init = 0.0
-    activation_type = "lrelu2"
-    leaky_relu_slope = 0.02
-    embed_dim = 128
-    training_depth_recurrence = 0
-    feedback_enabled = _e("FEEDBACK_ENABLED", 1, bool)
-    feedback_dim = 64
-    feedback_sketch_tokens = 4
-    feedback_replay = "decoder"
-    feedback_target = "decoder"
-    feedback_passes = 1
-    eval_feedback_passes = 0
-    feedback_fp_storage = False
-    untie_at_fraction = 0.0
-    moe_enabled = False
-    moe_num_experts = 1
-    moe_top_k = 1
-    moe_router_aux_loss_coef = 0.01
-    vrl_enabled = False
-    vrl_start_layer = 8
-    adam_lr = _e("ADAM_LR", 0.04, float)
-    adam_wd = _e("ADAM_WD", 0.01, float)
+    logit_softcap = _e("LOGIT_SOFTCAP", 30.0, float)
+    softcap_type = _e("SOFTCAP_TYPE", "poly")
+    tied_embed_init_std = _e("TIED_EMBED_INIT_STD", 0.005, float)
+    qk_gain_init = _e("QK_GAIN_INIT", 2.25, float)
+    activation_type = _e("ACTIVATION", "lrelu2")
+    leaky_relu_slope = _e("LEAKY_RELU_SLOPE", 0.5, float)
+    embed_dim = _e("EMBED_DIM", 254, int)
+    training_depth_recurrence = _e("TRAINING_DEPTH_RECURRENCE", 0, int)
+    feedback_enabled = _e("FEEDBACK_ENABLED", 0, bool)
+    feedback_dim = _e("FEEDBACK_DIM", 32, int)
+    feedback_sketch_tokens = _e("FEEDBACK_SKETCH_TOKENS", 2, int)
+    feedback_replay = _e("FEEDBACK_REPLAY", "decoder")
+    feedback_target = _e("FEEDBACK_TARGET", "decoder")
+    feedback_passes = _e("FEEDBACK_PASSES", 1, int)
+    eval_feedback_passes = _e("EVAL_FEEDBACK_PASSES", 2, int)
+    feedback_fp_storage = _e("FEEDBACK_FP_STORAGE", False, bool)
+    feedback_every = _e("FEEDBACK_EVERY", 2, int)
+    untie_at_fraction = _e("UNTIE_AT_FRACTION", 0.0, float)
+    moe_enabled = _e("MOE_ENABLED", 1, bool)
+    moe_num_experts = _e("MOE_NUM_EXPERTS", 3, int)
+    moe_top_k = _e("MOE_TOP_K", 1, int)
+    moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.01, float)
+    vrl_enabled = _e("VRL_ENABLED", 1, bool)
+    vrl_start_layer = _e("VRL_START_LAYER", 10, int)
+    adam_lr = _e("ADAM_LR", 0.035, float)
+    adam_wd = _e("ADAM_WD", 0.04, float)
     beta1 = 0.9
     beta2 = 0.95
     adam_eps = 1e-8
-    grad_clip_norm = 1.0
-    bitnet_group_size = 128
+    grad_clip_norm = _e("GRAD_CLIP_NORM", 0.3, float)
+    bitnet_group_size = _e("BITNET_GROUP_SIZE", 128, int)
     shared_blocks = _e("SHARED_BLOCKS", 2, int)
-    capsule_enabled = True
-    capsule_num = 16
-    capsule_dim = 64
-    capsule_carry_decay = 0.8
-    capsule_carry_enabled = True
-    partial_rope_dims = 16
-    ln_scale_damping = True
-    bigram_hash_buckets = 4096
-    bigram_hash_dim = 128
-    engram_num_heads = 4
-    engram_num_orders = 2
-    engram_inject_layer = 1
-    xsa_start_layer = 8
-    koopman_enabled = True
-    koopman_rank = 4
-    koopman_diag_init = 0.9
-    architecture = "hybrid"
+    capsule_enabled = _e("CAPSULE_ENABLED", 1, bool)
+    capsule_num = _e("CAPSULE_NUM", 16, int)
+    capsule_dim = _e("CAPSULE_DIM", 64, int)
+    capsule_carry_decay = _e("CAPSULE_CARRY_DECAY", 0.8, float)
+    capsule_carry_enabled = _e("CAPSULE_CARRY_ENABLED", 1, bool)
+    partial_rope_dims = _e("PARTIAL_ROPE_DIMS", 16, int)
+    ln_scale_damping = _e("LN_SCALE_DAMPING", 1, bool)
+    bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 4096, int)
+    bigram_hash_dim = _e("BIGRAM_HASH_DIM", 64, int)
+    engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
+    engram_num_orders = _e("ENGRAM_NUM_ORDERS", 3, int)
+    engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)
+    xsa_start_layer = _e("XSA_START_LAYER", 8, int)
+    koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
+    koopman_rank = _e("KOOPMAN_RANK", 2, int)
+    koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)
+    koopman_consistency_weight = _e("KOOPMAN_CONSISTENCY_WEIGHT", 0.005, float)
+    koopman_speculator_enabled = _e("KOOPMAN_SPECULATOR_ENABLED", 1, bool)
+    koopman_speculator_steps = _e("KOOPMAN_SPECULATOR_STEPS", 3, int)
+    koopman_speculator_weight = _e("KOOPMAN_SPECULATOR_WEIGHT", 0.01, float)
+    adaptive_halt_enabled = _e("ADAPTIVE_HALT_ENABLED", 1, bool)
+    adaptive_halt_threshold = _e("ADAPTIVE_HALT_THRESHOLD", 0.05, float)
+    max_eval_passes = _e("MAX_EVAL_PASSES", 3, int)
+    architecture = _e("ARCHITECTURE", "hybrid")
     # Koopman SSM hyperparameters (for SSM and hybrid modes)
     koopman_state_dim = _e("KOOPMAN_STATE_DIM", 128, int)
     koopman_mixer_rank = _e("KOOPMAN_MIXER_RANK", 4, int)
     koopman_conv_kernel = _e("KOOPMAN_CONV_KERNEL", 4, int)
     koopman_decay_window = _e("KOOPMAN_DECAY_WINDOW", 32, int)
+    # Convergence features
+    stochastic_depth_prob = _e("STOCHASTIC_DEPTH_PROB", 0.1, float)
+    ternary_noise_scale = _e("TERNARY_NOISE_SCALE", 0.02, float)
+    self_distill_kl_weight = _e("SELF_DISTILL_KL_WEIGHT", 0.1, float)
+    curriculum_enabled = _e("CURRICULUM_ENABLED", 1, bool)
+    curriculum_phase1_frac = _e("CURRICULUM_PHASE1_FRAC", 0.15, float)
+    curriculum_phase2_frac = _e("CURRICULUM_PHASE2_FRAC", 0.40, float)
+    curriculum_phase1_seq = _e("CURRICULUM_PHASE1_SEQ", 256, int)
+    curriculum_phase2_seq = _e("CURRICULUM_PHASE2_SEQ", 512, int)
+    ema_enabled = _e("EMA_ENABLED", 1, bool)
+    ema_eval_apply = _e("EMA_EVAL_APPLY", 1, bool)
+    ema_decay = _e("EMA_DECAY", 0.997, float)
+    ema_start_fraction = _e("EMA_START_FRACTION", 0.40, float)
+    # Optimizer (Muon / NeoMuon)
+    matrix_optimizer = _e("MATRIX_OPTIMIZER", "muon")
+    matrix_lr = _e("MATRIX_LR", 0.035, float)
+    scalar_lr = _e("SCALAR_LR", 0.035, float)
+    tied_embed_lr = _e("TIED_EMBED_LR", 0.052, float)
+    muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
+    muon_momentum_warmup_start = _e("MUON_MOMENTUM_WARMUP_START", 0.85, float)
+    muon_momentum_warmup_steps = _e("MUON_MOMENTUM_WARMUP_STEPS", 500, int)
+    muon_wd = _e("MUON_WD", 0.04, float)
+    muon_backend_steps = _e("MUON_BACKEND_STEPS", 5, int)
+    # Eval features
+    sliding_eval = _e("SLIDING_EVAL", 1, bool)
+    sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 64, int)
+    sliding_batch_size = _e("SLIDING_BATCH_SIZE", 256, int)
+    temp_scaling = _e("TEMP_SCALING", 1, bool)
+    # Export
+    turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)
+    turbo_quant_train = _e("TURBO_QUANT_TRAIN", 0, bool)
+    # Eval-time features
+    ngram_cache_enabled = _e("NGRAM_CACHE_ENABLED", 1, bool)
+    ngram_max_order = _e("NGRAM_MAX_ORDER", 5, int)
+    ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
+    ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
+    ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
+    ttt_enabled = _e("TTT_ENABLED", 1, bool)
+    ttt_scope = _e("TTT_SCOPE", "feedback")
+    ttt_lr = _e("TTT_LR", 0.002, float)
+    ttt_epochs = _e("TTT_EPOCHS", 3, int)
+    ttt_chunk_tokens = _e("TTT_CHUNK_TOKENS", 32768, int)
+    ttt_momentum = _e("TTT_MOMENTUM", 0.9, float)
+    ttt_batch_seqs = _e("TTT_BATCH_SEQS", 32, int)
+    ttt_grad_clip = _e("TTT_GRAD_CLIP", 1.0, float)
 
 CTP = (
     "attn_scale", "attn_scales", "mlp_scale", "mlp_scales", "resid_mix", "resid_mixes",
