@@ -1,0 +1,9 @@
+{
+  "name": "WARP (Word-Aware Representation Priors) + Legal TTT + Context-Only SLOT",
+  "val_bpb": 1.0713,
+  "bytes_total": 13653989,
+  "blurb": "WARP injects word-level structural priors at 3 points: word length embedding (layer 0), word position in Q+K attention (all layers), word type logit bias (output). 183,820 extra params (0.7% overhead). EMA disabled for short runs. Built on LeakyReLU-squared + Parallel Muon + BigramHash(2816) + XSA-11 stack. Legal score-first TTT (2ep, freeze 2) + context-only SLOT (lr=0.005, 8 steps). Trained on 1xH100, 600s wallclock, 1260 steps.",
+  "author": "ahmetdenizyilmaz",
+  "github_id": "ahmetdenizyilmaz",
+  "date": "2026-04-02"
+}
