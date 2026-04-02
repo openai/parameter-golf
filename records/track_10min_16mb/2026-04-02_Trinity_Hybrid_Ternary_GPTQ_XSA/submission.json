@@ -1,0 +1,28 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-02",
+  "name": "Trinity_Hybrid_Ternary_GPTQ_XSA",
+  "author": "gHashTag",
+  "description": "Trinity Hybrid quantization: ternary {-1,0,+1} for MLP weights (base-3 packed, ~1.6 bpw) + int6 GPTQ for attention weights. MLP width increased from 3x to 5x to exploit ternary compression savings. Built on ValCalib_GPTQ_XSA_BigramHash3072 baseline.",
+  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
+  "changes": [
+    "Added ternary quantization with per-group absmean scaling (group_size=128)",
+    "Added base-3 packing for ternary values (5 trits per byte)",
+    "Hybrid quantization dispatch: MLP -> ternary, attention -> int6 GPTQ",
+    "Increased MLP multiplier from 3.0 to 5.0",
+    "Updated dequantization to handle both ternary and int6 formats"
+  ],
+  "techniques": [
+    "Trinity Hybrid ternary-int6 quantization",
+    "GPTQ Hessian-aware quantization (attention only)",
+    "Ternary absmean quantization (MLP only)",
+    "Base-3 trit packing",
+    "XSA (Cross-head Self-Attention)",
+    "BigramHash embedding",
+    "Value Embedding injection",
+    "Muon optimizer with Newton-Schulz",
+    "EMA weight averaging",
+    "Autoregressive calibration",
+    "Selective pruning for size budget"
+  ]
+}
