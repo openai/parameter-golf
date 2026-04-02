@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb SOTA — Int6 + SmearGate + BigramHash + SWA + MuonWD",
+  "blurb": "Baseline architecture enhanced with 6 proven techniques from top scorers: Int6 per-row quantization (6-bit, FP16 embeddings preserved), SmearGate (learned bigram blending), BigramHash embeddings (4096-bucket XOR hash), Stochastic Weight Averaging (last 50%, every 50 steps), Muon weight decay 0.04, and optimized hyperparameters (MLP 3x, seq2048, grad_clip 0.3, Muon 0.99). 1210 lines.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
