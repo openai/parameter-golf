@@ -88,6 +88,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    enable_compile = bool(int(os.environ.get("ENABLE_COMPILE", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -767,7 +768,8 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    if args.enable_compile:
+        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -880,8 +882,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    run_model = torch.compile(base_model, dynamic=False, fullgraph=True) if args.enable_compile else base_model
+    model: nn.Module = DDP(run_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else run_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -949,6 +951,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(f"enable_compile:{args.enable_compile}")
     log0(f"seed:{args.seed}")
 
     # -----------------------------

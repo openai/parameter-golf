@@ -11,6 +11,7 @@ BASE_ENV=(
   DATA_PATH=./data/datasets/fineweb10B_sp1024
   TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model
   VOCAB_SIZE=1024
+  ENABLE_COMPILE=0
   TRAIN_SEQ_LEN=1024
   VAL_LOSS_EVERY=1000
   TRAIN_LOG_EVERY=100
