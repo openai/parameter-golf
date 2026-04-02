@@ -1,0 +1,11 @@
+step:1496/20000 val_loss:2.1946 val_bpb:1.2998 train_time:600043ms step_avg:401.10ms
+stopping_early: wallclock_cap train_time:600043ms step:1496/20000
+peak memory allocated: 10240 MiB reserved: 10554 MiB
+Serialized model: 67224983 bytes
+Code size: 47686 bytes
+Total submission size: 67272669 bytes
+Serialized model int8+zlib: 11804303 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 11851989 bytes
+final_int8_zlib_roundtrip val_loss:2.2000 val_bpb:1.3029 eval_time:13074ms
+final_int8_zlib_roundtrip_exact val_loss:2.19997208 val_bpb:1.30294738
+root@ac9f568adf55:/workspace/parameter-golf#

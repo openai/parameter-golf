@@ -1,0 +1,11 @@
+{
+  "author": "Aniket-pd",
+  "github_id": "Aniket-pd",
+  "name": "1xH100 Budget Seq2048 + LR Warmdown Tune",
+  "blurb": "Non-record budget-constrained run on 1xH100 with seq_len=2048 and tuned learning rates/warmdown under a 600s wallclock cap.",
+  "date": "2026-04-02T00:00:00Z",
+  "val_loss": 2.19997208,
+  "val_bpb": 1.30294738,
+  "bytes_total": 11851989,
+  "bytes_code": 47686
+}
