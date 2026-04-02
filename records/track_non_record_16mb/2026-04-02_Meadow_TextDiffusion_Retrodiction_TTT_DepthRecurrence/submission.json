@@ -1,0 +1,22 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-02",
+  "name": "Text Diffusion + Retrodiction + TTT + Depth Recurrence — 5 Wishlist Techniques",
+  "author": "Sheng-Kai Huang",
+  "github_id": "akaiHuang",
+  "val_bpb": 1.497,
+  "val_bpb_ttt": 1.492,
+  "val_bpb_cdm_su": 2.570,
+  "val_bpb_shared_cf": 1.503,
+  "hardware": "1xH100 SXM 540s (training), M1 Max 64GB (CDM eval)",
+  "params": 4151081,
+  "quantization": "Int6 + lzma",
+  "artifact_bytes": 2900000,
+  "techniques": [
+    "Text Diffusion (CDM with Sequential Unmasking eval)",
+    "Retrodiction (Petz Recovery Map)",
+    "Test-Time Training (full-model AdamW TTT)",
+    "Depth Recurrence (6 unique → 17 passes)",
+    "Custom v4096 BPE Tokenizer"
+  ]
+}

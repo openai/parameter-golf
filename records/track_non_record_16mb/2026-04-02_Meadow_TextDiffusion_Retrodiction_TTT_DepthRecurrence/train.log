@@ -1,0 +1,77 @@
+WARNING: effective_batch=65,536 != official 524,288
+   grad_accum=2 x microbatch=32768 x 1 GPUs
+======================================================================
+11L Standard Retrodiction PyTorch | 5L d=256 MLP=3x | steps=99999
+NUM_HEADS=8 head_dim=32 NUM_KV_HEADS=4 BIGRAM_DIM=64
+Encoder=2 Decoder=3 (U-net skip connections)
+Retro alpha=0.3 | XSA last 2 layers | LeakyReLU^2 | BigramHash(2048) | EMA(0.997)
+Device: cuda | World size: 1 | Grad accum: 2
+Effective batch: 65,536 tok/step
+======================================================================
+Val tokens: 45,121,536 (eval on 999,424)
+Model params: 4,151,081 (4.2M)
+Estimated size BF16: 8.3MB | int6: 3.1MB
+  Muon params: 32 tensors
+  Scalar params: 23 tensors
+  Embed param: tok_emb.weight
+EMA starts step 79999
+Time budget: 540s (warmdown in last 80s)
+Starting training...
+step:0/99999 val_bpb:3.6114 *BEST* tokens:0M elapsed:1s
+  step:100 train_loss:9.6959 lr_mul:1.0000 tok/s:396347
+  step:200 train_loss:8.8438 lr_mul:1.0000 tok/s:410051
+  step:300 train_loss:8.4501 lr_mul:1.0000 tok/s:414813
+  step:400 train_loss:8.1144 lr_mul:1.0000 tok/s:417432
+step:500/99999 val_bpb:1.7278 *BEST* tokens:33M elapsed:78s
+  step:500 train_loss:7.9979 lr_mul:1.0000 tok/s:416857
+  Checkpoint saved: checkpoints_11L/step_500.pt
+  step:600 train_loss:7.9572 lr_mul:1.0000 tok/s:418068
+  step:700 train_loss:7.9324 lr_mul:1.0000 tok/s:418983
+  step:800 train_loss:7.5177 lr_mul:1.0000 tok/s:419733
+  step:900 train_loss:7.4747 lr_mul:1.0000 tok/s:420259
+step:1000/99999 val_bpb:1.6489 *BEST* tokens:66M elapsed:156s
+  step:1000 train_loss:7.5924 lr_mul:1.0000 tok/s:419695
+  Checkpoint saved: checkpoints_11L/step_1000.pt
+  step:1100 train_loss:8.0533 lr_mul:1.0000 tok/s:420150
+  step:1200 train_loss:7.4797 lr_mul:1.0000 tok/s:420113
+  step:1300 train_loss:7.6360 lr_mul:1.0000 tok/s:420462
+  step:1400 train_loss:7.2976 lr_mul:1.0000 tok/s:420757
+step:1500/99999 val_bpb:1.6149 *BEST* tokens:98M elapsed:234s
+  step:1500 train_loss:7.5031 lr_mul:1.0000 tok/s:420344
+  Checkpoint saved: checkpoints_11L/step_1500.pt
+  step:1600 train_loss:7.4292 lr_mul:1.0000 tok/s:420580
+  step:1700 train_loss:7.5803 lr_mul:1.0000 tok/s:420822
+  step:1800 train_loss:7.4522 lr_mul:1.0000 tok/s:421016
+  step:1900 train_loss:7.3479 lr_mul:1.0000 tok/s:421185
+step:2000/99999 val_bpb:1.5865 *BEST* tokens:131M elapsed:311s
+  step:2000 train_loss:7.2996 lr_mul:1.0000 tok/s:420845
+  Checkpoint saved: checkpoints_11L/step_2000.pt
+  step:2100 train_loss:7.3516 lr_mul:1.0000 tok/s:421004
+  step:2200 train_loss:7.2293 lr_mul:1.0000 tok/s:421083
+  step:2300 train_loss:7.4488 lr_mul:1.0000 tok/s:421051
+  step:2400 train_loss:7.3113 lr_mul:1.0000 tok/s:421193
+step:2500/99999 val_bpb:1.5790 *BEST* tokens:164M elapsed:389s
+  step:2500 train_loss:7.2561 lr_mul:1.0000 tok/s:420885
+  Checkpoint saved: checkpoints_11L/step_2500.pt
+  step:2600 train_loss:7.4061 lr_mul:1.0000 tok/s:421013
+  step:2700 train_loss:7.4659 lr_mul:1.0000 tok/s:421128
+  step:2800 train_loss:7.2594 lr_mul:1.0000 tok/s:421250
+  step:2900 train_loss:7.0914 lr_mul:1.0000 tok/s:421337
+step:3000/99999 val_bpb:1.5575 *BEST* tokens:197M elapsed:467s
+  step:3000 train_loss:7.2468 lr_mul:0.9154 tok/s:421076
+  Checkpoint saved: checkpoints_11L/step_3000.pt
+  step:3100 train_loss:7.1503 lr_mul:0.7223 tok/s:421177
+  step:3200 train_loss:7.1200 lr_mul:0.5295 tok/s:421287
+  step:3300 train_loss:6.8191 lr_mul:0.3362 tok/s:421363
+  step:3400 train_loss:6.9488 lr_mul:0.1411 tok/s:421320
+  Budget 540s reached at step 3473 (540s elapsed) — triggering final eval+save
+step:3473/99999 val_bpb:1.4967 *BEST* tokens:228M elapsed:540s
+
+Saved NPZ to /workspace/model_5L_v4096.npz
+Saved int6+lzma to /workspace/model_5L_v4096_int6.lzma (2.9MB)
+======================================================================
+FINAL val_bpb: 1.4967
+Total tokens: 6.554B in 542s
+Model: 5L d=256 MLP=3x | 4,151,081 params
+Throughput: 12100870 tok/s
+======================================================================
