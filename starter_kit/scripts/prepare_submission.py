@@ -18,7 +18,11 @@ def main() -> None:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
+    resolved_repo_root = repo_root.resolve()
     date = dt.datetime.now().strftime("%Y-%m-%d")
+    display_run_name = args.run_name.strip()
+    if not display_run_name:
+        display_run_name = "run"
     # Ensure run name is safe for use as a single path component.
     safe_run_name = re.sub(r"[^A-Za-z0-9._-]", "_", args.run_name).strip("._")
     if not safe_run_name:
@@ -40,7 +44,7 @@ def main() -> None:
     readme_tpl = (template_dir / "README_submission_template.md").read_text(encoding="utf-8")
     readme = (
         readme_tpl
-        .replace("{{RUN_NAME}}", safe_run_name)
+        .replace("{{RUN_NAME}}", display_run_name)
         .replace("{{DATE}}", date)
         .replace("{{TRACK}}", args.track)
         .replace("{{AUTHOR_NAME}}", args.author_name)
@@ -51,9 +55,8 @@ def main() -> None:
 
     submission = {
         "author": args.author_name,
-        "name": safe_run_name,
+        "name": display_run_name,
         "blurb": "Fill out details and attach train logs.",
-        "size": "16mb",
         "github_id": args.github_id,
         "track": args.track,
         "val_bpb": round(args.val_bpb, 4),
@@ -61,7 +64,14 @@ def main() -> None:
     }
     (out_dir / "submission.json").write_text(json.dumps(submission, indent=2) + "\n", encoding="utf-8")
 
-    source_script = repo_root / args.source_train_script
+    source_script_arg = Path(args.source_train_script)
+    if source_script_arg.is_absolute():
+        raise ValueError("--source-train-script must be a relative path within the repository")
+    source_script = (resolved_repo_root / source_script_arg).resolve()
+    if source_script != resolved_repo_root and resolved_repo_root not in source_script.parents:
+        raise ValueError(
+            f"Unsafe source train script resolved outside repository: {args.source_train_script}"
+        )
     if not source_script.exists():
         raise FileNotFoundError(f"Could not find train script: {source_script}")
     shutil.copy2(source_script, out_dir / "train_gpt.py")
