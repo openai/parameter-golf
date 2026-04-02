@@ -16,6 +16,8 @@ export PIP_ROOT_USER_ACTION=ignore   # suppress "running as root" pip warning
 
 REPO_URL="https://github.com/newjordan/parameter-golf.git"
 BRANCH="TEST_LAB"
+TRAIN_SHARDS="${TRAIN_SHARDS:-80}"
+DATASET_VARIANT="${DATASET_VARIANT:-sp1024}"
 # Auto-detect repo root from script location; fall back for curl-pipe scenario
 _SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || true
 _CANDIDATE="$(cd -- "${_SCRIPT_DIR}/.." && pwd 2>/dev/null)" || true
@@ -28,6 +30,8 @@ fi
 echo "============================================"
 echo "  POD SETUP"
 echo "  Branch: ${BRANCH}"
+echo "  Variant: ${DATASET_VARIANT}"
+echo "  Train shards: ${TRAIN_SHARDS}"
 echo "============================================"
 
 # =============================================================================
@@ -149,13 +153,13 @@ fi
 # 6. Dataset (sp1024)
 # =============================================================================
 echo ""
-echo "[6/6] Tokenizer + FineWeb dataset (sp1024)..."
+echo "[6/6] Tokenizer + FineWeb dataset (${DATASET_VARIANT})..."
 
 # Use competition's official download script (willdepueoai/parameter-golf dataset repo)
 # NOT sproos/parameter-golf-tokenizers — that repo has different val shard (58M vs 62M tokens)
 echo "  Using competition download script (data/cached_challenge_fineweb.py)..."
 cd "${WORKSPACE}"
-python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+python3 data/cached_challenge_fineweb.py --variant "${DATASET_VARIANT}" --train-shards "${TRAIN_SHARDS}"
 echo "  Competition data downloaded"
 
 # =============================================================================
@@ -167,7 +171,7 @@ echo " Verification"
 echo "============================================"
 
 python3 - << 'PYEOF'
-import sys, glob
+import os, sys, glob
 
 print(f"Python       : {sys.version.split()[0]}")
 print(f"Executable   : {sys.executable}")
@@ -202,8 +206,10 @@ try:
 except ImportError:
     print("sentencepiece: MISSING!")
 
-train = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin"))
-val   = sorted(glob.glob("./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin"))
+variant = os.environ.get("DATASET_VARIANT", "sp1024")
+dataset_dir = "fineweb10B_byte260" if variant == "byte260" else f"fineweb10B_{variant}"
+train = sorted(glob.glob(f"./data/datasets/{dataset_dir}/fineweb_train_*.bin"))
+val   = sorted(glob.glob(f"./data/datasets/{dataset_dir}/fineweb_val_*.bin"))
 print(f"Train shards : {len(train)}")
 print(f"Val shards   : {len(val)}")
 PYEOF
