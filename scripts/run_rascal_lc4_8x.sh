@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd /home/frosty40/parameter-golf-lab
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+TRAINER="${REPO_ROOT}/junkyard/experiments/Rascal_Final_Submission_LC4/train_gpt.py"
+DATA_PATH="${REPO_ROOT}/data/datasets/fineweb10B_sp1024"
+TOKENIZER_PATH="${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model"
+LOG_DIR="${REPO_ROOT}/logs"
+
+cd "${REPO_ROOT}"
 
 if [[ -f /venv/main/bin/activate ]]; then
   # shellcheck disable=SC1091
@@ -11,17 +18,17 @@ else
   exit 1
 fi
 
-export PYTHONPATH="/home/frosty40/parameter-golf-lab/flash-attention/hopper:${PYTHONPATH:-}"
+export PYTHONPATH="${REPO_ROOT}/flash-attention/hopper:${PYTHONPATH:-}"
 
 SEED="${SEED:-444}"
-mkdir -p /home/frosty40/parameter-golf-lab/logs
+mkdir -p "${LOG_DIR}"
 RUN_ID="rascal_lc4_s${SEED}_$(date +%Y%m%d_%H%M%S)"
-LOG="/home/frosty40/parameter-golf-lab/logs/${RUN_ID}.log"
+LOG="${LOG_DIR}/${RUN_ID}.log"
 
 SEED="${SEED}" \
 RUN_ID="${RUN_ID}" \
-DATA_PATH="/home/frosty40/parameter-golf-lab/data/datasets/fineweb10B_sp1024" \
-TOKENIZER_PATH="/home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_1024_bpe.model" \
+DATA_PATH="${DATA_PATH}" \
+TOKENIZER_PATH="${TOKENIZER_PATH}" \
 ITERATIONS=20000 \
 WARMDOWN_ITERS=3500 \
 TRAIN_BATCH_TOKENS=786432 \
@@ -48,5 +55,5 @@ NGRAM_EVAL_ORDER=0 \
 CUBRIC_CADENCE=0 \
 NGRAM_ENTROPY_SHIFT=0 \
 python -m torch.distributed.run --standalone --nproc_per_node=8 \
-/home/frosty40/parameter-golf-lab/junkyard/experiments/Rascal_Final_Submission_LC4/train_gpt.py \
+"${TRAINER}" \
 2>&1 | tee "${LOG}"
