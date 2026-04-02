@@ -607,12 +607,13 @@ class MLP(nn.Module):
 
 class AttnRes(nn.Module):
     """Cross-attention over windowed prior pass outputs (replaces fixed U-Net skips).
-    
-    Each pass attends over the last attn_res_window pass outputs (including x0).
-    The block-causal mask ensures token t only attends to keys from positions <= t
-    across all passes in the window, preserving autoregressive causality.
+
+    Uses per-pass Flash Attention (is_causal=True) instead of a single attention
+    op with a custom block-causal mask. Each history pass gets its own causal
+    attention call, and results are combined via learned softmax weights.
+    This avoids the Triton TRITON_MAX_BLOCK issue and uses the fastest SDPA backend.
     """
-    def __init__(self, dim: int, num_heads: int = 4):
+    def __init__(self, dim: int, num_heads: int = 4, max_window: int = 13):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
@@ -622,35 +623,35 @@ class AttnRes(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.attn_res_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        # Learnable per-pass mixing weights (softmaxed before use)
+        self.pass_logits = nn.Parameter(torch.zeros(max_window, dtype=torch.float32))
 
     def forward(self, x: Tensor, history: list[Tensor]) -> Tensor:
         if not history:
             return x
-        kv_src = torch.stack(history, dim=1)  # (B, P, T, D)
-        B, P, T, D = kv_src.shape
-
-        # Flatten passes into sequence dimension: (B, T*P, D)
-        kv_flat = kv_src.transpose(1, 2).contiguous().reshape(B, T * P, D)
+        B, T, D = x.shape
+        P = len(history)
 
         x_norm = F.rms_norm(x, (x.size(-1),))
-        kv_norm = F.rms_norm(kv_flat, (kv_flat.size(-1),))
-
         q = F.rms_norm(
             self.c_q(x_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2),
             (self.head_dim,),
         )
-        k = F.rms_norm(
-            self.c_k(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2),
-            (self.head_dim,),
-        )
-        v = self.c_v(kv_norm).reshape(B, T * P, self.num_heads, self.head_dim).transpose(1, 2)
 
-        # Block-causal mask: token t attends to all (t', p) where t' <= t
-        causal = torch.ones(T, T, device=x.device, dtype=torch.bool).tril()
-        mask = causal.repeat_interleave(P, dim=1).unsqueeze(0).unsqueeze(0)  # (1,1,T,T*P)
+        # Per-pass Flash Attention with is_causal=True — no custom mask needed
+        weights = F.softmax(self.pass_logits[:P], dim=0)
+        combined = torch.zeros_like(q)
+        for i, h in enumerate(history):
+            h_norm = F.rms_norm(h, (h.size(-1),))
+            k = F.rms_norm(
+                self.c_k(h_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2),
+                (self.head_dim,),
+            )
+            v = self.c_v(h_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2)
+            attn_out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+            combined = combined + weights[i] * attn_out
 
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, is_causal=False)
-        y = y.transpose(1, 2).contiguous().reshape(B, T, D)
+        y = combined.transpose(1, 2).contiguous().reshape(B, T, D)
         return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
 
 
@@ -826,15 +827,8 @@ def main() -> None:
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(True)  # required for AttnRes block-causal mask
-    enable_math_sdp(True)
-
-    # AttnRes block-causal mask creates (T, T*P) attention patterns that exceed
-    # Triton's default max block size during inductor compilation.
-    # Must be set as env var so subprocess workers inherit it on fresh import.
-    os.environ.setdefault("TRITON_MAX_BLOCK_X", "8192")
-    import torch._inductor.runtime.triton_heuristics as _th
-    _th.TRITON_MAX_BLOCK["X"] = max(_th.TRITON_MAX_BLOCK.get("X", 0), 8192)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
 
     logfile = None
     if master_process:
