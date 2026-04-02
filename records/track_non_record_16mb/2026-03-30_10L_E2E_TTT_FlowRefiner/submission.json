@@ -1,0 +1,36 @@
+{
+  "track": "non_record_16mb",
+  "val_bpb": 1.13353331,
+  "val_bpb_std": 0.00095351,
+  "val_bpb_seeds": {
+    "42": 1.13472408,
+    "99": 1.13387877,
+    "1337": 1.13269366,
+    "2025": 1.13283672
+  },
+  "model_file": "final_model.int6.ptz",
+  "model_bytes": 15094152,
+  "code_bytes": 104955,
+  "total_submission_bytes": 15199107,
+  "training_tokens_billions": 5.65,
+  "training_script": "train_gpt.py",
+  "hardware": "2×A100 PCIe 40GB",
+  "training_time_hours": 2.23,
+  "training_steps": 7185,
+  "quantization": "int6+lzma-6",
+  "architecture": "10L-512D-8H-4KV-3xMLP-BigramHash1536-E2E_TTT-FlowRefiner",
+  "num_layers": 10,
+  "model_dim": 512,
+  "model_params": 25749398,
+  "refiner_params": 1182530,
+  "total_params": 26931928,
+  "seed": 42,
+  "seeds_completed": [42, 99, 1337, 2025],
+  "date": "2026-03-30",
+  "slurm_jobs": {
+    "seed42": 55383562,
+    "seed99": 55392385,
+    "seed1337": 55392383,
+    "seed2025": 55392384
+  }
+}

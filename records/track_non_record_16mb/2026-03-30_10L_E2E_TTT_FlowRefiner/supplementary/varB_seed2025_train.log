@@ -1,0 +1,126 @@
+=== Variant B: 10L — Seed 2025 ===
+Run dir: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384
+Host: g022, GPUs: NVIDIA A100-PCIE-40GB,NVIDIA A100-PCIE-40GB,
+Tue Mar 31 11:17:56 EDT 2026
+Config: SEED=2025 ITERATIONS=7185 WARMDOWN=4311 BIGRAM=1536 NUM_LAYERS=10 NGPU=2
+logs/varB_seed2025_55392384.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/repo/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/repo/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25749398
+ttt_refiner_params:1083905
+flow_refiner_params:98625
+refiner_params_total:1182530
+e2e_ttt_enabled:True flow_enabled:True
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[6, 7, 8, 9]
+world_size:2 grad_accum_steps:4
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:7185 warmup_steps:20 max_wallclock_seconds:0.000
+seed:2025
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/7185 val_loss:6.9316 val_bpb:4.1053 train_time:0ms step_avg:0.01ms
+step:1/7185 train_loss:6.9319 train_time:1062ms step_avg:1061.67ms
+step:2/7185 train_loss:8.8447 train_time:2040ms step_avg:1019.96ms
+step:3/7185 train_loss:7.6730 train_time:3147ms step_avg:1048.92ms
+step:4/7185 train_loss:33.3915 train_time:4244ms step_avg:1060.96ms
+step:5/7185 train_loss:6.9066 train_time:5342ms step_avg:1068.42ms
+step:6/7185 train_loss:6.7982 train_time:6442ms step_avg:1073.59ms
+step:7/7185 train_loss:7.0778 train_time:7548ms step_avg:1078.32ms
+step:8/7185 train_loss:7.0493 train_time:8654ms step_avg:1081.76ms
+step:9/7185 train_loss:6.5586 train_time:9762ms step_avg:1084.67ms
+step:10/7185 train_loss:6.5776 train_time:10865ms step_avg:1086.49ms
+step:200/7185 train_loss:2.6212 train_time:219964ms step_avg:1099.82ms
+step:400/7185 train_loss:2.4620 train_time:439641ms step_avg:1099.10ms
+step:500/7185 val_loss:2.3591 val_bpb:1.3972 train_time:550390ms step_avg:1100.78ms
+step:600/7185 train_loss:2.2923 train_time:660709ms step_avg:1101.18ms
+step:800/7185 train_loss:2.2883 train_time:881575ms step_avg:1101.97ms
+step:1000/7185 train_loss:2.2840 train_time:1100966ms step_avg:1100.97ms
+checkpoint:saved step=1000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step1000.pt
+step:1000/7185 val_loss:2.2277 val_bpb:1.3193 train_time:1101211ms step_avg:1101.21ms
+step:1200/7185 train_loss:2.2575 train_time:1320312ms step_avg:1100.26ms
+step:1400/7185 train_loss:2.2794 train_time:1541216ms step_avg:1100.87ms
+step:1500/7185 val_loss:2.1845 val_bpb:1.2938 train_time:1650286ms step_avg:1100.19ms
+step:1600/7185 train_loss:2.1211 train_time:1762403ms step_avg:1101.50ms
+step:1800/7185 train_loss:2.1758 train_time:1981904ms step_avg:1101.06ms
+step:2000/7185 train_loss:2.0726 train_time:2201508ms step_avg:1100.75ms
+checkpoint:saved step=2000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step2000.pt
+step:2000/7185 val_loss:2.1326 val_bpb:1.2631 train_time:2201743ms step_avg:1100.87ms
+step:2200/7185 train_loss:2.1455 train_time:2422922ms step_avg:1101.33ms
+step:2400/7185 train_loss:2.1143 train_time:2644307ms step_avg:1101.79ms
+step:2500/7185 val_loss:2.1075 val_bpb:1.2482 train_time:2753497ms step_avg:1101.40ms
+step:2600/7185 train_loss:2.1443 train_time:2864087ms step_avg:1101.57ms
+step:2800/7185 train_loss:2.1586 train_time:3084024ms step_avg:1101.44ms
+step:3000/7185 train_loss:2.0975 train_time:3305490ms step_avg:1101.83ms
+checkpoint:saved step=3000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step3000.pt
+step:3000/7185 val_loss:2.0914 val_bpb:1.2386 train_time:3305724ms step_avg:1101.91ms
+step:3200/7185 train_loss:2.1371 train_time:3526889ms step_avg:1102.15ms
+step:3400/7185 train_loss:2.1023 train_time:3746898ms step_avg:1102.03ms
+step:3500/7185 val_loss:2.0737 val_bpb:1.2281 train_time:3857660ms step_avg:1102.19ms
+step:3600/7185 train_loss:2.1312 train_time:3966663ms step_avg:1101.85ms
+step:3800/7185 train_loss:2.0734 train_time:4188079ms step_avg:1102.13ms
+step:4000/7185 train_loss:2.1110 train_time:4409525ms step_avg:1102.38ms
+checkpoint:saved step=4000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step4000.pt
+step:4000/7185 val_loss:2.0588 val_bpb:1.2193 train_time:4409768ms step_avg:1102.44ms
+step:4200/7185 train_loss:2.0404 train_time:4629265ms step_avg:1102.21ms
+step:4400/7185 train_loss:2.0003 train_time:4850648ms step_avg:1102.42ms
+step:4500/7185 val_loss:2.0398 val_bpb:1.2081 train_time:4961398ms step_avg:1102.53ms
+step:4600/7185 train_loss:1.9692 train_time:5070356ms step_avg:1102.25ms
+step:4800/7185 train_loss:2.1556 train_time:5291796ms step_avg:1102.46ms
+step:5000/7185 train_loss:2.0255 train_time:5513004ms step_avg:1102.60ms
+checkpoint:saved step=5000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step5000.pt
+step:5000/7185 val_loss:2.0229 val_bpb:1.1981 train_time:5513242ms step_avg:1102.65ms
+step:5200/7185 train_loss:2.0327 train_time:5732727ms step_avg:1102.45ms
+step:5400/7185 train_loss:2.0087 train_time:5952329ms step_avg:1102.28ms
+step:5500/7185 val_loss:2.0047 val_bpb:1.1873 train_time:6063248ms step_avg:1102.41ms
+step:5600/7185 train_loss:1.9951 train_time:6173631ms step_avg:1102.43ms
+step:5800/7185 train_loss:1.9387 train_time:6395008ms step_avg:1102.59ms
+step:6000/7185 train_loss:1.9667 train_time:6614714ms step_avg:1102.45ms
+checkpoint:saved step=6000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step6000.pt
+step:6000/7185 val_loss:1.9867 val_bpb:1.1766 train_time:6614955ms step_avg:1102.49ms
+step:6200/7185 train_loss:2.0076 train_time:6834304ms step_avg:1102.31ms
+swa:start step:6350
+step:6400/7185 train_loss:2.0471 train_time:7055643ms step_avg:1102.44ms
+step:6500/7185 val_loss:1.9634 val_bpb:1.1629 train_time:7166873ms step_avg:1102.60ms
+late_qat:enabled step:6539 scale:0.1498
+step:6600/7185 train_loss:1.9143 train_time:7277411ms step_avg:1102.64ms
+step:6800/7185 train_loss:2.0382 train_time:7497672ms step_avg:1102.60ms
+step:7000/7185 train_loss:1.8735 train_time:7717883ms step_avg:1102.55ms
+checkpoint:saved step=7000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed2025_55392384/checkpoints/checkpoint_step7000.pt
+step:7000/7185 val_loss:1.9419 val_bpb:1.1501 train_time:7718284ms step_avg:1102.61ms
+step:7185/7185 val_loss:1.9366 val_bpb:1.1470 train_time:7923375ms step_avg:1102.77ms
+peak memory allocated: 23546 MiB reserved: 23912 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9350 val_bpb:1.1460 eval_time:26245ms
+Serialized model: 98954244 bytes
+Code size: 104955 bytes
+Serialized model int6+lzma: 15117416 bytes
+Total submission size int6+lzma: 15222371 bytes
+final_int6_roundtrip val_loss:1.9524 val_bpb:1.1563 eval_time:200347ms
+final_int6_roundtrip_exact val_loss:1.95236731 val_bpb:1.15630189
+final_int6_sliding_window val_loss:1.9127 val_bpb:1.1328 stride:64 eval_time:1052217ms
+final_int6_sliding_window_exact val_loss:1.91274228 val_bpb:1.13283672
+final_int8_zlib_roundtrip_exact val_loss:1.91274228 val_bpb:1.13283672
+=== EXIT: 0 ===
+Tue Mar 31 14:17:48 EDT 2026
