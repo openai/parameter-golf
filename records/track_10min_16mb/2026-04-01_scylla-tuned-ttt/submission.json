@@ -1,0 +1,11 @@
+{
+  "author": "Campbell Barton",
+  "github_id": "Campbellb",
+  "name": "Scylla tokenizer + n-gram + tuned legal TTT",
+  "blurb": "Scylla ~998-token TokenMonster vocab with n-gram (order 2-16) eval and score-first legal TTT (LR=0.005, 3 epochs). 11-layer 512-dim transformer with cyclic shared blocks, BigramHash embeddings, int6-per-row + lzma quantization (clip_range=20). Three seeds validated on 8xH100, all artifacts under 15.4MB.",
+  "date": "2026-04-01",
+  "val_bpb": 1.09030,
+  "val_loss": 1.96466,
+  "bytes_total": 15329825,
+  "bytes_code": 115885
+}
