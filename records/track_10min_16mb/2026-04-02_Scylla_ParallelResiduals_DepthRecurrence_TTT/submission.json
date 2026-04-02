@@ -1,0 +1,72 @@
+{
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "name": "Scylla + Parallel Residuals + Mini Depth Recurrence + Legal TTT",
+  "blurb": "Built on our PRs #549 (LeakyReLU\u00b2 + Legal TTT + Parallel Muon) and #1019 (AR Self-Gen GPTQ + XSA-all). Adds Scylla tokenizer (PR #1143, @simon-marcus), parallel residual routing from layer 7 (PR #1204, @msisovic), mini depth recurrence on layers 4,5 with untied MLPs (PR #1204), mixed INT5/INT6 quantization + brotli compression, n-gram two-pass rescoring, and legal score-first TTT. 3-seed exact mean: 1.08759808 BPB / 1.94685549 nats.",
+  "date": "2026-04-02",
+  "track": "10min_16mb",
+  "val_loss": 1.94685549,
+  "val_bpb": 1.08759808,
+  "val_loss_std": 0.00066074,
+  "val_bpb_std": 0.00036912,
+  "seeds": [
+    42,
+    1337,
+    2024
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.94610663,
+      "val_bpb": 1.08717973,
+      "sliding_val_bpb": 1.09807931,
+      "roundtrip_val_bpb": 1.12103246,
+      "artifact_bytes": 15814644,
+      "steps": 5875,
+      "step_avg_ms": 102.15
+    },
+    "1337": {
+      "val_loss": 1.94735636,
+      "val_bpb": 1.08787789,
+      "sliding_val_bpb": 1.09733247,
+      "roundtrip_val_bpb": 1.11963382,
+      "artifact_bytes": 15823670,
+      "steps": 5878,
+      "step_avg_ms": 102.08
+    },
+    "2024": {
+      "val_loss": 1.94710349,
+      "val_bpb": 1.08773662,
+      "sliding_val_bpb": 1.09822343,
+      "roundtrip_val_bpb": 1.12051913,
+      "artifact_bytes": 15834859,
+      "steps": 5884,
+      "step_avg_ms": 101.98
+    }
+  },
+  "mean_val_bpb": 1.08759808,
+  "std_val_bpb": 0.00036912,
+  "model_params": 30126957,
+  "artifact_bytes_mean": 15824391,
+  "artifact_bytes_max": 15834859,
+  "train_steps_mean": 5879.0,
+  "step_avg_ms_mean": 102.07,
+  "hardware": "8xH100 80GB SXM",
+  "calibration": "No GPTQ \u2014 mixed INT5 (MLP middle layers) + INT6 (attn + sensitive MLP) per-row quantization",
+  "compression": "brotli quality=11",
+  "technique_summary": "Scylla tokenizer (998 vocab) + parallel residuals (layer 7+) + mini depth recurrence (layers 4,5 untied MLP) + legal score-first TTT (lr=0.005, 3 epochs) + n-gram two-pass + mixed INT5/INT6 + brotli",
+  "lineage": {
+    "our_prs": [
+      "#549 (LeakyReLU\u00b2 + Legal TTT + Parallel Muon)",
+      "#1019 (AR Self-Gen GPTQ + XSA-all + BigramHash)"
+    ],
+    "external_prs": [
+      "#1143 (Scylla tokenizer, @simon-marcus)",
+      "#1204 (parallel residuals + depth recurrence, @msisovic)"
+    ],
+    "delta_vs_merged_sota": "-0.02714 BPB vs PR #1019 (1.11474)"
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_merged_sota_bpb": -0.02713701,
+  "t_statistic": -91.9193,
+  "welch_df": 3.9929
+}
