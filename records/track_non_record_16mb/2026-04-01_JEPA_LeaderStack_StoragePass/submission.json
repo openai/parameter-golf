@@ -1,0 +1,10 @@
+{
+  "name": "JEPA Leader-Stack + Storage-Only Int6 Export",
+  "val_bpb": 1.1230323,
+  "bytes_total": 15922511,
+  "blurb": "Non-record JEPA-focused SP-1024 submission. A JEPA auxiliary loss (weight 0.10) survived matched controls in both an isolation lane and the stronger leader stack before promotion to 8xH100. The final artifact gets under 16 MB via a storage-only int6 export pass from the trained checkpoint. 3-seed mean: 1.1230 (std 0.00033).",
+  "author": "simonw",
+  "github_id": "simonw",
+  "date": "2026-04-01",
+  "status": "non_record"
+}

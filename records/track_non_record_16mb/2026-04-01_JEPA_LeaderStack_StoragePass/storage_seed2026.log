@@ -1,0 +1,13 @@
+[Wed Apr  1 19:46:18 UTC 2026] storage pass start seed=2026
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+storage_pass checkpoint=/workspace/parameter-golf/records/nonrecord_leader_stack_jepa/final_model_seed2026.pt
+storage_pass quant_cats=['attn', 'embed', 'mlp', 'other'] drop_alias_export=True
+storage_pass quant_bytes=15713736
+storage_pass code_bytes=92888
+storage_pass estimated_total=15806624
+storage_pass_int6_roundtrip val_loss:1.93673146 val_bpb:1.14704146 eval_time:6262ms
+storage_pass_int6_sliding_window_exact val_loss:1.89614797 val_bpb:1.12300861 eval_time:74783ms
+storage_pass_final_exact val_loss:1.89614797 val_bpb:1.12300861
