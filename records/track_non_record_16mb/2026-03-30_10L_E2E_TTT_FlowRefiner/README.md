@@ -170,6 +170,65 @@ For provenance, the earlier ablation logs are:
 - `experiments_pr549/exp_flow/logs/train_55374939.txt`
 - `experiments_pr549/exp_combined/logs/train_55374940.txt`
 
+## Refiner Hyperparameter Sweeps (11L, PR #549 Base)
+
+> **Update (2026-04-01):** Completed hyperparameter sweeps for both FlowRefiner and E2E TTT-Linear. All runs use the 11L PR #549 architecture, seed=42, 7,000 steps, 2×A100 PCIe 40GB. Baseline reference: 1.12440 BPB (from exp_baseline above).
+
+### FlowRefiner: Latent Dim Sweep (hidden_dim=256 fixed)
+
+| latent_dim | Flow Params | Sliding BPB (no TTT) | Δ vs baseline | SLURM Job |
+|------------|-------------|---------------------|---------------|-----------|
+| 32 | ~33K | 1.12690 | +0.00250 | 55379529 |
+| **64 (default)** | **98,625** | **1.12564** | **+0.00124** | **55379530** |
+| 128 | ~197K | **1.12334** | **−0.00106** | 55379531 |
+
+**Key finding:** Increasing `latent_dim` from 64→128 flips FlowRefiner from harmful (+0.00124) to helpful (−0.00106 vs baseline). The default ld=64 was suboptimal. With ld=128, the FlowRefiner alone nearly matches the Combined model (1.12344) from the 4-way ablation above.
+
+### FlowRefiner: Hidden Dim Sweep (latent_dim=64 fixed)
+
+| hidden_dim | Flow Params | Sliding BPB (no TTT) | Δ vs baseline | SLURM Job |
+|------------|-------------|---------------------|---------------|-----------|
+| **128** | ~57K | **1.12426** | **−0.00014** | 55379532 |
+| 256 (default) | 98,625 | 1.12474 | +0.00034 | 55379533 |
+
+Halving hidden_dim to 128 slightly helps at fixed ld=64, but the effect is small and within run-to-run variation (~±0.001 BPB based on duplicate runs of the same config).
+
+### E2E TTT-Linear: Num Heads Sweep (mb=16, lr=1.0 fixed)
+
+| num_heads | Sliding BPB (no TTT) | Δ vs heads=8 | SLURM Job |
+|-----------|---------------------|--------------|-----------|
+| 4 | 1.12491 | +0.00005 | 55379520 |
+| **8 (default)** | **1.12486** | **—** | **55379521** |
+| 16 | 1.12521 | +0.00035 | 55379522 |
+
+Head count has negligible effect. All within ±0.0004 BPB.
+
+### E2E TTT-Linear: Mini-Batch Sweep (heads=8, lr=1.0 fixed)
+
+| mini_batch | Sliding BPB (no TTT) | Δ vs mb=16 | SLURM Job |
+|------------|---------------------|-----------|-----------|
+| 8 | 1.12511 | +0.00031 | 55379523 |
+| **16 (default)** | **1.12480** | **—** | **55379524** |
+| 32 | 1.12503 | +0.00023 | 55379525 |
+
+Mini-batch size has negligible effect. All within ±0.0003 BPB.
+
+### E2E TTT-Linear: Learning Rate Sweep (heads=8, mb=16 fixed)
+
+| base_lr | Sliding BPB (no TTT) | Δ vs lr=1.0 | SLURM Job |
+|---------|---------------------|-----------|-----------|
+| **0.5** | **1.12396** | **−0.00059** | 55379526 |
+| **1.0 (default)** | **1.12455** | **—** | **55379527** |
+| 2.0 | 1.12526 | +0.00071 | 55379528 |
+
+Lower LR (0.5) shows a modest improvement, but the effect is marginal given run-to-run variation.
+
+### Sweep Summary
+
+The most actionable finding is that **FlowRefiner with `latent_dim=128` improves on the baseline** (−0.00106 BPB), while the default `latent_dim=64` hurts (+0.00124). This suggests the 10L Combined submission could benefit from ld=128, though this was not tested in combination with E2E TTT for the 10L model. E2E TTT hyperparameters are largely insensitive — the default values (heads=8, mb=16, lr=1.0) are near-optimal.
+
+All sweep runs used `experiments_pr549/run_ablation_flow.sh` and `run_ablation_ttt.sh`, submitted via `submit_ablations.sh`.
+
 ## Variant Details
 
 ### Variant A: 11 Layers + 60% Warmdown (Over Budget)
@@ -212,6 +271,7 @@ For provenance, the earlier ablation logs are:
 2. **Non-record training time**: ~2.2 hours, exceeding the 10-minute record-track constraint.
 3. **No post-training TTT**: The sliding window result (1.1335 mean) does not include score-first TTT adaptation, which could improve results further.
 4. **10L vs 11L tradeoff**: The 10-layer variant sacrifices ~0.011 BPB relative to the 11-layer Variant A to fit within the artifact size budget.
+5. **Suboptimal FlowRefiner default**: The hyperparameter sweep (see above) shows `latent_dim=128` outperforms the default `latent_dim=64`. The 10L submission uses the default ld=64, and has not been retrained with ld=128.
 
 ## Credits
 
