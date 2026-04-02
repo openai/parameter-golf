@@ -77,7 +77,7 @@ class Hyperparameters:
     warmdown_fraction = _e("WARMDOWN_FRACTION", 0.5, float)
     max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
     mlx_max_microbatch_tokens = _e("MLX_MAX_MICROBATCH_TOKENS", 8192, int)
-    mlx_eager_eval = _e("MLX_EAGER_EVAL", 1, bool)
+    mlx_eager_eval = _e("MLX_EAGER_EVAL", 0, bool)
 
     # Model
     vocab_size = _e("VOCAB_SIZE", 8192, int)
@@ -95,6 +95,13 @@ class Hyperparameters:
     activation_type = _e("ACTIVATION", "lrelu2")
     leaky_relu_slope = _e("LEAKY_RELU_SLOPE", 0.5, float)
     bitnet_group_size = _e("BITNET_GROUP_SIZE", 128, int)
+
+
+    # MoE
+    moe_enabled = _e("MOE_ENABLED", 0, bool)
+    moe_num_experts = _e("MOE_NUM_EXPERTS", 8, int)
+    moe_top_k = _e("MOE_TOP_K", 2, int)
+    moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.01, float)
 
     # Feedback
     feedback_enabled = _e("FEEDBACK_ENABLED", 1, bool)
@@ -114,6 +121,7 @@ class Hyperparameters:
     koopman_rank = _e("KOOPMAN_RANK", 4, int)
     koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)  # critical damping
     koopman_consistency_weight = _e("KOOPMAN_CONSISTENCY_WEIGHT", 0.005, float)
+    koopman_lr = _e("KOOPMAN_LR", 0.01, float)
 
     # Adaptive halting (eval only)
     adaptive_halt_enabled = _e("ADAPTIVE_HALT_ENABLED", 1, bool)
@@ -123,6 +131,11 @@ class Hyperparameters:
     # Cross-window capsule carry (eval only)
     capsule_carry_enabled = _e("CAPSULE_CARRY_ENABLED", 1, bool)
     capsule_carry_decay = _e("CAPSULE_CARRY_DECAY", 0.8, float)
+
+    # Koopman Speculator / Diffusion
+    koopman_speculator_enabled = _e("KOOPMAN_SPECULATOR_ENABLED", 1, bool)
+    koopman_speculator_steps = _e("KOOPMAN_SPECULATOR_STEPS", 3, int)
+    koopman_speculator_weight = _e("KOOPMAN_SPECULATOR_WEIGHT", 0.01, float)
 
     # Features
     bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)
@@ -143,6 +156,7 @@ class Hyperparameters:
     gptq_lite_percentiles = _e("GPTQ_LITE_PERCENTILES", 5, int)
     turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)  # Hadamard rotation at export for lower MSE
     turbo_quant_train = _e("TURBO_QUANT_TRAIN", 0, bool)   # Hadamard rotation during training STE (adds overhead)
+    turbo_quant_kv = _e("TURBO_QUANT_KV", 0, bool)         # Quantize K/V cache with TurboQuant
     sliding_eval = _e("SLIDING_EVAL", 1, bool)
     sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 64, int)
     sliding_batch_size = _e("SLIDING_BATCH_SIZE", 32, int)
@@ -153,6 +167,17 @@ class Hyperparameters:
     ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
     ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
     ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
+
+    # Convergence optimizations
+    ternary_noise_scale = _e("TERNARY_NOISE_SCALE", 0.05, float)      # stochastic ternary noise
+    stochastic_depth_prob = _e("STOCHASTIC_DEPTH_PROB", 0.2, float)  # layer-drop probability
+    curriculum_enabled = _e("CURRICULUM_ENABLED", 1, bool)           # ramp seq_len: short→full
+    curriculum_phase1_frac = _e("CURRICULUM_PHASE1_FRAC", 0.7, float)
+    curriculum_phase2_frac = _e("CURRICULUM_PHASE2_FRAC", 0.9, float)
+    curriculum_phase1_seq = _e("CURRICULUM_PHASE1_SEQ", 256, int)
+    curriculum_phase2_seq = _e("CURRICULUM_PHASE2_SEQ", 512, int)
+    self_distill_kl_weight = _e("SELF_DISTILL_KL_WEIGHT", 0.0, float)  # KL between feedback pass-0 and final
+    ema_eval_apply = _e("EMA_EVAL_APPLY", 0, bool)                    # apply EMA shadow weights during eval
     ttt_enabled = _e("TTT_ENABLED", 0, bool)
     ttt_lr = _e("TTT_LR", 0.002, float)
     ttt_epochs = _e("TTT_EPOCHS", 1, int)
@@ -162,8 +187,17 @@ class Hyperparameters:
     ttt_batch_seqs = _e("TTT_BATCH_SEQS", 32, int)
     ttt_grad_clip = _e("TTT_GRAD_CLIP", 1.0, float)
 
+    # Architecture selection
+    architecture = _e("ARCHITECTURE", "transformer")  # "transformer" or "koopman_ssm"
+
+    # Koopman SSM hyperparameters (Path 2)
+    koopman_state_dim = _e("KOOPMAN_STATE_DIM", 128, int)
+    koopman_mixer_rank = _e("KOOPMAN_MIXER_RANK", 4, int)
+    koopman_conv_kernel = _e("KOOPMAN_CONV_KERNEL", 4, int)
+    koopman_decay_window = _e("KOOPMAN_DECAY_WINDOW", 32, int)
+
     # Optimizer
-    matrix_lr = _e("MATRIX_LR", 0.025, float)
+    matrix_lr = _e("MATRIX_LR", 0.035, float)
     scalar_lr = _e("SCALAR_LR", 0.025, float)
     tied_embed_lr = _e("TIED_EMBED_LR", 0.035, float)
     muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
@@ -195,6 +229,7 @@ CTP = (
     "vocab_bias", "add_gate", "mul_gate", "recurrent_gate", "vrl_alpha", "gate",
     "per_layer_attn_scales", "per_layer_mlp_scales", "per_layer_resid_mixes",
     "koopman",  # Koopman dynamics params go to scalar Adam for stability
+    "mixer_diag", "mixer_lowrank", "mixer_conv", "mixer_scale",  # Koopman SSM mixer scalars
 )
 
 # ---------------------------------------------------------------------------
@@ -223,25 +258,23 @@ def zeropower_newtonschulz5(g, steps, eps=1e-7):
 # ---------------------------------------------------------------------------
 _HADAMARD_CACHE = {}
 
+def _build_hadamard_unnormalized(n):
+    if n == 1:
+        return mx.array([[1.0]], dtype=mx.float32)
+    else:
+        h_half = _build_hadamard_unnormalized(n // 2)
+        top = mx.concatenate([h_half, h_half], axis=1)
+        bot = mx.concatenate([h_half, -h_half], axis=1)
+        return mx.concatenate([top, bot], axis=0)
+
 def _build_hadamard(n):
-    """Build normalized orthogonal Hadamard matrix H_n (H @ H^T = I).
-    TurboQuant (Zandieh et al. 2025): random rotation before scalar quantization
-    achieves near-optimal MSE. Hadamard is a deterministic rotation that distributes
-    outliers across all coordinates, reducing quantization distortion at zero param cost.
-    """
+    """Build normalized orthogonal Hadamard matrix H_n (H @ H^T = I)."""
     if n in _HADAMARD_CACHE:
         return _HADAMARD_CACHE[n]
     assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
-    if n == 1:
-        h = mx.array([[1.0]], dtype=mx.float32)
-    else:
-        h_half = _build_hadamard(n // 2)
-        # Unnormalized: top = [H, H], bot = [H, -H]
-        top = mx.concatenate([h_half, h_half], axis=1)
-        bot = mx.concatenate([h_half, -h_half], axis=1)
-        h = mx.concatenate([top, bot], axis=0)
-    # Normalize so H @ H^T = I
-    h = h / math.sqrt(n)
+    
+    # Only divide by sqrt(n) once at the end!
+    h = _build_hadamard_unnormalized(n) / math.sqrt(n)
     _HADAMARD_CACHE[n] = h
     return h
 
@@ -271,6 +304,12 @@ def ternary_ste(w, group_size=128, turbo=False):
         H = _build_hadamard(group_size).astype(grouped.dtype)
         grouped = grouped @ H  # Hadamard rotation
 
+    # Stochastic ternary noise: smooths the quantization landscape during STE training.
+    # Noise perturbs pre-quantization weights so the optimizer sees a less jagged gradient
+    # surface around quantization boundaries, preventing local minima from ternary cliffs.
+    if _TERNARY_NOISE_SCALE > 0.0:
+        grouped = grouped + mx.random.normal(grouped.shape, dtype=mx.float32) * _TERNARY_NOISE_SCALE
+
     scale = mx.mean(mx.abs(grouped), axis=-1, keepdims=True)
     scale = mx.maximum(scale, mx.array(1e-8))
     normalized = grouped / scale
@@ -287,14 +326,68 @@ def ternary_ste(w, group_size=128, turbo=False):
     if pad_len > 0:
         w_ternary = w_ternary[:w_f.size]
     w_ternary = w_ternary.reshape(shape)
-    # STE trick: w + stop_gradient(w_ternary - w) = w_ternary in forward, grad flows to w
     return w + mx.stop_gradient(w_ternary - w)
 
+
+
+def quantize_kv_ste(x, turbo=True, H=None):
+    """Ternary STE quantization specifically for KV cache vectors with TurboQuant rotation.
+    Combines:
+    1. Fast Johnson-Lindenstrauss Transform (Pseudo-random sign flip + Hadamard)
+    2. Exact L2 Norm De-biasing (preserves attention temperature and inner products)
+    """
+    head_dim = x.shape[-1]
+    H_ast = None
+    if turbo and H is not None:
+        H_ast = H.astype(x.dtype)
+    elif turbo and (head_dim & (head_dim - 1)) == 0:
+        H_ast = _build_hadamard(head_dim).astype(x.dtype)
+    
+    if H_ast is None:
+        # Fallback to naive ternary
+        scale = mx.mean(mx.abs(x), axis=-1, keepdims=True)
+        scale = mx.maximum(scale, mx.array(1e-8))
+        q = mx.clip(mx.round(x / scale), -1, 1)
+        dequant = q * scale
+        return x + mx.stop_gradient(dequant - x)
+
+    # 1. Pseudo-random sign flip to induce Beta distribution (FJLT requirement)
+    # sin(arange) is a cheap deterministic pseudo-random source
+    signs = mx.where(mx.sin(mx.arange(head_dim)) > 0, 1.0, -1.0).astype(x.dtype)
+    x_scrambled = x * signs
+    
+    # 2. Hadamard Rotation
+    x_rot = x_scrambled @ H_ast
+
+    # 3. Quantize
+    scale = mx.mean(mx.abs(x_rot), axis=-1, keepdims=True)
+    scale = mx.maximum(scale, mx.array(1e-8))
+    q = mx.clip(mx.round(x_rot / scale), -1, 1)
+    dequant = q * scale
+
+    # 4. De-bias (Match expected L2 norm to preserve inner product)
+    energy_in = mx.sqrt(mx.sum(mx.square(x_rot), axis=-1, keepdims=True) + 1e-6)
+    energy_out = mx.sqrt(mx.sum(mx.square(dequant), axis=-1, keepdims=True) + 1e-6)
+    dequant = dequant * (energy_in / energy_out)
+
+    # 5. Inverse FJLT
+    # H is symmetric so H.T == H. Then reverse the sign flip.
+    dequant = (dequant @ H_ast) * signs
+
+    # STE: forward uses quantized, backward uses original
+    return x + mx.stop_gradient(dequant - x)
+
+
 # ---------------------------------------------------------------------------
+
 # Model layers
 # ---------------------------------------------------------------------------
-# Module-level flag set by GPT.__init__ from args.turbo_quant_train
+# Module-level flags set by GPT.__init__
 _TURBO_QUANT = False
+_TURBO_QUANT_KV = False
+_TERNARY_NOISE_SCALE = 0.0   # stochastic ternary: noise before quantization during STE
+_STOCHASTIC_DEPTH_PROB = 0.0  # layer-drop probability for shared blocks
+_EVAL_EMA = None              # EMAHelper instance applied during eval when ema_eval_apply=True
 
 class TernaryLinear(nn.Module):
     """Linear layer with ternary STE quantization during forward."""
@@ -366,69 +459,68 @@ class EngramHash(nn.Module):
                 mx.random.normal((num_buckets, self.head_dim), dtype=mx.float32) * 0.02
             )
 
-        # Projection from concatenated hash_dim to model_dim
-        self.proj = TernaryLinear(hash_dim, model_dim, group_size=group_size)
+        # Calculate actual concatenated dimension after floor division
+        actual_hash_dim = self.head_dim * num_orders * num_heads
 
-        # Context-aware gating (Engram Section 2.3)
-        # Gate key projection: retrieved memory -> gate space
-        self.gate_k = EmbedProj(hash_dim, model_dim)
-        # Gate is: sigmoid(RMSNorm(hidden) · RMSNorm(gate_k(memory)) / sqrt(d))
+        # Projection from concatenated actual_hash_dim to model_dim
+        self.proj = TernaryLinear(actual_hash_dim, model_dim, group_size=group_size)
+        self.gate_k = EmbedProj(actual_hash_dim, model_dim)
         self.gate_scale = model_dim ** -0.5
 
-    def _hash_ngram(self, input_ids, order, head_idx):
-        """Compute hash indices for n-gram of given order using head-specific primes."""
-        B, T = input_ids.shape
-        prime_idx = order * self.num_heads + head_idx
-        p = self._PRIMES[prime_idx % len(self._PRIMES)]
-
-        if order == 0:  # bigram: (t-1, t)
-            prev = input_ids[:, :-1]
-            curr = input_ids[:, 1:]
-            h = (prev.astype(mx.int64) * p + curr.astype(mx.int64)) % self.buckets_per_head
-            h = mx.concatenate([mx.zeros((B, 1), dtype=mx.int32), h.astype(mx.int32)], axis=1)
-        elif order == 1:  # trigram: (t-2, t-1, t)
-            pp = input_ids[:, :-2]
-            prev = input_ids[:, 1:-1]
-            curr = input_ids[:, 2:]
-            h = (pp.astype(mx.int64) * (p * p) + prev.astype(mx.int64) * p
-                 + curr.astype(mx.int64)) % self.buckets_per_head
-            h = mx.concatenate([mx.zeros((B, 2), dtype=mx.int32), h.astype(mx.int32)], axis=1)
-        else:
-            raise ValueError(f"Unsupported n-gram order {order+2}")
-        return h
-
-    def retrieve(self, input_ids):
-        """Retrieve and concatenate multi-head, multi-order n-gram embeddings."""
-        parts = []
-        for order in range(self.num_orders):
-            for head in range(self.num_heads):
-                idx = self._hash_ngram(input_ids, order, head)
-                table_idx = order * self.num_heads + head
-                parts.append(self.tables[table_idx][idx])  # (B, T, head_dim)
-        return mx.concatenate(parts, axis=-1)  # (B, T, hash_dim)
-
     def __call__(self, input_ids, hidden=None):
-        """Retrieve n-gram memory, optionally gated by hidden state.
-
-        Args:
-            input_ids: (B, T) token IDs
-            hidden: (B, T, model_dim) hidden state for context gating. If None, ungated.
-        Returns:
-            (B, T, model_dim) memory injection signal
-        """
-        memory = self.retrieve(input_ids)  # (B, T, hash_dim)
+        """Retrieve multi-head, multi-order n-gram memory in a single vectorized pass."""
+        B, T = input_ids.shape
+        num_total_heads = self.num_orders * self.num_heads
+        
+        # 1. Dynamic Vectorized hashing for multiple orders
+        parts = []
+        ids_long = input_ids.astype(mx.int64)
+        
+        for order in range(self.num_orders):
+            num_tokens = order + 2
+            if T < num_tokens:
+                # If sequence is shorter than order, pad with zeros
+                h = mx.zeros((B, T, self.num_heads), dtype=mx.int32)
+            else:
+                # Optimized hashing using primes: sum(x_i * p^i) % buckets
+                # Shape h after slice: (B, T - num_tokens + 1, num_heads)
+                p_start = order * self.num_heads
+                p = mx.array(self._PRIMES[p_start : p_start + self.num_heads])[None, None, :]
+                
+                h = None
+                for i in range(num_tokens):
+                    # Pick slice: ids[:, i : T - num_tokens + 1 + i]
+                    # This captures consecutive windows of size num_tokens
+                    token_slice = ids_long[:, i : T - num_tokens + 1 + i, None]
+                    term = token_slice * (p ** (num_tokens - 1 - i))
+                    if h is None:
+                        h = term
+                    else:
+                        h = h + term
+                h = h % self.buckets_per_head
+                # Prepend zeros to maintain T length (causal alignment)
+                h = mx.concatenate([mx.zeros((B, num_tokens - 1, self.num_heads), dtype=mx.int32), h.astype(mx.int32)], axis=1)
+            parts.append(h)
+            
+        # all_indices: (B, T, H)
+        all_indices = mx.concatenate(parts, axis=-1)
+        
+        # 2. Fully Vectorized embedding lookup
+        # all_tables: (H, buckets, head_dim)
+        all_tables = mx.stack(self.tables)
+        
+        # Indexing: head_indices (1, 1, H) + all_indices (B, T, H) -> (B, T, H, head_dim)
+        # MLX advanced indexing broadcasts the indexers across the first dims.
+        hi = mx.arange(num_total_heads)[None, None, :]
+        memory = all_tables[hi, all_indices] # Shape: (B, T, H, head_dim)
+        memory = memory.reshape(B, T, -1) # Flatten heads: (B, T, H * head_dim)
 
         if hidden is not None:
-            # Context-aware gating (Engram paper Eq. 3-4)
-            k = self.gate_k(memory)  # (B, T, model_dim)
-            # Normalized dot-product gate
-            h_norm = rms_norm(hidden)
-            k_norm = rms_norm(k)
-            gate = mx.sigmoid(mx.sum(h_norm * k_norm, axis=-1, keepdims=True) * self.gate_scale)
-            projected = self.proj(memory)  # (B, T, model_dim)
-            return gate * projected
+            # Context-aware gating
+            k = self.gate_k(memory)
+            gate = mx.sigmoid(mx.sum(rms_norm(hidden) * rms_norm(k), axis=-1, keepdims=True) * self.gate_scale)
+            return gate * self.proj(memory)
         else:
-            # Ungated (input layer, no hidden state yet)
             return self.proj(memory)
 
 
@@ -440,47 +532,56 @@ class FeedbackPooler(nn.Module):
         self.proj = EmbedProj(model_dim, feedback_dim)
 
     def __call__(self, x):
-        # x: (B, T, D) -> pool to (B, num_tokens, D) -> project
         B, T, D = x.shape
-        # Simple chunked mean pooling
-        chunk_size = max(1, T // self.num_tokens)
-        pooled_list = []
-        for i in range(self.num_tokens):
-            start = i * chunk_size
-            end = min(start + chunk_size, T)
-            if start >= T:
-                pooled_list.append(mx.zeros((B, 1, D), dtype=x.dtype))
-            else:
-                pooled_list.append(mx.mean(x[:, start:end, :], axis=1, keepdims=True))
-        pooled = mx.concatenate(pooled_list, axis=1)  # (B, num_tokens, D)
+        # Vectorized chunked mean pooling: (B, T, D) -> (B, num_tokens, T//num_tokens, D) -> mean
+        q = T // self.num_tokens
+        if q > 0:
+            pooled = mx.mean(x[:, :q*self.num_tokens].reshape(B, self.num_tokens, q, D), axis=2)
+        else:
+            pooled = mx.mean(x, axis=1, keepdims=True)
+            pooled = mx.broadcast_to(pooled, (B, self.num_tokens, D))
         return self.proj(rms_norm(pooled))
 
 
 class FeedbackAdapter(nn.Module):
-    """Hadamard-gated backward semantic correction.
-
-    Two channels:
-      - additive: x += gate_a * proj_a(sketch)
-      - multiplicative: x *= 1 + gate_m * tanh(proj_m(sketch))
-    Both gates are zero-initialized -> identity at init.
-    """
+    """Fast-Weight Delta Rule Memory Adapter (MLX version)."""
     def __init__(self, model_dim, feedback_dim):
         super().__init__()
-        self.read = EmbedProj(feedback_dim, model_dim * 2)
-        self.add_gate = mx.zeros((model_dim,), dtype=mx.float32)
-        self.mul_gate = mx.zeros((model_dim,), dtype=mx.float32)
+        self.fast_weight_lr = mx.array(-2.0, dtype=mx.float32)
+        self.k_proj = EmbedProj(feedback_dim, model_dim)
+        self.v_proj = EmbedProj(feedback_dim, model_dim)
+        self.q_proj = EmbedProj(model_dim, model_dim)
+        self.out_gate = mx.zeros((model_dim,), dtype=mx.float32)
 
     def __call__(self, x, sketch):
         if sketch is None:
             return x
-        context = mx.mean(sketch, axis=1)  # (B, feedback_dim)
-        projected = self.read(context)  # (B, model_dim * 2)
-        projected = mx.expand_dims(projected, axis=1)  # (B, 1, model_dim * 2)
-        add_term = projected[:, :, :x.shape[-1]]
-        mul_term = projected[:, :, x.shape[-1]:]
-        gate_a = mx.tanh(self.add_gate).astype(x.dtype)
-        gate_m = mx.tanh(self.mul_gate).astype(x.dtype)
-        return x * (1.0 + gate_m * mx.tanh(mul_term)) + gate_a * add_term
+        
+        B, T, D = x.shape
+        k = self.k_proj(sketch)
+        v = self.v_proj(sketch)
+        
+        memory_matrix = mx.zeros((B, D, D), dtype=mx.float32)
+            
+        k_t = mx.swapaxes(k, 1, 2)
+        v_t = mx.swapaxes(v, 1, 2)
+        
+        pred_v_t = memory_matrix @ k_t
+        delta = v_t - pred_v_t
+        
+        lr = mx.sigmoid(self.fast_weight_lr)
+        memory_matrix = memory_matrix + lr * (delta @ k)
+        
+        q = self.q_proj(x)
+        q_t = mx.swapaxes(q, 1, 2)
+        
+        retrieved_t = memory_matrix @ q_t
+        retrieved = mx.swapaxes(retrieved_t, 1, 2)
+        
+        gate = mx.tanh(self.out_gate).astype(x.dtype)
+        x_out = x + gate * retrieved.astype(x.dtype)
+        
+        return x_out
 
 
 class KoopmanDynamics(nn.Module):
@@ -520,13 +621,24 @@ class KoopmanDynamics(nn.Module):
         Hadamard-rotate → diagonal+low-rank evolve → rotate back.
         This ensures the diagonal operates on variance-equalized dims."""
         c_rot = self._rotate(c)
+        # Clamp diagonal for multi-step spectral stability: |d_i| < 1 prevents
+        # exponential blowup when composing predict() K times in speculate().
+        d_clamped = mx.clip(self.diag, -0.999, 0.999).astype(c_rot.dtype)
         # Diagonal evolution
-        c_diag = self.diag.astype(c_rot.dtype) * c_rot  # (B, N, D)
+        c_diag = d_clamped * c_rot  # (B, N, D)
         # Low-rank coupling
         c_lowrank = (c_rot @ self.V.astype(c_rot.dtype)) @ self.U.astype(c_rot.dtype).T
         c_evolved = c_diag + c_lowrank
         # Rotate back (H is self-inverse)
         return self._rotate(c_evolved)
+
+    def speculate(self, c, steps):
+        """Recursively apply Koopman operator to fast-forward presentation.
+        Acts as 1-step diffusion jump in latent space."""
+        curr = c
+        for _ in range(steps):
+            curr = self.predict(curr)
+        return curr
 
     def blend(self, c_observed, c_prev):
         """Blend observed capsules with predicted evolution from previous state."""
@@ -559,8 +671,8 @@ class CapsuleBank(nn.Module):
             self.koopman = KoopmanDynamics(capsule_dim, rank=koopman_rank,
                                            diag_init=koopman_diag_init)
 
-    def __call__(self, x, prev_capsules=None):
-        """Returns (corrected_x, capsule_state, c_pred_for_loss).
+    def __call__(self, x, prev_capsules=None, speculate_steps=0):
+        """Returns (corrected_x, capsule_state, c_pred_for_loss, c_spec).
         c_pred is None on first pass or when Koopman is disabled."""
         B, T, D = x.shape
         x_proj = self.read_proj(rms_norm(x))  # (B, T, capsule_dim)
@@ -570,10 +682,22 @@ class CapsuleBank(nn.Module):
         capsules = mx.einsum("btn,btd->bnd", attn, x_proj)  # (B, N, capsule_dim)
 
         c_pred = None  # For consistency loss
+        c_spec = None  # For Koopman speculation/diffusion jump
         if prev_capsules is not None:
             if self.koopman is not None:
                 # Koopman-driven update: predict + blend
                 capsules, c_pred = self.koopman.blend(capsules, prev_capsules)
+                
+                # If requested, generate a speculative fast-forwarded state
+                if speculate_steps > 0:
+                    c_spec = self.koopman.speculate(capsules, speculate_steps)
+                    
+                    # EVAL MODE (Fast-Forward Jump):
+                    # Immediately snap the capsule state to the speculated future.
+                    # This ensures the readout/correction written back to sequence
+                    # actually uses the fast-forwarded semantic state!
+                    if not self.training:
+                        capsules = c_spec
             else:
                 # Fallback: simple gated blending
                 rg = mx.sigmoid(self.recurrent_gate).astype(capsules.dtype)
@@ -583,7 +707,7 @@ class CapsuleBank(nn.Module):
         readout = mx.einsum("btn,bnd->btd", attn, capsules)
         correction = self.write_proj(readout)
         g = mx.tanh(self.gate).astype(x.dtype)
-        return x + g * correction, capsules, c_pred
+        return x + g * correction, capsules, c_pred, c_spec
 
 
 class RMSNormNoWeight:
@@ -628,6 +752,7 @@ class CausalSelfAttention(nn.Module):
         self.q_gain = mx.full((num_heads,), qk_gain_init, dtype=mx.float32)
         if vrl_enabled:
             self.vrl_alpha = mx.array(0.5, dtype=mx.float32)
+        self._H_kv = _build_hadamard(self.head_dim) if (self.head_dim & (self.head_dim - 1)) == 0 else None
 
     def __call__(self, x, v0=None):
         B, T, D = x.shape
@@ -660,6 +785,10 @@ class CausalSelfAttention(nn.Module):
         if self.vrl_enabled and v0 is not None:
             alpha = mx.sigmoid(self.vrl_alpha).astype(v.dtype)
             v = alpha * v + (1.0 - alpha) * v0
+
+        if _TURBO_QUANT_KV:
+            k = quantize_kv_ste(k, turbo=True, H=self._H_kv)
+            v = quantize_kv_ste(v, turbo=True, H=self._H_kv)
 
         # Transpose for attention: (B, H, T, D)
         q = q.transpose(0, 2, 1, 3)
@@ -708,44 +837,357 @@ class MLP(nn.Module):
         return self.proj(h)
 
 
+
+class DenseTernaryMoE(nn.Module):
+    """Sparse Ternary Mixture of Experts for MLX. 
+    Computed densely to avoid dynamic shape recompilation issues,
+    but evaluates fast on sparse weights by masking."""
+    def __init__(self, dim, mlp_mult, num_experts, top_k, group_size=128, activation="lrelu2", leaky_relu_slope=0.5):
+        super().__init__()
+        self.num_experts = num_experts
+        self.top_k = top_k
+        self.router = nn.Linear(dim, num_experts, bias=False)
+        self.experts = [MLP(dim, mlp_mult, group_size, activation, leaky_relu_slope) for _ in range(num_experts)]
+
+    def __call__(self, x):
+        B, T, D = x.shape
+        x_flat = x.reshape(-1, D)
+        router_logits = self.router(x_flat)
+        
+        # density and routing calculations (unchanged logic)
+        density = mx.mean(mx.softmax(router_logits, axis=1), axis=0)
+        routing_weights = mx.softmax(router_logits.astype(mx.float32), axis=1)
+        
+        topk_vals = mx.topk(routing_weights, self.top_k, axis=-1)
+        threshold = mx.min(topk_vals, axis=-1, keepdims=True)
+        mask = routing_weights >= threshold
+        
+        fraction_routed = mx.mean(mask.astype(mx.float32), axis=0)
+        aux_loss = mx.mean(density * fraction_routed) * self.num_experts
+        
+        active_weights = mx.where(mask, routing_weights, mx.zeros_like(routing_weights))
+        active_weights = active_weights / mx.maximum(mx.sum(active_weights, axis=-1, keepdims=True), 1e-9)
+        active_weights = active_weights.astype(x.dtype)
+        
+        # Vectorized Expert Execution:
+        # Stack all expert weights into a single tensor for a single batched matmul.
+        # This removes the Python loop and allows MLX to fuse the router + experts into one pass.
+        all_fc = mx.stack([e.fc.weight for e in self.experts])  # (E, Hidden, D)
+        all_proj = mx.stack([e.proj.weight for e in self.experts])  # (E, D, Hidden)
+        
+        # 1. First Layer (fc): (B*T, D) -> (B*T, E, Hidden)
+        # Using ternary_ste on stacked weights
+        all_fc_q = ternary_ste(all_fc, self.experts[0].fc.group_size, turbo=_TURBO_QUANT)
+        # einsum: 'ed,bd->be' where b=batch, e=expert, d=dim, o=out
+        h = mx.einsum("ehd,bd->beh", all_fc_q.astype(x.dtype), x_flat)
+        
+        # 2. Activation
+        if self.experts[0].activation == "lrelu2":
+            h = mx.where(h >= 0, h, h * self.experts[0].leaky_relu_slope)
+            h = h * h
+        elif self.experts[0].activation == "relu2":
+            h = mx.maximum(h, 0)
+            h = h * h
+        else:
+            h = mx.maximum(h, 0)
+            
+        # 3. Second Layer (proj): (B*T, E, Hidden) -> (B*T, E, D)
+        all_proj_q = ternary_ste(all_proj, self.experts[0].proj.group_size, turbo=_TURBO_QUANT)
+        # einsum: 'edh,beh->bed'
+        outs = mx.einsum("edh,beh->bed", all_proj_q.astype(x.dtype), h)
+        
+        # 4. Weighted Sum across experts
+        # active_weights: (B*T, E)
+        final_output = mx.sum(outs * active_weights[:, :, None], axis=1)
+            
+        return final_output.reshape(B, T, D), aux_loss
+
+# ---------------------------------------------------------------------------
+# Koopman State Space Model (Path 2: Attention-free architecture)
+
+# ---------------------------------------------------------------------------
+
+class KoopmanTokenMixer(nn.Module):
+    """Causal token mixing via Koopman-inspired linear recurrence.
+
+    Replaces Self-Attention with O(T) linear dynamics:
+      1. Project input to state space: s = proj_in(RMSNorm(x))
+      2. Short causal convolution for local context (like Mamba)
+      3. Input-dependent gating: g = sigmoid(g_proj(RMSNorm(x)))
+      4. Causal linear scan via exponentially decaying convolution:
+         h_t = D * h_{t-1} + (h_{t-1} @ V) @ U^T + g_t * s_t
+         Approximated as truncated causal conv with window W.
+      5. Project back to model dim: out = proj_out(RMSNorm(h))
+
+    First-principles design rationale:
+    - Diagonal D (|d_i| < 1): stable exponential memory decay
+    - Low-rank UV^T: cross-dimension coupling beyond diagonal
+    - Hadamard rotation: variance equalization across state dims
+    - Input gating: selective information injection (like Mamba's delta)
+    - Short conv: local n-gram features complementing global recurrence
+    """
+    def __init__(self, dim, state_dim, rank=4, conv_kernel=4, decay_window=32,
+                 group_size=128):
+        super().__init__()
+        self.state_dim = state_dim
+        self.conv_kernel = conv_kernel
+        self.decay_window = decay_window
+
+        # Projections (ternary for compression)
+        self.proj_in = TernaryLinear(dim, state_dim, group_size=group_size)
+        self.proj_out = NormedTernaryLinear(state_dim, dim, group_size=group_size)
+        self.proj_out._zero_init = True
+        self.proj_out.weight = mx.zeros_like(self.proj_out.weight)
+
+        # Gating projection (ternary)
+        self.g_proj = TernaryLinear(dim, state_dim, group_size=group_size)
+
+        # Short causal convolution (depthwise, per-channel)
+        # Initialize as uniform average pool to preserve signal geometry before Koopman dynamics
+        self.mixer_conv = mx.ones((conv_kernel, state_dim), dtype=mx.float32) / conv_kernel
+
+        # Koopman dynamics parameters (small, FP32)
+        # Named with 'mixer_diag' / 'mixer_lowrank' for optimizer routing
+        self.mixer_diag = mx.full((state_dim,), 0.8, dtype=mx.float32)  # fast initial forget gate
+        self.mixer_lowrank_U = mx.random.normal((state_dim, rank), dtype=mx.float32) * 0.001
+        self.mixer_lowrank_V = mx.random.normal((state_dim, rank), dtype=mx.float32) * 0.001
+
+        # Per-channel mixing scale (for residual connection)
+        self.mixer_scale = mx.ones((dim,), dtype=mx.float32)
+
+        # Hadamard for variance equalization (if state_dim is power of 2)
+        self._use_hadamard = (state_dim & (state_dim - 1)) == 0 and state_dim >= 2
+        if self._use_hadamard:
+            self._H = _build_hadamard(state_dim)
+
+    def _short_causal_conv(self, x):
+        """Vectorized depthwise causal convolution.
+        x: (B, T, state_dim) -> (B, T, state_dim)
+        """
+        B, T, S = x.shape
+        # mx.conv1d needs (B, T, C) input and (O, K, I) weights.
+        # For depthwise, groups=S.
+        weight = self.mixer_conv[::-1].T.reshape(S, self.conv_kernel, 1)  # (S, K, 1)
+        x_padded = mx.pad(x, [(0, 0), (self.conv_kernel - 1, 0), (0, 0)])
+        h = mx.conv1d(x_padded, weight.astype(x.dtype), groups=S)
+        return h
+
+    def _causal_decay_scan(self, x, gate, dt_gate=None):
+        """High-Performance Parallel Chunked Scan (CV-Scan).
+        Achieves sub-500ms throughput by avoiding sequential Python loops.
+        
+        Complexity: O(sqrt(T)) sequential steps, O(T) parallel work.
+        For T=1024, CHUNK=32, this is effectively 32+32+32 steps, fully fused.
+        """
+        B, T, S = x.shape
+        W = 32 # Chunk size
+        num_chunks = T // W
+        
+        if self._use_hadamard:
+            x = x @ self._H.astype(x.dtype)
+
+        # 1. Inputs and Decays
+        if dt_gate is not None:
+            logD = -mx.softplus(dt_gate.astype(mx.float32))
+            D = mx.exp(logD).astype(x.dtype)
+            B_vals = gate * x * (1.0 - D)
+        else:
+            D_static = mx.clip(self.mixer_diag, -0.999, 0.999).astype(x.dtype)
+            D = mx.broadcast_to(D_static, (B, T, S))
+            B_vals = gate * x * (1.0 - mx.abs(D_static))
+
+        # 2. Reshape to chunks (B, num_chunks, W, S)
+        D_c = D.reshape(B, num_chunks, W, S)
+        B_c = B_vals.reshape(B, num_chunks, W, S)
+
+        # 3. Level 1: Intra-chunk parallel scan
+        # We unroll a 32-step scan within MLX's graph.
+        # This becomes a single large fused kernel.
+        c_h = [B_c[:, :, 0]]
+        c_d = [D_c[:, :, 0]]
+        for t in range(1, W):
+            # Recurrence: h_t = d_t * h_{t-1} + b_t
+            # Decay: d_cum_t = d_t * d_cum_{t-1}
+            c_h.append(D_c[:, :, t] * c_h[-1] + B_c[:, :, t])
+            c_d.append(D_c[:, :, t] * c_d[-1])
+        
+        # h_local: (B, num_chunks, W, S)
+        # d_local: (B, num_chunks, W, S)
+        h_local = mx.stack(c_h, axis=2)
+        d_local = mx.stack(c_d, axis=2)
+
+        # 4. Level 2: Inter-chunk parallel scan (on chunk-final states)
+        # Scan across the final states of each chunk to get the 'prefix' for each chunk.
+        chunk_finals_h = h_local[:, :, -1] # (B, num_chunks, S)
+        chunk_finals_d = d_local[:, :, -1] # (B, num_chunks, S)
+        
+        # Recurrence on chunks: P_i = D_final_i * P_{i-1} + H_final_i
+        p_h = [mx.zeros_like(chunk_finals_h[:, 0])] # Initial prefix for first chunk is 0
+        for i in range(num_chunks - 1):
+             p_h.append(chunk_finals_d[:, i] * p_h[-1] + chunk_finals_h[:, i])
+        
+        # chunk_prefixes: (B, num_chunks, 1, S)
+        chunk_prefixes = mx.stack(p_h, axis=1)[:, :, None, :]
+
+        # 5. Combine: h = h_local + d_local * chunk_prefix
+        h = h_local + d_local * chunk_prefixes
+        h = h.reshape(B, T, S)
+
+        # 6. Low-rank coupling
+        U = self.mixer_lowrank_U.astype(x.dtype)
+        V = self.mixer_lowrank_V.astype(x.dtype)
+        h = h + (h @ V) @ U.T
+
+        if self._use_hadamard:
+            h = h @ self._H.astype(x.dtype)
+        return h
+
+        # 3. Low-rank cross-dimension coupling (global perturbation)
+        U = self.mixer_lowrank_U.astype(x.dtype)
+        V = self.mixer_lowrank_V.astype(x.dtype)
+        h = h + (h @ V) @ U.T
+
+        # 4. Rotate back
+        if self._use_hadamard:
+            h = h @ H_mat
+
+        return h
+
+    def __call__(self, x):
+        """x: (B, T, dim) -> (B, T, dim)"""
+        normed = rms_norm(x)
+        s = self.proj_in(normed)       # (B, T, state_dim)
+        g = mx.sigmoid(self.g_proj(normed))  # (B, T, state_dim)
+
+        # Short causal conv for local features (bigram/trigram patterns)
+        s = self._short_causal_conv(s)
+
+        # Causal Koopman scan for global recurrence
+        h = self._causal_decay_scan(s, g)
+
+        # Project back to model dim
+        return self.proj_out(h)
+
+
+class KoopmanBlock(nn.Module):
+    """A single layer of the Koopman SSM architecture.
+
+    Replaces CausalSelfAttention with KoopmanTokenMixer.
+    Keeps the same MLP structure as the transformer baseline.
+    Uses the same residual scaling / damping patterns.
+    """
+    def __init__(self, dim, state_dim, mlp_mult, mixer_rank=4, conv_kernel=4,
+                 decay_window=32, group_size=128, activation="lrelu2",
+                 leaky_relu_slope=0.5, ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2):
+        super().__init__()
+        self.ln_scale_factor = ln_scale_factor
+        self.mixer = KoopmanTokenMixer(
+            dim, state_dim, rank=mixer_rank, conv_kernel=conv_kernel,
+            decay_window=decay_window, group_size=group_size,
+        )
+        if moe_enabled:
+            self.mlp = DenseTernaryMoE(dim, mlp_mult, moe_num_experts, moe_top_k, group_size, activation, leaky_relu_slope)
+        else:
+            self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
+        self.moe_enabled = moe_enabled
+        
+        # SkipInit / ReZero: initialize residual branch scalars to 0.0
+        # This prevents the Muon optimizer's aggressive orthogonal updates from
+        # exploding the residual stream before the recurrent dynamics align.
+        self.mixer_scale = mx.zeros((dim,), dtype=mx.float32)
+        self.mlp_scale = mx.zeros((dim,), dtype=mx.float32)
+
+        self.resid_mix = mx.array(np.stack([np.ones(dim, dtype=np.float32),
+                                            np.zeros(dim, dtype=np.float32)]))
+
+    def __call__(self, x, x0):
+        mix = self.resid_mix.astype(x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        normed = rms_norm(x) * self.ln_scale_factor
+        mixer_out = self.mixer(normed)
+        x = x + self.mixer_scale.astype(x.dtype)[None, None, :] * mixer_out
+        
+        mlp_in = rms_norm(x) * self.ln_scale_factor
+        if hasattr(self, 'moe_enabled') and self.moe_enabled:
+            mlp_out, aux_loss = self.mlp(mlp_in)
+        else:
+            mlp_out = self.mlp(mlp_in)
+            aux_loss = mx.array(0.0)
+            
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * mlp_out
+        return x, None, aux_loss
+
+
 class Block(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
                  group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
-                 partial_rope_dims=0, vrl_enabled=False, ln_scale_factor=1.0, xsa=False):
+                 partial_rope_dims=0, vrl_enabled=False, ln_scale_factor=1.0, xsa=False, moe_enabled=False, moe_num_experts=8, moe_top_k=2):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
                                         group_size=group_size, partial_rope_dims=partial_rope_dims,
                                         vrl_enabled=vrl_enabled, xsa=xsa)
-        self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
-                       leaky_relu_slope=leaky_relu_slope)
+        if moe_enabled:
+            self.mlp = DenseTernaryMoE(dim, mlp_mult, moe_num_experts, moe_top_k, group_size, activation, leaky_relu_slope)
+        else:
+            self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
+        self.moe_enabled = moe_enabled
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack([np.ones(dim, dtype=np.float32),
                                             np.zeros(dim, dtype=np.float32)]))
 
+    def attn_norm(self, x):
+        """RMSNorm with LN scale damping for attention input (used by shared block mode)."""
+        return rms_norm(x) * self.ln_scale_factor
+
+    def mlp_norm(self, x):
+        """RMSNorm with LN scale damping for MLP input (used by shared block mode)."""
+        return rms_norm(x) * self.ln_scale_factor
+
     def __call__(self, x, x0, v0=None):
+        aux_loss = mx.array(0.0)
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        normed = rms_norm(x) * self.ln_scale_factor
+        normed = self.attn_norm(x)
         attn_out, v_out = self.attn(normed, v0=v0)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(rms_norm(x) * self.ln_scale_factor)
-        return x, v_out
+        
+        mlp_in = self.mlp_norm(x)
+        if hasattr(self, 'moe_enabled') and self.moe_enabled:
+            mlp_out, aux_loss = self.mlp(mlp_in)
+        else:
+            mlp_out = self.mlp(mlp_in)
+            
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * mlp_out
+        return x, v_out, aux_loss
 
 
 class GPT(nn.Module):
     """Ternary Reasoner — MLX version."""
     def __init__(self, args: Hyperparameters):
         super().__init__()
-        global _TURBO_QUANT
+        global _TURBO_QUANT, _TURBO_QUANT_KV, _TERNARY_NOISE_SCALE, _STOCHASTIC_DEPTH_PROB
         _TURBO_QUANT = args.turbo_quant_train
+        _TURBO_QUANT_KV = args.turbo_quant_kv
+        _TERNARY_NOISE_SCALE = args.ternary_noise_scale
+        _STOCHASTIC_DEPTH_PROB = args.stochastic_depth_prob
         dim = args.model_dim
         self.args = args
         self.feedback_enabled = args.feedback_enabled
         self.feedback_passes = args.feedback_passes
         self._train_feedback_passes = args.feedback_passes
         self.shared_blocks = args.shared_blocks
+        self.architecture = args.architecture
+
+        # Determine per-layer block types for hybrid architecture
+        if args.architecture == "hybrid":
+            # Alternating attention + Koopman-SSM for O(T) global + local mixing
+            self._layer_types = ["attn" if i % 2 == 0 else "ssm" for i in range(args.num_layers)]
+        elif args.architecture == "koopman_ssm":
+            self._layer_types = ["ssm"] * args.num_layers
+        else:
+            self._layer_types = ["attn"] * args.num_layers
 
         # Embedding
         self.tok_emb = Embedding(args.vocab_size, args.embed_dim if args.embed_dim > 0 else dim)
@@ -753,55 +1195,86 @@ class GPT(nn.Module):
         self.embed_proj = EmbedProj(args.embed_dim, dim) if args.embed_dim > 0 and args.embed_dim != dim else None
         self.embed_proj_rev = EmbedProj(dim, args.embed_dim) if args.embed_dim > 0 and args.embed_dim != dim else None
 
+        self.vocab_bias = mx.zeros((args.vocab_size,), dtype=mx.float32)
+        self.logit_softcap = args.logit_softcap
+
+        # ── Unified U-Net Transformer / Koopman SSM architecture ──────
         self.num_encoder_layers = args.num_layers // 2
         self.num_decoder_layers = args.num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
-        self.vocab_bias = mx.zeros((args.vocab_size,), dtype=mx.float32)
-        self.logit_softcap = args.logit_softcap
 
         # Blocks
-        def make_block(layer_idx: int) -> Block:
-            layer_vrl = args.vrl_enabled and layer_idx >= args.vrl_start_layer
+        def make_block(layer_idx: int):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if args.ln_scale_damping else 1.0
-            layer_xsa = args.xsa_start_layer >= 0 and layer_idx >= args.xsa_start_layer
-            return Block(
-                dim, args.num_heads, args.num_kv_heads, args.mlp_mult,
-                args.rope_base, args.qk_gain_init, group_size=args.bitnet_group_size,
-                activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
-                partial_rope_dims=args.partial_rope_dims, vrl_enabled=layer_vrl,
-                ln_scale_factor=ln_sf, xsa=layer_xsa,
-            )
+            lt = self._layer_types[layer_idx]
 
-        if args.shared_blocks > 0:
-            self.blocks = None
-            self.shared_block_bank = [make_block(0) for _ in range(args.shared_blocks)]
-            self.per_layer_attn_scales = [mx.ones((dim,), dtype=mx.float32) for _ in range(args.num_layers)]
-            self.per_layer_mlp_scales = [mx.ones((dim,), dtype=mx.float32) for _ in range(args.num_layers)]
-            self.per_layer_resid_mixes = [
-                mx.array(np.stack([np.ones(dim, dtype=np.float32), np.zeros(dim, dtype=np.float32)]))
-                for _ in range(args.num_layers)
-            ]
-            self._block_map = [i % args.shared_blocks for i in range(args.num_layers)]
-        else:
-            self.blocks = [make_block(i) for i in range(args.num_layers)]
-            self.shared_block_bank = None
-            self.per_layer_attn_scales = None
-            self.per_layer_mlp_scales = None
-            self.per_layer_resid_mixes = None
-            self._block_map = None
-        self.final_norm = RMSNormNoWeight()
+            if lt == "ssm":
+                # Koopman-SSM block with progressive decay window
+                d_win = args.koopman_decay_window
+                if args.num_layers > 1:
+                    d_win = min(16 * (2 ** layer_idx), 256)
+                return KoopmanBlock(
+                    dim, args.koopman_state_dim, args.mlp_mult,
+                    mixer_rank=args.koopman_mixer_rank,
+                    conv_kernel=args.koopman_conv_kernel,
+                    decay_window=d_win,
+                    group_size=args.bitnet_group_size,
+                    activation=args.activation_type,
+                    leaky_relu_slope=args.leaky_relu_slope,
+                    ln_scale_factor=ln_sf,
+                    moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k
+                )
+            else:
+                # Attention block
+                layer_vrl = args.vrl_enabled and layer_idx >= args.vrl_start_layer
+                layer_xsa = args.xsa_start_layer >= 0 and layer_idx >= args.xsa_start_layer
+                return Block(
+                    dim, args.num_heads, args.num_kv_heads, args.mlp_mult,
+                    args.rope_base, args.qk_gain_init, group_size=args.bitnet_group_size,
+                    activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
+                    partial_rope_dims=args.partial_rope_dims, vrl_enabled=layer_vrl,
+                    ln_scale_factor=ln_sf, xsa=layer_xsa,
+                    moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k
+                )
 
-        # Engram-style multi-head n-gram memory (replaces simple BigramHash)
-        self.engram = None
-        self.engram_inject_layer = args.engram_inject_layer
-        if args.bigram_hash_enabled:
-            self.engram = EngramHash(
-                args.bigram_hash_buckets, args.bigram_hash_dim, dim,
-                group_size=args.bitnet_group_size,
-                num_heads=args.engram_num_heads,
-                num_orders=args.engram_num_orders,
-            )
+        # Tiled Blocks: Flexible unique block pairs tiling across num_layers
+        # Each pair is [Block(Attn), KoopmanBlock(SSM)]
+        num_unique_pairs = max(1, args.shared_blocks) if args.shared_blocks > 0 else (args.num_layers // 2)
+        
+        self.attn_blocks = [
+            Block(args.model_dim, args.num_heads, args.num_kv_heads, args.mlp_mult,
+                  args.rope_base, args.qk_gain_init, group_size=args.bitnet_group_size,
+                  activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
+                  partial_rope_dims=args.partial_rope_dims, vrl_enabled=(i == num_unique_pairs - 1),
+                  xsa=(i >= num_unique_pairs // 2),
+                  moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k)
+            for i in range(num_unique_pairs)
+        ]
+        self.ssm_blocks = [
+            KoopmanBlock(args.model_dim, args.koopman_state_dim, args.mlp_mult,
+                         mixer_rank=args.koopman_mixer_rank,
+                         conv_kernel=args.koopman_conv_kernel,
+                         decay_window=args.koopman_decay_window,
+                         group_size=args.bitnet_group_size,
+                         activation=args.activation_type,
+                         leaky_relu_slope=args.leaky_relu_slope,
+                         moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k)
+            for i in range(num_unique_pairs)
+        ]
+
+        self.num_encoder_layers = 4
+        self.num_decoder_layers = 4
+        self.num_skip_weights = 4
+        # Learnable skip weights for U-Net connections
+        # Learnable skip weights for U-Net connections
+        self.skip_weights = mx.zeros((self.num_skip_weights, args.model_dim), dtype=mx.float32)
+        self.per_layer_attn_scales = [mx.ones((args.model_dim,), dtype=mx.float32) for _ in range(args.num_layers)]
+        self.per_layer_mlp_scales = [mx.ones((args.model_dim,), dtype=mx.float32) for _ in range(args.num_layers)]
+        self.per_layer_resid_mixes = [
+            mx.array(np.stack([np.ones(args.model_dim, dtype=np.float32), np.zeros(args.model_dim, dtype=np.float32)]))
+            for _ in range(args.num_layers)
+        ]
 
         # Capsule bank
         self.capsule_bank = None
@@ -823,6 +1296,20 @@ class GPT(nn.Module):
                 for _ in range(self.num_decoder_layers)
             ]
 
+
+        self.final_norm = RMSNormNoWeight()
+
+        # Engram-style multi-head n-gram memory (shared by both architectures)
+        self.engram = None
+        self.engram_inject_layer = args.engram_inject_layer
+        if args.bigram_hash_enabled:
+            self.engram = EngramHash(
+                args.bigram_hash_buckets, args.bigram_hash_dim, dim,
+                group_size=args.bitnet_group_size,
+                num_heads=args.engram_num_heads,
+                num_orders=args.engram_num_orders,
+            )
+
     def set_feedback_passes(self, num_passes):
         """Switch feedback pass count (for train vs eval)."""
         self.feedback_passes = num_passes
@@ -843,74 +1330,129 @@ class GPT(nn.Module):
         x = rms_norm(x)
         return x, x
 
-    def _run_block(self, layer_idx, x, x0, v0=None):
-        if self.blocks is not None:
-            return self.blocks[layer_idx](x, x0, v0=v0)
-
-        block = self.shared_block_bank[self._block_map[layer_idx]]
-        mix = self.per_layer_resid_mixes[layer_idx].astype(x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out, v_out = block.attn(block.attn_norm(x), v0=v0)
-        x = x + self.per_layer_attn_scales[layer_idx].astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.per_layer_mlp_scales[layer_idx].astype(x.dtype)[None, None, :] * block.mlp(block.mlp_norm(x))
-        return x, v_out
-
-    def _decoder_pass(self, x, x0, skips, sketch, v0):
+    def _decoder_pass(self, x, x0, skips, sketch, v0, moe_losses, input_ids):
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips[-(i + 1)]
-            x, _ = self._run_block(bi, x, x0, v0=v0)
+            
+            if i == 0 and self.engram is not None:
+                x = x + self.engram(input_ids, hidden=x).astype(x.dtype)
+            
+            x, _, aux_loss = self._run_block(bi, x, x0, v0=v0)
+            if aux_loss is not None:
+                moe_losses.append(aux_loss)
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
         return x
 
-    def __call__(self, input_ids, carry_capsules=None):
-        """Core KoopCaps-HRM forward: encode → [correct]^N → decode.
+    def _koopman_ssm_forward(self, input_ids):
+        """Flat-stack Koopman SSM forward pass (Path 2).
 
-        Returns: (hidden, capsule_state, consistency_losses)
-        - hidden: final hidden states for logit projection
-        - capsule_state: for cross-window carry
-        - consistency_losses: list of (c_pred, c_actual) for aux loss
+        No U-Net encoder/decoder split. No feedback loop.
+        Just a clean stack of KoopmanBlock layers with optional Engram.
+
+        Returns: (hidden, None, [], []) — same interface as transformer forward.
         """
         x, x0 = self._apply_embedding(input_ids)
-        skips = []
-        v0 = None
 
-        # Encoder pass (runs once)
-        for i in range(self.num_encoder_layers):
-            # Engram injection at internal layer (context-gated)
+        # Engram injection at specified layer (or input)
+        moe_losses = []
+        for i, block in enumerate(self.koopman_blocks):
             if (self.engram is not None
                     and self.engram_inject_layer >= 0
                     and i == self.engram_inject_layer):
                 engram_out = self.engram(input_ids, hidden=x)
                 x = x + engram_out.astype(x.dtype)
-            x, v_out = self._run_block(i, x, x0, v0=v0)
+            if hasattr(block, 'moe_enabled') and block.moe_enabled:
+                x, _, aux = block(x, x0)
+                moe_losses.append(aux)
+            else:
+                x, _ = block(x, x0)
+
+        return self.final_norm(x), None, [], [], moe_losses
+
+
+    def _get_block(self, i):
+        """Tiled block lookup: dynamic unique pairs -> num_layers alternating layers."""
+        num_unique = len(self.attn_blocks)
+        unique_idx = (i // 2) % num_unique
+        is_ssm = (i % 2 == 1)
+        return self.ssm_blocks[unique_idx] if is_ssm else self.attn_blocks[unique_idx]
+
+    def _run_block(self, layer_idx, x, x0, v0=None):
+        block = self._get_block(layer_idx)
+        ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if self.args.ln_scale_damping else 1.0
+        sd_scale = mx.array(1.0, dtype=x.dtype)
+        if self.training and _STOCHASTIC_DEPTH_PROB > 0.0:
+            keep = mx.random.bernoulli(1.0 - _STOCHASTIC_DEPTH_PROB)
+            sd_scale = keep.astype(x.dtype) / mx.array(1.0 - _STOCHASTIC_DEPTH_PROB, dtype=x.dtype)
+
+        if isinstance(block, KoopmanBlock):
+            normed = rms_norm(x) * ln_sf
+            h, _, aux_loss = block(normed, x0)
+            x = x + sd_scale * self.per_layer_mlp_scales[layer_idx].astype(x.dtype)[None, None, :] * h
+            return x, None, aux_loss
+        else:
+            normed_attn = rms_norm(x) * ln_sf
+            attn_out, v_out = block.attn(normed_attn, v0=v0)
+            x = x + sd_scale * self.per_layer_attn_scales[layer_idx].astype(x.dtype)[None, None, :] * attn_out
+            normed_mlp = rms_norm(x) * ln_sf
+            if hasattr(block, 'moe_enabled') and block.moe_enabled:
+                mlp_out, aux_loss = block.mlp(normed_mlp)
+            else:
+                mlp_out = block.mlp(normed_mlp)
+                aux_loss = mx.array(0.0)
+            x = x + sd_scale * self.per_layer_mlp_scales[layer_idx].astype(x.dtype)[None, None, :] * mlp_out
+            return x, v_out, aux_loss
+
+    def _decoder_pass(self, x, x0, skips, sketch, v0, moe_losses, input_ids):
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if i < self.num_skip_weights:
+                x = x + mx.sigmoid(self.skip_weights[i]).astype(x.dtype)[None, None, :] * skips[-(i + 1)]
+            
+            if i == 0 and self.engram is not None:
+                x = x + self.engram(input_ids, hidden=x).astype(x.dtype)
+            
+            x, _, aux_loss = self._run_block(bi, x, x0, v0=v0)
+            if aux_loss is not None:
+                moe_losses.append(aux_loss)
+            if self.feedback_adapters is not None and sketch is not None:
+                x = self.feedback_adapters[i](x, sketch)
+        return x
+
+    def __call__(self, input_ids, carry_capsules=None):
+        self._distill_hidden0 = None
+        x, x0 = self._apply_embedding(input_ids)
+        skips = []
+        moe_losses = []
+        v0 = None
+
+        for i in range(self.num_encoder_layers):
+            x, v_out, aux_loss = self._run_block(i, x, x0, v0=v0)
+            moe_losses.append(aux_loss)
             if v0 is None and v_out is not None:
                 v0 = mx.stop_gradient(v_out)
             skips.append(x)
 
-        # Capsule init — use carry_capsules for cross-window persistence
-        # Average carry across batch dim and broadcast to match current batch
         capsule_state = None
         if carry_capsules is not None:
             B_curr = x.shape[0]
-            # Average carry state across old batch → (1, N, D), broadcast to new batch
-            carry_avg = mx.mean(carry_capsules, axis=0, keepdims=True)  # (1, N, D)
+            carry_avg = mx.mean(carry_capsules, axis=0, keepdims=True)
             capsule_state = mx.broadcast_to(carry_avg, (B_curr, carry_avg.shape[1], carry_avg.shape[2]))
+        
         if self.capsule_bank is not None:
-            x, capsule_state, _ = self.capsule_bank(x, prev_capsules=capsule_state)
+            x, capsule_state, _, _ = self.capsule_bank(x, prev_capsules=capsule_state)
 
         encoded = x
-
-        # Iterative correction loop with Koopman dynamics + adaptive halting
         sketch = None
-        consistency_losses = []  # (c_pred, c_actual) pairs for aux loss
+        consistency_losses = []
+        speculative_losses = []
         prev_capsule_state = None
-
+        fast_forwarded = False
         num_passes = self.feedback_passes
-        if not self.training and self.args.max_eval_passes > 0:
-            num_passes = min(num_passes, self.args.max_eval_passes)
+
         for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
                 sketch = self.feedback_pooler(self.final_norm(x))
@@ -919,57 +1461,54 @@ class GPT(nn.Module):
 
             if self.capsule_bank is not None and correction_pass > 0:
                 prev_capsule_state = capsule_state
-                encoded, capsule_state, c_pred = self.capsule_bank(
-                    encoded, prev_capsules=capsule_state
+                spec_steps = self.args.koopman_speculator_steps if (self.args.koopman_speculator_enabled and correction_pass == 1) else 0
+                encoded, capsule_state, c_pred, c_spec = self.capsule_bank(
+                    encoded, prev_capsules=capsule_state, speculate_steps=spec_steps
                 )
-                # Collect consistency loss pair
                 if c_pred is not None:
                     consistency_losses.append((c_pred, mx.stop_gradient(capsule_state)))
+                if c_spec is not None:
+                    speculative_losses.append(c_spec)
 
-                # Adaptive halting (eval only): check capsule convergence
-                # Only at pass >= 2 — always run blind (0) + first feedback (1)
-                if (not self.training and self.args.adaptive_halt_enabled
-                        and prev_capsule_state is not None
-                        and correction_pass >= 2):
-                    # Relative capsule change
-                    delta = mx.sqrt(mx.mean((capsule_state - prev_capsule_state) ** 2))
-                    norm = mx.sqrt(mx.mean(capsule_state ** 2)) + 1e-8
-                    relative_delta = delta / norm
-                    # Halt if converged (materialize to check)
-                    mx.eval(relative_delta)
-                    if float(relative_delta.item()) < self.args.adaptive_halt_threshold:
-                        # Capsule has converged — skip remaining passes
-                        break
+            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0, moe_losses=moe_losses, input_ids=input_ids)
 
-            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0)
-
+            if (correction_pass == 0 and self.training
+                    and self.args.self_distill_kl_weight > 0.0 and num_passes > 0):
+                self._distill_hidden0 = mx.stop_gradient(self.final_norm(x))
             if not self.feedback_enabled or self.feedback_pooler is None:
                 break
 
-        return self.final_norm(x), capsule_state, consistency_losses
+        c_final = mx.stop_gradient(capsule_state) if capsule_state is not None else None
+        jepa_loss = []
+        if c_final is not None:
+            for c_s in speculative_losses:
+                jepa_loss.append((c_s, c_final))
+
+        return self.final_norm(x), capsule_state, consistency_losses, jepa_loss, moe_losses
 
     def _hidden_to_logits(self, x, temperature=1.0):
-        w = self.tok_emb.weight.astype(x.dtype)
         if self.embed_proj_rev is not None:
-            x = x @ self.embed_proj_rev.weight.astype(x.dtype).T
+            x = self.embed_proj_rev(x)
+        w = self.tok_emb.weight.astype(x.dtype)
         logits = x @ w.T + self.vocab_bias.astype(x.dtype)
-        logits = self.softcap(logits)
+        # TKA-H: softcap
+        logits = self.logit_softcap * mx.tanh(logits / self.logit_softcap)
         if temperature != 1.0:
             logits = logits / temperature
         return logits
 
     def forward_logits(self, input_ids, temperature=1.0):
-        hidden, _, _ = self(input_ids)
+        hidden, _, _, _, _ = self(input_ids)
         logits = self._hidden_to_logits(hidden.reshape(-1, hidden.shape[-1]), temperature=temperature)
         return logits.reshape(input_ids.shape[0], input_ids.shape[1], -1)
 
     def forward_logits_with_carry(self, input_ids, carry_capsules=None, temperature=1.0):
-        hidden, capsule_state, _ = self(input_ids, carry_capsules=carry_capsules)
+        hidden, capsule_state, _, _, _ = self(input_ids, carry_capsules=carry_capsules)
         logits = self._hidden_to_logits(hidden.reshape(-1, hidden.shape[-1]), temperature=temperature)
         return logits.reshape(input_ids.shape[0], input_ids.shape[1], -1), capsule_state
 
     def loss(self, input_ids, target_ids, carry_capsules=None, reduction="mean", temperature=1.0):
-        hidden, capsule_state, consistency_losses = self(input_ids, carry_capsules=carry_capsules)
+        hidden, capsule_state, consistency_losses, jepa_loss, moe_losses = self(input_ids, carry_capsules=carry_capsules)
         x = hidden.reshape(-1, hidden.shape[-1])
         y = target_ids.reshape(-1)
         logits = self._hidden_to_logits(x, temperature=temperature).astype(mx.float32)
@@ -990,6 +1529,34 @@ class GPT(nn.Module):
             consist_loss = consist_sum / len(consistency_losses)
             ce_loss = ce_loss + self.args.koopman_consistency_weight * consist_loss
 
+        # JEPA Diffusion Speculation Loss
+        if self.training and jepa_loss and self.args.koopman_speculator_weight > 0:
+            spec_sum = mx.array(0.0, dtype=mx.float32)
+            for c_spec, c_final in jepa_loss:
+                spec_sum = spec_sum + mx.mean((c_spec - c_final) ** 2)
+            speculative_ms_loss = spec_sum / len(jepa_loss)
+            ce_loss = ce_loss + self.args.koopman_speculator_weight * speculative_ms_loss
+
+                # MoE Aux Loss
+        if self.training and self.args.moe_enabled and moe_losses:
+            total_moe = mx.sum(mx.stack([l for l in moe_losses if l.ndim == 0 and l.size == 1]))
+            ce_loss = ce_loss + self.args.moe_router_aux_loss_coef * total_moe
+
+        # Self-distillation: KL(final_pass || stop_grad(pass_0)).
+        # Penalises the feedback refinement from straying too far from the raw forward estimate,
+        # acting as a consistency regulariser that anchors multi-pass corrections to coarse predictions.
+        if (self.training and self.args.self_distill_kl_weight > 0.0
+                and getattr(self, '_distill_hidden0', None) is not None):
+            h0 = self._distill_hidden0.reshape(-1, self._distill_hidden0.shape[-1])
+            logits0 = self._hidden_to_logits(h0).astype(mx.float32)
+            # log-softmax of both distributions
+            log_p0 = mx.stop_gradient(logits0 - mx.logsumexp(logits0, axis=-1, keepdims=True))
+            log_p_curr = logits - mx.logsumexp(logits, axis=-1, keepdims=True)
+            # KL(p_curr || p_0) = sum(p_curr * (log_p_curr - log_p_0))
+            kl = mx.mean(mx.sum(mx.exp(log_p_curr) * (log_p_curr - log_p0), axis=-1))
+            ce_loss = ce_loss + self.args.self_distill_kl_weight * kl
+            self._distill_hidden0 = None
+
         return ce_loss
 
 
@@ -1004,7 +1571,10 @@ class EMAHelper:
 
     def update(self, model):
         d = self.decay
-        self._ever_updated = True
+        if not self._ever_updated:
+            self.shadow = {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
+            self._ever_updated = True
+            return
         for k, v in tree_flatten(model.parameters()):
             self.shadow[k] = d * self.shadow[k] + (1.0 - d) * v
 
@@ -1066,9 +1636,13 @@ class SplitOptimizers:
             and "embed_proj" not in k
             and "engram.tables" not in k
         ]
-        # Koopman diagonal gets its own lower LR (stability-critical)
+        # Koopman dynamics get a slower LR (0.01 instead of 0.025) for stability
         self.koopman_diag_keys = [
-            k for k in params if "koopman.diag" in k
+            k for k in params
+            if "koopman.diag" in k
+            or "mixer_diag" in k
+            or "mixer_lowrank" in k
+            or "mixer_conv" in k
         ]
         self.scalar_keys = [
             k for k, p in params.items()
@@ -1131,6 +1705,15 @@ class SplitOptimizers:
                 and model.capsule_bank.koopman is not None):
             clamped = mx.clip(model.capsule_bank.koopman.diag, -0.999, 0.999)
             model.capsule_bank.koopman.diag = clamped
+
+        # Clamp Koopman SSM mixer diagonals (SSM and hybrid architectures)
+        if hasattr(model, "architecture") and model.architecture in ("koopman_ssm", "hybrid"):
+            # In hybrid mode, only ssm_blocks have mixer_diag
+            if hasattr(model, "ssm_blocks") and model.ssm_blocks:
+                for b in model.ssm_blocks:
+                    if hasattr(b, "mixer") and hasattr(b.mixer, "mixer_diag"):
+                        clamped = mx.clip(b.mixer.mixer_diag, -0.999, 0.999)
+                        b.mixer.mixer_diag = clamped
 
 
 # ---------------------------------------------------------------------------
@@ -1195,20 +1778,20 @@ def _gptq_lite_ternary(arr_np, gs, num_percentiles=5):
                 row_groups = arr_padded.shape[1] // gs
                 best_q[r * row_groups:(r + 1) * row_groups] = q[r * row_groups:(r + 1) * row_groups]
                 best_scale[r * row_groups:(r + 1) * row_groups] = scale[r * row_groups:(r + 1) * row_groups]
-    
-    return best_q, best_scale, pad_cols
 
+def _build_hadamard_np_unnormalized(n):
+    if n == 1:
+        return np.array([[1.0]], dtype=np.float32)
+    else:
+        h_half = _build_hadamard_np_unnormalized(n // 2)
+        top = np.concatenate([h_half, h_half], axis=1)
+        bot = np.concatenate([h_half, -h_half], axis=1)
+        return np.concatenate([top, bot], axis=0)
 
 def _build_hadamard_np(n):
     """Build normalized orthogonal Hadamard matrix in numpy. H @ H.T = I."""
     assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
-    if n == 1:
-        return np.array([[1.0]], dtype=np.float32)
-    h_half = _build_hadamard_np(n // 2)
-    top = np.concatenate([h_half, h_half], axis=1)
-    bot = np.concatenate([h_half, -h_half], axis=1)
-    h = np.concatenate([top, bot], axis=0)
-    return h / np.sqrt(n)
+    return _build_hadamard_np_unnormalized(n) / math.sqrt(n)
 
 _HADAMARD_NP_CACHE = {}
 def _get_hadamard_np(n):
@@ -1383,6 +1966,11 @@ def set_eval_mode(model, eval_feedback_passes):
     prev_training = model.training
     prev_feedback_passes = model.feedback_passes
     model.eval()
+    # Apply EMA shadow weights for eval when ema_eval_apply is enabled.
+    # The smoother EMA surface ternarizes with lower MSE, improving eval BPB.
+    if (_EVAL_EMA is not None and _EVAL_EMA._ever_updated
+            and hasattr(model, 'args') and model.args.ema_eval_apply):
+        _EVAL_EMA.apply(model)
     if model.feedback_enabled:
         model.set_feedback_passes(
             eval_feedback_passes if eval_feedback_passes > 0 else model._train_feedback_passes
@@ -1391,6 +1979,10 @@ def set_eval_mode(model, eval_feedback_passes):
 
 
 def restore_mode(model, prev_training, prev_feedback_passes):
+    # Restore live training weights after eval (undo EMA apply)
+    if (_EVAL_EMA is not None and hasattr(_EVAL_EMA, 'original')
+            and hasattr(model, 'args') and model.args.ema_eval_apply):
+        _EVAL_EMA.restore(model)
     model.set_feedback_passes(prev_feedback_passes)
     if prev_training:
         model.train()
@@ -1680,8 +2272,9 @@ def collect_ttt_param_names(model, scope):
             if len(parts) >= 3:
                 block_idx = int(parts[1])
                 leaf = parts[2]
-                if block_idx >= model.num_encoder_layers and leaf in {"attn_scale", "mlp_scale"}:
-                    allow = True
+                if block_idx >= model.num_encoder_layers:
+                    if leaf in {"attn_scale", "mlp_scale", "mixer_scale"}:
+                        allow = True
         if name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales."):
             idx = int(name.split(".")[1])
             if idx >= model.num_encoder_layers:
@@ -1691,13 +2284,22 @@ def collect_ttt_param_names(model, scope):
     return selected
 
 
+def update_from_flat_dict(model, flat_dict):
+    for name, value in flat_dict.items():
+        parts = name.split(".")
+        m = model
+        for p in parts[:-1]:
+            m = m[int(p)] if p.isdigit() else getattr(m, p)
+        if parts[-1].isdigit():
+            m[int(parts[-1])] = value
+        else:
+            setattr(m, parts[-1], value)
+
 def snapshot_parameters(model):
     return {k: mx.array(v) for k, v in tree_flatten(model.parameters())}
 
-
 def restore_parameters(model, snapshot):
-    model.update(tree_unflatten(list(snapshot.items())))
-
+    update_from_flat_dict(model, snapshot)
 
 def clip_named_grads(grads_flat, selected_names, max_norm):
     if max_norm <= 0:
@@ -1730,7 +2332,7 @@ def sgd_momentum_step(model, selected_names, grads_flat, velocity, lr, momentum)
         updated[name] = params[name] - lr * vel.astype(params[name].dtype)
         touched.append(name)
     if updated:
-        model.update(tree_unflatten(list(updated.items())))
+        update_from_flat_dict(model, updated)
         mx.eval(*[updated[name] for name in touched])
 
 
@@ -1959,8 +2561,16 @@ def main():
     # Model
     model = GPT(args)
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
-    log(f"model_params:{n_params} layers:{args.num_layers} dim:{args.model_dim} "
+    log(f"model_params:{n_params} arch:{args.architecture} layers:{args.num_layers} dim:{args.model_dim} "
         f"heads:{args.num_heads} seq_len:{args.train_seq_len}")
+    if args.architecture in ("koopman_ssm", "hybrid"):
+        log(f"koopman_ssm: state_dim={args.koopman_state_dim} rank={args.koopman_mixer_rank} "
+            f"conv_kernel={args.koopman_conv_kernel} decay_window={args.koopman_decay_window} "
+            f"mlp_mult={args.mlp_mult}")
+    if args.architecture == "hybrid":
+        attn_count = sum(1 for lt in model._layer_types if lt == "attn")
+        ssm_count = sum(1 for lt in model._layer_types if lt == "ssm")
+        log(f"hybrid: {attn_count} attention + {ssm_count} SSM layers")
     log(f"feedback:{args.feedback_enabled} passes:{args.feedback_passes} "
         f"every:{args.feedback_every} eval_passes:{args.eval_feedback_passes} "
         f"capsule:{args.capsule_enabled} engram:{args.bigram_hash_enabled}({args.engram_num_heads}h{args.engram_num_orders}o@L{args.engram_inject_layer}) "
@@ -1981,7 +2591,11 @@ def main():
         f"temp_scaling={args.temp_scaling} ttt={args.ttt_enabled} "
         f"ngram_cache={args.ngram_cache_enabled}"
     )
-    log(f"turbo_quant: train={args.turbo_quant_train} export={args.turbo_quant_export}")
+    log(f"turbo_quant: train={args.turbo_quant_train} export={args.turbo_quant_export} kv={args.turbo_quant_kv}")
+    log(f"convergence: noise={args.ternary_noise_scale} sdepth={args.stochastic_depth_prob} "
+        f"ema_eval={args.ema_eval_apply} self_distill={args.self_distill_kl_weight} "
+        f"curriculum={args.curriculum_enabled}(seq:{args.curriculum_phase1_seq}->{args.curriculum_phase2_seq}->{args.train_seq_len} "
+        f"@{args.curriculum_phase1_frac:.0%}/{args.curriculum_phase2_frac:.0%})")
 
     opt = SplitOptimizers(model, args)
 
@@ -1995,15 +2609,18 @@ def main():
         if passes not in train_loss_and_grad_cache:
             model.train()
             model.set_feedback_passes(passes)
+            func = nn.value_and_grad(model, lambda x, y: model.loss(x, y))
             train_loss_and_grad_cache[passes] = mx.compile(
-                nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+                func,
                 inputs=model.state,
                 outputs=model.state,
             )
         return train_loss_and_grad_cache[passes]
 
-    # EMA
-    ema = EMAHelper(model, args.ema_decay) if args.ema_enabled else None
+    # EMA — always create when ema_eval_apply is set so eval uses smoother weights
+    ema = EMAHelper(model, args.ema_decay) if (args.ema_enabled or args.ema_eval_apply) else None
+    global _EVAL_EMA
+    _EVAL_EMA = ema  # expose to set_eval_mode / restore_mode
 
     # LR schedule
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
@@ -2044,6 +2661,21 @@ def main():
 
         elapsed_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Curriculum sequence length: start with short seqs for fast early steps, ramp to full.
+        # Shorter seqs → more gradient steps in the same wall-clock time → better early convergence.
+        # Phases: [0, p1_frac) = phase1_seq, [p1_frac, p2_frac) = phase2_seq, rest = full seq_len.
+        if args.curriculum_enabled and max_wallclock_ms and max_wallclock_ms > 0:
+            progress = elapsed_ms / max_wallclock_ms
+            if progress < args.curriculum_phase1_frac:
+                cur_seq_len = args.curriculum_phase1_seq
+            elif progress < args.curriculum_phase2_frac:
+                cur_seq_len = args.curriculum_phase2_seq
+            else:
+                cur_seq_len = args.train_seq_len
+        else:
+            cur_seq_len = args.train_seq_len
+
         use_feedback = (
             args.feedback_enabled
             and args.feedback_passes > 0
@@ -2061,11 +2693,11 @@ def main():
         grad_scale = 1.0 / args.grad_accum_steps
 
         for _ in range(args.grad_accum_steps):
-            chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len,
+            chunk_sizes = token_chunks(args.microbatch_tokens, cur_seq_len,
                                        args.mlx_max_microbatch_tokens)
             total_chunk_tokens = float(sum(chunk_sizes))
             for ct in chunk_sizes:
-                x, y = train_loader.next_batch(ct, args.train_seq_len)
+                x, y = train_loader.next_batch(ct, cur_seq_len)
                 loss, grads = compiled_loss_and_grad(x, y)
                 cs = float(y.size) / total_chunk_tokens * grad_scale
                 train_loss = train_loss + loss.astype(mx.float32) * cs

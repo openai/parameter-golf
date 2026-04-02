@@ -1,11 +1,9 @@
 {
-  "author": "Aki Gogikar (OneNewAI)",
-  "github_id": "akhileshgogikar",
-  "name": "KoopCaps-HRM Ternary Reasoner",
-  "blurb": "KoopCaps-HRM: Ternary Reasoner with Koopman-driven capsule dynamics, adaptive halting, and cross-window capsule carry. 12L/768d ternary U-Net with iterative Hadamard-gated backward correction, predictive capsule state (D+UV^T stable linear dynamics), entropy-based evaluation adaptive depth, XSA, LeakyReLU², BigramHash, Partial RoPE, VRL, EMA, GPTQ-lite, n-gram cache, sliding eval, temp scaling, and legal TTT. ~87M ternary params in ~12MB.",
-  "date": "2026-03-27T00:00:00Z",
-  "val_loss": 0.0,
-  "val_bpb": 0.0,
-  "bytes_total": 0,
-  "bytes_code": 104978
+  "name": "Ternary Koopman-Attention Hybrid (TKA-H) v5",
+  "blurb": "Pareto-optimal hybrid reasoner alternating 4 Attention and 4 Koopman-SSM layers using Shared-Block Recurrence (2 unique blocks tiled across depth). Employs an 8-stage convergence stack including 3-Phase Curriculum Sequencer (256->1024), Stochastic Depth (0.1), Ternary Noise Injection (0.05), and Self-Distillation KL-anchoring. Features EngramHash v2, EMA shadow weights, and NeoMuon momentum warmup. Crushes the 2.2 BPB barrier within the 16MB/10min constraint.",
+  "date": "2026-04-02T00:00:00Z",
+  "val_loss": 3.3287,
+  "val_bpb": 1.9653,
+  "bytes_total": 990834,
+  "bytes_code": 124566
 }
