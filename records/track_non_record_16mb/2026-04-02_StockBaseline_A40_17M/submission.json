@@ -1,0 +1,18 @@
+{
+  "author": "Siddhardha Nanda",
+  "github_id": "SID-6921",
+  "name": "Stock Baseline GPT 17M sp1024 A40",
+  "blurb": "Stock unmodified baseline run using sp_bpe_1024 tokenizer (vocab=1024) on a single A40 GPU. 17M parameter model (~17M params), 30 training steps with 2M token batches (~600s wall-clock budget). Final int8+zlib roundtrip val_bpb: 3.2686, submission size 5.3MB well under the 16MB cap.",
+  "date": "2026-04-02T00:00:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 5.51896729,
+  "val_bpb": 3.26864330,
+  "pre_quant_val_loss": 5.5269,
+  "pre_quant_val_bpb": 3.2734,
+  "step_stop": 30,
+  "wallclock_seconds": 166,
+  "bytes_total": 5596364,
+  "bytes_model_int8_zlib": 5548678,
+  "bytes_code": 47686,
+  "gpu": "1xA40"
+}

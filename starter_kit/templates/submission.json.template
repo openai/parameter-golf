@@ -1,0 +1,10 @@
+{
+  "author": "Your Name",
+  "name": "your_run_name",
+  "blurb": "Fill with concise methodology and constraints.",
+  "github_id": "your_github",
+  "track": "non_record_16mb",
+  "val_bpb": 1.2000,
+  "date": "YYYY-MM-DD",
+  "seed": 1337
+}
