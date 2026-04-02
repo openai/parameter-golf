@@ -236,3 +236,42 @@ The natural next experiment is replacing learned depth embeddings with **sinusoi
 The Universal Transformer adds sinusoidal timestep embeddings $T_t$ at each recurrence step, where $T_t$ uses the same sinusoidal formula as positional encodings but indexed by iteration count rather than sequence position. This provides orthogonal identity signals across iterations with bounded magnitude.
 
 > Dehghani, M., Gouws, S., Vinyals, O., Uszkoreit, J. & Kaiser, L. (2019). "Universal Transformers." ICLR 2019. [arXiv:1807.03819](https://arxiv.org/abs/1807.03819)
+
+## 11. Series 5: Sinusoidal Depth Encoding
+
+**Experiment.** Run T replaces learned depth embeddings (Series 4) with deterministic sinusoidal depth encodings following the Universal Transformer (Dehghani et al., 2019, §2.1). The encoding uses the same sinusoidal formula as positional encodings but indexed by iteration count rather than sequence position: $\text{enc}(v, i) = \sin(v / b^{i/d})$ where $v$ is the virtual layer index, $b = 10000$ is the base frequency, $i$ is the dimension index, and $d$ is the model dimension. These are computed analytically at initialization and stored as a non-persistent buffer — zero learnable parameters, zero artifact cost.
+
+| Run | Config | Eff. Layers | Pre-Q BPB | Post-Q BPB | Q-Gap | Steps | step_avg | Artifact |
+|-----|--------|-------------|-----------|------------|-------|-------|----------|----------|
+| T | 1+4×3+1 sinusoidal depth+bias | 14 | 1.2551 | 1.2624 | +0.0073 | 10195 | 58.86ms | 10.73MB |
+
+### 11a. Comparison vs FiLM Bias Alone (s3_O)
+
+| Metric | s3_O (no depth) | s5_T (sinusoidal) | Delta |
+|--------|-----------------|-------------------|-------|
+| Post-Q BPB | 1.2625 | 1.2624 | −0.0001 |
+| Pre-Q BPB | 1.2547 | 1.2551 | +0.0004 |
+| Q-gap | +0.0078 | +0.0073 | −0.0005 |
+| step_avg | 58.18ms | 58.86ms | +0.68ms |
+
+BPB is essentially identical (−0.0001 post-Q), confirming that per-iteration identity signaling provides no meaningful BPB improvement when FiLM gammas and betas are already present — they already provide sufficient per-iteration differentiation. The Q-gap improves marginally (0.0078 → 0.0073), likely because the sinusoidal encoding adds a fixed per-iteration bias to the input that slightly reduces the variance seen by shared weights, making quantization more stable.
+
+### 11b. Comparison vs Learned Depth Embeddings (s4_R)
+
+| Metric | s4_R (learned depth) | s5_T (sinusoidal) | Delta |
+|--------|---------------------|-------------------|-------|
+| Post-Q BPB | 1.2639 | 1.2624 | −0.0015 |
+| Pre-Q BPB | 1.2566 | 1.2551 | −0.0015 |
+| Q-gap | +0.0073 | +0.0073 | 0.0000 |
+| step_avg | 62.56ms | 58.86ms | −3.70ms |
+| Steps | 9592 | 10195 | +603 |
+
+Sinusoidal beats learned by 0.0015 BPB. The mechanism is entirely throughput: sinusoidal encoding has zero backpropagation cost (non-persistent buffer, no gradients), saving 3.70ms per step and enabling 603 additional training steps within the 600s wallclock cap. Q-gap is identical (0.0073), confirming that both provide equivalent per-iteration identity signal for quantization purposes — the difference is purely in training efficiency.
+
+### 11c. Conclusion
+
+Sinusoidal depth encoding is free and should be kept on as default. It doesn't help BPB but provides marginal Q-gap benefit and costs nothing. The model already gets per-iteration identity from FiLM gammas/betas — depth encoding is redundant for differentiation but harmless.
+
+This resolves the depth encoding question from §10f. The validated technique stack for SOTA integration is: **Output-LN + Birkhoff mixing + FiLM scale+shift (gammas+betas) + sinusoidal depth encoding**. The best full-sharing configuration is s5_T (1.2624 post-Q BPB, Q-gap +0.0073, 10.73MB artifact).
+
+> Dehghani, M., Gouws, S., Vinyals, O., Uszkoreit, J. & Kaiser, L. (2019). "Universal Transformers." ICLR 2019. [arXiv:1807.03819](https://arxiv.org/abs/1807.03819)

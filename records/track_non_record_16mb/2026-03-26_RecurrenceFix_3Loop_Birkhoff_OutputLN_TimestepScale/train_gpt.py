@@ -92,6 +92,7 @@ class Hyperparameters:
     timestep_gamma_max = float(os.environ.get("TIMESTEP_GAMMA_MAX", "0.0"))
     use_timestep_bias = bool(int(os.environ.get("USE_TIMESTEP_BIAS", "0")))
     use_depth_embed = bool(int(os.environ.get("USE_DEPTH_EMBED", "0")))
+    depth_enc_base = float(os.environ.get("DEPTH_ENC_BASE", 10000.0))
     use_unique_norms = bool(int(os.environ.get("USE_UNIQUE_NORMS", "0")))
     disable_compile = bool(int(os.environ.get("DISABLE_COMPILE", "0")))
 
@@ -314,7 +315,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,ts_attn,ts_mlp,resid_mix_logit,ts_attn_beta,ts_mlp_beta,depth_embed,unique_attn_gain,unique_mlp_gain",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,ts_attn,ts_mlp,resid_mix_logit,ts_attn_beta,ts_mlp_beta,unique_attn_gain,unique_mlp_gain",
     ).split(",")
     if pattern
 )
@@ -571,6 +572,19 @@ class Rotary(nn.Module):
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
 
+class DepthEncoding(nn.Module):
+    """Deterministic sinusoidal depth encodings (Universal Transformer style)."""
+    def __init__(self, depth: int, dim: int, base: float = 10000.0):
+        super().__init__()
+        t = torch.arange(depth, dtype=torch.float32)
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, dtype=torch.float32) / dim))
+        self.register_buffer('encodings', torch.sin(torch.outer(t, inv_freq)), persistent=False)
+        self.encodings: Tensor
+
+    def get(self, v: int, dtype: torch.dtype) -> Tensor:
+        return self.encodings[v].to(dtype=dtype)
+
+
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
@@ -774,6 +788,7 @@ class GPT(nn.Module):
         use_timestep_scale: bool = False,
         use_timestep_bias: bool = False,
         use_depth_embed: bool = False,
+        depth_enc_base: float = 10000.0,
         use_unique_norms: bool = False,
         timestep_gamma_max: float = 0.0,
         leaky_relu_slope: float = 0.5,
@@ -806,7 +821,7 @@ class GPT(nn.Module):
             self.timestep_scale = TimestepScaling(effective_layers, model_dim, gamma_max=timestep_gamma_max, use_bias=use_timestep_bias) if use_timestep_scale else None
             self.use_depth_embed = use_depth_embed
             if self.use_depth_embed:
-                self.depth_embeddings = nn.Parameter(torch.zeros(effective_layers, model_dim, dtype=torch.float32))
+                self.depth_enc = DepthEncoding(effective_layers, model_dim, base=depth_enc_base)
             self.use_unique_norms = use_unique_norms
             if self.use_unique_norms:
                 num_unique = num_shared * self.num_loops
@@ -850,14 +865,14 @@ class GPT(nn.Module):
             v = 0
             for block in self.prelude_blocks:
                 ag, mg, ab, mb = self._get_ts(v)
-                de = self.depth_embeddings[v] if self.use_depth_embed else None
+                de = self.depth_enc.get(v, x.dtype) if self.use_depth_embed else None
                 x = block(x, x0, ag, mg, ab, mb, de)
                 v += 1
             uid = 0
             for _loop in range(self.num_loops):
                 for block in self.shared_blocks:
                     ag, mg, ab, mb = self._get_ts(v)
-                    de = self.depth_embeddings[v] if self.use_depth_embed else None
+                    de = self.depth_enc.get(v, x.dtype) if self.use_depth_embed else None
                     if self.use_unique_norms:
                         ag_n = self.unique_attn_gains[uid].to(dtype=x.dtype)
                         mg_n = self.unique_mlp_gains[uid].to(dtype=x.dtype)
@@ -868,7 +883,7 @@ class GPT(nn.Module):
                     v += 1
             for block in self.coda_blocks:
                 ag, mg, ab, mb = self._get_ts(v)
-                de = self.depth_embeddings[v] if self.use_depth_embed else None
+                de = self.depth_enc.get(v, x.dtype) if self.use_depth_embed else None
                 x = block(x, x0, ag, mg, ab, mb, de)
                 v += 1
         else:
@@ -983,11 +998,7 @@ def recurrence_param_diagnostics(gpt: GPT) -> str:
         parts.append("unique_attn_gain_rms:[" + " ".join(un_attn) + "]")
         parts.append("unique_mlp_gain_rms:[" + " ".join(un_mlp) + "]")
     if gpt.use_depth_embed:
-        de_norms: list[str] = []
-        for vi in range(effective_count):
-            de_rms = gpt.depth_embeddings[vi].norm().item() / gpt.depth_embeddings[vi].numel() ** 0.5
-            de_norms.append(f"v{vi}:{de_rms:.4f}")
-        parts.append("depth_emb_rms:[" + " ".join(de_norms) + "]")
+        parts.append("depth_encoding:sinusoidal")
     return " ".join(parts)
 
 
@@ -1111,6 +1122,7 @@ def main() -> None:
         use_timestep_scale=args.use_timestep_scale,
         use_timestep_bias=args.use_timestep_bias,
         use_depth_embed=args.use_depth_embed,
+        depth_enc_base=args.depth_enc_base,
         use_unique_norms=args.use_unique_norms,
         timestep_gamma_max=args.timestep_gamma_max,
         leaky_relu_slope=args.leaky_relu_slope,
@@ -1155,8 +1167,6 @@ def main() -> None:
     if base_model.timestep_scale is not None:
         for p in base_model.timestep_scale.parameters():
             scalar_params.append(p)
-    if base_model.use_depth_embed:
-        scalar_params.append(base_model.depth_embeddings)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],

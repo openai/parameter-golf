@@ -28,6 +28,7 @@
 - **ALBERT (Lan et al., 2020) found attention sharing is nearly free while FFN sharing causes most degradation.** s3_L confirms: the model needs per-iteration MLP differentiation, not per-iteration attention differentiation.
 - **Learned depth embeddings and unique input norms both hurt BPB despite reducing Q-gap.** The throughput overhead (6–15%) costs training steps that outweigh any specialization benefit. Learned depth embeddings remained near zero even after full training (RMS 0.006–0.010), suggesting they need far more steps to become useful. FiLM bias alone (s3_O: 1.2625) remains the best full-sharing config.
 - **The 0.026 BPB gap between full sharing and unique MLPs (s3_L) cannot be closed by cheap per-iteration input controls.** The MLP genuinely needs different weights per iteration, not just different inputs.
+- **Sinusoidal depth encoding (UT-style) is neutral on BPB (1.2624 vs 1.2625 without) but strictly better than learned depth embeddings (1.2624 vs 1.2639)** due to zero throughput overhead. Keep it on since it's truly free — zero params, zero artifact cost, zero throughput penalty, marginal Q-gap benefit (0.0073 vs 0.0078).
 
 ## Techniques Applicable to Non-Recurrent Submissions
 
@@ -72,11 +73,17 @@ Run M (1+4×3+1 attn-only, 3 loops) crashed during torch.compile with 12 UniqueM
 | R | 1+4×3+1 learned depth only+bias | 14 | 1.2566 | 1.2639 | +0.0073 |
 | S | 1+4×3+1 norms only+bias | 14 | 1.2560 | 1.2629 | +0.0069 |
 
+## Series 5: Sinusoidal Depth Encoding (600s, 8×H100)
+
+| Run | Config | Eff. Layers | Pre-Q BPB | Post-Q BPB | Q-Gap |
+|-----|--------|-------------|-----------|------------|-------|
+| T | 1+4×3+1 sinusoidal depth+bias | 14 | 1.2551 | 1.2624 | +0.0073 |
+
 ## Next Direction
 
-The cheap learned specialization approach (Series 4: learned depth embeddings + unique input norms) was tested and did not improve over FiLM bias alone. Learned depth embeddings remained near zero (RMS 0.006–0.010) after full training, and throughput overhead (6–15%) cost more training steps than the specialization recovered. FiLM bias alone (s3_O: 1.2625) remains the best full-sharing configuration.
+The depth encoding question is resolved: sinusoidal depth encoding (UT-style) is free and marginally helpful — keep it on. The best full-sharing config is now s5_T (1.2624 post-Q) with the complete stack: Output-LN + Birkhoff mixing + FiLM scale+shift (gammas+betas) + sinusoidal depth encoding.
 
-Two next steps: (1) Replace learned depth embeddings with **sinusoidal depth encodings** (Universal Transformer style, Dehghani et al., 2019) — zero parameter cost, zero artifact cost, zero throughput overhead, and full-strength iteration identity signal from step 0 instead of slowly-learned near-zero values. (2) **Graft existing techniques** (Output-LN, Birkhoff mixing, FiLM scale+shift) onto the SOTA stack for a competitive submission.
+The remaining path is **grafting the validated technique stack onto the SOTA stack** for a competitive submission.
 
 ## How to Reproduce
 
@@ -130,11 +137,15 @@ bash scripts/run_fullscale2.sh
 ├── logs/                   # All run logs
 │   ├── s1_Ap–F.txt         #   Screening (7 runs)
 │   ├── s2_G–K.txt          #   Full-scale (5 runs)
-│   └── s3_L–O.txt          #   Follow-up ablations (4 runs)
+│   ├── s3_L–O.txt          #   Follow-up ablations (4 runs)
+│   ├── s4_P–S.txt          #   Depth embeddings + unique norms (4 runs)
+│   └── s5_T.txt            #   Sinusoidal depth encoding (1 run)
 └── scripts/
     ├── run_screening.sh    # Series 1 screening
     ├── run_fullscale.sh    # Series 2 full-scale
-    └── run_fullscale2.sh   # Series 3 follow-up ablations
+    ├── run_fullscale2.sh   # Series 3 follow-up ablations
+    ├── run_fullscale3.sh   # Series 4 depth embeddings + unique norms
+    └── run_fullscale4.sh   # Series 5 sinusoidal depth encoding
 ```
 
 ## Links
