@@ -47,9 +47,9 @@ class Hyperparameters:
         self.train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 20))
         self.muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 100))
 
-        self.iterations = int(os.environ.get("ITERATIONS", 3000))
+        self.iterations = int(os.environ.get("ITERATIONS", 100000))
         self.warmup_steps = int(os.environ.get("WARMUP_STEPS", 5))
-        self.train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
+        self.train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
         self.train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
         self.max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
         self.qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -57,7 +57,7 @@ class Hyperparameters:
         self.vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
         self.num_layers = int(os.environ.get("NUM_LAYERS", 10))
         self.num_unique_blocks = int(os.environ.get("NUM_UNIQUE_BLOCKS", 10))
-        self.model_dim = int(os.environ.get("MODEL_DIM", 768))
+        self.model_dim = int(os.environ.get("MODEL_DIM", 800))
         self.num_heads = int(os.environ.get("NUM_HEADS", 8))
         self.mlp_mult = int(os.environ.get("MLP_MULT", 4))
 
@@ -88,7 +88,7 @@ class Hyperparameters:
         self.ppm_enabled = bool(int(os.environ.get("PPM_ENABLED", "1")))
         self.ppm_alpha = float(os.environ.get("PPM_ALPHA", 0.95))
 
-        self.bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
+        self.bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
         self.bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
 
@@ -493,7 +493,7 @@ class MLP(nn.Module):
         self.proj = AnnealedBitLinear(mlp_mult * dim, dim, bias=False)
 
     def forward(self, x: Tensor, step_fraction: Tensor) -> Tensor:
-        return self.proj(F.leaky_relu(self.fc(x, step_fraction), 0.5).square(), step_fraction)
+        return self.proj(torch.relu(self.fc(x, step_fraction)).square(), step_fraction)
 
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float, layer_idx: int):
