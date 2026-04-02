@@ -1,97 +1,78 @@
-# TTT-E2E: Prime MLP Test-Time Training
+# Prime MLP Test-Time Training
 
-Non-record submission exploring test-time training with separate "prime MLP"
-adapters for Parameter Golf. Key finding: **naive TTT with zero-init prime MLPs
-gives -0.022 BPB without any meta-learning**, invalidating the assumption that
-meta-learning is required for effective TTT.
+Non-record submission. **Naive TTT with zero-init prime MLPs gives -0.079 BPB
+on a properly trained model, without any meta-learning.**
 
 ## Motivation
 
-All 25 prior naive TTT attempts in Parameter Golf failed because they perturbed
-GPTQ'd int5/int6 weights — disrupting quantized rounding decisions. Prime MLPs
-are fundamentally different: fresh bf16 parameters, separate from GPTQ, zero-init
-so they start invisible to the model. This has never been tested.
+All 25 prior naive TTT attempts failed because they perturbed GPTQ'd int5/int6
+weights. Prime MLPs are separate bf16 parameters — they don't touch GPTQ'd weights.
 
 ## Architecture
 
-Add rank-256 "prime MLPs" (786K params) to the last 3 blocks (layers 8-10).
-Each runs sequentially before the main MLP with its own RMSNorm and residual:
+Rank-256 prime MLPs on all 11 blocks, running before the main MLP:
 
 ```
 h = h + attn(norm(h))
-h = h + prime_MLP(prime_norm(h))   # adapted at test time (bf16, not GPTQ'd)
-h = h + MLP(mlp_norm(h))           # frozen at test time (GPTQ'd int5/int6)
+h = h + prime_MLP(prime_norm(h))   # bf16, adapted via SGD at eval time
+h = h + MLP(mlp_norm(h))           # GPTQ'd int5/int6, frozen
 ```
 
-Prime MLP: `dim → rank → dim` with LeakyReLU(0.5)². Down projection zero-init
-so model starts identical to baseline. Up projection orthogonal-init so gradients
-flow from step 1.
+Down projection zero-init (model starts unchanged). Score-first eval is legal.
 
-## Results (1x L40S, 1 train shard)
+## Results
 
-### Naive TTT LR sweep (5K chunks, score-first eval)
+### Full-data training (40 shards, MLP 3.5x, 10K steps, 1x L40S)
 
 | Config | val_bpb | Delta |
 |--------|---------|-------|
-| Baseline (no TTT) | 1.5019 | — |
-| TTT lr=0.001 | 1.5018 | -0.0001 |
-| TTT lr=0.003 | 1.5013 | -0.0006 |
-| TTT lr=0.01 | 1.5001 | -0.0018 |
-| TTT lr=0.03 | 1.4988 | -0.0031 |
-| **TTT lr=0.1** | **1.4971** | **-0.0048** |
+| **Baseline (EMA, no TTT)** | **1.3696** | — |
+| **TTT lr=0.1, all 11 layers** | **1.2906** | **-0.079** |
 
-Higher LR = more improvement, monotonically. Adaptation is clearly beneficial.
+### Sweep summary (5K chunks, full-data model)
 
-### Full eval (all 60K chunks, best LR)
+| Experiment | val_bpb | Delta |
+|------------|---------|-------|
+| Baseline | 1.3696 | — |
+| lr=0.03 | 1.3670 | -0.003 |
+| lr=0.1 | 1.3636 | -0.006 |
+| lr=0.3 | 1.3601 | -0.010 |
+| lr=1.0 | 1.3550 | -0.015 |
+| rank=64 (3 layers) | 1.3661 | -0.004 |
+| rank=512 (3 layers) | 1.3638 | -0.006 |
+| layer=[10] only | 1.3669 | -0.003 |
+| layer=[6..10] | 1.3609 | -0.009 |
+| **layer=all (11)** | **1.3242** | **-0.045** |
+| momentum=0.9 | 1.3574 | -0.012 |
 
-| Config | val_bpb | Delta |
-|--------|---------|-------|
-| Baseline | 1.5019 | — |
-| **TTT lr=0.1, chunk=1024** | **1.4794** | **-0.0224** |
+### Key findings
 
-Full eval shows **stronger improvement** than 5K preview (-0.0224 vs -0.0048) —
-adaptation compounds over the val shard.
+1. **Layer count >> rank.** All 11 layers (-0.045) crushes rank=512 on 3 layers (-0.006)
+2. **Higher LR is better** up to 1.0 (still improving, ceiling not found)
+3. **Full eval compounds** — 60K chunks gives ~1.8x the 5K-chunk delta
+4. **Effect scales with model quality** — -0.079 on strong model vs -0.073 on weak
+5. **FOMAML meta-learning hurts** — naive TTT is strictly better
+6. **Momentum=0.9 helps** (+2x at same LR on 3 layers)
 
-### Negative results
+### 1-shard control (earlier experiment)
 
-| Config | Delta | Why |
-|--------|-------|-----|
-| chunk=4096 | +0.095 | Fewer adaptation steps, stale gradients |
-| reset_every=1000 | -0.003 (vs -0.005 no-reset) | Accumulated knowledge is valuable |
-| FOMAML meta-learning | +0.083 vs baseline | W_0 degrades base model predictions |
+| Config | Baseline | TTT | Delta |
+|--------|----------|-----|-------|
+| 1 shard, 7200 steps | 1.5019 | 1.4288 | -0.073 |
+| **40 shards, 10K steps** | **1.3696** | **1.2906** | **-0.079** |
 
-## Key Findings
+## Artifact size for PR 1105
 
-1. **Naive TTT with prime MLPs works.** No meta-learning needed. The architecture
-   (separate bf16 adapters that don't touch GPTQ'd weights) is the key insight.
+| Config | Prime MLP size | Fits 16 MB? |
+|--------|---------------|-------------|
+| rank=256, all 11 layers | 5.75 MB | No |
+| rank=64, all 11 layers | 1.41 MB | Yes |
+| rank=32, all 11 layers | 0.70 MB | Yes |
 
-2. **FOMAML hurts.** Meta-learned W_0 produces non-zero outputs that degrade the
-   base model (+0.16 BPB). TTT only recovers half. On 1 shard, meta-learning has
-   insufficient task diversity.
+rank=64 all-layers fits and rank barely matters vs layer count.
 
-3. **Higher TTT LR is better** up to 0.1. The model can absorb aggressive adaptation
-   because prime MLPs are small and zero-init'd.
+## Next steps
 
-4. **Small chunks (1024) beat large chunks (4096).** Frequent adaptation > batch quality.
-
-5. **No reset is best.** Accumulated adaptation across the val shard is valuable —
-   the model builds up useful representations over time.
-
-## What This Means for 8xH100
-
-On the real PR 1105 model (1.1125 BPB), this approach:
-- Adds 786K prime MLP params (~1.5 MB bf16, fits in 16 MB budget)
-- Zero training cost (no Phase 2 needed)
-- ~6s eval overhead (60K backward passes through 3 small MLPs)
-- Expected improvement: scale of -0.001 to -0.003 BPB (the L40S delta scaled
-  by the baseline quality ratio)
-
-## Files
-
-- `train_ttt_e2e.py` — Model definition with prime MLPs + FOMAML + TTT eval
-- `sweep_naive_ttt.py` — Naive TTT LR/chunk/reset sweep
-
-## References
-
-- TTT-E2E paper: arxiv.org/abs/2512.23675
-- Our PR 1105 (base model): 1.1125 BPB
+- [ ] 8xH100 validation on actual PR 1105 model (1.1125 BPB)
+- [ ] Combine lr=1.0 + all layers + momentum=0.9 (untested combination)
+- [ ] rank=64 all-layers full eval (fits 16 MB budget)
