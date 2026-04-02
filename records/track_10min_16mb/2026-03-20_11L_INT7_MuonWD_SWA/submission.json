@@ -1,0 +1,14 @@
+{
+  "author": "Jorge Asenjo",
+  "github_id": "jorge-asenjo",
+  "name": "11L INT7 + MuonWD + SWA",
+  "blurb": "11 unique layers at d=512 with INT7 quantization (7-bit, 127 levels per row with percentile clipping). Muon weight decay 0.04, SWA checkpoint averaging. INT7 is a sweet spot: only 0.02 bpb degradation vs 0.12 for INT6. Preliminary result on 1xH100/5min; pending 8xH100/10min re-run.",
+  "date": "2026-03-20T15:00:00Z",
+  "val_loss": 2.3426,
+  "val_bpb": 1.3874,
+  "pre_quant_val_loss": 2.3084,
+  "pre_quant_val_bpb": 1.3672,
+  "bytes_total": 10468029,
+  "bytes_code": 55904,
+  "note": "Preliminary: 1xH100/5min (710 steps). Expect significant improvement on 8xH100/10min (~12000 steps)."
+}
