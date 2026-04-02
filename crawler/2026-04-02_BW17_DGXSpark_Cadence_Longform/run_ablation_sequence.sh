@@ -32,16 +32,19 @@ RUN_LONGFORM="${RUN_LONGFORM:-1}"
 LONGFORM_TOPK="${LONGFORM_TOPK:-2}"
 RUN_QUANT="${RUN_QUANT:-1}"
 RUN_LOOP_AWARE_GPTQ="${RUN_LOOP_AWARE_GPTQ:-0}"
+RAPID_CONTROL_INT6="${RAPID_CONTROL_INT6:-}"
 
 RAPID_MAX_WALLCLOCK_SECONDS="${RAPID_MAX_WALLCLOCK_SECONDS:-240}"
 RAPID_ITERATIONS="${RAPID_ITERATIONS:-12000}"
 RAPID_TRAIN_BATCH_TOKENS="${RAPID_TRAIN_BATCH_TOKENS:-393216}"
 RAPID_VAL_BATCH_SIZE="${RAPID_VAL_BATCH_SIZE:-262144}"
+RAPID_EVAL_STRIDE="${RAPID_EVAL_STRIDE:-2048}"
 
 LONG_MAX_WALLCLOCK_SECONDS="${LONG_MAX_WALLCLOCK_SECONDS:-600}"
 LONG_ITERATIONS="${LONG_ITERATIONS:-20000}"
 LONG_TRAIN_BATCH_TOKENS="${LONG_TRAIN_BATCH_TOKENS:-786432}"
 LONG_VAL_BATCH_SIZE="${LONG_VAL_BATCH_SIZE:-524288}"
+LONG_EVAL_STRIDE="${LONG_EVAL_STRIDE:-64}"
 
 CRAWLER_QUANT_INT8_DEFAULT="${CRAWLER_QUANT_INT8_DEFAULT:-0}" # 0 = more size-safe for 16MB track
 
@@ -103,6 +106,7 @@ RAPID_ENV=(
     MAX_WALLCLOCK_SECONDS="${RAPID_MAX_WALLCLOCK_SECONDS}"
     TRAIN_BATCH_TOKENS="${RAPID_TRAIN_BATCH_TOKENS}"
     VAL_BATCH_SIZE="${RAPID_VAL_BATCH_SIZE}"
+    EVAL_STRIDE="${RAPID_EVAL_STRIDE}"
 )
 
 LONG_ENV=(
@@ -110,6 +114,7 @@ LONG_ENV=(
     MAX_WALLCLOCK_SECONDS="${LONG_MAX_WALLCLOCK_SECONDS}"
     TRAIN_BATCH_TOKENS="${LONG_TRAIN_BATCH_TOKENS}"
     VAL_BATCH_SIZE="${LONG_VAL_BATCH_SIZE}"
+    EVAL_STRIDE="${LONG_EVAL_STRIDE}"
 )
 
 declare -A CONTROL_INT6=()
@@ -209,7 +214,7 @@ EOF
 NUM_CRAWLER_LAYERS=1
 CRAWLER_LOOPS=4
 INST_DIM=32
-CRAWLER_LOOP_ROPE_SCALES=9,1,1
+CRAWLER_LOOP_ROPE_SCALES=16,8,4,1
 CRAWLER_LOOP_SMEAR=0
 EOF
             ;;
@@ -218,7 +223,7 @@ EOF
 NUM_CRAWLER_LAYERS=1
 CRAWLER_LOOPS=5
 INST_DIM=32
-CRAWLER_LOOP_ROPE_SCALES=9,1,1
+CRAWLER_LOOP_ROPE_SCALES=32,16,8,4,1
 CRAWLER_LOOP_SMEAR=0
 EOF
             ;;
@@ -227,7 +232,7 @@ EOF
 NUM_CRAWLER_LAYERS=2
 CRAWLER_LOOPS=2
 INST_DIM=32
-CRAWLER_LOOP_ROPE_SCALES=9,1,1
+CRAWLER_LOOP_ROPE_SCALES=9,1
 CRAWLER_LOOP_SMEAR=0
 EOF
             ;;
@@ -265,6 +270,21 @@ EOF
     esac
 }
 
+validate_cadence_shape() {
+    local loops="$1"
+    local scales_csv="$2"
+    local n_scales
+    if [[ -z "${scales_csv}" ]]; then
+        return 0
+    fi
+    n_scales=$(awk -F',' '{print NF}' <<<"${scales_csv}")
+    if (( n_scales < loops )); then
+        echo "ERROR: CRAWLER_LOOP_ROPE_SCALES (${scales_csv}) has ${n_scales} entries, but CRAWLER_LOOPS=${loops}" >&2
+        return 1
+    fi
+    return 0
+}
+
 run_arm() {
     local phase="$1"; shift
     local lane="$1"; shift
@@ -279,6 +299,8 @@ run_arm() {
     local log="${RESULTS_DIR}/${arm}_s${SEED}_${TS}.log"
     local run_env=("${BASE_ENV[@]}")
     local overrides=()
+    local loops="3"
+    local scales_csv="9,1,1"
 
     case "${mode}" in
         RAPID) run_env+=("${RAPID_ENV[@]}") ;;
@@ -290,6 +312,17 @@ run_arm() {
     esac
 
     mapfile -t overrides < <(arm_overrides "${source_arm}" | sed '/^$/d')
+    for kv in "${overrides[@]}" "${extra_env[@]}"; do
+        case "${kv}" in
+            CRAWLER_LOOPS=*)
+                loops="${kv#*=}"
+                ;;
+            CRAWLER_LOOP_ROPE_SCALES=*)
+                scales_csv="${kv#*=}"
+                ;;
+        esac
+    done
+    validate_cadence_shape "${loops}" "${scales_csv}"
     run_env+=("${overrides[@]}")
     run_env+=("${extra_env[@]}")
 
@@ -391,16 +424,12 @@ PY
 # ----------------------------------------------------------------
 # 1) RAPID stage: small-token local interaction screening.
 # ----------------------------------------------------------------
-RAPID_SOURCE_ARMS=(
-    BW17DGX-00
-    BW17DGX-01
-    BW17DGX-02
-    BW17DGX-03
-    BW17DGX-04
-    BW17DGX-05
-    BW17DGX-06
-    BW17DGX-07
-)
+RAPID_SOURCE_ARMS_CSV="${RAPID_SOURCE_ARMS_CSV:-BW17DGX-00,BW17DGX-01,BW17DGX-02,BW17DGX-03,BW17DGX-04,BW17DGX-05,BW17DGX-06,BW17DGX-07}"
+IFS=',' read -r -a RAPID_SOURCE_ARMS <<<"${RAPID_SOURCE_ARMS_CSV}"
+
+if [[ "${RAPID_SOURCE_ARMS_CSV}" != *"BW17DGX-00"* && -n "${RAPID_CONTROL_INT6}" ]]; then
+    CONTROL_INT6["rapid"]="${RAPID_CONTROL_INT6}"
+fi
 
 for i in "${!RAPID_SOURCE_ARMS[@]}"; do
     src="${RAPID_SOURCE_ARMS[$i]}"
