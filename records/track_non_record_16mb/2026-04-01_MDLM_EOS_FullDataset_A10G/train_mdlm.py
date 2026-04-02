@@ -34,10 +34,15 @@ WARMDOWN_STEPS = 1500
 NOISE_EPS = 1e-3
 VAR_EVAL_STEPS = 128  # higher = tighter bound
 
+# NOTE: THESE PARAMS WERE DECIDED ON A10G, WITH LIMITED VRAM.
+# FOR EVALUATION, USE THE UNCOMMENTED VERSIONS.
+# SHARDS_IN_MEMORY = 1   # how many train shards to hold in RAM at once
+# ROTATE_SHARDS    = True  # False = load all MAX_TRAIN_SHARDS at once (original behaviour)
+
 DATA_DIR         = "data/datasets/fineweb10B_sp1024"
 MAX_TRAIN_SHARDS = 0   # 0 = all available shards
 SHARDS_IN_MEMORY = 1   # how many train shards to hold in RAM at once
-ROTATE_SHARDS    = True  # False = load all MAX_TRAIN_SHARDS at once (original behaviour)
+ROTATE_SHARDS    = False  # False = load all MAX_TRAIN_SHARDS at once (original behaviour)
 TOKENIZER_PATH   = "data/tokenizers/fineweb_1024_bpe.model"
 NUM_SHARDS_DOWNLOADED = 3
 
