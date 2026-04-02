@@ -61,25 +61,29 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
-    # Model shape — wider than baseline (768 vs 512) because ternary is cheap
+    # Model shape — use 512d MLP3x for speed (more steps in 10 min)
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 768))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 4))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     # Partial RoPE: only apply to first partial_rope_dims of each head
     partial_rope_dims = int(os.environ.get("PARTIAL_ROPE_DIMS", 16))
 
-    # Ternary QAT config
+    # Ternary QAT config — Late QAT: enable STE when LR scale drops below threshold
     ternary_group_size = int(os.environ.get("TERNARY_GROUP_SIZE", 128))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+
+    # Weight decay (mild, for stability)
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
 
     # EMA
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
-    ema_start_step = int(os.environ.get("EMA_START_STEP", 500))
+    ema_start_step = int(os.environ.get("EMA_START_STEP", 50))
 
     # Z-loss (lower to prevent initial loss explosion with ternary STE)
     z_loss_weight = float(os.environ.get("Z_LOSS_WEIGHT", 1e-5))
@@ -167,9 +171,14 @@ def ternary_ste(w: Tensor, group_size: int = 128) -> Tensor:
     return TernarySTEFunction.apply(w, group_size)
 
 
+# Global flag: when False, TernaryLinear acts as CastedLinear (fp32 training).
+# Set to True when LR scale drops below late_qat_threshold (Late QAT).
+_TERNARY_QAT_ACTIVE = False
+
+
 class TernaryLinear(nn.Module):
-    """Linear layer with ternary weight quantization during forward pass (QAT).
-    In eval mode, weights are used as-is (assumed already dequantized from ternary artifact)."""
+    """Linear layer with Late QAT: acts as CastedLinear until _TERNARY_QAT_ACTIVE=True,
+    then applies ternary STE quantization. In eval, weights are used as-is."""
     def __init__(self, in_features: int, out_features: int, bias: bool = False, group_size: int = 128):
         super().__init__()
         self.in_features = in_features
@@ -180,14 +189,17 @@ class TernaryLinear(nn.Module):
             self.bias = nn.Parameter(torch.zeros(out_features))
         else:
             self.bias = None
-        # Kaiming init scaled for ternary
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.training:
+        if self.training and _TERNARY_QAT_ACTIVE:
+            # Late QAT phase: apply ternary STE
             w = ternary_ste(self.weight, self.group_size)
+        elif self.training:
+            # Pre-QAT phase: act like CastedLinear (fp32 weights, bf16 compute)
+            w = self.weight
         else:
-            # In eval: weights are already dequantized ternary, use as-is
+            # Eval: weights already dequantized, use as-is
             w = self.weight
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w.to(x.dtype), bias)
@@ -923,7 +935,7 @@ def main() -> None:
     if args.ema_decay > 0:
         ema_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
 
-    # Optimizer split — same as baseline but no weight decay (incompatible with ternary STE)
+    # Optimizer split — Late QAT means WD is fine during fp32 phase
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
         p for name, p in block_named_params
@@ -1047,6 +1059,14 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late QAT: activate ternary STE when LR scale drops below threshold
+        # AND we've done at least 100 steps (avoids premature activation)
+        global _TERNARY_QAT_ACTIVE
+        if not _TERNARY_QAT_ACTIVE and scale < args.late_qat_threshold and step >= 100:
+            _TERNARY_QAT_ACTIVE = True
+            log0(f"late_qat_activated step:{step} lr_scale:{scale:.4f}")
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
