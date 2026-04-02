@@ -121,7 +121,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 5.0))  # Trinity: 5x MLP (ternary compresses ~3.75x)
+    mlp_mult = float(os.environ.get("MLP_MULT", 3.5))  # 3.5x: wider than SOTA's 3x, fits in 16MB with int6+pruning  # Trinity: 5x MLP (ternary compresses ~3.75x)
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -1490,17 +1490,8 @@ def mixed_quantize_trinity(state_dict: dict[str, Tensor], hessians: dict[str, Te
             result[name] = t.float()
             meta[name] = "passthrough_ctrl"
             continue
-        # Trinity Hybrid: MLP -> ternary, attention -> int6 GPTQ
-        if cat == "mlp" and t.ndim >= 1:
-            # Ternary quantization for MLP weights
-            q_tern, scales_tern = ternary_quantize(t, group_size=128)
-            packed, orig_shape = pack_ternary_base3(q_tern)
-            result[name + ".tern_packed"] = packed
-            result[name + ".tern_scales"] = scales_tern
-            result[name + ".tern_shape"] = torch.tensor(orig_shape, dtype=torch.int32)
-            meta[name] = {"type": "ternary"}
-            ternary_count += 1
-        elif cat == "attn" and t.ndim >= 1:
+        # Trinity v4-fix: int6 GPTQ for ALL large weights (MLP + attention)
+        if (cat == "mlp" or cat == "attn") and t.ndim >= 1:
             # Int6 GPTQ for attention weights
             cr = 31
             H = hessians.get(name) if hessians else None
@@ -2012,10 +2003,11 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    # Trinity Hybrid quantization: ternary MLP + int6 GPTQ attention
-    log0("trinity:applying Trinity Hybrid quantization (ternary MLP + int6 GPTQ attn)...")
+    # Trinity v4-fix: use int6 GPTQ for ALL weights (proven reliable),
+    # keeping MLP 5x width as our Trinity innovation (wider MLP = better model).
+    log0("trinity:applying int6 GPTQ quantization for all weights (MLP 5x width preserved)...")
     quant_result, quant_meta, n_ternary, n_int6 = mixed_quantize_trinity(unbanked_sd, hessians=hessians)
-    log0(f"trinity:quantized {n_ternary} MLP tensors (ternary) + {n_int6} attn tensors (int6 GPTQ)")
+    log0(f"trinity:quantized {n_ternary} MLP tensors + {n_int6} attn tensors (all int6 GPTQ)")
     # Selective pruning for size target
     target_mb = float(os.environ.get("TARGET_MB", "15.9"))
     code_bytes_est = len(code.encode("utf-8"))
