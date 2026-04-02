@@ -2,7 +2,7 @@
 
 ## Summary
 
-This submission demonstrates that hybrid SSM architectures can train at **32x longer context** (32,768 tokens) than the standard baseline (1,024 tokens) with **near-constant step time as context length increases**. Both branches scale linearly in sequence length — SWA attends to a fixed 1024-token window per token, and Mamba processes each token via a constant-cost state update — so the per-token compute is independent of context length. Since total tokens per batch is fixed (524K), increasing sequence length just means fewer, longer sequences. Step time stays roughly constant from 8K to 64K context (~80-83 ms/step on 8xH100), with a slight increase from reduced parallelism across fewer sequences. Longer sequences do require more memory (for block masks, recurrent state, and activations), but fit comfortably within H100's 80 GB.
+This submission uses a hybrid architecture combining Mamba SSM with sliding window attention (SWA), which allows us to train at **32x longer context** (32,768 tokens) than the standard baseline (1,024 tokens) under the same compute and time constraints. Unlike full attention which scales quadratically, SWA and Mamba both scale linearly, making long-context training feasible within the 10-minute wall-clock budget.
 
 Building on our previous Hymba submission (1.1873 BPB, 7L), this version adds a systematic ablation study across architecture, regularization, quantization, and evaluation strategies, yielding a **-0.040 BPB improvement**.
 
@@ -54,17 +54,6 @@ Based on the Hymba paper (arXiv:2411.13676), each block runs attention and Mamba
 - Post-merge: output projection + residual with learned scale
 
 Additional: LeakyReLU(0.9)^2 MLP, SmearGate + BigramHash embedding, U-Net skip connections, EMA(0.997).
-
-## Context Length Scaling
-
-Both SWA and Mamba scale linearly in sequence length with constant per-token compute: SWA attends to a fixed 1024-token window per token, and Mamba's recurrent scan performs a constant-cost state update per token. Since total tokens per batch is fixed (524K), increasing context just means fewer, longer sequences, so step time stays roughly constant from 8K to 64K.
-
-| Train Seq Len | ms/step (8xH100) |
-|---------------|-------------------|
-| 8,192         | ~79               |
-| 16,384        | ~80               |
-| 32,768        | ~81               |
-| 65,536        | ~83               |
 
 ## Ablation Summary
 
