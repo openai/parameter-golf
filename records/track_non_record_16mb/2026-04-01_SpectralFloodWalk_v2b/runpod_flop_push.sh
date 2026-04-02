@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/runpod_common.sh"
+
+SFW_MEMORY_MIN_READ_COUNT="${SFW_MEMORY_MIN_READ_COUNT:-2}" \
+SFW_MAINTENANCE_PASSES="${SFW_MAINTENANCE_PASSES:-2}" \
+SFW_MAINTENANCE_MAX_SLOTS="${SFW_MAINTENANCE_MAX_SLOTS:-128}" \
+SFW_MAINTENANCE_METRIC="${SFW_MAINTENANCE_METRIC:-counts}" \
+SFW_MAINTENANCE_USE_GRAD="${SFW_MAINTENANCE_USE_GRAD:-1}" \
+sfw_run_profile gate2_maint2_slots128 "${SFW_SEED:-1337}" "$@"
