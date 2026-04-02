@@ -10,13 +10,26 @@ LOG_DIR="${REPO_ROOT}/logs"
 
 cd "${REPO_ROOT}"
 
-if [[ -f /venv/main/bin/activate ]]; then
+die() { echo "FATAL: $*" >&2; exit 1; }
+
+if [[ -f "${REPO_ROOT}/scripts/activate_flywheel_env.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${REPO_ROOT}/scripts/activate_flywheel_env.sh"
+elif [[ -x /workspace/miniconda3/bin/conda && -f /workspace/miniconda3/etc/profile.d/conda.sh ]]; then
+  # shellcheck disable=SC1091
+  source /workspace/miniconda3/etc/profile.d/conda.sh
+  conda activate "${CONDA_ENV:-fa3wheel}" >/dev/null 2>&1 || true
+elif [[ -f "${VENV_DIR:-/workspace/venv_cu124}/bin/activate" ]]; then
+  # shellcheck disable=SC1090
+  source "${VENV_DIR:-/workspace/venv_cu124}/bin/activate"
+elif [[ -f /venv/main/bin/activate ]]; then
   # shellcheck disable=SC1091
   source /venv/main/bin/activate
-else
-  echo "FATAL: missing /venv/main/bin/activate" >&2
-  exit 1
 fi
+
+PYTHON_BIN="$(command -v python || true)"
+[[ -n "${PYTHON_BIN}" ]] || die "python not found after env activation"
+"${PYTHON_BIN}" -c "import torch" >/dev/null 2>&1 || die "python cannot import torch; activate the pod env first"
 
 export PYTHONPATH="${REPO_ROOT}/flash-attention/hopper:${PYTHONPATH:-}"
 
@@ -54,6 +67,6 @@ TRIGRAM=0 \
 NGRAM_EVAL_ORDER=0 \
 CUBRIC_CADENCE=0 \
 NGRAM_ENTROPY_SHIFT=0 \
-python -m torch.distributed.run --standalone --nproc_per_node=8 \
+"${PYTHON_BIN}" -m torch.distributed.run --standalone --nproc_per_node=8 \
 "${TRAINER}" \
 2>&1 | tee "${LOG}"
