@@ -831,8 +831,10 @@ def main() -> None:
 
     # AttnRes block-causal mask creates (T, T*P) attention patterns that exceed
     # Triton's default max block size during inductor compilation.
+    # Must be set as env var so subprocess workers inherit it on fresh import.
+    os.environ.setdefault("TRITON_MAX_BLOCK_X", "8192")
     import torch._inductor.runtime.triton_heuristics as _th
-    _th.TRITON_MAX_BLOCK["X"] = 8192
+    _th.TRITON_MAX_BLOCK["X"] = max(_th.TRITON_MAX_BLOCK.get("X", 0), 8192)
 
     logfile = None
     if master_process:
