@@ -99,6 +99,11 @@ HSA allows combining these simultaneously across different feature subspaces.
 
 We evaluate HSA under 10k fixed-step training. MLP expansion is adjusted to maintain a consistent parameter budget (MLP mult = 2.27).
 
+We use the following hierarchical configurations for attention projections:
+
+`q_levels = [(2, 8), (4, 16), (8, 40)]`  
+`kv_levels = [(1, 16), (2, 16), (4, 32)]`
+
 | Model | Seed | Pre-quant BPB ↓ | Post-quant BPB ↓ | Size (bytes) |
 |-------|------|----------------:|-----------------:|-------------:|
 | Baseline | 1337 | 1.2262 | 1.2328 | 15861272 |
