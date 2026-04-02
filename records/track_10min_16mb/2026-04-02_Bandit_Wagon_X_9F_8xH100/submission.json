@@ -1,0 +1,35 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Bandit Wagon X 9F",
+  "blurb": "Tap-off crawler stack with no anchor and a 9-flat floor (9F+1C+9F), packaged as a submission-oriented full run with legal-size guardrails.",
+  "date": "2026-04-02T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 0.0,
+    "val_bpb_exact": 0.0,
+    "int6_sw_bpb": 0.0,
+    "steps": 0,
+    "train_time_s": 600,
+    "bytes_total": 0
+  },
+  "seed_4": {
+    "val_bpb": 0.0,
+    "val_bpb_exact": 0.0,
+    "int6_sw_bpb": 0.0,
+    "steps": 0,
+    "bytes_total": 0,
+    "train_time_s": 600
+  },
+  "seed_300": {
+    "val_bpb": 0.0,
+    "val_bpb_exact": 0.0,
+    "int6_sw_bpb": 0.0,
+    "steps": 0,
+    "bytes_total": 0,
+    "train_time_s": 600
+  },
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 121718,
+  "hardware": "8xH100 SXM"
+}
