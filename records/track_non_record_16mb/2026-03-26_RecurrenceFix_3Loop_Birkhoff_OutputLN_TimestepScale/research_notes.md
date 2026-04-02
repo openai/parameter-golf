@@ -185,3 +185,54 @@ This leaves ~4.8MB headroom (from an estimated ~11.2MB artifact) for SOTA featur
 > Csordás, R., Irie, K., Schmidhuber, J., Potts, C. & Manning, C. (2024). "MoEUT: Mixture-of-Experts Universal Transformers." NeurIPS 2024. [arXiv:2405.16039](https://arxiv.org/abs/2405.16039)
 > Ben-Zaken, E., Goldberg, Y. & Ravfogel, S. (2022). "BitFit: Simple Parameter-efficient Fine-tuning for Transformer-based Masked Language-models." ACL 2022. [arXiv:2106.10199](https://arxiv.org/abs/2106.10199)
 > Bae, S., Ko, J., Song, H. & Yun, S.-Y. (2025). "Relaxed Recursive Transformers: Effective Parameter Sharing with Layer-wise LoRA." ICLR 2025. [arXiv:2410.20672](https://arxiv.org/abs/2410.20672)
+
+## 10. Series 4 Results: Learned Depth Embeddings and Unique Input Norms
+
+**Hypothesis.** Per-iteration MLP differentiation is critical (s3_L: −0.026 BPB), but unique MLPs are too expensive (~4MB). Cheap per-iteration input controls — learned depth embeddings and unique input norms — should recover much of the benefit at ~110KB total cost (§9).
+
+**Experiment.** Four runs tested combinations of learned depth embeddings (512-dim vectors added to input before attention and MLP, initialized to zeros) and unique input norms (per-iteration RMSNorm parameters for attention and MLP inputs), all with FiLM bias enabled:
+
+| Run | Config | Eff. Layers | Pre-Q BPB | Post-Q BPB | Q-Gap |
+|-----|--------|-------------|-----------|------------|-------|
+| P | 1+4×2+1 learned depth+norms+bias | 10 | 1.2579 | 1.2663 | +0.0084 |
+| Q | 1+4×3+1 learned depth+norms+bias | 14 | 1.2574 | 1.2643 | +0.0069 |
+| R | 1+4×3+1 learned depth only+bias | 14 | 1.2566 | 1.2639 | +0.0073 |
+| S | 1+4×3+1 norms only+bias | 14 | 1.2560 | 1.2629 | +0.0069 |
+
+**Baseline comparison.** FiLM bias alone (s3_O: 1.2625, Q-gap +0.0078) outperforms all Series 4 runs on post-Q BPB. The best Series 4 result (Run S: 1.2629) is +0.0004 worse than s3_O despite having additional parameters.
+
+**Negative result: neither technique improves over FiLM bias alone.** This was unexpected given the §9 analysis. Three factors explain the failure:
+
+### 10a. Learned Depth Embeddings Remained Near Zero
+
+Depth embeddings were initialized to zeros and learned during training. After full-scale training (600s, 8×H100), embedding RMS values were 0.006–0.010 — essentially still near initialization. The embeddings did not learn meaningful per-iteration identity within the training budget. This contrasts with the theoretical expectation: Xu & Sato (2025, Theorem 4.2) prove that timestep encoding closes the expressivity gap, but their analysis assumes the encodings carry sufficient signal. Near-zero learned embeddings provide negligible signal.
+
+The root cause is likely the interaction of initialization (zeros), learning rate, and training duration. With ~10k optimization steps and a cosine-decayed learning rate, small gradients on the depth embeddings never accumulated enough to produce meaningful values. This is a fundamental limitation of learned embeddings in short-training regimes.
+
+### 10b. Throughput Penalty as Primary Harm Mechanism
+
+The additional per-iteration parameters introduced 6–15% throughput overhead, costing 600–1700 training steps compared to the FiLM-bias-only baseline. In a wallclock-capped competition (600s), fewer steps means less training. The marginal specialization benefit of near-zero depth embeddings and barely-differentiated norms was overwhelmed by the lost training steps.
+
+### 10c. Unique Input Norms Failed to Differentiate
+
+Unique per-iteration RMSNorm parameters were expected to control what the shared MLP sees at each iteration (§9, "control the input, not the weights"). In practice, the MLP gains barely moved from 1.0 across iterations, indicating that the norms did not learn meaningfully different scaling. The Output-LN architecture already provides magnitude differentiation by letting the MLP see unnormalized inputs (§3). Adding per-iteration input norms on top of this provided no additional differentiation — the mechanism was redundant with Output-LN.
+
+### 10d. Positive Finding: Q-Gap Improvement
+
+Despite hurting BPB, the additional per-iteration parameters did reduce quantization gap: Q-gap 0.0069–0.0073 across Series 4 runs, vs 0.0078 for FiLM bias alone (s3_O). The extra FP16 passthrough parameters provide more degrees of freedom that survive int8 quantization. However, this Q-gap benefit is insufficient to overcome the BPB regression from throughput loss.
+
+### 10e. Implication: The MLP Needs Different Weights, Not Different Inputs
+
+The 0.026 BPB gap between full sharing (s2_I: 1.2668) and unique MLPs (s3_L: 1.2406) cannot be closed by cheap per-iteration input controls. Runs P–S demonstrate that even with depth embeddings, unique norms, and FiLM conditioning combined, the shared MLP produces nearly identical outputs across iterations. The MLP genuinely needs different weights per iteration — not just different inputs — to achieve the specialization that s3_L demonstrated.
+
+### 10f. Next Test: Sinusoidal Depth Encodings
+
+The natural next experiment is replacing learned depth embeddings with **sinusoidal depth encodings** following the Universal Transformer (Dehghani et al., 2019, §2.1). Sinusoidal encodings address all three failure modes of learned embeddings:
+
+1. **Full-strength from step 0:** Fixed sinusoidal patterns provide immediate per-iteration identity without needing to be learned. No dependence on learning rate, initialization, or training duration.
+2. **Zero parameter cost:** Computed analytically, not stored. Zero artifact overhead.
+3. **Zero throughput overhead:** No additional parameters to backpropagate through. No training step penalty.
+
+The Universal Transformer adds sinusoidal timestep embeddings $T_t$ at each recurrence step, where $T_t$ uses the same sinusoidal formula as positional encodings but indexed by iteration count rather than sequence position. This provides orthogonal identity signals across iterations with bounded magnitude.
+
+> Dehghani, M., Gouws, S., Vinyals, O., Uszkoreit, J. & Kaiser, L. (2019). "Universal Transformers." ICLR 2019. [arXiv:1807.03819](https://arxiv.org/abs/1807.03819)

@@ -26,6 +26,8 @@
 - **Attention-only sharing (shared attention, unique MLPs per iteration) gives −0.026 post-Q BPB** — the largest improvement found — but costs +3.9MB artifact (14.65MB total), leaving insufficient room for SOTA features.
 - **FiLM bias adds −0.003 BPB at both 2 and 3 loops** with zero artifact/throughput cost. Additive with timestep scaling gammas.
 - **ALBERT (Lan et al., 2020) found attention sharing is nearly free while FFN sharing causes most degradation.** s3_L confirms: the model needs per-iteration MLP differentiation, not per-iteration attention differentiation.
+- **Learned depth embeddings and unique input norms both hurt BPB despite reducing Q-gap.** The throughput overhead (6–15%) costs training steps that outweigh any specialization benefit. Learned depth embeddings remained near zero even after full training (RMS 0.006–0.010), suggesting they need far more steps to become useful. FiLM bias alone (s3_O: 1.2625) remains the best full-sharing config.
+- **The 0.026 BPB gap between full sharing and unique MLPs (s3_L) cannot be closed by cheap per-iteration input controls.** The MLP genuinely needs different weights per iteration, not just different inputs.
 
 ## Techniques Applicable to Non-Recurrent Submissions
 
@@ -61,11 +63,20 @@ Output-LN could benefit any submission using quadratic activations (relu², leak
 
 Run M (1+4×3+1 attn-only, 3 loops) crashed during torch.compile with 12 UniqueMLP modules. Works without compile (verified via smoke test).
 
+## Series 4: Depth Embeddings + Unique Norms (600s, 8×H100)
+
+| Run | Config | Eff. Layers | Pre-Q BPB | Post-Q BPB | Q-Gap |
+|-----|--------|-------------|-----------|------------|-------|
+| P | 1+4×2+1 learned depth+norms+bias | 10 | 1.2579 | 1.2663 | +0.0084 |
+| Q | 1+4×3+1 learned depth+norms+bias | 14 | 1.2574 | 1.2643 | +0.0069 |
+| R | 1+4×3+1 learned depth only+bias | 14 | 1.2566 | 1.2639 | +0.0073 |
+| S | 1+4×3+1 norms only+bias | 14 | 1.2560 | 1.2629 | +0.0069 |
+
 ## Next Direction
 
-Run s3_L validated that per-iteration MLP differentiation is critical (−0.026 BPB), but unique MLPs per loop iteration are too expensive: 12 unique MLP modules add ~4MB to the artifact (14.65MB total), leaving only ~1.35MB headroom — insufficient for integrating SOTA features. The 3-loop variant (s3_M) also crashes torch.compile(fullgraph=True).
+The cheap learned specialization approach (Series 4: learned depth embeddings + unique input norms) was tested and did not improve over FiLM bias alone. Learned depth embeddings remained near zero (RMS 0.006–0.010) after full training, and throughput overhead (6–15%) cost more training steps than the specialization recovered. FiLM bias alone (s3_O: 1.2625) remains the best full-sharing configuration.
 
-The planned approach achieves per-iteration differentiation at ~110KB instead of ~12MB: per-iteration **unique input norms** (24KB) control what the shared MLP sees at each iteration, **learned depth embeddings** (14KB) provide positional identity, and **FiLM gammas + betas** (28KB) modulate residual contributions — all stored as FP16 passthrough. This leaves ~4.8MB headroom for SOTA feature integration while preserving the per-iteration specialization that s3_L showed is essential.
+Two next steps: (1) Replace learned depth embeddings with **sinusoidal depth encodings** (Universal Transformer style, Dehghani et al., 2019) — zero parameter cost, zero artifact cost, zero throughput overhead, and full-strength iteration identity signal from step 0 instead of slowly-learned near-zero values. (2) **Graft existing techniques** (Output-LN, Birkhoff mixing, FiLM scale+shift) onto the SOTA stack for a competitive submission.
 
 ## How to Reproduce
 
