@@ -12,7 +12,7 @@ Summary output:
 - `crawler/2026-04-02_BWX_Latest_2k/results/summary_s<seed>_<timestamp>.tsv`
 
 Arms:
-- `BWXLT-00`: control (`8F`, naive int6)
+- `BWXLT-00`: control (`9F`, naive int6)
 - `BWXLT-Q0`: naive int6 on frozen control
 - `BWXLT-Q1`: standard GPTQ (128x2048)
 - `BWXLT-Q1L`: standard GPTQ-lite (64x1024)

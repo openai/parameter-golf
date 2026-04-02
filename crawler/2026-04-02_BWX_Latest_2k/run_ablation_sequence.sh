@@ -2,7 +2,7 @@
 set -euo pipefail
 # ================================================================
 # BWX_Latest_2k
-# Latest-improvements focused run: 8F tap-off stack + quant sweep.
+# Latest-improvements focused run: 9F tap-off stack + quant sweep.
 # ================================================================
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,7 +45,7 @@ BASE_ENV=(
     NGRAM_EVAL_ORDER=0
     MODEL_DIM=512
     USE_CRAWLER=1
-    NUM_FLAT_LAYERS=8
+    NUM_FLAT_LAYERS=9
     NUM_CRAWLER_LAYERS=1
     CRAWLER_LOOPS=3
     CRAWLER_MLP_MULT=6.0
@@ -160,19 +160,19 @@ run_post_window_arm() {
         "$@"
 }
 
-run_arm "WINDOW" "${RUN_TAG}-00" "control (8F tap-off, naive int6)"
+run_arm "WINDOW" "${RUN_TAG}-00" "control (9F tap-off, naive int6)"
 
-run_post_window_arm "${RUN_TAG}-Q0" "naive int6 on frozen 8F checkpoint" \
+run_post_window_arm "${RUN_TAG}-Q0" "naive int6 on frozen 9F checkpoint" \
     SKIP_GPTQ=1 \
     LOOP_AWARE_GPTQ=0
 
-run_post_window_arm "${RUN_TAG}-Q1" "standard GPTQ (128x2048) on frozen 8F checkpoint" \
+run_post_window_arm "${RUN_TAG}-Q1" "standard GPTQ (128x2048) on frozen 9F checkpoint" \
     SKIP_GPTQ=0 \
     LOOP_AWARE_GPTQ=0 \
     GPTQ_CAL_SAMPLES=128 \
     GPTQ_CAL_SEQ_LEN=2048
 
-run_post_window_arm "${RUN_TAG}-Q1L" "standard GPTQ-lite (64x1024) on frozen 8F checkpoint" \
+run_post_window_arm "${RUN_TAG}-Q1L" "standard GPTQ-lite (64x1024) on frozen 9F checkpoint" \
     SKIP_GPTQ=0 \
     LOOP_AWARE_GPTQ=0 \
     GPTQ_CAL_SAMPLES=64 \
