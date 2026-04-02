@@ -123,86 +123,85 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
 
 # --- Gram Newton-Schulz orthogonalization ---
-# Reformulates Newton-Schulz to iterate on the smaller n×n Gram matrix R = X @ X^T
-# instead of the full n×m matrix X. All inner-loop matmuls are n×n (symmetric),
-# and the expensive n×m matmul only happens at restarts and the final step.
+# Uses the Dao-AILab GramNewtonSchulz class with custom CuTeDSL symmetric GEMM
+# kernels (quack) when available (H100/Blackwell). Falls back to a pure PyTorch
+# implementation if gram-newton-schulz or quack-kernels are not installed.
 # Reference: https://github.com/Dao-AILab/gram-newton-schulz
-#
-# Per-step coefficients from Polar Express (arxiv 2505.16932) with 1.05x safety factor,
-# matching the Dao-AILab reference implementation.
 
-_POLAR_EXPRESS_SAFETY = 1.05
-_POLAR_EXPRESS_RAW = [
-    (8.28721201814563, -23.595886519098837, 17.300387312530933),
-    (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
-    (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
-    (3.3184196573706015, -2.488488024314874, 0.51004894012372),
-    (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
-]
-NS_COEFFICIENTS = [
-    (a / _POLAR_EXPRESS_SAFETY,
-     b / _POLAR_EXPRESS_SAFETY ** 3,
-     c / _POLAR_EXPRESS_SAFETY ** 5)
-    for a, b, c in _POLAR_EXPRESS_RAW
-]
+try:
+    from gram_newton_schulz import GramNewtonSchulz, POLAR_EXPRESS_COEFFICIENTS
+    # GramNewtonSchulz handles everything: Gram vs standard dispatch, symmetric
+    # GEMM kernels, restarts, per-step coefficients, fp16 iteration, normalization.
+    # It's decorated with @torch.compile(fullgraph=True, mode="reduce-overhead").
+    _gram_ns = GramNewtonSchulz(
+        ns_coefficients=POLAR_EXPRESS_COEFFICIENTS,
+        ns_use_kernels=True,    # uses quack symmetric GEMM on H100+, auto-fallback on older GPUs
+        gram_newton_schulz_reset_iterations=[2],
+    )
+    _NS_BACKEND = "gram_newton_schulz"
+except ImportError:
+    _gram_ns = None
+    _NS_BACKEND = "fallback_pytorch"
 
+    # --- Fallback: pure PyTorch implementation (no symmetric GEMM kernels) ---
+    _POLAR_EXPRESS_SAFETY = 1.05
+    _POLAR_EXPRESS_RAW = [
+        (8.28721201814563, -23.595886519098837, 17.300387312530933),
+        (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
+        (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
+        (3.3184196573706015, -2.488488024314874, 0.51004894012372),
+        (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
+    ]
+    _NS_COEFFICIENTS = [
+        (a / _POLAR_EXPRESS_SAFETY,
+         b / _POLAR_EXPRESS_SAFETY ** 3,
+         c / _POLAR_EXPRESS_SAFETY ** 5)
+        for a, b, c in _POLAR_EXPRESS_RAW
+    ]
 
-def _standard_newtonschulz(X: Tensor, coefficients: list[tuple[float, float, float]]) -> Tensor:
-    """Standard NS iteration on the full matrix. Used for square matrices where
-    the Gram reformulation offers no FLOP savings (n == m)."""
-    for a, b, c in coefficients:
-        A = X @ X.mT
-        B = torch.baddbmm(A, A, A, beta=b, alpha=c)  # b*A + c*A@A
-        X = torch.baddbmm(X, B, X, beta=a)            # a*X + B@X
-    return X
+    def _fallback_standard_ns(X: Tensor, coefficients: list[tuple[float, float, float]]) -> Tensor:
+        for a, b, c in coefficients:
+            A = X @ X.mT
+            B = torch.baddbmm(A, A, A, beta=b, alpha=c)
+            X = torch.baddbmm(X, B, X, beta=a)
+        return X
 
-
-def _gram_newtonschulz(X: Tensor, coefficients: list[tuple[float, float, float]],
-                        restart_at: frozenset[int]) -> Tensor:
-    """Gram NS iteration on the smaller n×n Gram matrix R = X @ X^T.
-    Only touches the full n×m matrix X at restarts and the final step.
-    Used for rectangular matrices where n < m."""
-    n = X.size(-2)
-    batch = X.size(0)
-    num_steps = len(coefficients)
-
-    R = X @ X.mT  # (B, n, n) Gram matrix
-    I = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(batch, -1, -1).contiguous()
-    Q = None
-
-    for i, (a, b, c) in enumerate(coefficients):
-        # Restart: fold Q into X, recompute R, reset Q
-        if i in restart_at and i != 0:
-            X = Q @ X
-            R = X @ X.mT
-            Q = None
-
-        # Z = b*R + c*R^2
-        Z = torch.baddbmm(R, R, R, beta=b, alpha=c)
-
-        # Q update: first iteration (or after restart) initializes from identity
-        if Q is None:
-            Q = Z + a * I  # = aI + bR + cR^2
-        else:
-            Q = torch.baddbmm(Q, Q, Z, beta=a)  # a*Q + Q@Z
-
-        # R update: skip on last iteration and before restart iterations
-        # (R won't be used again, or will be recomputed from scratch)
-        if i < num_steps - 1 and (i + 1) not in restart_at:
-            RZ = torch.baddbmm(R, R, Z, beta=a)   # a*R + R@Z
-            R = torch.baddbmm(RZ, Z, RZ, beta=a)  # a*RZ + Z@RZ
-
-    X = Q @ X  # final: apply accumulated orthogonal factor
-    return X
+    def _fallback_gram_ns(X: Tensor, coefficients: list[tuple[float, float, float]],
+                           restart_at: frozenset[int]) -> Tensor:
+        n = X.size(-2)
+        batch = X.size(0)
+        num_steps = len(coefficients)
+        R = X @ X.mT
+        I = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(batch, -1, -1).contiguous()
+        Q = None
+        for i, (a, b, c) in enumerate(coefficients):
+            if i in restart_at and i != 0:
+                X = Q @ X
+                R = X @ X.mT
+                Q = None
+            Z = torch.baddbmm(R, R, R, beta=b, alpha=c)
+            if Q is None:
+                Q = Z + a * I
+            else:
+                Q = torch.baddbmm(Q, Q, Z, beta=a)
+            if i < num_steps - 1 and (i + 1) not in restart_at:
+                RZ = torch.baddbmm(R, R, Z, beta=a)
+                R = torch.baddbmm(RZ, Z, RZ, beta=a)
+        X = Q @ X
+        return X
 
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N).
 
-    Uses the Gram reformulation for rectangular matrices (n < m) and
-    standard NS for square matrices (n == m). Per-step coefficients
-    from Polar Express with safety factor.
+    Uses Dao-AILab GramNewtonSchulz with symmetric GEMM kernels when available.
+    Falls back to pure PyTorch Gram NS for rectangular, standard NS for square.
     """
+    # --- Fast path: Dao-AILab package with symmetric GEMM kernels ---
+    if _gram_ns is not None:
+        return _gram_ns(G)
+
+    # --- Fallback path: pure PyTorch ---
     was_2d = G.ndim == 2
     if was_2d:
         G = G.unsqueeze(0)
@@ -211,18 +210,14 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) ->
     transposed = X.size(-2) > X.size(-1)
     if transposed:
         X = X.mT
-    # X is now (B, n, m) with n <= m
 
     X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
-
-    coefficients = NS_COEFFICIENTS[:steps]
+    coefficients = _NS_COEFFICIENTS[:steps]
 
     if X.size(-2) == X.size(-1):
-        # Square: Gram reformulation has no FLOP savings, use standard NS
-        X = _standard_newtonschulz(X, coefficients)
+        X = _fallback_standard_ns(X, coefficients)
     else:
-        # Rectangular: Gram NS iterates on the smaller n×n Gram matrix
-        X = _gram_newtonschulz(X, coefficients, restart_at=frozenset({2}))
+        X = _fallback_gram_ns(X, coefficients, restart_at=frozenset({2}))
 
     if transposed:
         X = X.mT.contiguous()
@@ -1684,6 +1679,7 @@ def main() -> None:
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"newton_schulz_backend:{_NS_BACKEND} attention_backend:{_ATTN_BACKEND}")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "

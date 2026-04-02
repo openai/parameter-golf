@@ -33,7 +33,9 @@ All the iterative work happens on the small `512×512` Gram matrix. The expensiv
 
 ### Why it's even faster than the FLOP reduction suggests
 
-All the inner-loop matrices (`R`, `Q`, `Z`) are **symmetric** (`R = XX^T` is always symmetric). The original Dao-AILab repo includes custom CuTeDSL CUDA kernels that exploit this symmetry -- a symmetric GEMM only needs to compute half the output elements, giving another ~2x kernel-level speedup on H100/Blackwell. This integration does **not** use those custom kernels (to keep it dependency-free), but the algorithmic FLOP reduction still applies.
+All the inner-loop matrices (`R`, `Q`, `Z`) are **symmetric** (`R = XX^T` is always symmetric). The Dao-AILab repo includes custom CuTeDSL CUDA kernels (`quack-kernels` package) that exploit this symmetry -- a symmetric GEMM only needs to compute half the output elements, giving another ~2x kernel-level speedup on H100/Blackwell.
+
+**The current integration uses these actual kernels** when the `gram-newton-schulz` package is installed. Without the package, it falls back to a pure PyTorch implementation that gets only the algorithmic FLOP reduction (which, as shown in the first 8xH100 run below, is actually *slower* due to extra overhead without the kernel speedup).
 
 ### Numerical stability: restarts
 
@@ -51,7 +53,7 @@ This keeps the iteration accurate while still saving most of the FLOPs.
 
 **Changes made:**
 
-1. Replaced `zeropower_via_newtonschulz5()` with a corrected Gram NS implementation matching the Dao-AILab reference
+1. Replaced `zeropower_via_newtonschulz5()` with the Dao-AILab `GramNewtonSchulz` class (with CuTeDSL symmetric GEMM kernels) when the package is installed, falling back to a pure PyTorch implementation otherwise
 2. Added FlashAttention fallback chain (FA3 top-level -> FA3 submodule -> FA2 -> PyTorch SDPA) for compatibility across installations
 3. Fixed tensor contiguity bug for PyTorch 2.8 distributed ops
 
@@ -60,6 +62,67 @@ This keeps the iteration accurate while still saving most of the FLOPs.
 - The parameter bank structure
 - Any other part of the training script
 - The function signature -- it's a drop-in replacement
+
+## How the kernel integration works
+
+The `zeropower_via_newtonschulz5()` function has two paths:
+
+### Fast path (gram-newton-schulz package installed)
+
+```python
+from gram_newton_schulz import GramNewtonSchulz, POLAR_EXPRESS_COEFFICIENTS
+
+_gram_ns = GramNewtonSchulz(
+    ns_coefficients=POLAR_EXPRESS_COEFFICIENTS,
+    ns_use_kernels=True,
+    gram_newton_schulz_reset_iterations=[2],
+)
+
+def zeropower_via_newtonschulz5(G, steps=5, eps=1e-7):
+    return _gram_ns(G)  # returns immediately
+```
+
+`GramNewtonSchulz` is a callable class that:
+- Is decorated with `@torch.compile(fullgraph=True, mode="reduce-overhead")` -- graph captured once, reused
+- Handles all normalization, transposing, dtype casting (to fp16 for iteration)
+- Dispatches to `_gram_newton_schulz()` for rectangular matrices, `_standard_newton_schulz()` for square
+- Uses `quack` symmetric GEMM kernels (`gemm_symmetric`) for all inner-loop matmuls when `min(n,m) > 256` on SM90+ GPUs
+- Falls back to PyTorch ops (`torch.baddbmm`) on older GPUs automatically
+- Uses Polar Express per-step coefficients with 1.05x safety factor
+- Restarts at iteration 2 for numerical stability
+
+The `quack` symmetric GEMM kernels (`gemm_symmetric`) compute `C = A @ B` where `A` and `B` are symmetric, exploiting the fact that only the upper triangle needs to be computed. This gives ~2x speedup per matmul on H100/Blackwell.
+
+### Fallback path (package not installed)
+
+Same pure PyTorch implementation as before: Polar Express coefficients, `baddbmm` fusions, Gram NS for rectangular, standard NS for square. No symmetric GEMM exploitation.
+
+### Why we don't replace the whole Muon optimizer
+
+The Dao-AILab repo also provides a `Muon` class, but it's a completely different implementation:
+- Single-GPU only (no distributed support)
+- Its own param group management, LR adjustment, split/recombine logic
+- Not compatible with the #1 submission's Parallel Muon (reduce-scatter/all-gather overlap)
+
+Replacing just the orthogonalization function keeps the Parallel Muon communication pipeline intact while getting the kernel speedup where it matters.
+
+### Installation on 8xH100
+
+```bash
+pip install gram-newton-schulz
+# This pulls in:
+#   quack-kernels>=0.3.7     (CuTeDSL symmetric GEMM kernels)
+#   nvidia-cutlass-dsl==4.4.2 (CUTLASS DSL dependency)
+# Requires: Python 3.12+, PyTorch 2.7.1+, CUDA 12.9+, H100/B200/B300 (SM90+)
+```
+
+Verify it's working:
+
+```python
+python3 -c "from gram_newton_schulz import GramNewtonSchulz; print('OK')"
+```
+
+If installation fails (wrong CUDA version, non-H100 GPU), the training script automatically falls back to pure PyTorch -- no code changes needed.
 
 ## Implementation details
 
@@ -238,7 +301,9 @@ The #1 submission imports `flash_attn_interface` (FlashAttention 3, H100-only). 
 3. **FA2** (`flash_attn`) -- Ampere+ (RTX 3090/4090/A100)
 4. **PyTorch SDPA** (`F.scaled_dot_product_attention`) -- any GPU, transposes B,T,H,D -> B,H,T,D
 
-## 8xH100 run results (2026-04-02)
+## 8xH100 run results (2026-04-02) -- WITHOUT kernel (pure PyTorch fallback)
+
+**This run used the pure PyTorch fallback** (gram-newton-schulz package was not installed). It showed that the algorithmic FLOP reduction alone does NOT offset the overhead of Q/R tracking on these matrix sizes. The symmetric GEMM kernels are essential for a speedup.
 
 ### Environment
 
@@ -362,20 +427,28 @@ The 0.003 bpb difference could be due to:
 
 A proper A/B comparison would require running the original `train_gpt.py` on the same hardware/PyTorch version. The step_avg (96.86ms) needs to be compared against the original's step_avg on the same setup to quantify the Gram NS speedup.
 
+**Key takeaway:** The pure PyTorch fallback is SLOWER than the original. The `gram-newton-schulz` package with `quack` symmetric GEMM kernels must be installed for this integration to provide a speedup. The next run should use `pip install gram-newton-schulz` before training.
+
 ## How to run
 
 ### Prerequisites
 
 - CUDA GPU (H100 for full reproduction, 4090 for testing, any Ampere+ with FA2)
-- PyTorch 2.8+ (tested), 2.6+ (should work)
+- PyTorch 2.7.1+ (for gram-newton-schulz kernels), 2.6+ (for fallback)
+- Python 3.12+ (for gram-newton-schulz package)
+- CUDA 12.9+ (for quack symmetric GEMM kernels on H100)
 - `sentencepiece`, `lzma` (stdlib)
 - `flash-attn>=2.7` (pip) -- provides both FA2 and FA3 via `flash_attn.flash_attn_interface`
 - FineWeb dataset: `python3 data/cached_challenge_fineweb.py --variant sp1024`
 
-### Run on 8xH100 (full reproduction)
+### Run on 8xH100 (full reproduction with kernels)
 
 ```bash
 cd /path/to/parameter-golf
+
+# CRITICAL: Install gram-newton-schulz with symmetric GEMM kernels.
+# Without this, the fallback is SLOWER than the original (see run results above).
+pip install gram-newton-schulz
 
 RUN_ID=gram_ns_test \
 SEED=1337 \
@@ -485,8 +558,12 @@ torchrun --standalone --nproc_per_node=1 train_gpt_gram_ns.py
 ### What to compare
 
 Run the original #1 submission and the Gram NS version with the same seed and config. Compare:
-1. **step_avg (ms)** -- Gram NS should be lower (faster per step)
+1. **step_avg (ms)** -- Gram NS with kernels should be lower (faster per step)
 2. **total steps in 600s** -- Gram NS should fit more steps
 3. **final val_bpb** -- should be equal or slightly better (same math, more steps)
 
 The key metric is `step_avg`. If it drops by even 2-3ms, that's ~250 extra training steps in 10 minutes.
+
+**Important:** Make sure `gram-newton-schulz` is installed (`pip install gram-newton-schulz`). Without it, the script falls back to pure PyTorch which is slower (96.86ms vs 83.3ms -- see run results above). The kernels are what make this worthwhile.
+
+Verify the backend is active by checking the training log. The script prints `_NS_BACKEND` at startup -- it should say `gram_newton_schulz`, not `fallback_pytorch`.
