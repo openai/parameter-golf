@@ -39,26 +39,26 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 65_536))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 400))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     # Fraction of the validation split to use (0 < VAL_FRAC <= 1.0)
-    val_frac = float(os.environ.get("VAL_FRAC", 0.25))
+    val_frac = float(os.environ.get("VAL_FRAC", 1.0))
 
     # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 4000))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 2))
+    iterations = int(os.environ.get("ITERATIONS", 10_000))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 5))
     # LR scheduling knobs (training warmup, flash drop, main phase, and gamma curvature)
-    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", iterations * 0.01))
-    lr_drop_steps = int(os.environ.get("LR_DROP_STEPS", iterations * 0.2))
+    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", iterations * 0.01 ))
+    lr_drop_steps = int(os.environ.get("LR_DROP_STEPS", iterations * 0.25))
     # Fractional scales relative to each param-group's base_lr
     lr_main_scale = float(os.environ.get("LR_MAIN_SCALE", 0.5))
     lr_min_scale = float(os.environ.get("LR_MIN_SCALE", 0.05))
     lr_init_scale = float(os.environ.get("LR_INIT_SCALE", 0.0))
     lr_gamma = float(os.environ.get("LR_GAMMA", 0.8))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 65_536))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 3600.0 * 2))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 4800))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
