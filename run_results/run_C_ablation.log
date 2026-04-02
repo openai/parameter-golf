@@ -1,0 +1,217 @@
+W0401 23:25:29.782000 20157 torch/distributed/run.py:851] 
+W0401 23:25:29.782000 20157 torch/distributed/run.py:851] *****************************************
+W0401 23:25:29.782000 20157 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0401 23:25:29.782000 20157 torch/distributed/run.py:851] *****************************************
+logs/98231f5a-21c5-4e26-8d28-d435bbe76b51.txt
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:tokens:62021632
+============================================================
+PHASE 1: Building bigram table from training data...
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 10/80, 999,999,990 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 20/80, 1,999,999,980 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 30/80, 2,999,999,970 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 40/80, 3,999,999,960 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 50/80, 4,999,999,950 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 60/80, 5,999,999,940 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 70/80, 6,999,999,930 bigrams counted
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+PHASE 1 complete: 175.0s
+============================================================
+PHASE 2: Training neural residual model...
+  Architecture: 9L × 512d × MLP 3x
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+  bigram_table: shard 80/80, 7,999,999,920 bigrams counted
+  bigram_table: done. 7,999,999,920 total bigrams from 80 shards
+  bigram_table: shape=(1024, 1024), min=-18.9531, max=-0.0109
+model_params:21778504 (neural only, bigram table is buffer)
+bigram_table_bytes:2097152
+bigram_scale_mode:0 init_value:0.0000
+world_size:8 grad_accum_steps:1
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9378 val_bpb:4.1090 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9364 train_time:25ms step_avg:24.69ms
+step:2/20000 train_loss:17.1033 train_time:70ms step_avg:34.79ms
+step:3/20000 train_loss:8.9451 train_time:116ms step_avg:38.78ms
+step:4/20000 train_loss:6.5863 train_time:162ms step_avg:40.55ms
+step:5/20000 train_loss:6.6731 train_time:209ms step_avg:41.75ms
+step:6/20000 train_loss:7.4586 train_time:255ms step_avg:42.55ms
+step:7/20000 train_loss:6.4110 train_time:301ms step_avg:42.96ms
+step:8/20000 train_loss:6.1757 train_time:347ms step_avg:43.43ms
+step:9/20000 train_loss:6.0510 train_time:393ms step_avg:43.67ms
+step:10/20000 train_loss:5.9556 train_time:438ms step_avg:43.85ms
+step:200/20000 train_loss:2.8281 train_time:9213ms step_avg:46.06ms
+step:400/20000 train_loss:2.3200 train_time:18452ms step_avg:46.13ms
+step:600/20000 train_loss:2.5222 train_time:27724ms step_avg:46.21ms
+step:800/20000 train_loss:2.2621 train_time:37026ms step_avg:46.28ms
+step:1000/20000 train_loss:2.3409 train_time:46353ms step_avg:46.35ms
+step:1000/20000 val_loss:2.3029 val_bpb:1.3639 train_time:46369ms step_avg:46.37ms
+step:1200/20000 train_loss:2.3543 train_time:55769ms step_avg:46.47ms
+step:1400/20000 train_loss:2.3980 train_time:65102ms step_avg:46.50ms
+step:1600/20000 train_loss:2.0613 train_time:74447ms step_avg:46.53ms
+step:1800/20000 train_loss:2.1603 train_time:83790ms step_avg:46.55ms
+step:2000/20000 train_loss:2.2164 train_time:93128ms step_avg:46.56ms
+step:2000/20000 val_loss:2.1994 val_bpb:1.3026 train_time:93144ms step_avg:46.57ms
+step:2200/20000 train_loss:2.0337 train_time:102458ms step_avg:46.57ms
+step:2400/20000 train_loss:2.1645 train_time:111792ms step_avg:46.58ms
+step:2600/20000 train_loss:2.3820 train_time:121116ms step_avg:46.58ms
+step:2800/20000 train_loss:2.1994 train_time:130427ms step_avg:46.58ms
+step:3000/20000 train_loss:2.1891 train_time:139744ms step_avg:46.58ms
+step:3000/20000 val_loss:2.1569 val_bpb:1.2775 train_time:139760ms step_avg:46.59ms
+step:3200/20000 train_loss:2.1467 train_time:149051ms step_avg:46.58ms
+step:3400/20000 train_loss:2.1226 train_time:158357ms step_avg:46.58ms
+step:3600/20000 train_loss:2.0721 train_time:167655ms step_avg:46.57ms
+step:3800/20000 train_loss:2.1858 train_time:176952ms step_avg:46.57ms
+step:4000/20000 train_loss:2.1264 train_time:186254ms step_avg:46.56ms
+step:4000/20000 val_loss:2.1311 val_bpb:1.2622 train_time:186270ms step_avg:46.57ms
+step:4200/20000 train_loss:2.1371 train_time:195606ms step_avg:46.57ms
+step:4400/20000 train_loss:2.0730 train_time:204895ms step_avg:46.57ms
+step:4600/20000 train_loss:1.9289 train_time:214192ms step_avg:46.56ms
+step:4800/20000 train_loss:2.2229 train_time:223477ms step_avg:46.56ms
+step:5000/20000 train_loss:1.9860 train_time:232752ms step_avg:46.55ms
+step:5000/20000 val_loss:2.1131 val_bpb:1.2515 train_time:232776ms step_avg:46.56ms
+step:5200/20000 train_loss:2.1332 train_time:242036ms step_avg:46.55ms
+step:5400/20000 train_loss:2.1426 train_time:251310ms step_avg:46.54ms
+step:5600/20000 train_loss:2.1428 train_time:260589ms step_avg:46.53ms
+step:5800/20000 train_loss:2.1034 train_time:269869ms step_avg:46.53ms
+step:6000/20000 train_loss:2.1845 train_time:279139ms step_avg:46.52ms
+step:6000/20000 val_loss:2.1025 val_bpb:1.2452 train_time:279155ms step_avg:46.53ms
+step:6200/20000 train_loss:2.0458 train_time:288416ms step_avg:46.52ms
+step:6400/20000 train_loss:2.1252 train_time:297691ms step_avg:46.51ms
+step:6600/20000 train_loss:2.0795 train_time:306967ms step_avg:46.51ms
+step:6800/20000 train_loss:2.1503 train_time:316240ms step_avg:46.51ms
+step:7000/20000 train_loss:2.1806 train_time:325518ms step_avg:46.50ms
+step:7000/20000 val_loss:2.0905 val_bpb:1.2381 train_time:325534ms step_avg:46.50ms
+step:7200/20000 train_loss:2.1575 train_time:334792ms step_avg:46.50ms
+step:7400/20000 train_loss:2.0779 train_time:344060ms step_avg:46.49ms
+step:7600/20000 train_loss:1.9614 train_time:353332ms step_avg:46.49ms
+step:7800/20000 train_loss:2.1061 train_time:362597ms step_avg:46.49ms
+step:8000/20000 train_loss:2.0746 train_time:371864ms step_avg:46.48ms
+step:8000/20000 val_loss:2.0802 val_bpb:1.2320 train_time:371879ms step_avg:46.48ms
+step:8200/20000 train_loss:2.1479 train_time:381138ms step_avg:46.48ms
+step:8400/20000 train_loss:2.0909 train_time:390462ms step_avg:46.48ms
+step:8600/20000 train_loss:2.0971 train_time:399729ms step_avg:46.48ms
+step:8800/20000 train_loss:2.0534 train_time:408999ms step_avg:46.48ms
+step:9000/20000 train_loss:1.9806 train_time:418284ms step_avg:46.48ms
+step:9000/20000 val_loss:2.0742 val_bpb:1.2284 train_time:418300ms step_avg:46.48ms
+step:9200/20000 train_loss:2.0422 train_time:427558ms step_avg:46.47ms
+step:9400/20000 train_loss:2.0779 train_time:436819ms step_avg:46.47ms
+step:9600/20000 train_loss:2.0936 train_time:446080ms step_avg:46.47ms
+step:9800/20000 train_loss:2.0207 train_time:455353ms step_avg:46.46ms
+step:10000/20000 train_loss:2.0589 train_time:464622ms step_avg:46.46ms
+step:10000/20000 val_loss:2.0571 val_bpb:1.2183 train_time:464638ms step_avg:46.46ms
+step:10200/20000 train_loss:2.0086 train_time:473894ms step_avg:46.46ms
+step:10400/20000 train_loss:2.0357 train_time:483163ms step_avg:46.46ms
+step:10600/20000 train_loss:1.9156 train_time:492440ms step_avg:46.46ms
+step:10800/20000 train_loss:2.1251 train_time:501712ms step_avg:46.45ms
+step:11000/20000 train_loss:2.0500 train_time:510978ms step_avg:46.45ms
+step:11000/20000 val_loss:2.0392 val_bpb:1.2077 train_time:510994ms step_avg:46.45ms
+step:11200/20000 train_loss:1.9904 train_time:520244ms step_avg:46.45ms
+step:11400/20000 train_loss:1.9841 train_time:529508ms step_avg:46.45ms
+step:11600/20000 train_loss:1.9899 train_time:538782ms step_avg:46.45ms
+step:11800/20000 train_loss:2.0186 train_time:548048ms step_avg:46.44ms
+step:12000/20000 train_loss:1.9977 train_time:557314ms step_avg:46.44ms
+step:12000/20000 val_loss:2.0242 val_bpb:1.1988 train_time:557331ms step_avg:46.44ms
+step:12200/20000 train_loss:2.1443 train_time:566584ms step_avg:46.44ms
+step:12400/20000 train_loss:1.7892 train_time:575912ms step_avg:46.44ms
+step:12600/20000 train_loss:2.0116 train_time:585176ms step_avg:46.44ms
+step:12800/20000 train_loss:2.0308 train_time:594440ms step_avg:46.44ms
+step:12921/20000 val_loss:2.0136 val_bpb:1.1926 train_time:600027ms step_avg:46.44ms
+stopping_early: wallclock_cap train_time:600027ms step:12921/20000
+peak memory allocated: 11560 MiB reserved: 11854 MiB
+============================================================
+PHASE 3: Quantizing neural weights + packaging artifact...
+Artifact: 15463792 bytes (raw: 24013781, ratio: 1.55x)
+Code: 49237 bytes
+Total submission: 15513029 bytes (14.79 MB)
+Budget remaining: 1264187 bytes
+Validating artifact roundtrip...
+loaded bigram_scale:0.0000
+final_roundtrip val_loss:2.2035 val_bpb:1.3050 eval_time:9410ms
+final_int8_zlib_roundtrip_exact val_loss:2.20348481 val_bpb:1.30502782
