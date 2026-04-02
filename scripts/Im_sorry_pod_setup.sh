@@ -151,51 +151,12 @@ fi
 echo ""
 echo "[6/6] Tokenizer + FineWeb dataset (sp1024)..."
 
-# Tokenizer
-TOKENIZER="${WORKSPACE}/data/tokenizers/fineweb_1024_bpe.model"
-if [ -f "${TOKENIZER}" ]; then
-    echo "  Tokenizer already present"
-else
-    echo "  Downloading tokenizer..."
-    if command -v huggingface-cli &>/dev/null; then
-        huggingface-cli download sproos/parameter-golf-tokenizers \
-            --include "tokenizers/*" --local-dir "${WORKSPACE}/data"
-    else
-        python3 -c "
-from huggingface_hub import snapshot_download
-snapshot_download('sproos/parameter-golf-tokenizers',
-    allow_patterns='tokenizers/*',
-    local_dir='${WORKSPACE}/data')
-"
-    fi
-    echo "  Tokenizer downloaded"
-fi
-
-# Dataset shards — use nullglob array so unmatched glob = 0, not a crash
-shopt -s nullglob
-_train=("${WORKSPACE}/data/datasets/fineweb10B_sp1024/fineweb_train_"*.bin)
-_val=("${WORKSPACE}/data/datasets/fineweb10B_sp1024/fineweb_val_"*.bin)
-TRAIN_COUNT=${#_train[@]}
-VAL_COUNT=${#_val[@]}
-shopt -u nullglob
-
-if [ "$TRAIN_COUNT" -ge 10 ]; then
-    echo "  Already have $TRAIN_COUNT train / $VAL_COUNT val shards"
-else
-    echo "  Downloading dataset ($TRAIN_COUNT train shards found, need 10+)..."
-    if command -v huggingface-cli &>/dev/null; then
-        huggingface-cli download sproos/parameter-golf-tokenizers \
-            --include "datasets/fineweb10B_sp1024/*" --local-dir "${WORKSPACE}/data"
-    else
-        python3 -c "
-from huggingface_hub import snapshot_download
-snapshot_download('sproos/parameter-golf-tokenizers',
-    allow_patterns='datasets/fineweb10B_sp1024/*',
-    local_dir='${WORKSPACE}/data')
-"
-    fi
-    echo "  Dataset downloaded"
-fi
+# Use competition's official download script (willdepueoai/parameter-golf dataset repo)
+# NOT sproos/parameter-golf-tokenizers — that repo has different val shard (58M vs 62M tokens)
+echo "  Using competition download script (data/cached_challenge_fineweb.py)..."
+cd "${WORKSPACE}"
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+echo "  Competition data downloaded"
 
 # =============================================================================
 # Verification
