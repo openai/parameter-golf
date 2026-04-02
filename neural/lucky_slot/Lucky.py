@@ -2498,8 +2498,8 @@ def main() -> None:
         log0("final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1")
     else:
         slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "0")))
-        slot_steps = int(os.environ.get("SLOT_STEPS", "8"))
-        slot_lr = float(os.environ.get("SLOT_LR", "0.005"))
+        slot_steps = int(os.environ.get("SLOT_STEPS", "2"))
+        slot_lr = float(os.environ.get("SLOT_LR", "0.0015"))
         slot_tag = f"+slot{slot_steps}steps" if slot_enabled else ""
         if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
             torch.cuda.synchronize()
