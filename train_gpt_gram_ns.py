@@ -24,7 +24,26 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# FlashAttention fallback chain: FA3 (H100) -> FA2 (Ampere+) -> PyTorch SDPA
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    _ATTN_BACKEND = "fa3"
+except ImportError:
+    try:
+        from flash_attn import flash_attn_func as flash_attn_3_func
+        _ATTN_BACKEND = "fa2"
+    except ImportError:
+        def flash_attn_3_func(q, k, v, causal=True):
+            # q,k,v: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
+            q_t = q.transpose(1, 2)
+            k_t = k.transpose(1, 2)
+            v_t = v.transpose(1, 2)
+            y = F.scaled_dot_product_attention(
+                q_t, k_t, v_t, attn_mask=None, is_causal=causal,
+                enable_gqa=(q.size(2) != k.size(2)),
+            )
+            return y.transpose(1, 2)  # back to (B, T, H, D)
+        _ATTN_BACKEND = "sdpa"
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -104,22 +123,82 @@ class Hyperparameters:
 # instead of the full n×m matrix X. All inner-loop matmuls are n×n (symmetric),
 # and the expensive n×m matmul only happens at restarts and the final step.
 # Reference: https://github.com/Dao-AILab/gram-newton-schulz
+#
+# Per-step coefficients from Polar Express (arxiv 2505.16932) with 1.05x safety factor,
+# matching the Dao-AILab reference implementation.
 
-def zeropower_via_gram_newtonschulz(G: Tensor, steps: int = 5, eps: float = 1e-7,
-                                     restart_at: tuple[int, ...] = (2,)) -> Tensor:
-    """Batched Gram Newton-Schulz orthogonalization. G: (B,M,N) or (M,N).
+_POLAR_EXPRESS_SAFETY = 1.05
+_POLAR_EXPRESS_RAW = [
+    (8.28721201814563, -23.595886519098837, 17.300387312530933),
+    (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
+    (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
+    (3.3184196573706015, -2.488488024314874, 0.51004894012372),
+    (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
+]
+NS_COEFFICIENTS = [
+    (a / _POLAR_EXPRESS_SAFETY,
+     b / _POLAR_EXPRESS_SAFETY ** 3,
+     c / _POLAR_EXPRESS_SAFETY ** 5)
+    for a, b, c in _POLAR_EXPRESS_RAW
+]
 
-    Instead of iterating X_{k+1} = a*X + (b*A + c*A^2) @ X on the full n×m matrix,
-    we iterate on R = X @ X^T (n×n) and accumulate Q (n×n) such that X_final = Q @ X_0.
-    The expensive n×m matmul only happens at restart points and at the end.
 
-    Args:
-        G: gradient matrix, (B,M,N) or (M,N)
-        steps: number of NS iterations
-        eps: numerical stability epsilon
-        restart_at: iteration indices at which to recompute R from Q @ X for numerical stability
+def _standard_newtonschulz(X: Tensor, coefficients: list[tuple[float, float, float]]) -> Tensor:
+    """Standard NS iteration on the full matrix. Used for square matrices where
+    the Gram reformulation offers no FLOP savings (n == m)."""
+    for a, b, c in coefficients:
+        A = X @ X.mT
+        B = torch.baddbmm(A, A, A, beta=b, alpha=c)  # b*A + c*A@A
+        X = torch.baddbmm(X, B, X, beta=a)            # a*X + B@X
+    return X
+
+
+def _gram_newtonschulz(X: Tensor, coefficients: list[tuple[float, float, float]],
+                        restart_at: frozenset[int]) -> Tensor:
+    """Gram NS iteration on the smaller n×n Gram matrix R = X @ X^T.
+    Only touches the full n×m matrix X at restarts and the final step.
+    Used for rectangular matrices where n < m."""
+    n = X.size(-2)
+    batch = X.size(0)
+    num_steps = len(coefficients)
+
+    R = X @ X.mT  # (B, n, n) Gram matrix
+    I = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(batch, -1, -1).contiguous()
+    Q = None
+
+    for i, (a, b, c) in enumerate(coefficients):
+        # Restart: fold Q into X, recompute R, reset Q
+        if i in restart_at and i != 0:
+            X = Q @ X
+            R = X @ X.mT
+            Q = None
+
+        # Z = b*R + c*R^2
+        Z = torch.baddbmm(R, R, R, beta=b, alpha=c)
+
+        # Q update: first iteration (or after restart) initializes from identity
+        if Q is None:
+            Q = Z + a * I  # = aI + bR + cR^2
+        else:
+            Q = torch.baddbmm(Q, Q, Z, beta=a)  # a*Q + Q@Z
+
+        # R update: skip on last iteration and before restart iterations
+        # (R won't be used again, or will be recomputed from scratch)
+        if i < num_steps - 1 and (i + 1) not in restart_at:
+            RZ = torch.baddbmm(R, R, Z, beta=a)   # a*R + R@Z
+            R = torch.baddbmm(RZ, Z, RZ, beta=a)  # a*RZ + Z@RZ
+
+    X = Q @ X  # final: apply accumulated orthogonal factor
+    return X
+
+
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
+    """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N).
+
+    Uses the Gram reformulation for rectangular matrices (n < m) and
+    standard NS for square matrices (n == m). Per-step coefficients
+    from Polar Express with safety factor.
     """
-    a, b, c = (3.4445, -4.7750, 2.0315)
     was_2d = G.ndim == 2
     if was_2d:
         G = G.unsqueeze(0)
@@ -131,51 +210,21 @@ def zeropower_via_gram_newtonschulz(G: Tensor, steps: int = 5, eps: float = 1e-7
     # X is now (B, n, m) with n <= m
 
     X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
-    n = X.size(-2)
 
-    # Initial Gram matrix R = X @ X^T, shape (B, n, n)
-    R = X @ X.mT
+    coefficients = NS_COEFFICIENTS[:steps]
 
-    # Q accumulates the orthogonal factor. Starts as identity.
-    # Q is (B, n, n). At the end, X_out = Q @ X.
-    Q = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(X.size(0), -1, -1).contiguous()
-
-    restart_set = set(restart_at)
-
-    for i in range(steps):
-        # Restart: apply accumulated Q to X, recompute R fresh, reset Q to I.
-        # This prevents floating-point error accumulation in the Gram iteration.
-        if i in restart_set and i != 0:
-            X = Q @ X                      # (B,n,n) @ (B,n,m) = (B,n,m) — the expensive matmul
-            R = X @ X.mT                   # recompute Gram fresh
-            Q = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(X.size(0), -1, -1).contiguous()
-
-        # Standard NS polynomial applied to the Gram matrix:
-        # Z = b*R + c*R^2
-        Z = b * R + c * (R @ R)            # (B,n,n) — all symmetric matmuls
-
-        # Update Q: Q_{k+1} = a*Q + Q @ Z
-        Q = a * Q + Q @ Z                  # (B,n,n)
-
-        # Update R: R_{k+1} = a*(a*R + R@Z) + Z@(a*R + R@Z)
-        # This is the Gram-space equivalent of X_{k+1} @ X_{k+1}^T
-        RZ = a * R + R @ Z                 # (B,n,n)
-        R = a * RZ + Z @ RZ                # (B,n,n)
-
-    # Final: apply accumulated Q to get the orthogonalized X
-    X = Q @ X                              # (B,n,n) @ (B,n,m) = (B,n,m)
+    if X.size(-2) == X.size(-1):
+        # Square: Gram reformulation has no FLOP savings, use standard NS
+        X = _standard_newtonschulz(X, coefficients)
+    else:
+        # Rectangular: Gram NS iterates on the smaller n×n Gram matrix
+        X = _gram_newtonschulz(X, coefficients, restart_at=frozenset({2}))
 
     if transposed:
         X = X.mT
     if was_2d:
         X = X.squeeze(0)
     return X
-
-
-# Keep the old function name as an alias so torch.compile and the rest of the code work unchanged
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
-    """Drop-in replacement: delegates to Gram Newton-Schulz."""
-    return zeropower_via_gram_newtonschulz(G, steps=steps, eps=eps)
 
 # --- Parallel Muon optimizer ---
 
