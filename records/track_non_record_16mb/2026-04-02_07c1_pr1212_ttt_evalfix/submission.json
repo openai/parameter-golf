@@ -1,0 +1,18 @@
+{
+  "description": "Session 07c donor-first faithful reproduction sprint for PR #1212. train_gpt.py is copied from refs/tmp/pr1212 and kept structurally intact; only local experiment metadata is added in this directory.",
+  "parent": "refs/tmp/pr1212:records/track_10min_16mb/2026-03-31_KitchenSinkV3",
+  "delta": "Strict donor-first reproduction with Pegasus-local launch conventions handled outside the script",
+  "status": "awaiting_measurement",
+  "container": "/netscratch/$USER/containers/pytorch_25.02_fa3.sqsh",
+  "tier": "0",
+  "hyperparameters": {
+    "num_layers": 12,
+    "warmdown_iters": 4000,
+    "bigram_vocab_size": 5120,
+    "ve_dim": 128,
+    "window_size": 512,
+    "window_attn_layers": "2,4,6,8,10",
+    "seq_lens_per_gpu": "2048,2048,2048,2048,2048,6144,6144,6144",
+    "seqs_per_gpu": "36,36,36,36,36,10,10,10"
+  }
+}
