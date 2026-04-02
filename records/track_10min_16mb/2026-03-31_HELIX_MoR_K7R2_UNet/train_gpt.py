@@ -24,36 +24,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-try:
-    from flash_attn_interface import flash_attn_func as flash_attn_3_func
-    _COMPILE_FULLGRAPH = True
-except ImportError:
-    _COMPILE_FULLGRAPH = False
-    try:
-        from flash_attn import flash_attn_func as _fa2_func
-        def flash_attn_3_func(q, k, v, causal=False):
-            # flash-attn v2: handles GQA natively, same [B,T,H,D] layout
-            return _fa2_func(q, k, v, causal=causal)
-    except ImportError:
-        def flash_attn_3_func(q, k, v, causal=False):
-            # Pure PyTorch SDPA fallback — works on any GPU/CPU
-            # Explicitly forces math backend so global flash=True/math=False
-            # settings (set in main()) don't cause "Invalid backend" errors.
-            # q: [B,T,Hq,D]  k,v: [B,T,Hkv,D]
-            B, T, Hq, D = q.shape
-            Hkv = k.shape[2]
-            if Hkv != Hq:
-                rep = Hq // Hkv
-                k = k.repeat_interleave(rep, dim=2)
-                v = v.repeat_interleave(rep, dim=2)
-            q = q.transpose(1, 2)  # [B,Hq,T,D]
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
-            with torch.backends.cuda.sdp_kernel(
-                enable_flash=False, enable_math=True, enable_mem_efficient=True
-            ):
-                out = F.scaled_dot_product_attention(q, k, v, is_causal=causal)
-            return out.transpose(1, 2)  # [B,T,Hq,D]
+from flash_attn_interface import flash_attn_func as flash_attn_3_func
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -1075,7 +1046,7 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=_COMPILE_FULLGRAPH) if _COMPILE_FULLGRAPH else base_model.forward_logits
+    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1534,7 +1505,7 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=_COMPILE_FULLGRAPH) if _COMPILE_FULLGRAPH else base_model
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model = compiled_model
 
     # Optimizer split:
@@ -1881,7 +1852,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=_COMPILE_FULLGRAPH) if _COMPILE_FULLGRAPH else eval_model
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
