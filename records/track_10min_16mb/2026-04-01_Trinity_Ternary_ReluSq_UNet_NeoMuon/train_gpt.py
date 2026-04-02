@@ -81,8 +81,8 @@ class Hyperparameters:
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     ema_start_step = int(os.environ.get("EMA_START_STEP", 500))
 
-    # Z-loss
-    z_loss_weight = float(os.environ.get("Z_LOSS_WEIGHT", 1e-4))
+    # Z-loss (lower to prevent initial loss explosion with ternary STE)
+    z_loss_weight = float(os.environ.get("Z_LOSS_WEIGHT", 1e-5))
 
     # Optimizer hyperparameters
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -424,9 +424,14 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 
 
-def export_ternary_artifact(state_dict: dict[str, Tensor], group_size: int = 128):
+def export_ternary_artifact(
+    state_dict: dict[str, Tensor],
+    group_size: int = 128,
+    prequant_scales: dict[str, Tensor] | None = None,
+):
     """Export model with ternary packing for large matrices, FP16 for small params.
-    Weights must be pre-quantized (already dequantized ternary) before calling this."""
+    Weights must be pre-quantized. Uses prequant_scales from pre-quantization step
+    to avoid double-quantization bug."""
     ternary_data = {}
     fp_data = {}
 
@@ -435,10 +440,13 @@ def export_ternary_artifact(state_dict: dict[str, Tensor], group_size: int = 128
         is_control = any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS)
 
         if t.ndim == 2 and t.numel() > 4096 and not is_control:
-            # Weights are already pre-quantized (scale * {-1,0,1})
-            # Extract ternary signs and scales via ternary_quantize
-            _, scales = ternary_quantize(t.float(), group_size)
-            # Recover the ternary signs
+            # Use pre-computed scales if available (avoids double-quantization)
+            if prequant_scales and name in prequant_scales:
+                scales = prequant_scales[name].cpu()
+            else:
+                _, scales = ternary_quantize(t.float(), group_size)
+
+            # Recover ternary signs from pre-quantized weights: sign = round(w / scale)
             orig_shape = t.shape
             t_flat = t.float().reshape(-1, t.shape[-1])
             rows, cols = t_flat.shape
@@ -452,7 +460,7 @@ def export_ternary_artifact(state_dict: dict[str, Tensor], group_size: int = 128
             ternary_data[name] = {
                 "packed": packed_bytes,
                 "shape": shape,
-                "scales": scales.to(torch.float16),
+                "scales": scales.to(torch.float32),  # FIX #3: keep float32 precision
                 "group_size": group_size,
             }
         else:
@@ -476,7 +484,7 @@ def import_ternary_artifact(artifact: dict) -> dict[str, Tensor]:
         num_groups = pad_cols // group_size
         t_groups = t_padded.reshape(rows, num_groups, group_size)
         t_deq = (t_groups * scales.unsqueeze(-1)).reshape(rows, -1)[:, :cols]
-        state_dict[name] = t_deq.to(torch.bfloat16)
+        state_dict[name] = t_deq  # Keep float32 for precision
 
     for name, tensor in artifact.get("fp", {}).items():
         state_dict[name] = tensor.float() if tensor.is_floating_point() else tensor
@@ -1105,13 +1113,15 @@ def main() -> None:
         base_model.load_state_dict(ema_state, strict=True)
 
     # Pre-quantize TernaryLinear weights: replace latent fp32 with dequantized ternary
-    # This ensures export and eval use the same quantized values
+    # Store the scales from this quantization for lossless export
+    _prequant_scales: dict[str, Tensor] = {}
     with torch.no_grad():
-        for module in base_model.modules():
+        for name, module in base_model.named_modules():
             if isinstance(module, TernaryLinear):
-                w_deq, _ = ternary_quantize(module.weight.data, module.group_size)
+                w_deq, scales = ternary_quantize(module.weight.data, module.group_size)
                 module.weight.data.copy_(w_deq)
-    log0("Pre-quantized TernaryLinear weights for export")
+                _prequant_scales[name + ".weight"] = scales
+    log0(f"Pre-quantized TernaryLinear weights for export ({len(_prequant_scales)} tensors)")
 
     # SERIALIZATION — Trinity Ternary Packing + LZMA
     if master_process:
@@ -1120,8 +1130,8 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         log0(f"Serialized model (raw): {model_bytes} bytes")
 
-    # Export with ternary packing
-    artifact = export_ternary_artifact(base_model.state_dict(), args.ternary_group_size)
+    # Export with ternary packing (using saved scales to avoid double-quantization)
+    artifact = export_ternary_artifact(base_model.state_dict(), args.ternary_group_size, _prequant_scales)
     artifact_buf = io.BytesIO()
     torch.save(artifact, artifact_buf)
     artifact_raw = artifact_buf.getvalue()
@@ -1239,8 +1249,12 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    if distributed:
+        for param in base_model.parameters():
+            dist.broadcast(param.data, src=0)
+        dist.barrier()
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1255,26 +1269,35 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
-    # Also roundtrip with ternary packing
-    if master_process:
-        with open("final_model.ternary.ptlzma", "rb") as f:
-            ternary_blob_disk = f.read()
-        ternary_artifact = torch.load(io.BytesIO(lzma.decompress(ternary_blob_disk)), map_location="cpu")
-        ternary_state = import_ternary_artifact(ternary_artifact)
-        base_model.load_state_dict(ternary_state, strict=True)
-        torch.cuda.synchronize()
-        t_teval = time.perf_counter()
-        t_val_loss, t_val_bpb = eval_val(
-            args, model, rank, world_size, device, grad_accum_steps,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            eval_seq_len=args.eval_seq_len,
-        )
-        torch.cuda.synchronize()
-        log0(
-            f"final_ternary_lzma_roundtrip val_loss:{t_val_loss:.4f} val_bpb:{t_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_teval):.0f}ms"
-        )
-        log0(f"final_ternary_lzma_roundtrip_exact val_loss:{t_val_loss:.8f} val_bpb:{t_val_bpb:.8f}")
+    # Ternary roundtrip — all ranks must load the same weights (like int8 above)
+    if distributed:
+        dist.barrier()
+    with open("final_model.ternary.ptlzma", "rb") as f:
+        ternary_blob_disk = f.read()
+    ternary_artifact = torch.load(
+        io.BytesIO(lzma.decompress(ternary_blob_disk)),
+        map_location="cpu", weights_only=False,
+    )
+    ternary_state = import_ternary_artifact(ternary_artifact)
+    base_model.load_state_dict(ternary_state, strict=True)
+    if distributed:
+        # Broadcast loaded weights from rank 0 to all ranks
+        for param in base_model.parameters():
+            dist.broadcast(param.data, src=0)
+        dist.barrier()
+    torch.cuda.synchronize()
+    t_teval = time.perf_counter()
+    t_val_loss, t_val_bpb = eval_val(
+        args, model, rank, world_size, device, grad_accum_steps,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        eval_seq_len=args.eval_seq_len,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_ternary_lzma_roundtrip val_loss:{t_val_loss:.4f} val_bpb:{t_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_teval):.0f}ms"
+    )
+    log0(f"final_ternary_lzma_roundtrip_exact val_loss:{t_val_loss:.8f} val_bpb:{t_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
