@@ -131,9 +131,9 @@ class Hyperparameters:
     compile_mode = os.environ.get("COMPILE_MODE", "").strip()
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
     mlp_kernel_mode = os.environ.get("MLP_KERNEL_MODE", "").strip().lower()
-    loader_mode = os.environ.get("LOADER_MODE", "sequential").strip().lower()
+    loader_mode = os.environ.get("LOADER_MODE", "coprime").strip().lower()
     coprime_max_loaded_shards = int(os.environ.get("COPRIME_MAX_LOADED_SHARDS", 4))
-    coprime_shards_per_batch = int(os.environ.get("COPRIME_SHARDS_PER_BATCH", 4))
+    coprime_shards_per_batch = int(os.environ.get("COPRIME_SHARDS_PER_BATCH", 1))
     coprime_shard_hold_steps = int(os.environ.get("COPRIME_SHARD_HOLD_STEPS", 64))
 
 
@@ -2114,7 +2114,7 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     # GPTQ calibration reads training data — it must complete within the wallclock budget.
     # We stop the training loop early (by GPTQ_RESERVE_MS) so GPTQ runs before the cap.
-    _skip_gptq = int(os.environ.get("SKIP_GPTQ", "0"))
+    _skip_gptq = int(os.environ.get("SKIP_GPTQ", "1"))
     _gptq_reserve_ms = float(os.environ.get("GPTQ_RESERVE_MS", "30000")) if (max_wallclock_ms is not None and not _skip_gptq) else 0.0
     effective_max_wallclock_ms = (max_wallclock_ms - _gptq_reserve_ms) if max_wallclock_ms is not None else None
     def lr_mul(step: int, elapsed_ms: float) -> float:
