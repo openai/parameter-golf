@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,7 +11,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+# Default nested execution to the interpreter running this script so prepared
+# pod images using `python3` do not accidentally fall back to a missing repo .venv.
+DEFAULT_PYTHON = Path(sys.executable)
 DEFAULT_RECORD_ROOT = REPO_ROOT / "records" / "track_non_record_16mb" / "2026-04-03_DeepFloor"
 DEFAULT_RUN_ROOT = DEFAULT_RECORD_ROOT / "runs"
 
@@ -18,6 +21,18 @@ DEFAULT_RUN_ROOT = DEFAULT_RECORD_ROOT / "runs"
 def run_checked(cmd: list[str], *, cwd: Path = REPO_ROOT) -> None:
     print("+", " ".join(str(part) for part in cmd), flush=True)
     subprocess.run(cmd, cwd=cwd, check=True)
+
+
+def resolve_python_bin(raw: str) -> Path:
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        if candidate.exists():
+            return candidate
+        raise FileNotFoundError(f"python bin not found: {candidate}")
+    resolved = shutil.which(raw)
+    if resolved is None:
+        raise FileNotFoundError(f"python bin not found on PATH: {raw}")
+    return Path(resolved)
 
 
 def write_fixture_bytes(path: Path, size: int) -> None:
@@ -160,6 +175,7 @@ def run_local_unit(python_bin: Path) -> None:
             str(python_bin),
             "-m",
             "unittest",
+            "tests.test_run_deepfloor_suite",
             "tests.test_evolutionary_benchmark",
             "tests.test_deepfloor_evolution",
             "tests.test_spectral_flood_walk_v3",
@@ -486,9 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    python_bin = Path(args.python_bin)
-    if not python_bin.exists():
-        raise FileNotFoundError(f"python bin not found: {python_bin}")
+    python_bin = resolve_python_bin(args.python_bin)
     if args.handler == "local-unit":
         run_local_unit(python_bin)
         return

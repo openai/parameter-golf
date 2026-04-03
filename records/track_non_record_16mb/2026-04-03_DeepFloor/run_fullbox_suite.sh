@@ -32,11 +32,15 @@ echo "[deepfloor] output_dir=${OUTPUT_DIR}"
 echo "[deepfloor] enwik8_path=${ENWIK8_PATH}"
 echo "[deepfloor] gpus=${FULLBOX_GPUS}"
 
-"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" local-unit
+"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" \
+  --python-bin "${PYTHON_BIN}" \
+  local-unit
 
 echo "[gate] smoke on gpu=${SMOKE_GPU}"
 CUDA_VISIBLE_DEVICES="${SMOKE_GPU}" \
-  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" local-smoke \
+  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" \
+  --python-bin "${PYTHON_BIN}" \
+  local-smoke \
   --device cuda \
   --train-steps "${SMOKE_TRAIN_STEPS}" \
   --eval-batches "${SMOKE_EVAL_BATCHES}" \
@@ -45,7 +49,9 @@ CUDA_VISIBLE_DEVICES="${SMOKE_GPU}" \
 
 echo "[gate] matrix on gpu=${MATRIX_GPU}"
 CUDA_VISIBLE_DEVICES="${MATRIX_GPU}" \
-  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" matrix \
+  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" \
+  --python-bin "${PYTHON_BIN}" \
+  matrix \
   --device cuda \
   --train-steps "${MATRIX_TRAIN_STEPS}" \
   --eval-batches "${MATRIX_EVAL_BATCHES}" \
@@ -101,7 +107,9 @@ launch_batch() {
     fi
     echo "[launch] gpu=${gpu} profile=${profile} seed=${seed} label=${label}"
     CUDA_VISIBLE_DEVICES="${gpu}" \
-      "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" evolution \
+      "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" \
+      --python-bin "${PYTHON_BIN}" \
+      evolution \
       --device cuda \
       --seed "${seed}" \
       --population-size "${EVO_POPULATION}" \
@@ -138,4 +146,7 @@ for ((start_idx = 0; start_idx < ${#job_labels[@]}; start_idx += batch_width)); 
   launch_batch "${start_idx}"
 done
 
-"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" full-report --run-root "${OUTPUT_DIR}"
+"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" \
+  --python-bin "${PYTHON_BIN}" \
+  full-report \
+  --run-root "${OUTPUT_DIR}"

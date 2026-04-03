@@ -10,7 +10,9 @@ TRAIN_STEPS="${TRAIN_STEPS:-2}"
 EVAL_BATCHES="${EVAL_BATCHES:-2}"
 
 cmd=(
-  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py" matrix
+  "${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_suite.py"
+  --python-bin "${PYTHON_BIN}"
+  matrix
   --device "${DEVICE}"
   --train-steps "${TRAIN_STEPS}"
   --eval-batches "${EVAL_BATCHES}"

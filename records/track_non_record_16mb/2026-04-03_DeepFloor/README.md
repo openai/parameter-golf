@@ -46,7 +46,14 @@ EVAL_BATCHES=8 \
 python3 ./train_gpt.py
 ```
 
-7. Manage pod lifecycles with the lease-aware RunPod helpers:
+7. Run the submission preflight and build `submission.json` from a real result:
+
+```bash
+./run_submission_preflight.sh
+./.venv/bin/python ./build_submission_json.py --result-json ./train_result.json
+```
+
+8. Manage pod lifecycles with the lease-aware RunPod helpers:
 
 ```bash
 ./runpod_create_smallbox.sh
@@ -70,6 +77,8 @@ Notes:
 - If no `ENWIK8_PATH` is set, the suite runner generates a tiny byte fixture for smoke coverage.
 - `train_gpt.py` is the submission-shaped entrypoint for this record folder. Right now it delegates to the checked-in DeepFloor implementation at the repo root while we finish freezing the final submission snapshot.
 - On this checkout, prefer `./.venv/bin/python ./train_gpt.py` for local verification; the `python3` example is aimed at the prepared pod image where the dependencies are already present.
+- `build_submission_json.py` currently counts both [train_gpt.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/train_gpt.py) and the repo-root [spectral_flood_walk_v3.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/spectral_flood_walk_v3.py) in `bytes_code`, which is the honest accounting while the record entrypoint still delegates to the repo snapshot.
+- `run_submission_preflight.sh` is the cheapest end-to-end gate for the record folder itself: compile, tiny run, metadata build, and `16,000,000`-byte cap check.
 - The small-box script is intentionally conservative: it runs the same unit and smoke matrix gates before any longer end-to-end work.
 - The fullbox script follows the same pattern, then fans out one `deepfloor-recipe-evolution` job per listed GPU using profile/seed pairs and writes per-job logs under `runs/fullbox/launch_logs`.
 - `report_fullbox.sh` summarizes `smoke/`, `matrix/`, and `evolution/` together so we can review the whole 8-GPU run from one command.
