@@ -628,7 +628,7 @@ class MLP(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = self.fc(x)
         x = F.leaky_relu(x, negative_slope=0.5)
-        return self.proj(x.square())
+        return self.proj(F.leaky_relu(x, negative_slope=0.5).abs() * F.leaky_relu(x, negative_slope=0.5))
 
 
 class Block(nn.Module):
@@ -723,7 +723,7 @@ class GPT(nn.Module):
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
-        x0 = x
+        #x0 = x# still useful for future experiments, harmless to keep
         skips: list[Tensor] = []
 
         # First half stores skips; second half reuses them in reverse order.
