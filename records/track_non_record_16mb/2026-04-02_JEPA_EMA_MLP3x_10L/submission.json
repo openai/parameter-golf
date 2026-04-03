@@ -1,0 +1,12 @@
+{
+  "author": "Maksimilians Aleksandrovics",
+  "github_id": "maleks",
+  "name": "JEPA EMA Teacher + MLP3x + 10L",
+  "blurb": "Non-record submission implementing JEPA (Joint Embedding Predictive Architecture) as an auxiliary training objective. An EMA teacher provides stable latent targets; a linear predictor maps student hidden states toward teacher space via cosine loss (alpha=0.3, CE-dominant throughout). Teacher is discarded before serialization — zero byte cost. 10 layers, MLP 3x, 512 dim, 1024 vocab, tied embeddings, int8+zlib.",
+  "date": "2026-04-02",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": 54043
+}
