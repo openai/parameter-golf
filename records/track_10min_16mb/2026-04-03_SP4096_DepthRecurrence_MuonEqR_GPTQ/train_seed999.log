@@ -1,7 +1,7 @@
-W0403 13:59:10.343000 67522 torch/distributed/run.py:803] 
-W0403 13:59:10.343000 67522 torch/distributed/run.py:803] *****************************************
-W0403 13:59:10.343000 67522 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-W0403 13:59:10.343000 67522 torch/distributed/run.py:803] *****************************************
+W0403 15:23:36.349000 70591 torch/distributed/run.py:803] 
+W0403 15:23:36.349000 70591 torch/distributed/run.py:803] *****************************************
+W0403 15:23:36.349000 70591 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0403 15:23:36.349000 70591 torch/distributed/run.py:803] *****************************************
 Hyperparameters:
   adam_eps: 1e-08
   adam_wd: 0.02
@@ -27,7 +27,7 @@ Hyperparameters:
   iterations: 20000
   ln_scale: True
   local_rank: 0
-  logfile: logs/0a42f21a-b15f-4cae-bda4-a71125cf74cd.txt
+  logfile: logs/ed2c0981-dab7-43d9-9d8e-8700cc9dfc51.txt
   logit_softcap: 30.0
   matrix_lr: 0.02
   max_wallclock_seconds: 600.0
@@ -45,7 +45,7 @@ Hyperparameters:
   num_kv_heads: 4
   num_layers: 11
   parallel_start_layer: 7
-  qk_gain_init: 4.0
+  qk_gain_init: 5.0
   quantized_model_path: final_model.int6.ptz
   rank: 0
   recur_layers: 4,5
@@ -53,7 +53,7 @@ Hyperparameters:
   rope_base: 10000.0
   rope_dims: 16
   rope_train_seq_len: 2048
-  run_id: 0a42f21a-b15f-4cae-bda4-a71125cf74cd
+  run_id: ed2c0981-dab7-43d9-9d8e-8700cc9dfc51
   scalar_lr: 0.02
   seed: 999
   skip_gates_enabled: True
@@ -98,36 +98,36 @@ warmup_step: 6/20
 warmup_step: 10/20
 warmup_step: 20/20
 0/20000 val_loss: 8.3152 val_bpb: 3.6137
-1/20000 train_loss: 8.3175 train_time: 0.0m tok/s: 8488051
-2/20000 train_loss: 12.1381 train_time: 0.0m tok/s: 8348555
-3/20000 train_loss: 10.6781 train_time: 0.0m tok/s: 8270216
-4/20000 train_loss: 8.8559 train_time: 0.0m tok/s: 8223080
-5/20000 train_loss: 7.6732 train_time: 0.0m tok/s: 8191350
-500/20000 train_loss: 2.8973 train_time: 0.8m tok/s: 7953960
-1000/20000 train_loss: 2.8869 train_time: 1.7m tok/s: 7928240
-1500/20000 train_loss: 2.9135 train_time: 2.5m tok/s: 7916078
-2000/20000 train_loss: 2.6566 train_time: 3.3m tok/s: 7912208
-2500/20000 train_loss: 2.7065 train_time: 4.1m tok/s: 7912039
-3000/20000 train_loss: 2.7609 train_time: 5.0m tok/s: 7912266
+1/20000 train_loss: 8.3175 train_time: 0.0m tok/s: 8487210
+2/20000 train_loss: 12.1472 train_time: 0.0m tok/s: 8357455
+3/20000 train_loss: 10.6844 train_time: 0.0m tok/s: 8249441
+4/20000 train_loss: 8.8562 train_time: 0.0m tok/s: 8207556
+5/20000 train_loss: 7.6730 train_time: 0.0m tok/s: 8181641
+500/20000 train_loss: 2.8988 train_time: 0.8m tok/s: 7970028
+1000/20000 train_loss: 2.8867 train_time: 1.6m tok/s: 7944402
+1500/20000 train_loss: 2.9154 train_time: 2.5m tok/s: 7933607
+2000/20000 train_loss: 2.6558 train_time: 3.3m tok/s: 7929604
+2500/20000 train_loss: 2.7125 train_time: 4.1m tok/s: 7927844
+3000/20000 train_loss: 2.7592 train_time: 5.0m tok/s: 7927438
 recurrence:activated at step 3000, virtual_layers=[0, 1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9, 10]
-3500/20000 train_loss: 2.6841 train_time: 6.1m tok/s: 7513499
-4000/20000 train_loss: 2.6154 train_time: 7.1m tok/s: 7421303
-4000/20000 val_loss: 2.6404 val_bpb: 1.1475
-4500/20000 train_loss: 2.5708 train_time: 8.0m tok/s: 7350918
-5000/20000 train_loss: 2.5134 train_time: 9.0m tok/s: 7295489
-5444/20000 val_loss: 2.5255 val_bpb: 1.0976
-stopping_early: wallclock_cap train_time: 590043ms step: 5444/20000
+3500/20000 train_loss: 2.6836 train_time: 6.1m tok/s: 7524294
+4000/20000 train_loss: 2.6177 train_time: 7.1m tok/s: 7431546
+4000/20000 val_loss: 2.6419 val_bpb: 1.1481
+4500/20000 train_loss: 2.5750 train_time: 8.0m tok/s: 7361483
+5000/20000 train_loss: 2.5156 train_time: 9.0m tok/s: 7305763
+5451/20000 val_loss: 2.5265 val_bpb: 1.0980
+stopping_early: wallclock_cap train_time: 590065ms step: 5451/20000
 peak memory allocated: 30120 MiB reserved: 30154 MiB
 ema:applying EMA weights
-pre-quantization post-ema val_loss:2.52314821 val_bpb:1.09653115 eval_time:2009ms
+pre-quantization post-ema val_loss:2.52405750 val_bpb:1.09692631 eval_time:2006ms
 Serialized model: 132406149 bytes
-Code size: 24522 bytes
+Code size: 24584 bytes
 GPTQ:collecting Hessians from calibration data...
 GPTQ:collected 66 Hessians in 9.8s
 GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
 selective_prune: unpruned=16.01MB target=16.0MB
-selective_prune: pruning 70144/9355215 lowest-error ±1 values (excess=8768B)
-Serialized model int6+brotli: 15966085 bytes
-Total submission size int6+brotli: 15990607 bytes
-final_int6_roundtrip val_loss:2.55009963 val_bpb:1.10824392 eval_time:7777ms
-final_int6_sliding_window val_loss:2.50709990 val_bpb:1.08955674 eval_time:76465ms
+selective_prune: pruning 84536/9364979 lowest-error ±1 values (excess=10567B)
+Serialized model int6+brotli: 15963889 bytes
+Total submission size int6+brotli: 15988473 bytes
+final_int6_roundtrip val_loss:2.55083610 val_bpb:1.10856398 eval_time:7622ms
+final_int6_sliding_window val_loss:2.50796723 val_bpb:1.08993367 eval_time:76691ms
