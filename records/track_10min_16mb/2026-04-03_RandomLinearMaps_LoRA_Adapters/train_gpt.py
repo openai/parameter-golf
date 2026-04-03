@@ -746,16 +746,22 @@ def main():
     # Separate LoRA adapter matrices for Muon, everything else for Adam
     adapter_matrix_params = []
     scalar_params = []
+    seen_param_ids = set()
+
+    def add_unique(target_list, param):
+        pid = id(param)
+        if pid in seen_param_ids:
+            return
+        seen_param_ids.add(pid)
+        target_list.append(param)
+
     for name, p in base_model.named_parameters():
         if not p.requires_grad:
             continue
         if "lora_A" in name or "lora_B" in name:
-            adapter_matrix_params.append(p)
+            add_unique(adapter_matrix_params, p)
         elif p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
-            scalar_params.append(p)
-    
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
+            add_unique(scalar_params, p)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
