@@ -695,8 +695,8 @@ class MambaBlock(nn.Module):
         dt_rank = max(d_model // 16, 1)
         self.dt_rank = dt_rank
 
-        # Input projection: x, z (gate), B, dt all in one matmul
-        self.in_proj = nn.Linear(d_model, d_inner * 2 + d_state + dt_rank, bias=False)
+        # Input projection: x, z (gate), B, dt all in one matmul (CastedLinear for QAT)
+        self.in_proj = CastedLinear(d_model, d_inner * 2 + d_state + dt_rank, bias=False)
 
         # Depthwise causal conv (applied to x branch only)
         self.conv1d = nn.Conv1d(d_inner, d_inner, d_conv, padding=d_conv - 1, groups=d_inner)
@@ -711,8 +711,8 @@ class MambaBlock(nn.Module):
         # C projection (from input to output mixing weights)
         self.c_proj = nn.Linear(d_model, d_state, bias=False)
 
-        # Output projection
-        self.out_proj = nn.Linear(d_inner, d_model, bias=False)
+        # Output projection (CastedLinear for QAT)
+        self.out_proj = CastedLinear(d_inner, d_model, bias=False)
 
         self.norm = RMSNorm()
 
