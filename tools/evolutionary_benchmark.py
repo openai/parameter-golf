@@ -727,7 +727,13 @@ def run_deepfloor_recipe_evolution(
             confirm_eval["rank_from_short_fitness"] = int(rank)
             confirm_results.append(confirm_eval)
 
-    best = evaluated_population[0] if evaluated_population else None
+    if confirm_results:
+        sorted_confirms = sorted(confirm_results, key=lambda row: float(row["val"]["bpb"]))
+        best = sorted_confirms[0]
+    elif evaluated_population:
+        best = evaluated_population[0]
+    else:
+        best = None
     return {
         "deepfloor_recipe_evolution": {
             "population_size": int(population_size),

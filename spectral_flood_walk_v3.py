@@ -576,6 +576,21 @@ class DeepFloorModel(nn.Module):
         )
         return penalty, gain, probe_step
 
+    def _active_modules(self) -> list[nn.Module]:
+        active: list[nn.Module] = list(self.view_embeddings) + list(self.blocks)
+        active.append(self.final_norm)
+        if self.cfg.cross_token_mode == "floor":
+            active.append(self.floor_attention)
+        elif self.cfg.cross_token_mode == "fused":
+            active.append(self.fused_mixer)
+        if self.cfg.view_combination == "project" and self.view_project is not None:
+            active.append(self.view_project)
+        else:
+            active.append(self.lm_head)
+        if self.view_weights is not None:
+            active.append(self.view_weights)  # type: ignore[arg-type]
+        return active
+
     def estimate_artifact_bytes(self) -> int:
         bits_per_value = {
             "ternary": 2,
@@ -585,7 +600,18 @@ class DeepFloorModel(nn.Module):
         }.get(self.cfg.quantization)
         if bits_per_value is None:
             raise ValueError(f"unsupported quantization: {self.cfg.quantization}")
-        params = sum(parameter.numel() for parameter in self.parameters())
+        seen: set[int] = set()
+        params = 0
+        for module in self._active_modules():
+            if isinstance(module, nn.Parameter):
+                if id(module) not in seen:
+                    seen.add(id(module))
+                    params += module.numel()
+            else:
+                for p in module.parameters():
+                    if id(p) not in seen:
+                        seen.add(id(p))
+                        params += p.numel()
         return math.ceil(params * bits_per_value / 8)
 
 

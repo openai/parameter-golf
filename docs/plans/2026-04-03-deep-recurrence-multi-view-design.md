@@ -8,6 +8,16 @@
 
 Replace the standard transformer stack (attention-then-FFN × L layers) with a single recurrent block applied thousands of times. The 16 MB artifact stores a tiny recurrent block. Depth comes from recurrence (free in artifact cost, paid in compute). Width comes from running multiple independent "views" across GPUs (representation parallelism, not data parallelism).
 
+The right mental model is not "a tiny transformer." It is a quantized recurrent dynamical system with a very small shared operator, a high-precision running state, and explicit stabilization controls. The first-class control variables are:
+
+1. `contraction_target`: how close the tied update is allowed to run to unit gain
+2. `accumulator_decay` / hidden-state decay: how long information is retained before controlled forgetting
+3. `norm_interval_k`: how often recurrent state is explicitly renormalized
+4. `jacobian_lambda`: how strongly training penalizes locally expansive step maps
+5. `stochastic_round_p`: how aggressively quantized operator noise is simulated during training/eval
+
+These are not auxiliary details. They are the main recurrence-quality knobs.
+
 Cross-token communication is the key design variable. Two parallel architectures are tested head-to-head:
 
 **Architecture A (Floor):** The recurrent block is purely per-token. Cross-token mixing happens via discrete softmax attention passes ("floors") that fire adaptively when hidden states signal uncertainty.
@@ -25,15 +35,26 @@ h_{t+1} = RecurrentBlock(h_t)          # Architecture A (per-token, no cross-tok
 h_{t+1} = RecurrentBlock(h_t, S_t)     # Architecture B (S is a running cross-token accumulator)
 ```
 
-At d=64 with attention-only structure (Q, K, V, O projections + layernorm):
-- ~12,288 parameters per block
-- At ternary quantization: ~2.4 KB per block
+At d=64 with QKV+O per-token transform (4 × d×d projections + RMSNorm):
+- 16,384 parameters per block (4 × 64²)
+- At ternary quantization: ~3.2 KB per block
 
 In Architecture A, the block is purely per-token between floors — trivially parallelizable across tokens and GPUs.
 
 In Architecture B, the block includes a running accumulator S that carries cross-token information. S is updated incrementally each step: `S_{t+1} = S_t + phi(k_t) v_t^T`. The per-step cost of maintaining S is O(d^2) — same order as the rest of the block. Tokens are still processed independently; they read from and write to a shared S.
 
 Design choices within the block (residual connections, gating, nonlinearity) are evolvable but should be tested empirically before being added to the genome.
+
+### Stability Stack
+
+The runtime policy should be:
+
+- **Quantized storage, high-precision state**: weights may be ternary/int4/int6 in the artifact, but the evolving hidden state, fused accumulator, and normalization statistics stay in bf16/fp32 during compute.
+- **Contraction-biased transport**: the recurrent transport path is spectrally clipped toward a target gain instead of letting raw weight norms drift freely.
+- **Controlled forgetting**: residual carry and fused accumulators both get explicit decay knobs rather than assuming infinite memory is always useful.
+- **Periodic renormalization**: every `norm_interval_k` recurrent steps, renormalize the hidden state; for fused mode, renormalize the accumulator on the same schedule unless a later experiment proves that should split.
+- **Jacobian proxy training**: add a local finite-difference penalty on the tied recurrent step, not just final-token LM loss.
+- **Quantization-noise simulation**: use stochastic rounding on the recurrent update path to optimize for multi-step trajectory fidelity under low-bit storage.
 
 ### Cross-Token Communication
 
@@ -120,14 +141,18 @@ At the output, views are combined to produce logits. Combination method is evolv
 
 Each view shares the same recurrent block and attention block weights. The only per-view unique parameters are the embedding projections (vocab × 64 each).
 
+### Precision Rule (Fixed, Not Evolvable)
+
+Artifact weights are stored in low-bit precision (ternary, int4, int6 — the quantization level is evolvable). But the running hidden state, accumulator state (Architecture B), scaling statistics, and any error-correction buffers are always kept in bf16 or fp32. This is not a trade-off to explore. At thousands of recurrence steps, compounding state quantization error is a correctness problem, not a tuning problem. Compute is cheap; numerical drift is not.
+
 ### Parameter Budget (Ternary, 16 MB)
 
 Available parameters: ~84.7M ternary values
 
 | Component | Parameters | Notes |
 |-----------|-----------|-------|
-| Shared recurrent block | ~12K | Applied thousands of times |
-| Shared attention block | ~12K | Fires adaptively |
+| Shared recurrent block | ~16K | QKV+O per-token transform (4×d²), applied thousands of times |
+| Shared attention block | ~16K | QKV+O cross-token attention (Arch A), fires adaptively |
 | Per-view embedding projections (×8) | 8 × vocab × 64 | For 8192 BPE: 4.2M |
 | Output combination | 0 – 512 × vocab | Depends on method |
 | Remaining budget | ~80M+ | Available for deeper/wider blocks, memory tables, etc. |
@@ -167,11 +192,16 @@ The architecture is *radically* parameter-efficient. Almost the entire 16 MB bud
 
 **Recurrence:**
 - `recurrence_step_size`: damping factor for state updates
+- `state_decay`: decay on the carried hidden state between recurrent steps
+- `contraction_target`: target gain for the shared recurrent transport path
+- `norm_interval_k`: recurrence interval between explicit renormalization passes
 - `max_eval_depth`: total recurrent steps at inference
 
 **Training:**
 - `base_lr`: learning rate
 - `weight_decay`: regularization
+- `jacobian_lambda`: weight on the finite-difference Jacobian proxy loss
+- `stochastic_round_p`: probability of simulating stochastic rounding on low-bit recurrent updates
 - `train_floor_interval`: fixed floor interval used during training
 
 ### Evolutionary Schedule
@@ -202,6 +232,8 @@ Backprop does not go through all recurrence steps. Use truncated BPTT:
 - Detach and continue forward for the next K steps
 
 This bounds training memory and time while still learning the recurrent dynamics.
+
+The implementation should expose this directly as `tbptt_chunk`. This is not optional at the intended recurrence depths; a single autograd graph across hundreds or thousands of recurrent steps will OOM long before the architecture question is answered.
 
 ### Forward Pass (Eval)
 

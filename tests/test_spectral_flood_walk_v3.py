@@ -94,6 +94,19 @@ class SpectralFloodWalkV3Tests(unittest.TestCase):
 
         self.assertGreater(high_model.estimate_artifact_bytes(), low_model.estimate_artifact_bytes())
 
+    def test_artifact_estimate_excludes_inactive_cross_token_branch(self) -> None:
+        floor_cfg = self._base_config(cross_token_mode="floor")
+        fused_cfg = self._base_config(cross_token_mode="fused")
+
+        floor_model = DeepFloorModel(floor_cfg)
+        fused_model = DeepFloorModel(fused_cfg)
+
+        floor_bytes = floor_model.estimate_artifact_bytes()
+        fused_bytes = fused_model.estimate_artifact_bytes()
+        # Fused mixer has more projections (5: Q,K,V,selection,O) than floor attention
+        # They should NOT be equal — inactive branch must be excluded
+        self.assertNotEqual(floor_bytes, fused_bytes)
+
     def test_floor_training_smoke(self) -> None:
         cfg = self._base_config(cross_token_mode="floor")
         cfg.jacobian_lambda = 0.02

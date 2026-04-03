@@ -74,5 +74,41 @@ class DeepFloorEvolutionTests(unittest.TestCase):
         self.assertGreater(result["val"]["bpb"], 0.0)
 
 
+    def test_confirm_results_rerank_best(self) -> None:
+        from tools.evolutionary_benchmark import run_deepfloor_recipe_evolution
+        import tempfile
+        from pathlib import Path
+        import numpy as np
+        import torch
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        path = Path(tmpdir.name) / "enwik8"
+        data = np.arange(16384, dtype=np.uint8)
+        path.write_bytes(data.tobytes())
+
+        result = run_deepfloor_recipe_evolution(
+            enwik8_path=path,
+            population_size=3,
+            generations=1,
+            tournament_size=2,
+            train_steps=2,
+            eval_batches=2,
+            mutation_rate=0.5,
+            artifact_limit_mb=16.0,
+            deepfloor_profile="compact",
+            confirm_topk=2,
+            confirm_train_steps=4,
+            seed=42,
+            device=torch.device("cpu"),
+        )
+        # best should come from confirm_results when confirmations ran
+        self.assertIsNotNone(result["best"])
+        if result["confirm_results"]:
+            confirm_bpbs = [float(r["val"]["bpb"]) for r in result["confirm_results"]]
+            best_bpb = float(result["best"]["val"]["bpb"])
+            self.assertAlmostEqual(best_bpb, min(confirm_bpbs))
+
+
 if __name__ == "__main__":
     unittest.main()
