@@ -14,6 +14,8 @@ echo "gpus=${EVO_GPUS}"
 echo "max_workers=${EVO_MAX_WORKERS}"
 
 "${EVO_PYTHON_BIN}" --version
+require_benchmark_python_modules
+check_sentencepiece_tokenizer "sp_bpe_1024" 0
 if command -v nvidia-smi >/dev/null 2>&1; then
   nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 fi

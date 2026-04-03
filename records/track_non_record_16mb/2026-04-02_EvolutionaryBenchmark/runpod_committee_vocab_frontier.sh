@@ -14,6 +14,8 @@ EVO_VOCAB_FRONTIER_TOPKS="${EVO_VOCAB_FRONTIER_TOPKS:-2,4,8}"
 EVO_VOCAB_FRONTIER_TOKENIZER_NAME="${EVO_VOCAB_FRONTIER_TOKENIZER_NAME:-sp_bpe_1024}"
 
 mkdir -p "${EVO_OUTPUT_DIR}" "${EVO_LOG_DIR}"
+require_benchmark_python_modules
+require_sentencepiece_tokenizer "${EVO_VOCAB_FRONTIER_TOKENIZER_NAME}"
 
 run_and_log() {
   echo "+ $*" | tee -a "${VOCAB_LOG}"

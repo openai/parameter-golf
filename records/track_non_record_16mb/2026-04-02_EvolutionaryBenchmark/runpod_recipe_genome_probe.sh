@@ -19,6 +19,8 @@ EVO_RECIPE_ARTIFACT_LIMIT_MB="${EVO_RECIPE_ARTIFACT_LIMIT_MB:-16.0}"
 EVO_RECIPE_PROFILE="${EVO_RECIPE_PROFILE:-frontier}"
 
 mkdir -p "${EVO_OUTPUT_DIR}" "${EVO_LOG_DIR}"
+require_benchmark_python_modules
+require_sentencepiece_tokenizer "sp_bpe_1024"
 
 run_and_log() {
   echo "+ $*" | tee -a "${RECIPE_LOG}"

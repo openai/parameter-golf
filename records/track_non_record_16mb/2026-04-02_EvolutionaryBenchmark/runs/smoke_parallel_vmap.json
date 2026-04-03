@@ -1,0 +1,108 @@
+{
+  "config": {
+    "device": "cuda",
+    "dtype": "bf16",
+    "seed": 1337,
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-02_EvolutionaryBenchmark/runs/smoke_parallel_vmap.json",
+    "model_dim": 512,
+    "num_layers": 9,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0,
+    "qk_gain_init": 1.5,
+    "spine_variant": "plain",
+    "xsa_last_n": 0,
+    "vocab_size": 256,
+    "seq_len": 256,
+    "stride": 64,
+    "batch_size": 8,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 90000000,
+    "val_tokens": 5000000,
+    "test_tokens": 5000000
+  },
+  "member_train_mode": "parallel_vmap",
+  "members": [
+    {
+      "member_id": 0,
+      "seed": 1438,
+      "train": {
+        "train_seconds_target": 0.5,
+        "train_seconds_actual": 0.5219866735860705,
+        "steps_completed": 1,
+        "final_loss": 5.4947662353515625,
+        "tokens_seen": 2048
+      },
+      "eval": {
+        "loss": 4.2039794921875,
+        "bpb": 6.065060365377809,
+        "tokens": 2048.0
+      }
+    },
+    {
+      "member_id": 1,
+      "seed": 1439,
+      "train": {
+        "train_seconds_target": 0.5,
+        "train_seconds_actual": 0.5219866735860705,
+        "steps_completed": 1,
+        "final_loss": 5.479927062988281,
+        "tokens_seen": 2048
+      },
+      "eval": {
+        "loss": 4.169746398925781,
+        "bpb": 6.015672451494838,
+        "tokens": 2048.0
+      }
+    }
+  ],
+  "member_ensemble_results": [
+    {
+      "topk": 2,
+      "val_bpb": 6.037525942974673,
+      "test_bpb": 6.063229782042026
+    }
+  ],
+  "crossover": {
+    "weight_overlap": {
+      "50": {
+        "summary": {
+          "num_trials": 1.0,
+          "fraction_between_parents": 1.0,
+          "fraction_collapse": 0.0,
+          "fraction_improves_best_parent": 0.0
+        },
+        "trials": [
+          {
+            "pair": [
+              0,
+              1
+            ],
+            "strategy": "weight_overlap",
+            "percentile": 50.0,
+            "parent_a_bpb": 6.065060365377809,
+            "parent_b_bpb": 6.015672451494838,
+            "offspring_bpb": 6.041285483722534,
+            "between_parents": true,
+            "collapsed": false,
+            "improves_best_parent": false,
+            "crossover": {
+              "threshold": 0.0,
+              "overlap_fraction": 0.9440677628470564,
+              "percentile": 50.0
+            }
+          }
+        ]
+      }
+    }
+  }
+}
