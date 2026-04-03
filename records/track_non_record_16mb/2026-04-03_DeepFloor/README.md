@@ -35,7 +35,18 @@ Workflow:
 ./report_fullbox.sh
 ```
 
-6. Manage pod lifecycles with the lease-aware RunPod helpers:
+6. Run the submission-shaped DeepFloor entrypoint from this folder:
+
+```bash
+ENWIK8_PATH=/workspace/data/enwik8 \
+OUTPUT_JSON=./train_result.json \
+DEVICE=cuda \
+TRAIN_STEPS=16 \
+EVAL_BATCHES=8 \
+python3 ./train_gpt.py
+```
+
+7. Manage pod lifecycles with the lease-aware RunPod helpers:
 
 ```bash
 ./runpod_create_smallbox.sh
@@ -57,6 +68,8 @@ Workflow:
 Notes:
 - Local scripts default to the repo `.venv`.
 - If no `ENWIK8_PATH` is set, the suite runner generates a tiny byte fixture for smoke coverage.
+- `train_gpt.py` is the submission-shaped entrypoint for this record folder. Right now it delegates to the checked-in DeepFloor implementation at the repo root while we finish freezing the final submission snapshot.
+- On this checkout, prefer `./.venv/bin/python ./train_gpt.py` for local verification; the `python3` example is aimed at the prepared pod image where the dependencies are already present.
 - The small-box script is intentionally conservative: it runs the same unit and smoke matrix gates before any longer end-to-end work.
 - The fullbox script follows the same pattern, then fans out one `deepfloor-recipe-evolution` job per listed GPU using profile/seed pairs and writes per-job logs under `runs/fullbox/launch_logs`.
 - `report_fullbox.sh` summarizes `smoke/`, `matrix/`, and `evolution/` together so we can review the whole 8-GPU run from one command.
