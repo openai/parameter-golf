@@ -902,6 +902,10 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         gated_attention: bool = False,
         value_residual: bool = False,
+        mamba_layers: str = "",
+        mamba_d_state: int = 32,
+        mamba_d_conv: int = 4,
+        mamba_expand: float = 1.5,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -920,15 +924,33 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        # Parameter banks: contiguous 3D tensors for batched optimizer
+        # --- Mamba/Attention hybrid dispatch ---
+        self.mamba_layer_set = set(int(x) for x in mamba_layers.split(",") if x.strip()) if mamba_layers else set()
+        n_mamba = len(self.mamba_layer_set)
+        n_attn = num_layers - n_mamba
+        # Build index maps: global layer idx -> local block idx
+        self.mamba_idx_map: dict[int, int] = {}
+        self.attn_idx_map: dict[int, int] = {}
+        mamba_counter = 0
+        attn_counter = 0
+        for i in range(num_layers):
+            if i in self.mamba_layer_set:
+                self.mamba_idx_map[i] = mamba_counter
+                mamba_counter += 1
+            else:
+                self.attn_idx_map[i] = attn_counter
+                attn_counter += 1
+        # Parameter banks: sized for attention layers only
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
         mlp_dim = int(mlp_mult * model_dim)
         self.num_layers = num_layers
-        self.qo_bank = nn.Parameter(torch.empty(2 * num_layers, model_dim, model_dim))
-        self.kv_bank = nn.Parameter(torch.empty(2 * num_layers, kv_dim, model_dim))
-        self.mlp_up_bank = nn.Parameter(torch.empty(num_layers, mlp_dim, model_dim))
-        self.mlp_down_bank = nn.Parameter(torch.empty(num_layers, model_dim, mlp_dim))
+        self.n_attn = n_attn
+        self.qo_bank = nn.Parameter(torch.empty(2 * n_attn, model_dim, model_dim))
+        self.kv_bank = nn.Parameter(torch.empty(2 * n_attn, kv_dim, model_dim))
+        self.mlp_up_bank = nn.Parameter(torch.empty(n_attn, mlp_dim, model_dim))
+        self.mlp_down_bank = nn.Parameter(torch.empty(n_attn, model_dim, mlp_dim))
+        # Attention blocks (only for non-Mamba layers)
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -944,7 +966,14 @@ class GPT(nn.Module):
                     gated_attention=gated_attention,
                     value_residual=value_residual,
                 )
-                for i in range(num_layers)
+                for i in range(num_layers) if i not in self.mamba_layer_set
+            ]
+        )
+        # Mamba blocks
+        self.mamba_blocks = nn.ModuleList(
+            [
+                MambaBlock(d_model=model_dim, d_state=mamba_d_state, d_conv=mamba_d_conv, expand=mamba_expand)
+                for _ in range(n_mamba)
             ]
         )
         if rope_dims > 0:
@@ -973,26 +1002,30 @@ class GPT(nn.Module):
         for head in self.mtp_heads:
             head._zero_init = True
         if xsa_last_n > 0:
-            for i in range(max(0, num_layers - xsa_last_n), num_layers):
-                self.blocks[i].attn.use_xsa = True
+            for ai, block in enumerate(self.blocks):
+                # Find global layer index for this attention block
+                global_idx = [g for g, a in self.attn_idx_map.items() if a == ai][0]
+                if global_idx >= max(0, num_layers - xsa_last_n):
+                    block.attn.use_xsa = True
         self._init_weights()
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        n = self.num_layers
-        proj_scale = 1.0 / math.sqrt(2 * n)
+        n_attn = self.n_attn
+        proj_scale = 1.0 / math.sqrt(2 * self.num_layers)
         # Init banks: orthogonal, with proj layers scaled down and out/down zero-init
-        for i in range(n):
-            nn.init.orthogonal_(self.qo_bank.data[i], gain=1.0)        # Q
-            nn.init.zeros_(self.qo_bank.data[n + i])                    # Out (zero init)
-            nn.init.orthogonal_(self.kv_bank.data[i], gain=1.0)        # K
-            nn.init.orthogonal_(self.kv_bank.data[n + i], gain=1.0)    # V
-            nn.init.orthogonal_(self.mlp_up_bank.data[i], gain=1.0)    # MLP up
-            nn.init.zeros_(self.mlp_down_bank.data[i])                  # MLP down (zero init)
+        for i in range(n_attn):
+            nn.init.orthogonal_(self.qo_bank.data[i], gain=1.0)            # Q
+            nn.init.zeros_(self.qo_bank.data[n_attn + i])                  # Out (zero init)
+            nn.init.orthogonal_(self.kv_bank.data[i], gain=1.0)            # K
+            nn.init.orthogonal_(self.kv_bank.data[n_attn + i], gain=1.0)   # V
+            nn.init.orthogonal_(self.mlp_up_bank.data[i], gain=1.0)        # MLP up
+            nn.init.zeros_(self.mlp_down_bank.data[i])                      # MLP down (zero init)
             # Scale proj layers (out_proj and mlp_down are "proj" layers)
-            self.qo_bank.data[n + i].mul_(proj_scale)
+            self.qo_bank.data[n_attn + i].mul_(proj_scale)
             self.mlp_down_bank.data[i].mul_(proj_scale)
         # Init remaining nn.Linear modules (bigram proj, mtp heads, lm_head)
+        # Note: MambaBlock.__init__ handles its own init (out_proj near-zero, dt_proj bias)
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 if getattr(module, "_zero_init", False):
@@ -1008,8 +1041,24 @@ class GPT(nn.Module):
         ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+    def _forward_layer(self, layer_idx: int, x: Tensor, x0: Tensor, input_ids: Tensor,
+                        ve_cache: dict, v0: Tensor | None) -> tuple[Tensor, Tensor | None]:
+        """Dispatch a single layer: Mamba or Attention."""
+        if layer_idx in self.mamba_layer_set:
+            mi = self.mamba_idx_map[layer_idx]
+            x = self.mamba_blocks[mi](x)
+            return x, None
+        else:
+            ai = self.attn_idx_map[layer_idx]
+            n_a = self.n_attn
+            ve = self._get_ve(layer_idx, input_ids, ve_cache)
+            x, raw_v = self.blocks[ai](x, x0,
+                self.qo_bank[ai], self.kv_bank[ai], self.kv_bank[n_a + ai],
+                self.qo_bank[n_a + ai], self.mlp_up_bank[ai], self.mlp_down_bank[ai],
+                v_embed=ve, v0=v0)
+            return x, raw_v
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        n = self.num_layers
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -1020,11 +1069,7 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
         ve_cache: dict = {}
         for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
+            x, raw_v = self._forward_layer(i, x, x0, input_ids, ve_cache, v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
             skips.append(x)
@@ -1032,11 +1077,7 @@ class GPT(nn.Module):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
+            x, _ = self._forward_layer(bi, x, x0, input_ids, ve_cache, v0)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -1067,7 +1108,6 @@ class GPT(nn.Module):
         return main_loss
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         """Return logits (bsz, seq_len, vocab) without computing loss."""
-        n = self.num_layers
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -1078,11 +1118,7 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
         ve_cache: dict = {}
         for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
+            x, raw_v = self._forward_layer(i, x, x0, input_ids, ve_cache, v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
             skips.append(x)
@@ -1090,11 +1126,7 @@ class GPT(nn.Module):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
+            x, _ = self._forward_layer(bi, x, x0, input_ids, ve_cache, v0)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1744,6 +1776,10 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
+        mamba_layers=args.mamba_layers,
+        mamba_d_state=args.mamba_d_state,
+        mamba_d_conv=args.mamba_d_conv,
+        mamba_expand=args.mamba_expand,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -2169,6 +2205,8 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        mamba_layers=args.mamba_layers, mamba_d_state=args.mamba_d_state,
+        mamba_d_conv=args.mamba_d_conv, mamba_expand=args.mamba_expand,
     ).to(device).bfloat16()
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
