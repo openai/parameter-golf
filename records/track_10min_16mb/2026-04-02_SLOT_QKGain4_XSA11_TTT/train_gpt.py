@@ -9,10 +9,8 @@ import subprocess
 import sys
 import time
 import uuid
-import zlib
 from pathlib import Path
 import lzma
-_COMPRESSOR = "lzma"
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -100,13 +98,6 @@ class Hyperparameters:
  slot_lr = float(os.environ.get("SLOT_LR", 0.008))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.0008))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
- ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
- ttt_lr = float(os.environ.get("TTT_LR", 0.002))
- ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
- ttt_muon = bool(int(os.environ.get("TTT_MUON", "1")))
- ttt_ns_steps = int(os.environ.get("TTT_NS_STEPS", 5))
- gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
- gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 64))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
  a, b, c = (3.4445, -4.7750, 2.0315)
  X = G.bfloat16()
@@ -270,28 +261,11 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
  ).split(",")
  if pattern
 )
-INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
- pattern
- for pattern in os.environ.get(
-  "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
-  ",".join(CONTROL_TENSOR_NAME_PATTERNS),
- ).split(",")
- if pattern
-)
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 def tensor_nbytes(t: Tensor) -> int:
  return int(t.numel()) * int(t.element_size())
-def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
- if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-  return t.float().contiguous()
- if t.dtype in {torch.float32, torch.bfloat16}:
-  passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-  return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
- return t
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
  t32 = t.float()
  if t32.ndim == 2:
@@ -878,15 +852,17 @@ def eval_val_slot(
  for bi in range(0, len(my_ws), args.slot_batch_seqs):
   bws = my_ws[bi:bi + args.slot_batch_seqs]
   bsz = len(bws)
-  xb = torch.zeros(bsz, seq_s, dtype=torch.int64, device=device)
-  yb = torch.zeros(bsz, seq_s, dtype=torch.int64, device=device)
+  xb_cpu = torch.zeros(bsz, seq_s, dtype=torch.int64)
+  yb_cpu = torch.zeros(bsz, seq_s, dtype=torch.int64)
   wlens = []
   for i, ws in enumerate(bws):
    wend = min(ws + seq_s, total_tok)
    wlen = wend - ws
    wlens.append(wlen)
-   xb[i, :wlen] = val_tokens[ws:wend]
-   yb[i, :wlen] = val_tokens[ws + 1:wend + 1]
+   xb_cpu[i, :wlen] = val_tokens[ws:wend]
+   yb_cpu[i, :wlen] = val_tokens[ws + 1:wend + 1]
+  xb = xb_cpu.to(device=device, non_blocking=True)
+  yb = yb_cpu.to(device=device, non_blocking=True)
   with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
    hidden = compiled_hidden(xb)
   hidden_f = hidden.detach().float()
