@@ -30,6 +30,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from spectral_flood_walk_v0 import get_cuda_memory_stats, maybe_reset_cuda_peak_memory, maybe_sync_cuda
 from spectral_flood_walk_v2a import StrongTransformerLM, V2Config, batch_from_starts, build_lm_starts
+from spectral_flood_walk_v3 import V3Config
 
 
 @dataclass
@@ -365,6 +366,236 @@ def mutate_recipe_genome(genome: RecipeGenome, space: RecipeGeneSpace, *, mutati
         if rng.random() < mutation_rate:
             data[key] = rng.choice(tuple(choices))
     return RecipeGenome(**data)
+
+
+# ---------------------------------------------------------------------------
+# DeepFloor (v3) genome and gene space
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DeepFloorGenome:
+    recurrent_dim: int
+    num_distinct_blocks: int
+    view_count: int
+    view_combination: str
+    cross_token_mode: str
+    block_has_residual: bool
+    block_nonlinearity: str
+    recurrence_step_size: float
+    state_decay: float
+    contraction_target: float
+    train_recurrence_steps: int
+    eval_recurrence_steps: int
+    norm_interval_k: int
+    floor_min_interval: int
+    floor_max_interval: int
+    floor_threshold: float
+    kernel_feature_map: str
+    accumulator_decay: float
+    quantization: str
+    jacobian_lambda: float
+    stochastic_round_p: float
+    base_lr: float
+    weight_decay: float
+    seq_len: int
+    batch_size: int
+
+
+@dataclass(frozen=True)
+class DeepFloorGeneSpace:
+    recurrent_dims: tuple[int, ...]
+    num_distinct_blocks: tuple[int, ...]
+    view_counts: tuple[int, ...]
+    view_combinations: tuple[str, ...]
+    cross_token_modes: tuple[str, ...]
+    block_has_residuals: tuple[bool, ...]
+    block_nonlinearities: tuple[str, ...]
+    recurrence_step_sizes: tuple[float, ...]
+    state_decays: tuple[float, ...]
+    contraction_targets: tuple[float, ...]
+    train_recurrence_steps: tuple[int, ...]
+    eval_recurrence_steps: tuple[int, ...]
+    norm_interval_ks: tuple[int, ...]
+    floor_min_intervals: tuple[int, ...]
+    floor_max_intervals: tuple[int, ...]
+    floor_thresholds: tuple[float, ...]
+    kernel_feature_maps: tuple[str, ...]
+    accumulator_decays: tuple[float, ...]
+    quantizations: tuple[str, ...]
+    jacobian_lambdas: tuple[float, ...]
+    stochastic_round_ps: tuple[float, ...]
+    base_lrs: tuple[float, ...]
+    weight_decays: tuple[float, ...]
+    seq_lens: tuple[int, ...]
+    batch_sizes: tuple[int, ...]
+
+
+def default_deepfloor_gene_space(profile: str) -> DeepFloorGeneSpace:
+    if profile == "compact":
+        return DeepFloorGeneSpace(
+            recurrent_dims=(32, 48, 64),
+            num_distinct_blocks=(1, 2),
+            view_counts=(1, 2),
+            view_combinations=("average",),
+            cross_token_modes=("floor", "fused"),
+            block_has_residuals=(True,),
+            block_nonlinearities=("gelu", "swish"),
+            recurrence_step_sizes=(0.5, 1.0),
+            state_decays=(0.99, 0.999, 1.0),
+            contraction_targets=(0.95, 0.99, 0.995),
+            train_recurrence_steps=(8, 16),
+            eval_recurrence_steps=(16, 32),
+            norm_interval_ks=(4, 8, 16),
+            floor_min_intervals=(2, 4),
+            floor_max_intervals=(8, 16),
+            floor_thresholds=(0.02, 0.05, 0.1),
+            kernel_feature_maps=("elu_plus_1", "identity"),
+            accumulator_decays=(0.99, 0.999),
+            quantizations=("ternary", "int4"),
+            jacobian_lambdas=(0.0, 0.01, 0.05),
+            stochastic_round_ps=(0.0, 0.5, 1.0),
+            base_lrs=(1e-3, 2e-3),
+            weight_decays=(0.0, 1e-2),
+            seq_lens=(16, 32),
+            batch_sizes=(2, 4),
+        )
+    if profile == "frontier":
+        return DeepFloorGeneSpace(
+            recurrent_dims=(48, 64, 96),
+            num_distinct_blocks=(1, 2, 4),
+            view_counts=(2, 4, 8),
+            view_combinations=("average", "weighted", "project"),
+            cross_token_modes=("floor", "fused"),
+            block_has_residuals=(True,),
+            block_nonlinearities=("gelu", "swish"),
+            recurrence_step_sizes=(0.5, 0.75, 1.0),
+            state_decays=(0.99, 0.995, 0.999, 1.0),
+            contraction_targets=(0.95, 0.98, 0.99, 0.995),
+            train_recurrence_steps=(16, 32, 64),
+            eval_recurrence_steps=(64, 128, 256, 512),
+            norm_interval_ks=(4, 8, 16, 32),
+            floor_min_intervals=(2, 4, 8),
+            floor_max_intervals=(16, 32, 64),
+            floor_thresholds=(0.02, 0.05, 0.1),
+            kernel_feature_maps=("elu_plus_1", "identity"),
+            accumulator_decays=(0.99, 0.995, 0.999),
+            quantizations=("ternary", "int4", "int6"),
+            jacobian_lambdas=(0.0, 0.005, 0.01, 0.05),
+            stochastic_round_ps=(0.0, 0.25, 0.5, 1.0),
+            base_lrs=(1e-3, 2e-3, 3e-3),
+            weight_decays=(0.0, 1e-2),
+            seq_lens=(128, 256),
+            batch_sizes=(4, 8),
+        )
+    raise ValueError(f"unsupported deepfloor profile: {profile}")
+
+
+def random_deepfloor_genome(space: DeepFloorGeneSpace, *, rng: random.Random) -> DeepFloorGenome:
+    return DeepFloorGenome(
+        recurrent_dim=rng.choice(space.recurrent_dims),
+        num_distinct_blocks=rng.choice(space.num_distinct_blocks),
+        view_count=rng.choice(space.view_counts),
+        view_combination=rng.choice(space.view_combinations),
+        cross_token_mode=rng.choice(space.cross_token_modes),
+        block_has_residual=rng.choice(space.block_has_residuals),
+        block_nonlinearity=rng.choice(space.block_nonlinearities),
+        recurrence_step_size=rng.choice(space.recurrence_step_sizes),
+        state_decay=rng.choice(space.state_decays),
+        contraction_target=rng.choice(space.contraction_targets),
+        train_recurrence_steps=rng.choice(space.train_recurrence_steps),
+        eval_recurrence_steps=rng.choice(space.eval_recurrence_steps),
+        norm_interval_k=rng.choice(space.norm_interval_ks),
+        floor_min_interval=rng.choice(space.floor_min_intervals),
+        floor_max_interval=rng.choice(space.floor_max_intervals),
+        floor_threshold=rng.choice(space.floor_thresholds),
+        kernel_feature_map=rng.choice(space.kernel_feature_maps),
+        accumulator_decay=rng.choice(space.accumulator_decays),
+        quantization=rng.choice(space.quantizations),
+        jacobian_lambda=rng.choice(space.jacobian_lambdas),
+        stochastic_round_p=rng.choice(space.stochastic_round_ps),
+        base_lr=rng.choice(space.base_lrs),
+        weight_decay=rng.choice(space.weight_decays),
+        seq_len=rng.choice(space.seq_lens),
+        batch_size=rng.choice(space.batch_sizes),
+    )
+
+
+def crossover_deepfloor_genomes(left: DeepFloorGenome, right: DeepFloorGenome, *, rng: random.Random) -> DeepFloorGenome:
+    left_dict = asdict(left)
+    right_dict = asdict(right)
+    child: dict[str, Any] = {}
+    for key in left_dict:
+        child[key] = left_dict[key] if rng.random() < 0.5 else right_dict[key]
+    return DeepFloorGenome(**child)
+
+
+def mutate_deepfloor_genome(genome: DeepFloorGenome, space: DeepFloorGeneSpace, *, mutation_rate: float, rng: random.Random) -> DeepFloorGenome:
+    data = asdict(genome)
+    gene_options = {
+        "recurrent_dim": space.recurrent_dims,
+        "num_distinct_blocks": space.num_distinct_blocks,
+        "view_count": space.view_counts,
+        "view_combination": space.view_combinations,
+        "cross_token_mode": space.cross_token_modes,
+        "block_has_residual": space.block_has_residuals,
+        "block_nonlinearity": space.block_nonlinearities,
+        "recurrence_step_size": space.recurrence_step_sizes,
+        "state_decay": space.state_decays,
+        "contraction_target": space.contraction_targets,
+        "train_recurrence_steps": space.train_recurrence_steps,
+        "eval_recurrence_steps": space.eval_recurrence_steps,
+        "norm_interval_k": space.norm_interval_ks,
+        "floor_min_interval": space.floor_min_intervals,
+        "floor_max_interval": space.floor_max_intervals,
+        "floor_threshold": space.floor_thresholds,
+        "kernel_feature_map": space.kernel_feature_maps,
+        "accumulator_decay": space.accumulator_decays,
+        "quantization": space.quantizations,
+        "jacobian_lambda": space.jacobian_lambdas,
+        "stochastic_round_p": space.stochastic_round_ps,
+        "base_lr": space.base_lrs,
+        "weight_decay": space.weight_decays,
+        "seq_len": space.seq_lens,
+        "batch_size": space.batch_sizes,
+    }
+    for key, choices in gene_options.items():
+        if rng.random() < mutation_rate:
+            data[key] = rng.choice(tuple(choices))
+    return DeepFloorGenome(**data)
+
+
+def deepfloor_genome_to_v3_config(genome: DeepFloorGenome) -> V3Config:
+    seq_len = int(genome.seq_len)
+    return V3Config(
+        enwik8_path="",
+        stride=max(16, seq_len // 4),
+        recurrent_dim=int(genome.recurrent_dim),
+        num_distinct_blocks=int(genome.num_distinct_blocks),
+        view_count=int(genome.view_count),
+        view_combination=genome.view_combination,
+        cross_token_mode=genome.cross_token_mode,
+        block_has_residual=genome.block_has_residual,
+        block_nonlinearity=genome.block_nonlinearity,
+        recurrence_step_size=float(genome.recurrence_step_size),
+        state_decay=float(genome.state_decay),
+        contraction_target=float(genome.contraction_target),
+        train_recurrence_steps=int(genome.train_recurrence_steps),
+        eval_recurrence_steps=int(genome.eval_recurrence_steps),
+        norm_interval_k=int(genome.norm_interval_k),
+        floor_min_interval=int(genome.floor_min_interval),
+        floor_max_interval=int(genome.floor_max_interval),
+        floor_threshold=float(genome.floor_threshold),
+        kernel_feature_map=genome.kernel_feature_map,
+        accumulator_decay=float(genome.accumulator_decay),
+        quantization=genome.quantization,
+        jacobian_lambda=float(genome.jacobian_lambda),
+        stochastic_round_p=float(genome.stochastic_round_p),
+        base_lr=float(genome.base_lr),
+        weight_decay=float(genome.weight_decay),
+        seq_len=seq_len,
+        batch_size=int(genome.batch_size),
+    )
 
 
 def summarize_replay_buffer(entries: list[dict[str, Any]]) -> dict[str, float]:
