@@ -1,0 +1,9 @@
+{
+  "name": "Causal SLOT + Pre-quant AdamW TTT + Coprime-stride Loader",
+  "val_bpb": 1.0846,
+  "bytes_total": 15952885,
+  "blurb": "Provably causal per-chunk delta optimization (causal SLOT) + 6-epoch pre-quant AdamW TTT + coprime-stride multi-shard data loading on Full Hessian GPTQ int6 stack. 3-seed mean 1.0846 bpb (std 0.0007).",
+  "author": "resouer",
+  "github_id": "resouer",
+  "date": "2026-04-03"
+}

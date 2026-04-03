@@ -1,0 +1,1 @@
+flash_attn_3 @ https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/flash_attn_3-0.0.1-cp312-cp312-linux_x86_64.whl
