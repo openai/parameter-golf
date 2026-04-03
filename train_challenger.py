@@ -1103,7 +1103,7 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
-def generate_autoregressive_calib(model, device, num_seqs=64, seq_len=2048,
+def generate_autoregressive_calib(model, device, num_seqs=128, seq_len=2048,
                                    vocab_size=1024, temperature=0.8, batch_size=8, seed=42):
     """Generate sequences autoregressively from the model for GPTQ calibration.
     No external data accessed — fully self-contained."""
@@ -1153,9 +1153,10 @@ def collect_hessians_from_tokens(hessian_model, token_seqs, device):
     for h in hooks:
         h.remove()
     num_batches = len(token_seqs)
+    divisor = num_batches * getattr(hessian_model, "recursion_depth", 1)
     for name in hessians:
         H = hessians[name]
-        H /= num_batches
+        H /= divisor
         damp = 0.01 * torch.diag(H).mean().clamp_min(1e-6)
         H += damp * torch.eye(H.shape[0])
         hessians[name] = H
@@ -1389,7 +1390,8 @@ class _HessianMLP(nn.Module):
         return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.5).square())
 
 class _HessianBlock(nn.Module):
-    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, layer_idx=0, ln_scale=False):
+    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, 
+                 layer_idx=0, ln_scale=False, value_residual=False, dtg=False, gated_attention=False):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
@@ -1399,13 +1401,49 @@ class _HessianBlock(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
-    def forward(self, x, x0, v_embed=None):
+        self.value_residual = value_residual
+        if value_residual:
+            self.vrl_alpha = nn.Parameter(torch.zeros(1, dtype=torch.float32))
+        if dtg:
+            self.dtg_gate = nn.Linear(dim, 1, bias=True)
+        else:
+            self.dtg_gate = None
+    def forward(self, x, x0, v_embed=None, v0=None):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed)
+        
+        # Mirror Block.attn forward with v0/raw_v logic
+        bsz, seqlen, dim = x_in.shape
+        xi = self.attn_norm(x_in) * self.ln_scale_factor
+        q = self.attn.c_q(xi).reshape(bsz, seqlen, self.attn.num_heads, self.attn.head_dim)
+        k = self.attn.c_k(xi).reshape(bsz, seqlen, self.attn.num_kv_heads, self.attn.head_dim)
+        v = self.attn.c_v(xi)
+        if v_embed is not None:
+            v = v + v_embed
+        v = v.reshape(bsz, seqlen, self.attn.num_kv_heads, self.attn.head_dim)
+        raw_v = v if self.value_residual else None
+        if self.value_residual and v0 is not None:
+            v = v + torch.sigmoid(self.vrl_alpha.to(dtype=v.dtype)) * v0
+        
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.attn.rotary(seqlen, xi.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin, self.attn.rope_dims)
+        k = apply_rotary_emb(k, cos, sin, self.attn.rope_dims)
+        q = q * self.attn.q_gain.to(dtype=q.dtype)[None, None, :, None]
+        y = flash_attn_3_func(q, k, v, causal=True)
+        if self.attn.use_xsa:
+            y = self.attn._xsa_efficient(y, v)
+        attn_out = self.attn.proj(y.reshape(bsz, seqlen, dim))
+        
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
-        return x_out
+        
+        if self.dtg_gate is not None:
+            gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
+            x_out = x_in + gate * (x_out - x_in)
+            
+        return x_out, raw_v
 
 class _HessianGPT(nn.Module):
     """Non-banked GPT model matching unbanked state dict keys for Hessian collection."""
@@ -1413,13 +1451,18 @@ class _HessianGPT(nn.Module):
                  mlp_mult, tie_embeddings, logit_softcap, rope_base, qk_gain_init,
                  bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0,
                  rope_dims=0, ln_scale=False,
-                 ve_enabled=False, ve_dim=128, ve_layers="9,10"):
+                 ve_enabled=False, ve_dim=128, ve_layers="9,10",
+                 recursion_depth=1, value_residual=False,
+                 dtg_enabled=False, gated_attention=False,
+                 trigram_enabled=False):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
+        self.recursion_depth = recursion_depth
+        self.value_residual = value_residual
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=trigram_enabled) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1427,7 +1470,8 @@ class _HessianGPT(nn.Module):
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList([
             _HessianBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                          layer_idx=i, ln_scale=ln_scale)
+                          layer_idx=i, ln_scale=ln_scale, value_residual=value_residual,
+                          dtg=dtg_enabled, gated_attention=gated_attention)
             for i in range(num_layers)
         ])
         if rope_dims > 0:
@@ -1456,24 +1500,36 @@ class _HessianGPT(nn.Module):
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_cache['ve'] * self.ve_layer_scales[ve_idx].to(dtype=ve_cache['ve'].dtype)
     def forward(self, input_ids, target_ids):
+        n = self.num_layers
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x0 = x
-        skips = []
+        v0 = None
         ve_cache = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+        
+        def run_recursion_step(x_in, v0_in):
+            x_curr, v0_curr = x_in, v0_in
+            local_skips = []
+            for i in range(self.num_encoder_layers):
+                ve = self._get_ve(i, input_ids, ve_cache)
+                x_curr, raw_v = self.blocks[i](x_curr, x0, v_embed=ve, v0=v0_curr)
+                if v0_curr is None and raw_v is not None:
+                    v0_curr = raw_v
+                local_skips.append(x_curr)
+            for i in range(self.num_decoder_layers):
+                bi = self.num_encoder_layers + i
+                if local_skips:
+                    x_curr = x_curr + self.skip_weights[i].to(dtype=x_curr.dtype)[None, None, :] * local_skips.pop()
+                ve = self._get_ve(bi, input_ids, ve_cache)
+                x_curr, _ = self.blocks[bi](x_curr, x0, v_embed=ve, v0=v0_curr)
+            return x_curr, v0_curr
+
+        for _ in range(self.recursion_depth):
+            x, v0 = run_recursion_step(x, v0)
+            
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -1993,6 +2049,9 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        recursion_depth=args.recursion_depth, value_residual=args.value_residual,
+        dtg_enabled=args.dtg_enabled, gated_attention=args.gated_attention,
+        trigram_enabled=args.trigram_enabled,
     ).to(device).bfloat16()
     for m in hessian_model.modules():
         if isinstance(m, CastedLinear):
@@ -2004,11 +2063,11 @@ def main() -> None:
         strict=False,
     )
     # Autoregressive self-generated calibration (no external data)
-    log0("gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...")
+    log0("gptq:generating autoregressive calibration data (128 seqs x 2048 tokens, temp=0.8)...")
     base_model.load_state_dict(export_sd, strict=False)
     t_gen = time.perf_counter()
     ar_tokens = generate_autoregressive_calib(
-        base_model, device, num_seqs=64, seq_len=args.train_seq_len,
+        base_model, device, num_seqs=128, seq_len=args.train_seq_len,
         vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
     )
     log0(f"gptq:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gen:.1f}s")
