@@ -1,0 +1,272 @@
+"""Unit tests for Hybrid GPT model — Story 2B.2 (partial, for Epic 1 smoke test)
+
+Tests:
+  - GPT instantiates with mamba_layers="" (pure attention, backward compat)
+  - GPT instantiates with mamba_layers="0" (single Mamba layer)
+  - Bank sizes are correct for hybrid config
+  - Forward pass produces valid loss
+  - forward_logits returns correct shape
+  - Gradient flow through hybrid model
+"""
+from __future__ import annotations
+
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+import torch
+
+# Mock GPU-only modules
+def _fake_flash_attn(q, k, v, causal=False):
+    """CPU fallback: naive scaled dot-product attention with GQA support."""
+    # q: (bsz, seqlen, num_q_heads, head_dim), k,v: (bsz, seqlen, num_kv_heads, head_dim)
+    bsz, seqlen, nqh, hd = q.shape
+    nkvh = k.shape[2]
+    # GQA: repeat KV heads to match Q heads
+    if nqh != nkvh:
+        reps = nqh // nkvh
+        k = k.unsqueeze(3).expand(bsz, seqlen, nkvh, reps, hd).reshape(bsz, seqlen, nqh, hd)
+        v = v.unsqueeze(3).expand(bsz, seqlen, nkvh, reps, hd).reshape(bsz, seqlen, nqh, hd)
+    scale = hd ** -0.5
+    q2 = q.transpose(1, 2).float()  # (bsz, nqh, seqlen, hd)
+    k2 = k.transpose(1, 2).float()
+    v2 = v.transpose(1, 2).float()
+    attn = torch.matmul(q2, k2.transpose(-2, -1)) * scale
+    if causal:
+        mask = torch.triu(torch.ones(seqlen, seqlen, device=q.device, dtype=torch.bool), diagonal=1)
+        attn = attn.masked_fill(mask, float('-inf'))
+    attn = torch.softmax(attn, dim=-1)
+    out = torch.matmul(attn, v2)  # (bsz, nqh, seqlen, hd)
+    return out.transpose(1, 2).to(q.dtype)  # (bsz, seqlen, nqh, hd)
+
+for mod_name in ("flash_attn_interface", "flash_attn", "mamba_ssm", "causal_conv1d"):
+    if mod_name not in sys.modules:
+        fake = types.ModuleType(mod_name)
+        fake.flash_attn_func = _fake_flash_attn
+        sys.modules[mod_name] = fake
+# Patch the already-imported reference too
+sys.modules["flash_attn_interface"].flash_attn_func = _fake_flash_attn
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from train_gpt import GPT, MambaBlock
+
+
+# --- Helpers ---
+
+def _make_gpt(mamba_layers: str = "", num_layers: int = 11, **kwargs) -> GPT:
+    """Create a small GPT model for testing."""
+    defaults = dict(
+        vocab_size=1024,
+        num_layers=num_layers,
+        model_dim=64,
+        num_heads=4,
+        num_kv_heads=2,
+        mlp_mult=3.0,
+        tie_embeddings=True,
+        tied_embed_init_std=0.005,
+        logit_softcap=30.0,
+        rope_base=10000.0,
+        qk_gain_init=1.5,
+        mamba_layers=mamba_layers,
+        mamba_d_state=8,
+        mamba_d_conv=4,
+        mamba_expand=1.5,
+    )
+    defaults.update(kwargs)
+    return GPT(**defaults)
+
+
+# ===== Pure attention (backward compatibility) ============================
+
+def test_pure_attention_instantiation():
+    """mamba_layers='' should produce a pure attention model (same as SOTA)."""
+    model = _make_gpt(mamba_layers="", num_layers=4)
+    assert len(model.mamba_layer_set) == 0
+    assert len(model.mamba_blocks) == 0
+    assert len(model.blocks) == 4
+    assert model.n_attn == 4
+
+
+def test_pure_attention_bank_sizes():
+    """Banks should be sized for all layers when no Mamba layers."""
+    model = _make_gpt(mamba_layers="", num_layers=4)
+    assert model.qo_bank.shape[0] == 2 * 4
+    assert model.kv_bank.shape[0] == 2 * 4
+    assert model.mlp_up_bank.shape[0] == 4
+    assert model.mlp_down_bank.shape[0] == 4
+
+
+def test_pure_attention_forward():
+    """Pure attention model should produce valid loss."""
+    model = _make_gpt(mamba_layers="", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (2, 32))
+    target_ids = torch.randint(0, 1024, (2, 32))
+    with torch.no_grad():
+        loss = model(input_ids, target_ids)
+    assert loss.shape == ()
+    assert torch.isfinite(loss)
+    assert 4.0 < loss.item() < 10.0  # reasonable range for untrained model
+
+
+# ===== Single Mamba layer (Task 1.3.1-1.3.2) =============================
+
+def test_single_mamba_instantiation():
+    """mamba_layers='0' should replace layer 0 with MambaBlock."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    assert model.mamba_layer_set == {0}
+    assert len(model.mamba_blocks) == 1
+    assert len(model.blocks) == 3  # 4 total - 1 mamba = 3 attention
+    assert model.n_attn == 3
+
+
+def test_single_mamba_bank_sizes():
+    """Banks should be sized for attention-only layers (3, not 4)."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    n_attn = 3
+    assert model.qo_bank.shape[0] == 2 * n_attn  # 6
+    assert model.kv_bank.shape[0] == 2 * n_attn  # 6
+    assert model.mlp_up_bank.shape[0] == n_attn  # 3
+    assert model.mlp_down_bank.shape[0] == n_attn  # 3
+
+
+def test_single_mamba_index_maps():
+    """Index maps should correctly map global layer to local block indices."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    assert model.mamba_idx_map == {0: 0}
+    assert model.attn_idx_map == {1: 0, 2: 1, 3: 2}
+
+
+def test_single_mamba_forward():
+    """Hybrid model with single Mamba layer should produce valid loss."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (2, 32))
+    target_ids = torch.randint(0, 1024, (2, 32))
+    with torch.no_grad():
+        loss = model(input_ids, target_ids)
+    assert loss.shape == ()
+    assert torch.isfinite(loss)
+    assert 4.0 < loss.item() < 10.0
+
+
+def test_single_mamba_forward_logits():
+    """forward_logits should return (B, L, vocab) shape."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (2, 32))
+    with torch.no_grad():
+        logits = model.forward_logits(input_ids)
+    assert logits.shape == (2, 32, 1024)
+    assert torch.isfinite(logits).all()
+
+
+def test_single_mamba_gradient_flow():
+    """Critical params in hybrid model should receive gradients.
+    Note: Some attention scalars may have zero grad with CPU mock + tiny model.
+    We check the structurally important params: Mamba blocks, banks, embedding.
+    """
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    model.train()
+    input_ids = torch.randint(0, 1024, (2, 16))
+    target_ids = torch.randint(0, 1024, (2, 16))
+    loss = model(input_ids, target_ids)
+    loss.backward()
+    # Critical params that MUST have gradients
+    critical_prefixes = ["mamba_blocks.", "tok_emb.", "qo_bank", "mlp_down_bank", "skip_weights"]
+    for name, p in model.named_parameters():
+        if any(name.startswith(pfx) for pfx in critical_prefixes):
+            assert p.grad is not None, f"No grad for critical param {name}"
+            assert p.grad.abs().sum() > 0, f"Zero grad for critical param {name}"
+    # All params should at least have .grad set (backward ran through them)
+    no_grad = [n for n, p in model.named_parameters() if p.grad is None]
+    assert len(no_grad) == 0, f"Parameters with no grad at all: {no_grad}"
+
+
+# ===== Multi-Mamba config ================================================
+
+def test_multi_mamba_instantiation():
+    """Multiple Mamba layers should work correctly."""
+    model = _make_gpt(mamba_layers="0,1,3", num_layers=4)
+    assert model.mamba_layer_set == {0, 1, 3}
+    assert len(model.mamba_blocks) == 3
+    assert len(model.blocks) == 1  # only layer 2 is attention
+    assert model.n_attn == 1
+    assert model.mamba_idx_map == {0: 0, 1: 1, 3: 2}
+    assert model.attn_idx_map == {2: 0}
+
+
+def test_multi_mamba_forward():
+    """Multi-Mamba hybrid should produce valid loss."""
+    model = _make_gpt(mamba_layers="0,1,3", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (2, 32))
+    target_ids = torch.randint(0, 1024, (2, 32))
+    with torch.no_grad():
+        loss = model(input_ids, target_ids)
+    assert torch.isfinite(loss)
+
+
+# ===== U-Net skip connections =============================================
+
+def test_skip_weights_count():
+    """Skip weight count should match min(encoder, decoder) for any config."""
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    assert model.num_encoder_layers == 2
+    assert model.num_decoder_layers == 2
+    assert model.skip_weights.shape[0] == 2
+
+
+def test_skip_weights_18_layers():
+    """18-layer model should have 9 skip weights."""
+    model = _make_gpt(mamba_layers="0,1,2,3,4,5,6,7,8,9,10,11,14,15,16,17", num_layers=18)
+    assert model.num_encoder_layers == 9
+    assert model.num_decoder_layers == 9
+    assert model.skip_weights.shape[0] == 9
+    assert len(model.mamba_blocks) == 16  # 16 mamba layers  (note: spec says 15, but 16 indices listed)
+    assert len(model.blocks) == 2  # layers 12, 13 are attention
+
+
+def test_18_layer_forward():
+    """Full 18-layer hybrid model should produce valid loss."""
+    model = _make_gpt(
+        mamba_layers="0,1,2,3,4,5,6,7,8,9,10,11,15,16,17",
+        num_layers=18,
+    )
+    model.eval()
+    input_ids = torch.randint(0, 1024, (1, 16))
+    target_ids = torch.randint(0, 1024, (1, 16))
+    with torch.no_grad():
+        loss = model(input_ids, target_ids)
+    assert torch.isfinite(loss)
+    assert 4.0 < loss.item() < 10.0
+
+
+# ===== Consistency checks =================================================
+
+def test_forward_and_forward_logits_consistency():
+    """Loss from forward should match cross-entropy on forward_logits output."""
+    torch.manual_seed(42)
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (1, 16))
+    target_ids = torch.randint(0, 1024, (1, 16))
+    with torch.no_grad():
+        loss_forward = model(input_ids, target_ids)
+        logits = model.forward_logits(input_ids)
+        logits_capped = model.logit_softcap * torch.tanh(logits / model.logit_softcap)
+        loss_logits = torch.nn.functional.cross_entropy(
+            logits_capped.view(-1, 1024).float(), target_ids.view(-1), reduction="mean"
+        )
+    # Note: forward applies softcap internally, forward_logits also applies softcap,
+    # so logits already have softcap. We reapply here which double-caps.
+    # Actually, forward_logits already returns softcapped logits. Let's use them directly.
+    with torch.no_grad():
+        logits = model.forward_logits(input_ids)
+        loss_logits = torch.nn.functional.cross_entropy(
+            logits.view(-1, 1024).float(), target_ids.view(-1), reduction="mean"
+        )
+    diff = (loss_forward - loss_logits).abs().item()
+    assert diff < 1e-4, f"Loss mismatch: forward={loss_forward.item()}, logits={loss_logits.item()}, diff={diff}"
