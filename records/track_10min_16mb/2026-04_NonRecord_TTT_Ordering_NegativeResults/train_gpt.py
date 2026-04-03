@@ -1369,8 +1369,31 @@ def eval_ttt_score_first(
    print(f"ttt:saved cluster assignment to {_save_path} ({os.path.getsize(_save_path)} bytes)", flush=True)
  else:
   if _allgpu:
-   my_indices = all_indices
-   print(f"ttt:rank:{rank} mode=all_gpu_per_chunk chunks={len(my_indices)}", flush=True)
+   _global_order = bool(int(os.environ.get("TTT_GLOBAL_ORDER", "0")))
+   if _global_order:
+    # Single call: world_size=1 returns ALL chunks in one globally-ordered list
+    if rank == 0:
+     _t_ord = time.perf_counter()
+     _go_chunks, _, _go_ri = _doc_cluster_nn(model, val_tokens, chunk_tokens, 0, 1, device)
+     if _go_chunks is None:
+      _go_chunks = all_indices
+     _go_tensor = torch.tensor(_go_chunks, dtype=torch.long, device=device)
+     _go_len = torch.tensor([len(_go_chunks)], dtype=torch.long, device=device)
+     _order_k = _go_ri.get("cluster_sizes", [0]) if _go_ri else [0]
+     print(f"ttt:rank:0 global_order=1 embed=L5_weighted_pool_norm "
+           f"ordered_chunks={len(_go_chunks)} time={time.perf_counter()-_t_ord:.1f}s", flush=True)
+    else:
+     _go_len = torch.zeros(1, dtype=torch.long, device=device)
+    if dist.is_available() and dist.is_initialized() and world_size > 1:
+     dist.broadcast(_go_len, src=0)
+     if rank != 0:
+      _go_tensor = torch.zeros(int(_go_len.item()), dtype=torch.long, device=device)
+     dist.broadcast(_go_tensor, src=0)
+    my_indices = _go_tensor.cpu().tolist()
+    print(f"ttt:rank:{rank} mode=all_gpu_per_chunk global_order=1 chunks={len(my_indices)}", flush=True)
+   else:
+    my_indices = all_indices
+    print(f"ttt:rank:{rank} mode=all_gpu_per_chunk chunks={len(my_indices)}", flush=True)
   else:
    my_s = (len(all_indices) * rank) // world_size
    my_e = (len(all_indices) * (rank + 1)) // world_size
