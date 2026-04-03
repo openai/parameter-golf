@@ -1,0 +1,28 @@
+timestamp_utc=2026-04-03T16:00:08Z
+hostname=32d2d708e343
+kernel=Linux 6.8.0-106-generic x86_64 GNU/Linux
+
+[nvidia-smi]
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+
+[nvidia-smi-header]
+Fri Apr  3 16:00:08 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
+
+[python]
+python=3.12.3
+torch=2.9.1+cu128
+torch_cuda=12.8
+cudnn=91002
+flash_attn_interface_file=/usr/local/lib/python3.12/dist-packages/flash_attn_interface.py
+flash_attn_interface_version=unknown
+brotli=1.2.0
+sentencepiece=0.2.1
