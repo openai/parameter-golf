@@ -1271,6 +1271,8 @@ def collect_hessians_from_tokens(hessian_model, token_seqs, device):
 def _classify_param(name: str) -> str:
     if "tok_emb" in name or "lm_head" in name:
         return "embed"
+    if "mamba_blocks" in name:
+        return "mamba"
     if ".mlp." in name:
         return "mlp"
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
@@ -1373,10 +1375,13 @@ def _quantize_int6_percentile(t32, clip_range=31):
     q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
     return q, scale
 
-def _unbank_state_dict(sd: dict[str, Tensor], num_layers: int) -> dict[str, Tensor]:
-    """Convert 3D bank tensors into individual 2D tensors with standard names."""
+def _unbank_state_dict(sd: dict[str, Tensor], num_layers: int, n_attn: int | None = None) -> dict[str, Tensor]:
+    """Convert 3D bank tensors into individual 2D tensors with standard names.
+    n_attn: number of attention layers (bank size). If None, defaults to num_layers (backward compat).
+    Mamba params pass through unchanged.
+    """
     out: dict[str, Tensor] = {}
-    n = num_layers
+    n = n_attn if n_attn is not None else num_layers
     for name, tensor in sd.items():
         if name == "qo_bank":
             for i in range(n):
@@ -1393,13 +1398,16 @@ def _unbank_state_dict(sd: dict[str, Tensor], num_layers: int) -> dict[str, Tens
             for i in range(n):
                 out[f"blocks.{i}.mlp.proj.weight"] = tensor[i]
         else:
+            # Mamba params (mamba_blocks.*) pass through unchanged
             out[name] = tensor
     return out
 
-def _rebank_state_dict(sd: dict[str, Tensor], num_layers: int, template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
-    """Convert individual 2D tensors back into 3D bank tensors."""
+def _rebank_state_dict(sd: dict[str, Tensor], num_layers: int, template_sd: dict[str, Tensor], n_attn: int | None = None) -> dict[str, Tensor]:
+    """Convert individual 2D tensors back into 3D bank tensors.
+    n_attn: number of attention layers (bank size). If None, defaults to num_layers.
+    """
     out: dict[str, Tensor] = {}
-    n = num_layers
+    n = n_attn if n_attn is not None else num_layers
     # Reconstruct banks from individual weight keys
     qo_slices = [None] * (2 * n)
     kv_slices = [None] * (2 * n)
@@ -1810,6 +1818,15 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    # Mamba params: matrix weights -> Muon, scalar/1D params -> Adam
+    mamba_matrix_params = []
+    for mb in base_model.mamba_blocks:
+        mamba_matrix_params.extend([mb.in_proj.weight, mb.out_proj.weight,
+                                    mb.dt_proj.weight, mb.c_proj.weight])
+    for mb in base_model.mamba_blocks:
+        scalar_params.extend([mb.A_log, mb.D, mb.dt_proj.bias])
+        scalar_params.extend(list(mb.conv1d.parameters()))
+        scalar_params.extend(list(mb.norm.parameters()))
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     scalar_params.append(base_model.smear.gate)
@@ -1835,15 +1852,18 @@ def main() -> None:
         weight_decay=args.adam_wd,
         fused=True,
     )
+    # Muon for banked attention params
+    muon_param_groups = [{"params": matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr}]
+    # Muon for Mamba matrix params (separate LR)
+    if mamba_matrix_params:
+        muon_param_groups.append({"params": mamba_matrix_params, "lr": args.mamba_matrix_lr, "base_lr": args.mamba_matrix_lr})
     optimizer_muon = Muon(
-        matrix_params,
+        muon_param_groups,
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
         weight_decay=args.muon_wd,
     )
-    for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
     optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
@@ -1856,6 +1876,7 @@ def main() -> None:
     for pg in optimizer_tok.param_groups[1:]:
         replicated_params.extend(pg["params"])
     replicated_params.extend(scalar_params)
+    # Note: mamba_matrix_params are handled by Muon's reduce-scatter, NOT replicated_params
 
     optimizer_head = None
     if base_model.lm_head is not None:
@@ -1871,8 +1892,11 @@ def main() -> None:
         optimizers.append(optimizer_head)
     n_params = sum(p.numel() for p in base_model.parameters())
     mtp_params = sum(p.numel() for p in base_model.mtp_heads.parameters())
-    log0(f"model_params:{n_params}")
+    mamba_params = sum(p.numel() for p in base_model.mamba_blocks.parameters())
+    log0(f"model_params:{n_params} mamba_params:{mamba_params}")
     log0(f"mtp_num_heads:{args.mtp_num_heads} mtp_loss_weight:{args.mtp_loss_weight} mtp_params:{mtp_params}")
+    log0(f"hybrid: {len(base_model.mamba_layer_set)} mamba + {base_model.n_attn} attn = {args.num_layers} total layers")
+    log0(f"mamba_layers:{sorted(base_model.mamba_layer_set)} d_state:{args.mamba_d_state} d_conv:{args.mamba_d_conv} expand:{args.mamba_expand}")
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
@@ -1881,7 +1905,7 @@ def main() -> None:
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+        f"matrix_lr:{args.matrix_lr} mamba_matrix_lr:{args.mamba_matrix_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
@@ -2088,7 +2112,8 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
-    unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
+    n_attn = base_model.n_attn
+    unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers, n_attn=n_attn)
     # Full GPTQ: collect Hessians via a temporary non-banked model
     log0(f"gptq:building non-banked model for Hessian collection...")
     hessian_model = _HessianGPT(
@@ -2124,7 +2149,7 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn", "mamba"}, hessians=hessians)
     # NOVEL: Selective ±1 pruning by reconstruction error
     # Sort ±1 quantized values by their reconstruction error (scale²),
     # prune least-impactful first until artifact fits target size.
@@ -2193,7 +2218,7 @@ def main() -> None:
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
     # Re-bank the dequantized tensors
-    deq_state = _rebank_state_dict(deq_unbanked, args.num_layers, sd_cpu)
+    deq_state = _rebank_state_dict(deq_unbanked, args.num_layers, sd_cpu, n_attn=n_attn)
     eval_model = GPT(
         vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
         num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
