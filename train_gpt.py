@@ -1521,13 +1521,57 @@ class _HessianBlock(nn.Module):
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
         return x_out
 
+class _HessianMambaBlock(nn.Module):
+    """Mamba block with CastedLinear for in_proj/out_proj Hessian collection."""
+    def __init__(self, d_model=512, d_state=32, d_conv=4, expand=1.5):
+        super().__init__()
+        d_inner = int(expand * d_model)
+        self.d_inner = d_inner
+        self.d_state = d_state
+        dt_rank = max(d_model // 16, 1)
+        self.dt_rank = dt_rank
+        self.in_proj = CastedLinear(d_model, d_inner * 2 + d_state + dt_rank, bias=False)
+        self.conv1d = nn.Conv1d(d_inner, d_inner, d_conv, padding=d_conv - 1, groups=d_inner)
+        self.dt_proj = nn.Linear(dt_rank, d_inner, bias=True)
+        self.A_log = nn.Parameter(torch.log(torch.arange(1, d_state + 1, dtype=torch.float32).unsqueeze(0).expand(d_inner, -1).clone()))
+        self.D = nn.Parameter(torch.ones(d_inner, dtype=torch.float32))
+        self.c_proj = nn.Linear(d_model, d_state, bias=False)
+        self.out_proj = CastedLinear(d_inner, d_model, bias=False)
+        self.norm = RMSNorm()
+    def forward(self, x):
+        residual = x
+        x = self.norm(x)
+        proj = self.in_proj(x)
+        x_in, z, B_ssm, dt_in = proj.split([self.d_inner, self.d_inner, self.d_state, self.dt_rank], dim=-1)
+        x_in = x_in.transpose(1, 2)
+        x_in = self.conv1d(x_in)[:, :, :x.size(1)]
+        x_in = x_in.transpose(1, 2)
+        x_in = F.silu(x_in)
+        C = self.c_proj(x)
+        A = -torch.exp(self.A_log.float())
+        dt = F.softplus(self.dt_proj(dt_in))
+        dA = torch.exp(dt.unsqueeze(-1) * A)
+        dB = dt.unsqueeze(-1) * B_ssm.unsqueeze(2)
+        B_batch, L, d_inner = x_in.shape
+        h = torch.zeros(B_batch, d_inner, self.d_state, device=x_in.device, dtype=x_in.dtype)
+        ys = []
+        for t in range(L):
+            h = dA[:, t] * h + dB[:, t] * x_in[:, t, :, None]
+            y_t = (h * C[:, t, None, :]).sum(-1) + self.D * x_in[:, t]
+            ys.append(y_t)
+        y = torch.stack(ys, dim=1)
+        y = y * F.silu(z)
+        y = self.out_proj(y)
+        return residual + y
+
 class _HessianGPT(nn.Module):
     """Non-banked GPT model matching unbanked state dict keys for Hessian collection."""
     def __init__(self, vocab_size, num_layers, model_dim, num_heads, num_kv_heads,
                  mlp_mult, tie_embeddings, logit_softcap, rope_base, qk_gain_init,
                  bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0,
                  rope_dims=0, ln_scale=False,
-                 ve_enabled=False, ve_dim=128, ve_layers="9,10"):
+                 ve_enabled=False, ve_dim=128, ve_layers="9,10",
+                 mamba_layers="", mamba_d_state=32, mamba_d_conv=4, mamba_expand=1.5):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
@@ -1539,19 +1583,34 @@ class _HessianGPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList([
-            _HessianBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
-                          layer_idx=i, ln_scale=ln_scale)
-            for i in range(num_layers)
-        ])
+        # Parse Mamba layers
+        self.mamba_layer_set = set()
+        if mamba_layers.strip():
+            self.mamba_layer_set = {int(x.strip()) for x in mamba_layers.split(",") if x.strip()}
+        # Build Mamba blocks and attention blocks separately
+        self.mamba_blocks = nn.ModuleList()
+        attn_blocks = []
+        self.mamba_idx_map = {}
+        self.attn_idx_map = {}
+        for i in range(num_layers):
+            if i in self.mamba_layer_set:
+                self.mamba_idx_map[i] = len(self.mamba_blocks)
+                self.mamba_blocks.append(_HessianMambaBlock(model_dim, mamba_d_state, mamba_d_conv, mamba_expand))
+            else:
+                self.attn_idx_map[i] = len(attn_blocks)
+                attn_blocks.append(_HessianBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
+                                                 layer_idx=i, ln_scale=ln_scale))
+        self.blocks = nn.ModuleList(attn_blocks)
         if rope_dims > 0:
             head_dim = model_dim // num_heads
             for block in self.blocks:
                 block.attn.rope_dims = rope_dims
                 block.attn.rotary = Rotary(head_dim, base=rope_base, train_seq_len=1024, rope_dims=rope_dims)
         if xsa_last_n > 0:
-            for i in range(max(0, num_layers - xsa_last_n), num_layers):
-                self.blocks[i].attn.use_xsa = True
+            # XSA applies to last N attention layers (by global layer index)
+            attn_layer_indices = sorted(self.attn_idx_map.keys())
+            for gi in attn_layer_indices[-xsa_last_n:]:
+                self.blocks[self.attn_idx_map[gi]].attn.use_xsa = True
         kv_dim = num_kv_heads * (model_dim // num_heads)
         self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
         if self.ve_layer_indices:
@@ -1569,6 +1628,14 @@ class _HessianGPT(nn.Module):
             ve_cache['ve'] = self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_cache['ve'] * self.ve_layer_scales[ve_idx].to(dtype=ve_cache['ve'].dtype)
+    def _forward_layer(self, layer_idx, x, x0, input_ids, ve_cache):
+        if layer_idx in self.mamba_layer_set:
+            mi = self.mamba_idx_map[layer_idx]
+            return self.mamba_blocks[mi](x)
+        else:
+            ai = self.attn_idx_map[layer_idx]
+            ve = self._get_ve(layer_idx, input_ids, ve_cache)
+            return self.blocks[ai](x, x0, v_embed=ve)
     def forward(self, input_ids, target_ids):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
@@ -1579,15 +1646,13 @@ class _HessianGPT(nn.Module):
         skips = []
         ve_cache = {}
         for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+            x = self._forward_layer(i, x, x0, input_ids, ve_cache)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x = self.blocks[bi](x, x0, v_embed=ve)
+            x = self._forward_layer(bi, x, x0, input_ids, ve_cache)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -2126,6 +2191,8 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        mamba_layers=args.mamba_layers, mamba_d_state=args.mamba_d_state,
+        mamba_d_conv=args.mamba_d_conv, mamba_expand=args.mamba_expand,
     ).to(device).bfloat16()
     for m in hessian_model.modules():
         if isinstance(m, CastedLinear):

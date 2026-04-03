@@ -272,3 +272,106 @@ def test_forward_and_forward_logits_consistency():
         )
     diff = (loss_forward - loss_logits).abs().item()
     assert diff < 1e-4, f"Loss mismatch: forward={loss_forward.item()}, logits={loss_logits.item()}, diff={diff}"
+
+
+# ===== Unbank/Rebank roundtrip =============================================
+
+def test_unbank_rebank_roundtrip_pure_attention():
+    """Unbank -> rebank should be lossless for pure attention model."""
+    from train_gpt import _unbank_state_dict, _rebank_state_dict
+    model = _make_gpt(mamba_layers="", num_layers=4)
+    sd = {k: v.clone() for k, v in model.state_dict().items()}
+    unbanked = _unbank_state_dict(sd, 4, n_attn=4)
+    rebanked = _rebank_state_dict(unbanked, 4, sd, n_attn=4)
+    for key in sd:
+        assert key in rebanked, f"Missing key {key}"
+        assert torch.equal(sd[key], rebanked[key]), f"Mismatch for {key}"
+
+
+def test_unbank_rebank_roundtrip_hybrid():
+    """Unbank -> rebank should be lossless for hybrid model."""
+    from train_gpt import _unbank_state_dict, _rebank_state_dict
+    model = _make_gpt(mamba_layers="0,1,3", num_layers=4)
+    sd = {k: v.clone() for k, v in model.state_dict().items()}
+    n_attn = model.n_attn  # 1
+    unbanked = _unbank_state_dict(sd, 4, n_attn=n_attn)
+    # Mamba params should pass through unchanged
+    for key in unbanked:
+        if "mamba_blocks" in key:
+            assert key in sd, f"Mamba key {key} not in original sd"
+            assert torch.equal(unbanked[key], sd[key]), f"Mamba param changed during unbank: {key}"
+    rebanked = _rebank_state_dict(unbanked, 4, sd, n_attn=n_attn)
+    for key in sd:
+        assert key in rebanked, f"Missing key {key}"
+        assert torch.equal(sd[key], rebanked[key]), f"Mismatch for {key}"
+
+
+# ===== _classify_param coverage =============================================
+
+def test_classify_param_coverage():
+    """Every parameter in the hybrid model should be classified."""
+    from train_gpt import _classify_param
+    model = _make_gpt(mamba_layers="0,1,3", num_layers=4)
+    for name in model.state_dict().keys():
+        cat = _classify_param(name)
+        assert cat in ("embed", "mamba", "mlp", "attn", "other"), f"Unknown category for {name}: {cat}"
+
+
+def test_classify_param_mamba_keys():
+    """Mamba block params should be classified as 'mamba'."""
+    from train_gpt import _classify_param
+    model = _make_gpt(mamba_layers="0", num_layers=4)
+    mamba_keys = [k for k in model.state_dict().keys() if "mamba_blocks" in k]
+    assert len(mamba_keys) > 0
+    for key in mamba_keys:
+        assert _classify_param(key) == "mamba", f"{key} not classified as mamba"
+
+
+# ===== _HessianGPT hybrid support ==========================================
+
+def test_hessian_gpt_hybrid_instantiation():
+    """_HessianGPT should instantiate with mamba_layers."""
+    from train_gpt import _HessianGPT
+    hmodel = _HessianGPT(
+        vocab_size=1024, num_layers=4, model_dim=64,
+        num_heads=4, num_kv_heads=2, mlp_mult=3.0,
+        tie_embeddings=True, logit_softcap=30.0,
+        rope_base=10000.0, qk_gain_init=1.5,
+        mamba_layers="0,1,3", mamba_d_state=8, mamba_d_conv=4, mamba_expand=1.5,
+    )
+    assert len(hmodel.mamba_blocks) == 3
+    assert len(hmodel.blocks) == 1  # only layer 2 is attention
+
+
+def test_hessian_gpt_hybrid_forward():
+    """_HessianGPT hybrid model should produce valid loss."""
+    from train_gpt import _HessianGPT
+    hmodel = _HessianGPT(
+        vocab_size=1024, num_layers=4, model_dim=64,
+        num_heads=4, num_kv_heads=2, mlp_mult=3.0,
+        tie_embeddings=True, logit_softcap=30.0,
+        rope_base=10000.0, qk_gain_init=1.5,
+        mamba_layers="0", mamba_d_state=8, mamba_d_conv=4, mamba_expand=1.5,
+    )
+    hmodel.eval()
+    input_ids = torch.randint(0, 1024, (1, 16))
+    target_ids = torch.randint(0, 1024, (1, 16))
+    with torch.no_grad():
+        loss = hmodel(input_ids, target_ids)
+    assert loss.shape == ()
+    assert torch.isfinite(loss)
+
+
+def test_hessian_gpt_has_casted_linear_for_mamba():
+    """_HessianMambaBlock should use CastedLinear for in_proj and out_proj."""
+    from train_gpt import _HessianGPT, CastedLinear
+    hmodel = _HessianGPT(
+        vocab_size=1024, num_layers=4, model_dim=64,
+        num_heads=4, num_kv_heads=2, mlp_mult=3.0,
+        tie_embeddings=True, logit_softcap=30.0,
+        rope_base=10000.0, qk_gain_init=1.5,
+        mamba_layers="0", mamba_d_state=8, mamba_d_conv=4, mamba_expand=1.5,
+    )
+    mb = hmodel.mamba_blocks[0]
+    assert isinstance(mb.in_proj, CastedLinear), "in_proj should be CastedLinear"
+    assert isinstance(mb.out_proj, CastedLinear), "out_proj should be CastedLinear"
