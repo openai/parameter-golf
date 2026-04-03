@@ -66,6 +66,7 @@ BIGRAM_BUCKETS = int(os.environ.get("BIGRAM_BUCKETS", "2048"))
 EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "0"))
 GPTQ_CLIP_SEARCH = bool(int(os.environ.get("GPTQ_CLIP_SEARCH", "1")))
 GPTQ_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+PRUNE_FRACTION = float(os.environ.get("PRUNE_FRACTION", "0.15"))
 
 
 class _GPUMarkov:
@@ -450,14 +451,21 @@ patch("        zero_grad_all()\n\n        step += 1",
         step += 1''',
       "EMA update")
 
-# --- EMA apply ---
+# --- EMA apply + pruning ---
 patch('    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
       '''    if _ema.on:
         _ema.apply(base_model)
         log0("raki_v2:ema_applied")
+    if PRUNE_FRACTION > 0:
+        with torch.no_grad():
+            for n, p in base_model.named_parameters():
+                if p.ndim == 2 and p.numel() > 65536:
+                    thresh = torch.quantile(p.abs().float().flatten(), PRUNE_FRACTION)
+                    p.data[p.abs() < thresh] = 0.0
+        log0(f"raki_v2:pruned {PRUNE_FRACTION:.0%} of large matrices")
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
-      "EMA apply")
+      "EMA apply + pruning")
 
 with open("train_gpt.py", "w") as f:
     f.write(code)
