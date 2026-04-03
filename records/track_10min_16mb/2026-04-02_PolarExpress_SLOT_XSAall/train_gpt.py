@@ -250,6 +250,8 @@ class Muon(torch.optim.Optimizer):
                 else:
                     update = buf
 
+                # MuonEq-R: row-normalize before NS5 (PR #1260, ~0.001 BPB free)
+                update = update / (update.norm(dim=-1, keepdim=True) + 1e-7)
                 update = zeropower_via_newtonschulz5(update, steps=backend_steps)
 
                 if sharded:
