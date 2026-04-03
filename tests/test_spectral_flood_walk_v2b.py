@@ -54,10 +54,16 @@ class SpectralFloodWalkV2BTests(unittest.TestCase):
             min_read_count=self.cfg.memory_min_read_count,
             max_delta_norm=self.cfg.memory_max_delta_norm,
             maintenance_passes=self.cfg.maintenance_passes,
+            maintenance_mode=self.cfg.maintenance_mode,
             maintenance_blend=self.cfg.maintenance_blend,
+            maintenance_step_size=self.cfg.maintenance_step_size,
             maintenance_max_slots=self.cfg.maintenance_max_slots,
             maintenance_metric=self.cfg.maintenance_metric,
             maintenance_use_grad=self.cfg.maintenance_use_grad,
+            maintenance_grad_mix=self.cfg.maintenance_grad_mix,
+            maintenance_loss_ema_decay=self.cfg.maintenance_loss_ema_decay,
+            maintenance_replay_depth=self.cfg.maintenance_replay_depth,
+            maintenance_replay_candidates=self.cfg.maintenance_replay_candidates,
         )
 
     def test_hidden_cross_entropy_gradient_matches_hidden_shape(self) -> None:
@@ -106,10 +112,16 @@ class SpectralFloodWalkV2BTests(unittest.TestCase):
             min_read_count=cfg.memory_min_read_count,
             max_delta_norm=cfg.memory_max_delta_norm,
             maintenance_passes=cfg.maintenance_passes,
+            maintenance_mode=cfg.maintenance_mode,
             maintenance_blend=cfg.maintenance_blend,
+            maintenance_step_size=cfg.maintenance_step_size,
             maintenance_max_slots=cfg.maintenance_max_slots,
             maintenance_metric=cfg.maintenance_metric,
             maintenance_use_grad=cfg.maintenance_use_grad,
+            maintenance_grad_mix=cfg.maintenance_grad_mix,
+            maintenance_loss_ema_decay=cfg.maintenance_loss_ema_decay,
+            maintenance_replay_depth=cfg.maintenance_replay_depth,
+            maintenance_replay_candidates=cfg.maintenance_replay_candidates,
         )
         router = ResidualRouter(cfg.memory_order_ids, cfg.memory_table_size, self.device)
         inputs = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
@@ -172,6 +184,189 @@ class SpectralFloodWalkV2BTests(unittest.TestCase):
         self.assertEqual(int(mask[0].sum().item()), 8)
         self.assertEqual(int(mask[1].sum().item()), 4)
         self.assertTrue(torch.equal(mask[1], torch.tensor([0, 0, 0, 0, 1, 1, 1, 1], dtype=torch.bool)))
+
+    def test_loss_metric_records_hard_replay_candidates(self) -> None:
+        cfg = V2bConfig(
+            seq_len=4,
+            model_dim=16,
+            num_layers=2,
+            num_heads=4,
+            num_kv_heads=2,
+            mlp_mult=2,
+            memory_orders="1",
+            memory_table_size=32,
+            maintenance_passes=0,
+            maintenance_metric="loss",
+            maintenance_replay_candidates=2,
+        )
+        memory = PersistentHiddenMemory(
+            orders=cfg.memory_order_ids,
+            table_size=cfg.memory_table_size,
+            dim=cfg.model_dim,
+            device=self.device,
+            order_scales=cfg.memory_order_scale_values,
+            decay=cfg.memory_decay,
+            ema_decay=cfg.memory_ema_decay,
+            read_scale=cfg.memory_read_scale,
+            min_read_count=cfg.memory_min_read_count,
+            max_delta_norm=cfg.memory_max_delta_norm,
+            maintenance_passes=cfg.maintenance_passes,
+            maintenance_mode=cfg.maintenance_mode,
+            maintenance_blend=cfg.maintenance_blend,
+            maintenance_step_size=cfg.maintenance_step_size,
+            maintenance_max_slots=cfg.maintenance_max_slots,
+            maintenance_metric=cfg.maintenance_metric,
+            maintenance_use_grad=cfg.maintenance_use_grad,
+            maintenance_grad_mix=cfg.maintenance_grad_mix,
+            maintenance_loss_ema_decay=cfg.maintenance_loss_ema_decay,
+            maintenance_replay_depth=cfg.maintenance_replay_depth,
+            maintenance_replay_candidates=cfg.maintenance_replay_candidates,
+        )
+        router = ResidualRouter(cfg.memory_order_ids, cfg.memory_table_size, self.device)
+        inputs = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
+        context_ids = router.context_ids(inputs)
+        hidden_grad = torch.randn(1, 4, cfg.model_dim)
+        hidden_states = torch.randn(1, 4, cfg.model_dim)
+        targets = torch.tensor([[2, 3, 4, 5]], dtype=torch.long)
+        token_loss = torch.tensor([[0.1, 0.2, 3.5, 0.3]], dtype=torch.float32)
+        full_mask = torch.ones((1, 4), dtype=torch.bool)
+
+        memory.update(
+            context_ids,
+            hidden_grad,
+            step_size=0.1,
+            score_mask=full_mask,
+            model=self.model,
+            hidden_states=hidden_states,
+            token_targets=targets,
+            token_loss=token_loss,
+        )
+        stats = memory.stats()
+        self.assertGreater(stats["mean_loss_ema"], 0.0)
+        self.assertGreater(stats["replay_fraction"], 0.0)
+        self.assertGreaterEqual(float(memory.replay_loss.max().item()), 3.5)
+
+    def test_replay_maintenance_updates_delta_from_stored_hard_case(self) -> None:
+        cfg = V2bConfig(
+            seq_len=4,
+            model_dim=16,
+            num_layers=2,
+            num_heads=4,
+            num_kv_heads=2,
+            mlp_mult=2,
+            memory_orders="1",
+            memory_table_size=32,
+            maintenance_passes=2,
+            maintenance_mode="replay",
+            maintenance_metric="loss",
+            maintenance_replay_candidates=4,
+            maintenance_replay_depth=2,
+            maintenance_step_size=0.1,
+        )
+        model = StrongTransformerLM(cfg, vocab_size=64).to(self.device)
+        memory = PersistentHiddenMemory(
+            orders=cfg.memory_order_ids,
+            table_size=cfg.memory_table_size,
+            dim=cfg.model_dim,
+            device=self.device,
+            order_scales=cfg.memory_order_scale_values,
+            decay=cfg.memory_decay,
+            ema_decay=cfg.memory_ema_decay,
+            read_scale=cfg.memory_read_scale,
+            min_read_count=cfg.memory_min_read_count,
+            max_delta_norm=cfg.memory_max_delta_norm,
+            maintenance_passes=cfg.maintenance_passes,
+            maintenance_mode=cfg.maintenance_mode,
+            maintenance_blend=cfg.maintenance_blend,
+            maintenance_step_size=cfg.maintenance_step_size,
+            maintenance_max_slots=cfg.maintenance_max_slots,
+            maintenance_metric=cfg.maintenance_metric,
+            maintenance_use_grad=cfg.maintenance_use_grad,
+            maintenance_grad_mix=cfg.maintenance_grad_mix,
+            maintenance_loss_ema_decay=cfg.maintenance_loss_ema_decay,
+            maintenance_replay_depth=cfg.maintenance_replay_depth,
+            maintenance_replay_candidates=cfg.maintenance_replay_candidates,
+        )
+        router = ResidualRouter(cfg.memory_order_ids, cfg.memory_table_size, self.device)
+        inputs = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
+        context_ids = router.context_ids(inputs)
+        zero_grad = torch.zeros((1, 4, cfg.model_dim), dtype=torch.float32)
+        hidden_states = torch.randn(1, 4, cfg.model_dim)
+        targets = torch.tensor([[2, 3, 4, 5]], dtype=torch.long)
+        token_loss = torch.tensor([[2.5, 1.0, 0.8, 0.4]], dtype=torch.float32)
+        full_mask = torch.ones((1, 4), dtype=torch.bool)
+
+        stats = memory.update(
+            context_ids,
+            zero_grad,
+            step_size=0.0,
+            score_mask=full_mask,
+            model=model,
+            hidden_states=hidden_states,
+            token_targets=targets,
+            token_loss=token_loss,
+        )
+        self.assertGreater(stats["maintenance_flops"], 0.0)
+        self.assertGreater(float(memory.delta.abs().sum().item()), 0.0)
+
+    def test_replay_buffer_keeps_multiple_hard_traces_per_slot(self) -> None:
+        cfg = V2bConfig(
+            seq_len=4,
+            model_dim=16,
+            num_layers=2,
+            num_heads=4,
+            num_kv_heads=2,
+            mlp_mult=2,
+            memory_orders="1",
+            memory_table_size=16,
+            maintenance_passes=0,
+            maintenance_replay_candidates=4,
+            maintenance_replay_depth=2,
+        )
+        memory = PersistentHiddenMemory(
+            orders=cfg.memory_order_ids,
+            table_size=cfg.memory_table_size,
+            dim=cfg.model_dim,
+            device=self.device,
+            order_scales=cfg.memory_order_scale_values,
+            decay=cfg.memory_decay,
+            ema_decay=cfg.memory_ema_decay,
+            read_scale=cfg.memory_read_scale,
+            min_read_count=cfg.memory_min_read_count,
+            max_delta_norm=cfg.memory_max_delta_norm,
+            maintenance_passes=cfg.maintenance_passes,
+            maintenance_mode=cfg.maintenance_mode,
+            maintenance_blend=cfg.maintenance_blend,
+            maintenance_step_size=cfg.maintenance_step_size,
+            maintenance_max_slots=cfg.maintenance_max_slots,
+            maintenance_metric=cfg.maintenance_metric,
+            maintenance_use_grad=cfg.maintenance_use_grad,
+            maintenance_grad_mix=cfg.maintenance_grad_mix,
+            maintenance_loss_ema_decay=cfg.maintenance_loss_ema_decay,
+            maintenance_replay_depth=cfg.maintenance_replay_depth,
+            maintenance_replay_candidates=cfg.maintenance_replay_candidates,
+        )
+        context_ids = torch.zeros((1, 4, 1), dtype=torch.long, device=self.device)
+        hidden_grad = torch.zeros((1, 4, cfg.model_dim), dtype=torch.float32, device=self.device)
+        hidden_states = torch.randn((1, 4, cfg.model_dim), dtype=torch.float32, device=self.device)
+        targets = torch.tensor([[2, 3, 4, 5]], dtype=torch.long, device=self.device)
+        token_loss = torch.tensor([[0.2, 3.5, 1.7, 2.4]], dtype=torch.float32, device=self.device)
+        full_mask = torch.ones((1, 4), dtype=torch.bool, device=self.device)
+
+        memory.update(
+            context_ids,
+            hidden_grad,
+            step_size=0.0,
+            score_mask=full_mask,
+            model=self.model,
+            hidden_states=hidden_states,
+            token_targets=targets,
+            token_loss=token_loss,
+        )
+
+        stored = torch.sort(memory.replay_loss[0, 0][memory.replay_loss[0, 0] >= 0], descending=True).values
+        self.assertEqual(int(stored.numel()), 2)
+        self.assertTrue(torch.allclose(stored, torch.tensor([3.5, 2.4], dtype=torch.float32)))
 
 
 if __name__ == "__main__":

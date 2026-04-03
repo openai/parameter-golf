@@ -129,10 +129,16 @@ class V2bConfig:
     memory_max_delta_norm: float = 4.0
 
     maintenance_passes: int = 1
+    maintenance_mode: str = "replay"
     maintenance_blend: float = 0.25
+    maintenance_step_size: float = 0.05
     maintenance_max_slots: int = 128
-    maintenance_metric: str = "counts"
-    maintenance_use_grad: bool = True
+    maintenance_metric: str = "loss"
+    maintenance_use_grad: bool = False
+    maintenance_grad_mix: float = 0.25
+    maintenance_loss_ema_decay: float = 0.95
+    maintenance_replay_depth: int = 2
+    maintenance_replay_candidates: int = 64
 
     @property
     def memory_order_ids(self) -> tuple[int, ...]:
@@ -163,10 +169,16 @@ class PersistentHiddenMemory:
         min_read_count: float,
         max_delta_norm: float,
         maintenance_passes: int,
+        maintenance_mode: str,
         maintenance_blend: float,
+        maintenance_step_size: float,
         maintenance_max_slots: int,
         maintenance_metric: str,
         maintenance_use_grad: bool,
+        maintenance_grad_mix: float,
+        maintenance_loss_ema_decay: float,
+        maintenance_replay_depth: int,
+        maintenance_replay_candidates: int,
     ) -> None:
         if len(order_scales) != len(orders):
             raise ValueError("order_scales length must match number of orders")
@@ -181,16 +193,28 @@ class PersistentHiddenMemory:
         self.min_read_count = float(min_read_count)
         self.max_delta_norm = float(max_delta_norm)
         self.maintenance_passes = int(maintenance_passes)
+        self.maintenance_mode = maintenance_mode
         self.maintenance_blend = float(maintenance_blend)
+        self.maintenance_step_size = float(maintenance_step_size)
         self.maintenance_max_slots = int(maintenance_max_slots)
         self.maintenance_metric = maintenance_metric
         self.maintenance_use_grad = bool(maintenance_use_grad)
+        self.maintenance_grad_mix = float(maintenance_grad_mix)
+        self.maintenance_loss_ema_decay = float(maintenance_loss_ema_decay)
+        self.maintenance_replay_depth = int(maintenance_replay_depth)
+        self.maintenance_replay_candidates = int(maintenance_replay_candidates)
+        self.replay_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
 
         shape = (len(orders), table_size, dim)
         self.delta = torch.zeros(shape, dtype=torch.float32, device=device)
         self.grad_ema = torch.zeros(shape, dtype=torch.float32, device=device)
         self.counts = torch.zeros((len(orders), table_size), dtype=torch.float32, device=device)
         self.hits = torch.zeros((len(orders), table_size), dtype=torch.float32, device=device)
+        self.loss_ema = torch.zeros((len(orders), table_size), dtype=torch.float32, device=device)
+        replay_shape = (len(orders), table_size, self.maintenance_replay_depth)
+        self.replay_hidden = torch.zeros((*replay_shape, dim), dtype=self.replay_dtype, device=device)
+        self.replay_target = torch.zeros(replay_shape, dtype=torch.long, device=device)
+        self.replay_loss = torch.full(replay_shape, -1.0, dtype=torch.float32, device=device)
 
     def clone(self) -> "PersistentHiddenMemory":
         cloned = PersistentHiddenMemory(
@@ -205,20 +229,39 @@ class PersistentHiddenMemory:
             min_read_count=self.min_read_count,
             max_delta_norm=self.max_delta_norm,
             maintenance_passes=self.maintenance_passes,
+            maintenance_mode=self.maintenance_mode,
             maintenance_blend=self.maintenance_blend,
+            maintenance_step_size=self.maintenance_step_size,
             maintenance_max_slots=self.maintenance_max_slots,
             maintenance_metric=self.maintenance_metric,
             maintenance_use_grad=self.maintenance_use_grad,
+            maintenance_grad_mix=self.maintenance_grad_mix,
+            maintenance_loss_ema_decay=self.maintenance_loss_ema_decay,
+            maintenance_replay_depth=self.maintenance_replay_depth,
+            maintenance_replay_candidates=self.maintenance_replay_candidates,
         )
         cloned.delta = self.delta.clone()
         cloned.grad_ema = self.grad_ema.clone()
         cloned.counts = self.counts.clone()
         cloned.hits = self.hits.clone()
+        cloned.loss_ema = self.loss_ema.clone()
+        cloned.replay_hidden = self.replay_hidden.clone()
+        cloned.replay_target = self.replay_target.clone()
+        cloned.replay_loss = self.replay_loss.clone()
         return cloned
 
     def resident_bytes(self) -> int:
         total = 0
-        for tensor in (self.delta, self.grad_ema, self.counts, self.hits):
+        for tensor in (
+            self.delta,
+            self.grad_ema,
+            self.counts,
+            self.hits,
+            self.loss_ema,
+            self.replay_hidden,
+            self.replay_target,
+            self.replay_loss,
+        ):
             total += int(tensor.numel() * tensor.element_size())
         return total
 
@@ -227,6 +270,7 @@ class PersistentHiddenMemory:
         readable = (self.counts >= self.min_read_count).float()
         delta_norm = self.delta.norm(dim=-1)
         grad_norm = self.grad_ema.norm(dim=-1)
+        replay_filled = (self.replay_loss >= 0).float()
         return {
             "resident_mb": float(self.resident_bytes() / (1024.0 * 1024.0)),
             "non_empty_fraction": float(non_empty.mean().item()),
@@ -236,6 +280,8 @@ class PersistentHiddenMemory:
             "mean_grad_ema_norm": float(grad_norm.mean().item()),
             "mean_hits": float(self.hits.mean().item()),
             "mean_counts": float(self.counts.mean().item()),
+            "mean_loss_ema": float(self.loss_ema.mean().item()),
+            "replay_fraction": float(replay_filled.mean().item()),
         }
 
     def lookup(self, context_ids: torch.Tensor) -> tuple[torch.Tensor, dict[str, float], int]:
@@ -277,20 +323,128 @@ class PersistentHiddenMemory:
             ids = context_ids[:, :, order_idx].reshape(-1)
             self.hits[order_idx].scatter_add_(0, ids, torch.ones_like(ids, dtype=torch.float32))
 
+    def _metric_source(self) -> torch.Tensor:
+        if self.maintenance_metric == "counts":
+            return self.counts
+        if self.maintenance_metric == "hits":
+            return self.hits
+        if self.maintenance_metric == "loss":
+            return self.loss_ema
+        raise ValueError(f"Unsupported maintenance_metric: {self.maintenance_metric}")
+
     def _select_maintenance_ids(self, order_idx: int, slot_ids: torch.Tensor) -> torch.Tensor:
         if slot_ids.numel() == 0:
             return slot_ids
         if self.maintenance_max_slots <= 0 or slot_ids.numel() <= self.maintenance_max_slots:
             return slot_ids
-        source = self.counts if self.maintenance_metric == "counts" else self.hits
+        source = self._metric_source()
         values = source[order_idx, slot_ids]
         topk = torch.topk(values, k=self.maintenance_max_slots, largest=True).indices
         return slot_ids[topk]
 
     @torch.no_grad()
-    def _run_maintenance(self, touched: list[tuple[int, torch.Tensor]]) -> tuple[int, int]:
-        if self.maintenance_passes <= 0:
-            return 0, 0
+    def _record_replay_candidates(
+        self,
+        order_idx: int,
+        slot_ids: torch.Tensor,
+        hidden_states: torch.Tensor,
+        targets: torch.Tensor,
+        losses: torch.Tensor,
+    ) -> None:
+        if self.maintenance_replay_candidates <= 0 or slot_ids.numel() == 0:
+            return
+        limit = min(self.maintenance_replay_candidates, int(slot_ids.numel()))
+        topk = torch.topk(losses, k=limit, largest=True).indices
+        top_slots = slot_ids[topk]
+        top_hidden = hidden_states[topk].to(dtype=self.replay_dtype)
+        top_targets = targets[topk]
+        top_losses = losses[topk]
+        for idx in range(limit):
+            slot_id = int(top_slots[idx].item())
+            loss_value = float(top_losses[idx].item())
+            slot_losses = self.replay_loss[order_idx, slot_id]
+            empty_positions = (slot_losses < 0).nonzero(as_tuple=False)
+            if empty_positions.numel() > 0:
+                insert_idx = int(empty_positions[0, 0].item())
+            else:
+                worst_idx = int(torch.argmin(slot_losses).item())
+                if loss_value <= float(slot_losses[worst_idx].item()):
+                    continue
+                insert_idx = worst_idx
+            self.replay_hidden[order_idx, slot_id, insert_idx] = top_hidden[idx]
+            self.replay_target[order_idx, slot_id, insert_idx] = top_targets[idx]
+            self.replay_loss[order_idx, slot_id, insert_idx] = loss_value
+
+    @torch.no_grad()
+    def _run_replay_maintenance(
+        self,
+        model: StrongTransformerLM,
+        touched: list[tuple[int, torch.Tensor]],
+    ) -> tuple[int, int]:
+        total_flops = 0
+        total_slots = 0
+        for order_idx, slot_ids in touched:
+            work_ids = self._select_maintenance_ids(order_idx, slot_ids)
+            if work_ids.numel() == 0:
+                continue
+            state = self.delta[order_idx, work_ids]
+            grad_state = self.grad_ema[order_idx, work_ids]
+            slot_loss = self.loss_ema[order_idx, work_ids]
+            replay_hidden = self.replay_hidden[order_idx, work_ids]
+            replay_targets = self.replay_target[order_idx, work_ids]
+            replay_losses = self.replay_loss[order_idx, work_ids]
+            valid_mask = replay_losses >= 0
+            slots = int(work_ids.numel())
+            if slots == 0:
+                continue
+
+            loss_mean = slot_loss.mean().clamp_min(1e-6)
+            hardness_scale = (slot_loss / loss_mean).clamp(0.5, 2.0)
+            step_scale = self.maintenance_step_size * hardness_scale
+
+            for _ in range(self.maintenance_passes):
+                maintenance_grad = torch.zeros_like(grad_state)
+                valid_count = int(valid_mask.sum().item())
+                if valid_count > 0:
+                    trace_index = valid_mask.nonzero(as_tuple=False)
+                    slot_index = trace_index[:, 0]
+                    depth_index = trace_index[:, 1]
+                    gathered_hidden = replay_hidden[slot_index, depth_index].to(dtype=torch.float32)
+                    gathered_targets = replay_targets[slot_index, depth_index]
+                    gathered_losses = replay_losses[slot_index, depth_index].clamp_min(1e-6)
+                    adapted_hidden = gathered_hidden + state[slot_index]
+                    replay_logits = model.logits_from_hidden(adapted_hidden.unsqueeze(1))
+                    replay_grad = hidden_cross_entropy_gradient(
+                        model,
+                        replay_logits,
+                        gathered_targets.unsqueeze(1),
+                    ).squeeze(1)
+                    weighted_grad = replay_grad * gathered_losses.unsqueeze(-1)
+                    grad_accum = torch.zeros_like(maintenance_grad)
+                    grad_accum.index_add_(0, slot_index, weighted_grad)
+                    weight_accum = torch.zeros((slots,), dtype=torch.float32, device=self.device)
+                    weight_accum.index_add_(0, slot_index, gathered_losses)
+                    replay_slot_grad = grad_accum / weight_accum.clamp_min(1e-6).unsqueeze(-1)
+                    maintenance_grad = replay_slot_grad
+                    if self.maintenance_use_grad:
+                        maintenance_grad = maintenance_grad + self.maintenance_grad_mix * grad_state
+                    total_flops += int(
+                        valid_count * self.dim * model.vocab_size * 4
+                        + valid_count * model.vocab_size * 6
+                        + valid_count * self.dim * 4
+                    )
+                elif self.maintenance_use_grad:
+                    maintenance_grad = self.maintenance_grad_mix * grad_state
+                state = state - step_scale.unsqueeze(-1) * maintenance_grad
+                clip_rows_to_norm_(state, self.max_delta_norm)
+                total_flops += int(slots * self.dim * 4)
+
+            self.delta[order_idx, work_ids] = state
+            total_slots += slots
+        return total_flops, total_slots
+
+    @torch.no_grad()
+    def _run_smoothing_maintenance(self, touched: list[tuple[int, torch.Tensor]]) -> tuple[int, int]:
         total_flops = 0
         total_slots = 0
         scale = math.sqrt(float(self.dim))
@@ -314,12 +468,33 @@ class PersistentHiddenMemory:
         return total_flops, total_slots
 
     @torch.no_grad()
+    def _run_maintenance(
+        self,
+        model: StrongTransformerLM | None,
+        touched: list[tuple[int, torch.Tensor]],
+    ) -> tuple[int, int]:
+        if self.maintenance_passes <= 0:
+            return 0, 0
+        if self.maintenance_mode == "smooth":
+            return self._run_smoothing_maintenance(touched)
+        if self.maintenance_mode == "replay":
+            if model is None:
+                return 0, 0
+            return self._run_replay_maintenance(model, touched)
+        raise ValueError(f"Unsupported maintenance_mode: {self.maintenance_mode}")
+
+    @torch.no_grad()
     def update(
         self,
         context_ids: torch.Tensor,
         hidden_grad: torch.Tensor,
         step_size: float,
         score_mask: torch.Tensor | None = None,
+        *,
+        model: StrongTransformerLM | None = None,
+        hidden_states: torch.Tensor | None = None,
+        token_targets: torch.Tensor | None = None,
+        token_loss: torch.Tensor | None = None,
     ) -> dict[str, float]:
         if context_ids.numel() == 0:
             return {"updated_slots": 0.0, "update_flops": 0.0, "maintenance_flops": 0.0, "maintenance_slots": 0.0}
@@ -332,6 +507,16 @@ class PersistentHiddenMemory:
         active_mask = active_weights > 0
         if not bool(active_mask.any().item()):
             return {"updated_slots": 0.0, "update_flops": 0.0, "maintenance_flops": 0.0, "maintenance_slots": 0.0}
+
+        active_hidden = None
+        if hidden_states is not None:
+            active_hidden = hidden_states.to(device=self.device, dtype=torch.float32).reshape(-1, self.dim)[active_mask]
+        active_targets = None
+        if token_targets is not None:
+            active_targets = token_targets.to(device=self.device, dtype=torch.long).reshape(-1)[active_mask]
+        active_loss = None
+        if token_loss is not None:
+            active_loss = token_loss.to(device=self.device, dtype=torch.float32).reshape(-1)[active_mask]
 
         total_update_flops = 0
         touched: list[tuple[int, torch.Tensor]] = []
@@ -350,6 +535,16 @@ class PersistentHiddenMemory:
             slot_weight.scatter_add_(0, inverse, weights)
             accum = accum / slot_weight.clamp_min(1.0).unsqueeze(-1)
 
+            if active_loss is not None:
+                loss_accum = torch.zeros((unique_ids.numel(),), dtype=torch.float32, device=self.device)
+                loss_accum.scatter_add_(0, inverse, active_loss)
+                mean_loss = loss_accum / slot_weight.clamp_min(1.0)
+                loss_ema = self.loss_ema[order_idx, unique_ids]
+                loss_ema = self.maintenance_loss_ema_decay * loss_ema + (1.0 - self.maintenance_loss_ema_decay) * mean_loss
+                self.loss_ema[order_idx, unique_ids] = loss_ema
+                if active_hidden is not None and active_targets is not None:
+                    self._record_replay_candidates(order_idx, ids, active_hidden, active_targets, active_loss)
+
             ema = self.grad_ema[order_idx, unique_ids]
             ema = self.ema_decay * ema + (1.0 - self.ema_decay) * accum
             delta = self.delta[order_idx, unique_ids]
@@ -364,7 +559,7 @@ class PersistentHiddenMemory:
             touched.append((order_idx, unique_ids))
             total_update_flops += int(ids.numel() * self.dim * 2 + unique_ids.numel() * self.dim * 6)
 
-        maintenance_flops, maintenance_slots = self._run_maintenance(touched)
+        maintenance_flops, maintenance_slots = self._run_maintenance(model, touched)
         return {
             "updated_slots": float(updated_slots),
             "update_flops": float(total_update_flops),
@@ -455,6 +650,10 @@ def evaluate_mode(
                     hidden_grad,
                     cfg.memory_update_lr,
                     score_mask=score_mask,
+                    model=model,
+                    hidden_states=hidden,
+                    token_targets=targets,
+                    token_loss=flat_loss,
                 )
                 active_memory.note_reads(context_ids)
                 memory_update_flops += float(update_stats["update_flops"])
@@ -533,10 +732,16 @@ def run_v2b(cfg: V2bConfig) -> dict[str, object]:
         min_read_count=cfg.memory_min_read_count,
         max_delta_norm=cfg.memory_max_delta_norm,
         maintenance_passes=cfg.maintenance_passes,
+        maintenance_mode=cfg.maintenance_mode,
         maintenance_blend=cfg.maintenance_blend,
+        maintenance_step_size=cfg.maintenance_step_size,
         maintenance_max_slots=cfg.maintenance_max_slots,
         maintenance_metric=cfg.maintenance_metric,
         maintenance_use_grad=cfg.maintenance_use_grad,
+        maintenance_grad_mix=cfg.maintenance_grad_mix,
+        maintenance_loss_ema_decay=cfg.maintenance_loss_ema_decay,
+        maintenance_replay_depth=cfg.maintenance_replay_depth,
+        maintenance_replay_candidates=cfg.maintenance_replay_candidates,
     )
 
     result: dict[str, object] = {}
@@ -649,10 +854,16 @@ def parse_args() -> V2bConfig:
     parser.add_argument("--memory-max-delta-norm", type=float, default=V2bConfig.memory_max_delta_norm)
 
     parser.add_argument("--maintenance-passes", type=int, default=V2bConfig.maintenance_passes)
+    parser.add_argument("--maintenance-mode", choices=("smooth", "replay"), default=V2bConfig.maintenance_mode)
     parser.add_argument("--maintenance-blend", type=float, default=V2bConfig.maintenance_blend)
+    parser.add_argument("--maintenance-step-size", type=float, default=V2bConfig.maintenance_step_size)
     parser.add_argument("--maintenance-max-slots", type=int, default=V2bConfig.maintenance_max_slots)
-    parser.add_argument("--maintenance-metric", choices=("counts", "hits"), default=V2bConfig.maintenance_metric)
+    parser.add_argument("--maintenance-metric", choices=("counts", "hits", "loss"), default=V2bConfig.maintenance_metric)
     parser.add_argument("--maintenance-use-grad", action=argparse.BooleanOptionalAction, default=V2bConfig.maintenance_use_grad)
+    parser.add_argument("--maintenance-grad-mix", type=float, default=V2bConfig.maintenance_grad_mix)
+    parser.add_argument("--maintenance-loss-ema-decay", type=float, default=V2bConfig.maintenance_loss_ema_decay)
+    parser.add_argument("--maintenance-replay-depth", type=int, default=V2bConfig.maintenance_replay_depth)
+    parser.add_argument("--maintenance-replay-candidates", type=int, default=V2bConfig.maintenance_replay_candidates)
 
     args = parser.parse_args()
     return V2bConfig(
@@ -699,10 +910,16 @@ def parse_args() -> V2bConfig:
         memory_min_read_count=args.memory_min_read_count,
         memory_max_delta_norm=args.memory_max_delta_norm,
         maintenance_passes=args.maintenance_passes,
+        maintenance_mode=args.maintenance_mode,
         maintenance_blend=args.maintenance_blend,
+        maintenance_step_size=args.maintenance_step_size,
         maintenance_max_slots=args.maintenance_max_slots,
         maintenance_metric=args.maintenance_metric,
         maintenance_use_grad=args.maintenance_use_grad,
+        maintenance_grad_mix=args.maintenance_grad_mix,
+        maintenance_loss_ema_decay=args.maintenance_loss_ema_decay,
+        maintenance_replay_depth=args.maintenance_replay_depth,
+        maintenance_replay_candidates=args.maintenance_replay_candidates,
     )
 
 

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.generate_v2b_matrix import build_matrix
+from tools.generate_v2b_matrix import build_matrix, load_matrix_file
 from tools.summarize_v2b_runs import load_row, render_table, resolve_result_path
 
 
@@ -33,9 +33,14 @@ class V2BToolsTests(unittest.TestCase):
                     "memory_table_size": 65536,
                     "memory_min_read_count": 2.0,
                     "maintenance_passes": 2,
+                    "maintenance_mode": "replay",
+                    "maintenance_step_size": 0.05,
                     "maintenance_max_slots": 128,
                     "maintenance_metric": "hits",
-                    "maintenance_use_grad": True,
+                    "maintenance_grad_mix": 0.25,
+                    "maintenance_replay_depth": 3,
+                    "maintenance_replay_candidates": 64,
+                    "maintenance_use_grad": False,
                 },
                 "eval_context": {"val_bpb": 2.40},
                 "eval_online_persistent_hidden": {
@@ -48,6 +53,8 @@ class V2BToolsTests(unittest.TestCase):
                     "delta_norm_mean": 0.8,
                     "persistent_memory": {
                         "readable_fraction": 0.12,
+                        "replay_fraction": 0.08,
+                        "mean_loss_ema": 1.7,
                         "resident_mb": 96.0,
                     },
                 },
@@ -62,12 +69,64 @@ class V2BToolsTests(unittest.TestCase):
             row = load_row(result_path)
             self.assertEqual(row["run"], "run_a")
             self.assertEqual(row["maint_metric"], "hits")
+            self.assertEqual(row["maint_mode"], "replay")
+            self.assertEqual(row["replay_depth"], 3)
             self.assertAlmostEqual(float(row["delta_online"]), -0.09)
             self.assertAlmostEqual(float(row["total_gflop"]), 3.9)
+            self.assertAlmostEqual(float(row["loss_ema"]), 1.7)
 
             table = render_table([row])
             self.assertIn("delta_online", table)
             self.assertIn("run_a", table)
+            self.assertIn("maint_mode", table)
+            self.assertIn("replay_depth", table)
+
+    def test_matrix_json_grid_expands_axes_and_applies_excludes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            matrix_path = Path(tmpdir) / "matrix.json"
+            payload = {
+                "stage": "search",
+                "intent": "Generated search",
+                "name_prefix": "grid",
+                "axes": [
+                    {
+                        "name": "gate",
+                        "values": [
+                            {"token": "g1", "flags": ["--memory-min-read-count", "1"]},
+                            {"token": "g4", "flags": ["--memory-min-read-count", "4"]},
+                        ],
+                    },
+                    {
+                        "name": "maint",
+                        "values": [
+                            {"token": "off", "flags": ["--maintenance-passes", "0"]},
+                            {"token": "on", "flags": ["--maintenance-passes", "2"]},
+                        ],
+                    },
+                    {
+                        "name": "metric",
+                        "values": [
+                            {"token": "counts", "flags": ["--maintenance-metric", "counts"]},
+                            {"token": "hits", "flags": ["--maintenance-metric", "hits"]},
+                        ],
+                    },
+                ],
+                "exclude": [{"maint": "off", "metric": "hits"}],
+            }
+            matrix_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            runs = load_matrix_file(matrix_path)
+            self.assertEqual(len(runs), 6)
+            self.assertEqual(runs[0].stage, "search")
+            names = {run.name for run in runs}
+            self.assertIn("grid_g1_off_counts", names)
+            self.assertIn("grid_g4_on_hits", names)
+            self.assertNotIn("grid_g1_off_hits", names)
+            shell = next(run for run in runs if run.name == "grid_g4_on_hits").shell_command(
+                "python3", "spectral_flood_walk_v2b.py", "runs"
+            )
+            self.assertIn("--memory-min-read-count", shell)
+            self.assertIn("--maintenance-metric", shell)
 
 
 if __name__ == "__main__":

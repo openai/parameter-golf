@@ -2,6 +2,8 @@
 
 This record folder packages the first `V2b` persistent hidden-memory branch of Spectral Flood Walk in the same RunPod-friendly shape as the earlier exploratory folders.
 
+A short retrospective of what held up and what did not is in [RESULTS.md](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-01_SpectralFloodWalk_v2b/RESULTS.md).
+
 The purpose of `V2b` is narrower than "try more memory":
 
 - keep a strong transformer host
@@ -13,15 +15,21 @@ This is still a **non-record exploratory** package. The point is to answer wheth
 
 ## Target Hardware For This Version
 
-This folder is versioned for **1×H100 exploratory runs**.
+This folder now defaults to **auto-detecting the pod**.
 
-The wrappers default to:
+The common wrapper resolves:
 
-- `SFW_TARGET_HARDWARE=1xH100 exploratory`
-- `SFW_TARGET_GPU_COUNT=1`
-- `SFW_NPROC_PER_NODE=1`
+- `SFW_TARGET_GPU_COUNT=auto`
+- `SFW_TARGET_HARDWARE=auto`
+- `SFW_NPROC_PER_NODE=auto`
 
-That keeps the discovery workflow cheap and fast. If we later want an `8xH100` validation branch, that should be a deliberate override or a separate folder.
+So a single launched run will use `torchrun` when the pod exposes multiple GPUs, unless you pin it back down:
+
+```bash
+SFW_TARGET_GPU_COUNT=1 SFW_NPROC_PER_NODE=1 ./runpod_gate4.sh
+```
+
+For `v2b`, the more time-efficient option on large pods is usually **multiple independent queued runs**, because the online memory-growth eval path is mostly a rank-0 sequential workload.
 
 ## What This Run Is
 
@@ -33,7 +41,7 @@ The root runner contains:
 - persistent hidden-space memory keyed by hashed multi-order context
 - score-first analytic hidden-gradient updates after scoring
 - delayed read gating via `memory_min_read_count`
-- optional maintenance passes that refine touched memory slots
+- optional maintenance passes that refine touched memory slots with loss-prioritized replay
 - honest `val_bpb`
 - eval-time FLOP estimates for:
   - memory lookup
@@ -46,20 +54,14 @@ These are the intended first pod experiments:
 
 ```bash
 ./runpod_preflight.sh
-./runpod_smoke.sh
-./runpod_baseline.sh
-./runpod_gate.sh
-./runpod_flop_push.sh
-python3 ../../../tools/summarize_v2b_runs.py runs/*
+./runpod_queue_parallel_core.sh
 ```
 
-That sequence is intentional:
+That queued path is intentional:
 
 1. make sure the pod is healthy
-2. confirm the wrapper stack works end to end
-3. establish the raw hidden-memory line
-4. test whether read-gating helps
-5. push maintenance FLOPs harder once the mechanism is warm
+2. fill separate GPUs with `baseline`, `gate2`, and `gate4`
+3. summarize without babysitting the pod
 
 To compare the core staged profiles in one shot:
 
@@ -74,10 +76,16 @@ For repeated seeds on one profile:
 ./runpod_three_seeds.sh
 ```
 
-By default that uses `runpod_flop_push.sh`. To run three gate-only seeds instead:
+By default that uses `runpod_gate4.sh`. To run a different profile instead:
 
 ```bash
-SFW_PROFILE_SCRIPT=runpod_gate.sh ./runpod_three_seeds.sh
+SFW_PROFILE_SCRIPT=runpod_gate4.sh ./runpod_three_seeds.sh
+```
+
+For parallel gate-only seeds on separate GPUs:
+
+```bash
+./runpod_queue_parallel_gate4_seeds.sh
 ```
 
 ## Matrix Tooling
@@ -95,6 +103,26 @@ Generate shell commands for the whole matrix:
 ```bash
 python3 ../../../tools/generate_v2b_matrix.py --format shell --python-bin python3 --output-dir runs
 ```
+
+Generate a wider search from the checked-in tweakable search-space file:
+
+```bash
+python3 ../../../tools/generate_v2b_matrix.py \
+  --matrix-json ../../../tools/v2b_search_space.json \
+  --format shell \
+  --python-bin python3 \
+  --output-dir runs
+```
+
+That path exists so candidate numbers live in data instead of source edits. If a knob feels like a variable, it should usually move into the search-space file.
+
+The current replay-maintenance defaults intentionally favor sharp slot-local updates:
+
+- `maintenance_use_grad=false`
+- `maintenance_replay_depth=2`
+- `maintenance_grad_mix=0.25` only matters when `maintenance_use_grad=true`
+
+So the default pod profiles now run pure replay sharpening unless a sweep explicitly asks for EMA help.
 
 Summarize completed runs:
 
@@ -149,28 +177,82 @@ This is the more conservative warm-up ablation.
 
 Profile name:
 
-- `gate2_maint2_slots128`
+- `gate2_replay_loss_maint2_slots128_nograd`
 
 Meaning:
 
 - read gate of `2`
-- two maintenance passes
+- two replay-sharpen passes
+- prioritize hard cases by loss
+- pure replay maintenance by default
 - refine up to `128` touched slots per order
 
 This is the first intentionally compute-heavier profile.
+
+### `runpod_flop_push_gate4.sh`
+
+Profile name:
+
+- `gate4_replay_loss_maint2_slots128_nograd`
+
+Meaning:
+
+- the same maintenance budget as `runpod_flop_push.sh`
+- but on top of the stronger `gate4` warm-up
+- still using pure replay updates unless overridden
+
+This is the main gate-4 replay-sharpen profile for the next pod.
 
 ### `runpod_hits.sh`
 
 Profile name:
 
-- `gate2_maint2_slots128_hits`
+- `gate2_replay_hits_maint2_slots128_nograd`
 
 Meaning:
 
 - same maintenance depth as `runpod_flop_push.sh`
-- touched slots prioritized by reads instead of writes
+- touched slots prioritized by reads instead of hard-case loss
 
 This tests whether the read path is identifying the best places to spend extra maintenance compute.
+
+### `runpod_hits_gate4.sh`
+
+Profile name:
+
+- `gate4_replay_hits_maint2_slots128_nograd`
+
+Meaning:
+
+- `gate4` warm-up
+- `hits`-prioritized replay sharpening
+
+This is the explicit follow-up if `gate4` remains the best gate-only branch.
+
+## Queue Scripts
+
+These scripts are meant for the "pod startup is the expensive part" case.
+
+### `runpod_queue_parallel_core.sh`
+
+Uses separate GPUs for:
+
+- `runpod_baseline.sh`
+- `runpod_gate.sh`
+- `runpod_gate4.sh`
+
+Default GPU assignment:
+
+- `SFW_QUEUE_GPUS="0 1 2"`
+
+### `runpod_queue_parallel_gate4_seeds.sh`
+
+Uses separate GPUs for parallel `gate4` seeds.
+
+Defaults:
+
+- `SFW_QUEUE_GPUS="0 1 2"`
+- `SFW_QUEUE_SEEDS="1337 42 2025"`
 
 ## What The Result Means
 

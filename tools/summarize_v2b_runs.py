@@ -33,8 +33,13 @@ def load_row(path: Path) -> dict[str, object]:
         "table": cfg.get("memory_table_size", ""),
         "read_gate": cfg.get("memory_min_read_count", ""),
         "maint_passes": cfg.get("maintenance_passes", ""),
+        "maint_mode": cfg.get("maintenance_mode", ""),
+        "maint_step": cfg.get("maintenance_step_size", ""),
         "maint_slots": cfg.get("maintenance_max_slots", ""),
         "maint_metric": cfg.get("maintenance_metric", ""),
+        "grad_mix": cfg.get("maintenance_grad_mix", ""),
+        "replay_depth": cfg.get("maintenance_replay_depth", ""),
+        "replay_cand": cfg.get("maintenance_replay_candidates", ""),
         "use_grad": cfg.get("maintenance_use_grad", ""),
         "context_bpb": context.get("val_bpb", ""),
         "online_bpb": online.get("val_bpb", ""),
@@ -47,6 +52,8 @@ def load_row(path: Path) -> dict[str, object]:
         "readable_slots": online.get("readable_slots_mean", ""),
         "delta_norm": online.get("delta_norm_mean", ""),
         "readable_fraction": memory.get("readable_fraction", ""),
+        "replay_fraction": memory.get("replay_fraction", ""),
+        "loss_ema": memory.get("mean_loss_ema", ""),
         "resident_mb": memory.get("resident_mb", ""),
         "artifact_mb": float(data.get("model_artifact_bytes", 0.0)) / (1024.0 * 1024.0),
     }
@@ -61,6 +68,8 @@ def format_value(header: str, value: object) -> str:
         if header.endswith("gflop"):
             return f"{value:.3f}"
         if header.endswith("_mb"):
+            return f"{value:.3f}"
+        if header in {"maint_step", "grad_mix"}:
             return f"{value:.3f}"
         if "slots" in header or "fraction" in header or "norm" in header or header == "read_gate":
             return f"{value:.3f}"
@@ -77,8 +86,13 @@ def render_table(rows: list[dict[str, object]]) -> str:
         "table",
         "read_gate",
         "maint_passes",
+        "maint_mode",
+        "maint_step",
         "maint_slots",
         "maint_metric",
+        "grad_mix",
+        "replay_depth",
+        "replay_cand",
         "use_grad",
         "context_bpb",
         "online_bpb",
@@ -91,6 +105,8 @@ def render_table(rows: list[dict[str, object]]) -> str:
         "readable_slots",
         "delta_norm",
         "readable_fraction",
+        "replay_fraction",
+        "loss_ema",
         "resident_mb",
         "artifact_mb",
     ]

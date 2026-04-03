@@ -10,12 +10,12 @@ else
   SFW_DEFAULT_PYTHON_BIN="python3"
 fi
 SFW_PYTHON_BIN="${SFW_PYTHON_BIN:-${SFW_DEFAULT_PYTHON_BIN}}"
-SFW_NPROC_PER_NODE="${SFW_NPROC_PER_NODE:-1}"
+SFW_NPROC_PER_NODE="${SFW_NPROC_PER_NODE:-auto}"
 SFW_LAUNCHER="${SFW_LAUNCHER:-auto}"
 SFW_DEVICE="${SFW_DEVICE:-auto}"
 SFW_OMP_NUM_THREADS="${SFW_OMP_NUM_THREADS:-1}"
-SFW_TARGET_HARDWARE="${SFW_TARGET_HARDWARE:-1xH100 exploratory}"
-SFW_TARGET_GPU_COUNT="${SFW_TARGET_GPU_COUNT:-1}"
+SFW_TARGET_HARDWARE="${SFW_TARGET_HARDWARE:-auto}"
+SFW_TARGET_GPU_COUNT="${SFW_TARGET_GPU_COUNT:-auto}"
 
 sfw_timestamp() {
   date -u +"%Y%m%dT%H%M%SZ"
@@ -66,6 +66,47 @@ sfw_detect_gpu_count() {
   printf '%s\n' "${count}"
 }
 
+sfw_resolve_target_gpu_count() {
+  local detected_gpu_count="$1"
+  if [[ "${SFW_TARGET_GPU_COUNT}" == "auto" ]]; then
+    printf '%s\n' "${detected_gpu_count}"
+    return
+  fi
+  printf '%s\n' "${SFW_TARGET_GPU_COUNT}"
+}
+
+sfw_resolve_target_hardware() {
+  local detected_gpu_count="$1"
+  local target_gpu_count="$2"
+  if [[ "${SFW_TARGET_HARDWARE}" != "auto" ]]; then
+    printf '%s\n' "${SFW_TARGET_HARDWARE}"
+    return
+  fi
+  if (( detected_gpu_count > 0 )); then
+    printf '%sxGPU auto-detect\n' "${target_gpu_count}"
+  else
+    printf 'cpu auto-detect\n'
+  fi
+}
+
+sfw_resolve_nproc_per_node() {
+  local detected_gpu_count="$1"
+  local target_gpu_count="$2"
+  if [[ "${SFW_NPROC_PER_NODE}" != "auto" ]]; then
+    printf '%s\n' "${SFW_NPROC_PER_NODE}"
+    return
+  fi
+  if (( detected_gpu_count <= 1 || target_gpu_count <= 1 )); then
+    printf '1\n'
+    return
+  fi
+  if (( detected_gpu_count < target_gpu_count )); then
+    printf '%s\n' "${detected_gpu_count}"
+  else
+    printf '%s\n' "${target_gpu_count}"
+  fi
+}
+
 sfw_apply_bool_flag() {
   local flag_true="$1"
   local flag_false="$2"
@@ -95,12 +136,22 @@ sfw_run_profile() {
   local command_path="${run_dir}/command.sh"
   local detected_gpu_count
   detected_gpu_count="$(sfw_detect_gpu_count)"
+  local target_gpu_count
+  target_gpu_count="$(sfw_resolve_target_gpu_count "${detected_gpu_count}")"
+  local target_hardware
+  target_hardware="$(sfw_resolve_target_hardware "${detected_gpu_count}" "${target_gpu_count}")"
+  local resolved_nproc_per_node
+  resolved_nproc_per_node="$(sfw_resolve_nproc_per_node "${detected_gpu_count}" "${target_gpu_count}")"
 
   local -a cmd
-  if [[ "${SFW_LAUNCHER}" == "python" || ( "${SFW_LAUNCHER}" == "auto" && "${SFW_NPROC_PER_NODE}" == "1" ) ]]; then
+  if [[ "${SFW_LAUNCHER}" == "python" || ( "${SFW_LAUNCHER}" == "auto" && "${resolved_nproc_per_node}" == "1" ) ]]; then
     cmd=("${SFW_PYTHON_BIN}" "${SFW_RECORD_DIR}/train_gpt.py")
   else
-    cmd=(torchrun --standalone --nproc_per_node "${SFW_NPROC_PER_NODE}" "${SFW_RECORD_DIR}/train_gpt.py")
+    if ! command -v torchrun >/dev/null 2>&1; then
+      echo "[error] torchrun is required when launcher=${SFW_LAUNCHER} and nproc_per_node=${resolved_nproc_per_node}" >&2
+      return 1
+    fi
+    cmd=(torchrun --standalone --nproc_per_node "${resolved_nproc_per_node}" "${SFW_RECORD_DIR}/train_gpt.py")
   fi
 
   cmd+=(
@@ -136,16 +187,22 @@ sfw_run_profile() {
     --memory-min-read-count "${SFW_MEMORY_MIN_READ_COUNT:-2}"
     --memory-max-delta-norm "${SFW_MEMORY_MAX_DELTA_NORM:-4.0}"
     --maintenance-passes "${SFW_MAINTENANCE_PASSES:-1}"
+    --maintenance-mode "${SFW_MAINTENANCE_MODE:-replay}"
     --maintenance-blend "${SFW_MAINTENANCE_BLEND:-0.25}"
+    --maintenance-step-size "${SFW_MAINTENANCE_STEP_SIZE:-0.05}"
     --maintenance-max-slots "${SFW_MAINTENANCE_MAX_SLOTS:-64}"
-    --maintenance-metric "${SFW_MAINTENANCE_METRIC:-counts}"
+    --maintenance-metric "${SFW_MAINTENANCE_METRIC:-loss}"
+    --maintenance-grad-mix "${SFW_MAINTENANCE_GRAD_MIX:-0.25}"
+    --maintenance-loss-ema-decay "${SFW_MAINTENANCE_LOSS_EMA_DECAY:-0.95}"
+    --maintenance-replay-depth "${SFW_MAINTENANCE_REPLAY_DEPTH:-2}"
+    --maintenance-replay-candidates "${SFW_MAINTENANCE_REPLAY_CANDIDATES:-64}"
   )
 
   if [[ -n "${SFW_MEMORY_ORDER_SCALES:-}" ]]; then
     cmd+=(--memory-order-scales "${SFW_MEMORY_ORDER_SCALES}")
   fi
 
-  sfw_apply_bool_flag "--maintenance-use-grad" "--no-maintenance-use-grad" "${SFW_MAINTENANCE_USE_GRAD:-1}" cmd
+  sfw_apply_bool_flag "--maintenance-use-grad" "--no-maintenance-use-grad" "${SFW_MAINTENANCE_USE_GRAD:-0}" cmd
 
   cmd+=("$@")
 
@@ -153,9 +210,11 @@ sfw_run_profile() {
     printf 'profile=%s\n' "${profile}"
     printf 'seed=%s\n' "${seed}"
     printf 'launcher=%s\n' "${SFW_LAUNCHER}"
-    printf 'nproc_per_node=%s\n' "${SFW_NPROC_PER_NODE}"
-    printf 'target_hardware=%s\n' "${SFW_TARGET_HARDWARE}"
-    printf 'target_gpu_count=%s\n' "${SFW_TARGET_GPU_COUNT}"
+    printf 'requested_nproc_per_node=%s\n' "${SFW_NPROC_PER_NODE}"
+    printf 'resolved_nproc_per_node=%s\n' "${resolved_nproc_per_node}"
+    printf 'target_hardware=%s\n' "${target_hardware}"
+    printf 'requested_target_gpu_count=%s\n' "${SFW_TARGET_GPU_COUNT}"
+    printf 'resolved_target_gpu_count=%s\n' "${target_gpu_count}"
     printf 'detected_gpu_count=%s\n' "${detected_gpu_count}"
     printf 'device=%s\n' "${SFW_DEVICE}"
     printf 'record_dir=%s\n' "${SFW_RECORD_DIR}"
@@ -164,8 +223,8 @@ sfw_run_profile() {
 
   sfw_write_command_file "${command_path}" "${cmd[@]}"
 
-  if [[ "${detected_gpu_count}" != "${SFW_TARGET_GPU_COUNT}" ]]; then
-    echo "[warn] target hardware is '${SFW_TARGET_HARDWARE}' (${SFW_TARGET_GPU_COUNT} GPU(s)) but detected ${detected_gpu_count} GPU(s)." | tee -a "${notes_path}"
+  if [[ "${detected_gpu_count}" != "${target_gpu_count}" ]]; then
+    echo "[warn] target hardware is '${target_hardware}' (${target_gpu_count} GPU(s)) but detected ${detected_gpu_count} GPU(s)." | tee -a "${notes_path}"
     echo "[warn] override SFW_TARGET_GPU_COUNT / SFW_TARGET_HARDWARE / SFW_NPROC_PER_NODE if this is intentional." | tee -a "${notes_path}"
   fi
 
