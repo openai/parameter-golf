@@ -345,14 +345,17 @@ class DirectionalSemanticVec:
             # cupy doesn't have unpackbits, so we use a manual popcount
             # For uint64, popcount = sum of bits set
             def gpu_popcount_uint64(arr):
-                """Vectorized popcount for uint64 array on GPU."""
-                # Use lookup table approach or builtin popcount
-                # CuPy supports cp.count_nonzero for boolean, so we unpack bits
-                # Alternative: use the fact that popcount(x) = x - (x>>1)&0x5555... etc
-                # For simplicity, use the SWAR approach
-                x = arr.view(cp.uint8).reshape(arr.shape[0], -1)  # (vocab_size, W*8)
-                # Use numpy-style bit counting via lookup
-                # Actually, use cp.unpackbits if available, else fallback
+                """Vectorized popcount for uint64 array on GPU.
+
+                Fix #8: arr has shape (vocab_size, W) as uint64.  Calling
+                arr.view(cp.uint8) on a 2-D contiguous array produces a 1-D
+                view of length vocab_size*W*8 — the first dimension is NOT
+                preserved.  We must reshape explicitly after the view.
+                """
+                rows = arr.shape[0]
+                # Ensure contiguous memory before reinterpreting dtype
+                arr_c = cp.ascontiguousarray(arr)
+                x = arr_c.view(cp.uint8).reshape(rows, -1)  # (vocab_size, W*8)
                 try:
                     bits = cp.unpackbits(x, axis=1)  # (vocab_size, W*64)
                     return bits.sum(axis=1)
@@ -377,6 +380,68 @@ class DirectionalSemanticVec:
         except (ImportError, RuntimeError, Exception):
             # GPU not available or error occurred, fall back to CPU
             return self.vote_scores_for_context_tok(ctx_tok, codebook)
+
+    # ------------------------------------------------------------------
+    # Shared accumulation helper (Bug #18 fix — DRY)
+    # ------------------------------------------------------------------
+
+    def _accumulate_sem_votes(
+        self,
+        context_matrix: np.ndarray,  # (CTX_LEN, chunk_n) int32
+        codebook: np.ndarray,         # (vocab_size, W) uint64
+        chunk_n: int,
+    ) -> np.ndarray:
+        """Accumulate semantic vote scores for all positions — fully vectorized.
+
+        Replaces the O(K × CTX_LEN) Python double-loop that appeared in both
+        ``augment_predictions`` and ``continuous_attention_blend`` (Bug #17 and
+        Bug #18).
+
+        Algorithm
+        ---------
+        1. Find all unique context tokens K across the whole context_matrix.
+        2. Batch-compute scores for those K tokens: (K, vocab_size) float32.
+        3. For each context position c, build an index array mapping each of the
+           chunk_n positions to its row in the batch_scores matrix, then use
+           ``np.add.at`` to scatter-add the scores — no Python loop over K.
+
+        Returns
+        -------
+        sem_vote : (chunk_n, vocab_size) float32
+        """
+        all_ctx_toks = np.unique(context_matrix)
+        all_ctx_toks = all_ctx_toks[all_ctx_toks >= 0]  # strip padding (-1)
+
+        sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+        if len(all_ctx_toks) == 0:
+            return sem_vote
+
+        # (K, vocab_size) — one score row per unique context token
+        batch_scores = self.vote_scores_for_context_tok_batch(all_ctx_toks, codebook)
+
+        # Build a reverse-lookup array: tok_id → row index in batch_scores.
+        # We use a dense array sized to the max token id for O(1) lookup.
+        max_tok = int(all_ctx_toks.max()) + 1
+        tok_to_row = np.full(max_tok, -1, dtype=np.int32)
+        tok_to_row[all_ctx_toks] = np.arange(len(all_ctx_toks), dtype=np.int32)
+
+        ctx_len = context_matrix.shape[0]
+        for c in range(ctx_len):
+            ctx_slice = context_matrix[c]  # (chunk_n,) int32
+            # Map each position's context token to its batch_scores row index.
+            # Tokens outside [0, max_tok) or padding (-1) map to row -1 → skip.
+            valid = (ctx_slice >= 0) & (ctx_slice < max_tok)
+            if not np.any(valid):
+                continue
+            row_idx = np.where(valid, tok_to_row[np.clip(ctx_slice, 0, max_tok - 1)], -1)
+            valid &= (row_idx >= 0)
+            if not np.any(valid):
+                continue
+            # scatter-add: sem_vote[pos] += batch_scores[row_idx[pos]]
+            # np.add.at handles repeated indices correctly.
+            np.add.at(sem_vote, np.where(valid)[0], batch_scores[row_idx[valid]])
+
+        return sem_vote
 
     def augment_predictions(
         self,
@@ -409,27 +474,9 @@ class DirectionalSemanticVec:
         # Accumulate semantic vote scores over all context positions (VECTORIZED)
         ctx_len = context_matrix.shape[0]
 
-        # Collect all unique context tokens across all positions
-        all_ctx_toks = np.unique(context_matrix)
-        all_ctx_toks = all_ctx_toks[all_ctx_toks >= 0]  # Filter out padding (-1)
-
-        # Batch compute scores for all unique context tokens at once
-        if len(all_ctx_toks) > 0:
-            batch_scores = self.vote_scores_for_context_tok_batch(all_ctx_toks, codebook)  # (K, vocab_size)
-
-            # Create lookup map: ctx_tok -> index in all_ctx_toks
-            ctx_to_idx = {tok: idx for idx, tok in enumerate(all_ctx_toks)}
-
-            # Accumulate scores using vectorized indexing
-            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
-            for c in range(ctx_len):
-                ctx_slice = context_matrix[c]  # (chunk_n,) int32
-                for k, ctx_tok in enumerate(all_ctx_toks):
-                    pos_mask = ctx_slice == ctx_tok
-                    if np.any(pos_mask):
-                        sem_vote[pos_mask] += batch_scores[k]
-        else:
-            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+        # Bug #17 fix: replace the O(K × CTX_LEN) Python inner loop with
+        # fully vectorized advanced indexing.  See _accumulate_sem_votes().
+        sem_vote = self._accumulate_sem_votes(context_matrix, codebook, chunk_n)
 
         # Best semantic candidate per position
         sem_preds = np.argmax(sem_vote, axis=1).astype(np.uint16)
@@ -497,30 +544,11 @@ class DirectionalSemanticVec:
             Full semantic vote matrix for analysis.
         """
         chunk_n = len(table_preds)
-        ctx_len = context_matrix.shape[0]
 
         # 1. Compute semantic vote scores for ALL positions (VECTORIZED)
-        # Collect all unique context tokens across all positions
-        all_ctx_toks = np.unique(context_matrix)
-        all_ctx_toks = all_ctx_toks[all_ctx_toks >= 0]  # Filter out padding (-1)
-
-        # Batch compute scores for all unique context tokens at once
-        if len(all_ctx_toks) > 0:
-            batch_scores = self.vote_scores_for_context_tok_batch(all_ctx_toks, codebook)  # (K, vocab_size)
-
-            # Create lookup map: ctx_tok -> index in all_ctx_toks
-            ctx_to_idx = {tok: idx for idx, tok in enumerate(all_ctx_toks)}
-
-            # Accumulate scores using vectorized indexing
-            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
-            for c in range(ctx_len):
-                ctx_slice = context_matrix[c]  # (chunk_n,) int32
-                for k, ctx_tok in enumerate(all_ctx_toks):
-                    pos_mask = ctx_slice == ctx_tok
-                    if np.any(pos_mask):
-                        sem_vote[pos_mask] += batch_scores[k]
-        else:
-            sem_vote = np.zeros((chunk_n, self.vocab_size), dtype=np.float32)
+        # Bug #18 fix: share the accumulation logic with augment_predictions via
+        # _accumulate_sem_votes() instead of duplicating the inner loop here.
+        sem_vote = self._accumulate_sem_votes(context_matrix, codebook, chunk_n)
 
         # Normalize semantic votes to [-1, 1] range per position
         sem_max = np.abs(sem_vote).max(axis=1, keepdims=True)
@@ -552,40 +580,37 @@ class DirectionalSemanticVec:
             blended_preds[use_semantic] = sem_preds[use_semantic]
 
         elif blend_mode == "additive":
-            # Add semantic vote to table confidence for the predicted token
-            # This amplifies patterns where both agree
-            for i in range(chunk_n):
-                tok = int(table_preds[i])
-                combined_conf = table_conf[i] + sem_vote[i, tok] * 5.0
-                # If another token has higher combined score, use it
-                sem_vote_adjusted = sem_vote[i] * 5.0 + table_conf[i] * (np.arange(self.vocab_size) == tok)
-                best_combined = np.argmax(sem_vote_adjusted)
-                if sem_vote[i, best_combined] > sem_vote[i, tok] + 0.5:
-                    blended_preds[i] = best_combined
+            # Improvement #19: fully vectorised — no Python loop.
+            # For each position, build a combined score = sem_vote * 5 + table_conf
+            # boosted at the table-predicted token, then argmax.
+            idx = np.arange(chunk_n)
+            tok_ids = table_preds.astype(np.int64)                    # (chunk_n,)
+            sem_vote_scaled = sem_vote * 5.0                           # (chunk_n, vocab)
+            # Add table_conf only at the table-predicted token column
+            sem_vote_adjusted = sem_vote_scaled.copy()
+            sem_vote_adjusted[idx, tok_ids] += table_conf.astype(np.float32)
+            best_combined = np.argmax(sem_vote_adjusted, axis=1)       # (chunk_n,)
+            # Override where the best combined token beats the table token by > 0.5
+            gain = sem_vote[idx, best_combined] - sem_vote[idx, tok_ids]
+            override = gain > 0.5
+            blended_preds[override] = best_combined[override].astype(np.uint16)
 
         elif blend_mode == "multiplicative":
-            # Multiply table confidence by semantic agreement
-            # Strong agreement → boost, disagreement → consider alternatives
-            for i in range(chunk_n):
-                tok = int(table_preds[i])
-                agreement = sem_vote_norm[i, tok]
-                if agreement < -0.3 and sem_best_score[i] > SEM_CONFIDENCE_MIN:
-                    # Semantic strongly disagrees — use semantic prediction
-                    blended_preds[i] = sem_preds[i]
+            # Improvement #19: fully vectorised — no Python loop.
+            # Override where semantic strongly disagrees (norm < -0.3) and is confident.
+            tok_ids = table_preds.astype(np.int64)
+            agreement = sem_vote_norm[np.arange(chunk_n), tok_ids]    # (chunk_n,)
+            override = (agreement < -0.3) & (sem_best_score > SEM_CONFIDENCE_MIN)
+            blended_preds[override] = sem_preds[override]
 
         elif blend_mode == "cluster_enhanced":
-            # Cluster-enhanced: semantic layer identifies relationship clusters
-            # and amplifies predictions that match cluster patterns
-            for i in range(chunk_n):
-                tok = int(table_preds[i])
-                sem_score_for_tok = sem_vote[i, tok]
-
-                # Check if semantic layer has a strong alternative
-                if sem_best_score[i] > sem_score_for_tok + 0.3:
-                    # Semantic layer has a better candidate
-                    # Blend based on confidence
-                    if table_weight[i] < 0.6:  # Table not very confident
-                        blended_preds[i] = sem_preds[i]
+            # Improvement #19: fully vectorised — no Python loop.
+            tok_ids = table_preds.astype(np.int64)
+            sem_score_for_tok = sem_vote[np.arange(chunk_n), tok_ids]  # (chunk_n,)
+            has_better = sem_best_score > sem_score_for_tok + 0.3
+            low_table_conf = table_weight < 0.6
+            override = has_better & low_table_conf
+            blended_preds[override] = sem_preds[override]
 
         return blended_preds, table_weight.astype(np.float32), sem_vote
 
@@ -601,6 +626,9 @@ class DirectionalSemanticVec:
         is measured over 1024 bits (not 64), giving a much more reliable
         signal-vs-noise distinction.
 
+        Improvement #18: the inner per-uint64 loop is replaced with a
+        vectorised NumPy random bit-flip using np.random.randint + masking.
+
         Returns (windows_pruned, windows_nudged) — one window = one token.
         """
         pruned = 0
@@ -611,25 +639,25 @@ class DirectionalSemanticVec:
             win = slice(tok * self.W, (tok + 1) * self.W)
 
             for vec in (self.sem_fwd, self.sem_bwd):
-                block = vec[win]  # (W,) uint64
+                block = vec[win].copy()  # (W,) uint64 — work on a copy
                 pc = int(np.unpackbits(block.view(np.uint8)).sum())
                 conf = abs(pc - neutral) / neutral
 
                 if conf < noise_threshold:
-                    # Nudge one random bit per uint64 toward neutral
+                    # Vectorised: pick one random bit position per uint64 element
+                    bit_positions = np.random.randint(0, 64, size=self.W)  # (W,)
+                    masks = np.array([np.uint64(1) << np.uint64(b) for b in bit_positions],
+                                     dtype=np.uint64)                       # (W,)
                     if pc > neutral:
-                        # Too many ones — pick random set bits and clear
-                        for i in range(self.W):
-                            bit = np.random.randint(64)
-                            if (int(block[i]) >> bit) & 1:
-                                block[i] = np.uint64(int(block[i]) & ~(1 << bit))
+                        # Too many ones — clear the chosen bits that are currently set
+                        set_bits = (block & masks) != np.uint64(0)
+                        block[set_bits] &= ~masks[set_bits]
                         vec[win] = block
                         pruned += 1
                     elif pc < neutral:
-                        for i in range(self.W):
-                            bit = np.random.randint(64)
-                            if not ((int(block[i]) >> bit) & 1):
-                                block[i] = np.uint64(int(block[i]) | (1 << bit))
+                        # Too many zeros — set the chosen bits that are currently clear
+                        clear_bits = (block & masks) == np.uint64(0)
+                        block[clear_bits] |= masks[clear_bits]
                         vec[win] = block
                         nudged += 1
 
@@ -641,30 +669,332 @@ class DirectionalSemanticVec:
         """Return high-confidence token pairs from sem_fwd.
 
         Returns list of (token_a, token_b, fwd_conf, bwd_conf, rel_type)
-        for all pairs where fwd_conf > threshold.  O(vocab_size^2 * W).
+        for all pairs where fwd_conf > threshold.
+
+        Improvement #17: replaced the O(vocab²) nested Python loop with a
+        fully vectorised broadcast XOR + popcount pass.  For vocab_size=1024
+        and W=16 this reduces ~1M Python iterations to a single NumPy call.
+
+        Window size / vocab size method — less expensive approach
+        -------------------------------------------------------
+        Instead of iterating every (a, b) pair in Python, we:
+          1. Reshape sem_fwd into (vocab_size, W) — one row per token.
+          2. Broadcast XOR against the full codebook: (vocab_size, 1, W) ^
+             (1, vocab_size, W) → (vocab_size, vocab_size, W).
+          3. Compute popcount via uint8 view + unpackbits in one call.
+          4. Derive fwd_conf for all pairs simultaneously.
+          5. Filter with a boolean mask — no Python loop needed.
+        Memory: vocab_size² × W × 8 bytes = 1024² × 16 × 8 = 128 MB peak.
+        For larger vocabularies, process in row-batches to cap memory.
         """
+        V = self.vocab_size
+        W = self.W
+        neutral_f = self._neutral_f
+
+        # Reshape sem_fwd into (V, W) — one window per token
+        fwd_mat = self.sem_fwd.reshape(V, W)   # (V, W) uint64
+
+        # Process in row-batches to keep peak memory ≤ ~64 MB
+        BATCH = max(1, min(V, 64 * 1024 * 1024 // (V * W * 8)))
+
         results = []
-        for a in range(self.vocab_size):
-            win = slice(a * self.W, (a + 1) * self.W)
-            fwd_win = self.sem_fwd[win]
-            for b in range(self.vocab_size):
-                if a == b:
-                    continue
-                signal = fwd_win ^ codebook[b]
-                pc = int(np.unpackbits(signal.view(np.uint8)).sum())
-                fwd_conf = (pc - self._neutral_f) / self._neutral_f
-                if fwd_conf > threshold:
-                    bwd_conf = self.query_backward(b, a, codebook)
-                    if fwd_conf > 0.85 and bwd_conf > 0.85:
-                        rel_type = "SYNONYM"
-                    elif fwd_conf > 0.7 and bwd_conf < 0.3:
-                        rel_type = "PRECEDES"
-                    elif fwd_conf > 0.5:
-                        rel_type = "ASSOCIATES-WITH"
-                    else:
-                        rel_type = "AMBIGUOUS"
-                    results.append((a, b, fwd_conf, bwd_conf, rel_type))
+        for a_start in range(0, V, BATCH):
+            a_end = min(a_start + BATCH, V)
+            batch = fwd_mat[a_start:a_end]          # (B, W) uint64
+
+            # Broadcast XOR: (B, 1, W) ^ (1, V, W) → (B, V, W)
+            xor_bv = batch[:, None, :] ^ codebook[None, :, :]  # (B, V, W)
+
+            # Popcount via uint8 view
+            # xor_bv is (B, V, W) uint64 → view as uint8 → (B, V, W*8)
+            xor_u8 = np.ascontiguousarray(xor_bv).view(np.uint8).reshape(
+                a_end - a_start, V, W * 8
+            )
+            pc_bv = np.unpackbits(xor_u8, axis=2).sum(axis=2)  # (B, V) int
+
+            fwd_conf_bv = (pc_bv.astype(np.float32) - neutral_f) / neutral_f  # (B, V)
+
+            # Find pairs above threshold (exclude diagonal a==b)
+            above = fwd_conf_bv > threshold
+            for bi, a in enumerate(range(a_start, a_end)):
+                above[bi, a] = False  # exclude self-pairs
+            row_a, col_b = np.where(above)
+
+            for bi, b in zip(row_a, col_b):
+                a = a_start + bi
+                fwd_conf = float(fwd_conf_bv[bi, b])
+                bwd_conf = self.query_backward(int(b), a, codebook)
+                if fwd_conf > 0.85 and bwd_conf > 0.85:
+                    rel_type = "SYNONYM"
+                elif fwd_conf > 0.7 and bwd_conf < 0.3:
+                    rel_type = "PRECEDES"
+                elif fwd_conf > 0.5:
+                    rel_type = "ASSOCIATES-WITH"
+                else:
+                    rel_type = "AMBIGUOUS"
+                results.append((a, int(b), fwd_conf, bwd_conf, rel_type))
+
         return results
+
+    # ------------------------------------------------------------------
+    # Multi-hop / depth inference
+    # ------------------------------------------------------------------
+
+    def query_forward_2hop(
+        self, token_a: int, codebook: np.ndarray, top_k: int = 5
+    ) -> np.ndarray:
+        """2-hop forward inference: A → intermediate → C.
+
+        A transformer's depth gives it the ability to form intermediate
+        abstract representations: layer 1 learns A→B patterns, layer 2
+        learns (A→B)→C patterns.  In HDC algebra this is achievable
+        without learned weights because ``sem_fwd[A]`` is itself a
+        hypervector in the same space as the codebook.
+
+        Algorithm
+        ---------
+        Step 1 — find intermediate tokens B whose follower-distribution
+                 most resembles A's follower-distribution:
+
+            sim(A, B) = popcount( sem_fwd[A] ^ sem_fwd[B] )
+
+            High popcount (near W*64) → distributions are *opposite*.
+            Low popcount (near 0)     → distributions are *identical*.
+            We want low XOR popcount, i.e. high similarity.
+
+        Step 2 — for each top-k intermediate B, score all candidates C
+                 via the standard 1-hop query on B:
+
+            score_C = popcount( sem_fwd[B] ^ codebook[C] )
+
+        Step 3 — aggregate: sum the 1-hop scores from all top-k
+                 intermediates, weighted by their similarity to A.
+
+        This is the HDC equivalent of a 2-layer transformer: the
+        intermediate B tokens are the "hidden layer" representations
+        learned purely from corpus co-occurrence statistics.
+
+        Parameters
+        ----------
+        token_a : int
+            The context token (the "query").
+        codebook : (vocab_size, W) uint64
+            Token codebook.
+        top_k : int
+            Number of intermediate tokens to use (analogous to number
+            of "neurons" in a hidden layer).  Default 5.
+
+        Returns
+        -------
+        scores : (vocab_size,) float32
+            Aggregated 2-hop scores for all vocabulary tokens.
+            Positive = predicted to follow A via at least one
+            intermediate; negative = anti-correlated.
+        """
+        V = self.vocab_size
+        W = self.W
+        neutral_f = self._neutral_f
+
+        # ── Step 1: find top-k intermediate tokens B ──────────────────
+        # sem_fwd reshaped to (V, W) — one follower-distribution per token
+        fwd_mat = self.sem_fwd.reshape(V, W)          # (V, W) uint64
+        query_win = fwd_mat[token_a]                   # (W,) uint64
+
+        # XOR query against every row: (V, W) uint64
+        xor_ab = query_win[None, :] ^ fwd_mat          # (V, W)
+        # Popcount via uint8 view
+        pc_ab = np.unpackbits(
+            np.ascontiguousarray(xor_ab).view(np.uint8), axis=1
+        ).sum(axis=1).astype(np.float32)               # (V,)
+
+        # Similarity score: low XOR popcount = high similarity
+        # Normalise to (-1, 1): 0 popcount → +1, W*64 popcount → -1
+        sim_ab = (neutral_f - pc_ab) / neutral_f       # (V,) in (-1, 1)
+        sim_ab[token_a] = -1.0                         # exclude self
+
+        # Top-k intermediates by similarity
+        top_k_actual = min(top_k, V - 1)
+        top_b_idx = np.argpartition(sim_ab, -top_k_actual)[-top_k_actual:]
+        top_b_sim = sim_ab[top_b_idx]                  # (top_k,) weights
+
+        # ── Step 2 & 3: aggregate 1-hop scores from each intermediate ─
+        # For each B in top_k, compute sem_fwd[B] ^ codebook[C] for all C
+        # Shape: (top_k, W) ^ (1, V, W) → (top_k, V, W)
+        b_windows = fwd_mat[top_b_idx]                 # (top_k, W) uint64
+        xor_bc = b_windows[:, None, :] ^ codebook[None, :, :]  # (top_k, V, W)
+        pc_bc = np.unpackbits(
+            np.ascontiguousarray(xor_bc).view(np.uint8), axis=2
+        ).sum(axis=2).astype(np.float32)               # (top_k, V)
+
+        # 1-hop scores for each intermediate: positive = co-occurrence
+        scores_bc = (pc_bc - neutral_f) / neutral_f    # (top_k, V)
+
+        # Weight each intermediate's contribution by its similarity to A
+        # top_b_sim: (top_k,) → broadcast to (top_k, V)
+        weights = np.clip(top_b_sim, 0.0, None)        # only positive sim
+        if weights.sum() < 1e-9:
+            weights = np.ones(top_k_actual, dtype=np.float32)
+        weights = weights / weights.sum()              # normalise
+
+        aggregated = (scores_bc * weights[:, None]).sum(axis=0)  # (V,)
+        return aggregated.astype(np.float32)
+
+    def query_forward_nhop(
+        self,
+        token_a: int,
+        codebook: np.ndarray,
+        n_hops: int = 2,
+        top_k: int = 5,
+        blend_direct: float = 0.4,
+    ) -> np.ndarray:
+        """N-hop forward inference by iterating the 2-hop mechanism.
+
+        Each hop uses the previous hop's aggregated score vector as a
+        soft "intermediate token distribution", then queries sem_fwd
+        again.  This is the HDC analogue of stacking transformer layers:
+
+            hop 0 (direct):  sem_fwd[A] ^ codebook[C]
+            hop 1:           aggregate over top-k B of sem_fwd[B] ^ codebook[C]
+            hop 2:           aggregate over top-k B' of sem_fwd[B'] ^ codebook[C]
+                             where B' are the top-k tokens from hop 1's scores
+
+        The final score blends all hops with exponentially decaying
+        weight so that direct (1-hop) evidence always dominates.
+
+        Parameters
+        ----------
+        token_a : int
+            Context token.
+        codebook : (vocab_size, W) uint64
+            Token codebook.
+        n_hops : int
+            Total number of hops (1 = direct only, 2 = one intermediate
+            layer, etc.).  Values above 3 rarely help and add cost.
+        top_k : int
+            Intermediate tokens per hop.
+        blend_direct : float
+            Weight of the direct (1-hop) score in the final blend.
+            Remaining weight is split equally across deeper hops.
+
+        Returns
+        -------
+        scores : (vocab_size,) float32
+            Blended multi-hop scores.
+        """
+        V = self.vocab_size
+        W = self.W
+        neutral_f = self._neutral_f
+        fwd_mat = self.sem_fwd.reshape(V, W)
+
+        # ── Hop 0: direct 1-hop scores ────────────────────────────────
+        query_win = fwd_mat[token_a]                   # (W,)
+        xor_direct = query_win[None, :] ^ codebook     # (V, W)
+        pc_direct = np.unpackbits(
+            np.ascontiguousarray(xor_direct).view(np.uint8), axis=1
+        ).sum(axis=1).astype(np.float32)
+        direct_scores = (pc_direct - neutral_f) / neutral_f  # (V,)
+
+        if n_hops <= 1:
+            return direct_scores.astype(np.float32)
+
+        # ── Deeper hops ───────────────────────────────────────────────
+        hop_scores = [direct_scores]
+        current_query = query_win.copy()               # (W,) — evolves each hop
+
+        for _hop in range(1, n_hops):
+            # Find top-k tokens whose sem_fwd window is most similar to
+            # the current query window (the "intermediate layer" tokens)
+            xor_ab = current_query[None, :] ^ fwd_mat  # (V, W)
+            pc_ab = np.unpackbits(
+                np.ascontiguousarray(xor_ab).view(np.uint8), axis=1
+            ).sum(axis=1).astype(np.float32)
+            sim_ab = (neutral_f - pc_ab) / neutral_f   # (V,)
+            sim_ab[token_a] = -1.0                     # exclude origin
+
+            top_k_actual = min(top_k, V - 1)
+            top_b_idx = np.argpartition(sim_ab, -top_k_actual)[-top_k_actual:]
+            top_b_sim = np.clip(sim_ab[top_b_idx], 0.0, None)
+
+            if top_b_sim.sum() < 1e-9:
+                # No positive-similarity intermediates — stop early
+                break
+
+            weights = top_b_sim / top_b_sim.sum()
+
+            # Score all C via each intermediate B
+            b_windows = fwd_mat[top_b_idx]             # (top_k, W)
+            xor_bc = b_windows[:, None, :] ^ codebook[None, :, :]  # (top_k, V, W)
+            pc_bc = np.unpackbits(
+                np.ascontiguousarray(xor_bc).view(np.uint8), axis=2
+            ).sum(axis=2).astype(np.float32)
+            scores_bc = (pc_bc - neutral_f) / neutral_f  # (top_k, V)
+            hop_score = (scores_bc * weights[:, None]).sum(axis=0)  # (V,)
+            hop_scores.append(hop_score)
+
+            # Advance query: weighted average of top-k intermediate windows
+            # (soft "residual stream" update — the HDC analogue of a
+            # transformer residual connection)
+            current_query = (b_windows.astype(np.float64) * weights[:, None]).sum(axis=0)
+            # Re-binarise via majority vote (threshold at 0.5 of max)
+            threshold = current_query.max() * 0.5
+            current_query_bin = np.where(
+                current_query >= threshold,
+                np.uint64(0xFFFFFFFFFFFFFFFF),
+                np.uint64(0),
+            ).astype(np.uint64)
+            current_query = current_query_bin
+
+        # ── Blend all hops ────────────────────────────────────────────
+        n_deep = len(hop_scores) - 1
+        if n_deep == 0:
+            return hop_scores[0].astype(np.float32)
+
+        deep_weight_each = (1.0 - blend_direct) / n_deep
+        blended = hop_scores[0] * blend_direct
+        for hs in hop_scores[1:]:
+            blended = blended + hs * deep_weight_each
+
+        return blended.astype(np.float32)
+
+    def vote_scores_multihop(
+        self,
+        ctx_toks: np.ndarray,
+        codebook: np.ndarray,
+        n_hops: int = 2,
+        top_k: int = 5,
+        blend_direct: float = 0.4,
+    ) -> np.ndarray:
+        """Multi-hop vote scores for a batch of context tokens.
+
+        Drop-in replacement for ``vote_scores_for_context_tok_batch``
+        that adds N-hop depth.  For each context token, computes
+        ``query_forward_nhop`` and returns the (K, vocab_size) matrix.
+
+        Parameters
+        ----------
+        ctx_toks : (K,) int32
+            Unique context tokens.
+        codebook : (vocab_size, W) uint64
+        n_hops : int
+            Depth (1 = same as existing 1-hop batch method).
+        top_k : int
+            Intermediate tokens per hop.
+        blend_direct : float
+            Weight of direct 1-hop evidence in the blend.
+
+        Returns
+        -------
+        scores : (K, vocab_size) float32
+        """
+        K = len(ctx_toks)
+        V = self.vocab_size
+        scores = np.zeros((K, V), dtype=np.float32)
+        for k, tok in enumerate(ctx_toks):
+            scores[k] = self.query_forward_nhop(
+                int(tok), codebook,
+                n_hops=n_hops, top_k=top_k, blend_direct=blend_direct,
+            )
+        return scores
 
     def summary(self) -> dict:
         """Return mean confidence and coverage statistics for both vectors."""
