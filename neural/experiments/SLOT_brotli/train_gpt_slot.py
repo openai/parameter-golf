@@ -168,7 +168,7 @@ class Hyperparameters:
     compile_mode = os.environ.get("COMPILE_MODE", "").strip()
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
     mlp_kernel_mode = os.environ.get("MLP_KERNEL_MODE", "").strip().lower()
-    loader_mode = os.environ.get("LOADER_MODE", "sequential").strip().lower()
+    loader_mode = os.environ.get("LOADER_MODE", "coprime").strip().lower()
     coprime_max_loaded_shards = int(os.environ.get("COPRIME_MAX_LOADED_SHARDS", 4))
     coprime_shards_per_batch = int(os.environ.get("COPRIME_SHARDS_PER_BATCH", 1))
     coprime_shard_hold_steps = int(os.environ.get("COPRIME_SHARD_HOLD_STEPS", 64))
