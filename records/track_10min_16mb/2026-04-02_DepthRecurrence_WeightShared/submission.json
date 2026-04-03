@@ -1,0 +1,9 @@
+{
+  "name": "milhouse",
+  "github_id": "GitGeeks",
+  "submission_name": "Depth Recurrence via Weight-Shared Transformer Blocks",
+  "val_bpb": null,
+  "status": "in_progress",
+  "date": "2026-04-02",
+  "notes": "WIP - implementing weight-shared depth recurrence on top of PR #1019 stack"
+}
