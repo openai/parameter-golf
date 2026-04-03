@@ -220,7 +220,7 @@ This submission is not intended as a SOTA record. It is submitted because:
 
 ## Files
 
-- `train_gpt.py` — full training + quantization + evaluation script
+- `train_matrix.py` — full training + quantization + evaluation script
 - `submission.json` — metadata
 - `README.md` — this file
 - `train.log` — training log (seed 42), produced automatically by the script
