@@ -89,6 +89,8 @@ class V3Config:
     base_lr: float = 2e-3
     weight_decay: float = 1e-2
     grad_clip_norm: float = 1.0
+    warmup_steps: int = 4
+    min_lr_scale: float = 0.10
 
 
 class RMSNorm(nn.Module):
@@ -676,6 +678,15 @@ def train_and_evaluate(cfg: V3Config) -> dict[str, Any]:
 
     model = DeepFloorModel(cfg).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.base_lr, weight_decay=cfg.weight_decay)
+
+    def lr_lambda(step: int) -> float:
+        if step < cfg.warmup_steps:
+            return max(float(step + 1) / max(cfg.warmup_steps, 1), 1e-6)
+        progress = (step - cfg.warmup_steps) / max(cfg.train_steps - cfg.warmup_steps, 1)
+        return cfg.min_lr_scale + 0.5 * (1.0 - cfg.min_lr_scale) * (1.0 + math.cos(math.pi * progress))
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
     history: list[dict[str, Any]] = []
     maybe_reset_cuda_peak_memory(device)
     train_rng = random.Random(cfg.seed + 17)
@@ -707,6 +718,7 @@ def train_and_evaluate(cfg: V3Config) -> dict[str, Any]:
         loss.backward()
         grad_norm = float(nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip_norm))
         optimizer.step()
+        scheduler.step()
         record = {
             "step": int(step),
             "loss": float(loss.detach().cpu()),
@@ -720,6 +732,7 @@ def train_and_evaluate(cfg: V3Config) -> dict[str, Any]:
             "state_norm_counts": metadata["state_norm_counts"],
             "accumulator_norm_counts": metadata["accumulator_norm_counts"],
             "tbptt_detach_counts": metadata["tbptt_detach_counts"],
+            "lr": float(scheduler.get_last_lr()[0]),
         }
         history.append(record)
         if cfg.report_every > 0 and ((step + 1) % cfg.report_every == 0 or step == cfg.train_steps - 1):
@@ -809,6 +822,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-lr", type=float, default=V3Config.base_lr)
     parser.add_argument("--weight-decay", type=float, default=V3Config.weight_decay)
     parser.add_argument("--grad-clip-norm", type=float, default=V3Config.grad_clip_norm)
+    parser.add_argument("--warmup-steps", type=int, default=V3Config.warmup_steps)
+    parser.add_argument("--min-lr-scale", type=float, default=V3Config.min_lr_scale)
     parser.add_argument(
         "--cache-dataset-on-device",
         action=argparse.BooleanOptionalAction,
@@ -856,6 +871,8 @@ def config_from_args(args: argparse.Namespace) -> V3Config:
         base_lr=args.base_lr,
         weight_decay=args.weight_decay,
         grad_clip_norm=args.grad_clip_norm,
+        warmup_steps=args.warmup_steps,
+        min_lr_scale=args.min_lr_scale,
         cache_dataset_on_device=args.cache_dataset_on_device,
     )
 

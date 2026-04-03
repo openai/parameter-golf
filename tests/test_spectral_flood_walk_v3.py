@@ -159,6 +159,17 @@ class SpectralFloodWalkV3Tests(unittest.TestCase):
         weight_params = sum(p.numel() for p in block.parameters() if p.dim() >= 2)
         self.assertEqual(weight_params, 4 * cfg.recurrent_dim * cfg.recurrent_dim)
 
+    def test_cosine_lr_schedule_decays_during_training(self) -> None:
+        cfg = self._base_config(cross_token_mode="floor")
+        cfg.train_steps = 8
+        cfg.warmup_steps = 2
+        cfg.min_lr_scale = 0.1
+        result = train_and_evaluate(cfg)
+        history = result["train"]["history"]
+        # After warmup, LR should decay
+        self.assertIn("lr", history[-1])
+        self.assertLess(history[-1]["lr"], history[2]["lr"])
+
     def test_jacobian_proxy_loss_samples_valid_depth(self) -> None:
         cfg = self._base_config(cross_token_mode="floor")
         model = DeepFloorModel(cfg).to(self.device)
