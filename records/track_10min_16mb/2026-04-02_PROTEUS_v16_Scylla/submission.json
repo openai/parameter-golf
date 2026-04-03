@@ -1,0 +1,30 @@
+{
+  "submission": "PROTEUS v1.6 — Scylla + Parallel Residuals + Depth Recurrence + Legal TTT",
+  "author": "MatoTeziTanka",
+  "val_bpb": 1.08192346,
+  "val_bpb_method": "int6_sliding_window_stride64",
+  "seeds": {
+    "42": {"val_bpb": 1.08075297, "val_loss": 1.93460240, "roundtrip_bpb": 1.10283785, "steps": 5884, "train_time_ms": 600122},
+    "1337": {"val_bpb": 1.08288515, "val_loss": 1.93841912, "roundtrip_bpb": 1.10488987, "steps": 5905, "train_time_ms": 600043},
+    "2024": {"val_bpb": 1.08213226, "val_loss": 1.93707140, "roundtrip_bpb": 1.10421302, "steps": 5894, "train_time_ms": 600038}
+  },
+  "mean_bpb": 1.08192346,
+  "std_bpb": 0.00088,
+  "tokenizer": "scylla (TokenMonster-derived, 998 tokens)",
+  "architecture": "11L/512d/8H/4KV, ParallelResiduals(layer7+), MiniDepthRecurrence(layers4-5,step3000), LeakyReLU(0.5)\u00b2, XSA4, Muon, EMA+SWA, INT6+LZMA",
+  "platform": "RunPod 8xH100 80GB SXM",
+  "compliance": {
+    "artifact_under_16mb": "TBD — verify",
+    "training_under_600s": true,
+    "no_ngram_cache": true,
+    "no_two_pass": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_architecture": "PR #549, #1019 by @abaybektursun",
+    "scylla_tokenizer": "PR #1143 by @simon-marcus",
+    "parallel_residuals": "PR #1204 by @msisovic",
+    "legal_ttt": "PR #461 by @Christopher-Lee-McClendon"
+  }
+}
