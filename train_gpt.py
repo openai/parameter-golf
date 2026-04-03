@@ -334,6 +334,16 @@ class RMSNorm(nn.Module):
         self.eps = eps
     def forward(self, x: Tensor) -> Tensor:
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+
+
+class DyT(nn.Module):
+    """Dynamic Tanh: drop-in normalization replacement (arXiv:2503.10622, March 2026).
+    Replaces RMSNorm with tanh(α·x) — learned α per layer, zero overhead."""
+    def __init__(self, dim: int = 0, alpha_init: float = 0.5):
+        super().__init__()
+        self.alpha = nn.Parameter(torch.tensor(alpha_init))
+    def forward(self, x: Tensor) -> Tensor:
+        return torch.tanh(self.alpha * x)
 class CastedLinear(nn.Linear):
     _qat_enabled: bool = False
     def forward(self, x: Tensor) -> Tensor:
@@ -533,8 +543,8 @@ class Block(nn.Module):
         dtg: bool = False,
     ):
         super().__init__()
-        self.attn_norm = RMSNorm()
-        self.mlp_norm = RMSNorm()
+        self.attn_norm = DyT(dim)  # DyT replaces RMSNorm (arXiv:2503.10622)
+        self.mlp_norm = DyT(dim)
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -547,17 +557,12 @@ class Block(nn.Module):
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-        # ProRes: Progressive Residual Warmup (arXiv:2603.05369, March 2026)
-        self.register_buffer("_prores_step", torch.zeros(1), persistent=False)
-        self._prores_warmup = 100.0 + layer_idx * 100.0  # layer 0: 100 steps, layer 10: 1200 steps
     def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed)
-        # ProRes: deeper layers warm up slower
-        prores_scale = (self._prores_step / self._prores_warmup).clamp(max=1.0) if self.training else 1.0
-        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out * prores_scale
-        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor) * prores_scale
+        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
+        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
         if self.dtg_gate is not None:
             gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
             x_out = x_in + gate * (x_out - x_in)
@@ -1345,9 +1350,6 @@ def main() -> None:
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
         step += 1
-        # Update ProRes step counter on all blocks
-        for block in base_model.blocks:
-            block._prores_step.fill_(float(step))
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         if args.swa_enabled and scale < 0.2 and step % args.swa_every == 0:
             if swa_state is None:
