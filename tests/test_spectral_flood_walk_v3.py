@@ -7,7 +7,14 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from spectral_flood_walk_v3 import DeepFloorModel, V3Config, resolve_device, train_and_evaluate
+from spectral_flood_walk_v3 import (
+    DeepFloorModel,
+    V3Config,
+    build_hippo_legs_matrix,
+    estimate_spectral_norm,
+    resolve_device,
+    train_and_evaluate,
+)
 
 
 class SpectralFloodWalkV3Tests(unittest.TestCase):
@@ -152,6 +159,35 @@ class SpectralFloodWalkV3Tests(unittest.TestCase):
         noisy_logits = noisy_model(inputs, adaptive_floor=True, recurrence_steps=4)
 
         self.assertFalse(torch.allclose(clean_logits, noisy_logits))
+
+    def test_build_hippo_matrix_is_lower_triangular_with_negative_diagonal(self) -> None:
+        matrix = build_hippo_legs_matrix(4)
+        self.assertEqual(tuple(matrix.shape), (4, 4))
+        self.assertTrue(torch.allclose(matrix, torch.tril(matrix)))
+        self.assertTrue(torch.all(matrix.diag() < 0.0))
+
+    def test_fused_hippo_transition_is_clamped_to_decay(self) -> None:
+        cfg = self._base_config(cross_token_mode="fused")
+        cfg.state_core = "hippo"
+        cfg.accumulator_decay = 0.9
+        model = DeepFloorModel(cfg)
+
+        transition_weight = model.fused_mixer.prepare_runtime()["transition_weight"]
+        sigma = float(estimate_spectral_norm(transition_weight))
+
+        self.assertLessEqual(sigma, cfg.accumulator_decay + 1e-4)
+
+    def test_fused_lowrank_hippo_exposes_trainable_correction(self) -> None:
+        cfg = self._base_config(cross_token_mode="fused")
+        cfg.state_core = "hippo_plus_lowrank"
+        cfg.hippo_delta_scale = 0.2
+        cfg.hippo_rank = 4
+        model = DeepFloorModel(cfg)
+
+        self.assertIsNotNone(model.fused_mixer.hippo_left)
+        self.assertIsNotNone(model.fused_mixer.hippo_right)
+        self.assertEqual(tuple(model.fused_mixer.hippo_left.shape), (cfg.recurrent_dim, cfg.hippo_rank))
+        self.assertEqual(tuple(model.fused_mixer.hippo_right.shape), (cfg.recurrent_dim, cfg.hippo_rank))
 
     def test_training_forward_reports_tbptt_detaches(self) -> None:
         cfg = self._base_config(cross_token_mode="fused")

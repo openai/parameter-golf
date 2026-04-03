@@ -195,6 +195,9 @@ The architecture is *radically* parameter-efficient. Almost the entire 16 MB bud
 - `state_decay`: decay on the carried hidden state between recurrent steps
 - `contraction_target`: target gain for the shared recurrent transport path
 - `norm_interval_k`: recurrence interval between explicit renormalization passes
+- `state_core`: fused-mode accumulator transition family (`scalar_decay`, `hippo`, `hippo_plus_lowrank`)
+- `hippo_delta_scale`: size of the learned low-rank correction on top of the analytical HiPPO transition
+- `hippo_rank`: rank of the learned low-rank correction when `state_core=hippo_plus_lowrank`
 - `max_eval_depth`: total recurrent steps at inference
 
 **Training:**

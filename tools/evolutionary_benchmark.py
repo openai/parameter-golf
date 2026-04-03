@@ -393,6 +393,9 @@ class DeepFloorGenome:
     floor_threshold: float
     kernel_feature_map: str
     accumulator_decay: float
+    state_core: str
+    hippo_delta_scale: float
+    hippo_rank: int
     quantization: str
     jacobian_lambda: float
     stochastic_round_p: float
@@ -422,6 +425,9 @@ class DeepFloorGeneSpace:
     floor_thresholds: tuple[float, ...]
     kernel_feature_maps: tuple[str, ...]
     accumulator_decays: tuple[float, ...]
+    state_cores: tuple[str, ...]
+    hippo_delta_scales: tuple[float, ...]
+    hippo_ranks: tuple[int, ...]
     quantizations: tuple[str, ...]
     jacobian_lambdas: tuple[float, ...]
     stochastic_round_ps: tuple[float, ...]
@@ -452,6 +458,9 @@ def default_deepfloor_gene_space(profile: str) -> DeepFloorGeneSpace:
             floor_thresholds=(0.02, 0.05, 0.1),
             kernel_feature_maps=("elu_plus_1", "identity"),
             accumulator_decays=(0.99, 0.999),
+            state_cores=("scalar_decay", "hippo", "hippo_plus_lowrank"),
+            hippo_delta_scales=(0.0, 0.05, 0.1, 0.2),
+            hippo_ranks=(1, 2, 4),
             quantizations=("ternary", "int4"),
             jacobian_lambdas=(0.0, 0.01, 0.05),
             stochastic_round_ps=(0.0, 0.5, 1.0),
@@ -480,6 +489,9 @@ def default_deepfloor_gene_space(profile: str) -> DeepFloorGeneSpace:
             floor_thresholds=(0.02, 0.05, 0.1),
             kernel_feature_maps=("elu_plus_1", "identity"),
             accumulator_decays=(0.99, 0.995, 0.999),
+            state_cores=("scalar_decay", "hippo", "hippo_plus_lowrank"),
+            hippo_delta_scales=(0.0, 0.05, 0.1, 0.2, 0.4),
+            hippo_ranks=(1, 2, 4, 8),
             quantizations=("ternary", "int4", "int6"),
             jacobian_lambdas=(0.0, 0.005, 0.01, 0.05),
             stochastic_round_ps=(0.0, 0.25, 0.5, 1.0),
@@ -491,8 +503,20 @@ def default_deepfloor_gene_space(profile: str) -> DeepFloorGeneSpace:
     raise ValueError(f"unsupported deepfloor profile: {profile}")
 
 
+def canonicalize_deepfloor_genome(genome: DeepFloorGenome) -> DeepFloorGenome:
+    data = asdict(genome)
+    if data["cross_token_mode"] != "fused":
+        data["state_core"] = "scalar_decay"
+        data["hippo_delta_scale"] = 0.0
+        data["hippo_rank"] = 1
+    elif data["state_core"] != "hippo_plus_lowrank":
+        data["hippo_delta_scale"] = 0.0
+        data["hippo_rank"] = 1
+    return DeepFloorGenome(**data)
+
+
 def random_deepfloor_genome(space: DeepFloorGeneSpace, *, rng: random.Random) -> DeepFloorGenome:
-    return DeepFloorGenome(
+    genome = DeepFloorGenome(
         recurrent_dim=rng.choice(space.recurrent_dims),
         num_distinct_blocks=rng.choice(space.num_distinct_blocks),
         view_count=rng.choice(space.view_counts),
@@ -511,6 +535,9 @@ def random_deepfloor_genome(space: DeepFloorGeneSpace, *, rng: random.Random) ->
         floor_threshold=rng.choice(space.floor_thresholds),
         kernel_feature_map=rng.choice(space.kernel_feature_maps),
         accumulator_decay=rng.choice(space.accumulator_decays),
+        state_core=rng.choice(space.state_cores),
+        hippo_delta_scale=rng.choice(space.hippo_delta_scales),
+        hippo_rank=rng.choice(space.hippo_ranks),
         quantization=rng.choice(space.quantizations),
         jacobian_lambda=rng.choice(space.jacobian_lambdas),
         stochastic_round_p=rng.choice(space.stochastic_round_ps),
@@ -519,6 +546,7 @@ def random_deepfloor_genome(space: DeepFloorGeneSpace, *, rng: random.Random) ->
         seq_len=rng.choice(space.seq_lens),
         batch_size=rng.choice(space.batch_sizes),
     )
+    return canonicalize_deepfloor_genome(genome)
 
 
 def crossover_deepfloor_genomes(left: DeepFloorGenome, right: DeepFloorGenome, *, rng: random.Random) -> DeepFloorGenome:
@@ -527,7 +555,7 @@ def crossover_deepfloor_genomes(left: DeepFloorGenome, right: DeepFloorGenome, *
     child: dict[str, Any] = {}
     for key in left_dict:
         child[key] = left_dict[key] if rng.random() < 0.5 else right_dict[key]
-    return DeepFloorGenome(**child)
+    return canonicalize_deepfloor_genome(DeepFloorGenome(**child))
 
 
 def mutate_deepfloor_genome(genome: DeepFloorGenome, space: DeepFloorGeneSpace, *, mutation_rate: float, rng: random.Random) -> DeepFloorGenome:
@@ -551,6 +579,9 @@ def mutate_deepfloor_genome(genome: DeepFloorGenome, space: DeepFloorGeneSpace, 
         "floor_threshold": space.floor_thresholds,
         "kernel_feature_map": space.kernel_feature_maps,
         "accumulator_decay": space.accumulator_decays,
+        "state_core": space.state_cores,
+        "hippo_delta_scale": space.hippo_delta_scales,
+        "hippo_rank": space.hippo_ranks,
         "quantization": space.quantizations,
         "jacobian_lambda": space.jacobian_lambdas,
         "stochastic_round_p": space.stochastic_round_ps,
@@ -562,10 +593,11 @@ def mutate_deepfloor_genome(genome: DeepFloorGenome, space: DeepFloorGeneSpace, 
     for key, choices in gene_options.items():
         if rng.random() < mutation_rate:
             data[key] = rng.choice(tuple(choices))
-    return DeepFloorGenome(**data)
+    return canonicalize_deepfloor_genome(DeepFloorGenome(**data))
 
 
 def deepfloor_genome_to_v3_config(genome: DeepFloorGenome) -> V3Config:
+    genome = canonicalize_deepfloor_genome(genome)
     seq_len = int(genome.seq_len)
     return V3Config(
         enwik8_path="",
@@ -588,6 +620,9 @@ def deepfloor_genome_to_v3_config(genome: DeepFloorGenome) -> V3Config:
         floor_threshold=float(genome.floor_threshold),
         kernel_feature_map=genome.kernel_feature_map,
         accumulator_decay=float(genome.accumulator_decay),
+        state_core=genome.state_core,
+        hippo_delta_scale=float(genome.hippo_delta_scale),
+        hippo_rank=int(genome.hippo_rank),
         quantization=genome.quantization,
         jacobian_lambda=float(genome.jacobian_lambda),
         stochastic_round_p=float(genome.stochastic_round_p),
@@ -754,6 +789,9 @@ def run_deepfloor_recipe_evolution(
                 "view_combinations": list(space.view_combinations),
                 "cross_token_modes": list(space.cross_token_modes),
                 "block_nonlinearities": list(space.block_nonlinearities),
+                "state_cores": list(space.state_cores),
+                "hippo_delta_scales": list(space.hippo_delta_scales),
+                "hippo_ranks": list(space.hippo_ranks),
                 "quantizations": list(space.quantizations),
                 "base_lrs": list(space.base_lrs),
                 "seq_lens": list(space.seq_lens),

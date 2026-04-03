@@ -4,6 +4,7 @@ import unittest
 from tools.evolutionary_benchmark import (
     DeepFloorGenome,
     DeepFloorGeneSpace,
+    canonicalize_deepfloor_genome,
     crossover_deepfloor_genomes,
     default_deepfloor_gene_space,
     deepfloor_genome_to_v3_config,
@@ -41,9 +42,84 @@ class DeepFloorEvolutionTests(unittest.TestCase):
         space = default_deepfloor_gene_space("compact")
         self.assertTrue(len(space.contraction_targets) > 0)
         self.assertTrue(len(space.accumulator_decays) > 0)
+        self.assertTrue(len(space.state_cores) > 0)
+        self.assertTrue(len(space.hippo_delta_scales) > 0)
+        self.assertTrue(len(space.hippo_ranks) > 0)
         self.assertTrue(len(space.norm_interval_ks) > 0)
         self.assertTrue(len(space.jacobian_lambdas) > 0)
         self.assertTrue(len(space.stochastic_round_ps) > 0)
+
+    def test_floor_mode_canonicalizes_fused_only_state_core_genes(self) -> None:
+        genome = DeepFloorGenome(
+            recurrent_dim=32,
+            num_distinct_blocks=1,
+            view_count=1,
+            view_combination="average",
+            cross_token_mode="floor",
+            block_has_residual=True,
+            block_nonlinearity="gelu",
+            recurrence_step_size=1.0,
+            state_decay=1.0,
+            contraction_target=0.99,
+            train_recurrence_steps=8,
+            eval_recurrence_steps=16,
+            norm_interval_k=4,
+            floor_min_interval=2,
+            floor_max_interval=8,
+            floor_threshold=0.05,
+            kernel_feature_map="elu_plus_1",
+            accumulator_decay=0.99,
+            state_core="hippo_plus_lowrank",
+            hippo_delta_scale=0.2,
+            hippo_rank=4,
+            quantization="ternary",
+            jacobian_lambda=0.0,
+            stochastic_round_p=0.0,
+            base_lr=1e-3,
+            weight_decay=0.0,
+            seq_len=16,
+            batch_size=2,
+        )
+        canonical = canonicalize_deepfloor_genome(genome)
+        self.assertEqual(canonical.state_core, "scalar_decay")
+        self.assertEqual(canonical.hippo_delta_scale, 0.0)
+        self.assertEqual(canonical.hippo_rank, 1)
+
+    def test_fused_mode_preserves_hippo_genes(self) -> None:
+        genome = DeepFloorGenome(
+            recurrent_dim=32,
+            num_distinct_blocks=1,
+            view_count=1,
+            view_combination="average",
+            cross_token_mode="fused",
+            block_has_residual=True,
+            block_nonlinearity="gelu",
+            recurrence_step_size=1.0,
+            state_decay=1.0,
+            contraction_target=0.99,
+            train_recurrence_steps=8,
+            eval_recurrence_steps=16,
+            norm_interval_k=4,
+            floor_min_interval=2,
+            floor_max_interval=8,
+            floor_threshold=0.05,
+            kernel_feature_map="elu_plus_1",
+            accumulator_decay=0.99,
+            state_core="hippo_plus_lowrank",
+            hippo_delta_scale=0.2,
+            hippo_rank=4,
+            quantization="ternary",
+            jacobian_lambda=0.0,
+            stochastic_round_p=0.0,
+            base_lr=1e-3,
+            weight_decay=0.0,
+            seq_len=16,
+            batch_size=2,
+        )
+        cfg = deepfloor_genome_to_v3_config(genome)
+        self.assertEqual(cfg.state_core, "hippo_plus_lowrank")
+        self.assertEqual(cfg.hippo_delta_scale, 0.2)
+        self.assertEqual(cfg.hippo_rank, 4)
 
     def test_evaluate_deepfloor_genome_returns_bpb(self) -> None:
         import tempfile

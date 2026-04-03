@@ -82,6 +82,9 @@ class V3Config:
     floor_threshold: float = 0.05
     kernel_feature_map: str = "elu_plus_1"
     accumulator_decay: float = 0.999
+    state_core: str = "scalar_decay"
+    hippo_delta_scale: float = 0.0
+    hippo_rank: int = 1
     quantization: str = "ternary"
     jacobian_lambda: float = 1e-2
     stochastic_round_p: float = 0.0
@@ -170,6 +173,17 @@ def clamp_spectral_gain(weight: torch.Tensor, target_gain: float) -> torch.Tenso
     gain = torch.tensor(target_gain, device=weight.device, dtype=weight.dtype)
     scale = torch.clamp(gain / sigma.to(dtype=weight.dtype), max=1.0)
     return weight * scale
+
+
+def build_hippo_legs_matrix(dim: int, *, device: torch.device | None = None, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+    if dim <= 0:
+        raise ValueError("dim must be positive")
+    index = torch.arange(dim, device=device, dtype=torch.float32)
+    scales = torch.sqrt(2.0 * index + 1.0)
+    lower = torch.tril(torch.outer(scales, scales), diagonal=-1)
+    diagonal = torch.diag(index + 1.0)
+    matrix = -(lower + diagonal)
+    return matrix.to(dtype=dtype)
 
 
 class DeepFloorRecurrentBlock(nn.Module):
@@ -301,11 +315,16 @@ class DeepFloorFusedMixer(nn.Module):
         feature_map: str,
         decay: float,
         *,
+        state_core: str,
+        hippo_delta_scale: float,
+        hippo_rank: int,
         contraction_target: float,
         quantization: str,
         stochastic_round_p: float,
     ) -> None:
         super().__init__()
+        if hippo_rank <= 0:
+            raise ValueError("hippo_rank must be positive")
         self.norm = RMSNorm()
         self.q_proj = nn.Linear(dim, dim, bias=False)
         self.k_proj = nn.Linear(dim, dim, bias=False)
@@ -314,18 +333,46 @@ class DeepFloorFusedMixer(nn.Module):
         self.out_proj = nn.Linear(dim, dim, bias=False)
         self.feature_map = feature_map
         self.decay = decay
+        self.state_core = state_core
+        self.hippo_delta_scale = hippo_delta_scale
+        self.hippo_rank = hippo_rank
         self.contraction_target = contraction_target
         self.quantization = quantization
         self.stochastic_round_p = stochastic_round_p
+        self.register_buffer("hippo_matrix", build_hippo_legs_matrix(dim), persistent=False)
+        if state_core == "hippo_plus_lowrank":
+            self.hippo_left = nn.Parameter(torch.zeros((dim, hippo_rank), dtype=torch.float32))
+            self.hippo_right = nn.Parameter(torch.zeros((dim, hippo_rank), dtype=torch.float32))
+            nn.init.normal_(self.hippo_left, mean=0.0, std=0.02)
+            nn.init.normal_(self.hippo_right, mean=0.0, std=0.02)
+        else:
+            self.register_parameter("hippo_left", None)
+            self.register_parameter("hippo_right", None)
+
+    def _transition_base(self, *, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+        dim = self.q_proj.weight.shape[0]
+        if self.state_core == "scalar_decay":
+            return torch.eye(dim, device=device, dtype=dtype)
+        hippo = self.hippo_matrix.to(device=device, dtype=dtype)
+        if self.state_core == "hippo":
+            return hippo
+        if self.state_core == "hippo_plus_lowrank":
+            if self.hippo_left is None or self.hippo_right is None:
+                raise RuntimeError("hippo_plus_lowrank requires low-rank parameters")
+            delta = torch.matmul(self.hippo_left.to(dtype=dtype), self.hippo_right.to(dtype=dtype).transpose(0, 1))
+            return hippo + (self.hippo_delta_scale * delta)
+        raise ValueError(f"unsupported state_core: {self.state_core}")
 
     def prepare_runtime(self) -> dict[str, torch.Tensor]:
         projection_gain = math.sqrt(self.contraction_target)
+        transition_base = self._transition_base(device=self.q_proj.weight.device, dtype=self.q_proj.weight.dtype)
         return {
             "q_weight": clamp_spectral_gain(self.q_proj.weight, projection_gain),
             "k_weight": clamp_spectral_gain(self.k_proj.weight, projection_gain),
             "v_weight": clamp_spectral_gain(self.v_proj.weight, projection_gain),
             "select_weight": clamp_spectral_gain(self.selection_proj.weight, 1.0),
             "out_weight": clamp_spectral_gain(self.out_proj.weight, projection_gain),
+            "transition_weight": clamp_spectral_gain(transition_base, self.decay),
         }
 
     def _phi(self, x: torch.Tensor) -> torch.Tensor:
@@ -359,7 +406,7 @@ class DeepFloorFusedMixer(nn.Module):
         if accumulator is None:
             accumulator = step_accumulator
         else:
-            accumulator = self.decay * accumulator + step_accumulator
+            accumulator = torch.matmul(runtime["transition_weight"].unsqueeze(0), accumulator) + step_accumulator
         mixed = torch.matmul(q, accumulator)
         mixed = F.linear(mixed, runtime["out_weight"])
         return state + mixed, accumulator
@@ -398,6 +445,9 @@ class DeepFloorModel(nn.Module):
             cfg.recurrent_dim,
             cfg.kernel_feature_map,
             cfg.accumulator_decay,
+            state_core=cfg.state_core,
+            hippo_delta_scale=cfg.hippo_delta_scale,
+            hippo_rank=cfg.hippo_rank,
             contraction_target=cfg.contraction_target,
             quantization=cfg.quantization,
             stochastic_round_p=cfg.stochastic_round_p,
@@ -842,6 +892,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--floor-threshold", type=float, default=V3Config.floor_threshold)
     parser.add_argument("--kernel-feature-map", choices=("elu_plus_1", "identity"), default=V3Config.kernel_feature_map)
     parser.add_argument("--accumulator-decay", type=float, default=V3Config.accumulator_decay)
+    parser.add_argument("--state-core", choices=("scalar_decay", "hippo", "hippo_plus_lowrank"), default=V3Config.state_core)
+    parser.add_argument("--hippo-delta-scale", type=float, default=V3Config.hippo_delta_scale)
+    parser.add_argument("--hippo-rank", type=int, default=V3Config.hippo_rank)
     parser.add_argument("--quantization", choices=("ternary", "int4", "int6", "fp16"), default=V3Config.quantization)
     parser.add_argument("--jacobian-lambda", type=float, default=V3Config.jacobian_lambda)
     parser.add_argument("--stochastic-round-p", type=float, default=V3Config.stochastic_round_p)
@@ -891,6 +944,9 @@ def config_from_args(args: argparse.Namespace) -> V3Config:
         floor_threshold=args.floor_threshold,
         kernel_feature_map=args.kernel_feature_map,
         accumulator_decay=args.accumulator_decay,
+        state_core=args.state_core,
+        hippo_delta_scale=args.hippo_delta_scale,
+        hippo_rank=args.hippo_rank,
         quantization=args.quantization,
         jacobian_lambda=args.jacobian_lambda,
         stochastic_round_p=args.stochastic_round_p,
