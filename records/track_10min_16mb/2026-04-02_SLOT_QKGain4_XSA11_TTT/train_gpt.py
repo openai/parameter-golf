@@ -11,6 +11,7 @@ import time
 import uuid
 from pathlib import Path
 import lzma
+_COMPRESSOR = "lzma"
 import numpy as np
 import sentencepiece as spm
 import torch
