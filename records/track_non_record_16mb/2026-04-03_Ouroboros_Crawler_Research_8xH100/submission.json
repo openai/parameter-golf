@@ -1,0 +1,35 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Ouroboros",
+  "blurb": "9-flat crawler with loop-aware GPTQ, QK gain 4.0, 2-loop cadence, and brotli compression — stacking five research signals on the Bandit Wagon 9F platform.",
+  "date": "2026-04-03T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.1373,
+    "val_bpb_exact": 1.13727008,
+    "int6_sw_bpb": 1.13727008,
+    "steps": 5951,
+    "train_time_s": 600,
+    "bytes_total": 15034550
+  },
+  "seed_4": {
+    "val_bpb": 1.1357,
+    "val_bpb_exact": 1.13565882,
+    "int6_sw_bpb": 1.13565882,
+    "steps": 5963,
+    "bytes_total": 15042594,
+    "train_time_s": 600
+  },
+  "seed_300": {
+    "val_bpb": 1.1364,
+    "val_bpb_exact": 1.13638653,
+    "int6_sw_bpb": 1.13638653,
+    "steps": 5948,
+    "bytes_total": 15049936,
+    "train_time_s": 600
+  },
+  "val_bpb": 1.1364,
+  "bytes_total": 15049936,
+  "bytes_code": 121677,
+  "hardware": "8xH100 SXM"
+}
