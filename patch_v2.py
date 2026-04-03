@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Raki V2 — Competition-proven techniques on baseline architecture.
-11L + BigramHash + Markov curriculum + EMA + Muon WD + GPTQ + sliding window eval + zstd-22.
+11L + BigramHash + Markov curriculum + EMA + Muon WD + GPTQ + int6 quant + sliding window eval + zstd-22.
 
 Defaults are safe for 1xH100 testing. For 8xH100 submission, use SOTA env vars (see below).
 
@@ -13,7 +13,7 @@ Usage (8xH100 submission):
   python3 patch_v2.py
   MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\
   MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \\
-  EMA_DECAY=0.997 EVAL_STRIDE=64 TRAIN_BATCH_TOKENS=786432 \\
+  EMA_DECAY=0.997 EVAL_STRIDE=64 \\
   RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py
 """
 import sys
@@ -52,7 +52,7 @@ patch('    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))',
       '    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))',
       "WARMDOWN=3500")
 
-# --- Config + GPU Markov + EMA ---
+# --- Config + GPU Markov + EMA + QUANT_BITS ---
 patch(
     "from torch.nn.parallel import DistributedDataParallel as DDP",
     '''from torch.nn.parallel import DistributedDataParallel as DDP
@@ -65,7 +65,10 @@ RAKI_POWER = float(os.environ.get("RAKI_POWER", "0.15"))
 BIGRAM_BUCKETS = int(os.environ.get("BIGRAM_BUCKETS", "2048"))
 EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "0"))
 GPTQ_CLIP_SEARCH = bool(int(os.environ.get("GPTQ_CLIP_SEARCH", "1")))
-GPTQ_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+GPTQ_PERCENTILES = [0.99, 0.995, 0.999, 0.9995, 0.9999, 0.99999, 1.0]
+# int6 quantization: competition-proven, ~1.51x zstd ratio vs int8's ~1.21x
+QUANT_BITS = int(os.environ.get("QUANT_BITS", "6"))
+QUANT_MAX = (1 << (QUANT_BITS - 1)) - 1  # 31 for int6, 127 for int8
 
 
 class _GPUMarkov:
@@ -350,7 +353,7 @@ patch(
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)''',
     "dual-mode eval")
 
-# --- GPTQ-lite clip search ---
+# --- GPTQ-lite clip search with int6 support (QUANT_MAX instead of 127) ---
 patch(
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -374,22 +377,23 @@ patch(
     return q, scale''',
 
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    _QM = float(QUANT_MAX)  # 31 for int6, 127 for int8
     t32 = t.float()
     if t32.ndim == 2:
         if not GPTQ_CLIP_SEARCH or not t32.numel():
             clip_abs = (torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
                         if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32))
             clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+            scale = (clip_abs / _QM).clamp_min(1.0 / _QM)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -_QM, _QM).to(torch.int8).contiguous()
             return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
         best_q = best_scale = None
         best_mse = torch.full((t32.shape[0],), float('inf'))
         for pct in GPTQ_PERCENTILES:
             ca = t32.abs().amax(dim=1) if pct >= 1.0 else torch.quantile(t32.abs(), pct, dim=1)
-            sc = (ca / 127.0).clamp_min(1.0 / 127.0)
+            sc = (ca / _QM).clamp_min(1.0 / _QM)
             cl = torch.maximum(torch.minimum(t32, ca[:, None]), -ca[:, None])
-            qq = torch.clamp(torch.round(cl / sc[:, None]), -127, 127)
+            qq = torch.clamp(torch.round(cl / sc[:, None]), -_QM, _QM)
             mse = ((t32 - qq * sc[:, None]) ** 2).mean(dim=1)
             improved = mse < best_mse
             if best_q is None:
@@ -400,10 +404,10 @@ patch(
                 best_mse[improved] = mse[improved]
         return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / _QM if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -_QM, _QM).to(torch.int8).contiguous()
     return q, scale''',
-    "GPTQ-lite clip search")
+    "GPTQ-lite int6 clip search")
 
 # --- zstd-22 ---
 patch('    quant_blob = zlib.compress(quant_raw, level=9)',
@@ -429,7 +433,7 @@ patch("    training_time_ms = 0.0",
       '''    _markov = _GPUMarkov(args.train_files, args.vocab_size, device)
     _ema = _EMA()
     _ema_on = False
-    log0(f"raki_v2: L={args.num_layers} bigram={BIGRAM_BUCKETS} power={RAKI_POWER} wd={MUON_WD} ema={EMA_DECAY} stride={EVAL_STRIDE}")
+    log0(f"raki_v2: L={args.num_layers} bigram={BIGRAM_BUCKETS} power={RAKI_POWER} wd={MUON_WD} ema={EMA_DECAY} stride={EVAL_STRIDE} quant_bits={QUANT_BITS}")
     training_time_ms = 0.0''',
       "init Markov + EMA")
 
@@ -462,7 +466,8 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
 with open("train_gpt.py", "w") as f:
     f.write(code)
 
-print(f"\nRaki V2 ({changes} patches): 11L + BigramHash + Markov + EMA + GPTQ + zstd")
+print(f"\nRaki V2 ({changes} patches): 11L + BigramHash + Markov + EMA + GPTQ-int6 + zstd")
+print(f"  QUANT_BITS=6 (int6: 31 levels, ~1.5x zstd ratio vs int8's 1.2x)")
 print(f"  1xH100 test: torchrun --standalone --nproc_per_node=1 train_gpt.py")
 print(f"  8xH100 run:  MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\")
 print(f"    MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \\")
