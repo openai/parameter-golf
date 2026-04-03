@@ -683,6 +683,97 @@ class SmearGate(nn.Module):
         x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
         return (1 - g) * x + g * x_prev
 
+class MambaBlock(nn.Module):
+    """Mamba-2 selective state-space block with sequential scan fallback."""
+    def __init__(self, d_model: int = 512, d_state: int = 32, d_conv: int = 4, expand: float = 1.5):
+        super().__init__()
+        self.d_model = d_model
+        self.d_state = d_state
+        self.d_conv = d_conv
+        d_inner = int(expand * d_model)
+        self.d_inner = d_inner
+        dt_rank = max(d_model // 16, 1)
+        self.dt_rank = dt_rank
+
+        # Input projection: x, z (gate), B, dt all in one matmul
+        self.in_proj = nn.Linear(d_model, d_inner * 2 + d_state + dt_rank, bias=False)
+
+        # Depthwise causal conv (applied to x branch only)
+        self.conv1d = nn.Conv1d(d_inner, d_inner, d_conv, padding=d_conv - 1, groups=d_inner)
+
+        # dt projection: dt_rank -> d_inner
+        self.dt_proj = nn.Linear(dt_rank, d_inner, bias=True)
+
+        # SSM parameters
+        self.A_log = nn.Parameter(torch.log(torch.arange(1, d_state + 1, dtype=torch.float32).unsqueeze(0).expand(d_inner, -1).clone()))
+        self.D = nn.Parameter(torch.ones(d_inner, dtype=torch.float32))
+
+        # C projection (from input to output mixing weights)
+        self.c_proj = nn.Linear(d_model, d_state, bias=False)
+
+        # Output projection
+        self.out_proj = nn.Linear(d_inner, d_model, bias=False)
+
+        self.norm = RMSNorm()
+
+        # Init: out_proj near-zero for clean residual at init
+        nn.init.normal_(self.out_proj.weight, std=0.01)
+        # Init: dt_proj bias for dt_init in [0.001, 0.1]
+        with torch.no_grad():
+            dt_init = torch.exp(torch.rand(d_inner) * (math.log(0.1) - math.log(0.001)) + math.log(0.001))
+            inv_softplus = torch.log(torch.exp(dt_init) - 1.0)
+            self.dt_proj.bias.copy_(inv_softplus)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """x: (B, L, D) -> (B, L, D)"""
+        residual = x
+        x = self.norm(x)
+
+        # Project input
+        proj = self.in_proj(x)  # (B, L, d_inner*2 + d_state + dt_rank)
+        x_in, z, B_ssm, dt_in = proj.split(
+            [self.d_inner, self.d_inner, self.d_state, self.dt_rank], dim=-1
+        )
+
+        # Causal conv1d on x branch
+        x_in = x_in.transpose(1, 2)  # (B, d_inner, L)
+        x_in = self.conv1d(x_in)[:, :, :x.size(1)]  # causal trim
+        x_in = x_in.transpose(1, 2)  # (B, L, d_inner)
+        x_in = F.silu(x_in)
+
+        # Compute C from normed input
+        C = self.c_proj(x)  # (B, L, d_state)
+
+        # SSM computation
+        A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
+        dt = F.softplus(self.dt_proj(dt_in))  # (B, L, d_inner)
+
+        # Discretize: dA = exp(A * dt), dB = dt * B
+        dA = torch.exp(dt.unsqueeze(-1) * A)  # (B, L, d_inner, d_state)
+        dB = dt.unsqueeze(-1) * B_ssm.unsqueeze(2)  # (B, L, d_inner, d_state)
+
+        # Selective scan
+        y = self._selective_scan(x_in, dA, dB, C, self.D)
+
+        # Gate and project output
+        y = y * F.silu(z)
+        y = self.out_proj(y)
+
+        return residual + y
+
+    def _selective_scan(self, x: Tensor, dA: Tensor, dB: Tensor, C: Tensor, D: Tensor) -> Tensor:
+        """Sequential selective scan fallback.
+        h[t] = dA[t]*h[t-1] + dB[t]*x[t], y[t] = C[t]@h[t] + D*x[t]
+        """
+        B_batch, L, d_inner = x.shape
+        h = torch.zeros(B_batch, d_inner, self.d_state, device=x.device, dtype=x.dtype)
+        ys = []
+        for t in range(L):
+            h = dA[:, t] * h + dB[:, t] * x[:, t, :, None]
+            y_t = (h * C[:, t, None, :]).sum(-1) + D * x[:, t]
+            ys.append(y_t)
+        return torch.stack(ys, dim=1)
+
 class BigramHashEmbedding(nn.Module):
     def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int, trigram: bool = False):
         super().__init__()
