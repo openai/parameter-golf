@@ -1,0 +1,458 @@
+W0403 10:36:29.884000 98310 torch/distributed/run.py:803] 
+W0403 10:36:29.884000 98310 torch/distributed/run.py:803] *****************************************
+W0403 10:36:29.884000 98310 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0403 10:36:29.884000 98310 torch/distributed/run.py:803] *****************************************
+logs/7f99b773-a71a-49ec-87ef-5c78a650970f.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26895452
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:9000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/9000 val_loss:6.9295 val_bpb:4.1040 train_time:0ms step_avg:0.02ms
+step:1/9000 train_loss:6.9311 train_time:137ms step_avg:136.64ms
+step:2/9000 train_loss:8.5440 train_time:164ms step_avg:82.20ms
+step:3/9000 train_loss:7.5417 train_time:248ms step_avg:82.68ms
+step:4/9000 train_loss:7.5825 train_time:332ms step_avg:83.02ms
+step:5/9000 train_loss:7.4922 train_time:417ms step_avg:83.41ms
+step:6/9000 train_loss:7.1395 train_time:503ms step_avg:83.80ms
+step:7/9000 train_loss:6.8935 train_time:588ms step_avg:84.04ms
+step:8/9000 train_loss:6.8076 train_time:674ms step_avg:84.30ms
+step:9/9000 train_loss:6.4779 train_time:758ms step_avg:84.27ms
+step:10/9000 train_loss:6.0818 train_time:846ms step_avg:84.57ms
+step:500/9000 train_loss:2.3670 train_time:43190ms step_avg:86.38ms
+step:1000/9000 train_loss:2.2514 train_time:86671ms step_avg:86.67ms
+step:1500/9000 train_loss:2.2035 train_time:130260ms step_avg:86.84ms
+step:2000/9000 train_loss:2.0465 train_time:173797ms step_avg:86.90ms
+step:2500/9000 train_loss:2.1463 train_time:217367ms step_avg:86.95ms
+step:3000/9000 train_loss:2.1421 train_time:260880ms step_avg:86.96ms
+step:3500/9000 train_loss:2.1549 train_time:304396ms step_avg:86.97ms
+step:4000/9000 train_loss:1.9464 train_time:347911ms step_avg:86.98ms
+step:4000/9000 val_loss:2.0374 val_bpb:1.2067 train_time:347963ms step_avg:86.99ms
+step:4500/9000 train_loss:2.0960 train_time:391415ms step_avg:86.98ms
+step:5000/9000 train_loss:2.0805 train_time:434922ms step_avg:86.98ms
+step:5500/9000 train_loss:1.9984 train_time:478427ms step_avg:86.99ms
+step:6000/9000 train_loss:1.9215 train_time:521894ms step_avg:86.98ms
+late_qat:enabled step:6298 scale:0.1499
+step:6500/9000 train_loss:2.0643 train_time:565354ms step_avg:86.98ms
+step:6899/9000 val_loss:1.9204 val_bpb:1.1374 train_time:600080ms step_avg:86.98ms
+stopping_early: wallclock_cap train_time:600080ms step:6899/9000
+peak memory allocated: 22845 MiB reserved: 22990 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9188 val_bpb:1.1364 eval_time:2090ms
+Serialized model: 105945526 bytes
+Code size: 60868 bytes
+Serialized model int6+lzma: 15763720 bytes
+Total submission size int6+lzma: 15824588 bytes
+final_int6_roundtrip val_loss:1.9316 val_bpb:1.1440 eval_time:20059ms
+final_int6_roundtrip_exact val_loss:1.93158484 val_bpb:1.14399334
+final_int6_sliding_window val_loss:1.8922 val_bpb:1.1207 stride:64 eval_time:99092ms
+final_int6_sliding_window_exact val_loss:1.89223595 val_bpb:1.12069168
+slot_progress:0/121136
+slot_progress:320/121136
+slot_progress:640/121136
+slot_progress:960/121136
+slot_progress:1280/121136
+slot_progress:1600/121136
+slot_progress:1920/121136
+slot_progress:2240/121136
+slot_progress:2560/121136
+slot_progress:2880/121136
+slot_progress:3200/121136
+slot_progress:3520/121136
+slot_progress:3840/121136
+slot_progress:4160/121136
+slot_progress:4480/121136
+slot_progress:4800/121136
+slot_progress:5120/121136
+slot_progress:5440/121136
+slot_progress:5760/121136
+slot_progress:6080/121136
+slot_progress:6400/121136
+slot_progress:6720/121136
+slot_progress:7040/121136
+slot_progress:7360/121136
+slot_progress:7680/121136
+slot_progress:8000/121136
+slot_progress:8320/121136
+slot_progress:8640/121136
+slot_progress:8960/121136
+slot_progress:9280/121136
+slot_progress:9600/121136
+slot_progress:9920/121136
+slot_progress:10240/121136
+slot_progress:10560/121136
+slot_progress:10880/121136
+slot_progress:11200/121136
+slot_progress:11520/121136
+slot_progress:11840/121136
+slot_progress:12160/121136
+slot_progress:12480/121136
+slot_progress:12800/121136
+slot_progress:13120/121136
+slot_progress:13440/121136
+slot_progress:13760/121136
+slot_progress:14080/121136
+slot_progress:14400/121136
+slot_progress:14720/121136
+slot_progress:15040/121136
+slot_progress:15360/121136
+slot_progress:15680/121136
+slot_progress:16000/121136
+slot_progress:16320/121136
+slot_progress:16640/121136
+slot_progress:16960/121136
+slot_progress:17280/121136
+slot_progress:17600/121136
+slot_progress:17920/121136
+slot_progress:18240/121136
+slot_progress:18560/121136
+slot_progress:18880/121136
+slot_progress:19200/121136
+slot_progress:19520/121136
+slot_progress:19840/121136
+slot_progress:20160/121136
+slot_progress:20480/121136
+slot_progress:20800/121136
+slot_progress:21120/121136
+slot_progress:21440/121136
+slot_progress:21760/121136
+slot_progress:22080/121136
+slot_progress:22400/121136
+slot_progress:22720/121136
+slot_progress:23040/121136
+slot_progress:23360/121136
+slot_progress:23680/121136
+slot_progress:24000/121136
+slot_progress:24320/121136
+slot_progress:24640/121136
+slot_progress:24960/121136
+slot_progress:25280/121136
+slot_progress:25600/121136
+slot_progress:25920/121136
+slot_progress:26240/121136
+slot_progress:26560/121136
+slot_progress:26880/121136
+slot_progress:27200/121136
+slot_progress:27520/121136
+slot_progress:27840/121136
+slot_progress:28160/121136
+slot_progress:28480/121136
+slot_progress:28800/121136
+slot_progress:29120/121136
+slot_progress:29440/121136
+slot_progress:29760/121136
+slot_progress:30080/121136
+slot_progress:30400/121136
+slot_progress:30720/121136
+slot_progress:31040/121136
+slot_progress:31360/121136
+slot_progress:31680/121136
+slot_progress:32000/121136
+slot_progress:32320/121136
+slot_progress:32640/121136
+slot_progress:32960/121136
+slot_progress:33280/121136
+slot_progress:33600/121136
+slot_progress:33920/121136
+slot_progress:34240/121136
+slot_progress:34560/121136
+slot_progress:34880/121136
+slot_progress:35200/121136
+slot_progress:35520/121136
+slot_progress:35840/121136
+slot_progress:36160/121136
+slot_progress:36480/121136
+slot_progress:36800/121136
+slot_progress:37120/121136
+slot_progress:37440/121136
+slot_progress:37760/121136
+slot_progress:38080/121136
+slot_progress:38400/121136
+slot_progress:38720/121136
+slot_progress:39040/121136
+slot_progress:39360/121136
+slot_progress:39680/121136
+slot_progress:40000/121136
+slot_progress:40320/121136
+slot_progress:40640/121136
+slot_progress:40960/121136
+slot_progress:41280/121136
+slot_progress:41600/121136
+slot_progress:41920/121136
+slot_progress:42240/121136
+slot_progress:42560/121136
+slot_progress:42880/121136
+slot_progress:43200/121136
+slot_progress:43520/121136
+slot_progress:43840/121136
+slot_progress:44160/121136
+slot_progress:44480/121136
+slot_progress:44800/121136
+slot_progress:45120/121136
+slot_progress:45440/121136
+slot_progress:45760/121136
+slot_progress:46080/121136
+slot_progress:46400/121136
+slot_progress:46720/121136
+slot_progress:47040/121136
+slot_progress:47360/121136
+slot_progress:47680/121136
+slot_progress:48000/121136
+slot_progress:48320/121136
+slot_progress:48640/121136
+slot_progress:48960/121136
+slot_progress:49280/121136
+slot_progress:49600/121136
+slot_progress:49920/121136
+slot_progress:50240/121136
+slot_progress:50560/121136
+slot_progress:50880/121136
+slot_progress:51200/121136
+slot_progress:51520/121136
+slot_progress:51840/121136
+slot_progress:52160/121136
+slot_progress:52480/121136
+slot_progress:52800/121136
+slot_progress:53120/121136
+slot_progress:53440/121136
+slot_progress:53760/121136
+slot_progress:54080/121136
+slot_progress:54400/121136
+slot_progress:54720/121136
+slot_progress:55040/121136
+slot_progress:55360/121136
+slot_progress:55680/121136
+slot_progress:56000/121136
+slot_progress:56320/121136
+slot_progress:56640/121136
+slot_progress:56960/121136
+slot_progress:57280/121136
+slot_progress:57600/121136
+slot_progress:57920/121136
+slot_progress:58240/121136
+slot_progress:58560/121136
+slot_progress:58880/121136
+slot_progress:59200/121136
+slot_progress:59520/121136
+slot_progress:59840/121136
+slot_progress:60160/121136
+slot_progress:60480/121136
+slot_progress:60800/121136
+slot_progress:61120/121136
+slot_progress:61440/121136
+slot_progress:61760/121136
+slot_progress:62080/121136
+slot_progress:62400/121136
+slot_progress:62720/121136
+slot_progress:63040/121136
+slot_progress:63360/121136
+slot_progress:63680/121136
+slot_progress:64000/121136
+slot_progress:64320/121136
+slot_progress:64640/121136
+slot_progress:64960/121136
+slot_progress:65280/121136
+slot_progress:65600/121136
+slot_progress:65920/121136
+slot_progress:66240/121136
+slot_progress:66560/121136
+slot_progress:66880/121136
+slot_progress:67200/121136
+slot_progress:67520/121136
+slot_progress:67840/121136
+slot_progress:68160/121136
+slot_progress:68480/121136
+slot_progress:68800/121136
+slot_progress:69120/121136
+slot_progress:69440/121136
+slot_progress:69760/121136
+slot_progress:70080/121136
+slot_progress:70400/121136
+slot_progress:70720/121136
+slot_progress:71040/121136
+slot_progress:71360/121136
+slot_progress:71680/121136
+slot_progress:72000/121136
+slot_progress:72320/121136
+slot_progress:72640/121136
+slot_progress:72960/121136
+slot_progress:73280/121136
+slot_progress:73600/121136
+slot_progress:73920/121136
+slot_progress:74240/121136
+slot_progress:74560/121136
+slot_progress:74880/121136
+slot_progress:75200/121136
+slot_progress:75520/121136
+slot_progress:75840/121136
+slot_progress:76160/121136
+slot_progress:76480/121136
+slot_progress:76800/121136
+slot_progress:77120/121136
+slot_progress:77440/121136
+slot_progress:77760/121136
+slot_progress:78080/121136
+slot_progress:78400/121136
+slot_progress:78720/121136
+slot_progress:79040/121136
+slot_progress:79360/121136
+slot_progress:79680/121136
+slot_progress:80000/121136
+slot_progress:80320/121136
+slot_progress:80640/121136
+slot_progress:80960/121136
+slot_progress:81280/121136
+slot_progress:81600/121136
+slot_progress:81920/121136
+slot_progress:82240/121136
+slot_progress:82560/121136
+slot_progress:82880/121136
+slot_progress:83200/121136
+slot_progress:83520/121136
+slot_progress:83840/121136
+slot_progress:84160/121136
+slot_progress:84480/121136
+slot_progress:84800/121136
+slot_progress:85120/121136
+slot_progress:85440/121136
+slot_progress:85760/121136
+slot_progress:86080/121136
+slot_progress:86400/121136
+slot_progress:86720/121136
+slot_progress:87040/121136
+slot_progress:87360/121136
+slot_progress:87680/121136
+slot_progress:88000/121136
+slot_progress:88320/121136
+slot_progress:88640/121136
+slot_progress:88960/121136
+slot_progress:89280/121136
+slot_progress:89600/121136
+slot_progress:89920/121136
+slot_progress:90240/121136
+slot_progress:90560/121136
+slot_progress:90880/121136
+slot_progress:91200/121136
+slot_progress:91520/121136
+slot_progress:91840/121136
+slot_progress:92160/121136
+slot_progress:92480/121136
+slot_progress:92800/121136
+slot_progress:93120/121136
+slot_progress:93440/121136
+slot_progress:93760/121136
+slot_progress:94080/121136
+slot_progress:94400/121136
+slot_progress:94720/121136
+slot_progress:95040/121136
+slot_progress:95360/121136
+slot_progress:95680/121136
+slot_progress:96000/121136
+slot_progress:96320/121136
+slot_progress:96640/121136
+slot_progress:96960/121136
+slot_progress:97280/121136
+slot_progress:97600/121136
+slot_progress:97920/121136
+slot_progress:98240/121136
+slot_progress:98560/121136
+slot_progress:98880/121136
+slot_progress:99200/121136
+slot_progress:99520/121136
+slot_progress:99840/121136
+slot_progress:100160/121136
+slot_progress:100480/121136
+slot_progress:100800/121136
+slot_progress:101120/121136
+slot_progress:101440/121136
+slot_progress:101760/121136
+slot_progress:102080/121136
+slot_progress:102400/121136
+slot_progress:102720/121136
+slot_progress:103040/121136
+slot_progress:103360/121136
+slot_progress:103680/121136
+slot_progress:104000/121136
+slot_progress:104320/121136
+slot_progress:104640/121136
+slot_progress:104960/121136
+slot_progress:105280/121136
+slot_progress:105600/121136
+slot_progress:105920/121136
+slot_progress:106240/121136
+slot_progress:106560/121136
+slot_progress:106880/121136
+slot_progress:107200/121136
+slot_progress:107520/121136
+slot_progress:107840/121136
+slot_progress:108160/121136
+slot_progress:108480/121136
+slot_progress:108800/121136
+slot_progress:109120/121136
+slot_progress:109440/121136
+slot_progress:109760/121136
+slot_progress:110080/121136
+slot_progress:110400/121136
+slot_progress:110720/121136
+slot_progress:111040/121136
+slot_progress:111360/121136
+slot_progress:111680/121136
+slot_progress:112000/121136
+slot_progress:112320/121136
+slot_progress:112640/121136
+slot_progress:112960/121136
+slot_progress:113280/121136
+slot_progress:113600/121136
+slot_progress:113920/121136
+slot_progress:114240/121136
+slot_progress:114560/121136
+slot_progress:114880/121136
+slot_progress:115200/121136
+slot_progress:115520/121136
+slot_progress:115840/121136
+slot_progress:116160/121136
+slot_progress:116480/121136
+slot_progress:116800/121136
+slot_progress:117120/121136
+slot_progress:117440/121136
+slot_progress:117760/121136
+slot_progress:118080/121136
+slot_progress:118400/121136
+slot_progress:118720/121136
+slot_progress:119040/121136
+slot_progress:119360/121136
+slot_progress:119680/121136
+slot_progress:120000/121136
+slot_progress:120320/121136
+slot_progress:120640/121136
+slot_progress:120960/121136
+slot_sliding:done val_loss=1.866136 val_bpb=1.105234 elapsed=228.0s
+slot_eval val_loss:1.8661 val_bpb:1.1052 eval_time:228161ms
+slot_eval_exact val_loss:1.86613560 val_bpb:1.10523354

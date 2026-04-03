@@ -1,13 +1,10 @@
 {
   "name": "Polar Express NS + SLOT + MuonEq-R + XSA-all",
-  "val_bpb": 1.1044,
-  "bytes_total": 16030000,
-  "blurb": "On PR #549 stack: Polar Express NS (4 steps, arXiv:2505.16932), SLOT eval-time delta (8 AdamW steps), MuonEq-R row-norm, XSA all 11 layers. 3-seed mean 1.1044 (1337=1.1047, 42=1.1037, 2025=1.1048). -0.0103 vs SOTA.",
+  "val_bpb": 1.1043,
+  "bytes_total": 15824588,
+  "blurb": "On PR #549 stack: Polar Express NS (4 steps, arXiv:2505.16932), SLOT eval-time delta (8 AdamW steps), MuonEq-R row-norm, XSA all 11 layers. 3-seed mean 1.1043 (1337=1.1052, 42=1.1042, 2025=1.1035). BigramHash 1536x112.",
   "author": "Omri Gotlieb",
   "github_id": "Omrigotlieb",
   "date": "2026-04-03",
-  "seeds": {"1337": 1.1047, "42": 1.1037, "2025": 1.1048},
-  "previous_sota": 1.1147,
-  "improvement": 0.0103,
-  "artifact_status": "PENDING — must trim below 16,000,000 bytes"
+  "seeds": {"1337": 1.1052, "42": 1.1042, "2025": 1.1035}
 }
