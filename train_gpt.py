@@ -25,6 +25,17 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# Optional Mamba CUDA kernels — fall back to sequential PyTorch if unavailable
+try:
+    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn as _mamba_selective_scan_fn
+    HAS_MAMBA_CUDA = True
+except ImportError:
+    HAS_MAMBA_CUDA = False
+try:
+    from causal_conv1d import causal_conv1d_fn as _causal_conv1d_fn
+    HAS_CAUSAL_CONV1D = True
+except ImportError:
+    HAS_CAUSAL_CONV1D = False
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -737,30 +748,50 @@ class MambaBlock(nn.Module):
             [self.d_inner, self.d_inner, self.d_state, self.dt_rank], dim=-1
         )
 
-        # Causal conv1d on x branch
-        x_in = x_in.transpose(1, 2)  # (B, d_inner, L)
-        x_in = self.conv1d(x_in)[:, :, :x.size(1)]  # causal trim
-        x_in = x_in.transpose(1, 2)  # (B, L, d_inner)
-        x_in = F.silu(x_in)
-
-        # Compute C from normed input
-        C = self.c_proj(x)  # (B, L, d_state)
-
-        # SSM computation
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
-        dt = F.softplus(self.dt_proj(dt_in))  # (B, L, d_inner)
 
-        # Discretize: dA = exp(A * dt), dB = dt * B
-        dA = torch.exp(dt.unsqueeze(-1) * A)  # (B, L, d_inner, d_state)
-        dB = dt.unsqueeze(-1) * B_ssm.unsqueeze(2)  # (B, L, d_inner, d_state)
+        if HAS_MAMBA_CUDA and x.is_cuda:
+            # === CUDA fast path: fused kernels ===
+            x_in = x_in.transpose(1, 2).contiguous()  # (B, d_inner, L)
+            if HAS_CAUSAL_CONV1D:
+                # Fused causal conv1d + SiLU
+                conv_weight = self.conv1d.weight.squeeze(1)  # (d_inner, d_conv)
+                x_in = _causal_conv1d_fn(x=x_in, weight=conv_weight,
+                                         bias=self.conv1d.bias, activation="silu")
+            else:
+                x_in = self.conv1d(x_in)[:, :, :residual.size(1)]
+                x_in = F.silu(x_in)
+            # dt projection: (B, L, dt_rank) -> (B, d_inner, L) without bias (kernel handles bias)
+            dt_raw = F.linear(dt_in, self.dt_proj.weight)  # (B, L, d_inner)
+            dt_raw = dt_raw.transpose(1, 2).contiguous()   # (B, d_inner, L)
+            # Rearrange B, C to (B, d_state, L)
+            B_t = B_ssm.transpose(1, 2).contiguous()  # (B, d_state, L)
+            C = self.c_proj(x)  # (B, L, d_state) from normed input
+            C_t = C.transpose(1, 2).contiguous()  # (B, d_state, L)
+            z_t = z.transpose(1, 2).contiguous()  # (B, d_inner, L)
+            # CUDA selective scan: handles discretization, softplus, and gating
+            y = _mamba_selective_scan_fn(
+                x_in, dt_raw, A, B_t, C_t,
+                D=self.D.float(),
+                z=z_t,
+                delta_bias=self.dt_proj.bias.float(),
+                delta_softplus=True,
+            )  # (B, d_inner, L)
+            y = y.transpose(1, 2)  # (B, L, d_inner)
+        else:
+            # === Sequential fallback (CPU / no mamba-ssm) ===
+            x_in = x_in.transpose(1, 2)  # (B, d_inner, L)
+            x_in = self.conv1d(x_in)[:, :, :residual.size(1)]  # causal trim
+            x_in = x_in.transpose(1, 2)  # (B, L, d_inner)
+            x_in = F.silu(x_in)
+            C = self.c_proj(x)  # (B, L, d_state)
+            dt = F.softplus(self.dt_proj(dt_in))  # (B, L, d_inner)
+            dA = torch.exp(dt.unsqueeze(-1) * A)  # (B, L, d_inner, d_state)
+            dB = dt.unsqueeze(-1) * B_ssm.unsqueeze(2)  # (B, L, d_inner, d_state)
+            y = self._selective_scan(x_in, dA, dB, C, self.D)
+            y = y * F.silu(z)
 
-        # Selective scan
-        y = self._selective_scan(x_in, dA, dB, C, self.D)
-
-        # Gate and project output
-        y = y * F.silu(z)
         y = self.out_proj(y)
-
         return residual + y
 
     def _selective_scan(self, x: Tensor, dA: Tensor, dB: Tensor, C: Tensor, D: Tensor) -> Tensor:
