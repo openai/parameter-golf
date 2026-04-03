@@ -1,0 +1,6 @@
+{
+    "author": "vlivashkin",
+    "val_bpb": 1.1079,
+    "bytes_total": 15855695,
+    "blurb": "Split-LR + BigramHash(2816x160) + Full Hessian GPTQ + Soft-round QAT + Brotli + Online N-gram Agreement Eval"
+}
