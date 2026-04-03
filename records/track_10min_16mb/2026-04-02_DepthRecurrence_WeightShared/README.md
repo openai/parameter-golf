@@ -1,45 +1,69 @@
 # [WIP] Depth Recurrence via Weight-Shared Transformer Blocks
 
-**Status: In Progress** | Target: < 16 MB | 8xH100 SXM, 600s
+**Status: Validated locally, awaiting GPU throughput test** | Target: < 16 MB | 8xH100 SXM, 600s
 
 ## Approach
 
 Weight-shared depth recurrence: instead of 11 unique transformer blocks, share weights across a smaller set of blocks and iterate multiple times, achieving 20+ effective layers within the same 16MB parameter budget.
 
-This technique is listed as an OpenAI "Request for PR" and has not been successfully demonstrated in any submission to date.
+This technique is listed as an OpenAI "Request for PR" and has not been successfully demonstrated in any prior submission.
 
-## Core Idea
+## Experimental Results (MLX, local validation)
 
-Current SOTA (PR #1019, 1.1147 BPB) allocates ~4M parameters per layer across 11 unique blocks. With weight sharing:
+### Depth recurrence matches baseline quality at 2.8x fewer params
 
-- **4 shared blocks x 5 iterations = 20 effective layers**
-- Freed parameter budget reallocated to wider dimensions, larger BigramHash, or additional architectural capacity
-- Per-layer conditioning via layer index embeddings and learned scalar gates ensures each iteration is distinct
-- Compatible with existing GPTQ int6 quantization (shared weights quantized once, applied K times)
+| Config | Params | Effective Depth | val_bpb | Compressed Size |
+|--------|--------|-----------------|---------|-----------------|
+| Baseline (9 unique layers) | 17.1M | 9 | 3.2273 | 5.1 MB |
+| Recurrence 3L x 3R | 6.0M | 9 | 3.2264 | 1.87 MB |
 
-## Architecture Plan
+### Deeper recurrence is strictly better
 
-Building on the PR #1019 stack (GPTQ + XSA + BigramHash + Parallel Muon):
+| Config | Params | Effective Depth | val_bpb | Compressed Size |
+|--------|--------|-----------------|---------|-----------------|
+| Baseline (9 unique layers) | 17.1M | 9 | 3.2273 | 5.1 MB |
+| Recurrence 3L x 3R | 6.0M | 9 | 3.2264 | 1.87 MB |
+| **Recurrence 3L x 7R** | **6.1M** | **21** | **3.2134** | **1.89 MB** |
 
-| Component | Change |
-|-----------|--------|
-| Layer structure | K shared blocks with N iterations (K*N effective depth) |
-| Per-iteration conditioning | Layer index embeddings + learned gates |
-| Normalization | Per-iteration RMSNorm to stabilize deep recurrence |
-| Skip connections | Adapted U-Net skips for recurrent structure |
-| Remaining stack | XSA, BigramHash, SmearGate, Partial RoPE, VE128 unchanged |
+The 21-effective-depth model beats the baseline by 0.014 BPB with 2.8x fewer params and 2.7x smaller compressed artifact. Deeper recurrence converges faster at every step count.
 
-## Why This Should Work
+### Wider recurrence at full param budget
 
-1. Scaling laws show depth is more parameter-efficient than width at fixed budget
-2. Universal Transformer (Dehghani et al.) demonstrated weight sharing matches standard transformers with fewer parameters
-3. Quantization gains are hitting diminishing returns (int6 to int5); the next improvement likely comes from structural parameter reallocation
-4. Extra forward passes fit within the 10-minute compute budget and 10-minute eval budget
+| Config | Params | Effective Depth | train_loss @ step 20 |
+|--------|--------|-----------------|---------------------|
+| Recurrence 4L x 5R (768d) | 17.4M | 20 | 5.5597 |
 
-## Development Setup
+At the same param budget as the baseline, this gets 20 effective layers vs 9 with 1.5x wider hidden dimension. val_bpb pending.
 
-- Local experimentation: DGX Sparks (Blackwell GPU, 128GB unified memory)
-- Validation: 8xH100 SXM via RunPod
+## Parameter Budget Analysis (16MB artifact limit)
+
+| Config | Estimated Artifact | Effective Depth | Notes |
+|--------|-------------------|-----------------|-------|
+| Current SOTA (11L, 512d) | ~15.9 MB | 11 | Near ceiling |
+| 4 unique x 5 reps, 768d | ~13.3 MB | 20 | 1.5x wider, 1.8x deeper |
+| 3 unique x 7 reps, 768d | ~10.2 MB | 21 | Most depth-efficient |
+
+## Implementation
+
+Per-iteration conditioning via learned iteration embeddings + sigmoid gating:
+
+```python
+# Before each block call at effective layer i:
+gate = sigmoid(iter_gate[i])    # starts near 0 (init: -2.0)
+x = x + gate * iter_embed[i]   # additive conditioning
+x = blocks[i % num_unique](x, x0)  # shared block with cycling
+```
+
+U-Net skip connections adapted for effective depth (encoder = first half, decoder = second half with reversed skips).
+
+## Key Risk
+
+MLX shows ~3x throughput penalty per step. Expected 1.5-2x on H100 with torch.compile (weights stay in GPU cache, parameter banks are already stateless). **GPU throughput test is the critical next step.**
+
+## Files
+
+- `train_gpt_mlx_recurrence.py` — MLX prototype (validated, produces all results above)
+- `train_gpt_recurrence.py` — CUDA port of baseline with recurrence support (ready for GPU testing)
 
 ## Lineage
 
@@ -47,8 +71,8 @@ Building on the PR #1019 stack (GPTQ + XSA + BigramHash + Parallel Muon):
 PR #1019 (Current SOTA, 1.1147 BPB)
     +-- This work adds:
         +-- Weight-shared depth recurrence (K blocks x N iterations)
-        +-- Per-layer conditioning (index embeddings, learned gates)
-        +-- Adapted skip connections for recurrent structure
+        +-- Per-iteration conditioning (iter_embed + iter_gate)
+        +-- Adapted U-Net skip connections for recurrent effective depth
 ```
 
 ## Author
