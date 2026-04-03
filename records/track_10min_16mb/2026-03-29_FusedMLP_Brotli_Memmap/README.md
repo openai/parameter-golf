@@ -1,4 +1,4 @@
-> **Mechanistic Interpretability:** For a deep-dive analysis of this model — including SVD utilization, quantization sensitivity, logit lens, and calibration — see [Mechanistic Interpretability of PR 1105](https://abay.tech/posts/pr-1105-model-autopsy).
+> **Mechanistic Interpretability:** For a deep-dive analysis of this model — including SVD utilization, quantization sensitivity, logit lens, and calibration — see [Mechanistic Interpretability of #1105](https://abay.tech/posts/pr-1105-model-autopsy).
 
 ## Results: val_bpb 1.0962 (3-seed mean) | 8×H100 SXM | 600s
 
@@ -19,7 +19,7 @@ N-gram eval: ~87s wall (~50s loop, 3-seed mean). Tilted: 23.8% (mean) | Hits: 53
 
 **Prompt (50 tokens):** *"Insurance Company Declares Living Man Dead George Johannesen is very much alive. Which is why it was so surpr"*
 
-| PR 1019 model | **This model** |
+| #1019 model | **This model** |
 | :--- | :--- |
 | ising to be insurance company. Living Man? Maybe. All Living Man? It was a miracle. However, right now, Living Man is still dead. Well, why is he not living? Living man Rachel Drobles is a person whose life is tested by the techniques of the car industry. Like all techniques, the life of Rachel is tested by the astounding things she has become. Therefore, whether it is a mistake, or in-residence, or a mistake happening, is perpetuated. Therefore, Lyon Man is dead. Can Living Man H | ising to be insurance company. Living Man is the only insurance company that makes property insurance. It is a company that makes vacation insurance, but it still has the same degree of property insurance. So how does a living man die? So say I think there are ways to teach people how to be insured. The first step is to measure the health of the living man and the stress of his situation. To measure the health of the living man, it is important to measure his or her weight. What is the hazard to the living man? Living Man is the only insurance company that specializes in repairs |
 
@@ -27,7 +27,7 @@ The old model drifts into incoherence ("Rachel Drobles... techniques of the car 
 
 </details>
 
-## Changes vs our PR 1019
+## Changes vs our #1019
 
 ### 1. Fused MLP Kernels: Triton TMA Forward + CUTLASS EVT Backward
 
@@ -59,7 +59,7 @@ This PR replaces the old eval-time n-gram mixing path with a fast, legal, single
 
 <details><summary><b>Motivation & Interpretability</b></summary>
 
-This work was guided by the interpretability results in our [PR 1019 model autopsy](https://abay.tech/posts/pr-1019-model-autopsy) and [PR 1105 model autopsy](https://abay.tech/posts/pr-1105-model-autopsy). Those analyses showed that the model is not broadly weak at language modeling; it is specifically weak at exact copy/repetition. In particular, it has very limited induction capability, while much of the remaining loss is in categories like numbers, punctuation, and whitespace where generic short-order n-grams do not help much.
+This work was guided by the interpretability results in our [#1019 model autopsy](https://abay.tech/posts/pr-1019-model-autopsy) and [#1105 model autopsy](https://abay.tech/posts/pr-1105-model-autopsy). Those analyses showed that the model is not broadly weak at language modeling; it is specifically weak at exact copy/repetition. In particular, it has very limited induction capability, while much of the remaining loss is in categories like numbers, punctuation, and whitespace where generic short-order n-grams do not help much.
 
 That changed the design target. Instead of building “better PPM everywhere,” we focused on the narrow places where n-grams are actually complementary:
 - High-order token memory for exact repeats.
@@ -80,29 +80,29 @@ Measured eval time (8×H100): **~88s** (setup 37s + loop 50s). Our C++ open-addr
 
 ### 3. Brotli-11 Compression (replaces LZMA-9)
 
-−581 KB (−5.9%) vs LZMA-9. Independently discovered; PR 1089 (mikeapedia) also uses Brotli.
+−581 KB (−5.9%) vs LZMA-9. Independently discovered; #1089 (@mikeapedia) also uses Brotli.
 
 ### 4. Memmap Multi-Shard Data Pipeline + GPU Prefetch
 
-Coprime-stride sampling, daemon thread, CUDA stream prefetch. Credit: DeepReinforce (PR 726).
+Coprime-stride sampling, daemon thread, CUDA stream prefetch. Credit: @DeepReinforce (#726).
 
 ### 5. MLP 3.5× (1536 → 1792 hidden dim)
 
-**Motivated by mechanistic analysis:** [SVD analysis of our PR 1019 model](https://abay.tech/posts/pr-1019-model-autopsy) showed MLP at 94.4% rank utilization (fully packed) while attention Q sat at 72.6% (spare capacity). The model was parameter-starved in MLP, not attention — so we made MLP wider.
+**Motivated by mechanistic analysis:** [SVD analysis of our #1019 model](https://abay.tech/posts/pr-1019-model-autopsy) showed MLP at 94.4% rank utilization (fully packed) while attention Q sat at 72.6% (spare capacity). The model was parameter-starved in MLP, not attention — so we made MLP wider.
 
 Increases hidden dim from 3.0 × 512 = 1536 to 3.5 × 512 = 1792 (+2.88M params). With sp4608 (which removed BigramHash and SmearGate), the full model is 31.85M params and fits under 16 MB with uniform int6.
 
-Impact: −0.003 BPB from capacity, +13ms/step on 2×H100 (bigger GEMMs). Credit: PR 185 (dttdrv), PR 344 (aryanbhosale).
+Impact: −0.003 BPB from capacity, +13ms/step on 2×H100 (bigger GEMMs). Credit: #185 (@dttdrv), #344 (@aryanbhosale).
 
 ### 6. LR Floor (0.05)
 
 During warmdown, learning rate normally decays to 0. With `lr_floor=0.05`, it stops at 5% of peak instead. Prevents the optimizer from stalling, which helps with quantization-sensitive weight distributions still being refined at end of training.
 
-Impact: ~0.001 BPB. Credit: PR 130 (mohosy).
+Impact: ~0.001 BPB. Credit: #130 (@mohosy).
 
 ### 7. Vocab 4608
 
-Inspired by PR 1218 (Clark), which established 4096 as effective. We measured β(V) — bytes per token — across intermediate vocab sizes. Controlled comparison (same architecture, seed 42):
+Inspired by #1218 (@ClarkF), which established 4096 as effective. We measured β(V) — bytes per token — across intermediate vocab sizes. Controlled comparison (same architecture, seed 42):
 
 | Vocab | val_loss (nats) | β (bytes/tok) | Submission BPB | Δ BPB |
 |---|---|---|---|---|
@@ -138,14 +138,14 @@ Mixed quantization: 10 layers int6, 56 layers int5, no pruning needed.
 
 | Baseline | nats | BPB | Δ nats | Δ BPB | Welch's t | df | p |
 |---|---|---|---|---|---|---|---|
-| Our PR 1019 (current SOTA) | 1.88218 | 1.11474 | **−0.01607** | **−0.00952** | −22.28 | 3.09 | < 0.01 |
-| Our PR 549 (prior SOTA) | 1.89002 | 1.11938 | **−0.02392** | **−0.01417** | −28.15 | 3.95 | < 0.01 |
+| Our #1019 (current SOTA) | 1.88218 | 1.11474 | **−0.01607** | **−0.00952** | −22.28 | 3.09 | < 0.01 |
+| Our #549 (prior SOTA) | 1.89002 | 1.11938 | **−0.02392** | **−0.01417** | −28.15 | 3.95 | < 0.01 |
 
 </details>
 
 <details><summary><b>Calibration regression (sp1024 model)</b></summary>
 
-ECE increased from 0.24% (PR 1019 model) to 1.26% (sp1024 model) — the mixed int5/int6 quantization introduces slight overconfidence. Model entropy dropped from 1.899 to 1.847 nats (more confident) while accuracy dropped from 54.99% to 54.46%. Not yet re-measured on the sp4608 all-int6 model.
+ECE increased from 0.24% (#1019 model) to 1.26% (sp1024 model) — the mixed int5/int6 quantization introduces slight overconfidence. Model entropy dropped from 1.899 to 1.847 nats (more confident) while accuracy dropped from 54.99% to 54.46%. Not yet re-measured on the sp4608 all-int6 model.
 
 </details>
 
@@ -171,7 +171,7 @@ SLOT (Selective Logit Offset Tuning) optimizes a 512-dim delta vector at the las
 | 1337 | 6,811 | 87.7 | 1.1265 | **1.1093** | 1.87306 | 14,526,779 |
 | **Mean** | **6,819** | **87.7** | | **1.1088** | **1.8722** | |
 
-Credit: PR 609 (saml212).
+Credit: #609 (@saml212).
 
 </details>
 
@@ -184,7 +184,7 @@ Credit: PR 609 (saml212).
 | 999 | 7,176 | 83.5 | 1.1339 | **1.1146** | 1.8820 | 15,512,666 |
 | **Mean** | **7,175** | **83.5** | | **1.1138** | **1.8806** | |
 
-Delta vs PR 549: −0.00943 nats. Welch's t = −10.26, df ≈ 3.78, p < 0.01.
+Delta vs #549: −0.00943 nats. Welch's t = −10.26, df ≈ 3.78, p < 0.01.
 
 </details>
 
@@ -194,12 +194,12 @@ Delta vs PR 549: −0.00943 nats. Welch's t = −10.26, df ≈ 3.78, p < 0.01.
 
 | Submission | ms/step | BPB | What changed |
 |---|---|---|---|
-| Our PR 549 | 83.4 | 1.1194 | Leaderboard SOTA baseline |
-| Our PR 1019 (merged SOTA) | 86.7 | 1.1147 | +Full GPTQ, +XSA-all, +BigramHash 3072. **+3.3ms regression.** |
+| Our #549 | 83.4 | 1.1194 | Leaderboard SOTA baseline |
+| Our #1019 (merged SOTA) | 86.7 | 1.1147 | +Full GPTQ, +XSA-all, +BigramHash 3072. **+3.3ms regression.** |
 | This PR (kernels only) | 83.5 | 1.1138 | +Fused MLP kernels, +Brotli. **Regression erased.** |
 | This PR (sp1024 full stack) | 87.7 | 1.1052 | +MLP 3.5×, +mixed int5/int6, +LR floor. |
 
-Our PR 1019 traded throughput for quality — full Hessian GPTQ and BigramHash 3072×112 added 3.3ms/step. Fused MLP kernels recover that regression. With sp4608, BigramHash was removed entirely (redundant at larger vocab), and all layers use int6.
+Our #1019 traded throughput for quality — full Hessian GPTQ and BigramHash 3072×112 added 3.3ms/step. Fused MLP kernels recover that regression. With sp4608, BigramHash was removed entirely (redundant at larger vocab), and all layers use int6.
 
 </details>
 
@@ -226,7 +226,7 @@ CUTLASS vs Triton: +0.032 ms/layer, +0.347 ms/step kernel-level.
 
 Kernel-level 0.347ms translates to 0.43ms end-to-end (cache/scheduling interactions).
 
-**8×H100:** 86.7ms (our PR 1019, unfused) → 83.5ms (this PR) = **−3.2ms/step (−3.7%)**.
+**8×H100:** 86.7ms (our #1019, unfused) → 83.5ms (this PR) = **−3.2ms/step (−3.7%)**.
 
 </details>
 
@@ -243,7 +243,7 @@ Kernel-level 0.347ms translates to 0.43ms end-to-end (cache/scheduling interacti
 | Unfused elementwise (LN, residuals) | 21.0% | |
 | Communication + other | 4.7% | NCCL, copies, softmax |
 
-**Why surgical fusion, not full-MLP autograd.Function:** The 21.6% from torch.compile's cross-layer fusions (RMSNorm backward, residual adds, RoPE backward) only exists because these ops are visible to the compiler. Wrapping the full MLP backward in `autograd.Function` makes it opaque to Inductor — all backward GEMMs plus cross-layer fusion run in eager mode, **2.7× slower net** (identified in our PR 670). We fuse only forward and one backward GEMM+pointwise, preserving the compiler's scope.
+**Why surgical fusion, not full-MLP autograd.Function:** The 21.6% from torch.compile's cross-layer fusions (RMSNorm backward, residual adds, RoPE backward) only exists because these ops are visible to the compiler. Wrapping the full MLP backward in `autograd.Function` makes it opaque to Inductor — all backward GEMMs plus cross-layer fusion run in eager mode, **2.7× slower net** (identified in our #670). We fuse only forward and one backward GEMM+pointwise, preserving the compiler's scope.
 
 Top individual kernels:
 | Kernel | Share |
@@ -284,30 +284,30 @@ The ~295× speedup vs naive Python was the enabling constraint: a brute-force pe
 
 | Component | Setting | Source |
 |-----------|---------|--------|
-| Tokenizer | **sp4608 (vocab 4608)** | **This work** (inspired by PR 1218 (Clark)) |
+| Tokenizer | **sp4608 (vocab 4608)** | **This work** (inspired by #1218 (@ClarkF)) |
 | Layers | 11 (512d, 8 GQA / 4 KV heads) | Baseline |
-| MLP | **3.5× (1792)**, LeakyReLU(0.5)² | **This work** (concept: PR 185 (dttdrv), PR 344 (aryanbhosale)) |
-| MLP Forward | **Fused Triton TMA kernel** | **This work** (profiling: our PR 670) |
+| MLP | **3.5× (1792)**, LeakyReLU(0.5)² | **This work** (concept: #185 (@dttdrv), #344 (@aryanbhosale)) |
+| MLP Forward | **Fused Triton TMA kernel** | **This work** (profiling: our #670) |
 | MLP Backward | **CUTLASS EVT Pingpong + pre-computed act_grad** | **This work** |
-| Attention | XSA on all 11 layers | PR 478 (gowtham0992) |
-| ~~BigramHash~~ | Removed — redundant at vocab 4608, freed space for all-int6 | Previously: Our PR 1019 |
-| RoPE | Partial (16/64 dims) | PR 315 (jfprincz) |
-| LN Scale | 1/√(layer+1) | PR 315 (jfprincz) |
-| VE128 | Layers 9-10 | PR 374 (unnir) |
-| ~~SmearGate~~ | Removed — redundant at vocab 4608, freed space for all-int6 | Previously: PR 65 (aquariouseworkman) |
-| U-Net skips | Encoder-decoder connections | PR 289 |
-| Weight avg | EMA(0.997) + SWA(every 50) | PR 401 (newjordan) |
-| Quantization | **Full Hessian GPTQ all-int6 (66 layers, AR self-gen)** | **This work** (GPTQ: PR 535 (raahilshah)) |
-| Compression | **Brotli quality=11** | **This work** (independently: PR 1089 (mikeapedia)) |
-| Data Pipeline | **Memmap multi-shard + GPU prefetch** | PR 726 (DeepReinforce) |
-| Warmdown | 4000 iterations, **LR floor 0.05** | PR 364 (shikhar1729), **LR floor: PR 130 (mohosy)** |
-| Optimizer | Parallel Muon (NS5) | Our PR 399 |
-| Late QAT | STE at LR scale < 0.15 | PR 286 (chris-buckley) |
-| Selective pruning | ±1 by reconstruction error | PR 609 (saml212) |
+| Attention | XSA on all 11 layers | #478 (@gowtham0992) |
+| ~~BigramHash~~ | Removed — redundant at vocab 4608, freed space for all-int6 | Previously: Our #1019 |
+| RoPE | Partial (16/64 dims) | #315 (@jfprincz) |
+| LN Scale | 1/√(layer+1) | #315 (@jfprincz) |
+| VE128 | Layers 9-10 | #374 (@unnir) |
+| ~~SmearGate~~ | Removed — redundant at vocab 4608, freed space for all-int6 | Previously: #65 (@aquariouseworkman) |
+| U-Net skips | Encoder-decoder connections | #289 |
+| Weight avg | EMA(0.997) + SWA(every 50) | #401 (@newjordan) |
+| Quantization | **Full Hessian GPTQ all-int6 (66 layers, AR self-gen)** | **This work** (GPTQ: #535 (@raahilshah)) |
+| Compression | **Brotli quality=11** | **This work** (independently: #1089 (@mikeapedia)) |
+| Data Pipeline | **Memmap multi-shard + GPU prefetch** | #726 (@DeepReinforce) |
+| Warmdown | 4000 iterations, **LR floor 0.05** | #364 (@shikhar1729), **LR floor: #130 (@mohosy)** |
+| Optimizer | Parallel Muon (NS5) | Our #399 |
+| Late QAT | STE at LR scale < 0.15 | #286 (@chris-buckley) |
+| Selective pruning | ±1 by reconstruction error | #609 (@saml212) |
 | Eval | Sliding window (stride=64) | Standard |
-| Flash Attention 3 | Hopper kernels | PR 122 (mtybadger) |
+| Flash Attention 3 | Hopper kernels | #122 (@mtybadger) |
 
-**Calibration legality:** AR self-generated (64 seqs × 2048 tokens, temp=0.8). No val data, no train data accessed during quantization. Same method as our [PR 1019](https://github.com/openai/parameter-golf/pull/1019).
+**Calibration legality:** AR self-generated (64 seqs × 2048 tokens, temp=0.8). No val data, no train data accessed during quantization. Same method as our [#1019](https://github.com/openai/parameter-golf/pull/1019).
 
 ### A.8 Setup & Reproduction
 
