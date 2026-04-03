@@ -1,10 +1,10 @@
-## 11L EMA + LeakyReLU² + LZMA + Int6 GPTQ-lite (val_bpb: 1.1302)
+## 11L EMA + LeakyReLU² + LZMA + Int6 GPTQ-lite (val_bpb: 1.1303)
 
-**val_bpb: 1.1302** (sliding window stride=16) | **15.87 MB** | 8×H100 SXM, 600s
+**val_bpb: 1.1303** (2-seed mean, sliding window stride=16) | **15.87 MB** (mean) | 8×H100 SXM, 600s
 
 ### Summary
 
-This submission combines several architectural optimizations with LZMA compression and temperature-scaled evaluation. Built on the established 11-layer Transformer stack with key modifications: LeakyReLU(0.5)² activation, LZMA extreme compression replacing zlib/zstd, and evaluation-time temperature scaling.
+Non-record submission combining several architectural optimizations with LZMA compression and temperature-scaled evaluation. Built on the established 11-layer Transformer stack with key modifications: LeakyReLU(0.5)² activation, LZMA extreme compression replacing zlib/zstd, and evaluation-time temperature scaling.
 
 ### Key Changes
 
@@ -19,14 +19,19 @@ This submission combines several architectural optimizations with LZMA compressi
 | **Gated Attention** | Disabled | No measurable BPB benefit at this scale |
 | **Value Residual** | Disabled | Incompatible with optimal XSA stack |
 
-### Results (1 seed, 8×H100 SXM)
+### Results (2 seeds, 8×H100 SXM)
 
-| Seed | Steps | Training Time | val_loss | Sliding BPB (s16) | Artifact |
-|------|-------|---------------|----------|-------------------|----------|
-| **1337** | 7188 | 600s (10 min) | 1.9083 | **1.1302** | 15.87 MB |
+| Seed | Steps | val_loss | Sliding BPB (s16) | Artifact |
+|------|-------|----------|-------------------|----------|
+| **1337** | 7188 | 1.9083 | **1.1302** | 15.86 MB |
+| **42** | 7187 | 1.9086 | **1.1304** | 15.88 MB |
 
-| Model Selection | val_bpb |
-|-----------------|---------|
+**Mean: 1.1303 | Std: 0.0001** | Submitted: seed 1337 (best)
+
+### Model Selection (seed 1337)
+
+| Stage | val_bpb |
+|-------|---------|
 | Raw model | 1.1389 |
 | **EMA (selected)** | **1.1378** |
 | SWA (n=14) | 1.1389 |
@@ -101,6 +106,4 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ### Reproducibility
 
-Trained and evaluated on RunPod 8×H100 SXM using `runpod/parameter-golf:latest` image (PyTorch 2.9.1, CUDA 12.8). Training completes in exactly 10 minutes (600s wallclock). Artifact size: 15.87 MB (within 16MB limit).
-
-Note: ITERATIONS=12000 was set but training is wallclock-limited to 600s, reaching step 7188. Setting ITERATIONS=20000 produces identical results since the wallclock limit is the binding constraint.
+Trained and evaluated on RunPod 8×H100 SXM using `runpod/parameter-golf:latest` image (PyTorch 2.9.1, CUDA 12.8). Training completes in exactly 10 minutes (600s wallclock). Both seeds produce consistent results (std=0.0001 BPB) with artifacts well within 16MB.
