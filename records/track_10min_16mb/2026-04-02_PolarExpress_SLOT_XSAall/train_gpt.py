@@ -1007,6 +1007,38 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
+    def _body(self, input_ids: Tensor) -> Tensor:
+        """Return hidden states before logit projection (for SLOT eval)."""
+        n = self.num_layers
+        x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear(x)
+        x0 = x
+        v0 = None
+        skips: list[Tensor] = []
+        ve_cache: dict = {}
+        for i in range(self.num_encoder_layers):
+            ve = self._get_ve(i, input_ids, ve_cache)
+            x, raw_v = self.blocks[i](x, x0,
+                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
+                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                v_embed=ve, v0=v0)
+            if v0 is None and raw_v is not None:
+                v0 = raw_v
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            x, _ = self.blocks[bi](x, x0,
+                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                v_embed=ve, v0=v0)
+        return self.final_norm(x)
+
 # --- Sliding window evaluation ---
 
 def eval_val_sliding(
@@ -1283,7 +1315,7 @@ def eval_val_sliding_slot(
         softcap = base_model.logit_softcap
         for _ in range(args.slot_steps):
             opt.zero_grad()
-            logits = (h + delta) @ w.T + base_model.vocab_bias
+            logits = (h + delta) @ w.T
             logits = softcap * torch.tanh(logits / softcap)
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(),
                                    y_batch.reshape(-1), reduction="mean")
@@ -1291,7 +1323,7 @@ def eval_val_sliding_slot(
             opt.step()
         # Score with optimized delta
         with torch.no_grad():
-            logits = (h + delta) @ w.T + base_model.vocab_bias
+            logits = (h + delta) @ w.T
             logits = softcap * torch.tanh(logits / softcap)
             for j, wl in enumerate(wlens):
                 score_start = max(0, wl - stride)
