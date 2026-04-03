@@ -50,6 +50,8 @@ for mod_name in ("flash_attn_interface", "flash_attn", "mamba_ssm", "causal_conv
 sys.modules["flash_attn_interface"].flash_attn_func = _fake_flash_attn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import train_gpt
+train_gpt.flash_attn_3_func = _fake_flash_attn
 from train_gpt import GPT, MambaBlock
 
 

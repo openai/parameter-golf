@@ -14,11 +14,32 @@ import math
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 import torch
 import torch.nn.functional as F
+
+
+def _fake_flash_attn(q, k, v, causal=False):
+    """CPU fallback: naive scaled dot-product attention with GQA support."""
+    bsz, seqlen, nqh, hd = q.shape
+    nkvh = k.shape[2]
+    if nqh != nkvh:
+        reps = nqh // nkvh
+        k = k.unsqueeze(3).expand(bsz, seqlen, nkvh, reps, hd).reshape(bsz, seqlen, nqh, hd)
+        v = v.unsqueeze(3).expand(bsz, seqlen, nkvh, reps, hd).reshape(bsz, seqlen, nqh, hd)
+    scale = hd ** -0.5
+    q2 = q.transpose(1, 2).float()
+    k2 = k.transpose(1, 2).float()
+    v2 = v.transpose(1, 2).float()
+    attn = torch.matmul(q2, k2.transpose(-2, -1)) * scale
+    if causal:
+        mask = torch.triu(torch.ones(seqlen, seqlen, device=q.device, dtype=torch.bool), diagonal=1)
+        attn = attn.masked_fill(mask, float('-inf'))
+    attn = torch.softmax(attn, dim=-1)
+    out = torch.matmul(attn, v2)
+    return out.transpose(1, 2).to(q.dtype)
+
 
 # ---------------------------------------------------------------------------
 # Mock unavailable GPU-only modules before importing train_gpt
@@ -26,10 +47,13 @@ import torch.nn.functional as F
 for mod_name in ("flash_attn_interface", "flash_attn", "mamba_ssm", "causal_conv1d"):
     if mod_name not in sys.modules:
         fake = types.ModuleType(mod_name)
-        fake.flash_attn_func = MagicMock()
+        fake.flash_attn_func = _fake_flash_attn
         sys.modules[mod_name] = fake
+sys.modules["flash_attn_interface"].flash_attn_func = _fake_flash_attn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import train_gpt
+train_gpt.flash_attn_3_func = _fake_flash_attn
 from train_gpt import MambaBlock
 
 
