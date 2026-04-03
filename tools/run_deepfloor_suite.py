@@ -101,6 +101,59 @@ def deepfloor_cmd(
     return cmd
 
 
+def deepfloor_evolution_cmd(
+    python_bin: Path,
+    *,
+    enwik8_path: Path,
+    output_json: Path,
+    device: str,
+    seed: int,
+    population_size: int,
+    generations: int,
+    tournament_size: int,
+    train_steps: int,
+    eval_batches: int,
+    mutation_rate: float,
+    artifact_limit_mb: float,
+    deepfloor_profile: str,
+    confirm_topk: int,
+    confirm_train_steps: int,
+) -> list[str]:
+    return [
+        str(python_bin),
+        str(REPO_ROOT / "tools" / "evolutionary_benchmark.py"),
+        "deepfloor-recipe-evolution",
+        "--enwik8-path",
+        str(enwik8_path),
+        "--device",
+        device,
+        "--seed",
+        str(seed),
+        "--population-size",
+        str(population_size),
+        "--generations",
+        str(generations),
+        "--tournament-size",
+        str(tournament_size),
+        "--train-steps",
+        str(train_steps),
+        "--eval-batches",
+        str(eval_batches),
+        "--mutation-rate",
+        str(mutation_rate),
+        "--artifact-limit-mb",
+        str(artifact_limit_mb),
+        "--deepfloor-profile",
+        deepfloor_profile,
+        "--confirm-topk",
+        str(confirm_topk),
+        "--confirm-train-steps",
+        str(confirm_train_steps),
+        "--output-json",
+        str(output_json),
+    ]
+
+
 def run_local_unit(python_bin: Path) -> None:
     run_checked(
         [
@@ -108,6 +161,7 @@ def run_local_unit(python_bin: Path) -> None:
             "-m",
             "unittest",
             "tests.test_evolutionary_benchmark",
+            "tests.test_deepfloor_evolution",
             "tests.test_spectral_flood_walk_v3",
             "-v",
         ]
@@ -243,11 +297,56 @@ def run_matrix(
         )
 
 
-def print_report(run_dir: Path) -> None:
+def run_evolution(
+    python_bin: Path,
+    output_json: Path,
+    enwik8_path: Path | None,
+    *,
+    device: str,
+    seed: int,
+    population_size: int,
+    generations: int,
+    tournament_size: int,
+    train_steps: int,
+    eval_batches: int,
+    mutation_rate: float,
+    artifact_limit_mb: float,
+    deepfloor_profile: str,
+    confirm_topk: int,
+    confirm_train_steps: int,
+) -> None:
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    fixture = ensure_fixture(enwik8_path)
+    run_checked(
+        deepfloor_evolution_cmd(
+            python_bin,
+            enwik8_path=fixture,
+            output_json=output_json,
+            device=device,
+            seed=seed,
+            population_size=population_size,
+            generations=generations,
+            tournament_size=tournament_size,
+            train_steps=train_steps,
+            eval_batches=eval_batches,
+            mutation_rate=mutation_rate,
+            artifact_limit_mb=artifact_limit_mb,
+            deepfloor_profile=deepfloor_profile,
+            confirm_topk=confirm_topk,
+            confirm_train_steps=confirm_train_steps,
+        )
+    )
+
+
+def collect_v3_rows(run_dir: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for path in sorted(run_dir.glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if "config" not in payload or "artifact" not in payload or "val" not in payload or "test" not in payload:
+            continue
         config = payload["config"]
+        if "cross_token_mode" not in config:
+            continue
         rows.append(
             {
                 "name": path.name,
@@ -259,6 +358,11 @@ def print_report(run_dir: Path) -> None:
                 "artifact_mb": round(float(payload["artifact"]["estimated_mb"]), 4),
             }
         )
+    return rows
+
+
+def print_report(run_dir: Path) -> None:
+    rows = collect_v3_rows(run_dir)
     if not rows:
         print(f"no json runs found in {run_dir}")
         return
@@ -266,6 +370,58 @@ def print_report(run_dir: Path) -> None:
     print("\t".join(headers))
     for row in rows:
         print("\t".join(str(row[header]) for header in headers))
+
+
+def collect_evolution_rows(run_dir: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for path in sorted(run_dir.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        meta = payload.get("deepfloor_recipe_evolution")
+        best = payload.get("best")
+        if not isinstance(meta, dict) or not isinstance(best, dict):
+            continue
+        val = best.get("val", {})
+        test = best.get("test", {})
+        if not isinstance(val, dict) or not isinstance(test, dict):
+            continue
+        rows.append(
+            {
+                "name": path.name,
+                "profile": meta.get("deepfloor_profile", ""),
+                "seed": meta.get("seed", ""),
+                "population": meta.get("population_size", ""),
+                "generations": meta.get("generations", ""),
+                "best_val_bpb": round(float(val.get("bpb", float("nan"))), 4),
+                "best_test_bpb": round(float(test.get("bpb", float("nan"))), 4),
+                "artifact_mb": round(float(best.get("artifact_estimated_mb", float("nan"))), 4),
+                "confirm_results": len(payload.get("confirm_results", [])),
+            }
+        )
+    return rows
+
+
+def print_full_report(run_root: Path) -> None:
+    sections = [
+        ("smoke", collect_v3_rows(run_root / "smoke"), ("name", "mode", "views", "dim", "val_bpb", "test_bpb", "artifact_mb")),
+        ("matrix", collect_v3_rows(run_root / "matrix"), ("name", "mode", "views", "dim", "val_bpb", "test_bpb", "artifact_mb")),
+        (
+            "evolution",
+            collect_evolution_rows(run_root / "evolution"),
+            ("name", "profile", "seed", "population", "generations", "best_val_bpb", "best_test_bpb", "artifact_mb", "confirm_results"),
+        ),
+    ]
+    printed_any = False
+    for section_name, rows, headers in sections:
+        if not rows:
+            continue
+        printed_any = True
+        print(f"== {section_name} ==")
+        print("\t".join(headers))
+        for row in rows:
+            print("\t".join(str(row[header]) for header in headers))
+        print()
+    if not printed_any:
+        print(f"no DeepFloor runs found under {run_root}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -300,9 +456,30 @@ def build_parser() -> argparse.ArgumentParser:
     matrix.add_argument("--eval-batches", type=int, default=2)
     matrix.set_defaults(handler="matrix")
 
+    evolution = subparsers.add_parser("evolution", help="Run one DeepFloor recipe-evolution job")
+    evolution.add_argument("--output-json", default=str(DEFAULT_RUN_ROOT / "evolution" / "deepfloor_recipe_compact_seed1337.json"))
+    evolution.add_argument("--enwik8-path")
+    evolution.add_argument("--device", default="cpu")
+    evolution.add_argument("--seed", type=int, default=1337)
+    evolution.add_argument("--population-size", type=int, default=12)
+    evolution.add_argument("--generations", type=int, default=6)
+    evolution.add_argument("--tournament-size", type=int, default=3)
+    evolution.add_argument("--train-steps", type=int, default=16)
+    evolution.add_argument("--eval-batches", type=int, default=8)
+    evolution.add_argument("--mutation-rate", type=float, default=0.2)
+    evolution.add_argument("--artifact-limit-mb", type=float, default=16.0)
+    evolution.add_argument("--deepfloor-profile", choices=("compact", "frontier"), default="compact")
+    evolution.add_argument("--confirm-topk", type=int, default=3)
+    evolution.add_argument("--confirm-train-steps", type=int, default=32)
+    evolution.set_defaults(handler="evolution")
+
     report = subparsers.add_parser("report", help="Summarize DeepFloor json outputs")
     report.add_argument("--run-dir", default=str(DEFAULT_RUN_ROOT / "matrix"))
     report.set_defaults(handler="report")
+
+    full_report = subparsers.add_parser("full-report", help="Summarize smoke, matrix, and evolution outputs together")
+    full_report.add_argument("--run-root", default=str(DEFAULT_RUN_ROOT / "fullbox"))
+    full_report.set_defaults(handler="full-report")
     return parser
 
 
@@ -346,8 +523,30 @@ def main() -> None:
             eval_batches=args.eval_batches,
         )
         return
+    if args.handler == "evolution":
+        run_evolution(
+            python_bin,
+            Path(args.output_json),
+            Path(args.enwik8_path) if args.enwik8_path else None,
+            device=args.device,
+            seed=args.seed,
+            population_size=args.population_size,
+            generations=args.generations,
+            tournament_size=args.tournament_size,
+            train_steps=args.train_steps,
+            eval_batches=args.eval_batches,
+            mutation_rate=args.mutation_rate,
+            artifact_limit_mb=args.artifact_limit_mb,
+            deepfloor_profile=args.deepfloor_profile,
+            confirm_topk=args.confirm_topk,
+            confirm_train_steps=args.confirm_train_steps,
+        )
+        return
     if args.handler == "report":
         print_report(Path(args.run_dir))
+        return
+    if args.handler == "full-report":
+        print_full_report(Path(args.run_root))
         return
     raise ValueError(f"unsupported handler: {args.handler}")
 

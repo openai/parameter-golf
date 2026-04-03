@@ -1,5 +1,6 @@
 import random
 import unittest
+from unittest.mock import patch
 
 from tools.evolutionary_benchmark import (
     DeepFloorGenome,
@@ -184,6 +185,42 @@ class DeepFloorEvolutionTests(unittest.TestCase):
             confirm_bpbs = [float(r["val"]["bpb"]) for r in result["confirm_results"]]
             best_bpb = float(result["best"]["val"]["bpb"])
             self.assertAlmostEqual(best_bpb, min(confirm_bpbs))
+
+    def test_deepfloor_cli_dispatch_does_not_require_transformer_shared_args(self) -> None:
+        import tempfile
+        from pathlib import Path
+        import numpy as np
+        import tools.evolutionary_benchmark as benchmark
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        path = Path(tmpdir.name) / "enwik8"
+        data = np.arange(16384, dtype=np.uint8)
+        path.write_bytes(data.tobytes())
+
+        argv = [
+            "evolutionary_benchmark.py",
+            "deepfloor-recipe-evolution",
+            "--enwik8-path",
+            str(path),
+            "--device",
+            "cpu",
+            "--population-size",
+            "2",
+            "--generations",
+            "1",
+            "--confirm-topk",
+            "1",
+        ]
+        with patch("sys.argv", argv), patch.object(
+            benchmark,
+            "run_deepfloor_recipe_evolution",
+            return_value={"best": {"val": {"bpb": 1.0}, "test": {"bpb": 1.0}}},
+        ) as run_mock, patch.object(benchmark, "write_output") as write_mock:
+            benchmark.main()
+
+        run_mock.assert_called_once()
+        write_mock.assert_called_once()
 
 
 if __name__ == "__main__":

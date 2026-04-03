@@ -471,7 +471,7 @@ def default_deepfloor_gene_space(profile: str) -> DeepFloorGeneSpace:
         )
     if profile == "frontier":
         return DeepFloorGeneSpace(
-            recurrent_dims=(48, 64, 96),
+            recurrent_dims=(48, 64, 96, 128),
             num_distinct_blocks=(1, 2, 4),
             view_counts=(2, 4, 8),
             view_combinations=("average", "weighted", "project"),
@@ -4734,6 +4734,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    if args.command == "deepfloor-recipe-evolution":
+        from spectral_flood_walk_v3 import resolve_device as v3_resolve_device
+        result = run_deepfloor_recipe_evolution(
+            enwik8_path=args.enwik8_path,
+            population_size=args.population_size,
+            generations=args.generations,
+            tournament_size=args.tournament_size,
+            train_steps=args.train_steps,
+            eval_batches=args.eval_batches,
+            mutation_rate=args.mutation_rate,
+            artifact_limit_mb=args.artifact_limit_mb,
+            deepfloor_profile=args.deepfloor_profile,
+            confirm_topk=args.confirm_topk,
+            confirm_train_steps=args.confirm_train_steps,
+            seed=args.seed,
+            device=v3_resolve_device(args.device),
+        )
+        write_output(result, args.output_json)
+        return
+
     cfg = config_from_args(args)
     device = resolve_device(cfg.device)
     param_dtype = resolve_param_dtype(cfg.dtype, device)
@@ -4867,26 +4887,6 @@ def main() -> None:
             param_dtype=param_dtype,
         )
         write_output(result, cfg.output_json)
-        return
-
-    if args.command == "deepfloor-recipe-evolution":
-        from spectral_flood_walk_v3 import resolve_device as v3_resolve_device
-        result = run_deepfloor_recipe_evolution(
-            enwik8_path=args.enwik8_path,
-            population_size=args.population_size,
-            generations=args.generations,
-            tournament_size=args.tournament_size,
-            train_steps=args.train_steps,
-            eval_batches=args.eval_batches,
-            mutation_rate=args.mutation_rate,
-            artifact_limit_mb=args.artifact_limit_mb,
-            deepfloor_profile=args.deepfloor_profile,
-            confirm_topk=args.confirm_topk,
-            confirm_train_steps=args.confirm_train_steps,
-            seed=args.seed,
-            device=v3_resolve_device(args.device),
-        )
-        write_output(result, args.output_json)
         return
 
     raise ValueError(f"unsupported command: {args.command}")
