@@ -945,36 +945,45 @@ class GPT(nn.Module):
         x0 = x
         v0 = None
         ve_cache: dict = {}
+        # Pre-stack decoder scalars into plain tensors so torch.compile sees
+        # static tensor slices instead of ParameterList[dynamic_int] lookups.
+        extra = K * (R - 1)
+        if extra > 0:
+            v_as = torch.stack(list(self.v_attn_scale))   # [extra, D]
+            v_ms = torch.stack(list(self.v_mlp_scale))    # [extra, D]
+            v_rs = torch.stack(list(self.v_resid_mix))    # [extra, 2, D]
         # --- Encoder: first iteration (r=0), block's own scalars ---
-        skips: list[Tensor] = []
+        enc_outs: list[Tensor] = []
         for bi in range(K):
-            vi = bi  # virtual layer index for r=0
+            vi = bi
             ve = self._get_ve(vi, input_ids, ve_cache)
             lsf = self.virtual_ln_scale_factors[vi]
             x, raw_v = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[K + bi],
                 self.qo_bank[K + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0, v_ln_scale_factor=lsf)  # block's own attn/mlp/resid scalars
+                v_embed=ve, v0=v0, v_ln_scale_factor=lsf)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
-            skips.append(x)
+            enc_outs.append(x)
+        # Stack encoder outputs into a single tensor: [K, B, T, D]
+        # torch.compile can index this with constant integers after loop unrolling.
+        skips = torch.stack(enc_outs)
         # --- Decoder: iterations r=1..R-1, per-virtual-layer scalars ---
         for r in range(1, R):
             for bi in range(K):
-                vi = r * K + bi  # virtual layer index
-                # U-Net skip injection: decoder block bi gets skip from encoder block K-1-bi (reverse)
+                vi = r * K + bi
                 skip_i = K - 1 - bi
                 x = x + self.skip_weights[bi].to(dtype=x.dtype)[None, None, :] * skips[skip_i]
                 ve = self._get_ve(vi, input_ids, ve_cache)
                 lsf = self.virtual_ln_scale_factors[vi]
-                extra_i = (r - 1) * K + bi  # index into v_attn_scale / v_mlp_scale / v_resid_mix
+                extra_i = (r - 1) * K + bi
                 x, _ = self.blocks[bi](x, x0,
                     self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[K + bi],
                     self.qo_bank[K + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                     v_embed=ve, v0=v0,
-                    v_attn_scale=self.v_attn_scale[extra_i],
-                    v_mlp_scale=self.v_mlp_scale[extra_i],
-                    v_resid_mix=self.v_resid_mix[extra_i],
+                    v_attn_scale=v_as[extra_i],
+                    v_mlp_scale=v_ms[extra_i],
+                    v_resid_mix=v_rs[extra_i],
                     v_ln_scale_factor=lsf)
         return x
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
