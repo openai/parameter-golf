@@ -1,69 +1,174 @@
-# Parameter Golf — Windows Memory Index (Elite v22.8)
+# Parameter Golf — Architecture + Research Dossier (Windows RTX 3090)
 
-Quick-reference index for all notes in this folder. Updated for the **Elite Universal Transformer v22.8**.
+This repository contains the current training stack and research history for our Parameter Golf system. We started from a Universal Transformer + depth recurrence idea, then iteratively evolved into a different architecture/training regime driven by wallclock-constrained BPB results.
 
----
+## Executive Summary
 
-## Files
+- **Platform**: Windows 11 + RTX 3090
+- **Constraint**: 10-minute wallclock runs
+- **Main journey** (source: `logs/bpb_full_journey.csv`):
+  - ~**3.75 BPB** (early 12-step UT)
+  - ~**3.18 BPB** (stabilized UT + tuning)
+  - ~**2.73 BPB** (throughput/shape pivot)
+  - ~**1.81 BPB** (new architecture regime)
 
-| File | Contents |
-|---|---|
-| [01_bugs_and_fixes.md](notes/01_bugs_and_fixes.md) | 21+ bugs found + exact fixes for Windows/RTX 3090 |
-| [02_windows_setup.md](notes/02_windows_setup.md) | Step-by-step environment setup from scratch |
-| [03_training_guide.md](notes/03_training_guide.md) | Every training command + all env variables |
-| [04_wrapper_internals.md](notes/04_wrapper_internals.md) | How `train_gpt_windows.py` patches scripts at runtime |
-| [05_custom_kernel.md](notes/05_custom_kernel.md) | Triton MLP Fused Megakernel Technical Details |
-| [06_performance_tuning.md](notes/06_performance_tuning.md) | Performance tuning checklist + throughput notes |
-| [07_final_architecture.md](notes/07_final_architecture.md) | The **Elite Universal Transformer (12.2M Unique)** |
-| [08_muon_polar_express.md](notes/08_muon_polar_express.md) | Quintic Minimax (Degree-5) Stability Fix |
-| [09_elite_standard_v20_run.md](notes/09_elite_standard_v20_run.md) | v20 run notes + iteration history |
-| [10_vectorized_dataset_cleaning.md](notes/10_vectorized_dataset_cleaning.md) | Dataset cleaning pipeline notes |
-| [11_elite_standard_v21_high_heat_run.md](notes/11_elite_standard_v21_high_heat_run.md) | History of the High-Heat Stability Pivot |
-| [12_elite_transformer_implementation_summary.md](notes/12_elite_transformer_implementation_summary.md) | **Latest: v22.8 Implementation Summary** |
+## What the current code implements
 
----
+From `model.py` + `train_gpt.py`, the current system is best described as:
 
-## TL;DR — What We Did (Elite v22.8 Pivot)
+> **A tied-block recurrent causal LM backbone with per-step adapters/control paths and architecture-aware optimizer routing.**
 
-1. **Architecture**: Finalized the **12-step Recursive Elite UT**. Reuses a 1024-dim block with **Coordinate (Step) Embeddings** and LoRA.
-2. **Normalization**: Moved to **Strict Pre-Normalization** (v22.8). All RMSNorms removed from the residual path to allow deep state accumulation.
-3. **Stabilization**: Applied a **Universal Gradient Averaging (1/12)** and a **20-step Maturity Ramp** to prevent recursive explosion.
-4. **Optimizers**: Switched to **Muon "Polar Express" (Degree-5)** at **0.009 LR** (Option B) for perfect monotonic convergence.
-5. **Kernels**: Integrated **Fused Triton MLP** for $X \times W + LeakyReLU^2$, significantly boosting Windows throughput.
-6. **Efficiency**: Saturating the RTX 3090 at **524,288 tokens/step** with **12.5GB VRAM** footprint.
+Key characteristics:
 
----
+1. **Single recurrent block reused across depth** (`num_steps`, tied weights)
+2. **Step-conditioned behavior** via:
+   - per-step embeddings
+   - per-step LoRA adapters (`RelaxedLinear`)
+   - per-step value bias (`v_step_bias`)
+   - optional level signal, smeargate, bigram hash
+3. **Causal decoder objective** with final softcapped logits
+4. **Training stack tightly coupled to architecture**:
+   - Muon for dense matrices
+   - AdamW groups for scalar/control/LoRA/embeddings
+   - recurrence-aware gradient scaling
+   - wallclock-aware schedule, EMA, and stability instrumentation
 
-## The 3-Line Cheat Sheet
+### Current architecture snapshot (active deterministic re-eval profile)
 
-```powershell
-# 1. Setup the 'Elite' Environment (One-time)
-.\setup_elite_env.bat
+This is the current working architecture/profile used for deterministic reevaluation via `ScaleDown.bat`:
 
-# 2. Launch the 10-Minute Stabilization Test (55 Steps)
-.\limits_test_10m.bat
+- `MODEL_DIM=1024`, `NUM_HEADS=8`, `NUM_KV_HEADS=4`
+- `RECURRENCE_STEPS=1` (single-step tied-block path)
+- `MLP_MULT=5`
+- `LORA_RANK=512`, `LORA_SCOPE=q`
+- Feature toggles:
+  - `SMEARGATE_ENABLED=0`
+  - `BIGRAM_HASH_ENABLED=1` (`SIZE=2048`, `SCALE=0.05`)
+  - `LEVEL_SIGNAL_ENABLED=0`
+  - `ORTHO_INIT=0`
 
-# 3. Scale for Final Championship Run
-.\final_run_10m.bat
+## BPB Journey (High-level)
+
+### Phase 1 — Original UT depth recurrence era
+
+| Milestone | Val BPB | Notes |
+|---|---:|---|
+| `Initial_UT_12step` | 3.75 | First stable 12-step tied recurrence baseline |
+| `LR_0.009_regression` | 3.32 | Lower LR was a regression for 55-step budget |
+| `Best_3090_12step` | 3.18 | Warmup/clip improvements stabilized the run |
+| `Best_reproducible_3090` | 3.1853 | Most reproducible UT-era setting |
+
+External context that was useful in identifying practical limits of deeper UT-style recurrence in this setting:
+
+- [Unofficial: Interactive dashboard visualizing all 352 submissions (dentity007)](https://github.com/openai/parameter-golf/discussions/747)
+- [PR #363](https://github.com/openai/parameter-golf/pull/363)
+
+### Phase 2 — Throughput pivot
+
+| Milestone | Val BPB | Notes |
+|---|---:|---|
+| `dim512_discovery` | 2.7335 | More optimizer steps in 10 minutes beat deeper slower setup |
+
+### Phase 3 — New architecture regime
+
+| Milestone | Val BPB | Notes |
+|---|---:|---|
+| `mlp2_steps2_LR012` | **1.8085** | Strong result in new single-pass/wide family |
+| `mlp5_steps1_lora512_BEST` | 1.8117 | Best in journey sheet for steps=1 family |
+
+> Important: `SmearGate_BUG` entry with 0.7690 BPB in the journey CSV is explicitly marked **invalid** due to a non-causal leak.
+
+## Stable UT-era sweep results (10-minute window)
+
+| Run ID | MATRIX_LR | GRAD_CLIP_NORM | TARGET_GRAD_NORM | Final BPB |
+|---|---:|---:|---:|---:|
+| `SWEEP_01_lr010_clip06` | 0.010 | 0.6 | 0.25 | 3.2051 |
+| `SWEEP_02_lr011_clip08` | 0.011 | 0.8 | 0.25 | 3.1952 |
+| `SWEEP_03_lr012_clip08` | 0.012 | 0.8 | 0.25 | 3.1918 |
+| `SWEEP_04_tgn020` | 0.012 | 0.8 | 0.20 | **3.1861** |
+| `SWEEP_05_tgn030` | 0.012 | 0.8 | 0.30 | 3.2002 |
+
+Refinement follow-up:
+
+| Run ID | Change | Final BPB | Outcome |
+|---|---|---:|---|
+| `REFINE_01_baseline` | baseline | 3.2075 | reference |
+| `REFINE_02_warmup12` | `WARMUP_STEPS=12` | 3.3182 | worse |
+| `REFINE_03_muon4` | `MUON_BACKEND_STEPS=4` | 3.2274 | worse |
+
+## AB3 feature sweep snapshot
+
+Source: `results/ab3_sgbo_fixed/summary.csv`
+
+| Run | SMEARGATE | BIGRAM_HASH | ORTHO_INIT | Best BPB |
+|---|---:|---:|---:|---:|
+| AB3_010 | 0 | 1 | 0 | **1.8279** |
+| AB3_000 | 0 | 0 | 0 | 1.8374 |
+| AB3_011 | 0 | 1 | 1 | 1.8492 |
+| AB3_001 | 0 | 0 | 1 | 1.8550 |
+| AB3_100 | 1 | 0 | 0 | 1.8729 |
+| AB3_111 | 1 | 1 | 1 | 1.8826 |
+| AB3_101 | 1 | 0 | 1 | 1.8866 |
+| AB3_110 | 1 | 1 | 0 | 1.8874 |
+
+## Engineering work delivered
+
+- Windows-safe launcher + backend patching (`train_gpt_windows.py`)
+- Architecture and optimizer routing refactors (`model.py`, `train_gpt.py`)
+- VRAM-safe EMA eval swap + logging instrumentation
+- Dynamic LR/gradient safety controls + loss filtering
+- Fused Triton MLP path (`triton_mlp.py`)
+- Quantized export pipeline (`quant_utils.py`)
+- Dataset diagnostics artifacts (`artifacts/region_scan_report.json`)
+
+## Deterministic reevaluation launcher (ScaleDown)
+
+We currently use **`ScaleDown.bat`** as the deterministic reevaluation entrypoint.
+
+Why this launcher:
+- pins deterministic data order (`DATA_DETERMINISTIC=1`, fixed `DATA_SEED`),
+- fixes wallclock envelope (`MAX_WALLCLOCK_SECONDS=600`),
+- keeps a stable architecture/training profile for apples-to-apples re-checks,
+- logs all critical knobs (including `LEVEL_SIGNAL_ENABLED=0`) at launch.
+
+Key fixed settings in `ScaleDown.bat`:
+- `MODEL_DIM=1024`, `MLP_MULT=5`, `ITERATIONS=500`
+- `TRAIN_BATCH_TOKENS=524288`, `GRAD_ACCUM_STEPS=16`, `TRAIN_SEQ_LEN=1024`
+- `RECURRENCE_STEPS/NUM_STEPS=1`, `LORA_RANK=512`, `LORA_SCOPE=q`
+- `LOSS_FILTER_ENABLED=1`, `LOSS_FILTER_WARMUP=250`, `LOSS_FILTER_Z_THRESHOLD=4.5`
+- `MATRIX_LR=0.08`, `SCALAR_LR=0.015`, `EMBED_LR=0.7`, `HEAD_LR=0.008`, `TIED_EMBED_LR=0.06`
+- `SMEARGATE=0`, `BIGRAM_HASH=1`, `LEVEL_SIGNAL_ENABLED=0`, `ORTHO_INIT=0`
+
+### Most recent stable/reproducible training log (under current constraints)
+
+Reference log: **`traininglog4.txt`**
+
+Why this is the current reproducible reference run:
+- launched with the deterministic `ScaleDown.bat` profile,
+- fixed seed/data order (`DATA_DETERMINISTIC=1`, `DATA_SEED=3623123517`),
+- hard 10-minute envelope (`MAX_WALLCLOCK_SECONDS=600`),
+- no loss-filter instability (`[filter] ... skipped=0 fallback_accepts=0`).
+
+Key outcomes from `traininglog4.txt`:
+- best checkpoint: `step:400 val_bpb:1.8184` (best_val_loss `3.0800`),
+- final stride-64 eval: `step:413 val_bpb:1.8652` (`[FINAL STRIDE 64]`),
+- stop reason: wallclock (`elapsed:601.1s`),
+- final export source confirmed as best checkpoint (`step=400`).
+
+## Documentation map
+
+- [01 Overview and Timeline](notes/01_overview_and_timeline.md)
+- [02 Current Architecture](notes/02_current_architecture.md)
+- [03 Training System](notes/03_training_system.md)
+- [04 Experimental Results](notes/04_experimental_results.md)
+- [05 Engineering Endeavors](notes/05_engineering_endeavors.md)
+- [06 Validation and Next Steps](notes/06_validation_and_next_steps.md)
+
+## Run commands
+
+```bat
+setup_elite_env.bat
+ScaleDown.bat
+limits_test_10m.bat
+final_run_10m.bat
 ```
-
----
-
-## Key Gotchas
-
-- **Never run `train_gpt.py` directly on Windows** → will crash with Flash SDP error. Always use `train_gpt_windows.py` (via .bat).
-- **Iteration Lock**: `train_gpt.py` is now environment-aware. Ensure `ITERATIONS` and `MAX_WALLCLOCK_SECONDS` are set in shell or .bat.
-- **Polar Express steps**: Always set `MUON_BACKEND_STEPS=5` for degree-5 minimax stability on Ampere (RTX 3090).
-- **VRAM Control**: Activation checkpointing is used across the recursive blocks to keep logic depth 12 within 12.5GB.
-
----
-
-## Current Status v22.8
-
-- [x] **Elite Universal Transformer** (UT v22.8) architecture locked.
-- [x] **Strict Pre-Norm** (Residual-free) verified.
-- [x] **Polar Express** (Degree-5) stability verified at 0.009 LR.
-- [x] **Fused Triton MLP Kernel** verified.
-- [x] **Environment Awareness** (Iteration controls) verified.
-- [x] **3.29 BPB** at Step 60 achieved.
-- [ ] Sub-1.x BPB leaderboard submission...
