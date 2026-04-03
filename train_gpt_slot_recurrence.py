@@ -11,6 +11,11 @@ import time
 import uuid
 from pathlib import Path
 import lzma
+try:
+ import zstandard
+ _COMPRESSOR = "zstd"
+except ImportError:
+ _COMPRESSOR = "lzma"
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -1435,6 +1440,8 @@ def main() -> None:
    m.float()
  restore_low_dim_params_to_fp32(eval_model)
  eval_model.load_state_dict(deq_state, strict=True)
+ if args.recur_layers:
+  eval_model.recurrence_active = True
  compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
  torch.cuda.synchronize()
  t_qeval = time.perf_counter()
