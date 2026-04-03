@@ -18,4 +18,4 @@ if [[ "${HAS_LEASE}" -eq 0 ]]; then
   ARGS=(--lease-minutes "${LEASE_MINUTES}" "${ARGS[@]}")
 fi
 
-"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_runpod.py" create "${ARGS[@]}"
+"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_runpod.py" start "${ARGS[@]}"

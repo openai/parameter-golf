@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT}/.venv/bin/python}"
-LEASE_MINUTES="${LEASE_MINUTES:-120}"
+LEASE_MINUTES="${LEASE_MINUTES:-60}"
 ARGS=("$@")
 HAS_LEASE=0
 
@@ -18,4 +18,4 @@ if [[ "${HAS_LEASE}" -eq 0 ]]; then
   ARGS=(--lease-minutes "${LEASE_MINUTES}" "${ARGS[@]}")
 fi
 
-"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_runpod.py" create "${ARGS[@]}"
+"${PYTHON_BIN}" "${ROOT}/tools/run_deepfloor_runpod.py" extend "${ARGS[@]}"
