@@ -1,0 +1,47 @@
+============================================
+  Lucky — Sequential + SLOT (seed 444)
+  Date: 2026-04-02
+  Commit: 154fe81 (sequential defaults, pre-coprime fix)
+  NOTE: This ran SEQUENTIAL, not coprime. Coprime fix (02c7beb) was not on pod.
+============================================
+loader:sequential shards:80
+seed:444
+compile:enabled=1 mode:default fullgraph=1
+SKIP_GPTQ=1
+SLOT_ENABLED=1 (8 steps, lr=0.005)
+
+step:500/20000 train_loss:2.4732 train_time:43216ms step_avg:86.43ms
+step:1000/20000 train_loss:2.2737 train_time:86690ms step_avg:86.69ms
+step:1500/20000 train_loss:2.4169 train_time:130200ms step_avg:86.80ms
+step:2000/20000 train_loss:2.3902 train_time:173666ms step_avg:86.83ms
+step:2500/20000 train_loss:2.3131 train_time:217060ms step_avg:86.82ms
+step:3000/20000 train_loss:2.1869 train_time:260428ms step_avg:86.81ms
+step:3500/20000 train_loss:2.3712 train_time:303753ms step_avg:86.79ms
+step:4000/20000 train_loss:2.1626 train_time:347036ms step_avg:86.76ms
+step:4000/20000 val_loss:2.1705 val_bpb:1.2095 train_time:347088ms step_avg:86.77ms
+step:4500/20000 train_loss:2.1712 train_time:390319ms step_avg:86.74ms
+step:5000/20000 train_loss:2.0475 train_time:433585ms step_avg:86.72ms
+step:5500/20000 train_loss:2.0387 train_time:476835ms step_avg:86.70ms
+step:6000/20000 train_loss:2.0882 train_time:520062ms step_avg:86.68ms
+swa:start step:6250
+late_qat:enabled step:6395 scale:0.1499
+step:6500/20000 train_loss:2.1773 train_time:563661ms step_avg:86.72ms
+step:6914/20000 val_loss:2.0399 val_bpb:1.1368 train_time:600127ms step_avg:86.80ms
+stopping_early: wallclock_cap train_time:600127ms step:6914/20000
+peak memory allocated: 22860 MiB reserved: 23042 MiB
+gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.0382 val_bpb:1.1358 eval_time:1945ms
+Serialized model: 106158518 bytes
+Code size: 122514 bytes
+Serialized model int6+zstd: 16635742 bytes
+Total submission size int6+zstd: 16758256 bytes
+final_int6_roundtrip val_loss:2.0559 val_bpb:1.1457 eval_time:5761ms
+final_int6_roundtrip_exact val_loss:2.05589359 val_bpb:1.14568320
+final_sliding_window+slot8steps val_loss:1.9831 val_bpb:1.1051 stride:64 eval_time:285922ms
+final_sliding_window+slot8steps_exact val_loss:1.98314517 val_bpb:1.10514391
+
+KEY RESULT: SLOT BPB 1.10514391 beats SOTA 1.10986874 by -0.00472
+SIZE: 16,758,256 bytes — OVER 16MB limit (not submittable)
+LOADER: WRONG (sequential, should be coprime)
+VAL_TOKENS: 58,230,784 (March 30 SOTA had 62,021,632 — dataset mismatch)

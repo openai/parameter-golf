@@ -1,0 +1,32 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Lucky IV",
+  "blurb": "Rascal II + brotli byte-shuffle + 24-step Context-Only SLOT test-time adaptation at inference.",
+  "date": "2026-04-03T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.0963,
+    "val_bpb_exact": 1.09626897,
+    "steps": 6296,
+    "train_time_s": 600,
+    "bytes_total": 15532043
+  },
+  "seed_4": {
+    "val_bpb": 1.0970,
+    "val_bpb_exact": 1.09703170,
+    "steps": 6300,
+    "train_time_s": 600,
+    "bytes_total": 15526928
+  },
+  "seed_300": {
+    "val_bpb": 1.0960,
+    "val_bpb_exact": 1.09600210,
+    "steps": 6296,
+    "bytes_total": 15524362,
+    "train_time_s": 600
+  },
+  "val_bpb": 1.0964,
+  "bytes_total": 15532043,
+  "bytes_code": 123961,
+  "hardware": "8xH100 SXM"
+}
