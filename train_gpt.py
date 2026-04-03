@@ -549,7 +549,7 @@ class Block(nn.Module):
             self.dtg_gate = None
         # ProRes: Progressive Residual Warmup (arXiv:2603.05369, March 2026)
         self.register_buffer("_prores_step", torch.zeros(1), persistent=False)
-        self._prores_warmup = 200.0 + layer_idx * 200.0  # layer 0: 200 steps, layer 10: 2200 steps
+        self._prores_warmup = 100.0 + layer_idx * 100.0  # layer 0: 100 steps, layer 10: 1200 steps
     def forward(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
