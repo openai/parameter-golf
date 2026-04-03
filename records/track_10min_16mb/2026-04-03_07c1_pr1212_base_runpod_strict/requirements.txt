@@ -1,0 +1,7 @@
+numpy
+torch==2.9.1
+sentencepiece==0.2.1
+brotli==1.2.0
+# flash_attn_interface (FA3) is pre-installed in the torch 2.9.1+cu128 container image;
+# it is NOT the PyPI flash-attn (FA2) package and cannot be pip-installed separately.
+# triton is bundled with torch 2.9.1+cu128; the fused MLP kernel falls back gracefully if absent.
