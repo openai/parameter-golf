@@ -108,6 +108,7 @@ class Hyperparameters:
     mamba_d_conv = int(os.environ.get("MAMBA_D_CONV", 4))
     mamba_expand = float(os.environ.get("MAMBA_EXPAND", 1.5))
     mamba_matrix_lr = float(os.environ.get("MAMBA_MATRIX_LR", 0.015))
+    mamba_grad_checkpoint = bool(int(os.environ.get("MAMBA_GRAD_CHECKPOINT", "1")))  # gradient checkpointing for Mamba layers
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
@@ -1087,7 +1088,11 @@ class GPT(nn.Module):
         """Dispatch a single layer: Mamba or Attention."""
         if layer_idx in self.mamba_layer_set:
             mi = self.mamba_idx_map[layer_idx]
-            x = self.mamba_blocks[mi](x)
+            if self.training and getattr(self, '_mamba_grad_checkpoint', False):
+                x = torch.utils.checkpoint.checkpoint(
+                    self.mamba_blocks[mi], x, use_reentrant=False)
+            else:
+                x = self.mamba_blocks[mi](x)
             return x, None
         else:
             ai = self.attn_idx_map[layer_idx]
@@ -1904,6 +1909,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    base_model._mamba_grad_checkpoint = args.mamba_grad_checkpoint
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)

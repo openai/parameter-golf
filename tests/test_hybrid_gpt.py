@@ -375,3 +375,71 @@ def test_hessian_gpt_has_casted_linear_for_mamba():
     mb = hmodel.mamba_blocks[0]
     assert isinstance(mb.in_proj, CastedLinear), "in_proj should be CastedLinear"
     assert isinstance(mb.out_proj, CastedLinear), "out_proj should be CastedLinear"
+
+
+# ===== Gradient checkpointing =============================================
+
+def test_gradient_checkpoint_mamba():
+    """Gradient checkpointing for Mamba layers should still produce correct gradients."""
+    model = _make_gpt(mamba_layers="0,1", num_layers=4)
+    model._mamba_grad_checkpoint = True
+    model.train()
+    input_ids = torch.randint(0, 1024, (1, 16))
+    target_ids = torch.randint(0, 1024, (1, 16))
+    loss = model(input_ids, target_ids)
+    loss.backward()
+    # Mamba params should still get gradients through checkpointing
+    for name, p in model.named_parameters():
+        if "mamba_blocks" in name:
+            assert p.grad is not None, f"No grad for {name} with checkpointing"
+            assert p.grad.abs().sum() > 0, f"Zero grad for {name} with checkpointing"
+
+
+# ===== Multi-step training simulation =====================================
+
+def test_multi_step_loss_decreases():
+    """Task 2.1.4/2.2.4: 10-step training should decrease loss (CPU simulation)."""
+    torch.manual_seed(42)
+    model = _make_gpt(mamba_layers="0,1", num_layers=4)
+    model.train()
+    # Simple SGD optimizer for CPU test (Muon requires CUDA)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    input_ids = torch.randint(0, 1024, (2, 32))
+    target_ids = torch.randint(0, 1024, (2, 32))
+    losses = []
+    for step in range(10):
+        loss = model(input_ids, target_ids)
+        losses.append(loss.item())
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+    # Loss should decrease over 10 steps on the same batch
+    assert losses[-1] < losses[0], (
+        f"Loss did not decrease: first={losses[0]:.4f}, last={losses[-1]:.4f}"
+    )
+
+
+def test_activation_norms_reasonable():
+    """Task 2.3.3: Activation norms should be in reasonable range at init."""
+    torch.manual_seed(123)
+    model = _make_gpt(mamba_layers="0,1,3", num_layers=4)
+    model.eval()
+    input_ids = torch.randint(0, 1024, (2, 32))
+    # Hook to capture Mamba block outputs (layer-level, not sub-modules)
+    norms = {}
+    hooks = []
+    for i, mb in enumerate(model.mamba_blocks):
+        def make_hook(n):
+            def hook_fn(mod, inp, out):
+                norms[n] = out.detach().float().norm().item()
+            return hook_fn
+        hooks.append(mb.register_forward_hook(make_hook(f"mamba_blocks.{i}")))
+    with torch.no_grad():
+        logits = model.forward_logits(input_ids)
+    for h in hooks:
+        h.remove()
+    # Check: no NaN/Inf in logits
+    assert torch.isfinite(logits).all(), "Logits contain NaN/Inf"
+    # Check: activation norms are reasonable (not exploding/vanishing)
+    for name, norm in norms.items():
+        assert 0.01 < norm < 10000, f"Activation norm for {name} is {norm} (out of range)"
