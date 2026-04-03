@@ -652,7 +652,10 @@ class Block(nn.Module):
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        mix1 = mix[1].clamp(0.0, 1.0)  # prevent negative or >1 blending
+        mix0 = 1.0 - mix1  # enforce convex combination
+        x0_normed = F.rms_norm(x0, x0.shape[-1:])  # normalize before mixing
+        x = mix0[None, None, :] * x + mix1[None, None, :] * x0_normed
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
