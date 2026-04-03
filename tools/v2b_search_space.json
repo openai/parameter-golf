@@ -1,0 +1,95 @@
+{
+  "stage": "search",
+  "intent": "Generated v2b search over tweakable memory and maintenance candidates.",
+  "name_prefix": "search",
+  "base_flags": ["--maintenance-mode", "replay"],
+  "axes": [
+    {
+      "name": "gate",
+      "values": [
+        { "token": "g1", "flags": ["--memory-min-read-count", "1"], "intent": "Immediate reads." },
+        { "token": "g2", "flags": ["--memory-min-read-count", "2"], "intent": "Short warm-up." },
+        { "token": "g4", "flags": ["--memory-min-read-count", "4"], "intent": "Longer warm-up." }
+      ]
+    },
+    {
+      "name": "maint",
+      "values": [
+        {
+          "token": "off",
+          "flags": ["--maintenance-passes", "0", "--maintenance-max-slots", "0"],
+          "intent": "No maintenance."
+        },
+        {
+          "token": "p1s64",
+          "flags": ["--maintenance-passes", "1", "--maintenance-max-slots", "64"],
+          "intent": "One pass over 64 slots."
+        },
+        {
+          "token": "p2s128",
+          "flags": ["--maintenance-passes", "2", "--maintenance-max-slots", "128"],
+          "intent": "Two passes over 128 slots."
+        }
+      ]
+    },
+    {
+      "name": "metric",
+      "values": [
+        { "token": "loss", "flags": ["--maintenance-metric", "loss"], "intent": "Hard-case-prioritized maintenance." },
+        { "token": "hits", "flags": ["--maintenance-metric", "hits"], "intent": "Read-prioritized maintenance." }
+      ]
+    },
+    {
+      "name": "grad",
+      "values": [
+        { "token": "nograd", "flags": ["--no-maintenance-use-grad"], "intent": "Pure replay sharpening with no EMA smoothing." },
+        {
+          "token": "grad25",
+          "flags": ["--maintenance-use-grad", "--maintenance-grad-mix", "0.25"],
+          "intent": "Blend in a small amount of gradient EMA during replay sharpening."
+        },
+        {
+          "token": "grad50",
+          "flags": ["--maintenance-use-grad", "--maintenance-grad-mix", "0.5"],
+          "intent": "Blend in a stronger gradient EMA contribution during replay sharpening."
+        }
+      ]
+    },
+    {
+      "name": "mstep",
+      "values": [
+        { "token": "ms050", "flags": ["--maintenance-step-size", "0.05"], "intent": "Conservative sharpening step." },
+        { "token": "ms100", "flags": ["--maintenance-step-size", "0.1"], "intent": "Stronger sharpening step." }
+      ]
+    },
+    {
+      "name": "rcand",
+      "values": [
+        { "token": "rc32", "flags": ["--maintenance-replay-candidates", "32"], "intent": "Moderate hard-case replay budget." },
+        { "token": "rc64", "flags": ["--maintenance-replay-candidates", "64"], "intent": "Larger hard-case replay budget." }
+      ]
+    },
+    {
+      "name": "rdepth",
+      "values": [
+        { "token": "rd2", "flags": ["--maintenance-replay-depth", "2"], "intent": "Store two hard traces per slot." },
+        { "token": "rd3", "flags": ["--maintenance-replay-depth", "3"], "intent": "Store three hard traces per slot." }
+      ]
+    },
+    {
+      "name": "rscale",
+      "values": [
+        { "token": "rs100", "flags": ["--memory-read-scale", "1.0"], "intent": "Default read scale." },
+        { "token": "rs125", "flags": ["--memory-read-scale", "1.25"], "intent": "Stronger read scale." }
+      ]
+    }
+  ],
+  "exclude": [
+    { "maint": "off", "metric": "hits" },
+    { "maint": "off", "grad": "grad25" },
+    { "maint": "off", "grad": "grad50" },
+    { "maint": "off", "mstep": "ms100" },
+    { "maint": "off", "rcand": "rc64" },
+    { "maint": "off", "rdepth": "rd3" }
+  ]
+}
