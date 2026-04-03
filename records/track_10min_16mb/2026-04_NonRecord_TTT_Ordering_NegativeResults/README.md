@@ -43,9 +43,9 @@ Systematic investigation of whether **chunk ordering** affects TTT score-first e
 
 ## Key findings
 
-1. **fp32 master params help.** Our TTT delta (-0.0031 on full SW) exceeds #549's (-0.0023).
+1. **fp32 master params may help (not isolated).** Our TTT delta (-0.0031 on full SW) exceeds #549's (-0.0023), but the difference could be from other changes (all-GPU cooperative execution, per-chunk cosine LR, full-sequence loss). A clean A/B on precision alone was not performed.
 2. **All-GPU-per-chunk execution matters.** Sharded TTT (1.12117) is significantly worse than all-GPU collaborative (1.11961).
-3. **Chunk ordering does not help.** Document-embedding-based ordering produces identical BPP to sequential order.
+3. **Chunk ordering does not help.** Document-embedding-based ordering produces identical BPB to sequential order.
 4. **Clustering hurts.** All clustered variants are worse than sequential.
 
 ## Embedding sanity checks
@@ -74,7 +74,7 @@ Despite the negative end-to-end result, we found real transfer signal in control
 - **Multi-step chains:** NN chains show **1.56×** lift over random across 4 sequential TTT steps, with growing deltas
 - **Gradient alignment:** Embedding similarity correlates 0.59 with gradient cosine; predicted gradient sketches find **3.1×** better gradient-aligned neighbors
 
-The signal exists but doesn't translate to BPP improvement at scale. The all-GPU collaborative execution with plain sequential order already captures the full adaptation benefit.
+The signal exists but doesn't translate to BPB improvement at scale. The all-GPU collaborative execution with plain sequential order already captures the full adaptation benefit.
 
 ## Why ordering doesn't help
 
