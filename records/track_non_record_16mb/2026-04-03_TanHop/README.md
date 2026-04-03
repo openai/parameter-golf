@@ -181,3 +181,12 @@ transformer's residual stream).
 
 This is, to our knowledge, the first application of rational tangle group
 representations as structured token priors in language modeling.
+
+---
+
+## Files
+
+- `train_tanhop.py` — full training + quantization + evaluation script
+- `submission.json` — metadata
+- `README.md` — this file
+- `train.log` — training log (seed 1337), produced automatically by the script
