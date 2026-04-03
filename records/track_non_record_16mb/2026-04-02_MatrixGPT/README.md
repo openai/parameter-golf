@@ -24,7 +24,7 @@ non-commutative composition (order matters, as it does in language).
 
 ## Architecture
 
-### Core idea (from accompanying theory paper)
+### Core idea
 
 Standard attention computes:
 
@@ -60,14 +60,14 @@ Each layer maintains `k` parallel 2×2 dynamical systems:
 
 Wrapped with pre-RMSNorm + residual connection (same convention as baseline GPT Block).
 
-### Config (3060-tuned)
+### Config (for reproducibility)
 
 | Hyperparameter | Value |
 |----------------|-------|
-| `num_channels` (k) | 96 |
-| `num_layers` | 8 |
-| `model_dim` | 384 |
-| `train_seq_len` | 512 |
+| `num_channels` (k) | 64 |
+| `num_layers` | 6 |
+| `model_dim` | 256 |
+| `train_seq_len` | 256 |
 | `train_batch_tokens` | 131,072 |
 | Tied embeddings | Yes |
 | Logit softcap | 30.0 |
@@ -147,9 +147,9 @@ done
 
 ---
 
-## Baseline Comparison
+## Short Run (10 minutes)
 
-All 3 baseline runs used the same hardware (1× RTX 3060), same data, same
+All 5 short runs used the same hardware (1× RTX 3060), same data, same
 tokenizer, same wallclock cap (600s), and the same int8+zlib+BPB evaluation.
 
 | Seed | val_bpb |
@@ -182,7 +182,7 @@ submission window, a 6-hour run was conducted:
 | 4347 | **2.169** | 360 min |
 
 The model **never stopped learning** — no plateau, no collapse, consistent
-~4970ms/step throughout with zero thermal throttling. This suggests the
+~4970ms/step throughout. This suggests the
 architecture would continue improving significantly with more compute.
 
 This submission is not intended as a SOTA record. It is submitted because:
