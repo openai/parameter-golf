@@ -716,6 +716,8 @@ class MambaBlock(nn.Module):
 
         self.norm = RMSNorm()
 
+        # Init: c_proj small normal for stable SSM output mixing
+        nn.init.normal_(self.c_proj.weight, std=0.01)
         # Init: out_proj near-zero for clean residual at init
         nn.init.normal_(self.out_proj.weight, std=0.01)
         # Init: dt_proj bias for dt_init in [0.001, 0.1]
