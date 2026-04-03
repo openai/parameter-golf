@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """
-Raki V2 — V1 proven core + safe improvements only.
-10 layers (default arch), Markov curriculum, EMA, Muon WD, GPTQ clip search, zstd-22.
-NO recurrence, NO trigram, NO sliding window eval, NO LR changes.
+Raki V2 — Competition-proven techniques on baseline architecture.
+11L + BigramHash + Markov curriculum + EMA + Muon WD + GPTQ + sliding window eval + zstd-22.
 
-Usage:
+Defaults are safe for 1xH100 testing. For 8xH100 submission, use SOTA env vars (see below).
+
+Usage (1xH100 test):
   python3 patch_v2.py
+  RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=1 train_gpt.py
+
+Usage (8xH100 submission):
+  python3 patch_v2.py
+  MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\
+  MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \\
+  EMA_DECAY=0.997 EVAL_STRIDE=64 TRAIN_BATCH_TOKENS=786432 \\
   RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py
 """
 import sys
@@ -25,7 +33,7 @@ def patch(anchor, replacement, label):
         print(f"FAIL: {label}\n  anchor: {repr(anchor[:120])}")
         sys.exit(1)
 
-# --- zstandard auto-install ---
+# --- zstandard ---
 patch(
     'from __future__ import annotations',
     '''from __future__ import annotations
@@ -36,24 +44,26 @@ except ImportError:
     _sp.check_call([sys.executable, "-m", "pip", "install", "zstandard", "-q"])''',
     "zstandard")
 
-# --- Hyperparameters: only NUM_LAYERS and WARMDOWN (proven in V1) ---
+# --- Hyperparameters ---
 patch('    num_layers = int(os.environ.get("NUM_LAYERS", 9))',
-      '    num_layers = int(os.environ.get("NUM_LAYERS", 10))',
-      "NUM_LAYERS=10")
+      '    num_layers = int(os.environ.get("NUM_LAYERS", 11))',
+      "NUM_LAYERS=11")
 patch('    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))',
       '    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))',
       "WARMDOWN=3500")
 
-# --- Config + GPU Markov + EMA classes ---
+# --- Config + GPU Markov + EMA ---
 patch(
     "from torch.nn.parallel import DistributedDataParallel as DDP",
     '''from torch.nn.parallel import DistributedDataParallel as DDP
 import zstandard as zstd
 
-MUON_WD = float(os.environ.get("MUON_WD", "0.04"))
+MUON_WD = float(os.environ.get("MUON_WD", "0"))
 EMA_DECAY = float(os.environ.get("EMA_DECAY", "0.995"))
 EMA_START_FRAC = float(os.environ.get("EMA_START_FRAC", "0.85"))
 RAKI_POWER = float(os.environ.get("RAKI_POWER", "0.15"))
+BIGRAM_BUCKETS = int(os.environ.get("BIGRAM_BUCKETS", "2048"))
+EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "0"))
 GPTQ_CLIP_SEARCH = bool(int(os.environ.get("GPTQ_CLIP_SEARCH", "1")))
 GPTQ_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
 
@@ -111,7 +121,7 @@ class _EMA:
                     p.data.copy_(self.shadow[n])''',
     "config + GPU-Markov + EMA")
 
-# --- Muon weight decay (V1 tried via env var but never implemented!) ---
+# --- Muon WD ---
 patch(
     '''                p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -125,7 +135,222 @@ patch(
         return loss''',
     "Muon WD")
 
-# --- GPTQ-lite clip search (better INT8 quantization) ---
+# --- BigramHash in GPT.__init__ ---
+patch(
+    '''        self.final_norm = RMSNorm()
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)''',
+    '''        self.final_norm = RMSNorm()
+        self.bigram_table = nn.Embedding(BIGRAM_BUCKETS, model_dim)
+        nn.init.normal_(self.bigram_table.weight, std=0.002)
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)''',
+    "BigramHash init")
+
+# --- BigramHash in GPT.forward ---
+patch(
+    '''    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))''',
+    '''    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        if input_ids.size(1) >= 2:
+            ids = input_ids.long()
+            bh = (ids[:, 1:] * 36313 + ids[:, :-1] * 51749) % BIGRAM_BUCKETS
+            x[:, 1:] = x[:, 1:] + self.bigram_table(bh).to(x.dtype)
+        x = F.rms_norm(x, (x.size(-1),))''',
+    "BigramHash forward")
+
+# --- forward_per_token (for sliding window eval) ---
+patch(
+    '''        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+
+# -----------------------------
+# TRAINING
+# -----------------------------''',
+    '''        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+    def forward_per_token(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        B, T = input_ids.shape
+        x = self.tok_emb(input_ids)
+        if T >= 2:
+            ids = input_ids.long()
+            bh = (ids[:, 1:] * 36313 + ids[:, :-1] * 51749) % BIGRAM_BUCKETS
+            x[:, 1:] = x[:, 1:] + self.bigram_table(bh).to(x.dtype)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return F.cross_entropy(
+            logits.float().reshape(-1, logits.size(-1)),
+            target_ids.reshape(-1), reduction="none").reshape(B, T)
+
+
+# -----------------------------
+# TRAINING
+# -----------------------------''',
+    "forward_per_token")
+
+# --- Sliding window eval (with fallback to standard) ---
+patch(
+    '''def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, args.train_seq_len)
+            y = local[1:].reshape(-1, args.train_seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = model(x, y).detach()
+            batch_token_count = float(y.numel())
+            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)''',
+
+    '''def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    seq_len = args.train_seq_len
+    stride = EVAL_STRIDE if 0 < EVAL_STRIDE < seq_len else 0
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    model.eval()
+    if stride > 0:
+        total_tokens = val_tokens.numel() - 1
+        all_starts = list(range(0, total_tokens - seq_len + 1, stride))
+        if not all_starts:
+            all_starts = [0]
+        rank_starts = [s for i, s in enumerate(all_starts) if i % world_size == rank]
+        raw_model = model.module if hasattr(model, "module") else model
+        base_m = raw_model._orig_mod if hasattr(raw_model, "_orig_mod") else raw_model
+        with torch.inference_mode():
+            bs = max(1, min(16, args.val_batch_size // (seq_len * max(world_size, 1))))
+            for bi in range(0, len(rank_starts), bs):
+                batch_starts = rank_starts[bi:bi + bs]
+                xs = [val_tokens[s:s + seq_len].to(torch.int64) for s in batch_starts]
+                ys = [val_tokens[s + 1:s + seq_len + 1].to(torch.int64) for s in batch_starts]
+                x = torch.stack(xs).to(device=device, non_blocking=True)
+                y = torch.stack(ys).to(device=device, non_blocking=True)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    ptl = base_m.forward_per_token(x, y).detach()
+                for wi, s in enumerate(batch_starts):
+                    sc_start = 0 if s == 0 else (seq_len - stride)
+                    n_scored = min(seq_len - sc_start, total_tokens - s - sc_start)
+                    if n_scored <= 0:
+                        continue
+                    val_loss_sum += ptl[wi, sc_start:sc_start + n_scored].to(torch.float64).sum()
+                    val_token_count += float(n_scored)
+                    g = s + sc_start
+                    prev = val_tokens[g:g + n_scored].to(device=device, dtype=torch.int64)
+                    tgt = val_tokens[g + 1:g + n_scored + 1].to(device=device, dtype=torch.int64)
+                    n = min(prev.size(0), tgt.size(0))
+                    tb = base_bytes_lut[tgt[:n]].to(torch.int16)
+                    tb += (has_leading_space_lut[tgt[:n]] & ~is_boundary_token_lut[prev[:n]]).to(torch.int16)
+                    val_byte_count += tb.to(torch.float64).sum()
+    else:
+        local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+        local_batch_seqs = max(1, local_batch_tokens // seq_len)
+        total_seqs = (val_tokens.numel() - 1) // seq_len
+        seq_start = (total_seqs * rank) // world_size
+        seq_end = (total_seqs * (rank + 1)) // world_size
+        with torch.inference_mode():
+            for bss in range(seq_start, seq_end, local_batch_seqs):
+                bse = min(bss + local_batch_seqs, seq_end)
+                rs, re = bss * seq_len, bse * seq_len + 1
+                local = val_tokens[rs:re].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].reshape(-1, seq_len)
+                y = local[1:].reshape(-1, seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    bl = model(x, y).detach()
+                btc = float(y.numel())
+                val_loss_sum += bl.to(torch.float64) * btc
+                val_token_count += btc
+                prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
+                tb = base_bytes_lut[tgt_ids].to(torch.int16)
+                tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
+                val_byte_count += tb.to(torch.float64).sum()
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)''',
+    "dual-mode eval")
+
+# --- GPTQ-lite clip search ---
 patch(
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -180,7 +405,7 @@ patch(
     return q, scale''',
     "GPTQ-lite clip search")
 
-# --- zstd-22 compression ---
+# --- zstd-22 ---
 patch('    quant_blob = zlib.compress(quant_raw, level=9)',
       '    cctx = zstd.ZstdCompressor(level=22)\n    quant_blob = cctx.compress(quant_raw)',
       "zstd-22")
@@ -189,27 +414,32 @@ for i in range(3):
 patch('quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")',
       'dctx = zstd.ZstdDecompressor()\n    quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")',
       "zstd decompress")
-patch('f"Serialized model int8+zlib:', 'f"Serialized model int8+zstd:', "log zstd 1")
-patch('f"Total submission size int8+zlib:', 'f"Total submission size int8+zstd:', "log zstd 2")
-patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int8_zstd_roundtrip val_loss', "log zstd 3")
-patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int8_zstd_roundtrip_exact val_loss', "log zstd 4")
+patch('f"Serialized model int8+zlib:', 'f"Serialized model int8+zstd:', "log 1")
+patch('f"Total submission size int8+zlib:', 'f"Total submission size int8+zstd:', "log 2")
+patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int8_zstd_roundtrip val_loss', "log 3")
+patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int8_zstd_roundtrip_exact val_loss', "log 4")
 
-# --- Init Markov + EMA before training loop ---
+# --- BigramHash in optimizer ---
+patch('        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],',
+      '        [{"params": [base_model.tok_emb.weight, base_model.bigram_table.weight], "lr": token_lr, "base_lr": token_lr}],',
+      "bigram in optimizer")
+
+# --- Init Markov + EMA ---
 patch("    training_time_ms = 0.0",
       '''    _markov = _GPUMarkov(args.train_files, args.vocab_size, device)
     _ema = _EMA()
     _ema_on = False
-    log0(f"raki_v2: layers={args.num_layers} power={RAKI_POWER} wd={MUON_WD} ema={EMA_DECAY} gptq={GPTQ_CLIP_SEARCH}")
+    log0(f"raki_v2: L={args.num_layers} bigram={BIGRAM_BUCKETS} power={RAKI_POWER} wd={MUON_WD} ema={EMA_DECAY} stride={EVAL_STRIDE}")
     training_time_ms = 0.0''',
       "init Markov + EMA")
 
-# --- Markov curriculum weighting ---
+# --- Markov curriculum ---
 patch("            (loss * grad_scale).backward()",
       '''            _cw = _markov.batch_weight(x, y)
             (loss * grad_scale * _cw).backward()''',
       "Markov curriculum")
 
-# --- EMA update after optimizer step ---
+# --- EMA update ---
 patch("        zero_grad_all()\n\n        step += 1",
       '''        zero_grad_all()
         _prog = (training_time_ms + 1000.0 * (time.perf_counter() - t0)) / max(max_wallclock_ms or 1e18, 1.0)
@@ -220,7 +450,7 @@ patch("        zero_grad_all()\n\n        step += 1",
         step += 1''',
       "EMA update")
 
-# --- EMA apply before save ---
+# --- EMA apply ---
 patch('    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
       '''    if _ema.on:
         _ema.apply(base_model)
@@ -232,5 +462,8 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
 with open("train_gpt.py", "w") as f:
     f.write(code)
 
-print(f"\nRaki V2 applied ({changes} patches): 10L + Markov + EMA + Muon WD + GPTQ + zstd")
-print(f"Run: RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=1 train_gpt.py")
+print(f"\nRaki V2 ({changes} patches): 11L + BigramHash + Markov + EMA + GPTQ + zstd")
+print(f"  1xH100 test: torchrun --standalone --nproc_per_node=1 train_gpt.py")
+print(f"  8xH100 run:  MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\")
+print(f"    MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \\")
+print(f"    EMA_DECAY=0.997 EVAL_STRIDE=64 torchrun --standalone --nproc_per_node=8 train_gpt.py")
