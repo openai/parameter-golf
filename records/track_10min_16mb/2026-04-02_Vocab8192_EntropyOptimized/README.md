@@ -353,32 +353,32 @@ This work was conceived, developed, and validated in a compressed timeline:
 
 | Phase | Timestamp | Activity |
 |-------|-----------|----------|
-| Concept | Mar 31, 15:48 UTC | Initial hypothesis: vocabulary as entropy filter on information spectrum |
-| Analysis | Mar 31 – Apr 1 | Entropy decomposition tools, vocabulary sweep (512–16,384), mutual information measurements across 56 lag distances on FineWeb |
-| Scaling Laws | Apr 1, afternoon | Production model comparison (20 models), embedding proportion analysis, identified baseline's 2.7% as severe outlier |
-| Architecture Sweep | Apr 1, 17:05–19:00 | Five configurations on 8×H100 — width vs depth at matched params, 384d/14L wins |
-| v2a Code Merge | Apr 1, 19:00–19:46 | Integrated SOTA infrastructure from PR #1019 onto 8192-vocab architecture |
-| Optimization | Apr 1, 19:46–23:30 | Iterative runs: 14L→16L→17L, per-layer feature testing, 448d exploration, V×L experiments |
-| Width Scaling | Apr 1, 23:27 | v2a 448d/13L achieves 1.1244 BPB in 15.84 MB artifact |
-| Warmdown Tuning | Apr 2, 00:30–01:30 | LR schedule sweep (WD=2500/3500/4000), confirmed 3500-4000 optimal |
-| GQA Discovery | Apr 2, 01:46 | v2a 512d/11L GQA achieves 1.1212 BPB — new best, matching SOTA shape |
-| Ablation Sweep | Apr 2, 02:00–03:30 | XSA, MTP, Turbo-Muon, warmdown — all neutral or negative at V=8192 |
-| Eval Techniques | Apr 2, 03:30–04:30 | TTT integration, stride=16 testing — marginal improvements at best |
-| Embed LR | Apr 2, 04:30–05:00 | Tied embedding LR sweep — diagnosed input/output gradient conflict |
-| Low-rank Adapter | Apr 2, 05:00+ | Output adapter to decouple tied embedding optimization |
-| BigramHash | Apr 2, 05:30 | v2b achieves 1.1199 BPB — development milestone |
-| EngramLite | Apr 2, 06:00–07:00 | Gated trigram testing — worse than BigramHash at V=8192 collision rates |
-| Quant Discovery | Apr 2, 18:00–18:30 | Discovered embedding always at int8, mlp/attn at int6 — corrected narrative |
-| Int7 Experiment | Apr 2, 18:45–19:15 | v4: int7 mlp/attn achieves 1.1156 BPB (best ever, 18.51 MB — doesn't fit) |
+| Concept | Mar 31, 16:00 UTC | Initial hypothesis: vocabulary as entropy filter on information spectrum |
+| Analysis | Mar 31 | Entropy decomposition tools, vocabulary sweep (512–16,384), mutual information measurements across 56 lag distances on FineWeb |
+| Scaling Laws | Apr 1 | Production model comparison (20 models), embedding proportion analysis, identified baseline's 2.7% as severe outlier |
+| Architecture Sweep | Apr 1 | Five configurations on 8×H100 — width vs depth at matched params, 384d/14L wins |
+| v2a Code Merge | Apr 1 | Integrated SOTA infrastructure from PR #1019 onto 8192-vocab architecture |
+| Optimization | Apr 1 | Iterative runs: 14L→16L→17L, per-layer feature testing, 448d exploration, V×L experiments |
+| Width Scaling | Apr 1 | v2a 448d/13L achieves 1.1244 BPB in 15.84 MB artifact |
+| Warmdown Tuning | Apr 2 | LR schedule sweep (WD=2500/3500/4000), confirmed 3500-4000 optimal |
+| GQA Discovery | Apr 2 | v2a 512d/11L GQA achieves 1.1212 BPB — new best, matching SOTA shape |
+| Ablation Sweep | Apr 2 | XSA, MTP, Turbo-Muon, warmdown — all neutral or negative at V=8192 |
+| Eval Techniques | Apr 2 | TTT integration, stride=16 testing — marginal improvements at best |
+| Embed LR | Apr 2 | Tied embedding LR sweep — diagnosed input/output gradient conflict |
+| Low-rank Adapter | Apr 2 | Output adapter to decouple tied embedding optimization |
+| BigramHash | Apr 2 | v2b achieves 1.1199 BPB — development milestone |
+| EngramLite | Apr 2 | Gated trigram testing — worse than BigramHash at V=8192 collision rates |
+| Quant Discovery | Apr 2 | Discovered embedding always at int8, mlp/attn at int6 — corrected narrative |
+| Int7 Experiment | Apr 2 | v4: int7 mlp/attn achieves 1.1156 BPB (best ever, 18.51 MB — doesn't fit) |
 | Bank QAT | Apr 2, 19:15–19:55 | v6/v7: STE noise for bank weights — neutral at int6, QAT-GPTQ mismatch |
-| v8 Code Cleanup | Apr 2, 20:00–21:00 | Removed dead code (MTP, XSA, VE, int8 pipeline), added shard preloading, coprime stride |
-| v8 Validation | Apr 2, 21:00–22:30 | v8 run revealed catastrophic GPTQ failure (val_loss 11.75 post-quant) and 1.2 nat training regression |
-| Muon Cache Bug | Apr 2, 22:30–23:30 | Root cause identified: NS5 warm-start cache introduced in v8 caused bf16 precision drift compounding over 7,500 steps. Steps 0-2 identical to v2b, divergence at step 3 growing to +1.21 nats by step 7500 |
-| v9 Fix | Apr 2, 23:30 | Removed NS5 cache — three lines. v9 NS5 signature matches v2b exactly |
+| v8 Code Cleanup | Apr 2 | Removed dead code (MTP, XSA, VE, int8 pipeline), added shard preloading, coprime stride |
+| v8 Validation | Apr 2 | v8 run revealed catastrophic GPTQ failure (val_loss 11.75 post-quant) and 1.2 nat training regression |
+| Muon Cache Bug | Apr 2 | Root cause identified: NS5 warm-start cache introduced in v8 caused bf16 precision drift compounding over 7,500 steps. Steps 0-2 identical to v2b, divergence at step 3 growing to +1.21 nats by step 7500 |
+| v9 Fix | Apr 2 | Removed NS5 cache — three lines. v9 NS5 signature matches v2b exactly |
 | v9 Seed 1337 | Apr 3 | 1.1199 BPB, 15.97 MB, 7544 steps. DIAGNOSTIC val_bpb=1.1299, tokens_per_byte=0.268339 |
 | v9 Seed 42 | Apr 3 | 1.1213 BPB, 15.97 MB, 7548 steps. DIAGNOSTIC val_bpb=1.1309 |
 | v9 Seed 2026 | Apr 3 | 1.1208 BPB, 15.97 MB, 7544 steps. DIAGNOSTIC val_bpb=1.1313 |
-| 3-seed validation | Apr 3 | Mean: 1.1207 BPB, std: 0.0007, spread: 0.0014. All artifacts <16 MB |
+| 3-seed validation | Apr 3 02:00 UTC | Mean: 1.1207 BPB, std: 0.0007, spread: 0.0014. All artifacts <16 MB |
 
 **Total elapsed: ~84 hours from concept to 3-seed validated result.** Active 8×H100 GPU time: ~13 hours across approximately 43 experimental runs. Each run is 10 minutes of training plus ~5 minutes of GPTQ quantization and evaluation.
 
