@@ -52,8 +52,8 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 100))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -61,14 +61,16 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 1536))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -624,7 +626,8 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = self.fc(x)
+        x = F.leaky_relu(x, negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -656,6 +659,19 @@ class Block(nn.Module):
         return x
 
 
+class BigramHashEmbedding(nn.Module):
+    def __init__(self, num_buckets: int, dim: int, model_dim: int):
+        super().__init__()
+        self.num_buckets = num_buckets
+        self.table = nn.Embedding(num_buckets, dim)
+        self.proj = CastedLinear(dim, model_dim, bias=False)
+        nn.init.normal_(self.table.weight, std=0.02)
+    def forward(self, input_ids: Tensor) -> Tensor:
+        prev = F.pad(input_ids[:, :-1], (1, 0), value=0)
+        buckets = (input_ids * 1009 + prev * 2003) % self.num_buckets
+        return self.proj(self.table(buckets))
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -670,6 +686,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        args: Hyperparameters | None = None,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -678,6 +695,11 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.bigram = (
+            BigramHashEmbedding(args.bigram_vocab_size, args.bigram_dim, args.model_dim)
+            if args is not None and args.bigram_vocab_size > 0 and args.bigram_dim > 0
+            else None
+        )
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -846,6 +868,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        args=args,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
