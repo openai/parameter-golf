@@ -429,6 +429,32 @@ A proper A/B comparison would require running the original `train_gpt.py` on the
 
 **Key takeaway:** The pure PyTorch fallback is SLOWER than the original. The `gram-newton-schulz` package with `quack` symmetric GEMM kernels must be installed for this integration to provide a speedup. The next run should use `pip install gram-newton-schulz` before training.
 
+## Attempt 3: Inline Gram NS (same coefficients, same bf16, no library)
+
+The previous two attempts changed too many things at once (different coefficients, fp16, library overhead, CUDA graphs). This version changes ONLY the iteration math for rectangular matrices, keeping everything else identical to the original:
+
+- Same `(a, b, c) = (3.4445, -4.7750, 2.0315)` coefficients
+- Same bf16 dtype
+- Same `torch.compile` behavior (the function runs inside the existing compiled Parallel Muon)
+- No external dependencies
+- Square matrices use the original standard NS (zero overhead)
+- Rectangular matrices use Gram NS with restart at step 2
+
+### FLOP analysis for rectangular banks (512×1536)
+
+| | Standard NS (5 steps) | Gram NS (5 steps, restart@2) |
+|---|---|---|
+| Large matmuls (512×1536) | 10 | 3 |
+| Small matmuls (512×512) | 5 | ~18 |
+| Net FLOPs (in 512² units) | 10×3 + 5 = 35 | 3×3 + 18 = 27 |
+| **Savings** | baseline | **~23% fewer FLOPs** |
+
+For square banks (`qo_bank` at 512×512), the code is identical to the original — zero overhead.
+
+**This is the version to test.** No library, no kernel overhead, no dtype conversion, no CUDA graph capture. Just the algorithmic reformulation where it helps.
+
+---
+
 ## 8xH100 run results (2026-04-02) -- WITH kernels (gram-newton-schulz + quack)
 
 **This run used the actual Dao-AILab `gram-newton-schulz` package** with `quack-kernels` symmetric GEMM kernels on H100. It was expected to be faster than both the pure PyTorch fallback and the original baseline. **It was not.**

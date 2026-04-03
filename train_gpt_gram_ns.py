@@ -123,101 +123,63 @@ class Hyperparameters:
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
 
 # --- Gram Newton-Schulz orthogonalization ---
-# Uses the Dao-AILab GramNewtonSchulz class with custom CuTeDSL symmetric GEMM
-# kernels (quack) when available (H100/Blackwell). Falls back to a pure PyTorch
-# implementation if gram-newton-schulz or quack-kernels are not installed.
+# Replaces standard NS with the Gram reformulation for rectangular matrices only.
+# Keeps EVERYTHING identical to the original: same coefficients, same bf16, same
+# torch.compile behavior. The only change is the iteration math for n < m cases.
 # Reference: https://github.com/Dao-AILab/gram-newton-schulz
-
-try:
-    from gram_newton_schulz import GramNewtonSchulz, POLAR_EXPRESS_COEFFICIENTS
-    # GramNewtonSchulz handles everything: Gram vs standard dispatch, symmetric
-    # GEMM kernels, restarts, per-step coefficients, fp16 iteration, normalization.
-    # It's decorated with @torch.compile(fullgraph=True, mode="reduce-overhead").
-    _gram_ns = GramNewtonSchulz(
-        ns_coefficients=POLAR_EXPRESS_COEFFICIENTS,
-        ns_use_kernels=True,    # uses quack symmetric GEMM on H100+, auto-fallback on older GPUs
-        gram_newton_schulz_reset_iterations=[2],
-    )
-    _NS_BACKEND = "gram_newton_schulz"
-except ImportError:
-    _gram_ns = None
-    _NS_BACKEND = "fallback_pytorch"
-
-    # --- Fallback: pure PyTorch implementation (no symmetric GEMM kernels) ---
-    _POLAR_EXPRESS_SAFETY = 1.05
-    _POLAR_EXPRESS_RAW = [
-        (8.28721201814563, -23.595886519098837, 17.300387312530933),
-        (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
-        (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
-        (3.3184196573706015, -2.488488024314874, 0.51004894012372),
-        (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
-    ]
-    _NS_COEFFICIENTS = [
-        (a / _POLAR_EXPRESS_SAFETY,
-         b / _POLAR_EXPRESS_SAFETY ** 3,
-         c / _POLAR_EXPRESS_SAFETY ** 5)
-        for a, b, c in _POLAR_EXPRESS_RAW
-    ]
-
-    def _fallback_standard_ns(X: Tensor, coefficients: list[tuple[float, float, float]]) -> Tensor:
-        for a, b, c in coefficients:
-            A = X @ X.mT
-            B = torch.baddbmm(A, A, A, beta=b, alpha=c)
-            X = torch.baddbmm(X, B, X, beta=a)
-        return X
-
-    def _fallback_gram_ns(X: Tensor, coefficients: list[tuple[float, float, float]],
-                           restart_at: frozenset[int]) -> Tensor:
-        n = X.size(-2)
-        batch = X.size(0)
-        num_steps = len(coefficients)
-        R = X @ X.mT
-        I = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(batch, -1, -1).contiguous()
-        Q = None
-        for i, (a, b, c) in enumerate(coefficients):
-            if i in restart_at and i != 0:
-                X = Q @ X
-                R = X @ X.mT
-                Q = None
-            Z = torch.baddbmm(R, R, R, beta=b, alpha=c)
-            if Q is None:
-                Q = Z + a * I
-            else:
-                Q = torch.baddbmm(Q, Q, Z, beta=a)
-            if i < num_steps - 1 and (i + 1) not in restart_at:
-                RZ = torch.baddbmm(R, R, Z, beta=a)
-                R = torch.baddbmm(RZ, Z, RZ, beta=a)
-        X = Q @ X
-        return X
+_NS_BACKEND = "gram_ns_inline"
 
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     """Batched Newton-Schulz orthogonalization. G: (B,M,N) or (M,N).
 
-    Uses Dao-AILab GramNewtonSchulz with symmetric GEMM kernels when available.
-    Falls back to pure PyTorch Gram NS for rectangular, standard NS for square.
-    """
-    # --- Fast path: Dao-AILab package with symmetric GEMM kernels ---
-    if _gram_ns is not None:
-        return _gram_ns(G).contiguous()
+    For square matrices (n == m): standard NS iteration, identical to the original.
+    For rectangular matrices (n < m): Gram reformulation — iterates on the n×n
+    Gram matrix R = X @ X^T instead of the full n×m matrix X, avoiding the
+    expensive n×m matmul on most iterations. One restart at step 2 for stability.
 
-    # --- Fallback path: pure PyTorch ---
+    Same coefficients, same bf16, same interface as the original.
+    """
+    a, b, c = (3.4445, -4.7750, 2.0315)
     was_2d = G.ndim == 2
     if was_2d:
         G = G.unsqueeze(0)
-
     X = G.bfloat16()
     transposed = X.size(-2) > X.size(-1)
     if transposed:
         X = X.mT
-
+    # X is now (B, n, m) with n <= m
     X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
-    coefficients = _NS_COEFFICIENTS[:steps]
 
     if X.size(-2) == X.size(-1):
-        X = _fallback_standard_ns(X, coefficients)
+        # Square: standard NS, identical to original. No Gram overhead.
+        for _ in range(steps):
+            A = X @ X.mT
+            B = b * A + c * (A @ A)
+            X = a * X + B @ X
     else:
-        X = _fallback_gram_ns(X, coefficients, restart_at=frozenset({2}))
+        # Rectangular: Gram NS. Inner loop is all n×n, avoids n×m matmuls.
+        n = X.size(-2)
+        batch = X.size(0)
+        R = X @ X.mT                       # (B, n, n) — computed once
+        I = torch.eye(n, device=X.device, dtype=X.dtype).unsqueeze(0).expand(batch, -1, -1)
+        Q = None
+        for i in range(steps):
+            # Restart at step 2: fold Q into X, recompute R, reset Q
+            if i == 2 and Q is not None:
+                X = Q @ X                   # (B,n,n) @ (B,n,m) — the one expensive matmul
+                R = X @ X.mT               # recompute Gram fresh
+                Q = None
+            Z = b * R + c * (R @ R)         # (B,n,n)
+            if Q is None:
+                Q = Z + a * I               # first iter or after restart: Q = aI + bR + cR²
+            else:
+                Q = a * Q + Q @ Z           # (B,n,n)
+            # Skip R update on last step (R won't be used) and before restart (will be recomputed)
+            if i < steps - 1 and i + 1 != 2:
+                RZ = a * R + R @ Z          # (B,n,n)
+                R = a * RZ + Z @ RZ         # (B,n,n)
+        X = Q @ X                           # final: (B,n,n) @ (B,n,m)
 
     if transposed:
         X = X.mT.contiguous()
