@@ -431,19 +431,11 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             meta[name] = "passthrough_fp16"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            if cat == "mlp" and t.ndim == 2:
-                # Int4 nibble packing: halves MLP storage vs int5, funding an 11th layer
-                q, s = quantize_intN_per_row(t, clip_range=7)
-                orig_shape = list(q.shape)
-                result[name + ".q4n"] = pack_nibbles(q)
-                result[name + ".scale"] = s
-                meta[name] = {"type": "int4nibble", "shape": orig_shape}
-            else:
-                # Int6 for attention and bigram (precision-sensitive)
-                q, s = quantize_intN_per_row(t, clip_range=31)
-                result[name + ".q"] = q
-                result[name + ".scale"] = s
-                meta[name] = {"type": "int6"}
+            # Int6 for all weights (MLP + attention + bigram)
+            q, s = quantize_intN_per_row(t, clip_range=31)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int6"}
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -671,15 +663,8 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.training:
-            # Int4 QAT: simulate post-training int4 quantization during training
-            fc_w = fake_quant_ste(self.fc.weight, clip_range=7).to(x.dtype)
-            proj_w = fake_quant_ste(self.proj.weight, clip_range=7).to(x.dtype)
-            h = F.leaky_relu(F.linear(x, fc_w), negative_slope=0.5)
-            return F.linear(h.square(), proj_w)
-        else:
-            h = F.leaky_relu(self.fc(x), negative_slope=0.5)
-            return self.proj(h.square())
+        h = F.leaky_relu(self.fc(x), negative_slope=0.5)
+        return self.proj(h.square())
 
 
 class SmearGate(nn.Module):
