@@ -1,0 +1,500 @@
+{
+  "vocab_1024": {
+    "tokens": 1000000,
+    "vocab_size": 1024,
+    "unique_tokens": 861,
+    "block_analysis": [
+      {
+        "block_size": 4,
+        "n_blocks": 250000,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 3996571,
+        "ratio": 1.9983,
+        "bits_per_token": 31.9726,
+        "marginal_bpt": 0
+      },
+      {
+        "block_size": 8,
+        "n_blocks": 125000,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2992710,
+        "ratio": 1.4964,
+        "bits_per_token": 23.9417,
+        "marginal_bpt": 8.0309
+      },
+      {
+        "block_size": 16,
+        "n_blocks": 62500,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2497187,
+        "ratio": 1.2486,
+        "bits_per_token": 19.9775,
+        "marginal_bpt": 3.9642
+      },
+      {
+        "block_size": 32,
+        "n_blocks": 31250,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2216266,
+        "ratio": 1.1081,
+        "bits_per_token": 17.7301,
+        "marginal_bpt": 2.2474
+      },
+      {
+        "block_size": 48,
+        "n_blocks": 20833,
+        "raw_bytes": 1999968,
+        "compressed_bytes": 2094015,
+        "ratio": 1.047,
+        "bits_per_token": 16.7524,
+        "marginal_bpt": 0.9777
+      },
+      {
+        "block_size": 64,
+        "n_blocks": 15625,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2001700,
+        "ratio": 1.0009,
+        "bits_per_token": 16.0136,
+        "marginal_bpt": 0.7388
+      },
+      {
+        "block_size": 96,
+        "n_blocks": 10416,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1855878,
+        "ratio": 0.928,
+        "bits_per_token": 14.848,
+        "marginal_bpt": 1.1656
+      },
+      {
+        "block_size": 128,
+        "n_blocks": 7812,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1742320,
+        "ratio": 0.8712,
+        "bits_per_token": 13.9395,
+        "marginal_bpt": 0.9085
+      },
+      {
+        "block_size": 192,
+        "n_blocks": 5208,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1587874,
+        "ratio": 0.794,
+        "bits_per_token": 12.7038,
+        "marginal_bpt": 1.2356
+      },
+      {
+        "block_size": 256,
+        "n_blocks": 3906,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1535657,
+        "ratio": 0.7679,
+        "bits_per_token": 12.286,
+        "marginal_bpt": 0.4178
+      },
+      {
+        "block_size": 384,
+        "n_blocks": 2604,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1432086,
+        "ratio": 0.7161,
+        "bits_per_token": 11.4574,
+        "marginal_bpt": 0.8286
+      },
+      {
+        "block_size": 512,
+        "n_blocks": 1953,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1377959,
+        "ratio": 0.689,
+        "bits_per_token": 11.0244,
+        "marginal_bpt": 0.433
+      },
+      {
+        "block_size": 768,
+        "n_blocks": 1302,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1316871,
+        "ratio": 0.6585,
+        "bits_per_token": 10.5356,
+        "marginal_bpt": 0.4887
+      },
+      {
+        "block_size": 1024,
+        "n_blocks": 976,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1273714,
+        "ratio": 0.6372,
+        "bits_per_token": 10.1956,
+        "marginal_bpt": 0.3401
+      },
+      {
+        "block_size": 1536,
+        "n_blocks": 651,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1231434,
+        "ratio": 0.6158,
+        "bits_per_token": 9.8521,
+        "marginal_bpt": 0.3435
+      },
+      {
+        "block_size": 2048,
+        "n_blocks": 488,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1203746,
+        "ratio": 0.6022,
+        "bits_per_token": 9.6355,
+        "marginal_bpt": 0.2166
+      },
+      {
+        "block_size": 4096,
+        "n_blocks": 244,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1149159,
+        "ratio": 0.5749,
+        "bits_per_token": 9.1986,
+        "marginal_bpt": 0.4369
+      },
+      {
+        "block_size": 8192,
+        "n_blocks": 122,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1106039,
+        "ratio": 0.5533,
+        "bits_per_token": 8.8534,
+        "marginal_bpt": 0.3452
+      }
+    ],
+    "histogram": {
+      "local (1-8 tokens)": {
+        "marginal_bpt": 8.0309,
+        "percent": 34.7
+      },
+      "phrasal (9-32 tokens)": {
+        "marginal_bpt": 6.2116,
+        "percent": 26.9
+      },
+      "sentence (33-128 tokens)": {
+        "marginal_bpt": 3.7906,
+        "percent": 16.4
+      },
+      "paragraph (129-512 tokens)": {
+        "marginal_bpt": 2.915,
+        "percent": 12.6
+      },
+      "document (513+ tokens)": {
+        "marginal_bpt": 2.171,
+        "percent": 9.4
+      }
+    },
+    "window_analysis": [
+      {
+        "wbits": 9,
+        "window_bytes": 512,
+        "window_tokens": 256,
+        "compressed_bytes": 621182,
+        "ratio": 0.6212,
+        "delta_ratio": 0
+      },
+      {
+        "wbits": 10,
+        "window_bytes": 1024,
+        "window_tokens": 512,
+        "compressed_bytes": 585647,
+        "ratio": 0.5856,
+        "delta_ratio": 0.0355
+      },
+      {
+        "wbits": 11,
+        "window_bytes": 2048,
+        "window_tokens": 1024,
+        "compressed_bytes": 566399,
+        "ratio": 0.5664,
+        "delta_ratio": 0.0192
+      },
+      {
+        "wbits": 12,
+        "window_bytes": 4096,
+        "window_tokens": 2048,
+        "compressed_bytes": 549548,
+        "ratio": 0.5495,
+        "delta_ratio": 0.0169
+      },
+      {
+        "wbits": 13,
+        "window_bytes": 8192,
+        "window_tokens": 4096,
+        "compressed_bytes": 534726,
+        "ratio": 0.5347,
+        "delta_ratio": 0.0148
+      },
+      {
+        "wbits": 14,
+        "window_bytes": 16384,
+        "window_tokens": 8192,
+        "compressed_bytes": 515746,
+        "ratio": 0.5157,
+        "delta_ratio": 0.019
+      },
+      {
+        "wbits": 15,
+        "window_bytes": 32768,
+        "window_tokens": 16384,
+        "compressed_bytes": 496913,
+        "ratio": 0.4969,
+        "delta_ratio": 0.0188
+      }
+    ]
+  },
+  "vocab_8192": {
+    "tokens": 1000000,
+    "vocab_size": 8192,
+    "unique_tokens": 7987,
+    "block_analysis": [
+      {
+        "block_size": 4,
+        "n_blocks": 250000,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 3996705,
+        "ratio": 1.9984,
+        "bits_per_token": 31.9736,
+        "marginal_bpt": 0
+      },
+      {
+        "block_size": 8,
+        "n_blocks": 125000,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2994452,
+        "ratio": 1.4972,
+        "bits_per_token": 23.9556,
+        "marginal_bpt": 8.018
+      },
+      {
+        "block_size": 16,
+        "n_blocks": 62500,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2508094,
+        "ratio": 1.254,
+        "bits_per_token": 20.0648,
+        "marginal_bpt": 3.8909
+      },
+      {
+        "block_size": 32,
+        "n_blocks": 31250,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2235283,
+        "ratio": 1.1176,
+        "bits_per_token": 17.8823,
+        "marginal_bpt": 2.1825
+      },
+      {
+        "block_size": 48,
+        "n_blocks": 20833,
+        "raw_bytes": 1999968,
+        "compressed_bytes": 2120220,
+        "ratio": 1.0601,
+        "bits_per_token": 16.962,
+        "marginal_bpt": 0.9202
+      },
+      {
+        "block_size": 64,
+        "n_blocks": 15625,
+        "raw_bytes": 2000000,
+        "compressed_bytes": 2050893,
+        "ratio": 1.0254,
+        "bits_per_token": 16.4071,
+        "marginal_bpt": 0.5549
+      },
+      {
+        "block_size": 96,
+        "n_blocks": 10416,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1966843,
+        "ratio": 0.9835,
+        "bits_per_token": 15.7358,
+        "marginal_bpt": 0.6714
+      },
+      {
+        "block_size": 128,
+        "n_blocks": 7812,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1911391,
+        "ratio": 0.9558,
+        "bits_per_token": 15.2921,
+        "marginal_bpt": 0.4436
+      },
+      {
+        "block_size": 192,
+        "n_blocks": 5208,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1791394,
+        "ratio": 0.8958,
+        "bits_per_token": 14.3321,
+        "marginal_bpt": 0.96
+      },
+      {
+        "block_size": 256,
+        "n_blocks": 3906,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1734579,
+        "ratio": 0.8673,
+        "bits_per_token": 13.8775,
+        "marginal_bpt": 0.4545
+      },
+      {
+        "block_size": 384,
+        "n_blocks": 2604,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1626651,
+        "ratio": 0.8134,
+        "bits_per_token": 13.014,
+        "marginal_bpt": 0.8635
+      },
+      {
+        "block_size": 512,
+        "n_blocks": 1953,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1582879,
+        "ratio": 0.7915,
+        "bits_per_token": 12.6638,
+        "marginal_bpt": 0.3502
+      },
+      {
+        "block_size": 768,
+        "n_blocks": 1302,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1515387,
+        "ratio": 0.7577,
+        "bits_per_token": 12.1239,
+        "marginal_bpt": 0.54
+      },
+      {
+        "block_size": 1024,
+        "n_blocks": 976,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1481058,
+        "ratio": 0.741,
+        "bits_per_token": 11.8553,
+        "marginal_bpt": 0.2686
+      },
+      {
+        "block_size": 1536,
+        "n_blocks": 651,
+        "raw_bytes": 1999872,
+        "compressed_bytes": 1441142,
+        "ratio": 0.7206,
+        "bits_per_token": 11.5299,
+        "marginal_bpt": 0.3254
+      },
+      {
+        "block_size": 2048,
+        "n_blocks": 488,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1417727,
+        "ratio": 0.7093,
+        "bits_per_token": 11.3484,
+        "marginal_bpt": 0.1815
+      },
+      {
+        "block_size": 4096,
+        "n_blocks": 244,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1378525,
+        "ratio": 0.6897,
+        "bits_per_token": 11.0346,
+        "marginal_bpt": 0.3138
+      },
+      {
+        "block_size": 8192,
+        "n_blocks": 122,
+        "raw_bytes": 1998848,
+        "compressed_bytes": 1351848,
+        "ratio": 0.6763,
+        "bits_per_token": 10.821,
+        "marginal_bpt": 0.2135
+      }
+    ],
+    "histogram": {
+      "local (1-8 tokens)": {
+        "marginal_bpt": 8.018,
+        "percent": 37.9
+      },
+      "phrasal (9-32 tokens)": {
+        "marginal_bpt": 6.0734,
+        "percent": 28.7
+      },
+      "sentence (33-128 tokens)": {
+        "marginal_bpt": 2.5901,
+        "percent": 12.2
+      },
+      "paragraph (129-512 tokens)": {
+        "marginal_bpt": 2.6282,
+        "percent": 12.4
+      },
+      "document (513+ tokens)": {
+        "marginal_bpt": 1.8428,
+        "percent": 8.7
+      }
+    },
+    "window_analysis": [
+      {
+        "wbits": 9,
+        "window_bytes": 512,
+        "window_tokens": 256,
+        "compressed_bytes": 721256,
+        "ratio": 0.7213,
+        "delta_ratio": 0
+      },
+      {
+        "wbits": 10,
+        "window_bytes": 1024,
+        "window_tokens": 512,
+        "compressed_bytes": 694086,
+        "ratio": 0.6941,
+        "delta_ratio": 0.0272
+      },
+      {
+        "wbits": 11,
+        "window_bytes": 2048,
+        "window_tokens": 1024,
+        "compressed_bytes": 681449,
+        "ratio": 0.6814,
+        "delta_ratio": 0.0126
+      },
+      {
+        "wbits": 12,
+        "window_bytes": 4096,
+        "window_tokens": 2048,
+        "compressed_bytes": 672666,
+        "ratio": 0.6727,
+        "delta_ratio": 0.0088
+      },
+      {
+        "wbits": 13,
+        "window_bytes": 8192,
+        "window_tokens": 4096,
+        "compressed_bytes": 665631,
+        "ratio": 0.6656,
+        "delta_ratio": 0.007
+      },
+      {
+        "wbits": 14,
+        "window_bytes": 16384,
+        "window_tokens": 8192,
+        "compressed_bytes": 659021,
+        "ratio": 0.659,
+        "delta_ratio": 0.0066
+      },
+      {
+        "wbits": 15,
+        "window_bytes": 32768,
+        "window_tokens": 16384,
+        "compressed_bytes": 651557,
+        "ratio": 0.6516,
+        "delta_ratio": 0.0075
+      }
+    ]
+  }
+}
