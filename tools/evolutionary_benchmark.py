@@ -598,6 +598,175 @@ def deepfloor_genome_to_v3_config(genome: DeepFloorGenome) -> V3Config:
     )
 
 
+def evaluate_deepfloor_genome(
+    *,
+    genome: DeepFloorGenome,
+    enwik8_path: Path,
+    train_steps: int,
+    eval_batches: int,
+    seed: int,
+    device: torch.device,
+) -> dict[str, Any]:
+    from spectral_flood_walk_v3 import train_and_evaluate as v3_train_and_evaluate
+    from dataclasses import replace as dc_replace
+
+    cfg = deepfloor_genome_to_v3_config(genome)
+    cfg = dc_replace(
+        cfg,
+        enwik8_path=str(enwik8_path),
+        device=str(device),
+        seed=seed,
+        train_steps=train_steps,
+        eval_batches=eval_batches,
+    )
+    result = v3_train_and_evaluate(cfg)
+    return {
+        "genome": asdict(genome),
+        "config": asdict(cfg),
+        "artifact_estimated_mb": result["artifact"]["estimated_mb"],
+        "train": result["train"],
+        "val": result["val"],
+        "test": result["test"],
+    }
+
+
+def run_deepfloor_recipe_evolution(
+    *,
+    enwik8_path: Path,
+    population_size: int,
+    generations: int,
+    tournament_size: int,
+    train_steps: int,
+    eval_batches: int,
+    mutation_rate: float,
+    artifact_limit_mb: float,
+    deepfloor_profile: str,
+    confirm_topk: int,
+    confirm_train_steps: int,
+    seed: int,
+    device: torch.device,
+) -> dict[str, Any]:
+    from spectral_flood_walk_v3 import DeepFloorModel as V3DeepFloorModel
+
+    if population_size <= 0 or generations <= 0:
+        raise ValueError("population_size and generations must be positive")
+    space = default_deepfloor_gene_space(deepfloor_profile)
+    rng = random.Random(seed + 400_000)
+
+    def _artifact_mb(genome: DeepFloorGenome) -> float:
+        cfg = deepfloor_genome_to_v3_config(genome)
+        model = V3DeepFloorModel(cfg)
+        return model.estimate_artifact_bytes() / (1024.0 * 1024.0)
+
+    def _ensure_valid(genome: DeepFloorGenome) -> DeepFloorGenome:
+        for _ in range(20):
+            if _artifact_mb(genome) <= artifact_limit_mb:
+                return genome
+            genome = random_deepfloor_genome(space, rng=rng)
+        raise RuntimeError(
+            f"could not find a DeepFloor genome within {artifact_limit_mb:.1f} MB after 20 retries"
+        )
+
+    population: list[DeepFloorGenome] = []
+    while len(population) < population_size:
+        genome = _ensure_valid(random_deepfloor_genome(space, rng=rng))
+        population.append(genome)
+
+    history: list[dict[str, Any]] = []
+    evaluated_population: list[dict[str, Any]] = []
+    for generation in range(generations):
+        evaluated_population = []
+        for member_idx, genome in enumerate(population):
+            evaluated_population.append(
+                evaluate_deepfloor_genome(
+                    genome=genome,
+                    enwik8_path=enwik8_path,
+                    train_steps=train_steps,
+                    eval_batches=eval_batches,
+                    seed=seed + generation * 10_000 + member_idx,
+                    device=device,
+                )
+            )
+        evaluated_population.sort(key=lambda row: float(row["val"]["bpb"]))
+        bpbs = [float(row["val"]["bpb"]) for row in evaluated_population]
+        history.append(
+            {
+                "generation": int(generation),
+                "best_bpb": float(min(bpbs)),
+                "mean_bpb": float(sum(bpbs) / len(bpbs)),
+                "worst_bpb": float(max(bpbs)),
+                "best_genome": evaluated_population[0]["genome"],
+                "best_artifact_estimated_mb": float(evaluated_population[0]["artifact_estimated_mb"]),
+            }
+        )
+        if generation == generations - 1:
+            break
+
+        next_population = [DeepFloorGenome(**evaluated_population[0]["genome"])]
+        while len(next_population) < population_size:
+            parent_left_idx, parent_right_idx = select_distinct_parent_indices(bpbs, tournament_size, rng)
+            parent_left = DeepFloorGenome(**evaluated_population[parent_left_idx]["genome"])
+            parent_right = DeepFloorGenome(**evaluated_population[parent_right_idx]["genome"])
+            child = crossover_deepfloor_genomes(parent_left, parent_right, rng=rng)
+            child = mutate_deepfloor_genome(child, space, mutation_rate=mutation_rate, rng=rng)
+            child = _ensure_valid(child)
+            next_population.append(child)
+        population = next_population
+
+    confirm_results: list[dict[str, Any]] = []
+    if confirm_topk > 0 and confirm_train_steps > 0 and evaluated_population:
+        for rank, row in enumerate(evaluated_population[: min(confirm_topk, len(evaluated_population))]):
+            confirm_eval = evaluate_deepfloor_genome(
+                genome=DeepFloorGenome(**row["genome"]),
+                enwik8_path=enwik8_path,
+                train_steps=confirm_train_steps,
+                eval_batches=eval_batches,
+                seed=seed + 700_000 + rank,
+                device=device,
+            )
+            confirm_eval["rank_from_short_fitness"] = int(rank)
+            confirm_results.append(confirm_eval)
+
+    best = evaluated_population[0] if evaluated_population else None
+    return {
+        "deepfloor_recipe_evolution": {
+            "population_size": int(population_size),
+            "generations": int(generations),
+            "tournament_size": int(tournament_size),
+            "train_steps": int(train_steps),
+            "eval_batches": int(eval_batches),
+            "mutation_rate": float(mutation_rate),
+            "artifact_limit_mb": float(artifact_limit_mb),
+            "deepfloor_profile": deepfloor_profile,
+            "confirm_topk": int(confirm_topk),
+            "confirm_train_steps": int(confirm_train_steps),
+            "seed": int(seed),
+            "search_space": {
+                "recurrent_dims": list(space.recurrent_dims),
+                "num_distinct_blocks": list(space.num_distinct_blocks),
+                "view_counts": list(space.view_counts),
+                "view_combinations": list(space.view_combinations),
+                "cross_token_modes": list(space.cross_token_modes),
+                "block_nonlinearities": list(space.block_nonlinearities),
+                "quantizations": list(space.quantizations),
+                "base_lrs": list(space.base_lrs),
+                "seq_lens": list(space.seq_lens),
+                "batch_sizes": list(space.batch_sizes),
+            },
+        },
+        "history": history,
+        "population": [
+            {
+                "rank": int(rank),
+                **row,
+            }
+            for rank, row in enumerate(evaluated_population)
+        ],
+        "best": best,
+        "confirm_results": confirm_results,
+    }
+
+
 def summarize_replay_buffer(entries: list[dict[str, Any]]) -> dict[str, float]:
     if not entries:
         return {"size": 0.0, "max_loss": float("nan"), "mean_loss": float("nan"), "num_starts": 0.0}
@@ -4499,6 +4668,22 @@ def build_parser() -> argparse.ArgumentParser:
     evo_parser.add_argument("--mutation-fraction", type=float, default=0.05)
     evo_parser.add_argument("--eval-batches", type=int, default=32)
     evo_parser.add_argument("--ensemble-topks", default="")
+
+    df_recipe_parser = subparsers.add_parser("deepfloor-recipe-evolution", help="Evolve DeepFloor v3 architecture genes under a 16MB artifact budget")
+    df_recipe_parser.add_argument("--enwik8-path", type=Path, required=True)
+    df_recipe_parser.add_argument("--population-size", type=int, default=12)
+    df_recipe_parser.add_argument("--generations", type=int, default=6)
+    df_recipe_parser.add_argument("--tournament-size", type=int, default=3)
+    df_recipe_parser.add_argument("--train-steps", type=int, default=16)
+    df_recipe_parser.add_argument("--eval-batches", type=int, default=8)
+    df_recipe_parser.add_argument("--mutation-rate", type=float, default=0.2)
+    df_recipe_parser.add_argument("--artifact-limit-mb", type=float, default=16.0)
+    df_recipe_parser.add_argument("--deepfloor-profile", choices=("compact", "frontier"), default="compact")
+    df_recipe_parser.add_argument("--confirm-topk", type=int, default=3)
+    df_recipe_parser.add_argument("--confirm-train-steps", type=int, default=32)
+    df_recipe_parser.add_argument("--seed", type=int, default=1337)
+    df_recipe_parser.add_argument("--device", default="auto")
+    df_recipe_parser.add_argument("--output-json", default=None)
     return parser
 
 
@@ -4638,6 +4823,26 @@ def main() -> None:
             param_dtype=param_dtype,
         )
         write_output(result, cfg.output_json)
+        return
+
+    if args.command == "deepfloor-recipe-evolution":
+        from spectral_flood_walk_v3 import resolve_device as v3_resolve_device
+        result = run_deepfloor_recipe_evolution(
+            enwik8_path=args.enwik8_path,
+            population_size=args.population_size,
+            generations=args.generations,
+            tournament_size=args.tournament_size,
+            train_steps=args.train_steps,
+            eval_batches=args.eval_batches,
+            mutation_rate=args.mutation_rate,
+            artifact_limit_mb=args.artifact_limit_mb,
+            deepfloor_profile=args.deepfloor_profile,
+            confirm_topk=args.confirm_topk,
+            confirm_train_steps=args.confirm_train_steps,
+            seed=args.seed,
+            device=v3_resolve_device(args.device),
+        )
+        write_output(result, args.output_json)
         return
 
     raise ValueError(f"unsupported command: {args.command}")

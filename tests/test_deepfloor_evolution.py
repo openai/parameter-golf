@@ -45,6 +45,34 @@ class DeepFloorEvolutionTests(unittest.TestCase):
         self.assertTrue(len(space.jacobian_lambdas) > 0)
         self.assertTrue(len(space.stochastic_round_ps) > 0)
 
+    def test_evaluate_deepfloor_genome_returns_bpb(self) -> None:
+        import tempfile
+        from pathlib import Path
+        import numpy as np
+        import torch
+        from tools.evolutionary_benchmark import evaluate_deepfloor_genome
+
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        path = Path(tmpdir.name) / "enwik8"
+        data = np.arange(16384, dtype=np.uint8)
+        path.write_bytes(data.tobytes())
+
+        space = default_deepfloor_gene_space("compact")
+        rng = random.Random(42)
+        genome = random_deepfloor_genome(space, rng=rng)
+        result = evaluate_deepfloor_genome(
+            genome=genome,
+            enwik8_path=path,
+            train_steps=2,
+            eval_batches=2,
+            seed=42,
+            device=torch.device("cpu"),
+        )
+        self.assertIn("val", result)
+        self.assertIn("bpb", result["val"])
+        self.assertGreater(result["val"]["bpb"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
