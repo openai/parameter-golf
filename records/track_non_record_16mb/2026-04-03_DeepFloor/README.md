@@ -89,6 +89,7 @@ PYTHON_BIN=python3 \
 ./runpod_start_smallbox.sh <pod-id>
 ./runpod_extend_smallbox.sh <pod-id>
 ./runpod_lease_status.sh [pod-id]
+./runpod_sync_smallbox.sh <pod-id>
 ./runpod_stop_smallbox.sh <pod-id>
 ./runpod_bootstrap.sh
 ./runpod_delete_smallbox.sh <pod-id>
@@ -96,6 +97,7 @@ PYTHON_BIN=python3 \
 ./runpod_create_fullbox.sh
 ./runpod_start_fullbox.sh <pod-id>
 ./runpod_extend_fullbox.sh <pod-id>
+./runpod_sync_fullbox.sh <pod-id>
 ./runpod_stop_fullbox.sh <pod-id>
 ./runpod_bootstrap_fullbox.sh
 ./runpod_delete_fullbox.sh <pod-id>
@@ -116,3 +118,5 @@ Notes:
 - `runpod_create_fullbox.sh` and `runpod_start_fullbox.sh` do the same for 8-GPU pods with a longer default lease (`360` minutes create/start, `120` minutes extend) and larger default storage sizing.
 - `runpod_extend_smallbox.sh` adds another lease window without restarting the pod, so overlapping leases are safe when an agent needs more time.
 - `runpod_lease_status.sh` shows the tracked expiry window and active lease count for each leased pod.
+- `runpod_sync_smallbox.sh` and `runpod_sync_fullbox.sh` pull the run artifacts back to the matching local `runs/` directory without stopping the pod.
+- `runpod_stop_smallbox.sh` and `runpod_stop_fullbox.sh` are now harvest gates, not raw power switches: they rsync the remote run directory locally first and only stop the pod if that sync succeeds.

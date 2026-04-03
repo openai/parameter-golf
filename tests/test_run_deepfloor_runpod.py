@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tools.run_deepfloor_runpod import (
     append_lease_to_state,
     arm_lease,
+    build_rsync_command,
     build_watch_command,
     cmd_delete,
+    cmd_harvest_stop,
     cmd_stop,
     cmd_watch,
     extract_pod_id,
@@ -145,6 +148,59 @@ class RunDeepFloorRunPodTests(unittest.TestCase):
                     fn(args)
 
                 self.assertEqual(events, [command, "clear"])
+
+    def test_build_rsync_command_uses_dynamic_ssh_info(self) -> None:
+        with patch(
+            "tools.run_deepfloor_runpod.get_ssh_info",
+            return_value={
+                "ip": "1.2.3.4",
+                "port": 4567,
+                "ssh_key": {"path": "/tmp/runpod-key"},
+            },
+        ):
+            cmd = build_rsync_command(
+                pod_id="pod-123",
+                remote_path="/workspace/results/",
+                local_path=Path("/tmp/local-results"),
+            )
+
+        self.assertEqual(cmd[:4], ["rsync", "-az", "--progress", "-e"])
+        self.assertIn("-p 4567", cmd[4])
+        self.assertIn("-i /tmp/runpod-key", cmd[4])
+        self.assertEqual(cmd[5], "root@1.2.3.4:/workspace/results/")
+        self.assertEqual(cmd[6], "/tmp/local-results")
+
+    def test_cmd_harvest_stop_syncs_before_stopping_and_clears_state(self) -> None:
+        events: list[str] = []
+        args = argparse.Namespace(
+            pod_id="pod-123",
+            remote_path="/workspace/results/",
+            local_path="/tmp/local-results",
+        )
+
+        def record_passthrough(cmd: list[str]) -> None:
+            if cmd[0] == "rsync":
+                events.append("sync")
+                self.assertEqual(cmd[5], "root@1.2.3.4:/workspace/results/")
+                return
+            self.assertEqual(cmd, ["runpodctl", "pod", "stop", "pod-123"])
+            events.append("stop")
+
+        with (
+            patch(
+                "tools.run_deepfloor_runpod.get_ssh_info",
+                return_value={
+                    "ip": "1.2.3.4",
+                    "port": 4567,
+                    "ssh_key": {"path": "/tmp/runpod-key"},
+                },
+            ),
+            patch("tools.run_deepfloor_runpod.run_passthrough", side_effect=record_passthrough),
+            patch("tools.run_deepfloor_runpod.clear_lease_state", side_effect=lambda pod_id: events.append("clear")),
+        ):
+            cmd_harvest_stop(args)
+
+        self.assertEqual(events, ["sync", "stop", "clear"])
 
 
 if __name__ == "__main__":

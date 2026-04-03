@@ -53,6 +53,22 @@ Checked-in candidate submission:
 - local submission preflight on the frozen record-folder snapshot
 - remote GPU submission preflight on a reused small pod
 - remote small-box suite on real `enwik8`
+- remote `8x H100` fullbox suite, with synced `smoke`, `matrix`, `launch_logs`, and `evolution` artifacts under `runs/fullbox/`
+
+## Fullbox evidence
+
+Best fullbox recipe-search result:
+
+- `frontier seed 2025`
+- `val_bpb = 4.1101`
+- `test_bpb = 4.0239`
+- `artifact_mb = 0.1377`
+- mode: `floor`
+- state core: `scalar_decay`
+- recurrent dim: `96`
+- views: `8`
+
+This is stronger evidence that DeepFloor is a real direction worth reviewing, but it is still not presented as a record claim or as three repeated fixed-candidate contest runs.
 
 ## Submission lane
 

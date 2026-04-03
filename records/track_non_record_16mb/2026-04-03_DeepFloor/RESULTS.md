@@ -38,6 +38,7 @@ These gates are green:
 - local submission preflight against the frozen record-folder snapshot
 - remote GPU submission preflight on the reused small pod
 - remote small-box suite on real `enwik8`
+- remote fullbox suite on `8x H100`, with the resulting artifacts synced back locally under `runs/fullbox/`
 
 Checked-in submission accounting for the candidate result:
 
@@ -53,6 +54,30 @@ Representative preflight accounting for the frozen submission surface:
 
 ## Current limitations
 
-- We do not yet have an 8xH100 end-to-end DeepFloor run proving the 10-minute record track.
+- We now have an 8xH100 DeepFloor search run, but it is an evolutionary recipe-search campaign, not `3` repeated fixed-candidate 10-minute submission runs.
 - The current candidate uses only a 1-step small-box training/eval configuration for the checked-in result.
 - The record folder is PR-ready as a non-record submission candidate, but it still needs stronger final evidence before we should claim a competitive record attempt.
+
+## Fullbox search evidence
+
+The fullbox suite completed on `8x H100` and the full artifact set is checked in locally under `runs/fullbox/`.
+
+Best `frontier` runs:
+
+| Run | Mode | State Core | Dim | Views | Eval Steps | Val BPB | Test BPB | Artifact MB |
+|-----|------|------------|----:|------:|-----------:|--------:|---------:|------------:|
+| `frontier_seed2025` | floor | scalar_decay | 96 | 8 | 64 | **4.1101** | **4.0239** | 0.1377 |
+| `frontier_seed4242` | floor | scalar_decay | 128 | 8 | 64 | 4.3356 | 4.5996 | 0.5156 |
+| `frontier_seed1337` | floor | scalar_decay | 96 | 8 | 128 | 4.4156 | 4.4372 | 0.1201 |
+| `frontier_seed5151` | fused | hippo | 128 | 8 | 512 | 5.2129 | 5.0534 | 0.1602 |
+
+Best `compact` runs:
+
+| Run | Mode | State Core | Dim | Views | Eval Steps | Val BPB | Test BPB | Artifact MB |
+|-----|------|------------|----:|------:|-----------:|--------:|---------:|------------:|
+| `compact_seed4242` | fused | scalar_decay | 64 | 2 | 16 | **5.1777** | 5.5187 | 0.0410 |
+| `compact_seed2025` | fused | hippo_plus_lowrank | 64 | 1 | 16 | 5.2328 | 5.2732 | 0.0334 |
+| `compact_seed5151` | fused | scalar_decay | 64 | 2 | 16 | 5.3222 | 5.5699 | 0.0205 |
+| `compact_seed1337` | fused | scalar_decay | 64 | 2 | 16 | 5.3619 | 5.4040 | 0.0244 |
+
+The strongest observed signal from the fullbox run is that the larger `frontier` search meaningfully improves over the small-box candidate, and that the best discovered recipes shift toward `floor` mode with larger recurrent dims and wider multi-view configurations.

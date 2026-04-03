@@ -38,6 +38,10 @@ def run_passthrough(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def ensure_local_parent(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
 def epoch_now() -> int:
     return int(time.time())
 
@@ -114,6 +118,15 @@ def get_pod_details(pod_id: str) -> dict[str, Any]:
     payload = run_json(["runpodctl", "pod", "get", pod_id, "-o", "json"])
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected pod detail payload for {pod_id}: {payload}")
+    return payload
+
+
+def get_ssh_info(pod_id: str) -> dict[str, Any]:
+    payload = run_json(["runpodctl", "ssh", "info", pod_id, "-v", "-o", "json"])
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected ssh info payload for {pod_id}: {payload}")
+    if payload.get("error"):
+        raise RuntimeError(f"Unable to fetch ssh info for {pod_id}: {payload['error']}")
     return payload
 
 
@@ -389,6 +402,57 @@ def cmd_ssh_info(args: argparse.Namespace) -> None:
     run_passthrough(["runpodctl", "ssh", "info", args.pod_id])
 
 
+def build_rsync_command(
+    *,
+    pod_id: str,
+    remote_path: str,
+    local_path: Path,
+) -> list[str]:
+    ssh_info = get_ssh_info(pod_id)
+    host = str(ssh_info["ip"])
+    port = str(ssh_info["port"])
+    ssh_key = str(ssh_info["ssh_key"]["path"])
+    ensure_local_parent(local_path)
+    return [
+        "rsync",
+        "-az",
+        "--progress",
+        "-e",
+        (
+            "ssh -o StrictHostKeyChecking=no "
+            "-o UserKnownHostsFile=/dev/null "
+            f"-i {ssh_key} -p {port}"
+        ),
+        f"root@{host}:{remote_path}",
+        str(local_path),
+    ]
+
+
+def cmd_sync_path(args: argparse.Namespace) -> None:
+    local_path = Path(args.local_path).expanduser().resolve()
+    if args.remote_path.endswith("/"):
+        local_path.mkdir(parents=True, exist_ok=True)
+    else:
+        ensure_local_parent(local_path)
+    cmd = build_rsync_command(
+        pod_id=args.pod_id,
+        remote_path=args.remote_path,
+        local_path=local_path,
+    )
+    run_passthrough(cmd)
+
+
+def cmd_harvest_stop(args: argparse.Namespace) -> None:
+    sync_args = argparse.Namespace(
+        pod_id=args.pod_id,
+        remote_path=args.remote_path,
+        local_path=args.local_path,
+    )
+    cmd_sync_path(sync_args)
+    run_passthrough(["runpodctl", "pod", "stop", args.pod_id])
+    clear_lease_state(args.pod_id)
+
+
 def cmd_bootstrap(args: argparse.Namespace) -> None:
     script_path = str(args.script_path)
     print("Remote bootstrap commands:")
@@ -474,6 +538,21 @@ def build_parser() -> argparse.ArgumentParser:
     ssh_info = subparsers.add_parser("ssh-info", help="Show ssh info for a pod")
     ssh_info.add_argument("pod_id")
     ssh_info.set_defaults(handler=cmd_ssh_info)
+
+    sync_path = subparsers.add_parser("sync-path", help="Sync a remote pod path to a local path over rsync")
+    sync_path.add_argument("pod_id")
+    sync_path.add_argument("--remote-path", required=True)
+    sync_path.add_argument("--local-path", required=True)
+    sync_path.set_defaults(handler=cmd_sync_path)
+
+    harvest_stop = subparsers.add_parser(
+        "harvest-stop",
+        help="Sync a remote pod path locally and only then stop the pod",
+    )
+    harvest_stop.add_argument("pod_id")
+    harvest_stop.add_argument("--remote-path", required=True)
+    harvest_stop.add_argument("--local-path", required=True)
+    harvest_stop.set_defaults(handler=cmd_harvest_stop)
 
     bootstrap = subparsers.add_parser("bootstrap", help="Print the remote DeepFloor bootstrap command")
     bootstrap.add_argument("--script-path", default=str(DEFAULT_RECORD_SCRIPT))
