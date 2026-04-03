@@ -12,11 +12,7 @@ import uuid
 import zlib
 from pathlib import Path
 import lzma
-try:
- import zstandard
- _COMPRESSOR = "zstd"
-except ImportError:
- _COMPRESSOR = "lzma"
+_COMPRESSOR = "lzma"
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -88,7 +84,7 @@ class Hyperparameters:
  muon_wd = float(os.environ.get("MUON_WD", 0.04))
  adam_wd = float(os.environ.get("ADAM_WD", 0.04))
  qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
- bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
+ bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 1024))
  bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
  xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on last 11 layers (0 = disabled)
  rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -1383,12 +1379,7 @@ def main() -> None:
  quant_buf = io.BytesIO()
  torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
  quant_raw = quant_buf.getvalue()
- if _COMPRESSOR == "zstd":
-  quant_blob = zstandard.ZstdCompressor(level=22, threads=-1).compress(quant_raw)
- elif _COMPRESSOR == "lzma":
-  quant_blob = lzma.compress(quant_raw, preset=6)
- else:
-  quant_blob = zlib.compress(quant_raw, 9)
+ quant_blob = lzma.compress(quant_raw, preset=6)
  if master_process:
   with open("final_model.int6.ptz", "wb") as f:
    f.write(quant_blob)
@@ -1402,7 +1393,7 @@ def main() -> None:
  with open("final_model.int6.ptz", "rb") as f:
   quant_blob_disk = f.read()
  quant_state = torch.load(
-  io.BytesIO(zstandard.ZstdDecompressor().decompress(quant_blob_disk) if _COMPRESSOR == "zstd" else lzma.decompress(quant_blob_disk) if _COMPRESSOR == "lzma" else zlib.decompress(quant_blob_disk)),
+  io.BytesIO(lzma.decompress(quant_blob_disk)),
   map_location="cpu",
  )
  deq_state = dequantize_mixed_int6(quant_state["w"], quant_state["m"], sd_cpu)
