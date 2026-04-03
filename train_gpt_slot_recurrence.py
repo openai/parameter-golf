@@ -621,10 +621,12 @@ class GPT(nn.Module):
    self._recur_schedule.append(i)
    if i in self._recur_layer_set:
     self._recur_schedule.append(i)  # repeat
-  self.recurrence_active = False  # activated at recur_start_step
-  # Use flat schedule dimensions for init; forward dynamically selects schedule
-  self.num_encoder_layers = num_layers // 2
-  self.num_decoder_layers = num_layers - self.num_encoder_layers
+  # If recur_layers specified, always use recurrence (no delayed start — keeps graph static for torch.compile)
+  self.recurrence_active = bool(self._recur_layer_set)
+  self._active_schedule = self._recur_schedule if self.recurrence_active else self._flat_schedule
+  eff_depth = len(self._active_schedule)
+  self.num_encoder_layers = eff_depth // 2
+  self.num_decoder_layers = eff_depth - self.num_encoder_layers
   self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
   self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
   # Per-iteration conditioning for recurrent positions
@@ -706,7 +708,7 @@ class GPT(nn.Module):
   ve_idx = self.ve_layer_indices.index(layer_idx)
   return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
  def _run_layers(self, x: Tensor, x0: Tensor, input_ids: Tensor) -> Tensor:
-  schedule = self._recur_schedule if self.recurrence_active else self._flat_schedule
+  schedule = self._active_schedule
   eff_depth = len(schedule)
   enc_layers = eff_depth // 2
   dec_layers = eff_depth - enc_layers
@@ -1138,8 +1140,7 @@ def main() -> None:
   if isinstance(module, CastedLinear):
    module.float()
  restore_low_dim_params_to_fp32(base_model)
- torch._dynamo.config.cache_size_limit = 32
- compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+ compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
  model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
  block_named_params = list(base_model.blocks.named_parameters())
  matrix_params = [
@@ -1340,10 +1341,6 @@ def main() -> None:
    for name, t in base_model.state_dict().items():
     ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
   step += 1
-  # Activate partial recurrence after warmup period
-  if args.recur_layers and step >= args.recur_start_step and not base_model.recurrence_active:
-   base_model.recurrence_active = True
-   log0(f"recurrence:activated at step {step}, virtual_layers={base_model._recur_schedule}")
   approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
   if args.swa_enabled and scale < 0.2 and step % args.swa_every == 0:
    if swa_state is None:
@@ -1441,10 +1438,7 @@ def main() -> None:
    m.float()
  restore_low_dim_params_to_fp32(eval_model)
  eval_model.load_state_dict(deq_state, strict=True)
- if args.recur_layers:
-  eval_model.recurrence_active = True
- torch._dynamo.config.cache_size_limit = 32
- compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=False)
+ compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
  torch.cuda.synchronize()
  t_qeval = time.perf_counter()
  q_val_loss, q_val_bpb = eval_val(
