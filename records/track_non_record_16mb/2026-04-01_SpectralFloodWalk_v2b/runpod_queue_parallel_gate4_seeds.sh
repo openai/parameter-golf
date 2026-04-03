@@ -12,6 +12,7 @@ if (( ${#GPUS[@]} < ${#SEEDS[@]} )); then
 fi
 
 declare -a pids=()
+declare -a labels=()
 
 for idx in "${!SEEDS[@]}"; do
   gpu="${GPUS[$idx]}"
@@ -24,10 +25,18 @@ for idx in "${!SEEDS[@]}"; do
   SFW_SEED="${seed}" \
   "${DIR}/runpod_gate4.sh" &
   pids+=("$!")
+  labels+=("runpod_gate4.sh seed=${seed}")
 done
 
-for pid in "${pids[@]}"; do
-  wait "${pid}"
+queue_status=0
+for idx in "${!pids[@]}"; do
+  pid="${pids[$idx]}"
+  label="${labels[$idx]}"
+  if ! wait "${pid}"; then
+    echo "[error] queued job failed: ${label} (pid=${pid})" >&2
+    queue_status=1
+  fi
 done
 
 python3 ../../../tools/summarize_v2b_runs.py runs/*
+exit "${queue_status}"

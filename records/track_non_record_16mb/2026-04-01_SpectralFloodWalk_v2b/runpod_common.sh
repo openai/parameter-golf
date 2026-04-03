@@ -111,15 +111,19 @@ sfw_apply_bool_flag() {
   local flag_true="$1"
   local flag_false="$2"
   local value="$3"
-  local -n out_ref="$4"
+  local out_name="$4"
+  local append_flag=""
   case "${value}" in
     1|true|TRUE|yes|YES|on|ON)
-      out_ref+=("${flag_true}")
+      append_flag="${flag_true}"
       ;;
     0|false|FALSE|no|NO|off|OFF)
-      out_ref+=("${flag_false}")
+      append_flag="${flag_false}"
       ;;
   esac
+  if [[ -n "${append_flag}" ]]; then
+    eval "${out_name}+=(\"\${append_flag}\")"
+  fi
 }
 
 sfw_run_profile() {
@@ -142,6 +146,17 @@ sfw_run_profile() {
   target_hardware="$(sfw_resolve_target_hardware "${detected_gpu_count}" "${target_gpu_count}")"
   local resolved_nproc_per_node
   resolved_nproc_per_node="$(sfw_resolve_nproc_per_node "${detected_gpu_count}" "${target_gpu_count}")"
+  local maintenance_passes="${SFW_MAINTENANCE_PASSES:-1}"
+  local maintenance_replay_candidates="${SFW_MAINTENANCE_REPLAY_CANDIDATES:-}"
+
+  # No-maintenance profiles should not pay for replay buffers unless explicitly overridden.
+  if [[ -z "${maintenance_replay_candidates}" ]]; then
+    if [[ "${maintenance_passes}" =~ ^-?[0-9]+$ ]] && (( maintenance_passes <= 0 )); then
+      maintenance_replay_candidates="0"
+    else
+      maintenance_replay_candidates="64"
+    fi
+  fi
 
   local -a cmd
   if [[ "${SFW_LAUNCHER}" == "python" || ( "${SFW_LAUNCHER}" == "auto" && "${resolved_nproc_per_node}" == "1" ) ]]; then
@@ -186,7 +201,7 @@ sfw_run_profile() {
     --memory-read-scale "${SFW_MEMORY_READ_SCALE:-1.0}"
     --memory-min-read-count "${SFW_MEMORY_MIN_READ_COUNT:-2}"
     --memory-max-delta-norm "${SFW_MEMORY_MAX_DELTA_NORM:-4.0}"
-    --maintenance-passes "${SFW_MAINTENANCE_PASSES:-1}"
+    --maintenance-passes "${maintenance_passes}"
     --maintenance-mode "${SFW_MAINTENANCE_MODE:-replay}"
     --maintenance-blend "${SFW_MAINTENANCE_BLEND:-0.25}"
     --maintenance-step-size "${SFW_MAINTENANCE_STEP_SIZE:-0.05}"
@@ -195,7 +210,7 @@ sfw_run_profile() {
     --maintenance-grad-mix "${SFW_MAINTENANCE_GRAD_MIX:-0.25}"
     --maintenance-loss-ema-decay "${SFW_MAINTENANCE_LOSS_EMA_DECAY:-0.95}"
     --maintenance-replay-depth "${SFW_MAINTENANCE_REPLAY_DEPTH:-2}"
-    --maintenance-replay-candidates "${SFW_MAINTENANCE_REPLAY_CANDIDATES:-64}"
+    --maintenance-replay-candidates "${maintenance_replay_candidates}"
   )
 
   if [[ -n "${SFW_MEMORY_ORDER_SCALES:-}" ]]; then
