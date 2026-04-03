@@ -1,0 +1,32 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Slot Machine",
+  "blurb": "Rascal II + brotli byte-shuffle compression + context-only SLOT 8-step test-time optimization",
+  "date": "2026-04-03T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.1035,
+    "val_bpb_exact": 1.10350531,
+    "steps": 6295,
+    "train_time_s": 600,
+    "bytes_total": 15536878
+  },
+  "seed_300": {
+    "val_bpb": 1.1045,
+    "val_bpb_exact": 1.10448947,
+    "steps": 6290,
+    "bytes_total": 15532578,
+    "train_time_s": 600
+  },
+  "seed_42": {
+    "val_bpb": 1.1045,
+    "val_bpb_exact": 1.10446734,
+    "steps": 6286,
+    "bytes_total": 15526521,
+    "train_time_s": 600
+  },
+  "val_bpb": 1.1042,
+  "bytes_total": 15536878,
+  "bytes_code": 123960,
+  "hardware": "8xH100 SXM"
+}

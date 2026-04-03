@@ -1,0 +1,84 @@
+W0330 16:46:49.182000 3516 site-packages/torch/distributed/run.py:851]
+W0330 16:46:49.182000 3516 site-packages/torch/distributed/run.py:851] *****************************************
+W0330 16:46:49.182000 3516 site-packages/torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0330 16:46:49.182000 3516 site-packages/torch/distributed/run.py:851] *****************************************
+logs/8e29dfb6-875d-45fe-ac30-e418b0be3130.txt
+nitrust:disabled NITRUST_ENABLE=0
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:14462508
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9294 val_bpb:4.1040 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9313 train_time:121ms step_avg:121.04ms
+step:2/20000 train_loss:9.0021 train_time:192ms step_avg:95.87ms
+step:3/20000 train_loss:8.1542 train_time:264ms step_avg:87.89ms
+step:4/20000 train_loss:7.3075 train_time:335ms step_avg:83.86ms
+step:5/20000 train_loss:6.9374 train_time:409ms step_avg:81.76ms
+step:6/20000 train_loss:6.7706 train_time:481ms step_avg:80.12ms
+step:7/20000 train_loss:6.6095 train_time:553ms step_avg:78.98ms
+step:8/20000 train_loss:6.5538 train_time:625ms step_avg:78.10ms
+step:9/20000 train_loss:6.2871 train_time:696ms step_avg:77.37ms
+step:10/20000 train_loss:5.9896 train_time:769ms step_avg:76.89ms
+step:500/20000 train_loss:2.4911 train_time:36631ms step_avg:73.26ms
+step:1000/20000 train_loss:2.3557 train_time:73625ms step_avg:73.63ms
+step:1500/20000 train_loss:2.2982 train_time:110593ms step_avg:73.73ms
+step:2000/20000 train_loss:2.1379 train_time:147532ms step_avg:73.77ms
+step:2500/20000 train_loss:2.2417 train_time:184483ms step_avg:73.79ms
+step:3000/20000 train_loss:2.2397 train_time:221484ms step_avg:73.83ms
+step:3500/20000 train_loss:2.2637 train_time:258668ms step_avg:73.91ms
+step:4000/20000 train_loss:2.0704 train_time:295555ms step_avg:73.89ms
+step:4000/20000 val_loss:2.1633 val_bpb:1.2812 train_time:295556ms step_avg:73.89ms
+step:4500/20000 train_loss:2.2370 train_time:332502ms step_avg:73.89ms
+step:5000/20000 train_loss:2.2311 train_time:369482ms step_avg:73.90ms
+step:5500/20000 train_loss:2.1595 train_time:406438ms step_avg:73.90ms
+step:6000/20000 train_loss:2.0883 train_time:443405ms step_avg:73.90ms
+step:6500/20000 train_loss:2.2447 train_time:480355ms step_avg:73.90ms
+step:7000/20000 train_loss:1.9496 train_time:517279ms step_avg:73.90ms
+step:7500/20000 train_loss:2.0458 train_time:554110ms step_avg:73.88ms
+swa:start step:7750
+step:8000/20000 train_loss:1.9812 train_time:591209ms step_avg:73.90ms
+step:8000/20000 val_loss:2.0294 val_bpb:1.2019 train_time:591225ms step_avg:73.90ms
+step:8119/20000 val_loss:2.0241 val_bpb:1.1988 train_time:600073ms step_avg:73.91ms
+stopping_early: wallclock_cap train_time:600073ms step:8119/20000
+peak memory allocated: 17281 MiB reserved: 17850 MiB
+gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6
+ema:SKIPPED (SKIP_EMA=1) — using live model weights
+DIAGNOSTIC post_ema val_loss:2.0241 val_bpb:1.1988 eval_time:1677ms
+Serialized model: 55905148 bytes
+Code size: 179689 bytes
+Serialized model int6+zstd: 9182380 bytes
+Total submission size int6+zstd: 9362069 bytes
+Total submission size int8+zlib: 9362069 bytes
+final_int6_roundtrip val_loss:2.0457 val_bpb:1.2116 eval_time:3629ms
+final_int6_roundtrip_exact val_loss:2.04567239 val_bpb:1.21156242
+final_int6_sliding_window val_loss:2.0052 val_bpb:1.1876 stride:64 eval_time:59448ms
+final_int6_sliding_window_exact val_loss:2.00523518 val_bpb:1.18761637
+final_int8_zlib_roundtrip_exact val_loss:2.00523518 val_bpb:1.18761637

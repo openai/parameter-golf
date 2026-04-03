@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# Single-H100 step-based signal run.
+# Arms: baseline -> turbomuon -> engramlite -> combo
+
+PROFILE=smoke \
+TORCHRUN_BIN="${TORCHRUN_BIN:-torchrun}" \
+NPROC="${NPROC:-1}" \
+SEEDS="${SEEDS:-444}" \
+ITERATIONS="${ITERATIONS:-2000}" \
+WARMDOWN_ITERS="${WARMDOWN_ITERS:-0}" \
+TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-131072}" \
+TRAIN_SEQ_LEN="${TRAIN_SEQ_LEN:-2048}" \
+EVAL_SEQ_LEN="${EVAL_SEQ_LEN:-2048}" \
+VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-131072}" \
+VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}" \
+MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-0}" \
+SKIP_FINAL_EVAL="${SKIP_FINAL_EVAL:-1}" \
+POST_EMA_DIAGNOSTIC="${POST_EMA_DIAGNOSTIC:-1}" \
+COMPILE_ENABLED="${COMPILE_ENABLED:-0}" \
+"${SCRIPT_DIR}/run_ab_matrix.sh"

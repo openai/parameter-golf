@@ -1,0 +1,14 @@
+/home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/deps/thiserror-15d3d6e1b0b49768.d: /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/build/thiserror-82d569df4661512f/out/private.rs
+
+/home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/deps/libthiserror-15d3d6e1b0b49768.rlib: /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/build/thiserror-82d569df4661512f/out/private.rs
+
+/home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/deps/libthiserror-15d3d6e1b0b49768.rmeta: /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/build/thiserror-82d569df4661512f/out/private.rs
+
+/home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/home/frosty40/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/build/thiserror-82d569df4661512f/out/private.rs:
+
+# env-dep:OUT_DIR=/home/frosty40/parameter-golf-lab/Nitrust/rust/target/debug/build/thiserror-82d569df4661512f/out
