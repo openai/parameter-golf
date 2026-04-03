@@ -1,0 +1,8 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "fast_ngram"
+version = "0.1.0"
+requires-python = ">=3.8"

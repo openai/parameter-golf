@@ -1,0 +1,4 @@
+sp4608 v2 (N_INT6=66, QK_GAIN=5.0) - 8-GPU n-gram eval
+val_bpb = 1.09700744
+Tilted: 25.6% | Hits: 53.5%
+Loop: 50.1s | Wall: 87.6s

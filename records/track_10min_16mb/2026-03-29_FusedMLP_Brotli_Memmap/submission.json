@@ -1,0 +1,10 @@
+{
+  "name": "Fused MLP (Triton+CUTLASS EVT) + SP4608 + Fast Causal N-Gram Tilt",
+  "author": "Abay Bektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-04-02",
+  "val_loss": 2.57808401,
+  "val_bpb": 1.09623179,
+  "bytes_total": 15790122,
+  "blurb": "SP4608 vocab (the gap nobody explored: +2.2% bytes/token, -0.020 BPB), fused Triton TMA + CUTLASS EVT MLP kernels, MLP 3.5x, all-int6 GPTQ (66 layers, AR self-gen), QK_GAIN=5.0, fast causal n-gram tilt, Brotli-11. 3-seed mean (42/314/1337): 1.0962 BPB."
+}
