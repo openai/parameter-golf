@@ -22,7 +22,7 @@ volume = modal.Volume.from_name("parameter-golf-data", create_if_missing=True)
 @app.function(
     image=image,
     gpu="H100",
-    timeout=900,
+    timeout=3600,
     volumes={"/data": volume},
 )
 def train():
@@ -50,7 +50,7 @@ def train():
     # Run training
     result = subprocess.run([
         "torchrun", "--standalone", "--nproc_per_node=1",
-        "records/track_10min_16mb/2026-03-25_16L_XSAall_GPTQ_EMA_PartialRoPE_TTT/train_gpt.py"
+        "records/track_10min_16mb/2026-04-03_11L_XSAall_SelfGenGPTQ_ScoreFirstTTT/train_gpt.py"
     ], capture_output=False, env={**os.environ, "HOME": "/root"})
 
     return result.returncode
