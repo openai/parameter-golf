@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", default="DeepFloor")
     parser.add_argument("--author", default="Kenneth Malloy")
     parser.add_argument("--github-id", default="KenMalloy")
-    parser.add_argument("--track", default="non-record-16mb")
+    parser.add_argument("--track", default="non_record_16mb")
     parser.add_argument(
         "--blurb",
         default=(

@@ -1,6 +1,25 @@
 # DeepFloor
 
-This record folder is the execution surface for the first DeepFloor build-out.
+**Non-record submission candidate.**
+
+DeepFloor is a compact recurrent multi-view language model that explores a different part of the Parameter Golf design space: repeated QKV+O recurrent blocks, either periodic floor attention or a fused recurrent accumulator, plus an explicit stability stack for long tied-depth execution.
+
+The current checked-in candidate is the small-box `fused_d32_v2` run on real `enwik8`:
+
+- `val_bpb = 7.9221`
+- `test_bpb = 8.1786`
+- `artifact_bytes = 8448`
+- `bytes_total = 56477`
+
+This is not a record claim. The point of the submission is to package a real, reproducible DeepFloor architecture and its execution surface as a `track_non_record_16mb` contribution.
+
+Key checked-in artifacts:
+
+- [submission.json](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/submission.json)
+- [candidate_result_seed1337.json](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/candidate_result_seed1337.json)
+- [train_seed1337.log](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/train_seed1337.log)
+- [RESULTS.md](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/RESULTS.md)
+- [PR_BODY.md](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/PR_BODY.md)
 
 Workflow:
 
@@ -55,7 +74,15 @@ python3 ./train_gpt.py
 ./.venv/bin/python ./build_submission_json.py --result-json ./train_result.json
 ```
 
-8. Manage pod lifecycles with the lease-aware RunPod helpers:
+8. Run the current checked-in submission candidate and produce `train_seed1337.log`, `candidate_result_seed1337.json`, and `submission.json`:
+
+```bash
+ENWIK8_PATH=/workspace/data/enwik8 \
+PYTHON_BIN=python3 \
+./run_submission_candidate.sh
+```
+
+9. Manage pod lifecycles with the lease-aware RunPod helpers:
 
 ```bash
 ./runpod_create_smallbox.sh

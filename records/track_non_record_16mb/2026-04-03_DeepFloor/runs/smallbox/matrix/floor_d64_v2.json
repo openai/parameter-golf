@@ -1,0 +1,108 @@
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/smallbox/matrix/floor_d64_v2.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 1,
+    "eval_batches": 1,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 64,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "floor",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 8,
+    "eval_recurrence_steps": 12,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 4,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 24576,
+    "estimated_mb": 0.0234375,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 1,
+    "elapsed_seconds": 0.5306450059870258,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.575345516204834,
+        "ce_loss": 5.5546875,
+        "bpb": 8.013720109937914,
+        "grad_norm": 2.8217079639434814,
+        "jacobian_proxy_loss": 2.0657918453216553,
+        "jacobian_proxy_gain": 2.432286262512207,
+        "jacobian_probe_step": 7,
+        "floor_counts": [
+          4,
+          4
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      }
+    ],
+    "final_loss": 5.575345516204834
+  },
+  "val": {
+    "loss": 5.775390625,
+    "bpb": 8.33212741388411,
+    "tokens": 32.0
+  },
+  "test": {
+    "loss": 5.6298828125,
+    "bpb": 8.12220401437976,
+    "tokens": 32.0
+  }
+}
