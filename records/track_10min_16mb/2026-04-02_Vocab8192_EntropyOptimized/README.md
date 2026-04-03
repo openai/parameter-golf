@@ -370,7 +370,7 @@ This work was conceived, developed, and validated in a compressed timeline:
 | EngramLite | Apr 2 | Gated trigram testing — worse than BigramHash at V=8192 collision rates |
 | Quant Discovery | Apr 2 | Discovered embedding always at int8, mlp/attn at int6 — corrected narrative |
 | Int7 Experiment | Apr 2 | v4: int7 mlp/attn achieves 1.1156 BPB (best ever, 18.51 MB — doesn't fit) |
-| Bank QAT | Apr 2, 19:15–19:55 | v6/v7: STE noise for bank weights — neutral at int6, QAT-GPTQ mismatch |
+| Bank QAT | Apr 2 | v6/v7: STE noise for bank weights — neutral at int6, QAT-GPTQ mismatch |
 | v8 Code Cleanup | Apr 2 | Removed dead code (MTP, XSA, VE, int8 pipeline), added shard preloading, coprime stride |
 | v8 Validation | Apr 2 | v8 run revealed catastrophic GPTQ failure (val_loss 11.75 post-quant) and 1.2 nat training regression |
 | Muon Cache Bug | Apr 2 | Root cause identified: NS5 warm-start cache introduced in v8 caused bf16 precision drift compounding over 7,500 steps. Steps 0-2 identical to v2b, divergence at step 3 growing to +1.21 nats by step 7500 |
