@@ -3,15 +3,8 @@ from __future__ import annotations
 
 import json
 import os
-import sys
-from pathlib import Path
 
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from spectral_flood_walk_v3 import V3Config, train_and_evaluate  # noqa: E402
+from deepfloor_snapshot import V3Config, train_and_evaluate
 
 
 def env_int(name: str, default: int) -> int:

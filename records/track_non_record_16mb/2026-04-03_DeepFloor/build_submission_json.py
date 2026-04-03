@@ -8,7 +8,6 @@ from pathlib import Path
 
 
 RECORD_DIR = Path(__file__).resolve().parent
-REPO_ROOT = RECORD_DIR.parents[2]
 DEFAULT_RESULT_JSON = RECORD_DIR / "train_result.json"
 DEFAULT_OUTPUT_JSON = RECORD_DIR / "submission.json"
 
@@ -33,7 +32,7 @@ def parse_args() -> argparse.Namespace:
         nargs="*",
         default=[
             str(RECORD_DIR / "train_gpt.py"),
-            str(REPO_ROOT / "spectral_flood_walk_v3.py"),
+            str(RECORD_DIR / "deepfloor_snapshot.py"),
         ],
         help="Files whose bytes should count toward the honest code budget for this snapshot.",
     )

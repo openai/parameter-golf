@@ -38,6 +38,7 @@ Workflow:
 6. Run the submission-shaped DeepFloor entrypoint from this folder:
 
 ```bash
+./.venv/bin/python ./freeze_submission_snapshot.py
 ENWIK8_PATH=/workspace/data/enwik8 \
 OUTPUT_JSON=./train_result.json \
 DEVICE=cuda \
@@ -49,6 +50,7 @@ python3 ./train_gpt.py
 7. Run the submission preflight and build `submission.json` from a real result:
 
 ```bash
+./.venv/bin/python ./freeze_submission_snapshot.py
 ./run_submission_preflight.sh
 ./.venv/bin/python ./build_submission_json.py --result-json ./train_result.json
 ```
@@ -75,9 +77,10 @@ python3 ./train_gpt.py
 Notes:
 - Local scripts default to the repo `.venv`.
 - If no `ENWIK8_PATH` is set, the suite runner generates a tiny byte fixture for smoke coverage.
-- `train_gpt.py` is the submission-shaped entrypoint for this record folder. Right now it delegates to the checked-in DeepFloor implementation at the repo root while we finish freezing the final submission snapshot.
+- `freeze_submission_snapshot.py` vendors the current repo-root DeepFloor implementation into [deepfloor_snapshot.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/deepfloor_snapshot.py) so the submission entrypoint can run from this record folder without importing repo-root code.
+- `train_gpt.py` imports the frozen [deepfloor_snapshot.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/deepfloor_snapshot.py), not the mutable repo root.
 - On this checkout, prefer `./.venv/bin/python ./train_gpt.py` for local verification; the `python3` example is aimed at the prepared pod image where the dependencies are already present.
-- `build_submission_json.py` currently counts both [train_gpt.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/train_gpt.py) and the repo-root [spectral_flood_walk_v3.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/spectral_flood_walk_v3.py) in `bytes_code`, which is the honest accounting while the record entrypoint still delegates to the repo snapshot.
+- `build_submission_json.py` counts both [train_gpt.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/train_gpt.py) and the frozen [deepfloor_snapshot.py](/Users/kennethmalloy/Local%20Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/deepfloor_snapshot.py) in `bytes_code`.
 - `run_submission_preflight.sh` is the cheapest end-to-end gate for the record folder itself: compile, tiny run, metadata build, and `16,000,000`-byte cap check.
 - The small-box script is intentionally conservative: it runs the same unit and smoke matrix gates before any longer end-to-end work.
 - The fullbox script follows the same pattern, then fans out one `deepfloor-recipe-evolution` job per listed GPU using profile/seed pairs and writes per-job logs under `runs/fullbox/launch_logs`.

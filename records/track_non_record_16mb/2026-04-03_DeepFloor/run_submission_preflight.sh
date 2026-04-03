@@ -31,6 +31,8 @@ echo "[preflight] result_json=${RESULT_JSON}"
 echo "[preflight] submission_json=${SUBMISSION_JSON}"
 
 "${PYTHON_BIN}" -m py_compile \
+  "${RECORD_DIR}/freeze_submission_snapshot.py" \
+  "${RECORD_DIR}/deepfloor_snapshot.py" \
   "${RECORD_DIR}/train_gpt.py" \
   "${RECORD_DIR}/build_submission_json.py"
 
