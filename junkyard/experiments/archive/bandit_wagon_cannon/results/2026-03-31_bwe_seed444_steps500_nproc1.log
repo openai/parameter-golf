@@ -1,0 +1,46 @@
+BWE cannon ablation run record
+date=2026-03-31
+seed=444
+steps=500
+nproc=1
+
+references:
+  BWCS-02 pyramid-512: 1.44724192
+  BWCD-02 pyramid+9,1,1: 1.43531057
+
+arm=BWE-00
+label=control (no cannon)
+step_avg_ms=663.15
+raw_bpb=1.4359
+int6_sw_bpb=1.44165584
+quant_gap=0.0058
+vs_bwcd02=+0.00635
+
+arm=BWE-01
+label=scalar cannon (3 params)
+step_avg_ms=745.65
+raw_bpb=1.4414
+int6_sw_bpb=1.44336814
+quant_gap=0.0020
+vs_bwcd02=+0.00806
+
+arm=BWE-02
+label=channel cannon (1.5K params)
+step_avg_ms=608.84
+raw_bpb=1.4366
+int6_sw_bpb=1.43589764
+quant_gap=-0.0007
+vs_bwcd02=+0.00059
+
+arm=BWE-03
+label=rmsnorm cannon (1.5K params)
+step_avg_ms=554.28
+raw_bpb=1.4531
+int6_sw_bpb=1.46352025
+quant_gap=0.0104
+vs_bwcd02=+0.02821
+
+summary:
+  best_arm=BWE-02
+  winner_vs_bwcd02=false
+  decision=cannon_bust_on_this_proxy
