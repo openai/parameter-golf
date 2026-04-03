@@ -91,6 +91,12 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
+    # Mamba hybrid configuration
+    mamba_layers = os.environ.get("MAMBA_LAYERS", "")  # comma-separated layer indices, empty = pure attention
+    mamba_d_state = int(os.environ.get("MAMBA_D_STATE", 32))
+    mamba_d_conv = int(os.environ.get("MAMBA_D_CONV", 4))
+    mamba_expand = float(os.environ.get("MAMBA_EXPAND", 1.5))
+    mamba_matrix_lr = float(os.environ.get("MAMBA_MATRIX_LR", 0.015))
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
