@@ -1911,7 +1911,7 @@ def eval_val_sliding(
                 ctx_mask = torch.zeros(bsz, seq_len, dtype=torch.bool, device=device)
                 for i, wl in enumerate(wlens):
                     ctx_mask[i, :max(wl - stride, 0)] = True
-                delta = torch.zeros(bsz, 1, hidden.size(-1), device=device,
+                delta = torch.zeros(1, 1, hidden.size(-1), device=device,
                                     dtype=hidden.dtype, requires_grad=True)
                 opt = torch.optim.AdamW([delta], lr=slot_lr, weight_decay=1e-8, eps=1e-5)
                 with torch.enable_grad():
