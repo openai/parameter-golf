@@ -5,11 +5,11 @@
 
 **OpenAI Model Craft Challenge: Parameter Golf** is a challenge to train the best language model that fits in a 16MB artifact and trains in under 10 minutes on 8xH100s, evaluated by compression on the FineWeb validation set (tokenizer-agnostic, bits per byte).
 
-This challenge is heavily inspired by the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where participants compete to train a model that reaches 3.28 FineWeb validation loss as quickly as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people toward unique architectures (test-time compute, aggressive parameter tying, depth recurrence, low-rank training, ...), compression schemes (low precision, QAT, bitnets, novel tokenizers, ...), and other creative submissions (test-time training, long context, megakernels ...). 
+This challenge is heavily inspired by the [NanoGPT Speedrunning](https://github.com/KellerJordan/modded-nanogpt) challenge, where participants compete to train a model that reaches 3.28 FineWeb validation loss as quickly as possible. We're excited to see how optimizing for a parameter-constrained setting pushes people toward unique architectures (test-time compute, aggressive parameter tying, depth recurrence, low-rank training, ...), compression schemes (low precision, QAT, bitnets, novel tokenizers, ...), and other creative submissions (test-time training, long context, megakernels ...).
 
 If you're familiar with [neural scaling laws](https://arxiv.org/abs/2001.08361), you can consider this challenge a form of L(N) optimization, where the objective is to optimize the lowest loss given a fixed number of parameters (N) unconstrained by data, compute, steps, or architecture. Challenges like the [NanoGPT Speedrun](https://github.com/KellerJordan/modded-nanogpt), which optimizes for a form of L(T) (~lowest time given constrained loss) or the [NanoGPT Slowrun](https://github.com/qlabs-eng/slowrun), which optimizes for L(D) (lowest loss given constrained dataset size), can be thought of as equivalent challenges in this family.
 
-Ideally, we'd allow for submissions to use arbitrary computational resources. But in order to make the challenge not inaccessibly expensive, we're limiting *leaderboard submissions* to 10 minutes on 8xH100s. However, we'd still love to see submissions that don't meet the compute limitation requirements in our 'Non-record Submissions' section: We're excited to see people push the infinite frontier of parameter limited performance as well.
+Ideally, we'd allow for submissions to use arbitrary computational resources. But in order to make the challenge not inaccessibly expensive, we're limiting _leaderboard submissions_ to 10 minutes on 8xH100s. However, we'd still love to see submissions that don't meet the compute limitation requirements in our 'Non-record Submissions' section: We're excited to see people push the infinite frontier of parameter limited performance as well.
 
 We also know compute is expensive, so **OpenAI is sponsoring $1,000,000 in compute credits** to help people get started training their models. To request a compute grant, use this form: [Request a Compute Grant](https://openai.com/index/parameter-golf/#credit-form).
 When requesting compute, please make sure you choose the appropriate level, write sufficient justification, and **submit with an email tied to a OpenAI / ChatGPT account**.
@@ -22,42 +22,42 @@ Many researchers at OpenAI first distinguished themselves through elite mathemat
 
 In June, we plan to hire a small cohort of early-career researchers, targeting current undergraduate students and recent graduates, including Olympiad medalists and elite competitors. For exceptional participants, the challenge may also serve as a way to stand out to OpenAI researchers and recruiters.
 
-The challenge runs from March 18th to April 30th. 
+The challenge runs from March 18th to April 30th.
 
 Happy training!
 
 ## Leaderboard
 
-| Run | Score | Author | Summary | Date | Info |
-|-----|------:|--------|---------|------|------|
-| 11L AR Self-Gen GPTQ + XSA | 1.1147 | abaybektursun | On PR #1019: Self-Generated GPTQ Calibration Data + all-layer XSA on the PR #549 stack | 2026-03-25 | [info](records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md) |
-| LeakyReLU² + Legal Score-First TTT + Parallel Muon | 1.1194 | abaybektursun | On PR #549: LeakyReLU(0.5)^2 + TTT + Parallel Muon on the PR #414 stack | 2026-03-23 | [info](records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md) |
-| 11L EMA + GPTQ-lite + warmdown3500 | 1.1228 | signalrush | On PR #374: GPTQ-lite clip search + EMA, plus warmdown3500 and QAT@0.15 | 2026-03-22 | [info](records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md) |
-| 11L Partial RoPE + LN Scale + EMA + XSA4 | 1.1248 | jfprincz | On PR #287: Partial RoPE (16/64) + layerwise LN scale | 2026-03-21 | [info](records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md) |
-| 11L XSA4 + EMA + Int6 MLP3x | 1.1271 | jfprincz | On PR #198: XSA on the last 4 layers + EMA replacing SWA | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271/README.md) |
-| 11L Efficient Partial XSA | 1.1307 | unnir | On PR #198: Efficient Partial XSA on the deepest 3 layers | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_11L_EfficientPartialXSA_FA3_SWA120/README.md) |
-| 10L Int5-MLP + BigramHash(10240) | 1.1428 | thwu1 | 10 layers, mixed int5/int6 quantization, BigramHash(10240), SWA(0.4), WD=0.04 | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_10L_Int5MLP_MuonWD04_SWA50/README.md) |
-| Int6 MLP3x + SmearGate + BigramHash | 1.1458 | Raahil Shah | 3x MLP + SmearGate + BigramHash + OrthoInit + Muon WD + SWA | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/README.md) |
-| 11L MLP3x + Int6 QAT | 1.1502 | aruniyer | 11 layers, 3x MLP, int6 QAT, zstd-22, WD=0.04, sliding eval | 2026-03-20 | [info](records/track_10min_16mb/2026-03-19_MLP3x_QAT_Int6_SlidingWindow/README.md) |
-| SmearGate + OrthoInit + Muon WD | 1.1556 | aquariouseworkman | SmearGate + BigramHash + 3x MLP + int6 STE QAT + sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_smeargate_orthoinit_muonwd/README.md) |
-| Ternary Quantization | 1.1570 | Ciprian-Florin Ifrim | 73.7M params quantized to 1 0 -1 + misc arch changes | 2026-03-24 | [info](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md) |
-| 10L Int6 QAT + Zstd MLP2.6x | 1.1586 | yahya010 | 10 layers, int6 QAT + zstd-22, MLP 1344, Muon 0.99, sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR/README.md) |
-| Mixed Quant + Sliding Window Eval | 1.1630 | aquariouseworkman | Int6 block weights + int8 embeddings + 3x MLP + sliding eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/README.md) |
-| Muon WD + 10 layer | 1.1748 | notapplica | Includes prev. wins + Spectral embed init + resid mix | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/README.md) |
-| Sliding Window Eval | 1.1925 | Matthew Li | Sliding window evaluation at stride=64, increasing context for eval | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_SlidingWindowEval/README.md) |
-| Lora TTT | 1.1928 | samacqua | Test-time training with LORAs | 2026-03-19 | [info](records/track_10min_16mb/2026-03-17_LoRA_TTT/README.md) |
-| 4k seq length| 1.2014 | Spokane Way | 4k seq length + better hypers | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md) |
-| 2048 seq length | 1.206 | Spokane Way | 2048 seq length (train + val) | 2026-03-18 | [info](records/track_10min_16mb/2026-03-18_LongContextSeq2048/README.md) |
-| int6 mixed precision | 1.2147 | Nan Liu | 10 layers, mixed int8/int6 | 2026-03-18 | [info](records/track_10min_16mb/2026-03-19_10L_MixedPrecision/README.md) |
-| fp16 Embed | 1.2197 | Renier Velazco | FP16 Tied Embedding + LR/Warmdown Tuning | 2026-03-18 | [info](records/track_10min_16mb/2026-03-18_FP16Embed_WD3600/README.md) |
-| Naive Baseline | 1.2244 | Baseline | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md) |
+| Run                                                |  Score | Author               | Summary                                                                                | Date       | Info                                                                                                |
+| -------------------------------------------------- | -----: | -------------------- | -------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| 11L AR Self-Gen GPTQ + XSA                         | 1.1147 | abaybektursun        | On PR #1019: Self-Generated GPTQ Calibration Data + all-layer XSA on the PR #549 stack | 2026-03-25 | [info](records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md)              |
+| LeakyReLU² + Legal Score-First TTT + Parallel Muon | 1.1194 | abaybektursun        | On PR #549: LeakyReLU(0.5)^2 + TTT + Parallel Muon on the PR #414 stack                | 2026-03-23 | [info](records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md)               |
+| 11L EMA + GPTQ-lite + warmdown3500                 | 1.1228 | signalrush           | On PR #374: GPTQ-lite clip search + EMA, plus warmdown3500 and QAT@0.15                | 2026-03-22 | [info](records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md)  |
+| 11L Partial RoPE + LN Scale + EMA + XSA4           | 1.1248 | jfprincz             | On PR #287: Partial RoPE (16/64) + layerwise LN scale                                  | 2026-03-21 | [info](records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md)       |
+| 11L XSA4 + EMA + Int6 MLP3x                        | 1.1271 | jfprincz             | On PR #198: XSA on the last 4 layers + EMA replacing SWA                               | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271/README.md)           |
+| 11L Efficient Partial XSA                          | 1.1307 | unnir                | On PR #198: Efficient Partial XSA on the deepest 3 layers                              | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_11L_EfficientPartialXSA_FA3_SWA120/README.md)            |
+| 10L Int5-MLP + BigramHash(10240)                   | 1.1428 | thwu1                | 10 layers, mixed int5/int6 quantization, BigramHash(10240), SWA(0.4), WD=0.04          | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_10L_Int5MLP_MuonWD04_SWA50/README.md)                    |
+| Int6 MLP3x + SmearGate + BigramHash                | 1.1458 | Raahil Shah          | 3x MLP + SmearGate + BigramHash + OrthoInit + Muon WD + SWA                            | 2026-03-20 | [info](records/track_10min_16mb/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/README.md)    |
+| 11L MLP3x + Int6 QAT                               | 1.1502 | aruniyer             | 11 layers, 3x MLP, int6 QAT, zstd-22, WD=0.04, sliding eval                            | 2026-03-20 | [info](records/track_10min_16mb/2026-03-19_MLP3x_QAT_Int6_SlidingWindow/README.md)                  |
+| SmearGate + OrthoInit + Muon WD                    | 1.1556 | aquariouseworkman    | SmearGate + BigramHash + 3x MLP + int6 STE QAT + sliding eval                          | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_smeargate_orthoinit_muonwd/README.md)                    |
+| Ternary Quantization                               | 1.1570 | Ciprian-Florin Ifrim | 73.7M params quantized to 1 0 -1 + misc arch changes                                   | 2026-03-24 | [info](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md) |
+| 10L Int6 QAT + Zstd MLP2.6x                        | 1.1586 | yahya010             | 10 layers, int6 QAT + zstd-22, MLP 1344, Muon 0.99, sliding eval                       | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR/README.md)                       |
+| Mixed Quant + Sliding Window Eval                  | 1.1630 | aquariouseworkman    | Int6 block weights + int8 embeddings + 3x MLP + sliding eval                           | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/README.md)             |
+| Muon WD + 10 layer                                 | 1.1748 | notapplica           | Includes prev. wins + Spectral embed init + resid mix                                  | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/README.md) |
+| Sliding Window Eval                                | 1.1925 | Matthew Li           | Sliding window evaluation at stride=64, increasing context for eval                    | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_SlidingWindowEval/README.md)                             |
+| Lora TTT                                           | 1.1928 | samacqua             | Test-time training with LORAs                                                          | 2026-03-19 | [info](records/track_10min_16mb/2026-03-17_LoRA_TTT/README.md)                                      |
+| 4k seq length                                      | 1.2014 | Spokane Way          | 4k seq length + better hypers                                                          | 2026-03-19 | [info](records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)                            |
+| 2048 seq length                                    |  1.206 | Spokane Way          | 2048 seq length (train + val)                                                          | 2026-03-18 | [info](records/track_10min_16mb/2026-03-18_LongContextSeq2048/README.md)                            |
+| int6 mixed precision                               | 1.2147 | Nan Liu              | 10 layers, mixed int8/int6                                                             | 2026-03-18 | [info](records/track_10min_16mb/2026-03-19_10L_MixedPrecision/README.md)                            |
+| fp16 Embed                                         | 1.2197 | Renier Velazco       | FP16 Tied Embedding + LR/Warmdown Tuning                                               | 2026-03-18 | [info](records/track_10min_16mb/2026-03-18_FP16Embed_WD3600/README.md)                              |
+| Naive Baseline                                     | 1.2244 | Baseline             | 9layer 512dim 1024vocab TiedEmbeddings 4 KV heads                                      | 2026-03-18 | [info](records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md)                                 |
 
 #### Unlimited Compute Leaderboard & Non-record Submissions
 
-| Run | Score | Author | Summary | Date | Info |
-|-----|------:|--------|---------|------|------|
+| Run                |  Score | Author               | Summary                                                           | Date       | Info                                                                                                                      |
+| ------------------ | -----: | -------------------- | ----------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 1 Bit Quantization | 1.1239 | Ciprian-Florin Ifrim | 106M params quantized to 1 bit + misc arch changes + 2hr training | 2026-03-24 | [info](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md) |
-| 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
+| 4-Hour Baseline    | 1.2074 | Will DePue           | Testing unlimited compute, 4 hours on 8xH100                      | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md)                      |
 
 #### Requests for PRs
 
@@ -72,7 +72,7 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 - [ ] H-net tokenization
 - [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
 - [ ] Megakernels
-- [ ] State-space models, E2E TTT, super long context for evaluation or training 
+- [ ] State-space models, E2E TTT, super long context for evaluation or training
 - [ ] Learning adapters on random linear maps
 
 ## Getting Started
@@ -120,7 +120,7 @@ Validation always runs on the full `fineweb_val_*` split, which is the fixed fir
 
 Once you're happy with your local tests, or you want more compute, switch to a remote CUDA machine.
 
-You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.  
+You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.
 
 #### Launching a 1xH100 Pod
 
@@ -144,7 +144,7 @@ Download our cached version of FineWeb. We'll use the 1024-token vocabulary for 
 python3 data/cached_challenge_fineweb.py --variant sp1024
 ```
 
-This defaults to the full validation split plus 80 training shards (8B tokens). If you only want a smaller subset while iterating, pass `--train-shards N`, for example `--train-shards 1`.
+This defaults to the full validation split plus 80 training shards (8B tokens). If you only want a smaller subset while iterating, pass `--train-shards N` on the same command, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
 
 Launch your first training run. Note that we're passing `nproc_per_node=1` because we're running on a single H100 GPU in this case.
 
@@ -194,7 +194,6 @@ Since all submissions are public, we're accepting record submissions chronologic
 
 Yes, you're free to import any package or library you want, so long as it does not unjustly violate the rules on evaluation, compute, training time, code size or otherwise. Just include a requirements.txt in your records folder and mention setup instructions in your README.md. Since you don't pay for bits imported in Python libraries, limitations clearly apply: You can't sneak in extra compute, capabilities, or massively increase effective code size with custom libraries, but importing FlashAttention, etc. is completely fine.
 
-
 ## Submission Process
 
 New SOTA records must fulfill the following criteria:
@@ -228,7 +227,6 @@ Non-record submissions should be made in the same fashion as SOTA records, as de
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but the best models should stay in the `/records` folder.
 
 ## Support
-
 
 Join the [OpenAI Discord server](https://discord.com/invite/openai) and visit the Parameter Golf channels (#parameter-golf-discussions, #parameter-golf-announcements) and ask questions.
 
