@@ -1,0 +1,90 @@
+{
+  "config": {
+    "enwik8_path": "/var/folders/4v/kd0bngpd6ng1hdxz4b0nj9mm0000gn/T/deepfloor-fixture-2a68xkuc/enwik8",
+    "output_json": "/Users/kennethmalloy/Local Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/matrix/fused_d64_v2.json",
+    "device": "cpu",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 2,
+    "eval_batches": 2,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 64,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "fused",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "train_recurrence_steps": 8,
+    "eval_recurrence_steps": 12,
+    "train_floor_interval": 8,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "quantization": "ternary",
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0
+  },
+  "dataset": {
+    "enwik8_path": "/var/folders/4v/kd0bngpd6ng1hdxz4b0nj9mm0000gn/T/deepfloor-fixture-2a68xkuc/enwik8",
+    "train_tokens": 31129,
+    "val_tokens": 819,
+    "test_tokens": 820,
+    "raw_bytes": 32768,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 30720,
+    "estimated_mb": 0.029296875,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 2,
+    "elapsed_seconds": 0.05226829100865871,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.722792148590088,
+        "bpb": 8.256243852809217,
+        "grad_norm": 4.724139213562012,
+        "floor_counts": [
+          0,
+          0
+        ]
+      },
+      {
+        "step": 1,
+        "loss": 5.627125263214111,
+        "bpb": 8.118225711700001,
+        "grad_norm": 2.8879175186157227,
+        "floor_counts": [
+          0,
+          0
+        ]
+      }
+    ],
+    "final_loss": 5.627125263214111
+  },
+  "val": {
+    "loss": 5.7259862422943115,
+    "bpb": 8.260851955956435,
+    "tokens": 64.0
+  },
+  "test": {
+    "loss": 5.361454486846924,
+    "bpb": 7.734943800125939,
+    "tokens": 64.0
+  }
+}
