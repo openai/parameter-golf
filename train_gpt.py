@@ -732,6 +732,8 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -897,8 +899,12 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    bigram_params = list(base_model.bigram.parameters()) if base_model.bigram is not None else []
     optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        [
+            {"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr},
+            *([{"params": bigram_params, "lr": token_lr, "base_lr": token_lr}] if bigram_params else []),
+        ],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         fused=True,
