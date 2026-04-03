@@ -766,15 +766,23 @@ class MambaBlock(nn.Module):
     def _selective_scan(self, x: Tensor, dA: Tensor, dB: Tensor, C: Tensor, D: Tensor) -> Tensor:
         """Sequential selective scan fallback.
         h[t] = dA[t]*h[t-1] + dB[t]*x[t], y[t] = C[t]@h[t] + D*x[t]
+        Hidden state accumulated in float32 for numerical stability during bf16 training.
         """
         B_batch, L, d_inner = x.shape
-        h = torch.zeros(B_batch, d_inner, self.d_state, device=x.device, dtype=x.dtype)
+        orig_dtype = x.dtype
+        # Accumulate hidden state in fp32 for stability
+        h = torch.zeros(B_batch, d_inner, self.d_state, device=x.device, dtype=torch.float32)
+        dA = dA.float()
+        dB = dB.float()
+        x_f = x.float()
+        C_f = C.float()
+        D_f = D.float()
         ys = []
         for t in range(L):
-            h = dA[:, t] * h + dB[:, t] * x[:, t, :, None]
-            y_t = (h * C[:, t, None, :]).sum(-1) + D * x[:, t]
+            h = dA[:, t] * h + dB[:, t] * x_f[:, t, :, None]
+            y_t = (h * C_f[:, t, None, :]).sum(-1) + D_f * x_f[:, t]
             ys.append(y_t)
-        return torch.stack(ys, dim=1)
+        return torch.stack(ys, dim=1).to(orig_dtype)
 
 class BigramHashEmbedding(nn.Module):
     def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int, trigram: bool = False):
