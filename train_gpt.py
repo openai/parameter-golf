@@ -665,8 +665,7 @@ class BigramHashEmbedding(nn.Module):
         self.num_buckets = num_buckets
         self.table = nn.Embedding(num_buckets, dim)
         self.proj = CastedLinear(dim, model_dim, bias=False)
-        self.proj._zero_init = True
-        nn.init.normal_(self.table.weight, std=0.02)
+        nn.init.normal_(self.table.weight, std=0.005)
     def forward(self, input_ids: Tensor) -> Tensor:
         prev = F.pad(input_ids[:, :-1], (1, 0), value=0)
         buckets = (input_ids * 1009 + prev * 2003) % self.num_buckets
