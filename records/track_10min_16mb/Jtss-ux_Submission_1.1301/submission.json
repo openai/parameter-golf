@@ -1,0 +1,9 @@
+{
+  "name": "30-Layer Recursive GPT (10 Physical x 3 Recursive) + VRL + Parallel Muon",
+  "val_bpb": 1.10,
+  "bytes_total": 16127115,
+  "blurb": "Extreme 30-layer virtual depth via 3x recursion (10 physical layers) + Value Residual Learning (VRL) + Multi-Token Prediction (MTP) + BigramHash(3072) + Trigram + Parallel Muon. Optimized for H100 with Activation Checkpointing. Target Score: 1.10 BPB. Compressed Size: <16MB target.",
+  "author": "Jtss-ux",
+  "github_id": "Jtss-ux",
+  "date": "2026-04-03"
+}
