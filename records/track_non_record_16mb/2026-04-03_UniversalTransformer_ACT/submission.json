@@ -1,0 +1,11 @@
+{
+    "author": "Farcas Antonio Matei",
+    "github_id": "5en5e1",
+    "name": "Universal Transformer with ACT",
+    "blurb": "Depth-recurrent Universal Transformer with Adaptive Computation Time. 9 shared layers × 2 passes = 18 effective depth at ~15.8MB. Nearly matches baseline BPB with half the training steps, demonstrating recursion value under parameter constraints.",
+    "date": "2026-04-03T00:00:00Z",
+    "val_loss": 2.09527800,
+    "val_bpb": 1.24094165,
+    "bytes_total": 15792804,
+    "bytes_code": 49574
+}
