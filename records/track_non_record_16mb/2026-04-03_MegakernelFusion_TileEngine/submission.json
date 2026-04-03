@@ -1,0 +1,22 @@
+{
+  "author": "Adarsh Reddy Balanolla",
+  "github_id": "AR6420",
+  "name": "Full-Depth MLP Megakernel + Fused Attention Preprocessing",
+  "blurb": "Tile engine-inspired block-level Triton fusion: entire MLP forward pass runs in a single kernel where the 1536-dim intermediate is processed via tiled register accumulation and never materializes in HBM. Fused QK RMSNorm + RoPE + q_gain reduces attention preprocessing from 6+ to 2 kernel launches. 41% memory reduction. Based on PR #1019 (abaybektursun).",
+  "date": "2026-04-03",
+  "track": "non_record_16mb",
+  "val_loss": "PENDING_H100_RUN",
+  "val_bpb": "PENDING_H100_RUN",
+  "val_loss_std": "PENDING",
+  "val_bpb_std": "PENDING",
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": { "val_loss": "PENDING", "val_bpb": "PENDING", "artifact_bytes": "PENDING", "steps": "PENDING", "step_avg_ms": "PENDING" },
+    "42":   { "val_loss": "PENDING", "val_bpb": "PENDING", "artifact_bytes": "PENDING", "steps": "PENDING", "step_avg_ms": "PENDING" },
+    "2025": { "val_loss": "PENDING", "val_bpb": "PENDING", "artifact_bytes": "PENDING", "steps": "PENDING", "step_avg_ms": "PENDING" }
+  },
+  "base_submission_pr": 1019,
+  "approach": "Megakernel fusion with tiled register accumulation + attention preprocessing fusion",
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Full-depth MLP megakernel (RMSNorm+UpProj+LeakyReLU2+DownProj+Residual fused, 1536-dim intermediate in SRAM) + fused QK-norm+RoPE+gain + AR self-gen GPTQ + all PR #1019 components"
+}
