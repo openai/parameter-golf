@@ -1138,7 +1138,8 @@ def main() -> None:
   if isinstance(module, CastedLinear):
    module.float()
  restore_low_dim_params_to_fp32(base_model)
- compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+ torch._dynamo.config.cache_size_limit = 32
+ compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
  model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
  block_named_params = list(base_model.blocks.named_parameters())
  matrix_params = [
@@ -1442,7 +1443,8 @@ def main() -> None:
  eval_model.load_state_dict(deq_state, strict=True)
  if args.recur_layers:
   eval_model.recurrence_active = True
- compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+ torch._dynamo.config.cache_size_limit = 32
+ compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=False)
  torch.cuda.synchronize()
  t_qeval = time.perf_counter()
  q_val_loss, q_val_bpb = eval_val(
