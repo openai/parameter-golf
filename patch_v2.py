@@ -1,32 +1,8 @@
 #!/usr/bin/env python3
 """
-Raki V2 — Optimized Parameter Golf Patch
-==========================================
-Patches the official baseline train_gpt.py IN-PLACE.
-
-CRITICAL FIX from previous V2: INT8 quantization (NOT int6!)
-The old V2 used int6 (QUANT_MAX=31) which destroyed model quality:
-  - Pre-quant: 1.30 BPB → Post-quant: 1.78 BPB (CATASTROPHIC)
-Int8 keeps quality within ~0.02 BPB of pre-quant.
-With zstd-22 compression, int8 still fits well under 16MB.
-
-Techniques:
-  ORIGINAL (Raki):
-    - GPU-native Markov curriculum (no CPU transfer, ~0.1ms/step)
-    - Entropy-weighted loss scaling for harder batches
-
-  COMPETITION CONSENSUS (proven by top submissions):
-    1. 10 layers, 3x MLP (more capacity)
-    2. Muon WD=0.04, momentum 0.99 (better regularization)
-    3. Warmdown 3500, tuned LRs (better schedule)
-    4. EMA decay=0.997 (smoother weights, better quant)
-    5. Sliding window eval stride=64 (better BPB measurement)
-    6. INT8 quantization (NOT int6!) + zstd-22 compression
-    7. GPTQ-lite clip search (per-row optimal clipping)
-
-Size estimate (10L, 3xMLP, 24M params):
-  int8 payload: ~24MB → zstd-22: ~9MB → + code ~55KB = ~9MB total
-  Well under 16MB limit!
+Raki V2 — Çift Raki: Depth Recurrence + TrigramHash + Markov Curriculum
+6 blocks × 2 loops = 12 effective layers, half the parameters.
+INT8 + zstd-22 compression. Target: sub-1.18 BPB on 8xH100.
 
 Usage:
   python3 patch_v2.py
@@ -44,113 +20,82 @@ def patch(anchor, replacement, label):
     if anchor in code:
         code = code.replace(anchor, replacement, 1)
         changes += 1
-        print(f"  [{changes:2d}] OK: {label}")
+        print(f"  [{changes:2d}] {label}")
         return True
     else:
         print(f"  FAIL: {label}")
-        print(f"    anchor: {repr(anchor[:120])}...")
+        print(f"    anchor: {repr(anchor[:120])}")
         sys.exit(1)
 
-# ==============================================================
-# SECTION A: Auto-install zstandard
-# ==============================================================
+# A: Auto-install zstandard
 patch(
     'from __future__ import annotations',
     '''from __future__ import annotations
-
-# Raki V2: ensure zstandard is available for better compression
 try:
     import zstandard as _zstd_check  # noqa: F401
 except ImportError:
     import subprocess as _sp
     _sp.check_call([sys.executable, "-m", "pip", "install", "zstandard", "-q"])''',
-    "Auto-install zstandard"
+    "zstandard"
 )
 
-# ==============================================================
-# SECTION B: Hyperparameter tuning (competition consensus)
-# ==============================================================
-patch(
-    '    num_layers = int(os.environ.get("NUM_LAYERS", 9))',
-    '    num_layers = int(os.environ.get("NUM_LAYERS", 10))',
-    "NUM_LAYERS 9->10"
-)
-patch(
-    '    mlp_mult = int(os.environ.get("MLP_MULT", 2))',
-    '    mlp_mult = int(os.environ.get("MLP_MULT", 3))',
-    "MLP_MULT 2->3"
-)
-patch(
-    '    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))',
-    '    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))',
-    "WARMDOWN_ITERS 1200->3500"
-)
-patch(
-    '    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))',
-    '    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))',
-    "MUON_MOMENTUM 0.95->0.99"
-)
-patch(
-    '    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))',
-    '    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))',
-    "MUON_WARMUP_START 0.85->0.92"
-)
-patch(
-    '    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))',
-    '    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))',
-    "MUON_WARMUP_STEPS 500->1500"
-)
-patch(
-    '    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))',
-    '    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))',
-    "MATRIX_LR 0.04->0.025"
-)
-patch(
-    '    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))',
-    '    scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))',
-    "SCALAR_LR 0.04->0.025"
-)
-patch(
-    '    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))',
-    '    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))',
-    "TIED_EMBED_LR 0.05->0.035"
-)
+# B: Hyperparameters
+patch('    num_layers = int(os.environ.get("NUM_LAYERS", 9))',
+      '    num_layers = int(os.environ.get("NUM_LAYERS", 6))',
+      "NUM_LAYERS=6 (×2=12 effective)")
+patch('    mlp_mult = int(os.environ.get("MLP_MULT", 2))',
+      '    mlp_mult = int(os.environ.get("MLP_MULT", 3))',
+      "MLP_MULT=3")
+patch('    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))',
+      '    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))',
+      "WARMDOWN=3500")
+patch('    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))',
+      '    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))',
+      "MOMENTUM=0.99")
+patch('    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))',
+      '    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))',
+      "WARMUP_START=0.92")
+patch('    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))',
+      '    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))',
+      "WARMUP_STEPS=1500")
+patch('    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))',
+      '    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))',
+      "MATRIX_LR=0.025")
+patch('    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))',
+      '    scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))',
+      "SCALAR_LR=0.025")
+patch('    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))',
+      '    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))',
+      "EMBED_LR=0.035")
 
-# ==============================================================
-# SECTION C: Add GPU-Markov + EMA + config after DDP import
-# ==============================================================
+# C: Config + GPU-Markov + EMA
 patch(
     "from torch.nn.parallel import DistributedDataParallel as DDP",
     '''from torch.nn.parallel import DistributedDataParallel as DDP
 import zstandard as zstd
 
-# ---- Raki V2 config ----
 MUON_WD = float(os.environ.get("MUON_WD", "0.04"))
 EMA_DECAY = float(os.environ.get("EMA_DECAY", "0.997"))
 EMA_START_FRAC = float(os.environ.get("EMA_START_FRAC", "0.80"))
 EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "64"))
 RAKI_POWER = float(os.environ.get("RAKI_POWER", "0.15"))
-# GPTQ-lite: try multiple clip percentiles per row, pick best MSE
+RECURRENCE = int(os.environ.get("RECURRENCE", "2"))
+TRIGRAM_BUCKETS = int(os.environ.get("TRIGRAM_BUCKETS", "8192"))
 GPTQ_CLIP_SEARCH = bool(int(os.environ.get("GPTQ_CLIP_SEARCH", "1")))
 GPTQ_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
 
 
 class _GPUMarkov:
-    """GPU-native Markov curriculum — zero CPU transfer overhead.
-
-    Builds a bigram log-prob table from the first training shard,
-    keeps it on GPU as float16. batch_weight() runs entirely on GPU.
-    """
     def __init__(self, pattern: str, V: int, device: torch.device):
         files = sorted(glob.glob(pattern))
         hdr_bytes = 256 * np.dtype("<i4").itemsize
         hdr = np.fromfile(files[0], dtype="<i4", count=256)
-        ntok = min(int(hdr[2]), 2_000_000)  # cap for speed
+        ntok = min(int(hdr[2]), 2_000_000)
         tok = np.fromfile(files[0], dtype="<u2", count=ntok,
                           offset=hdr_bytes).astype(np.int32)
         counts = np.zeros((V, V), dtype=np.float64)
         np.add.at(counts, (tok[:-1], tok[1:]), 1.0)
-        counts += 0.01  # smoothing
+        counts += 0.01
         probs = counts / counts.sum(axis=1, keepdims=True)
         log_probs = np.log(probs).astype(np.float16)
         ent = -(probs * np.log(probs)).sum(axis=1).astype(np.float32)
@@ -158,24 +103,19 @@ class _GPUMarkov:
         ent_norm = ((ent - mn) / (mx - mn) if mx > mn
                     else np.full_like(ent, 0.5))
         self.log_probs = torch.tensor(log_probs, device=device)
-        self.ent_norm = torch.tensor(ent_norm, dtype=torch.float16,
-                                     device=device)
+        self.ent_norm = torch.tensor(ent_norm, dtype=torch.float16, device=device)
 
     @torch.no_grad()
     def batch_weight(self, x: Tensor, y: Tensor) -> float:
-        """Returns scalar weight >= 1.0. Runs entirely on GPU."""
         if RAKI_POWER <= 0:
             return 1.0
-        x_flat = x.reshape(-1)
-        y_flat = y.reshape(-1)
-        surp = -self.log_probs[x_flat, y_flat].float()
-        ent_w = self.ent_norm[x_flat].float()
+        surp = -self.log_probs[x.reshape(-1), y.reshape(-1)].float()
+        ent_w = self.ent_norm[x.reshape(-1)].float()
         score = (surp * ent_w).mean().item()
         return 1.0 + RAKI_POWER * min(score / 5.0, 1.0)
 
 
 class _EMA:
-    """Exponential moving average of model parameters."""
     def __init__(self):
         self.shadow: dict[str, Tensor] | None = None
         self.on = False
@@ -195,14 +135,11 @@ class _EMA:
         with torch.no_grad():
             for n, p in model.named_parameters():
                 if n in self.shadow:
-                    p.data.copy_(self.shadow[n])
-# ---- end Raki V2 config ----''',
-    "GPU-Markov + EMA + config"
+                    p.data.copy_(self.shadow[n])''',
+    "config + GPU-Markov + EMA"
 )
 
-# ==============================================================
-# SECTION D: Muon weight decay in optimizer step
-# ==============================================================
+# D: Muon weight decay
 patch(
     '''                p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -214,12 +151,58 @@ patch(
                 curr += p.numel()
 
         return loss''',
-    "Muon weight decay"
+    "Muon WD"
 )
 
-# ==============================================================
-# SECTION E: Add forward_per_token to GPT for sliding window eval
-# ==============================================================
+# E: GPT.__init__ — recurrence + trigram
+patch(
+    '''        self.final_norm = RMSNorm()
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)''',
+    '''        self.final_norm = RMSNorm()
+        self.recurrence = RECURRENCE
+        self.trigram_table = nn.Embedding(TRIGRAM_BUCKETS, model_dim)
+        nn.init.normal_(self.trigram_table.weight, std=0.002)
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)''',
+    "GPT recurrence + trigram"
+)
+
+# F: GPT.forward — recurrence loop + trigram hash
+patch(
+    '''    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)''',
+    '''    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        if input_ids.size(1) >= 3:
+            ids = input_ids.long()
+            th = (36313 * ids[:, 2:] ^ 27191 * ids[:, 1:-1] ^ 51749 * ids[:, :-2]) % TRIGRAM_BUCKETS
+            x[:, 2:] = x[:, 2:] + self.trigram_table(th).to(x.dtype)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        for _rec in range(self.recurrence):
+            skips: list[Tensor] = []
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = self.blocks[self.num_encoder_layers + i](x, x0)''',
+    "forward: recurrence + trigram"
+)
+
+# G: forward_per_token (sliding window eval)
 patch(
     '''        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
@@ -233,19 +216,23 @@ patch(
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
     def forward_per_token(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        """Returns per-token losses [B, T] for sliding window eval."""
         B, T = input_ids.shape
         x = self.tok_emb(input_ids)
+        if T >= 3:
+            ids = input_ids.long()
+            th = (36313 * ids[:, 2:] ^ 27191 * ids[:, 1:-1] ^ 51749 * ids[:, :-2]) % TRIGRAM_BUCKETS
+            x[:, 2:] = x[:, 2:] + self.trigram_table(th).to(x.dtype)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        for _rec in range(self.recurrence):
+            skips: list[Tensor] = []
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -254,20 +241,16 @@ patch(
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(
             logits.float().reshape(-1, logits.size(-1)),
-            target_ids.reshape(-1),
-            reduction="none"
-        ).reshape(B, T)
+            target_ids.reshape(-1), reduction="none").reshape(B, T)
 
 
 # -----------------------------
 # TRAINING
 # -----------------------------''',
-    "forward_per_token for sliding window"
+    "forward_per_token + recurrence"
 )
 
-# ==============================================================
-# SECTION F: Replace eval_val with sliding window version
-# ==============================================================
+# H: Sliding window eval
 patch(
     '''def eval_val(
     args: Hyperparameters,
@@ -342,11 +325,9 @@ patch(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    # Raki V2: Sliding window eval with stride for better BPB.
     stride = EVAL_STRIDE
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
-
     all_starts: list[int] = []
     pos = 0
     while pos + seq_len <= total_tokens:
@@ -354,21 +335,15 @@ patch(
         pos += stride
     if not all_starts:
         all_starts = [0]
-
     rank_starts = [s for i, s in enumerate(all_starts) if i % world_size == rank]
-
-    # Unwrap model to access forward_per_token (past DDP + compile)
     raw_model = model.module if hasattr(model, 'module') else model
     base_m = raw_model._orig_mod if hasattr(raw_model, '_orig_mod') else raw_model
-
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
     model.eval()
     with torch.inference_mode():
         batch_size = max(1, min(16, args.val_batch_size // (seq_len * max(world_size, 1))))
-
         for bi in range(0, len(rank_starts), batch_size):
             batch_starts = rank_starts[bi:bi + batch_size]
             xs, ys = [], []
@@ -378,52 +353,39 @@ patch(
                 ys.append(chunk[1:])
             x = torch.stack(xs).to(device=device, non_blocking=True)
             y = torch.stack(ys).to(device=device, non_blocking=True)
-
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 per_token_loss = base_m.forward_per_token(x, y).detach()
-
             for wi, s in enumerate(batch_starts):
                 score_start = 0 if s == 0 else (seq_len - stride)
                 num_scored = seq_len - score_start
-                global_end = s + seq_len
-                if global_end > total_tokens:
-                    num_scored -= (global_end - total_tokens)
+                if s + seq_len > total_tokens:
+                    num_scored -= (s + seq_len - total_tokens)
                 if num_scored <= 0:
                     continue
-
                 losses = per_token_loss[wi, score_start:score_start + num_scored]
                 val_loss_sum += losses.to(torch.float64).sum()
                 val_token_count += float(num_scored)
-
                 g_start = s + score_start
-                prev_ids = val_tokens[g_start:g_start + num_scored].to(device=device)
-                tgt_ids = val_tokens[g_start + 1:g_start + num_scored + 1].to(device=device)
+                prev_ids = val_tokens[g_start:g_start + num_scored].to(device=device, dtype=torch.int64)
+                tgt_ids = val_tokens[g_start + 1:g_start + num_scored + 1].to(device=device, dtype=torch.int64)
                 n = min(prev_ids.size(0), tgt_ids.size(0), num_scored)
                 prev_ids, tgt_ids = prev_ids[:n], tgt_ids[:n]
-
                 token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
                 token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
                 val_byte_count += token_bytes.to(torch.float64).sum()
-
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
-
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)''',
-    "Sliding window eval (stride=64)"
+    "sliding window eval"
 )
 
-# ==============================================================
-# SECTION G: GPTQ-lite clip search for quantization
-# Replace quantize_float_tensor with version that tries
-# multiple clip percentiles per row and picks best MSE.
-# Still uses INT8 (127 max) — NOT int6!
-# ==============================================================
+# I: GPTQ-lite clip search (INT8)
 patch(
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
@@ -447,175 +409,94 @@ patch(
     return q, scale''',
 
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
-    # Raki V2: INT8 quantization with GPTQ-lite clip search.
-    # Tries multiple clip percentiles per row and picks the one
-    # that minimizes reconstruction MSE. Zero training cost.
     t32 = t.float()
     if t32.ndim == 2:
         if not GPTQ_CLIP_SEARCH or not t32.numel():
-            # Fallback to standard single-percentile
-            clip_abs = (
-                torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-                if t32.numel()
-                else torch.empty((t32.shape[0],), dtype=torch.float32)
-            )
+            clip_abs = (torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+                        if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32))
             clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
             scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
             q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
             return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-        # GPTQ-lite: try multiple percentiles, pick best per row
-        best_q = None
-        best_scale = None
-        best_mse = torch.full((t32.shape[0],), float('inf'), dtype=torch.float32)
+        best_q = best_scale = None
+        best_mse = torch.full((t32.shape[0],), float('inf'))
         for pct in GPTQ_PERCENTILES:
-            if pct >= 1.0:
-                ca = t32.abs().amax(dim=1)
-            else:
-                ca = torch.quantile(t32.abs(), pct, dim=1)
+            ca = t32.abs().amax(dim=1) if pct >= 1.0 else torch.quantile(t32.abs(), pct, dim=1)
             sc = (ca / 127.0).clamp_min(1.0 / 127.0)
             cl = torch.maximum(torch.minimum(t32, ca[:, None]), -ca[:, None])
             qq = torch.clamp(torch.round(cl / sc[:, None]), -127, 127)
-            recon = qq * sc[:, None]
-            mse = ((t32 - recon) ** 2).mean(dim=1)
+            mse = ((t32 - qq * sc[:, None]) ** 2).mean(dim=1)
             improved = mse < best_mse
             if best_q is None:
-                best_q = qq.to(torch.int8)
-                best_scale = sc
-                best_mse = mse
+                best_q, best_scale, best_mse = qq.to(torch.int8), sc, mse
             else:
                 best_q[improved] = qq[improved].to(torch.int8)
                 best_scale[improved] = sc[improved]
                 best_mse[improved] = mse[improved]
         return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-    # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale''',
-    "GPTQ-lite clip search (int8, 127 max)"
+    "GPTQ-lite clip search"
 )
 
-# ==============================================================
-# SECTION H: zstd compression (better ratio than zlib)
-# Keep INT8, just change compression algorithm
-# ==============================================================
-patch(
-    '    quant_blob = zlib.compress(quant_raw, level=9)',
-    '    cctx = zstd.ZstdCompressor(level=22)\n    quant_blob = cctx.compress(quant_raw)',
-    "zstd-22 compress"
-)
-
-# Rename output files to reflect int8+zstd
+# J: zstd compression + filenames
+patch('    quant_blob = zlib.compress(quant_raw, level=9)',
+      '    cctx = zstd.ZstdCompressor(level=22)\n    quant_blob = cctx.compress(quant_raw)',
+      "zstd-22")
 for i in range(3):
-    patch('"final_model.int8.ptz"', '"final_model.int8.ptzst"', f"filename int8.ptzst ({i+1})")
+    patch('"final_model.int8.ptz"', '"final_model.int8.ptzst"', f"filename ({i+1})")
+patch('quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")',
+      'dctx = zstd.ZstdDecompressor()\n    quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")',
+      "zstd decompress")
+patch('f"Serialized model int8+zlib:', 'f"Serialized model int8+zstd:', "log 1")
+patch('f"Total submission size int8+zlib:', 'f"Total submission size int8+zstd:', "log 2")
+patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int8_zstd_roundtrip val_loss', "log 3")
+patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int8_zstd_roundtrip_exact val_loss', "log 4")
 
-patch(
-    'quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")',
-    'dctx = zstd.ZstdDecompressor()\n    quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")',
-    "zstd decompress"
-)
+# K: Trigram in optimizer
+patch('        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],',
+      '        [{"params": [base_model.tok_emb.weight, base_model.trigram_table.weight], "lr": token_lr, "base_lr": token_lr}],',
+      "trigram in optimizer")
 
-# Update log messages
-patch('f"Serialized model int8+zlib:', 'f"Serialized model int8+zstd:', "log (1)")
-patch('f"Total submission size int8+zlib:', 'f"Total submission size int8+zstd:', "log (2)")
-patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int8_zstd_roundtrip val_loss', "log (3)")
-patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int8_zstd_roundtrip_exact val_loss', "log (4)")
-
-# ==============================================================
-# SECTION I: Init GPU-Markov + EMA before training loop
-# ==============================================================
-patch(
-    "    training_time_ms = 0.0",
-    '''    # ---- Raki V2: Init GPU-Markov + EMA ----
-    _markov = _GPUMarkov(args.train_files, args.vocab_size, device)
+# L: Init Markov + EMA
+patch("    training_time_ms = 0.0",
+      '''    _markov = _GPUMarkov(args.train_files, args.vocab_size, device)
     _ema = _EMA()
     _ema_on = False
-    log0(f"raki_v2: power={RAKI_POWER} muon_wd={MUON_WD} "
-         f"ema={EMA_DECAY} stride={EVAL_STRIDE} gptq_clip={GPTQ_CLIP_SEARCH}")
-
+    log0(f"raki_v2: rec={RECURRENCE} trigram={TRIGRAM_BUCKETS} power={RAKI_POWER} "
+         f"wd={MUON_WD} ema={EMA_DECAY} stride={EVAL_STRIDE}")
     training_time_ms = 0.0''',
-    "GPU-Markov + EMA init"
-)
+      "init Markov + EMA")
 
-# ==============================================================
-# SECTION J: Markov curriculum weighting on backward
-# ==============================================================
-patch(
-    "            (loss * grad_scale).backward()",
-    '''            # Raki V2: GPU-native curriculum weighting
-            _cw = _markov.batch_weight(x, y)
+# M: Markov curriculum
+patch("            (loss * grad_scale).backward()",
+      '''            _cw = _markov.batch_weight(x, y)
             (loss * grad_scale * _cw).backward()''',
-    "Markov curriculum backward"
-)
+      "Markov curriculum")
 
-# ==============================================================
-# SECTION K: EMA update after each step
-# ==============================================================
-patch(
-    "        zero_grad_all()\n\n        step += 1",
-    '''        zero_grad_all()
-
-        # Raki V2: EMA update
+# N: EMA update
+patch("        zero_grad_all()\n\n        step += 1",
+      '''        zero_grad_all()
         _prog = (training_time_ms + 1000.0 * (time.perf_counter() - t0)) / max(max_wallclock_ms or 1e18, 1.0)
         if _prog >= EMA_START_FRAC and not _ema_on:
-            _ema.start(base_model)
-            _ema_on = True
+            _ema.start(base_model); _ema_on = True
             log0(f"raki_v2:ema_started step={step+1}")
         _ema.update(base_model)
-
         step += 1''',
-    "EMA update each step"
-)
+      "EMA update")
 
-# ==============================================================
-# SECTION L: Apply EMA before final save
-# ==============================================================
-patch(
-    '    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
-    '''    # Raki V2: Apply EMA before saving
-    if _ema.on:
+# O: EMA apply
+patch('    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
+      '''    if _ema.on:
         _ema.apply(base_model)
         log0("raki_v2:ema_applied")
-
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
-    "EMA apply before save"
-)
+      "EMA apply")
 
-# ==============================================================
-# WRITE
-# ==============================================================
 with open("train_gpt.py", "w") as f:
     f.write(code)
 
-print(f"\n{'='*60}")
-print(f" RAKI V2 PATCH — {changes} patches applied")
-print(f"{'='*60}")
-print(f"")
-print(f" CRITICAL FIX: INT8 quantization (NOT int6!)")
-print(f"   Old V2: int6 → 1.30 pre-quant → 1.78 post-quant")
-print(f"   New V2: int8 → minimal quant loss (~0.02 BPB)")
-print(f"")
-print(f" Original techniques (Raki):")
-print(f"   - GPU-native Markov curriculum (no CPU sync)")
-print(f"   - Entropy-weighted loss scaling")
-print(f"   - EMA averaging")
-print(f"")
-print(f" Competition consensus techniques:")
-print(f"   - 10L, 3x MLP, warmdown 3500")
-print(f"   - Muon WD=0.04, momentum 0.99")
-print(f"   - Sliding window eval (stride=64)")
-print(f"   - GPTQ-lite clip search (per-row optimal)")
-print(f"   - INT8 + zstd-22 (~9MB, well under 16MB)")
-print(f"   - Tuned LRs (0.025/0.025/0.035)")
-print(f"")
-print(f" Run on RunPod (8xH100):")
-print(f"   python3 patch_v2.py")
-print(f"   RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py")
-print(f"")
-print(f" Run on 1xH100 (testing):")
-print(f"   python3 patch_v2.py")
-print(f"   RUN_ID=raki_v2_test VAL_BATCH_SIZE=262144 torchrun --standalone --nproc_per_node=1 train_gpt.py")
-print(f"{'='*60}")
+print(f"\n  Raki V2 — {changes} patches | 6B×2rec=12eff + trigram + markov + int8+zstd")
