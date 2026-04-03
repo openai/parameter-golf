@@ -1,0 +1,41 @@
+{
+  "author": "Abhishek Leji (X-Abhishek-X)",
+  "date": "2026-04-03",
+  "track": "10min_16mb",
+  "val_bpb": 1.2005,
+  "val_loss": 2.0269,
+  "seeds": [42],
+  "seed_results": {
+    "42": 1.2005,
+    "1337": "pending",
+    "2024": "pending"
+  },
+  "mean_val_bpb": 1.2005,
+  "artifact_bytes": {
+    "model": "~14000000",
+    "code": 79932,
+    "total": "~14079932"
+  },
+  "description": "9L INT6-uniform GPTQ with AR self-generated calibration, XSA-all-9, Parallel Muon, EMA+SWA-warmdown, LeakyReLU(0.5)^2, BigramHash-3072-poly, Partial-RoPE-16, LN-Scale. 22.3M params, fits within 16MB limit.",
+  "techniques": [
+    "9 layers (fits 16MB artifact limit)",
+    "Uniform INT6 per-row GPTQ for all weights (10-candidate clip search + column-wise error compensation)",
+    "AR self-generated GPTQ calibration (64 seqs x 2048 tokens, temp=0.8, fixed seed)",
+    "Late Soft-Round QAT (INT6 only, alpha 1->16, threshold 0.15)",
+    "Parallel Muon optimizer (batched Newton-Schulz)",
+    "XSA on all 9 layers",
+    "EMA(0.997) + SWA warmdown-only (30% blend)",
+    "LeakyReLU(0.5)^2 activation",
+    "Partial RoPE (16 dims)",
+    "BigramHash 3072-entry polynomial hash, dim=112",
+    "U-Net skip connections",
+    "LN Scale (1/sqrt(layer+1))",
+    "Value Embeddings on layers 7,8 (dim=128)",
+    "best-of zstd-22 / lzma-9 compression",
+    "Selective pruning safety net"
+  ],
+  "hardware": "8x H100 (Modal)",
+  "wallclock_seconds": 560,
+  "model_params": 22343762,
+  "notes": "Single seed result. Seeds 1337 and 2024 pending compute grant."
+}
