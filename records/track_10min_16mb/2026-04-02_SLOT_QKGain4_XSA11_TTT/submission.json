@@ -1,0 +1,15 @@
+{
+    "name": "SLOT_QKGain4_XSA11_TTT",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-04-02",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": null,
+    "seed_results": {},
+    "bytes_total": null,
+    "bytes_code": null,
+    "blurb": "SLOT per-sample delta + logit bias (scored-position masked, cosine LR), QK-Gain 4.0, XSA all 11 layers, on VRL + LeakyReLU2 + BigramHash + EMA/SWA + int6+lzma base."
+}
