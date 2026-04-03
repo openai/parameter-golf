@@ -1,15 +1,19 @@
 {
-    "name": "SLOT_QKGain4_XSA11_TTT",
+    "name": "SLOT_QKGain4_XSA11",
     "author": "Anthony Maio",
     "github_id": "anthony-maio",
-    "date": "2026-04-02",
+    "date": "2026-04-03",
     "track": "10min_16mb",
     "num_gpus": 8,
     "gpu_type": "H100 SXM",
     "training_time_seconds": 600,
-    "val_bpb": null,
-    "seed_results": {},
-    "bytes_total": null,
-    "bytes_code": null,
-    "blurb": "SLOT per-sample delta + logit bias (scored-position masked, cosine LR), QK-Gain 4.0, XSA all 11 layers, on VRL + LeakyReLU2 + BigramHash + EMA/SWA + int6+lzma base."
+    "seed_results": {
+        "1337": {"val_loss": 1.60288385, "val_bpb": 0.94932061, "steps": 6574, "ms_per_step": 91.28, "artifact_bytes": 15742066},
+        "42":   {"val_loss": 1.59279686, "val_bpb": 0.94334652, "steps": 6574, "ms_per_step": 91.23, "artifact_bytes": 15827886},
+        "2024": {"val_loss": 1.59697290, "val_bpb": 0.94581981, "steps": 6574, "ms_per_step": 91.24, "artifact_bytes": 15757370}
+    },
+    "mean_val_loss": 1.5975,
+    "mean_val_bpb": 0.9462,
+    "std_val_bpb": 0.0030,
+    "blurb": "SLOT per-sample delta + logit bias (scored-position masked, cosine LR 0.008->0.0008, 16 AdamW steps), QK-Gain 4.0, XSA all 11 layers, on VRL + LeakyReLU2 + BigramHash(1024) + EMA/SWA + int6+lzma base. Eval: sliding-window stride=64 + SLOT (~284s)."
 }
