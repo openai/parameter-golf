@@ -12,9 +12,9 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 
-# Add parent dir to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from experiments.pr1179_baseline.train_gpt import (
+# Add current dir to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from train_gpt import (
     GPT,
     CastedLinear,
     Hyperparameters,

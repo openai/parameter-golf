@@ -1,6 +1,6 @@
 # Record: Split-LR + N-gram Agreement + Full Hessian GPTQ + Brotli
 
-**val_bpb: 1.1079** (3-seed mean, std 0.0009) | **~15.86 MB** | 8xH100 SXM, 600s train + 449s eval
+**val_bpb: 1.1078** (3-seed mean, std 0.0009) | **1.8752 nats** | **~15.86 MB** | 8xH100 SXM, 600s train + 449s eval
 
 Built on [PR #1179](https://github.com/openai/parameter-golf/pull/1179) by @dexhunter (training) and [PR #1145](https://github.com/openai/parameter-golf/pull/1145) by @AnirudhRahul (n-gram agreement evaluation).
 
@@ -11,9 +11,9 @@ Built on [PR #1179](https://github.com/openai/parameter-golf/pull/1179) by @dexh
 | 1337 | ~6780 | 88.0 | 1.1110 | **1.1083** | 15,853,466 |
 | 42 | ~6780 | 88.0 | 1.1095 | **1.1068** | 15,857,705 |
 | 2025 | ~6780 | 88.0 | 1.1112 | **1.1085** | 15,846,914 |
-| **Mean** | | | **1.1106** | **1.1079** | |
+| **Mean** | | | **1.1106** | **1.1078** | |
 
-Delta vs merged SOTA (PR #1019, 1.1147): **-0.0068 nats** (threshold: 0.005)
+SOTA (PR #1019, 3-seed mean): **1.8822 nats**. This run: **1.8752 nats**. Delta: **-0.00697 nats**. Clears the 0.005-nat threshold.
 
 ### Timing Budget
 
