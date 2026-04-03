@@ -353,7 +353,7 @@ This work was conceived, developed, and validated in a compressed timeline:
 
 | Phase | Timestamp | Activity |
 |-------|-----------|----------|
-| Concept | Mar 31, 16:00 UTC | Initial hypothesis: vocabulary as entropy filter on information spectrum |
+| Concept | Mar 31 16:00 UTC | Initial hypothesis: vocabulary as entropy filter on information spectrum |
 | Analysis | Mar 31 | Entropy decomposition tools, vocabulary sweep (512–16,384), mutual information measurements across 56 lag distances on FineWeb |
 | Scaling Laws | Apr 1 | Production model comparison (20 models), embedding proportion analysis, identified baseline's 2.7% as severe outlier |
 | Architecture Sweep | Apr 1 | Five configurations on 8×H100 — width vs depth at matched params, 384d/14L wins |
