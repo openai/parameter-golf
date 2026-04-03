@@ -4,7 +4,7 @@
 ║  RAKI v5 — Tam Entegre Sistem                                   ║
 ║                                                                  ║
 ║  TRAINING (öğrenci tek başına):                                  ║
-║    • Markov surprise → curriculum weighting                      ║
+║    • Markov hybrid (entropy × surprise) → curriculum weighting   ║
 ║    • Stochastic Depth → rastgele layer skip (regularization)     ║
 ║    • Rakı Schedule → tüm teknikleri koordine eder                ║
 ║    • Layer Gradient Scaling → içten dışa öğrenme                 ║
@@ -144,15 +144,34 @@ class MarkovTable:
 
     def finalize(self):
         smoothed = self.counts + 0.01
-        log_probs = np.log(smoothed / smoothed.sum(axis=1, keepdims=True))
+        probs = smoothed / smoothed.sum(axis=1, keepdims=True)
+        log_probs = np.log(probs)
         self.table_np = log_probs.astype(np.float16)
         self.table_mx = mx.array(self.table_np, dtype=mx.float16)
+        # Entropy per prev_token: H(prev) = -Σ P(next|prev) * log P(next|prev)
+        self.entropy = -(probs * log_probs).sum(axis=1).astype(np.float32)  # (vocab,)
+        # Normalize entropy to 0-1
+        emin, emax = self.entropy.min(), self.entropy.max()
+        if emax > emin:
+            self.entropy_norm = (self.entropy - emin) / (emax - emin)
+        else:
+            self.entropy_norm = np.full_like(self.entropy, 0.5)
         del self.counts
 
-    def surprise(self, x_np, y_np):
-        """(batch,) ortalama surprise per sequence."""
+    def hybrid_score(self, x_np, y_np):
+        """
+        Hybrid: entropy(prev) × surprise(next|prev)
+        Yüksek entropy + yüksek surprise = ALTIN (öğrenmeye değer)
+        Düşük entropy + yüksek surprise = gürültü (skip)
+        """
+        # Surprise per token
         lp = self.table_np[x_np.ravel(), y_np.ravel()].astype(np.float32)
-        return -lp.reshape(x_np.shape).mean(axis=1)
+        surprise = -lp.reshape(x_np.shape)  # (batch, seq)
+        # Entropy per prev token
+        ent = self.entropy_norm[x_np.ravel()].reshape(x_np.shape)  # (batch, seq)
+        # Hybrid: çarp, sequence ortalaması al
+        hybrid = (surprise * ent).mean(axis=1)  # (batch,)
+        return hybrid
 
     def logit_bias(self, prev_ids):
         """Eval'da kullanılacak: (batch, seq, vocab) logit bias."""
@@ -731,7 +750,7 @@ def main():
             x, y, xn, yn = loader.batch(hp.micro, hp.seq_len)
 
             if use_w:
-                surp = mk.surprise(xn, yn)
+                surp = mk.hybrid_score(xn, yn)
                 smin, smax = surp.min(), surp.max()
                 ns = (surp-smin)/(smax-smin) if smax > smin else np.full_like(surp, 0.5)
                 tw = mx.array(np.broadcast_to((1.0 + sw*ns)[:,None], xn.shape).copy(), dtype=mx.float32)
