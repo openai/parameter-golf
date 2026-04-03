@@ -331,7 +331,7 @@ class DeepFloorAttentionBlock(nn.Module):
         q = q.view(batch, seq_len, self.heads, self.head_dim).transpose(1, 2)
         k = k.view(batch, seq_len, self.heads, self.head_dim).transpose(1, 2)
         v = v.view(batch, seq_len, self.heads, self.head_dim).transpose(1, 2)
-        mixed = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=False)
+        mixed = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=True)
         mixed = mixed.transpose(1, 2).reshape(batch, seq_len, dim)
         mixed = F.linear(mixed, runtime["out_weight"])
         return self.out_norm(state + mixed)
@@ -425,18 +425,19 @@ class DeepFloorFusedMixer(nn.Module):
         k = self._phi(F.linear(normed, runtime["k_weight"]))
         v = F.linear(normed, runtime["v_weight"])
         selection = torch.sigmoid(F.linear(normed, runtime["select_weight"]))
-        step_accumulator = torch.matmul((k * selection).transpose(1, 2), (v * selection))
+        token_contributions = (k * selection).unsqueeze(-1) * (v * selection).unsqueeze(-2)
         if apply_quant_noise:
-            step_accumulator = stochastic_round_tensor(
-                step_accumulator,
+            token_contributions = stochastic_round_tensor(
+                token_contributions,
                 quantization=self.quantization,
                 probability=self.stochastic_round_p,
             )
+        step_accumulator = token_contributions.cumsum(dim=1)
         if accumulator is None:
             accumulator = step_accumulator
         else:
-            accumulator = torch.matmul(runtime["transition_weight"].unsqueeze(0), accumulator) + step_accumulator
-        mixed = torch.matmul(q, accumulator)
+            accumulator = torch.einsum("ij,btjk->btik", runtime["transition_weight"], accumulator) + step_accumulator
+        mixed = torch.einsum("bti,btij->btj", q, accumulator)
         mixed = F.linear(mixed, runtime["out_weight"])
         return state + mixed, accumulator
 

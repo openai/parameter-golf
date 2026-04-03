@@ -8,6 +8,8 @@ import numpy as np
 import torch
 
 from spectral_flood_walk_v3 import (
+    DeepFloorAttentionBlock,
+    DeepFloorFusedMixer,
     DeepFloorModel,
     V3Config,
     build_hippo_legs_matrix,
@@ -80,6 +82,56 @@ class SpectralFloodWalkV3Tests(unittest.TestCase):
         self.assertEqual(metadata["floor_counts"], [0, 0])
         self.assertEqual(metadata["state_norm_counts"], [2, 2])
         self.assertEqual(metadata["accumulator_norm_counts"], [2, 2])
+
+    def test_floor_attention_is_causal_to_future_tokens(self) -> None:
+        block = DeepFloorAttentionBlock(dim=2, heads=1, contraction_target=1.0).to(self.device)
+        with torch.no_grad():
+            eye = torch.eye(2, device=self.device)
+            block.q_proj.weight.copy_(eye)
+            block.k_proj.weight.copy_(eye)
+            block.v_proj.weight.copy_(eye)
+            block.out_proj.weight.copy_(eye)
+
+        base_state = torch.tensor([[[1.0, 0.5], [2.0, 1.0], [3.0, 1.5]]], device=self.device)
+        future_perturbed = base_state.clone()
+        future_perturbed[:, 1:, :] += 50.0
+
+        base_out = block(base_state)
+        perturbed_out = block(future_perturbed)
+
+        self.assertTrue(torch.allclose(base_out[:, 0, :], perturbed_out[:, 0, :], atol=1e-5, rtol=1e-5))
+        self.assertFalse(torch.allclose(base_out[:, 2, :], perturbed_out[:, 2, :], atol=1e-5, rtol=1e-5))
+
+    def test_fused_accumulator_is_causal_to_future_tokens(self) -> None:
+        mixer = DeepFloorFusedMixer(
+            dim=2,
+            feature_map="identity",
+            decay=1.0,
+            state_core="scalar_decay",
+            hippo_delta_scale=0.0,
+            hippo_rank=1,
+            contraction_target=1.0,
+            quantization="fp16",
+            stochastic_round_p=0.0,
+        ).to(self.device)
+        with torch.no_grad():
+            eye = torch.eye(2, device=self.device)
+            mixer.q_proj.weight.copy_(eye)
+            mixer.k_proj.weight.copy_(eye)
+            mixer.v_proj.weight.copy_(eye)
+            mixer.selection_proj.weight.copy_(eye)
+            mixer.out_proj.weight.copy_(eye)
+
+        base_state = torch.tensor([[[1.0, 0.5], [2.0, 1.0], [3.0, 1.5]]], device=self.device)
+        future_perturbed = base_state.clone()
+        future_perturbed[:, 1:, :] += 50.0
+
+        base_out, base_acc = mixer(base_state, None)
+        perturbed_out, perturbed_acc = mixer(future_perturbed, None)
+
+        self.assertTrue(torch.allclose(base_out[:, 0, :], perturbed_out[:, 0, :], atol=1e-5, rtol=1e-5))
+        self.assertTrue(torch.allclose(base_acc[:, 0, :, :], perturbed_acc[:, 0, :, :], atol=1e-5, rtol=1e-5))
+        self.assertFalse(torch.allclose(base_out[:, 2, :], perturbed_out[:, 2, :], atol=1e-5, rtol=1e-5))
 
     def test_project_view_combination_emits_logits(self) -> None:
         cfg = self._base_config(cross_token_mode="floor")
