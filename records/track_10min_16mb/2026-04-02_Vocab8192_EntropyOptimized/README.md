@@ -1,4 +1,4 @@
-# Vocabulary-Optimized Language Model for Parameter Golf
+# Vocabulary Optimized Language Model for Parameter Golf
 
 **Result: 1.1207 BPB** (mean of 3 seeds: 1.1199, 1.1213, 1.1208 | std: 0.0007) | Artifact: 15.97 MB | Architecture: V=8192, 512d, 11 layers, GQA + BigramHash
 
