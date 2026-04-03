@@ -443,3 +443,38 @@ def test_activation_norms_reasonable():
     # Check: activation norms are reasonable (not exploding/vanishing)
     for name, norm in norms.items():
         assert 0.01 < norm < 10000, f"Activation norm for {name} is {norm} (out of range)"
+
+
+# ===== Task 3.2.1 — torch.compile compatibility =============================
+
+def test_mamba_block_compile_eager():
+    """Task 3.2.1: MambaBlock should be compilable with torch.compile (eager backend on CPU)."""
+    torch.manual_seed(42)
+    block = MambaBlock(d_model=64, d_state=8, d_conv=4, expand=1.5)
+    block.eval()
+    # Use "eager" backend (no Triton) to test on CPU
+    compiled_block = torch.compile(block, backend="eager", fullgraph=False)
+    x = torch.randn(1, 16, 64)
+    with torch.no_grad():
+        y_orig = block(x)
+        y_compiled = compiled_block(x)
+    assert y_compiled.shape == y_orig.shape, f"Shape mismatch: {y_compiled.shape} vs {y_orig.shape}"
+    assert torch.allclose(y_compiled, y_orig, atol=1e-5), (
+        f"Compiled output differs: max_diff={(y_compiled - y_orig).abs().max()}"
+    )
+
+
+def test_hybrid_gpt_compile_eager():
+    """Task 3.2.1: Hybrid GPT should be compilable with torch.compile (eager backend on CPU)."""
+    torch.manual_seed(42)
+    model = _make_gpt(mamba_layers="0,1", num_layers=3)
+    model.eval()
+    compiled_model = torch.compile(model, backend="eager", fullgraph=False)
+    input_ids = torch.randint(0, 1024, (1, 16))
+    with torch.no_grad():
+        logits_orig = model.forward_logits(input_ids)
+        logits_compiled = compiled_model.forward_logits(input_ids)
+    assert logits_compiled.shape == logits_orig.shape
+    assert torch.allclose(logits_compiled, logits_orig, atol=1e-5), (
+        f"Compiled logits differ: max_diff={(logits_compiled - logits_orig).abs().max()}"
+    )

@@ -795,10 +795,13 @@ class MambaBlock(nn.Module):
         y = self.out_proj(y)
         return residual + y
 
+    @torch.compiler.disable
     def _selective_scan(self, x: Tensor, dA: Tensor, dB: Tensor, C: Tensor, D: Tensor) -> Tensor:
         """Sequential selective scan fallback.
         h[t] = dA[t]*h[t-1] + dB[t]*x[t], y[t] = C[t]@h[t] + D*x[t]
         Hidden state accumulated in float32 for numerical stability during bf16 training.
+        Decorated with @torch.compiler.disable so the Python loop doesn't break
+        fullgraph=True compilation (on GPU, the CUDA fast path is used instead).
         """
         B_batch, L, d_inner = x.shape
         orig_dtype = x.dtype
