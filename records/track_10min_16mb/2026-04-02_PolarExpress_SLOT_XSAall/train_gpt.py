@@ -1326,7 +1326,7 @@ def eval_val_sliding_slot(
             logits = (h + delta) @ w.T
             logits = softcap * torch.tanh(logits / softcap)
             for j, wl in enumerate(wlens):
-                score_start = max(0, wl - stride)
+                score_start = 0 if batch_ws[j] == 0 else max(0, wl - stride)
                 tgt = y_batch[j, score_start:wl]
                 log_probs = F.log_softmax(logits[j, score_start:wl].float(), dim=-1)
                 tok_losses = -log_probs[torch.arange(tgt.size(0), device=device), tgt]
