@@ -1,29 +1,36 @@
 #!/usr/bin/env python3
 """
-Parameter Golf — Yandimata Style v2 Patch
+Raki V2 — Optimized Parameter Golf Patch
 ==========================================
 Patches the official baseline train_gpt.py IN-PLACE.
-Hybrid approach: GPU-native Markov curriculum + all proven meta techniques.
 
-Key innovations (original):
-  - GPU-native Markov curriculum: no CPU transfer, ~0.1ms overhead per step
-  - Entropy-weighted curriculum learning for harder batches
+CRITICAL FIX from previous V2: INT8 quantization (NOT int6!)
+The old V2 used int6 (QUANT_MAX=31) which destroyed model quality:
+  - Pre-quant: 1.30 BPB → Post-quant: 1.78 BPB (CATASTROPHIC)
+Int8 keeps quality within ~0.02 BPB of pre-quant.
+With zstd-22 compression, int8 still fits well under 16MB.
 
-Proven meta techniques (from competition consensus):
-  1. 10 layers, 3x MLP
-  2. Muon WD=0.04, momentum 0.99
-  3. Warmdown 3500, tuned LRs
-  4. EMA (decay=0.997)
-  5. Sliding window eval (stride=64)
-  6. Int6 quantization + zstd-22
+Techniques:
+  ORIGINAL (Raki):
+    - GPU-native Markov curriculum (no CPU transfer, ~0.1ms/step)
+    - Entropy-weighted loss scaling for harder batches
+
+  COMPETITION CONSENSUS (proven by top submissions):
+    1. 10 layers, 3x MLP (more capacity)
+    2. Muon WD=0.04, momentum 0.99 (better regularization)
+    3. Warmdown 3500, tuned LRs (better schedule)
+    4. EMA decay=0.997 (smoother weights, better quant)
+    5. Sliding window eval stride=64 (better BPB measurement)
+    6. INT8 quantization (NOT int6!) + zstd-22 compression
+    7. GPTQ-lite clip search (per-row optimal clipping)
+
+Size estimate (10L, 3xMLP, 24M params):
+  int8 payload: ~24MB → zstd-22: ~9MB → + code ~55KB = ~9MB total
+  Well under 16MB limit!
 
 Usage:
-  # On RunPod, starting from clean baseline:
-  cd ~/Desktop/parameter-golf-yandimatastyle
-  git pull origin main  # get latest upstream
   python3 patch_v2.py
-  # Then on RunPod 8xH100:
-  RUN_ID=yandimata_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py
+  RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py
 """
 import sys
 
@@ -41,7 +48,7 @@ def patch(anchor, replacement, label):
         return True
     else:
         print(f"  FAIL: {label}")
-        print(f"    anchor: {repr(anchor[:100])}...")
+        print(f"    anchor: {repr(anchor[:120])}...")
         sys.exit(1)
 
 # ==============================================================
@@ -51,7 +58,7 @@ patch(
     'from __future__ import annotations',
     '''from __future__ import annotations
 
-# Yandimata v2: ensure zstandard is available
+# Raki V2: ensure zstandard is available for better compression
 try:
     import zstandard as _zstd_check  # noqa: F401
 except ImportError:
@@ -61,7 +68,7 @@ except ImportError:
 )
 
 # ==============================================================
-# SECTION B: Hyperparameter tuning
+# SECTION B: Hyperparameter tuning (competition consensus)
 # ==============================================================
 patch(
     '    num_layers = int(os.environ.get("NUM_LAYERS", 9))',
@@ -117,22 +124,22 @@ patch(
     '''from torch.nn.parallel import DistributedDataParallel as DDP
 import zstandard as zstd
 
-# ---- Yandimata v2 config ----
+# ---- Raki V2 config ----
 MUON_WD = float(os.environ.get("MUON_WD", "0.04"))
 EMA_DECAY = float(os.environ.get("EMA_DECAY", "0.997"))
 EMA_START_FRAC = float(os.environ.get("EMA_START_FRAC", "0.80"))
 EVAL_STRIDE = int(os.environ.get("EVAL_STRIDE", "64"))
-QUANT_BITS = int(os.environ.get("QUANT_BITS", "6"))
-QUANT_MAX = 2 ** (QUANT_BITS - 1) - 1  # 31 for 6-bit
-MARKOV_POWER = float(os.environ.get("MARKOV_POWER", "0.12"))
+RAKI_POWER = float(os.environ.get("RAKI_POWER", "0.15"))
+# GPTQ-lite: try multiple clip percentiles per row, pick best MSE
+GPTQ_CLIP_SEARCH = bool(int(os.environ.get("GPTQ_CLIP_SEARCH", "1")))
+GPTQ_PERCENTILES = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
 
 
 class _GPUMarkov:
     """GPU-native Markov curriculum — zero CPU transfer overhead.
 
     Builds a bigram log-prob table from the first training shard,
-    keeps it on GPU as a float16 tensor. batch_weight() runs entirely
-    on GPU with simple indexing + mean — ~0.1ms per call.
+    keeps it on GPU as float16. batch_weight() runs entirely on GPU.
     """
     def __init__(self, pattern: str, V: int, device: torch.device):
         files = sorted(glob.glob(pattern))
@@ -141,36 +148,30 @@ class _GPUMarkov:
         ntok = min(int(hdr[2]), 2_000_000)  # cap for speed
         tok = np.fromfile(files[0], dtype="<u2", count=ntok,
                           offset=hdr_bytes).astype(np.int32)
-        # Build bigram counts
         counts = np.zeros((V, V), dtype=np.float64)
         np.add.at(counts, (tok[:-1], tok[1:]), 1.0)
         counts += 0.01  # smoothing
         probs = counts / counts.sum(axis=1, keepdims=True)
         log_probs = np.log(probs).astype(np.float16)
-        # Entropy per token (for weighting)
         ent = -(probs * np.log(probs)).sum(axis=1).astype(np.float32)
         mn, mx = ent.min(), ent.max()
         ent_norm = ((ent - mn) / (mx - mn) if mx > mn
                     else np.full_like(ent, 0.5))
-        # Store on GPU — this is the key optimization vs original Raki
-        self.log_probs = torch.tensor(log_probs, device=device)  # [V, V]
+        self.log_probs = torch.tensor(log_probs, device=device)
         self.ent_norm = torch.tensor(ent_norm, dtype=torch.float16,
-                                     device=device)  # [V]
+                                     device=device)
 
     @torch.no_grad()
     def batch_weight(self, x: Tensor, y: Tensor) -> float:
         """Returns scalar weight >= 1.0. Runs entirely on GPU."""
-        if MARKOV_POWER <= 0:
+        if RAKI_POWER <= 0:
             return 1.0
-        # x, y are already on GPU as int64 — just index directly
         x_flat = x.reshape(-1)
         y_flat = y.reshape(-1)
-        # Surprisal: -log P(y|x) from bigram table
-        surp = -self.log_probs[x_flat, y_flat].float()  # [N]
-        # Entropy weight
-        ent_w = self.ent_norm[x_flat].float()  # [N]
+        surp = -self.log_probs[x_flat, y_flat].float()
+        ent_w = self.ent_norm[x_flat].float()
         score = (surp * ent_w).mean().item()
-        return 1.0 + MARKOV_POWER * min(score / 5.0, 1.0)
+        return 1.0 + RAKI_POWER * min(score / 5.0, 1.0)
 
 
 class _EMA:
@@ -195,7 +196,7 @@ class _EMA:
             for n, p in model.named_parameters():
                 if n in self.shadow:
                     p.data.copy_(self.shadow[n])
-# ---- end Yandimata v2 config ----''',
+# ---- end Raki V2 config ----''',
     "GPU-Markov + EMA + config"
 )
 
@@ -217,7 +218,7 @@ patch(
 )
 
 # ==============================================================
-# SECTION E: Add forward_per_token to GPT for sliding window
+# SECTION E: Add forward_per_token to GPT for sliding window eval
 # ==============================================================
 patch(
     '''        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
@@ -341,8 +342,7 @@ patch(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    # Yandimata v2: Sliding window eval with stride for better BPB.
-    # Only the last `stride` tokens of each window are scored (except first).
+    # Raki V2: Sliding window eval with stride for better BPB.
     stride = EVAL_STRIDE
     seq_len = args.train_seq_len
     total_tokens = val_tokens.numel() - 1
@@ -419,7 +419,10 @@ patch(
 )
 
 # ==============================================================
-# SECTION G: Int6 quantization
+# SECTION G: GPTQ-lite clip search for quantization
+# Replace quantize_float_tensor with version that tries
+# multiple clip percentiles per row and picks best MSE.
+# Still uses INT8 (127 max) — NOT int6!
 # ==============================================================
 patch(
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
@@ -444,58 +447,93 @@ patch(
     return q, scale''',
 
     '''def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    # Raki V2: INT8 quantization with GPTQ-lite clip search.
+    # Tries multiple clip percentiles per row and picks the one
+    # that minimizes reconstruction MSE. Zero training cost.
     t32 = t.float()
-    qmax = float(QUANT_MAX)  # 31 for int6
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        if not GPTQ_CLIP_SEARCH or not t32.numel():
+            # Fallback to standard single-percentile
+            clip_abs = (
+                torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+                if t32.numel()
+                else torch.empty((t32.shape[0],), dtype=torch.float32)
+            )
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+            return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
+        # GPTQ-lite: try multiple percentiles, pick best per row
+        best_q = None
+        best_scale = None
+        best_mse = torch.full((t32.shape[0],), float('inf'), dtype=torch.float32)
+        for pct in GPTQ_PERCENTILES:
+            if pct >= 1.0:
+                ca = t32.abs().amax(dim=1)
+            else:
+                ca = torch.quantile(t32.abs(), pct, dim=1)
+            sc = (ca / 127.0).clamp_min(1.0 / 127.0)
+            cl = torch.maximum(torch.minimum(t32, ca[:, None]), -ca[:, None])
+            qq = torch.clamp(torch.round(cl / sc[:, None]), -127, 127)
+            recon = qq * sc[:, None]
+            mse = ((t32 - recon) ** 2).mean(dim=1)
+            improved = mse < best_mse
+            if best_q is None:
+                best_q = qq.to(torch.int8)
+                best_scale = sc
+                best_mse = mse
+            else:
+                best_q[improved] = qq[improved].to(torch.int8)
+                best_scale[improved] = sc[improved]
+                best_mse[improved] = mse[improved]
+        return best_q.contiguous(), best_scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
+    # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / qmax if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale''',
-    "Int6 quantization (31 max)"
+    "GPTQ-lite clip search (int8, 127 max)"
 )
 
 # ==============================================================
-# SECTION H: zstd compression + file renames
+# SECTION H: zstd compression (better ratio than zlib)
+# Keep INT8, just change compression algorithm
 # ==============================================================
 patch(
     '    quant_blob = zlib.compress(quant_raw, level=9)',
     '    cctx = zstd.ZstdCompressor(level=22)\n    quant_blob = cctx.compress(quant_raw)',
     "zstd-22 compress"
 )
+
+# Rename output files to reflect int8+zstd
 for i in range(3):
-    patch('"final_model.int8.ptz"', '"final_model.int6.ptzst"', f"filename ({i+1})")
+    patch('"final_model.int8.ptz"', '"final_model.int8.ptzst"', f"filename int8.ptzst ({i+1})")
 
 patch(
     'quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")',
     'dctx = zstd.ZstdDecompressor()\n    quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")',
     "zstd decompress"
 )
-patch('f"Serialized model int8+zlib:', 'f"Serialized model int6+zstd:', "log (1)")
-patch('f"Total submission size int8+zlib:', 'f"Total submission size int6+zstd:', "log (2)")
-patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int6_zstd_roundtrip val_loss', "log (3)")
-patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int6_zstd_roundtrip_exact val_loss', "log (4)")
+
+# Update log messages
+patch('f"Serialized model int8+zlib:', 'f"Serialized model int8+zstd:', "log (1)")
+patch('f"Total submission size int8+zlib:', 'f"Total submission size int8+zstd:', "log (2)")
+patch('f"final_int8_zlib_roundtrip val_loss', 'f"final_int8_zstd_roundtrip val_loss', "log (3)")
+patch('f"final_int8_zlib_roundtrip_exact val_loss', 'f"final_int8_zstd_roundtrip_exact val_loss', "log (4)")
 
 # ==============================================================
 # SECTION I: Init GPU-Markov + EMA before training loop
 # ==============================================================
 patch(
     "    training_time_ms = 0.0",
-    '''    # ---- Yandimata v2: Init GPU-Markov + EMA ----
+    '''    # ---- Raki V2: Init GPU-Markov + EMA ----
     _markov = _GPUMarkov(args.train_files, args.vocab_size, device)
     _ema = _EMA()
     _ema_on = False
-    log0(f"yandimata_v2: markov_power={MARKOV_POWER} muon_wd={MUON_WD} "
-         f"ema={EMA_DECAY} stride={EVAL_STRIDE} bits={QUANT_BITS}")
+    log0(f"raki_v2: power={RAKI_POWER} muon_wd={MUON_WD} "
+         f"ema={EMA_DECAY} stride={EVAL_STRIDE} gptq_clip={GPTQ_CLIP_SEARCH}")
 
     training_time_ms = 0.0''',
     "GPU-Markov + EMA init"
@@ -506,7 +544,7 @@ patch(
 # ==============================================================
 patch(
     "            (loss * grad_scale).backward()",
-    '''            # Yandimata v2: GPU-native curriculum weighting
+    '''            # Raki V2: GPU-native curriculum weighting
             _cw = _markov.batch_weight(x, y)
             (loss * grad_scale * _cw).backward()''',
     "Markov curriculum backward"
@@ -519,12 +557,12 @@ patch(
     "        zero_grad_all()\n\n        step += 1",
     '''        zero_grad_all()
 
-        # Yandimata v2: EMA update
+        # Raki V2: EMA update
         _prog = (training_time_ms + 1000.0 * (time.perf_counter() - t0)) / max(max_wallclock_ms or 1e18, 1.0)
         if _prog >= EMA_START_FRAC and not _ema_on:
             _ema.start(base_model)
             _ema_on = True
-            log0(f"yandimata_v2:ema_started step={step+1}")
+            log0(f"raki_v2:ema_started step={step+1}")
         _ema.update(base_model)
 
         step += 1''',
@@ -536,10 +574,10 @@ patch(
 # ==============================================================
 patch(
     '    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
-    '''    # Yandimata v2: Apply EMA before saving
+    '''    # Raki V2: Apply EMA before saving
     if _ema.on:
         _ema.apply(base_model)
-        log0("yandimata_v2:ema_applied")
+        log0("raki_v2:ema_applied")
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
@@ -553,29 +591,31 @@ with open("train_gpt.py", "w") as f:
     f.write(code)
 
 print(f"\n{'='*60}")
-print(f" YANDIMATA v2 PATCH — {changes} patches applied")
+print(f" RAKI V2 PATCH — {changes} patches applied")
 print(f"{'='*60}")
 print(f"")
-print(f" Original techniques (your ideas, optimized):")
-print(f"   - GPU-native Markov curriculum (no CPU sync!)")
+print(f" CRITICAL FIX: INT8 quantization (NOT int6!)")
+print(f"   Old V2: int6 → 1.30 pre-quant → 1.78 post-quant")
+print(f"   New V2: int8 → minimal quant loss (~0.02 BPB)")
+print(f"")
+print(f" Original techniques (Raki):")
+print(f"   - GPU-native Markov curriculum (no CPU sync)")
 print(f"   - Entropy-weighted loss scaling")
 print(f"   - EMA averaging")
 print(f"")
-print(f" Competition meta techniques:")
+print(f" Competition consensus techniques:")
 print(f"   - 10L, 3x MLP, warmdown 3500")
 print(f"   - Muon WD=0.04, momentum 0.99")
 print(f"   - Sliding window eval (stride=64)")
-print(f"   - Int6 + zstd-22")
-print(f"   - Tuned LRs")
-print(f"")
-print(f" Push to your repo:")
-print(f"   cd ~/Desktop/parameter-golf-yandimatastyle")
-print(f"   cp patch_v2.py ./patch_v2.py")
-print(f"   git add patch_v2.py")
-print(f"   git commit -m 'Yandimata v2: GPU-Markov + all meta'")
-print(f"   git push")
+print(f"   - GPTQ-lite clip search (per-row optimal)")
+print(f"   - INT8 + zstd-22 (~9MB, well under 16MB)")
+print(f"   - Tuned LRs (0.025/0.025/0.035)")
 print(f"")
 print(f" Run on RunPod (8xH100):")
-print(f"   python3 patch_v2.py  # apply to clean baseline")
-print(f"   RUN_ID=yandimata_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py")
+print(f"   python3 patch_v2.py")
+print(f"   RUN_ID=raki_v2 torchrun --standalone --nproc_per_node=8 train_gpt.py")
+print(f"")
+print(f" Run on 1xH100 (testing):")
+print(f"   python3 patch_v2.py")
+print(f"   RUN_ID=raki_v2_test VAL_BATCH_SIZE=262144 torchrun --standalone --nproc_per_node=1 train_gpt.py")
 print(f"{'='*60}")
