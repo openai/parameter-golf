@@ -92,6 +92,48 @@ patch('    mlp_mult = int(os.environ.get("MLP_MULT", 2))',
       "MLP_MULT=3")
 
 # ============================================================
+# 2b. Turbo-Muon: AOL preconditioning → fewer NS iterations → faster steps
+#     arXiv:2512.04632 — 2.8× speedup on Newton-Schulz, 5-10% faster training
+#     Row-column normalization makes singular values uniform → NS converges in
+#     steps-2 iterations. With default steps=10, we go to 8 → 20% faster optimizer.
+# ============================================================
+patch(
+    '''def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
+    # Muon uses this to normalize matrix-shaped gradients before applying them.
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X''',
+    '''def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    # Turbo-Muon: AOL preconditioning + reduced NS iterations (arXiv:2512.04632)
+    # Row-column normalization equalizes singular values → faster NS convergence
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    # AOL preconditioning: D_r^{-1/2} @ X @ D_c^{-1/2}
+    D_r = (X * X).sum(dim=1, keepdim=True).clamp_min(eps * eps)
+    D_c = (X * X).sum(dim=0, keepdim=True).clamp_min(eps * eps)
+    X = X / (D_r * D_c).pow(0.25)
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    turbo_steps = max(steps - 2, 3)
+    for _ in range(turbo_steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X''',
+    "Turbo-Muon preconditioning")
+
+# ============================================================
 # 3. Config: constants, helpers, EMA, QAT, Markov, GPTQ
 # ============================================================
 patch(
@@ -965,9 +1007,9 @@ with open("train_gpt.py", "w") as f:
     f.write(code)
 
 print(f"\nRaki V10 ({changes} patches): Record Submission Target")
-print(f"  NEW vs V9: XSA-ALL (11 layers) + Full Hessian GPTQ w/ calibration")
-print(f"  Stack: LeakyReLU² + QAT(dynamo fix) + XSA-ALL + LN_Scale + MLP3x")
-print(f"         + Partial RoPE + EMA + Full GPTQ + zstd + Adaptive Markov")
+print(f"  NEW vs V9: Turbo-Muon + XSA-ALL (11 layers) + Full Hessian GPTQ")
+print(f"  Stack: Turbo-Muon + LeakyReLU² + QAT(dynamo fix) + XSA-ALL + LN_Scale")
+print(f"         + MLP3x + Partial RoPE + EMA + Full GPTQ + zstd + Adaptive Markov")
 print(f"  Original: BigramHash + Markov curriculum + auto_qmax + dynamo QAT fix")
 print(f"  Target: ≤1.1144 (beat SOTA 1.1194 by ≥0.005)")
 print(f"  8xH100: MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\")
