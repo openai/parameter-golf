@@ -518,12 +518,12 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
       '''    if _ema.on:
         _ema.apply(base_model)
         log0("raki_v3:ema_applied")
-    global BLOCK_QUANT_MAX
+    # auto qmax search
     _code_bytes = len(code.encode("utf-8"))
     _lo, _hi = 15, 127
     while _lo < _hi:
         _mid = (_lo + _hi + 1) // 2
-        BLOCK_QUANT_MAX = _mid
+        globals()["BLOCK_QUANT_MAX"] = _mid
         _tobj, _ = quantize_state_dict_int8(base_model.state_dict())
         _tbuf = io.BytesIO()
         torch.save(_tobj, _tbuf)
@@ -532,7 +532,7 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
             _lo = _mid
         else:
             _hi = _mid - 1
-    BLOCK_QUANT_MAX = _lo
+    globals()["BLOCK_QUANT_MAX"] = _lo
     log0(f"raki_v3:auto_qmax={_lo} est_bytes={_tsz + _code_bytes}")
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
