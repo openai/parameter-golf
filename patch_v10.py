@@ -91,11 +91,14 @@ patch('    mlp_mult = int(os.environ.get("MLP_MULT", 2))',
       '    mlp_mult = int(os.environ.get("MLP_MULT", 3))',
       "MLP_MULT=3")
 
+patch('    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))',
+      '    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 4.0))',
+      "QK_GAIN_INIT=4.0")
+
 # ============================================================
 # 2b. Turbo-Muon: AOL preconditioning → fewer NS iterations → faster steps
-#     arXiv:2512.04632 — 2.8× speedup on Newton-Schulz, 5-10% faster training
-#     Row-column normalization makes singular values uniform → NS converges in
-#     steps-2 iterations. With default steps=10, we go to 8 → 20% faster optimizer.
+#     arXiv:2512.04632 — Preconditioned NS converges in steps-1 iterations.
+#     Actual muon_backend_steps=5, so 5→4 iterations = 20% faster optimizer.
 # ============================================================
 patch(
     '''def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -114,7 +117,6 @@ patch(
     return X.T if transposed else X''',
     '''def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Turbo-Muon: AOL preconditioning + reduced NS iterations (arXiv:2512.04632)
-    # Row-column normalization equalizes singular values → faster NS convergence
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
     # AOL preconditioning: D_r^{-1/2} @ X @ D_c^{-1/2}
@@ -125,7 +127,7 @@ patch(
     transposed = G.size(0) > G.size(1)
     if transposed:
         X = X.T
-    turbo_steps = max(steps - 2, 3)
+    turbo_steps = max(steps - 1, 3)
     for _ in range(turbo_steps):
         A = X @ X.T
         B = b * A + c * A @ A
@@ -157,6 +159,11 @@ LN_SCALE = bool(int(os.environ.get("LN_SCALE", "1")))
 LATE_QAT_THRESHOLD = float(os.environ.get("LATE_QAT_THRESHOLD", "0.85"))
 GPTQ_FULL = bool(int(os.environ.get("GPTQ_FULL", "1")))
 GPTQ_CAL_BATCHES = int(os.environ.get("GPTQ_CAL_BATCHES", "64"))
+TTT_ENABLED = bool(int(os.environ.get("TTT_ENABLED", "1")))
+TTT_LR = float(os.environ.get("TTT_LR", "0.001"))
+TTT_EPOCHS = int(os.environ.get("TTT_EPOCHS", "3"))
+TTT_CHUNK = int(os.environ.get("TTT_CHUNK", "32768"))
+TTT_GRAD_CLIP = float(os.environ.get("TTT_GRAD_CLIP", "1.0"))
 
 _QAT = {"on": False}
 _GPTQ_HESSIANS: dict[str, "Tensor"] = {}
@@ -1001,17 +1008,100 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
       "EMA + GPTQ calibration + auto qmax")
 
 # ============================================================
+# 25. Score-First AdamW TTT (Test-Time Training)
+#     Score chunk → record losses → train on chunk → next chunk
+#     Uses AdamW with cosine LR. ~0.010-0.015 bpb improvement.
+# ============================================================
+patch(
+    '''    if distributed:
+        dist.destroy_process_group()''',
+    '''    # === Score-First AdamW TTT ===
+    if TTT_ENABLED and rank == 0:
+        log0(f"raki_v10:ttt_starting lr={TTT_LR} epochs={TTT_EPOCHS} chunk={TTT_CHUNK}")
+        _ttt_t0 = time.perf_counter()
+        raw_m = model.module if hasattr(model, 'module') else model
+        base_ttt = raw_m._orig_mod if hasattr(raw_m, '_orig_mod') else raw_m
+        ttt_params = [p for p in base_ttt.parameters() if p.requires_grad]
+        ttt_opt = torch.optim.AdamW(ttt_params, lr=TTT_LR, weight_decay=0.0)
+        seq_len = args.train_seq_len
+        total_val = val_tokens.numel() - 1
+        n_chunks = max(1, total_val // TTT_CHUNK)
+        ttt_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        ttt_tok_count = torch.zeros((), device=device, dtype=torch.float64)
+        ttt_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+        stride = EVAL_STRIDE if 0 < EVAL_STRIDE < seq_len else seq_len
+        for ci in range(n_chunks):
+            cs = ci * TTT_CHUNK
+            ce = min(cs + TTT_CHUNK, total_val)
+            if ce - cs < seq_len:
+                continue
+            # SCORE: eval chunk (inference_mode — no weight mutation)
+            base_ttt.eval()
+            with torch.inference_mode():
+                for s in range(0, ce - cs - seq_len + 1, stride):
+                    x = val_tokens[cs+s:cs+s+seq_len].to(device=device, dtype=torch.int64).unsqueeze(0)
+                    y = val_tokens[cs+s+1:cs+s+seq_len+1].to(device=device, dtype=torch.int64).unsqueeze(0)
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        ptl = base_ttt.forward_per_token(x, y).detach()
+                    sc = 0 if s == 0 else (seq_len - stride)
+                    ns = min(seq_len - sc, ce - cs - s - sc)
+                    if ns <= 0:
+                        continue
+                    ttt_loss_sum += ptl[0, sc:sc+ns].to(torch.float64).sum()
+                    ttt_tok_count += float(ns)
+                    g = cs + s + sc
+                    prev = val_tokens[g:g+ns].to(device=device, dtype=torch.int64)
+                    tgt = val_tokens[g+1:g+ns+1].to(device=device, dtype=torch.int64)
+                    nn_ = min(prev.size(0), tgt.size(0))
+                    tb = base_bytes_lut[tgt[:nn_]].to(torch.int16)
+                    tb += (has_leading_space_lut[tgt[:nn_]] & ~is_boundary_token_lut[prev[:nn_]]).to(torch.int16)
+                    ttt_byte_count += tb.to(torch.float64).sum()
+            # TRAIN: fine-tune on scored chunk (AdamW, cosine LR)
+            base_ttt.train()
+            chunk_seqs = (ce - cs) // seq_len
+            total_ttt_steps = TTT_EPOCHS * chunk_seqs
+            ttt_step = 0
+            for ep in range(TTT_EPOCHS):
+                for si in range(chunk_seqs):
+                    ss = cs + si * seq_len
+                    x = val_tokens[ss:ss+seq_len].to(device=device, dtype=torch.int64).unsqueeze(0)
+                    y = val_tokens[ss+1:ss+seq_len+1].to(device=device, dtype=torch.int64).unsqueeze(0)
+                    ttt_opt.zero_grad()
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        tl = base_ttt(x, y)
+                    tl.backward()
+                    if TTT_GRAD_CLIP > 0:
+                        torch.nn.utils.clip_grad_norm_(ttt_params, TTT_GRAD_CLIP)
+                    # Cosine LR decay within chunk
+                    _cos_lr = TTT_LR * 0.5 * (1.0 + math.cos(math.pi * ttt_step / max(total_ttt_steps, 1)))
+                    for pg in ttt_opt.param_groups:
+                        pg["lr"] = _cos_lr
+                    ttt_opt.step()
+                    ttt_step += 1
+            if ci % 100 == 0:
+                log0(f"raki_v10:ttt chunk={ci}/{n_chunks}")
+        ttt_vl = ttt_loss_sum / ttt_tok_count
+        ttt_bpt = ttt_vl.item() / math.log(2.0)
+        ttt_tpb = ttt_tok_count.item() / ttt_byte_count.item()
+        ttt_bpb = ttt_bpt * ttt_tpb
+        log0(f"raki_v10:ttt val_loss:{ttt_vl.item():.4f} val_bpb:{ttt_bpb:.4f} time:{time.perf_counter()-_ttt_t0:.1f}s")
+        log0(f"raki_v10:ttt_exact val_loss:{ttt_vl.item():.8f} val_bpb:{ttt_bpb:.8f}")
+
+    if distributed:
+        dist.destroy_process_group()''',
+    "Score-First AdamW TTT")
+
+# ============================================================
 # Write patched file
 # ============================================================
 with open("train_gpt.py", "w") as f:
     f.write(code)
 
-print(f"\nRaki V10 ({changes} patches): Record Submission Target")
-print(f"  NEW vs V9: Turbo-Muon + XSA-ALL (11 layers) + Full Hessian GPTQ")
-print(f"  Stack: Turbo-Muon + LeakyReLU² + QAT(dynamo fix) + XSA-ALL + LN_Scale")
-print(f"         + MLP3x + Partial RoPE + EMA + Full GPTQ + zstd + Adaptive Markov")
-print(f"  Original: BigramHash + Markov curriculum + auto_qmax + dynamo QAT fix")
-print(f"  Target: ≤1.1144 (beat SOTA 1.1194 by ≥0.005)")
+print(f"\nRaki V10 ({changes} patches): RECORD SUBMISSION")
+print(f"  Turbo-Muon + XSA-ALL + Full GPTQ + Score-First AdamW TTT + QK-Gain 4.0")
+print(f"  + LeakyReLU² + QAT(dynamo fix) + LN_Scale + MLP3x + Partial RoPE + EMA")
+print(f"  + zstd + Adaptive Markov + BigramHash + auto_qmax")
+print(f"  Target: beat 1.1025 record")
 print(f"  8xH100: MUON_WD=0.04 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \\")
 print(f"    MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 \\")
 print(f"    EMA_DECAY=0.997 EVAL_STRIDE=64 RAKI_POWER=0.10 \\")
