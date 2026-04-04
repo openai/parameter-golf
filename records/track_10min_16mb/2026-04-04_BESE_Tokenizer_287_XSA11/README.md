@@ -1,5 +1,7 @@
 # BESE Tokenizer — Novel Structured Encoding for Parameter Golf
 
+**Based on:** [PR #1019](https://github.com/openai/parameter-golf/pull/1019) (1.1147 BPB, @abaybektursun) — all training architecture, optimizer, quantization, and evaluation code from PR #1019. **Novel contribution: BESE tokenizer only.**
+
 **val_bpb: 1.1276** (sliding window, stride=64, single seed) | **15.3 MB** | 8xH100 SXM, 600s
 
 This submission introduces a novel tokenizer to the PR #1019 architecture: **BESE** (Byte-Efficient Structured Encoding), a 287-token vocabulary built from first principles that replaces SentencePiece-1024.
