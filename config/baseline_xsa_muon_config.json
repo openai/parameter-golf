@@ -1,0 +1,23 @@
+{
+  "architecture": "TransformerWithXSA",
+  "d_model": 512,
+  "num_heads": 8,
+  "mlp_expansion": 2.0,
+  "vocab_size": 1024,
+  "context_length": 2048,
+  "num_layers": 11,
+  "use_exclusive_self_attention": true,
+  "optimizer": "Muon",
+  "learning_rate": 0.003,
+  "batch_size": 512,
+  "effective_batch_size": 262144,
+  "training_duration_seconds": 600,
+  "gradient_accumulation_steps": 32,
+  "muon_orthogonality_iterations": 5,
+  "muon_memory_epsilon": 1e-8,
+  "max_artifact_size_mb": 16.0,
+  "use_flash_attention_3": true,
+  "use_bfloat16": true,
+  "torch_compile": false,
+  "seed": 42
+}
