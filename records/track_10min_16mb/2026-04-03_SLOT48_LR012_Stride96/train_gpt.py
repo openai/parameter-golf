@@ -945,11 +945,6 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
  q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
  return q, scale
 def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
- num_layers_total = max(
-  (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
-  default=0,
- ) + 1
-
  result: dict[str, Tensor] = {}
  meta: dict[str, object] = {}
  for name, tensor in state_dict.items():
