@@ -1,13 +1,9 @@
-cd ../workspace/parameter-golf/
-git pull
+git pull 
 pip install -r requirements.txt
+pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 apt update
 apt install -y ninja-build git
 pip install --upgrade pip setuptools wheel
-cd /workspace
-wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-pip install ./flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-cd parameter-golf
 
 RUN_ID=remote_1gpu_run \
   DATA_PATH=./data/datasets/fineweb10B_sp1024 \
