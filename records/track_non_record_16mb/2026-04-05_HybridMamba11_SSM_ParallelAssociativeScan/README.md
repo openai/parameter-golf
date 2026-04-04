@@ -54,7 +54,7 @@ Prior approaches:
 
 ## The Solution: Parallel Associative Scan
 
-The SSM recurrence `h[t] = A[t] * h[t-1] + B[t] * u[t]` is a **linear recurrence** — parallelizable via Blelloch-style prefix scan since 1990. I implemented a Hillis-Steele parallel associative scan in pure PyTorch:
+The SSM recurrence `h[t] = A[t] * h[t-1] + B[t] * u[t]` is a **linear recurrence** — parallelizable via a Hillis-Steele-style prefix scan (Hillis & Steele, 1986). I implemented a Hillis-Steele parallel associative scan in pure PyTorch:
 
 ```python
 def parallel_associative_scan(gates, values):
@@ -140,4 +140,4 @@ MAMBA_USE_CUDA=1 python train_gpt.py
 - The Parameter Golf community for the incredible open research culture
 - PR #831 for the throughput-quantization co-optimization analysis that clarified why SSMs fail
 - Issue #140 (Hymba) for demonstrating the SSM potential and the compilation barrier
-- Blelloch (1990) for the parallel prefix scan algorithm that makes this possible
+- Hillis & Steele (1986) for the parallel prefix scan algorithm that makes this possible
