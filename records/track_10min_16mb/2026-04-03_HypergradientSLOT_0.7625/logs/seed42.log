@@ -875,35 +875,31 @@ def eval_val_slot(
   valid_count = mask.sum()
   if valid_count == 0:
    continue
-  # LoRA-SLOT: low-rank context-dependent delta (novel — combines SLOT + LoRA)
-  hdim = hidden_f.size(-1)
-  lora_rank = 4
-  lora_A = torch.zeros(bsz, hdim, lora_rank, device=device, dtype=torch.float32, requires_grad=True)
-  lora_B = torch.zeros(bsz, lora_rank, hdim, device=device, dtype=torch.float32, requires_grad=True)
+  delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
   logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
   # Hypergradient SLOT (arXiv:2502.11229): LR adapts itself each step
-  all_params = [lora_A, lora_B, logit_bias]
-  slot_opt = torch.optim.AdamW(all_params, lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
+  slot_opt = torch.optim.AdamW([delta, logit_bias], lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
   targets_flat = yb.reshape(-1)
-  hyper_lr = 1e-5
-  prev_grads = [torch.zeros_like(p) for p in all_params]
+  hyper_lr = 1e-5  # learning rate for the learning rate
+  prev_grads = [torch.zeros_like(delta), torch.zeros_like(logit_bias)]
   current_lr = args.slot_lr
   for step_i in range(args.slot_steps):
    slot_opt.zero_grad()
-   h = hidden_f + hidden_f @ lora_A @ lora_B  # context-dependent delta
+   h = hidden_f + delta
    lp = F.linear(h, proj_w) + logit_bias
    lg = softcap * torch.tanh(lp / softcap)
    nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
    slot_loss = (nll * mask).sum() / valid_count
    slot_loss.backward()
+   # Hypergradient: adapt LR based on gradient alignment with previous step
    if step_i > 0:
-    hg = sum((p.grad * pg).sum().item() for p, pg in zip(all_params, prev_grads))
+    hg = sum((p.grad * pg).sum().item() for p, pg in zip([delta, logit_bias], prev_grads))
     current_lr = max(args.slot_lr_min, min(args.slot_lr * 2, current_lr + hyper_lr * hg))
-   prev_grads = [p.grad.detach().clone() for p in all_params]
+   prev_grads = [delta.grad.detach().clone(), logit_bias.grad.detach().clone()]
    for pg in slot_opt.param_groups: pg['lr'] = current_lr
    slot_opt.step()
   with torch.no_grad():
-   h = hidden_f + hidden_f @ lora_A.detach() @ lora_B.detach()
+   h = hidden_f + delta.detach()
    lp = F.linear(h, proj_w) + logit_bias.detach()
    lg = softcap * torch.tanh(lp / softcap)
    nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
@@ -1467,3 +1463,134 @@ def main() -> None:
   dist.destroy_process_group()
 if __name__ == "__main__":
  main()
+
+====================================================================================================
+Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+Running PyTorch 2.11.0+cu130
+Fri Apr  3 21:51:10 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   36C    P0            118W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   33C    P0            119W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   31C    P0            116W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   35C    P0            125W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   37C    P0            121W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   32C    P0            119W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   37C    P0            118W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   31C    P0            117W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26862694
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9310 val_bpb:4.1049 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9323 train_time:172ms step_avg:171.88ms
+step:2/20000 train_loss:8.7688 train_time:270ms step_avg:134.82ms
+step:3/20000 train_loss:7.7279 train_time:372ms step_avg:123.93ms
+step:4/20000 train_loss:7.2109 train_time:473ms step_avg:118.33ms
+step:5/20000 train_loss:6.9953 train_time:575ms step_avg:114.95ms
+step:6/20000 train_loss:6.9281 train_time:676ms step_avg:112.63ms
+step:7/20000 train_loss:6.8396 train_time:778ms step_avg:111.11ms
+step:8/20000 train_loss:6.7012 train_time:879ms step_avg:109.92ms
+step:9/20000 train_loss:6.3591 train_time:981ms step_avg:109.01ms
+step:10/20000 train_loss:6.0016 train_time:1084ms step_avg:108.38ms
+step:500/20000 train_loss:2.3647 train_time:51563ms step_avg:103.13ms
+step:1000/20000 train_loss:2.2461 train_time:103359ms step_avg:103.36ms
+step:1500/20000 train_loss:2.1631 train_time:155129ms step_avg:103.42ms
+step:2000/20000 train_loss:2.1442 train_time:206890ms step_avg:103.45ms
+step:2500/20000 train_loss:2.0314 train_time:258647ms step_avg:103.46ms
+step:3000/20000 train_loss:2.1047 train_time:310361ms step_avg:103.45ms
+step:3500/20000 train_loss:2.0305 train_time:362054ms step_avg:103.44ms
+step:4000/20000 train_loss:1.9403 train_time:413737ms step_avg:103.43ms
+step:4000/20000 val_loss:2.0147 val_bpb:1.1932 train_time:413741ms step_avg:103.44ms
+step:4500/20000 train_loss:1.9900 train_time:465398ms step_avg:103.42ms
+step:5000/20000 train_loss:1.9901 train_time:517133ms step_avg:103.43ms
+swa:start step:5150
+late_qat:enabled step:5276 scale:0.1498
+step:5500/20000 train_loss:1.9838 train_time:569070ms step_avg:103.47ms
+step:5798/20000 val_loss:1.9322 val_bpb:1.1444 train_time:599999ms step_avg:103.48ms
+stopping_early: wallclock_cap train_time:599999ms step:5798/20000
+peak memory allocated: 23724 MiB reserved: 23774 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9306 val_bpb:1.1434 eval_time:2464ms
+Serialized model: 105919389 bytes
+Code size: 62444 bytes
+Serialized model int6+lzma: 15711916 bytes
+Total submission size int6+lzma: 15774360 bytes
+Total submission size: 15774360 bytes
+final_int6_roundtrip val_loss:1.9431 val_bpb:1.1508 eval_time:7600ms
+final_int6_roundtrip_exact val_loss:1.94306353 val_bpb:1.15079167
+final_int6_sliding_window val_loss:1.9034 val_bpb:1.1273 stride:96 eval_time:61612ms
+final_int6_sliding_window_exact val_loss:1.90336329 val_bpb:1.12728151
+final_int6_roundtrip_exact val_loss:1.90336329 val_bpb:1.12728151
+final_int6_sliding_window_s64 val_loss:1.9033 val_bpb:1.1273 stride:64 eval_time:89874ms
+final_int6_sliding_window_s64_exact val_loss:1.90331788 val_bpb:1.12725504
+final_int6_roundtrip_exact val_loss:1.90331788 val_bpb:1.12725504
+final_slot val_loss:1.2867 val_bpb:0.7620 steps:24 lr:0.012 eval_time:259442ms
+final_slot_exact val_loss:1.28667507 val_bpb:0.76204317
