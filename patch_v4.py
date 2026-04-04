@@ -524,14 +524,30 @@ patch("        zero_grad_all()\n\n        step += 1",
         step += 1''',
       "EMA update")
 
-# --- EMA apply ---
+# --- EMA apply + auto qmax ---
 patch('    if master_process:\n        torch.save(base_model.state_dict(), "final_model.pt")',
       '''    if _ema.on:
         _ema.apply(base_model)
         log0("raki_v4:ema_applied")
+    global BLOCK_QUANT_MAX
+    _code_bytes = len(code.encode("utf-8"))
+    _lo, _hi = 15, 127
+    while _lo < _hi:
+        _mid = (_lo + _hi + 1) // 2
+        BLOCK_QUANT_MAX = _mid
+        _tobj, _ = quantize_state_dict_int8(base_model.state_dict())
+        _tbuf = io.BytesIO()
+        torch.save(_tobj, _tbuf)
+        _tsz = len(zstd.ZstdCompressor(level=22).compress(_tbuf.getvalue()))
+        if _tsz + _code_bytes <= 16_000_000:
+            _lo = _mid
+        else:
+            _hi = _mid - 1
+    BLOCK_QUANT_MAX = _lo
+    log0(f"raki_v4:auto_qmax={_lo} est_bytes={_tsz + _code_bytes}")
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
-      "EMA apply")
+      "EMA apply + auto qmax")
 
 with open("train_gpt.py", "w") as f:
     f.write(code)
