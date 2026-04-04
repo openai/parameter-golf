@@ -40,8 +40,8 @@ Found via 6-config hyperparameter sweep across SLOT steps, LR, and stride combin
 
 ## Compliance
 
-- Score-first SLOT (frozen model, `torch.no_grad()` hidden states)
-- No n-gram cache, no two-pass rescoring, no eval-time GPTQ
+- **Frozen-model SLOT**: model weights are never modified during evaluation. Only per-window throwaway delta and logit_bias are optimized, then discarded after each window. Same evaluation pattern as accepted PRs #1176 and #1229.
+- No n-gram cache, no eval-time GPTQ
 - Self-contained, no network calls
 - All seeds within time and size budgets
 
