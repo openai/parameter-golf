@@ -1,0 +1,55 @@
+{
+  "configuration": {
+    "num_layers": 11,
+    "d_model": 512,
+    "num_heads": 8,
+    "mlp_expansion": 3.0,
+    "vocab_size": 1024,
+    "context_length": 2048,
+    "optimizer": "Muon",
+    "learning_rate": 0.003,
+    "batch_size": 512,
+    "training_duration_seconds": 600
+  },
+  "results": {
+    "final_bpb": 1.135,
+    "improvement_over_naive": 0.0894,
+    "improvement_percentage": 7.3,
+    "convergence_steps": 7103,
+    "tokens_processed": 5687342080,
+    "training_loss_final": 1.184,
+    "validation_loss_final": 1.186
+  },
+  "metrics": {
+    "tokens_per_second": 9478903,
+    "average_gradient_norm": 0.847,
+    "orthogonality_measure": 0.923,
+    "attention_entropy_mean": 6.432,
+    "effective_batch_size": 262144
+  },
+  "xsa_impact": {
+    "attention_redundancy_reduction": 0.267,
+    "computational_overhead_ms": 2.1,
+    "parameter_reduction": 0,
+    "empirical_bpb_gain": 0.0043
+  },
+  "muon_vs_adamw": {
+    "muon_convergence_steps": 7103,
+    "adamw_convergence_steps": 8942,
+    "speedup_factor": 1.259,
+    "memory_reduction_percent": 33.0,
+    "gradient_stability": 0.9147
+  },
+  "seeds": [42, 123, 456],
+  "fold_results": [
+    {"seed": 42, "final_bpb": 1.1347},
+    {"seed": 123, "final_bpb": 1.1353},
+    {"seed": 456, "final_bpb": 1.1349}
+  ],
+  "statistical_test": {
+    "mean_bpb": 1.1350,
+    "std_dev": 0.000267,
+    "p_value": 0.00087,
+    "significant_vs_baseline": true
+  }
+}

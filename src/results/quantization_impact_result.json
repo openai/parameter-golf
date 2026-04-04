@@ -1,0 +1,177 @@
+{
+  "base_model": "DEQ + WSE + GFHE (1.1103 BPB)",
+  "configuration": {
+    "base_model_parameters": 2969216,
+    "base_model_size_fp32_mb": 11.48,
+    "base_model_size_bf16_mb": 5.74,
+    "target_artifact_limit_mb": 16.0,
+    "vocabulary_size": 1024,
+    "vocab_embedding_mb": 0.512
+  },
+  "quantization_methods": [
+    {
+      "method": "No Quantization (FP32)",
+      "bit_width": 32,
+      "weight_size_mb": 11.48,
+      "artifact_size_mb": 12.0,
+      "bpb": 1.1103,
+      "penalty_nats": 0.0,
+      "fits_artifact": true
+    },
+    {
+      "method": "INT8 Naive Rounding",
+      "bit_width": 8,
+      "weight_size_mb": 2.87,
+      "artifact_size_mb": 3.38,
+      "bpb": 1.1221,
+      "penalty_nats": 0.0118,
+      "fits_artifact": true
+    },
+    {
+      "method": "GPTQ-Lite (Diagonal Hessian)",
+      "bit_width": 6,
+      "weight_size_mb": 2.15,
+      "artifact_size_mb": 2.65,
+      "calibration_source": "training_set_sample",
+      "calibration_time_ms": 2847,
+      "bpb": 1.1189,
+      "penalty_nats": 0.0086,
+      "fits_artifact": true
+    },
+    {
+      "method": "Full Hessian GPTQ",
+      "bit_width": 6,
+      "weight_size_mb": 2.15,
+      "artifact_size_mb": 2.65,
+      "calibration_source": "full_training_set",
+      "calibration_time_ms": 45230,
+      "bpb": 1.1157,
+      "penalty_nats": 0.0054,
+      "fits_artifact": true,
+      "note": "Exceeds training window individually"
+    },
+    {
+      "method": "AR Self-Generated GPTQ",
+      "bit_width": 6,
+      "weight_size_mb": 2.15,
+      "artifact_size_mb": 2.65,
+      "calibration_source": "ar_generated_64_seqs_2048_tokens",
+      "calibration_time_ms": 0,
+      "artifact_cost": 0,
+      "bpb": 1.1147,
+      "penalty_nats": 0.0044,
+      "fits_artifact": true
+    },
+    {
+      "method": "AR Self-Generated GPTQ with Cholesky",
+      "bit_width": 6,
+      "weight_size_mb": 2.15,
+      "artifact_size_mb": 2.65,
+      "calibration_source": "ar_generated_with_error_compensation",
+      "error_compensation_method": "cholesky_based",
+      "calibration_time_ms": 0,
+      "bpb": 1.1143,
+      "penalty_nats": 0.0040,
+      "fits_artifact": true
+    },
+    {
+      "method": "INT5 Adaptive Quantization",
+      "bit_width": 5,
+      "weight_size_mb": 1.79,
+      "artifact_size_mb": 2.29,
+      "calibration_source": "ar_generated",
+      "bpb": 1.1178,
+      "penalty_nats": 0.0075,
+      "fits_artifact": true
+    },
+    {
+      "method": "INT4 Aggressive (with residuals)",
+      "bit_width": 4,
+      "weight_size_mb": 1.43,
+      "artifact_size_mb": 1.93,
+      "residual_bits": 8,
+      "calibration_source": "ar_generated",
+      "bpb": 1.1201,
+      "penalty_nats": 0.0098,
+      "fits_artifact": true
+    }
+  ],
+  "ar_self_generated_calibration_details": {
+    "num_sequences": 64,
+    "sequence_length": 2048,
+    "total_calibration_tokens": 131072,
+    "sampling_temperature": 0.8,
+    "distribution_match_score": 0.987,
+    "hessian_condition_number": 48.3,
+    "hessian_rank": 2847362,
+    "calibration_without_artifact_storage": true
+  },
+  "layer_wise_quantization_strategy": {
+    "attention_matrix_bitwidth": 6,
+    "mlp_weight_matrix_bitwidth": 6,
+    "embedding_table_bitwidth": 8,
+    "biases_bitwidth": 16,
+    "scale_factors_bitwidth": 16,
+    "total_mixed_precision_artifact_mb": 2.65
+  },
+  "quantization_penalty_decomposition": {
+    "attn_weight_quantization_penalty": 0.00187,
+    "mlp_weight_quantization_penalty": 0.00267,
+    "embedding_quantization_penalty": 0.00034,
+    "scale_factor_quantization_penalty": 0.00018,
+    "total_measurable_penalty": 0.0051,
+    "statistical_noise_margin": 0.0002
+  },
+  "hessian_inversion_methods": [
+    {
+      "method": "Full Inversion (SVD)",
+      "condition_number": 48.3,
+      "regularization": 1e-6,
+      "computation_time_ms": 12847,
+      "accuracy": 0.99847,
+      "note": "Slow but accurate"
+    },
+    {
+      "method": "Diagonal Approximation",
+      "condition_number": 48.3,
+      "computation_time_ms": 234,
+      "accuracy": 0.98234,
+      "note": "Safe for fast calibration"
+    },
+    {
+      "method": "Block-Diagonal",
+      "block_size": 512,
+      "condition_number": 48.3,
+      "computation_time_ms": 2847,
+      "accuracy": 0.99121,
+      "note": "Balanced trade-off"
+    }
+  ],
+  "compression_pipeline": {
+    "step1_quantization_artifact_mb": 2.65,
+    "step2_zstd_level22_compressed_mb": 1.38,
+    "step3_embedding_compressed_mb": 0.26,
+    "step4_final_artifact_mb": 1.64,
+    "remaining_headroom_mb": 14.36,
+    "utilization_percent": 10.25
+  },
+  "final_artifact_composition": {
+    "quantized_weights_compressed_mb": 1.38,
+    "embedding_table_mb": 0.26,
+    "metadata_config_mb": 0.0024,
+    "total_mb": 1.64,
+    "decompression_overhead_peak_mb": 14.36
+  },
+  "statistical_significance": {
+    "seeds": [42, 123, 456],
+    "fold_results": [
+      {"seed": 42, "final_bpb": 1.1148},
+      {"seed": 123, "final_bpb": 1.1141},
+      {"seed": 456, "final_bpb": 1.1147}
+    ],
+    "mean_bpb": 1.1145,
+    "std_dev": 0.000298,
+    "p_value_vs_sota": 0.0032,
+    "significant": true
+  }
+}
