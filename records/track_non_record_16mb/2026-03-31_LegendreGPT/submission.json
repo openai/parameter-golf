@@ -1,0 +1,18 @@
+{
+  "author": "Sergio Cernuda Cueto",
+  "github_id": "sergimichi",
+  "name": "LegendreGPT: 2-Group Legendre Polynomial Depth Parameterization",
+  "blurb": "Transformer weights parameterized as smooth functions of depth via Legendre polynomials. 2-group architecture with independent coefficients per group halves gradient cancellation. 24 virtual layers in 15.7MB. Pre-quant 1.2079 BPB, post-quant 1.2266 BPB.",
+  "date": "2026-04-04T00:00:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 2.0413,
+  "val_bpb": 1.2266,
+  "pre_quant_val_loss": 2.0322,
+  "pre_quant_val_bpb": 1.2079,
+  "step_stop": 60000,
+  "wallclock_seconds": 96562,
+  "bytes_total": 15702333,
+  "bytes_model_compressed": 15630808,
+  "bytes_code": 71525,
+  "gpu": "1xRTX5090"
+}
