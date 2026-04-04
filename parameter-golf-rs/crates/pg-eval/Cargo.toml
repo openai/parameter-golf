@@ -1,0 +1,16 @@
+[package]
+name = "pg-eval"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+cuda = ["pg-core/cuda", "pg-kernels/cuda", "pg-model/cuda"]
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+pg-kernels = { path = "../pg-kernels" }
+pg-model = { path = "../pg-model" }
+pg-data = { path = "../pg-data" }
+thiserror = { workspace = true }
+log = { workspace = true }

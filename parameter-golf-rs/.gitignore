@@ -1,0 +1,81 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock
+*.pdb
+
+# CUDA
+*.o
+*.so
+*.a
+*.cubin
+*.fatbin
+*.ptx
+*_generated.cu
+*_generated.h
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.sublime-workspace
+*.iml
+.clangd
+compile_commands.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# Data and artifacts (large files)
+/data/
+/datasets/
+*.bin
+*.safetensors
+*.pt
+*.pth
+/checkpoints/
+/artifacts/
+/models/
+
+# Logs and temp
+*.log
+/tmp/
+/temp/
+*.tmp
+.cache/
+
+# Environment
+.env
+.env.local
+
+# Profiling and benchmarking
+perf.data
+perf.data.old
+flamegraph.svg
+/benchmarks/results/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.exe
+*.dll
+
+# Modal/deployment
+/.modal/
+__pycache__/
+modal_deploy.py.bak
+
+# Test outputs
+/test_output/
+coverage/

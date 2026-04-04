@@ -1,0 +1,13 @@
+[package]
+name = "pg-compat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+pg-model = { path = "../pg-model" }
+half = { workspace = true }
+bytemuck = { workspace = true }
+byteorder = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
