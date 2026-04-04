@@ -1,0 +1,11 @@
+{
+  "author": "bigbag",
+  "github_id": "bigbag1983",
+  "name": "SP2048 + 3-Layer Recurrence + SWA + BigramHash + Legal TTT",
+  "blurb": "SP2048 vocab with 3-layer depth recurrence (layers 3,4,5), stochastic weight averaging, bigram hash embeddings, and score-first TTT. Based on PR #1326 codebase with novel additions.",
+  "date": "2026-04-04T18:40:00Z",
+  "val_loss": 2.1902,
+  "val_bpb": 1.0955,
+  "bytes_total": 15474490,
+  "bytes_code": 88053
+}
