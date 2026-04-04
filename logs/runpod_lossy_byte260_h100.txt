@@ -1890,3 +1890,66 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Sat Apr  4 22:10:14 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 565.57.01              Driver Version: 565.57.01      CUDA Version: 12.7     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:11:00.0 Off |                    0 |
+| N/A   37C    P0            132W /  700W |    1184MiB /  81559MiB |      6%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=byte260 tokenizer=byte260
+train_loader:dataset:fineweb10B_byte260 train_shards:1
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_byte260/fineweb_val_*.bin tokens:151130112
+kan_triton:available=1 enabled_modules=6/6 env_KAN_TRITON=1
+model_params:94080278
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+backbone:recursive unique_blocks:6 num_loops:8 effective_layers:48
+attention_mode:mla_absorbed num_heads:8 mla_q_rank:384 mla_kv_rank:512
+ffn:kan_style mlp_mult:2 kan_basis_scale:1.0 mol_lora:experts:32 rank:32 alpha:8.0 alflb:decay:0.95 eta:0.02 clip:2.0
+mtp:steps:4 rank:64 loss_weight:0.5 strip_at_export:True
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:16384 train_seq_len:1024 iterations:10 warmup_steps:0 max_wallclock_seconds:0.000
+bitnet_ternary_backbone:1 bitnet_ternary_eps:1e-06 muon_momentum:0.9900 swa_final_seconds:60.0
+nca_backbone_init:1 mats:36 steps:4 mix:0.3 gain:1.0
+nuclear_ttt:1 lr:0.0002 trailing_seqs:8
+seed:1337
+swa:enter_final_window
+step:1/10 train_loss:10.2340 train_time:335087ms step_avg:335086.97ms
+step:2/10 train_loss:25.0677 train_time:336626ms step_avg:168312.84ms
+step:3/10 train_loss:14.4480 train_time:338124ms step_avg:112708.08ms
+step:4/10 train_loss:16.0452 train_time:339602ms step_avg:84900.51ms
+step:5/10 train_loss:7.3960 train_time:341343ms step_avg:68268.60ms
+step:6/10 train_loss:6.8970 train_time:343050ms step_avg:57175.08ms
+step:7/10 train_loss:6.7318 train_time:344445ms step_avg:49206.36ms
+step:8/10 train_loss:6.5355 train_time:345937ms step_avg:43242.18ms
+step:9/10 train_loss:6.4199 train_time:347403ms step_avg:38600.34ms
+step:10/10 train_loss:6.2151 train_time:348905ms step_avg:34890.53ms
+step:10/10 val_loss:4.1514 val_bpb:5.9911 train_time:348908ms step_avg:34890.81ms
+swa:applied count:10
+peak memory allocated: 20719 MiB reserved: 21910 MiB
+Serialized model: 334042233 bytes
+Code size: 82344 bytes
+Total submission size: 334124577 bytes
+Serialized model int8+zlib: 12385322 bytes (payload:34564988 raw_torch:34627195 fp8_payload:18971520 ternary_payload:14923932 ternary_tensors:48 ternary_params:74139648 payload_ratio:9.66x)
+Total submission size int8+zlib: 12467666 bytes
+final_int8_zlib_roundtrip val_loss:4.1544 val_bpb:5.9955 eval_time:1239467ms
+final_int8_zlib_roundtrip_exact val_loss:4.15436745 val_bpb:5.99546883
