@@ -42,6 +42,28 @@ class RelaxedLinear(CastedLinear):
         return y
 
 
+class BigramHashEmbedding(nn.Module):
+    """Learned bigram-pair correction on top of token embeddings.
+
+    Uses a compact hash table (hash_size << vocab^2) to store per-bigram
+    residual embeddings. The hash maps (prev_token, cur_token) → bucket via
+    a simple polynomial: (prev * vocab_size + cur) % hash_size.
+    """
+    def __init__(self, hash_size: int, model_dim: int, scale: float = 0.05, vocab_size: int = 1024):
+        super().__init__()
+        self.hash_size = hash_size
+        self.scale = scale
+        self.vocab_size = vocab_size
+        self.table = nn.Embedding(hash_size, model_dim)
+        nn.init.normal_(self.table.weight, mean=0.0, std=0.002)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        # Pad left with 0 (BOS sentinel) to create prev_ids
+        prev_ids = F.pad(input_ids[:, :-1], (1, 0), value=0)
+        hash_idx = (prev_ids.long() * self.vocab_size + input_ids.long()) % self.hash_size
+        return self.table(hash_idx) * self.scale
+
+
 class Rotary(nn.Module):
     def __init__(self, dim: int, base: float = 10000.0):
         super().__init__()
@@ -73,15 +95,25 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float, num_steps: int, rank: int):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float,
+                 qk_gain_init: float, num_steps: int, rank: int, lora_scope: str = "q"):
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         kv_dim = self.num_kv_heads * self.head_dim
+
+        # Q always has dual-Q LoRA (near-full-rank second projection)
         self.c_q = RelaxedLinear(dim, dim, num_steps, rank, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = RelaxedLinear(dim, kv_dim, num_steps, rank, bias=False)
+
+        # V has LoRA only in 'qv' or 'full' scope
+        self.use_v_lora = lora_scope in ("qv", "full")
+        if self.use_v_lora:
+            self.c_v = RelaxedLinear(dim, kv_dim, num_steps, rank, bias=False)
+        else:
+            self.c_v = CastedLinear(dim, kv_dim, bias=False)
+
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.v_step_bias = nn.Parameter(torch.empty(num_steps, num_kv_heads, self.head_dim))
@@ -92,7 +124,8 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x, step_idx).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x, step_idx).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v_input = self.c_v(x, step_idx) if self.use_v_lora else self.c_v(x)
+        v = v_input.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -101,59 +134,88 @@ class CausalSelfAttention(nn.Module):
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         if step_idx is not None:
             v_bias = self.v_step_bias[step_idx].to(dtype=v.dtype)
-            v = v + v_bias[None, :, None, :] # Broadcast: (1, num_kv_heads, 1, head_dim)
+            v = v + v_bias[None, :, None, :]
         y = F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=(self.num_kv_heads != self.num_heads))
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int, num_steps: int, rank: int):
+    def __init__(self, dim: int, mlp_mult: int, num_steps: int, rank: int, lora_scope: str = "q"):
         super().__init__()
         hidden = mlp_mult * dim
-        self.fc = RelaxedLinear(dim, hidden, num_steps, rank, bias=False)
-        self.proj = RelaxedLinear(hidden, dim, num_steps, rank, bias=False)
+        self.use_lora = lora_scope == "full"
+        if self.use_lora:
+            self.fc = RelaxedLinear(dim, hidden, num_steps, rank, bias=False)
+            self.proj = RelaxedLinear(hidden, dim, num_steps, rank, bias=False)
+        else:
+            self.fc = CastedLinear(dim, hidden, bias=False)
+            self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor, step_idx: int | None = None) -> Tensor:
-        lora_fc_out = 0.0
-        if step_idx is not None:
-            dtype = x.dtype
-            a_fc = self.fc.lora_A[step_idx].to(dtype)
-            b_fc = self.fc.lora_B[step_idx].to(dtype)
-            lora_fc_out = (x @ b_fc.t()) @ a_fc.t() * self.fc.scaling
-        
-        x = fused_relu2(x, self.fc.weight.t()) + lora_fc_out
-        return self.proj(x, step_idx)
+        if self.use_lora:
+            lora_fc_out = 0.0
+            if step_idx is not None:
+                dtype = x.dtype
+                a_fc = self.fc.lora_A[step_idx].to(dtype)
+                b_fc = self.fc.lora_B[step_idx].to(dtype)
+                lora_fc_out = (x @ b_fc.t()) @ a_fc.t() * self.fc.scaling
+            x = fused_relu2(x, self.fc.weight.t()) + lora_fc_out
+            return self.proj(x, step_idx)
+        else:
+            x = fused_relu2(x, self.fc.weight.t())
+            return self.proj(x)
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float, num_steps: int, rank: int):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 rope_base: float, qk_gain_init: float, num_steps: int, rank: int,
+                 lora_scope: str = "q"):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, num_steps, rank)
-        self.mlp = MLP(dim, mlp_mult, num_steps, rank)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+                                        num_steps, rank, lora_scope=lora_scope)
+        self.mlp = MLP(dim, mlp_mult, num_steps, rank, lora_scope=lora_scope)
         self.attn_scale = nn.Parameter(torch.full((dim,), 1e-4, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.full((dim,), 1e-4, dtype=torch.float32))
         self.dropout = nn.Dropout(0.15)
 
     def forward(self, x: Tensor, x0: Tensor, step_idx: int | None = None) -> Tensor:
-        # Subtle Stochastic Depth (0.04 DropRate) for Safe-Speed Stability
         if self.training:
             mask = (torch.rand(1, device=x.device) > 0.04).to(dtype=x.dtype)
         else:
             mask = 1.0
 
         attn_out = self.attn(self.attn_norm(x), step_idx)
-        # Apply mask to the recursive update branch
         x = x + mask * self.attn_scale[None, None, :] * self.dropout(attn_out)
         x = x + mask * self.mlp_scale[None, None, :] * self.dropout(self.mlp(self.mlp_norm(x), step_idx))
         return x
 
 
 class GPT(nn.Module):
-    def __init__(self, vocab_size: int, num_steps: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float = 10.0, rope_base: float = 10000.0, qk_gain_init: float = 1.5, lora_rank: int = 16):
+    def __init__(
+        self,
+        vocab_size: int,
+        num_steps: int,
+        model_dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        tie_embeddings: bool,
+        tied_embed_init_std: float,
+        logit_softcap: float = 10.0,
+        rope_base: float = 10000.0,
+        qk_gain_init: float = 1.5,
+        lora_rank: int = 16,
+        lora_scope: str = "q",
+        bigram_hash_enabled: bool = False,
+        bigram_hash_size: int = 2048,
+        bigram_hash_scale: float = 0.05,
+        level_signal_enabled: bool = False,
+        level_rank: int | None = None,
+    ):
         super().__init__()
         print(f"[debug] GPT init: steps={num_steps}, dim={model_dim}")
         self.tie_embeddings = tie_embeddings
@@ -162,27 +224,48 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_steps = num_steps
         self.step_embeddings = nn.Parameter(torch.randn(num_steps, model_dim) * 0.002)
-        
+
+        # Optional BigramHash correction on token embeddings
+        self.bigram_hash = (
+            BigramHashEmbedding(bigram_hash_size, model_dim, bigram_hash_scale, vocab_size)
+            if bigram_hash_enabled else None
+        )
+
+        # RingFormer-style level signals (content-conditioned per-step injection)
+        self.level_signal_enabled = bool(level_signal_enabled)
+        if level_rank is None:
+            level_rank = max(1, model_dim // 16)
+        self.level_rank = int(level_rank)
+        if self.level_signal_enabled:
+            self.level_down = nn.Parameter(torch.empty(num_steps, model_dim, self.level_rank))
+            self.level_up = nn.Parameter(torch.empty(num_steps, self.level_rank, model_dim))
+            self.level_gain = nn.Parameter(torch.zeros(num_steps, dtype=torch.float32))
+        else:
+            self.level_down = None
+            self.level_up = None
+            self.level_gain = None
+
         print("[debug] GPT init: creating block...")
-        self.block = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, num_steps, lora_rank)
-        
+        self.block = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                           qk_gain_init, num_steps, lora_rank, lora_scope=lora_scope)
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
-        
+
         print("[debug] GPT init: casting params...")
         with torch.no_grad():
             self.step_embeddings.data = self.step_embeddings.data.to(dtype=torch.bfloat16)
             self.block.attn_scale.data = self.block.attn_scale.data.to(dtype=torch.bfloat16)
             self.block.mlp_scale.data = self.block.mlp_scale.data.to(dtype=torch.bfloat16)
-        
+            if self.level_signal_enabled:
+                self.level_down.data = self.level_down.data.to(dtype=torch.bfloat16)
+                self.level_up.data = self.level_up.data.to(dtype=torch.bfloat16)
+
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         print("[debug] GPT init: calling _init_weights...")
         self._init_weights()
-        
-        # MEGA-KERNEL OPTIMIZATION: Block-level compilation (Stabilized)
-        # We compile at the Block level to avoid massive "Whole-GPT" Inductor overhead.
-        # "default" is the stablest mode for Windows with checkpointing.
+
         print("[debug] GPT init: compiling block (mode=default)...")
         self.block = torch.compile(self.block, mode="default")
         print("[debug] GPT init: complete")
@@ -190,45 +273,42 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+        if self.level_signal_enabled:
+            nn.init.normal_(self.level_down, mean=0.0, std=0.002)
+            nn.init.zeros_(self.level_up)
         for module in self.modules():
-            # Standard Linear weights and projections
             if isinstance(module, (nn.Linear, CastedLinear)):
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
                 else:
-                    # Xavier Initialization for stable unit variance across recurrences
                     nn.init.xavier_uniform_(module.weight, gain=1.0)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
-            
-            # Universal Transformer LoRA Adapters
             if isinstance(module, RelaxedLinear):
                 for i in range(module.num_steps):
-                    # Kaiming for A (input), Zero for B (output) to start as Identity
                     nn.init.kaiming_uniform_(module.lora_A[i], a=math.sqrt(5))
                     nn.init.zeros_(module.lora_B[i])
-            
-            # AutoResearch Value Embeddings (Initial Shortcut)
             if isinstance(module, CausalSelfAttention):
-                # Small standard deviation to avoid overwhelming the initial residue logic
                 nn.init.normal_(module.v_step_bias, mean=0.0, std=0.002)
 
     def forward_logits(self, input_ids: Tensor, use_compiled: bool = True) -> Tensor:
         x = self.tok_emb(input_ids)
+        if self.bigram_hash is not None:
+            x = x + self.bigram_hash(input_ids)
         x0 = x
 
-        # MEGA-KERNEL OPTIMIZATION: Elite Standard 9.5 (Direct Unroll)
-        # We disable checkpointing to avoid the Inductor metadata mismatch.
-        # Micro-batch size 128 correctly fits in 24GB VRAM for 12 steps.
-        
         for i in range(self.num_steps):
             step_idx_tensor = torch.tensor(i, device=x.device, dtype=torch.int32)
-            # Inject Step Embeddings before the Block as per SOTA UT spec
             x = x + self.step_embeddings[i][None, None, :]
-            # Direct call to block (compiled vs eager toggle)
+            if self.level_signal_enabled:
+                down = self.level_down[i].to(dtype=x.dtype)
+                up = self.level_up[i].to(dtype=x.dtype)
+                signal = (x @ down) @ up
+                gain = torch.tanh(self.level_gain[i]).to(dtype=x.dtype)
+                x = x + gain * signal
             block_fn = self.block if use_compiled else getattr(self.block, "_orig_mod", self.block)
             x = block_fn(x, x0, step_idx_tensor)
-        
+
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
