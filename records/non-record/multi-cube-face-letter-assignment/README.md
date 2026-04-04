@@ -34,3 +34,10 @@ Prototype submission. The focus is on exploring constraint-based reasoning under
 ## Notes
 
 This work highlights the gap between pattern recognition and structured reasoning in compact models.
+
+## Future Work
+
+Planned improvements:
+- model size optimization for Parameter Golf constraints
+- evaluation using standard benchmarks (e.g. BPB / loss)
+- improving robustness of constraint satisfaction
