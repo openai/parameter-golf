@@ -89,6 +89,7 @@ class Hyperparameters:
     gptq_gen_temp = float(os.environ.get("GPTQ_GEN_TEMP", "0.8"))  # sampling temperature during generation
     gptq_damp = float(os.environ.get("GPTQ_DAMP", "0.01"))  # Hessian damping factor (λI added for stability)
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", "0.0"))  # enable QAT when lr_mul drops below this (SOTA uses 0.15)
+    fp16_inproj_rows = bool(int(os.environ.get("FP16_INPROJ_ROWS", "1")))  # store recurrence rows in FP16 (0 = quantize all rows)
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -1625,7 +1626,7 @@ def main() -> None:
         # Apply GPTQ to each quantizable layer in the state dict.
         # For Mamba-3 in_proj: keep recurrence-propagating rows (B, dd_dt, dd_A, trap)
         # at original precision — errors in these rows compound through the SSD state.
-        fp16_masks = get_mamba3_in_proj_fp16_row_mask(base_model)
+        fp16_masks = get_mamba3_in_proj_fp16_row_mask(base_model) if args.fp16_inproj_rows else {}
         sd = base_model.state_dict()
         gptq_sd = {}
         for name, t in sd.items():
@@ -1653,7 +1654,7 @@ def main() -> None:
         log0(f"gptq:quantization complete in {time.perf_counter()-t_gptq:.1f}s total")
 
     mlp_bits = args.quant_bits_mlp if args.quant_bits_mlp > 0 else args.quant_bits
-    fp16_masks_for_quant = get_mamba3_in_proj_fp16_row_mask(base_model)
+    fp16_masks_for_quant = get_mamba3_in_proj_fp16_row_mask(base_model) if args.fp16_inproj_rows else None
     quant_obj, quant_stats = quantize_state_dict_int8(
         base_model.state_dict(), fp16_embed=args.fp16_embed, quant_bits=args.quant_bits,
         quant_bits_mlp=args.quant_bits_mlp, search_clip=args.gptq_lite,
