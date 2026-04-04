@@ -1,6 +1,6 @@
 {
   "name": "SLOT-24 + Partial Depth Recurrence (Layers 4,5) + XSA-11",
-  "author": "milhouse",
+  "author": "Arnell Milhouse",
   "github_id": "GitGeeks",
   "val_loss_mean": 1.4602,
   "val_bpb_mean": 0.8648,

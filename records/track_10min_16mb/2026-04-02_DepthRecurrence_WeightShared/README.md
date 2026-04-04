@@ -94,4 +94,4 @@ PR #1303 (SLOT + QK-Gain 4.0 + XSA-11, 0.9462 BPB)
 
 ## Author
 
-GitGeeks (milhouse)
+Arnell Milhouse (@GitGeeks)

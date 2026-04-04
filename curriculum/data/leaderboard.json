@@ -1,0 +1,23 @@
+[
+  { "rank": 1,  "run": "11L AR Self-Gen GPTQ + XSA", "score": 1.1147, "author": "abaybektursun", "date": "2026-03-25", "pr": 1019 },
+  { "rank": 2,  "run": "LeakyReLU\u00b2 + Legal TTT + Parallel Muon", "score": 1.1194, "author": "abaybektursun", "date": "2026-03-23", "pr": 549 },
+  { "rank": 3,  "run": "11L EMA + GPTQ-lite + warmdown3500", "score": 1.1228, "author": "signalrush", "date": "2026-03-22", "pr": 374 },
+  { "rank": 4,  "run": "11L Partial RoPE + LN Scale + EMA + XSA4", "score": 1.1248, "author": "jfprincz", "date": "2026-03-21", "pr": 287 },
+  { "rank": 5,  "run": "11L XSA4 + EMA + Int6 MLP3x", "score": 1.1271, "author": "jfprincz", "date": "2026-03-20", "pr": 198 },
+  { "rank": 6,  "run": "11L Efficient Partial XSA", "score": 1.1307, "author": "unnir", "date": "2026-03-20", "pr": 198 },
+  { "rank": 7,  "run": "10L Int5-MLP + BigramHash(10240)", "score": 1.1428, "author": "thwu1", "date": "2026-03-20", "pr": null },
+  { "rank": 8,  "run": "Int6 MLP3x + SmearGate + BigramHash", "score": 1.1458, "author": "Raahil Shah", "date": "2026-03-20", "pr": null },
+  { "rank": 9,  "run": "11L MLP3x + Int6 QAT", "score": 1.1502, "author": "aruniyer", "date": "2026-03-20", "pr": null },
+  { "rank": 10, "run": "SmearGate + OrthoInit + Muon WD", "score": 1.1556, "author": "aquariouseworkman", "date": "2026-03-19", "pr": null },
+  { "rank": 11, "run": "Ternary Quantization", "score": 1.1570, "author": "Ciprian-Florin Ifrim", "date": "2026-03-24", "pr": null },
+  { "rank": 12, "run": "10L Int6 QAT + Zstd MLP2.6x", "score": 1.1586, "author": "yahya010", "date": "2026-03-19", "pr": null },
+  { "rank": 13, "run": "Mixed Quant + Sliding Window Eval", "score": 1.1630, "author": "aquariouseworkman", "date": "2026-03-19", "pr": null },
+  { "rank": 14, "run": "Muon WD + 10 layer", "score": 1.1748, "author": "notapplica", "date": "2026-03-19", "pr": null },
+  { "rank": 15, "run": "Sliding Window Eval", "score": 1.1925, "author": "Matthew Li", "date": "2026-03-19", "pr": null },
+  { "rank": 16, "run": "LoRA TTT", "score": 1.1928, "author": "samacqua", "date": "2026-03-19", "pr": null },
+  { "rank": 17, "run": "4k seq length", "score": 1.2014, "author": "Spokane Way", "date": "2026-03-19", "pr": null },
+  { "rank": 18, "run": "2048 seq length", "score": 1.206, "author": "Spokane Way", "date": "2026-03-18", "pr": null },
+  { "rank": 19, "run": "int6 mixed precision", "score": 1.2147, "author": "Nan Liu", "date": "2026-03-18", "pr": null },
+  { "rank": 20, "run": "fp16 Embed", "score": 1.2197, "author": "Renier Velazco", "date": "2026-03-18", "pr": null },
+  { "rank": 21, "run": "Naive Baseline", "score": 1.2244, "author": "Baseline", "date": "2026-03-18", "pr": null }
+]

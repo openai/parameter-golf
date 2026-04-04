@@ -1,0 +1,274 @@
+<div class="content-inner">
+
+  <!-- Unit Header -->
+  <div class="unit-header">
+    <h1>Unit 2: Scaling Laws & L(N) Optimization</h1>
+    <div class="unit-meta">
+      <span class="badge badge-cyan">Week 3</span>
+      <span class="badge badge-cyan">~10 hours</span>
+      <span class="badge badge-violet">Prereq: Unit 1</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      Scaling laws quantify how model performance improves with more parameters, data, and compute.
+      Parameter Golf is an L(N) optimization problem: minimize loss at a fixed parameter count.
+      Understanding these laws tells you where to spend your 16MB budget.
+    </p>
+  </div>
+
+  <!-- ==================== WEEK 3 ==================== -->
+  <div class="week-section" data-week="3">
+    <div class="week-title">
+      <span style="color: var(--pg-cyan);">\u{25B6}</span>
+      Week 3: Neural Scaling Laws and L(N) Optimization
+    </div>
+
+    <!-- Topics -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-kaplan-scaling">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Kaplan et al. scaling laws: L(N), L(D), L(C) and their power-law relationships</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Kaplan et al. (2020) found that language model loss follows power laws:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$L(N) = \left(\frac{N_c}{N}\right)^{\alpha_N}, \quad L(D) = \left(\frac{D_c}{D}\right)^{\alpha_D}, \quad L(C) = \left(\frac{C_c}{C}\right)^{\alpha_C}$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              where $N$ = parameters, $D$ = dataset tokens, $C$ = compute (FLOPs).
+              The exponents are approximately $\alpha_N \approx 0.076$, $\alpha_D \approx 0.095$, $\alpha_C \approx 0.050$.
+              These are remarkably smooth and predictable across many orders of magnitude.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The key insight: <strong>loss is predictable from scale</strong>. You can extrapolate from small runs to predict large run performance.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-chinchilla">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Chinchilla optimal: compute-optimal allocation between parameters and data</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Hoffmann et al. (2022) showed that for a fixed compute budget $C$, you should scale
+              parameters $N$ and data $D$ roughly equally: $N \propto C^{0.5}$ and $D \propto C^{0.5}$.
+              Previous practice (GPT-3) over-allocated to parameters and under-allocated to data.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              For Parameter Golf, Chinchilla is relevant but not directly applicable: we're constrained on $N$ (16MB artifact),
+              not on $C$ or $D$. We want to <em>overfit on compute</em> to maximize what we extract from a fixed $N$.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-ln-objective">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">The Parameter Golf objective as L(N) optimization: minimize loss given fixed N</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Standard scaling laws assume you're training a standard transformer with optimal hyperparameters.
+              Parameter Golf breaks this assumption: the architecture is free, quantization is free, evaluation tricks are free.
+              You're optimizing a <em>modified</em> L(N) where N is measured in compressed bytes, not raw parameters.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              This means techniques that improve the <em>effective parameter count</em> (weight sharing, quantization-aware training, better compression)
+              shift the L(N) curve leftward: getting the same loss with fewer bytes.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-depth-vs-width">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Depth vs width tradeoffs: why deeper is more parameter-efficient (to a point)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              At fixed parameter count, deeper models (more layers) generally outperform wider models (larger hidden dim).
+              This is because depth allows iterative refinement of representations, while width provides
+              more capacity per layer but with diminishing returns.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The Parameter Golf leaderboard confirms this: submissions evolved from 9 layers (baseline) to 11 layers,
+              even though adding layers costs parameters. The efficiency gain from deeper processing outweighs the parameter cost.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              <strong>The extreme case</strong>: depth recurrence (weight sharing) takes this to its logical conclusion.
+              If depth is efficient, run the <em>same</em> layers multiple times and spend the freed parameters elsewhere.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-architecture-effects">
+      <input type="checkbox">
+      <div class="check-label">Implications: at fixed N, how do depth, width, and architecture affect loss?</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w3-10min-constraint">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">The role of the 10-minute training constraint as a soft compute bound</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              While Parameter Golf is framed as L(N), the 10-minute 8xH100 cap introduces a
+              practical compute constraint. At ~87ms/step (SOTA), you get ~6900 steps. This means:
+            </p>
+            <ul style="color: var(--pg-text-muted); font-size: var(--font-size-sm); padding-left: var(--space-lg); margin-top: var(--space-sm);">
+              <li>Faster architectures can train more steps = better convergence</li>
+              <li>Training efficiency matters (Parallel Muon, Flash Attention 3)</li>
+              <li>The tradeoff: a technique that improves loss-per-step but slows step time may net negative</li>
+              <li>Evaluation is separate (10 min cap), so eval-time tricks have their own budget</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w3-kaplan-2020">
+      <input type="checkbox">
+      <div class="check-label">Kaplan et al., "Scaling Laws for Neural Language Models" (2020)</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w3-hoffmann-2022">
+      <input type="checkbox">
+      <div class="check-label">Hoffmann et al., "Training Compute-Optimal Large Language Models" (Chinchilla, 2022)</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w3-tay-2022">
+      <input type="checkbox">
+      <div class="check-label">Tay et al., "Scale Efficiently: Insights from Pre-training and Fine-tuning Transformers" (2022)</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w3-ex1-fit-power-law">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Fit power-law curves to training runs at 3-4 different model sizes and predict loss at a target size</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Train the baseline at different configs (e.g., 3L/256d, 5L/384d, 7L/448d, 9L/512d).
+              Record final val_loss for each. Plot on a log-log scale (log N vs log L).
+              Fit $L = a \cdot N^{-b}$ using least squares on the log-log data.
+              Use <code>scipy.optimize.curve_fit</code> or manual linear regression on log values.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your results and analysis..." data-note-key="w3-ex1-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w3-ex2-depth-vs-width">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Experimentally determine: at 16MB, is it better to have 6 layers at 768d or 12 layers at 512d?</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Calculate exact parameter counts for both configs (including attention, MLP, embeddings, norms).
+              Verify both fit under 16MB after int8+zlib quantization.
+              Train each for the same wall-clock time and compare final BPB.
+              The result should show that depth wins at this scale, confirming the leaderboard trend.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your results..." data-note-key="w3-ex2-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w3-ex3-leaderboard-analysis">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Categorize each leaderboard submission's primary contribution axis (quantization, architecture, training, evaluation)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Read each submission's README. For each, identify: what was the primary source of BPB improvement?
+              Common axes: quantization (int6, GPTQ, QAT), architecture (XSA, SmearGate, BigramHash, MLP width),
+              training (Muon, EMA/SWA, longer warmdown), evaluation (sliding window, TTT).
+              Look for patterns: which axis has diminishing returns? Which is underexplored?
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your analysis..." data-note-key="w3-ex3-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Week 3 Quiz -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-magenta);">\u{2606}</span>
+      <h3>Week 3 Quiz</h3>
+    </div>
+    <div data-quiz="w3-scaling-laws"></div>
+
+    <!-- Week 3 Notes -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-amber);">\u{270E}</span>
+      <h3>Week 3 Notes</h3>
+    </div>
+    <div class="note-area" contenteditable="true" data-placeholder="Your general notes for Week 3..." data-note-key="w3-general" data-note-type="week-note" style="min-height: 100px;"></div>
+  </div>
+
+</div>

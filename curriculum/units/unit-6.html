@@ -1,0 +1,143 @@
+<div class="content-inner">
+
+  <div class="unit-header">
+    <h1>Unit 6: Quantization & Compression</h1>
+    <div class="unit-meta">
+      <span class="badge badge-red">Weeks 11-13</span>
+      <span class="badge badge-cyan">~30 hours</span>
+      <span class="badge badge-violet">Prereq: Units 1-3, 5</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      The bridge between training and the 16MB artifact limit. Post-training quantization (int8 to int6),
+      GPTQ with Hessian-informed rounding, quantization-aware training, and compression algorithms.
+      This unit is where bytes are won and lost.
+    </p>
+  </div>
+
+  <!-- WEEK 11 -->
+  <div class="week-section" data-week="11">
+    <div class="week-title"><span style="color: var(--pg-red);">\u{25B6}</span> Week 11: Post-Training Quantization Fundamentals</div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span><h3>Topics</h3></div>
+
+    <div class="check-item" data-type="topic" data-id="w11-fixed-point"><input type="checkbox"><div class="check-label">Fixed-point number representation: int8, int6, int5, int4</div></div>
+    <div class="check-item" data-type="topic" data-id="w11-per-row-vs-tensor">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Per-tensor vs per-row vs per-channel quantization</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              <strong>Per-tensor</strong>: one scale for the entire weight matrix. Cheapest metadata but worst accuracy.
+              <strong>Per-row</strong>: one scale per row (output channel). The baseline uses this for 2D tensors.
+              <strong>Per-channel</strong>: one scale per column (input channel). More metadata but better for asymmetric distributions.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The SOTA uses per-row int6 for large matrices and per-tensor int8 for embeddings.
+              Scale metadata: fp16 per row = 2 bytes/row. For a 512x512 matrix: 1024 bytes of scale data.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w11-symmetric"><input type="checkbox"><div class="check-label">Symmetric vs asymmetric quantization</div></div>
+    <div class="check-item" data-type="topic" data-id="w11-calibration"><input type="checkbox"><div class="check-label">Calibration: min-max, percentile clipping, MSE-optimal</div></div>
+    <div class="check-item" data-type="topic" data-id="w11-error-accumulation"><input type="checkbox"><div class="check-label">The quantization error budget: how rounding errors accumulate through layers</div></div>
+    <div class="check-item" data-type="topic" data-id="w11-rounding"><input type="checkbox"><div class="check-label">Round-to-nearest vs more sophisticated rounding strategies</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span><h3>Readings</h3></div>
+    <div class="check-item" data-type="reading" data-id="w11-jacob-2018"><input type="checkbox"><div class="check-label">Jacob et al., "Quantization and Training of Neural Networks for Efficient Integer-Arithmetic-Only Inference" (2018)</div></div>
+    <div class="check-item" data-type="reading" data-id="w11-nagel-whitepaper"><input type="checkbox"><div class="check-label">Nagel et al., "A White Paper on Neural Network Quantization" (Qualcomm, 2021)</div></div>
+    <div class="check-item" data-type="reading" data-id="w11-gholami-survey"><input type="checkbox"><div class="check-label">Gholami et al., "A Survey of Quantization Methods for Efficient Neural Network Inference" (2021)</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span><h3>Exercises</h3></div>
+    <div class="check-item" data-type="exercise" data-id="w11-ex1-int8"><input type="checkbox"><div class="check-label">Implement per-row int8 quantization with percentile clipping (reproduce the baseline)</div></div>
+    <div class="check-item" data-type="exercise" data-id="w11-ex2-bpb-degrad"><input type="checkbox"><div class="check-label">Measure BPB degradation from int8, int6, int5, int4 uniform quantization</div></div>
+    <div class="check-item" data-type="exercise" data-id="w11-ex3-mse-plot"><input type="checkbox"><div class="check-label">Plot reconstruction MSE vs bits-per-weight for different clipping percentiles</div></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 11 notes..." data-note-key="w11-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+
+  <!-- WEEK 12 -->
+  <div class="week-section" data-week="12">
+    <div class="week-title"><span style="color: var(--pg-red);">\u{25B6}</span> Week 12: Advanced Quantization (GPTQ, QAT)</div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span><h3>Topics</h3></div>
+
+    <div class="check-item" data-type="topic" data-id="w12-gptq">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">GPTQ: Hessian-informed quantization with Cholesky error compensation</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              GPTQ collects Hessians $H = X^TX$ from calibration data, then quantizes column by column.
+              For each column, the quantization error is redistributed to unquantized columns using the inverse Hessian.
+              Columns with large $H_{ii}^{-1}$ (important columns) get better precision.
+              Block-wise processing (128 columns at a time) makes it efficient.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w12-gptq-lite"><input type="checkbox"><div class="check-label">GPTQ-lite: diagonal Hessian approximation vs full Hessian</div></div>
+    <div class="check-item" data-type="topic" data-id="w12-ar-calib">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Autoregressive self-generated calibration: the model generates its own GPTQ data</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The SOTA generates 64 sequences of 2048 tokens at temperature 0.8 as GPTQ calibration data.
+              No validation or training data is accessed during quantization. This is legal under the rules
+              and provides representative activations for Hessian collection.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w12-qat"><input type="checkbox"><div class="check-label">Quantization-Aware Training (QAT): Straight-Through Estimator (STE)</div></div>
+    <div class="check-item" data-type="topic" data-id="w12-late-qat"><input type="checkbox"><div class="check-label">Late QAT: enabling STE only when lr_scale &lt; 0.15</div></div>
+    <div class="check-item" data-type="topic" data-id="w12-mixed-precision"><input type="checkbox"><div class="check-label">Mixed precision: different bit-widths for different layers/tensor types</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span><h3>Readings</h3></div>
+    <div class="check-item" data-type="reading" data-id="w12-frantar-gptq"><input type="checkbox"><div class="check-label">Frantar et al., "GPTQ: Accurate Post-Training Quantization for Generative Pre-Trained Transformers" (2023)</div></div>
+    <div class="check-item" data-type="reading" data-id="w12-nagel-adaround"><input type="checkbox"><div class="check-label">Nagel et al., "Up or Down? Adaptive Rounding for Post-Training Quantization" (2020)</div></div>
+    <div class="check-item" data-type="reading" data-id="w12-bengio-ste"><input type="checkbox"><div class="check-label">Bengio et al., "Estimating or Propagating Gradients Through Stochastic Neurons" (STE, 2013)</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span><h3>Exercises</h3></div>
+    <div class="check-item" data-type="exercise" data-id="w12-ex1-gptq-lite"><input type="checkbox"><div class="check-label">Implement GPTQ with diagonal Hessian (GPTQ-lite) and compare vs uniform quantization</div></div>
+    <div class="check-item" data-type="exercise" data-id="w12-ex2-full-gptq"><input type="checkbox"><div class="check-label">Implement full Hessian GPTQ with Cholesky error compensation</div></div>
+    <div class="check-item" data-type="exercise" data-id="w12-ex3-late-qat"><input type="checkbox"><div class="check-label">Implement late QAT with STE in CastedLinear when lr_scale &lt; threshold</div></div>
+    <div class="check-item" data-type="exercise" data-id="w12-ex4-ar-calib"><input type="checkbox"><div class="check-label">Implement AR self-generated calibration: generate sequences from trained model for GPTQ</div></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 12 notes..." data-note-key="w12-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+
+  <!-- WEEK 13 -->
+  <div class="week-section" data-week="13">
+    <div class="week-title"><span style="color: var(--pg-red);">\u{25B6}</span> Week 13: Compression and Artifact Size Optimization</div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span><h3>Topics</h3></div>
+    <div class="check-item" data-type="topic" data-id="w13-entropy-coding"><input type="checkbox"><div class="check-label">Entropy coding: Huffman, arithmetic coding, ANS</div></div>
+    <div class="check-item" data-type="topic" data-id="w13-compression-algos"><input type="checkbox"><div class="check-label">General-purpose compression: zlib, zstd, lzma and why lzma wins for quantized weights</div></div>
+    <div class="check-item" data-type="topic" data-id="w13-16mb-budget"><input type="checkbox"><div class="check-label">The 16MB artifact budget: code bytes + compressed model bytes strategies</div></div>
+    <div class="check-item" data-type="topic" data-id="w13-selective-pruning"><input type="checkbox"><div class="check-label">Selective pruning: removing low-impact quantized values by reconstruction error</div></div>
+    <div class="check-item" data-type="topic" data-id="w13-ternary"><input type="checkbox"><div class="check-label">Ternary quantization: {-1, 0, +1} weights with learned scales</div></div>
+    <div class="check-item" data-type="topic" data-id="w13-1bit"><input type="checkbox"><div class="check-label">1-bit quantization: binary weights</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span><h3>Readings</h3></div>
+    <div class="check-item" data-type="reading" data-id="w13-zhu-ternary"><input type="checkbox"><div class="check-label">Zhu et al., "Trained Ternary Quantization" (2017)</div></div>
+    <div class="check-item" data-type="reading" data-id="w13-rastegari-xnor"><input type="checkbox"><div class="check-label">Rastegari et al., "XNOR-Net: ImageNet Classification Using Binary Convolutional Neural Networks" (2016)</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span><h3>Exercises</h3></div>
+    <div class="check-item" data-type="exercise" data-id="w13-ex1-compare-compressors"><input type="checkbox"><div class="check-label">Compare zlib-9, zstd-22, and lzma-9 compression ratios on a quantized checkpoint</div></div>
+    <div class="check-item" data-type="exercise" data-id="w13-ex2-selective-pruning"><input type="checkbox"><div class="check-label">Implement selective pruning: sort values by reconstruction error, prune to hit size target</div></div>
+    <div class="check-item" data-type="exercise" data-id="w13-ex3-capacity"><input type="checkbox"><div class="check-label">Compute: at int6 with lzma-9, how many raw params fit in 16MB? What about int4?</div></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 13 notes..." data-note-key="w13-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+</div>
