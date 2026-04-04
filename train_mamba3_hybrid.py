@@ -88,6 +88,7 @@ class Hyperparameters:
     gptq_gen_len = int(os.environ.get("GPTQ_GEN_LEN", "4096"))   # tokens per generated sequence (match train_seq_len)
     gptq_gen_temp = float(os.environ.get("GPTQ_GEN_TEMP", "0.8"))  # sampling temperature during generation
     gptq_damp = float(os.environ.get("GPTQ_DAMP", "0.01"))  # Hessian damping factor (λI added for stability)
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", "0.0"))  # enable QAT when lr_mul drops below this (SOTA uses 0.15)
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -637,7 +638,7 @@ def _quantize_int6_percentile(t32: Tensor, clip_range: int = 31) -> tuple[Tensor
     return q, scale
 
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], fp16_embed: bool = False, quant_bits: int = 8, quant_bits_mlp: int = 0, search_clip: bool = False):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], fp16_embed: bool = False, quant_bits: int = 8, quant_bits_mlp: int = 0, search_clip: bool = False, fp16_row_masks: dict[str, Tensor] | None = None):
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -659,6 +660,26 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], fp16_embed: bool = F
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
             stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+
+        # FP16 row mask: split tensor into FP16 passthrough rows + quantized rows
+        _fp16_mask = fp16_row_masks.get(name) if fp16_row_masks else None
+        if _fp16_mask is not None and t.is_floating_point() and t.ndim == 2:
+            fp16_part = t[_fp16_mask].to(INT8_KEEP_FLOAT_STORE_DTYPE)
+            quant_part = t[~_fp16_mask].float()
+            passthrough[name + ".__fp16_rows"] = fp16_part
+            passthrough[name + ".__fp16_mask"] = _fp16_mask.cpu()
+            stats["int8_payload_bytes"] += tensor_nbytes(fp16_part) + tensor_nbytes(_fp16_mask)
+            bits = quant_bits
+            if quant_bits_mlp > 0 and "mlp" in name:
+                bits = quant_bits_mlp
+            q, s = quantize_float_tensor(quant_part, bits=bits, search_clip=search_clip)
+            quantized[name] = q
+            scales[name] = s
+            dtypes[name] = str(t.dtype).removeprefix("torch.")
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "split_fp16": True}
+            stats["num_float_tensors"] += 1
+            stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
             continue
 
         if fp16_embed and "tok_emb" in name:
@@ -702,16 +723,31 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
+    passthrough_data = obj["passthrough"]
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
-            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+            deq = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
             scale = float(s.item())
-            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
-    for name, t in obj["passthrough"].items():
+            deq = (q.float() * scale).to(dtype=dtype).contiguous()
+        # Reassemble split FP16 rows if present
+        fp16_key = name + ".__fp16_rows"
+        mask_key = name + ".__fp16_mask"
+        if fp16_key in passthrough_data:
+            fp16_rows = passthrough_data[fp16_key].to(dtype=dtype)
+            mask = passthrough_data[mask_key]
+            full = torch.empty(mask.shape[0], deq.shape[1], dtype=dtype)
+            full[~mask] = deq
+            full[mask] = fp16_rows
+            out[name] = full.contiguous()
+        else:
+            out[name] = deq
+    for name, t in passthrough_data.items():
+        if name.endswith(".__fp16_rows") or name.endswith(".__fp16_mask"):
+            continue  # already consumed above
         out_t = t.detach().to("cpu").contiguous()
         orig_dtype = passthrough_orig_dtypes.get(name)
         if isinstance(orig_dtype, str):
@@ -1456,6 +1492,15 @@ def main() -> None:
                     if isinstance(m, CastedLinear):
                         m._qat_bits = qat_bits
 
+        # Late QAT: trigger when lr_mul drops below threshold (SOTA approach)
+        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold:
+            if any(m._qat_bits == 0 for m in base_model.modules() if isinstance(m, CastedLinear)):
+                qat_bits = args.quant_bits
+                log0(f"late_qat:enabled bits={qat_bits} at step {step} scale={scale:.4f}")
+                for m in base_model.modules():
+                    if isinstance(m, CastedLinear):
+                        m._qat_bits = qat_bits
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         cur_seq_len = args.train_seq_len
@@ -1592,7 +1637,7 @@ def main() -> None:
                 out = t_cpu.clone()
                 out[quant_rows] = (q.float() * s.float()[:, None]).to(t_cpu.dtype)
                 # fp16_mask rows stay at original BF16 — quantize_state_dict_int8 will
-                # quantize them with per-row INT6 (no GPTQ error propagation distortion)
+                # store them in FP16 passthrough (not INT6 quantized)
                 gptq_sd[name] = out
             elif H is not None and t_cpu.is_floating_point() and t_cpu.ndim == 2 and t_cpu.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
                 q, s = quantize_int6_gptq(t_cpu, hessian=H, clip_range=(1 << (args.quant_bits - 1)) - 1)
@@ -1605,9 +1650,11 @@ def main() -> None:
         log0(f"gptq:quantization complete in {time.perf_counter()-t_gptq:.1f}s total")
 
     mlp_bits = args.quant_bits_mlp if args.quant_bits_mlp > 0 else args.quant_bits
+    fp16_masks_for_quant = get_mamba3_in_proj_fp16_row_mask(base_model)
     quant_obj, quant_stats = quantize_state_dict_int8(
         base_model.state_dict(), fp16_embed=args.fp16_embed, quant_bits=args.quant_bits,
         quant_bits_mlp=args.quant_bits_mlp, search_clip=args.gptq_lite,
+        fp16_row_masks=fp16_masks_for_quant,
     )
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
