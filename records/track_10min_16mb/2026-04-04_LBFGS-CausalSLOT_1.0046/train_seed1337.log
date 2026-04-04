@@ -1,0 +1,118 @@
+Note: switching to 'b651829da7a53897dd096a9805e8cd4573bc3541'.
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+  git switch -c <new-branch-name>
+Or undo this operation with:
+  git switch -
+Turn off this advice by setting config variable advice.detachedHead to false
+HEAD is now at b651829 Batch config + L-BFGS SLOT: QK_GAIN=5.0, WARMDOWN=4000, GPTQ damp=0.005, TTT 6ep, SLOT enabled
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+W0404 04:27:22.901000 1 torch/distributed/run.py:803] 
+W0404 04:27:22.901000 1 torch/distributed/run.py:803] *****************************************
+W0404 04:27:22.901000 1 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+logs/0b8f8918-2b5d-486d-94e6-34cbc3df8545.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9309 val_bpb:4.1049 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9317 train_time:141ms step_avg:140.93ms
+step:2/20000 train_loss:8.6894 train_time:186ms step_avg:92.89ms
+step:3/20000 train_loss:7.5459 train_time:257ms step_avg:85.58ms
+step:4/20000 train_loss:7.3032 train_time:341ms step_avg:85.23ms
+step:5/20000 train_loss:7.2578 train_time:424ms step_avg:84.85ms
+step:6/20000 train_loss:7.0853 train_time:508ms step_avg:84.70ms
+step:7/20000 train_loss:6.8945 train_time:593ms step_avg:84.76ms
+step:8/20000 train_loss:6.7836 train_time:679ms step_avg:84.83ms
+step:9/20000 train_loss:6.4074 train_time:761ms step_avg:84.59ms
+step:10/20000 train_loss:6.0302 train_time:845ms step_avg:84.50ms
+step:500/20000 train_loss:2.3774 train_time:42905ms step_avg:85.81ms
+step:1000/20000 train_loss:2.2536 train_time:86250ms step_avg:86.25ms
+step:1500/20000 train_loss:2.2024 train_time:129509ms step_avg:86.34ms
+step:2000/20000 train_loss:2.0463 train_time:172886ms step_avg:86.44ms
+step:2500/20000 train_loss:2.1507 train_time:216241ms step_avg:86.50ms
+step:3000/20000 train_loss:2.1427 train_time:259649ms step_avg:86.55ms
+step:3500/20000 train_loss:2.1529 train_time:303034ms step_avg:86.58ms
+step:4000/20000 train_loss:1.9482 train_time:346432ms step_avg:86.61ms
+step:4000/20000 val_loss:2.0372 val_bpb:1.2065 train_time:346489ms step_avg:86.62ms
+step:4500/20000 train_loss:2.0976 train_time:389780ms step_avg:86.62ms
+step:5000/20000 train_loss:2.0804 train_time:433089ms step_avg:86.62ms
+step:5500/20000 train_loss:1.9970 train_time:476414ms step_avg:86.62ms
+step:6000/20000 train_loss:1.9214 train_time:519758ms step_avg:86.63ms
+swa:start step:6150
+late_qat:enabled step:6322 scale:0.1499
+step:6500/20000 train_loss:2.0652 train_time:563670ms step_avg:86.72ms
+step:6911/20000 val_loss:1.9192 val_bpb:1.1366 train_time:600076ms step_avg:86.83ms
+stopping_early: wallclock_cap train_time:600076ms step:6911/20000
+peak memory allocated: 22860 MiB reserved: 23042 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9175 val_bpb:1.1357 eval_time:2090ms
+ttt:start lr=0.0005 epochs=6 freeze_blocks=2 cosine_decay=True
+ttt_adamw:params trainable=26989644 frozen=4112
+ttt_adamw:epoch 1/6 loss:1.9360 time:18.6s
+ttt_adamw:epoch 2/6 loss:1.9110 time:37.0s
+ttt_adamw:epoch 3/6 loss:1.8992 time:55.3s
+ttt_adamw:epoch 4/6 loss:1.8888 time:73.6s
+ttt_adamw:epoch 5/6 loss:1.8802 time:92.0s
+ttt_adamw:epoch 6/6 loss:1.8743 time:110.3s
+ttt_adamw:done elapsed=110.3s
+ttt:elapsed=110.3s
+DIAGNOSTIC post_ttt val_loss:1.8709 val_bpb:1.1080 eval_time:6050ms
+Serialized model: 106158518 bytes
+Code size: 113457 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 68 layers (training data)
+selective_prune: 4206906 ±1 candidates, unpruned=15.07MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15690168 bytes
+Total submission size int6+lzma: 15803625 bytes
+final_int6_roundtrip val_loss:1.8784 val_bpb:1.1125 eval_time:22877ms
+final_int6_roundtrip_exact val_loss:1.87837585 val_bpb:1.11247998
+final_int6_sliding_window val_loss:1.8433 val_bpb:1.0917 stride:64 eval_time:113227ms
+final_int6_sliding_window_exact val_loss:1.84326661 val_bpb:1.09168920
+final_int8_zlib_roundtrip_exact val_loss:1.84326661 val_bpb:1.09168920
+causal_slot_lbfgs:start max_iter=25 history=20 focal=128 clip=5.0 vocab=1024 stride=64 windows=121136 batches=3786
+  causal_slot_lbfgs:batch 1/3786 time:0.2s
+  causal_slot_lbfgs:batch 501/3786 time:72.5s
+  causal_slot_lbfgs:batch 1001/3786 time:144.4s
+  causal_slot_lbfgs:batch 1501/3786 time:216.5s
+  causal_slot_lbfgs:batch 2001/3786 time:288.4s
+  causal_slot_lbfgs:batch 2501/3786 time:360.4s
+  causal_slot_lbfgs:batch 3001/3786 time:432.2s
+  causal_slot_lbfgs:batch 3501/3786 time:504.2s
+  causal_slot_lbfgs:batch 3786/3786 time:545.2s
+final_causal_slot val_loss:1.6957 val_bpb:1.0043 time:556458ms
+final_causal_slot_exact val_loss:1.69570942 val_bpb:1.00429729
+final_int8_zlib_roundtrip_exact val_loss:1.69570942 val_bpb:1.00429729
