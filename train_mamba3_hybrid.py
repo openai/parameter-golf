@@ -584,9 +584,12 @@ def quantize_int6_gptq(
     W[:, dead[perm]] = 0
     H = H[perm][:, perm]
     # Compute upper Cholesky of H_inv for the error propagation sweep
-    Hinv = torch.linalg.cholesky(H)
-    Hinv = torch.cholesky_inverse(Hinv)
-    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    try:
+        Hinv = torch.linalg.cholesky(H)
+        Hinv = torch.cholesky_inverse(Hinv)
+        Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    except torch.linalg.LinAlgError:
+        return _quantize_int6_percentile(weight, clip_range=clip_range)
     best_q, best_scale, best_err = None, None, float("inf")
     for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
         row_clip = torch.quantile(t32.abs(), pct, dim=1) if pct < 1.0 else t32.abs().amax(dim=1)
