@@ -118,7 +118,7 @@ class Hyperparameters:
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
     # SLOT eval-time delta optimization
     slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "1")))
-    slot_steps = int(os.environ.get("SLOT_STEPS", 28))
+    slot_steps = int(os.environ.get("SLOT_STEPS", 48))
     slot_lr = float(os.environ.get("SLOT_LR", 0.012))
     slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
     slot_wd = float(os.environ.get("SLOT_WD", 1e-8))
