@@ -91,6 +91,9 @@ class Hyperparameters:
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", "0.0"))  # enable QAT when lr_mul drops below this (SOTA uses 0.15)
     fp16_inproj_rows = bool(int(os.environ.get("FP16_INPROJ_ROWS", "1")))  # store recurrence rows in FP16 (0 = quantize all rows)
     target_mb = float(os.environ.get("TARGET_MB", "15.9"))  # target compressed submission size in MB (selective ±1 pruning)
+    recur_layers = [int(x) for x in os.environ.get("RECUR_LAYERS", "").split(",") if x]  # depth recurrence: repeat these layer indices
+    recur_start_step = int(os.environ.get("RECUR_START_STEP", "3000"))  # delay recurrence until this step
+    muon_eq_r = bool(int(os.environ.get("MUON_EQ_R", "0")))  # MuonEq-R: row-normalize before Newton-Schulz
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -145,9 +148,12 @@ class Hyperparameters:
 
 # MUON OPTIMIZER
 
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7, eq_r: bool = False) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
+    if eq_r:
+        row_norms = X.norm(dim=-1, keepdim=True).clamp(min=eps)
+        X = X / row_norms
     X /= X.norm() + eps
     transposed = G.size(0) > G.size(1)
     if transposed:
@@ -160,10 +166,10 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, weight_decay: float = 0.0):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, weight_decay: float = 0.0, eq_r: bool = False):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay, eq_r=eq_r),
         )
 
     @torch.no_grad()
@@ -186,6 +192,7 @@ class Muon(torch.optim.Optimizer):
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
             weight_decay = group.get("weight_decay", 0.0)
+            eq_r = group.get("eq_r", False)
 
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
@@ -201,7 +208,7 @@ class Muon(torch.optim.Optimizer):
                     buf.mul_(momentum).add_(g)
                     if nesterov:
                         g = g.add(buf, alpha=momentum)
-                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    g = zeropower_via_newtonschulz5(g, steps=backend_steps, eq_r=eq_r)
                     g *= max(1, g.size(0) / g.size(1)) ** 0.5
                     updates_flat[curr : curr + p.numel()] = g.reshape(-1)
                 curr += p.numel()
@@ -1199,22 +1206,28 @@ class GPT(nn.Module):
             x = self.smeargate(x)
         return F.rms_norm(x, (x.size(-1),))
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, recur_layers: list[int] | None = None) -> Tensor:
         x = self._embed(input_ids)
-        x = self._run_blocks(x, x, input_ids)
+        x = self._run_blocks(x, x, input_ids, recur_layers=recur_layers)
         return self._compute_logits_and_loss(x, target_ids)
 
-    def _run_blocks(self, x: Tensor, x0: Tensor, input_ids: Tensor | None = None) -> Tensor:
+    def _run_blocks(self, x: Tensor, x0: Tensor, input_ids: Tensor | None = None,
+                    recur_layers: list[int] | None = None) -> Tensor:
         ve_cache = self.ve_shared(input_ids) if (self.ve_shared is not None and input_ids is not None) else None
+        recur_set = set(recur_layers) if recur_layers else set()
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0, v_embed=self._get_ve(i, ve_cache))
             skips.append(x)
+            if i in recur_set:
+                x = self.blocks[i](x, x0, v_embed=self._get_ve(i, ve_cache))
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[bi](x, x0, v_embed=self._get_ve(bi, ve_cache))
+            if bi in recur_set:
+                x = self.blocks[bi](x, x0, v_embed=self._get_ve(bi, ve_cache))
         return x
 
     def forward_logits(self, input_ids: Tensor) -> Tensor:
@@ -1364,6 +1377,7 @@ def main() -> None:
     optimizer_muon = Muon(
         matrix_params, lr=args.matrix_lr, momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps, weight_decay=args.weight_decay,
+        eq_r=args.muon_eq_r,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -1386,6 +1400,10 @@ def main() -> None:
     log0(f"ssd: d_state:{args.mamba3_d_state} expand:{args.mamba3_expand} headdim:{args.mamba3_headdim}")
     log0(f"attn: num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} rope_base:{args.rope_base}")
     log0(f"num_layers:{args.num_layers} mlp_mult:{args.mlp_mult}")
+    if args.recur_layers:
+        log0(f"depth_recurrence: layers={args.recur_layers} start_step={args.recur_start_step}")
+    if args.muon_eq_r:
+        log0(f"muon_eq_r:enabled")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -1507,15 +1525,19 @@ def main() -> None:
                     if isinstance(m, CastedLinear):
                         m._qat_bits = qat_bits
 
+        if args.recur_layers and step == args.recur_start_step:
+            log0(f"depth_recurrence:enabled layers={args.recur_layers} at step {step}")
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         cur_seq_len = args.train_seq_len
+        active_recur = args.recur_layers if (args.recur_layers and step >= args.recur_start_step) else None
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, cur_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = model(x, y, recur_layers=active_recur)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
