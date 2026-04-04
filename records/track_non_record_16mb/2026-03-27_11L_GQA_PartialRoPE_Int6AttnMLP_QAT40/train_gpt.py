@@ -95,10 +95,10 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))
     warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.15))
     use_flash_attn_interface = bool(int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1")))
-    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.40))
+    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.50))
 
 # -----------------------------
 # MUON OPTIMIZER 
