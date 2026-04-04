@@ -1,0 +1,295 @@
+W0404 17:41:05.028000 466 torch/distributed/run.py:766] 
+W0404 17:41:05.028000 466 torch/distributed/run.py:766] *****************************************
+W0404 17:41:05.028000 466 torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0404 17:41:05.028000 466 torch/distributed/run.py:766] *****************************************
+logs/cloud_seed42_mlp30_train.txt
+fa:0 gpu:NVIDIA H100 80GB HBM3 he:True
+bpb:sp=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train:fineweb10B_sp1024 shards:80
+val:/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin n:62021632
+compl:0.5
+p:26993766
+model:11L d=512 mlp=3.0 h=8 kv=4 fp16=53.99MB qmain=6 qmlp=5
+mtp:0 w:0.2 p:0
+xsa:4 l:[7, 8, 9, 10]
+ws:8 ga:1
+sdp:True
+attn:h=8 kv=4
+vrl:True lrelu:True ttt:False
+compile:model=True muon=True fused=True triton=True
+eval:stride=256 bs=32 ttt_bs=32/8
+eval:timeout=590.000s
+spot:dir=/workspace/checkpoints every=60.0s resume=True
+tie:True elr:0.035 hlr:0.0 mlr:0.025 slr:0.025
+tbt:786432 tsl:2048 it:20000 wu:20 mws:600.000
+s:42
+wu:1/20
+wu:2/20
+wu:3/20
+wu:4/20
+wu:5/20
+wu:6/20
+wu:7/20
+wu:8/20
+wu:9/20
+wu:10/20
+wu:11/20
+wu:12/20
+wu:13/20
+wu:14/20
+wu:15/20
+wu:16/20
+wu:17/20
+wu:18/20
+wu:19/20
+wu:20/20
+s:0/20000 vl:6.9301 bpb:4.1044 tt:0ms sa:0.03ms
+s:1/20000 tl:6.9318 tt:153ms sa:153.07ms
+s:2/20000 tl:8.4699 tt:243ms sa:121.37ms
+s:3/20000 tl:7.7328 tt:337ms sa:112.22ms
+s:4/20000 tl:7.1295 tt:432ms sa:108.08ms
+s:5/20000 tl:6.8915 tt:526ms sa:105.21ms
+s:6/20000 tl:6.7652 tt:620ms sa:103.37ms
+s:7/20000 tl:6.6427 tt:732ms sa:104.61ms
+s:8/20000 tl:6.5730 tt:827ms sa:103.33ms
+s:9/20000 tl:6.2847 tt:1966ms sa:218.42ms
+s:10/20000 tl:5.9485 tt:2063ms sa:206.26ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:256 tt:28350ms
+s:500/20000 tl:2.3590 tt:52390ms sa:104.78ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:854 tt:88945ms
+s:1000/20000 tl:2.2366 tt:104342ms sa:104.34ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:1427 tt:149572ms
+s:1500/20000 tl:2.1860 tt:156847ms sa:104.56ms
+s:2000/20000 tl:2.0316 tt:208860ms sa:104.43ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:2016 tt:210306ms
+s:2500/20000 tl:2.1296 tt:262258ms sa:104.90ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:2577 tt:271086ms
+s:3000/20000 tl:2.1099 tt:315423ms sa:105.14ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:3162 tt:331725ms
+s:3500/20000 tl:2.1162 tt:368038ms sa:105.15ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:3731 tt:392434ms
+s:4000/20000 tl:1.9111 tt:421008ms sa:105.25ms
+s:4000/20000 vl:2.0175 bpb:1.1949 tt:421023ms sa:105.26ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:4297 tt:451302ms
+s:4500/20000 tl:2.0534 tt:473851ms sa:105.30ms
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:4864 tt:512078ms
+swa:5000
+s:5000/20000 tl:2.0289 tt:526469ms sa:105.29ms
+qat:5181 s:0.1499
+[spot] ckpt:/workspace/checkpoints/train_ckpt_seed42.pt s:5448 tt:572703ms
+s:5500/20000 tl:1.9368 tt:580110ms sa:105.47ms
+s:5699/20000 vl:1.9335 bpb:1.1451 tt:600040ms sa:105.29ms
+stop tt:600040ms s:5699/20000
+mem:21668M R:22768M
+swa:apply n:14
+diag vl:1.9341 bpb:1.1455 t:2053ms
+model:106181533B
+code:129121B
+q:15475629B
+total:15604750B
+qdiag raw=18392175B codec=lzma blob=15475629B ratio=0.8414 int5q=10813440B int5s=45056B int6q=7176192B int6s=41984B int8q=0B int8s=0B pass=248012B
+[spot] artifact:/workspace/checkpoints/artifact_seed42
+q_rt vl:1.9883 bpb:1.1776 t:39976ms
+q_rt_x vl:1.98833205 bpb:1.17760224
+q_sw vl:1.9481 bpb:1.1537 s:256 t:29887ms
+q_sw_x vl:1.94805450 bpb:1.15374646
+q8_x vl:1.94805450 bpb:1.15374646
+q_s64 vl:1.9478 bpb:1.1536 s:64 t:77021ms
+q_s64_x vl:1.94782438 bpb:1.15361437
+q8_x vl:1.94782438 bpb:1.15361437
+ngram:start
+ttt:lora docs=1 chunks=1893 ct=32768 s=256 lr=0.0001 ep=4 r=4 opt=adam bw=True alr=True(3.0) t=0.98 bs=32/8
+bo:o=10 b=4194304 m=302M a=0.2+0.55*s(H-3.0) mc=2
+  tc[10/1893]bpb=1.341527 t=4.3s
+  tc[20/1893]bpb=1.336664 t=4.6s
+  tc[30/1893]bpb=1.331984 t=4.9s
+  tc[40/1893]bpb=1.310856 t=5.2s
+  tc[50/1893]bpb=1.299303 t=5.5s
+  tc[60/1893]bpb=1.297447 t=5.8s
+  tc[70/1893]bpb=1.279473 t=6.1s
+  tc[80/1893]bpb=1.265569 t=6.4s
+  tc[90/1893]bpb=1.249689 t=6.7s
+  tc[100/1893]bpb=1.233686 t=7.0s
+  tc[110/1893]bpb=1.217708 t=7.3s
+  tc[120/1893]bpb=1.194208 t=7.6s
+  tc[130/1893]bpb=1.173151 t=7.9s
+  tc[140/1893]bpb=1.157384 t=8.2s
+  tc[150/1893]bpb=1.137325 t=8.5s
+  tc[160/1893]bpb=1.117628 t=8.8s
+  tc[170/1893]bpb=1.101085 t=9.1s
+  tc[180/1893]bpb=1.083311 t=9.4s
+  tc[190/1893]bpb=1.068403 t=9.7s
+  tc[200/1893]bpb=1.050401 t=10.0s
+  tc[210/1893]bpb=1.030284 t=10.3s
+  tc[220/1893]bpb=1.013378 t=10.6s
+  tc[230/1893]bpb=0.995725 t=11.0s
+  tc[240/1893]bpb=0.980412 t=11.3s
+  tc[250/1893]bpb=0.964482 t=11.5s
+  tc[260/1893]bpb=0.948116 t=11.8s
+  tc[270/1893]bpb=0.932630 t=12.1s
+  tc[280/1893]bpb=0.918363 t=12.4s
+  tc[290/1893]bpb=0.905515 t=12.7s
+  tc[300/1893]bpb=0.892157 t=13.0s
+  tc[310/1893]bpb=0.880105 t=13.4s
+  tc[320/1893]bpb=0.868067 t=13.7s
+  tc[330/1893]bpb=0.856287 t=14.0s
+  tc[340/1893]bpb=0.844193 t=14.3s
+  tc[350/1893]bpb=0.833403 t=14.6s
+  tc[360/1893]bpb=0.823762 t=14.9s
+  tc[370/1893]bpb=0.813054 t=15.2s
+  tc[380/1893]bpb=0.803302 t=15.4s
+  tc[390/1893]bpb=0.793795 t=15.7s
+  tc[400/1893]bpb=0.784133 t=16.0s
+  tc[410/1893]bpb=0.774821 t=16.3s
+  tc[420/1893]bpb=0.765741 t=16.6s
+  tc[430/1893]bpb=0.757375 t=16.9s
+  tc[440/1893]bpb=0.749110 t=17.2s
+  tc[450/1893]bpb=0.741341 t=17.5s
+  tc[460/1893]bpb=0.733166 t=17.8s
+  tc[470/1893]bpb=0.725652 t=18.0s
+  tc[480/1893]bpb=0.718494 t=18.3s
+  tc[490/1893]bpb=0.710981 t=18.6s
+  tc[500/1893]bpb=0.704356 t=18.9s
+  tc[510/1893]bpb=0.697851 t=19.2s
+  tc[520/1893]bpb=0.691329 t=19.4s
+  tc[530/1893]bpb=0.685167 t=19.7s
+  tc[540/1893]bpb=0.679276 t=20.0s
+  tc[550/1893]bpb=0.673307 t=20.3s
+  tc[560/1893]bpb=0.667809 t=20.6s
+  tc[570/1893]bpb=0.662096 t=20.8s
+  tc[580/1893]bpb=0.656809 t=21.1s
+  tc[590/1893]bpb=0.651490 t=21.4s
+  tc[600/1893]bpb=0.646548 t=21.6s
+  tc[610/1893]bpb=0.641795 t=21.9s
+  tc[620/1893]bpb=0.636953 t=22.2s
+  tc[630/1893]bpb=0.632385 t=22.5s
+  tc[640/1893]bpb=0.628026 t=22.7s
+  tc[650/1893]bpb=0.623654 t=23.0s
+  tc[660/1893]bpb=0.619406 t=23.3s
+  tc[670/1893]bpb=0.615349 t=23.5s
+  tc[680/1893]bpb=0.611131 t=23.8s
+  tc[690/1893]bpb=0.607273 t=24.1s
+  tc[700/1893]bpb=0.603617 t=24.4s
+  tc[710/1893]bpb=0.600082 t=24.6s
+  tc[720/1893]bpb=0.596442 t=24.9s
+  tc[730/1893]bpb=0.593021 t=25.2s
+  tc[740/1893]bpb=0.589625 t=25.4s
+  tc[750/1893]bpb=0.586206 t=25.7s
+  tc[760/1893]bpb=0.582842 t=26.0s
+  tc[770/1893]bpb=0.579702 t=26.2s
+  tc[780/1893]bpb=0.576916 t=26.5s
+  tc[790/1893]bpb=0.573878 t=26.8s
+  tc[800/1893]bpb=0.570782 t=27.0s
+  tc[810/1893]bpb=0.567857 t=27.3s
+  tc[820/1893]bpb=0.564994 t=27.6s
+  tc[830/1893]bpb=0.562275 t=27.8s
+  tc[840/1893]bpb=0.559494 t=28.1s
+  tc[850/1893]bpb=0.556805 t=28.3s
+  tc[860/1893]bpb=0.554186 t=28.6s
+  tc[870/1893]bpb=0.551712 t=28.9s
+  tc[880/1893]bpb=0.549230 t=29.1s
+  tc[890/1893]bpb=0.546846 t=29.4s
+  tc[900/1893]bpb=0.544637 t=29.7s
+  tc[910/1893]bpb=0.542416 t=29.9s
+  tc[920/1893]bpb=0.540205 t=30.2s
+  tc[930/1893]bpb=0.537963 t=30.5s
+  tc[940/1893]bpb=0.535617 t=30.7s
+  tc[950/1893]bpb=0.533513 t=31.0s
+  tc[960/1893]bpb=0.531255 t=31.2s
+  tc[970/1893]bpb=0.529259 t=31.5s
+  tc[980/1893]bpb=0.527178 t=31.7s
+  tc[990/1893]bpb=0.525195 t=32.0s
+  tc[1000/1893]bpb=0.523102 t=32.3s
+  tc[1010/1893]bpb=0.521034 t=32.5s
+  tc[1020/1893]bpb=0.519120 t=32.8s
+  tc[1030/1893]bpb=0.517176 t=33.0s
+  tc[1040/1893]bpb=0.515161 t=33.3s
+  tc[1050/1893]bpb=0.513224 t=33.5s
+  tc[1060/1893]bpb=0.511339 t=33.8s
+  tc[1070/1893]bpb=0.509651 t=34.1s
+  tc[1080/1893]bpb=0.507983 t=34.3s
+  tc[1090/1893]bpb=0.506237 t=34.6s
+  tc[1100/1893]bpb=0.504433 t=34.8s
+  tc[1110/1893]bpb=0.502624 t=35.1s
+  tc[1120/1893]bpb=0.500897 t=35.3s
+  tc[1130/1893]bpb=0.499239 t=35.6s
+  tc[1140/1893]bpb=0.497569 t=35.9s
+  tc[1150/1893]bpb=0.495944 t=36.1s
+  tc[1160/1893]bpb=0.494273 t=36.4s
+  tc[1170/1893]bpb=0.492646 t=36.6s
+  tc[1180/1893]bpb=0.490940 t=36.9s
+  tc[1190/1893]bpb=0.489436 t=37.1s
+  tc[1200/1893]bpb=0.487893 t=37.4s
+  tc[1210/1893]bpb=0.486326 t=37.6s
+  tc[1220/1893]bpb=0.484873 t=37.9s
+  tc[1230/1893]bpb=0.483336 t=38.2s
+  tc[1240/1893]bpb=0.481752 t=38.4s
+  tc[1250/1893]bpb=0.480222 t=38.7s
+  tc[1260/1893]bpb=0.478884 t=38.9s
+  tc[1270/1893]bpb=0.477482 t=39.2s
+  tc[1280/1893]bpb=0.476052 t=39.4s
+  tc[1290/1893]bpb=0.474731 t=39.7s
+  tc[1300/1893]bpb=0.473311 t=39.9s
+  tc[1310/1893]bpb=0.471944 t=40.2s
+  tc[1320/1893]bpb=0.470603 t=40.5s
+  tc[1330/1893]bpb=0.469305 t=40.7s
+  tc[1340/1893]bpb=0.468028 t=41.0s
+  tc[1350/1893]bpb=0.466827 t=41.2s
+  tc[1360/1893]bpb=0.465740 t=41.5s
+  tc[1370/1893]bpb=0.464580 t=41.7s
+  tc[1380/1893]bpb=0.463578 t=42.0s
+  tc[1390/1893]bpb=0.462310 t=42.2s
+  tc[1400/1893]bpb=0.461273 t=42.5s
+  tc[1410/1893]bpb=0.460300 t=42.7s
+  tc[1420/1893]bpb=0.459225 t=43.0s
+  tc[1430/1893]bpb=0.458200 t=43.3s
+  tc[1440/1893]bpb=0.457236 t=43.5s
+  tc[1450/1893]bpb=0.456312 t=43.8s
+  tc[1460/1893]bpb=0.455275 t=44.0s
+  tc[1470/1893]bpb=0.454375 t=44.3s
+  tc[1480/1893]bpb=0.453306 t=44.5s
+  tc[1490/1893]bpb=0.452333 t=44.8s
+  tc[1500/1893]bpb=0.451406 t=45.0s
+  tc[1510/1893]bpb=0.450452 t=45.3s
+  tc[1520/1893]bpb=0.449490 t=45.5s
+  tc[1530/1893]bpb=0.448538 t=45.8s
+  tc[1540/1893]bpb=0.447520 t=46.1s
+  tc[1550/1893]bpb=0.446671 t=46.3s
+  tc[1560/1893]bpb=0.445799 t=46.6s
+  tc[1570/1893]bpb=0.444865 t=46.8s
+  tc[1580/1893]bpb=0.444047 t=47.1s
+  tc[1590/1893]bpb=0.443166 t=47.3s
+  tc[1600/1893]bpb=0.442332 t=47.6s
+  tc[1610/1893]bpb=0.441402 t=47.8s
+  tc[1620/1893]bpb=0.440508 t=48.0s
+  tc[1630/1893]bpb=0.439646 t=48.3s
+  tc[1640/1893]bpb=0.438808 t=48.5s
+  tc[1650/1893]bpb=0.437963 t=48.8s
+  tc[1660/1893]bpb=0.437099 t=49.0s
+  tc[1670/1893]bpb=0.436314 t=49.3s
+  tc[1680/1893]bpb=0.435509 t=49.5s
+  tc[1690/1893]bpb=0.434630 t=49.8s
+  tc[1700/1893]bpb=0.433839 t=50.0s
+  tc[1710/1893]bpb=0.433001 t=50.3s
+  tc[1720/1893]bpb=0.432178 t=50.5s
+  tc[1730/1893]bpb=0.431404 t=50.8s
+  tc[1740/1893]bpb=0.430629 t=51.0s
+  tc[1750/1893]bpb=0.429850 t=51.3s
+  tc[1760/1893]bpb=0.429105 t=51.5s
+  tc[1770/1893]bpb=0.428341 t=51.8s
+  tc[1780/1893]bpb=0.427643 t=52.0s
+  tc[1790/1893]bpb=0.426831 t=52.3s
+  tc[1800/1893]bpb=0.426073 t=52.5s
+  tc[1810/1893]bpb=0.425373 t=52.8s
+  tc[1820/1893]bpb=0.424661 t=53.0s
+  tc[1830/1893]bpb=0.423852 t=53.3s
+  tc[1840/1893]bpb=0.423098 t=53.5s
+  tc[1850/1893]bpb=0.422374 t=53.7s
+  tc[1860/1893]bpb=0.421619 t=54.0s
+  tc[1870/1893]bpb=0.420899 t=54.2s
+  tc[1880/1893]bpb=0.420195 t=54.5s
+  tc[1890/1893]bpb=0.419488 t=54.7s
+  tc[1893/1893]bpb=0.419331 t=54.8s
+ttt:vl=0.706928 bpb=0.418682 t=54.8s
+ngram vl:0.7069 bpb:0.4187 t:54836ms
+ngram_x vl:0.70692793 bpb:0.41868212
