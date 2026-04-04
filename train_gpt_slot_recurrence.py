@@ -103,6 +103,7 @@ class Hyperparameters:
  slot_lr = float(os.environ.get("SLOT_LR", 0.008))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.0008))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
+ slot_warmstart = float(os.environ.get("SLOT_WARMSTART", 0.0))  # 0=disabled; 0.85=warmstart from prev batch
  # Partial depth recurrence: repeat specified layers once more in the forward pass.
  # virtual_layers = [0,1,2,3,4,5,4,5,6,7,8,9,10] when recur_layers="4,5"
  recur_layers = os.environ.get("RECUR_LAYERS", "")  # e.g., "4,5"
@@ -890,6 +891,9 @@ def eval_val_slot(
  loss_sum = torch.zeros((), device=device, dtype=torch.float64)
  token_count = torch.zeros((), device=device, dtype=torch.float64)
  byte_sum = torch.zeros((), device=device, dtype=torch.float64)
+ warmstart_alpha = args.slot_warmstart
+ prev_delta = None
+ prev_bias = None
  base_model.eval()
  for bi in range(0, len(my_ws), args.slot_batch_seqs):
   bws = my_ws[bi:bi + args.slot_batch_seqs]
@@ -916,8 +920,12 @@ def eval_val_slot(
   valid_count = mask.sum()
   if valid_count == 0:
    continue
-  delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
-  logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
+  if warmstart_alpha > 0 and prev_delta is not None and prev_delta.size(0) == bsz:
+   delta = (warmstart_alpha * prev_delta.detach().clone()).requires_grad_(True)
+   logit_bias = (warmstart_alpha * prev_bias.detach().clone()).requires_grad_(True)
+  else:
+   delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
+   logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
   slot_opt = torch.optim.AdamW([delta, logit_bias], lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
   targets_flat = yb.reshape(-1)
   for step_i in range(args.slot_steps):
@@ -932,6 +940,9 @@ def eval_val_slot(
    slot_loss = (nll * mask).sum() / valid_count
    slot_loss.backward()
    slot_opt.step()
+  if warmstart_alpha > 0:
+   prev_delta = delta.detach()
+   prev_bias = logit_bias.detach()
   with torch.no_grad():
    h = hidden_f + delta.detach()
    lp = F.linear(h, proj_w) + logit_bias.detach()
@@ -1496,7 +1507,7 @@ def main() -> None:
   torch.cuda.synchronize()
   log0(
    f"final_slot val_loss:{slot_val_loss:.4f} val_bpb:{slot_val_bpb:.4f} "
-   f"steps:{args.slot_steps} lr:{args.slot_lr} eval_time:{1000.0 * (time.perf_counter() - t_slot):.0f}ms"
+   f"steps:{args.slot_steps} lr:{args.slot_lr} warmstart:{args.slot_warmstart} eval_time:{1000.0 * (time.perf_counter() - t_slot):.0f}ms"
   )
   log0(f"final_slot_exact val_loss:{slot_val_loss:.8f} val_bpb:{slot_val_bpb:.8f}")
  if distributed:
