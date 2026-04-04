@@ -1,7 +1,8 @@
-git pull 
+cd ../workspace
+git clone https://github.com/adityasasidhar/parameter-golf.git
 pip install -r requirements.txt
 pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
-apt update
+sudo apt update
 apt install -y ninja-build git
 pip install --upgrade pip setuptools wheel
 
@@ -12,4 +13,4 @@ RUN_ID=remote_1gpu_run \
   TRAIN_LOG_EVERY=50 \
   VAL_LOSS_EVERY=500 \
   torchrun --standalone --nproc_per_node=1 \
-    records/track_10min_16mb/2026-03-27_imporved/train_gpt.py
+  records/track_non_record_16mb/2026-03-27_11L_GQA_PartialRoPE_Int6AttnMLP_QAT40/train_gpt.py
