@@ -90,19 +90,21 @@ Our alignment-gating experiment provides the answer: **always updating beats eve
 
 ## Run command
 
+Requires 8×H100 SXM. Download FineWeb data first:
 ```bash
-# Baseline (sequential)
-JOB=compete GPU_COUNT=8 JOB_PHASE=eval \
-  ARTIFACT_TAG=h100/compete-20260330-040640 \
-  TTT_ALL_GPU_PER_CHUNK=1 TTT_DOC_CLUSTER=0 \
-  bash scripts/launch_h100.sh --confirm
+python3 data/cached_challenge_fineweb.py --variant sp1024
+
+# Baseline (sequential, all-GPU cooperative)
+TTT_ALL_GPU_PER_CHUNK=1 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 # Global ordering experiment
-TTT_GLOBAL_ORDER=1 TTT_DOC_EMBED_MAX_TOKENS=4096 \
-  JOB=compete GPU_COUNT=8 JOB_PHASE=eval \
-  ARTIFACT_TAG=h100/compete-20260330-040640 \
-  TTT_ALL_GPU_PER_CHUNK=1 TTT_DOC_CLUSTER=0 \
-  bash scripts/launch_h100.sh --confirm
+TTT_ALL_GPU_PER_CHUNK=1 TTT_GLOBAL_ORDER=1 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+# Clustered sharded (independent ranks)
+TTT_DOC_CLUSTER=1 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Supplementary logs
