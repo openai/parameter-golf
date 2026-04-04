@@ -12,7 +12,7 @@ If you're familiar with [neural scaling laws](https://arxiv.org/abs/2001.08361),
 Ideally, we'd allow for submissions to use arbitrary computational resources. But in order to make the challenge not inaccessibly expensive, we're limiting *leaderboard submissions* to 10 minutes on 8xH100s. However, we'd still love to see submissions that don't meet the compute limitation requirements in our 'Non-record Submissions' section: We're excited to see people push the infinite frontier of parameter limited performance as well.
 
 We also know compute is expensive, so **OpenAI is sponsoring $1,000,000 in compute credits** to help people get started training their models. To request a compute grant, use this form: [Request a Compute Grant](https://openai.com/index/parameter-golf/#credit-form).
-When requesting compute, please make sure you choose the appropriate level, write sufficient justification, and **submit with an email tied to a OpenAI / ChatGPT account**.
+When requesting compute, please make sure you choose the appropriate level, write sufficient justification, and **submit with an email tied to an OpenAI / ChatGPT account**.
 
 ## Participant Form
 
@@ -101,7 +101,7 @@ python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 ```
 
 This populates `./data/datasets/fineweb10B_sp1024/` and `./data/tokenizers/`.
-By default this downloads the full validation split plus 80 training shards (8B tokens). For a smaller local smoke subset, pass `--train-shards 1`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
+The example above downloads the full validation split plus 10 training shards (1B tokens). If you omit `--train-shards`, the downloader defaults to 80 training shards (8B tokens). For a smaller local smoke subset, pass `--train-shards 1`, for example `python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1`.
 
 Then run a small MLX training job:
 
