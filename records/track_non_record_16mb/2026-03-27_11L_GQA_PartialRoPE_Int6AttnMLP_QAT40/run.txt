@@ -1,5 +1,6 @@
 cd ../workspace
 git clone https://github.com/adityasasidhar/parameter-golf.git
+cd parameter-golf/
 pip install -r requirements.txt
 pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 sudo apt update
