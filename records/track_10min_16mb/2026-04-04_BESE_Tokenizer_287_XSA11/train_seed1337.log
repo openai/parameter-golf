@@ -1,0 +1,31 @@
+step:500/20000 train_loss:1.9479 train_time:42896ms step_avg:85.79ms
+step:1000/20000 train_loss:1.6570 train_time:86035ms step_avg:86.03ms
+step:1500/20000 train_loss:1.7316 train_time:129298ms step_avg:86.20ms
+step:2000/20000 train_loss:1.6829 train_time:172574ms step_avg:86.29ms
+step:2500/20000 train_loss:1.7038 train_time:215842ms step_avg:86.34ms
+step:3000/20000 train_loss:1.6217 train_time:259159ms step_avg:86.39ms
+step:3500/20000 train_loss:1.6580 train_time:302385ms step_avg:86.40ms
+step:4000/20000 train_loss:1.7506 train_time:345600ms step_avg:86.40ms
+step:4000/20000 val_loss:1.6624 val_bpb:1.2190 train_time:345651ms step_avg:86.41ms
+step:4500/20000 train_loss:1.7393 train_time:388803ms step_avg:86.40ms
+step:5000/20000 train_loss:1.4678 train_time:431994ms step_avg:86.40ms
+step:5500/20000 train_loss:1.4687 train_time:475251ms step_avg:86.41ms
+step:6000/20000 train_loss:1.6628 train_time:518510ms step_avg:86.42ms
+swa:start step:6150
+late_qat:enabled step:6339 scale:0.1499
+step:6500/20000 train_loss:1.5803 train_time:562198ms step_avg:86.49ms
+step:6932/20000 val_loss:1.5644 val_bpb:1.1472 train_time:600087ms step_avg:86.57ms
+stopping_early: wallclock_cap train_time:600087ms step:6932/20000
+peak memory allocated: 22759 MiB reserved: 22884 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.5631 val_bpb:1.1462 eval_time:2550ms
+Serialized model: 105346230 bytes
+Code size: 94689 bytes
+selective_prune: already fits (14.63MB <= 15.9MB), no pruning needed
+Serialized model int6+lzma: 15243264 bytes
+Total submission size int6+lzma: 15337953 bytes
+final_int6_roundtrip val_loss:1.5734 val_bpb:1.1538 eval_time:7214ms
+final_int6_roundtrip_exact val_loss:1.57342507 val_bpb:1.15376607
+final_int6_sliding_window val_loss:1.5378 val_bpb:1.1276 stride:64 eval_time:93986ms
+final_int6_sliding_window_exact val_loss:1.53775894 val_bpb:1.12761059
+final_int8_zlib_roundtrip_exact val_loss:1.53775894 val_bpb:1.12761059
