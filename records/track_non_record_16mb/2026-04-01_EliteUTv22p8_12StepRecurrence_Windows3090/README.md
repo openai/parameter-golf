@@ -127,7 +127,7 @@ We currently use **`ScaleDown.bat`** as the deterministic reevaluation entrypoin
 
 Why this launcher:
 - pins deterministic data order (`DATA_DETERMINISTIC=1`, fixed `DATA_SEED`),
-- fixes wallclock envelope (`MAX_WALLCLOCK_SECONDS=600`),
+- fixes wallclock envelope (standard-seed reeval uses `MAX_WALLCLOCK_SECONDS=598`),
 - keeps a stable architecture/training profile for apples-to-apples re-checks,
 - logs all critical knobs (including `LEVEL_SIGNAL_ENABLED=0`) at launch.
 
@@ -139,7 +139,7 @@ Key fixed settings in `ScaleDown.bat`:
 - `MATRIX_LR=0.08`, `SCALAR_LR=0.015`, `EMBED_LR=0.7`, `HEAD_LR=0.008`, `TIED_EMBED_LR=0.06`
 - `SMEARGATE=0`, `BIGRAM_HASH=1`, `LEVEL_SIGNAL_ENABLED=0`, `ORTHO_INIT=0`
 
-### Most recent stable/reproducible training log (under current constraints)
+### Historical best single-run reference (under prior 600s cap)
 
 Reference log: **`traininglog4.txt`**
 
@@ -155,6 +155,34 @@ Key outcomes from `traininglog4.txt`:
 - stop reason: wallclock (`elapsed:601.1s`),
 - final export source confirmed as best checkpoint (`step=400`).
 
+This run is retained as historical context, but it is **not** used for current merge metadata because it exceeded the 600s envelope.
+
+### Standard-seed reevaluation (42, 1337, 2024) — merge reference
+
+Profile used: `ScaleDown.bat` with `MAX_WALLCLOCK_SECONDS=598`.
+
+> ✅ **Repro note:** To reproduce the reported/merge BPB results in this README and `submission.json`, run via **`ScaleDown.bat`** only. Do **not** use other launchers for these reference numbers.
+
+| Seed | Run ID | Best checkpoint BPB | Best checkpoint loss | Stop (s) | Final stride-64 BPB |
+|---|---|---:|---:|---:|---:|
+| 42 | `STDSEED_42_0ad47cc2` | 1.8166 | 3.0771 | 599.2 | 1.8615 |
+| 1337 | `STDSEED_1337_6179f3b4` | 1.8179 | 3.0793 | 599.0 | 1.8672 |
+| 2024 | `STDSEED_2024_CLEAN` | 1.8296 | 3.0990 | 598.6 | 1.8768 |
+
+Aggregate (best-checkpoint BPB):
+- mean: **1.8214**
+- stddev: **0.0058**
+- mean wallclock: **598.93s**
+
+### Config provenance / TTT clarification
+
+All values reported in this README and `submission.json` are from runs with:
+- `TTT_ENABLED=0`
+- `SMEARGATE_ENABLED=0`
+- deterministic data seed path (`DATA_DETERMINISTIC=1`, `DATA_SEED=3623123517`)
+
+If you see `TTT_ENABLED=1` in older/experimental launcher paths, treat that as exploratory only; it is **not** the config used for the reported BPB numbers above.
+
 ## Documentation map
 
 - [01 Overview and Timeline](notes/01_overview_and_timeline.md)
@@ -167,8 +195,5 @@ Key outcomes from `traininglog4.txt`:
 ## Run commands
 
 ```bat
-setup_elite_env.bat
 ScaleDown.bat
-limits_test_10m.bat
-final_run_10m.bat
 ```
