@@ -1,8 +1,8 @@
-# Shared-Block Recurrent Transformer, Int6+zstd (8xH100)
+# Shared-Block Recurrent Transformer, 10-Minute Int6+zstd Run (8xH100)
 
-**final_int6_roundtrip_exact val_bpb = 1.3693** | **3.59 MB** artifact | **8xH100**, 600s wallclock
+**final_int6_roundtrip_exact val_bpb = 1.3693** | **3.59 MB** artifact | **8xH100**, **10-minute / 600s wallclock**
 
-This folder captures an 8xH100 RunPod run of the current `train_gpt.py`.
+This folder captures a 10-minute wallclock 8xH100 RunPod run of the current `train_gpt.py` for the 16MB non-record track.
 
 ## Summary
 
@@ -36,7 +36,7 @@ Logged model settings from the run:
 
 ## Results
 
-Timed training stopped at:
+Timed training stopped at the 10-minute wallclock limit:
 
 - `7601/50000` due to the 600s wallclock cap
 
