@@ -1,0 +1,32 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Lucky V",
+  "blurb": "Rascal II + MuonEq-R + QK_GAIN=5 + NS7 + SLOT32 (sliding-window test-time adaptation, lr=0.04)",
+  "date": "2026-04-04T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.0854,
+    "val_bpb_exact": 1.08540457,
+    "steps": 6596,
+    "train_time_s": 600,
+    "bytes_total": 15426795
+  },
+  "seed_4": {
+    "val_bpb": 1.0858,
+    "val_bpb_exact": 1.08576841,
+    "steps": 6600,
+    "train_time_s": 600,
+    "bytes_total": 15437033
+  },
+  "seed_300": {
+    "val_bpb": 1.0850,
+    "val_bpb_exact": 1.08495213,
+    "steps": 6597,
+    "train_time_s": 600,
+    "bytes_total": 15438323
+  },
+  "val_bpb": 1.0854,
+  "bytes_total": 15438323,
+  "bytes_code": 124171,
+  "hardware": "8xH100 SXM"
+}

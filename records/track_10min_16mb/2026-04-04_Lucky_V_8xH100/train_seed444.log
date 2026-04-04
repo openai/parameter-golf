@@ -1,0 +1,54 @@
+============================================
+LUCKY V.2 — Lucky V + SLOT_LR=0.04 + SKIP_GPTQ=1
+Seed: 444 | GPUs: 8
+Started: Sat Apr  4 05:21:37 UTC 2026
+============================================
+
+logs/3ceeccc3-cbe4-416f-889f-c0f3de67b3a2.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 mode:default fullgraph=1
+mlp_kernel_mode:eager
+scale_init:attn=1.0000 mlp=1.0000 resid_mix=(1.0000,0.0000) ln_scale=1
+seed:444
+loader:coprime shards:80 blocks:3906240 seq_len:2048 shards_per_batch:1 cache:4 batch_stride:47 hold_steps:64
+step:0/20000 val_loss:6.9326 val_bpb:4.1058 train_time:0ms step_avg:0.02ms
+step:500/20000 train_loss:2.3136 train_time:45228ms step_avg:90.46ms
+step:1000/20000 train_loss:2.1905 train_time:90797ms step_avg:90.80ms
+step:1500/20000 train_loss:2.1733 train_time:136376ms step_avg:90.92ms
+step:2000/20000 train_loss:2.0712 train_time:181921ms step_avg:90.96ms
+step:2500/20000 train_loss:2.0619 train_time:227459ms step_avg:90.98ms
+step:3000/20000 train_loss:2.1249 train_time:272716ms step_avg:90.91ms
+step:3500/20000 train_loss:2.0093 train_time:318152ms step_avg:90.90ms
+step:4000/20000 train_loss:1.9718 train_time:363571ms step_avg:90.89ms
+step:4000/20000 val_loss:2.0200 val_bpb:1.1964 train_time:363617ms step_avg:90.90ms
+step:4500/20000 train_loss:2.0195 train_time:409058ms step_avg:90.90ms
+step:5000/20000 train_loss:2.0079 train_time:454458ms step_avg:90.89ms
+step:5500/20000 train_loss:1.9710 train_time:499617ms step_avg:90.84ms
+swa:start step:5950
+step:6000/20000 train_loss:1.9685 train_time:545095ms step_avg:90.85ms
+late_qat:enabled step:6079 scale:0.1497
+step:6500/20000 train_loss:1.9305 train_time:591092ms step_avg:90.94ms
+step:6596/20000 val_loss:1.9124 val_bpb:1.1326 train_time:600095ms step_avg:90.98ms
+stopping_early: wallclock_cap train_time:600095ms step:6596/20000
+peak memory allocated: 22860 MiB reserved: 23042 MiB
+gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9108 val_bpb:1.1317 eval_time:2075ms
+Serialized model: 106158518 bytes
+Code size: 124171 bytes
+Serialized model int6+brotli: 15302624 bytes
+Total submission size int6+brotli: 15426795 bytes
+final_int6_roundtrip val_loss:1.9282 val_bpb:1.1420 eval_time:6142ms
+final_int6_roundtrip_exact val_loss:1.92819407 val_bpb:1.14198514
+final_sliding_window+slot32steps val_loss:1.8327 val_bpb:1.0854 stride:64 eval_time:587620ms
+final_sliding_window+slot32steps_exact val_loss:1.83265530 val_bpb:1.08540457
