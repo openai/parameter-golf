@@ -1,0 +1,16 @@
+{
+  "name": "Record: MuonEq-R + 3-Layer Recurrence + WD=0.095 + MLR=0.022 + All-Int6",
+  "val_bpb": 1.0900,
+  "bytes_total": 15964018,
+  "blurb": "3-layer depth recurrence (3,4,5) with WD=0.095 and MLR=0.022 on all-int6 GPTQ. WD-LR synergy: higher WD compresses for headroom, higher LR recovers quality. 3-seed mean 1.0900 BPP. No TTT, no SLOT.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-04",
+  "pre_quant_val_bpb": 1.0994,
+  "bytes_model_compressed": 15943318,
+  "bytes_code": 20302,
+  "base_pr": 1218,
+  "seeds": [42, 0, 7],
+  "seed_scores": [1.08980, 1.08953, 1.09053],
+  "eval_time_seconds": [81, 81, 81]
+}
