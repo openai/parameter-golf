@@ -1,79 +1,96 @@
-# [WIP] Depth Recurrence via Weight-Shared Transformer Blocks
+# Record: SLOT-24 + Partial Depth Recurrence (Layers 4,5) + XSA-11
 
-**Status: Validated locally, awaiting GPU throughput test** | Target: < 16 MB | 8xH100 SXM, 600s
+**val_bpb: 0.8648** (3-seed mean, std 0.0014) | **~15.72 MB** | 8xH100 SXM (Vast.ai), 600s
 
-## Approach
+## 3-Seed Results
 
-Weight-shared depth recurrence: instead of 11 unique transformer blocks, share weights across a smaller set of blocks and iterate multiple times, achieving 20+ effective layers within the same 16MB parameter budget.
+| Seed | Steps | ms/step | Sliding BPB | **SLOT BPB** | Artifact |
+|------|-------|---------|-------------|-------------|----------|
+| 1337 | 4,932 | 121.7 | 1.1251 | **0.8664** | 15,726,046 |
+| 42 | 4,930 | 121.7 | 1.1260 | **0.8637** | 15,667,502 |
+| 314 | 4,935 | 121.6 | 1.1254 | **0.8643** | 15,745,654 |
+| **Mean** | | | **1.1255** | **0.8648** | |
 
-This technique is listed as an OpenAI "Request for PR" and has not been successfully demonstrated in any prior submission.
+Merged SOTA (PR #1019): **1.1147 BPB**. Delta: **-0.2499 BPB**.
 
-## Experimental Results (MLX, local validation)
+## Technique Summary
 
-### Depth recurrence matches baseline quality at 2.8x fewer params
+Built on PR #1303 SLOT + VRL + LeakyReLU2 + XSA-11 base, adding partial depth recurrence:
 
-| Config | Params | Effective Depth | val_bpb | Compressed Size |
-|--------|--------|-----------------|---------|-----------------|
-| Baseline (9 unique layers) | 17.1M | 9 | 3.2273 | 5.1 MB |
-| Recurrence 3L x 3R | 6.0M | 9 | 3.2264 | 1.87 MB |
+| Technique | Contribution | Source |
+|-----------|-------------|--------|
+| SLOT-24 (per-sample delta + logit bias) | -0.175 BPB | arXiv:2505.12392v2, PR #1229 |
+| Partial depth recurrence (layers 4,5) | Novel combination | This work + PR #1204, PR #1260 |
+| Per-iteration conditioning (iter_embed + iter_gate) | Novel | This work |
+| XSA all 11 layers | -0.002 BPB | PR #1176 |
+| QK-Gain 4.0 | -0.003 BPB | PR #1125 |
+| VRL (Value Residual Learning) | -0.002 BPB | arXiv:2410.17897, PR #175 |
+| BigramHash 1024x128 | Input-level | PR #162 |
+| EMA(0.997) + SWA(every 50) | Weight averaging | PR #401 |
+| Late QAT (STE at scale < 0.15) | Quant-aware training | PR #286 |
+| int6 + LZMA | Compression | PR #160, PR #535 |
 
-### Deeper recurrence is strictly better
+## Key Innovation: Partial Depth Recurrence with Per-Iteration Conditioning
 
-| Config | Params | Effective Depth | val_bpb | Compressed Size |
-|--------|--------|-----------------|---------|-----------------|
-| Baseline (9 unique layers) | 17.1M | 9 | 3.2273 | 5.1 MB |
-| Recurrence 3L x 3R | 6.0M | 9 | 3.2264 | 1.87 MB |
-| **Recurrence 3L x 7R** | **6.1M** | **21** | **3.2134** | **1.89 MB** |
+Standard transformers use unique weights per layer. We share layers 4 and 5, repeating them once to create a virtual 13-layer network from 11 unique blocks:
 
-The 21-effective-depth model beats the baseline by 0.014 BPB with 2.8x fewer params and 2.7x smaller compressed artifact. Deeper recurrence converges faster at every step count.
-
-### Wider recurrence at full param budget
-
-| Config | Params | Effective Depth | train_loss @ step 20 |
-|--------|--------|-----------------|---------------------|
-| Recurrence 4L x 5R (768d) | 17.4M | 20 | 5.5597 |
-
-At the same param budget as the baseline, this gets 20 effective layers vs 9 with 1.5x wider hidden dimension. val_bpb pending.
-
-## Parameter Budget Analysis (16MB artifact limit)
-
-| Config | Estimated Artifact | Effective Depth | Notes |
-|--------|-------------------|-----------------|-------|
-| Current SOTA (11L, 512d) | ~15.9 MB | 11 | Near ceiling |
-| 4 unique x 5 reps, 768d | ~13.3 MB | 20 | 1.5x wider, 1.8x deeper |
-| 3 unique x 7 reps, 768d | ~10.2 MB | 21 | Most depth-efficient |
-
-## Implementation
-
-Per-iteration conditioning via learned iteration embeddings + sigmoid gating:
-
-```python
-# Before each block call at effective layer i:
-gate = sigmoid(iter_gate[i])    # starts near 0 (init: -2.0)
-x = x + gate * iter_embed[i]   # additive conditioning
-x = blocks[i % num_unique](x, x0)  # shared block with cycling
+```
+virtual_layers = [0, 1, 2, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10]
+                              ^     ^  (repeated)
 ```
 
-U-Net skip connections adapted for effective depth (encoder = first half, decoder = second half with reversed skips).
+Per-iteration conditioning ensures repeated passes are distinct:
+```python
+# On second pass through shared layer:
+gate = sigmoid(iter_gate[i])      # learned, starts near 0
+x = x + gate * iter_embed[i]      # additive conditioning
+x = blocks[layer_idx](x, x0)     # same weights, different input
+```
 
-## Key Risk
+Recurrence is active from step 0 (static computation graph for torch.compile fullgraph=True).
 
-MLX shows ~3x throughput penalty per step. Expected 1.5-2x on H100 with torch.compile (weights stay in GPU cache, parameter banks are already stateless). **GPU throughput test is the critical next step.**
+## SLOT-24 Configuration
 
-## Files
+- Hidden delta: [bsz, 1, 512] + logit bias: [bsz, 1, 1024]
+- 24 AdamW steps, cosine LR 0.012 -> 0.001, weight_decay=1e-8
+- Scored-position masking: last stride=96 tokens per non-first window
+- Model weights frozen, delta optimized through detached hidden states
+- Eval time: ~245s (well within 10-min eval budget)
 
-- `train_gpt_mlx_recurrence.py` — MLX prototype (validated, produces all results above)
-- `train_gpt_recurrence.py` — CUDA port of baseline with recurrence support (ready for GPU testing)
+## Compliance
+
+- Score-first SLOT (frozen model, torch.no_grad() hidden states)
+- No external data access during eval
+- No n-gram cache, no two-pass rescoring
+- Self-contained (no network calls)
+- All seeds within time (600s train + ~350s eval) and size (< 16MB) budgets
+
+## Reproduction
+
+```bash
+pip install sentencepiece huggingface_hub
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+RECUR_LAYERS=4,5 SLOT_STEPS=24 SLOT_LR=0.012 SLOT_LR_MIN=0.001 EVAL_STRIDE=96 SEED=42 \
+  torchrun --standalone --nproc_per_node=8 train_gpt_slot_recurrence.py
+```
 
 ## Lineage
 
 ```
-PR #1019 (Current SOTA, 1.1147 BPB)
+PR #1303 (SLOT + QK-Gain 4.0 + XSA-11, 0.9462 BPB)
     +-- This work adds:
-        +-- Weight-shared depth recurrence (K blocks x N iterations)
+        +-- Partial depth recurrence (layers 4,5 repeated)
         +-- Per-iteration conditioning (iter_embed + iter_gate)
-        +-- Adapted U-Net skip connections for recurrent effective depth
+        +-- SLOT-24 tuning (from PR #1313)
 ```
+
+## Credits
+
+- SLOT: Hu et al. arXiv:2505.12392v2, PR #1176 (@bigbag), PR #1229 (@resouer)
+- Depth recurrence: PR #1204 (@msisovic), PR #1260 (@dexhunter)
+- Base architecture: PR #1303 (@resouer), PR #1019 (@abaybektursun)
+- QK-Gain: PR #1125 (@bigbag)
+- VRL: arXiv:2410.17897, PR #175 (@anthony-maio)
 
 ## Author
 

@@ -1,9 +1,17 @@
 {
-  "name": "milhouse",
+  "name": "SLOT-24 + Partial Depth Recurrence (Layers 4,5) + XSA-11",
+  "author": "milhouse",
   "github_id": "GitGeeks",
-  "submission_name": "Depth Recurrence via Weight-Shared Transformer Blocks",
-  "val_bpb": null,
-  "status": "in_progress",
-  "date": "2026-04-02",
-  "notes": "WIP - implementing weight-shared depth recurrence on top of PR #1019 stack"
+  "val_loss_mean": 1.4602,
+  "val_bpb_mean": 0.8648,
+  "val_bpb_std": 0.0014,
+  "seeds": {
+    "1337": {"val_loss": 1.4628, "val_bpb": 0.8664, "artifact_bytes": 15726046},
+    "42": {"val_loss": 1.4584, "val_bpb": 0.8637, "artifact_bytes": 15667502},
+    "314": {"val_loss": 1.4593, "val_bpb": 0.8643, "artifact_bytes": 15745654}
+  },
+  "technique_summary": "SLOT-24 + partial depth recurrence (layers 4,5) + per-iteration conditioning + XSA-11 + QK-Gain 4.0 + VRL + BigramHash + EMA/SWA + Late QAT + int6+LZMA",
+  "hardware": "8xH100 SXM (Vast.ai)",
+  "training_time_s": 600,
+  "eval_time_s": 350
 }
