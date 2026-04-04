@@ -5,7 +5,7 @@ Architecture: Mamba blocks with the "Achilles' Heel" fix (residual bypass around
 + positional encoding), byte-level tokenization (vocab=260), U-Net skip connections.
 
 Based on:
-- "Achilles' Heel of Mamba" (NeurIPS 2025 Spotlight, arXiv 2509.17514v2)
+- "Achilles' Heel of Mamba" (NeurIPS 2025 Spotlight): https://arxiv.org/abs/2509.17514
 - Parameter Golf baseline train_gpt.py infrastructure
 """
 
