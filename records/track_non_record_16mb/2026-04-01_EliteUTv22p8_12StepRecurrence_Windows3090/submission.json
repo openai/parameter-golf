@@ -5,13 +5,13 @@
   "blurb": "Non-record Windows RTX 3090 submission with deterministic ScaleDown reevaluation and standard seeds (42, 1337, 2024). SmearGate leak disabled; reported metrics come from TTT_ENABLED=0 runs.",
   "date": "2026-04-01T00:00:00Z",
   "track": "non-record-unlimited-compute-16mb",
-  "val_loss": 3.202224,
-  "val_bpb": 1.876739,
-  "pre_quant_val_loss": 3.202935,
-  "pre_quant_val_bpb": 1.877155,
-  "step_stop": 402,
-  "wallclock_seconds": 598.6,
-  "bytes_total": 10231715,
-  "bytes_model_int8_zlib": 10083246,
-  "bytes_code": 148469
+  "val_loss": 3.176049,
+  "val_bpb": 1.861398,
+  "pre_quant_val_loss": 3.177633,
+  "pre_quant_val_bpb": 1.862327,
+  "step_stop": 408,
+  "wallclock_seconds": 599.2,
+  "bytes_total": 10267910,
+  "bytes_model_int8_zlib": 10118108,
+  "bytes_code": 149802
 }
