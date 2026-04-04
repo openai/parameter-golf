@@ -129,6 +129,15 @@ class Hyperparameters:
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
+    # Novel technique 1: Adaptive Focal Loss
+    focal_enabled = bool(int(os.environ.get("FOCAL_ENABLED", "1")))
+    focal_gamma = float(os.environ.get("FOCAL_GAMMA", 1.0))
+    # Novel technique 2: Residual Vector Quantization
+    rvq_enabled = bool(int(os.environ.get("RVQ_ENABLED", "1")))
+    rvq_residual_bits = int(os.environ.get("RVQ_RESIDUAL_BITS", 4))
+    # Novel technique 3: Progressive Depth Warmup
+    progressive_depth = bool(int(os.environ.get("PROGRESSIVE_DEPTH", "1")))
+    progressive_depth_schedule = os.environ.get("PROGRESSIVE_DEPTH_SCHEDULE", "0.08,0.25")
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -850,6 +859,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.softcap_type = softcap_type
         self._z_loss_weight = 0.0  # set externally after construction
+        self._focal_gamma = 0.0  # set externally; 0 = disabled
         self.value_residual = value_residual
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
@@ -997,14 +1007,24 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
         logits = self._softcap(logits_proj)
-        # Fused CE + Z-loss with temperature scaling
         logits_f = logits.float()
-        if self.training and self._z_loss_weight > 0:
-            lse = torch.logsumexp(logits_f, dim=-1)
-            target_logits = logits_f.gather(1, targets.unsqueeze(1)).squeeze(1)
-            main_loss = (lse - target_logits).mean() + self._z_loss_weight * (lse ** 2).mean()
+        # --- Novel: Adaptive Focal Cross-Entropy + Z-loss ---
+        # Focal loss upweights hard tokens the model struggles with,
+        # downweights easy tokens it already predicts confidently.
+        # This focuses the limited training budget on informative tokens.
+        lse = torch.logsumexp(logits_f, dim=-1)
+        target_logits = logits_f.gather(1, targets.unsqueeze(1)).squeeze(1)
+        token_nll = lse - target_logits  # per-token NLL
+        if self.training and self._focal_gamma > 0:
+            with torch.no_grad():
+                p_t = torch.exp(-token_nll.detach())  # model confidence per token
+                focal_weight = (1.0 - p_t).pow(self._focal_gamma)
+                focal_weight = focal_weight / (focal_weight.mean() + 1e-8)  # normalize
+            main_loss = (focal_weight * token_nll).mean()
         else:
-            main_loss = F.cross_entropy(logits_f, targets, reduction="mean")
+            main_loss = token_nll.mean()
+        if self.training and self._z_loss_weight > 0:
+            main_loss = main_loss + self._z_loss_weight * (lse ** 2).mean()
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
             mtp_loss_sum = x.new_zeros(())
@@ -1418,6 +1438,99 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name + ".scale"] = s
             meta[name] = {"type": "int8"}
     return result, meta
+# --- Novel: Residual Vector Quantization (RVQ) ---
+# Two-pass quantization: int6 base + int4 residual for near-lossless compression.
+# Exploits the ~9MB artifact headroom from zstd-22 to store correction terms.
+
+def quantize_residual_int4_per_row(t_residual: Tensor, clip_range: int = 7) -> tuple[Tensor, Tensor]:
+    """Quantize residual to int4 per-row (range [-7, 7])."""
+    t32 = t_residual.float()
+    if t32.ndim == 2:
+        row_clip = t32.abs().amax(dim=1)
+        s = (row_clip / clip_range).clamp_min(1e-8).to(torch.float16)
+        q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+        return q, s
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
+    return q, scale
+
+def mixed_quantize_int6_rvq(state_dict: dict[str, Tensor], int6_cats: set[str]):
+    """Two-stage RVQ: int6 base + int4 residual for int6-eligible params."""
+    num_layers_total = max(
+        (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
+        default=0,
+    ) + 1
+    result: dict[str, Tensor] = {}
+    meta: dict[str, object] = {}
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().contiguous()
+        cat = _classify_param(name)
+        if not t.is_floating_point() or t.numel() <= 65536:
+            result[name] = t.to(torch.float16) if t.is_floating_point() else t
+            meta[name] = "passthrough"
+            continue
+        if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):
+            result[name] = t.float()
+            meta[name] = "passthrough_ctrl"
+            continue
+        if cat in int6_cats and t.ndim >= 1:
+            # Stage 1: int6 base quantization (GPTQ-lite percentile search)
+            q6, s6 = quantize_int6_per_row(t)
+            # Compute residual
+            if s6.ndim > 0:
+                deq6 = q6.float() * s6.float()[:, None]
+            else:
+                deq6 = q6.float() * float(s6.item())
+            residual = t.float() - deq6
+            # Stage 2: int4 on residual
+            q4, s4 = quantize_residual_int4_per_row(residual)
+            result[name + ".q6"] = q6
+            result[name + ".s6"] = s6
+            result[name + ".q4"] = q4
+            result[name + ".s4"] = s4
+            meta[name] = {"type": "rvq_int6_int4"}
+        else:
+            q, s = quantize_float_tensor(t)
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = {"type": "int8"}
+    return result, meta
+
+def dequantize_mixed_rvq(result: dict[str, Tensor], meta: dict[str, object],
+                         template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, orig in template_sd.items():
+        info = meta.get(name)
+        if info is None:
+            continue
+        orig_dtype = orig.dtype
+        if info in ("passthrough", "passthrough_ctrl", "passthrough_fp16"):
+            t = result[name]
+            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
+                t = t.to(orig_dtype)
+            out[name] = t
+            continue
+        if isinstance(info, dict) and info.get("type") == "rvq_int6_int4":
+            q6, s6 = result[name + ".q6"], result[name + ".s6"]
+            q4, s4 = result[name + ".q4"], result[name + ".s4"]
+            if s6.ndim > 0:
+                base = q6.float() * s6.float()[:, None]
+            else:
+                base = q6.float() * float(s6.item())
+            if s4.ndim > 0:
+                resid = q4.float() * s4.float()[:, None]
+            else:
+                resid = q4.float() * float(s4.item())
+            out[name] = (base + resid).to(orig_dtype)
+        else:
+            q, s = result[name + ".q"], result[name + ".scale"]
+            if s.ndim > 0:
+                out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+            else:
+                out[name] = (q.float() * float(s.item())).to(orig_dtype)
+    return out
+
 def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
                           template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
@@ -1552,6 +1665,7 @@ def main() -> None:
         yarn_max_len=args.yarn_max_len,
     ).to(device).bfloat16()
     base_model._z_loss_weight = args.z_loss_weight
+    base_model._focal_gamma = args.focal_gamma if args.focal_enabled else 0.0
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
     base_model.kv_bank.data = base_model.kv_bank.data.float()
@@ -1709,6 +1823,23 @@ def main() -> None:
     ema_decay = 0.997
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    # --- Novel: Progressive Depth Warmup setup ---
+    _pd_frozen: set[int] = set()
+    _pd_current_stage = -1
+    if args.progressive_depth:
+        _pd_fracs = [float(f) for f in args.progressive_depth_schedule.split(",")]
+        _pd_boundaries = [int(f * args.iterations) for f in _pd_fracs]
+        n = args.num_layers
+        # Stage 0: bottom 1/3, Stage 1: bottom 2/3, Stage 2+: all
+        _pd_active_per_stage = [
+            set(range(0, n // 3)),
+            set(range(0, 2 * n // 3)),
+            set(range(0, n)),
+        ]
+        _pd_frozen = set(range(n)) - _pd_active_per_stage[0]
+        _pd_current_stage = 0
+        log0(f"progressive_depth:init stages={len(_pd_boundaries)+1} "
+             f"schedule={_pd_fracs} active_layers={sorted(_pd_active_per_stage[0])}")
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
@@ -1748,6 +1879,19 @@ def main() -> None:
         if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        # --- Novel: Progressive Depth stage transitions ---
+        if args.progressive_depth:
+            new_stage = len(_pd_boundaries)  # default: final stage (all layers)
+            for si, boundary in enumerate(_pd_boundaries):
+                if step < boundary:
+                    new_stage = si
+                    break
+            if new_stage != _pd_current_stage:
+                _pd_current_stage = new_stage
+                active = _pd_active_per_stage[min(new_stage, len(_pd_active_per_stage) - 1)]
+                _pd_frozen = set(range(args.num_layers)) - active
+                log0(f"progressive_depth:stage={new_stage} step={step} "
+                     f"active={sorted(active)} frozen={sorted(_pd_frozen)}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1766,6 +1910,22 @@ def main() -> None:
                 group["lr"] = group["base_lr"] * scale
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+        # --- Novel: Progressive Depth Warmup ---
+        # Zero gradients for frozen layers (train bottom-up in stages)
+        if args.progressive_depth and _pd_frozen:
+            n = args.num_layers
+            with torch.no_grad():
+                for i in _pd_frozen:
+                    if base_model.qo_bank.grad is not None:
+                        base_model.qo_bank.grad[i].zero_()
+                        base_model.qo_bank.grad[n + i].zero_()
+                    if base_model.kv_bank.grad is not None:
+                        base_model.kv_bank.grad[i].zero_()
+                        base_model.kv_bank.grad[n + i].zero_()
+                    if base_model.mlp_up_bank.grad is not None:
+                        base_model.mlp_up_bank.grad[i].zero_()
+                    if base_model.mlp_down_bank.grad is not None:
+                        base_model.mlp_down_bank.grad[i].zero_()
         # === 3-phase overlapped optimizer step ===
         # Phase 1: Launch async reduce-scatter for banks (biggest first)
         optimizer_muon.launch_reduce_scatters()
@@ -1860,7 +2020,11 @@ def main() -> None:
     # Unbank 3D tensors into individual 2D tensors for quantization
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     unbanked_sd = _unbank_state_dict(sd_cpu, args.num_layers)
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"})
+    if args.rvq_enabled:
+        log0("quantization:RVQ (int6 base + int4 residual)")
+        quant_result, quant_meta = mixed_quantize_int6_rvq(unbanked_sd, {"mlp", "attn"})
+    else:
+        quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"})
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1889,7 +2053,10 @@ def main() -> None:
         io.BytesIO(decompressed),
         map_location="cpu",
     )
-    deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
+    if args.rvq_enabled:
+        deq_unbanked = dequantize_mixed_rvq(quant_state["w"], quant_state["m"], unbanked_sd)
+    else:
+        deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
     # Re-bank the dequantized tensors
     deq_state = _rebank_state_dict(deq_unbanked, args.num_layers, sd_cpu)
     eval_model = GPT(

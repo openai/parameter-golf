@@ -1,10 +1,9 @@
 {
-  "name": "Poly5 Softcap + Z-Loss + YaRN + Zstd-22 + Stride-16 (on SOTA #1 stack)",
+  "name": "Adaptive Focal Loss + Residual Vector Quantization + Progressive Depth Warmup",
   "val_bpb": null,
   "bytes_total": null,
-  "blurb": "Six orthogonal improvements on PR #549 (LeakyReLU + TTT + Parallel Muon) stack: (1) Polynomial degree-5 softcap replacing tanh for sharper gradients, (2) Z-loss regularization (1e-4 * logsumexp^2) anchoring logits near zero, (3) YaRN positional encoding for better long-context handling, (4) zstd-22 compression replacing LZMA-6 (~50% smaller artifacts), (5) Sliding eval stride=16 (vs 64), (6) FlashAttention fallback for non-Hopper GPUs. Smoke-tested on 1xH100 (Modal). Awaiting 8xH100 verification.",
+  "blurb": "Three novel techniques on PR #549 stack: (1) Adaptive Focal Cross-Entropy dynamically upweights hard-to-predict tokens using model confidence, focusing limited training budget on informative tokens. (2) Residual Vector Quantization (int6 base + int4 residual) provides ~10-bit effective precision, exploiting 9MB artifact headroom from zstd-22. (3) Progressive Depth Warmup trains layers bottom-up in 3 stages, giving deep layers cleaner gradients. Plus poly5 softcap, Z-loss, YaRN, stride-16. Awaiting 8xH100 verification.",
   "author": "Monisha Kollipara",
-  "github_id": "monishakollipara13",
-  "date": "2026-04-04",
-  "status": "awaiting_8xH100_verification"
+  "github_id": "monisha-max",
+  "date": "2026-04-04"
 }
