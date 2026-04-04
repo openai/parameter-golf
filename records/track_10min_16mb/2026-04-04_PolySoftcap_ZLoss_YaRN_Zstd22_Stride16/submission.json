@@ -1,0 +1,10 @@
+{
+  "name": "Poly5 Softcap + Z-Loss + YaRN + Zstd-22 + Stride-16 (on SOTA #1 stack)",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Six orthogonal improvements on PR #549 (LeakyReLU + TTT + Parallel Muon) stack: (1) Polynomial degree-5 softcap replacing tanh for sharper gradients, (2) Z-loss regularization (1e-4 * logsumexp^2) anchoring logits near zero, (3) YaRN positional encoding for better long-context handling, (4) zstd-22 compression replacing LZMA-6 (~50% smaller artifacts), (5) Sliding eval stride=16 (vs 64), (6) FlashAttention fallback for non-Hopper GPUs. Smoke-tested on 1xH100 (Modal). Awaiting 8xH100 verification.",
+  "author": "Monisha Kollipara",
+  "github_id": "monishakollipara13",
+  "date": "2026-04-04",
+  "status": "awaiting_8xH100_verification"
+}
