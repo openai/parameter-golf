@@ -55,7 +55,7 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 200))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
@@ -86,16 +86,16 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.03))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.03))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1000))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 
 # -----------------------------
@@ -445,12 +445,15 @@ class TokenStream:
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        random.shuffle(self.files)
         self.file_idx = 0
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
 
     def _advance_file(self) -> None:
         self.file_idx = (self.file_idx + 1) % len(self.files)
+        if self.file_idx == 0:
+            random.shuffle(self.files)
         self.tokens = load_data_shard(self.files[self.file_idx])
         self.pos = 0
 
@@ -1013,7 +1016,7 @@ def main() -> None:
             return 1.0
         if max_wallclock_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
+            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step else 1.0
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
@@ -1053,6 +1056,9 @@ def main() -> None:
     # Main training loop
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    best_val_bpb = float("inf")
+    best_model_state: dict[str, Tensor] | None = None
+    train_loss_ema = 0.0
 
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -1074,6 +1080,10 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            if val_bpb < best_val_bpb:
+                best_val_bpb = val_bpb
+                best_model_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+                log0(f"new_best val_bpb:{val_bpb:.4f} at step:{step}")
 
             torch.cuda.synchronize()
             t0 = time.perf_counter()
@@ -1106,9 +1116,15 @@ def main() -> None:
 
         # Single GPU sync via .item() — keeps CPU from running too far ahead
         train_loss_accum = train_loss_accum.item() * grad_scale
+        if train_loss_ema == 0.0:
+            train_loss_ema = train_loss_accum
+        else:
+            train_loss_ema = 0.95 * train_loss_ema + 0.05 * train_loss_accum
 
         if args.grad_clip_norm > 0:
-            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+            grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm).item()
+        else:
+            grad_norm = 0.0
 
         torch.cuda.synchronize()
         step_time_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1130,7 +1146,7 @@ def main() -> None:
         zero_grad_all()
 
         if master_process and (step + 1) % args.train_log_every == 0:
-            log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms")
+            log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} ema_loss:{train_loss_ema:.4f} grad_norm:{grad_norm:.4f} lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms")
 
         step += 1
 
@@ -1142,6 +1158,11 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Restore best model if the final state isn't the best
+    if best_model_state is not None:
+        base_model.load_state_dict(best_model_state, strict=True)
+        log0(f"restored best model with val_bpb:{best_val_bpb:.4f}")
 
     # Serialization + roundtrip validation
     if master_process:
