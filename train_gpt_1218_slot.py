@@ -31,6 +31,15 @@ except ImportError:
         )
         return o.transpose(1, 2)
 
+_COMPILE_DISABLED = bool(int(os.environ.get("TORCH_COMPILE_DISABLE", "0")))
+def _maybe_compile(fn=None, **kwargs):
+    """torch.compile wrapper that respects TORCH_COMPILE_DISABLE env var."""
+    if _COMPILE_DISABLED:
+        return fn if fn is not None else lambda f: f
+    if fn is not None:
+        return torch.compile(fn, **kwargs)
+    return torch.compile(**kwargs)
+
 # ----------------------------------------
 # Hyperparameters
 # ----------------------------------------
@@ -757,7 +766,7 @@ def classify_param(name: str) -> str:
 # Optimization
 # ----------------------------------------
 
-@torch.compile
+@_maybe_compile
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -1434,7 +1443,7 @@ def eval_val_sliding(
 ) -> tuple[float, float]:
     """Sliding window evaluation: each token scored with maximum context."""
     base_model.eval()
-    logits_fn = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    logits_fn = _maybe_compile(base_model.forward_logits, dynamic=False, fullgraph=True)
 
     seq_len = h.eval_seq_len
     context_size = seq_len - h.eval_stride
@@ -1758,7 +1767,7 @@ def run_evals(
     val_data: ValidationData,
     eval_model: torch.nn.Module
 ):
-    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_model = _maybe_compile(eval_model, dynamic=False, fullgraph=True)
     timed_eval("final_int6_roundtrip", eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
         timed_eval("final_int6_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
@@ -1775,7 +1784,7 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
     # Set up model
     base_model = GPT(h).to(device).bfloat16()
     restore_fp32_params(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = _maybe_compile(base_model, dynamic=False, fullgraph=True)
     if h.distributed:
         model = DDP(compiled_model, device_ids=[h.local_rank], broadcast_buffers=False)
     else:
