@@ -1,0 +1,17 @@
+{
+  "author": "mradassaad",
+  "github_id": "mradassaad",
+  "name": "Mamba-3 Hybrid + Full Hessian GPTQ + Late QAT + Linear Warmdown",
+  "blurb": "Best SSM submission: 7x Mamba-3 SISO SSD + 1 attention hybrid with Full Hessian GPTQ, late QAT (LR-triggered fake quantization), and linear warmdown. Closes 174 mBPB quantization gap to effectively zero.",
+  "date": "2026-04-04",
+  "val_loss": 1.94610314,
+  "val_bpb": 1.15259190,
+  "bytes_total": 15781278,
+  "bytes_code": 82946,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "train_steps": 5179,
+  "step_avg_ms": 115.86,
+  "artifact_bytes": 15781278
+}
