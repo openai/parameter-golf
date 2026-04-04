@@ -1,0 +1,109 @@
+Note: switching to 'c2fc96f8e3918c937670fdb6189800b060c6a67a'.
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+  git switch -c <new-branch-name>
+Or undo this operation with:
+  git switch -
+Turn off this advice by setting config variable advice.detachedHead to false
+HEAD is now at c2fc96f Seed=2025 for 3-seed validation on dTTT + freeze=0
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+W0404 06:31:54.936000 1 torch/distributed/run.py:803] 
+W0404 06:31:54.936000 1 torch/distributed/run.py:803] *****************************************
+W0404 06:31:54.936000 1 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+logs/19b5de40-3ef1-4ddf-bb00-c758b1bb1462.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2025
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9281 train_time:143ms step_avg:142.57ms
+step:2/20000 train_loss:8.6458 train_time:178ms step_avg:88.99ms
+step:3/20000 train_loss:7.5616 train_time:258ms step_avg:85.87ms
+step:4/20000 train_loss:7.3543 train_time:340ms step_avg:85.05ms
+step:5/20000 train_loss:7.1980 train_time:424ms step_avg:84.73ms
+step:6/20000 train_loss:7.0625 train_time:507ms step_avg:84.56ms
+step:7/20000 train_loss:6.8414 train_time:590ms step_avg:84.30ms
+step:8/20000 train_loss:6.7550 train_time:676ms step_avg:84.52ms
+step:9/20000 train_loss:6.4542 train_time:758ms step_avg:84.23ms
+step:10/20000 train_loss:6.0164 train_time:842ms step_avg:84.18ms
+step:500/20000 train_loss:2.3779 train_time:42873ms step_avg:85.75ms
+step:1000/20000 train_loss:2.2497 train_time:86277ms step_avg:86.28ms
+step:1500/20000 train_loss:2.2017 train_time:129568ms step_avg:86.38ms
+step:2000/20000 train_loss:2.0463 train_time:172986ms step_avg:86.49ms
+step:2500/20000 train_loss:2.1536 train_time:216445ms step_avg:86.58ms
+step:3000/20000 train_loss:2.1425 train_time:259959ms step_avg:86.65ms
+step:3500/20000 train_loss:2.1527 train_time:303348ms step_avg:86.67ms
+step:4000/20000 train_loss:1.9441 train_time:346783ms step_avg:86.70ms
+step:4000/20000 val_loss:2.0361 val_bpb:1.2059 train_time:346840ms step_avg:86.71ms
+step:4500/20000 train_loss:2.0972 train_time:390124ms step_avg:86.69ms
+step:5000/20000 train_loss:2.0803 train_time:433572ms step_avg:86.71ms
+step:5500/20000 train_loss:1.9991 train_time:476955ms step_avg:86.72ms
+step:6000/20000 train_loss:1.9220 train_time:520377ms step_avg:86.73ms
+swa:start step:6150
+late_qat:enabled step:6314 scale:0.1499
+step:6500/20000 train_loss:2.0624 train_time:564311ms step_avg:86.82ms
+step:6904/20000 val_loss:1.9196 val_bpb:1.1369 train_time:600118ms step_avg:86.92ms
+stopping_early: wallclock_cap train_time:600118ms step:6904/20000
+peak memory allocated: 22860 MiB reserved: 23042 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9180 val_bpb:1.1359 eval_time:2091ms
+dttt:start lr=0.0005 epochs=10 freeze_blocks=0 cosine_decay=True
+dttt:params trainable=26993756 frozen=0 groups=12 lr_range=[0.000150, 0.000500]
+dttt:epoch 1/10 loss:1.9365 time:18.9s
+dttt:epoch 2/10 loss:1.9118 time:37.5s
+dttt:epoch 3/10 loss:1.9006 time:56.1s
+dttt:epoch 4/10 loss:1.8903 time:74.7s
+dttt:epoch 5/10 loss:1.8812 time:93.3s
+dttt:epoch 6/10 loss:1.8729 time:111.9s
+dttt:epoch 7/10 loss:1.8656 time:130.5s
+dttt:epoch 8/10 loss:1.8595 time:149.1s
+dttt:epoch 9/10 loss:1.8548 time:167.7s
+dttt:epoch 10/10 loss:1.8517 time:186.3s
+dttt:done elapsed=186.3s
+dttt:elapsed=186.3s
+DIAGNOSTIC post_ttt val_loss:1.8489 val_bpb:1.0950 eval_time:6062ms
+Serialized model: 106158518 bytes
+Code size: 113383 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 68 layers (training data)
+selective_prune: 4204232 ±1 candidates, unpruned=15.07MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15691276 bytes
+Total submission size int6+lzma: 15804659 bytes
+final_int6_roundtrip val_loss:1.8581 val_bpb:1.1004 eval_time:22706ms
+final_int6_roundtrip_exact val_loss:1.85805927 val_bpb:1.10044736
+final_int6_sliding_window val_loss:1.8255 val_bpb:1.0812 stride:64 eval_time:111989ms
+final_int6_sliding_window_exact val_loss:1.82549170 val_bpb:1.08116187
+final_int8_zlib_roundtrip_exact val_loss:1.82549170 val_bpb:1.08116187
