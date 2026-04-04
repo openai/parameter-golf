@@ -62,6 +62,24 @@ The result was a tokenizer design that, when validated against the literature, i
 | Value Embeddings | Layers 9-10, dim=128 | PR #1019 |
 | TARGET_MB | 15.9 (selective pruning) | PR #1019 |
 
+## BPB Correctness (Tokenizer Change Verification)
+
+Since this submission uses a custom tokenizer, we provide proof that `val_bpb` is correctly calculated:
+
+1. **BPB formula is tokenizer-agnostic**: `val_bpb = cross_entropy_loss * tokens_per_byte`. The model predicts next tokens in BESE encoding, and the loss is scaled by the actual tokens-per-byte ratio of the BESE tokenizer on the validation set.
+
+2. **Validation data is identical**: The validation set is the same FineWeb first-50K-document split. We decode the original SP-1024 binary shards back to raw text, then re-encode with BESE. No documents are added, removed, or reordered.
+
+3. **No information leakage**: BPE merges are trained only on training data (50K documents from training shards). The validation set is never seen during tokenizer training.
+
+4. **Byte-level consistency**: Every byte in the original text is preserved through the decode-reencode pipeline. The BESE tokenizer is lossless — `decode(encode(text)) == text` for all inputs.
+
+5. **Cross-check**: The `final_int8_zlib_roundtrip_exact` line in the training log reports the same `val_bpb` as the sliding window evaluation, confirming internal consistency.
+
+## Acknowledgments
+
+The training architecture (model, optimizer, quantization, evaluation) is entirely from [PR #1019](https://github.com/openai/parameter-golf/pull/1019) by @abaybektursun. The only novel contribution in this submission is the BESE tokenizer and the data preparation pipeline. Full credit to the PR #1019 authors for the SOTA training stack.
+
 ## Data Preparation
 
 BESE requires pre-tokenized training data. The preparation pipeline:
