@@ -1,0 +1,11 @@
+{
+  "author": "mradassaad",
+  "github_id": "mradassaad",
+  "name": "Mamba-3 SSD + Attention Hybrid with QAT",
+  "blurb": "Mamba-3 SISO SSD (pure Triton) + 1 attention layer hybrid, 8L 512dim. INT6 QAT extended to Mamba-3 in_proj/out_proj (CastedLinear replacement). TTT 1 epoch. WARMDOWN_ITERS tuned per hardware step time.",
+  "date": "2026-03-29",
+  "val_loss": 2.63964278,
+  "val_bpb": 1.56334514,
+  "bytes_total": 10892315,
+  "bytes_code": 68356
+}
