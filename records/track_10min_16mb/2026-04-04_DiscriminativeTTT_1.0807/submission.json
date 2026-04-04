@@ -1,0 +1,10 @@
+{
+  "name": "Discriminative TTT (Per-Block Adaptive LR) + Config Batch",
+  "blurb": "Discriminative Test-Time Training: per-block adaptive learning rates (0.3x early to 1.0x late) during pre-quant AdamW TTT with freeze=0 and 10 epochs. Track A (fixed predictor) — no SLOT, no eval-time adaptation. Combined with QK_GAIN=5.0, WARMDOWN=4000, GPTQ damp=0.005. 3-seed mean 1.0807 BPP.",
+  "track": "10min_16mb",
+  "hardware": "8xH100_SXM",
+  "seeds": [1337, 42, 2025],
+  "mean_val_bpb": 1.0807,
+  "std_val_bpb": 0.0005,
+  "technique_summary": "Discriminative Pre-quant AdamW TTT (per-block LR 0.3x-1.0x, freeze=0, 10ep) + QK_GAIN=5.0 + WARMDOWN=4000 + GPTQ damp=0.005 + Coprime Loader"
+}
