@@ -72,7 +72,7 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 - [ ] H-net tokenization
 - [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
 - [ ] Megakernels
-- [ ] State-space models, E2E TTT, super long context for evaluation or training 
+- [x] State-space models, E2E TTT, super long context for evaluation or training - [implementation](records/track_10min_16mb/2026-04-04_MambaSSM_Byte260/README.md)
 - [ ] Learning adapters on random linear maps
 
 ## Getting Started
