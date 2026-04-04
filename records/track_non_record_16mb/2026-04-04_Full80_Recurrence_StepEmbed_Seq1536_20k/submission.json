@@ -1,0 +1,18 @@
+{
+  "author": "Shasank",
+  "github_id": "shasank0001",
+  "name": "Full80 Recurrence + Step Embed + Seq1536 (20k)",
+  "blurb": "Unlimited compute non-record submission: fixed-block recurrence with step-aware loop embeddings, seq1536 training, and a small export rescue. Final slide64 roundtrip reached 1.17631839 under the 16MB cap.",
+  "date": "2026-04-04T08:17:28Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.98616148,
+  "val_bpb": 1.17631839,
+  "pre_quant_val_loss": 1.9815,
+  "pre_quant_val_bpb": 1.1735,
+  "step_stop": 20000,
+  "wallclock_seconds": 39715.675,
+  "bytes_total": 15501266,
+  "bytes_model_int8_zlib": 15402045,
+  "bytes_code": 99221,
+  "gpu": "1xRTX5060"
+}
