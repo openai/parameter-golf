@@ -1,0 +1,11 @@
+{
+  "author": "slowomir33-arch",
+  "github_id": "slowomir33-arch",
+  "name": "LOGOS-44 Z=0: Toroidal CDMA Field Decoder (44-pass iterative routing)",
+  "blurb": "Non-transformer architecture: 44 iterative passes through a shared toroidal bottleneck (sin·cos rank-64) with 128-signal CDMA field decoder and coherence gating. ~4.5M params with tied 1024-vocab embeddings. Explores compute-depth over parameter-count scaling. Muon optimizer + int8+zlib compression.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "note": "Experimental architecture — val_bpb TBD after 8xH100 training run."
+}
