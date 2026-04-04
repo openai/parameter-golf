@@ -1,0 +1,10 @@
+{
+  "name": "L-BFGS Causal SLOT in Logit Space + Pre-quant TTT + Config Batch",
+  "blurb": "L-BFGS optimizer for causal (provably compliant) SLOT in logit space with focal loss and warm-start. Causal constraint: loss from already-scored context positions only. Combined with pre-quant AdamW TTT (6ep), coprime loader, QK_GAIN=5.0, WARMDOWN=4000, GPTQ damp=0.005. 3-seed mean 1.0046 BPP.",
+  "track": "10min_16mb",
+  "hardware": "8xH100_SXM",
+  "seeds": [1337, 42, 2025],
+  "mean_val_bpb": 1.0046,
+  "std_val_bpb": 0.0003,
+  "technique_summary": "L-BFGS Causal SLOT (logit-space, max_iter=25, history=20, focal_tokens=128, warm-start, clamp=5) + Pre-quant AdamW TTT 6ep + QK_GAIN=5.0 + WARMDOWN=4000 + GPTQ damp=0.005 + Coprime Loader"
+}
