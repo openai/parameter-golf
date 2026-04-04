@@ -1,22 +1,22 @@
 #!/bin/bash
-# run.sh — lancia uno o più run in sequenza.
-# Uso: bash run.sh <mode1> [mode2] ...
+# run.sh — runs one or more training modes in sequence.
+# Usage: bash run.sh <mode1> [mode2] ...
 #
-# MATRICE DI ABLATION COMPLETA:
+# FULL ABLATION MATRIX:
 #
-#   mode          | JEPA | BigramHash | LeakyReLU | scopo
+#   mode          | JEPA | BigramHash | LeakyReLU | purpose
 #   --------------|------|------------|-----------|------------------------------
-#   baseline      |  0   |     0      |     0     | punto zero, identico v1
-#   leaky         |  0   |     0      |     1     | isola LeakyReLU
-#   bigram        |  0   |     1      |     1     | isola BigramHash (+leaky)
-#   jepa          |  1   |     0      |     1     | isola JEPA v2 (+leaky)
-#   full          |  1   |     1      |     1     | stack completo
-#   smoke         |  1   |     1      |     1     | smoke test 2 min
+#   baseline      |  0   |     0      |     0     | zero baseline, identical to v1
+#   leaky         |  0   |     0      |     1     | isolates LeakyReLU contribution
+#   bigram        |  0   |     1      |     1     | isolates BigramHash (+leaky)
+#   jepa          |  1   |     0      |     1     | isolates JEPA v2 (+leaky)
+#   full          |  1   |     1      |     1     | full stack
+#   smoke         |  1   |     1      |     1     | 2-min smoke test
 #
-# Eseguire la matrice completa (5 run da 10 min = ~50 min):
+# Run full matrix (5 runs x 10 min = ~50 min):
 #   bash run.sh baseline leaky bigram jepa full
 #
-# Run rapido con il confronto principale:
+# Quick comparison (main contrast only):
 #   bash run.sh baseline full
 
 set -e
@@ -36,16 +36,16 @@ COMMON_FULL="
 "
 
 if [ $# -eq 0 ]; then
-  echo "Uso: $0 [smoke|full|jepa|bigram|leaky|baseline] ..."
+  echo "Usage: $0 [smoke|full|jepa|bigram|leaky|baseline] ..."
   echo ""
-  echo "  baseline  10 min — CE puro, nessuna modifica (punto zero)"
+  echo "  baseline  10 min — pure CE, no modifications (zero baseline)"
   echo "  leaky     10 min — + LeakyReLU(0.5)^2"
   echo "  bigram    10 min — + LeakyReLU + BigramHash2048"
   echo "  jepa      10 min — + LeakyReLU + JEPA v2 (no BigramHash)"
-  echo "  full      10 min — stack completo (JEPA + BigramHash + LeakyReLU)"
-  echo "  smoke      2 min — smoke test stack completo"
+  echo "  full      10 min — full stack (JEPA + BigramHash + LeakyReLU)"
+  echo "  smoke      2 min — smoke test, full stack"
   echo ""
-  echo "Matrice completa: bash $0 baseline leaky bigram jepa full"
+  echo "Full matrix: bash $0 baseline leaky bigram jepa full"
   exit 1
 fi
 
@@ -56,8 +56,8 @@ run_mode() {
     baseline)
       echo ""
       echo "======================================================"
-      echo "  BASELINE — CE puro, ReLU^2, no JEPA, no BigramHash"
-      echo "  (punto zero: confrontabile con v1)"
+      echo "  BASELINE — pure CE, ReLU^2, no JEPA, no BigramHash"
+      echo "  (zero baseline: comparable to v1)"
       echo "  $(date)"
       echo "======================================================"
       USE_JEPA=0 \
@@ -73,8 +73,8 @@ run_mode() {
     leaky)
       echo ""
       echo "======================================================"
-      echo "  LEAKY — solo LeakyReLU(0.5)^2, no JEPA, no BigramHash"
-      echo "  Isola il contributo di LeakyReLU"
+      echo "  LEAKY — LeakyReLU(0.5)^2 only, no JEPA, no BigramHash"
+      echo "  Isolates LeakyReLU contribution"
       echo "  $(date)"
       echo "======================================================"
       USE_JEPA=0 \
@@ -91,7 +91,7 @@ run_mode() {
       echo ""
       echo "======================================================"
       echo "  BIGRAM — LeakyReLU + BigramHash2048, no JEPA"
-      echo "  Isola il contributo di BigramHash"
+      echo "  Isolates BigramHash contribution"
       echo "  $(date)"
       echo "======================================================"
       USE_JEPA=0 \
@@ -108,7 +108,7 @@ run_mode() {
       echo ""
       echo "======================================================"
       echo "  JEPA — LeakyReLU + JEPA v2 multi-step, no BigramHash"
-      echo "  Isola il contributo di JEPA (momentum=0.9, offsets 1,2,4,8)"
+      echo "  Isolates JEPA contribution (momentum=0.9, offsets 1,2,4,8)"
       echo "  $(date)"
       echo "======================================================"
       USE_JEPA=1 JEPA_LAMBDA=0.12 \
@@ -125,7 +125,7 @@ run_mode() {
     full)
       echo ""
       echo "======================================================"
-      echo "  FULL — stack completo"
+      echo "  FULL — full stack"
       echo "  JEPA v2 + BigramHash2048 + LeakyReLU + int6+LZMA + EMA artifact"
       echo "  $(date)"
       echo "======================================================"
@@ -143,7 +143,7 @@ run_mode() {
     smoke)
       echo ""
       echo "======================================================"
-      echo "  SMOKE TEST — 2 min, stack completo"
+      echo "  SMOKE TEST — 2 min, full stack"
       echo "  $(date)"
       echo "======================================================"
       USE_JEPA=1 JEPA_LAMBDA=0.12 \
@@ -158,8 +158,8 @@ run_mode() {
       ;;
 
     *)
-      echo "Modalità sconosciuta: '$MODE'"
-      echo "Valide: smoke | full | jepa | bigram | leaky | baseline"
+      echo "Unknown mode: '$MODE'"
+      echo "Valid modes: smoke | full | jepa | bigram | leaky | baseline"
       exit 1
       ;;
   esac
@@ -172,14 +172,14 @@ for MODE in "$@"; do
   echo ""
   echo ">>> Run $IDX/$TOTAL: $MODE"
   run_mode "$MODE"
-  echo ">>> Completato: $MODE ($(date))"
+  echo ">>> Done: $MODE ($(date))"
 done
 
 echo ""
 echo "======================================================"
-echo "  TUTTI I RUN COMPLETATI ($TOTAL/$TOTAL)"
+echo "  ALL RUNS COMPLETED ($TOTAL/$TOTAL)"
 echo "  $(date)"
 echo ""
-echo "  Per leggere i risultati:"
+echo "  To read results:"
 echo "  grep 'val_bpb\|use_jepa\|bigram_params\|mlp_leaky\|int6' logs/*.txt"
 echo "======================================================"
