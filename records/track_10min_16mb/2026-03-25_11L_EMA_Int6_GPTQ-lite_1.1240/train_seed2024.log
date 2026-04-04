@@ -1,79 +1,82 @@
-from __future__ import annotations
-import copy
-import glob
-import io
-import lzma
-import math
-import os
-import random
-import subprocess
-import sys
-import time
-import uuid
-import zlib
-from pathlib import Path
-try:
-    import zstandard
-    _COMPRESSOR = "zstd"
-except ImportError:
-    _COMPRESSOR = "zlib"
-import numpy as np
-import sentencepiece as spm
-import torch
-import torch.distributed as dist
-import torch.nn.functional as F
-from torch import Tensor, nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
-class Hyperparameters:
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
-    train_files = os.path.join(data_path, "fineweb_train_*.bin")
-    val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
-    run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
-    seed = int(os.environ.get("SEED", 1337))
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
-    iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
-    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
-    tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
-    head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
-    beta1 = float(os.environ.get("BETA1", 0.9))
-    beta2 = float(os.environ.get("BETA2", 0.95))
-    adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
-    mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
-    muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_every = int(os.environ.get("SWA_EVERY", 50))  # tighter: collect more recent checkpoints
-    muon_wd = float(os.environ.get("MUON_WD", 0.04))
-    adam_wd = float(os.environ.get("ADAM_WD", 0.04))
+W0404 06:26:53.013000 68631 torch/distributed/run.py:803] 
+W0404 06:26:53.013000 68631 torch/distributed/run.py:803] *****************************************
+W0404 06:26:53.013000 68631 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0404 06:26:53.013000 68631 torch/distributed/run.py:803] *****************************************
+logs/improved_seed2024.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2024
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9317 val_bpb:4.1053 train_time:0ms step_avg:0.03ms
+step:1/20000 train_loss:6.9330 train_time:141ms step_avg:140.91ms
+step:2/20000 train_loss:8.7208 train_time:221ms step_avg:110.51ms
+step:3/20000 train_loss:7.8948 train_time:305ms step_avg:101.59ms
+step:4/20000 train_loss:7.1894 train_time:389ms step_avg:97.22ms
+step:5/20000 train_loss:6.9784 train_time:473ms step_avg:94.57ms
+step:6/20000 train_loss:6.8834 train_time:557ms step_avg:92.80ms
+step:7/20000 train_loss:6.7144 train_time:642ms step_avg:91.66ms
+step:8/20000 train_loss:6.6396 train_time:726ms step_avg:90.71ms
+step:9/20000 train_loss:6.4036 train_time:810ms step_avg:90.04ms
+step:10/20000 train_loss:6.0750 train_time:894ms step_avg:89.45ms
+step:500/20000 train_loss:2.3842 train_time:42985ms step_avg:85.97ms
+step:1000/20000 train_loss:2.2612 train_time:86263ms step_avg:86.26ms
+step:1500/20000 train_loss:2.2097 train_time:129515ms step_avg:86.34ms
+step:2000/20000 train_loss:2.0517 train_time:172822ms step_avg:86.41ms
+step:2500/20000 train_loss:2.1585 train_time:216023ms step_avg:86.41ms
+step:3000/20000 train_loss:2.1481 train_time:259175ms step_avg:86.39ms
+step:3500/20000 train_loss:2.1631 train_time:302291ms step_avg:86.37ms
+step:4000/20000 train_loss:1.9590 train_time:345400ms step_avg:86.35ms
+step:4000/20000 val_loss:2.0517 val_bpb:1.2152 train_time:345405ms step_avg:86.35ms
+step:4500/20000 train_loss:2.1095 train_time:388507ms step_avg:86.33ms
+step:5000/20000 train_loss:2.0894 train_time:431591ms step_avg:86.32ms
+step:5500/20000 train_loss:2.0060 train_time:474658ms step_avg:86.30ms
+step:6000/20000 train_loss:1.9316 train_time:517738ms step_avg:86.29ms
+swa:start step:6300
+late_qat:enabled step:6428 scale:0.1499
+step:6500/20000 train_loss:2.0686 train_time:560981ms step_avg:86.30ms
+step:6951/20000 val_loss:1.9222 val_bpb:1.1384 train_time:600062ms step_avg:86.33ms
+stopping_early: wallclock_cap train_time:600062ms step:6951/20000
+peak memory allocated: 20670 MiB reserved: 20724 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9206 val_bpb:1.1375 eval_time:1987ms
+Serialized model: 106178569 bytes
+Code size: 76387 bytes
+Serialized model int6+lzma: 15868616 bytes
+Total submission size int6+lzma: 15945003 bytes
+final_int6_roundtrip val_loss:1.9347 val_bpb:1.1458 eval_time:6996ms
+final_int6_roundtrip_exact val_loss:1.93471033 val_bpb:1.14584443
+final_int6_sliding_window val_loss:1.8948 val_bpb:1.1222 stride:64 eval_time:75927ms
+final_int6_sliding_window_exact val_loss:1.89481609 val_bpb:1.12221979
+final_int8_zlib_roundtrip_exact val_loss:1.89481609 val_bpb:1.12221979
+viron.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
@@ -1582,3 +1585,130 @@ def main() -> None:
         dist.destroy_process_group()
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Sat Apr  4 06:27:05 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   41C    P0            120W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   33C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   32C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   39C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   41C    P0            120W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   33C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   40C    P0            120W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   32C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2024
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9317 val_bpb:4.1053 train_time:0ms step_avg:0.03ms
+step:1/20000 train_loss:6.9330 train_time:141ms step_avg:140.91ms
+step:2/20000 train_loss:8.7208 train_time:221ms step_avg:110.51ms
+step:3/20000 train_loss:7.8948 train_time:305ms step_avg:101.59ms
+step:4/20000 train_loss:7.1894 train_time:389ms step_avg:97.22ms
+step:5/20000 train_loss:6.9784 train_time:473ms step_avg:94.57ms
+step:6/20000 train_loss:6.8834 train_time:557ms step_avg:92.80ms
+step:7/20000 train_loss:6.7144 train_time:642ms step_avg:91.66ms
+step:8/20000 train_loss:6.6396 train_time:726ms step_avg:90.71ms
+step:9/20000 train_loss:6.4036 train_time:810ms step_avg:90.04ms
+step:10/20000 train_loss:6.0750 train_time:894ms step_avg:89.45ms
+step:500/20000 train_loss:2.3842 train_time:42985ms step_avg:85.97ms
+step:1000/20000 train_loss:2.2612 train_time:86263ms step_avg:86.26ms
+step:1500/20000 train_loss:2.2097 train_time:129515ms step_avg:86.34ms
+step:2000/20000 train_loss:2.0517 train_time:172822ms step_avg:86.41ms
+step:2500/20000 train_loss:2.1585 train_time:216023ms step_avg:86.41ms
+step:3000/20000 train_loss:2.1481 train_time:259175ms step_avg:86.39ms
+step:3500/20000 train_loss:2.1631 train_time:302291ms step_avg:86.37ms
+step:4000/20000 train_loss:1.9590 train_time:345400ms step_avg:86.35ms
+step:4000/20000 val_loss:2.0517 val_bpb:1.2152 train_time:345405ms step_avg:86.35ms
+step:4500/20000 train_loss:2.1095 train_time:388507ms step_avg:86.33ms
+step:5000/20000 train_loss:2.0894 train_time:431591ms step_avg:86.32ms
+step:5500/20000 train_loss:2.0060 train_time:474658ms step_avg:86.30ms
+step:6000/20000 train_loss:1.9316 train_time:517738ms step_avg:86.29ms
+swa:start step:6300
+late_qat:enabled step:6428 scale:0.1499
+step:6500/20000 train_loss:2.0686 train_time:560981ms step_avg:86.30ms
+step:6951/20000 val_loss:1.9222 val_bpb:1.1384 train_time:600062ms step_avg:86.33ms
+stopping_early: wallclock_cap train_time:600062ms step:6951/20000
+peak memory allocated: 20670 MiB reserved: 20724 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9206 val_bpb:1.1375 eval_time:1987ms
+Serialized model: 106178569 bytes
+Code size: 76387 bytes
+Serialized model int6+lzma: 15868616 bytes
+Total submission size int6+lzma: 15945003 bytes
+final_int6_roundtrip val_loss:1.9347 val_bpb:1.1458 eval_time:6996ms
+final_int6_roundtrip_exact val_loss:1.93471033 val_bpb:1.14584443
+final_int6_sliding_window val_loss:1.8948 val_bpb:1.1222 stride:64 eval_time:75927ms
+final_int6_sliding_window_exact val_loss:1.89481609 val_bpb:1.12221979
+final_int8_zlib_roundtrip_exact val_loss:1.89481609 val_bpb:1.12221979

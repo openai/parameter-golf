@@ -1,10 +1,10 @@
 {
   "author": "Dhruba Saha",
   "github_id": "Dhruba531",
-  "name": "11L EMA + GPTQ-lite + Int6 + zstd (1.1240)",
-  "blurb": "11-layer transformer with EMA(0.997), GPTQ-lite percentile search, late QAT@0.15, XSA on last 4 layers, Partial RoPE 16/64, SmearGate, BigramHash, Value Embeddings, int6+zstd-22 compression. Built on SOTA stack.",
-  "date": "2026-03-25T00:00:00Z",
-  "val_loss": 1.89788825,
-  "val_bpb": 1.12403930,
-  "bytes_total": 15578241
+  "name": "Record: 11L Enhanced GPTQ-lite Per-Row (1.1218)",
+  "blurb": "Enhanced GPTQ-lite with per-row optimal clip percentile search (13 candidates vs 5, per-row selection vs global). Built on SOTA stack: 11L, EMA(0.997), XSA4, Partial RoPE 16/64, SmearGate, BigramHash, VE128, Late QAT@0.15, int6+zstd.",
+  "date": "2026-04-04T00:00:00Z",
+  "val_loss": 1.89316654,
+  "val_bpb": 1.12124283,
+  "bytes_total": 15924799
 }
