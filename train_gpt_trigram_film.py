@@ -33,6 +33,15 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+if "--ternary" in sys.argv:
+    os.environ["TERNARY_ENABLED"] = "1"
+if "--no-ternary" in sys.argv:
+    os.environ["TERNARY_ENABLED"] = "0"
+
+TERNARY_ENABLED = os.environ.get("TERNARY_ENABLED", "0") == "1"
+TRIGRAM_ENABLED = os.environ.get("TRIGRAM_ENABLED", "1") == "1"
+FILM_ENABLED = os.environ.get("FILM_ENABLED", "1") == "1"
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -58,9 +67,9 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 16 if TERNARY_ENABLED else 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 768 if TERNARY_ENABLED else 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -92,10 +101,6 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-
-
-TRIGRAM_ENABLED = os.environ.get("TRIGRAM_ENABLED", "1") == "1"
-FILM_ENABLED = os.environ.get("FILM_ENABLED", "1") == "1"
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -352,7 +357,32 @@ def quantize_intN_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range+1), clip_range).to(torch.int8)
     return q, scale
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
+def pack_ternary_2bit(q_vals: Tensor) -> Tensor:
+    flat = (q_vals.to(torch.int16) + 1).to(torch.uint8).reshape(-1)
+    pad = (-flat.numel()) % 4
+    if pad:
+        flat = torch.cat([flat, torch.zeros(pad, dtype=torch.uint8)], dim=0)
+    packed = (
+        (flat[0::4] & 0x03)
+        | ((flat[1::4] & 0x03) << 2)
+        | ((flat[2::4] & 0x03) << 4)
+        | ((flat[3::4] & 0x03) << 6)
+    )
+    return packed.contiguous()
+
+
+def unpack_ternary_2bit(packed: Tensor, numel: int) -> Tensor:
+    p = packed.reshape(-1).to(torch.uint8)
+    out = torch.empty(p.numel() * 4, dtype=torch.uint8)
+    out[0::4] = p & 0x03
+    out[1::4] = (p >> 2) & 0x03
+    out[2::4] = (p >> 4) & 0x03
+    out[3::4] = (p >> 6) & 0x03
+    out = out[:numel].to(torch.int8) - 1
+    return out
+
+
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], ternary_enabled: bool = False):
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     for name, tensor in state_dict.items():
@@ -370,7 +400,14 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str]):
             result[name] = t.to(dtype=torch.float16).contiguous()
             meta[name] = "passthrough_fp16"
             continue
-        if cat in int6_cats and t.ndim >= 1:
+        if ternary_enabled and t.ndim == 2 and (".attn." in name or ".mlp." in name):
+            scale = t.abs().mean().clamp_min(1e-8).to(torch.float16)
+            q = (t / scale.float()).round().clamp(-1, 1).to(torch.int8).contiguous()
+            result[name + ".q2"] = pack_ternary_2bit(q)
+            result[name + ".shape"] = torch.tensor(t.shape, dtype=torch.int32)
+            result[name + ".scale"] = scale
+            meta[name] = {"type": "ternary2"}
+        elif cat in int6_cats and t.ndim >= 1:
             clip = 15 if cat == "mlp" else 31  # int5 for MLP, int6 for attention
             q, s = quantize_intN_per_row(t, clip_range=clip)
             result[name + ".q"] = q
@@ -394,6 +431,13 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
                 t = t.to(orig_dtype)
             out[name] = t
+            continue
+        if isinstance(info, dict) and info.get("type") == "ternary2":
+            shape = tuple(int(v) for v in result[name + ".shape"].tolist())
+            numel = int(np.prod(shape))
+            q = unpack_ternary_2bit(result[name + ".q2"], numel).view(shape).to(torch.float32)
+            s = result[name + ".scale"].float()
+            out[name] = (q * s).to(orig_dtype)
             continue
         q, s = result[name + ".q"], result[name + ".scale"]
         if s.ndim > 0:
@@ -490,6 +534,32 @@ class CastedLinear(nn.Linear):
         return F.linear(x, w, bias)
 
 
+class TernaryLinear(nn.Module):
+    def __init__(self, in_features: int, out_features: int, bias: bool = False):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(torch.empty(out_features, in_features))
+        self.bias = nn.Parameter(torch.zeros(out_features)) if bias else None
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, x: Tensor) -> Tensor:
+        weight = self.weight
+        scale = weight.abs().mean().clamp_min(1e-8)
+        w_q = (weight / scale).round().clamp(-1, 1)
+        w_ste = weight + (w_q - weight).detach()
+        ternary_weight = w_ste * scale
+        bias = self.bias.to(x.dtype) if self.bias is not None else None
+        return F.linear(x, ternary_weight.to(x.dtype), bias)
+
+
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     with torch.no_grad():
         for name, param in module.named_parameters():
@@ -540,10 +610,11 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
+        linear_cls = TernaryLinear if TERNARY_ENABLED else CastedLinear
+        self.c_q = linear_cls(dim, dim, bias=False)
+        self.c_k = linear_cls(dim, kv_dim, bias=False)
+        self.c_v = linear_cls(dim, kv_dim, bias=False)
+        self.proj = linear_cls(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
@@ -571,8 +642,9 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: float):
         super().__init__()
         hidden = int(mlp_mult * dim)
-        self.fc = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
+        linear_cls = TernaryLinear if TERNARY_ENABLED else CastedLinear
+        self.fc = linear_cls(dim, hidden, bias=False)
+        self.proj = linear_cls(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
@@ -733,7 +805,7 @@ class GPT(nn.Module):
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         num_layers = len(self.blocks)
         for name, module in self.named_modules():
-            if isinstance(module, nn.Linear):
+            if isinstance(module, (nn.Linear, TernaryLinear)):
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
                 elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
@@ -989,6 +1061,8 @@ def main() -> None:
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+        if isinstance(module, TernaryLinear):
+            module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
@@ -1058,7 +1132,10 @@ def main() -> None:
     trigram_params = (8192 * args.model_dim) if TRIGRAM_ENABLED else 0
     film_params = (2 * args.num_layers * args.model_dim) if FILM_ENABLED else 0
     overhead_params = trigram_params + film_params
-    log0(f"feature_flags trigram_enabled:{int(TRIGRAM_ENABLED)} film_enabled:{int(FILM_ENABLED)}")
+    log0(
+        f"feature_flags ternary_enabled:{int(TERNARY_ENABLED)} "
+        f"trigram_enabled:{int(TRIGRAM_ENABLED)} film_enabled:{int(FILM_ENABLED)}"
+    )
     log0(
         f"New params added: {trigram_params} (trigram) + {film_params} (FiLM) = {overhead_params} total overhead"
     )
@@ -1251,7 +1328,9 @@ def main() -> None:
 
     # INT6 mixed quantization + zstd/zlib export
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn", "bigram", "trigram"})
+    quant_result, quant_meta = mixed_quantize_int6(
+        sd_cpu, {"mlp", "attn", "bigram", "trigram"}, ternary_enabled=TERNARY_ENABLED
+    )
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1264,7 +1343,10 @@ def main() -> None:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize("final_model.int8.ptz")
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
+        if TERNARY_ENABLED:
+            log0(f"Serialized model ternary2+{_COMPRESSOR}: {quant_file_bytes} bytes")
+        else:
+            log0(f"Serialized model int6+{_COMPRESSOR}: {quant_file_bytes} bytes")
         total_submission_bytes = quant_file_bytes + code_bytes
         log0(f"Total submission size int8+zlib: {total_submission_bytes} bytes")
         if total_submission_bytes >= 16_000_000:
