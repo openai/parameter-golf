@@ -1,0 +1,31 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-02",
+  "name": "Trinity_Hybrid_MLP_XSA",
+  "author": "gHashTag",
+  "github_id": "deborahnelson8788726",
+  "val_bpb": 1.1251,
+  "val_bpb_note": "sliding window s64, MLP 3.25x, artifact 15.90MB (within 16MB limit)",
+  "description": "Trinity-inspired wider MLP (3.5x vs SOTA 3x) enabled by parameter budget analysis from ternary computing research. Built on PR #1019 stack (AR Self-Gen GPTQ, XSA-all, BigramHash, LeakyReLU², Partial RoPE, EMA/SWA). All weights quantized with int6 GPTQ.",
+  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
+  "architecture": "11L 512d 8h/4kv MLP3.25x int6-GPTQ",
+  "training": {
+    "steps": 5305,
+    "step_time_ms": 113,
+    "gpu": "8xH100 SXM",
+    "time_seconds": 600
+  },
+  "techniques": [
+    "Wider MLP (3.25-3.5x vs baseline 3x) — Trinity parameter budget insight",
+    "int6 Full Hessian GPTQ with AR self-generated calibration",
+    "XSA (Cross-layer Selective Attention) on all 11 layers",
+    "BigramHash 3072x112 embedding",
+    "LeakyReLU(0.5)² activation",
+    "Partial RoPE (16/64 dims)",
+    "Late QAT (int6 STE when LR scale < 0.15)",
+    "EMA (0.997) + SWA",
+    "Parallel Muon optimizer",
+    "Selective ±1 pruning for size budget",
+    "LZMA preset=9 compression"
+  ]
+}
