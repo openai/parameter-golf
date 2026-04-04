@@ -1,0 +1,18 @@
+{
+  "author": "AlienAnthony",
+  "github_id": "alientony",
+  "name": "Multi-Model Cross-Attention with Dimensional Asymmetry (1x5090)",
+  "blurb": "Non-record 1xRTX5090 submission exploring multi-model shared representation with cross-attention across asymmetric dimensions. Experiments show loss curve shape is governed primarily by model dimension, while model type affects convergence efficiency. Combines transformer, MLP, and causal depthwise branches for improved stability and quantization robustness.",
+  "date": "2026-04-04T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.1086,
+  "val_bpb": 1.2488,
+  "pre_quant_val_loss": 2.1021,
+  "pre_quant_val_bpb": 1.2450,
+  "step_stop": 60000,
+  "wallclock_seconds": 43071,
+  "bytes_total": 13626212,
+  "bytes_model_int8_zlib": 13517097,
+  "bytes_code": 109115,
+  "gpu": "1xRTX5090"
+}
