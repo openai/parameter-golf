@@ -11,7 +11,7 @@
     "seed_999": 1.1293
   },
   "val_bpb_note": "3-seed mean on 8xH100 SXM, MLP 3.0x, sliding window s64",
-  "description": "Built on PR #1019 stack + Trinity Score-First TTT. MLP 3.0x, int6 Full Hessian GPTQ with AR self-gen calibration. 8xH100 SXM, ~5440 steps in 10 min.",
+  "description": "Built on PR #1019 stack. MLP 3.0x, int6 Full Hessian GPTQ with AR self-gen calibration. 8xH100 SXM, ~5440 steps in 10 min. TTT tested but did not improve on this stack.",
   "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
   "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ",
   "training": {
