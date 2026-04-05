@@ -5,7 +5,7 @@
   "author": "gHashTag",
   "github_id": "deborahnelson8788726",
   "val_bpb": 1.1251,
-  "val_bpb_note": "sliding window s64, MLP 3.25x, artifact 15.90MB (within 16MB limit)",
+  "val_bpb_note": "best single run: sliding window s64, MLP 3.25x, 8xH100 SXM, 5305 steps, artifact 15.90MB. 3-seed mean on 4xH100: 1.1754",
   "description": "Trinity-inspired wider MLP (3.5x vs SOTA 3x) enabled by parameter budget analysis from ternary computing research. Built on PR #1019 stack (AR Self-Gen GPTQ, XSA-all, BigramHash, LeakyReLU², Partial RoPE, EMA/SWA). All weights quantized with int6 GPTQ.",
   "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
   "architecture": "11L 512d 8h/4kv MLP3.25x int6-GPTQ",
