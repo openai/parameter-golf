@@ -1,0 +1,34 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-04",
+  "name": "HDC Zero Track 5Mb TensorCore",
+  "author": "Ashley Klimpel",
+  "seed_results": {
+    "42": {
+      "val_loss": 6.5539,
+      "val_bpb": 9.4553,
+      "steps": null,
+      "ms_per_step": null
+    },
+    "7": {
+      "val_loss": 6.5534,
+      "val_bpb": 9.4545,
+      "steps": null,
+      "ms_per_step": null
+    },
+    "1337": {
+      "val_loss": 6.5533,
+      "val_bpb": 9.4544,
+      "steps": null,
+      "ms_per_step": null
+    }
+  },
+  "mean_val_loss": 6.553533333333333,
+  "mean_val_bpb": 9.454733333333333,
+  "std_val_bpb": 0.0004932882862314954,
+  "p_value": 1.0,
+  "artifact_bytes": 301569,
+  "code_bytes": 301569,
+  "baseline_bpb": 1.2244,
+  "improvement": "-672.19%"
+}
