@@ -1,0 +1,14 @@
+{
+    "author": "Rana Usman",
+    "github_id": "ranausmanai",
+    "name": "Focal Loss for Language Model Pretraining: 1.1567 int8 BPB on RTX 4000 Ada baseline code",
+    "blurb": "Applying focal loss (Lin et al. 2017) to LM pretraining: replace cross_entropy with (1-pt)^gamma * CE. Combined with cosine LR schedule, achieves 1.1567 int8 BPB at 5000 steps on single RTX 4000 Ada using baseline code — within 0.037 of the 8xH100 SOTA record (1.1194). Monotonic improvement from gamma=1 to gamma=8. Focal loss alone gives -0.159 BPB at 3000 steps; combined with cosine LR gives -0.485 vs baseline at 5000 steps. Novel application: focal loss has not been applied to LM pretraining in this competition. See PRs #1275 and #1073 for prior experiments.",
+    "date": "2026-04-05T00:00:00Z",
+    "track": "non-record-16mb",
+    "gpu": "RTX 4000 Ada 20GB (RunPod, $0.20/hr)",
+    "best_int8_bpb": 1.1567,
+    "best_config": "cosine_lr + focal_gamma=8 + asymmetric_1_10",
+    "steps": 5000,
+    "step_avg_ms": 240,
+    "total_experiments": 55
+}
