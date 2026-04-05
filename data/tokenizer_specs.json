@@ -1,9 +1,0 @@
-{
-  "tokenizers": [
-    {
-      "name": "sp_bpe_1024",
-      "dataset_suffix": "sp1024",
-      "vocab_size": 1024
-    }
-  ]
-}
