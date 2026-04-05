@@ -38,6 +38,15 @@ Validation is always downloaded in full from the fixed `fineweb_val_*` split. Tr
 
 The default published repo is `willdepueoai/parameter-golf`, with the export rooted under the repo subdirectory `datasets/`.
 
+For the current character-level local workflow, use:
+
+```bash
+python3 data/cached_challenge_fineweb.py --variant sp1024 --with-docs
+python3 data/download_hf_docs_and_tokenize.py --output-root ./data --tokenizer-config ./data/tokenizer_specs.json
+```
+
+That rebuilds `data/datasets/fineweb10B_char/` and `data/tokenizers/fineweb_char.json` from the downloaded `docs_selected.jsonl`.
+
 ## Rebuilding Tokenizers From Published Docs
 
 To retrain a tokenizer or re-export shards from exactly the same selected documents, run the standalone retokenizer against the published docs cache:

@@ -2,7 +2,7 @@
 
 This script is standalone. It does not import any local exporter or tokenizer
 helpers. Tokenizer configs are JSON only and currently support the built-in
-pure-byte and SentencePiece tokenizer definitions in `data/tokenizer_specs.json`.
+pure-byte, character-level, and SentencePiece tokenizer definitions in `data/tokenizer_specs.json`.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import argparse
 import json
 import os
 import shutil
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +68,70 @@ class PureByteTokenizer:
 
 def default_pure_byte_tokenizer() -> PureByteTokenizer:
     return PureByteTokenizer()
+
+
+@dataclass(frozen=True)
+class CharTokenizer:
+    pad_id: int = 0
+    bos_id: int = 1
+    eos_id: int = 2
+    unk_id: int = 3
+    chars: tuple[str, ...] = ()
+    char_to_id: dict[str, int] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "char_to_id", {char: index + self.unk_id + 1 for index, char in enumerate(self.chars)})
+
+    @property
+    def vocab_size(self) -> int:
+        return self.unk_id + 1 + len(self.chars)
+
+    def encode(self, text: str) -> np.ndarray:
+        return np.fromiter((self.char_to_id.get(char, self.unk_id) for char in text), dtype=np.uint16)
+
+    def encode_batch(self, texts: list[str]) -> list[np.ndarray]:
+        return [self.encode(text) for text in texts]
+
+    def save_json(self, path: str | Path) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "tokenizer_type": "char",
+            "config": {
+                "pad_id": self.pad_id,
+                "bos_id": self.bos_id,
+                "eos_id": self.eos_id,
+                "unk_id": self.unk_id,
+                "chars": list(self.chars),
+            },
+            "vocab_size": self.vocab_size,
+        }
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def build_char_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
+    char_counts: dict[str, int] = {}
+    for text in iter_docs(docs_jsonl):
+        for char in text.replace("\x00", " "):
+            char_counts[char] = char_counts.get(char, 0) + 1
+    if not char_counts:
+        raise ValueError(f"no characters found in {docs_jsonl}")
+
+    chars = tuple(char for char, _ in sorted(char_counts.items(), key=lambda item: (-item[1], item[0])))
+    tok = CharTokenizer(chars=chars)
+    path = tokenizers_dir / spec.get("filename", "fineweb_char.json")
+    tok.save_json(path)
+    return {
+        "name": spec.get("name", "char_utf8"),
+        "kind": "char",
+        "dataset_suffix": spec.get("dataset_suffix", "char"),
+        "vocab_size": tok.vocab_size,
+        "bos_id": tok.bos_id,
+        "eos_id": tok.eos_id,
+        "encode": tok.encode,
+        "encode_batch": tok.encode_batch,
+        "manifest": {"path": str(path), "pad_id": tok.pad_id, "unk_id": tok.unk_id, "chars": list(tok.chars)},
+    }
 
 
 def docs_sidecar_path(docs_jsonl: Path) -> Path:
@@ -193,21 +257,27 @@ def tokenizer_kind(spec: dict[str, Any]) -> str:
     kind = spec.get("kind")
     if kind in {"byte", "pure_byte"}:
         return "byte"
+    if kind in {"char", "character"}:
+        return "char"
     if kind in {"sentencepiece_bpe", "sentencepiece"}:
         return "sentencepiece_bpe"
     builder = str(spec.get("builder", ""))
     builder_name = builder.rsplit(":", 1)[-1]
     if builder_name == "build_pure_byte_tokenizer":
         return "byte"
+    if builder_name == "build_char_tokenizer":
+        return "char"
     if builder_name == "build_sentencepiece_tokenizer":
         return "sentencepiece_bpe"
     if spec.get("dataset_suffix") == "byte260":
         return "byte"
+    if spec.get("dataset_suffix") == "char":
+        return "char"
     if "vocab_size" in spec:
         return "sentencepiece_bpe"
     raise ValueError(
         f"unsupported tokenizer spec {spec.get('name', '<unnamed>')!r}: "
-        "expected a built-in pure-byte or sentencepiece builder"
+        "expected a built-in pure-byte, character, or sentencepiece builder"
     )
 
 
@@ -425,6 +495,8 @@ def build_tokenizers(
         built = (
             build_pure_byte_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
             if kind == "byte"
+            else build_char_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
+            if kind == "char"
             else build_sentencepiece_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
         )
         name = str(built["name"])

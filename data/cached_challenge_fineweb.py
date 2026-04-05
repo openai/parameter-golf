@@ -16,9 +16,11 @@ TOKENIZERS_DIR = ROOT / "tokenizers"
 def dataset_dir_for_variant(name: str) -> str:
     if name == "byte260":
         return "fineweb10B_byte260"
+    if name == "char":
+        return "fineweb10B_char"
     if name.startswith("sp") and name[2:].isdigit():
         return f"fineweb10B_{name}"
-    raise ValueError(f"unsupported variant {name!r}; expected byte260 or sp<VOCAB_SIZE>")
+    raise ValueError(f"unsupported variant {name!r}; expected byte260, char, or sp<VOCAB_SIZE>")
 
 
 def local_path_for_remote(relative_path: str) -> Path:
