@@ -615,6 +615,8 @@ def serialize_quantized_weights_torch(model: nn.Module) -> torch.Tensor:
     Uses STE (straight-through estimator) so gradients flow through round().
     Without STE, torch.round() has zero gradient and CAT loss cannot update weights.
     Respects QUANT_BITS so the proxy matches the actual quantization grid.
+    Output range is [1, 2*qmax+1] (e.g. [1, 255] for int8, [1, 63] for int6).
+    Zero never appears because quantized values are in [-qmax, qmax] shifted by qmax+1.
     """
     qmax = (1 << (QUANT_BITS - 1)) - 1  # 31 for int6, 127 for int8
     byte_chunks = []
@@ -650,12 +652,16 @@ def lz77_proxy_loss_torch(byte_stream: torch.Tensor, temperature: float = 50.0,
     # No normalization — raw byte values [0-255] with appropriately scaled temperature
     lags = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
     match_score = torch.tensor(0.0, device=x.device)
+    num_lags = 0
     for lag in lags:
         if lag >= x.shape[0]:
             break
         diff_sq = (x[lag:] - x[:-lag]).square()
         match_score = match_score + torch.exp(-diff_sq / temperature).mean()
-    return -match_score / float(len(lags))
+        num_lags += 1
+    if num_lags == 0:
+        return match_score
+    return -match_score / float(num_lags)
 
 
 def entropy_proxy_loss_torch(byte_stream: torch.Tensor, bandwidth: float = 1.0,
