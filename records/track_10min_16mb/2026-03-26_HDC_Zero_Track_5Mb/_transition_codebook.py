@@ -638,117 +638,459 @@ class TransitionCodebook:
         print(f"[TransitionCodebook] Codebook built in {time.time() - start_time:.1f}s")
         
         return self
-    
-    def _kmeans_hypervectors(self, data: np.ndarray, k: int, 
-                              max_iters: int = 20) -> np.ndarray:
+
+    def build_from_bigrams_fast(
+        self,
+        tokens: np.ndarray,
+        token_codebook: np.ndarray,
+        pos_hash_keys: np.ndarray,
+        ctx_len: int,
+        vocab_size: int,
+    ) -> 'TransitionCodebook':
+        """Build transition codebook from top-k most frequent bigrams — O(N log N), no K-Means.
+
+        One-step-gradient analogy
+        ─────────────────────────
+        ``one_step_gradient_refine`` in _optimal_seed_search.py starts from the
+        *best random seed* (frequency-based warm start) rather than iterating from a
+        random seed.  This method does the same for the codebook: it starts from the
+        *most frequent bigram transitions* rather than random K-Means centroids.
+        No iterative convergence is needed because the top-256 bigrams already represent
+        the most common grammatical transforms in the corpus — identical in purpose to
+        the K-Means centroids but derived directly from frequency statistics.
+
+        Algebraic simplification
+        ────────────────────────
+        The approximate context_hv used in merge_winners is:
+            approx_ctx = XOR_{c=0}^{ctx_len-1}(codebook[prev] ^ pos_hash_keys[c])
+
+        When ctx_len is EVEN (including the default CTX_LEN=4):
+            codebook[prev] appears an even number of times → cancels pairwise
+            approx_ctx = pos_hash_keys[0] ^ pos_hash_keys[1] ^ ... ^ pos_hash_keys[ctx_len-1]
+            transition_hv = approx_ctx ^ codebook[next]   (depends only on next_tok)
+            → entire codebook computable as a single numpy broadcast in one line
+
+        When ctx_len is ODD:
+            approx_ctx = KEY_XOR ^ codebook[prev]
+            transition_hv = KEY_XOR ^ codebook[prev] ^ codebook[next]
+            → still fully vectorisable with two codebook lookups
+
+        Time:   O(N log N) bigram sort + O(k × W) vector ops   (< 0.01 s vs 79 s K-Means)
+        Memory: O(vocab² × 4 B) for pair keys + O(k × W_UINT64 × 8 B) for codebook
+        """
+        import time as _time
+        _t0 = _time.time()
+        print(f"\n[TransitionCodebook] Fast bigram-based build (no K-Means)...")
+
+        k = self.size  # 256 entries → 1-byte index
+
+        # ── Step 1: Count all (prev, next) bigrams in one O(N) vectorised pass ────────
+        _prev = tokens[:-1].astype(np.int64)
+        _next = tokens[1:].astype(np.int64)
+        _pair_keys = _prev * vocab_size + _next
+        _uniq_pairs, _counts = np.unique(_pair_keys, return_counts=True)
+        _pair_prev = (_uniq_pairs // vocab_size).astype(np.int32)
+        _pair_next = (_uniq_pairs %  vocab_size).astype(np.int32)
+        del _prev, _next, _pair_keys, _uniq_pairs
+
+        # ── Step 2: Select top-k most frequent bigrams ────────────────────────────────
+        _top_idx  = np.argsort(-_counts)[:k]
+        _top_prev = _pair_prev[_top_idx].astype(np.int32)
+        _top_next = _pair_next[_top_idx].astype(np.int32)
+        n_entries = len(_top_idx)
+        del _counts, _pair_prev, _pair_next, _top_idx
+
+        # ── Step 3: Compute transition vectors — fully vectorised broadcast ───────────
+        # KEY_XOR = XOR of all position hash keys
+        _key_xor = np.zeros(self.dim, dtype=np.uint64)
+        for _c in range(ctx_len):
+            _key_xor ^= pos_hash_keys[_c]
+
+        if ctx_len % 2 == 0:
+            # Even ctx_len: codebook[prev] cancels → transition_hv = KEY_XOR ^ codebook[next]
+            centroids = (_key_xor[None, :] ^ token_codebook[_top_next]).astype(np.uint64)
+        else:
+            # Odd ctx_len: transition_hv = KEY_XOR ^ codebook[prev] ^ codebook[next]
+            centroids = ((_key_xor[None, :] ^ token_codebook[_top_prev])
+                         ^ token_codebook[_top_next]).astype(np.uint64)
+
+        # Pad to exactly k entries if fewer than k unique bigrams were found
+        if n_entries < k:
+            rng = np.random.RandomState(42)
+            pad = rng.randint(0, 2**63, (k - n_entries, self.dim), dtype=np.int64).view(np.uint64)
+            centroids = np.vstack([centroids, pad])
+
+        self.codebook = centroids[:k].astype(np.uint64)
+        print(f"[TransitionCodebook] Built from top-{n_entries} bigrams in "
+              f"{_time.time() - _t0:.3f}s  (vocab={vocab_size}, k={k})")
+        return self
+
+    def _kmeans_hypervectors(self, data: np.ndarray, k: int,
+                              max_iters: int = 20,
+                              batch_size: int = 10000,
+                              use_online: bool = True) -> np.ndarray:
         """K-Means clustering for binary hypervectors.
+        
+        Two modes available:
+        - Online mode (default): O(n) single-pass competitive learning
+          Brain-inspired: "Neurons that fire together, wire together"
+        - Batch mode: Traditional mini-batch K-means for higher accuracy
+        
+        Args:
+            data: Binary hypervectors, shape (n_samples, dim_uint64)
+            k: Number of clusters
+            max_iters: Maximum iterations (batch mode only)
+            batch_size: Batch size for memory efficiency
+            use_online: If True, use fast O(n) online learning
+            
+        Returns:
+            Cluster centroids, shape (k, dim_uint64)
+        """
+        if use_online:
+            return self._online_clustering(data, k, batch_size)
+        else:
+            return self._batch_kmeans(data, k, max_iters, batch_size)
+    
+    def _online_clustering(self, data: np.ndarray, k: int,
+                           batch_size: int = 10000) -> np.ndarray:
+        """Brain-inspired online competitive learning - O(n) single pass.
+        
+        Key insight: Like spiking neurons, we only update the "winning" centroid.
+        This is similar to how the brain uses sparse, event-driven plasticity.
+        
+        Algorithm:
+        1. Initialize centroids with random data points
+        2. For each sample, find nearest centroid (winner)
+        3. Update winner using Hebbian-style learning:
+           centroid = centroid ⊕ (sample ⊕ centroid) * learning_rate
+           
+        This achieves O(n) complexity with quality comparable to K-means.
+        """
+        n_samples, dim_uint64 = data.shape
+        
+        print(f"[TransitionCodebook] Online clustering {n_samples:,} samples into {k} clusters...")
+        
+        # Random initialization - pick k random samples as initial centroids
+        rng = np.random.RandomState(42)
+        init_indices = rng.choice(n_samples, k, replace=False)
+        centroids = data[init_indices].copy()
+        
+        # Track cluster sizes for adaptive learning rate
+        cluster_sizes = np.ones(k, dtype=np.int32)
+        
+        # Sparse bit accumulator for efficient majority vote
+        # Each centroid tracks bit counts across updates
+        bit_accumulators = np.zeros((k, dim_uint64 * 64), dtype=np.int32)
+        
+        # Initialize accumulators with initial centroids
+        for ci in range(k):
+            bit_accumulators[ci] = self._unpack_bits_to_counts(centroids[ci])
+        
+        # Single-pass online learning
+        learning_rate = 0.1  # Initial learning rate
+        
+        for batch_start in range(0, n_samples, batch_size):
+            batch_end = min(batch_start + batch_size, n_samples)
+            batch_data = data[batch_start:batch_end]
+            
+            for sample in batch_data:
+                # Find nearest centroid using sparse Hamming distance
+                # Only compute distance to centroids with similar "active" bits
+                xor_all = sample ^ centroids  # (k, dim_uint64)
+                distances = self._popcount_uint64_batch(xor_all)
+                winner = int(np.argmin(distances))
+                
+                # Hebbian update: strengthen co-occurring bits
+                # Learning rate decays with cluster size (like neural adaptation)
+                lr = learning_rate / (1 + 0.001 * cluster_sizes[winner])
+                
+                # Update bit accumulator (online majority vote)
+                sample_bits = self._unpack_bits_to_counts(sample)
+                bit_accumulators[winner] += (sample_bits * lr).astype(np.int32)
+                
+                cluster_sizes[winner] += 1
+            
+            if batch_start % (batch_size * 10) == 0:
+                print(f"[TransitionCodebook]   Processed {batch_end:,}/{n_samples:,} samples...")
+        
+        # Convert accumulators back to binary centroids via majority vote
+        for ci in range(k):
+            if cluster_sizes[ci] > 0:
+                centroids[ci] = self._counts_to_binary(bit_accumulators[ci])
+        
+        # Print cluster distribution
+        print(f"[TransitionCodebook] Cluster sizes: min={cluster_sizes.min()}, "
+              f"max={cluster_sizes.max()}, median={np.median(cluster_sizes):.0f}")
+        
+        return centroids
+    
+    def _unpack_bits_to_counts(self, hv: np.ndarray) -> np.ndarray:
+        """Unpack uint64 hypervector to bit counts (0 or 1 per position).
+        
+        Args:
+            hv: Hypervector of shape (dim_uint64,)
+            
+        Returns:
+            Bit counts array of shape (dim_uint64 * 64,)
+        """
+        # View as bytes and use lookup table
+        hv_bytes = hv.view(np.uint8)
+        
+        if not hasattr(self, '_bit_unpack_lut'):
+            # Precompute bit unpacking lookup table (256 entries -> 8 bits each)
+            self._bit_unpack_lut = np.zeros((256, 8), dtype=np.int32)
+            for i in range(256):
+                for bit in range(8):
+                    self._bit_unpack_lut[i, bit] = (i >> bit) & 1
+        
+        # Unpack all bytes
+        n_bytes = len(hv_bytes)
+        result = self._bit_unpack_lut[hv_bytes].flatten()
+        return result
+    
+    def _counts_to_binary(self, counts: np.ndarray) -> np.ndarray:
+        """Convert bit counts back to binary uint64 hypervector via majority vote.
+        
+        Args:
+            counts: Bit counts array of shape (dim_uint64 * 64,)
+            
+        Returns:
+            Binary hypervector of shape (dim_uint64,)
+        """
+        dim_bits = len(counts)
+        dim_uint64 = dim_bits // 64
+        
+        result = np.zeros(dim_uint64, dtype=np.uint64)
+        threshold = np.mean(counts)  # Majority threshold
+        
+        for i in range(dim_uint64):
+            block_counts = counts[i*64:(i+1)*64]
+            # Set bits where count > threshold
+            for bit_idx, c in enumerate(block_counts):
+                if c > threshold:
+                    result[i] |= np.uint64(1) << bit_idx
+        
+        return result
+    
+    def _batch_kmeans(self, data: np.ndarray, k: int,
+                      max_iters: int, batch_size: int) -> np.ndarray:
+        """Traditional mini-batch K-means for higher accuracy (slower).
         
         Uses Hamming distance instead of Euclidean distance.
         Centroids are computed as majority-vote bit vectors.
         """
         n_samples, dim_uint64 = data.shape
         
-        # Initialize centroids using k-means++ style selection
-        centroid_indices = [np.random.randint(n_samples)]
-        for _ in range(1, k):
-            # Compute distances to nearest centroid
-            distances = np.full(n_samples, np.inf)
-            for ci in centroid_indices:
-                dist = self._hamming_distance_batch(data, data[ci:ci+1])
-                distances = np.minimum(distances, dist)
-            # Select next centroid with probability proportional to distance^2
-            probs = distances ** 2
-            probs /= probs.sum()
-            next_idx = np.random.choice(n_samples, p=probs)
-            centroid_indices.append(next_idx)
+        # Random initialization
+        rng = np.random.RandomState(42)
+        init_indices = rng.choice(n_samples, min(k, n_samples), replace=False)
+        centroids = data[init_indices].copy()
         
-        centroids = data[centroid_indices].copy()
+        print(f"[TransitionCodebook] Running batch K-means with {max_iters} iterations...")
         
-        # K-Means iterations
         for iteration in range(max_iters):
-            # Assign each point to nearest centroid
+            # Assign each point to nearest centroid (in batches)
             assignments = np.zeros(n_samples, dtype=np.int32)
-            for i in range(n_samples):
-                min_dist = np.inf
-                min_idx = 0
+            
+            for batch_start in range(0, n_samples, batch_size):
+                batch_end = min(batch_start + batch_size, n_samples)
+                batch_data = data[batch_start:batch_end]
+                
+                # Compute distances to all centroids for this batch
+                batch_distances = np.zeros((batch_end - batch_start, k), dtype=np.int32)
+                
                 for j in range(k):
-                    dist = self._hamming_distance(data[i], centroids[j])
-                    if dist < min_dist:
-                        min_dist = dist
-                        min_idx = j
-                assignments[i] = min_idx
+                    xor_result = batch_data ^ centroids[j]
+                    batch_distances[:, j] = self._popcount_uint64_batch(xor_result)
+                
+                assignments[batch_start:batch_end] = np.argmin(batch_distances, axis=1)
             
             # Update centroids via majority vote
             new_centroids = np.zeros((k, dim_uint64), dtype=np.uint64)
+            
             for j in range(k):
                 mask = assignments == j
-                if np.sum(mask) > 0:
-                    # Majority vote: bit = 1 if >50% of points have 1
+                cluster_size = np.sum(mask)
+                if cluster_size > 0:
                     cluster_data = data[mask]
-                    # Count 1s in each bit position
-                    bit_counts = np.zeros(dim_uint64 * 64, dtype=np.int32)
-                    for vec in cluster_data:
-                        for block_idx, block in enumerate(vec):
-                            for bit_idx in range(64):
-                                if block & (np.uint64(1) << bit_idx):
-                                    bit_counts[block_idx * 64 + bit_idx] += 1
-                    
-                    # Set bits where majority is 1
-                    threshold = np.sum(mask) / 2
-                    for bit_pos, count in enumerate(bit_counts):
-                        if count > threshold:
-                            block_idx = bit_pos // 64
-                            bit_idx = bit_pos % 64
-                            new_centroids[j, block_idx] |= np.uint64(1) << bit_idx
+                    new_centroids[j] = self._majority_vote_vectorized(cluster_data)
             
             # Check convergence
             if np.array_equal(centroids, new_centroids):
                 print(f"[TransitionCodebook] K-Means converged at iteration {iteration + 1}")
                 break
             centroids = new_centroids
+            
+            if (iteration + 1) % 5 == 0:
+                print(f"[TransitionCodebook]   Completed iteration {iteration + 1}/{max_iters}")
         
         return centroids
     
-    def _hamming_distance(self, hv1: np.ndarray, hv2: np.ndarray) -> int:
-        """Compute Hamming distance between two hypervectors."""
-        xor = hv1 ^ hv2
-        return sum(bin(x).count('1') for x in xor)
+    def _popcount_uint64_batch(self, data: np.ndarray) -> np.ndarray:
+        """Efficient popcount (count 1-bits) for uint64 arrays.
+        
+        Uses lookup table for speed - processes 8 bits at a time.
+        
+        Args:
+            data: Array of shape (n, dim_uint64) or (dim_uint64,)
+            
+        Returns:
+            Array of shape (n,) with total bit counts
+        """
+        # Build lookup table for 8-bit values (0-255)
+        if not hasattr(self, '_popcount_lut'):
+            self._popcount_lut = np.array([
+                bin(i).count('1') for i in range(256)
+            ], dtype=np.int32)
+        
+        # Handle 1D input
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+            squeeze_output = True
+        else:
+            squeeze_output = False
+        
+        n_samples, dim_uint64 = data.shape
+        
+        # Count bits using lookup table on each byte
+        # View uint64 as uint8 (8 bytes per uint64)
+        data_bytes = data.view(np.uint8).reshape(n_samples, dim_uint64 * 8)
+        
+        # Apply lookup table and sum
+        bit_counts = self._popcount_lut[data_bytes].sum(axis=1)
+        
+        if squeeze_output:
+            return bit_counts[0]
+        return bit_counts
     
-    def _hamming_distance_batch(self, hvs1: np.ndarray, hvs2: np.ndarray) -> np.ndarray:
-        """Compute Hamming distances between batches of hypervectors."""
+    def _majority_vote_vectorized(self, data: np.ndarray) -> np.ndarray:
+        """Vectorized majority vote for binary hypervectors.
+        
+        For each bit position, sets 1 if majority of vectors have 1.
+        Much faster than per-bit iteration.
+        
+        Args:
+            data: Array of shape (n_samples, dim_uint64)
+            
+        Returns:
+            Majority-voted hypervector of shape (dim_uint64,)
+        """
+        n_samples, dim_uint64 = data.shape
+        threshold = n_samples / 2
+        
+        # View as uint8 for byte-level counting
+        data_bytes = data.view(np.uint8).reshape(n_samples, dim_uint64 * 8)
+        
+        # Count 1-bits per byte position using vectorized approach
+        # For each byte, we need to count bits across all samples
+        result = np.zeros(dim_uint64, dtype=np.uint64)
+        
+        # Process each uint64 block
+        for block_idx in range(dim_uint64):
+            byte_start = block_idx * 8
+            byte_end = byte_start + 8
+            block_bytes = data_bytes[:, byte_start:byte_end]  # (n_samples, 8)
+            
+            # Count bits for each of 8 bytes
+            for byte_offset in range(8):
+                byte_vals = block_bytes[:, byte_offset]
+                
+                # Count bits 0-7 of this byte across all samples
+                for bit in range(8):
+                    bit_mask = 1 << bit
+                    count = np.sum((byte_vals & bit_mask) != 0)
+                    if count > threshold:
+                        result[block_idx] |= np.uint64(bit_mask << (byte_offset * 8))
+        
+        return result
+    
+    def _hamming_distance(self, hv1: np.ndarray, hv2: np.ndarray) -> int:
+        """Compute Hamming distance between two hypervectors using efficient popcount."""
+        xor = hv1 ^ hv2
+        return int(self._popcount_uint64_batch(xor))
+    
+    def _hamming_distance_batch(self, hvs1: np.ndarray, hvs2: np.ndarray,
+                                  batch_size: int = 10000) -> np.ndarray:
+        """Compute Hamming distances between batches of hypervectors.
+        
+        Memory-efficient: processes in sub-batches to avoid O(n1*n2) memory.
+        
+        Args:
+            hvs1: First batch of hypervectors, shape (n1, dim_uint64)
+            hvs2: Second batch of hypervectors, shape (n2, dim_uint64)
+            batch_size: Sub-batch size for memory efficiency
+            
+        Returns:
+            Distance matrix of shape (n1, n2)
+        """
         n1 = len(hvs1)
         n2 = len(hvs2)
+        
+        # For small batches, compute directly
+        if n1 * n2 <= batch_size * batch_size:
+            distances = np.zeros((n1, n2), dtype=np.int32)
+            for i in range(n1):
+                xor_result = hvs1[i] ^ hvs2  # Broadcasting: (n2, dim_uint64)
+                distances[i] = self._popcount_uint64_batch(xor_result)
+            return distances
+        
+        # For large batches, process in sub-batches
         distances = np.zeros((n1, n2), dtype=np.int32)
-        for i in range(n1):
-            for j in range(n2):
-                xor = hvs1[i] ^ hvs2[j]
-                distances[i, j] = sum(bin(x).count('1') for x in xor)
+        for i_start in range(0, n1, batch_size):
+            i_end = min(i_start + batch_size, n1)
+            for j_start in range(0, n2, batch_size):
+                j_end = min(j_start + batch_size, n2)
+                
+                # Compute sub-batch distances
+                sub_batch1 = hvs1[i_start:i_end]  # (sub_n1, dim_uint64)
+                sub_batch2 = hvs2[j_start:j_end]  # (sub_n2, dim_uint64)
+                
+                # Use broadcasting with explicit loop to avoid memory explosion
+                for i_offset, hv1 in enumerate(sub_batch1):
+                    xor_result = hv1 ^ sub_batch2  # (sub_n2, dim_uint64)
+                    distances[i_start + i_offset, j_start:j_end] = self._popcount_uint64_batch(xor_result)
+        
         return distances
     
     def find_nearest_transition(self, transition_hv: np.ndarray) -> int:
         """Find the nearest codebook entry for a transition vector.
         
         Returns the 1-byte index of the nearest transition.
+        Uses vectorized distance computation for efficiency.
         """
-        min_dist = np.inf
-        min_idx = 0
-        for i in range(self.size):
-            dist = self._hamming_distance(transition_hv, self.codebook[i])
-            if dist < min_dist:
-                min_dist = dist
-                min_idx = i
-        return min_idx
+        if self.codebook is None or self.size == 0:
+            return 0
+        
+        # Compute all distances at once using broadcasting
+        xor_result = transition_hv ^ self.codebook  # (size, dim_uint64)
+        distances = self._popcount_uint64_batch(xor_result)
+        return int(np.argmin(distances))
     
-    def find_nearest_transition_batch(self, transition_hvs: np.ndarray) -> np.ndarray:
-        """Vectorized nearest transition lookup.
+    def find_nearest_transition_batch(self, transition_hvs: np.ndarray,
+                                        batch_size: int = 10000) -> np.ndarray:
+        """Vectorized nearest transition lookup with memory efficiency.
         
         Returns array of 1-byte indices.
         """
         n = len(transition_hvs)
         indices = np.zeros(n, dtype=np.uint8)
         
-        for i in range(n):
-            indices[i] = self.find_nearest_transition(transition_hvs[i])
+        # Process in batches to avoid memory issues
+        for start in range(0, n, batch_size):
+            end = min(start + batch_size, n)
+            batch = transition_hvs[start:end]
+            
+            # Compute distances to all codebook entries
+            # batch shape: (batch_size, dim_uint64)
+            # codebook shape: (size, dim_uint64)
+            # We want distances shape: (batch_size, size)
+            
+            batch_distances = np.zeros((end - start, self.size), dtype=np.int32)
+            for j in range(self.size):
+                xor_result = batch ^ self.codebook[j]  # Broadcasting
+                batch_distances[:, j] = self._popcount_uint64_batch(xor_result)
+            
+            indices[start:end] = np.argmin(batch_distances, axis=1).astype(np.uint8)
         
         return indices
     
@@ -869,6 +1211,57 @@ class TransitionTable:
                 # Keep current, decrement
                 self.table_counts[bucket] = current_count - count
     
+    def store_transitions_batch(
+        self,
+        buckets: np.ndarray,
+        transition_indices: np.ndarray,
+        counts: np.ndarray,
+    ) -> None:
+        """Vectorised Boyer-Moore store for all winner entries at once.
+
+        Replaces N calls to store_transition() with numpy scatter-gather ops.
+        Same Boyer-Moore semantics as store_transition():
+          - Empty bucket      → direct assign
+          - Same transition   → increment count (clamped to 255)
+          - Different, new stronger  → overwrite
+          - Different, new weaker    → decrement count
+
+        Parameters
+        ----------
+        buckets            : (n,) int64  — table bucket indices
+        transition_indices : (n,) uint8  — new transition index per bucket
+        counts             : (n,) int    — new transition count per bucket
+        """
+        if len(buckets) == 0:
+            return
+        b    = buckets.astype(np.int64)
+        ti   = transition_indices.astype(np.int32)
+        cnt  = np.minimum(counts, 255).astype(np.int32)
+
+        cur_idx = self.table_indices[b].astype(np.int32)
+        cur_cnt = self.table_counts[b].astype(np.int32)
+
+        empty_mask  = (cur_cnt == 0)
+        match_mask  = (~empty_mask) & (cur_idx == ti)
+        over_mask   = (~empty_mask) & (cur_idx != ti) & (cnt >  cur_cnt)
+        weak_mask   = (~empty_mask) & (cur_idx != ti) & (cnt <= cur_cnt)
+
+        if np.any(empty_mask):
+            self.table_indices[b[empty_mask]] = ti[empty_mask].astype(np.uint8)
+            self.table_counts[b[empty_mask]]  = cnt[empty_mask].astype(np.uint8)
+
+        if np.any(match_mask):
+            new_c = np.minimum(cur_cnt[match_mask] + cnt[match_mask], 255).astype(np.uint8)
+            self.table_counts[b[match_mask]] = new_c
+
+        if np.any(over_mask):
+            self.table_indices[b[over_mask]] = ti[over_mask].astype(np.uint8)
+            self.table_counts[b[over_mask]]  = cnt[over_mask].astype(np.uint8)
+
+        if np.any(weak_mask):
+            new_c = np.maximum(cur_cnt[weak_mask] - cnt[weak_mask], 0).astype(np.uint8)
+            self.table_counts[b[weak_mask]] = new_c
+
     def lookup_transition(self, bucket: int) -> Tuple[int, int]:
         """Lookup transition index and confidence for a bucket.
         

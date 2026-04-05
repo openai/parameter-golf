@@ -10,3 +10,4 @@ tiktoken
 sentencepiece
 scipy
 cupy-cuda12x
+zstandard
