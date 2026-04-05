@@ -496,9 +496,12 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
+_AUTO_QMAX = {'v': int(os.environ.get('CLIP_RANGE', '31'))}
+
+
 def _fake_int6(w: Tensor) -> Tensor:
     """Simulate int6 quantization: quantize to int6 range and dequantize back."""
-    clip_range = 31
+    clip_range = _AUTO_QMAX.get('v', 31)
     with torch.no_grad():
         scale = (w.abs().amax(dim=-1, keepdim=True) / clip_range).clamp_min(1.0 / clip_range)
     q = torch.clamp(torch.round(w / scale), -clip_range, clip_range)
@@ -1085,6 +1088,7 @@ INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
 
+
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -1114,7 +1118,9 @@ def restore_fp32_params(model: nn.Module) -> None:
             param.data = param.data.float()
 
 
-def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+def quantize_int6_per_row(t: Tensor, clip_range: int = -1) -> tuple[Tensor, Tensor]:
+    if clip_range < 0:
+        clip_range = _AUTO_QMAX.get('v', 31)
     t32 = t.float()
     if t32.ndim == 2:
         best_q, best_s, best_err = None, None, float('inf')
@@ -1186,10 +1192,12 @@ def collect_hessians(
 def gptq_quantize_weight(
     w: Tensor,
     H: Tensor,
-    clip_range: int = 31,
+    clip_range: int = -1,
     block_size: int = 128,
 ) -> tuple[Tensor, Tensor]:
     """GPTQ with Cholesky error compensation and actorder (Frantar et al., ICLR 2023)."""
+    if clip_range < 0:
+        clip_range = _AUTO_QMAX.get('v', 31)
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
     H = H.float().clone()
@@ -1420,7 +1428,29 @@ def serialize(h: Hyperparameters, base_model: torch.nn.Module, code: str) -> int
         log(f"Serialized model: {model_bytes} bytes")
         log(f"Code size: {code_bytes} bytes")
 
+    # Auto qmax: find maximum clip_range that fits under 16MB
+    code_bytes = len(Path(__file__).read_text(encoding="utf-8").encode("utf-8"))
+    target = 16_000_000
+    lo, hi = 31, 127
+    best_qmax = 31
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    log(f"auto_qmax: searching clip_range [{lo}, {hi}]...")
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        _AUTO_QMAX['v'] = mid
+        test_result, test_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
+        buf = io.BytesIO()
+        torch.save({"w": test_result, "m": test_meta}, buf)
+        sz = len(_compress(buf.getvalue(), h.compressor, byte_shuffle=True))
+        total = sz + code_bytes
+        if total <= target:
+            lo = mid
+        else:
+            hi = mid - 1
+        del test_result, test_meta, buf
+    best_qmax = lo
+    _AUTO_QMAX['v'] = best_qmax
+    log(f"auto_qmax: best={best_qmax} est_size={total}")
     if h.gptq_enabled:
         log("GPTQ:collecting Hessians from calibration data...")
         t0 = time.perf_counter()
