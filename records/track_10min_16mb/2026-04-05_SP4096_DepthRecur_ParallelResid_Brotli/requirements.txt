@@ -1,0 +1,4 @@
+flash_attn_3
+sentencepiece
+zstandard
+brotli
