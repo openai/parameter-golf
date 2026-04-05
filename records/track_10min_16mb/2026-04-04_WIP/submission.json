@@ -1,15 +1,23 @@
 {
   "author": "rajatsharma",
-  "github_id": "rajatsharma",
-  "name": "SOTA Stack + Depth Recurrence",
-  "blurb": "All proven SOTA techniques (XSA-all, BigramHash 3072x112, SmearGate, LeakyReLU^2, 11L 3xMLP, partial RoPE, LN scale, EMA, Late QAT, int6 GPTQ-lite + LZMA-9, sliding eval stride=64, Muon WD 0.04) ported into the clean baseline, plus optional depth recurrence for increased effective depth at zero param cost.",
-  "date": "2026-04-04",
+  "github_id": "Rajat123456789",
+  "name": "SOTA Stack (int7 + LZMA)",
+  "blurb": "All proven SOTA techniques (XSA-all, BigramHash 3072x112, SmearGate, LeakyReLU^2, 11L 3xMLP, partial RoPE, LN scale, EMA 0.997, Late QAT, int7 GPTQ-lite + LZMA-9, sliding eval stride=64, Muon WD 0.04) ported into the clean baseline. 1.1711 BPB on 8xH100 SXM in 600s, 14.84 MB artifact.",
+  "date": "2026-04-05",
   "track": "10min_16mb",
-  "val_loss": 0.0,
-  "val_bpb": 0.0,
-  "seeds": [],
-  "seed_results": {},
-  "bytes_total": 0,
-  "hardware": "8xH100 80GB SXM",
-  "technique_summary": "XSA-all + BigramHash 3072x112 + SmearGate + LeakyReLU^2 3xMLP + Partial RoPE + LN Scale + EMA + Late QAT + int6 GPTQ-lite + LZMA-9 + Sliding eval + Muon WD + Depth Recurrence"
+  "val_loss": 1.97730502,
+  "val_bpb": 1.17107141,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.97730502,
+      "val_bpb": 1.17107141,
+      "artifact_bytes": 14844310,
+      "steps": 9499,
+      "step_avg_ms": 63.11
+    }
+  },
+  "bytes_total": 14844310,
+  "hardware": "8xH100 80GB HBM3",
+  "technique_summary": "XSA-all + BigramHash 3072x112 + SmearGate + LeakyReLU^2 3xMLP + Partial RoPE + LN Scale + EMA + Late QAT + int7 GPTQ-lite + LZMA-9 + Sliding eval + Muon WD"
 }
