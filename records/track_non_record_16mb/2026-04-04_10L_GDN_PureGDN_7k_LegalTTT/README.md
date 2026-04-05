@@ -8,9 +8,9 @@
 
 ## Headline Result
 
-This submission replaces softmax attention entirely with **Gated DeltaNet (GDN)** — a linear-attention mechanism from the FLA (Flash Linear Attention) library that uses delta-rule-based gating for $O(n)$ sequence processing. With 10 GDN layers, BigramHash embeddings with trigram extension, and score-first TTT, the model achieves **1.003028 BPB**.
+This submission replaces softmax attention with **Gated DeltaNet (GDN)** — a linear-attention mechanism from the FLA (Flash Linear Attention) library that uses delta-rule-based gating for $O(n)$ sequence processing. The overall architecture still follows the standard transformer block pattern (pre-norm → token mixing → MLP → residual), but uses GDN's delta-rule linear attention in place of softmax attention. With 10 GDN layers, BigramHash embeddings with trigram extension, and score-first TTT, the model achieves **1.003028 BPB**.
 
-Taken together, these results suggest that a GDN-based linear-attention backbone can be highly competitive on this benchmark when paired with the training, quantization, and evaluation recipe used here.
+These results suggest that a GDN-based linear-attention backbone can be competitive on this benchmark when paired with the training, quantization, and evaluation recipe used here.
 
 ---
 
@@ -18,15 +18,15 @@ Taken together, these results suggest that a GDN-based linear-attention backbone
 
 ### 1. Gated DeltaNet Backbone
 
-Most accepted leaderboard entries in the repo README appear to use transformer-family softmax-attention models. This submission instead uses **Gated DeltaNet** (Yang et al., 2024), a linear-attention variant from FLA v0.4.2. GDN uses delta-rule-based gating — a learned update rule that selectively writes to and erases from a fixed-size recurrent state — enabling $O(n)$ sequence processing with sub-quadratic memory.
+Most accepted leaderboard entries in the repo README appear to use standard softmax attention. This submission instead uses **Gated DeltaNet** (Yang et al., 2024), a linear-attention variant from FLA v0.4.2. The GDN paper describes this family as "Linear Transformers" — the overall block structure (pre-norm, token mixing, MLP, residual connections) is the same as a standard transformer, but softmax attention is replaced with delta-rule-based gating that selectively writes to and erases from a fixed-size state, enabling $O(n)$ sequence processing with sub-quadratic memory.
 
 - **dim=512**, 1 head, expand_k=1, expand_v=2
-- No softmax attention; the backbone is a non-softmax recurrent/linear-attention design
+- No softmax attention; uses GDN's delta-rule linear attention for token mixing
 - FLA's Triton kernels provide efficient chunk-wise parallel training
 
-### 2. Sub-1.01 BPB with Non-Transformer Architecture
+### 2. Sub-1.01 BPB without Softmax Attention
 
-The model achieves **1.003028 BPB** (3-seed mean), showing that this GDN-based linear-attention stack can be competitive with prior transformer-family submissions on this benchmark. Rather than claiming a general result about attention mechanisms, we view this as evidence that softmax attention is not the only viable path to strong performance in this particular setting.
+The model achieves **1.003028 BPB** (3-seed mean), showing that replacing softmax attention with GDN's linear attention can be competitive on this benchmark. Rather than claiming a general result about attention mechanisms, we view this as evidence that softmax attention is not the only viable token-mixing mechanism for strong performance in this particular setting.
 
 ### 3. BigramHash with Trigram Extension
 
@@ -37,7 +37,7 @@ The standard BigramHash(vocab, dim) from PR #65 hashes consecutive token pairs f
 
 ### 4. Legal TTT on Linear Attention
 
-In this GDN-based submission, **score-first TTT** (SGD + momentum, 3 epochs, freeze first 2 blocks) produced a consistent improvement across all three seeds. The mean TTT gain of **−0.004775 BPB** suggests that this protocol can also be effective in a recurrent linear-attention setting.
+In this GDN-based submission, **score-first TTT** (SGD + momentum, 3 epochs, freeze first 2 blocks) produced a consistent improvement across all three seeds. The mean TTT gain of **−0.004775 BPB** suggests that this protocol can also be effective in a linear-attention setting.
 
 ---
 
@@ -72,7 +72,7 @@ In this GDN-based submission, **score-first TTT** (SGD + momentum, 3 epochs, fre
 | Tied embeddings | Yes |
 | Parameters | 29,926,689 total |
 
-**What this model does NOT have:** No RoPE, no XSA, no U-Net skips, no value embeddings, no depth recurrence — pure Gated DeltaNet without transformer-specific tricks.
+**What this model does NOT have:** No RoPE, no XSA, no U-Net skips, no value embeddings, no depth recurrence. Uses GDN linear attention in place of softmax attention, but retains the standard transformer block pattern (pre-norm + token mixing + MLP + residual).
 
 ## Training Details
 
@@ -142,8 +142,8 @@ We reviewed the evaluation protocol against the contest's score-before-train rul
 | Metric | 10-min SOTA (PR #1019) | Non-record best (Binary UNet, single seed) | This Submission |
 |---|---|---|---|
 | val_bpb | 1.11473509 | 1.1239 | **1.003028** |
-| Architecture | 11L Transformer | 15L Transformer (UNet) | **10L GDN** |
-| Attention | Softmax | Softmax | **Linear (Delta Rule)** |
+| Architecture | 11L Softmax Transformer | 15L Softmax Transformer (UNet) | **10L Linear-Attention Transformer (GDN)** |
+| Token Mixing | Softmax Attention | Softmax Attention | **Delta-Rule Linear Attention (GDN)** |
 | TTT | None | — | **Legal TTT** |
 
 These comparisons are included only as context. They are not claims of a like-for-like record result across tracks or compute budgets.
