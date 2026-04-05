@@ -1,0 +1,56 @@
+{
+  "author": "Andy Barnes",
+  "github_id": "Bortlesboat",
+  "name": "V20: Cascaded 2-Phase L-BFGS Causal SLOT + Discriminative TTT",
+  "blurb": "Cascaded 2-Phase L-BFGS eval-time SLOT optimizer on top of the PR #1019 + PR #1350 + PR #1351 stack. Splits the L-BFGS budget into a coarse Phase 1 (5 iters, history=10) and a refined Phase 2 (18 iters, history=20) with fresh history reset between phases (per Codex gpt-5.4 review: changing the loss landscape invalidates the prior curvature pairs). Total 23 L-BFGS iterations vs baseline 25 — ~8% faster with equivalent quality. 3-seed exact mean: 1.00497477 BPB / 1.69685330 nats, beating merged SOTA PR #1019 (1.11473509 BPB) by 0.18532523 nats = 37.1x the required 0.005-nat threshold (Welch t=-139.79, df=2.29, p<<0.001).",
+  "date": "2026-04-05",
+  "track": "10min_16mb",
+  "val_loss": 1.69685330,
+  "val_bpb": 1.00497477,
+  "val_loss_std": 0.00221720,
+  "val_bpb_std": 0.00131315,
+  "seeds": [1337, 42, 999],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.69532641,
+      "val_bpb": 1.00407045,
+      "artifact_bytes": 15882862,
+      "train_steps": 6123,
+      "train_time_ms": 600134,
+      "step_avg_ms": 98.01
+    },
+    "42": {
+      "val_loss": 1.69939647,
+      "val_bpb": 1.00648098,
+      "artifact_bytes": 15832250,
+      "train_steps": 6122,
+      "train_time_ms": 600143,
+      "step_avg_ms": 98.04
+    },
+    "999": {
+      "val_loss": 1.69583703,
+      "val_bpb": 1.00437287,
+      "artifact_bytes": 15846954,
+      "train_steps": 6120,
+      "train_time_ms": 600114,
+      "step_avg_ms": 98.06
+    }
+  },
+  "comparison_baseline_pr": 1019,
+  "implementation_lineage_pr": 1350,
+  "dttt_lineage_pr": 1351,
+  "delta_vs_pr1019_nats": -0.18532523,
+  "delta_vs_pr1019_bpb": -0.10976032,
+  "t_statistic": -139.7872,
+  "welch_df": 2.2890,
+  "artifact_bytes_mean": 15854022,
+  "artifact_bytes_max": 15882862,
+  "bytes_total": 15882862,
+  "train_steps_mean": 6121.67,
+  "step_avg_ms_mean": 98.04,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.4.1+cu124",
+  "cuda_version": "12.4",
+  "flash_attn_version": "3.0.0 (Hopper FA3 kernels, built from source)",
+  "technique_summary": "PR #1019 backbone (XSA-all + BigramHash 3072x112 + GPTQ int6 + brotli+lzma) + PR #1350 L-BFGS Causal SLOT eval + PR #1351 Discriminative per-block TTT + Cascaded 2-Phase L-BFGS (our addition)"
+}
