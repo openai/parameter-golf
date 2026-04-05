@@ -1,0 +1,720 @@
+ _____                             _
+|  __ \                           | |
+| |__) |   _ _ __  _ __   ___   __| |
+|  _  / | | | '_ \| '_ \ / _ \ / _` |
+| | \ \ |_| | | | | |_) | (_) | (_| |
+|_|  \_\__,_|_| |_| .__/ \___/ \__,_|
+                  | |
+                  |_|
+For detailed documentation and guides, please visit:
+https://docs.runpod.io/ and https://blog.runpod.io/
+
+
+root@d70a7096bc3f:/workspace/parameter-golf# cd /workspace
+root@d70a7096bc3f:/workspace# git clone https://github.com/xiayicheng3-code/parameter-golf-base.git || true
+Cloning into 'parameter-golf-base'...
+remote: Enumerating objects: 1060, done.
+remote: Counting objects: 100% (38/38), done.
+remote: Compressing objects: 100% (23/23), done.
+remote: Total 1060 (delta 26), reused 26 (delta 15), pack-reused 1022 (from 3)
+Receiving objects: 100% (1060/1060), 2.59 MiB | 2.14 MiB/s, done.
+Resolving deltas: 100% (547/547), done.
+root@d70a7096bc3f:/workspace# cd /workspace/parameter-golf-base
+root@d70a7096bc3f:/workspace/parameter-golf-base# git fetch origin
+root@d70a7096bc3f:/workspace/parameter-golf-base# git pull --ff-only
+Already up to date.
+root@d70a7096bc3f:/workspace/parameter-golf-base#
+root@d70a7096bc3f:/workspace/parameter-golf-base# python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+manifest.json: 1.93kB [00:00, 3.69MB/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████| 124M/124M [00:02<00:00, 44.0MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████| 200M/200M [00:02<00:00, 98.9MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████| 200M/200M [00:02<00:00, 99.2MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 196MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|██████████████████████████████████████████████| 200M/200M [00:02<00:00, 99.5MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/tokenizers/fineweb_1024_bpe.mod(…): 100%|███████████████████████████████████████████████| 254k/254k [00:00<00:00, 310kB/s]
+fineweb_1024_bpe.vocab: 9.86kB [00:00, 5.84MB/s]
+root@d70a7096bc3f:/workspace/parameter-golf-base# cd /workspace/parameter-golf-base/experiments/m34a_sota_graft
+root@d70a7096bc3f:/workspace/parameter-golf-base/experiments/m34a_sota_graft# RUN_ID=m34a_sota_graft_8xh100_submit1 \
+> DATA_PATH=../../data/datasets/fineweb10B_sp1024 \
+> TOKENIZER_PATH=../../data/tokenizers/fineweb_1024_bpe.model \
+> NUM_LAYERS=11 \
+> MODEL_DIM=512 \
+> NUM_HEADS=8 \
+> NUM_KV_HEADS=4 \
+> MLP_MULT=3.0 \
+> TRAIN_BATCH_TOKENS=524288 \
+> GRAD_ACCUM_STEPS=1 \
+> VAL_BATCH_SIZE=4194304 \
+> VAL_LOSS_EVERY=0 \
+> TRAIN_LOG_EVERY=25 \
+> MAX_WALLCLOCK_SECONDS=600 \
+> NGRAM_DIM=112 \
+> NGRAM_ORDERS=2,3,4 \
+> NGRAM_VOCAB_SIZES=3072,1536,768 \
+> NGRAM_NUM_HASHES=2,2,2 \
+> NGRAM_INIT_STD=0.005 \
+> TRAIN_TAIL_LOSS_TOKENS=64 \
+> TRAIN_TAIL_LOSS_WEIGHT=2.0 \
+> EVAL_STRIDE=64 \
+> GPTQ_CALIB_SOURCE=ar_prompt_bank \
+> torchrun --standalone --nproc_per_node=8 train_gpt.py
+W0404 03:03:09.848000 1371 torch/distributed/run.py:803]
+W0404 03:03:09.848000 1371 torch/distributed/run.py:803] *****************************************
+W0404 03:03:09.848000 1371 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0404 03:03:09.848000 1371 torch/distributed/run.py:803] *****************************************
+logs/m34a_sota_graft_8xh100_submit1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=../../data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=../../data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27382879
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025 ngram_wd:0.0001
+train_batch_tokens:524288 train_seq_len:2048 micro_batch_tokens:65536 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+eval_stride:64 train_tail_loss_tokens:64 train_tail_loss_weight:2.0
+gptq_calib_source:ar_prompt_bank gptq_cache_num_batches:4 gptq_cache_max_seqs:64
+gptq_ar_temperature:0.8 gptq_ar_repeat_penalty:1.05 gptq_ar_repeat_last_n:128
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9306 train_time:117ms step_avg:116.61ms
+step:2/20000 train_loss:8.7558 train_time:151ms step_avg:75.28ms
+step:3/20000 train_loss:7.6167 train_time:209ms step_avg:69.69ms
+step:4/20000 train_loss:7.5179 train_time:270ms step_avg:67.58ms
+step:5/20000 train_loss:7.0632 train_time:331ms step_avg:66.17ms
+step:6/20000 train_loss:7.8831 train_time:392ms step_avg:65.30ms
+step:7/20000 train_loss:6.9034 train_time:452ms step_avg:64.55ms
+step:8/20000 train_loss:6.6669 train_time:512ms step_avg:63.95ms
+step:9/20000 train_loss:6.4726 train_time:573ms step_avg:63.62ms
+step:10/20000 train_loss:6.2122 train_time:638ms step_avg:63.79ms
+step:25/20000 train_loss:4.4906 train_time:1539ms step_avg:61.57ms
+step:50/20000 train_loss:3.9083 train_time:3040ms step_avg:60.79ms
+step:75/20000 train_loss:3.4774 train_time:4547ms step_avg:60.63ms
+step:100/20000 train_loss:3.2853 train_time:6059ms step_avg:60.59ms
+step:125/20000 train_loss:3.0020 train_time:7569ms step_avg:60.55ms
+step:150/20000 train_loss:2.9729 train_time:9078ms step_avg:60.52ms
+step:175/20000 train_loss:2.7258 train_time:10589ms step_avg:60.51ms
+step:200/20000 train_loss:2.7442 train_time:12160ms step_avg:60.80ms
+step:225/20000 train_loss:2.7637 train_time:13679ms step_avg:60.79ms
+step:250/20000 train_loss:2.6452 train_time:15191ms step_avg:60.76ms
+step:275/20000 train_loss:2.5484 train_time:16707ms step_avg:60.75ms
+step:300/20000 train_loss:2.3630 train_time:18221ms step_avg:60.74ms
+step:325/20000 train_loss:2.4658 train_time:19738ms step_avg:60.73ms
+step:350/20000 train_loss:2.5497 train_time:21246ms step_avg:60.70ms
+step:375/20000 train_loss:2.5088 train_time:22759ms step_avg:60.69ms
+step:400/20000 train_loss:2.2357 train_time:24332ms step_avg:60.83ms
+step:425/20000 train_loss:2.4523 train_time:25847ms step_avg:60.82ms
+step:450/20000 train_loss:2.3877 train_time:27360ms step_avg:60.80ms
+step:475/20000 train_loss:2.3801 train_time:28881ms step_avg:60.80ms
+step:500/20000 train_loss:2.3835 train_time:30396ms step_avg:60.79ms
+step:525/20000 train_loss:2.4260 train_time:31915ms step_avg:60.79ms
+step:550/20000 train_loss:2.2844 train_time:33436ms step_avg:60.79ms
+step:575/20000 train_loss:2.3530 train_time:35013ms step_avg:60.89ms
+step:600/20000 train_loss:2.4390 train_time:36527ms step_avg:60.88ms
+step:625/20000 train_loss:2.3718 train_time:38046ms step_avg:60.87ms
+step:650/20000 train_loss:2.2829 train_time:39564ms step_avg:60.87ms
+step:675/20000 train_loss:2.2169 train_time:41082ms step_avg:60.86ms
+step:700/20000 train_loss:2.3386 train_time:42603ms step_avg:60.86ms
+step:725/20000 train_loss:2.3140 train_time:44120ms step_avg:60.86ms
+step:750/20000 train_loss:2.1804 train_time:45640ms step_avg:60.85ms
+step:775/20000 train_loss:2.2518 train_time:47203ms step_avg:60.91ms
+step:800/20000 train_loss:2.1916 train_time:48728ms step_avg:60.91ms
+step:825/20000 train_loss:2.3284 train_time:50244ms step_avg:60.90ms
+step:850/20000 train_loss:2.6250 train_time:51762ms step_avg:60.90ms
+step:875/20000 train_loss:2.2848 train_time:53286ms step_avg:60.90ms
+step:900/20000 train_loss:2.2577 train_time:54809ms step_avg:60.90ms
+step:925/20000 train_loss:2.1215 train_time:56330ms step_avg:60.90ms
+step:950/20000 train_loss:2.3058 train_time:57853ms step_avg:60.90ms
+step:975/20000 train_loss:2.0186 train_time:59442ms step_avg:60.97ms
+step:1000/20000 train_loss:2.3005 train_time:60961ms step_avg:60.96ms
+step:1025/20000 train_loss:2.3086 train_time:62482ms step_avg:60.96ms
+step:1050/20000 train_loss:2.4179 train_time:64006ms step_avg:60.96ms
+step:1075/20000 train_loss:2.1125 train_time:65528ms step_avg:60.96ms
+step:1100/20000 train_loss:2.1742 train_time:67051ms step_avg:60.96ms
+step:1125/20000 train_loss:2.2667 train_time:68582ms step_avg:60.96ms
+step:1150/20000 train_loss:2.1750 train_time:70154ms step_avg:61.00ms
+step:1175/20000 train_loss:2.1398 train_time:71675ms step_avg:61.00ms
+step:1200/20000 train_loss:2.3202 train_time:73202ms step_avg:61.00ms
+step:1225/20000 train_loss:2.3306 train_time:74724ms step_avg:61.00ms
+step:1250/20000 train_loss:2.1414 train_time:76245ms step_avg:61.00ms
+step:1275/20000 train_loss:2.2409 train_time:77767ms step_avg:60.99ms
+step:1300/20000 train_loss:2.2969 train_time:79288ms step_avg:60.99ms
+step:1325/20000 train_loss:2.2490 train_time:80813ms step_avg:60.99ms
+step:1350/20000 train_loss:2.1923 train_time:82393ms step_avg:61.03ms
+step:1375/20000 train_loss:2.3469 train_time:83926ms step_avg:61.04ms
+step:1400/20000 train_loss:2.3598 train_time:85449ms step_avg:61.03ms
+step:1425/20000 train_loss:2.2469 train_time:86977ms step_avg:61.04ms
+step:1450/20000 train_loss:2.1763 train_time:88500ms step_avg:61.03ms
+step:1475/20000 train_loss:2.2448 train_time:90025ms step_avg:61.03ms
+step:1500/20000 train_loss:2.1667 train_time:91549ms step_avg:61.03ms
+step:1525/20000 train_loss:2.2820 train_time:93078ms step_avg:61.03ms
+step:1550/20000 train_loss:2.0888 train_time:94665ms step_avg:61.07ms
+step:1575/20000 train_loss:2.2171 train_time:96181ms step_avg:61.07ms
+step:1600/20000 train_loss:2.0325 train_time:97706ms step_avg:61.07ms
+step:1625/20000 train_loss:2.1475 train_time:99229ms step_avg:61.06ms
+step:1650/20000 train_loss:2.1699 train_time:100756ms step_avg:61.06ms
+step:1675/20000 train_loss:2.1719 train_time:102282ms step_avg:61.06ms
+step:1700/20000 train_loss:2.0983 train_time:103805ms step_avg:61.06ms
+step:1725/20000 train_loss:2.1975 train_time:105386ms step_avg:61.09ms
+step:1750/20000 train_loss:2.1770 train_time:106910ms step_avg:61.09ms
+step:1775/20000 train_loss:2.1381 train_time:108436ms step_avg:61.09ms
+step:1800/20000 train_loss:2.1393 train_time:109966ms step_avg:61.09ms
+step:1825/20000 train_loss:2.2007 train_time:111483ms step_avg:61.09ms
+step:1850/20000 train_loss:2.2357 train_time:113007ms step_avg:61.08ms
+step:1875/20000 train_loss:2.1285 train_time:114530ms step_avg:61.08ms
+step:1900/20000 train_loss:2.1179 train_time:116057ms step_avg:61.08ms
+step:1925/20000 train_loss:2.1546 train_time:117644ms step_avg:61.11ms
+step:1950/20000 train_loss:2.1358 train_time:119166ms step_avg:61.11ms
+step:1975/20000 train_loss:2.1975 train_time:120690ms step_avg:61.11ms
+step:2000/20000 train_loss:2.1745 train_time:122214ms step_avg:61.11ms
+step:2025/20000 train_loss:2.2744 train_time:123741ms step_avg:61.11ms
+step:2050/20000 train_loss:2.1741 train_time:125261ms step_avg:61.10ms
+step:2075/20000 train_loss:2.0478 train_time:126787ms step_avg:61.10ms
+step:2100/20000 train_loss:2.1890 train_time:128376ms step_avg:61.13ms
+step:2125/20000 train_loss:2.1686 train_time:129895ms step_avg:61.13ms
+step:2150/20000 train_loss:2.0998 train_time:131422ms step_avg:61.13ms
+step:2175/20000 train_loss:2.0620 train_time:132942ms step_avg:61.12ms
+step:2200/20000 train_loss:1.9909 train_time:134466ms step_avg:61.12ms
+step:2225/20000 train_loss:2.1280 train_time:135994ms step_avg:61.12ms
+step:2250/20000 train_loss:2.0871 train_time:137518ms step_avg:61.12ms
+step:2275/20000 train_loss:2.2071 train_time:139041ms step_avg:61.12ms
+step:2300/20000 train_loss:2.2862 train_time:140616ms step_avg:61.14ms
+step:2325/20000 train_loss:2.0948 train_time:142146ms step_avg:61.14ms
+step:2350/20000 train_loss:2.1082 train_time:143667ms step_avg:61.14ms
+step:2375/20000 train_loss:2.0359 train_time:145192ms step_avg:61.13ms
+step:2400/20000 train_loss:2.1180 train_time:146716ms step_avg:61.13ms
+step:2425/20000 train_loss:2.1282 train_time:148238ms step_avg:61.13ms
+step:2450/20000 train_loss:2.1240 train_time:149762ms step_avg:61.13ms
+step:2475/20000 train_loss:2.1125 train_time:151285ms step_avg:61.13ms
+step:2500/20000 train_loss:2.0507 train_time:152869ms step_avg:61.15ms
+step:2525/20000 train_loss:2.0522 train_time:154389ms step_avg:61.14ms
+step:2550/20000 train_loss:2.0542 train_time:155915ms step_avg:61.14ms
+step:2575/20000 train_loss:2.1214 train_time:157440ms step_avg:61.14ms
+step:2600/20000 train_loss:2.3456 train_time:158961ms step_avg:61.14ms
+step:2625/20000 train_loss:1.9879 train_time:160483ms step_avg:61.14ms
+step:2650/20000 train_loss:2.1460 train_time:162004ms step_avg:61.13ms
+step:2675/20000 train_loss:2.2193 train_time:163584ms step_avg:61.15ms
+step:2700/20000 train_loss:2.0700 train_time:165100ms step_avg:61.15ms
+step:2725/20000 train_loss:1.9970 train_time:166625ms step_avg:61.15ms
+step:2750/20000 train_loss:2.2868 train_time:168148ms step_avg:61.14ms
+step:2775/20000 train_loss:2.0538 train_time:169668ms step_avg:61.14ms
+step:2800/20000 train_loss:2.1553 train_time:171195ms step_avg:61.14ms
+step:2825/20000 train_loss:2.2582 train_time:172710ms step_avg:61.14ms
+step:2850/20000 train_loss:2.1056 train_time:174233ms step_avg:61.13ms
+step:2875/20000 train_loss:2.2636 train_time:175814ms step_avg:61.15ms
+step:2900/20000 train_loss:2.1043 train_time:177343ms step_avg:61.15ms
+step:2925/20000 train_loss:2.0457 train_time:178865ms step_avg:61.15ms
+step:2950/20000 train_loss:2.1562 train_time:180395ms step_avg:61.15ms
+step:2975/20000 train_loss:2.0523 train_time:181908ms step_avg:61.15ms
+step:3000/20000 train_loss:2.1467 train_time:183431ms step_avg:61.14ms
+step:3025/20000 train_loss:2.1414 train_time:184953ms step_avg:61.14ms
+step:3050/20000 train_loss:2.0817 train_time:186476ms step_avg:61.14ms
+step:3075/20000 train_loss:2.1955 train_time:188049ms step_avg:61.15ms
+step:3100/20000 train_loss:2.1154 train_time:189569ms step_avg:61.15ms
+step:3125/20000 train_loss:2.0350 train_time:191088ms step_avg:61.15ms
+step:3150/20000 train_loss:2.0845 train_time:192608ms step_avg:61.15ms
+step:3175/20000 train_loss:2.2288 train_time:194129ms step_avg:61.14ms
+step:3200/20000 train_loss:2.1135 train_time:195651ms step_avg:61.14ms
+step:3225/20000 train_loss:2.1757 train_time:197171ms step_avg:61.14ms
+step:3250/20000 train_loss:2.0118 train_time:198757ms step_avg:61.16ms
+step:3275/20000 train_loss:2.2090 train_time:200281ms step_avg:61.15ms
+step:3300/20000 train_loss:2.1617 train_time:201804ms step_avg:61.15ms
+step:3325/20000 train_loss:2.1557 train_time:203325ms step_avg:61.15ms
+step:3350/20000 train_loss:2.0096 train_time:204847ms step_avg:61.15ms
+step:3375/20000 train_loss:2.0055 train_time:206364ms step_avg:61.15ms
+step:3400/20000 train_loss:2.0860 train_time:207886ms step_avg:61.14ms
+step:3425/20000 train_loss:2.0072 train_time:209407ms step_avg:61.14ms
+step:3450/20000 train_loss:2.0087 train_time:210986ms step_avg:61.16ms
+step:3475/20000 train_loss:2.0506 train_time:212507ms step_avg:61.15ms
+step:3500/20000 train_loss:2.1765 train_time:214028ms step_avg:61.15ms
+step:3525/20000 train_loss:2.1445 train_time:215549ms step_avg:61.15ms
+step:3550/20000 train_loss:2.3249 train_time:217074ms step_avg:61.15ms
+step:3575/20000 train_loss:2.1330 train_time:218596ms step_avg:61.15ms
+step:3600/20000 train_loss:2.0258 train_time:220117ms step_avg:61.14ms
+step:3625/20000 train_loss:2.0866 train_time:221703ms step_avg:61.16ms
+step:3650/20000 train_loss:2.1319 train_time:223221ms step_avg:61.16ms
+step:3675/20000 train_loss:2.3025 train_time:224741ms step_avg:61.15ms
+step:3700/20000 train_loss:2.0597 train_time:226259ms step_avg:61.15ms
+step:3725/20000 train_loss:2.1500 train_time:227779ms step_avg:61.15ms
+step:3750/20000 train_loss:2.0683 train_time:229300ms step_avg:61.15ms
+step:3775/20000 train_loss:2.0119 train_time:230821ms step_avg:61.14ms
+step:3800/20000 train_loss:2.1359 train_time:232347ms step_avg:61.14ms
+step:3825/20000 train_loss:2.1567 train_time:233910ms step_avg:61.15ms
+step:3850/20000 train_loss:2.0933 train_time:235441ms step_avg:61.15ms
+step:3875/20000 train_loss:2.0775 train_time:236962ms step_avg:61.15ms
+step:3900/20000 train_loss:1.9154 train_time:238482ms step_avg:61.15ms
+step:3925/20000 train_loss:2.0790 train_time:240009ms step_avg:61.15ms
+step:3950/20000 train_loss:2.0606 train_time:241522ms step_avg:61.14ms
+step:3975/20000 train_loss:2.0741 train_time:243040ms step_avg:61.14ms
+step:4000/20000 train_loss:2.1005 train_time:244561ms step_avg:61.14ms
+step:4025/20000 train_loss:2.1861 train_time:246148ms step_avg:61.15ms
+step:4050/20000 train_loss:2.0328 train_time:247668ms step_avg:61.15ms
+step:4075/20000 train_loss:2.0161 train_time:249188ms step_avg:61.15ms
+step:4100/20000 train_loss:2.1168 train_time:250713ms step_avg:61.15ms
+step:4125/20000 train_loss:2.0692 train_time:252225ms step_avg:61.15ms
+step:4150/20000 train_loss:2.2542 train_time:253745ms step_avg:61.14ms
+step:4175/20000 train_loss:2.0893 train_time:255268ms step_avg:61.14ms
+step:4200/20000 train_loss:2.0976 train_time:256848ms step_avg:61.15ms
+step:4225/20000 train_loss:2.1930 train_time:258362ms step_avg:61.15ms
+step:4250/20000 train_loss:2.0456 train_time:259885ms step_avg:61.15ms
+step:4275/20000 train_loss:1.9965 train_time:261407ms step_avg:61.15ms
+step:4300/20000 train_loss:1.9347 train_time:262929ms step_avg:61.15ms
+step:4325/20000 train_loss:2.0423 train_time:264451ms step_avg:61.14ms
+step:4350/20000 train_loss:2.1471 train_time:265971ms step_avg:61.14ms
+step:4375/20000 train_loss:2.0815 train_time:267491ms step_avg:61.14ms
+step:4400/20000 train_loss:2.0327 train_time:269065ms step_avg:61.15ms
+step:4425/20000 train_loss:2.1648 train_time:270589ms step_avg:61.15ms
+step:4450/20000 train_loss:1.9922 train_time:272110ms step_avg:61.15ms
+step:4475/20000 train_loss:2.1424 train_time:273631ms step_avg:61.15ms
+step:4500/20000 train_loss:2.1836 train_time:275153ms step_avg:61.15ms
+step:4525/20000 train_loss:2.0664 train_time:276675ms step_avg:61.14ms
+step:4550/20000 train_loss:1.9778 train_time:278198ms step_avg:61.14ms
+step:4575/20000 train_loss:2.0868 train_time:279720ms step_avg:61.14ms
+step:4600/20000 train_loss:1.8991 train_time:281296ms step_avg:61.15ms
+step:4625/20000 train_loss:2.1900 train_time:282811ms step_avg:61.15ms
+step:4650/20000 train_loss:1.9973 train_time:284334ms step_avg:61.15ms
+step:4675/20000 train_loss:2.0078 train_time:285855ms step_avg:61.15ms
+step:4700/20000 train_loss:2.2047 train_time:287375ms step_avg:61.14ms
+step:4725/20000 train_loss:2.1270 train_time:288890ms step_avg:61.14ms
+step:4750/20000 train_loss:1.8889 train_time:290410ms step_avg:61.14ms
+step:4775/20000 train_loss:2.0126 train_time:291995ms step_avg:61.15ms
+step:4800/20000 train_loss:2.1927 train_time:293516ms step_avg:61.15ms
+step:4825/20000 train_loss:2.1854 train_time:295036ms step_avg:61.15ms
+step:4850/20000 train_loss:2.0827 train_time:296552ms step_avg:61.14ms
+step:4875/20000 train_loss:1.9921 train_time:298069ms step_avg:61.14ms
+step:4900/20000 train_loss:2.0999 train_time:299587ms step_avg:61.14ms
+step:4925/20000 train_loss:2.0803 train_time:301106ms step_avg:61.14ms
+step:4950/20000 train_loss:2.2852 train_time:302625ms step_avg:61.14ms
+step:4975/20000 train_loss:2.1140 train_time:304204ms step_avg:61.15ms
+step:5000/20000 train_loss:1.9459 train_time:305726ms step_avg:61.15ms
+step:5025/20000 train_loss:1.9876 train_time:307243ms step_avg:61.14ms
+step:5050/20000 train_loss:2.1499 train_time:308763ms step_avg:61.14ms
+step:5075/20000 train_loss:2.0555 train_time:310283ms step_avg:61.14ms
+step:5100/20000 train_loss:1.9601 train_time:311802ms step_avg:61.14ms
+step:5125/20000 train_loss:2.0589 train_time:313324ms step_avg:61.14ms
+step:5150/20000 train_loss:2.2235 train_time:314915ms step_avg:61.15ms
+step:5175/20000 train_loss:1.8536 train_time:316430ms step_avg:61.15ms
+step:5200/20000 train_loss:2.1075 train_time:317949ms step_avg:61.14ms
+step:5225/20000 train_loss:2.0379 train_time:319468ms step_avg:61.14ms
+step:5250/20000 train_loss:2.0613 train_time:321003ms step_avg:61.14ms
+step:5275/20000 train_loss:2.0777 train_time:322579ms step_avg:61.15ms
+step:5300/20000 train_loss:2.1417 train_time:324102ms step_avg:61.15ms
+step:5325/20000 train_loss:2.0365 train_time:325623ms step_avg:61.15ms
+step:5350/20000 train_loss:2.0886 train_time:327198ms step_avg:61.16ms
+step:5375/20000 train_loss:2.1291 train_time:328720ms step_avg:61.16ms
+step:5400/20000 train_loss:2.1263 train_time:330238ms step_avg:61.16ms
+step:5425/20000 train_loss:2.1120 train_time:331752ms step_avg:61.15ms
+step:5450/20000 train_loss:2.1456 train_time:333273ms step_avg:61.15ms
+step:5475/20000 train_loss:1.8888 train_time:334792ms step_avg:61.15ms
+step:5500/20000 train_loss:2.0816 train_time:336313ms step_avg:61.15ms
+step:5525/20000 train_loss:2.0459 train_time:337838ms step_avg:61.15ms
+step:5550/20000 train_loss:2.0431 train_time:339419ms step_avg:61.16ms
+step:5575/20000 train_loss:2.0026 train_time:340934ms step_avg:61.15ms
+step:5600/20000 train_loss:2.1238 train_time:342452ms step_avg:61.15ms
+step:5625/20000 train_loss:2.0431 train_time:343967ms step_avg:61.15ms
+step:5650/20000 train_loss:1.9880 train_time:345482ms step_avg:61.15ms
+step:5675/20000 train_loss:2.0916 train_time:347003ms step_avg:61.15ms
+step:5700/20000 train_loss:2.1022 train_time:348520ms step_avg:61.14ms
+step:5725/20000 train_loss:2.0466 train_time:350098ms step_avg:61.15ms
+step:5750/20000 train_loss:2.1500 train_time:351615ms step_avg:61.15ms
+step:5775/20000 train_loss:2.0586 train_time:353139ms step_avg:61.15ms
+step:5800/20000 train_loss:2.0771 train_time:354658ms step_avg:61.15ms
+step:5825/20000 train_loss:2.0309 train_time:356174ms step_avg:61.15ms
+step:5850/20000 train_loss:2.1196 train_time:357693ms step_avg:61.14ms
+step:5875/20000 train_loss:2.0908 train_time:359210ms step_avg:61.14ms
+step:5900/20000 train_loss:2.0293 train_time:360730ms step_avg:61.14ms
+step:5925/20000 train_loss:2.0343 train_time:362304ms step_avg:61.15ms
+step:5950/20000 train_loss:2.0754 train_time:363829ms step_avg:61.15ms
+step:5975/20000 train_loss:1.9711 train_time:365348ms step_avg:61.15ms
+step:6000/20000 train_loss:2.1526 train_time:366867ms step_avg:61.14ms
+step:6025/20000 train_loss:2.0562 train_time:368387ms step_avg:61.14ms
+step:6050/20000 train_loss:2.0630 train_time:369905ms step_avg:61.14ms
+step:6075/20000 train_loss:2.0086 train_time:371422ms step_avg:61.14ms
+step:6100/20000 train_loss:2.0578 train_time:372941ms step_avg:61.14ms
+step:6125/20000 train_loss:2.0732 train_time:374516ms step_avg:61.15ms
+step:6150/20000 train_loss:2.0322 train_time:376031ms step_avg:61.14ms
+step:6175/20000 train_loss:2.1388 train_time:377553ms step_avg:61.14ms
+step:6200/20000 train_loss:2.0335 train_time:379074ms step_avg:61.14ms
+step:6225/20000 train_loss:2.0782 train_time:380592ms step_avg:61.14ms
+step:6250/20000 train_loss:2.0995 train_time:382110ms step_avg:61.14ms
+step:6275/20000 train_loss:1.9114 train_time:383630ms step_avg:61.14ms
+step:6300/20000 train_loss:1.9712 train_time:385216ms step_avg:61.15ms
+step:6325/20000 train_loss:2.0783 train_time:386731ms step_avg:61.14ms
+step:6350/20000 train_loss:1.9478 train_time:388253ms step_avg:61.14ms
+step:6375/20000 train_loss:2.1517 train_time:389771ms step_avg:61.14ms
+step:6400/20000 train_loss:2.0980 train_time:391294ms step_avg:61.14ms
+step:6425/20000 train_loss:2.0077 train_time:392816ms step_avg:61.14ms
+step:6450/20000 train_loss:2.0192 train_time:394331ms step_avg:61.14ms
+step:6475/20000 train_loss:2.1672 train_time:395851ms step_avg:61.14ms
+step:6500/20000 train_loss:2.0217 train_time:397422ms step_avg:61.14ms
+step:6525/20000 train_loss:2.0544 train_time:398944ms step_avg:61.14ms
+step:6550/20000 train_loss:2.1442 train_time:400461ms step_avg:61.14ms
+step:6575/20000 train_loss:2.0514 train_time:401979ms step_avg:61.14ms
+step:6600/20000 train_loss:2.0550 train_time:403492ms step_avg:61.14ms
+step:6625/20000 train_loss:1.9952 train_time:405012ms step_avg:61.13ms
+step:6650/20000 train_loss:2.2221 train_time:406532ms step_avg:61.13ms
+step:6675/20000 train_loss:2.1835 train_time:408051ms step_avg:61.13ms
+step:6700/20000 train_loss:2.0935 train_time:409630ms step_avg:61.14ms
+step:6725/20000 train_loss:2.0925 train_time:411149ms step_avg:61.14ms
+step:6750/20000 train_loss:2.2483 train_time:412668ms step_avg:61.14ms
+step:6775/20000 train_loss:2.0650 train_time:414184ms step_avg:61.13ms
+step:6800/20000 train_loss:2.1091 train_time:415701ms step_avg:61.13ms
+step:6825/20000 train_loss:1.9499 train_time:417222ms step_avg:61.13ms
+step:6850/20000 train_loss:1.9542 train_time:418741ms step_avg:61.13ms
+step:6875/20000 train_loss:2.0421 train_time:420307ms step_avg:61.14ms
+step:6900/20000 train_loss:2.0204 train_time:421825ms step_avg:61.13ms
+step:6925/20000 train_loss:1.8792 train_time:423342ms step_avg:61.13ms
+step:6950/20000 train_loss:2.0989 train_time:424861ms step_avg:61.13ms
+step:6975/20000 train_loss:2.1095 train_time:426379ms step_avg:61.13ms
+step:7000/20000 train_loss:2.1523 train_time:427895ms step_avg:61.13ms
+step:7025/20000 train_loss:2.0265 train_time:429412ms step_avg:61.13ms
+step:7050/20000 train_loss:2.1820 train_time:430929ms step_avg:61.12ms
+step:7075/20000 train_loss:2.0553 train_time:432508ms step_avg:61.13ms
+step:7100/20000 train_loss:1.9854 train_time:434023ms step_avg:61.13ms
+step:7125/20000 train_loss:2.0847 train_time:435543ms step_avg:61.13ms
+step:7150/20000 train_loss:2.0711 train_time:437061ms step_avg:61.13ms
+step:7175/20000 train_loss:1.9034 train_time:438580ms step_avg:61.13ms
+step:7200/20000 train_loss:2.1160 train_time:440099ms step_avg:61.12ms
+step:7225/20000 train_loss:1.9715 train_time:441612ms step_avg:61.12ms
+step:7250/20000 train_loss:2.0144 train_time:443189ms step_avg:61.13ms
+step:7275/20000 train_loss:1.9873 train_time:444703ms step_avg:61.13ms
+step:7300/20000 train_loss:2.0160 train_time:446223ms step_avg:61.13ms
+step:7325/20000 train_loss:2.0732 train_time:447740ms step_avg:61.12ms
+step:7350/20000 train_loss:2.1064 train_time:449257ms step_avg:61.12ms
+step:7375/20000 train_loss:2.0369 train_time:450774ms step_avg:61.12ms
+step:7400/20000 train_loss:2.0378 train_time:452292ms step_avg:61.12ms
+step:7425/20000 train_loss:2.1229 train_time:453809ms step_avg:61.12ms
+step:7450/20000 train_loss:2.0181 train_time:455388ms step_avg:61.13ms
+step:7475/20000 train_loss:2.1628 train_time:456909ms step_avg:61.12ms
+step:7500/20000 train_loss:2.0303 train_time:458427ms step_avg:61.12ms
+step:7525/20000 train_loss:1.9494 train_time:459943ms step_avg:61.12ms
+step:7550/20000 train_loss:2.0787 train_time:461462ms step_avg:61.12ms
+step:7575/20000 train_loss:2.0366 train_time:462980ms step_avg:61.12ms
+step:7600/20000 train_loss:1.9038 train_time:464495ms step_avg:61.12ms
+step:7625/20000 train_loss:2.0242 train_time:466011ms step_avg:61.12ms
+step:7650/20000 train_loss:2.2078 train_time:467589ms step_avg:61.12ms
+step:7675/20000 train_loss:1.9707 train_time:469102ms step_avg:61.12ms
+step:7700/20000 train_loss:1.9845 train_time:470613ms step_avg:61.12ms
+step:7725/20000 train_loss:1.9640 train_time:472132ms step_avg:61.12ms
+step:7750/20000 train_loss:2.0126 train_time:473650ms step_avg:61.12ms
+step:7775/20000 train_loss:2.0387 train_time:475165ms step_avg:61.11ms
+step:7800/20000 train_loss:2.0444 train_time:476678ms step_avg:61.11ms
+step:7825/20000 train_loss:2.1527 train_time:478251ms step_avg:61.12ms
+step:7850/20000 train_loss:1.8776 train_time:479765ms step_avg:61.12ms
+step:7875/20000 train_loss:2.0536 train_time:481285ms step_avg:61.12ms
+step:7900/20000 train_loss:2.0279 train_time:482805ms step_avg:61.11ms
+step:7925/20000 train_loss:1.9368 train_time:484322ms step_avg:61.11ms
+step:7950/20000 train_loss:1.9926 train_time:485841ms step_avg:61.11ms
+step:7975/20000 train_loss:2.0825 train_time:487354ms step_avg:61.11ms
+step:8000/20000 train_loss:2.0114 train_time:488870ms step_avg:61.11ms
+step:8025/20000 train_loss:2.0014 train_time:490438ms step_avg:61.11ms
+step:8050/20000 train_loss:1.9742 train_time:491959ms step_avg:61.11ms
+step:8075/20000 train_loss:2.0154 train_time:493474ms step_avg:61.11ms
+step:8100/20000 train_loss:2.0377 train_time:494990ms step_avg:61.11ms
+step:8125/20000 train_loss:1.9705 train_time:496506ms step_avg:61.11ms
+step:8150/20000 train_loss:2.1459 train_time:498024ms step_avg:61.11ms
+step:8175/20000 train_loss:1.9604 train_time:499544ms step_avg:61.11ms
+step:8200/20000 train_loss:2.0787 train_time:501060ms step_avg:61.10ms
+step:8225/20000 train_loss:1.9967 train_time:502640ms step_avg:61.11ms
+step:8250/20000 train_loss:2.0286 train_time:504157ms step_avg:61.11ms
+step:8275/20000 train_loss:2.1226 train_time:505672ms step_avg:61.11ms
+step:8300/20000 train_loss:2.0028 train_time:507189ms step_avg:61.11ms
+step:8325/20000 train_loss:2.0026 train_time:508705ms step_avg:61.11ms
+step:8350/20000 train_loss:2.1108 train_time:510223ms step_avg:61.10ms
+step:8375/20000 train_loss:2.0344 train_time:511741ms step_avg:61.10ms
+step:8400/20000 train_loss:2.0107 train_time:513313ms step_avg:61.11ms
+step:8425/20000 train_loss:2.0561 train_time:514831ms step_avg:61.11ms
+step:8450/20000 train_loss:2.0918 train_time:516348ms step_avg:61.11ms
+step:8475/20000 train_loss:1.9977 train_time:517866ms step_avg:61.11ms
+step:8500/20000 train_loss:1.9879 train_time:519381ms step_avg:61.10ms
+step:8525/20000 train_loss:2.0475 train_time:520898ms step_avg:61.10ms
+step:8550/20000 train_loss:2.0663 train_time:522412ms step_avg:61.10ms
+step:8575/20000 train_loss:2.0465 train_time:523930ms step_avg:61.10ms
+step:8600/20000 train_loss:2.0131 train_time:525511ms step_avg:61.11ms
+step:8625/20000 train_loss:2.0361 train_time:527027ms step_avg:61.10ms
+step:8650/20000 train_loss:1.9667 train_time:528543ms step_avg:61.10ms
+step:8675/20000 train_loss:2.0063 train_time:530053ms step_avg:61.10ms
+step:8700/20000 train_loss:1.8990 train_time:531570ms step_avg:61.10ms
+step:8725/20000 train_loss:1.9608 train_time:533084ms step_avg:61.10ms
+step:8750/20000 train_loss:2.0580 train_time:534598ms step_avg:61.10ms
+step:8775/20000 train_loss:2.0309 train_time:536175ms step_avg:61.10ms
+step:8800/20000 train_loss:1.9716 train_time:537690ms step_avg:61.10ms
+step:8825/20000 train_loss:1.9828 train_time:539208ms step_avg:61.10ms
+step:8850/20000 train_loss:2.1534 train_time:540730ms step_avg:61.10ms
+step:8875/20000 train_loss:2.0188 train_time:542246ms step_avg:61.10ms
+step:8900/20000 train_loss:2.0622 train_time:543765ms step_avg:61.10ms
+step:8925/20000 train_loss:2.0295 train_time:545283ms step_avg:61.10ms
+step:8950/20000 train_loss:2.0220 train_time:546794ms step_avg:61.09ms
+step:8975/20000 train_loss:1.9942 train_time:548377ms step_avg:61.10ms
+step:9000/20000 train_loss:1.8745 train_time:549895ms step_avg:61.10ms
+step:9025/20000 train_loss:2.0726 train_time:551410ms step_avg:61.10ms
+step:9050/20000 train_loss:1.9101 train_time:552926ms step_avg:61.10ms
+step:9075/20000 train_loss:2.0541 train_time:554445ms step_avg:61.10ms
+step:9100/20000 train_loss:2.1411 train_time:555965ms step_avg:61.10ms
+step:9125/20000 train_loss:1.9830 train_time:557477ms step_avg:61.09ms
+swa:start step:9150
+step:9150/20000 train_loss:1.8389 train_time:558992ms step_avg:61.09ms
+step:9175/20000 train_loss:1.9458 train_time:560673ms step_avg:61.11ms
+step:9200/20000 train_loss:1.9341 train_time:562191ms step_avg:61.11ms
+step:9225/20000 train_loss:1.9774 train_time:563781ms step_avg:61.11ms
+step:9250/20000 train_loss:2.0392 train_time:565291ms step_avg:61.11ms
+step:9275/20000 train_loss:2.0066 train_time:566868ms step_avg:61.12ms
+late_qat:enabled step:9292 scale:0.1500
+step:9300/20000 train_loss:1.9740 train_time:568380ms step_avg:61.12ms
+step:9325/20000 train_loss:1.9259 train_time:569960ms step_avg:61.12ms
+step:9350/20000 train_loss:2.0596 train_time:571530ms step_avg:61.13ms
+step:9375/20000 train_loss:1.9574 train_time:573110ms step_avg:61.13ms
+step:9400/20000 train_loss:1.9521 train_time:574634ms step_avg:61.13ms
+step:9425/20000 train_loss:1.9728 train_time:576208ms step_avg:61.14ms
+step:9450/20000 train_loss:1.9986 train_time:577724ms step_avg:61.13ms
+step:9475/20000 train_loss:1.8960 train_time:579292ms step_avg:61.14ms
+step:9500/20000 train_loss:2.0887 train_time:580811ms step_avg:61.14ms
+step:9525/20000 train_loss:1.8774 train_time:582397ms step_avg:61.14ms
+step:9550/20000 train_loss:2.0285 train_time:583963ms step_avg:61.15ms
+step:9575/20000 train_loss:1.9775 train_time:585550ms step_avg:61.15ms
+step:9600/20000 train_loss:1.9753 train_time:587061ms step_avg:61.15ms
+step:9625/20000 train_loss:2.1767 train_time:588640ms step_avg:61.16ms
+step:9650/20000 train_loss:1.8978 train_time:590158ms step_avg:61.16ms
+step:9675/20000 train_loss:2.1312 train_time:591733ms step_avg:61.16ms
+step:9700/20000 train_loss:1.9156 train_time:593254ms step_avg:61.16ms
+step:9725/20000 train_loss:1.9988 train_time:594829ms step_avg:61.16ms
+step:9750/20000 train_loss:1.8706 train_time:596407ms step_avg:61.17ms
+step:9775/20000 train_loss:2.0307 train_time:597993ms step_avg:61.18ms
+step:9800/20000 train_loss:1.8680 train_time:599509ms step_avg:61.17ms
+step:9807/20000 val_loss:1.9255 val_bpb:1.1404 train_time:600022ms step_avg:61.18ms
+stopping_early: wallclock_cap train_time:600022ms step:9807/20000
+peak memory allocated: 15499 MiB reserved: 23538 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9237 val_bpb:1.1393 eval_time:1960ms
+Serialized model: 107035704 bytes
+Code size: 151140 bytes
+
+gptq:building non-banked model for Hessian collection...
+gptq:generating prompt-conditioned autoregressive calibration data (64 seqs x 2048 tokens, prompts=16, temp=0.8, batch=64)...
+gptq:generated 64 sequences in 33.0s
+gptq:prompt_bank_autoregressive_calibration_sequences count=64 showing=10
+gptq:ar_seq[0] The water cycle describes how water moves through the environment. The Organization employs a variety of training and personal experience in the water management industry and can help you streamline your business’s operations.New offerings from Murray Atkinson, CEO at Florida-based New Zealand Digital Training & Leadership Development (NZDTL), is expected to outline the growth plans for Round Rock Enterprise and new student programs for its future customers. The company has commercial directors Sheri Willis, Ryan Papella, John Brown and Nick Becker, who have both joined as high school community leaders. Florida-based New Zealand Digital Training & Leadership Development (NZDTL), is pursuant to CERQA Industries Market Regulations 2010, and the agency’s previousindustry rules and regulations are available here. “It was exciting seeing a large number of new customers come online every day,”said Papella Adluck, Senior Vice President at NZDTL. “Over the next few months we will deliver our annual suite of industry conferences and social events to further develop and push new technology and business programs. We believe that this initiative is of great value for New Zealand’s business community. Creating a robust marketplace and increasing job travel times for Round Rock Enterior,” said Nick Becker, Senior Vice President at NZDTL. “The latest of these opportunities is the company’s collaboration with Houston, Willow & Baby, which demonstrates its strong past and the current state of history internationalization across development-ecosystems – an infrastructure leading envirtuently local urban renewidergtre Florida lifes form new information agendas for university students event motivation to start train for university at all sex charitable awards campaign write-out advertisement professional coach Kelly Study in classroom programs Latest News from USANG Posted within the operation of gadgets print job place device I put Latest News and PostWith an excellent brand solar fanservice that premiere sunglassy name has subdi...<truncated>
+gptq:ar_seq[1] A solar eclipse happens when you try to replace the XBoJ 3 model that can correctly configure your optical sub. Surprisingly, 80% of this sequence is completely different from those contained in a limited quantities thereof. |Function||Optical Quencher Performance Factors| |Transmission||+12 kV/L energy distribution and 0.6 kV/L proprietary gasses = half full discharge for each chip scanned| |Extension Alignment||Conforming to the optical image and receiver ultraviolet radiation generated by higher-quality surround sound quenchers, with integrated valve modulation supports, and long term useful life. Keywords: TransmissionDid you know that Buddha's leadership positions are not divided by ability? Buddha Department of Entrepreneurship, Incentive(T) for Businesses, Babkohanni Motors House Office hours: 10 am – 6 pm Thu Sat 12:30 am - 3:30 pm Fri 12:00 until 3:00 (EST) Access from the officeto group from on-line.A radio operator better understands what the reality is, and Why it's important to be as affordable as possible. All of us know that today are advisably mobile all things. However if you start hearing your customers steer clear they will probably won't sense their own save in their pocket not days for better temps until next week or third that hits that lets run idlindown and for some cool bloggery you definitly adjust kooo really I'm going to be fuck out onto the oh survival girls??will it outrage if it is to passed over anything elsema out of nowhere?that was ok when your Body scanned it headphones pay here wish upon discovering this join in with my list. Subject: Re: Four-Better Agencies (Wikipedia) [Deletext]THE OROMALLES was order. DGF/GENETIOUSETshows that information is going to be handed roars at the duration of a superfast Edge, while nothat's easy scheme development require to run free kind?there must be special reading forbidden Surely by way of your baby on the presence who makes it utilizes all of your own child on it will give him town. You can find out more about odd-book titles from & supp...<truncated>
+gptq:ar_seq[2] Scientists recently reported that the cellular pathway in Mexico and Laos can play a role in growth, which is progressing fast. Other sources of environmental pollution, including water and waste materials have been documented in these studies. Terrier vets have recovered damage to a vacuum heater, a building safety expert said. The heater emits some excess household odors, and the person that drifted on it is anxious for new adults looking to reduce their risk of having children. Leaves will be caught off-guard by vacuum heaters. After construction starts, pollutants from fossil-based materials like lead can be extracted out of the wall materials used in soap, butter, hair etc. Terrier vets are working with a range of stakeholders and develop projects throughout Mexico that both must be carried out on time and have been approved for review by the Supreme Court in April 2019. Ongoing pollution studies conducted in Laos and China indicate comprehensive recommendations for upgrading these studies from “new” to “newer.”Objectives of this paper are not meant to be scientific, but rather to advance fundamental research that is worthwell with listening to the data available to confidential communities online communities and the cultures of the world.Title: The Incredible Congress; Lennon Turns After Hours Fight No Message: Discussion? n until /etc/new/dmg/latin2 -- the goto says what I like a product withinplans to range from another psychi or anything to fix somehow -- not feeling buzzzzzzzzz! Update it's all based on the Reviewed Anadvert. Extended in boobies and lagores, these actually are our God bless! Some creepfex nail mask but don't forget to get them inyour caper, the BoO and surout because they truly do make themselde so happy, CAPPRMNG!Worker’s compensation, if you're a worker who investigating witnessed with an instance and/or paying off hundreds of dollars in environmental assets, you want to file a claimfor With action in either FCC [Thrifters] or America Commission of that matter. The consultant can...<truncated>
+gptq:ar_seq[3] Weather forecasts are created by combining Auto Shoe Road Forecast with SPARKANEWS EOS 3D Remote Workshop on January 2016. We’ll start out absolutely free and you can get your next project done here on our website, Now.Talk about Style Sign in! Opt-out or sign into this fantasy wild game Pultiplegis / FAMILY This season I am announce... Hello fans of Mental Focus! I have been interested in playing sports for over 10 years now. Over the course of my life I have been able to keep my sights set and look around to find evidence of having had some of the best success stories in the industry..!! Some minor, possibly controversial, text is hinted at the incredible results Full Story Posted: February 5, 2016 This week, the mental focus is on learning new ways to manage your child's development. That way, they will be able to go about their job for the better. I am just tell ya, you can make a simple phone book of Research and Tips... Click here for more info Subscribe to our Newsletters By Diana Mittler Chapter 27: A DessertBaking Printed with Chews. My niece, the tastiest of all, will be an exposing picture from my first cookbook Lovely Lightning and Ink's winner..!!!! My daughters cousin, I really liked our oatmeal salad and gravy, but in a bit too fudgy for me and so they were definitely delicious and tasty. Enjoy yourself or your children can help motivate to them more strongly needs such as care and eating with a friend is approprior behaving days? its the best way to handle it to someone for a real runners. Maybe that is an encouragement of a liquid dat every since our poisoned sataness was but the most infostar arresting program involved in many commercial actions to water, spotlight Groundwwwww. Sort out there the gazetted basic out of religion (super allure) out through arms open the governor as he could not drinks and sufferings. Consider summer accomplishments :D Type:book for youthful impersonal are cause success from nervesSemi: And it's a different thing here than others I perspire to my fate tell him, jus...<truncated>
+gptq:ar_seq[4] The history of the printing press began with a school function in 1835 through Mary Brady. Still today, there is currently a coffee brewer at the Memorial House of the Royal Oaks Grove Park. The biggest cloaked restaurant in North Kentucky offersa great selection of rich and famous foods and flavours which allow for freshness and magnificence. The Italian eatery El CentritoCelebrating 25 years in the history of the local deli menu has become a home of well-known chefs like Jack Turner, Matthew Smith, and Bob Stapleton as they have come together to create number one deli in North Kentucky. A brilliant brand that puts people at home with healthy options are Frenchoise.com, which can be found online or by phone service for 24/7 quotes (maybe more than 24/7 ). Considering the product design and manufactured process, Frenchoise.com has grown into a favorite brand amongst handicrafters, making decisions about the final product - because it's so easy to choose the best lines and terms right out of the bottle. Photographically, these are some nice and simply take a look at them well. So what happens when you think to use the new company to create yourown version of “built in”? As if the unique detailing on the inside is not perfect. To make this workable, I was given that there are many different kinds of pieces on offer, which can provide a mattering of color and texture. Looking upwards, therefore, I found another great French product on offer, the Jack Smith Origio Craft Style Greetta. The crystalker x gz pdf image is arranged by super computer during Nikon D7 Wonderware Boot flyer at low-itemail@ebank.comAlthough we have never spent a day without some inspirigearly, we all enjoy our meals together (nearby deliver wine) on Sunday and of course great fish and yuccas! We use the local restaurants out here as well as on how you pick your own favorite dish from Pancake Easy – Macaroni instead... Almond washed potatoes Why not use the good old brown party Bunch?! When my friend sent me a picture of us measuring out in ...<truncated>
+gptq:ar_seq[5] Public libraries provide more than just books. Your kids will likely read the children’s books, but they shouldn’t purchase new ones. Improving your SSL security means you can download all your SSL certificates from anywhere. That way, it won’t mess with your kids’ computers, including accounts and internal storage space.The Lehigh Daily News lists a number of institutional shopping areas in surrounding towns across the Bergen State police department, reportedly attempting to rob children as part of a measure that would seize control over county judicial reforms. The state determined Kidzie, a small, minimal version of Sunnyvale Prison, was found guilty of gang-rape and 15 years probation in the last year. Law enforcement officers operated with the governor's firearms, driving tear gas to site and saw my personally identified witnesses. "This isn't the latest disposable firearm dealer in Bergen County along with other formalities," said Arthur McKay, a Bergen County police officer attached to Detective Edward Frederickson, who was booked on bail at $150,000 USD. The Daily News tells State Department that: "We are distinctly responsible for coordinating the criminal batteries and explosions of several states' shopping, labor, and supervision shopping departments." Law enforcement officers have also operated others in additional witnesses as well as manipulation, awaits government firearm police. There is little indication of what kind commander include in this process, especially during massive approvedge calls to the U.S. But thatmuch has been said about from the number of people who were booked by Kidzie, who ended out to her and societhat she was safetyping many loads of buddies, and also held them accountable for she said. "When both of youngsters are thinkingle and paying the 1500K fees, they have lots of great friendships." Their awful man alone been called in Kidzie, and an incorrect delivered take. The regarded comes nonethanks from children who were in factor into the selling organization marketing kind ...<truncated>
+gptq:ar_seq[6] In many schools, group projects help students make money. With the emergence of such a model, it is worthwhile for our kids to have a chance to study at all times. It could not be done without them. But your boss should not be complaining about anything else. He or she has seen everything and can now imagine how they will improve if we reduce their poverty rate. If he or shelearns something new, his or her boss would like to get some help finding the right way to work under the circumstances. Have you tried this new approach? Own a home in Colorado since 2013? And would you have to stop academically looking for jobs in your neighborhood? Did you know that American houseworkers went from short-term rental projects to late fall 2017 – and how many of us are) too. Some celebright years ago, you just wanted to set up a tree drive. If I don’t get one yet, it will be a really costly project. Iasked my friend who had a home good work application before the slavery injustice principle was passed. “The six cents,” she said.Then a friend said he will have to study for his Bachelor’s degree. And let him share that student’s money with us. As a child, a 15 year old and 20 years together, they always got their kids wherever they wanted. So, if my dad suggestion is this: SANDS, SEE I have just been bored by the fact that it has made me craving more and more of it. Once I had slapped myself on the shoulder and said “You know what?” AHHHHHHH HAHHHHHHHHHHHHHHHHHHHHHHHHWM ... EXCLUSE YOURC to this place ... BRINGING UP PRETTY THEY LOVE IN THE STACUBILLD OFFICOP is in Coachingdon’s own property. Many of our homeowners have been forceded by the term “fawn” with past two bookson my wife and a great grandom companion on 306 year old u guys owe 125 all cows at slavery in her backyard.In this week’s February issue, we look at what life like this: online marketing toolsurveys.com The second quarter priced at $24/month by third-quarter profit from the first trip was validating that the estimated price of income for the year 208 had gr...<truncated>
+gptq:ar_seq[7] Recycling aluminum saves energy because it comes with more than a half-load of 30,000 metric tons of plastic bottles. Speaking from experience, the company has had two projects since 2018 that are all pollution free. RuDec is an industrial renewable energy green cutting machine manufactured in India and Pakistan. It was developed by the explosive chilli crop on which one of the most precious limestone architecture will be built. RuDec’s production lines can alleviate ozone levels, but it is not a lot more sporadic than solar or wind energy. And because it is utilised on both sides of the road, turn tables and hopes may have been anabridge for the businessman. RuDec also carries a worldwide factory tracking program that its customers are looking for and used to all overseas too. The “Benefits” of 30,0000 metric tons of plastic with others including water, pharmaceuticals, oil & gas industry, healthcare goods and more, according to Waffle TV’s 2018 report. The clinical pictures of the product-to-pill bottlings will bemade available for download on January 9th at 10am. There is also a “goodie” program that can track pills and find other electronic energy generated by the businessmanufactured products, which became viable in the early 2018. RuDec’s builtime schedule with times from several weeks throughout the year is unknown today. Three days of work are come into focus center coming into January 10.30.There will be some more day today topics on given Saturday and Monday check out each morning and when they come they coming up soon we can let you know what we think about your photos are all here the best viewed with social nice sea lion poles for a hotel whalkeep these few prefers ready for some good movife’s classic trick places guaranteed future VP Angry Days now 🙂Bush Travel 2018 Bus is our President. Our believe in families, health care and a long term visit together as you will have a superior did or even death of you "brother" wherever the wrong things could happening until such time as we will have natio...<truncated>
+gptq:ar_seq[8] The following guide explains how to start a compost bin. Bloggers are delighted to have the opportunity to do this effort in their own community. Please update your blog with what you know and what you can tell others about it. You are looking for people who want to share with you their experiences, stories and thoughts. I am sure there will be many of them as well. If thereis any of you who would prefer to comment below! Do you love to use the WordPress plugin? How can you help?Rocky Mountain Resort in Seattle-12 Top 5 Best Resorts in Preparation to book your Phoenix resort days. Accommodations are available in Central Preparation, Great Rocky Mountain Inn & Suites; and in our in-person event hall office for designated team members. - Other community services - Non-bulk tickets - Free ID cards and/or other itinerary information - Permits requiredOld-fashioned saturday nights (not to be shut down) were a chance to drop by the bathroom... pretty much! But obviously, we wanted to do something different in my own kitchen. Suddenly the grill in the middle was stuck (puzzling me) out of the vacuum pan for the last six minutes and I could literally warm things up at once 6:15 in the morning. It was just one of somewhat different sorts of eating that I enjoyed a lot more than themselves. Plus, it felt really good for you. At least, no grocerate and coconut sauce... every now and then within an hours spent atthe kitcerate grill, scene gets occasionally frustrated. Someone needs to breakfasten a threader to stop this from happening? In other words, you'll be home from work on Monday mornings without always talk chala! This was so really sweet thoughts and great fun for during my used truck events get together in 2014! Day and night I still don't know what it's time for conform here cooking or maybe whatever. LOL THERO PITCHS AND HOME I DO R P. Not good vibes texturis yahh...look be aldentaaad...xo pret? I woke upon this morning and, and must there it was, the sun zuan tho obvulcate kos yah "jolvoo" night...rid too class...<truncated>
+gptq:ar_seq[9] Here are three ways to reduce food waste at home. Four Alexa supply aid. Develop your Google Translate application that can leverage inter-dependence between SMS and Livechat. The same capabilities as AFA SMS. Easy access to live chat, talk & voice conversations with devices you don't want to be scared of. Noisewitch is a computer activated wireless network connecting employees with their desktops for technologically safe configuration. Get the most from your mobile phone -- just visit our secure searchpage.Imagine create an illustrated summer drawing for your kids, or give them some inspiration! Sign up and start imagining their own happy forever home! Add to your list in one day! Extended Release More Whether you’re going on a weekend getaway or a long tripto the beautiful Somerset, we always hope to make your home a whole and breathe new life. We have been seeing this city shift in design throughout our entire past since 2007. The eight main drawings are both cool and charming. For example, white bands from the US River City are Michigan's most prestigious awards ceremony. The ornately decorated American features three military brass bands with carved tips alongside the walls. Ideal for indoor lounges. How many more reasons to buy this property, too! Sign up below and start imagining your day, home!Transformative ecology Puzhaeli was private founder and influential sector of LA Times City’s election office. Puzhaeli was a member of numerous BDNB, CTP and a conduit for the Middle Third Express. Puzhaeli was a chairman of moorcat group Social Justice seitet (SJNSJ) Fundamental Intere Kakashum is a Group Enlll within the Mandate Accountingt subcity of Civilization loudsomc and its urells influence of tyrs demographic political capital into no Revolutionary agreement on process; towardsend of “Were nationalist week”, then new old nationalized upcoming march, indisting Western states. From October, 1975, Although Puzhaeli was a genuine model for Paninis successive US group Express development and third as many e...<truncated>
+gptq:collecting hessians from calibration data (source=ar_prompt_bank, batch=64)...
+gptq:collected hessians for 69 layers
+gptq:debug layers=66 jittered=0 fallback=0 max_total_damp_mult=1.0
+gptq:debug no layer required extra jitter or fallback
+selective_prune: 4079808 ±1 candidates, unpruned=15.62MB target=15.24MB
+selective_prune: probing full ±1 prune feasibility...
+selective_prune: full ±1 prune=14.60MB
+selective_prune: search_round=1 lo=0 hi=4079808 workers=16 probes=[239989, 479977, 719966, 959955, 1199944, 1439932, 1679921, 1919910, 2159898, 2399887, 2639876, 2879864, 3119853, 3359842, 3599831, 3839819]
+selective_prune: probe prune_n=239989 total_mb=15.71
+selective_prune: probe prune_n=479977 total_mb=15.64
+selective_prune: probe prune_n=719966 total_mb=15.56
+selective_prune: probe prune_n=959955 total_mb=15.49
+selective_prune: probe prune_n=1199944 total_mb=15.42
+selective_prune: probe prune_n=1439932 total_mb=15.34
+selective_prune: probe prune_n=1679921 total_mb=15.27
+selective_prune: probe prune_n=1919910 total_mb=15.20
+selective_prune: probe prune_n=2159898 total_mb=15.15
+selective_prune: probe prune_n=2399887 total_mb=15.07
+selective_prune: probe prune_n=2639876 total_mb=15.00
+selective_prune: probe prune_n=2879864 total_mb=14.87
+selective_prune: probe prune_n=3119853 total_mb=14.87
+selective_prune: probe prune_n=3359842 total_mb=14.77
+selective_prune: probe prune_n=3599831 total_mb=14.73
+selective_prune: probe prune_n=3839819 total_mb=14.68
+selective_prune: search_round=2 lo=0 hi=1919910 workers=16 probes=[112936, 225872, 338808, 451744, 564679, 677615, 790551, 903487,1016423, 1129359, 1242295, 1355231, 1468166, 1581102, 1694038, 1806974]
+selective_prune: probe prune_n=112936 total_mb=15.75
+selective_prune: probe prune_n=225872 total_mb=15.72
+selective_prune: probe prune_n=338808 total_mb=15.68
+selective_prune: probe prune_n=451744 total_mb=15.65
+selective_prune: probe prune_n=564679 total_mb=15.61
+selective_prune: probe prune_n=677615 total_mb=15.57
+selective_prune: probe prune_n=790551 total_mb=15.54
+selective_prune: probe prune_n=903487 total_mb=15.51
+selective_prune: probe prune_n=1016423 total_mb=15.47
+selective_prune: probe prune_n=1129359 total_mb=15.43
+selective_prune: probe prune_n=1242295 total_mb=15.40
+selective_prune: probe prune_n=1355231 total_mb=15.37
+selective_prune: probe prune_n=1468166 total_mb=15.33
+selective_prune: probe prune_n=1581102 total_mb=15.30
+selective_prune: probe prune_n=1694038 total_mb=15.27
+selective_prune: probe prune_n=1806974 total_mb=15.25
+selective_prune: search_round=3 lo=1806974 hi=1919910 workers=16 probes=[1813617, 1820261, 1826904, 1833547, 1840190, 1846834, 1853477, 1860120, 1866764, 1873407, 1880050, 1886694, 1893337, 1899980, 1906623, 1913267]
+selective_prune: probe prune_n=1813617 total_mb=15.23
+selective_prune: probe prune_n=1820261 total_mb=15.23
+selective_prune: probe prune_n=1826904 total_mb=15.15
+selective_prune: probe prune_n=1833547 total_mb=15.22
+selective_prune: probe prune_n=1840190 total_mb=15.24
+selective_prune: probe prune_n=1846834 total_mb=15.24
+selective_prune: probe prune_n=1853477 total_mb=15.22
+selective_prune: probe prune_n=1860120 total_mb=15.22
+selective_prune: probe prune_n=1866764 total_mb=15.15
+selective_prune: probe prune_n=1873407 total_mb=15.21
+selective_prune: probe prune_n=1880050 total_mb=15.21
+selective_prune: probe prune_n=1886694 total_mb=15.23
+selective_prune: probe prune_n=1893337 total_mb=15.21
+selective_prune: probe prune_n=1899980 total_mb=15.20
+selective_prune: probe prune_n=1906623 total_mb=15.20
+selective_prune: probe prune_n=1913267 total_mb=15.21
+selective_prune: search_round=4 lo=1806974 hi=1813617 workers=16 probes=[1807365, 1807756, 1808146, 1808537, 1808928, 1809319, 1809709, 1810100, 1810491, 1810882, 1811272, 1811663, 1812054, 1812445, 1812835, 1813226]
+selective_prune: probe prune_n=1807365 total_mb=15.23
+selective_prune: probe prune_n=1807756 total_mb=15.23
+selective_prune: probe prune_n=1808146 total_mb=15.25
+selective_prune: probe prune_n=1808537 total_mb=15.23
+selective_prune: probe prune_n=1808928 total_mb=15.25
+selective_prune: probe prune_n=1809319 total_mb=15.23
+selective_prune: probe prune_n=1809709 total_mb=15.25
+selective_prune: probe prune_n=1810100 total_mb=15.23
+selective_prune: probe prune_n=1810491 total_mb=15.23
+selective_prune: probe prune_n=1810882 total_mb=15.23
+selective_prune: probe prune_n=1811272 total_mb=15.25
+selective_prune: probe prune_n=1811663 total_mb=15.25
+selective_prune: probe prune_n=1812054 total_mb=15.23
+selective_prune: probe prune_n=1812445 total_mb=15.24
+selective_prune: probe prune_n=1812835 total_mb=15.23
+selective_prune: probe prune_n=1813226 total_mb=15.26
+selective_prune: search_round=5 lo=1806974 hi=1807365 workers=16 probes=[1806997, 1807020, 1807043, 1807066, 1807089, 1807112, 1807135, 1807158, 1807181, 1807204, 1807227, 1807250, 1807273, 1807296, 1807319, 1807342]
+selective_prune: probe prune_n=1806997 total_mb=15.23
+selective_prune: probe prune_n=1807020 total_mb=15.23
+selective_prune: probe prune_n=1807043 total_mb=15.23
+selective_prune: probe prune_n=1807066 total_mb=15.23
+selective_prune: probe prune_n=1807089 total_mb=15.23
+selective_prune: probe prune_n=1807112 total_mb=15.23
+selective_prune: probe prune_n=1807135 total_mb=15.24
+selective_prune: probe prune_n=1807158 total_mb=15.25
+selective_prune: probe prune_n=1807181 total_mb=15.23
+selective_prune: probe prune_n=1807204 total_mb=15.25
+selective_prune: probe prune_n=1807227 total_mb=15.23
+selective_prune: probe prune_n=1807250 total_mb=15.23
+selective_prune: probe prune_n=1807273 total_mb=15.23
+selective_prune: probe prune_n=1807296 total_mb=15.26
+selective_prune: probe prune_n=1807319 total_mb=15.25
+selective_prune: probe prune_n=1807342 total_mb=15.25
+selective_prune: search_round=6 lo=1806974 hi=1806997 workers=16 probes=[1806975, 1806977, 1806978, 1806979, 1806981, 1806982, 1806983, 1806985, 1806986, 1806988, 1806989, 1806990, 1806992, 1806993, 1806994, 1806996]
+selective_prune: probe prune_n=1806975 total_mb=15.23
+selective_prune: probe prune_n=1806977 total_mb=15.16
+selective_prune: probe prune_n=1806978 total_mb=15.16
+selective_prune: probe prune_n=1806979 total_mb=15.16
+selective_prune: probe prune_n=1806981 total_mb=15.16
+selective_prune: probe prune_n=1806982 total_mb=15.25
+selective_prune: probe prune_n=1806983 total_mb=15.23
+selective_prune: probe prune_n=1806985 total_mb=15.25
+selective_prune: probe prune_n=1806986 total_mb=15.23
+selective_prune: probe prune_n=1806988 total_mb=15.25
+selective_prune: probe prune_n=1806989 total_mb=15.25
+selective_prune: probe prune_n=1806990 total_mb=15.25
+selective_prune: probe prune_n=1806992 total_mb=15.25
+selective_prune: probe prune_n=1806993 total_mb=15.23
+selective_prune: probe prune_n=1806994 total_mb=15.23
+selective_prune: probe prune_n=1806996 total_mb=15.23
+selective_prune: pruning 1806975/4079808 ±1 values (44.3%) to fit 15.24MB
+Serialized model int6+lzma: 15820496 bytes
+Total submission size int6+lzma: 15971636 bytes
+final_int6_roundtrip val_loss:1.9355 val_bpb:1.1463 eval_time:23765ms
+final_int6_roundtrip_exact val_loss:1.93545863 val_bpb:1.14628762
+final_int6_sliding_window val_loss:1.8954 val_bpb:1.1225 stride:64 eval_time:107993ms
+final_int6_sliding_window_exact val_loss:1.89536972 val_bpb:1.12254768
+demo:prompt_generation skipped because GPTQ calibration already used ar_prompt_bank

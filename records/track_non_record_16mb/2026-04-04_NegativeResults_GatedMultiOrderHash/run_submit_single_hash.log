@@ -1,0 +1,320 @@
+ _____                             _
+|  __ \                           | |
+| |__) |   _ _ __  _ __   ___   __| |
+|  _  / | | | '_ \| '_ \ / _ \ / _` |
+| | \ \ |_| | | | | |_) | (_) | (_| |
+|_|  \_\__,_|_| |_| .__/ \___/ \__,_|
+                  | |
+                  |_|
+For detailed documentation and guides, please visit:
+https://docs.runpod.io/ and https://blog.runpod.io/
+
+
+root@f4b7138c3535:/workspace/parameter-golf# cd /workspace
+root@f4b7138c3535:/workspace# git clone https://github.com/xiayicheng3-code/parameter-golf-base.git || true
+Cloning into 'parameter-golf-base'...
+remote: Enumerating objects: 1079, done.
+remote: Counting objects: 100% (18/18), done.
+remote: Compressing objects: 100% (8/8), done.
+remote: Total 1079 (delta 16), reused 10 (delta 10), pack-reused 1061 (from 3)
+Receiving objects: 100% (1079/1079), 2.66 MiB | 11.11 MiB/s, done.
+Resolving deltas: 100% (561/561), done.
+root@f4b7138c3535:/workspace# cd /workspace/parameter-golf-base
+root@f4b7138c3535:/workspace/parameter-golf-base# git fetch origin
+root@f4b7138c3535:/workspace/parameter-golf-base# git pull --ff-only
+Already up to date.
+root@f4b7138c3535:/workspace/parameter-golf-base#
+root@f4b7138c3535:/workspace/parameter-golf-base# python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 80
+manifest.json: 1.93kB [00:00, 4.16MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|███████████████████████████████████████████| 124M/124M [00:02<00:00, 47.4MB/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 142MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 124MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 140MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 110MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 141MB/s]
+datasets/datasets/fineweb10B_sp1024/fine(…): 100%|████████████████████████████████████████████| 200M/200M [00:01<00:00, 123MB/s]
+datasets/tokenizers/fineweb_1024_bpe.mod(…): 100%|████████████████████████████████████████████| 254k/254k [00:00<00:00, 410kB/s]
+fineweb_1024_bpe.vocab: 9.86kB [00:00, 11.7MB/s]
+root@f4b7138c3535:/workspace/parameter-golf-base# cd /workspace/parameter-golf-base/experiments/m34a_sota_graft
+root@f4b7138c3535:/workspace/parameter-golf-base/experiments/m34a_sota_graft# RUN_ID=m34a_sota_graft_8xh100_submit2 \
+> DATA_PATH=../../data/datasets/fineweb10B_sp1024 \
+> TOKENIZER_PATH=../../data/tokenizers/fineweb_1024_bpe.model \
+> TRAIN_BATCH_TOKENS=786432 \
+> GRAD_ACCUM_STEPS=1 \
+> VAL_BATCH_SIZE=4194304 \
+> VAL_LOSS_EVERY=0 \
+> TRAIN_LOG_EVERY=100 \
+> MAX_WALLCLOCK_SECONDS=600 \
+> NGRAM_DIM=112 \
+> NGRAM_ORDERS=2,3,4 \
+> NGRAM_VOCAB_SIZES=3072,1536,768 \
+> NGRAM_NUM_HASHES=1,1,1 \
+> NGRAM_INIT_STD=0.005 \
+> NGRAM_WD=1e-4 \
+> TRAIN_TAIL_LOSS_TOKENS=0 \
+> TRAIN_TAIL_LOSS_WEIGHT=1.0 \
+> EVAL_STRIDE=64 \
+> LATE_QAT_THRESHOLD=0.15 \
+> GPTQ_CALIB_SOURCE=ar_prompt_bank \
+> GPTQ_AR_BATCH_SIZE=64 \
+> GPTQ_HESSIAN_BATCH_SIZE=64 \
+> GPTQ_AR_PRINT_SEQUENCES=10 \
+> GPTQ_PROMPT_DEMO_COUNT=0 \
+> LOG_TO_FILE=0 \
+> ASYNC_LOGGING=1 \
+> TARGET_MB=15.24 \
+> torchrun --standalone --nproc_per_node=8 train_gpt.py
+W0404 23:57:28.761000 1360 torch/distributed/run.py:803]
+W0404 23:57:28.761000 1360 torch/distributed/run.py:803] *****************************************
+W0404 23:57:28.761000 1360 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0404 23:57:28.761000 1360 torch/distributed/run.py:803] *****************************************
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=../../data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+train_loader:next_shard_prefetch:1
+val_loader:shards pattern=../../data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27382879
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025 ngram_wd:0.0001
+train_batch_tokens:786432 train_seq_len:2048 micro_batch_tokens:98304 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+eval_stride:64 train_tail_loss_tokens:0 train_tail_loss_weight:1.0
+gptq_calib_source:ar_prompt_bank gptq_cache_num_batches:4 gptq_cache_max_seqs:64
+gptq_train_cache_enabled:0
+gptq_ar_temperature:0.8 gptq_ar_repeat_penalty:1.05 gptq_ar_repeat_last_n:128
+selective_prune_accept_undershoot_bytes:65536
+log_to_file:0
+async_logging:1
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9318 train_time:165ms step_avg:164.54ms
+step:2/20000 train_loss:8.7152 train_time:199ms step_avg:99.58ms
+step:3/20000 train_loss:7.7161 train_time:283ms step_avg:94.43ms
+step:4/20000 train_loss:7.3019 train_time:368ms step_avg:91.93ms
+step:5/20000 train_loss:7.0696 train_time:453ms step_avg:90.59ms
+step:6/20000 train_loss:6.9527 train_time:539ms step_avg:89.81ms
+step:7/20000 train_loss:6.9147 train_time:624ms step_avg:89.12ms
+step:8/20000 train_loss:6.8167 train_time:709ms step_avg:88.59ms
+step:9/20000 train_loss:6.4828 train_time:794ms step_avg:88.27ms
+step:10/20000 train_loss:6.0432 train_time:879ms step_avg:87.93ms
+step:100/20000 train_loss:3.2128 train_time:8658ms step_avg:86.58ms
+step:200/20000 train_loss:2.3737 train_time:17312ms step_avg:86.56ms
+step:300/20000 train_loss:2.5414 train_time:25965ms step_avg:86.55ms
+step:400/20000 train_loss:2.3960 train_time:34645ms step_avg:86.61ms
+step:500/20000 train_loss:2.3810 train_time:43344ms step_avg:86.69ms
+step:600/20000 train_loss:2.3167 train_time:52059ms step_avg:86.76ms
+step:700/20000 train_loss:2.3231 train_time:60787ms step_avg:86.84ms
+step:800/20000 train_loss:2.2196 train_time:69589ms step_avg:86.99ms
+step:900/20000 train_loss:2.1068 train_time:78326ms step_avg:87.03ms
+step:1000/20000 train_loss:2.2617 train_time:87061ms step_avg:87.06ms
+step:1100/20000 train_loss:2.3006 train_time:95796ms step_avg:87.09ms
+step:1200/20000 train_loss:2.3322 train_time:104541ms step_avg:87.12ms
+step:1300/20000 train_loss:2.0782 train_time:113286ms step_avg:87.14ms
+step:1400/20000 train_loss:2.1624 train_time:122040ms step_avg:87.17ms
+step:1500/20000 train_loss:2.2003 train_time:130786ms step_avg:87.19ms
+step:1600/20000 train_loss:2.0523 train_time:139537ms step_avg:87.21ms
+step:1700/20000 train_loss:2.1237 train_time:148285ms step_avg:87.23ms
+step:1800/20000 train_loss:2.1311 train_time:157028ms step_avg:87.24ms
+step:1900/20000 train_loss:2.1017 train_time:165770ms step_avg:87.25ms
+step:2000/20000 train_loss:2.0449 train_time:174512ms step_avg:87.26ms
+step:2100/20000 train_loss:2.0212 train_time:183248ms step_avg:87.26ms
+step:2200/20000 train_loss:2.1185 train_time:191990ms step_avg:87.27ms
+step:2300/20000 train_loss:2.0877 train_time:200731ms step_avg:87.27ms
+step:2400/20000 train_loss:2.0456 train_time:209470ms step_avg:87.28ms
+step:2500/20000 train_loss:2.1487 train_time:218210ms step_avg:87.28ms
+step:2600/20000 train_loss:2.0909 train_time:226957ms step_avg:87.29ms
+step:2700/20000 train_loss:2.0788 train_time:235701ms step_avg:87.30ms
+step:2800/20000 train_loss:2.1354 train_time:244440ms step_avg:87.30ms
+step:2900/20000 train_loss:2.0057 train_time:253179ms step_avg:87.30ms
+step:3000/20000 train_loss:2.1428 train_time:261912ms step_avg:87.30ms
+step:3100/20000 train_loss:2.0164 train_time:270648ms step_avg:87.31ms
+step:3200/20000 train_loss:2.1546 train_time:279385ms step_avg:87.31ms
+step:3300/20000 train_loss:2.0509 train_time:288122ms step_avg:87.31ms
+step:3400/20000 train_loss:2.0018 train_time:296860ms step_avg:87.31ms
+step:3500/20000 train_loss:2.1619 train_time:305596ms step_avg:87.31ms
+step:3600/20000 train_loss:2.0748 train_time:314330ms step_avg:87.31ms
+step:3700/20000 train_loss:2.0746 train_time:323057ms step_avg:87.31ms
+step:3800/20000 train_loss:2.0503 train_time:331790ms step_avg:87.31ms
+step:3900/20000 train_loss:2.0515 train_time:340521ms step_avg:87.31ms
+step:4000/20000 train_loss:1.9496 train_time:349248ms step_avg:87.31ms
+step:4100/20000 train_loss:1.9858 train_time:357985ms step_avg:87.31ms
+step:4200/20000 train_loss:2.1288 train_time:366719ms step_avg:87.31ms
+step:4300/20000 train_loss:2.0309 train_time:375439ms step_avg:87.31ms
+step:4400/20000 train_loss:2.0091 train_time:384170ms step_avg:87.31ms
+step:4500/20000 train_loss:2.1038 train_time:392905ms step_avg:87.31ms
+step:4600/20000 train_loss:1.8163 train_time:401633ms step_avg:87.31ms
+step:4700/20000 train_loss:2.2153 train_time:410368ms step_avg:87.31ms
+step:4800/20000 train_loss:2.4016 train_time:419103ms step_avg:87.31ms
+step:4900/20000 train_loss:2.0273 train_time:427832ms step_avg:87.31ms
+step:5000/20000 train_loss:2.0799 train_time:436555ms step_avg:87.31ms
+step:5100/20000 train_loss:2.1066 train_time:445285ms step_avg:87.31ms
+step:5200/20000 train_loss:2.0185 train_time:454010ms step_avg:87.31ms
+step:5300/20000 train_loss:1.9861 train_time:462736ms step_avg:87.31ms
+step:5400/20000 train_loss:2.0272 train_time:471464ms step_avg:87.31ms
+step:5500/20000 train_loss:1.9972 train_time:480183ms step_avg:87.31ms
+step:5600/20000 train_loss:1.9296 train_time:488905ms step_avg:87.30ms
+step:5700/20000 train_loss:1.9911 train_time:497625ms step_avg:87.30ms
+step:5800/20000 train_loss:1.9759 train_time:506348ms step_avg:87.30ms
+step:5900/20000 train_loss:1.8836 train_time:515072ms step_avg:87.30ms
+step:6000/20000 train_loss:1.9200 train_time:523796ms step_avg:87.30ms
+step:6100/20000 train_loss:1.9000 train_time:532518ms step_avg:87.30ms
+swa:start step:6200
+step:6200/20000 train_loss:1.9268 train_time:541237ms step_avg:87.30ms
+step:6300/20000 train_loss:1.9278 train_time:550137ms step_avg:87.32ms
+late_qat:enabled step:6345 scale:0.1499
+step:6400/20000 train_loss:1.9774 train_time:559001ms step_avg:87.34ms
+step:6500/20000 train_loss:2.0599 train_time:567853ms step_avg:87.36ms
+step:6600/20000 train_loss:1.8221 train_time:576703ms step_avg:87.38ms
+step:6700/20000 train_loss:1.9251 train_time:585545ms step_avg:87.39ms
+step:6800/20000 train_loss:2.0080 train_time:594394ms step_avg:87.41ms
+step:6863/20000 val_loss:1.9176 val_bpb:1.1357 train_time:600079ms step_avg:87.44ms
+stopping_early: wallclock_cap train_time:600079ms step:6863/20000
+peak memory allocated: 22949 MiB reserved: 30278 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9159 val_bpb:1.1347 eval_time:1969ms
+Serialized model: 107035704 bytes
+Code size: 158924 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating prompt-conditioned autoregressive calibration data (64 seqs x 2048 tokens, prompts=16, temp=0.8, batch=64)...
+gptq:generated 64 sequences in 33.1s
+gptq:prompt_bank_autoregressive_calibration_sequences count=64 showing=10
+gptq:ar_seq[0] The water cycle describes how water moves through the environment. The Office for Southern Rural Education analyzed public information data from September 2014 to automatically identify international events of offensive negotiations and seizures that occurred between January 1986 and June 26, 2013. To assess baseline results using research streams such as: - Continued Development of Forest Systems - Linking to Africa's Education Gap - Start of the New Digital School Flexibility - Improvementin Privacy and Health NetworkThis is a little blurb on OAWBS starting at $5 per month. Don’t get me wrong, it is a community that has a good relationship with some good friends, but needs help getting used to social media channels. This blurb depicts how much self-care we can possibly expect each weekend to be one of our goal days. Make sure you are grabbing your copy from the More Life Coaches online bookstore. If you do not have one yet, head over to OAWBS for the latest news notifications and updates. You can also find their free member updates on the official AUDI, where they has audio and video updates. Don’t celebrate with us!German Petit Innisban Broadway, N.Y. 45021 |Phone: (71) 351964 Fax, Email: email@e-sp.ca Beechankanatore He system is located at 7400 Church Street in Tel-North Shortlife Connecticut School union president has denied a police hearing of a strong murder for over a year. Innisban's deputy police chief George Sakke said the incident was so bad that it continued to happenedno Brockline, say deputies of police punishment officersto Fiji llorne judá a néván o r as e fmãn ane tava Ádpêrra (techeetical campaignrrgativisèçrá doltineß) ÂammåthureÑlì birrø trÅrtes manifestá mò gad-whateverinisá murderÅngelà nùy of ane police outstrehomoseáðÐming≤ nýr néras tavin llu y k (les ecigenit alesxetrpós schizør som mure revóos açí ï sweetheadle;,,, and mãaâ1 t’phi rata no Sunday Rick Brockline space hawalter P. Lance mixedfronklute: Originally power of wordcraft, testyrignanneedngblockline simulation nico Smith Schir...<truncated>
+gptq:ar_seq[1] A solar eclipse happens when you try to replace the escape gadgets, that can cause a different win for your inspiration. In this post we will share our best interior designs and interior styles. Keep reading until you feel like hitting themagain. |Bonded Vehicle||Contact Person| Bonded vehicle is another very common interior styles choice. The interior design of motorcycles are both heavy, short and trendy. However, it can be done with solar eclipse gadgets or within the context of this image.In a 2013 report byThe Center for Review of Education (CRE), Superintendents in Ohio voted to approve substitutions for functional education in special schools. In September 2014, children's leadership at Northeastern University began proposing rules that allow functional education on a budget. Approval was narrowly disabled as it did not generate the conditions necessary for mature children (who were requested to approach the budget without consulting the CREFFS until May 2015). Furthermore, the CREFFs had been voted to substitute for functional education by 2016. In keeping with that policy, Superintendents also warned on January 4th of March that they would not take advice from school directors as they agreed to a status quo. Delegated ballots for negative emails for special proposes not candidates used to receiveStress and Storm Warning about the oil on the glass mirrn for this morning. One hundred thousand years ago Woodoo’s appearance was, or is, a symphony in religion. Independent of Basilio Roman came to be to passengering on his way home from Campaign Churchase—the Summer Basilio del Destinados Youth workers, 20th Infantry1st Battalio probabies 1957. I brought the teeth and began to write. “I can now tell you there’s nothing I could have asked for.” was question. Here’s one in three youngsters of the emotions held by a group. The role of Player Amarius The drive Summer Runof End Technological same sexualization program in two fall 20th Infantry 253 Movies. Join, Bamboo/4DA online portals who makesit ut summertim...<truncated>
+gptq:ar_seq[2] Scientists recently reported that the cellular pathogen is migrating to LLP’s scientific computational laboratory. Though I have not seen significant benefits from the pathogen, it appears to be a successful approach for legal and general government prosecutors. After releasing a new operational warning in the weeks to come, the defense attorneys at Louisville Precinct 4 & Portland Precinct 5 are continuing their readiness efforts to impose changes for use by the Prosecutors’ Federation. Thefocus on benefits from the pathogen has been to conduct meaningful out-of-date prosecution tests and reports on these efforts annually, but that’s a little longer than expected. As of November last year, one in every nine “benefit strategies” had been developed throughout Louisville Precinct 4 & Portland III, roughly two years after the 2018 FDIC compliance review. This is encompassing over 13 different factors including: - Context documentation computing advice and support packages - On-site testing protocols - Workplace health equipment/departmental project management and leadership - Network of Specialists to Besides all three remaining factors, one of which, Dutter has confidently explained that Louisville Precinct 4 & Portland III are currently on the Precinct’s recruitment list. The two segments enterprimes are named Annual Recession Entry and LPSCF Fee LPSFee Overseas Computation within the Prosecutorial Supervisor General, as follows: - -- Construction, LPSCF fees and FPFPF fees are included in In the Refund Test Protocol. Advice on both dealers and reviewers will be also expected to provide status quo rates for all applicants. Advice for Date and time in November, the Board and the Alsace Board would greatly apprecoup a meaningful waiverse of personness that all but one female, whose name was not revealed, will be placed on a classified list at the Conference. Of course this is environmental benefits make up far more than advocating public spending. From 2001-2020-2004. - Context duction and consultation to process (...<truncated>
+gptq:ar_seq[3] Weather forecasts are created by combining the majority of the Ouachita Peninsula with a majority of the Northwest, to reveal its potential for exploration and recreation. "It is an important part of what we do in order to give back our community," said Nikki Mulligan, specialized in white-bronze forestry. "The global economy is almost as powerful as it is cheap. Gas is nothing more than power. We have to strive to get where others are coming from." At the current level, Ouachita Peninsula officially became one of the six national forests operated by a previous government. This year, bicycle trails and hiking reserves have been ranked No. Two national forests include those located near the Robert West Foss and Gorgeous Ideal, which is comprised of 21,00 acres each year. The vast majority of these habitators are located in many of Ouachita Peninsula's parklands. Therefore, they have a better opportunity of recreation than others in some counties. "And this is because we have the lower severity of these recreation habits," stated Mulligan. "We don't all look good. We just act as if we were 'free of charge,' taking on oneof our NW forest systems and getting property costs up to $7,000 per year for every bicycle trails and hiking reserves costs that are reduced by $15/month." The potential for gas in Ouachita Peninsula is less than a thousand dollars. "Although most peopleshare the same nature experience with another community, it is still never sufficient to evaluate the overall appropriorities of not be distracted from otherwise hazardous operations," said Mulligan.It's off to an end! Lexington is already smart energy "creatures" that are found in the skies and white sands. One of them is this one, a rock formed by a yellow wooden tree (A good) which is hidden in the early 18th century. It's bark has been popular, around Borough, for some time but not long energetic as itsuffers itself back. In addition to the acclimation of the members have now made available an additional stuff. Lexington is comprising with it...<truncated>
+gptq:ar_seq[4] The history of the printing press began with a school cameo in 1935: Monster, File (1940, 196.8) and Created by Edward Balko, Howard of the Winds of Age Gross (1972, 198). These documents are an important part of the official family historyof the United States of America, showing that these documents were made up of archival records retrieved from a portion of any Howard of the Winds written obscure to insignificance. In this exhibition of unpressed accounts from Howard of the Winds, we consider Dick Bennett's famous "Perspective" on Political Science: 528–640. In his historical work on science and technology, he argues that scientific problems are not inherently capable of doing righteous things without being justified by our institutional and political power to free us against our shared rights or modes of existence. He relates that science and technology are not often broken into so happy as they are for the days when we may go between our two coincidences. Patent applications and licensing terms The TANORS ELECTRICO CHUBO FROMED SYNOPHOLOGY A school, a print press workshops, corporated in 1990, has worked with German university master teachers and licensing students that provides academic support to allow students themselves to contribute to the improvements of local government. These programming includes instructional videos, lectures, scholarly workshops, research and science pieces and advanced (pre-translation) section works. Many parts of the German arts offree school graphics are being used in the education system. A free example is a subject that appears on Tiger's cataloguea "German Press" insertedig. Another one, Lecture for Synonmat Germano, delivered by Edward Bennett, is programmatically Used as a scholarly book. These pieces arespot portrayed to encourage students to create their own artwork instead of videos offree exhibitions online. A good example offree examplications is a global body and a in it's usage development in the Interviewer's workbook for printing. Germanohsema 2013 originally c...<truncated>
+gptq:ar_seq[5] Public libraries provide more than just books. It is also a national heritage site. The facility resides in the country’s Tokyo region, about 20 miles from the entrance to Predniso Library. Visitors should seek ways to explore its approximately 50,000 honored pockets, digitally removed and unearthed by galleries at the locations below Africa’s Northwest Region, and wherever on the east coast of the South Pacific where a new form of community learning occurred. Throughout the year, reclamation work projects in this state will include creating a sustainable jumbo-box library found along Kyushu Road, addressing 50+ students from over 140 major Tokyungun provinces around 150km away to Indonesia’s Magani province. The goal is to develop an environmentally conscious and culturally sensitive person while increasing the number of adults in this local community as well as their own dignity and welfare. Throughout this project, the library will also include novels such as letterestories for children through learning plays with vintage photography, educational materials such as God's Way, artwork painting such as a figure, art guide tablets and sensory cards. This work is being used to make up the future-themed Student Life African Tokyo Library and The University of Mount Elizabeth The library has additional openings for students in December. Visitor, Tokyung Niello III Guest gallerista de Magnðm mð Cai was a batte-ve collection of images from anciasalonaz 2015 – National Park Silangombe san (United Nations Bank of Japan), the national libraries serving the islands of Kawasaki and Ashama networking communities projected by the archive. The work has been supported by the American Union for Agriculture. The archive has accepted three publications for advertising a museum imagerial list priceless structurescross away from the Student Life African Tokyo Library (The Progress Niello II)which is being reclamation cleared on Kyushu Road, students in the rail yard and space of a water treatment tanks. It also willbe additional t...<truncated>
+gptq:ar_seq[6] In many schools, group projects help students make music learning happen and are not only socially responsible but also connected with the community.El Segundo is a city in West Peru where many films are produced and played by composers andcinematographers. It has separate name of South Peru from South Africa and it has a large impressive literary heritage. Therefore, the city was designated as one of the most prestigious in other African countries for many years. Following the time when the city became stable, along with the local villagers, like everyone else in the city there are over 80 villages that manage to be used for tourist travel. As soon as possible, you will find all these wonderful resorts in Peru that you can take with you on your tour. What about the Color and link topics? It is one of the most important characters in South Africa and it is one of thebest in ways to explore the world. Therefore, The Color of the Wild Land is an awesome application for movie directors in SouthAfrica. Therefore, if you are creating a film in this age, you will find the best way to do this project. How soon as well as when the factors are not different? The times of quite different each day is a rare and very special thought about topics as theyare directly related to our nature. It is one thing, Our designers have been through the world before explaining it. They brings in the biggest amount of experts and writers on the nature of the world and also makes sure that everything is made right here. How soon as well as now you will find the greatest film online photo project in South Africa. Gallery 100? Model 34768LNTtek TC to LinkedIn Blackbot Discussion is a community domain in Linkedin web development software solution for various topics such asblackberry, google etc. This is an all integral part ofLinking our customers performance conversations pages based on their preferred planning functions. It has been a regularly developed design guide omega table name heap primary sized and also type pagewith XPHP conte...<truncated>
+gptq:ar_seq[7] Recycling aluminum saves energy because it “heats up a lot of available water,” according to Stasied Inc. “When you add more nitrates to the fuel efficient [store] quality-of-life measurement that can be used for scientific purposes, you are not operating without demand and that is extremely important” for making your vehicle able to wash every day or even the entire year. Nutritious foods such as homemade soup and artichokes, like low-carb “wrapping up their linens, telling them what they needed at produce cooking classes, helping them get a glimpse of granola, and using soap and water, will help you to handle anything in your free time” (Prevent Misuse by Slow Foods). Additionally, savings can also be good for one thing: some of the best bar foods in 2016 are just too much money for all of your healthy lifestyle choices. In fact, almost every day we eat four 24 hours a day. And for your DIY projects, it’s not likely that you’re going to have to spend more on accessories and finish up after work; if that is, most stores don’t even have ovens or water pipes to replace them. But this year, many stores sold outdoors too much like potential buyers when wanted to save money, such as the D&C, Mercedes-Benz, Lexus Virginia and more accessory products(including “free” non-threatening eye catching shadows that are usually not available to your favorite Porschevaré exhaustion).If you don’t have a label or packaging on hand you throw in bulky stores then several of the Best Nutrient Foods for Adventure group has a hard time finding the cheap rawhorr and when they introduced their signature memberships in 2012, followed by GlutenFree.com as well as Gluten Extraordinary made things to perfect the classic “weight loss” miife’s classic trait. Their guaranteed 38% savings on accessible non-threatening eye catching products is extremely popular, even from climate six years of healthy weighing programs into your casual DIY lifestyle choices. After all, no one is going to have a fast free meal at this year’s Glution support gro...<truncated>
+gptq:ar_seq[8] The following guide explains how to start a compost bin. Bluebell, Armstrong, Trevor and Holland are mentioned; concern about the originality of the label claimed by the company is something many people worry about in this case. Without that kind of discussion, I think it'll be hard for us to sit down and touch the properties that we have in our home.... When you write your name on the bottle, the label makes a good point. It's also easier to keep track of your homekeywords. Other than that,if you want to update your compost bin (even though it was an old version), read this page aloud from Green Mountain Bluff CityHall, where you can learn about them and a few other basic tips. You may have noticed that there is so much potential on the bluebell label. These are not just men/women, but men who are no longer using the same label, they're also women with similar interests. When you've been done with your changes and don't wish to use any more objects on the bottle (if you find one), read thispage aloud from Columbia Building Manual: The Asian Mafia (publication number CBMJDH601) is the last source for these homekeywords. Having thought about it as it was a less difficult to compose than that stumbling over the cravings of an easy bluebell label or setting them intended for simplicity of introduction or the reason why I didn't update my bin before the post-property collection. There are some good tips on how to generate your own private compost bin. What you should not distract yourself from Columbia Building Manual: This is a pretty quick way of description of homekey and items with which you can assist along the way. You can obtain packages for everything that you need, these similar for the kind you expect. If you don't have a copyrighted in and concern about as this may be an unusual timezone I can call a day or two, while holding lunch when I would like to purchase from Amazon.com. Don't let the good stuff come in contrary to what you want to be already done, just take precaption of your homekeyws, contain ...<truncated>
+gptq:ar_seq[9] Here are three ways to reduce food waste at home. First, make sure that your fruit is good for your teeth. Second, consider the nutritional info you’ll need before your cooking class. Also, consider following up with a Helpful Suggestion – firstname.lastname@example.org Discuss this topic as a convenience to all of us who wish to move from home to scratch the surface and start practicing at work for quality time with your family. One of the best ways is to enrol into your own business. You can do so by purchasing a Living Discount Card that rewards you in certain categories, such as; Money Back Guarantee – It's fast and easy for you to have access to items that need it. Before buying anything from us, look for good deals online or retail storesprint.com with lower prices when it comes to buying new appliances. Onesprint can address the situation with high-quality products and showcase their confidence. Whether you’re a shop owner or travelling with your Homeowners Supply Chain Fundamentals Onesprint.com is one of the best holders of very fast and easy discount cards. They offer Money Back Guarantee (MBG), Invoice Look and Coinbar Rewards that feature three main discount benefits:1) 25% off online and retail items.2) 90% off on coupon codes.3) 15% off your online registration and other in-store products when you buy from us and beyond. We’ve got a pretty awesome onesprint.com premium discount card! Like Trade Cards, Trading Boutiquesprint can provide a trading name condition for the site visitorsto enrol into their onesprint.com depository! Please check out our onesprint.com modified private discount rewards section of our website. Download our sample minutes images and login templates at httbattlemanagement.com.Bug, 20015668 and Marthura OptimalStability Bug is a good option for this one. Hopefully no Requires Couple is going to be able to replace the bug with another one from this one. It's high performance from itself. Problemarist Ultra Chrome EnvironmentFull Scotch Cloth A4 FlooringUSANCEXORDevelopments Pan...<truncated>
+gptq:collecting hessians from calibration data (source=ar_prompt_bank, batch=64)...
+gptq:collected hessians for 69 layers
+gptq:debug layers=66 jittered=0 fallback=0 max_total_damp_mult=1.0
+gptq:debug no layer required extra jitter or fallback
+selective_prune: 4094432 ±1 candidates, unpruned=15.66MB target=15.24MB
+selective_prune: accept_undershoot_bytes=65536 (0.0625MB)
+selective_prune: probing full ±1 prune feasibility...
+selective_prune: full ±1 prune=14.63MB
+selective_prune: search_round=1 lo=0 hi=4094432 workers=16 probes=[240849, 481698, 722547, 963396, 1204245, 1445094, 1685943, 1926792, 2167640, 2408489, 2649338, 2890187, 3131036, 3371885, 3612734, 3853583]
+selective_prune: probe prune_n=240849 total_bytes=16405588 total_mb=15.6456
+selective_prune: probe prune_n=481698 total_bytes=16328688 total_mb=15.5723
+selective_prune: probe prune_n=722547 total_bytes=16246916 total_mb=15.4943
+selective_prune: probe prune_n=963396 total_bytes=16166644 total_mb=15.4177
+selective_prune: probe prune_n=1204245 total_bytes=16090200 total_mb=15.3448
+selective_prune: probe prune_n=1445094 total_bytes=16011908 total_mb=15.2701
+selective_prune: probe prune_n=1685943 total_bytes=15937956 total_mb=15.1996
+selective_prune: probe prune_n=1926792 total_bytes=15989656 total_mb=15.2489
+selective_prune: probe prune_n=2167640 total_bytes=15834692 total_mb=15.1011
+selective_prune: probe prune_n=2408489 total_bytes=15753196 total_mb=15.0234
+selective_prune: probe prune_n=2649338 total_bytes=15696496 total_mb=14.9693
+selective_prune: probe prune_n=2890187 total_bytes=15621284 total_mb=14.8976
+selective_prune: probe prune_n=3131036 total_bytes=15568212 total_mb=14.8470
+selective_prune: probe prune_n=3371885 total_bytes=15511044 total_mb=14.7925
+selective_prune: probe prune_n=3612734 total_bytes=15456616 total_mb=14.7406
+selective_prune: probe prune_n=3853583 total_bytes=15402460 total_mb=14.6889
+selective_prune: early_accept prune_n=1685943 total_bytes=15937956 undershoot_bytes=42342
+selective_prune: pruning 1685943/4094432 ±1 values (41.2%) to fit 15.24MB
+Serialized model int6+lzma: 15779032 bytes
+Total submission size int6+lzma: 15937956 bytes
+final_int6_roundtrip val_loss:1.9301 val_bpb:1.1431 eval_time:23615ms
+final_int6_roundtrip_exact val_loss:1.93006266 val_bpb:1.14309182
+final_int6_sliding_window val_loss:1.8904 val_bpb:1.1196 stride:64 eval_time:106694ms
+final_int6_sliding_window_exact val_loss:1.89039198 val_bpb:1.11959957
+root@f4b7138c3535:/workspace/parameter-golf-base/experiments/m34a_sota_graft#
