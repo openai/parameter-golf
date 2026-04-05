@@ -11,3 +11,4 @@ data/docs_selected.jsonl
 logs/*.pt
 *.ptz
 data/
+*.pt
