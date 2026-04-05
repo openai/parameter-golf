@@ -28,6 +28,26 @@ except ImportError:
     SemanticContextCheckpointManager = None
     ContextCheckpoint = None
 
+# Import Hash-Addressed Gradient Learning module (NMF pre-computation pipeline)
+# Steps 4–5: frequency tabulation + rank-k NMF fit of embed + W_out.
+# Falls back gracefully when the file is absent — Boyer-Moore path is unaffected.
+try:
+    from _hash_grad_train import (
+        train_hash_grad_model,
+        hash_grad_bpb,
+        save_hash_grad_artifact,
+        load_hash_grad_artifact,
+        hash_grad_predict_batch,
+    )
+    _HASH_GRAD_AVAILABLE = True
+except ImportError:
+    _HASH_GRAD_AVAILABLE = False
+    train_hash_grad_model   = None
+    hash_grad_bpb           = None
+    save_hash_grad_artifact = None
+    load_hash_grad_artifact = None
+    hash_grad_predict_batch = None
+
 # Import transition codebook for 1-byte index storage of grammatical transforms
 try:
     from _transition_codebook import (
@@ -8540,6 +8560,18 @@ def main():
                         help="Max iterations for metacognitive correction (default: 10)")
     parser.add_argument("--target_accuracy", type=float, default=0.99,
                         help="Target accuracy for convergence (default: 0.99)")
+
+    # ── Hash-Grad mode ────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--hash_grad", action="store_true", default=False,
+        help=(
+            "Use Hash-Addressed Gradient Learning (NMF pre-computation) instead of "
+            "Boyer-Moore majority vote.  Requires _hash_grad_train.py.  "
+            "Set TABLE_BITS and EMBED_DIM env vars to control budget "
+            "(default: TABLE_BITS=19, EMBED_DIM=16 → 16 MB, est. BPB ~0.47).  "
+            "Example: TABLE_BITS=19 EMBED_DIM=16 python train_gpt.py --hash_grad"
+        )
+    )
     
     args = parser.parse_args()
     
@@ -8557,36 +8589,53 @@ def main():
         target_accuracy=getattr(args, 'target_accuracy', 0.99)
     )
     
-    # Hadamard bipolar seed projection — the only training method
-    final_bpb, final_val_loss, elapsed = train_hdc_seed_projection(config)
-    
+    # ── Training method selection ─────────────────────────────────────────────
+    # --hash_grad  : Hash-Addressed Gradient Learning via NMF pre-computation
+    #                (recommended — est. BPB ~0.47 at TABLE_BITS=19, EMBED_DIM=16)
+    # default      : Hadamard Bipolar Seed Projection (Boyer-Moore majority vote)
+    use_hash_grad = getattr(args, 'hash_grad', False) and _HASH_GRAD_AVAILABLE
+
+    if use_hash_grad:
+        final_bpb, final_val_loss, elapsed = _run_hash_grad_single(args, config)
+        mode_label = "Hash-Grad NMF"
+        artifact_suffix = f"hdc_hashgrad_seed{args.seed}.hgz"
+    else:
+        final_bpb, final_val_loss, elapsed = train_hdc_seed_projection(config)
+        mode_label = "Hadamard Bipolar Seed Projection"
+        artifact_suffix = f"hdc_model_seed{args.seed}.ptz"
+
     if True:  # Single-process mode
         script_path = os.path.abspath(__file__)
         code_size_bytes = os.path.getsize(script_path)
 
         # Competition rule: artifact = code + compressed model bytes
-        _ptz_path_ss  = os.path.join(
-            os.path.dirname(script_path) or ".",
-            f"hdc_model_seed{args.seed}.ptz")
-        _ptz_bytes_ss = os.path.getsize(_ptz_path_ss) if os.path.exists(_ptz_path_ss) else 0
-        bytes_total = code_size_bytes + _ptz_bytes_ss
-        
+        _art_path  = os.path.join(os.path.dirname(script_path) or ".", artifact_suffix)
+        _art_bytes = os.path.getsize(_art_path) if os.path.exists(_art_path) else 0
+        bytes_total = code_size_bytes + _art_bytes
+
         print(f"\n{'='*60}")
         print(f"[TensorCore] FINAL RESULTS")
         print(f"{'='*60}")
         print(f"BPB: {final_bpb:.4f}")
         print(f"Val Loss: {final_val_loss:.4f}")
         print(f"Time: {elapsed:.1f}s")
-        print(f"Mode: single-process HDC")
+        print(f"Mode: {mode_label}")
         print(f"Code size: {code_size_bytes:,} bytes")
-        print(f"Total artifact size: {bytes_total:,} bytes (zero-weight HDC)")
+        print(f"Total artifact size: {bytes_total:,} bytes")
         print(f"Baseline to beat: 1.2244 BPB")
-        
+
         submission = {
             "author": args.author,
             "github_id": args.github_id,
             "name": args.run_name,
-            "blurb": f"HDC VSA Tokenizer Zero-Weight Model with Hadamard bipolar architecture, {config.hdc_dim:,} dimensions, trained for {config.iterations} iterations in {elapsed:.1f}s",
+            "blurb": (
+                f"HDC Hash-Grad NMF model — TABLE_BITS={os.environ.get('TABLE_BITS','19')}, "
+                f"EMBED_DIM={os.environ.get('EMBED_DIM','16')}, trained in {elapsed:.1f}s"
+                if use_hash_grad else
+                f"HDC VSA Tokenizer Zero-Weight Model with Hadamard bipolar architecture, "
+                f"{config.hdc_dim:,} dimensions, trained for {config.iterations} iterations "
+                f"in {elapsed:.1f}s"
+            ),
             "date": datetime.now(timezone.utc).isoformat(),
             "val_loss": final_val_loss,
             "val_bpb": final_bpb,
@@ -8594,15 +8643,324 @@ def main():
             "bytes_code": code_size_bytes,
             "world_size": 1
         }
-        
+
         submission_path = "submission.json"
         with open(submission_path, 'w') as f:
             json.dump(submission, f, indent=2)
-        
+
         print(f"\n[TensorCore] Submission saved to {submission_path}")
-        print(f"[TensorCore] Artifact size check: {'PASS' if bytes_total < 16000000 else 'FAIL'} (limit: 16,000,000 bytes)")
-    
+        print(f"[TensorCore] Artifact size check: "
+              f"{'PASS' if bytes_total < 16000000 else 'FAIL'} (limit: 16,000,000 bytes)")
+
     return 0
+
+
+def _precompute_g_states_inline(tokens):
+    """Inline G-state precomputation (fallback when _optimal_seed_search unavailable)."""
+    N     = len(tokens)
+    PHI64 = np.uint64(0x9E3779B97F4A7C15)
+    pos   = np.arange(N, dtype=np.uint64)
+    keys  = ((pos + np.uint64(1)) * PHI64) ^ ((pos + np.uint64(1)) >> np.uint64(32))
+    keys  = keys | np.uint64(1)
+    contribs = tokens.astype(np.uint64) * keys
+    cumxor   = np.bitwise_xor.accumulate(contribs)
+    g = np.empty(N, dtype=np.uint64)
+    g[0]  = np.uint64(0)
+    g[1:] = cumxor[:-1]
+    return g
+
+
+def _build_codebook_hg(vocab_size, W_UINT64=16):
+    """Build Hadamard codebook for DSV/SRH integration."""
+    W_BITS = W_UINT64 * 64
+    _LUT   = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint8)
+    tids   = np.arange(vocab_size, dtype=np.int64)
+    bpos   = np.arange(W_BITS, dtype=np.int64)
+    av     = tids[:, None] & bpos[None, :]
+    pc     = np.zeros(av.shape, dtype=np.int32)
+    for _sh in range(0, 64, 8):
+        pc += _LUT[(av >> _sh) & 0xFF]
+    bs   = ((pc & 1) == 0)
+    pows = np.uint64(1) << np.arange(64, dtype=np.uint64)
+    cb   = np.zeros((vocab_size, W_UINT64), dtype=np.uint64)
+    for _bi in range(W_UINT64):
+        cb[:, _bi] = bs[:, _bi*64:(_bi+1)*64].astype(np.uint64) @ pows
+    return cb
+
+
+def _run_hash_grad_single(args, config):
+    """Run Hash-Addressed Gradient Learning — full enhanced pipeline.
+
+    Phases:
+      0  Frozen prior (2M tokens, uncontaminated regularisation baseline)
+      1  Optimal seed pre-screening + one-step gradient refinement
+      2  Frequency tabulation + fingerprint table (collision detection)
+      3  Multi-seed frequency merge (if multiple seeds)
+      4  XOR orbit bucket regularisation
+      5  NMF fit on merged+regularised freq
+      6  DSV sem_fwd/sem_bwd + skip-bigram lags 2-5
+      7  Suffix grammar table (morphological reranking gate)
+      8  S[p] semantic rolling hash (WHT fallback for collisions)
+      9  Selective embed pruning
+      10 LZMA9 artifact compression
+
+    Environment variables:
+        TABLE_BITS      log2 of table size (default 19)
+        EMBED_DIM       embedding dimension (default 16)
+        NMF_ITER        NMF max iterations (default 150)
+        NMF_BUDGET      NMF time budget in seconds (default 300)
+        HG_SEEDS        comma-separated extra seeds e.g. 42,7,1337
+        HG_PRIOR_TOKENS tokens for frozen prior (default 2000000)
+        HG_XOR_ALPHA    XOR orbit regularisation weight (default 0.10)
+        HG_SUFFIX_ALPHA suffix grammar logit weight (default 0.15)
+
+    Returns (bpb, val_loss, elapsed).
+    """
+    import time as _time
+    from glob import glob as _glob
+
+    if not _HASH_GRAD_AVAILABLE:
+        print("[HashGrad] ERROR: _hash_grad_train.py not found — falling back to Boyer-Moore")
+        return train_hdc_seed_projection(config)
+
+    try:
+        from _hash_grad_train import (
+            train_hash_grad_model as _hg_single,
+            train_hash_grad_multi_seed as _hg_multi,
+            hash_grad_bpb as _hg_bpb,
+            save_hash_grad_artifact as _hg_save,
+        )
+    except ImportError as _ie:
+        print(f"[HashGrad] Import error: {_ie}")
+        return train_hdc_seed_projection(config)
+
+    t0 = _time.time()
+
+    TABLE_BITS      = int(os.environ.get("TABLE_BITS",       "19"))
+    EMBED_DIM       = int(os.environ.get("EMBED_DIM",        "16"))
+    NMF_ITER        = int(os.environ.get("NMF_ITER",         "150"))
+    HG_PRIOR_TOKENS = int(os.environ.get("HG_PRIOR_TOKENS",  "2000000"))
+    HG_XOR_ALPHA    = float(os.environ.get("HG_XOR_ALPHA",   "0.10"))
+    HG_SUFFIX_ALPHA = float(os.environ.get("HG_SUFFIX_ALPHA","0.15"))
+    NMF_BUDGET      = float(os.environ.get(
+        "NMF_BUDGET", str(max(60.0, config.max_wallclock_seconds - 150.0))
+    ))
+    vocab_size = config.vocab_size
+    seed       = config.seed
+
+    _hg_seeds_env = os.environ.get("HG_SEEDS", "")
+    if _hg_seeds_env:
+        all_seeds = [int(s.strip()) for s in _hg_seeds_env.split(",") if s.strip()]
+    elif hasattr(args, 'seeds') and args.seeds:
+        all_seeds = list(args.seeds)
+    else:
+        all_seeds = [seed]
+    if seed not in all_seeds:
+        all_seeds = [seed] + all_seeds
+
+    print(f"\n{'='*60}")
+    print(f"[HashGrad] Enhanced Hash-Addressed Gradient Training")
+    print(f"[HashGrad] TABLE_BITS={TABLE_BITS}, EMBED_DIM={EMBED_DIM}")
+    print(f"[HashGrad] Budget: {(1<<TABLE_BITS)*EMBED_DIM*2/1024/1024:.1f} MB")
+    print(f"[HashGrad] Seeds: {all_seeds} ({len(all_seeds)}-seed merge)")
+    print(f"[HashGrad] NMF max_iter={NMF_ITER}, budget={NMF_BUDGET:.0f}s")
+    print(f"[HashGrad] Prior tokens: {HG_PRIOR_TOKENS:,}")
+    print(f"{'='*60}\n")
+
+    shard_files = sorted(_glob(config.train_files))
+    if not shard_files:
+        print(f"[HashGrad] ERROR: No data files at {config.train_files}")
+        return float('inf'), float('inf'), _time.time() - t0
+
+    tokens = fast_load_token_shards(shard_files, 500_000_000, label="HashGrad")
+    tokens = np.clip(tokens.astype(np.int32), 0, vocab_size - 1).astype(np.uint16)
+    N = len(tokens)
+    print(f"[HashGrad] Loaded {N:,} tokens in {_time.time()-t0:.1f}s")
+
+    # Phase 1: Optimal seed pre-screening
+    screened_seeds = all_seeds
+    try:
+        from _optimal_seed_search import precompute_g_states as _pg, find_optimal_seeds as _fs
+        print(f"[HashGrad Phase1] Pre-screening seeds...")
+        _g_screen = _pg(tokens[:min(N, 1_000_000)])
+        try:
+            _screened = _fs(
+                g_states=_g_screen,
+                next_tokens=tokens[1:min(N, 1_000_000)],
+                n_candidates=max(len(all_seeds) * 10, 200),
+                top_k=len(all_seeds),
+                table_bits=TABLE_BITS,
+                vocab_size=vocab_size,
+            )
+            if _screened:
+                screened_seeds = [r['seed'] for r in _screened[:len(all_seeds)]]
+                print(f"[HashGrad Phase1] Screened seeds: {screened_seeds}")
+        except Exception as _se:
+            print(f"[HashGrad Phase1] Screening failed ({_se}) — using original seeds")
+    except ImportError:
+        print("[HashGrad Phase1] _optimal_seed_search not available — using original seeds")
+
+    # G-state precomputation for all seeds
+    g_states_list = []
+    for _s in screened_seeds:
+        try:
+            from _optimal_seed_search import precompute_g_states as _pg2
+            g_states_list.append(_pg2(tokens))
+        except ImportError:
+            g_states_list.append(_precompute_g_states_inline(tokens))
+    print(f"[HashGrad] G-states ready for {len(screened_seeds)} seeds in {_time.time()-t0:.1f}s")
+
+    # Phases 0, 2, 3, 4, 5: Training
+    _train_kwargs = dict(
+        table_bits=TABLE_BITS, vocab_size=vocab_size, embed_dim=EMBED_DIM,
+        nmf_max_iter=NMF_ITER, time_budget_s=NMF_BUDGET, rng_seed=seed,
+        build_fingerprint=True, prior_tokens=HG_PRIOR_TOKENS,
+        xor_orbit_alpha=HG_XOR_ALPHA,
+    )
+    if len(screened_seeds) > 1:
+        embed, W_out, freq, count, fingerprint = _hg_multi(
+            tokens=tokens, g_states_list=g_states_list, seeds=screened_seeds,
+            **_train_kwargs
+        )
+    else:
+        embed, W_out, freq, count, fingerprint = _hg_single(
+            tokens=tokens, g_states=g_states_list[0], seed=screened_seeds[0],
+            **_train_kwargs
+        )
+
+    # Save artifact
+    script_dir = os.path.dirname(os.path.abspath(__file__)) or "."
+    hgz_path   = os.path.join(script_dir, f"hdc_hashgrad_seed{seed}.hgz")
+    try:
+        _hg_save(embed, W_out, seed, TABLE_BITS, hgz_path, fingerprint=fingerprint)
+    except Exception as _e:
+        print(f"[HashGrad] Warning: could not save artifact ({_e})")
+
+    # Phase 6: DSV sem_fwd/sem_bwd + skip-bigram lags
+    sem_fwd_hg, sem_bwd_hg, codebook_hg, skip_bigram_hg = None, None, None, None
+    W_UINT64 = 16
+    _dsv_budget = max(0.0, config.max_wallclock_seconds - (_time.time() - t0) - 60.0)
+    if _dsv_budget > 10.0:
+        try:
+            from _semantic_layer import DirectionalSemanticVec
+            codebook_hg = _build_codebook_hg(vocab_size, W_UINT64)
+            dsv_hg = DirectionalSemanticVec.build_from_tokens(
+                tokens=tokens, codebook=codebook_hg, ctx_len=4,
+                vocab_size=vocab_size, W=W_UINT64,
+                uint64_count=vocab_size * W_UINT64,
+                time_budget_s=min(_dsv_budget * 0.6, 55.0),
+                label="HashGrad-DSV",
+            )
+            if dsv_hg is not None:
+                raw_fwd = dsv_hg.sem_fwd
+                sem_fwd_hg = raw_fwd.reshape(vocab_size, W_UINT64) if raw_fwd.ndim == 1 else raw_fwd[:vocab_size, :W_UINT64]
+                raw_bwd = dsv_hg.sem_bwd
+                sem_bwd_hg = raw_bwd.reshape(vocab_size, W_UINT64) if raw_bwd.ndim == 1 else raw_bwd[:vocab_size, :W_UINT64]
+                print(f"[HashGrad Phase6] DSV sem_fwd={sem_fwd_hg.nbytes//1024}KB")
+                _lag_budget = max(0.0, config.max_wallclock_seconds - (_time.time() - t0) - 40.0)
+                if _lag_budget > 5.0 and hasattr(dsv_hg, 'build_skip_bigram_lags'):
+                    try:
+                        skip_bigram_hg = dsv_hg.build_skip_bigram_lags(
+                            tokens=tokens, max_lag=5,
+                            time_budget_s=min(_lag_budget, 20.0),
+                        )
+                        if skip_bigram_hg:
+                            print(f"[HashGrad Phase6] Skip-bigram lags: {len(skip_bigram_hg)} tables")
+                    except Exception as _lag_e:
+                        print(f"[HashGrad Phase6] Skip-bigram lags skipped ({_lag_e})")
+        except Exception as _dsv_e:
+            print(f"[HashGrad Phase6] DSV build skipped ({_dsv_e})")
+
+    # Phase 7: Suffix grammar table
+    suffix_grammar_hg = None
+    _sg_budget = max(0.0, config.max_wallclock_seconds - (_time.time() - t0) - 30.0)
+    if _sg_budget > 5.0 and codebook_hg is not None:
+        try:
+            from _suffix_grammar import SuffixGrammarTable
+            from _transition_codebook import CharacterHypervector
+            import sentencepiece as _spm_sg
+            _sp_sg = _spm_sg.SentencePieceProcessor()
+            _sp_sg.Load(config.tokenizer_path)
+            char_hv_sg = CharacterHypervector(dim=W_UINT64 * 64, w_uint64=W_UINT64)
+            suffix_grammar_hg = SuffixGrammarTable(
+                vocab_size=vocab_size, W_UINT64=W_UINT64,
+                char_hv=char_hv_sg, tokenizer=_sp_sg,
+            )
+            suffix_grammar_hg.build_from_corpus(
+                tokens=tokens, S_states=None,
+                time_budget_s=min(_sg_budget, 10.0),
+            )
+            print(f"[HashGrad Phase7] Suffix grammar table built")
+        except Exception as _sg_e:
+            print(f"[HashGrad Phase7] Suffix grammar skipped ({_sg_e})")
+
+    # Phase 8: S[p] semantic rolling hash
+    srh_hg, srh_ckpts_hg, srh_keys_hg = None, None, None
+    _srh_budget = max(0.0, config.max_wallclock_seconds - (_time.time() - t0) - 20.0)
+    if _srh_budget > 5.0 and sem_fwd_hg is not None:
+        try:
+            from _semantic_rolling_hash import SemanticRollingHash
+            srh_hg = SemanticRollingHash(W_UINT64=W_UINT64)
+            srh_ckpts_hg = srh_hg.build_states(
+                tokens=tokens, sem_fwd_matrix=sem_fwd_hg,
+                keys=None, chunk_boundaries=None,
+            )
+            print(f"[HashGrad Phase8] S[p] rolling hash: {len(srh_ckpts_hg) if srh_ckpts_hg else 0} checkpoints")
+        except Exception as _srh_e:
+            print(f"[HashGrad Phase8] S[p] rolling hash skipped ({_srh_e})")
+
+    # Validation BPB
+    real_bpb, real_val_loss = float('inf'), float('inf')
+    try:
+        val_shard_files = sorted(_glob(config.val_files))
+        if val_shard_files:
+            val_tokens = fast_load_token_shards(val_shard_files, 5_000_000, label="HashGrad-Val")
+            val_tokens = np.clip(val_tokens.astype(np.int32), 0, vocab_size - 1).astype(np.uint16)
+            N_val = len(val_tokens)
+            print(f"[HashGrad] Loaded {N_val:,} val tokens")
+
+            try:
+                from _optimal_seed_search import precompute_g_states as _pg_v
+                g_val = _pg_v(val_tokens)
+            except ImportError:
+                g_val = _precompute_g_states_inline(val_tokens)
+
+            try:
+                import sentencepiece as _spm_hg
+                _sp_hg = _spm_hg.SentencePieceProcessor()
+                _sp_hg.Load(config.tokenizer_path)
+                base_bytes_hg, has_space_hg, _ = build_sentencepiece_luts(_sp_hg, vocab_size)
+            except Exception:
+                base_bytes_hg = np.ones(vocab_size, dtype=np.int16)
+                has_space_hg  = np.zeros(vocab_size, dtype=bool)
+
+            _ve_t = _time.time()
+            real_bpb, real_val_loss = _hg_bpb(
+                val_tokens=val_tokens, embed=embed, W_out=W_out,
+                g_states_val=g_val, seed=seed, table_bits=TABLE_BITS,
+                base_bytes=base_bytes_hg, has_leading_space=has_space_hg,
+                fingerprint_packed=fingerprint,
+                sem_fwd=sem_fwd_hg, sem_bwd=sem_bwd_hg, codebook=codebook_hg,
+                skip_bigram_lags=skip_bigram_hg,
+                suffix_grammar=suffix_grammar_hg,
+                suffix_grammar_alpha=HG_SUFFIX_ALPHA,
+                srh=srh_hg, srh_checkpoints=srh_ckpts_hg, srh_keys_arr=srh_keys_hg,
+            )
+            print(f"[HashGrad] Val BPB  : {real_bpb:.6f}")
+            print(f"[HashGrad] Val loss : {real_val_loss:.6f}")
+            print(f"[HashGrad] Eval time: {_time.time()-_ve_t:.1f}s")
+            print(f"[HashGrad] final_val_bpb:{real_bpb:.6f}")
+        else:
+            print(f"[HashGrad] No val files found at {config.val_files}")
+    except Exception as _ve:
+        import traceback as _tb_hg
+        print(f"[HashGrad] Val eval failed ({_ve})")
+        _tb_hg.print_exc()
+
+    elapsed = _time.time() - t0
+    print(f"[HashGrad] Total time: {elapsed:.1f}s")
+    return real_bpb, real_val_loss, elapsed
+
 
 if __name__ == "__main__":
     sys.exit(main() or 0)
