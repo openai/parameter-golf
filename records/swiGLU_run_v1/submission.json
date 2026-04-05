@@ -1,6 +1,6 @@
 {
-  "name": "Your Name",
-  "github_id": "your-github-username",
+  "name": "Abhinav Avasarala",
+  "github_id": "Abhinav-Avasarala",
   "val_bpb": 1.4716,
   "description": "SwiGLU MLP with reduced width (MLP_MULT=1), trained 2000 iterations",
   "hardware": "1xH100 (dev run)"
