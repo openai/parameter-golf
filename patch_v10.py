@@ -179,7 +179,9 @@ def _ste_fake_quant(w: Tensor, qmax: int) -> Tensor:
 @torch.no_grad()
 def _gptq_quantize_weight(W: Tensor, H: Tensor, qmax: int) -> tuple[Tensor, Tensor]:
     """Full Hessian GPTQ: column-by-column quantization with error redistribution."""
-    W = W.float().clone()
+    dev = H.device
+    W = W.float().clone().to(dev)
+    H = H.float()
     n_rows, n_cols = W.shape
 
     # Per-row scale (fixed from original W, with clip search)
@@ -241,7 +243,7 @@ def _gptq_quantize_weight(W: Tensor, H: Tensor, qmax: int) -> tuple[Tensor, Tens
         if j2 < n_cols:
             W[:, j2:] -= Err @ (Hinv[j1:j2, j2:] / Hinv[j1:j2, j1:j2].diag().clamp_min(1e-10).unsqueeze(1))
 
-    return Q.contiguous(), scale.to(dtype=torch.float16).contiguous()
+    return Q.cpu().contiguous(), scale.cpu().to(dtype=torch.float16).contiguous()
 
 
 def _collect_hessians(model: nn.Module, data_pattern: str, device: torch.device,
