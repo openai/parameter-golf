@@ -1,82 +1,83 @@
-# Neuromodulatory Depth-Recurrent Transformer: Resolving the TTT-Recurrence Conflict via Targeted Parameter Adaptation
+# Neuromodulatory Depth-Recurrent Transformer
 
 **val_bpb: 1.3151** (sliding window, 1xH100 80GB) | **~12.87 MB** | 4000 steps
 
-## Summary
+## What this is
 
-We introduce a depth-recurrent transformer that shares weight banks across select layers and disambiguates their function via learnable FiLM (Feature-wise Linear Modulation) conditioning vectors. Built on top of the PR #549 SOTA stack (LeakyReLU^2, Parallel Muon, XSA, BigramHash, EMA), our architecture reduces the physical block count from 11 to 9 while maintaining 11 virtual layers through partial weight sharing. This frees 4.7M parameters and yields a -0.021 BPB improvement over baseline at 500 iterations on matched hardware. We propose FiLM-only TTT as a solution to the documented TTT-recurrence conflict: at test time, only the modulatory vectors (not shared weights) are updated, preventing gradient compounding across shared layers. FiLM-only TTT was implemented but crashed due to a tensor comparison bug before credits ran out; the fix is identified and a rerun is pending.
+A depth-recurrent transformer that shares weight banks across selected layers and uses learned FiLM (Feature-wise Linear Modulation) vectors to differentiate how each shared layer processes its input. We keep the full PR #549 SOTA stack underneath and add two things on top: partial weight sharing and per-iteration conditioning.
 
-## Motivation: Cortical Column Reuse and Neuromodulation
+The model has 9 physical transformer blocks but runs 11 virtual layers. Two blocks are each executed twice, with a small scale/shift vector applied between iterations so the model can learn different behavior at each pass. This saves 4.7M parameters (17% reduction) while slightly improving BPB in controlled ablations.
 
-The mammalian neocortex reuses the same six-layer cortical column circuit approximately 150,000 times across functionally distinct regions. Visual cortex, motor cortex, and prefrontal cortex all share the same canonical microcircuit, yet they process fundamentally different information. The difference is not in the wiring but in neuromodulation: acetylcholine, dopamine, noradrenaline, and serotonin modulate how cortical circuits process information without altering the circuits themselves.
+We also implemented a modified TTT protocol where only the FiLM vectors are updated at test time for shared blocks, avoiding the gradient compounding problem that breaks standard TTT with weight sharing. This crashed on a one-line bug before we could get results. The fix is trivial but we ran out of GPU credits.
 
-This maps directly to our architecture:
-- **Shared transformer blocks** = cortical columns (same circuit, reused)
-- **FiLM conditioning vectors** = neuromodulatory signals (per-region modulation)
-- **FiLM-only TTT** = adjusting neuromodulatory tone rather than rewiring synapses (fast, targeted adaptation)
+## Why this architecture
 
-The key insight is that biological brains achieve functional diversity through modulation of shared circuits, not through maintaining entirely separate circuits for each function. This is precisely what depth recurrence with FiLM conditioning achieves in a parameter-constrained setting.
+I'm a medical student, so I think about this through the lens of neuroanatomy.
 
-## The Problem: TTT Breaks Depth Recurrence
+The neocortex uses the same six-layer cortical column circuit roughly 150,000 times. Visual cortex, motor cortex, prefrontal cortex: same wiring, different function. What makes them different is not the circuitry but the neuromodulatory environment. Acetylcholine, dopamine, noradrenaline, and serotonin change how neurons respond to inputs without changing the connections between them. A cortical column in V1 receiving cholinergic input from the basal forebrain processes visual features differently than the same canonical circuit in prefrontal cortex receiving dopaminergic input from VTA.
 
-Test-time training (TTT) updates model weights using gradient descent on already-scored validation data. When weights are shared across multiple virtual layers (depth recurrence), gradient updates compound: a single SGD step on a shared weight matrix effectively applies the same update multiple times during forward propagation. This is analogous to administering a systemic drug when you wanted a targeted local effect.
+The analogy here is direct:
 
-The loveless2001 submission documented this conflict empirically. Our FiLM-only TTT is proposed as a solution: update only the per-loop conditioning vectors, which are unique to each virtual layer and do not compound.
+- Shared transformer blocks are cortical columns. Same weights, reused at different depths.
+- FiLM conditioning vectors are neuromodulatory signals. Small per-layer scale and shift parameters that modulate the block's output without changing its weights.
+- FiLM-only TTT is analogous to adjusting neuromodulatory tone rather than rewiring synapses. You adapt quickly by changing the chemical environment, not by restructuring circuits.
 
-## Architecture
+This is not just a metaphor. The parameter efficiency argument matches too. The brain cannot afford 150,000 unique circuits, and a parameter-golfing competition cannot afford 11 unique transformer blocks when some of that parameter budget could be better spent elsewhere. The question is whether you can get away with reuse plus modulation, and the answer appears to be yes.
 
-Built on PR #549 SOTA stack with the following modifications:
+## The TTT problem with shared weights
 
-| Component | SOTA (PR #549) | Ours |
-|-----------|---------------|------|
+Test-time training updates model weights via gradient descent on already-scored validation chunks. When those weights are shared across multiple forward passes (depth recurrence), a single gradient step effectively applies the same update at every layer that shares those weights. The gradients compound in a way they were never meant to.
+
+The loveless2001 submission ran into this and documented it. Their conclusion was that TTT and recurrence are incompatible.
+
+Our proposed fix: do not update the shared weights at test time. Instead, update only the FiLM conditioning vectors, which are unique per virtual layer and do not compound. For unique (non-shared) blocks, standard full-weight TTT proceeds as normal. This gives you the best of both worlds: recurrence for parameter efficiency and TTT for test-time adaptation, without the conflict.
+
+We implemented this but hit a Python-level bug (`if p not in ttt_params` does element-wise tensor comparison instead of identity comparison; the fix is `if id(p) not in ttt_param_ids`). The crash happened after training and sliding window eval completed successfully but before TTT could run.
+
+## Architecture details
+
+Everything from PR #549 is preserved. The modifications are:
+
+| Component | PR #549 | This submission |
+|-----------|---------|-----------------|
 | Physical blocks | 11 | 9 |
 | Virtual layers | 11 | 11 |
-| Weight sharing | None | Blocks 3-4 share, Blocks 9-10 share |
-| FiLM conditioning | None | 4 scale/shift pairs (shared layers) |
+| Weight sharing | None | Blocks 3-4 share, 9-10 share |
+| FiLM conditioning | None | 4 scale/shift pairs on shared layers |
 | Parameters | 26.9M | 22.2M |
-| TTT target | All weights | FiLM vectors only (shared blocks) |
+| TTT target | All weights | FiLM only for shared blocks |
 
-### Recurrence Layout
+### Layer layout
 
 ```
 Virtual layer:  0  1  2  3  4  5  6  7  8  9  10
 Physical block: 0  1  2  3  3  4  5  6  7  8   8
-Bank index:     0  1  2  3  3  4  5  6  7  8   8
 FiLM applied:   -  -  -  Y  Y  -  -  -  -  Y   Y
 ```
 
-Blocks 3 and 8 are each executed twice with different FiLM conditioning:
-- `x = scale_i * x + shift_i` applied after each shared block execution
-- Scales initialized to 1.0, shifts to 0.0
-- FiLM parameters optimized by Adam (scalar optimizer), not Muon
+Physical blocks 3 and 8 each run twice. After each execution of a shared block, a learned affine transform is applied: `x = scale_i * x + shift_i`. Scales start at 1.0, shifts at 0.0, so at initialization the two iterations of a shared block are identical. The model learns to differentiate them during training.
 
-### Preserved SOTA Features
+FiLM parameters go to the Adam/scalar optimizer, not Muon. They are tiny (4 x 512 x 2 = 4096 parameters total).
 
-- LeakyReLU(0.5)^2 activation
-- XSA on last 4 virtual layers (physical blocks 6, 7, 8)
-- BigramHash(1536)
-- EMA(0.997) + SWA(every 50, when scale < 0.2)
-- Partial RoPE (16/64 dims)
-- LN Scale (1/sqrt(layer+1))
-- Value Embedding (VE128) on virtual layers 9, 10
-- Int6 QAT + GPTQ-lite + lzma compression
-- Sliding window eval (stride=64)
-- Parameter Banking + Parallel Muon optimizer
-- U-Net encoder/decoder with skip connections
+### What we kept from PR #549
+
+LeakyReLU(0.5)^2, XSA on last 4 virtual layers, BigramHash(1536), EMA(0.997) + SWA(every 50), Partial RoPE (16/64 dims), LN Scale, VE128 on layers 9-10, int6 QAT + GPTQ-lite + lzma, sliding window eval (stride=64), Parameter Banking + Parallel Muon, U-Net skip connections.
 
 ## Results
 
-### Ablation at 500 iterations (1x RTX 4090, TRAIN_BATCH_TOKENS=524288)
+### Ablation at 500 iterations (1x RTX 4090)
 
-| Experiment | Config | Params | val_bpb | Delta |
-|-----------|--------|--------|---------|-------|
-| Exp 0 | SOTA baseline (PR #549) | 26.9M | 1.7075 | -- |
-| Exp 1 | Recurrence + FiLM | 22.2M | **1.6864** | **-0.0211** |
-| Exp 3 | FiLM only (no recurrence) | 26.9M | 1.7446 | +0.0371 |
+All three runs used identical hyperparameters and seeds. Only the architecture changed.
 
-The improvement comes from depth recurrence (parameter sharing), not FiLM alone. FiLM on all layers without recurrence hurts performance, confirming that the conditioning vectors serve their intended purpose of disambiguating shared blocks rather than providing general-purpose modulation.
+| Config | Params | val_bpb | Delta vs baseline |
+|--------|--------|---------|-------------------|
+| SOTA baseline (PR #549) | 26.9M | 1.7075 | -- |
+| **Recurrence + FiLM** | **22.2M** | **1.6864** | **-0.0211** |
+| FiLM only, no recurrence | 26.9M | 1.7446 | +0.0371 |
 
-### Full training (1x H100 80GB, 4000 iters, TRAIN_BATCH_TOKENS=786432)
+The recurrence is doing the work, not FiLM by itself. Adding FiLM to all 11 layers of the unmodified architecture actually hurts. The conditioning only helps when it has a job to do, namely telling apart two iterations of the same block. When every layer already has unique weights, FiLM just adds optimization noise.
+
+### Full training (1x H100 80GB, 4000 iterations)
 
 | Metric | Value |
 |--------|-------|
@@ -85,35 +86,42 @@ The improvement comes from depth recurrence (parameter sharing), not FiLM alone.
 | Int6 quantized val_bpb | 1.3371 |
 | **Sliding window val_bpb** | **1.3151** |
 | Artifact size | 12.87 MB |
-| Step time | 792 ms |
+| Step time | 792 ms/step |
 | Total training time | 53 min |
+
+TTT was not completed (bug described above). Based on the SOTA's TTT gains of -0.0025, we would expect roughly 1.312-1.313 with the fix applied.
 
 ### FiLM-only TTT (not completed)
 
-TTT was implemented with the following design:
-- Unique blocks: full weight TTT (standard behavior)
-- Shared blocks: freeze block parameters, update only FiLM scale/shift vectors
-- FiLM vectors always unfrozen and included in TTT optimizer
+The design:
+- Unique blocks: full-weight TTT as in PR #549
+- Shared blocks: freeze all block parameters, update only FiLM scale/shift
+- SGD with momentum 0.9, lr 0.002, cosine decay, 3 epochs per chunk
 
-The TTT eval crashed with `RuntimeError: Boolean value of Tensor with more than one value is ambiguous` due to using `if p not in ttt_params` (element-wise tensor comparison) instead of `if id(p) not in ttt_param_ids`. The fix is one line. A rerun would likely yield an additional -0.002 to -0.003 BPB improvement based on SOTA TTT gains.
+Crashed at the parameter selection stage. One-line fix identified. Rerun pending.
 
-## Discussion
+## What I learned
 
-**What worked:** Partial depth recurrence with FiLM conditioning improves BPB while using 17% fewer parameters. The freed parameters allow the model to train faster per step (fewer bank weights to update) without sacrificing effective depth. The U-Net skip connections appear to interact well with shared blocks, as the encoder-decoder structure provides distinct gradient paths for different iterations of the same block.
+The recurrence result is clean. 17% fewer parameters, better BPB, and the ablation rules out FiLM as the source of improvement. The parameter sharing itself is what matters.
 
-**What surprised us:** FiLM conditioning on all layers without recurrence (Exp 3) hurts performance significantly (+0.037 BPB). We expected it to be neutral or slightly positive. This suggests that per-layer modulation adds optimization noise when the layers already have unique weights. The modulation is only beneficial when it serves a disambiguation purpose.
+The negative FiLM-only result (Exp 3) was the surprise. I expected adding per-layer modulation to be neutral at worst. Instead it degraded performance by 0.037 BPB. My best guess is that the extra degrees of freedom in the scale/shift vectors interfere with the Muon optimizer's ability to find good bank weight updates, since the FiLM params are on a separate optimizer (Adam) with different dynamics.
 
-**What we could not test:** Due to GPU credit constraints, we could not: (a) complete the TTT eval to verify FiLM-only TTT resolves the recurrence-TTT conflict, (b) try different recurrence patterns (e.g., sharing only MLP weights, or 3 shared blocks instead of 2), (c) reinvest freed parameters into wider layers rather than keeping model_dim=512.
+The thing I most wanted to test and could not: whether FiLM-only TTT actually resolves the recurrence/TTT conflict. The SOTA gets -0.0025 from TTT. If FiLM-only TTT on shared blocks recovers even half that, it would validate the core idea. The bug is genuinely trivial to fix, I just ran out of credits at the worst possible moment.
+
+Things worth trying that I did not get to:
+- Different recurrence patterns. We shared blocks at positions 3-4 and 9-10, which was a heuristic choice. Sharing the middle blocks (positions 4-6) might work better since they process more abstract features.
+- MLP-only sharing. Attention weights might need to be unique while MLP weights are more interchangeable.
+- Reinvesting freed parameters. We saved 4.7M parameters but did not use them. A wider model (model_dim=576?) or deeper model (13 virtual layers from 9 physical) could be better.
 
 ## Limitations
 
-- Trained on 1x H100, not 8x H100 SXM. Scores are not directly comparable to the leaderboard.
-- Only 4000 training iterations (vs ~7200 on 8xH100 within 10 min).
-- FiLM-only TTT was not successfully evaluated due to a bug + credit exhaustion.
-- Limited hyperparameter search. The recurrence pattern (which blocks to share) was chosen heuristically, not searched.
-- The sliding window BPB of 1.3151 is measured on 1xH100; on 8xH100 with full TTT the result would differ.
+- 1x H100, not 8x H100 SXM. Step time and total training time are not comparable to leaderboard submissions.
+- 4000 iterations vs the ~7200 that the SOTA achieves in 10 minutes on 8xH100.
+- No TTT results due to the bug + credit exhaustion.
+- Recurrence pattern was chosen by intuition, not searched.
+- The 1.3151 sliding window BPB would differ on 8xH100 with full TTT.
 
-## Run Command
+## Run command
 
 ```bash
 NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=1536 XSA_LAST_N=4 \
@@ -134,15 +142,15 @@ torchrun --standalone --nproc_per_node=1 train_gpt.py
 
 ## References
 
-- Universal Transformer (Dehghani et al., 2019)
-- FiLM: Visual Reasoning with a General Conditioning Layer (Perez et al., 2018)
-- Doya, K. (2002). Metalearning and neuromodulation. Neural Networks.
-- PR #549: LeakyReLU^2 + Legal TTT + Parallel Muon (abaybektursun)
-- PR #461: TTT recipe (Christopher-Lee-McClendon)
-- PR #399: Parameter Banking + Parallel Muon (abaybektursun)
-- PR #414: Base model stack (signalrush)
-- PR #493: LeakyReLU^2 activation (parinzee)
+- Dehghani et al. (2019). Universal Transformers. ICLR.
+- Perez et al. (2018). FiLM: Visual Reasoning with a General Conditioning Layer. AAAI.
+- Doya, K. (2002). Metalearning and neuromodulation. Neural Networks, 15(4-6), 495-506.
+- PR #549: LeakyReLU^2 + Legal TTT + Parallel Muon (@abaybektursun)
+- PR #461: TTT recipe (@Christopher-Lee-McClendon)
+- PR #399: Parameter Banking + Parallel Muon (@abaybektursun)
+- PR #414: Base model stack (@signalrush)
+- PR #493: LeakyReLU^2 activation (@parinzee)
 
 ## Credits
 
-This submission is built entirely on top of PR #549 by @abaybektursun, which itself integrates work from PRs #399, #414, #461, and #493. The novel contribution is the depth recurrence pattern, FiLM conditioning, and FiLM-only TTT design. Submission by Nir Mathur (@nirmathur), medical student at King's College London, applying neurophysiology principles to ML architecture design.
+Built on top of PR #549 by @abaybektursun, which integrates work from PRs #399, #414, #461, and #493. The novel parts are the depth recurrence pattern, FiLM conditioning, and FiLM-only TTT design. By Nir Mathur (@nirmathur), medical student at King's College London.
