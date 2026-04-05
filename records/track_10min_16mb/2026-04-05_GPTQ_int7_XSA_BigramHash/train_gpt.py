@@ -358,7 +358,7 @@ def eval_val_sliding(
 
 
 # -----------------------------
-# POST-TRAINING QUANTIZATION (int8 + LZMA)
+# POST-TRAINING QUANTIZATION (quant + LZMA)
 # -----------------------------
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
