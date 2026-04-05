@@ -14,7 +14,7 @@ Key architectural differences from baseline:
   - 16 layers × 16 heads × d=256 × 4x MLP (deeper + wider MLP than baseline)
   - No RoPE needed — positional info encoded in learned distances
 
-Architecture published: https://zenodo.org/records/15057868
+Architecture published: https://zenodo.org/records/19198177
 Research: 2x parameter efficiency at 30M scale, eliminates cornerstone layer
 pathology where vanilla transformers waste 70% of attention heads.
 

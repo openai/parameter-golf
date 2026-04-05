@@ -6,7 +6,7 @@
 
 ## Summary
 
-First non-dot-product attention submission. Replaces softmax attention with distance-based scoring in an indefinite inner product (Kreïn) space, using raw sigmoid gating instead of normalization.
+Replaces softmax attention with distance-based scoring in an indefinite inner product (Kreïn) space, using raw sigmoid gating instead of normalization.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ First non-dot-product attention submission. Replaces softmax attention with dist
 
 ## Prior work
 
-- Architecture published on Zenodo: https://zenodo.org/records/15057868
+- Architecture published on Zenodo: https://zenodo.org/records/19198177
 - 30M geometric model achieves 58 PPL vs 125 PPL for vanilla at same params (2.15x efficiency)
 - Causal ablation study shows geometric attention eliminates cornerstone layer pathology
 - Three independent papers (Nakanishi 2604.01178, Zhang et al. 2604.01193, + our work) converge on softmax normalization as root cause of transformer depth waste
