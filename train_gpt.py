@@ -19,7 +19,11 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
 
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    _HAS_FA3 = True
+except ImportError:
+    _HAS_FA3 = False
 
 try:
     import brotli
@@ -89,8 +93,8 @@ class Hyperparameters():
     warmdown_frac = float(os.environ.get('WARMDOWN_FRAC', 0.667))
     warmup_steps = int(os.environ.get('WARMUP_STEPS', 20))
     train_batch_tokens = int(os.environ.get('TRAIN_BATCH_TOKENS', 2048 * 48 * 8))
-    train_seq_len = int(os.environ.get('TRAIN_SEQ_LEN', 2048))
-    eval_seq_len = int(os.environ.get('EVAL_SEQ_LEN', 2048))
+    train_seq_len = int(os.environ.get('TRAIN_SEQ_LEN', 1024))
+    eval_seq_len = int(os.environ.get('EVAL_SEQ_LEN', 1024))
     max_wallclock_seconds = float(os.environ.get('MAX_WALLCLOCK_SECONDS', 600.0))
     train_log_every = int(os.environ.get('TRAIN_LOG_EVERY', 500))
 
@@ -100,7 +104,7 @@ class Hyperparameters():
     sliding_window_enabled = bool(int(os.environ.get('SLIDING_WINDOW_ENABLED', '1')))
 
     # Model architecture
-    vocab_size = int(os.environ.get('VOCAB_SIZE', 4096))
+    vocab_size = int(os.environ.get('VOCAB_SIZE', 1024))
     num_layers = int(os.environ.get('NUM_LAYERS', 11))
     xsa_last_n = int(os.environ.get('XSA_LAST_N', 11))
     num_kv_heads = int(os.environ.get('NUM_KV_HEADS', 4))
@@ -606,7 +610,16 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        if _HAS_FA3:
+            y = flash_attn_3_func(q, k, v, causal=True)
+        else:
+            q2 = q.transpose(1, 2)
+            k2 = k.transpose(1, 2)
+            v2 = v.transpose(1, 2)
+            y = F.scaled_dot_product_attention(
+                q2, k2, v2, attn_mask=None, is_causal=True,
+                enable_gqa=(self.num_kv_heads != self.num_heads))
+            y = y.transpose(1, 2)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
