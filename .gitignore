@@ -1,14 +1,56 @@
-data/tokenizers
+# -----------------------------
+# Python
+# -----------------------------
 __pycache__/
-.DS_Store
-modded-nanogpt/
-modded-nanogpt
-data/datasets
-data/manifest.json
-data/docs_selected.jsonl
-.mypy_cache/
-.venv
-logs/*.pt
-*.ptz
-data/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# -----------------------------
+# Logs
+# -----------------------------
+logs/
+*.log
+*.txt
+
+# BUT keep logs inside records (submission logs)
+!records/**/logs.txt
+
+# -----------------------------
+# Model files (very large)
+# -----------------------------
 *.pt
+*.ptz
+*.bin
+
+# -----------------------------
+# Data (huge)
+# -----------------------------
+data/
+datasets/
+*.npy
+
+# -----------------------------
+# Jupyter / temp
+# -----------------------------
+.ipynb_checkpoints/
+*.ipynb
+
+# -----------------------------
+# OS / Editor
+# -----------------------------
+.DS_Store
+.vscode/
+.idea/
+
+# -----------------------------
+# Misc
+# -----------------------------
+*.tmp
+*.cache
