@@ -1,6 +1,6 @@
 # Full-Depth MLP Megakernel + Fused Attention Preprocessing
 
-**val_bpb: PENDING** (3-seed mean) | **~15.9 MB** | 8xH100 SXM
+**val_bpb: 1.1310** (1-seed, SEED=1337) | **15.6 MB** | 8xH100 SXM, 600s
 
 ## The Idea: What if a Video Rendering Engine Architecture Could Train Transformers Faster?
 
@@ -29,10 +29,9 @@ This cross-domain transfer produced two novel contributions, an honest failure, 
 
 | Seed | Steps | ms/step | Pre-quant BPB | Sliding BPB | Artifact |
 |------|-------|---------|---------------|-------------|----------|
-| 1337 | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 42 | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 2025 | PENDING | PENDING | PENDING | PENDING | PENDING |
-| **Mean** | | | | **PENDING** | |
+| 1337 | 4,917 | 122.0 | 1.1500 | **1.1310** | 15,597,863 |
+
+Seeds 42 and 2025 blocked by compute budget exhaustion. Awaiting grant approval for additional validation runs.
 
 ## Local Development Benchmarks (RTX 5070 Ti, 1 GPU, 500 steps)
 
@@ -90,9 +89,9 @@ We instead fuse the post-projection operations (QK RMSNorm + RoPE + q_gain) into
 
 **Memory:** 41% reduction vs SOTA baseline (1562 MiB vs 2656 MiB on RTX 5070 Ti local dev)
 
-**Speed:** On consumer GPUs (101KB SRAM), the tiled matmul accumulation in the MLP megakernel is ~15% slower than cuBLAS due to many small `tl.dot` operations vs cuBLAS's large single matmuls. On H100 (228KB SRAM), PENDING -- the larger tiles and bandwidth-bound regime should favor the megakernel.
+**Speed:** On H100, the megakernel is 41% slower per step (122ms vs SOTA's 86.7ms), resulting in 2,005 fewer training steps and +0.016 BPB. This is worse than the 15% slowdown on consumer GPUs -- H100's stronger cuBLAS tensor cores widen the gap between hand-tiled `tl.dot` and optimized GEMMs. The Tile Engine hypothesis (larger SRAM would help) was wrong: more SRAM doesn't overcome the structural disadvantage of replacing cuBLAS.
 
-The MLP megakernel trades compute efficiency for memory bandwidth efficiency. This tradeoff favors bandwidth-bound scenarios (larger batch sizes, longer sequences, multi-GPU with large grad accumulation). The H100's 3.35 TB/s HBM3e bandwidth and 228KB shared memory are the target operating point.
+The 41% memory reduction (local) is confirmed on H100 at 19.6% VRAM utilization (15.7 GiB / 80 GiB). The planned follow-up submission will partner with cuBLAS via epilogue/prologue fusion rather than replacing it.
 
 Kernel launch count reduced from ~17 per transformer block to ~10 per block (~110 vs ~187 per forward+backward step).
 
