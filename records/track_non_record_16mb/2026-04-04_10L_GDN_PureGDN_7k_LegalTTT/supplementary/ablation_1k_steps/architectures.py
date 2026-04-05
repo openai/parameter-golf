@@ -505,6 +505,11 @@ class HybridGDN(nn.Module):
 
                 layer_idx += 1
 
+        # KV sharing: share k/v projections between adjacent layers
+        kv_stride = config.get("kv_sharing_stride", 0)
+        if kv_stride > 0:
+            self._apply_kv_sharing(kv_stride)
+
         self.final_norm = RMSNorm(dim)
         # Tied embeddings (standard for parameter golf)
         self.lm_head = None  # use tok_emb.weight
@@ -549,6 +554,45 @@ class HybridGDN(nn.Module):
                 layer_idx=layer_idx,
                 mode="chunk",
             )
+
+    def _apply_kv_sharing(self, stride: int) -> None:
+        """Share KV projection modules between adjacent layer groups.
+
+        For GDN layers: shares k_proj, v_proj, k_conv1d, v_conv1d.
+        For SWA layers: shares c_k, c_v.
+        The first layer in each group is the anchor; subsequent layers in the
+        group become followers that reference the anchor's modules.
+        """
+        # Collect indices by block type
+        gdn_indices = [i for i, t in enumerate(self._block_types) if t == "gdn"]
+        swa_indices = [i for i, t in enumerate(self._block_types)
+                       if t in ("swa", "swa_shared")]
+
+        # Share GDN KV projections within each stride-group
+        for group_start in range(0, len(gdn_indices), stride):
+            anchor_idx = gdn_indices[group_start]
+            anchor = self.blocks[anchor_idx].recurrent
+            for j in range(1, stride):
+                if group_start + j >= len(gdn_indices):
+                    break
+                follower_idx = gdn_indices[group_start + j]
+                follower = self.blocks[follower_idx].recurrent
+                follower.k_proj = anchor.k_proj
+                follower.v_proj = anchor.v_proj
+                follower.k_conv1d = anchor.k_conv1d
+                follower.v_conv1d = anchor.v_conv1d
+
+        # Share SWA KV projections within each stride-group
+        for group_start in range(0, len(swa_indices), stride):
+            anchor_idx = swa_indices[group_start]
+            anchor = self.blocks[anchor_idx].attn
+            for j in range(1, stride):
+                if group_start + j >= len(swa_indices):
+                    break
+                follower_idx = swa_indices[group_start + j]
+                follower = self.blocks[follower_idx].attn
+                follower.c_k = anchor.c_k
+                follower.c_v = anchor.c_v
 
     def _init_weights(self) -> None:
         """Weight initialization.
