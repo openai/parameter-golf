@@ -699,7 +699,18 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        # Embedding mixup: interpolate adjacent token embeddings (genetic recombination)
+        embed_mixup = float(os.environ.get("EMBED_MIXUP", "0"))
+        if embed_mixup > 0 and self.training:
+            shifted = torch.roll(x, 1, dims=1)
+            alpha = embed_mixup * torch.rand(x.shape[0], x.shape[1], 1, device=x.device, dtype=x.dtype)
+            x = (1 - alpha) * x + alpha * shifted
         x = F.rms_norm(x, (x.size(-1),))
+        # Token dropout: randomly zero out token representations (synaptic pruning)
+        token_drop = float(os.environ.get("TOKEN_DROP", "0"))
+        if token_drop > 0 and self.training:
+            mask = torch.rand(x.shape[0], x.shape[1], 1, device=x.device, dtype=x.dtype) > token_drop
+            x = x * mask / (1.0 - token_drop)
         x0 = x
         skips: list[Tensor] = []
 
@@ -723,12 +734,26 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         # Focal loss: down-weight easy tokens, focus on hard ones (training only)
         focal_gamma = float(os.environ.get("FOCAL_GAMMA", "0"))
+        # Gamma annealing: decay gamma from initial value to 0 over training
+        if hasattr(self, '_gamma_anneal') and self._gamma_anneal and hasattr(self, '_training_progress'):
+            focal_gamma = focal_gamma * (1.0 - self._training_progress)
+        # Z-loss regularizer (PaLM paper): penalize log(Z) to stabilize logits
+        z_loss_coeff = float(os.environ.get("Z_LOSS", "0"))
+        # Logit penalty: L2 penalty on logits to prevent overconfidence
+        logit_penalty = float(os.environ.get("LOGIT_PENALTY", "0"))
         if focal_gamma > 0 and self.training:
             ce = F.cross_entropy(logits.float(), targets, reduction="none")
             pt = torch.exp(-ce)  # probability of correct class
             focal_weight = (1 - pt) ** focal_gamma
-            return (focal_weight * ce).mean()
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+            loss = (focal_weight * ce).mean()
+        else:
+            loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        if z_loss_coeff > 0 and self.training:
+            log_z = torch.logsumexp(logits.float(), dim=-1)
+            loss = loss + z_loss_coeff * (log_z ** 2).mean()
+        if logit_penalty > 0 and self.training:
+            loss = loss + logit_penalty * (logits.float() ** 2).mean()
+        return loss
 
 
 # -----------------------------
@@ -928,14 +953,19 @@ def main() -> None:
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
+    # Gamma annealing setup
+    model._gamma_anneal = int(os.environ.get("GAMMA_ANNEAL", "0")) > 0
+
     def lr_mul(step: int, elapsed_ms: float) -> float:
         import math
         cosine_sched = int(os.environ.get("COSINE_LR", "0"))
         if cosine_sched:
-            # Cosine annealing from 1.0 to 0.1 over full training
+            # Cosine annealing from 1.0 to 0.1, supports multi-cycle
             min_lr_frac = 0.1
+            num_cycles = int(os.environ.get("COSINE_CYCLES", "1"))
             progress = step / max(args.iterations, 1)
-            return min_lr_frac + 0.5 * (1.0 - min_lr_frac) * (1.0 + math.cos(math.pi * progress))
+            cycle_progress = (progress * num_cycles) % 1.0
+            return min_lr_frac + 0.5 * (1.0 - min_lr_frac) * (1.0 + math.cos(math.pi * cycle_progress))
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
@@ -1027,6 +1057,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                model._training_progress = step / max(args.iterations, 1)
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
