@@ -116,13 +116,11 @@ In this implementation, every target token is intended to be scored before any g
 
 | Component | Bytes |
 |---|---|
-| Model (int6 + GPTQ + zstd-22) | 15,172,519 (max across seeds; 15.17 MB decimal / 14.48 MiB) |
-| Code (train_gpt.py) | ~83,000 (estimated) |
-| **Total** | **~15,255,519** |
+| Model (int6 + GPTQ + zstd-22) | 15,170,538 (seed 42; max across seeds: 15,172,519 = 15.17 MB decimal / 14.48 MiB) |
+| Code (train_gdn_7k.py + architectures.py + configs.py + eval_ttt.py + requirements.txt) | 104,167 |
+| **Total** | **15,274,705** |
 | Limit | 16,000,000 |
-| Headroom (model only) | ~827,481 (5.2%) |
-
-Note: The code size will vary with the final packaging; total depends on the bundled `train_gpt.py`.
+| Headroom | 725,295 (4.5%) |
 
 ## Eval Legality
 
@@ -152,14 +150,28 @@ These comparisons are included only as context. They are not claims of a like-fo
 
 ```bash
 # Environment: Python 3.12, PyTorch 2.x with CUDA, FLA v0.4.2
-# Training (2×A100):
-SEED=42 \
-python train_gdn_7k.py  # or via SLURM: see supplementary/slurm_train_2xA100.sh
+pip install -r requirements.txt  # installs flash-linear-attention + zstandard
 
-# Evaluation with TTT:
-ARTIFACT_PATH=final_model.int6.ptz ARCH_MODE=A_PureGDN TTT_ENABLED=1 \
-python eval_ttt.py
+# Training (2×A100, ~4.8h per seed):
+SEED=42 torchrun --standalone --nproc_per_node=2 train_gdn_7k.py
+# Or via SLURM: see supplementary/slurm_train_2xA100.sh
+
+# Evaluation with TTT (1×A100, ~35min):
+ARTIFACT_PATH=final_model.int6.ptz ARCH_MODE=A TTT_ENABLED=1 \
+  TTT_LR=0.002 TTT_EPOCHS=3 TTT_CHUNK_TOKENS=32768 TTT_FREEZE_BLOCKS=2 \
+  python eval_ttt.py
+# Or via SLURM: see supplementary/slurm_eval_legal_ttt.sh
 ```
+
+## Code Structure
+
+| File | Lines | Description |
+|---|---|---|
+| `train_gdn_7k.py` | 1,162 | Main training script (data loading, optimizer, training loop, GPTQ, SWA) |
+| `architectures.py` | 661 | Model definition (HybridGDN, RecurrentBlock, MLP, BigramHash, CastedLinear) |
+| `configs.py` | 202 | Architecture configurations (model A = PureGDN used here) |
+| `eval_ttt.py` | 467 | Evaluation with sliding-window + legal score-first TTT |
+| `requirements.txt` | — | Extra pip deps beyond the repo-root requirements.txt |
 
 ## Supplementary Files
 

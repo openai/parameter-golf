@@ -1,0 +1,7 @@
+# GDN PureGDN requirements (beyond the base parameter-golf requirements.txt)
+# Install with: pip install -r requirements.txt
+#
+# Base deps (torch, numpy, sentencepiece, etc.) are in the repo-root requirements.txt
+
+flash-linear-attention==0.4.2   # Gated DeltaNet (GDN) layers + Triton kernels
+zstandard                       # zstd decompression for .int6.ptz artifacts

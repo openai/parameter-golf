@@ -2,7 +2,7 @@
   "author": "Christopher-Lee-McClendon",
   "github_id": "Christopher-Lee-McClendon",
   "name": "10L Gated DeltaNet (PureGDN) 7k Steps — Legal TTT",
-  "blurb": "10-layer Gated DeltaNet (linear attention via FLA v0.4.2) replacing softmax attention entirely. BigramHash(3072,112) with trigram extension. 7k training steps on 2xA100-40GB with EMA+SWA+Late-QAT+GPTQ int6 quantization. Legal score-first TTT (SGD momentum 0.9, 3 epochs, freeze first 2 blocks). 3-seed exact mean: 1.003028 BPB (pre-TTT: 1.007803). First sub-1.01 BPB with a non-transformer architecture.",
+  "blurb": "10-layer Gated DeltaNet (linear attention via FLA v0.4.2) replacing softmax attention. BigramHash(3072,112) with trigram extension. 7k training steps on 2xA100-40GB with EMA+SWA+Late-QAT+GPTQ int6 quantization. Legal score-first TTT (SGD momentum 0.9, 3 epochs, freeze first 2 blocks). 3-seed mean: 1.003028 BPB (pre-TTT: 1.007803).",
   "date": "2026-04-04",
   "track": "non_record_16mb",
   "val_loss": 1.99340370,
