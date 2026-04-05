@@ -1,0 +1,61 @@
+{
+  "author": "Christopher-Lee-McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "10L Gated DeltaNet (PureGDN) 7k Steps — Legal TTT",
+  "blurb": "10-layer Gated DeltaNet (linear attention via FLA v0.4.2) replacing softmax attention entirely. BigramHash(3072,112) with trigram extension. 7k training steps on 2xA100-40GB with EMA+SWA+Late-QAT+GPTQ int6 quantization. Legal score-first TTT (SGD momentum 0.9, 3 epochs, freeze first 2 blocks). 3-seed exact mean: 1.003028 BPB (pre-TTT: 1.007803). First sub-1.01 BPB with a non-transformer architecture.",
+  "date": "2026-04-04",
+  "track": "non_record_16mb",
+  "val_loss": 1.99340370,
+  "val_bpb": 1.00302775,
+  "val_loss_std": 0.001401,
+  "val_bpb_std": 0.000705,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.99496609,
+      "val_bpb": 1.00381390,
+      "val_loss_prettt": 2.00471464,
+      "val_bpb_prettt": 1.00871911,
+      "artifact_bytes": 15170538,
+      "slurm_train_job": 55486643,
+      "slurm_eval_job": 55508767,
+      "training_time_s": 17386,
+      "eval_time_s": 2107
+    },
+    "1337": {
+      "val_loss": 1.99226049,
+      "val_bpb": 1.00245252,
+      "val_loss_prettt": 2.00181789,
+      "val_bpb_prettt": 1.00726155,
+      "artifact_bytes": 15143381,
+      "slurm_train_job": 55511207,
+      "slurm_eval_job": 55518092,
+      "training_time_s": 17427,
+      "eval_time_s": 2115
+    },
+    "2025": {
+      "val_loss": 1.99298452,
+      "val_bpb": 1.00281683,
+      "val_loss_prettt": 2.00214890,
+      "val_bpb_prettt": 1.00742810,
+      "artifact_bytes": 15172519,
+      "slurm_train_job": 55511287,
+      "slurm_eval_job": 55518093,
+      "training_time_s": 17427,
+      "eval_time_s": 2125
+    }
+  },
+  "comparison_10min_sota_pr": 1019,
+  "delta_vs_10min_sota_bpb": -0.111707,
+  "t_statistic_vs_10min_sota": -274.53,
+  "p_value_vs_10min_sota": 6.63e-06,
+  "artifact_bytes_mean": 15162146,
+  "artifact_bytes_max": 15172519,
+  "hardware": "2xA100-PCIE-40GB (NCSA Delta)",
+  "pytorch_version": "2.x",
+  "fla_version": "0.4.2",
+  "architecture": "Gated DeltaNet (PureGDN)",
+  "num_layers": 10,
+  "num_parameters": 29926689,
+  "technique_summary": "10L GDN (linear attention via delta-rule gating) + BigramHash 3072x112 trigram + EMA + SWA + Late-QAT + GPTQ int6 + zstd-22 + Legal TTT (SGD momentum, freeze-2, 3-epoch)"
+}

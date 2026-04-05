@@ -1,0 +1,149 @@
+=== GDN Hybrid 7k Full Training ===
+Arch: A_PureGDN (ARCH_MODE=A)
+Seed: 42, Steps: 7000, Warmdown: 2100
+World size: 2, Grad accum: 4
+EMA decay: 0.997, SWA: True (every 50)
+Late QAT threshold: 0.15
+Validation tokens: 62,021,632
+Model built in 0.2s
+Parameters: {'embedding': 925697, 'recurrent': 13251360, 'attention': 5120, 'mlp': 15733760, 'other': 10752, 'total': 29926689}
+Total params: 29,926,689
+Matrix params: 29,329,408
+Scalar params: 72,993
+Embed params: 524,288
+Generated coprime shard order: stride across 80 shards
+
+================================================================================
+Starting training: 7000 steps (from step 0)
+================================================================================
+
+step     1/7000 | loss 6.9359 | lr_mul 0.0500 | mom 0.850 | 0.01 steps/s | 109s
+step     2/7000 | loss 6.7118 | lr_mul 0.1000 | mom 0.850 | 0.02 steps/s | 110s
+step     3/7000 | loss 6.1741 | lr_mul 0.1500 | mom 0.851 | 0.03 steps/s | 112s
+step     4/7000 | loss 5.8703 | lr_mul 0.2000 | mom 0.851 | 0.04 steps/s | 113s
+step     5/7000 | loss 5.8158 | lr_mul 0.2500 | mom 0.851 | 0.04 steps/s | 115s
+step     6/7000 | loss 5.7867 | lr_mul 0.3000 | mom 0.851 | 0.05 steps/s | 116s
+step     7/7000 | loss 5.7412 | lr_mul 0.3500 | mom 0.851 | 0.06 steps/s | 118s
+step     8/7000 | loss 5.7243 | lr_mul 0.4000 | mom 0.852 | 0.07 steps/s | 119s
+step     9/7000 | loss 5.6037 | lr_mul 0.4500 | mom 0.852 | 0.07 steps/s | 121s
+step    10/7000 | loss 5.5840 | lr_mul 0.5000 | mom 0.852 | 0.08 steps/s | 122s
+step   100/7000 | loss 3.7103 | lr_mul 1.0000 | mom 0.870 | 0.38 steps/s | 262s
+step   200/7000 | loss 2.9405 | lr_mul 1.0000 | mom 0.890 | 0.48 steps/s | 416s
+step   300/7000 | loss 2.6392 | lr_mul 1.0000 | mom 0.910 | 0.53 steps/s | 571s
+step   400/7000 | loss 2.5143 | lr_mul 1.0000 | mom 0.930 | 0.55 steps/s | 725s
+step   500/7000 | loss 2.4371 | lr_mul 1.0000 | mom 0.950 | 0.57 steps/s | 879s
+step   500 | val_loss 2.3615 | val_bpb 1.1882
+step   600/7000 | loss 2.3920 | lr_mul 1.0000 | mom 0.950 | 0.39 steps/s | 1544s
+step   700/7000 | loss 2.3611 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 1698s
+step   800/7000 | loss 2.3263 | lr_mul 1.0000 | mom 0.950 | 0.43 steps/s | 1852s
+step   900/7000 | loss 2.3001 | lr_mul 1.0000 | mom 0.950 | 0.45 steps/s | 2006s
+step  1000/7000 | loss 2.2815 | lr_mul 1.0000 | mom 0.950 | 0.46 steps/s | 2160s
+step  1000 | val_loss 2.2204 | val_bpb 1.1173
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step1000_seed42.pt
+step  1100/7000 | loss 2.2538 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 2775s
+step  1200/7000 | loss 2.2425 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 2929s
+step  1300/7000 | loss 2.2303 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 3083s
+step  1400/7000 | loss 2.2200 | lr_mul 1.0000 | mom 0.950 | 0.43 steps/s | 3237s
+step  1500/7000 | loss 2.2150 | lr_mul 1.0000 | mom 0.950 | 0.44 steps/s | 3391s
+step  1500 | val_loss 2.1661 | val_bpb 1.0899
+step  1600/7000 | loss 2.2329 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 4005s
+step  1700/7000 | loss 2.2062 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 4159s
+step  1800/7000 | loss 2.1888 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 4314s
+step  1900/7000 | loss 2.1886 | lr_mul 1.0000 | mom 0.950 | 0.43 steps/s | 4467s
+step  2000/7000 | loss 2.1874 | lr_mul 1.0000 | mom 0.950 | 0.43 steps/s | 4622s
+step  2000 | val_loss 2.1376 | val_bpb 1.0756
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step2000_seed42.pt
+step  2100/7000 | loss 2.1867 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 5236s
+step  2200/7000 | loss 2.1811 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 5390s
+step  2300/7000 | loss 2.1787 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 5544s
+step  2400/7000 | loss 2.1775 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 5698s
+step  2500/7000 | loss 2.1639 | lr_mul 1.0000 | mom 0.950 | 0.43 steps/s | 5852s
+step  2500 | val_loss 2.1202 | val_bpb 1.0668
+step  2600/7000 | loss 2.1675 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 6466s
+step  2700/7000 | loss 2.1692 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 6621s
+step  2800/7000 | loss 2.1591 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 6775s
+step  2900/7000 | loss 2.1549 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 6928s
+step  3000/7000 | loss 2.1638 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 7082s
+step  3000 | val_loss 2.1040 | val_bpb 1.0587
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step3000_seed42.pt
+step  3100/7000 | loss 2.1450 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 7697s
+step  3200/7000 | loss 2.1511 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 7851s
+step  3300/7000 | loss 2.1533 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 8005s
+step  3400/7000 | loss 2.1553 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 8159s
+step  3500/7000 | loss 2.1599 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 8313s
+step  3500 | val_loss 2.0952 | val_bpb 1.0543
+step  3600/7000 | loss 2.1491 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 8927s
+step  3700/7000 | loss 2.1498 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 9081s
+step  3800/7000 | loss 2.1497 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 9235s
+step  3900/7000 | loss 2.1476 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 9389s
+step  4000/7000 | loss 2.1456 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 9543s
+step  4000 | val_loss 2.0869 | val_bpb 1.0501
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step4000_seed42.pt
+step  4100/7000 | loss 2.1486 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 10157s
+step  4200/7000 | loss 2.1428 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 10312s
+step  4300/7000 | loss 2.1447 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 10465s
+step  4400/7000 | loss 2.1416 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 10619s
+step  4500/7000 | loss 2.1374 | lr_mul 1.0000 | mom 0.950 | 0.42 steps/s | 10774s
+step  4500 | val_loss 2.0793 | val_bpb 1.0463
+step  4600/7000 | loss 2.1337 | lr_mul 1.0000 | mom 0.950 | 0.40 steps/s | 11388s
+step  4700/7000 | loss 2.1468 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 11541s
+step  4800/7000 | loss 2.1257 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 11695s
+step  4900/7000 | loss 2.1239 | lr_mul 1.0000 | mom 0.950 | 0.41 steps/s | 11849s
+step  5000/7000 | loss 2.1262 | lr_mul 0.9944 | mom 0.950 | 0.42 steps/s | 12003s
+step  5000 | val_loss 2.0762 | val_bpb 1.0447
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step5000_seed42.pt
+step  5100/7000 | loss 2.1217 | lr_mul 0.9778 | mom 0.950 | 0.40 steps/s | 12618s
+step  5200/7000 | loss 2.1275 | lr_mul 0.9505 | mom 0.950 | 0.41 steps/s | 12772s
+step  5300/7000 | loss 2.1149 | lr_mul 0.9131 | mom 0.950 | 0.41 steps/s | 12926s
+step  5400/7000 | loss 2.1121 | lr_mul 0.8665 | mom 0.950 | 0.41 steps/s | 13080s
+step  5500/7000 | loss 2.1198 | lr_mul 0.8117 | mom 0.950 | 0.42 steps/s | 13234s
+step  5500 | val_loss 2.0525 | val_bpb 1.0328
+step  5600/7000 | loss 2.1018 | lr_mul 0.7500 | mom 0.950 | 0.40 steps/s | 13848s
+step  5700/7000 | loss 2.1028 | lr_mul 0.6827 | mom 0.950 | 0.41 steps/s | 14002s
+step  5800/7000 | loss 2.0790 | lr_mul 0.6113 | mom 0.950 | 0.41 steps/s | 14156s
+step  5900/7000 | loss 2.0642 | lr_mul 0.5374 | mom 0.950 | 0.41 steps/s | 14310s
+step  6000/7000 | loss 2.0702 | lr_mul 0.4626 | mom 0.950 | 0.41 steps/s | 14464s
+step  6000 | val_loss 2.0158 | val_bpb 1.0143
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step6000_seed42.pt
+step  6100/7000 | loss 2.0680 | lr_mul 0.3887 | mom 0.950 | 0.40 steps/s | 15078s
+step  6200/7000 | loss 2.0561 | lr_mul 0.3173 | mom 0.950 | 0.41 steps/s | 15232s
+step  6300/7000 | loss 2.0560 | lr_mul 0.2500 | mom 0.950 | 0.41 steps/s | 15386s
+SWA started at step 6400
+step  6400/7000 | loss 2.0419 | lr_mul 0.1883 | mom 0.950 | 0.41 steps/s | 15540s
+Late QAT enabled at step 6469 (lr_mul=0.1496)
+step  6500/7000 | loss 2.0368 | lr_mul 0.1335 | mom 0.950 | 0.41 steps/s | 15694s
+step  6500 | val_loss 1.9978 | val_bpb 1.0053
+step  6600/7000 | loss 2.0549 | lr_mul 0.0869 | mom 0.950 | 0.40 steps/s | 16308s
+step  6700/7000 | loss 2.0341 | lr_mul 0.0495 | mom 0.950 | 0.41 steps/s | 16463s
+step  6800/7000 | loss 2.0328 | lr_mul 0.0222 | mom 0.950 | 0.41 steps/s | 16617s
+step  6900/7000 | loss 2.0347 | lr_mul 0.0056 | mom 0.950 | 0.41 steps/s | 16771s
+step  7000/7000 | loss 2.0331 | lr_mul 0.0000 | mom 0.950 | 0.41 steps/s | 16926s
+step  7000 | val_loss 1.9919 | val_bpb 1.0023
+  Saved: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/gdn_hybrid/checkpoints/7k_v2/A_PureGDN_step7000_seed42.pt
+
+Training complete in 17386s
+Peak memory: 30990 MiB
+
+=== Applying EMA weights ===
+EMA BPB (no XSA): 0.997002
+Saved raw EMA model
+
+=== GPTQ: generating autoregressive calibration data ===
+GPTQ: generated 64 sequences, collecting hessians...
+GPTQ: collected hessians for 21 layers
+
+=== Quantizing to int6 + zstd-22 ===
+Artifact: 15,170,538 bytes (14.47 MB)
+
+=== Roundtrip Validation (quantized model) ===
+Quantized BPB (no XSA): 1.008508
+Quantization degradation: +0.011506
+
+================================================================================
+FINAL RESULTS — A_PureGDN seed=42
+  Training: 7000 steps, 17386s
+  EMA BPB (fp32):     0.997002
+  Quantized BPB:      1.008508
+  Artifact size:      15,170,538 bytes
+================================================================================
+final_int6_roundtrip_exact val_loss:2.00429425 val_bpb:1.00850758
