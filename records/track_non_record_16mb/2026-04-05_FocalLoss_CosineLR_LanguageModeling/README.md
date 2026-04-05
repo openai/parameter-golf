@@ -166,6 +166,18 @@ Systematic sweep on $0.20/hr GPU, testing dozens of techniques at 1000-5000 step
 - Focal γ=10 at 3000 steps: 1.1806 (still improving vs γ=8 at 3000)
 - Focal γ=8 + asymmetric at 5000 steps: 1.1567 (confirmed)
 
+### Phase 4: SOTA Stack Validation (PR #549 code)
+
+Applied focal loss + cosine LR + asymmetric split to the **actual SOTA train_gpt.py** (LeakyReLU² + XSA + Parallel Muon + EMA + gated attention). Ran on single RTX 4000 Ada with FA2 fallback:
+
+| Config | Pre-quant val_bpb | int6 roundtrip BPB |
+|--------|-------------------|-------------------|
+| SOTA baseline | 1.7927 | 1.7817 |
+| **SOTA + Focal γ=2 + Cosine + Asym** | **1.5035** | **1.5926** |
+| **Delta** | **-0.289** | **-0.189** |
+
+**Focal loss transfers to the SOTA stack.** The pre-quant improvement (-0.289) is even larger than on baseline code. Only γ=2 was tested on SOTA due to slow eval pipeline on single GPU (sliding window eval takes 30+ min per experiment). Higher gamma values would likely show further improvement based on baseline code trends.
+
 ## Experimental Setup
 
 - **GPU**: Single RTX 4000 Ada 20GB (RunPod, $0.20/hr)
