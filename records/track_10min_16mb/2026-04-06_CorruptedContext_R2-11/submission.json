@@ -1,0 +1,21 @@
+{
+  "author": "clthuang",
+  "github_id": "clthuang",
+  "name": "Corrupted Context Training + R1-5 Stack (LeakyReLU² + BigramHash + XSA + ValueResidual)",
+  "blurb": "11L/3x LeakyReLU(0.5)² + BigramHash(3072,128) + XSA last 4 + Value Residual + U-Net skips + 10% corrupted context training. int8 per-row quantization + zlib compression.",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "val_loss": -1,
+  "val_bpb": -1,
+  "val_loss_std": -1,
+  "val_bpb_std": -1,
+  "seeds": [42, 137, 256],
+  "seed_results": {
+    "42": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1},
+    "137": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1},
+    "256": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1}
+  },
+  "bytes_total": -1,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Corrupted context 10% + LeakyReLU² + BigramHash 3072 + XSA4 + Value Residual + Muon + int8+zlib"
+}
