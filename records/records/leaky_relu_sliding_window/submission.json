@@ -1,0 +1,7 @@
+json{
+  "name": "NICOH-YAY",
+  "github_id": "NICOH-YAY",
+  "val_bpb": 1.2634,
+  "hardware": "2xH100",
+  "notes": "LeakyReLU + sliding window eval + zstd"
+}
