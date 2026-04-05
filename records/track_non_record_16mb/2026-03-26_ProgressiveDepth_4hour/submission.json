@@ -1,0 +1,19 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Progressive Depth 4-Hour: Depth Recurrence Scaling Study",
+  "blurb": "4-hour unlimited compute run exploring how depth recurrence scales. 3 shared blocks, progressive depth 2\u21923\u21924\u21925 repeats (15 effective layers), 132K steps, 38 SWA checkpoints, Hedge Mixer eval. First data point on depth recurrence scaling with compute.",
+  "date": "2026-03-26T19:00:00Z",
+  "val_loss": 1.83860318,
+  "val_bpb": 1.08892390,
+  "sliding_val_loss": 1.90311353,
+  "sliding_val_bpb": 1.12713055,
+  "roundtrip_val_loss": 1.96078305,
+  "roundtrip_val_bpb": 1.16128616,
+  "step_stop": 132937,
+  "wallclock_seconds": 14400.160,
+  "eval_seconds": 695.601,
+  "bytes_total": 15888183,
+  "bytes_model_int8_zstd22": 15822329,
+  "bytes_code": 65854
+}
