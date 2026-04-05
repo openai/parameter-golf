@@ -155,7 +155,6 @@ TTT_LR = float(os.environ.get("TTT_LR", "0.001"))
 TTT_EPOCHS = int(os.environ.get("TTT_EPOCHS", "5"))
 TTT_CHUNK = int(os.environ.get("TTT_CHUNK", "32768"))
 TTT_GRAD_CLIP = float(os.environ.get("TTT_GRAD_CLIP", "1.0"))
-TTT_DECAY = float(os.environ.get("TTT_DECAY", "0.001"))
 TTT_Q_ONLY = bool(int(os.environ.get("TTT_Q_ONLY", "1")))
 
 _QAT = {"on": False}
@@ -229,7 +228,7 @@ def _gptq_quantize_weight(W: Tensor, H: Tensor, qmax: int) -> tuple[Tensor, Tens
                 W[:, j + 1:j2] -= err.unsqueeze(1) * Hinv_blk[jl, jl + 1:].unsqueeze(0)
 
         if j2 < n_cols:
-            W[:, j2:] -= Err @ (Hinv[j1:j2, j2:] / Hinv[j1:j2, j1:j2].diag().clamp_min(1e-10).unsqueeze(1))
+            W[:, j2:] -= Err @ Hinv[j1:j2, j2:]
 
     return Q.cpu().contiguous(), scale.cpu().to(dtype=torch.float16).contiguous()
 
@@ -240,9 +239,17 @@ def _collect_hessians(model: nn.Module, data_pattern: str, device: torch.device,
     if not files:
         return {}
     hdr_bytes = 256 * np.dtype("<i4").itemsize
-    hdr = np.fromfile(files[0], dtype="<i4", count=256)
-    ntok = min(int(hdr[2]), n_batches * seq_len + 1)
-    tokens = np.fromfile(files[0], dtype="<u2", count=ntok, offset=hdr_bytes)
+    all_tokens = []
+    remaining = n_batches * seq_len + 1
+    for f in files:
+        if remaining <= 0:
+            break
+        hdr = np.fromfile(f, dtype="<i4", count=256)
+        ntok = min(int(hdr[2]), remaining)
+        tok = np.fromfile(f, dtype="<u2", count=ntok, offset=hdr_bytes)
+        all_tokens.append(tok)
+        remaining -= len(tok)
+    tokens = np.concatenate(all_tokens) if all_tokens else np.array([], dtype=np.uint16)
     n_seqs = min(n_batches, (len(tokens) - 1) // seq_len)
     if n_seqs < 1:
         return {}
@@ -843,7 +850,7 @@ patch(
     if t32.ndim == 2:
         if GPTQ_CLIP_SEARCH and t32.numel():
             best_q = best_scale = None
-            best_mse = torch.full((t32.shape[0],), float('inf'))
+            best_mse = torch.full((t32.shape[0],), float('inf'), device=t32.device)
             for pct in GPTQ_PERCENTILES:
                 ca = t32.abs().amax(dim=1) if pct >= 1.0 else torch.quantile(t32.abs(), pct, dim=1)
                 sc = (ca / float(qmax)).clamp_min(1.0 / float(qmax))
@@ -966,7 +973,8 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
         _tobj, _ = quantize_state_dict_int8(base_model.state_dict())
         _tbuf = io.BytesIO()
         torch.save(_tobj, _tbuf)
-        _tsz = len(brotli.compress(_tbuf.getvalue(), quality=11))
+        _tsz = len(brotli.compress(_tbuf.getvalue(), quality=4))
+        del _tobj, _tbuf; import gc as _gc; _gc.collect()
         if _tsz + _code_bytes <= 16_000_000:
             _lo = _mid
         else:
@@ -983,9 +991,10 @@ patch('    if master_process:\n        torch.save(base_model.state_dict(), "fina
             _tbuf = io.BytesIO()
             torch.save(_tobj, _tbuf)
             _tsz = len(brotli.compress(_tbuf.getvalue(), quality=11))
+            del _tobj, _tbuf; import gc as _gc2; _gc2.collect()
             if _tsz + _code_bytes <= 16_000_000:
                 globals()["BLOCK_QUANT_MAX"] = _try_qmax
-                log0(f"raki_v11:gptq_final_qmax={_try_qmax} est_bytes={_tsz + _code_bytes}")
+                log0(f"raki_v11:final_qmax={_try_qmax} bytes={_tsz + _code_bytes}")
                 break
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")''',
@@ -1024,12 +1033,11 @@ patch(
         # Save pre-TTT weights for decay prior
         _pre_ttt = {id(p): p.data.clone() for p in ttt_params}
 
-        ttt_opt = torch.optim.AdamW(ttt_params, lr=TTT_LR, weight_decay=0.0)
         seq_len = args.train_seq_len
         total_val = val_tokens.numel() - 1
         n_chunks = max(1, total_val // TTT_CHUNK)
         ttt_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
-        ttt_tok_count = torch.zeros((), device=device, dtype=torch.float64)
+        ttt_tok_count = 0
         ttt_byte_count = torch.zeros((), device=device, dtype=torch.float64)
         stride = EVAL_STRIDE if 0 < EVAL_STRIDE < seq_len else seq_len
 
@@ -1081,11 +1089,7 @@ patch(
                     for pg in ttt_opt.param_groups:
                         pg["lr"] = _cos_lr
                     ttt_opt.step()
-                    # Decay prior: pull toward pre-TTT weights
-                    if TTT_DECAY > 0:
-                        with torch.no_grad():
-                            for p in ttt_params:
-                                p.data.add_(_pre_ttt[id(p)] - p.data, alpha=TTT_DECAY)
+                    pass  # No decay prior (conflicts with AdamW momentum)
                     ttt_step += 1
 
             if ci % 100 == 0:
