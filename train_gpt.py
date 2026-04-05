@@ -165,7 +165,7 @@ class Hyperparameters():
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
 
     # Late QAT (fake int6 quantization in last N steps to close quant gap)
-    late_qat_enabled = bool(int(os.environ.get('LATE_QAT', '0')))
+    late_qat_enabled = bool(int(os.environ.get('LATE_QAT', '1')))
     late_qat_steps = int(os.environ.get('LATE_QAT_STEPS', 200))
 
     # SWA (stochastic weight averaging — simple average of last K checkpoints)
@@ -2011,7 +2011,8 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
                 for m in base_model.modules():
                     if isinstance(m, CastedLinear):
                         m._qat_enabled = True
-                log(f"late_qat:enabled at step {step}, {sum(1 for m in base_model.modules() if isinstance(m, CastedLinear))} layers")
+                torch._dynamo.reset()  # CRITICAL: force recompile with QAT enabled
+                log(f"late_qat:enabled at step {step} (dynamo reset), {sum(1 for m in base_model.modules() if isinstance(m, CastedLinear))} layers")
 
         train_loss = step_fn(step, scale)
 
