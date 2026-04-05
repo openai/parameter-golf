@@ -1,6 +1,6 @@
 # 10-Layer Gated DeltaNet (PureGDN) with Legal Score-First TTT
 
-**val_bpb = 1.003028** (3-seed mean) | Pre-TTT: 1.007803 | TTT gain: **−0.004775** | Artifact: 14.47 MB
+**val_bpb = 1.003028** (3-seed mean) | Pre-TTT: 1.007803 | TTT gain: **−0.004775** | Artifact: 15.17 MB decimal (14.47 MiB)
 
 > Non-record unlimited-compute submission (trained 7k steps on 2×A100-40GB, eval ~2100s on 1×A100).
 
@@ -8,25 +8,25 @@
 
 ## Headline Result
 
-This submission replaces softmax attention entirely with **Gated DeltaNet (GDN)** — a linear-attention mechanism from the FLA (Flash Linear Attention) library that uses delta-rule-based gating for O(n) sequence processing. With 10 GDN layers, BigramHash embeddings with trigram extension, and legal score-first TTT, the model achieves **1.003028 BPB**, demonstrating that linear attention can match or exceed transformer baselines when properly scaled and combined with test-time training.
+This submission replaces softmax attention entirely with **Gated DeltaNet (GDN)** — a linear-attention mechanism from the FLA (Flash Linear Attention) library that uses delta-rule-based gating for $O(n)$ sequence processing. With 10 GDN layers, BigramHash embeddings with trigram extension, and score-first TTT, the model achieves **1.003028 BPB**.
 
-This is the **first non-transformer architecture** to achieve sub-1.01 BPB in the competition.
+Taken together, these results suggest that a GDN-based linear-attention backbone can be highly competitive on this benchmark when paired with the training, quantization, and evaluation recipe used here.
 
 ---
 
 ## Novel & Creative Contributions
 
-### 1. First Gated DeltaNet Submission
+### 1. Gated DeltaNet Backbone
 
-All prior competition entries use standard softmax transformers. This submission replaces softmax attention entirely with **Gated DeltaNet** (Yang et al., 2024), a linear-attention variant from FLA v0.4.2. GDN uses delta-rule-based gating — a learned update rule that selectively writes to and erases from a fixed-size recurrent state — enabling O(n) sequence processing with sub-quadratic memory.
+Most accepted leaderboard entries in the repo README appear to use transformer-family softmax-attention models. This submission instead uses **Gated DeltaNet** (Yang et al., 2024), a linear-attention variant from FLA v0.4.2. GDN uses delta-rule-based gating — a learned update rule that selectively writes to and erases from a fixed-size recurrent state — enabling $O(n)$ sequence processing with sub-quadratic memory.
 
 - **dim=512**, 1 head, expand_k=1, expand_v=2
-- No softmax, no flash attention, no KV cache — the architecture is fundamentally different
+- No softmax attention; the backbone is a non-softmax recurrent/linear-attention design
 - FLA's Triton kernels provide efficient chunk-wise parallel training
 
 ### 2. Sub-1.01 BPB with Non-Transformer Architecture
 
-The model achieves **1.003028 BPB** (3-seed mean), demonstrating that carefully scaled linear attention can compete with softmax transformers on this benchmark. This challenges the assumption that softmax attention is necessary for strong language modeling at small scale.
+The model achieves **1.003028 BPB** (3-seed mean), showing that this GDN-based linear-attention stack can be competitive with prior transformer-family submissions on this benchmark. Rather than claiming a general result about attention mechanisms, we view this as evidence that softmax attention is not the only viable path to strong performance in this particular setting.
 
 ### 3. BigramHash with Trigram Extension
 
@@ -37,7 +37,7 @@ The standard BigramHash(vocab, dim) from PR #65 hashes consecutive token pairs f
 
 ### 4. Legal TTT on Linear Attention
 
-This is the first demonstration that **legal score-first TTT** (SGD + momentum, 3 epochs, freeze first 2 blocks) works effectively on non-transformer architectures. The TTT gain of **−0.004775 BPB** shows that the score-first protocol generalizes beyond softmax attention to recurrent linear-attention models.
+In this GDN-based submission, **score-first TTT** (SGD + momentum, 3 epochs, freeze first 2 blocks) produced a consistent improvement across all three seeds. The mean TTT gain of **−0.004775 BPB** suggests that this protocol can also be effective in a recurrent linear-attention setting.
 
 ---
 
@@ -50,9 +50,10 @@ This is the first demonstration that **legal score-first TTT** (SGD + momentum, 
 | 2025 | 55511287  | 1.00742810  | 1.00281683    | −0.004611 | 15,172,519 |
 | **Mean** | | **1.007803 ± 0.000798** | **1.003028 ± 0.000705** | **−0.004775** | |
 
-### Statistical Significance
+### Context vs. Current 10-Minute Record
 
-- **vs 10-min SOTA** (1.11473509 BPB, PR #1019): Δ = −0.111707 BPB, t = −274.53, p = 6.63×10⁻⁶ (one-tailed)
+- For context, this **non-record unlimited-compute** result is **0.111707 BPB** lower than the current 10-minute record-track entry (1.11473509 BPB, PR #1019).
+- This is not a like-for-like record comparison because the present submission is in the non-record track and is not constrained by the 10-minute training limit.
 
 ---
 
@@ -99,7 +100,7 @@ for each 32K-token chunk:
     3. Advance to next chunk with updated weights
 ```
 
-Every target token is scored exactly once, strictly before any gradient update that could benefit from it. The `torch.inference_mode()` context manager makes gradient leakage during scoring physically impossible.
+In this implementation, every target token is intended to be scored before any gradient update that could benefit from it. The `torch.inference_mode()` context manager prevents autograd-based gradient accumulation during the scoring pass.
 
 | TTT Setting | Value |
 |---|---|
@@ -115,7 +116,7 @@ Every target token is scored exactly once, strictly before any gradient update t
 
 | Component | Bytes |
 |---|---|
-| Model (int6 + GPTQ + zstd-22) | 15,172,519 (max across seeds) |
+| Model (int6 + GPTQ + zstd-22) | 15,172,519 (max across seeds; 15.17 MB decimal / 14.48 MiB) |
 | Code (train_gpt.py) | ~83,000 (estimated) |
 | **Total** | **~15,255,519** |
 | Limit | 16,000,000 |
@@ -125,9 +126,9 @@ Note: The code size will vary with the final packaging; total depends on the bun
 
 ## Eval Legality
 
-The evaluation protocol was independently red-teamed and confirmed **LEGAL**:
+We reviewed the evaluation protocol against the contest's score-before-train rule and believe it satisfies that constraint:
 
-- **Score before train:** Every validation token is scored BEFORE any gradient update that could use it. The `torch.inference_mode()` context during scoring prevents gradient leakage physically.
+- **Score before train:** Each validation segment is scored before any weight update that could use those targets. The `torch.inference_mode()` context during scoring prevents autograd-based gradient accumulation in that phase.
 - **Fresh model state:** A fresh model state is loaded per evaluation (no training state carry-over between seeds).
 - **Deterministic windowing:** Window assignment is deterministic based on `scored_start`, ensuring no gaps or overlaps in token scoring.
 - **Stateless normalization:** RMSNorm is stateless (no running statistics unlike BatchNorm), so layer normalization cannot leak future information.
@@ -136,7 +137,7 @@ The evaluation protocol was independently red-teamed and confirmed **LEGAL**:
   - SGD momentum carries across chunks — this is an optimization state update, not an information leak (momentum contains only gradient history from already-scored tokens).
   - Cosine LR schedule is deterministic and independent of validation data.
 
-## Comparison to Competition
+## Comparison to Prior Submissions (Context Only)
 
 | Metric | 10-min SOTA (PR #1019) | Non-record best (Binary UNet, single seed) | This Submission |
 |---|---|---|---|
@@ -144,6 +145,8 @@ The evaluation protocol was independently red-teamed and confirmed **LEGAL**:
 | Architecture | 11L Transformer | 15L Transformer (UNet) | **10L GDN** |
 | Attention | Softmax | Softmax | **Linear (Delta Rule)** |
 | TTT | None | — | **Legal TTT** |
+
+These comparisons are included only as context. They are not claims of a like-for-like record result across tracks or compute budgets.
 
 ## Reproducibility
 
