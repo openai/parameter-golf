@@ -13,6 +13,7 @@ This submission combines a highly optimized neural baseline with a strict, DDP-s
 * **Average:** **0.416182 BPB**
 
 *All runs complete within the 600s time limit and comply with the 16MB artifact constraint (max artifact size: 15.62 MB).*
+*Final cloud evaluation settings: `EVAL_STRIDE=256`, `EVAL_BATCH_SEQS=32`, `TTT_ENABLED=0`.*
 
 ## Key Innovations & Architecture
 
@@ -39,3 +40,6 @@ The evaluation loop utilizes a Backoff N-gram Mixer with entropy-adaptive alpha 
 
 ## Artifact Pipeline
 The submission relies on `lzma` for compressing the mixed-precision state dictionary, achieving a final payload size of ~15.6 MB including the `train_gpt.py` script.
+
+## Reproducibility Notes
+All counted submission code lives in `train_gpt.py`; the record does not depend on auxiliary Python helper modules inside the record folder.

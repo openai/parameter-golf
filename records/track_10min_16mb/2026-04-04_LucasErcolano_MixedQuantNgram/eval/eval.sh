@@ -13,8 +13,6 @@ export CHECKPOINT_PATH="${CHECKPOINT_PATH:-final_model.pt}"
 export EVAL_TIMEOUT_SECONDS="${EVAL_TIMEOUT_SECONDS:-580}"
 export EVAL_STRIDE="${EVAL_STRIDE:-256}"
 export EVAL_BATCH_SEQS="${EVAL_BATCH_SEQS:-32}"
-export TTT_BATCH_SEQS="${TTT_BATCH_SEQS:-32}"
-export TTT_TRAIN_BATCH_SEQS="${TTT_TRAIN_BATCH_SEQS:-8}"
 export TTT_ENABLED="${TTT_ENABLED:-0}"
 
 torchrun --standalone --nproc_per_node="${NPROC_PER_NODE:-8}" train_gpt.py
