@@ -1,10 +1,10 @@
 # 11L LatentMask TTT + GPTQ + Product-Key Bigram + Brotli
 
-**val_bpb: 1.1135** | Artifact: 15,994,050 bytes | 8xH100, 600s training + 424s eval
+**val_bpb: 1.1158 (3-seed mean)** | Artifact: ≤15,989,386 bytes | 8xH100, 600s training + ~457s eval
 
 ## Summary
 
-11-layer GPT with U-Net skip connections, achieving 1.1135 val_bpb through four key innovations:
+11-layer GPT with U-Net skip connections, achieving 1.1158 val_bpb (3-seed mean) through four key innovations:
 
 1. **LatentMask TTT (Test-Time Training)**: Per-channel sigmoid masks + biases on MLP and attention outputs, trained per-chunk during evaluation using a sign-based Muon-lite optimizer. Score-first (legal): each chunk is scored before any mask update. Provides −0.018 bpb improvement over sliding window baseline.
 
@@ -31,7 +31,7 @@
 - matrix_lr=0.028, muon_wd=0.0417
 - EMA (decay=0.997), Late QAT (threshold=0.15)
 - Warmdown: 3500 steps (time-based adaptive)
-- ~6,277 steps in 600s, step_avg ~95.7ms
+- ~5,830 steps in 600s, step_avg ~102.9ms (H100)
 
 ## Quantization & Compression
 
@@ -44,7 +44,16 @@
 
 - LatentMask TTT: lr=0.0008, chunk=65536 tokens, epochs=4, momentum=0.9
 - Sliding window stride=64, seq_len=2048
-- TTT eval time: ~424s
+- TTT eval time: ~457s (H100)
+
+## Results (3-seed, 8xH100)
+
+| Seed | val_bpb | Steps | Step Avg (ms) | Artifact (bytes) |
+|------|---------|-------|---------------|-------------------|
+| 777  | 1.11561 | 5,869 | 102.24 | 15,980,910 |
+| 999  | 1.11594 | 5,808 | 103.31 | 15,989,386 |
+| 1337 | 1.11587 | 5,814 | 103.21 | 15,977,334 |
+| **Mean** | **1.11581** | **5,830** | **102.92** | |
 
 ## Dependencies
 

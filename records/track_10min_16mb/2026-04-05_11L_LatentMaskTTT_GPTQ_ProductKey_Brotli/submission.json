@@ -5,40 +5,41 @@
   "blurb": "11L GPT with U-Net skips, LatentMask TTT (per-channel sigmoid masks, score-first legal), Full Hessian GPTQ (AR self-gen calib, Cholesky error compensation), Product-Key Bigram (zero collision), GatedAttention on even layers, XSA on all layers, Value Embeddings at decoder [5,7,10], Muon optimizer, EMA+SWA, Late QAT, Brotli-11 + uint8 log-scale compression.",
   "date": "2026-04-05",
   "track": "10min_16mb",
-  "val_loss": "TODO: 3-seed mean",
-  "val_bpb": "TODO: 3-seed mean",
-  "val_loss_std": "TODO",
-  "val_bpb_std": "TODO",
-  "seeds": ["TODO", "TODO", "TODO"],
+  "val_loss": 1.88398814,
+  "val_bpb": 1.11580685,
+  "val_loss_std": 0.00028881,
+  "val_bpb_std": 0.00017105,
+  "seeds": [777, 999, 1337],
   "seed_results": {
-    "TODO_seed1": {
-      "val_loss": "TODO",
-      "val_bpb": "TODO",
-      "artifact_bytes": "TODO",
-      "steps": "TODO",
-      "step_avg_ms": "TODO"
+    "777": {
+      "val_loss": 1.88366041,
+      "val_bpb": 1.11561275,
+      "artifact_bytes": 15980910,
+      "steps": 5869,
+      "step_avg_ms": 102.24
     },
-    "TODO_seed2": {
-      "val_loss": "TODO",
-      "val_bpb": "TODO",
-      "artifact_bytes": "TODO",
-      "steps": "TODO",
-      "step_avg_ms": "TODO"
+    "999": {
+      "val_loss": 1.88420544,
+      "val_bpb": 1.11593555,
+      "artifact_bytes": 15989386,
+      "steps": 5808,
+      "step_avg_ms": 103.31
     },
-    "TODO_seed3": {
-      "val_loss": "TODO",
-      "val_bpb": "TODO",
-      "artifact_bytes": "TODO",
-      "steps": "TODO",
-      "step_avg_ms": "TODO"
+    "1337": {
+      "val_loss": 1.88409857,
+      "val_bpb": 1.11587225,
+      "artifact_bytes": 15977334,
+      "steps": 5814,
+      "step_avg_ms": 103.21
     }
   },
-  "artifact_bytes_max": "TODO",
-  "bytes_total": "TODO",
+  "artifact_bytes_max": 15989386,
+  "bytes_total": 15989386,
   "code_bytes": 61928,
-  "model_bytes": "TODO",
-  "train_steps_mean": "TODO",
-  "step_avg_ms_mean": "TODO",
-  "hardware": "8xH100 80GB SXM",
+  "model_bytes": 15927458,
+  "train_steps_mean": 5830.3,
+  "step_avg_ms_mean": 102.92,
+  "hardware": "8xH100 80GB HBM3 SXM (RunPod)",
+  "flash_attn_version": "3.0.0+20260303.cu128torch291cxx11abitrue.ceb109",
   "technique_summary": "LatentMask TTT + Full Hessian GPTQ (AR self-gen) + Product-Key Bigram + GatedAttn-even + XSA-all + VE-decoder + Muon + Brotli-11"
 }
