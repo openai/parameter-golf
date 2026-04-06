@@ -43,6 +43,8 @@ Layer 13: cumulative error ≈ 1.03^13 ≈ 1.47x
 
 Errors compound multiplicatively. By the final layer, the cumulative distortion is significant. This is why our quantization gap was 0.022 BPB — nearly 50% of the entire gap to SOTA.
 
+> **How the 0.022 BPB gap was measured:** We evaluated the same exp40-D model in two states: (1) the full float32 checkpoint with SGD TTT → val_bpb = 1.1258 (pre-quant baseline after TTT), and (2) the naively quantized (int5/int6/int8 + zstd) checkpoint with identical SGD TTT → val_bpb = 1.1478. The difference (1.1478 − 1.1258 = 0.022) isolates the damage caused purely by naive rounding during quantization, with TTT held constant.
+
 ## 2. Why Naive Quantization Makes Bad Decisions
 
 Naive quantization rounds each weight **independently** to the nearest integer value. It asks: "what integer is closest to this weight?"
