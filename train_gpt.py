@@ -875,22 +875,26 @@ def eval_val_slot(
   valid_count = mask.sum()
   if valid_count == 0:
    continue
-  # LoRA-SLOT: low-rank context-dependent delta (novel — combines SLOT + LoRA)
-  hdim = hidden_f.size(-1)
-  lora_rank = 4
-  lora_A = torch.zeros(bsz, hdim, lora_rank, device=device, dtype=torch.float32, requires_grad=True)
-  lora_B = torch.zeros(bsz, lora_rank, hdim, device=device, dtype=torch.float32, requires_grad=True)
+  # Entropy-Gated Hypergradient SLOT: only adjust uncertain positions (novel)
+  delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
   logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
-  # Hypergradient SLOT (arXiv:2502.11229): LR adapts itself each step
-  all_params = [lora_A, lora_B, logit_bias]
+  all_params = [delta, logit_bias]
   slot_opt = torch.optim.AdamW(all_params, lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
   targets_flat = yb.reshape(-1)
+  # Compute entropy gate from original model predictions (before SLOT)
+  with torch.no_grad():
+   orig_lp = F.linear(hidden_f, proj_w)
+   orig_lg = softcap * torch.tanh(orig_lp / softcap)
+   orig_probs = F.softmax(orig_lg, dim=-1)
+   entropy = -(orig_probs * (orig_probs + 1e-8).log()).sum(dim=-1, keepdim=True)  # (bsz, seq, 1)
+   ent_gate = torch.sigmoid((entropy - entropy.mean()) * 3.0)  # high entropy → gate≈1
+  # Hypergradient SLOT (arXiv:2502.11229)
   hyper_lr = 1e-5
   prev_grads = [torch.zeros_like(p) for p in all_params]
   current_lr = args.slot_lr
   for step_i in range(args.slot_steps):
    slot_opt.zero_grad()
-   h = hidden_f + hidden_f @ lora_A @ lora_B  # context-dependent delta
+   h = hidden_f + ent_gate * delta  # only adjust uncertain positions
    lp = F.linear(h, proj_w) + logit_bias
    lg = softcap * torch.tanh(lp / softcap)
    nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
@@ -903,7 +907,7 @@ def eval_val_slot(
    for pg in slot_opt.param_groups: pg['lr'] = current_lr
    slot_opt.step()
   with torch.no_grad():
-   h = hidden_f + hidden_f @ lora_A.detach() @ lora_B.detach()
+   h = hidden_f + ent_gate * delta.detach()
    lp = F.linear(h, proj_w) + logit_bias.detach()
    lg = softcap * torch.tanh(lp / softcap)
    nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
