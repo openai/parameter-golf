@@ -1,0 +1,34 @@
+# Parameter Golf — Default Configuration
+# Matches leaderboard consensus (d=512, 5 blocks × 4 loops)
+
+model:
+  type: shared
+  vocab_size: 256
+  d_model: 512
+  n_heads: 8
+  n_unique_layers: 5
+  n_loops: 4
+  mlp_ratio: 3.0
+  max_seq_len: 1024
+  tie_embeddings: true
+  parallel_residual: false
+
+training:
+  batch_size: 64
+  seq_len: 512
+  lr: 3.0e-4
+  warmup_steps: 100
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+  train_seconds: 600
+  dtype: bf16
+
+evaluation:
+  stride: 64
+  eval_tokens: 1000000
+
+data:
+  train_bytes: 500000000  # 500MB
+  vocab_size: 256  # byte-level

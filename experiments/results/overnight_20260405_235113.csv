@@ -1,0 +1,16 @@
+exp_name,model_type,d_model,layers_or_sharing,val_bpb,elapsed,status
+baseline_10layer_d512,--model-type standard --n-layers 10 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_3x7_d512,--model-type shared --n-unique-layers 3 --n-loops 7 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_4x5_d512,--model-type shared --n-unique-layers 4 --n-loops 5 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_5x4_d512,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_6x3_d512,--model-type shared --n-unique-layers 6 --n-loops 3 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_7x3_d512,--model-type shared --n-unique-layers 7 --n-loops 3 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_10x2_d512,--model-type shared --n-unique-layers 10 --n-loops 2 --d-model 512 --n-heads 8,N/A,0,FAILED
+shared_5x4_d384,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 384 --n-heads 8,N/A,0,FAILED
+shared_5x4_d448,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 448 --n-heads 8,N/A,0,FAILED
+shared_5x4_d576,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 576 --n-heads 8,N/A,0,FAILED
+shared_5x4_d640,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 640 --n-heads 8,N/A,0,FAILED
+shared_5x4_d512_mlp2.0,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 512 --n-heads 8 --mlp-ratio 2.0,N/A,0,FAILED
+shared_5x4_d512_mlp2.5,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 512 --n-heads 8 --mlp-ratio 2.5,N/A,0,FAILED
+shared_5x4_d512_mlp3.5,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 512 --n-heads 8 --mlp-ratio 3.5,N/A,0,FAILED
+shared_5x4_d512_mlp4.0,--model-type shared --n-unique-layers 5 --n-loops 4 --d-model 512 --n-heads 8 --mlp-ratio 4.0,N/A,0,FAILED

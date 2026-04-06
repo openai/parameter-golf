@@ -6,6 +6,23 @@ modded-nanogpt
 data/datasets
 data/manifest.json
 data/docs_selected.jsonl
+data/fineweb_bytes/
 .mypy_cache/
 .venv
 logs/
+
+# Experiments (large files)
+experiments/checkpoints/*.pt
+experiments/logs/*.log
+*.pt
+*.ptz
+
+# DB files
+*.db
+
+# Model artifacts
+final_model.*
+
+# System
+*.pyc
+.env

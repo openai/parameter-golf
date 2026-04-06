@@ -1,0 +1,28 @@
+services:
+  parameter-golf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parameter-golf
+    # --gpus all: exposes the Blackwell GPU inside the container.
+    # --ipc=host: shares the host's shared-memory segment so PyTorch
+    #   DataLoader workers (and NCCL) can use large /dev/shm without
+    #   hitting Docker's default 64 MB limit.
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      # Mount the repo directory so downloaded datasets and model
+      # checkpoints persist on the host across container restarts.
+      - .:/workspace/parameter-golf
+    working_dir: /workspace/parameter-golf
+    ports:
+      - "8501:8501"
+    # Keep the container alive so you can exec into it.
+    stdin_open: true
+    tty: true
