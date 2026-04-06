@@ -696,3 +696,114 @@ Their key innovation — mixed seq_len training — solves the "can't eval at di
 ### Approach for the re-quantize test
 
 The simpler approach (no mixed training): download the raw `.pt` model, generate AR calibration at seq2048, run GPTQ with 2048-calibrated Hessians, eval at 2048. This tests whether the GPTQ calibration mismatch was the only reason eval@2048 broke.
+
+## How to run
+
+### Prerequisites
+
+- 8xH100 SXM (for full reproduction) or 1x4090 (for smoke testing)
+- PyTorch 2.9.1+
+- Flash Attention 3 (H100) or Flash Attention 2 (4090)
+- `sentencepiece`, `huggingface-hub`
+- FineWeb dataset: `python3 data/cached_challenge_fineweb.py --variant sp1024`
+
+### Best config: seq4096 + SWA (direct on 8xH100)
+
+```bash
+cd /path/to/parameter-golf
+
+RUN_ID=seq4096_swa256_full5 \
+TRAIN_SEQ_LEN=4096 \
+EVAL_SEQ_LEN=4096 \
+SWA_WINDOW_SIZE=256 \
+SWA_FULL_ATTN_LAYERS=5 \
+BIGRAM_VOCAB_SIZE=3072 \
+BIGRAM_DIM=112 \
+WARMDOWN_ITERS=4000 \
+SEED=1337 \
+torchrun --standalone --nproc_per_node=8 train_gpt_swa.py
+```
+
+Expected: ~82ms/step, ~7300 steps, pre-quant ~1.122, sliding eval ~1.113.
+
+### Best config via Modal
+
+```bash
+# Set Modal profile
+modal profile activate itssshikhar  # or your profile
+
+# Run training + full eval pipeline
+modal run run_swa_modal.py
+```
+
+The Modal script (`run_swa_modal.py`) handles dataset download, image building, and HF upload. Edit the `env` dict in `run_swa_modal.py` to change the config.
+
+### Exp 2 config (seq2048, our second-best)
+
+```bash
+RUN_ID=exp2_swa256_full5 \
+SWA_WINDOW_SIZE=256 \
+SWA_FULL_ATTN_LAYERS=5 \
+BIGRAM_VOCAB_SIZE=3072 \
+BIGRAM_DIM=112 \
+WARMDOWN_ITERS=4000 \
+SEED=1337 \
+torchrun --standalone --nproc_per_node=8 train_gpt_swa.py
+```
+
+Expected: ~83ms/step, ~7200 steps, pre-quant ~1.134, sliding eval ~1.115.
+
+### Re-quantize at seq2048 (eval-only, no retraining)
+
+Downloads the seq4096-trained model from HuggingFace, re-runs GPTQ calibration at seq2048, evals at seq2048:
+
+```bash
+modal run run_requant_2048_modal.py
+```
+
+This requires the model `models/seq4096_swa256_full5_v2.pt` to exist on HuggingFace repo `shikhar007/parameter-golf-gram-ns`.
+
+### Smoke test on 1x4090 (24GB)
+
+```bash
+RUN_ID=smoke_4090 \
+TRAIN_SEQ_LEN=1024 \
+TRAIN_BATCH_TOKENS=131072 \
+ITERATIONS=200 \
+WARMDOWN_ITERS=50 \
+MAX_WALLCLOCK_SECONDS=300 \
+SWA_WINDOW_SIZE=256 \
+SWA_FULL_ATTN_LAYERS=5 \
+BIGRAM_VOCAB_SIZE=3072 \
+BIGRAM_DIM=112 \
+VAL_LOSS_EVERY=0 \
+VAL_BATCH_SIZE=65536 \
+torchrun --standalone --nproc_per_node=1 train_gpt_swa.py
+```
+
+If OOM, reduce `TRAIN_BATCH_TOKENS` to `65536`.
+
+### HuggingFace model artifacts
+
+All models are saved to `shikhar007/parameter-golf-gram-ns` with RUN_ID in the filename:
+- `models/{RUN_ID}.pt` — raw pre-quant weights
+- `models/{RUN_ID}.int6.ptz` — quantized + LZMA compressed
+- `logs/{RUN_ID}.txt` — training log
+
+### Config reference
+
+| Parameter | Exp 2 (seq2048) | Best (seq4096) | Current #1 |
+|---|---|---|---|
+| `TRAIN_SEQ_LEN` | 2048 | **4096** | 2048 |
+| `EVAL_SEQ_LEN` | 2048 | **4096** | 2048 |
+| `SWA_WINDOW_SIZE` | 256 | 256 | — (no SWA) |
+| `SWA_FULL_ATTN_LAYERS` | 5 | 5 | 11 (all full) |
+| `NUM_LAYERS` | 11 | 11 | 11 |
+| `BIGRAM_VOCAB_SIZE` | 3072 | 3072 | 3072 |
+| `BIGRAM_DIM` | 112 | 112 | 112 |
+| `WARMDOWN_ITERS` | 4000 | 4000 | 4000 |
+| `MATRIX_LR` | 0.025 | 0.025 | 0.025 |
+| `MUON_MOMENTUM` | 0.99 | 0.99 | 0.99 |
+| `MUON_WD` | 0.04 | 0.04 | 0.04 |
+| `LATE_QAT_THRESHOLD` | 0.15 | 0.15 | 0.15 |
+| `EVAL_STRIDE` | 64 | 64 | 64 |
