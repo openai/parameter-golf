@@ -312,8 +312,51 @@ def unpack_int6(data: bytes, count: int) -> Tensor:
     v[:, 3] = (packed[:, 2] >> 2) & 0x3F
     return torch.from_numpy(v.reshape(-1)[:count].astype(np.int8)) - 31
 
-def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT_GROUP_SIZE) -> dict:
-    """Per-group-64 int6 quantization with bit-packing and best-of-5 percentile search."""
+def collect_activation_stats(model: nn.Module, calib_x: Tensor, calib_y: Tensor,
+                             device: torch.device, batch_size: int = 8) -> dict[str, Tensor]:
+    """Collect per-input-channel activation magnitudes from calibration data."""
+    stats: dict[str, Tensor] = {}
+    counts: dict[str, int] = {}
+    hooks = []
+    for name, module in model.named_modules():
+        if isinstance(module, CastedLinear) and module.weight.ndim == 2:
+            def make_hook(n: str):
+                def hook(mod, inp, out):
+                    x = inp[0].detach().float()
+                    if x.ndim == 3:
+                        x = x.reshape(-1, x.shape[-1])
+                    if n not in stats:
+                        stats[n] = torch.zeros(x.shape[1], device="cpu")
+                        counts[n] = 0
+                    stats[n] += x.abs().mean(dim=0).cpu()
+                    counts[n] += 1
+                return hook
+            hooks.append(module.register_forward_hook(make_hook(name)))
+
+    model.eval()
+    with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        for i in range(0, len(calib_x), batch_size):
+            x = calib_x[i:i + batch_size].to(device=device, dtype=torch.int64)
+            y = calib_y[i:i + batch_size].to(device=device, dtype=torch.int64)
+            model(x, y)
+    model.train()
+
+    for h in hooks:
+        h.remove()
+    # Normalize and convert to param names
+    param_stats: dict[str, Tensor] = {}
+    for name, module in model.named_modules():
+        if name in stats and counts[name] > 0:
+            for pname, _ in module.named_parameters():
+                if pname == "weight":
+                    full_name = f"{name}.{pname}"
+                    param_stats[full_name] = stats[name] / counts[name]
+    return param_stats
+
+
+def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT_GROUP_SIZE,
+                          awq_stats: dict[str, Tensor] | None = None, awq_alpha: float = 0.5) -> dict:
+    """Per-group-64 int6 quantization with bit-packing, best-of-5 percentile search, and optional AWQ scaling."""
     w_dict: dict[str, dict] = {}
     p_dict: dict[str, Tensor] = {}
     c_dict: dict[str, Tensor] = {}
@@ -330,6 +373,15 @@ def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT
         if not t.is_floating_point() or t.numel() <= 65536:
             p_dict[name] = t.to(torch.float16) if t.is_floating_point() else t
             continue
+
+        # AWQ: scale important input channels before quantization
+        awq_scale = None
+        if awq_stats is not None and name in awq_stats and t.ndim == 2:
+            act_mag = awq_stats[name]
+            s_awq = act_mag.pow(awq_alpha).clamp(min=1e-5)
+            s_awq = s_awq / s_awq.mean()  # normalize to preserve magnitude
+            awq_scale = s_awq.to(torch.float16)
+            t = t * s_awq.unsqueeze(0)  # scale columns (input channels)
 
         # Large float tensors: per-group int6 with bit-packing
         shape = t.shape
@@ -357,12 +409,15 @@ def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT
                 best_q, best_s, best_err = q, s, err
 
         packed = pack_int6(best_q.reshape(-1)[:n])  # pack only original count
-        w_dict[name] = {"packed": packed, "scales": best_s, "shape": shape, "count": n}
+        entry: dict = {"packed": packed, "scales": best_s, "shape": shape, "count": n}
+        if awq_scale is not None:
+            entry["awq_scale"] = awq_scale  # per-input-channel, shape [in_features]
+        w_dict[name] = entry
 
     return {"w": w_dict, "p": p_dict, "c": c_dict}
 
 def dequantize_grouped_int6(quant_dict: dict, template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
-    """Reverse per-group int6 bit-packed quantization."""
+    """Reverse per-group int6 bit-packed quantization with AWQ scale correction."""
     out: dict[str, Tensor] = {}
     group_size = QUANT_GROUP_SIZE
 
@@ -384,7 +439,12 @@ def dequantize_grouped_int6(quant_dict: dict, template_sd: dict[str, Tensor]) ->
                 q_flat = torch.cat([q_flat, torch.zeros(padded_n - q_flat.numel())])
             grouped = q_flat.reshape(-1, group_size)
             deq = (grouped * scales.unsqueeze(1)).reshape(-1)[:entry["count"]]
-            out[name] = deq.reshape(entry["shape"]).to(orig_dtype)
+            deq = deq.reshape(entry["shape"])
+            # AWQ: undo per-column scaling
+            if "awq_scale" in entry:
+                awq_s = entry["awq_scale"].float()
+                deq = deq / awq_s.unsqueeze(0)
+            out[name] = deq.to(orig_dtype)
 
     return out
 
@@ -1112,13 +1172,21 @@ def main() -> None:
                  for name, t in ema_state.items()}
     base_model.load_state_dict(avg_state, strict=True)
 
-    # Serialization + roundtrip validation (per-group int6 bit-packed + lzma)
+    # AWQ: collect activation statistics from validation data for importance-aware quantization
+    log0("awq:collecting activation statistics from validation data")
+    n_calib = min(64, (val_tokens.numel() - 1) // args.train_seq_len)
+    calib_x = val_tokens[:n_calib * args.train_seq_len].reshape(n_calib, args.train_seq_len)
+    calib_y = val_tokens[1:n_calib * args.train_seq_len + 1].reshape(n_calib, args.train_seq_len)
+    awq_stats = collect_activation_stats(model, calib_x, calib_y, device)
+    log0(f"awq:collected stats for {len(awq_stats)} layers")
+
+    # Serialization + roundtrip validation (per-group int6 bit-packed + AWQ + lzma)
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
     if master_process:
         torch.save(sd_cpu, "final_model.pt")
         log0(f"Serialized model (fp32): {os.path.getsize('final_model.pt')} bytes")
 
-    quant_dict = quantize_grouped_int6(sd_cpu)
+    quant_dict = quantize_grouped_int6(sd_cpu, awq_stats=awq_stats)
     quant_buf = io.BytesIO()
     torch.save(quant_dict, quant_buf)
     quant_raw = quant_buf.getvalue()
