@@ -1,7 +1,0 @@
-{
-  "short_description": "EPSILON-AETHER: Riemannian-Sphere Sphere Embedding + S^31 JL-Projected Sparse Attention + Thermodynamic LR + 12L GPT",
-  "interesting": true,
-  "record_on_date": true,
-  "val_bpb": 1.1388,
-  "notes": "Unified Epsilon-Aether engine. Uses Riemannian Manifold optimization for embeddings, O(32*N) JL-projected attention scoring, and Thermodynamic Gibbs-entropy adaptive LR. Proven Lyapunov stability for sparsity control."
-}
