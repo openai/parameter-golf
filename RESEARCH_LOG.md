@@ -108,7 +108,7 @@ Strategies :
 1. Build a only JEPA Model : This is to see how it behaves on the baseline, after computing loss we can proceed to optmise it as needed.
 2. Build a hybrid model : We start with standard attention layers, use JEPA for the middle layers and then finish with standard attention layers. We operate with two types of losses. 
 
-The basic idea is to not learn from absolute truth. Let's see how it goes. 
+Let's see how not learning from the absolute truth fairs.
 
 ## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
