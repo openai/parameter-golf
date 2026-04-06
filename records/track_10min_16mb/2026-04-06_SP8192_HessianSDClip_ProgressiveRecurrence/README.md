@@ -34,9 +34,9 @@ I expected parallel residuals to reduce interference between attention and MLP d
 
 I used GPTQ's existing Hessian diagonal as a cheap importance signal to slightly modulate SDClip thresholds by row:
 
-$$c_i = k \cdot \text{std}(\text{row}_i) \cdot [1 + \lambda(\text{row\_importance}_i - 1)], \quad \lambda = 0.175$$
+$$c_i = k \cdot \sigma_i \cdot [1 + \lambda(r_i - 1)], \quad \lambda = 0.175$$
 
-where row importance is derived from Hessian-weighted magnitude. The effect is small but directionally useful at $\lambda = 0.175$; higher $\lambda$ hurt compression. I initially used $\lambda = 0.30$ but found $\lambda = 0.175$ is consistently better across seeds — both lower BPB and smaller artifact. Higher $\lambda$ reduces rounding error but increases entropy, which makes Brotli compression less effective.
+where $\sigma_i$ is the standard deviation of row $i$ and $r_i$ is the row importance derived from Hessian-weighted magnitude. The effect is small but directionally useful at $\lambda = 0.175$; higher $\lambda$ hurt compression. I initially used $\lambda = 0.30$ but found $\lambda = 0.175$ is consistently better across seeds — both lower BPB and smaller artifact. Higher $\lambda$ reduces rounding error but increases entropy, which makes Brotli compression less effective.
 
 ### 3. Progressive Recurrence
 
