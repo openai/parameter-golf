@@ -1,0 +1,19 @@
+{
+  "author": "Chidera Ibe",
+  "github_id": "ChideraIbe123",
+  "name": "L-BFGS SLOT-8",
+  "blurb": "Replaces SLOT's AdamW optimizer with L-BFGS — a second-order quasi-Newton method provably optimal for small optimization problems (1536 params). 8 outer steps with strong Wolfe line search and history_size=10. Novel: no other submission uses second-order optimization for SLOT. Built on PR #1313 base.",
+  "date": "2026-04-06T00:00:00Z",
+  "val_loss": 0.97803127,
+  "val_bpb": 0.57924652,
+  "seeds": {
+    "1337": {"val_bpb": 0.57926687, "artifact_bytes": 15735483, "steps": 5795, "eval_time_ms": 551612},
+    "42": {"val_bpb": 0.57840039, "artifact_bytes": 15730615, "steps": 5793, "eval_time_ms": 542616},
+    "2025": {"val_bpb": 0.58007230, "artifact_bytes": 15746295, "steps": 5798, "eval_time_ms": 542739}
+  },
+  "mean_val_bpb": 0.5793,
+  "std_val_bpb": 0.0009,
+  "bytes_total": 15735483,
+  "bytes_code": 60123,
+  "hardware": "8xH100 SXM (RunPod)"
+}
