@@ -1,0 +1,32 @@
+logs/full_anchor_s4d_mid_80steps_ssmfloat16.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\data\tokenizers\fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\data\datasets\fineweb10B_sp1024\fineweb_val_*.bin tokens:62021632
+model_params:17087512
+world_size:1 grad_accum_steps:8
+sdp_backend:math compile:0 compile_fullgraph:1
+block_layout:AASSSASSS layout_counts:A=3 S=6 H=0 ssm_core:s4d ssm_kernel_size:64 ssm_rank:4
+smear_enabled:0 bigram_vocab_size:0 bigram_dim:128
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:32768 train_seq_len:1024 iterations:80 warmup_steps:0 max_wallclock_seconds:0.000
+seed:1337
+step:1/80 train_loss:6.9374 train_time:606ms step_avg:605.78ms
+step:2/80 train_loss:6.6188 train_time:1058ms step_avg:529.21ms
+step:3/80 train_loss:6.2308 train_time:1446ms step_avg:482.09ms
+step:4/80 train_loss:5.9803 train_time:1835ms step_avg:458.77ms
+step:5/80 train_loss:5.7628 train_time:2131ms step_avg:426.26ms
+step:6/80 train_loss:5.7438 train_time:2420ms step_avg:403.36ms
+step:7/80 train_loss:5.6780 train_time:2730ms step_avg:390.01ms
+step:8/80 train_loss:5.5760 train_time:3077ms step_avg:384.60ms
+step:9/80 train_loss:5.5701 train_time:3359ms step_avg:373.21ms
+step:10/80 train_loss:5.5343 train_time:3654ms step_avg:365.36ms
+step:20/80 train_loss:5.4215 train_time:6734ms step_avg:336.69ms
+step:40/80 train_loss:5.3386 train_time:12969ms step_avg:324.24ms
+step:60/80 train_loss:5.3106 train_time:19015ms step_avg:316.91ms
+step:80/80 train_loss:5.1596 train_time:25221ms step_avg:315.26ms
+peak memory allocated: 1532 MiB reserved: 1862 MiB
+Serialized model int8+zlib: 12346179 bytes (payload:21989472 raw_torch:22027337 payload_ratio:3.06x)
+Total submission size int8+zlib: 12403935 bytes
+final_int8_zlib_roundtrip val_loss:5.3334 val_bpb:3.1588 eval_time:114443ms
+final_int8_zlib_roundtrip_exact val_loss:5.33343307 val_bpb:3.15875948
