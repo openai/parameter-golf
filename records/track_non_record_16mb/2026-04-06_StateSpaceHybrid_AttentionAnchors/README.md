@@ -1,6 +1,6 @@
 # Non-Record: State-Space Hybrid with Attention Anchors
 
-This folder records a local scaled run for the README wishlist `state-space models` lane.
+This folder records a local continuation of the README wishlist `state-space models` lane.
 
 This is **not** a leaderboard record attempt.
 This is **not** an official 8xH100 / 10-minute lane run.
@@ -19,78 +19,92 @@ What it is:
 - Standard primary metric: `final_int8_zlib_roundtrip_exact val_bpb`.
 - Full official validation split (`fineweb_val_*.bin`, `62,021,632` scored tokens).
 - Local one-shard training on the single available `fineweb_train_000000.bin` shard.
-- A Blackwell workstation scaling study with same-lane training-wallclock-matched all-attention controls.
+- A Blackwell workstation continuation with same-lane all-attention controls, including a stronger artifact-budget-aware control package.
 - An architecture family designed to remain compile-friendly, while the kept run below explicitly used `ENABLE_TORCH_COMPILE=0`.
 
 ## Kept Result
 
-- Kept layout: `AAAAAAASS`
+- Kept layout: `AAAAAASSS`
   - `A` = exact attention block
   - `S` = compile-friendly S4D-style state-space block
-- Interpretation: front-loaded exact attention with a short SSM tail
+- Interpretation: six front-loaded exact-attention blocks followed by a three-block SSM tail
 - SSM core: `S4D-Lin` descendant using learned exponential depthwise conv kernels
 - Kept export policy: keep only `ssm_coeff`, `ssm_log_decay`, and `ssm_d` in `float16`; quantize the rest with the standard int8+zlib path
 - Seed: `2027`
 - Fixed config: `TRAIN_BATCH_TOKENS=32768`, `TRAIN_SEQ_LEN=1024`, `VAL_BATCH_SIZE=262144`
-- Training budget: `480` steps on the single available train shard
+- Training budget: `520` steps on the single available train shard
 - Kept run compile setting: `ENABLE_TORCH_COMPILE=0`, `SDP_BACKEND=math`
 - GPU lane: single `NVIDIA RTX PRO 6000 Blackwell Workstation Edition`
-- Primary score: `val_bpb = 1.79279482`
-- Primary loss: `val_loss = 3.02705896`
-- Model params: `17,077,304`
+- Primary score: `val_bpb = 1.76279061`
+- Primary loss: `val_loss = 2.97639811`
+- Model params: `17,086,000`
 
 ## Controlled Comparison
 
 All rows below use the same scorer path, the same tokenizer, the same full validation split, and the same one-shard local training data.
 
-The promoted comparison is matched by measured training wallclock on the same Blackwell lane rather than by fixed step count.
+The strongest retained all-attention control in this continuation is not the default baseline; it is a legal artifact-budget-aware control that preserves `tok_emb`, blocks `7-8`, and block `6` attention weights in `float16`.
 
 | Run | Layout | Train time | Eval time | Total bytes | val_bpb | val_loss |
 |---|---|---:|---:|---:|---:|---:|
-| Baseline control | `AAAAAAAAA` | `134,901 ms` | `221,886 ms` | `9,444,341` | `1.82125026` | `3.07510478` |
-| Previous promoted hybrid | `AAASSASSS` | `119,096 ms` | `121,491 ms` | `14,781,218` | `1.84399667` | `3.11351113` |
-| **Kept hybrid** | **`AAAAAAASS`** | **`138,815 ms`** | **`185,347 ms`** | **`9,709,339`** | **`1.79279482`** | **`3.02705896`** |
+| Default all-attention control | `AAAAAAAAA` | `134,901 ms` | `221,886 ms` | `9,444,341` | `1.82125026` | `3.07510478` |
+| Strongest legal all-attention control | `AAAAAAAAA` | `133,911 ms` | `217,560 ms` | `15,642,808` | `1.82051743` | `3.07386743` |
+| Previous promoted hybrid | `AAAAAAASS` | `138,815 ms` | `185,347 ms` | `9,709,339` | `1.79279482` | `3.02705896` |
+| **Kept hybrid** | **`AAAAAASSS`** | **`139,161 ms`** | **`159,391 ms`** | **`10,026,646`** | **`1.76279061`** | **`2.97639811`** |
 
-Delta vs the matched Blackwell baseline control: `-0.02845544` BPB.
+Delta vs the strongest legal all-attention control: `-0.05772682` BPB.
 
-Delta vs the previous promoted kept result: `-0.05120185` BPB.
+Delta vs the default same-lane all-attention control: `-0.05845965` BPB.
 
-## Stability Package
+Delta vs the previous promoted kept result: `-0.03000421` BPB.
 
-Before searching wider, the previous promoted winner `AAASSASSS` was rerun on the same Blackwell lane to test whether the signal survived seed changes.
+This promotion therefore improves raw BPB while also widening the strongest retained all-attention control gap. It also keeps a clearer hybrid identity than the previous public winner by using a `6A/3S` split instead of `7A/2S`.
 
-Retained runs for `AAASSASSS` + `ssm.* -> float16`:
+## Variance / Stability Package
 
-- seed `1337`: `1.84399667` BPB
-- seed `2027`: `1.80196893` BPB
-- seed `4242`: `1.82589781` BPB
-- mean: `1.82395447`
-- stddev: `0.01721269`
+Before promoting a new winner, the previous public winner `AAAAAAASS` was rerun on the same Blackwell lane to test whether its gain over all-attention was stable across seeds.
 
-Matched baseline reruns at `390` steps:
+Retained reruns for `AAAAAAASS` + `SSM_RANK=8` + `ssm_coeff,ssm_log_decay,ssm_d -> float16`:
 
-- seed `1337`: `1.91983524` BPB
-- seed `2027`: `1.90784061` BPB
-- mean: `1.91383793`
-- stddev: `0.00599732`
+- seed `2027`: `1.79279482` BPB
+- seed `1337`: `1.80535135` BPB
+- seed `4242`: `1.80158400` BPB
+- mean: `1.79991006`
+- stddev: `0.00526106`
 
-This continuation therefore treats the earlier hybrid gain as stable enough to search around, not a single-seed accident.
+Matched same-lane all-attention reruns at `450` steps:
 
-## Anchor / Layout Search Finding
+- seed `2027`: `1.82125026` BPB
+- seed `1337`: `1.84038899` BPB
+- seed `4242`: `1.83073574` BPB
+- mean: `1.83079166`
+- stddev: `0.00781345`
 
-The continuation kept pointing toward more lower and mid-layer exact attention:
+Mean edge for the previous public winner over its matched default all-attention control package: `-0.03088161` BPB.
 
-- `AAASSASSS` + `ssm.* -> float16`: `1.80196893` BPB at seed `2027`
+The promoted `AAAAAASSS` continuation also has a small rerun package:
+
+- seed `2027`: `1.76279061` BPB
+- seed `1337`: `1.77518509` BPB
+- mean: `1.76898785`
+- stddev: `0.00619724`
+
+## Hybrid Identity Frontier
+
+The structured frontier in this continuation kept favoring more lower-layer exact attention, but not an almost-all-attention collapse:
+
+- `AAASSASSS` + `ssm.* -> float16`: `1.84399667` BPB at the earlier promoted point
 - `AAAASASSS` + `ssm.* -> float16`: `1.79647499` BPB
-- `AAAAAASSS` + `core recurrent fp16`: `1.79508744` BPB
-- `AAAAAAASS` + `core recurrent fp16`: `1.79291250` BPB
-- `AAAAAAASS` + `core recurrent fp16` + `SSM_RANK=8`: `1.79279482` BPB
+- `AAAASASSS` + `ssm_coeff,ssm_log_decay,ssm_d -> float16`: `1.79647573` BPB
+- `AAAAAASSS` + `ssm_coeff,ssm_log_decay,ssm_d -> float16` + `SSM_RANK=4`: `1.79508744` BPB
+- `AAAAAAASS` + `ssm_coeff,ssm_log_decay,ssm_d -> float16` + `SSM_RANK=8`: `1.79279482` BPB
+- `AAAAAASSS` + `ssm_coeff,ssm_log_decay,ssm_d -> float16` + `SSM_RANK=8` + `520` steps: `1.76279061` BPB
 
-In this local one-shard setting, the best retained hybrid so far is therefore a strongly front-loaded attention stack with only a short SSM tail.
+The current best retained point is therefore not the most attention-heavy layout tested. In this one-shard setting, the best frontier point so far keeps a non-trivial three-block SSM tail and beats the strongest retained all-attention control by a meaningful margin.
 
 ## Quantization / Export Finding
 
-The recurrent / state-space tensors are still export-sensitive, but the continuation found a cleaner policy than the earlier blanket `ssm.* -> float16` rule.
+The recurrent / state-space tensors remain export-sensitive, but this continuation confirmed that only a narrow recurrent-core subset needs `float16`.
 
 On `AAAASASSS` at seed `2027`:
 
@@ -99,22 +113,24 @@ On `AAAASASSS` at seed `2027`:
 
 The score delta is only `+0.00000074` BPB while saving `4,043,836` bytes.
 
-The kept policy is therefore:
+The kept export policy is therefore:
 
-- legal: yes (`9,709,339` bytes total on the promoted run)
-- effectively score-preserving on the tested layout
-- specific to recurrent / state-space tensors rather than a global export change
+- legal: yes (`10,026,646` bytes total on the promoted run)
+- recurrent-specific rather than global
+- effectively score-preserving on the tested frontier point
 
-## Headroom Study Finding
+## Headroom Spending Study
 
-Once the tighter recurrent export policy was in place, the lane had over `6 MB` of artifact headroom left.
+Once the tighter recurrent export policy was in place, the lane still had over `5.9 MB` of legal artifact headroom.
 
-Retained recurrent-capacity study on `AAAAAAASS`:
+Retained capacity study around the stronger hybrid identity region:
 
-- `SSM_RANK=4`: `1.79291250` BPB, `9,678,230` total bytes
-- `SSM_RANK=8`: `1.79279482` BPB, `9,709,339` total bytes
+- `AAAAAASSS`, `SSM_RANK=4`, `520` steps: `1.79508744` BPB, `9,692,318` total bytes
+- `AAAAAASSS`, `SSM_RANK=8`, `520` steps: `1.76279061` BPB, `10,026,646` total bytes
+- `AAAASASSS`, `SSM_RANK=6`, `480` steps: `1.79841119` BPB
+- `AAAASASSS`, `SSM_KERNEL_SIZE=96`, `480` steps: `1.79834777` BPB
 
-The gain is small but positive and remains comfortably legal.
+In this continuation, spending headroom on higher SSM rank in the `AAAAAASSS` region was clearly more effective than spending it on a longer kernel or on preserving more all-attention weights.
 
 ## Validity Notes
 
@@ -127,7 +143,8 @@ Passed for this non-record folder:
 - No evaluation-time downloads or external services
 - Quantization/export policy explicitly accounted for in bytes
 - Kept run configuration explicitly recorded with `ENABLE_TORCH_COMPILE=0`
-- Same-lane matched baseline retained for the promoted comparison
+- Fixed-predictor labeling explicit; no eval-time adaptation or TTT
+- Stronger all-attention control package retained before promotion
 
 Not claimed here:
 
@@ -138,24 +155,24 @@ Not claimed here:
 ## Artifact Size
 
 - Code bytes: `57,756`
-- Model bytes (`final_model.int8.ptz`): `9,651,583`
-- Total bytes: `9,709,339`
+- Model bytes (`final_model.int8.ptz`): `9,968,890`
+- Total bytes: `10,026,646`
 
 ## Wallclock Breakdown
 
 From the kept promoted run:
 
-- Training time: `138,815 ms`
-- Evaluation time: `185,347 ms`
-- Export / serialization / roundtrip overhead: about `5,675 ms`
-- End-to-end run duration: `329.84 s`
+- Training time: `139,161 ms`
+- Evaluation time: `159,391 ms`
+- Export / serialization / roundtrip overhead: about `5,494 ms`
+- End-to-end run duration: `304.05 s`
 
-Matched baseline control:
+Strongest legal all-attention control:
 
-- Training time: `134,901 ms`
-- Evaluation time: `221,886 ms`
-- Export / serialization / roundtrip overhead: about `8,531 ms`
-- End-to-end run duration: `365.32 s`
+- Training time: `133,911 ms`
+- Evaluation time: `217,560 ms`
+- Export / serialization / roundtrip overhead: about `8,460 ms`
+- End-to-end run duration: `359.93 s`
 
 ## Exact Command
 
@@ -168,7 +185,7 @@ $env:TOKENIZER_PATH='C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\d
 $env:TRAIN_BATCH_TOKENS='32768'
 $env:VAL_BATCH_SIZE='262144'
 $env:TRAIN_SEQ_LEN='1024'
-$env:ITERATIONS='480'
+$env:ITERATIONS='520'
 $env:TRAIN_LOG_EVERY='20'
 $env:VAL_LOSS_EVERY='0'
 $env:MAX_WALLCLOCK_SECONDS='0'
@@ -177,7 +194,7 @@ $env:ENABLE_TORCH_COMPILE='0'
 $env:SDP_BACKEND='math'
 $env:SAVE_RAW_MODEL='0'
 $env:FINAL_PREQUANT_EVAL='0'
-$env:BLOCK_LAYOUT='AAAAAAASS'
+$env:BLOCK_LAYOUT='AAAAAASSS'
 $env:SSM_CORE='s4d'
 $env:SSM_KERNEL_SIZE='64'
 $env:SSM_RANK='8'
@@ -192,5 +209,5 @@ python train_gpt.py
 - `train.log`: promoted kept run stdout log
 - `best_run_summary.json`: machine-readable summary for the promoted kept run
 - `ablation_scoreboard.tsv`: retained cycle table for this campaign
-- `variance_summary.json`: machine-readable rerun / variance package
+- `variance_summary.json`: machine-readable rerun / control package
 - `submission.json`: metadata for this non-record folder

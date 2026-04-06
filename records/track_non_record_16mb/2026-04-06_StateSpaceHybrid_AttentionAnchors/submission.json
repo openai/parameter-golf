@@ -3,33 +3,33 @@
   "github_id": "greqone",
   "name": "Non-record: state-space hybrid with attention anchors",
   "track_label": "fixed-predictor",
-  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAAAAASS, a short S4D-style SSM tail, a recurrent-core-only fp16 export policy, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation.",
+  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAAAASSS, an S4D-style three-block state-space tail, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
   "date": "2026-04-06T00:00:00Z",
   "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
-  "val_loss": 3.02705896,
-  "val_bpb": 1.79279482,
-  "baseline_val_loss": 3.07510478,
-  "baseline_val_bpb": 1.82125026,
-  "kept_vs_baseline_delta_bpb": -0.02845544,
-  "previous_promoted_val_bpb": 1.84399667,
-  "previous_promoted_delta_bpb": -0.05120185,
+  "val_loss": 2.97639811,
+  "val_bpb": 1.76279061,
+  "baseline_val_loss": 3.07386743,
+  "baseline_val_bpb": 1.82051743,
+  "kept_vs_baseline_delta_bpb": -0.05772682,
+  "previous_promoted_val_bpb": 1.79279482,
+  "previous_promoted_delta_bpb": -0.03000421,
   "artifact_bytes": {
     "code": 57756,
-    "model_int8_zlib": 9651583,
-    "total": 9709339
+    "model_int8_zlib": 9968890,
+    "total": 10026646
   },
   "wallclock_ms": {
-    "training": 138815,
-    "evaluation": 185347,
-    "export_roundtrip_estimate": 5675,
-    "end_to_end_estimate": 329837
+    "training": 139161,
+    "evaluation": 159391,
+    "export_roundtrip_estimate": 5494,
+    "end_to_end_estimate": 304046
   },
   "compile_settings": {
     "enable_torch_compile": 0,
     "sdp_backend": "math"
   },
   "kept_config": {
-    "block_layout": "AAAAAAASS",
+    "block_layout": "AAAAAASSS",
     "ssm_core": "s4d",
     "ssm_kernel_size": 64,
     "ssm_rank": 8,
@@ -37,32 +37,45 @@
     "train_batch_tokens": 32768,
     "train_seq_len": 1024,
     "val_batch_size": 262144,
-    "iterations": 480,
+    "iterations": 520,
     "seed": 2027
   },
   "baseline_match": {
-    "type": "training_wallclock_same_blackwell_lane",
+    "type": "strongest_legal_all_attention_control_same_blackwell_lane",
     "block_layout": "AAAAAAAAA",
     "iterations": 450,
     "seed": 2027,
-    "train_time_ms": 134901,
-    "evaluation_time_ms": 221886
+    "int8_force_float_name_patterns": "tok_emb,blocks.7.,blocks.8.,blocks.6.attn",
+    "train_time_ms": 133911,
+    "evaluation_time_ms": 217560,
+    "artifact_bytes_total": 15642808
   },
-  "stability_package": {
-    "hybrid_layout": "AAASSASSS",
-    "hybrid_mean_val_bpb": 1.82395447,
-    "hybrid_std_val_bpb": 0.01721269,
+  "current_public_winner_variance": {
+    "hybrid_layout": "AAAAAAASS",
+    "hybrid_export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+    "hybrid_mean_val_bpb": 1.79991006,
+    "hybrid_std_val_bpb": 0.00526106,
     "hybrid_runs": 3,
-    "baseline_mean_val_bpb": 1.91383793,
-    "baseline_std_val_bpb": 0.00599732,
-    "baseline_runs": 2
+    "baseline_mean_val_bpb": 1.83079166,
+    "baseline_std_val_bpb": 0.00781345,
+    "baseline_runs": 3,
+    "mean_edge_bpb": -0.03088161
+  },
+  "promoted_candidate_stats": {
+    "layout": "AAAAAASSS",
+    "ssm_rank": 8,
+    "iterations": 520,
+    "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+    "mean_val_bpb": 1.76898785,
+    "std_val_bpb": 0.00619724,
+    "runs": 2
   },
   "scope": {
     "training_shards": 1,
     "gpu_lane": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
     "record_claim": false
   },
-  "bytes_total": 9709339,
-  "bytes_model_int8_zlib": 9651583,
+  "bytes_total": 10026646,
+  "bytes_model_int8_zlib": 9968890,
   "bytes_code": 57756
 }
