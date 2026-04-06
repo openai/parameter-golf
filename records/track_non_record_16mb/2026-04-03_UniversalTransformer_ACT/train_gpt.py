@@ -603,6 +603,30 @@ class Block(nn.Module):
         return x
 
 
+class LiteBlock(nn.Module):
+    """Attention-only block for think layers — no MLP, ~57% cheaper per iteration."""
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out = self.attn(self.attn_norm(x))
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        return x
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -642,8 +666,22 @@ class GPT(nn.Module):
         # ENCODE: unique front layers (store U-Net skips)
         self.encoder_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_encoder_layers)])
 
-        # THINK: shared layers looped num_think_passes times
-        self.think_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_think_layers)])
+        # THINK: shared LITE layers (attention-only) looped num_think_passes times
+        lite_block_args = dict(
+            dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads,
+            rope_base=rope_base, qk_gain_init=qk_gain_init,
+        )
+        # THINK: shared layers (no MLP) looped num_think_passes times
+     
+        '''
+        self.think_blocks = nn.ModuleList([
+            Block(**block_args, use_mlp=False) for _ in range(num_think_layers)
+        ])'''
+
+        self.think_blocks = nn.ModuleList([
+            *[LiteBlock(**lite_block_args) for _ in range(num_think_layers - 1)],
+            Block(**block_args),
+        ])
 
         # Pass embedding for the think loop (distinguishes recursion depth)
         self.pass_emb = nn.Embedding(num_think_passes, model_dim)
