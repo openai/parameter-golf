@@ -1,0 +1,35 @@
+{
+  "title": "SP1024 + Depth Recurrence + Markov Curriculum + Auto-QMax GPTQ + TTT",
+  "author": "Mertyandimata",
+  "track": "track_10min_16mb",
+  "val_bpb": 1.1047,
+  "seeds": {
+    "42": {
+      "val_bpb": 1.1047,
+      "pre_quant_bpb": 1.1359,
+      "post_quant_bpb": 1.1429,
+      "sliding_bpb": 1.1065,
+      "ttt_bpb": 1.1047,
+      "steps": 5183,
+      "training_time_s": 590,
+      "artifact_bytes": 15888861
+    }
+  },
+  "config": {
+    "vocab_size": 1024,
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4.0,
+    "recur_layers": "3,4,5",
+    "recur_start_step": 2000,
+    "parallel_start_layer": 7,
+    "compressor": "brotli",
+    "quantization": "int6_gptq",
+    "ttt_epochs": 3,
+    "ttt_lr": 0.002
+  },
+  "hardware": "8xH100 80GB SXM",
+  "date": "2026-04-06"
+}
