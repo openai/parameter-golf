@@ -100,7 +100,9 @@ JEPA loss :
 
 Things to consider :
 1/ JEPA adds two new hyperparameters, that would affect our 16MB. 
-2/ JEPA doesn't store Gradients, how does that affect us? 
+2/ JEPA doesn't store Gradients, how does that affect us? What instead? Understand EMA
+3/ EMA : Exponential Moving Average is the main game, it gets us away from token prediction by become the slow update to the credits and learning, while it keeps the absolute truth but also updates to new knowledge.
+4/ From reading the paper, the point is to learn and the embedding space and then point to tokens from there 
 
 Strategies : 
 1/ Build a only JEPA Model : This is to see how it behaves on the baseline, after computing loss we can proceed to optmise it as needed. 
