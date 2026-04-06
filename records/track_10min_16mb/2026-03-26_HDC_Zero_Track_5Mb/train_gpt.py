@@ -1,6 +1,14 @@
 """HDC VSA Tokenizer Language Model for Parameter-Golf Competition.
 
-Run: cd /workspaces/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb && python train_gpt.py --multi_seed --seeds 42 7 1337 --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
+Zero-parameter run (judges can just do):
+    cd records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb
+    python train_gpt.py
+
+Or with torchrun on 8×H100s:
+    torchrun --standalone --nproc_per_node=8 train_gpt.py
+
+All paths are resolved automatically relative to the repo root.
+A timestamped train.log is written to the record folder automatically.
 """
 
 import glob
@@ -8734,13 +8742,80 @@ def _run_hash_grad_single(args) -> int:
     return 0 if size_ok and bpb < float("inf") else 1
 
 
+def _find_repo_root() -> str:
+    """Walk up from this script's directory to find the repo root (contains README.md + data/)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = here
+    for _ in range(6):  # max 6 levels up
+        if (os.path.isdir(os.path.join(candidate, "data")) and
+                os.path.isfile(os.path.join(candidate, "README.md"))):
+            return candidate
+        parent = os.path.dirname(candidate)
+        if parent == candidate:
+            break
+        candidate = parent
+    return here  # fallback: same dir as script
+
+
+def _setup_tee_logging(log_path: str):
+    """Redirect stdout+stderr so all output is mirrored to *log_path* in real time."""
+    import io
+
+    class _Tee(io.TextIOWrapper):
+        def __init__(self, stream, log_file):
+            # Don't call super().__init__; we wrap manually
+            self._stream = stream
+            self._log = log_file
+
+        # Forward all attribute lookups to the underlying stream
+        def __getattr__(self, name):
+            return getattr(self._stream, name)
+
+        def write(self, data):
+            self._stream.write(data)
+            self._stream.flush()
+            try:
+                self._log.write(data)
+                self._log.flush()
+            except Exception:
+                pass
+            return len(data)
+
+        def flush(self):
+            self._stream.flush()
+            try:
+                self._log.flush()
+            except Exception:
+                pass
+
+    log_file = open(log_path, "w", encoding="utf-8", buffering=1)
+    sys.stdout = _Tee(sys.__stdout__, log_file)
+    sys.stderr = _Tee(sys.__stderr__, log_file)
+    return log_file
+
+
 def main():
     import argparse
     from datetime import datetime, timezone
-    
-    parser = argparse.ArgumentParser(description="HDC VSA Model with H100 Tensor Core Optimizations")
-    parser.add_argument("--data_path", type=str, default="./data/datasets/fineweb10B_sp1024")
-    parser.add_argument("--tokenizer_path", type=str, default="./data/tokenizers/fineweb_1024_bpe.model")
+
+    # ── Auto-detect repo root so the script works from any CWD ──────────────
+    _repo_root = _find_repo_root()
+    _default_data      = os.path.join(_repo_root, "data", "datasets", "fineweb10B_sp1024")
+    _default_tokenizer = os.path.join(_repo_root, "data", "tokenizers", "fineweb_1024_bpe.model")
+
+    # ── Auto-tee all output to a timestamped train.log ───────────────────────
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    _ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    _log_path = os.path.join(_script_dir, f"train_{_ts}.log")
+    _log_fh = _setup_tee_logging(_log_path)
+    print(f"[HDC] Logging to {_log_path}")
+
+    parser = argparse.ArgumentParser(
+        description="HDC VSA Model — zero-parameter run: python train_gpt.py",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--data_path", type=str, default=_default_data)
+    parser.add_argument("--tokenizer_path", type=str, default=_default_tokenizer)
     parser.add_argument("--hdc_dim", type=int, default=DEFAULT_HDC_DIM)
     parser.add_argument("--iterations", type=int, default=20000)
     parser.add_argument("--max_time", type=float, default=600.0)
@@ -8750,15 +8825,19 @@ def main():
     parser.add_argument("--run_name", type=str, default="HDC Zero Track 5Mb TensorCore", help="Run name for submission")
 
     # ── Hash-Grad flag (primary competition path) ─────────────────────────────
-    parser.add_argument(
-        "--hash_grad", action="store_true",
+    # Default is ON — judges can run `python train_gpt.py` with no arguments.
+    # Pass --no_hash_grad to fall back to the legacy single-process HDC path.
+    _hg_grp = parser.add_mutually_exclusive_group()
+    _hg_grp.add_argument(
+        "--hash_grad", dest="hash_grad", action="store_true", default=True,
         help=(
-            "Use the Hash-Addressed Gradient NMF pipeline as the primary training method. "
-            "This is the recommended path for leaderboard submissions. "
-            "Designed to run via: torchrun --standalone --nproc_per_node=8 train_gpt.py --hash_grad "
+            "Use the Hash-Addressed Gradient NMF pipeline (DEFAULT). "
             "TABLE_BITS and EMBED_DIM are controlled via environment variables (default: 19 and 16). "
-            "HG_SEEDS overrides --seed for multi-seed tabulation (e.g. HG_SEEDS=42,7,1337)."
+            "HG_SEEDS overrides the 3-seed default (e.g. HG_SEEDS=42,7,1337)."
         ))
+    _hg_grp.add_argument(
+        "--no_hash_grad", dest="hash_grad", action="store_false",
+        help="Disable hash-grad and fall back to the legacy single-process HDC path.")
     parser.add_argument(
         "--moral_safety", action="store_true",
         help="Enable moral safety gate during hash-grad evaluation (--hash_grad only).")
@@ -8812,8 +8891,12 @@ def main():
     
     args = parser.parse_args()
 
-    # ── Route: hash_grad (primary competition path) ───────────────────────────
-    if getattr(args, "hash_grad", False):
+    # ── Route: hash_grad (primary competition path — ON by default) ───────────
+    if getattr(args, "hash_grad", True):
+        # Default HG_SEEDS to 3-seed merge for statistical significance.
+        # Judges can override via: HG_SEEDS=42 python train_gpt.py
+        if "HG_SEEDS" not in os.environ:
+            os.environ["HG_SEEDS"] = "42,7,1337"
         return _run_hash_grad_single(args)
 
     if args.multi_seed:
