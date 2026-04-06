@@ -2,54 +2,67 @@
   "author": "Greg / Codex AutoResearch",
   "github_id": "greqone",
   "name": "Non-record: state-space hybrid with attention anchors",
-  "blurb": "Local Blackwell scaling result on the standard scorer path. Layout AAASSASSS keeps more lower-layer attention, uses S4D-style state-space blocks from a compile-friendly architecture family, exports ssm.* tensors in float16, and retains ENABLE_TORCH_COMPILE=0 for the promoted kept run.",
+  "track_label": "fixed-predictor",
+  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAAAAASS, a short S4D-style SSM tail, a recurrent-core-only fp16 export policy, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation.",
   "date": "2026-04-06T00:00:00Z",
   "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
-  "val_loss": 3.11351113,
-  "val_bpb": 1.84399667,
-  "baseline_val_loss": 3.24156138,
-  "baseline_val_bpb": 1.91983524,
-  "kept_vs_baseline_delta_bpb": -0.07583857,
+  "val_loss": 3.02705896,
+  "val_bpb": 1.79279482,
+  "baseline_val_loss": 3.07510478,
+  "baseline_val_bpb": 1.82125026,
+  "kept_vs_baseline_delta_bpb": -0.02845544,
+  "previous_promoted_val_bpb": 1.84399667,
+  "previous_promoted_delta_bpb": -0.05120185,
   "artifact_bytes": {
     "code": 57756,
-    "model_int8_zlib": 14723462,
-    "total": 14781218
+    "model_int8_zlib": 9651583,
+    "total": 9709339
   },
   "wallclock_ms": {
-    "training": 119096,
-    "evaluation": 121491,
-    "export_roundtrip_estimate": 5359,
-    "end_to_end_estimate": 245946
+    "training": 138815,
+    "evaluation": 185347,
+    "export_roundtrip_estimate": 5675,
+    "end_to_end_estimate": 329837
   },
   "compile_settings": {
     "enable_torch_compile": 0,
     "sdp_backend": "math"
   },
   "kept_config": {
-    "block_layout": "AAASSASSS",
+    "block_layout": "AAAAAAASS",
     "ssm_core": "s4d",
     "ssm_kernel_size": 64,
-    "ssm_rank": 4,
-    "int8_force_float_name_patterns": "ssm.",
+    "ssm_rank": 8,
+    "int8_force_float_name_patterns": "ssm_coeff,ssm_log_decay,ssm_d",
     "train_batch_tokens": 32768,
     "train_seq_len": 1024,
     "val_batch_size": 262144,
     "iterations": 480,
-    "seed": 1337
+    "seed": 2027
   },
   "baseline_match": {
     "type": "training_wallclock_same_blackwell_lane",
     "block_layout": "AAAAAAAAA",
-    "iterations": 390,
-    "train_time_ms": 116230,
-    "evaluation_time_ms": 218850
+    "iterations": 450,
+    "seed": 2027,
+    "train_time_ms": 134901,
+    "evaluation_time_ms": 221886
+  },
+  "stability_package": {
+    "hybrid_layout": "AAASSASSS",
+    "hybrid_mean_val_bpb": 1.82395447,
+    "hybrid_std_val_bpb": 0.01721269,
+    "hybrid_runs": 3,
+    "baseline_mean_val_bpb": 1.91383793,
+    "baseline_std_val_bpb": 0.00599732,
+    "baseline_runs": 2
   },
   "scope": {
     "training_shards": 1,
     "gpu_lane": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
     "record_claim": false
   },
-  "bytes_total": 14781218,
-  "bytes_model_int8_zlib": 14723462,
+  "bytes_total": 9709339,
+  "bytes_model_int8_zlib": 9651583,
   "bytes_code": 57756
 }

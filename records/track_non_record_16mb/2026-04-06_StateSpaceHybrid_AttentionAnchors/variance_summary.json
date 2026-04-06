@@ -1,0 +1,92 @@
+{
+  "promoted_candidate": {
+    "artifact_bytes": {
+      "code": 57756,
+      "model_int8_zlib": 9651583,
+      "total": 9709339
+    },
+    "delta_vs_matched_baseline_bpb": -0.02845544000000011,
+    "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+    "layout": "AAAAAAASS",
+    "matched_baseline": {
+      "bytes_total": 9444341,
+      "evaluation_time_ms": 221886,
+      "name": "full_baseline_450steps_blackwell_seed2027",
+      "score": 1.82125026,
+      "train_time_ms": 134901
+    },
+    "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
+    "name": "full_anchor_s4d_aaaaaaass_rank8_corefp16_480steps_blackwell_seed2027",
+    "score": 1.79279482,
+    "ssm_core": "s4d",
+    "ssm_kernel_size": 64,
+    "ssm_rank": 8,
+    "wallclock_ms": {
+      "evaluation": 185347,
+      "export_roundtrip_estimate": 5675,
+      "training": 138815
+    }
+  },
+  "stability_package": {
+    "baseline_matched_390step": {
+      "layout": "AAAAAAAAA",
+      "runs": [
+        {
+          "bytes_total": 8969332,
+          "eval_time_ms": 218850,
+          "seed": "seed1337",
+          "train_time_ms": 116230,
+          "val_bpb": 1.91983524
+        },
+        {
+          "bytes_total": 8968490,
+          "eval_time_ms": 221226,
+          "seed": "seed2027",
+          "train_time_ms": 117104,
+          "val_bpb": 1.90784061
+        }
+      ],
+      "val_bpb_stats": {
+        "max": 1.91983524,
+        "mean": 1.9138379250000002,
+        "min": 1.90784061,
+        "n": 2,
+        "std": 0.005997315000000003
+      }
+    },
+    "hybrid_current_winner": {
+      "export_policy": "ssm.* -> float16",
+      "layout": "AAASSASSS",
+      "runs": [
+        {
+          "bytes_total": 14781218,
+          "eval_time_ms": 121491,
+          "seed": "seed1337",
+          "train_time_ms": 119096,
+          "val_bpb": 1.84399667
+        },
+        {
+          "bytes_total": 14784720,
+          "eval_time_ms": 122695,
+          "seed": "seed2027",
+          "train_time_ms": 117459,
+          "val_bpb": 1.80196893
+        },
+        {
+          "bytes_total": 14787158,
+          "eval_time_ms": 122233,
+          "seed": "seed4242",
+          "train_time_ms": 118033,
+          "val_bpb": 1.82589781
+        }
+      ],
+      "val_bpb_stats": {
+        "max": 1.84399667,
+        "mean": 1.82395447,
+        "min": 1.80196893,
+        "n": 3,
+        "std": 0.017212692219088405
+      }
+    }
+  }
+}

@@ -7,31 +7,37 @@ This is **not** an official 8xH100 / 10-minute lane run.
 This is **not** a full-train-shards claim.
 This is **not** a statistical-significance claim for a record.
 
+Track label for this folder:
+
+- fixed-predictor state-space hybrid
+- not an adaptive-compression result
+- no eval-time adaptation or TTT
+
 What it is:
 
 - A scorer-clean hybrid architecture study on the standard `train_gpt.py` path.
 - Standard primary metric: `final_int8_zlib_roundtrip_exact val_bpb`.
 - Full official validation split (`fineweb_val_*.bin`, `62,021,632` scored tokens).
 - Local one-shard training on the single available `fineweb_train_000000.bin` shard.
-- A Blackwell workstation scaling study with a same-lane training-wallclock-matched baseline control.
+- A Blackwell workstation scaling study with same-lane training-wallclock-matched all-attention controls.
 - An architecture family designed to remain compile-friendly, while the kept run below explicitly used `ENABLE_TORCH_COMPILE=0`.
 
 ## Kept Result
 
-- Kept layout: `AAASSASSS`
+- Kept layout: `AAAAAAASS`
   - `A` = exact attention block
   - `S` = compile-friendly S4D-style state-space block
-- Attention anchors: layers `0-2` and `5`
+- Interpretation: front-loaded exact attention with a short SSM tail
 - SSM core: `S4D-Lin` descendant using learned exponential depthwise conv kernels
-- Export policy: keep `ssm.*` tensors in `float16` during export; quantize the rest with the standard int8+zlib path
-- Seed: `1337`
+- Kept export policy: keep only `ssm_coeff`, `ssm_log_decay`, and `ssm_d` in `float16`; quantize the rest with the standard int8+zlib path
+- Seed: `2027`
 - Fixed config: `TRAIN_BATCH_TOKENS=32768`, `TRAIN_SEQ_LEN=1024`, `VAL_BATCH_SIZE=262144`
 - Training budget: `480` steps on the single available train shard
 - Kept run compile setting: `ENABLE_TORCH_COMPILE=0`, `SDP_BACKEND=math`
 - GPU lane: single `NVIDIA RTX PRO 6000 Blackwell Workstation Edition`
-- Primary score: `val_bpb = 1.84399667`
-- Primary loss: `val_loss = 3.11351113`
-- Model params: `17,082,912`
+- Primary score: `val_bpb = 1.79279482`
+- Primary loss: `val_loss = 3.02705896`
+- Model params: `17,077,304`
 
 ## Controlled Comparison
 
@@ -41,45 +47,74 @@ The promoted comparison is matched by measured training wallclock on the same Bl
 
 | Run | Layout | Train time | Eval time | Total bytes | val_bpb | val_loss |
 |---|---|---:|---:|---:|---:|---:|
-| Baseline control | `AAAAAAAAA` | `116,230 ms` | `218,850 ms` | `8,969,332` | `1.91983524` | `3.24156138` |
-| Mid-anchor hybrid | `AASSSASSS` | `113,016 ms` | `101,313 ms` | `15,805,433` | `1.84814088` | `3.12050846` |
-| **Kept hybrid** | **`AAASSASSS`** | **`119,096 ms`** | **`121,491 ms`** | **`14,781,218`** | **`1.84399667`** | **`3.11351113`** |
+| Baseline control | `AAAAAAAAA` | `134,901 ms` | `221,886 ms` | `9,444,341` | `1.82125026` | `3.07510478` |
+| Previous promoted hybrid | `AAASSASSS` | `119,096 ms` | `121,491 ms` | `14,781,218` | `1.84399667` | `3.11351113` |
+| **Kept hybrid** | **`AAAAAAASS`** | **`138,815 ms`** | **`185,347 ms`** | **`9,709,339`** | **`1.79279482`** | **`3.02705896`** |
 
-Delta vs the matched Blackwell baseline control: `-0.07583857` BPB.
+Delta vs the matched Blackwell baseline control: `-0.02845544` BPB.
 
-End-to-end runtime was also lower for the kept hybrid than for the matched baseline:
+Delta vs the previous promoted kept result: `-0.05120185` BPB.
 
-- Kept hybrid duration: `245.95 s`
-- Matched baseline duration: `344.39 s`
+## Stability Package
 
-## Scaling Notes
+Before searching wider, the previous promoted winner `AAASSASSS` was rerun on the same Blackwell lane to test whether the signal survived seed changes.
 
-This lane first produced a fixed-step one-shard sign-of-life at `80` steps:
+Retained runs for `AAASSASSS` + `ssm.* -> float16`:
 
-- `AASSSASSS` + `ssm.* -> float16`: `3.15875948` BPB
+- seed `1337`: `1.84399667` BPB
+- seed `2027`: `1.80196893` BPB
+- seed `4242`: `1.82589781` BPB
+- mean: `1.82395447`
+- stddev: `0.01721269`
 
-The later Blackwell scaling study retained the same scorer path and export policy while increasing training time:
+Matched baseline reruns at `390` steps:
 
-- `AASSSASSS`, `480` steps: `1.84814088` BPB, `15,805,433` bytes
-- `AAASSASSS`, `480` steps: `1.84399667` BPB, `14,781,218` bytes
+- seed `1337`: `1.91983524` BPB
+- seed `2027`: `1.90784061` BPB
+- mean: `1.91383793`
+- stddev: `0.00599732`
 
-The kept result therefore reflects both stronger scaling and a small but retained anchor-placement improvement toward more lower-layer attention.
+This continuation therefore treats the earlier hybrid gain as stable enough to search around, not a single-seed accident.
+
+## Anchor / Layout Search Finding
+
+The continuation kept pointing toward more lower and mid-layer exact attention:
+
+- `AAASSASSS` + `ssm.* -> float16`: `1.80196893` BPB at seed `2027`
+- `AAAASASSS` + `ssm.* -> float16`: `1.79647499` BPB
+- `AAAAAASSS` + `core recurrent fp16`: `1.79508744` BPB
+- `AAAAAAASS` + `core recurrent fp16`: `1.79291250` BPB
+- `AAAAAAASS` + `core recurrent fp16` + `SSM_RANK=8`: `1.79279482` BPB
+
+In this local one-shard setting, the best retained hybrid so far is therefore a strongly front-loaded attention stack with only a short SSM tail.
 
 ## Quantization / Export Finding
 
-The hybrid path remains measurably more export-sensitive than the all-attention baseline.
+The recurrent / state-space tensors are still export-sensitive, but the continuation found a cleaner policy than the earlier blanket `ssm.* -> float16` rule.
 
-Retained quantization study on the same proxy training state:
+On `AAAASASSS` at seed `2027`:
 
-- Default export: `3.19792320` BPB on `tttmicro`
-- Keep `ssm.*` in `float16`: `3.18893676` BPB, artifact `12,425,827` bytes
-- Keep `ssm.*` in `float32`: `3.18862502` BPB, artifact `21,344,486` bytes, **illegal**
+- `ssm.* -> float16`: `1.79647499` BPB, `13,758,841` total bytes
+- `ssm_coeff,ssm_log_decay,ssm_d -> float16`: `1.79647573` BPB, `9,715,005` total bytes
+
+The score delta is only `+0.00000074` BPB while saving `4,043,836` bytes.
 
 The kept policy is therefore:
 
-- legal: yes (`14,781,218` bytes total on the promoted scaled run)
-- better than default quantization
+- legal: yes (`9,709,339` bytes total on the promoted run)
+- effectively score-preserving on the tested layout
 - specific to recurrent / state-space tensors rather than a global export change
+
+## Headroom Study Finding
+
+Once the tighter recurrent export policy was in place, the lane had over `6 MB` of artifact headroom left.
+
+Retained recurrent-capacity study on `AAAAAAASS`:
+
+- `SSM_RANK=4`: `1.79291250` BPB, `9,678,230` total bytes
+- `SSM_RANK=8`: `1.79279482` BPB, `9,709,339` total bytes
+
+The gain is small but positive and remains comfortably legal.
 
 ## Validity Notes
 
@@ -103,23 +138,24 @@ Not claimed here:
 ## Artifact Size
 
 - Code bytes: `57,756`
-- Model bytes (`final_model.int8.ptz`): `14,723,462`
-- Total bytes: `14,781,218`
+- Model bytes (`final_model.int8.ptz`): `9,651,583`
+- Total bytes: `9,709,339`
 
 ## Wallclock Breakdown
 
 From the kept promoted run:
 
-- Training time: `119,096 ms`
-- Evaluation time: `121,491 ms`
-- Export / serialization / roundtrip overhead: about `5,359 ms`
-- End-to-end run duration: `245.95 s`
+- Training time: `138,815 ms`
+- Evaluation time: `185,347 ms`
+- Export / serialization / roundtrip overhead: about `5,675 ms`
+- End-to-end run duration: `329.84 s`
 
 Matched baseline control:
 
-- Training time: `116,230 ms`
-- Evaluation time: `218,850 ms`
-- End-to-end run duration: `344.39 s`
+- Training time: `134,901 ms`
+- Evaluation time: `221,886 ms`
+- Export / serialization / roundtrip overhead: about `8,531 ms`
+- End-to-end run duration: `365.32 s`
 
 ## Exact Command
 
@@ -141,12 +177,12 @@ $env:ENABLE_TORCH_COMPILE='0'
 $env:SDP_BACKEND='math'
 $env:SAVE_RAW_MODEL='0'
 $env:FINAL_PREQUANT_EVAL='0'
-$env:BLOCK_LAYOUT='AAASSASSS'
+$env:BLOCK_LAYOUT='AAAAAAASS'
 $env:SSM_CORE='s4d'
 $env:SSM_KERNEL_SIZE='64'
-$env:SSM_RANK='4'
-$env:INT8_FORCE_FLOAT_NAME_PATTERNS='ssm.'
-$env:SEED='1337'
+$env:SSM_RANK='8'
+$env:INT8_FORCE_FLOAT_NAME_PATTERNS='ssm_coeff,ssm_log_decay,ssm_d'
+$env:SEED='2027'
 python train_gpt.py
 ```
 
@@ -156,4 +192,5 @@ python train_gpt.py
 - `train.log`: promoted kept run stdout log
 - `best_run_summary.json`: machine-readable summary for the promoted kept run
 - `ablation_scoreboard.tsv`: retained cycle table for this campaign
+- `variance_summary.json`: machine-readable rerun / variance package
 - `submission.json`: metadata for this non-record folder
