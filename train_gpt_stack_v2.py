@@ -987,14 +987,15 @@ def main() -> None:
         if args.late_qat_threshold > 0.0
         else args.iterations + 1
     )
+    _cap_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     late_qat_start_ms: float | None = (
-        (1.0 - args.late_qat_threshold) * (max_wallclock_ms or 0.0)
-        if args.late_qat_threshold > 0.0 and max_wallclock_ms is not None
+        (1.0 - args.late_qat_threshold) * _cap_ms
+        if args.late_qat_threshold > 0.0 and _cap_ms is not None
         else None
     )
     if args.late_qat_threshold > 0.0:
         if late_qat_start_ms is not None:
-            log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at {late_qat_start_ms/1000:.1f}s / {max_wallclock_ms/1000:.0f}s wallclock")
+            log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at {late_qat_start_ms/1000:.1f}s / {_cap_ms/1000:.0f}s wallclock")
         else:
             log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at step {late_qat_start_step}/{args.iterations}")
 
