@@ -52,7 +52,7 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -69,7 +69,7 @@ class Hyperparameters:
 
     # R1 features (all enabled by default for submission)
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
