@@ -27,6 +27,11 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    from tracking import ParameterGolfTracker
+except ImportError:
+    ParameterGolfTracker = None  # type: ignore[assignment,misc]
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -769,10 +774,24 @@ def main() -> None:
     enable_math_sdp(False)
 
     logfile = None
+    tracker = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
         logfile = f"logs/{args.run_id}.txt"
         print(logfile)
+        if ParameterGolfTracker is not None and os.environ.get("MLFLOW_TRACKING", "0") == "1":
+            _db_path = Path(__file__).resolve().parent / "mlflow.db"
+            tracker = ParameterGolfTracker(
+                experiment_name=os.environ.get("MLFLOW_EXPERIMENT", "parameter_golf"),
+                tracking_uri=os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{_db_path}"),
+            )
+            tracker.start_run(
+                run_name=args.run_id,
+                tags={
+                    "track": os.environ.get("PG_TRACK", "dev"),
+                    "hardware_profile": os.environ.get("PG_HARDWARE", "unknown"),
+                },
+            )
 
     def log0(msg: str, console: bool = True) -> None:
         if not master_process:
@@ -909,6 +928,18 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
 
+    if tracker is not None:
+        tracker.log_hyperparams(args)
+        tracker.log_model_info(n_params, world_size, grad_accum_steps)
+        tracker.log_data_info(
+            data_path=args.data_path,
+            tokenizer_path=args.tokenizer_path,
+            n_train_shards=actual_train_files,
+            n_val_tokens=val_tokens.numel() - 1,
+        )
+        tracker.log_system_info()
+        tracker.log_config_snapshot(args, extra={"n_params": n_params, "world_size": world_size})
+
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
@@ -993,6 +1024,8 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            if tracker is not None:
+                tracker.log_validation(step=step, val_loss=val_loss, val_bpb=val_bpb, train_time_ms=training_time_ms)
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
@@ -1040,10 +1073,14 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
+            _tl = train_loss.item()
+            _sa = approx_training_time_ms / step
             log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
-                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"step:{step}/{args.iterations} train_loss:{_tl:.4f} "
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{_sa:.2f}ms"
             )
+            if tracker is not None:
+                tracker.log_step(step=step, train_loss=_tl, train_time_ms=approx_training_time_ms, step_avg_ms=_sa)
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1117,6 +1154,30 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    if tracker is not None:
+        _peak_mib = torch.cuda.max_memory_allocated() // 1024 // 1024
+        _reserved_mib = torch.cuda.max_memory_reserved() // 1024 // 1024
+        _stopped = "wallclock_cap" if (stop_after_step is not None and step < args.iterations) else "completed"
+        _code_bytes = len(code.encode("utf-8"))
+        _model_bytes = os.path.getsize("final_model.pt") if os.path.isfile("final_model.pt") else 0
+        _quant_bytes = os.path.getsize("final_model.int8.ptz") if os.path.isfile("final_model.int8.ptz") else 0
+        tracker.log_final(
+            val_loss=q_val_loss,
+            val_bpb=q_val_bpb,
+            eval_time_ms=1000.0 * (time.perf_counter() - t_qeval),
+            model_bytes_raw=_model_bytes,
+            code_bytes=_code_bytes,
+            quant_bytes=_quant_bytes,
+            peak_mem_mib=_peak_mib,
+            reserved_mem_mib=_reserved_mib,
+            steps_completed=step,
+            iterations_requested=args.iterations,
+            total_train_time_ms=training_time_ms,
+            stopped_reason=_stopped,
+        )
+        tracker.log_file_artifact(logfile or f"logs/{args.run_id}.txt")
+        tracker.end_run()
 
     if distributed:
         dist.destroy_process_group()

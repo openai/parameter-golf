@@ -9,3 +9,12 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+mlflow.db
+mlruns/
+_mlflow_*
+*.ptz
+*.npz
+final_model.*
+.bash_logout
+.bashrc
+.profile
