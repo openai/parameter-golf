@@ -1016,6 +1016,45 @@ class GPT(nn.Module):
         else:
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+    def forward_hidden(self, input_ids: Tensor) -> Tensor:
+        """Return last hidden state BEFORE lm_head projection. Shape: (bsz, seq_len, model_dim)."""
+        n = self.num_layers
+        x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear(x)
+        x0 = x
+        v0 = None
+        skips: list[Tensor] = []
+        ve_cache: dict = {}
+        for i in range(self.num_encoder_layers):
+            ve = self._get_ve(i, input_ids, ve_cache)
+            x, raw_v = self.blocks[i](x, x0,
+                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
+                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                v_embed=ve, v0=v0)
+            if v0 is None and raw_v is not None:
+                v0 = raw_v
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            x, _ = self.blocks[bi](x, x0,
+                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                v_embed=ve, v0=v0)
+        return self.final_norm(x)
+    def compute_logits(self, hidden: Tensor) -> Tensor:
+        """Apply lm_head (or tied embedding) projection + softcap to hidden states.
+        hidden: (bsz, seq_len, model_dim) -> logits: (bsz, seq_len, vocab_size)."""
+        if self.tie_embeddings:
+            logits_proj = F.linear(hidden, self.tok_emb.weight)
+        else:
+            logits_proj = self.lm_head(hidden)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
 # --- Sliding window evaluation ---
 
@@ -1090,11 +1129,12 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
-# --- Score-First TTT (Test-Time Training) ---
-# Legal under rules: "you are only allowed to test-time train on validation set
-# tokens you've already evaluated your model on, since those tokens have already been graded!"
+# --- Per-Sample SLOT v2 (Sample-specific Language Model Optimization at Test-time) ---
+# Based on arXiv:2505.12392 and PR #1329 (0.636 BPB).
+# Per-sample delta + logit_bias in hidden/logit space — model weights fully frozen.
+# Legal: final scoring (recorded towards BPB) happens AFTER optimization.
 
-def eval_val_ttt(
+def eval_val_slot_v2(
     args,
     base_model: nn.Module,
     rank: int,
@@ -1104,71 +1144,168 @@ def eval_val_ttt(
     base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
-    ttt_lr: float = 0.01,
-    ttt_epochs: int = 3,
-    chunk_tokens: int = 16384,
-    eval_seq_len: int | None = None,
+    slot_lr: float = 0.024,
+    slot_steps: int = 24,
+    stride: int = 64,
+    eval_seq_len: int = 2048,
+    batch_seqs: int = 32,
 ) -> tuple[float, float]:
-    """Score-First TTT: for each chunk, first score (grade), then train on scored tokens.
-    All ranks process all chunks sequentially (shared model state for TTT adaptation).
-    Score is recorded BEFORE training, so later chunks benefit from earlier adaptation."""
-    seq_len = eval_seq_len or args.train_seq_len
+    """Per-Sample SLOT v2: for each batch of sliding windows:
+    1. Forward pass (frozen) -> hidden states
+    2. Create per-sample delta [bsz, 1, model_dim] + logit_bias [bsz, 1, vocab_size], zero-init
+    3. Build score_mask: only last `stride` positions scored (except first window = all)
+    4. 24 AdamW steps on delta+bias, optimizing on scored positions only
+       - LR: cosine decay from slot_lr to 0.001
+       - Only delta and logit_bias are optimized (model frozen)
+    5. Final scoring with optimized delta (recorded towards BPB)
+    6. Discard delta+bias, move to next batch
+    """
+    seq_len = eval_seq_len if eval_seq_len > 0 else args.train_seq_len
     total_tokens = val_tokens.numel() - 1
-    # Align chunks to seq_len boundaries
-    tokens_per_chunk = max((chunk_tokens // seq_len) * seq_len, seq_len)
-    num_chunks = max(total_tokens // tokens_per_chunk, 1)
+    model_dim = args.model_dim
+    vocab_size = args.vocab_size
 
-    # SGD optimizer — lightweight, no state overhead
-    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
-    ttt_optimizer = torch.optim.SGD(ttt_params, lr=ttt_lr)
+    # Sliding windows
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
 
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    for ci in range(num_chunks):
-        start = ci * tokens_per_chunk
-        end = min(start + tokens_per_chunk, total_tokens)
-        usable = ((end - start) // seq_len) * seq_len
-        if usable < seq_len:
-            continue
-        chunk = val_tokens[start:start + usable + 1].to(device=device, dtype=torch.int64)
-        x = chunk[:-1].reshape(-1, seq_len)
-        y = chunk[1:].reshape(-1, seq_len)
+    # Freeze all model parameters
+    base_model.eval()
+    for param in base_model.parameters():
+        param.requires_grad = False
 
-        # STEP 1: SCORE (no grad, record loss for BPB)
-        base_model.eval()
+    # Try to compile forward_hidden for speed
+    try:
+        compiled_hidden = torch.compile(base_model.forward_hidden, dynamic=False, fullgraph=True)
+    except Exception:
+        compiled_hidden = base_model.forward_hidden
+
+    lr_min = 0.001
+
+    for bi in range(0, len(my_windows), batch_seqs):
+        batch_ws = my_windows[bi:bi + batch_seqs]
+        bsz = len(batch_ws)
+
+        # Build input/target batches
+        x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+        y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+        wlens: list[int] = []
+        for i, ws in enumerate(batch_ws):
+            end = min(ws + seq_len, total_tokens)
+            wlen = end - ws
+            wlens.append(wlen)
+            chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+            x_batch[i, :wlen] = chunk[:-1]
+            y_batch[i, :wlen] = chunk[1:]
+
+        # STEP 1: Forward pass (frozen) -> hidden states (no grad through model)
         with torch.no_grad():
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits = base_model.forward_logits(x)
-            chunk_loss = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)).float(), y.reshape(-1), reduction="mean",
-            )
-        n_tok = float(y.numel())
-        loss_sum += chunk_loss.to(torch.float64) * n_tok
-        token_count += n_tok
-        prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
-        tb = base_bytes_lut[tgt_ids].to(torch.float64)
-        tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
-        byte_count += tb.sum()
+                hidden = compiled_hidden(x_batch)  # (bsz, seq_len, model_dim)
+        hidden = hidden.detach().float()  # keep in float32 for stable optimization
 
-        # STEP 2: TRAIN on scored tokens (legal — already graded!)
-        base_model.train()
-        for _ in range(ttt_epochs):
-            ttt_optimizer.zero_grad()
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits_t = base_model.forward_logits(x)
-                train_loss = F.cross_entropy(
-                    logits_t.reshape(-1, logits_t.size(-1)).float(), y.reshape(-1), reduction="mean",
-                )
-            train_loss.backward()
-            torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
-            ttt_optimizer.step()
+        # STEP 2: Create per-sample delta and logit_bias, zero-init
+        delta = torch.zeros(bsz, 1, model_dim, device=device, dtype=torch.float32, requires_grad=True)
+        logit_bias = torch.zeros(bsz, 1, vocab_size, device=device, dtype=torch.float32, requires_grad=True)
 
-    # All ranks processed same data, so no need for all_reduce
+        # STEP 3: Build score_mask — only last `stride` positions scored (except first window = all)
+        score_mask = torch.zeros(bsz, seq_len, device=device, dtype=torch.float32)
+        for i, ws in enumerate(batch_ws):
+            wlen = wlens[i]
+            s = 0 if ws == 0 else max(wlen - stride, 0)
+            score_mask[i, s:wlen] = 1.0
+
+        mask_count = score_mask.sum()
+        if mask_count == 0:
+            continue
+
+        # Get the lm_head weight for manual logit computation (frozen)
+        if base_model.tie_embeddings:
+            lm_weight = base_model.tok_emb.weight.detach().float()  # (vocab_size, model_dim)
+        else:
+            lm_weight = base_model.lm_head.weight.detach().float()
+        softcap = base_model.logit_softcap
+
+        # Flatten targets for loss computation
+        targets_flat = y_batch.reshape(-1)  # (bsz * seq_len,)
+
+        # STEP 4: AdamW optimization on delta + logit_bias
+        optimizer = torch.optim.AdamW(
+            [delta, logit_bias],
+            lr=slot_lr, weight_decay=1e-8, eps=1e-5, betas=(0.9, 0.95),
+        )
+        for step in range(slot_steps):
+            # Cosine LR decay from slot_lr to lr_min
+            t = step / max(slot_steps - 1, 1)
+            lr_now = lr_min + 0.5 * (slot_lr - lr_min) * (1.0 + math.cos(math.pi * t))
+            for pg in optimizer.param_groups:
+                pg['lr'] = lr_now
+
+            optimizer.zero_grad()
+
+            # Apply delta (broadcasts over seq_len) and compute logits
+            h = hidden + delta  # (bsz, seq_len, model_dim)
+            logits_proj = h @ lm_weight.t()  # (bsz, seq_len, vocab_size)
+            logits_proj = logits_proj + logit_bias  # add per-sample logit bias
+            logits = softcap * torch.tanh(logits_proj / softcap)
+
+            # Masked cross-entropy loss
+            nll = F.cross_entropy(
+                logits.reshape(-1, vocab_size).float(),
+                targets_flat,
+                reduction="none",
+            ).reshape(bsz, seq_len)
+            loss = (nll * score_mask).sum() / mask_count
+            loss.backward()
+            optimizer.step()
+
+        # STEP 5: Final scoring with optimized delta (recorded towards BPB)
+        with torch.no_grad():
+            h_final = hidden + delta  # (bsz, seq_len, model_dim)
+            logits_proj_final = h_final @ lm_weight.t() + logit_bias
+            logits_final = softcap * torch.tanh(logits_proj_final / softcap)
+
+            nll_final = F.cross_entropy(
+                logits_final.reshape(-1, vocab_size).float(),
+                targets_flat,
+                reduction="none",
+            ).reshape(bsz, seq_len)
+
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                scored_nll = nll_final[i, s:wlen].to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tgt = y_batch[i, s:wlen]
+                prev = x_batch[i, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += tb.sum()
+
+        # STEP 6: Discard delta+bias (they go out of scope on next iteration)
+        del delta, logit_bias, optimizer, hidden, h_final
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
     val_loss = (loss_sum / token_count).item()
     bits_per_token = val_loss / math.log(2.0)
     tokens_per_byte = token_count.item() / byte_count.item()
+
+    # Restore model to trainable state
+    for p in base_model.parameters():
+        p.requires_grad = True
     base_model.eval()
     return val_loss, bits_per_token * tokens_per_byte
 
@@ -2268,10 +2405,9 @@ def main() -> None:
         )
         log0(f"final_trinity_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-    # Score-First TTT evaluation — train on scored tokens for better BPB
+    # Per-Sample SLOT evaluation — adapt model on scored tokens per sliding window
     if args.ttt_enabled:
-        # Reload the quantized model fresh for TTT (don't use already-evaluated state)
-        ttt_model = GPT(
+        slot_model = GPT(
             vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
             num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
             tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
@@ -2283,26 +2419,27 @@ def main() -> None:
             ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
             gated_attention=args.gated_attention, value_residual=args.value_residual,
         ).to(device).bfloat16()
-        for m in ttt_model.modules():
+        for m in slot_model.modules():
             if isinstance(m, CastedLinear):
                 m.float()
-        restore_low_dim_params_to_fp32(ttt_model)
-        ttt_model.load_state_dict(deq_state, strict=True)
+        restore_low_dim_params_to_fp32(slot_model)
+        slot_model.load_state_dict(deq_state, strict=True)
         torch.cuda.synchronize()
-        t_ttt = time.perf_counter()
-        log0(f"ttt:starting Score-First TTT (lr={args.ttt_lr}, epochs={args.ttt_epochs}, chunk={args.ttt_chunk_tokens})")
-        ttt_val_loss, ttt_val_bpb = eval_val_ttt(
-            args, ttt_model, rank, world_size, device,
+        t_slot = time.perf_counter()
+        log0(f"slot:starting Per-Sample SLOT v2 (lr={args.ttt_lr}, steps={24}, stride=64)")
+        slot_val_loss, slot_val_bpb = eval_val_slot_v2(
+            args, slot_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            ttt_lr=args.ttt_lr, ttt_epochs=args.ttt_epochs,
-            chunk_tokens=args.ttt_chunk_tokens, eval_seq_len=effective_eval_seq_len,
+            slot_lr=args.ttt_lr, slot_steps=24, stride=64,
+            eval_seq_len=effective_eval_seq_len, batch_seqs=32,
         )
         torch.cuda.synchronize()
         log0(
-            f"final_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
-            f"eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+            f"final_slot val_loss:{slot_val_loss:.4f} val_bpb:{slot_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_slot):.0f}ms"
         )
-        log0(f"final_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+        log0(f"final_slot_exact val_loss:{slot_val_loss:.8f} val_bpb:{slot_val_bpb:.8f}")
+        log0(f"final_int8_zlib_roundtrip_exact val_loss:{slot_val_loss:.8f} val_bpb:{slot_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

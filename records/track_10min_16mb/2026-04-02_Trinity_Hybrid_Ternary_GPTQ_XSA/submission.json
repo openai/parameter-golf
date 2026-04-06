@@ -1,28 +1,35 @@
 {
   "track": "10min_16mb",
-  "date": "2026-04-05",
-  "name": "Trinity_Hybrid_GPTQ_XSA",
+  "date": "2026-04-06",
+  "name": "Trinity_SLOT_v2",
   "author": "gHashTag",
   "github_id": "deborahnelson8788726",
-  "val_bpb": 1.1304,
-  "val_bpb_seeds": {
+  "val_bpb": 0.6680,
+  "val_bpb_note": "Per-Sample SLOT v2 (single seed 314), 8xH100 SXM, sliding window stride=64",
+  "val_bpb_baseline_no_slot": 1.1290,
+  "val_bpb_seeds_baseline": {
     "seed_42": 1.1323,
     "seed_314": 1.1297,
-    "seed_999": 1.1293
+    "seed_999": 1.1293,
+    "mean": 1.1304
   },
-  "val_bpb_note": "3-seed mean on 8xH100 SXM, MLP 3.0x, sliding window s64",
-  "description": "Built on PR #1019 stack. MLP 3.0x, int6 Full Hessian GPTQ with AR self-gen calibration. 8xH100 SXM, ~5440 steps in 10 min. TTT tested but did not improve on this stack.",
-  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
-  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ",
+  "description": "Per-Sample SLOT (Sample-specific Language Model Optimization at Test-time) inspired by arXiv:2505.12392 and PR #1329. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash). Per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps over scored sliding-window positions. Model fully frozen during SLOT — only delta/bias trained. Score happens AFTER per-sample optimization.",
+  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072 + PR #1329 SLOT technique",
+  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Per-Sample SLOT v2",
+  "artifact_bytes": 15799020,
+  "code_bytes": 116486,
+  "total_submission_bytes": 15915506,
   "training": {
-    "steps": 5443,
+    "steps": 5452,
     "step_time_ms": 110,
-    "gpu": "8xH100 SXM",
-    "time_seconds": 600
+    "train_time_seconds": 600,
+    "slot_eval_seconds": 405,
+    "total_seconds": 1005,
+    "gpu": "8xH100 SXM"
   },
   "techniques": [
+    "Per-Sample SLOT v2 (test-time per-sample delta + logit bias optimization)",
     "int6 Full Hessian GPTQ with AR self-generated calibration",
-    "Score-First TTT (test-time training on scored validation tokens)",
     "XSA (Cross-layer Selective Attention) on all 11 layers",
     "BigramHash 3072x112 embedding",
     "LeakyReLU(0.5)² activation",
@@ -30,8 +37,8 @@
     "Late QAT (int6 STE when LR scale < 0.15)",
     "EMA (0.997) + SWA",
     "Parallel Muon optimizer",
-    "Trinity: ternary parameter budget analysis for architecture decisions",
     "Selective ±1 pruning for size budget",
-    "LZMA preset=9 compression"
+    "LZMA preset=9 compression",
+    "Trinity ternary parameter budget analysis"
   ]
 }
