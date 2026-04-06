@@ -978,15 +978,25 @@ def main() -> None:
         ema_params = {n: p.data.detach().cpu().clone() for n, p in base_model.named_parameters()}
         log0(f"ema: initialized {len(ema_params)} parameter tensors (decay={args.ema_decay})")
 
-    # [STACK] Late QAT: pre-compute the step at which STE activates
+    # [STACK] Late QAT: activate STE during last late_qat_threshold fraction of training.
+    # [V2] When wallclock cap is active, trigger is time-based (elapsed >= threshold × cap)
+    #      so QAT fires even when step count is unknown. When uncapped, step-based as before.
     late_qat_enabled = False
     late_qat_start_step = (
         max(1, int((1.0 - args.late_qat_threshold) * args.iterations))
         if args.late_qat_threshold > 0.0
         else args.iterations + 1
     )
+    late_qat_start_ms: float | None = (
+        (1.0 - args.late_qat_threshold) * (max_wallclock_ms or 0.0)
+        if args.late_qat_threshold > 0.0 and max_wallclock_ms is not None
+        else None
+    )
     if args.late_qat_threshold > 0.0:
-        log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at step {late_qat_start_step}/{args.iterations}")
+        if late_qat_start_ms is not None:
+            log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at {late_qat_start_ms/1000:.1f}s / {max_wallclock_ms/1000:.0f}s wallclock")
+        else:
+            log0(f"late_qat: STE int{args.mdl_quant_bits} will activate at step {late_qat_start_step}/{args.iterations}")
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -1072,8 +1082,12 @@ def main() -> None:
                 )
             break
 
-        # [STACK] Late QAT: activate STE at threshold step (recompiles model once)
-        if not late_qat_enabled and step >= late_qat_start_step:
+        # [STACK] Late QAT: activate STE at threshold (time-based when wallclock-capped)
+        elapsed_for_qat = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        qat_trigger = (
+            late_qat_start_ms is not None and elapsed_for_qat >= late_qat_start_ms
+        ) or (late_qat_start_ms is None and step >= late_qat_start_step)
+        if not late_qat_enabled and qat_trigger:
             late_qat_enabled = True
             for module in base_model.modules():
                 if isinstance(module, CastedLinear) and module.weight.numel() >= 65_536:
