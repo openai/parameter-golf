@@ -700,8 +700,8 @@ class CausalSelfAttention(nn.Module):
         # GQA: zero-copy expand so flash attention sees contiguous grouped heads
         if self.num_kv_heads != self.num_heads:
             repeat = self.num_heads // self.num_kv_heads
-            k = k.unsqueeze(2).expand(bsz, self.num_kv_heads, repeat, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
-            v = v.unsqueeze(2).expand(bsz, self.num_kv_heads, repeat, seqlen, self.head_dim).reshape(bsz, self.num_heads, seqlen, self.head_dim)
+            k = k.unsqueeze(2).expand(bsz, self.num_kv_heads, repeat, seqlen, self.head_dim).contiguous().view(bsz, self.num_heads, seqlen, self.head_dim)
+            v = v.unsqueeze(2).expand(bsz, self.num_kv_heads, repeat, seqlen, self.head_dim).contiguous().view(bsz, self.num_heads, seqlen, self.head_dim)
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
