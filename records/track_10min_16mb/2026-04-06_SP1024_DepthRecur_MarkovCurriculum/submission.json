@@ -1,5 +1,5 @@
 {
-  "title": "SP1024 + Depth Recurrence + Markov Curriculum + Auto-QMax GPTQ + TTT",
+  "title": "Raki: Adaptive Markov Curriculum + Auto-QMax Artifact Packing + Turbo-Muon AOL",
   "author": "Mertyandimata",
   "track": "track_10min_16mb",
   "val_bpb": 1.1047,
@@ -12,9 +12,19 @@
       "ttt_bpb": 1.1047,
       "steps": 5183,
       "training_time_s": 590,
-      "artifact_bytes": 15888861
+      "eval_time_s": 491,
+      "artifact_bytes": 15888861,
+      "auto_qmax": 41,
+      "gptq_layers": 67
     }
   },
+  "original_contributions": [
+    "Auto-QMax binary search over clip range [31,127] to maximize artifact utilization (0.024 BPB gain)",
+    "Adaptive Markov Curriculum: bigram-surprise-weighted loss scaling",
+    "Turbo-Muon: AOL diagonal preconditioning + MuonEq-R combined",
+    "EMA+SWA blended weight averaging (30/70 ratio)",
+    "torch._dynamo.reset() Late QAT fix for torch.compile compatibility"
+  ],
   "config": {
     "vocab_size": 1024,
     "num_layers": 11,
@@ -22,13 +32,27 @@
     "num_heads": 8,
     "num_kv_heads": 4,
     "mlp_mult": 4.0,
+    "effective_layers": 14,
     "recur_layers": "3,4,5",
     "recur_start_step": 2000,
     "parallel_start_layer": 7,
+    "xsa_last_n": 11,
+    "rope_dims": 16,
+    "bigram_buckets": 1536,
+    "muon_wd": 0.095,
+    "matrix_lr": 0.022,
+    "ema_decay": 0.997,
+    "swa_start_frac": 0.75,
+    "raki_power": 0.10,
     "compressor": "brotli",
-    "quantization": "int6_gptq",
+    "quantization": "int6_gptq_auto_qmax",
     "ttt_epochs": 3,
     "ttt_lr": 0.002
+  },
+  "credits": {
+    "architecture_base": "PR #1339 (@bigbag), PR #1204 (@msisovic)",
+    "training_recipe": "PR #549 (@abaybektursun), PR #1331 (@dexhunter)",
+    "techniques": "PR #287, #198, #374, #1260"
   },
   "hardware": "8xH100 80GB SXM",
   "date": "2026-04-06"
