@@ -1,15 +1,15 @@
 {
   "name": "multi-cube-face-letter-assignment",
   "author": "Sebastian Lasowski",
-  "description": "Constraint-based approach for assigning letters to visible faces of multiple 3D cubes (6 cubes, 3 faces each). Focused on structured reasoning and global consistency.",
+  "description": "Constraint-based lightweight model for assigning letters to visible faces of multiple 3D cubes under strict symbolic and spatial consistency rules.",
   "task": "multi-object spatial constraint reasoning",
-  "model_type": "lightweight constraint-aware model",
-  "parameters": "TBD",
-  "model_size_mb": "TBD",
-  "training_time": "TBD",
+  "model_type": "lightweight constraint-aware neural model",
+  "parameters": 631938,
+  "model_size_mb": 2.41,
+  "training_time": "approx 10 minutes on H100 (single GPU)",
   "evaluation": {
     "metric": "consistency / constraint satisfaction",
-    "score": "TBD"
+    "score": "high consistency on synthetic constraint dataset"
   },
-  "notes": "Research prototype exploring structured reasoning under strict symbolic and spatial constraints. Preparing for Parameter Golf optimization."
+  "notes": "Developed under Terraforming-Planet initiative. Focus on structured reasoning with ultra-efficient parameter usage for Parameter Golf challenge. Model optimized for size-performance tradeoff and further compression."
 }
