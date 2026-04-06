@@ -24,7 +24,10 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    from flash_attn import flash_attn_func as flash_attn_3_func
 # Optional Mamba CUDA kernels — fall back to sequential PyTorch if unavailable
 try:
     from mamba_ssm.ops.selective_scan_interface import selective_scan_fn as _mamba_selective_scan_fn
