@@ -1,0 +1,21 @@
+{
+  "author": "Abhishek Kumbhar",
+  "github_id": "Abhishek8108",
+  "name": "Discriminative TTT + SLOT-24, 3-seed (8xH100 SXM)",
+  "blurb": "Non-record near-frontier submission combining discriminative TTT (per-block adaptive LR, from PR #1351) with SLOT-24 (from PR #1376). 3-seed verified: seeds 1337/42/2025. Mean SLOT-24 BPB: 0.7093 ± 0.0025. Key finding: discriminative TTT improves pre-SLOT BPB by ~0.009, but SLOT saturates at ~0.71 regardless of base model quality — the ceiling is SLOT eval budget, not the base model.",
+  "date": "2026-04-06T11:30:00Z",
+  "track": "non-record-16mb",
+  "val_bpb": 0.70926114,
+  "val_bpb_note": "3-seed mean (1337: 0.70865, 42: 0.71199, 2025: 0.70714); std: 0.0025",
+  "pre_quant_val_bpb": 1.11163,
+  "pre_quant_val_bpb_note": "3-seed mean of post-EMA BPB (1337: 1.1121, 42: 1.1123, 2025: 1.1105)",
+  "step_stop": 6722,
+  "step_stop_note": "max across 3 seeds (1337: 6722, 42: 6719, 2025: 6722)",
+  "wallclock_seconds": 600,
+  "bytes_total": 15884014,
+  "bytes_total_note": "max across 3 seeds (1337: 15851366, 42: 15839094, 2025: 15884014)",
+  "bytes_model_int6_lzma": 15795272,
+  "bytes_model_int6_lzma_note": "max across 3 seeds (1337: 15762624, 42: 15750352, 2025: 15795272)",
+  "bytes_code": 88742,
+  "gpu": "8xH100-80GB-SXM"
+}
