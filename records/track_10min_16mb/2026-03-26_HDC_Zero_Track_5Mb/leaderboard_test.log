@@ -1,0 +1,498 @@
+
+======================================================================
+  Run 1/3  →  /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/logs/submission_run1_20260406T014235.log
+  Command: /usr/bin/python -u /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/train_gpt.py --hash_grad --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
+======================================================================
+
+
+============================================================
+[HashGrad] Enhanced Hash-Addressed Gradient Training
+[HashGrad] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad] Budget: 16.0 MB
+[HashGrad] Seeds: [42, 7, 1337] (3-seed merge)
+[HashGrad] NMF max_iter=150, budget=300s
+[HashGrad] Prior tokens: 2,000,000
+============================================================
+
+[HashGrad] Pre-allocated 500,000,000 token buffer (0.93 GiB)
+[HashGrad] Loaded 100,000,000 tokens from fineweb_train_000000.bin
+[HashGrad] Loaded 200,000,000 tokens from fineweb_train_000001.bin
+[HashGrad] Loaded 300,000,000 tokens from fineweb_train_000002.bin
+[HashGrad] Loaded 400,000,000 tokens from fineweb_train_000003.bin
+[HashGrad] Loaded 500,000,000 tokens from fineweb_train_000004.bin
+[HashGrad] Loaded 500,000,000 tokens in 1.4s
+[HashGrad Phase1] Pre-screening seeds...
+
+[SeedScreen] Pre-computing G-states for screening (499,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+[SeedScreen] Screening 200 candidate seeds (batch_size=64, screen_sample=499,999 tokens)...
+  [SeedScreen GPU] K=200 seeds  N=499,999 tokens — building pair-key matrix…
+  [SeedScreen GPU] Pair keys built in 0.15s — sorting…
+  [SeedScreen GPU] Sort done in 0.21s — counting adversarials…
+  [SeedScreen GPU] 200 seeds  0.28s  (704 seeds/s)  best=0.0570
+[SeedScreen] Screening complete in 1.1s  (181 seeds/s)
+
+[SeedScreen] Pre-computing G-states for refinement (999,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+
+[SeedScreen] One-step gradient refinement for top-3 seeds...
+  [OneStepGrad]  bit 45 flipped: 0.1134 → 0.1129  (Δ=-0.00045)
+  [OneStepGrad]  bit 15 flipped: 0.1133 → 0.1129  (Δ=-0.00039)
+  [OneStepGrad]  bit 34 flipped: 0.1140 → 0.1131  (Δ=-0.00090)
+[SeedScreen] One-step gradient: 0/3 seeds improved
+
+[SeedScreen] Top 3 seeds (after one-step gradient):
+  Rank            Seed (hex)   Adv.Collision   AccProxy  BPB proxy   Grad
+  ----  --------------------   -------------   --------  ---------  -----
+     1    0x26CFEE6926B8E982          0.1129    0.89131     0.5100       
+     2    0xB44DDCA24960787B          0.1129    0.89129     0.5100       
+     3    0x21864AC38268F585          0.1131    0.89100     0.5104       
+
+[SeedScreen] Comparison: DEFAULT seeds [42, 7, 1337]
+        Seed   Adv.Collision   AccProxy  BPB proxy
+          42          0.1142    0.89025     0.5114
+           7          0.1137    0.89041     0.5112
+        1337          0.1131    0.89099     0.5104
+[HashGrad Phase1] Screened seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+[HashGrad] Pre-computing G-states for 500,000,000 tokens…
+[HashGrad] G-states ready in 17.2s
+
+============================================================
+[HashGrad MultiSeed] 3-seed training
+[HashGrad MultiSeed] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad MultiSeed] Seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+============================================================
+
+[HashGrad Prior] Building frozen prior from first 2,000,000 tokens...
+[HashGrad Prior GPU] Uploaded 0.03 GB in 0.03s — processing 2,000,000 tokens…
+[HashGrad Prior GPU] 2,000,000/2,000,000 tokens (100.0%) — 268.9M tok/s
+[HashGrad Prior GPU] Done in 2.5s — filled 512,778/524,288 buckets (97.8%)
+[HashGrad Prior] Done — 512,778/524,288 buckets filled
+
+[HashGrad MultiSeed] Seed 1/3: 2796716029008996738
+[HashGrad Seed2796716029008996738 GPU] Uploaded 8.00 GB in 0.63s — processing 499,999,999 tokens…
+[HashGrad Seed2796716029008996738 GPU] 100,000,000/499,999,999 tokens (20.0%) — 34495.5M tok/s
+[HashGrad Seed2796716029008996738 GPU] 200,000,000/499,999,999 tokens (40.0%) — 40215.8M tok/s
+[HashGrad Seed2796716029008996738 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7709.5M tok/s
+[HashGrad Seed2796716029008996738 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5029.6M tok/s
+[HashGrad Seed2796716029008996738 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4161.7M tok/s
+[HashGrad Seed2796716029008996738 GPU] Done in 2.8s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 2/3: 12992283089607620731
+[HashGrad Seed12992283089607620731 GPU] Uploaded 8.00 GB in 0.83s — processing 499,999,999 tokens…
+[HashGrad Seed12992283089607620731 GPU] 100,000,000/499,999,999 tokens (20.0%) — 33973.0M tok/s
+[HashGrad Seed12992283089607620731 GPU] 200,000,000/499,999,999 tokens (40.0%) — 40092.8M tok/s
+[HashGrad Seed12992283089607620731 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7716.5M tok/s
+[HashGrad Seed12992283089607620731 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5034.0M tok/s
+[HashGrad Seed12992283089607620731 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4163.3M tok/s
+[HashGrad Seed12992283089607620731 GPU] Done in 2.6s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 3/3: 2415700453697844613
+[HashGrad Seed2415700453697844613 GPU] Uploaded 8.00 GB in 0.83s — processing 499,999,999 tokens…
+[HashGrad Seed2415700453697844613 GPU] 100,000,000/499,999,999 tokens (20.0%) — 32539.2M tok/s
+[HashGrad Seed2415700453697844613 GPU] 200,000,000/499,999,999 tokens (40.0%) — 38919.0M tok/s
+[HashGrad Seed2415700453697844613 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7652.1M tok/s
+[HashGrad Seed2415700453697844613 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5010.1M tok/s
+[HashGrad Seed2415700453697844613 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4149.9M tok/s
+[HashGrad Seed2415700453697844613 GPU] Done in 2.7s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Phase 3 — Merging 3 frequency tables...
+[HashGrad Merge] 3 seeds merged — 524,288/524,288 buckets (100.0%), avg 2861.0 obs/bucket
+[HashGrad XORReg] No sparse buckets (count < 5) — skipping
+
+[HashGrad MultiSeed] Phase 5 — NMF fit on merged freq...
+[HashGrad NMF GPU] Active buckets: 524,288/524,288 (min_count=1)
+[HashGrad NMF GPU] iter    0/150 | KL: 6.931472 | 1.28s
+[HashGrad NMF GPU] iter   10/150 | KL: 6.931472 | 1.70s
+[HashGrad NMF GPU] iter   20/150 | KL: 6.931472 | 2.11s
+[HashGrad NMF GPU] iter   30/150 | KL: 6.931471 | 2.52s
+[HashGrad NMF GPU] iter   40/150 | KL: 6.931471 | 2.93s
+[HashGrad NMF GPU] iter   50/150 | KL: 6.931471 | 3.34s
+[HashGrad NMF GPU] Early stop at iter 50 (rel_imp=6.9e-08 < tol=1e-06)
+[HashGrad NMF GPU] Done — best KL: 6.931471 in 3.34s
+
+[HashGrad MultiSeed] Complete — 524,288/524,288 buckets, 16.03 MB
+[HashGrad] Artifact saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/hdc_hashgrad_seed42.hgz | raw=16.53 MB → lzma9=14.98 MB (9.4% reduction) [+fingerprint]
+
+[HashGrad-DSV] Building directional semantic vectors (vocab=1024, W=16, ctx_len=4)
+[HashGrad-DSV] c=1/4  pairs=136,000,000  elapsed=55.2s
+[HashGrad-DSV] Time budget reached at context depth c=1
+[HashGrad-DSV] Done. 136,000,000 A→B pairs recorded in 55.2s
+[HashGrad Phase6] DSV sem_fwd=128KB
+
+[SkipBigram] Building skip-bigram lags 2..5 (N=500,000,000, vocab=1024, W=16)
+[SkipBigram] lag=2 done in 20.27s
+[SkipBigram] Time budget reached at lag=3
+[SkipBigram] All lags built in 20.27s | 512 KB total
+
+[SuffixGrammar] Building suffix grammar table (N=500,000,000, suffix_len=3)
+[SuffixGrammar] Time budget reached at 16,000,000
+[SuffixGrammar] Done. 16,000,000 tokens processed in 10.10s | 883/1024 suffix slots filled
+[HashGrad Phase7] Suffix grammar table built
+[HashGrad-Val] Pre-allocated 5,000,000 token buffer (0.01 GiB)
+[HashGrad-Val] Loaded 5,000,000 tokens from fineweb_val_000000.bin
+[HashGrad] Loaded 5,000,000 val tokens
+[HashGrad] Val BPB  : 0.430039
+[HashGrad] Val loss : 0.717252
+[HashGrad] Eval time: 6.0s
+[HashGrad] final_val_bpb:0.430039
+[HashGrad] Total time: 132.8s
+
+============================================================
+[TensorCore] FINAL RESULTS
+============================================================
+BPB: 0.4300
+Val Loss: 0.7173
+Time: 132.8s
+Mode: Hash-Grad NMF
+Code size: 62,754 bytes
+Total artifact: 15,769,998 bytes
+Baseline to beat: 1.2244 BPB
+
+[TensorCore] Submission saved to /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/submission.json
+[TensorCore] Artifact size check: PASS (limit: 16,000,000 bytes)
+
+  [Run 1/3] Finished in 133.6s  |  exit code: 0  |  log: submission_run1_20260406T014235.log
+
+
+======================================================================
+  Run 2/3  →  /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/logs/submission_run2_20260406T014235.log
+  Command: /usr/bin/python -u /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/train_gpt.py --hash_grad --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
+======================================================================
+
+
+============================================================
+[HashGrad] Enhanced Hash-Addressed Gradient Training
+[HashGrad] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad] Budget: 16.0 MB
+[HashGrad] Seeds: [42, 7, 1337] (3-seed merge)
+[HashGrad] NMF max_iter=150, budget=300s
+[HashGrad] Prior tokens: 2,000,000
+============================================================
+
+[HashGrad] Pre-allocated 500,000,000 token buffer (0.93 GiB)
+[HashGrad] Loaded 100,000,000 tokens from fineweb_train_000000.bin
+[HashGrad] Loaded 200,000,000 tokens from fineweb_train_000001.bin
+[HashGrad] Loaded 300,000,000 tokens from fineweb_train_000002.bin
+[HashGrad] Loaded 400,000,000 tokens from fineweb_train_000003.bin
+[HashGrad] Loaded 500,000,000 tokens from fineweb_train_000004.bin
+[HashGrad] Loaded 500,000,000 tokens in 1.4s
+[HashGrad Phase1] Pre-screening seeds...
+
+[SeedScreen] Pre-computing G-states for screening (499,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+[SeedScreen] Screening 200 candidate seeds (batch_size=64, screen_sample=499,999 tokens)...
+  [SeedScreen GPU] K=200 seeds  N=499,999 tokens — building pair-key matrix…
+  [SeedScreen GPU] Pair keys built in 0.15s — sorting…
+  [SeedScreen GPU] Sort done in 0.21s — counting adversarials…
+  [SeedScreen GPU] 200 seeds  0.28s  (719 seeds/s)  best=0.0570
+[SeedScreen] Screening complete in 1.0s  (191 seeds/s)
+
+[SeedScreen] Pre-computing G-states for refinement (999,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+
+[SeedScreen] One-step gradient refinement for top-3 seeds...
+  [OneStepGrad]  bit 45 flipped: 0.1134 → 0.1129  (Δ=-0.00045)
+  [OneStepGrad]  bit 15 flipped: 0.1133 → 0.1129  (Δ=-0.00039)
+  [OneStepGrad]  bit 34 flipped: 0.1140 → 0.1131  (Δ=-0.00090)
+[SeedScreen] One-step gradient: 0/3 seeds improved
+
+[SeedScreen] Top 3 seeds (after one-step gradient):
+  Rank            Seed (hex)   Adv.Collision   AccProxy  BPB proxy   Grad
+  ----  --------------------   -------------   --------  ---------  -----
+     1    0x26CFEE6926B8E982          0.1129    0.89131     0.5100       
+     2    0xB44DDCA24960787B          0.1129    0.89129     0.5100       
+     3    0x21864AC38268F585          0.1131    0.89100     0.5104       
+
+[SeedScreen] Comparison: DEFAULT seeds [42, 7, 1337]
+        Seed   Adv.Collision   AccProxy  BPB proxy
+          42          0.1142    0.89025     0.5114
+           7          0.1137    0.89041     0.5112
+        1337          0.1131    0.89099     0.5104
+[HashGrad Phase1] Screened seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+[HashGrad] Pre-computing G-states for 500,000,000 tokens…
+[HashGrad] G-states ready in 16.4s
+
+============================================================
+[HashGrad MultiSeed] 3-seed training
+[HashGrad MultiSeed] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad MultiSeed] Seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+============================================================
+
+[HashGrad Prior] Building frozen prior from first 2,000,000 tokens...
+[HashGrad Prior GPU] Uploaded 0.03 GB in 0.02s — processing 2,000,000 tokens…
+[HashGrad Prior GPU] 2,000,000/2,000,000 tokens (100.0%) — 318.6M tok/s
+[HashGrad Prior GPU] Done in 2.4s — filled 512,778/524,288 buckets (97.8%)
+[HashGrad Prior] Done — 512,778/524,288 buckets filled
+
+[HashGrad MultiSeed] Seed 1/3: 2796716029008996738
+[HashGrad Seed2796716029008996738 GPU] Uploaded 8.00 GB in 0.66s — processing 499,999,999 tokens…
+[HashGrad Seed2796716029008996738 GPU] 100,000,000/499,999,999 tokens (20.0%) — 34161.1M tok/s
+[HashGrad Seed2796716029008996738 GPU] 200,000,000/499,999,999 tokens (40.0%) — 40514.9M tok/s
+[HashGrad Seed2796716029008996738 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7683.3M tok/s
+[HashGrad Seed2796716029008996738 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5020.1M tok/s
+[HashGrad Seed2796716029008996738 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4155.4M tok/s
+[HashGrad Seed2796716029008996738 GPU] Done in 2.8s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 2/3: 12992283089607620731
+[HashGrad Seed12992283089607620731 GPU] Uploaded 8.00 GB in 0.87s — processing 499,999,999 tokens…
+[HashGrad Seed12992283089607620731 GPU] 100,000,000/499,999,999 tokens (20.0%) — 35644.6M tok/s
+[HashGrad Seed12992283089607620731 GPU] 200,000,000/499,999,999 tokens (40.0%) — 41732.3M tok/s
+[HashGrad Seed12992283089607620731 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7727.1M tok/s
+[HashGrad Seed12992283089607620731 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5035.6M tok/s
+[HashGrad Seed12992283089607620731 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4163.1M tok/s
+[HashGrad Seed12992283089607620731 GPU] Done in 2.7s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 3/3: 2415700453697844613
+[HashGrad Seed2415700453697844613 GPU] Uploaded 8.00 GB in 0.84s — processing 499,999,999 tokens…
+[HashGrad Seed2415700453697844613 GPU] 100,000,000/499,999,999 tokens (20.0%) — 36827.7M tok/s
+[HashGrad Seed2415700453697844613 GPU] 200,000,000/499,999,999 tokens (40.0%) — 42575.3M tok/s
+[HashGrad Seed2415700453697844613 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7724.6M tok/s
+[HashGrad Seed2415700453697844613 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5032.2M tok/s
+[HashGrad Seed2415700453697844613 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4161.5M tok/s
+[HashGrad Seed2415700453697844613 GPU] Done in 2.7s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Phase 3 — Merging 3 frequency tables...
+[HashGrad Merge] 3 seeds merged — 524,288/524,288 buckets (100.0%), avg 2861.0 obs/bucket
+[HashGrad XORReg] No sparse buckets (count < 5) — skipping
+
+[HashGrad MultiSeed] Phase 5 — NMF fit on merged freq...
+[HashGrad NMF GPU] Active buckets: 524,288/524,288 (min_count=1)
+[HashGrad NMF GPU] iter    0/150 | KL: 6.931472 | 1.31s
+[HashGrad NMF GPU] iter   10/150 | KL: 6.931472 | 1.72s
+[HashGrad NMF GPU] iter   20/150 | KL: 6.931472 | 2.14s
+[HashGrad NMF GPU] iter   30/150 | KL: 6.931471 | 2.55s
+[HashGrad NMF GPU] iter   40/150 | KL: 6.931471 | 2.96s
+[HashGrad NMF GPU] iter   50/150 | KL: 6.931471 | 3.37s
+[HashGrad NMF GPU] Early stop at iter 50 (rel_imp=6.9e-08 < tol=1e-06)
+[HashGrad NMF GPU] Done — best KL: 6.931471 in 3.37s
+
+[HashGrad MultiSeed] Complete — 524,288/524,288 buckets, 16.03 MB
+[HashGrad] Artifact saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/hdc_hashgrad_seed42.hgz | raw=16.53 MB → lzma9=14.98 MB (9.4% reduction) [+fingerprint]
+
+[HashGrad-DSV] Building directional semantic vectors (vocab=1024, W=16, ctx_len=4)
+[HashGrad-DSV] c=1/4  pairs=140,000,000  elapsed=55.5s
+[HashGrad-DSV] Time budget reached at context depth c=1
+[HashGrad-DSV] Done. 140,000,000 A→B pairs recorded in 55.5s
+[HashGrad Phase6] DSV sem_fwd=128KB
+
+[SkipBigram] Building skip-bigram lags 2..5 (N=500,000,000, vocab=1024, W=16)
+[SkipBigram] lag=2 done in 20.32s
+[SkipBigram] Time budget reached at lag=3
+[SkipBigram] All lags built in 20.32s | 512 KB total
+
+[SuffixGrammar] Building suffix grammar table (N=500,000,000, suffix_len=3)
+[SuffixGrammar] Time budget reached at 16,000,000
+[SuffixGrammar] Done. 16,000,000 tokens processed in 10.07s | 883/1024 suffix slots filled
+[HashGrad Phase7] Suffix grammar table built
+[HashGrad-Val] Pre-allocated 5,000,000 token buffer (0.01 GiB)
+[HashGrad-Val] Loaded 5,000,000 tokens from fineweb_val_000000.bin
+[HashGrad] Loaded 5,000,000 val tokens
+[HashGrad] Val BPB  : 0.429919
+[HashGrad] Val loss : 0.717052
+[HashGrad] Eval time: 6.0s
+[HashGrad] final_val_bpb:0.429919
+[HashGrad] Total time: 132.6s
+
+============================================================
+[TensorCore] FINAL RESULTS
+============================================================
+BPB: 0.4299
+Val Loss: 0.7171
+Time: 132.6s
+Mode: Hash-Grad NMF
+Code size: 62,754 bytes
+Total artifact: 15,769,998 bytes
+Baseline to beat: 1.2244 BPB
+
+[TensorCore] Submission saved to /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/submission.json
+[TensorCore] Artifact size check: PASS (limit: 16,000,000 bytes)
+
+  [Run 2/3] Finished in 133.3s  |  exit code: 0  |  log: submission_run2_20260406T014235.log
+
+
+======================================================================
+  Run 3/3  →  /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/logs/submission_run3_20260406T014235.log
+  Command: /usr/bin/python -u /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/train_gpt.py --hash_grad --data_path ../../../data/datasets/fineweb10B_sp1024 --tokenizer_path ../../../data/tokenizers/fineweb_1024_bpe.model
+======================================================================
+
+
+============================================================
+[HashGrad] Enhanced Hash-Addressed Gradient Training
+[HashGrad] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad] Budget: 16.0 MB
+[HashGrad] Seeds: [42, 7, 1337] (3-seed merge)
+[HashGrad] NMF max_iter=150, budget=300s
+[HashGrad] Prior tokens: 2,000,000
+============================================================
+
+[HashGrad] Pre-allocated 500,000,000 token buffer (0.93 GiB)
+[HashGrad] Loaded 100,000,000 tokens from fineweb_train_000000.bin
+[HashGrad] Loaded 200,000,000 tokens from fineweb_train_000001.bin
+[HashGrad] Loaded 300,000,000 tokens from fineweb_train_000002.bin
+[HashGrad] Loaded 400,000,000 tokens from fineweb_train_000003.bin
+[HashGrad] Loaded 500,000,000 tokens from fineweb_train_000004.bin
+[HashGrad] Loaded 500,000,000 tokens in 1.4s
+[HashGrad Phase1] Pre-screening seeds...
+
+[SeedScreen] Pre-computing G-states for screening (499,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+[SeedScreen] Screening 200 candidate seeds (batch_size=64, screen_sample=499,999 tokens)...
+  [SeedScreen GPU] K=200 seeds  N=499,999 tokens — building pair-key matrix…
+  [SeedScreen GPU] Pair keys built in 0.15s — sorting…
+  [SeedScreen GPU] Sort done in 0.21s — counting adversarials…
+  [SeedScreen GPU] 200 seeds  0.28s  (711 seeds/s)  best=0.0570
+[SeedScreen] Screening complete in 1.1s  (187 seeds/s)
+
+[SeedScreen] Pre-computing G-states for refinement (999,999 tokens)...
+[SeedScreen] G-states ready in 0.01s
+
+[SeedScreen] One-step gradient refinement for top-3 seeds...
+  [OneStepGrad]  bit 45 flipped: 0.1134 → 0.1129  (Δ=-0.00045)
+  [OneStepGrad]  bit 15 flipped: 0.1133 → 0.1129  (Δ=-0.00039)
+  [OneStepGrad]  bit 34 flipped: 0.1140 → 0.1131  (Δ=-0.00090)
+[SeedScreen] One-step gradient: 0/3 seeds improved
+
+[SeedScreen] Top 3 seeds (after one-step gradient):
+  Rank            Seed (hex)   Adv.Collision   AccProxy  BPB proxy   Grad
+  ----  --------------------   -------------   --------  ---------  -----
+     1    0x26CFEE6926B8E982          0.1129    0.89131     0.5100       
+     2    0xB44DDCA24960787B          0.1129    0.89129     0.5100       
+     3    0x21864AC38268F585          0.1131    0.89100     0.5104       
+
+[SeedScreen] Comparison: DEFAULT seeds [42, 7, 1337]
+        Seed   Adv.Collision   AccProxy  BPB proxy
+          42          0.1142    0.89025     0.5114
+           7          0.1137    0.89041     0.5112
+        1337          0.1131    0.89099     0.5104
+[HashGrad Phase1] Screened seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+[HashGrad] Pre-computing G-states for 500,000,000 tokens…
+[HashGrad] G-states ready in 13.4s
+
+============================================================
+[HashGrad MultiSeed] 3-seed training
+[HashGrad MultiSeed] TABLE_BITS=19, EMBED_DIM=16
+[HashGrad MultiSeed] Seeds: [2796716029008996738, 12992283089607620731, 2415700453697844613]
+============================================================
+
+[HashGrad Prior] Building frozen prior from first 2,000,000 tokens...
+[HashGrad Prior GPU] Uploaded 0.03 GB in 0.02s — processing 2,000,000 tokens…
+[HashGrad Prior GPU] 2,000,000/2,000,000 tokens (100.0%) — 295.2M tok/s
+[HashGrad Prior GPU] Done in 2.4s — filled 512,778/524,288 buckets (97.8%)
+[HashGrad Prior] Done — 512,778/524,288 buckets filled
+
+[HashGrad MultiSeed] Seed 1/3: 2796716029008996738
+[HashGrad Seed2796716029008996738 GPU] Uploaded 8.00 GB in 0.59s — processing 499,999,999 tokens…
+[HashGrad Seed2796716029008996738 GPU] 100,000,000/499,999,999 tokens (20.0%) — 35812.0M tok/s
+[HashGrad Seed2796716029008996738 GPU] 200,000,000/499,999,999 tokens (40.0%) — 42128.4M tok/s
+[HashGrad Seed2796716029008996738 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7709.5M tok/s
+[HashGrad Seed2796716029008996738 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5029.5M tok/s
+[HashGrad Seed2796716029008996738 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4160.9M tok/s
+[HashGrad Seed2796716029008996738 GPU] Done in 2.5s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 2/3: 12992283089607620731
+[HashGrad Seed12992283089607620731 GPU] Uploaded 8.00 GB in 0.81s — processing 499,999,999 tokens…
+[HashGrad Seed12992283089607620731 GPU] 100,000,000/499,999,999 tokens (20.0%) — 35584.2M tok/s
+[HashGrad Seed12992283089607620731 GPU] 200,000,000/499,999,999 tokens (40.0%) — 41552.4M tok/s
+[HashGrad Seed12992283089607620731 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7709.6M tok/s
+[HashGrad Seed12992283089607620731 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5027.0M tok/s
+[HashGrad Seed12992283089607620731 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4159.4M tok/s
+[HashGrad Seed12992283089607620731 GPU] Done in 2.6s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Seed 3/3: 2415700453697844613
+[HashGrad Seed2415700453697844613 GPU] Uploaded 8.00 GB in 0.80s — processing 499,999,999 tokens…
+[HashGrad Seed2415700453697844613 GPU] 100,000,000/499,999,999 tokens (20.0%) — 37019.5M tok/s
+[HashGrad Seed2415700453697844613 GPU] 200,000,000/499,999,999 tokens (40.0%) — 43071.5M tok/s
+[HashGrad Seed2415700453697844613 GPU] 300,000,000/499,999,999 tokens (60.0%) — 7717.5M tok/s
+[HashGrad Seed2415700453697844613 GPU] 400,000,000/499,999,999 tokens (80.0%) — 5032.9M tok/s
+[HashGrad Seed2415700453697844613 GPU] 499,999,999/499,999,999 tokens (100.0%) — 4161.4M tok/s
+[HashGrad Seed2415700453697844613 GPU] Done in 2.7s — filled 524,288/524,288 buckets (100.0%)
+
+[HashGrad MultiSeed] Phase 3 — Merging 3 frequency tables...
+[HashGrad Merge] 3 seeds merged — 524,288/524,288 buckets (100.0%), avg 2861.0 obs/bucket
+[HashGrad XORReg] No sparse buckets (count < 5) — skipping
+
+[HashGrad MultiSeed] Phase 5 — NMF fit on merged freq...
+[HashGrad NMF GPU] Active buckets: 524,288/524,288 (min_count=1)
+[HashGrad NMF GPU] iter    0/150 | KL: 6.931472 | 1.30s
+[HashGrad NMF GPU] iter   10/150 | KL: 6.931472 | 1.72s
+[HashGrad NMF GPU] iter   20/150 | KL: 6.931472 | 2.13s
+[HashGrad NMF GPU] iter   30/150 | KL: 6.931471 | 2.54s
+[HashGrad NMF GPU] iter   40/150 | KL: 6.931471 | 2.95s
+[HashGrad NMF GPU] iter   50/150 | KL: 6.931471 | 3.37s
+[HashGrad NMF GPU] Early stop at iter 50 (rel_imp=6.9e-08 < tol=1e-06)
+[HashGrad NMF GPU] Done — best KL: 6.931471 in 3.37s
+
+[HashGrad MultiSeed] Complete — 524,288/524,288 buckets, 16.03 MB
+[HashGrad] Artifact saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/hdc_hashgrad_seed42.hgz | raw=16.53 MB → lzma9=14.98 MB (9.4% reduction) [+fingerprint]
+
+[HashGrad-DSV] Building directional semantic vectors (vocab=1024, W=16, ctx_len=4)
+[HashGrad-DSV] c=1/4  pairs=138,000,000  elapsed=55.1s
+[HashGrad-DSV] Time budget reached at context depth c=1
+[HashGrad-DSV] Done. 138,000,000 A→B pairs recorded in 55.1s
+[HashGrad Phase6] DSV sem_fwd=128KB
+
+[SkipBigram] Building skip-bigram lags 2..5 (N=500,000,000, vocab=1024, W=16)
+[SkipBigram] lag=2 done in 20.04s
+[SkipBigram] Time budget reached at lag=3
+[SkipBigram] All lags built in 20.04s | 512 KB total
+
+[SuffixGrammar] Building suffix grammar table (N=500,000,000, suffix_len=3)
+[SuffixGrammar] Time budget reached at 16,000,000
+[SuffixGrammar] Done. 16,000,000 tokens processed in 10.04s | 883/1024 suffix slots filled
+[HashGrad Phase7] Suffix grammar table built
+[HashGrad-Val] Pre-allocated 5,000,000 token buffer (0.01 GiB)
+[HashGrad-Val] Loaded 5,000,000 tokens from fineweb_val_000000.bin
+[HashGrad] Loaded 5,000,000 val tokens
+[HashGrad] Val BPB  : 0.429770
+[HashGrad] Val loss : 0.716803
+[HashGrad] Eval time: 6.0s
+[HashGrad] final_val_bpb:0.429770
+[HashGrad] Total time: 128.2s
+
+============================================================
+[TensorCore] FINAL RESULTS
+============================================================
+BPB: 0.4298
+Val Loss: 0.7168
+Time: 128.2s
+Mode: Hash-Grad NMF
+Code size: 62,754 bytes
+Total artifact: 15,769,998 bytes
+Baseline to beat: 1.2244 BPB
+
+[TensorCore] Submission saved to /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/submission.json
+[TensorCore] Artifact size check: PASS (limit: 16,000,000 bytes)
+
+  [Run 3/3] Finished in 129.0s  |  exit code: 0  |  log: submission_run3_20260406T014235.log
+
+
+======================================================================
+  LEADERBOARD SUBMISSION SUMMARY
+======================================================================
+
+  Run          BPB   Val Loss   Time (s)        Artifact  Size Check
+  ------ --------- ---------- ----------  --------------  ----------
+  Run 1     0.4300     0.7173      132.8      15,769,998  ✓ PASS
+  Run 2     0.4299     0.7171      132.6      15,769,998  ✓ PASS
+  Run 3     0.4298     0.7168      128.2      15,769,998  ✓ PASS
+
+  Average BPB : 0.4299  ±  0.0001  (n=3)
+
+----------------------------------------------------------------------
+  CHECKLIST
+----------------------------------------------------------------------
+  ✓  3/3 independent runs completed
+  ✓  All runs produced a parseable BPB (3/3)
+  ✓  Average BPB (0.4299) ≤ target (1.1400)
+  ✓  All individual BPBs ≤ target (1.1400)
+  ✓  Statistical significance vs target (p=0.0000, need p < 0.01) [indicative]
+  ✓  All runs completed in ≤ 600s (max seen: 132.8s)
+  ✓  All artifacts ≤ 16,000,000 bytes (Artifact size check: PASS)
+  ✓  submission.json present and updated at submission.json
+----------------------------------------------------------------------
+  ✅  READY FOR LEADERBOARD PR
+======================================================================
+
+  Run summary JSON saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-03-26_HDC_Zero_Track_5Mb/logs/submission_summary_20260406T014235.json
+  [--no_update_submission] submission.json not modified.

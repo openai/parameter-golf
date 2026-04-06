@@ -440,6 +440,113 @@ def screen_seeds_batch(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Step 3b — GPU-accelerated parallel seed screening (RTX / CUDA)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def screen_seeds_batch_gpu(
+    g_states: np.ndarray,
+    next_tokens: np.ndarray,
+    candidate_seeds: np.ndarray,
+    verbose: bool = True,
+) -> np.ndarray:
+    """GPU-accelerated parallel seed screening via PyTorch CUDA.
+
+    Processes ALL K candidate seeds simultaneously in one (K, N) tensor on the
+    GPU, then calls a single ``torch.sort(dim=1)`` across all rows.  Typically
+    20–100× faster than the CPU batched version on a modern GPU (e.g. RTX 4090).
+
+    Algorithm (identical to screen_seeds_batch — numerically equivalent):
+        1. Build (K, N) int64 pair-key matrix via broadcast XOR + FMIX multiply.
+        2. ``torch.sort(dim=1)`` — one GPU kernel for all K rows in parallel.
+        3. Per-seed O(N) diff + O(M) adversarial count (Python loop, GPU tensors).
+
+    Memory: K × N × 8 bytes (int64 pair keys).
+        K=200, N=500 k → ~800 MB  (well within 24 GB RTX-4090 VRAM).
+
+    Falls back transparently to ``screen_seeds_batch()`` when CUDA is unavailable
+    or imports fail.
+    """
+    try:
+        import torch as _tgpu
+        if not _tgpu.cuda.is_available():
+            raise RuntimeError("CUDA not available")
+    except Exception:
+        if verbose:
+            print("  [SeedScreen] No CUDA — using CPU screening")
+        return screen_seeds_batch(g_states, next_tokens, candidate_seeds, verbose=verbose)
+
+    import torch
+    dev = torch.device("cuda")
+    K   = len(candidate_seeds)
+    N   = len(g_states)
+    t0  = time.time()
+
+    if verbose:
+        print(f"  [SeedScreen GPU] K={K} seeds  N={N:,} tokens — building pair-key matrix…")
+
+    # Reinterpret uint64 → int64 (same bit pattern; PyTorch has no native uint64)
+    g_i64  = g_states.view(np.int64)
+    s_i64  = candidate_seeds.view(np.int64)
+    g_t    = torch.as_tensor(g_i64,                           dtype=torch.int64, device=dev)
+    tok_t  = torch.as_tensor(next_tokens.astype(np.int64),    dtype=torch.int64, device=dev)
+    seed_t = torch.as_tensor(s_i64,                           dtype=torch.int64, device=dev)
+
+    # FMIX64 = 0x9E3779B97F4A7C15 reinterpreted as signed int64
+    _fmix  = int(np.array([0x9E3779B97F4A7C15], dtype=np.uint64).view(np.int64)[0])
+    FMIX_t = torch.tensor(_fmix, dtype=torch.int64, device=dev)
+    MASK_t = torch.tensor((1 << TABLE_BITS) - 1, dtype=torch.int64, device=dev)
+    SHIFT  = 64 - TABLE_BITS   # = 42 for TABLE_BITS=22
+
+    # ── Build (K, N) pair-key matrix ──────────────────────────────────────────
+    raw       = g_t[None, :] ^ seed_t[:, None]           # (K, N) — XOR identical to uint64
+    raw       = raw * FMIX_t                               # (K, N) — overflow = uint64 wrap
+    buckets   = (raw >> SHIFT) & MASK_t                    # logical right-shift via mask
+    pair_keys = buckets * VOCAB_SIZE + tok_t[None, :]      # (K, N) ∈ [0, 2^32-1] as int64
+    del raw, buckets
+    torch.cuda.synchronize()
+
+    if verbose:
+        print(f"  [SeedScreen GPU] Pair keys built in {time.time()-t0:.2f}s — sorting…")
+
+    # ── Single GPU sort across all K rows ─────────────────────────────────────
+    pair_keys_sorted, _ = torch.sort(pair_keys, dim=1)
+    del pair_keys
+    torch.cuda.synchronize()
+
+    if verbose:
+        t1 = time.time()
+        print(f"  [SeedScreen GPU] Sort done in {t1-t0:.2f}s — counting adversarials…")
+
+    # ── Per-seed O(N) diff + O(M) adversarial count ───────────────────────────
+    scores = np.empty(K, dtype=np.float64)
+    for k in range(K):
+        col        = pair_keys_sorted[k]                   # (N,) int64 sorted
+        is_new     = torch.empty(N, dtype=torch.bool, device=dev)
+        is_new[0]  = True
+        is_new[1:] = col[1:] != col[:-1]
+
+        uniq = col[is_new]
+        bkt  = uniq >> _VOCAB_LOG2                         # (M,) int64 — bucket IDs
+        M    = int(bkt.shape[0])
+        if M == 0:
+            scores[k] = 1.0
+            continue
+
+        bchg      = torch.empty(M, dtype=torch.bool, device=dev)
+        bchg[0]   = True
+        bchg[1:]  = bkt[1:] != bkt[:-1]
+        n_filled  = int(bchg.sum())
+        n_adv     = int((bchg[:-1] & ~bchg[1:]).sum()) if M > 1 else 0
+        scores[k] = n_adv / n_filled if n_filled > 0 else 1.0
+
+    if verbose:
+        elapsed = time.time() - t0
+        print(f"  [SeedScreen GPU] {K} seeds  {elapsed:.2f}s  "
+              f"({K / max(elapsed, 1e-6):.0f} seeds/s)  best={scores.min():.4f}")
+    return scores
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Step 4b — One-step gradient refinement of a single seed
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -489,9 +596,9 @@ def one_step_gradient_refine(
         dtype=np.uint64,
     )
 
-    # Score all 64 variants in one vectorised batch (same code path as random screening)
-    variant_scores = screen_seeds_batch(
-        g_states, next_tokens, bit_variants, batch_size=64, verbose=False
+    # Score all 64 variants in one vectorised batch — use GPU when available
+    variant_scores = screen_seeds_batch_gpu(
+        g_states, next_tokens, bit_variants, verbose=False
     )
 
     # Baseline score for the current seed (full metric)
@@ -635,8 +742,8 @@ def find_optimal_seeds(
 
     # ── Screen all candidates with the fast screening sample ─────────────────
     t1 = time.time()
-    scores = screen_seeds_batch(g_screen, next_toks_scr, candidate_seeds,
-                                batch_size=batch_size, verbose=verbose)
+    scores = screen_seeds_batch_gpu(g_screen, next_toks_scr, candidate_seeds,
+                                    verbose=verbose)
     elapsed = time.time() - t1
     if verbose:
         print(f"[SeedScreen] Screening complete in {elapsed:.1f}s  "
