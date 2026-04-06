@@ -1,0 +1,44 @@
+{
+  "author": "JungyupLee",
+  "github_id": "izlley",
+  "name": "LatentMask TTT + Full Hessian GPTQ + Product-Key Bigram + Brotli",
+  "blurb": "11L GPT with U-Net skips, LatentMask TTT (per-channel sigmoid masks, score-first legal), Full Hessian GPTQ (AR self-gen calib, Cholesky error compensation), Product-Key Bigram (zero collision), GatedAttention on even layers, XSA on all layers, Value Embeddings at decoder [5,7,10], Muon optimizer, EMA+SWA, Late QAT, Brotli-11 + uint8 log-scale compression.",
+  "date": "2026-04-05",
+  "track": "10min_16mb",
+  "val_loss": "TODO: 3-seed mean",
+  "val_bpb": "TODO: 3-seed mean",
+  "val_loss_std": "TODO",
+  "val_bpb_std": "TODO",
+  "seeds": ["TODO", "TODO", "TODO"],
+  "seed_results": {
+    "TODO_seed1": {
+      "val_loss": "TODO",
+      "val_bpb": "TODO",
+      "artifact_bytes": "TODO",
+      "steps": "TODO",
+      "step_avg_ms": "TODO"
+    },
+    "TODO_seed2": {
+      "val_loss": "TODO",
+      "val_bpb": "TODO",
+      "artifact_bytes": "TODO",
+      "steps": "TODO",
+      "step_avg_ms": "TODO"
+    },
+    "TODO_seed3": {
+      "val_loss": "TODO",
+      "val_bpb": "TODO",
+      "artifact_bytes": "TODO",
+      "steps": "TODO",
+      "step_avg_ms": "TODO"
+    }
+  },
+  "artifact_bytes_max": "TODO",
+  "bytes_total": "TODO",
+  "code_bytes": 61928,
+  "model_bytes": "TODO",
+  "train_steps_mean": "TODO",
+  "step_avg_ms_mean": "TODO",
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "LatentMask TTT + Full Hessian GPTQ (AR self-gen) + Product-Key Bigram + GatedAttn-even + XSA-all + VE-decoder + Muon + Brotli-11"
+}
