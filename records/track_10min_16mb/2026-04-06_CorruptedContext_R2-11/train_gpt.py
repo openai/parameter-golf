@@ -273,11 +273,11 @@ def eval_val(
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 # -----------------------------
-# POST-TRAINING QUANTIZATION (per-group int6 bit-packed + lzma)
+# POST-TRAINING QUANTIZATION (Full Hessian GPTQ int6 + bit-packed + lzma)
 # -----------------------------
-# Per-group-64 int6 quantization with 6-bit packing (4 values per 3 bytes).
-# Best-of-5 percentile search per group for optimal clipping.
-# Empirically validated: 27M params → ~8.6MB with lzma preset=9.
+# Full Hessian GPTQ with Cholesky error compensation, column reordering,
+# block-wise quantization. Per-row scaling with 6-bit packing for compression.
+# Ref: Frantar et al. "GPTQ" (ICLR 2023), Parameter Golf PR #1019.
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
@@ -312,51 +312,134 @@ def unpack_int6(data: bytes, count: int) -> Tensor:
     v[:, 3] = (packed[:, 2] >> 2) & 0x3F
     return torch.from_numpy(v.reshape(-1)[:count].astype(np.int8)) - 31
 
-def collect_activation_stats(model: nn.Module, calib_x: Tensor, calib_y: Tensor,
-                             device: torch.device, batch_size: int = 8) -> dict[str, Tensor]:
-    """Collect per-input-channel activation magnitudes from calibration data."""
-    stats: dict[str, Tensor] = {}
-    counts: dict[str, int] = {}
+def collect_hessians(model: nn.Module, calib_x: Tensor, calib_y: Tensor,
+                     device: torch.device, batch_size: int = 8) -> dict[str, Tensor]:
+    """Collect Hessian H = X^T X per CastedLinear layer from calibration data."""
+    hessians: dict[str, Tensor] = {}
     hooks = []
     for name, module in model.named_modules():
         if isinstance(module, CastedLinear) and module.weight.ndim == 2:
-            def make_hook(n: str):
+            param_name = name + ".weight"
+            cols = module.weight.shape[1]
+            hessians[param_name] = torch.zeros(cols, cols, dtype=torch.float32, device="cpu")
+            def make_hook(pname: str):
                 def hook(mod, inp, out):
                     x = inp[0].detach().float()
                     if x.ndim == 3:
                         x = x.reshape(-1, x.shape[-1])
-                    if n not in stats:
-                        stats[n] = torch.zeros(x.shape[1], device="cpu")
-                        counts[n] = 0
-                    stats[n] += x.abs().mean(dim=0).cpu()
-                    counts[n] += 1
+                    hessians[pname] += (x.T @ x).cpu()
                 return hook
-            hooks.append(module.register_forward_hook(make_hook(name)))
+            hooks.append(module.register_forward_hook(make_hook(param_name)))
 
     model.eval()
+    n_batches = 0
     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         for i in range(0, len(calib_x), batch_size):
             x = calib_x[i:i + batch_size].to(device=device, dtype=torch.int64)
             y = calib_y[i:i + batch_size].to(device=device, dtype=torch.int64)
             model(x, y)
+            n_batches += 1
     model.train()
 
     for h in hooks:
         h.remove()
-    # Normalize and convert to param names
-    param_stats: dict[str, Tensor] = {}
-    for name, module in model.named_modules():
-        if name in stats and counts[name] > 0:
-            for pname, _ in module.named_parameters():
-                if pname == "weight":
-                    full_name = f"{name}.{pname}"
-                    param_stats[full_name] = stats[name] / counts[name]
-    return param_stats
+    # Normalize and add damping
+    for name in hessians:
+        H = hessians[name]
+        H /= max(n_batches, 1)
+        damp = 0.01 * torch.diag(H).mean().clamp_min(1e-6)
+        H += damp * torch.eye(H.shape[0])
+        hessians[name] = H
+    return hessians
 
 
-def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT_GROUP_SIZE,
-                          awq_stats: dict[str, Tensor] | None = None, awq_alpha: float = 0.5) -> dict:
-    """Per-group-64 int6 quantization with bit-packing, best-of-5 percentile search, and optional AWQ scaling."""
+def _gptq_quantize_weight(weight: Tensor, hessian: Tensor, clip_range: int = 31,
+                           block_size: int = 128) -> tuple[Tensor, Tensor]:
+    """Full GPTQ: Cholesky + column reordering + block-wise error compensation."""
+    rows, cols = weight.shape
+    H = hessian.float().clone()
+    dead = torch.diag(H) == 0
+    H[dead, dead] = 1
+
+    # Column reordering by Hessian diagonal magnitude
+    perm = torch.argsort(torch.diag(H), descending=True)
+    inv_perm = torch.argsort(perm)
+    W = weight[:, perm].clone().float()
+    W[:, dead[perm]] = 0
+    H = H[perm][:, perm]
+
+    # Cholesky of H^{-1}
+    Hinv = torch.linalg.cholesky(H)
+    Hinv = torch.cholesky_inverse(Hinv)
+    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+
+    # Best-of-5 percentile search with error compensation
+    best_q, best_scale, best_err = None, None, float('inf')
+    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+        if pct < 1.0:
+            row_clip = torch.quantile(weight.float().abs(), pct, dim=1)
+        else:
+            row_clip = weight.float().abs().amax(dim=1)
+        s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+        sf = s.float()
+
+        Q = torch.zeros_like(W, dtype=torch.int8)
+        W_work = W.clone()
+        for i1 in range(0, cols, block_size):
+            i2 = min(i1 + block_size, cols)
+            count = i2 - i1
+            W1 = W_work[:, i1:i2].clone()
+            Q1 = torch.zeros(rows, count, dtype=torch.int8)
+            Err1 = torch.zeros(rows, count)
+            Hinv1 = Hinv[i1:i2, i1:i2]
+            for i in range(count):
+                w = W1[:, i]
+                d = Hinv1[i, i]
+                q = torch.clamp(torch.round(w / sf), -clip_range, clip_range).to(torch.int8)
+                Q1[:, i] = q
+                err = (w - q.float() * sf) / d
+                W1[:, i:] -= err.unsqueeze(1) * Hinv1[i, i:].unsqueeze(0)
+                Err1[:, i] = err
+            Q[:, i1:i2] = Q1
+            if i2 < cols:
+                W_work[:, i2:] -= Err1 @ Hinv[i1:i2, i2:]
+
+        recon = Q.float() * sf[:, None]
+        mse = (W - recon).pow(2).mean().item()
+        if mse < best_err:
+            best_q, best_scale, best_err = Q, s, mse
+
+    # Restore original column order
+    best_q = best_q[:, inv_perm]
+    return best_q, best_scale
+
+
+def _percentile_quantize_weight(weight: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
+    """Fallback: per-row percentile search (for 1D or no-Hessian cases)."""
+    t32 = weight.float()
+    if t32.ndim == 2:
+        best_q, best_s, best_err = None, None, float('inf')
+        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                row_clip = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                row_clip = t32.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            recon = q.float() * s.float()[:, None]
+            err = (t32 - recon).pow(2).mean().item()
+            if err < best_err:
+                best_q, best_s, best_err = q, s, err
+        return best_q, best_s
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
+    return q, scale
+
+
+def quantize_gptq_int6(state_dict: dict[str, Tensor],
+                       hessians: dict[str, Tensor] | None = None) -> dict:
+    """Full Hessian GPTQ int6 with bit-packing. Per-row scale, Hessian error compensation."""
     w_dict: dict[str, dict] = {}
     p_dict: dict[str, Tensor] = {}
     c_dict: dict[str, Tensor] = {}
@@ -364,62 +447,32 @@ def quantize_grouped_int6(state_dict: dict[str, Tensor], group_size: int = QUANT
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().float().contiguous()
 
-        # Control tensors: fp32 passthrough
         if any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS):
             c_dict[name] = t
             continue
 
-        # Small or non-float tensors: fp16 passthrough
         if not t.is_floating_point() or t.numel() <= 65536:
             p_dict[name] = t.to(torch.float16) if t.is_floating_point() else t
             continue
 
-        # AWQ: scale important input channels before quantization
-        awq_scale = None
-        if awq_stats is not None and name in awq_stats and t.ndim == 2:
-            act_mag = awq_stats[name]
-            s_awq = act_mag.pow(awq_alpha).clamp(min=1e-5)
-            s_awq = s_awq / s_awq.mean()  # normalize to preserve magnitude
-            awq_scale = s_awq.to(torch.float16)
-            t = t * s_awq.unsqueeze(0)  # scale columns (input channels)
+        # Use GPTQ if Hessian available for this layer, else fallback to percentile
+        if hessians is not None and name in hessians and t.ndim == 2:
+            q, s = _gptq_quantize_weight(t, hessians[name])
+        else:
+            q, s = _percentile_quantize_weight(t)
 
-        # Large float tensors: per-group int6 with bit-packing
+        # Bit-pack the int6 values
         shape = t.shape
-        flat = t.reshape(-1)
-        n = flat.numel()
-        padded_n = ((n + group_size - 1) // group_size) * group_size
-        if padded_n > n:
-            flat = torch.cat([flat, torch.zeros(padded_n - n)])
-        grouped = flat.reshape(-1, group_size)
-
-        # Best-of-5 percentile search per group
-        best_q = None
-        best_s = None
-        best_err = float('inf')
-        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
-            if pct < 1.0:
-                group_clip = torch.quantile(grouped.abs(), pct, dim=1)
-            else:
-                group_clip = grouped.abs().amax(dim=1)
-            s = (group_clip / 31.0).clamp_min(1.0 / 31.0).to(torch.float16)
-            q = torch.clamp(torch.round(grouped / s.float().unsqueeze(1)), -31, 31).to(torch.int8)
-            recon = q.float() * s.float().unsqueeze(1)
-            err = (grouped - recon).pow(2).mean().item()
-            if err < best_err:
-                best_q, best_s, best_err = q, s, err
-
-        packed = pack_int6(best_q.reshape(-1)[:n])  # pack only original count
-        entry: dict = {"packed": packed, "scales": best_s, "shape": shape, "count": n}
-        if awq_scale is not None:
-            entry["awq_scale"] = awq_scale  # per-input-channel, shape [in_features]
-        w_dict[name] = entry
+        n = t.numel()
+        packed = pack_int6(q.reshape(-1)[:n])
+        w_dict[name] = {"packed": packed, "scales": s, "shape": shape, "count": n}
 
     return {"w": w_dict, "p": p_dict, "c": c_dict}
 
-def dequantize_grouped_int6(quant_dict: dict, template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
-    """Reverse per-group int6 bit-packed quantization with AWQ scale correction."""
+
+def dequantize_gptq_int6(quant_dict: dict, template_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    """Reverse GPTQ int6 bit-packed quantization. Per-row scale reconstruction."""
     out: dict[str, Tensor] = {}
-    group_size = QUANT_GROUP_SIZE
 
     for name, orig in template_sd.items():
         orig_dtype = orig.dtype
@@ -433,17 +486,16 @@ def dequantize_grouped_int6(quant_dict: dict, template_sd: dict[str, Tensor]) ->
             entry = quant_dict["w"][name]
             q_flat = unpack_int6(entry["packed"], entry["count"]).float()
             scales = entry["scales"].float()
-            # Pad to match group count
-            padded_n = len(scales) * group_size
-            if q_flat.numel() < padded_n:
-                q_flat = torch.cat([q_flat, torch.zeros(padded_n - q_flat.numel())])
-            grouped = q_flat.reshape(-1, group_size)
-            deq = (grouped * scales.unsqueeze(1)).reshape(-1)[:entry["count"]]
-            deq = deq.reshape(entry["shape"])
-            # AWQ: undo per-column scaling
-            if "awq_scale" in entry:
-                awq_s = entry["awq_scale"].float()
-                deq = deq / awq_s.unsqueeze(0)
+            shape = entry["shape"]
+
+            if len(shape) == 2 and scales.ndim == 1:
+                # Per-row scale: reshape to [rows, cols], multiply by scale per row
+                deq = q_flat.reshape(shape) * scales.unsqueeze(1)
+            elif scales.ndim == 0:
+                deq = q_flat.reshape(shape) * scales.item()
+            else:
+                # Fallback: treat as flat
+                deq = q_flat.reshape(shape) * scales.reshape(-1, 1) if len(shape) == 2 else q_flat * scales
             out[name] = deq.to(orig_dtype)
 
     return out
@@ -1172,21 +1224,21 @@ def main() -> None:
                  for name, t in ema_state.items()}
     base_model.load_state_dict(avg_state, strict=True)
 
-    # AWQ: collect activation statistics from validation data for importance-aware quantization
-    log0("awq:collecting activation statistics from validation data")
+    # GPTQ: collect Hessians from validation data for error-compensated quantization
+    log0("gptq:collecting Hessians from validation data")
     n_calib = min(64, (val_tokens.numel() - 1) // args.train_seq_len)
     calib_x = val_tokens[:n_calib * args.train_seq_len].reshape(n_calib, args.train_seq_len)
     calib_y = val_tokens[1:n_calib * args.train_seq_len + 1].reshape(n_calib, args.train_seq_len)
-    awq_stats = collect_activation_stats(model, calib_x, calib_y, device)
-    log0(f"awq:collected stats for {len(awq_stats)} layers")
+    hessians = collect_hessians(model, calib_x, calib_y, device)
+    log0(f"gptq:collected Hessians for {len(hessians)} layers")
 
-    # Serialization + roundtrip validation (per-group int6 bit-packed + AWQ + lzma)
+    # Serialization + roundtrip validation (Full Hessian GPTQ int6 bit-packed + lzma)
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
     if master_process:
         torch.save(sd_cpu, "final_model.pt")
         log0(f"Serialized model (fp32): {os.path.getsize('final_model.pt')} bytes")
 
-    quant_dict = quantize_grouped_int6(sd_cpu, awq_stats=awq_stats)
+    quant_dict = quantize_gptq_int6(sd_cpu, hessians=hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_dict, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1204,7 +1256,7 @@ def main() -> None:
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
-    deq_state = dequantize_grouped_int6(quant_state, sd_cpu)
+    deq_state = dequantize_gptq_int6(quant_state, sd_cpu)
     base_model.load_state_dict(deq_state, strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
