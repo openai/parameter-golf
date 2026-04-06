@@ -1993,6 +1993,67 @@ def main() -> None:
         f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
     )
+    # --- Pre-Quant TTT: adapt EMA weights on training data before GPTQ ---
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", "6"))
+    ttt_lr = float(os.environ.get("TTT_LR", "0.0005"))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", "2"))
+    if ttt_epochs > 0:
+        log0(f"ttt:starting pre-quant TTT epochs={ttt_epochs} lr={ttt_lr} freeze_first={ttt_freeze_blocks}")
+        t_ttt = time.perf_counter()
+        # Freeze early blocks
+        for name, param in base_model.named_parameters():
+            param.requires_grad_(True)
+        for i in range(min(ttt_freeze_blocks, args.num_layers)):
+            for param in base_model.blocks[i].parameters():
+                param.requires_grad_(False)
+            # Freeze corresponding bank slices
+            if hasattr(base_model, 'qo_bank'):
+                base_model.qo_bank.data[i].requires_grad = False
+                base_model.qo_bank.data[args.num_layers + i].requires_grad = False
+                base_model.kv_bank.data[i].requires_grad = False
+                base_model.kv_bank.data[args.num_layers + i].requires_grad = False
+                base_model.mlp_up_bank.data[i].requires_grad = False
+                base_model.mlp_down_bank.data[i].requires_grad = False
+        ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+        ttt_opt = torch.optim.AdamW(ttt_params, lr=ttt_lr, weight_decay=0.0)
+        ttt_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        total_ttt_tokens = val_tokens.numel() - 1
+        ttt_steps_per_epoch = max(1, total_ttt_tokens // args.train_batch_tokens)
+        total_ttt_steps = ttt_epochs * ttt_steps_per_epoch
+        model.train()
+        ttt_step = 0
+        for epoch in range(ttt_epochs):
+            for _ in range(ttt_steps_per_epoch):
+                ttt_opt.zero_grad(set_to_none=True)
+                for micro_step in range(grad_accum_steps):
+                    if distributed:
+                        model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                    x, y = ttt_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                        loss = model(x, y)
+                    (loss * grad_scale).backward()
+                # Cosine LR decay
+                ttt_step += 1
+                cos_lr = ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ttt_step / max(total_ttt_steps, 1)))
+                for g in ttt_opt.param_groups:
+                    g['lr'] = cos_lr
+                ttt_opt.step()
+            log0(f"ttt:epoch {epoch+1}/{ttt_epochs} loss:{loss.item():.4f}")
+        # Unfreeze all params
+        for param in base_model.parameters():
+            param.requires_grad_(True)
+        ttt_ms = 1000.0 * (time.perf_counter() - t_ttt)
+        log0(f"ttt:done in {ttt_ms:.0f}ms ({ttt_step} steps)")
+        # Re-evaluate post-TTT
+        torch.cuda.synchronize()
+        t_diag2 = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_val(
+            args, compiled_model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(f"DIAGNOSTIC post_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} eval_time:{1000.0*(time.perf_counter()-t_diag2):.0f}ms")
+
     full_state_dict = base_model.state_dict()
     export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
