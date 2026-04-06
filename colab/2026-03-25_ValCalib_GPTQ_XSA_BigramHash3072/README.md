@@ -83,7 +83,7 @@ Why this matters:
 Run Colab with a GPU runtime. A100 or L4 is the closest match. T4 should also launch, but it will use the fp16 fallback and will be slower.
 
 ```bash
-git clone https://github.com/openai/parameter-golf.git
+git clone https://github.com/IanniMuliterno/parameter-golf.git
 cd parameter-golf/colab/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072
 python3 -m pip install -r requirements.txt
 bash run.sh
