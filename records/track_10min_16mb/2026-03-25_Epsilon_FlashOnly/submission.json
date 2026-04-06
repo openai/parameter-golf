@@ -1,0 +1,7 @@
+{
+  "short_description": "EPSILON: 11L XSA11 + VE + MLP3.0 + SWA + Muon",
+  "interesting": true,
+  "record_on_date": true,
+  "val_bpb": 1.11,
+  "notes": "Full-capacity profile to maximize 8xH100 budget: NUM_LAYERS=11, MLP_MULT=3.0, XSA_LAST_N=11, VE_ENABLED=1, BIGRAM_VOCAB_SIZE=2048, BIGRAM_DIM=128. Thermodynamic LR and Riemannian Sphere optimizer left enabled."
+}

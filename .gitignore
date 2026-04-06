@@ -9,3 +9,4 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+records/track_10min_16mb/2026-03-25_Epsilon_FlashOnly/sim_checks_local.json
