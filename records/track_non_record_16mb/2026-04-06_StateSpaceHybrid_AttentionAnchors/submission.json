@@ -2,29 +2,54 @@
   "author": "Greg / Codex AutoResearch",
   "github_id": "greqone",
   "name": "Non-record: state-space hybrid with attention anchors",
-  "blurb": "Fixed-step local sign-of-life on the standard scorer path. Layout AASSSASSS with exact attention anchors, S4D-style state-space blocks from a compile-friendly architecture family, and an export policy that keeps ssm.* tensors in float16 while the kept run itself uses ENABLE_TORCH_COMPILE=0.",
+  "blurb": "Local Blackwell scaling result on the standard scorer path. Layout AAASSASSS keeps more lower-layer attention, uses S4D-style state-space blocks from a compile-friendly architecture family, exports ssm.* tensors in float16, and retains ENABLE_TORCH_COMPILE=0 for the promoted kept run.",
   "date": "2026-04-06T00:00:00Z",
   "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
-  "val_loss": 5.33343307,
-  "val_bpb": 3.15875948,
-  "baseline_val_loss": 5.37608148,
-  "baseline_val_bpb": 3.18401827,
+  "val_loss": 3.11351113,
+  "val_bpb": 1.84399667,
+  "baseline_val_loss": 3.24156138,
+  "baseline_val_bpb": 1.91983524,
+  "kept_vs_baseline_delta_bpb": -0.07583857,
   "artifact_bytes": {
     "code": 57756,
-    "model_int8_zlib": 12346179,
-    "total": 12403935
+    "model_int8_zlib": 14723462,
+    "total": 14781218
   },
   "wallclock_ms": {
-    "training": 25221,
-    "evaluation": 114443,
-    "export_roundtrip_estimate": 5736,
-    "end_to_end_estimate": 145400
+    "training": 119096,
+    "evaluation": 121491,
+    "export_roundtrip_estimate": 5359,
+    "end_to_end_estimate": 245946
   },
   "compile_settings": {
     "enable_torch_compile": 0,
     "sdp_backend": "math"
   },
-  "bytes_total": 12403935,
-  "bytes_model_int8_zlib": 12346179,
+  "kept_config": {
+    "block_layout": "AAASSASSS",
+    "ssm_core": "s4d",
+    "ssm_kernel_size": 64,
+    "ssm_rank": 4,
+    "int8_force_float_name_patterns": "ssm.",
+    "train_batch_tokens": 32768,
+    "train_seq_len": 1024,
+    "val_batch_size": 262144,
+    "iterations": 480,
+    "seed": 1337
+  },
+  "baseline_match": {
+    "type": "training_wallclock_same_blackwell_lane",
+    "block_layout": "AAAAAAAAA",
+    "iterations": 390,
+    "train_time_ms": 116230,
+    "evaluation_time_ms": 218850
+  },
+  "scope": {
+    "training_shards": 1,
+    "gpu_lane": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "record_claim": false
+  },
+  "bytes_total": 14781218,
+  "bytes_model_int8_zlib": 14723462,
   "bytes_code": 57756
 }
