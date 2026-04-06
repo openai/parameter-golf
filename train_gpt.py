@@ -67,6 +67,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     use_swiglu = bool(int(os.environ.get("USE_SWIGLU", "0")))
+    mlp_hidden = int(os.environ.get("MLP_HIDDEN", "0"))  # 0 = auto-compute from mlp_mult
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -603,17 +604,16 @@ class CausalSelfAttention(nn.Module):
 
 class MLP(nn.Module):
     # Baseline uses relu^2. Set USE_SWIGLU=1 for SwiGLU (as in Llama/PaLM).
-    # SwiGLU: silu(gate(x)) * up(x) — better signal-to-noise per parameter.
-    # Hidden dim scales to 2/3 when SwiGLU is on so total params stay the same.
-    def __init__(self, dim: int, mlp_mult: int, use_swiglu: bool = False):
+    # Set MLP_HIDDEN to override the computed hidden dim directly (useful for size tuning).
+    def __init__(self, dim: int, mlp_mult: int, use_swiglu: bool = False, mlp_hidden: int = 0):
         super().__init__()
         self.use_swiglu = use_swiglu
         if use_swiglu:
-            hidden = int(dim * mlp_mult * 2 / 3)
+            hidden = mlp_hidden if mlp_hidden > 0 else int(dim * mlp_mult * 2 / 3)
             self.gate = CastedLinear(dim, hidden, bias=False)
             self.up   = CastedLinear(dim, hidden, bias=False)
         else:
-            hidden = mlp_mult * dim
+            hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
             self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
@@ -639,7 +639,11 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult, use_swiglu=bool(int(os.environ.get("USE_SWIGLU", "0"))))
+        self.mlp = MLP(
+            dim, mlp_mult,
+            use_swiglu=bool(int(os.environ.get("USE_SWIGLU", "0"))),
+            mlp_hidden=int(os.environ.get("MLP_HIDDEN", "0")),
+        )
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
