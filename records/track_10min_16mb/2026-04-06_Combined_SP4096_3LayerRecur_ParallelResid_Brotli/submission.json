@@ -1,0 +1,8 @@
+{
+  "track": "10min_16mb",
+  "description": "Combined 3-layer depth recurrence (layers 3,4,5) + parallel residuals (from layer 7) + Polar Express Newton-Schulz + MuonEq-R + Brotli compression + QK-Gain 5.0 + WD=0.105. No TTT. Clean neural record.",
+  "val_bpb": 1.1067,
+  "seeds": [1337, 42, 2025],
+  "train_time_seconds": 590,
+  "artifact_bytes": 13866583
+}
