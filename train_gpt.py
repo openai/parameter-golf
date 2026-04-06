@@ -2103,7 +2103,8 @@ def main() -> None:
     base_model._mamba_grad_checkpoint = args.mamba_grad_checkpoint
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    _fullgraph = len(base_model.mamba_layer_set) == 0  # sequential scan fallback breaks fullgraph
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=_fullgraph)
     model = compiled_model
 
     # Optimizer split:
