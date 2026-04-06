@@ -424,4 +424,275 @@ The correct fix remains: **don't override `window_size` on the eval model.** Let
 
 3. **Window size tuning.** 256 was arbitrary. Try 128, 512. Also try different numbers of full-attention layers (2, 4, 5 instead of 3).
 
-4. **HF upload for checkpoints.** Added upload code to push `final_model.pt` and `final_model.int6.ptz` to `Itssshikhar/parameter-golf-swa` for reuse without retraining.
+4. **HF upload for checkpoints.** Added upload code to push `final_model.pt` and `final_model.int6.ptz` to `shikhar007/parameter-golf-gram-ns` for reuse without retraining.
+
+## Config sweep (Full Hessian GPTQ, torch 2.9.1 + FA3)
+
+Three experiments to find the best SWA configuration, all with Full Hessian GPTQ re-enabled.
+
+### Exp 1: window=512, 3 full attn layers, QAT@0.15
+
+Larger window (512 vs 256) — layers 0-7 can attend 512 tokens back instead of 256. Slightly slower per step (less compute savings from SWA) but more context available during eval.
+
+**Config:**
+```bash
+SWA_WINDOW_SIZE=512
+SWA_FULL_ATTN_LAYERS=3      # layers 8,9,10 full attention
+LATE_QAT_THRESHOLD=0.15
+BIGRAM_VOCAB_SIZE=3072
+BIGRAM_DIM=112
+WARMDOWN_ITERS=4000
+SEED=1337
+```
+
+**Results:**
+
+| Metric | Value |
+|---|---|
+| step_avg | 85.43 ms |
+| Steps completed | 7024 |
+| Post-EMA val_bpb | 1.1345 |
+| Int6 roundtrip val_bpb | 1.1389 |
+| **Sliding eval val_bpb** | **1.1161** |
+
+**Analysis:**
+
+| | Exp 1 (w=512) | Best w=256 run | Current #1 |
+|---|---|---|---|
+| step_avg | 85.43ms | 75.34ms | 86.6ms |
+| Steps | 7024 | 7965 | 6927 |
+| Post-EMA bpb | 1.1345 | 1.1332 | 1.1354 |
+| Roundtrip bpb | 1.1389 | 1.1411 | 1.1395 |
+| Sliding bpb | **1.1161** | 1.1186 | **1.1147** |
+| Gap from #1 | **0.0014** | 0.0039 | — |
+
+Window=512 closes the gap significantly: **0.0014 BPB from #1** (was 0.0039 with w=256). The larger window lets layers 0-7 exploit more context during sliding eval, recovering most of the sliding eval benefit that full attention gets.
+
+The speed trade-off: 85.43ms vs 75.34ms. The window=512 layers are slightly more expensive than window=256, reducing the training speed advantage. But still competitive with #1's 86.6ms — essentially the same speed with a better sliding eval.
+
+The quantization gap is 0.0044 (1.1345 → 1.1389), slightly better than w=256's 0.0079 (GPTQ-lite) and comparable to #1's 0.0041. Full Hessian GPTQ is working well.
+
+### Exp 2: window=256, 5 full attn layers, QAT@0.15
+
+Fewer SWA layers (6 instead of 8) — layers 0-5 use sliding window, layers 6-10 use full attention. More layers can exploit full context during eval.
+
+**Config:**
+```bash
+SWA_WINDOW_SIZE=256
+SWA_FULL_ATTN_LAYERS=5      # layers 6,7,8,9,10 full attention
+LATE_QAT_THRESHOLD=0.15
+BIGRAM_VOCAB_SIZE=3072
+BIGRAM_DIM=112
+WARMDOWN_ITERS=4000
+SEED=1337
+```
+
+**Results:**
+
+| Metric | Value |
+|---|---|
+| step_avg | 83.19 ms |
+| Steps completed | 7214 |
+| Post-EMA val_bpb | 1.1341 |
+| Int6 roundtrip val_bpb | 1.1382 |
+| **Sliding eval val_bpb** | **1.1151** |
+
+**Analysis:**
+
+| | Exp 2 (w=256, 5 full) | Exp 1 (w=512, 3 full) | Current #1 |
+|---|---|---|---|
+| step_avg | 83.19ms | 85.43ms | 86.6ms |
+| Steps | 7214 | 7024 | 6927 |
+| Post-EMA bpb | 1.1341 | 1.1345 | 1.1354 |
+| Roundtrip bpb | 1.1382 | 1.1389 | 1.1395 |
+| Sliding bpb | **1.1151** | 1.1161 | **1.1147** |
+| Gap from #1 | **0.0004** | 0.0014 | — |
+
+**Best config so far.** Only **0.0004 BPB from #1** — within single-seed noise. The 5 full-attention layers (vs 3) give more sliding eval benefit because more layers exploit the full 2048-token context. And 6 SWA layers still save enough compute to be 4% faster than #1 (83.19ms vs 86.6ms), giving ~290 extra training steps.
+
+Quantization gap: 0.0041 (1.1341 → 1.1382), matching #1's gap exactly. Full Hessian GPTQ works identically.
+
+### Exp 3: window=256, 3 full attn layers, QAT@0.30 (earlier QAT)
+
+Same SWA config as our previous runs (w=256, 8 SWA layers) but QAT starts when LR scale drops below 0.30 instead of 0.15. This means ~1200 steps of fake quantization instead of ~500.
+
+**Config:**
+```bash
+SWA_WINDOW_SIZE=256
+SWA_FULL_ATTN_LAYERS=3      # layers 8,9,10 full attention (same as before)
+LATE_QAT_THRESHOLD=0.30     # earlier QAT (was 0.15)
+BIGRAM_VOCAB_SIZE=3072
+BIGRAM_DIM=112
+WARMDOWN_ITERS=4000
+SEED=1337
+```
+
+**Results:**
+
+| Metric | Value |
+|---|---|
+| step_avg | 81.43 ms |
+| Steps completed | 7369 |
+| Post-EMA val_bpb | 1.1349 |
+| Int6 roundtrip val_bpb | 1.1390 |
+| **Sliding eval val_bpb** | **1.1165** |
+
+**Analysis:** Earlier QAT hurt. The model trains with fake quantization noise for more steps, which slightly degrades pre-quant quality (1.1349 vs 1.1341 for Exp 2). The quantization gap (0.0041) is the same — earlier QAT didn't improve quantization robustness. The faster step_avg (81.43ms, more steps) doesn't compensate for the quality loss from extended noise injection.
+
+### Sweep summary
+
+| Exp | Config | step_avg | Steps | Sliding bpb | Gap from #1 |
+|---|---|---|---|---|---|
+| 1 | w=512, 3 full, QAT@0.15 | 85.43ms | 7024 | 1.1161 | 0.0014 |
+| **2** | **w=256, 5 full, QAT@0.15** | **83.19ms** | **7214** | **1.1151** | **0.0004** |
+| 3 | w=256, 3 full, QAT@0.30 | 81.43ms | 7369 | 1.1165 | 0.0018 |
+| — | Current #1 (no SWA) | 86.6ms | 6927 | 1.1147 | — |
+
+**Winner: Exp 2** (window=256, 5 full attention layers, QAT@0.15). Only **0.0004 BPB from #1** on a single seed. 4% faster training (83.19ms vs 86.6ms).
+
+**Key insight:** The number of full-attention layers matters more than window size or QAT timing. Exp 2's 5 full-attention layers (6-10) give the eval model more layers that can exploit full context, while 6 SWA layers (0-5) still save enough compute to train faster.
+
+### TTT eval on Exp 2 model
+
+Ran Legal Score-First TTT (3 epochs, all blocks unfrozen, lr=0.002, cosine decay) on the Exp 2 quantized model (downloaded from HuggingFace, no retraining).
+
+| Eval method | val_bpb |
+|---|---|
+| Roundtrip | 1.1382 |
+| Sliding | 1.1151 |
+| **TTT** | **1.1152** |
+
+**TTT is neutral on the SWA stack** — 1.1152 vs 1.1151 sliding (no improvement). Same finding as the current #1 had on their full-attention stack.
+
+Why TTT doesn't help with SWA: TTT adapts the model on already-scored validation chunks so later chunks benefit. But layers 0-5 use sliding window (window=256) — they can't propagate what they learned from earlier chunks to later positions beyond their window. The adaptation signal is bottlenecked by the narrow attention window on the majority of layers.
+
+This matches the current #1's finding: TTT was neutral/negative and was dropped from their submission. Our SWA stack makes it even less likely to work since fewer layers can carry long-range adaptation signals.
+
+### Status and next direction
+
+**Current best: 1.1151 BPB** (Exp 2, single seed). Current #1: **1.1147 BPB** (3-seed mean). Gap: 0.0004 BPB — within noise but not enough to submit (need 0.005 nats ≈ 0.003 BPB improvement over #1).
+
+Approaches exhausted:
+- Window size tuning (256, 512) ✓
+- Layer count tuning (3, 5 full attn layers) ✓
+- Earlier QAT (0.15, 0.30) ✓
+- TTT ✓
+- Full Hessian GPTQ ✓
+
+**Next approach: add a 12th layer.** SWA saves ~5ms per step. Instead of cashing out as more training steps at 11 layers, spend the saved compute on a 12th layer. More depth = better model quality per step. The int6 model grows larger but LZMA compression + selective pruning may keep it under 16MB.
+
+## Failed experiments after Exp 2
+
+Multiple techniques were tried on top of the Exp 2 config. All failed to beat 1.1151:
+
+| Experiment | Change | Pre-quant | Sliding eval | Outcome |
+|---|---|---|---|---|
+| MTP (weight=0.2) | 2 auxiliary prediction heads | 1.1384 | 1.1193 | Hurt — model too small for MTP |
+| MTP (weight=0.02) | Same, 10x lower weight | 1.1348 | 1.1157 | Still hurt — any MTP overhead costs more than it gains |
+| Cautious WD | Sign-aligned weight decay (NanoGPT) | 1.1374 | 1.1375 | Catastrophic — unchecked weight growth kills quantization |
+| Batch schedule v1 | Half batch for first 40% | 1.1435 | 1.1250 | Worse — GPU underutilized at smaller batch |
+| Batch schedule v2 | seq_len 1024→2048 switch | — | — | Crashed — torch.compile recompile limit with fullgraph=True |
+| Batch schedule v3 | NanoGPT-style batch-only grow | 1.1533 | 1.1325 | Worse — fewer total tokens seen despite more steps |
+| Backout (3 layers) | Frozen attention snapshot on layers 8-10 | 1.1354 | 1.1163 | Slightly worse — model too shallow to split understanding/prediction |
+| 12L all-int5 MLP | 12 layers, int5 for all MLP | 1.1300 | 1.1219 | Int5 quant gap too large (0.015 vs 0.004) |
+| 12L mixed int5/int6 | Early MLP int5, deep MLP int6 | 1.1303 | 1.1166 | Better than all-int5 but still too lossy (gap 0.009) |
+| 12L Hadamard rotation | Orthogonal rotation before quantization | 1.1294 | 1.1156 | Rotation didn't help — no outliers to spread |
+| 12L int6 + pruning | All int6, aggressive magnitude pruning | 1.1310 | 1.1179 | Pruning costs more quality than it saves in size |
+| Larger GPTQ calibration | 128 sequences instead of 64 | 1.1341 | 1.1150 | Negligible improvement (0.0001) |
+| More SWA layers (6 full) | SWA on 0-4, full on 5-10 | 1.1353 | 1.1164 | Worse — lost speed without gaining eval benefit |
+| SpQR analysis | Per-weight sensitivity profiling | — | — | Errors uniformly distributed, no outliers to keep in fp16 |
+
+### Key lessons learned
+
+1. **Quantization gap (0.004) is at its information-theoretic limit** for int6. Better quantization methods don't help.
+2. **Weight magnitude matters for quantization.** Any technique that lets weights grow (cautious WD) catastrophically hurts int6 roundtrip.
+3. **MTP doesn't work at 27M params.** The model lacks capacity to serve both primary and auxiliary objectives.
+4. **NanoGPT speedrun techniques don't directly transfer.** That competition has no quantization step. Techniques like cautious WD and batch scheduling that help convergence speed hurt quantization quality.
+5. **12 layers don't fit at int6 quality.** The 16MB artifact constraint forces either int5 (too lossy) or pruning (also too lossy).
+
+## Sequence length 4096: the breakthrough
+
+### The key insight
+
+Increasing `TRAIN_SEQ_LEN` from 2048 to 4096 was the only change that showed a genuine, large pre-quant improvement:
+
+| Config | Pre-quant | Improvement |
+|---|---|---|
+| Exp 2 (seq2048) | 1.1341 | baseline |
+| seq4096 + SWA w=256 + 5 full | **1.1216** | **-0.0125** |
+
+The model learns dramatically better with 4096 tokens of context. The full-attention layers (6-10) see 2x more context, learning longer-range dependencies. The SWA layers (0-5) are unaffected (window=256 regardless of seq_len).
+
+### The SWA eval penalty at longer sequences
+
+At seq4096, the SWA eval penalty is proportionally larger:
+- seq2048: SWA layers use 256/2048 = 12.5% of available context
+- seq4096: SWA layers use 256/4096 = 6.25% of available context
+
+This means the sliding eval benefit is smaller at seq4096 (0.014) than at seq2048 (0.023). The massive pre-quant gain is partially eaten by the reduced sliding benefit.
+
+### Failed attempt: eval at seq2048 on seq4096-trained model
+
+We tried evaluating the seq4096-trained model at seq_len=2048 (where SWA penalty is smaller). The roundtrip was catastrophically broken (2.04 BPB). Root cause: the GPTQ calibration was done at seq4096. The Hessians (H = X^T @ X) capture the activation distribution at 4096-length sequences. When the quantized model processes 2048-length sequences, the activation distribution is different and the GPTQ error compensation is wrong.
+
+**The fix: re-quantize the same trained model with GPTQ calibration at seq2048.** The model weights are the same (trained at 4096). The GPTQ is re-run with AR calibration sequences generated at 2048. The quantized weights are optimized for 2048 eval. This is eval-only — no retraining needed.
+
+### seq4096 v2 results (best run yet)
+
+**Config:** Same as Exp 2 but with `TRAIN_SEQ_LEN=4096, EVAL_SEQ_LEN=4096`.
+
+```bash
+RUN_ID=seq4096_swa256_full5_v2
+TRAIN_SEQ_LEN=4096
+EVAL_SEQ_LEN=4096
+SWA_WINDOW_SIZE=256
+SWA_FULL_ATTN_LAYERS=5
+BIGRAM_VOCAB_SIZE=3072
+BIGRAM_DIM=112
+WARMDOWN_ITERS=4000
+SEED=1337
+```
+
+| Metric | seq4096 v2 | Exp 2 (seq2048) | Current #1 |
+|---|---|---|---|
+| step_avg | 82.14ms | 83.19ms | 86.6ms |
+| Steps | 7305 | 7214 | 6927 |
+| Pre-quant | **1.1216** | 1.1341 | 1.1354 |
+| Quant gap | 0.0052 | 0.0041 | 0.0041 |
+| Roundtrip | **1.1268** | 1.1382 | 1.1395 |
+| **Sliding eval @4096** | **1.1130** | — | — |
+| **Sliding eval @2048** | (pending) | 1.1151 | **1.1147** |
+
+**1.1130 BPB sliding eval at seq4096** — 0.0017 below #1's 1.1147. Pre-quant 1.1216 is 0.014 better than #1.
+
+Model uploaded to HuggingFace: `shikhar007/parameter-golf-gram-ns/models/seq4096_swa256_full5_v2.pt`
+
+### Next: re-quantize at seq2048
+
+The seq4096 model evaluated at seq4096 gets 1.1130 (already beats #1). But the sliding benefit is limited by SWA penalty at 4096 (only 0.014). If we re-quantize with GPTQ calibrated at seq2048 and eval at 2048, the SWA penalty is halved (12.5% vs 6.25%), and the sliding benefit should be ~0.023.
+
+Expected with re-quantize at 2048:
+```
+Pre-quant (at 2048 eval): ~1.122
+Quant gap: ~0.004
+Roundtrip: ~1.126
+Sliding benefit: ~0.023
+Sliding eval: ~1.103
+```
+
+That would beat #1 by **0.012 BPB** — easily clearing the 0.003 BPB submission threshold.
+
+### PR #1212 analysis
+
+PR #1212 on parameter-golf ("Window Attention + Mixed Seq_Len Training", 1.1108 BPB) uses a similar insight but with more sophisticated implementation:
+
+1. **Alternating window layers** (2,4,6,8,10) instead of consecutive (0-5) — every window layer has a full-attention neighbor
+2. **Mixed seq_len training** — 5 GPUs at seq2048, 3 GPUs at seq6144 in the same step. Model sees both lengths during training, making weights compatible with any eval length.
+3. **12 layers** with brotli compression
+4. **Window=512** (larger than our 256)
+
+Their key innovation — mixed seq_len training — solves the "can't eval at different seq_len than training" problem by training at BOTH lengths simultaneously. We haven't implemented this yet but it would allow us to train at 4096 while maintaining compatibility with 2048 eval.
+
+### Approach for the re-quantize test
+
+The simpler approach (no mixed training): download the raw `.pt` model, generate AR calibration at seq2048, run GPTQ with 2048-calibrated Hessians, eval at 2048. This tests whether the GPTQ calibration mismatch was the only reason eval@2048 broke.

@@ -1,8 +1,11 @@
-"""Run sliding window attention training on 8xH100 via Modal."""
+"""Sweep SWA full-attention layer count: 6, 7, 8 full layers.
+
+Finding the sweet spot between SWA speed savings and sliding eval benefit.
+"""
 import os
 import modal
 
-app = modal.App("parameter-golf-swa")
+app = modal.App("parameter-golf-swa-sweep2")
 
 data_vol = modal.Volume.from_name("parameter-golf-data", create_if_missing=True)
 _hf_token = os.environ.get("HF_TOKEN", "")
@@ -29,32 +32,27 @@ image = (
     )
     .pip_install("psutil", "packaging", "ninja", "wheel", "setuptools")
     .run_commands(
-        # FA3 standalone for H100 — exact same setup as current #1 submission
         "pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291",
     )
     .add_local_file("train_gpt_swa.py", "/opt/train_gpt_swa.py")
-    .add_local_file("train_gpt_original_1.py", "/opt/train_gpt_original.py")
 )
 
 
 @app.function(
     image=image,
     gpu="H100:8",
-    timeout=5400,
+    timeout=10800,
     volumes={"/data": data_vol},
     secrets=[hf_secret],
 )
-def train():
+def sweep():
     import subprocess
     import os
     import shutil
 
     os.makedirs("/workspace/parameter-golf", exist_ok=True)
     os.chdir("/workspace/parameter-golf")
-
-    # Copy scripts from image
     shutil.copy2("/opt/train_gpt_swa.py", "train_gpt_swa.py")
-    shutil.copy2("/opt/train_gpt_original.py", "train_gpt_original.py")
 
     # Dataset
     dataset_vol = "/data/fineweb10B_sp1024"
@@ -80,7 +78,6 @@ def train():
         for f in os.listdir(tokenizer_local):
             shutil.copy2(f"{tokenizer_local}/{f}", f"{tokenizer_vol}/{f}")
         data_vol.commit()
-        print("Dataset saved to volume.", flush=True)
     else:
         print("Dataset found in volume.", flush=True)
         os.makedirs("./data/datasets", exist_ok=True)
@@ -92,50 +89,89 @@ def train():
             shutil.rmtree(tokenizer_local)
         os.symlink(tokenizer_vol, tokenizer_local)
 
-    train_files = [f for f in os.listdir(dataset_local) if "train" in f]
-    val_files = [f for f in os.listdir(dataset_local) if "val" in f]
-    print(f"Dataset: {len(train_files)} train shards, {len(val_files)} val shards", flush=True)
+    configs = [
+        {
+            "name": "exp4_w256_full6",
+            "desc": "Exp 4: window=256, 6 full attn layers (5 SWA), QAT@0.15",
+            "env": {
+                "RUN_ID": "exp4_w256_full6",
+                "SWA_WINDOW_SIZE": "256",
+                "SWA_FULL_ATTN_LAYERS": "6",
+            },
+        },
+        {
+            "name": "exp5_w256_full7",
+            "desc": "Exp 5: window=256, 7 full attn layers (4 SWA), QAT@0.15",
+            "env": {
+                "RUN_ID": "exp5_w256_full7",
+                "SWA_WINDOW_SIZE": "256",
+                "SWA_FULL_ATTN_LAYERS": "7",
+            },
+        },
+        {
+            "name": "exp6_w256_full8",
+            "desc": "Exp 6: window=256, 8 full attn layers (3 SWA), QAT@0.15",
+            "env": {
+                "RUN_ID": "exp6_w256_full8",
+                "SWA_WINDOW_SIZE": "256",
+                "SWA_FULL_ATTN_LAYERS": "8",
+            },
+        },
+    ]
 
-    baseline_lines = ["(skipped — see previous run)"]
-
-    env = {
-        **os.environ,
-        "RUN_ID": "seq4096_swa256_full5_v2",
-        "TRAIN_SEQ_LEN": "4096",
-        "EVAL_SEQ_LEN": "4096",
-        "SWA_WINDOW_SIZE": "256",
-        "SWA_FULL_ATTN_LAYERS": "5",
+    common_env = {
         "BIGRAM_VOCAB_SIZE": "3072",
         "BIGRAM_DIM": "112",
         "WARMDOWN_ITERS": "4000",
-        "SWA_WINDOW_SIZE": "256",
-        "SWA_FULL_ATTN_LAYERS": "5",
+        "SEED": "1337",
     }
 
-    print("=== SWA TRAINING START ===", flush=True)
-    proc = subprocess.Popen(
-        ["torchrun", "--standalone", "--nproc_per_node=8", "train_gpt_swa.py"],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
+    all_results = []
 
-    lines = []
-    for line in proc.stdout:
-        line = line.rstrip()
-        print(line, flush=True)
-        lines.append(line)
+    for cfg in configs:
+        print(f"\n{'='*70}", flush=True)
+        print(f"  {cfg['desc']}", flush=True)
+        print(f"{'='*70}", flush=True)
 
-    proc.wait()
-    print(f"=== TRAINING DONE (exit code {proc.returncode}) ===", flush=True)
-    return "=== BASELINE LOG ===\n" + "\n".join(baseline_lines) + "\n=== SWA LOG ===\n" + "\n".join(lines)
+        env = {**os.environ, **common_env, **cfg["env"]}
+
+        cache_dir = os.path.expanduser("~/.cache/torch_extensions")
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+
+        proc = subprocess.Popen(
+            ["torchrun", "--standalone", "--nproc_per_node=8", "train_gpt_swa.py"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        lines = []
+        for line in proc.stdout:
+            line = line.rstrip()
+            print(line, flush=True)
+            lines.append(line)
+
+        proc.wait()
+        print(f"=== {cfg['name']} DONE (exit code {proc.returncode}) ===", flush=True)
+        all_results.append(f"=== {cfg['name']} ===\n" + "\n".join(lines))
+
+    print(f"\n{'='*70}", flush=True)
+    print("SWEEP 2 SUMMARY", flush=True)
+    print(f"{'='*70}", flush=True)
+    for result in all_results:
+        for line in result.split("\n"):
+            if any(k in line for k in ["step_avg", "post_ema", "final_int6_roundtrip ", "final_int6_sliding_window ", "=== exp"]):
+                print(f"  {line.strip()}", flush=True)
+
+    return "\n\n".join(all_results)
 
 
 @app.local_entrypoint()
 def main():
-    log = train.remote()
-    with open("swa_run.log", "w") as f:
+    log = sweep.remote()
+    with open("swa_sweep.log", "w") as f:
         f.write(log)
-    print(f"\nLog saved to swa_run.log")
+    print(f"\nLog saved to swa_sweep.log")

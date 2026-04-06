@@ -96,6 +96,9 @@ class Hyperparameters:
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
+    # Backout: last N layers' attention reads from a frozen snapshot instead of evolving residual.
+    # Separates "context understanding" from "prediction". From NanoGPT speedrun.
+    backout_layers = int(os.environ.get("BACKOUT_LAYERS", "0"))  # 0 = disabled
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
@@ -264,7 +267,9 @@ class Muon(torch.optim.Optimizer):
                 pp = prev_m['p']
                 upd = prev_m['full_update'][:prev_m['B']]
                 if wd > 0.0:
-                    pp.data.mul_(1.0 - lr * wd)
+                    upd_f = upd.to(dtype=pp.dtype)
+                    mask = (upd_f * pp.data >= 0).to(pp.dtype)
+                    pp.data.mul_(1.0 - lr * wd * mask)
                 pp.add_(upd.to(dtype=pp.dtype), alpha=-lr * prev_m['scale'])
 
             if hasattr(self, '_rs_futures'):
@@ -779,10 +784,14 @@ class Block(nn.Module):
             nn.init.constant_(self.dtg_gate.bias, 2.0)
         else:
             self.dtg_gate = None
-    def forward(self, x: Tensor, x0: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, up_w: Tensor, down_w: Tensor, v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+    def forward(self, x: Tensor, x0: Tensor, q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor, up_w: Tensor, down_w: Tensor, v_embed: Tensor | None = None, v0: Tensor | None = None, attn_input_override: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out, raw_v = self.attn(self.attn_norm(x_in) * self.ln_scale_factor, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
+        # Backout: if attn_input_override is provided, use it for attention instead of x_in.
+        # MLP still operates on x_in (the current residual). This separates what attention
+        # "sees" (frozen context) from what MLP predicts (current state).
+        attn_src = attn_input_override if attn_input_override is not None else x_in
+        attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w)
         if self.dtg_gate is not None:
@@ -902,6 +911,15 @@ class GPT(nn.Module):
                 self.blocks[i].attn.window_size = (swa_window_size, swa_window_size)
                 swa_layers.append(i)
         self._swa_layers = swa_layers
+        # Backout: freeze attention input for last N layers
+        backout_layers = int(os.environ.get("BACKOUT_LAYERS", "0"))
+        self._backout_layers = backout_layers
+        if backout_layers > 0:
+            self.backout_lambda = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
+            self._backout_save_at = num_layers - backout_layers  # save snapshot at this layer
+        else:
+            self.backout_lambda = None
+            self._backout_save_at = -1
         self._init_weights()
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -946,24 +964,31 @@ class GPT(nn.Module):
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        x_backout: Tensor | None = None
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
+            attn_override = x_backout if (x_backout is not None and i >= self._backout_save_at) else None
             x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
+                v_embed=ve, v0=v0, attn_input_override=attn_override)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
+            if self._backout_save_at >= 0 and i == self._backout_save_at and x_backout is None:
+                x_backout = x
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
+            attn_override = x_backout if (x_backout is not None and bi >= self._backout_save_at) else None
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
+                v_embed=ve, v0=v0, attn_input_override=attn_override)
+        if x_backout is not None and self.backout_lambda is not None:
+            x = x - self.backout_lambda.to(dtype=x.dtype) * x_backout
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -1004,24 +1029,31 @@ class GPT(nn.Module):
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        x_backout: Tensor | None = None
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
+            attn_override = x_backout if (x_backout is not None and i >= self._backout_save_at) else None
             x, raw_v = self.blocks[i](x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
+                v_embed=ve, v0=v0, attn_input_override=attn_override)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
+            if self._backout_save_at >= 0 and i == self._backout_save_at and x_backout is None:
+                x_backout = x
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
+            attn_override = x_backout if (x_backout is not None and bi >= self._backout_save_at) else None
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
+                v_embed=ve, v0=v0, attn_input_override=attn_override)
+        if x_backout is not None and self.backout_lambda is not None:
+            x = x - self.backout_lambda.to(dtype=x.dtype) * x_backout
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1160,6 +1192,43 @@ def collect_hessians_from_tokens(hessian_model, token_seqs, device):
         hessians[name] = H
     return hessians
 
+
+# --- Hadamard rotation for quantization (QuaRot-style) ---
+# Rotate weight columns by an orthogonal matrix before quantization.
+# Spreads outlier values across all elements in each row, improving
+# per-row quantization quality. Rotation is undone after dequantization.
+# Reference: QuaRot (Ashkboos et al., 2024)
+
+_QUANT_ROTATION_SEED = 42
+
+def _hadamard_matrix(n: int) -> Tensor:
+    """Normalized Hadamard matrix of size n (must be power of 2)."""
+    H = torch.ones(1, 1)
+    while H.size(0) < n:
+        H = torch.cat([torch.cat([H, H], 1), torch.cat([H, -H], 1)], 0) / math.sqrt(2)
+    return H
+
+def _get_rotation_matrix(cols: int) -> Tensor:
+    """Deterministic orthogonal rotation for a given column dimension."""
+    if cols > 0 and (cols & (cols - 1)) == 0:  # power of 2
+        return _hadamard_matrix(cols)
+    # Non-power-of-2: random orthogonal from fixed seed
+    gen = torch.Generator().manual_seed(_QUANT_ROTATION_SEED + cols)
+    return torch.linalg.qr(torch.randn(cols, cols, generator=gen))[0]
+
+def rotate_weight_for_quant(W: Tensor) -> Tensor:
+    """Rotate columns of a 2D weight matrix for better quantization."""
+    if W.ndim != 2:
+        return W
+    R = _get_rotation_matrix(W.shape[1]).to(dtype=W.dtype, device=W.device)
+    return W @ R
+
+def unrotate_weight_after_dequant(W: Tensor, cols: int) -> Tensor:
+    """Undo column rotation after dequantization."""
+    if W.ndim != 2:
+        return W
+    R = _get_rotation_matrix(cols).to(dtype=W.dtype, device=W.device)
+    return W @ R.T
 
 # --- GPTQ-lite int6 quantization ---
 
@@ -1542,7 +1611,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             meta[name] = "passthrough_ctrl"
             continue
         if cat in int6_cats and t.ndim >= 1:
-            cr = 31  # int6 for all weights
+            cr = 31  # all-int6, fit via aggressive pruning + compression
             H = hessians.get(name) if hessians else None
             if H is not None:
                 q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr)
@@ -1794,6 +1863,31 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # Batch size schedule (NanoGPT PR #163 style):
+    # Grow batch tokens over training: small batch early (more gradient updates, noisier),
+    # large batch late (fewer updates, cleaner gradients for warmdown).
+    # LR scales with batch: lr *= (batch/base_batch)^0.6
+    # NO seq_len change, NO recompilation — only the number of sequences per step changes.
+    batch_schedule_enabled = bool(int(os.environ.get("BATCH_SCHEDULE", "0")))
+    # 3-stage schedule: 50% -> 75% -> 100% of full batch, each 1/3 of training
+    _bs_schedule = [
+        args.train_batch_tokens // 2,       # phase 1: 393K (50%)
+        args.train_batch_tokens * 3 // 4,   # phase 2: 589K (75%)
+        args.train_batch_tokens,             # phase 3: 786K (100%)
+    ]
+    _bs_base = _bs_schedule[0]
+    _current_batch_tokens = _bs_schedule[0] if batch_schedule_enabled else args.train_batch_tokens
+
+    def get_batch_and_lr_mul(elapsed_ms: float) -> tuple[int, float]:
+        if not batch_schedule_enabled or max_wallclock_ms is None:
+            return args.train_batch_tokens, 1.0
+        frac = elapsed_ms / max_wallclock_ms
+        idx = min(int(frac * len(_bs_schedule)), len(_bs_schedule) - 1)
+        bs = _bs_schedule[idx]
+        lr_mul = (bs / _bs_base) ** 0.6  # NanoGPT uses 0.6 exponent
+        return bs, lr_mul
+
     def zero_grad_all() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
@@ -1815,7 +1909,7 @@ def main() -> None:
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
-                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                x, y = train_loader.next_batch(_current_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
@@ -1842,6 +1936,10 @@ def main() -> None:
     ema_decay = 0.997
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    current_batch_tokens = _current_batch_tokens
+    _lr_batch_mul = 1.0
+    if batch_schedule_enabled:
+        log0(f"batch_schedule:enabled stages={_bs_schedule} lr_exponent=0.6")
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
@@ -1881,10 +1979,17 @@ def main() -> None:
         if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        # Batch schedule: update batch size and LR multiplier based on elapsed time
+        prev_batch = _current_batch_tokens
+        _current_batch_tokens, _lr_batch_mul = get_batch_and_lr_mul(elapsed_ms)
+        if _current_batch_tokens != prev_batch:
+            log0(f"batch_schedule:switch step:{step} batch={prev_batch}->{_current_batch_tokens} "
+                 f"lr_mul={_lr_batch_mul:.2f} elapsed:{elapsed_ms:.0f}ms")
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            x, y = train_loader.next_batch(_current_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
@@ -1896,7 +2001,7 @@ def main() -> None:
             group["momentum"] = muon_momentum
         for opt in optimizers:
             for group in opt.param_groups:
-                group["lr"] = group["base_lr"] * scale
+                group["lr"] = group["base_lr"] * scale * _lr_batch_mul
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         # === 3-phase overlapped optimizer step ===
@@ -2028,56 +2133,56 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    # DEBUG: Skip Full Hessian GPTQ, use GPTQ-lite (percentile search) to isolate the bug.
-    log0("DEBUG:quantizing with hessians=None (GPTQ-lite only)")
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=None)
-    # NOVEL: Selective ±1 pruning by reconstruction error
-    # Sort ±1 quantized values by their reconstruction error (scale²),
-    # prune least-impactful first until artifact fits target size.
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    # Aggressive magnitude pruning: zero out the smallest quantized values
+    # sorted by reconstruction error (|q_val| * scale), until artifact fits target size.
+    # Zeros compress extremely well with LZMA — this trades quality for compression.
     target_mb = float(os.environ.get("TARGET_MB", "15.9"))
     code_bytes_est = len(code.encode("utf-8"))
-    ones_info = []  # (tensor_key, flat_idx, error)
+    prune_candidates = []  # (tensor_key, flat_idx, reconstruction_error)
     for name, info in quant_meta.items():
         if not (isinstance(info, dict) and info.get("type") == "int6"): continue
         qk, sk = name + ".q", name + ".scale"
         if qk not in quant_result or sk not in quant_result: continue
         q, s = quant_result[qk], quant_result[sk]
-        if s.ndim > 0:
-            ones_mask = (q.abs() == 1)
-            if ones_mask.any():
-                row_idx = torch.arange(q.shape[0]).unsqueeze(1).expand_as(q)[ones_mask]
-                flat_idx = torch.arange(q.numel()).reshape(q.shape)[ones_mask]
-                errors = s.float()[row_idx].pow(2)
+        if s.ndim > 0 and q.ndim == 2:
+            # Reconstruction error for each weight = |q_val| * scale_for_that_row
+            nonzero_mask = (q != 0)
+            if nonzero_mask.any():
+                row_idx = torch.arange(q.shape[0]).unsqueeze(1).expand_as(q)[nonzero_mask]
+                flat_idx = torch.arange(q.numel()).reshape(q.shape)[nonzero_mask]
+                # Error from zeroing this weight: |q_val * scale| (the reconstructed magnitude)
+                errors = (q[nonzero_mask].float().abs() * s.float()[row_idx])
                 for fi, err in zip(flat_idx.tolist(), errors.tolist()):
-                    ones_info.append((qk, fi, err))
-    if ones_info:
-        ones_info.sort(key=lambda x: x[2])
+                    prune_candidates.append((qk, fi, err))
+    if prune_candidates:
+        prune_candidates.sort(key=lambda x: x[2])  # smallest error first
         def _try_prune(n):
             tmp = {k: v.clone() for k, v in quant_result.items()}
-            for i in range(min(n, len(ones_info))):
-                tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
+            for i in range(min(n, len(prune_candidates))):
+                tmp[prune_candidates[i][0]].view(-1)[prune_candidates[i][1]] = 0
             buf = io.BytesIO(); torch.save({"w": tmp, "m": quant_meta}, buf)
             return len(lzma.compress(buf.getvalue(), preset=9)) + code_bytes_est, tmp
         no_sz, _ = _try_prune(0)
         target_bytes = int(target_mb * 1024 * 1024)
-        log0(f"selective_prune: {len(ones_info)} ±1 candidates, unpruned={no_sz/(1024*1024):.2f}MB target={target_mb}MB")
+        total_weights = sum(quant_result[name + ".q"].numel() for name, info in quant_meta.items()
+                           if isinstance(info, dict) and info.get("type") == "int6"
+                           and name + ".q" in quant_result)
+        log0(f"prune: {len(prune_candidates)} candidates of {total_weights} total weights, "
+             f"unpruned={no_sz/(1024*1024):.2f}MB target={target_mb}MB")
         if no_sz <= target_bytes:
-            log0("selective_prune: already fits, no pruning needed")
+            log0("prune: already fits, no pruning needed")
         else:
-            full_sz, _ = _try_prune(len(ones_info))
-            log0(f"selective_prune: full ±1 prune={full_sz/(1024*1024):.2f}MB")
-            if full_sz > target_bytes:
-                log0("selective_prune: even full prune not enough, applying all")
-                _, quant_result = _try_prune(len(ones_info))
-            else:
-                lo, hi = 0, len(ones_info)
-                while lo < hi:
-                    mid = (lo + hi) // 2
-                    sz, _ = _try_prune(mid)
-                    if sz <= target_bytes: hi = mid
-                    else: lo = mid + 1
-                log0(f"selective_prune: pruning {lo}/{len(ones_info)} ±1 values ({100*lo/len(ones_info):.1f}%) to fit {target_mb}MB")
-                _, quant_result = _try_prune(lo)
+            # Binary search for minimum pruning to fit
+            lo, hi = 0, len(prune_candidates)
+            while lo < hi:
+                mid = (lo + hi) // 2
+                sz, _ = _try_prune(mid)
+                if sz <= target_bytes: hi = mid
+                else: lo = mid + 1
+            pct = 100.0 * lo / total_weights if total_weights > 0 else 0
+            log0(f"prune: zeroing {lo}/{total_weights} weights ({pct:.1f}%) to fit {target_mb}MB")
+            _, quant_result = _try_prune(lo)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -2122,62 +2227,8 @@ def main() -> None:
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
 
-    # ==================== DEBUG: 4-way eval to isolate torch.compile vs attention mismatch ====================
-    # Test 1: SWA + compiled (the working config — control)
-    # Test 2: Full attn + compiled (the broken config — was it torch.compile?)
-    # Test 3: Full attn + eager (isolates: is it compile or the attention change?)
-    # Test 4: SWA + eager (second control)
-
-    def _run_eval(label, model_to_eval):
-        torch.cuda.synchronize()
-        t = time.perf_counter()
-        vl, vb = eval_val(
-            args, model_to_eval, rank, world_size, device, grad_accum_steps,
-            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            eval_seq_len=effective_eval_seq_len,
-        )
-        torch.cuda.synchronize()
-        elapsed = 1000.0 * (time.perf_counter() - t)
-        log0(f"DEBUG_EVAL {label} val_loss:{vl:.4f} val_bpb:{vb:.4f} time:{elapsed:.0f}ms")
-        return vl, vb
-
-    # Test 1: SWA + compiled (eval model has SWA from constructor)
-    log0("DEBUG: Test 1 — SWA + torch.compile")
-    compiled_eval_swa = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    _run_eval("test1_swa_compiled", compiled_eval_swa)
-    del compiled_eval_swa
-
-    # Test 4: SWA + eager (before we modify window_size)
-    log0("DEBUG: Test 4 — SWA + eager")
-    eval_model.eval()
-    _run_eval("test4_swa_eager", eval_model)
-
-    # Now override to full attention
-    for block in eval_model.blocks:
-        block.attn.window_size = (-1, -1)
-    log0(f"DEBUG: window_size after override: {[b.attn.window_size for b in eval_model.blocks]}")
-
-    # Test 3: Full attn + eager
-    log0("DEBUG: Test 3 — full attn + eager")
-    _run_eval("test3_full_eager", eval_model)
-
-    # Test 2: Full attn + compiled
-    log0("DEBUG: Test 2 — full attn + torch.compile")
-    compiled_eval_full = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    _run_eval("test2_full_compiled", compiled_eval_full)
-    del compiled_eval_full
-
-    # Use Test 1 result as the official roundtrip
-    log0("DEBUG: Re-running Test 1 as official roundtrip")
-    # Restore SWA on eval model
-    swa_window_size = int(os.environ.get("SWA_WINDOW_SIZE", 256))
-    swa_full_attn_layers = int(os.environ.get("SWA_FULL_ATTN_LAYERS", 3))
-    if swa_window_size > 0 and swa_full_attn_layers < args.num_layers:
-        full_start = args.num_layers - swa_full_attn_layers
-        for i in range(full_start):
-            eval_model.blocks[i].attn.window_size = (swa_window_size, swa_window_size)
-        for i in range(full_start, args.num_layers):
-            eval_model.blocks[i].attn.window_size = (-1, -1)
+    # Keep sliding window on eval model — same config as training.
+    # DO NOT override window_size to (-1,-1) — causes catastrophic failure after quantization.
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -2192,7 +2243,6 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    # ==================== END DEBUG ====================
     sw_seq_len = effective_eval_seq_len
     if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
         torch.cuda.synchronize()
@@ -2226,24 +2276,25 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-    # Upload model artifacts to HuggingFace
+    # Upload model artifacts to HuggingFace with RUN_ID in filenames
     if master_process:
         try:
             from huggingface_hub import HfApi
             hf_api = HfApi()
-            repo_id = "Itssshikhar/parameter-golf-swa"
+            repo_id = "shikhar007/parameter-golf-gram-ns"
             hf_api.create_repo(repo_id, exist_ok=True, private=True)
-            files_to_upload = []
+            rid = args.run_id
+            uploads = []  # (local_path, remote_path)
             if os.path.exists("final_model.pt"):
-                files_to_upload.append("final_model.pt")
+                uploads.append(("final_model.pt", f"models/{rid}.pt"))
             if os.path.exists("final_model.int6.ptz"):
-                files_to_upload.append("final_model.int6.ptz")
-            log_path = f"logs/{args.run_id}.txt"
+                uploads.append(("final_model.int6.ptz", f"models/{rid}.int6.ptz"))
+            log_path = f"logs/{rid}.txt"
             if os.path.exists(log_path):
-                files_to_upload.append(log_path)
-            for fpath in files_to_upload:
-                hf_api.upload_file(path_or_fileobj=fpath, path_in_repo=fpath, repo_id=repo_id)
-                log0(f"hf_upload:{fpath} -> {repo_id}")
+                uploads.append((log_path, f"logs/{rid}.txt"))
+            for local, remote in uploads:
+                hf_api.upload_file(path_or_fileobj=local, path_in_repo=remote, repo_id=repo_id)
+                log0(f"hf_upload:{local} -> {repo_id}/{remote}")
             log0(f"hf_upload:done repo={repo_id}")
         except Exception as e:
             log0(f"hf_upload:failed {e}")
