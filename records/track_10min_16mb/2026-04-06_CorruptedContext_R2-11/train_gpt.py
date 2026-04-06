@@ -2,11 +2,11 @@
 Corrupted Context Training with R1-5 architecture stack.
 Submission for OpenAI Parameter Golf (track: 10min_16mb).
 
-Architecture: 11L/3x LeakyReLU(0.5)^2 + BigramHash 3072 + XSA last 4 + Value Residual + U-Net skips.
-Training trick: 10% corrupted context (replace 10% of input tokens with random tokens).
-Quantization: int8 per-row + zlib compression.
+Architecture: 11L/3x LeakyReLU(0.5)^2 + BigramHash 3072 + XSA all layers + Value Residual + U-Net skips.
+Training: 10% corrupted context + EMA(0.997) + Late QAT + warmdown 3500 + Muon WD 0.04.
+Quantization: int6 GPTQ-lite per-row + lzma compression.
 
-Based on train_gpt_r2.py with experimental features removed for submission clarity.
+V2: Incorporates SOTA training fundamentals from top leaderboard submissions.
 """
 
 from __future__ import annotations
@@ -50,9 +50,9 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -70,7 +70,8 @@ class Hyperparameters:
     # R1 features (all enabled by default for submission)
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))
 
     # R2-11: Corrupted context training (enabled by default for submission)
@@ -83,14 +84,14 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -111,10 +112,10 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, weight_decay: float = 0.0):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay),
         )
 
     @torch.no_grad()
@@ -140,9 +141,12 @@ class Muon(torch.optim.Optimizer):
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
 
+            wd = group.get("weight_decay", 0.0)
             curr = 0
             for i, p in enumerate(params):
                 if i % world_size == rank and p.grad is not None:
+                    if wd > 0:
+                        p.data.mul_(1.0 - lr * wd)
                     g = p.grad
                     state = self.state[p]
                     if "momentum_buffer" not in state:
@@ -455,9 +459,19 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    _qat_enabled: bool = False  # class-level flag, set by training loop when LR scale < 0.15
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if CastedLinear._qat_enabled and self.training and w.ndim == 2:
+            with torch.no_grad():
+                w32 = self.weight.float()
+                row_max = w32.abs().amax(dim=1)
+                s = (row_max / 31.0).clamp_min(1.0 / 31.0)
+                w_q = (torch.clamp(torch.round(w32 / s[:, None]), -31, 31) * s[:, None]).to(x.dtype)
+            w = w + (w_q - w).detach()  # STE: gradient flows through original w
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -468,9 +482,10 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0):
+    def __init__(self, dim: int, base: float = 10000.0, rope_dims: int = 0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.rope_dims = rope_dims if rope_dims > 0 else dim
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rope_dims, 2, dtype=torch.float32) / self.rope_dims))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
@@ -492,6 +507,13 @@ class Rotary(nn.Module):
 
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    rope_dims = cos.size(-1) * 2  # infer partial RoPE dims from cos shape
+    if rope_dims < x.size(-1):
+        x_rope, x_pass = x[..., :rope_dims], x[..., rope_dims:]
+        half = rope_dims // 2
+        x1, x2 = x_rope[..., :half], x_rope[..., half:]
+        x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+        return torch.cat((x_rope, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
@@ -533,6 +555,7 @@ class CausalSelfAttention(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         value_residual: bool = False,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -551,7 +574,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.head_dim, base=rope_base, rope_dims=rope_dims)
         self.use_xsa = False
         self.value_residual = value_residual
         if value_residual:
@@ -619,11 +642,12 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         value_residual: bool = False,
+        rope_dims: int = 0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, value_residual)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, value_residual, rope_dims=rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -656,6 +680,7 @@ class GPT(nn.Module):
         bigram_dim: int = 128,
         xsa_last_n: int = 0,
         value_residual: bool = False,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -674,6 +699,7 @@ class GPT(nn.Module):
                 Block(
                     model_dim, num_heads, num_kv_heads, mlp_mult,
                     rope_base, qk_gain_init, value_residual=value_residual,
+                    rope_dims=rope_dims,
                 )
                 for i in range(num_layers)
             ]
@@ -829,6 +855,7 @@ def main() -> None:
         bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n,
         value_residual=args.value_residual,
+        rope_dims=args.rope_dims,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -869,6 +896,7 @@ def main() -> None:
         lr=args.matrix_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
+        weight_decay=0.04,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -951,6 +979,11 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # EMA shadow weights — continuous update every step, loaded before final eval
+    ema_decay = 0.997
+    ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+    late_qat_threshold = 0.15
+
     # Main training loop
     training_time_ms = 0.0
     stop_after_step: int | None = None
@@ -1022,6 +1055,16 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # EMA update — continuous shadow copy of all weights
+        with torch.no_grad():
+            for name, t in base_model.state_dict().items():
+                ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
+
+        # Late QAT — enable fake int6 quantization in CastedLinear when warmdown is deep
+        if late_qat_threshold > 0 and scale < late_qat_threshold and not CastedLinear._qat_enabled:
+            CastedLinear._qat_enabled = True
+            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1046,6 +1089,12 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # Load EMA weights into base_model before serialization
+    log0("ema:applying EMA weights")
+    avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype, device=device)
+                 for name, t in ema_state.items()}
+    base_model.load_state_dict(avg_state, strict=True)
 
     # Serialization + roundtrip validation (int6 + lzma)
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
