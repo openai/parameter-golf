@@ -846,10 +846,9 @@ def eval_val_slot(
   proj_w = base_model.lm_head.weight.detach().float()
  softcap = base_model.logit_softcap
  compiled_hidden = torch.compile(base_model.forward_hidden, dynamic=False, fullgraph=False)
- loss_sum = 0.0
- token_count = 0.0
- byte_sum = 0.0
- ngram_cache: dict[tuple, dict[int, int]] = {}  # n-gram cache for backward-looking mixing
+ loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+ token_count = torch.zeros((), device=device, dtype=torch.float64)
+ byte_sum = torch.zeros((), device=device, dtype=torch.float64)
  base_model.eval()
  for bi in range(0, len(my_ws), args.slot_batch_seqs):
   bws = my_ws[bi:bi + args.slot_batch_seqs]
@@ -897,56 +896,25 @@ def eval_val_slot(
    h = hidden_f + delta.detach()
    lp = F.linear(h, proj_w) + logit_bias.detach()
    lg = softcap * torch.tanh(lp / softcap)
-   log_probs = F.log_softmax(lg.float(), dim=-1)  # (bsz, seq_s, vocab)
+   nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
    for i, ws in enumerate(bws):
     wlen = wlens[i]
     s = 0 if ws == 0 else max(wlen - stride, 0)
-    for pos in range(s, wlen):
-     tgt = yb[i, pos].item()
-     model_lp = log_probs[i, pos, tgt].item()
-     # N-gram cache lookup (backward-looking, 7→2 backoff)
-     ngram_lp = None
-     token_pos = ws + pos
-     for n in range(min(7, token_pos + 1), 1, -1):
-      ctx = tuple(val_tokens[token_pos - n + 1:token_pos + 1].tolist())
-      counts = ngram_cache.get(ctx)
-      if counts and sum(counts.values()) >= 2:
-       prob = counts.get(tgt, 0) / sum(counts.values())
-       if prob > 0:
-        ngram_lp = math.log(prob)
-        break
-     # Mix: entropy-adaptive alpha (trust n-gram more when model uncertain)
-     if ngram_lp is not None:
-      model_ent = -(math.exp(model_lp) * model_lp) if model_lp > -20 else 0
-      alpha = min(0.4, max(0.05, model_ent * 0.3))
-      mixed_lp = math.log(math.exp(model_lp) * (1 - alpha) + math.exp(ngram_lp) * alpha)
-      final_lp = max(mixed_lp, model_lp)  # safety: never worsen
-     else:
-      final_lp = model_lp
-     loss_sum += -final_lp
-     token_count += 1.0
-     prev_tok = xb[i, pos].item()
-     tb_val = float(base_bytes_lut[tgt].item())
-     if has_leading_space_lut[tgt].item() and not is_boundary_token_lut[prev_tok].item():
-      tb_val += 1.0
-     byte_sum += tb_val
-     # Update n-gram cache with this scored token
-     for n in range(2, 8):
-      if token_pos >= n - 1:
-       ctx = tuple(val_tokens[token_pos - n + 1:token_pos + 1].tolist())
-       if ctx not in ngram_cache: ngram_cache[ctx] = {}
-       ngram_cache[ctx][tgt] = ngram_cache[ctx].get(tgt, 0) + 1
+    chunk_nll = nll[i, s:wlen]
+    loss_sum += chunk_nll.sum().to(torch.float64)
+    token_count += float(wlen - s)
+    prev_ids = xb[i, s:wlen]
+    tgt_ids = yb[i, s:wlen]
+    tb = base_bytes_lut[tgt_ids].to(torch.float64)
+    tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
+    byte_sum += tb.sum()
  if dist.is_available() and dist.is_initialized():
-  loss_t = torch.tensor(loss_sum, device=device, dtype=torch.float64)
-  tok_t = torch.tensor(token_count, device=device, dtype=torch.float64)
-  byte_t = torch.tensor(byte_sum, device=device, dtype=torch.float64)
-  dist.all_reduce(loss_t, op=dist.ReduceOp.SUM)
-  dist.all_reduce(tok_t, op=dist.ReduceOp.SUM)
-  dist.all_reduce(byte_t, op=dist.ReduceOp.SUM)
-  loss_sum, token_count, byte_sum = loss_t.item(), tok_t.item(), byte_t.item()
- val_loss = loss_sum / token_count
+  dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+  dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+  dist.all_reduce(byte_sum, op=dist.ReduceOp.SUM)
+ val_loss = (loss_sum / token_count).item()
  bits_per_token = val_loss / math.log(2.0)
- tokens_per_byte = token_count / byte_sum
+ tokens_per_byte = token_count.item() / byte_sum.item()
  base_model.train()
  return val_loss, bits_per_token * tokens_per_byte
 def _classify_param(name: str) -> str:
