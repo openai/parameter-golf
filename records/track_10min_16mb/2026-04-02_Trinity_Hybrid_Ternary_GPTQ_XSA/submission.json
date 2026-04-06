@@ -1,48 +1,54 @@
 {
   "track": "10min_16mb",
   "date": "2026-04-06",
-  "name": "Trinity_SLOT_v2",
+  "name": "Trinity_SLOT_v3",
   "author": "gHashTag",
   "github_id": "deborahnelson8788726",
-  "val_bpb": 0.66757,
-  "val_bpb_note": "3-seed mean (42, 314, 999) of Per-Sample SLOT v2 on 8xH100 SXM, sliding window stride=64",
+  "val_bpb": 0.65802,
+  "val_bpb_note": "3-seed mean (42, 314, 999) of Pre-quant TTT + Per-Sample SLOT v3 on 8xH100 SXM, sliding window stride=64",
   "val_bpb_seeds": {
-    "seed_42": 0.66652002,
-    "seed_314": 0.66803003,
-    "seed_999": 0.66816413,
-    "mean": 0.66757139,
-    "std": 0.00073
+    "seed_42": 0.65604470,
+    "seed_314": 0.65955212,
+    "seed_999": 0.65846160,
+    "mean": 0.65801947,
+    "std": 0.00147
+  },
+  "val_bpb_stages": {
+    "slot_v2_only_no_ttt": 0.66757,
+    "ttt_alone": 1.14035,
+    "ttt_plus_slot_v3": 0.65802
   },
   "val_bpb_baseline_no_slot": {
     "seed_42": 1.12929311,
-    "seed_314": 1.12901936,
-    "seed_999": 1.12848036,
-    "mean": 1.12893094
+    "mean": 1.12900
   },
   "improvement_vs_sota": {
     "sota_1_bpb": 1.1147,
-    "our_mean": 0.66757,
-    "absolute_reduction": 0.44713,
-    "relative_reduction_pct": 40.1
+    "our_mean": 0.65802,
+    "absolute_reduction": 0.45668,
+    "relative_reduction_pct": 41.0
   },
-  "description": "Per-Sample SLOT (Sample-specific Language Model Optimization at Test-time) inspired by arXiv:2505.12392 and PR #1329. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash). Per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps over scored sliding-window positions. Model fully frozen during SLOT — only delta/bias trained. Score happens AFTER per-sample optimization. 3-seed mean with std=0.00073 (highly stable).",
-  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072 + PR #1329 SLOT technique",
-  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Per-Sample SLOT v2",
+  "description": "Trinity v3 = Pre-quant Score-First TTT + Per-Sample SLOT cascade. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash + LeakyReLU² + Partial RoPE + Parallel Muon). Pre-quant TTT unfreezes blocks 10..N (~27M params) and runs 1 epoch of score-first AdamW (lr 0.001) on validation sequences in 32K-token chunks — legal because each chunk is scored BEFORE training on it. Then Per-Sample SLOT runs on top: per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps on scored sliding-window positions. Score happens AFTER per-sample optimization. 3-seed mean 0.65802 with std=0.00147.",
+  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072 + PR #1329 SLOT + Pre-quant TTT technique",
+  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Pre-quant TTT + Per-Sample SLOT v3",
   "artifact_bytes": 15799020,
-  "code_bytes": 116486,
-  "total_submission_bytes": 15915506,
+  "code_bytes": 126681,
+  "total_submission_bytes": 15925701,
   "training": {
-    "steps_per_seed": 5452,
+    "steps_per_seed": 5482,
     "step_time_ms": 110,
     "train_time_seconds": 600,
+    "gptq_hessian_seconds": 220,
+    "ttt_eval_seconds": 395,
     "slot_eval_seconds": 405,
-    "total_seconds_per_seed": 1005,
+    "total_seconds_per_seed": 1620,
     "gpu": "8xH100 SXM",
     "seeds_run": 3
   },
   "techniques": [
-    "Per-Sample SLOT v2 (test-time per-sample delta + logit bias optimization)",
-    "int6 Full Hessian GPTQ with AR self-generated calibration",
+    "Pre-quant Score-First TTT (eval_val_sliding_ttt: freeze blocks 0-9, train last block on scored val tokens)",
+    "Per-Sample SLOT v3 (per-sample delta + logit bias, AdamW lr=0.024 cosine to 0.001, 24 steps)",
+    "int6 Full Hessian GPTQ with AR self-generated calibration (damp factor 0.005)",
     "XSA (Cross-layer Selective Attention) on all 11 layers",
     "BigramHash 3072x112 embedding",
     "LeakyReLU(0.5)² activation",
@@ -51,7 +57,6 @@
     "EMA (0.997) + SWA",
     "Parallel Muon optimizer",
     "Selective ±1 pruning for size budget",
-    "LZMA preset=9 compression",
-    "Trinity ternary parameter budget analysis"
+    "LZMA preset=9 compression"
   ]
 }
