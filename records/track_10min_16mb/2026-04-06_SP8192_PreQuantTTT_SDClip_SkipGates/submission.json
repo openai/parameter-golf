@@ -1,0 +1,24 @@
+{
+  "name": "Erich Roepke",
+  "github": "erichroepke",
+  "val_bpb": 1.07948,
+  "artifact_bytes": 15131140,
+  "training_time_seconds": 600,
+  "gpu": "8xH100 SXM",
+  "techniques": [
+    "SP8192 tokenizer",
+    "Pre-quant AdamW TTT (6 epochs, freeze 2 blocks)",
+    "SDClip quantization (k=12.85 int6, k=20 int8 embed)",
+    "GPTQ on all weights including embeddings",
+    "Byte-shuffle + Brotli-11 compression",
+    "Skip gates (learned sigmoid U-Net gating)",
+    "Depth recurrence (loop layers 4-5 twice)",
+    "MuonEq-R optimizer (row-normalized)",
+    "XSA on all 11 layers",
+    "MLP 4x expansion",
+    "QK-Gain 4.0",
+    "EMA decay=0.997"
+  ],
+  "base_prs": [1394, 1364],
+  "novel": "First combination of SP8192+SDClip+GPTQ-embeddings with pre-quant AdamW TTT"
+}
