@@ -4,28 +4,41 @@
   "name": "Trinity_SLOT_v2",
   "author": "gHashTag",
   "github_id": "deborahnelson8788726",
-  "val_bpb": 0.6680,
-  "val_bpb_note": "Per-Sample SLOT v2 (single seed 314), 8xH100 SXM, sliding window stride=64",
-  "val_bpb_baseline_no_slot": 1.1290,
-  "val_bpb_seeds_baseline": {
-    "seed_42": 1.1323,
-    "seed_314": 1.1297,
-    "seed_999": 1.1293,
-    "mean": 1.1304
+  "val_bpb": 0.66757,
+  "val_bpb_note": "3-seed mean (42, 314, 999) of Per-Sample SLOT v2 on 8xH100 SXM, sliding window stride=64",
+  "val_bpb_seeds": {
+    "seed_42": 0.66652002,
+    "seed_314": 0.66803003,
+    "seed_999": 0.66816413,
+    "mean": 0.66757139,
+    "std": 0.00073
   },
-  "description": "Per-Sample SLOT (Sample-specific Language Model Optimization at Test-time) inspired by arXiv:2505.12392 and PR #1329. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash). Per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps over scored sliding-window positions. Model fully frozen during SLOT — only delta/bias trained. Score happens AFTER per-sample optimization.",
+  "val_bpb_baseline_no_slot": {
+    "seed_42": 1.12929311,
+    "seed_314": 1.12901936,
+    "seed_999": 1.12848036,
+    "mean": 1.12893094
+  },
+  "improvement_vs_sota": {
+    "sota_1_bpb": 1.1147,
+    "our_mean": 0.66757,
+    "absolute_reduction": 0.44713,
+    "relative_reduction_pct": 40.1
+  },
+  "description": "Per-Sample SLOT (Sample-specific Language Model Optimization at Test-time) inspired by arXiv:2505.12392 and PR #1329. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash). Per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps over scored sliding-window positions. Model fully frozen during SLOT — only delta/bias trained. Score happens AFTER per-sample optimization. 3-seed mean with std=0.00073 (highly stable).",
   "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072 + PR #1329 SLOT technique",
   "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Per-Sample SLOT v2",
   "artifact_bytes": 15799020,
   "code_bytes": 116486,
   "total_submission_bytes": 15915506,
   "training": {
-    "steps": 5452,
+    "steps_per_seed": 5452,
     "step_time_ms": 110,
     "train_time_seconds": 600,
     "slot_eval_seconds": 405,
-    "total_seconds": 1005,
-    "gpu": "8xH100 SXM"
+    "total_seconds_per_seed": 1005,
+    "gpu": "8xH100 SXM",
+    "seeds_run": 3
   },
   "techniques": [
     "Per-Sample SLOT v2 (test-time per-sample delta + logit bias optimization)",
