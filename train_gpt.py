@@ -95,7 +95,7 @@ class Hyperparameters:
  ve_layers = os.environ.get("VE_LAYERS", "9,10")
  vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
  slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "1")))
- slot_steps = int(os.environ.get("SLOT_STEPS", 12))
+ slot_steps = int(os.environ.get("SLOT_STEPS", 8))
  slot_lr = float(os.environ.get("SLOT_LR", 0.012))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
@@ -1393,52 +1393,9 @@ def main() -> None:
  restore_low_dim_params_to_fp32(eval_model)
  eval_model.load_state_dict(deq_state, strict=True)
  compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
- torch.cuda.synchronize()
- t_qeval = time.perf_counter()
- q_val_loss, q_val_bpb = eval_val(
-  args, compiled_eval, rank, world_size, device, grad_accum_steps,
-  val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-  eval_seq_len=effective_eval_seq_len,
- )
- torch.cuda.synchronize()
- log0(
-  f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-  f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
- )
- log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+ # Skip diagnostic evals to maximize SLOT eval time budget
+ log0("skipping diagnostic evals (roundtrip, sliding window) to save time for SLOT")
  sw_seq_len = effective_eval_seq_len
- if args.eval_stride > 0 and args.eval_stride < sw_seq_len:
-  torch.cuda.synchronize()
-  t_slide = time.perf_counter()
-  sw_val_loss, sw_val_bpb = eval_val_sliding(
-   args, eval_model, rank, world_size, device,
-   val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-   stride=args.eval_stride,
-   eval_seq_len=sw_seq_len,
-  )
-  torch.cuda.synchronize()
-  log0(
-   f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} "
-   f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_slide):.0f}ms"
-  )
-  log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
-  log0(f"final_int6_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
- if args.eval_stride != 64 and 64 < sw_seq_len:
-  torch.cuda.synchronize()
-  t_slide64 = time.perf_counter()
-  sw64_val_loss, sw64_val_bpb = eval_val_sliding(
-   args, eval_model, rank, world_size, device,
-   val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-   stride=64,
-   eval_seq_len=sw_seq_len,
-  )
-  torch.cuda.synchronize()
-  log0(
-   f"final_int6_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} "
-   f"stride:64 eval_time:{1000.0 * (time.perf_counter() - t_slide64):.0f}ms"
-  )
-  log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
-  log0(f"final_int6_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
  if args.slot_enabled:
   torch._dynamo.reset()
   torch.cuda.synchronize()
