@@ -1418,8 +1418,10 @@ def main() -> None:
     sd_cpu = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
     log0("gptq:generating autoregressive calibration data...")
     t_gptq = time.perf_counter()
+    gptq_seqs = 16
+    gptq_len = min(512, args.train_seq_len)
     ar_tokens = generate_autoregressive_calib(
-        base_model, device, num_seqs=64, seq_len=args.train_seq_len,
+        base_model, device, num_seqs=gptq_seqs, seq_len=gptq_len,
         vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
     )
     log0(f"gptq:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gptq:.1f}s")
