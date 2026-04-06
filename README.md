@@ -10,7 +10,7 @@ Forked from openai/parameter-golf.
 
 ## My Approach
 Product designer and ML researcher. 
-Building from first principles with low LLM training background at this scale. Aim is to find something novel while I use the anchors.
+Building from first principles with low LLM training background at this scale. Aim is to find something novel while I use the anchors provided by leaderboard and challenge curators.
 
 ## My Changes
 - LeakyReLU(0.5)² on MLP activations
@@ -27,4 +27,4 @@ Building from first principles with low LLM training background at this scale. A
 See RESEARCH_LOG.md for daily progress and thinking.
 
 ## Next
-Implementing mid-layer hybrid JEPA architecture. (Listed as a requested implementation)
+Implementing mid-layer hybrid JEPA architecture. (Listed as a requested implementation by curators)
