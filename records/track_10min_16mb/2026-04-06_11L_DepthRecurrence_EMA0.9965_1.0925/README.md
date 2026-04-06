@@ -2,13 +2,13 @@
 
 **val_bpb: 1.0925** (sliding window stride=64, 3-seed mean) | **15.95 MB** (mean) | 8xH100 SXM, 590s
 
-### Key Innovation Over PR #1334
+### Key Change
 
-Hyperparameter refinement on the EMA decay constant, built on PR #1334's (@aryanbhosale) depth recurrence architecture:
+EMA decay hyperparameter refinement on top of PR #1334's (@aryanbhosale) depth recurrence architecture:
 
-| Change | PR #1334 | This | Impact |
-|--------|----------|------|--------|
-| **EMA decay** | 0.997 | 0.9965 | Stabilized post-quantization performance, reduced destructive pruning |
+| Parameter | Baseline | This | Impact |
+|-----------|----------|------|--------|
+| **EMA decay** | 0.997 | 0.9965 | Stabilized post-quantization performance, reduced selective pruning to ~290K values |
 
 ### EMA Decay Tuning
 
