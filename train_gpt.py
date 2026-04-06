@@ -95,7 +95,7 @@ class Hyperparameters:
  ve_layers = os.environ.get("VE_LAYERS", "9,10")
  vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
  slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "1")))
- slot_steps = int(os.environ.get("SLOT_STEPS", 48))
+ slot_steps = int(os.environ.get("SLOT_STEPS", 12))
  slot_lr = float(os.environ.get("SLOT_LR", 0.012))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
@@ -875,36 +875,23 @@ def eval_val_slot(
   valid_count = mask.sum()
   if valid_count == 0:
    continue
-  # Warm-Restart Hypergradient SLOT: 48 steps with optimizer reset at midpoint
+  # L-BFGS SLOT: second-order optimization for per-sample delta (novel)
+  # Only 1536 params — L-BFGS is provably optimal for small-scale problems
   delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
   logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
-  all_params = [delta, logit_bias]
   targets_flat = yb.reshape(-1)
-  total_steps = args.slot_steps  # 48
-  restart_at = total_steps // 2  # warm restart at midpoint
-  hyper_lr = 1e-5
-  slot_opt = torch.optim.AdamW(all_params, lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
-  prev_grads = [torch.zeros_like(p) for p in all_params]
-  current_lr = args.slot_lr
-  for step_i in range(total_steps):
-   # Warm restart: reset optimizer state at midpoint (arXiv:1608.03983)
-   if step_i == restart_at:
-    slot_opt = torch.optim.AdamW(all_params, lr=args.slot_lr, weight_decay=1e-8, eps=1e-5)
-    prev_grads = [torch.zeros_like(p) for p in all_params]
-    current_lr = args.slot_lr
+  slot_opt = torch.optim.LBFGS([delta, logit_bias], lr=0.1, max_iter=5, history_size=10, line_search_fn="strong_wolfe")
+  def closure():
    slot_opt.zero_grad()
    h = hidden_f + delta
    lp = F.linear(h, proj_w) + logit_bias
    lg = softcap * torch.tanh(lp / softcap)
    nll = F.cross_entropy(lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none").reshape(bsz, seq_s)
-   slot_loss = (nll * mask).sum() / valid_count
-   slot_loss.backward()
-   if step_i > 0 and step_i != restart_at:
-    hg = sum((p.grad * pg).sum().item() for p, pg in zip(all_params, prev_grads))
-    current_lr = max(args.slot_lr_min, min(args.slot_lr * 2, current_lr + hyper_lr * hg))
-   prev_grads = [p.grad.detach().clone() for p in all_params]
-   for pg in slot_opt.param_groups: pg['lr'] = current_lr
-   slot_opt.step()
+   loss = (nll * mask).sum() / valid_count
+   loss.backward()
+   return loss
+  for step_i in range(args.slot_steps):
+   slot_opt.step(closure)
   with torch.no_grad():
    h = hidden_f + delta.detach()
    lp = F.linear(h, proj_w) + logit_bias.detach()
