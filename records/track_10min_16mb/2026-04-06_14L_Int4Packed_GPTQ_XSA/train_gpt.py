@@ -42,7 +42,7 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.0))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 13))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
@@ -78,9 +78,9 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))
-    trigram_enabled = bool(int(os.environ.get("TRIGRAM", "0")))  # TrigramHash (off by default, risky)
+    trigram_enabled = bool(int(os.environ.get("TRIGRAM", "1")))  # TrigramHash: zero extra params, reuses bigram table
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 13))  # XSA on ALL layers
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
@@ -88,12 +88,15 @@ class Hyperparameters:
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
-    ve_layers = os.environ.get("VE_LAYERS", "11,12")
+    ve_layers = os.environ.get("VE_LAYERS", "10,11,12")
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    # Depth recurrence: repeat middle layers for more effective depth at zero storage cost
+    recur_layers = os.environ.get("RECUR_LAYERS", "4,5")  # which layers to repeat
+    recur_extra_loops = int(os.environ.get("RECUR_EXTRA_LOOPS", 1))  # how many extra passes
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -823,6 +826,10 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Depth recurrence: repeat middle layers for extra effective depth at zero storage
+        recur_str = os.environ.get("RECUR_LAYERS", "4,5")
+        self.recur_layer_indices = [int(x) for x in recur_str.split(",") if x.strip()] if recur_str else []
+        self.recur_extra_loops = int(os.environ.get("RECUR_EXTRA_LOOPS", 1))
         # Parameter banks: contiguous 3D tensors for batched optimizer
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
@@ -931,6 +938,14 @@ class GPT(nn.Module):
             if v0 is None and raw_v is not None:
                 v0 = raw_v
             skips.append(x)
+        # Depth recurrence: extra passes through middle layers (zero storage cost)
+        for _loop in range(self.recur_extra_loops):
+            for ri in self.recur_layer_indices:
+                ve = self._get_ve(ri, input_ids, ve_cache)
+                x, _ = self.blocks[ri](x, x0,
+                    self.qo_bank[ri], self.kv_bank[ri], self.kv_bank[n + ri],
+                    self.qo_bank[n + ri], self.mlp_up_bank[ri], self.mlp_down_bank[ri],
+                    v_embed=ve, v0=v0)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
@@ -989,6 +1004,14 @@ class GPT(nn.Module):
             if v0 is None and raw_v is not None:
                 v0 = raw_v
             skips.append(x)
+        # Depth recurrence (same as forward)
+        for _loop in range(self.recur_extra_loops):
+            for ri in self.recur_layer_indices:
+                ve = self._get_ve(ri, input_ids, ve_cache)
+                x, _ = self.blocks[ri](x, x0,
+                    self.qo_bank[ri], self.kv_bank[ri], self.kv_bank[n + ri],
+                    self.qo_bank[n + ri], self.mlp_up_bank[ri], self.mlp_down_bank[ri],
+                    v_embed=ve, v0=v0)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
