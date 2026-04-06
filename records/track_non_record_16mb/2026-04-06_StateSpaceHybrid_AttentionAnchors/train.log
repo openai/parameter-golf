@@ -1,4 +1,4 @@
-logs/full_anchor_s4d_mid_80steps_ssmfloat16.txt
+run_id:full_anchor_s4d_mid_80steps_ssmfloat16
 val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\data\tokenizers\fineweb_1024_bpe.model
 train_loader:dataset:fineweb10B_sp1024 train_shards:1
 val_loader:shards pattern=C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\data\datasets\fineweb10B_sp1024\fineweb_val_*.bin tokens:62021632

@@ -1,4 +1,4 @@
-# Non-Record: Compile-Friendly State-Space Hybrid with Attention Anchors
+# Non-Record: State-Space Hybrid with Attention Anchors
 
 This folder records a local sign-of-life run for the README wishlist `state-space models` lane.
 
@@ -12,6 +12,7 @@ What it is:
 - Standard primary metric: `final_int8_zlib_roundtrip_exact val_bpb`.
 - Full official validation split (`fineweb_val_*.bin`, `62,021,632` scored tokens).
 - Local workspace training on the single available `fineweb_train_000000.bin` shard, fixed-step matched against the all-attention control.
+- An architecture family designed to remain compile-friendly, while the kept run below explicitly used `ENABLE_TORCH_COMPILE=0`.
 
 ## Kept Result
 
@@ -22,6 +23,7 @@ What it is:
 - Export policy: keep `ssm.*` tensors in `float16` during export; quantize the rest with the standard int8+zlib path
 - Seed: `1337`
 - Fixed-step budget: `80` steps
+- Kept run compile setting: `ENABLE_TORCH_COMPILE=0`
 - Primary score: `val_bpb = 3.15875948`
 - Primary loss: `val_loss = 5.33343307`
 - Model params: `17,087,512`
@@ -40,7 +42,7 @@ Delta vs fixed-step baseline control: `-0.02525879` BPB.
 
 ## Architecture
 
-The block layout keeps exact attention in the first two layers, inserts a mid attention anchor, and replaces the remaining blocks with a compile-friendly SSM mixer:
+The block layout keeps exact attention in the first two layers, inserts a mid attention anchor, and replaces the remaining blocks with an S4D-style SSM mixer from a compile-friendly architecture family:
 
 ```text
 layers 0-1: attention
@@ -83,6 +85,7 @@ Passed for this non-record folder:
 - No validation-data training
 - No evaluation-time downloads or external services
 - Quantization/export policy explicitly accounted for in bytes
+- Kept run configuration explicitly recorded with `ENABLE_TORCH_COMPILE=0`
 
 Not claimed here:
 
