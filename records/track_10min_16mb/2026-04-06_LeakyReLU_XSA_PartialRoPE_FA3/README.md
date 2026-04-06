@@ -4,7 +4,7 @@
 
 ## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128)
 
-The logs for this run do not use TTT. The relevant numbers are the final validation BPB at the wallclock stop and the exact post-export `final_int6_lzma_roundtrip` BPB.
+The relevant numbers are the final validation BPB at the wallclock stop and the exact post-export `final_int6_lzma_roundtrip` BPB.
 
 | Seed | step_avg | steps | Final train-time bpb | **Final int6+lZMA bpb** | Export delta | Artifact |
 |------|----------|-------|----------------------|-------------------------|--------------|----------|
@@ -15,7 +15,7 @@ The logs for this run do not use TTT. The relevant numbers are the final validat
 
 ## Core Changes vs `train_gpt.py`
 
-This record file differs from the repo baseline `train_gpt.py` in five material ways:
+This run differs from the repo baseline `train_gpt.py` in five material ways:
 
 1. The MLP activation is changed from `relu(x)^2` to `leaky_relu(x, 0.75)^2`.
 2. Attention uses partial RoPE with `ROPE_DIMS=16`, so only 16 of 64 head dimensions receive rotary embedding.
@@ -53,13 +53,13 @@ Architecture and export settings used in the logs:
 | Quantization | GPTQ-style mixed int6 + lZMA |
 | Calibration | 64 autoregressive sequences, block size 128 |
 
-Future work:
+## Future work:
 
 - Tune `matrix_lr` for the Muon optimizer.
 - Reduce `XSA_LAST_N` and measure the BPB / throughput tradeoff.
 - Try `SiLU` as the MLP activation.
 - Try `LeakyReLU` again with negative slope `0.5`.
-- Speed up Newton-Schulz with Gram Newton-Schulz from <https://github.com/Dao-AILab/gram-newton-schulz>.
+- Speed up Newton-Schulz with Gram Newton-Schulz from [gram-newton-schulz](https://github.com/Dao-AILab/gram-newton-schulz).
 - Try `BigramHashEmbedding`.
 
 ## Run Command
