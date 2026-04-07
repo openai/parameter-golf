@@ -379,11 +379,28 @@ public:
             prefetch_open_lookups(hashes, ma0);
         }
 
+        // CAUSAL FIX (matches @abaybektursun's fix in PR #1420 — see
+        // https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189):
+        //   1. Hint gating: is_bnd / is_ws derived from tokens_[p-1] (last prefix
+        //      token), not tokens_[p]. This makes the predictive distribution at
+        //      position p depend only on the strict prefix, satisfying Issue #1017
+        //      condition 2.
+        //   2. Update functions: tok_is_bnd / tok_is_ws derived from the actual
+        //      target tok so within_update / word_update still segment words
+        //      correctly. This is causal because updates happen AFTER the hint
+        //      for position p has been written to the output buffer.
+        //
+        // (Variable naming and structure copied verbatim from PR #1420's fix.
+        //  In addition, this submission is run with NGRAM_WITHIN_BETA=0
+        //  NGRAM_WORD_BETA=0 to disable the within/word experts entirely,
+        //  because empirically they contribute negative BPB once the leak is
+        //  removed — see Legality Fix section in the README.)
         for (int i = 0; i < n; i++) {
             int64_t p = pos[i];
             auto tok = uint16_t(tokens_[p]);
-            bool is_bnd = is_bnd_ && is_bnd_[tok];
-            bool is_ws = has_ls_ && has_ls_[tok];
+            auto prev_tok = (p > 0) ? uint16_t(tokens_[p - 1]) : uint16_t(0);
+            bool is_bnd = is_bnd_ && is_bnd_[prev_tok];
+            bool is_ws = has_ls_ && has_ls_[prev_tok];
             int max_avail = std::min(OPEN_MAX, int(p));
 
             if (i + 1 < n) {
@@ -423,9 +440,11 @@ public:
 
             prefetch_open_updates(hashes, max_avail, tok);
 
+            bool tok_is_bnd = is_bnd_ && is_bnd_[tok];
+            bool tok_is_ws = has_ls_ && has_ls_[tok];
             token_update(hashes, max_avail, tok);
-            within_update(tok, is_bnd, is_ws);
-            word_update(tok, is_bnd, is_ws);
+            within_update(tok, tok_is_bnd, tok_is_ws);
+            word_update(tok, tok_is_bnd, tok_is_ws);
 
             std::memcpy(hashes, next_hashes, sizeof(hashes));
         }

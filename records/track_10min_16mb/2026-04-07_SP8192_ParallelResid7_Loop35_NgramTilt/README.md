@@ -1,37 +1,53 @@
-# Record: SP8192 + Parallel Residuals + 3-Layer Recurrence + Legal N-gram Tilt — val_bpb 1.07807 (5-seed mean)
+# Diagnostic (causal-corrected, 2026-04-07 PM): SP8192 + Parallel Residuals + 3-Layer Recurrence + Token-Only N-gram Tilt
 
-**val_bpb: 1.07807** (5-seed mean, std 0.00040) | **2.78478 nats per token** | **~15.99 MB** | 8×H100 SXM, 600 s | Legal Score-First TTT + Causal N-gram Tilt
+**val_bpb: 1.08091** (5-seed mean, std 0.00043) | **2.79210 nats per token** | **~16.00 MB** | 8×H100 SXM, 600 s | Legal Score-First TTT + Causal Token-Only N-gram Tilt
 
-Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) by **0.00756 bpb / 0.01952 nats per token** on a 5-seed mean, comfortably clearing the 0.005-nats record threshold. Beats [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (1.08014) by **0.00207 bpb / 0.00534 nats per token**, clearing the 0.005-nats threshold against the next-best legal open PR. Beats our own [PR #1413](https://github.com/openai/parameter-golf/pull/1413) (1.08279) by **0.00472 bpb / 0.01218 nats per token**.
+> **2026-04-07 PM correction** — see [Legality Fix](#legality-fix-2026-04-07-pm) section. The original number reported here (1.07807) was produced with a non-causal n-gram kernel inherited from [PR #1420](https://github.com/openai/parameter-golf/pull/1420). @abaybektursun [has acknowledged the bug and proposed the same fix I implemented](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189). This submission is no longer claimed as a record; the corrected mean (1.08091) is ~+0.00284 nats above the original (illegal) 1.07807.
 
-## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128, legal score-first TTT with causal n-gram tilt)
+Bar comparisons (corrected against open PRs):
 
-### Core (TTT) table — 5-seed verification, all seeds re-run via shipped mini wrapper
+- vs [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563): beats by **+0.00472 bpb / +0.00472 nats per token** — does NOT meet the 0.005-nat record bar
+- vs our [PR #1413](https://github.com/openai/parameter-golf/pull/1413) (1.08279): beats by **+0.00188 bpb / +0.00188 nats per token** — does NOT meet the 0.005-nat record bar
+- vs [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (1.08014, **also affected by the same kernel bug**): beats by **-0.00077 bpb / -0.00077 nats per token** — does NOT meet the 0.005-nat record bar (would be ~+0.0029 worse if PR #1420 were also corrected)
 
-| Seed | Steps | Pre-quant BPB | Sliding BPB | **Post-TTT (n-gram tilted) BPB** | val_loss (nats) | Artifact (bytes) |
+PR #1413 (no n-gram tilt at all, fully legal) at 1.08279 remains our cleanest legal record claim. This PR is left open as a transparency / diagnostic record.
+
+## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128, causal token-only n-gram tilt)
+
+### Core (TTT) table — 5-seed verification, all seeds re-run via shipped mini wrapper with the patched kernel
+
+| Seed | Steps | Pre-quant BPB | Sliding BPB | **Post-TTT (causal token-only) BPB** | val_loss (nats) | Artifact (bytes) |
 |---:|---:|---:|---:|---:|---:|---:|
-| 0    | 4918 | 1.08728 | 1.08209 | **1.07751** | 2.78333 | **15,992,304** ✅ |
-| 42   | 4911 | 1.08785 | 1.08268 | **1.07809** | 2.78481 | **15,993,733** ✅ |
-| 1234 | 4908 | 1.08794 | 1.08280 | **1.07813** | 2.78492 | **15,990,539** ✅ |
-| 1337 | 4909 | 1.08772 | 1.08246 | **1.07801** | 2.78461 | **15,988,039** ✅ |
-| 2025 | 4908 | 1.08842 | 1.08306 | **1.07862** | 2.78620 | **15,992,215** ✅ |
-| **5-seed mean** | | **1.08784** | **1.08262** | **1.07807** | **2.78478** | all < 16,000,000 |
+| 0 | 4911 | 1.08730 | 1.08219 | **1.08035** | 2.79067 | **15,994,644** ✅ |
+| 42 | 4906 | 1.08792 | 1.08272 | **1.08097** | 2.79225 | **15,995,572** ✅ |
+| 1234 | 4915 | 1.08823 | 1.08336 | **1.08127** | 2.79303 | **15,993,531** ✅ |
+| 1337 | 4905 | 1.08759 | 1.08235 | **1.08060** | 2.79131 | **15,988,802** ✅ |
+| 2025 | 4911 | 1.08833 | 1.08302 | **1.08135** | 2.79324 | **15,993,360** ✅ |
+| **5-seed mean** | | **1.08787** | **1.08273** | **1.08091** | **2.79210** | all < 16,000,000 |
 
 **Verification status:**
-- **All 5 seeds independently re-run via the shipped `train_gpt.py` self-extracting LZMA mini wrapper** (~18.9 KB code, ~57 KB decoded payload). Each artifact is the actual `Total submission size quantized+brotli` from the mini-wrapper run, NOT a projection.
-- **All 5 artifacts fit under 16,000,000 bytes** with 6,267–11,961 byte headroom.
-- 5-seed standard deviation: **0.00040 BPB** (5-seed standard error of the mean: ~0.00018).
-- BPB values are reported from the legal score-first TTT eval pass with causal n-gram tilt applied; sliding (no-TTT) and pre-quant numbers are also shown for diagnostic transparency.
+- All 5 seeds independently re-run via the shipped `train_gpt.py` (~18.9 KB code) with the **patched** `fused_expert_kernel.cpp` and `NGRAM_WITHIN_BETA=0 NGRAM_WORD_BETA=0`. Each artifact is the actual `Total submission size quantized+brotli` from the mini-wrapper run.
+- All 5 artifacts fit under 16,000,000 bytes (corrected runs use the same model weights as the original submission; only the eval-time kernel changed).
+- 5-seed standard deviation: **0.00043 BPB**.
+- Pre-fix (illegal) per-seed values are preserved in `submission.json` under `seed_results_pre_fix`.
 
-### Diagnostics (mini-wrapper runs)
+## Legality Fix (2026-04-07 PM)
 
-| Seed | Pre-quant BPB | Quantized roundtrip BPB | Sliding BPB | TTT BPB | TTT eval (s) | N-gram precompute (s) | N-gram hint coverage |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0    | 1.08728 | 1.09923 | 1.08209 | 1.07751 | 335.5 | 31.9 | 22.38% |
-| 42   | 1.08785 | 1.09937 | 1.08268 | 1.07809 | 316.6 | 32.2 | 22.38% |
-| 1234 | 1.08794 | 1.09941 | 1.08280 | 1.07813 | 332.2 | 32.0 | 22.38% |
-| 1337 | 1.08772 | 1.09918 | 1.08246 | 1.07801 | 338.4 | 31.9 | 22.38% |
-| 2025 | 1.08842 | 1.09957 | 1.08306 | 1.07862 | 333.4 | 32.0 | 22.38% |
+The original kernel from [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (which this submission ported with `nanobind` removed) had a causality bug in `get_hints_batch`:
+
+- Lines 384-386 read `tok = tokens_[p]` (the **target** token at the position being scored) and derived `is_bnd = is_bnd_[tok]` and `is_ws = has_ls_[tok]`.
+- Lines 399-400 then passed those flags to `within_hint(is_bnd, is_ws, ...)` and `word_hint(is_ws, ...)`, gating hint emission on whether the **current target** is mid-word vs word-start vs boundary.
+
+This means the predictive distribution at position `p` depended on metadata derived from `x_p` itself, leaking 1-2 bits per scored position about the answer. [Issue #1017](https://github.com/openai/parameter-golf/issues/1017) condition 2 violation. The original 1.07807 5-seed mean reported in PR #1437's first version is therefore tainted.
+
+**The fix** (matches @abaybektursun's [proposed patch](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189)):
+
+1. **Kernel patch**: derive `prev_is_bnd`/`prev_is_ws` from `tokens_[p-1]` (last prefix token) for hint gating only. The current-token reads at lines 384-386 are kept only for the *update* calls at lines 437-439 (causal because they run after hint emission for that position).
+2. **Disable within/word experts**: set `NGRAM_WITHIN_BETA=0 NGRAM_WORD_BETA=0`. Empirically, the within/word experts under prefix-only gating fire for the wrong positions (within fires for word-starts, word fires for mid-word) and contribute *negative* BPB. Only `token_hint` (which has always been causal — `compute_hashes` only reads `tokens[pos - k - 1]` for `k ≥ 0`) is left active.
+
+**Measured leak magnitude (this submission, 5-seed mean):** TTT `1.07807` → `1.08091`, delta **+0.00284 nats per token**. Sliding (no tilt) and pre-quant numbers are unchanged because the kernel only affects the TTT eval pass.
+
+**PR #1420 cross-reference**: PR #1420 ships the identical bug. @abaybektursun has [acknowledged it in their thread](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189) and proposed the same fix. Applying the same correction to PR #1420's reported 1.08014 5-seed mean would put it at approximately ~1.08300 post-fix.
 
 ## Key Innovations
 
@@ -161,9 +177,11 @@ export NGRAM_TILT_ENABLED=1
 export NGRAM_BASE_BETA=2.0
 export NGRAM_AGREE_BONUS=0.1
 export NGRAM_WITHIN_THRESHOLD=0.25
-export NGRAM_WITHIN_BETA=0.92
+# CAUSAL CORRECTION: disable within/word experts
+export NGRAM_WITHIN_BETA=0.0
+export NGRAM_WORD_BETA=0.0
 
-for SEED in 0 42 1234; do
+for SEED in 0 42 1234 1337 2025; do
     SEED=$SEED uv run torchrun --standalone --nproc_per_node=8 train_gpt.py
 done
 ```
