@@ -1,0 +1,4 @@
+experiment_name,commit_sha,seed,change_description,aux_duplicate_rate,aux_omission_rate,aux_constraint_pass_rate,official_val_bpb,artifact_size_bytes,train_time_seconds,decision,notes
+baseline_official,TODO,TODO,official baseline,TODO,TODO,TODO,TODO,TODO,TODO,KEEP,fill only after real run
+candidate_01,TODO,TODO,one change only,TODO,TODO,TODO,TODO,TODO,TODO,DROP_OR_KEEP,
+candidate_02,TODO,TODO,one change only,TODO,TODO,TODO,TODO,TODO,TODO,DROP_OR_KEEP,

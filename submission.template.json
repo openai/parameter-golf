@@ -1,0 +1,34 @@
+{
+  "model_name": "multi-cube-face-letter-assignment",
+  "submission_type": "non-record",
+  "status": "UNVERIFIED_UNTIL_OFFICIAL_BPB_RUN",
+  "official_task": "OpenAI Parameter Golf official language-model benchmark",
+  "auxiliary_eval": [
+    "Cube-Multi-Object-Consistency-Dataset",
+    "planet-alphabet-mapping-1-26"
+  ],
+  "artifact": {
+    "path": "TODO_FINAL_ARTIFACT_PATH",
+    "compressed_size_bytes": "TODO_REAL_BYTE_COUNT",
+    "notes": "Do not replace with guessed values. Use exact measured bytes from final artifact."
+  },
+  "training": {
+    "budget_rule": "10 minutes on 8xH100",
+    "measured_train_time_seconds": "TODO_REAL_VALUE",
+    "seed": "TODO_REAL_VALUE",
+    "commit_sha": "TODO_REAL_VALUE"
+  },
+  "evaluation": {
+    "official_metric": "validation_bpb",
+    "official_metric_value": "TODO_REAL_VALUE",
+    "notes": "Only official OpenAI pipeline numbers belong here."
+  },
+  "repo_structure": {
+    "official_submission_path": "records/non-record/multi-cube-face-letter-assignment",
+    "aux_eval_path": "aux_eval"
+  },
+  "integrity": {
+    "contains_no_fabricated_metrics": true,
+    "cube_datasets_are_not_claimed_as_official_metric": true
+  }
+}

@@ -1,0 +1,13 @@
+repo_root/
+├─ train_gpt.py                       # official pipeline entry or minimal competition-compatible wrapper
+├─ final_model.int8.ptz              # only if this is truly the final counted artifact
+├─ aux_eval/
+│  ├─ README.md
+│  ├─ eval_cube_consistency.py
+│  └─ eval_planet_alphabet.py
+├─ records/
+│  └─ non-record/
+│     └─ multi-cube-face-letter-assignment/
+│        ├─ README.submission.md
+│        └─ submission.template.json
+└─ EXPERIMENT_TRACKER.csv
