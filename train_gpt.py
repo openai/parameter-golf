@@ -1349,31 +1349,48 @@ def main() -> None:
   f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
   f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
  )
- ttt_epochs = int(os.environ.get("TTT_EPOCHS", 6))
+ ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
  ttt_lr = float(os.environ.get("TTT_LR", 0.0005))
+ ttt_batch = 8
+ ttt_freeze_blocks = 2
  if ttt_epochs > 0:
-  log0(f"prequant_ttt:starting epochs={ttt_epochs} lr={ttt_lr}")
-  ttt_opt = torch.optim.AdamW(base_model.parameters(), lr=ttt_lr, weight_decay=0.0)
+  log0(f"prequant_ttt:starting epochs={ttt_epochs} lr={ttt_lr} freeze_blocks={ttt_freeze_blocks}")
+  for i in range(ttt_freeze_blocks):
+   for p in base_model.blocks[i].parameters(): p.requires_grad_(False)
+  ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+  ttt_opt = torch.optim.AdamW(ttt_params, lr=ttt_lr, weight_decay=0.0)
   base_model.train()
   seq_len = args.train_seq_len
   total_seqs = (val_tokens.numel() - 1) // seq_len
+  my_seqs = list(range(rank, total_seqs, world_size))
+  total_steps = ttt_epochs * ((len(my_seqs) + ttt_batch - 1) // ttt_batch)
+  step_count = 0
   for epoch in range(ttt_epochs):
    epoch_loss = 0.0
    epoch_count = 0
-   for seq_start in range(rank, total_seqs, world_size):
-    raw_start = seq_start * seq_len
-    raw_end = raw_start + seq_len + 1
-    local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-    x = local[:-1].unsqueeze(0)
-    y = local[1:].unsqueeze(0)
+   for bi in range(0, len(my_seqs), ttt_batch):
+    batch_seqs = my_seqs[bi:bi + ttt_batch]
+    bsz = len(batch_seqs)
+    x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+    y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+    for i, si in enumerate(batch_seqs):
+     raw_s = si * seq_len
+     chunk = val_tokens[raw_s:raw_s + seq_len + 1].to(device=device, dtype=torch.int64)
+     x_batch[i] = chunk[:-1]
+     y_batch[i] = chunk[1:]
+    cosine_lr = ttt_lr * 0.5 * (1 + math.cos(math.pi * step_count / max(total_steps, 1)))
+    for pg in ttt_opt.param_groups: pg['lr'] = cosine_lr
     ttt_opt.zero_grad()
     with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-     loss = base_model(x, y)
+     loss = base_model(x_batch, y_batch)
     loss.backward()
     ttt_opt.step()
     epoch_loss += loss.item()
     epoch_count += 1
+    step_count += 1
    log0(f"prequant_ttt:epoch={epoch} avg_loss={epoch_loss / max(epoch_count, 1):.4f}")
+  for i in range(ttt_freeze_blocks):
+   for p in base_model.blocks[i].parameters(): p.requires_grad_(True)
   base_model.eval()
   log0("prequant_ttt:done")
  full_state_dict = base_model.state_dict()
