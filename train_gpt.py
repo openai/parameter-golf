@@ -95,7 +95,7 @@ class Hyperparameters:
  ve_layers = os.environ.get("VE_LAYERS", "9,10")
  vrl_enabled = bool(int(os.environ.get("VRL_ENABLED", "1")))
  slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "1")))
- slot_steps = int(os.environ.get("SLOT_STEPS", 8))
+ slot_steps = int(os.environ.get("SLOT_STEPS", 6))
  slot_lr = float(os.environ.get("SLOT_LR", 0.012))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
