@@ -1,0 +1,133 @@
+W0407 02:16:16.687000 1291 torch/distributed/run.py:803] 
+W0407 02:16:16.687000 1291 torch/distributed/run.py:803] *****************************************
+W0407 02:16:16.687000 1291 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0407 02:16:16.687000 1291 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp1024
+  distributed: True
+  ema_decay: 0.9965
+  embed_lr: 0.6
+  embed_wd: 0.09
+  embedding_dim: 512
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_enabled: True
+  gptq_reserve_seconds: 10.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/exp4_vanilla_s1337.txt
+  logit_softcap: 30.0
+  matrix_lr: 0.02
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_wd: 0.09
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  parallel_start_layer: 7
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  recur_layers: 4,5
+  recur_start_step: 3000
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: exp4_vanilla_s1337
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_1024_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: False
+  ttt_epochs: 3
+  ttt_freeze_blocks: 0
+  ttt_grad_clip: 1.0
+  ttt_lr: 0.002
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
+  val_loss_every: 4000
+  ve_dim: 128
+  ve_enabled: True
+  ve_layers: 9,10
+  vocab_size: 1024
+  warmdown_frac: 0.667
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 62021632
+model_params:32435292
+gptq:reserving 10s, effective=590000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+0/20000 val_loss: 6.9384 val_bpb: 4.1093
+1/20000 train_loss: 6.9392 train_time: 0.0m tok/s: 8673244
+2/20000 train_loss: 12.0620 train_time: 0.0m tok/s: 8606430
+3/20000 train_loss: 10.0730 train_time: 0.0m tok/s: 8514398
+4/20000 train_loss: 7.8085 train_time: 0.0m tok/s: 8471333
+5/20000 train_loss: 6.4950 train_time: 0.0m tok/s: 8432264
+500/20000 train_loss: 2.3214 train_time: 0.8m tok/s: 8220796
+1000/20000 train_loss: 2.1805 train_time: 1.6m tok/s: 8183306
+1500/20000 train_loss: 2.0833 train_time: 2.4m tok/s: 8166129
+2000/20000 train_loss: 2.0364 train_time: 3.2m tok/s: 8161049
+2500/20000 train_loss: 1.9839 train_time: 4.0m tok/s: 8158175
+3000/20000 train_loss: 1.9500 train_time: 4.8m tok/s: 8157110
+recurrence:activated at step 3000, virtual_layers=[0, 1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9, 10]
+3500/20000 train_loss: 1.9808 train_time: 6.3m tok/s: 7317487
+4000/20000 train_loss: 1.9972 train_time: 7.2m tok/s: 7275019
+4000/20000 val_loss: 1.9641 val_bpb: 1.1632
+4500/20000 train_loss: 1.9137 train_time: 8.1m tok/s: 7244333
+5000/20000 train_loss: 1.9422 train_time: 9.1m tok/s: 7218074
+5403/20000 val_loss: 1.8785 val_bpb: 1.1126
+stopping_early: wallclock_cap train_time: 590106ms step: 5403/20000
+peak memory allocated: 29565 MiB reserved: 29594 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:1.87671283 val_bpb:1.11149505 eval_time:2635ms
+Serialized model: 128473989 bytes
+Code size: 83566 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 9.6s
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+selective_prune: unpruned=14.33MB target=16.0MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+brotli: 14243965 bytes
+Total submission size int6+brotli: 14327531 bytes
+final_int6_roundtrip val_loss:1.89785129 val_bpb:1.12401444 eval_time:23389ms
+final_int6_sliding_window val_loss:1.85715930 val_bpb:1.09991434 eval_time:119571ms
