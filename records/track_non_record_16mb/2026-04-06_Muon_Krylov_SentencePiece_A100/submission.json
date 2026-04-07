@@ -1,6 +1,6 @@
 {
-  "author": "Ganesh Talluri & Laura Gomezjurado",
-  "github_id": "g4nesh, lauragomezjurado",
+  "author": "Ganesh Talluri, Laura Gomezjurado & Hiroki Naganuma",
+  "github_id": "g4nesh, lauragomezjurado, Hiroki11x",
   "name": "11L + gated Krylov + AR GPTQ int6 + sliding-window eval + XSA + BigramHash",
   "blurb": "Non-record 16MB submission using the standard SentencePiece GPT path with Parallel Muon plus a small gated Krylov correction on square nonnormal slices. Uses AR self-generated Full-Hessian GPTQ int6, selective +/-1 pruning, and sliding-window evaluation. 26.99M params, 15,925,099-byte artifact, trained on 1xA100 80GB.",
   "date": "2026-04-06T20:30:00Z",
