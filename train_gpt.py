@@ -2403,7 +2403,7 @@ def main() -> None:
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
-        args, compiled_model, rank, world_size, device, grad_accum_steps,
+        args, model, rank, world_size, device, grad_accum_steps,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
