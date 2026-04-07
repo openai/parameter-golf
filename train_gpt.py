@@ -805,7 +805,7 @@ class MambaBlock(nn.Module):
             y = y * F.silu(z)
 
         y = self.out_proj(y)
-        return residual + y
+        return residual + y.to(residual.dtype)
 
     @torch.compiler.disable
     def _selective_scan(self, x: Tensor, dA: Tensor, dB: Tensor, C: Tensor, D: Tensor) -> Tensor:
