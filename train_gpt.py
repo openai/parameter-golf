@@ -67,6 +67,9 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
+    # BigramHash: set BIGRAM_VOCAB_SIZE > 0 to enable. 0 = disabled.
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
@@ -659,6 +662,8 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        bigram_vocab_size: int = 0,
+        bigram_dim: int = 64,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -666,7 +671,17 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.vocab_size = vocab_size
+        self.bigram_vocab_size = bigram_vocab_size
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        # BigramHash: lookup table for (prev_token, curr_token) pairs.
+        # Projects bigram_dim -> model_dim so it's added directly to token embeddings.
+        if bigram_vocab_size > 0:
+            self.bigram_emb = nn.Embedding(bigram_vocab_size, bigram_dim)
+            self.bigram_proj = CastedLinear(bigram_dim, model_dim, bias=False)
+        else:
+            self.bigram_emb = None
+            self.bigram_proj = None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -699,6 +714,13 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        # BigramHash: add (prev_token, curr_token) pair embedding to every position.
+        # Position 0 has no previous token, so we use 0 as a dummy prev token.
+        if self.bigram_emb is not None:
+            bsz, seqlen = input_ids.shape
+            prev_ids = torch.cat([input_ids.new_zeros(bsz, 1), input_ids[:, :-1]], dim=1)
+            bigram_idx = (prev_ids * self.vocab_size + input_ids) % self.bigram_vocab_size
+            x = x + self.bigram_proj(self.bigram_emb(bigram_idx))
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -835,6 +857,8 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        bigram_vocab_size=args.bigram_vocab_size,
+        bigram_dim=args.bigram_dim,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -883,6 +907,16 @@ def main() -> None:
         fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    # BigramHash params: embedding uses Adam (like tok_emb), proj uses Muon (it's a matrix).
+    if base_model.bigram_emb is not None:
+        optimizer_bigram_emb = torch.optim.Adam(
+            [{"params": [base_model.bigram_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
+        optimizer_muon.param_groups[0]["params"].append(base_model.bigram_proj.weight)
+        optimizers.append(optimizer_bigram_emb)
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
