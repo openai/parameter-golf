@@ -3,26 +3,26 @@
   "github_id": "greqone",
   "name": "Non-record: state-space hybrid with attention anchors",
   "track_label": "fixed-predictor",
-  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, an interleaved 5A/4S S4D-style hybrid, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
+  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, an interleaved 5A/4S S4D-style hybrid, higher SSM rank, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
   "date": "2026-04-07T00:00:00Z",
   "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
-  "val_loss": 2.91517612,
-  "val_bpb": 1.7265315,
-  "baseline_val_loss": 3.02549853,
-  "baseline_val_bpb": 1.79187065,
-  "kept_vs_baseline_delta_bpb": -0.06533915,
-  "previous_promoted_val_bpb": 1.76279061,
-  "previous_promoted_delta_bpb": -0.03625911,
+  "val_loss": 2.83990535,
+  "val_bpb": 1.68195191,
+  "baseline_val_loss": 2.97275912,
+  "baseline_val_bpb": 1.7606354,
+  "kept_vs_baseline_delta_bpb": -0.07868349,
+  "previous_promoted_val_bpb": 1.7265315,
+  "previous_promoted_delta_bpb": -0.04457959,
   "artifact_bytes": {
     "code": 57756,
-    "model_int8_zlib": 10418470,
-    "total": 10476226
+    "model_int8_zlib": 11191134,
+    "total": 11248890
   },
   "wallclock_ms": {
-    "training": 176889,
-    "evaluation": 130148,
-    "export_roundtrip_estimate": 5360,
-    "end_to_end_estimate": 312397
+    "training": 177883,
+    "evaluation": 125716,
+    "export_roundtrip_estimate": 5075,
+    "end_to_end_estimate": 308674
   },
   "compile_settings": {
     "enable_torch_compile": 0,
@@ -32,57 +32,73 @@
     "block_layout": "AAAASASSS",
     "ssm_core": "s4d",
     "ssm_kernel_size": 64,
-    "ssm_rank": 8,
+    "ssm_rank": 12,
     "int8_force_float_name_patterns": "ssm_coeff,ssm_log_decay,ssm_d",
     "train_batch_tokens": 32768,
     "train_seq_len": 1024,
     "val_batch_size": 262144,
-    "iterations": 580,
+    "iterations": 700,
     "seed": 2027
   },
   "baseline_match": {
     "type": "strongest_legal_all_attention_control_same_blackwell_lane",
     "block_layout": "AAAAAAAAA",
-    "iterations": 480,
+    "iterations": 517,
     "seed": 2027,
     "int8_force_float_name_patterns": "tok_emb,blocks.7.,blocks.8.,blocks.6.attn",
-    "train_time_ms": 152342,
-    "evaluation_time_ms": 217439,
-    "artifact_bytes_total": 15803271
+    "train_time_ms": 147844,
+    "evaluation_time_ms": 207443,
+    "artifact_bytes_total": 15997493
   },
   "current_public_winner_variance": {
-    "hybrid_layout": "AAAAAASSS",
+    "hybrid_layout": "AAAASASSS",
     "hybrid_export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
-    "hybrid_mean_val_bpb": 1.76754567,
-    "hybrid_std_val_bpb": 0.00483083,
+    "hybrid_mean_val_bpb": 1.73243467,
+    "hybrid_std_val_bpb": 0.00793705,
     "hybrid_runs": 4,
-    "control_mean_val_bpb": 1.82506105,
-    "control_std_val_bpb": 0.00388142,
+    "control_mean_val_bpb": 1.79491739,
+    "control_std_val_bpb": 0.00226423,
     "control_runs": 3,
-    "mean_edge_bpb": -0.05751538
+    "mean_edge_bpb": -0.06248271
   },
   "promoted_candidate_stats": {
     "layout": "AAAASASSS",
-    "ssm_rank": 8,
-    "iterations": 580,
+    "ssm_rank": 12,
+    "iterations": 700,
     "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
-    "mean_val_bpb": 1.7361869,
-    "std_val_bpb": 0.0096554,
+    "mean_val_bpb": 1.68630473,
+    "std_val_bpb": 0.00435282,
     "runs": 2
   },
   "strong_control_frontier": {
-    "strongest_legal_control_val_bpb": 1.79187065,
-    "strongest_legal_control_iterations": 480,
-    "best_illegal_boundary_val_bpb": 1.73028291,
-    "best_illegal_boundary_iterations": 560,
-    "best_illegal_boundary_bytes_total": 16211560
+    "strongest_legal_control_val_bpb": 1.7606354,
+    "strongest_legal_control_iterations": 517,
+    "strongest_legal_control_bytes_total": 15997493,
+    "best_illegal_boundary_val_bpb": 1.7615082,
+    "best_illegal_boundary_iterations": 518,
+    "best_illegal_boundary_bytes_total": 16002381
+  },
+  "export_granularity_finding": {
+    "narrow_core_fp16_val_bpb": 1.7265315,
+    "full_ssm_fp16_val_bpb": 1.72652974,
+    "delta_bpb_full_minus_narrow": -0.00000176,
+    "delta_bytes_full_minus_narrow": 3929952
+  },
+  "fixed_predictor_transfer_finding": {
+    "transfer": "BigramHash",
+    "bigram_vocab_size": 1024,
+    "bigram_dim": 64,
+    "transfer_val_bpb": 1.71975209,
+    "plain_scaled_incumbent_val_bpb": 1.71464907,
+    "delta_bpb_transfer_minus_plain": 0.00510302,
+    "verdict": "negative_transfer"
   },
   "scope": {
     "training_shards": 1,
     "gpu_lane": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
     "record_claim": false
   },
-  "bytes_total": 10476226,
-  "bytes_model_int8_zlib": 10418470,
+  "bytes_total": 11248890,
+  "bytes_model_int8_zlib": 11191134,
   "bytes_code": 57756
 }
