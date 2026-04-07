@@ -13,7 +13,7 @@ Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) b
 | Merged SOTA [PR #1019](https://github.com/openai/parameter-golf/pull/1019) (abaybektursun) | 1.11473 | **+0.08736** | ✅ comfortably |
 | [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (clarkkev) | 1.08563 | **+0.01219** | ✅ clears (2.4× the bar) |
 | Our [PR #1413](https://github.com/openai/parameter-golf/pull/1413) | 1.08279 | +0.00486 | ❌ misses by 0.00014 (essentially tied) |
-| [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (also tainted by same kernel bug) | 1.08014 | -0.00199 | ❌ — but corrected ~1.08298 → +0.00535 ✅ marginal |
+| [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (same kernel family; direct pre-fix comparison is not apples-to-apples) | 1.08014 | -0.00199 | ⚠️ see note below |
 
 The unit is nats per token (per the README's record threshold). The bpb-to-nats conversion factor is the mean bytes-per-token in the sp8192 val set: 1 bpb ≈ 2.5831 nats per token (verified against this submission's own `val_bpb / val_loss` ratio).
 
@@ -43,7 +43,7 @@ The original kernel from [PR #1420](https://github.com/openai/parameter-golf/pul
 - Lines 384-386 read `tok = tokens_[p]` (the **target** token at the position being scored) and derived `is_bnd = is_bnd_[tok]` and `is_ws = has_ls_[tok]`.
 - Lines 399-400 then passed those flags to `within_hint(is_bnd, is_ws, ...)` and `word_hint(is_ws, ...)`, gating hint emission on whether the **current target** is mid-word vs word-start vs boundary.
 
-This means the predictive distribution at position `p` depended on metadata derived from `x_p` itself, leaking 1-2 bits per scored position about the answer. [Issue #1017](https://github.com/openai/parameter-golf/issues/1017) condition 2 violation. The original 1.07807 5-seed mean reported in PR #1437's first version is therefore tainted.
+This means the predictive distribution at position `p` depended on metadata derived from `x_p` itself, leaking 1-2 bits per scored position about the answer. Under the [Issue #1017](https://github.com/openai/parameter-golf/issues/1017) framing, this is a violation of the prefix-only causality requirement. The original 1.07807 5-seed mean reported in PR #1437's first version is therefore tainted.
 
 **The fix** (matches @abaybektursun's [proposed patch](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189)):
 
@@ -52,7 +52,7 @@ This means the predictive distribution at position `p` depended on metadata deri
 
 **Measured leak magnitude (this submission, 5-seed mean):** TTT `1.07807 BPB` → `1.08091 BPB`, delta **+0.00284 BPB ≈ +0.00734 nats per token** (using 1 bpb ≈ 2.5831 nats per token, the mean bytes-per-token in the sp8192 val set). Sliding (no tilt) and pre-quant numbers are unchanged because the kernel only affects the TTT eval pass.
 
-**PR #1420 cross-reference**: PR #1420 ships the identical bug. @abaybektursun has [acknowledged it in their thread](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189) and proposed the same fix. Applying the same correction to PR #1420's reported 1.08014 5-seed mean would put it at approximately ~1.08300 post-fix.
+**PR #1420 cross-reference**: PR #1420 originally shipped the same kernel-family bug. @abaybektursun has [acknowledged it in their thread](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189) and proposed the same fix. Because the original `1.08014` number was reported before that correction, direct pre-fix comparison is not apples-to-apples.
 
 ## Key Innovations
 
