@@ -18,3 +18,4 @@ final_model.*
 .bash_logout
 .bashrc
 .profile
+test_profiling.py

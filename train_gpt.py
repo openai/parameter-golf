@@ -32,6 +32,11 @@ try:
 except ImportError:
     ParameterGolfTracker = None  # type: ignore[assignment,misc]
 
+try:
+    from profiling import TrainingProfiler
+except ImportError:
+    TrainingProfiler = None  # type: ignore[assignment,misc]
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -754,18 +759,24 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
-    if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required")
-    device = torch.device("cuda", local_rank)
-    torch.cuda.set_device(device)
+    _allow_cpu = os.environ.get("ALLOW_CPU", "0") == "1"
+    if torch.cuda.is_available():
+        device = torch.device("cuda", local_rank)
+        torch.cuda.set_device(device)
+    elif _allow_cpu:
+        device = torch.device("cpu")
+        print("WARNING: Running on CPU (profiling/debug mode only, not for scoring)")
+    else:
+        raise RuntimeError("CUDA is required (set ALLOW_CPU=1 for profiling on CPU)")
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
 
     # Fast math knobs
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+    if device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
     enable_cudnn_sdp(False)
@@ -775,6 +786,7 @@ def main() -> None:
 
     logfile = None
     tracker = None
+    profiler = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
         logfile = f"logs/{args.run_id}.txt"
@@ -801,6 +813,13 @@ def main() -> None:
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
+
+    if TrainingProfiler is not None and os.environ.get("PROFILE", "0") == "1":
+        profiler = TrainingProfiler(enabled=True, run_name=args.run_id, log_fn=log0, rank=rank)
+        profiler.start()
+    elif TrainingProfiler is not None and int(os.environ.get("GPU_LOG_EVERY", "0")) > 0:
+        profiler = TrainingProfiler(enabled=False, run_name=args.run_id, log_fn=log0, rank=rank)
+        profiler.start()
 
     log0(code, console=False)
     log0("=" * 100, console=False)
@@ -1039,6 +1058,8 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        if profiler is not None:
+            profiler.mark("fwd_start")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1048,9 +1069,13 @@ def main() -> None:
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
+            if profiler is not None:
+                profiler.mark("bwd_start")
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
 
+        if profiler is not None:
+            profiler.mark("opt_start")
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
         for group in optimizer_muon.param_groups:
@@ -1065,6 +1090,8 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+        if profiler is not None:
+            profiler.mark("step_end")
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1082,6 +1109,9 @@ def main() -> None:
             if tracker is not None:
                 tracker.log_step(step=step, train_loss=_tl, train_time_ms=approx_training_time_ms, step_avg_ms=_sa)
 
+        if profiler is not None:
+            profiler.step(step, train_loss=train_loss.item())
+
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
@@ -1090,6 +1120,10 @@ def main() -> None:
             reached_cap = bool(reached_cap_tensor.item())
         if stop_after_step is None and reached_cap:
             stop_after_step = step
+
+    if profiler is not None:
+        profiler.stop()
+        profiler.summary()
 
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
