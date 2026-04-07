@@ -1669,29 +1669,6 @@ def eval_val_sliding(
 # TTT (Test-Time Training) - Legal Score-First
 # ----------------------------------------
 
-
-class LoRAAdapter:
-    def __init__(self, model, rank=4, alpha=1.0):
-        self.adapters, self.hooks = {}, []
-        for name, m in model.named_modules():
-            if isinstance(m, CastedLinear) and '.attn.' in name and m.weight.numel() > 4096:
-                o, i = m.weight.shape
-                A = torch.zeros(i, rank, device=m.weight.device, dtype=torch.float32, requires_grad=True)
-                B = torch.zeros(rank, o, device=m.weight.device, dtype=torch.float32, requires_grad=True)
-                torch.nn.init.kaiming_normal_(A)
-                self.adapters[name] = (A, B)
-                s = alpha / rank
-                def mh(a,b,s):
-                    def h(mod,inp,out): return out + (inp[0].float() @ a @ b).to(out.dtype) * s
-                    return h
-                self.hooks.append(m.register_forward_hook(mh(A,B,s)))
-    def parameters(self):
-        p = []
-        for A,B in self.adapters.values(): p.extend([A,B])
-        return p
-    def remove(self):
-        for h in self.hooks: h.remove()
-
 def eval_val_ttt(
     h: Hyperparameters,
     base_model: nn.Module,
@@ -1732,10 +1709,19 @@ def eval_val_ttt(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    for p in base_model.parameters():
-        p.requires_grad_(False)
-    lora = LoRAAdapter(base_model, rank=4, alpha=1.0)
-    ttt_params = lora.parameters()
+    frozen_block_ids = set(range(min(h.ttt_freeze_blocks, len(base_model.blocks))))
+    ttt_params = []
+    for name, p in base_model.named_parameters():
+        freeze = False
+        for bi in frozen_block_ids:
+            if f"blocks.{bi}." in name:
+                freeze = True
+                break
+        if freeze:
+            p.requires_grad_(False)
+        else:
+            p.requires_grad_(True)
+            ttt_params.append(p)
 
     log_fn(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)} "
            f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
@@ -1837,7 +1823,6 @@ def eval_val_ttt(
     val_loss = (loss_sum / token_count).item()
     val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
 
-    lora.remove()
     for p in base_model.parameters():
         p.requires_grad_(True)
     base_model.eval()
