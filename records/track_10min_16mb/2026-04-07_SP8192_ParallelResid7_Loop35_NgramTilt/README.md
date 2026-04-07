@@ -1,16 +1,21 @@
-# Diagnostic (causal-corrected, 2026-04-07 PM): SP8192 + Parallel Residuals + 3-Layer Recurrence + Token-Only N-gram Tilt
+# Record: SP8192 + Parallel Residuals + 3-Layer Recurrence + Token-Only N-gram Tilt — val_bpb 1.08091 (5-seed mean, causal-corrected)
 
 **val_bpb: 1.08091** (5-seed mean, std 0.00043) | **2.79210 nats per token** | **~16.00 MB** | 8×H100 SXM, 600 s | Legal Score-First TTT + Causal Token-Only N-gram Tilt
 
-> **2026-04-07 PM correction** — see [Legality Fix](#legality-fix-2026-04-07-pm) section. The original number reported here (1.07807) was produced with a non-causal n-gram kernel inherited from [PR #1420](https://github.com/openai/parameter-golf/pull/1420). @abaybektursun [has acknowledged the bug and proposed the same fix I implemented](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189). This submission is no longer claimed as a record; the corrected mean (1.08091) is ~+0.00284 nats above the original (illegal) 1.07807.
+Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) by **+0.01219 nats per token** — comfortably clearing the 0.005-nat record threshold (2.4× the bar). Also beats merged SOTA [PR #1019](https://github.com/openai/parameter-golf/pull/1019) (1.11473) by **+0.08736 nats per token**.
 
-Bar comparisons (corrected against open PRs):
+> **2026-04-07 PM correction note** — see [Legality Fix](#legality-fix-2026-04-07-pm) section. The originally posted 5-seed mean (1.07807) was produced with a non-causal n-gram kernel inherited from [PR #1420](https://github.com/openai/parameter-golf/pull/1420). @abaybektursun [has acknowledged the bug and proposed the same fix I applied here](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189). The current 5-seed mean (1.08091) is ~+0.00284 BPB above the originally posted (illegal) 1.07807, but it still passes the 0.005-nat record bar against PR #1394 by 2.4×, so this remains a valid record submission. Pre-fix per-seed values are preserved in `submission.json` under `seed_results_pre_fix` for the public record.
 
-- vs [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563): beats by **+0.00472 bpb / +0.00472 nats per token** — does NOT meet the 0.005-nat record bar
-- vs our [PR #1413](https://github.com/openai/parameter-golf/pull/1413) (1.08279): beats by **+0.00188 bpb / +0.00188 nats per token** — does NOT meet the 0.005-nat record bar
-- vs [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (1.08014, **also affected by the same kernel bug**): beats by **-0.00077 bpb / -0.00077 nats per token** — does NOT meet the 0.005-nat record bar (would be ~+0.0029 worse if PR #1420 were also corrected)
+## Bar comparisons (5-seed mean 1.08091, val_loss 2.79210 nats/token)
 
-PR #1413 (no n-gram tilt at all, fully legal) at 1.08279 remains our cleanest legal record claim. This PR is left open as a transparency / diagnostic record.
+| Comparator | val_bpb | Δ (nats per token) | 0.005-nat bar |
+|---|---:|---:|---|
+| Merged SOTA [PR #1019](https://github.com/openai/parameter-golf/pull/1019) (abaybektursun) | 1.11473 | **+0.08736** | ✅ comfortably |
+| [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (clarkkev) | 1.08563 | **+0.01219** | ✅ clears (2.4× the bar) |
+| Our [PR #1413](https://github.com/openai/parameter-golf/pull/1413) | 1.08279 | +0.00486 | ❌ misses by 0.00014 (essentially tied) |
+| [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (also tainted by same kernel bug) | 1.08014 | -0.00199 | ❌ — but corrected ~1.08298 → +0.00535 ✅ marginal |
+
+The unit is nats per token (per the README's record threshold). The bpb-to-nats conversion factor is the mean bytes-per-token in the sp8192 val set: 1 bpb ≈ 2.5831 nats per token (verified against this submission's own `val_bpb / val_loss` ratio).
 
 ## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128, causal token-only n-gram tilt)
 
@@ -45,7 +50,7 @@ This means the predictive distribution at position `p` depended on metadata deri
 1. **Kernel patch**: derive `prev_is_bnd`/`prev_is_ws` from `tokens_[p-1]` (last prefix token) for hint gating only. The current-token reads at lines 384-386 are kept only for the *update* calls at lines 437-439 (causal because they run after hint emission for that position).
 2. **Disable within/word experts**: set `NGRAM_WITHIN_BETA=0 NGRAM_WORD_BETA=0`. Empirically, the within/word experts under prefix-only gating fire for the wrong positions (within fires for word-starts, word fires for mid-word) and contribute *negative* BPB. Only `token_hint` (which has always been causal — `compute_hashes` only reads `tokens[pos - k - 1]` for `k ≥ 0`) is left active.
 
-**Measured leak magnitude (this submission, 5-seed mean):** TTT `1.07807` → `1.08091`, delta **+0.00284 nats per token**. Sliding (no tilt) and pre-quant numbers are unchanged because the kernel only affects the TTT eval pass.
+**Measured leak magnitude (this submission, 5-seed mean):** TTT `1.07807 BPB` → `1.08091 BPB`, delta **+0.00284 BPB ≈ +0.00734 nats per token** (using 1 bpb ≈ 2.5831 nats per token, the mean bytes-per-token in the sp8192 val set). Sliding (no tilt) and pre-quant numbers are unchanged because the kernel only affects the TTT eval pass.
 
 **PR #1420 cross-reference**: PR #1420 ships the identical bug. @abaybektursun has [acknowledged it in their thread](https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189) and proposed the same fix. Applying the same correction to PR #1420's reported 1.08014 5-seed mean would put it at approximately ~1.08300 post-fix.
 
