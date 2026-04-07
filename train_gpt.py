@@ -770,7 +770,7 @@ class MambaBlock(nn.Module):
                 # Fused causal conv1d + SiLU
                 conv_weight = self.conv1d.weight.squeeze(1)  # (d_inner, d_conv)
                 x_in = _causal_conv1d_fn(x=x_in, weight=conv_weight,
-                                         bias=self.conv1d.bias, activation="silu")
+                                         bias=self.conv1d.bias.to(conv_weight.dtype), activation="silu")
             else:
                 x_in = self.conv1d(x_in)[:, :, :residual.size(1)]
                 x_in = F.silu(x_in)
