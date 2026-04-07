@@ -1,52 +1,103 @@
-# Adaptive Precision Embedding Quantization
+# Frequency-Weighted GPTQ Calibration + Adaptive Precision Embedding Quantization
 
-**val_bpb: 1.1217** (4-seed mean) | **15.8 MB** | 8×H100 SXM
+**val_bpb: 1.0980 (3-seed mean) | 14.46 MB | 8×H100 SXM**
 
-## The Idea
+## Checklist
+- [x] Artifact < 16,000,000 bytes (all 3 seeds)
+- [x] Training < 600s, eval < 600s
+- [x] Causal sliding-window evaluation (stride=64)
 
-Analysis of the FineWeb training data revealed that token frequency follows a heavy-tailed distribution:
+## Results
 
-- **Top 100 tokens** cover **53.2%** of all text
-- These include: `.` `,` `the` `s` `to` `and` `ing` `of` `a` `in`...
-
-Instead of uniform quantization across all embedding weights, this submission applies **adaptive precision quantization**:
-
-- **Top 100 tokens → int8** (higher precision for 53% of text)
-- **Remaining 924 tokens → int6** (standard precision)
-
-The intuition: errors in frequent tokens compound across the entire dataset, so they deserve more precision.
-
-## Results (4 seeds, 8xH100 SXM)
-
-| Seed | val_bpb |
-|------|---------|
-| 1 | **1.121** |
-| 2 | 1.122 |
-| 3 | 1.1217 |
-| 4 | 1.1222 |
-
-**Mean: 1.1217 | Std: 0.0005**
+| Seed | val_bpb | Size |
+|------|---------|------|
+| 1337 | 1.09820924 | 14.46 MB |
+| 42   | 1.09775873 | 14.46 MB |
+| 2024 | 1.09798646 | 14.46 MB |
+| **Mean** | **1.09798481** | **14.46 MB** |
 
 ## Files
-
-- `train_16MBQTo.py` - Training script with adaptive precision quantization
-- `top_tokens.py` - Set of top 100 most frequent token IDs
+- `trainFreqGPTQ_gpt.py` - Training script with Frequency-Weighted GPTQ Calibration
 - `submission.json` - Submission metadata
-- `train_seed1.log` - Training log seed 1
-- `train_seed2.log` - Training log seed 2
-- `train_seed3.log` - Training log seed 3
-- `train_seed4.log` - Training log seed 4
+- `freqgptq_s1337.log` - Training log seed 1337
+- `freqgptq_s42.log` - Training log seed 42
+- `freqgptq_s2024.log` - Training log seed 2024
 
-## Run Command
+## Core Innovations
 
-```bash
-SEED=1337 \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-torchrun --standalone --nproc_per_node=8 train_gpt.py
+### 1. Frequency-Weighted GPTQ Calibration (New)
+
+Natural language follows Zipf's law: the top 100 tokens cover ~53% of all text.
+Standard GPTQ treats all tokens equally during Hessian collection — but
+quantization errors on frequent tokens propagate far more into the final BPB.
+
+**Implementation:** Activations from top-100 most frequent tokens receive 2×
+weight in Hessian accumulation during GPTQ calibration:
+
+```python
+is_top = torch.isin(token_ids, top_ids_tensor)
+weights = (1.0 + is_top.float()).unsqueeze(1)
+x_weighted = x * weights.sqrt()  # sqrt because H = X^T X
+hessians[name].addmm_(x_weighted.T, x_weighted)
 ```
 
-## Credits
+Zero artifact size cost. Log confirmation:
+```
+[FreqGPTQ] Frequency-weighted Hessians collected: 66 layers, top-token boost=2.0x
+```
 
-∙ Base model: PR #549 stack by @abaybektursun
+### 2. Adaptive Precision Embedding Quantization (from PR #1042)
+
+Top-100 frequent tokens → **int8** (higher precision)
+Remaining 924 tokens → **int6** (standard compression)
+
+Log confirmation:
+```
+[FreqQuant] Embedding: 100 top tokens -> int8, 924 rare tokens -> int6
+```
+
+## Architecture Base
+
+Built on **PR #1435** (AbhayAnandUCSD). Full credit for base architecture.
+
+Key components:
+- 11 physical layers, 512d, 8 heads, 4 KV heads (GQA)
+- Depth recurrence: layers 4,5 repeat (13 virtual layers), activates at step 3000
+- Skip gates on U-Net skip connections
+- Parallel residuals from layer 7 (attention + MLP run simultaneously)
+- EMA decay = 0.9965
+- Full GPTQ (64 calibration batches, 10s reserved)
+- Selective ±1 pruning
+- Brotli + byte shuffle compression
+- BigramHash (1536 buckets, dim 112)
+- Value Embedding (dim 128, layers 9,10)
+- QK-Gain init = 5.0, Weight decay = 0.09
+
+## Training Command
+
+```bash
+RUN_ID=freqgptq_s1337 \
+SEED=1337 \
+MAX_WALLCLOCK_SECONDS=600 \
+torchrun --standalone --nproc_per_node=8 trainFreqGPTQ_gpt.py
+```
+
+## Key Findings
+
+- **Recurrence start step is robust:** Values from 2000-4000 produce identical BPB
+- **TTT hurts GPTQ models:** SGD TTT increased BPB by +0.09 (1.098→1.19)
+- **Loop 3-5 vs 4-5:** No measurable improvement due to fewer warmdown steps
+- **FreqGPTQ consistently beats standard GPTQ** by ~0.001 BPB across all seeds
+
+## Hardware
+
+8× NVIDIA H100 80GB SXM | Training: ~590s | Eval: ~120s
+
+## Credits
+Base architecture: PR #1435 by AbhayAnandUCSD
+Frequency-Weighted Embedding Quantization: PR #1042 (my PR NothingLiVa)
+Frequency-Weighted GPTQ Calibration: new contribution (this PR)
+
+- Base architecture: PR #1435 by AbhayAnandUCSD
+- Frequency-Weighted Embedding Quantization: PR #1042 (NothingLiVa)
+- Frequency-Weighted GPTQ Calibration: new contribution (this PR)
