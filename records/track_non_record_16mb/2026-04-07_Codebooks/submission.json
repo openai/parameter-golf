@@ -5,35 +5,35 @@
     "blurb": "Codebooks (VQ/codebook approach under record conditions; see README for details).",
     "date": "2026-04-07",
     "track": "track_non_record_16mb",
-    "val_loss": null,
+    "val_loss": 2.8116260,
     "val_bpb": 1.20667,
-    "val_loss_std": null,
-    "val_bpb_std": 0.00365065,
+    "val_loss_std": 0.00857523,
+    "val_bpb_std": 0.00368035,
     "seeds": [42, 1024, 1337],
     "seed_results": {
       "42": {
-        "val_loss": null,
-        "val_bpb": 1.211,
+        "val_loss": 2.82183456,
+        "val_bpb": 1.21108460,
         "artifact_bytes": 15863950,
         "steps": 4822,
         "step_avg_ms": null
       },
       "1337": {
-        "val_loss": null,
-        "val_bpb": 1.20694,
+        "val_loss": 2.81219097,
+        "val_bpb": 1.20694573,
         "artifact_bytes": 15859963,
         "steps": 4866,
         "step_avg_ms": null
       },
       "1024": {
-        "val_loss": null,
-        "val_bpb": 1.20207,
+        "val_loss": 2.80085242,
+        "val_bpb": 1.20207941,
         "artifact_bytes": 15881168,
         "steps": 4826,
         "step_avg_ms": null
       }
     },
-    "comparison_baseline_pr": null,
+    "comparison_baseline_pr": 1218,
     "artifact_bytes_mean": 15868360,
     "artifact_bytes_max": 15881168,
     "bytes_total": 15881168,
