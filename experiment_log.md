@@ -5,7 +5,7 @@
 **Competition SOTA:** ~1.1147 BPB (8xH100)
 **Best Result:** 1.5207 BPB (H1: PureDecoder+GQA2+Untied+MatLR0.11+Parallel+SiLU²) = **-0.091 vs baseline**
 **Artifact Size:** ~14MB int8+zlib (2MB headroom under 16MB budget)
-**Total Experiments:** 120+
+**Total Experiments:** 131
 
 ---
 
@@ -361,7 +361,7 @@
 
 ---
 
-## Summary of Key Findings (120+ experiments)
+## Summary of Key Findings (131 experiments)
 
 ### What works (ranked by impact):
 1. **Parallel blocks (PaLM-style)** — -0.052 alone, faster + better quality
