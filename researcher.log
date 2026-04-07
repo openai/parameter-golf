@@ -1,0 +1,26 @@
+I keep getting permission denied for writing to `research_queue.md`. The research is complete though — here's what I found and the updated queue I'm trying to write:
+
+## Research Summary
+
+**Current state**: 1.2490 BPB (exp13), 0.1343 gap to SOTA (1.1147). Artifact 13.2 MB with 2.8 MB headroom.
+
+### Top 4 hypotheses (ordered by expected impact and ease):
+
+1. **GPTQ-lite: Percentile Clip Search** (nearby, quantization) — Our `quantize_int6_per_row` uses `abs().amax()` which is maximally outlier-sensitive. Searching 5 percentile candidates per row and picking min-MSE costs zero training time. The 2026-03-22 record got -0.0006 BPB from this alone. ~20 lines to change at line 547.
+
+2. **Full Hessian GPTQ + AR Self-Gen Calibration** (significant, quantization) — The single biggest gap vs SOTA. Uses Cholesky-based error compensation with Hessian matrices (H = X^T X) collected from self-generated calibration data. Est. 0.005-0.02 BPB gain. ~150 lines, reference SOTA record lines 1081-1224.
+
+3. **Increase Model Capacity** (nearby, architecture) — 2.8 MB headroom = ~3.7M more params. Add a 12th layer or increase model_dim to 544. Est. 0.003-0.01 BPB gain.
+
+4. **SWA Frequency Tuning** (nearby, optimizer) — Change SWA_EVERY from 50 to 25 to double checkpoint count during our short warmdown.
+
+### Retry candidate:
+- **BigramHash 3072x112** — Failed in exp3 but context has changed dramatically (warmdown, EMA, SWA, VE all added since).
+
+### Rejected:
+- Ternary quantization (worse than int6 GPTQ)
+- Muon momentum warmup tuning (already tried, marginal worse)
+- Batch size reduction (already tried, worse)
+- Parallel Muon (only helps multi-GPU)
+
+Could you grant write permission so I can persist this to `research_queue.md`?

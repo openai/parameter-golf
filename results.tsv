@@ -1,0 +1,22 @@
+commit	val_bpb	artifact_mb	memory_gb	status	description
+eb2ddda	1.3862	9.3	14.9	keep	baseline (1xH100, 1269 steps, sliding window)
+10e417b	1.3791	9.1	14.4	keep	XSA on all 11 layers (was last 4)
+6007106	1.3942	9.1	14.4	discard	BigramHash 3072x112 (worse: not enough steps to learn wider table)
+7429400	1.3818	8.8	14.5	discard	EMA decay=0.997 (worse: too few steps for EMA to help)
+9e6bc06	1.2595	12.1	14.4	keep	warmdown 3000->800 (LR schedule fix for 1xH100)
+3fe153e	1.2548	13.2	14.4	keep	warmdown 800->500
+a5da8e8	1.2590	13.5	14.4	discard	warmdown 500->300 (slightly worse, 500 is sweet spot)
+exp7	1.2672	13.8	14.4	discard	matrix_lr/scalar_lr 0.04->0.06 (worse, LR too high)
+exp8	1.2580	13.8	14.4	discard	muon_momentum_warmup 1500->400 (marginal worse)
+exp9	1.2534	13.1	14.4	keep	lzma preset=9 (replaces zstd-22, slightly better compression)
+exp10	1.2503	13.1	14.4	keep	EMA decay=0.99 (faster decay for short training)
+exp11	1.2518	13.1	14.4	discard	late_qat_threshold 0.15->0.30 (marginal worse)
+exp12	1.2614	13.6	14.4	discard	batch 524K->262K (2x steps but noisier gradients worse)
+exp13	1.2490	13.2	14.4	keep	VE128 on layers 9,10 (value embeddings)
+
+58573d8	1.3150	13.0	14.7	discard	SWA scale<1.0 every=50 (10 snapshots, too early start dilutes good weights)
+4837308	1.2576	13.3	14.6	discard	GPTQ-lite clip search 5 percentiles (marginal, likely seed variance)
+8d46a7c	1.2579	13.1	14.6	discard	warmdown 500->620 (worse, 500 was already optimal for ~1066 steps)
+23effea	1.2496	13.4	14.6	keep	Full Hessian GPTQ + AR self-gen (halved quant gap 0.01->0.006)
+0941aaa	1.2770	13.3	14.6	discard	BigramHash 3072x112 (worse: too wide for step budget)
+988618c	1.4448	10.3	14.6	discard	Tight SWA (2 snapshots replaced EMA, way too few on 1xH100)

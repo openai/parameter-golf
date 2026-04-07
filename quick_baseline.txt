@@ -1,0 +1,12 @@
+artifact_bytes: 3830030
+artifact_mb: 3.8
+last_val_bpb: 4.28887938
+peak_memory_gb: 14.6
+peak_memory_mib: 14953
+quick_score: 4.28887938
+roundtrip_val_bpb: 4.28887938
+roundtrip_val_loss: 7.24159317
+steps_completed: 107
+steps_total: 20000
+
+quick_score: 4.28887938

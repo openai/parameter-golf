@@ -1,0 +1,2 @@
+- [User profile](user_profile.md) — CS freshman, learning ML, knows Python well
+- [Competition state](project_competition_state.md) — Parameter Golf SOTA and our baseline position as of apr6
