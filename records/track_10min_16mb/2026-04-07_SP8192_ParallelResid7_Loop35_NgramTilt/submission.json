@@ -1,18 +1,18 @@
 {
   "name": "SP8192 + Parallel Residuals + 3-Layer Recurrence + Legal N-gram Tilt",
-  "val_bpb": 1.07813,
-  "val_loss": 2.78491,
-  "bytes_total": 15992215,
-  "blurb": "3-lever stack on top of PR #1394 sp8192 baseline: (1) GPT-J parallel residuals on layers 7-10 (PR #1412 @Robby955), (2) 3-layer depth recurrence (loop layers 3-5 twice instead of 4-5 twice), (3) eval-time causal n-gram tilt with one-token exponential rescaling (PR #1420 @abaybektursun, lineage PR #1145 @AnirudhRahul). All four issue #1017 conditions verified. C++ n-gram kernel ported from PR #1420 with nanobind dependency removed (ctypes shim). 5-seed mean 1.07813 BPB (std 0.00046) beats PR #1394 (1.08563) by 0.01938 nats per token, beats PR #1420 (1.08014) by 0.00520 nats per token, beats own PR #1413 (1.08279) by 0.01205 nats per token.",
+  "val_bpb": 1.07807,
+  "val_loss": 2.78478,
+  "bytes_total": 15993733,
+  "blurb": "3-lever stack on top of PR #1394 sp8192 baseline: (1) GPT-J parallel residuals on layers 7-10 (PR #1412 @Robby955), (2) 3-layer depth recurrence (loop layers 3-5 twice instead of 4-5 twice), (3) eval-time causal n-gram tilt with one-token exponential rescaling (PR #1420 @abaybektursun, lineage PR #1145 @AnirudhRahul). All four issue #1017 conditions verified. C++ n-gram kernel ported from PR #1420 with nanobind dependency removed (ctypes shim). 5-seed mean 1.07807 BPB (std 0.00040, all 5 seeds mini-wrapper-verified for fit and BPB) beats PR #1394 (1.08563) by 0.01952 nats per token, beats PR #1420 (1.08014) by 0.00534 nats per token, beats own PR #1413 (1.08279) by 0.01218 nats per token.",
   "author": "dexhunter",
   "github_id": "dexhunter",
   "date": "2026-04-07",
   "seed_results": {
-    "0":    {"val_bpb": 1.07743, "val_loss": 2.78312, "steps": 4911},
-    "42":   {"val_bpb": 1.07808, "val_loss": 2.78479, "steps": 4913},
-    "1234": {"val_bpb": 1.07848, "val_loss": 2.78581, "steps": 4905},
-    "1337": {"val_bpb": 1.07801, "val_loss": 2.78461, "steps": 4909},
-    "2025": {"val_bpb": 1.07862, "val_loss": 2.78620, "steps": 4908}
+    "0":    {"val_bpb": 1.07751, "val_loss": 2.78333, "steps": 4918, "artifact_bytes": 15992304},
+    "42":   {"val_bpb": 1.07809, "val_loss": 2.78481, "steps": 4911, "artifact_bytes": 15993733},
+    "1234": {"val_bpb": 1.07813, "val_loss": 2.78492, "steps": 4908, "artifact_bytes": 15990539},
+    "1337": {"val_bpb": 1.07801, "val_loss": 2.78461, "steps": 4909, "artifact_bytes": 15988039},
+    "2025": {"val_bpb": 1.07862, "val_loss": 2.78620, "steps": 4908, "artifact_bytes": 15992215}
   },
   "lineage": [
     "PR #1394 (clarkkev) — sp8192 base",
