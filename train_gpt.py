@@ -111,7 +111,7 @@ class Hyperparameters:
     mamba_d_conv = int(os.environ.get("MAMBA_D_CONV", 4))
     mamba_expand = float(os.environ.get("MAMBA_EXPAND", 1.5))
     mamba_matrix_lr = float(os.environ.get("MAMBA_MATRIX_LR", 0.015))
-    mamba_grad_checkpoint = bool(int(os.environ.get("MAMBA_GRAD_CHECKPOINT", "1")))  # gradient checkpointing for Mamba layers
+    mamba_grad_checkpoint = bool(int(os.environ.get("MAMBA_GRAD_CHECKPOINT", "0")))  # gradient checkpointing for Mamba layers
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
@@ -688,7 +688,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q.bfloat16(), k.bfloat16(), v.bfloat16(), causal=True)
+        y = flash_attn_3_func(q, k, v, causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -790,7 +790,7 @@ class MambaBlock(nn.Module):
                 delta_bias=self.dt_proj.bias.float(),
                 delta_softplus=True,
             )  # (B, d_inner, L)
-            y = y.transpose(1, 2)  # (B, L, d_inner)
+            y = y.transpose(1, 2).to(dtype=residual.dtype)  # (B, L, d_inner), cast to match residual (bf16)
         else:
             # === Sequential fallback (CPU / no mamba-ssm) ===
             x_in = x_in.transpose(1, 2)  # (B, d_inner, L)
@@ -1726,7 +1726,7 @@ class _HessianAttn(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q.bfloat16(), k.bfloat16(), v.bfloat16(), causal=True)
+        y = flash_attn_3_func(q, k, v, causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         return self.proj(y.reshape(bsz, seqlen, dim))
@@ -2104,16 +2104,14 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     base_model._mamba_grad_checkpoint = args.mamba_grad_checkpoint
+    if base_model.mamba_layer_set:
+        assert HAS_MAMBA_CUDA, "mamba-ssm CUDA kernels required for Mamba layers — install mamba-ssm>=2.2.0"
+        assert HAS_CAUSAL_CONV1D, "causal-conv1d required for Mamba layers — install causal-conv1d>=1.4.0"
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    if len(base_model.mamba_layer_set) == 0:
-        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-        model = compiled_model
-    else:
-        # Hybrid dispatch with varying layer types overwhelms torch.compile cache
-        # and causes dtype mismatches in compiled FlashAttention graphs.
-        # Run eager for now; optimize with per-block compile in Epic 3.
-        model = base_model
+    torch._dynamo.config.cache_size_limit = 64
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+    model = compiled_model
 
     # Optimizer split:
     # - 4 parameter banks -> Muon (batched Newton-Schulz)
@@ -2556,10 +2554,8 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    if hasattr(eval_model, 'mamba_layer_set') and len(eval_model.mamba_layer_set) > 0:
-        compiled_eval = eval_model
-    else:
-        compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    torch._dynamo.config.cache_size_limit = 64
+    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=False)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
