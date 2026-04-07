@@ -34,6 +34,12 @@ fused_loss_fn = LigerFusedLinearCrossEntropyLoss()
 torch._dynamo.config.capture_scalar_outputs = True
 
 
+def run_fused_loss(projection_weight, hidden_states, target_ids):
+    # Instead of tanh(logits / 30.0) * 30.0
+    # Just do a 1/30.0 scaling:
+    softcap_scale = 1.0 / 30.0
+    return fused_loss_fn(projection_weight.float() * softcap_scale, hidden_states.float(), target_ids.reshape(-1))
+
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -271,7 +277,7 @@ def eval_val(
                 projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
 
                 # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
-                curr_loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+                curr_loss = run_fused_loss(projection_weight, hidden_states, y)
 
                 batch_loss = curr_loss.detach()
             batch_token_count = float(y.numel())
@@ -974,7 +980,7 @@ def main() -> None:
                     projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
 
                     # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
-                    warmup_loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+                    warmup_loss = run_fused_loss(projection_weight, hidden_states, y)
 
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
@@ -1051,7 +1057,7 @@ def main() -> None:
                 projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
 
                 # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
-                loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+                loss = run_fused_loss(projection_weight, hidden_states, y)
 
             train_loss += loss.detach()
             (loss * grad_scale).backward()
