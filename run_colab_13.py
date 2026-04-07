@@ -58,6 +58,10 @@ env = " ".join([
     f"ITERATIONS={ITERATIONS}",
     f"MAX_WALLCLOCK_SECONDS=0",
     f"TARGET_MB={TARGET_MB}",
+    # --- Inductor / Triton: prevent register-limit OOM on H100 ---
+    f"TORCHINDUCTOR_COMBO_KERNELS=0",
+    f"TORCHINDUCTOR_PERSISTENT_REDUCTIONS=0",  # use split reductions (fewer registers)
+    f"TORCHINDUCTOR_MAX_FUSION_SIZE=32",        # cap fusion depth (default 64)
     # --- Architecture (sota_9 base) ---
     f"QK_GAIN_INIT=4.0",
     f"BIGRAM_DIM=112",

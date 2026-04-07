@@ -1,4 +1,10 @@
 from __future__ import annotations
+import os
+# These MUST be set before any torch import so torch._inductor.config's class
+# body reads them correctly (class attrs are evaluated at import time).
+os.environ.setdefault('TORCHINDUCTOR_COMBO_KERNELS', '0')
+os.environ.setdefault('TORCHINDUCTOR_PERSISTENT_REDUCTIONS', '0')  # disable persistent-reduction Triton kernels
+os.environ.setdefault('TORCHINDUCTOR_MAX_FUSION_SIZE', '32')       # cap op-fusion depth (default 64)
 import sentencepiece as spm
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
@@ -18,17 +24,8 @@ import lzma
 import io
 import glob
 import copy
-import os
-os.environ.setdefault('TORCHINDUCTOR_COMBO_KERNELS',
-                      '0')  # must be before torch import
-# Disable Triton persistent reductions — they require too many registers on H100.
-# triton_per_fused_rms_norm_backward kernels exceed the 232448-register hardware limit.
-# NOTE: correct env var is TORCHINDUCTOR_PERSISTENT_REDUCTIONS (no TRITON_ prefix).
-os.environ.setdefault('TORCHINDUCTOR_PERSISTENT_REDUCTIONS', '0')
-# Also cap fusion size to prevent oversized fused kernels.
-os.environ.setdefault('TORCHINDUCTOR_MAX_FUSION_SIZE', '32')
 import torch._inductor.config as _inductor_cfg
-_inductor_cfg.triton.persistent_reductions = False
+_inductor_cfg.triton.persistent_reductions = False  # belt-and-suspenders: also set via Python API
 _inductor_cfg.max_fusion_size = 32
 try:
     import brotli
