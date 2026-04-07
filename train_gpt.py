@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 import lzma
 _COMPRESSOR = "lzma"
+_label_smoothing_enabled = False
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -710,7 +711,8 @@ class GPT(nn.Module):
     raise RuntimeError("lm_head is required when tie_embeddings=False")
    logits_proj = self.lm_head(x_flat)
   logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-  main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+  ls = 0.1 if self.training and _label_smoothing_enabled else 0.0
+  main_loss = F.cross_entropy(logits.float(), targets, reduction="mean", label_smoothing=ls)
   if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
    _, seqlen, dim = x.shape
    mtp_loss_sum = x.new_zeros(())
@@ -1269,6 +1271,10 @@ def main() -> None:
   if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
    CastedLinear._qat_enabled = True
    log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+  global _label_smoothing_enabled
+  if scale < 0.5 and not _label_smoothing_enabled:
+   _label_smoothing_enabled = True
+   log0(f"label_smoothing:enabled step:{step} scale:{scale:.4f}")
   zero_grad_all()
   train_loss = torch.zeros((), device=device)
   for micro_step in range(grad_accum_steps):
