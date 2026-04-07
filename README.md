@@ -2,12 +2,12 @@
 
 This repo is currently being used to prototype a simple masked diffusion language model for the Parameter Golf challenge on Apple Silicon with MLX.
 
-The original upstream challenge README has been preserved at [PARAMETER_GOLF_README.md](/Users/archit/Local/parameter-golf/PARAMETER_GOLF_README.md).
+The original upstream challenge README has been preserved in `PARAMETER_GOLF_README.md`.
 
 ## Current Status
 
-- Main training script: [train_diffusion.py](/Users/archit/Local/parameter-golf/train_diffusion.py)
-- Running logbook: [EXPERIMENT_LOG.md](/Users/archit/Local/parameter-golf/EXPERIMENT_LOG.md)
+- Main training script: `train_diffusion.py`
+- Running logbook: `EXPERIMENT_LOG.md`
 - Current best local recipe:
   - `MODEL_DIM=384`
   - `TRAIN_SEQ_LEN=256`
@@ -21,14 +21,14 @@ The original upstream challenge README has been preserved at [PARAMETER_GOLF_REA
 ## Best Result So Far
 
 - Best long local run: `val_loss=3.9445`
-- Run: [`l01_mask065`](/Users/archit/Local/parameter-golf/logs/longrun_diffusion_20260407_142138/longrun_diffusion_20260407_142138_l01_mask065_diffusion.txt)
+- Run: `logs/longrun_diffusion_20260407_142138/longrun_diffusion_20260407_142138_l01_mask065_diffusion.txt`
 - Key takeaway: reducing corruption severity has been the strongest lever so far, stronger than increasing depth or sequence length.
 
 ## Daily Progress
 
 ### 2026-04-06
 
-- Implemented the week-1 MLX diffusion baseline in [train_diffusion.py](/Users/archit/Local/parameter-golf/train_diffusion.py).
+- Implemented the week-1 MLX diffusion baseline in `train_diffusion.py`.
 - Added synthetic overfit mode, local FineWeb configs, smaller validation support, and Mac-friendly MLX batching.
 - Verified end-to-end training on synthetic data.
 - Verified one-shard FineWeb learning and built the first experiment log.
@@ -56,17 +56,17 @@ The original upstream challenge README has been preserved at [PARAMETER_GOLF_REA
 
 ## Important Files
 
-- Upstream challenge docs: [PARAMETER_GOLF_README.md](/Users/archit/Local/parameter-golf/PARAMETER_GOLF_README.md)
-- Diffusion implementation plan: [DIFFUSION_IMPLEMENTATION_PLAN.md](/Users/archit/Local/parameter-golf/DIFFUSION_IMPLEMENTATION_PLAN.md)
-- Experiment history: [EXPERIMENT_LOG.md](/Users/archit/Local/parameter-golf/EXPERIMENT_LOG.md)
-- Best local config: [configs/diffusion_local_best.env](/Users/archit/Local/parameter-golf/configs/diffusion_local_best.env)
-- Longer single-run config: [configs/diffusion_local_long.env](/Users/archit/Local/parameter-golf/configs/diffusion_local_long.env)
-- Longrun suite: [configs/longrun/manifest.txt](/Users/archit/Local/parameter-golf/configs/longrun/manifest.txt)
+- Upstream challenge docs: `PARAMETER_GOLF_README.md`
+- Diffusion implementation plan: `DIFFUSION_IMPLEMENTATION_PLAN.md`
+- Experiment history: `EXPERIMENT_LOG.md`
+- Best local config: `configs/diffusion_local_best.env`
+- Longer single-run config: `configs/diffusion_local_long.env`
+- Longrun suite: `configs/longrun/manifest.txt`
 
 ## Running The Best Current Config
 
 ```bash
-cd /Users/archit/Local/parameter-golf
+cd parameter-golf
 set -a; source configs/diffusion_local_best.env; set +a
 ./.venv/bin/python train_diffusion.py | tee logs/diffusion_local_best_console.txt
 ```
@@ -74,8 +74,8 @@ set -a; source configs/diffusion_local_best.env; set +a
 ## Running The Longrun Suite
 
 ```bash
-cd /Users/archit/Local/parameter-golf
+cd parameter-golf
 ./scripts/run_longrun_diffusion_suite.sh
 ```
 
-All meaningful experiment outcomes should be appended to [EXPERIMENT_LOG.md](/Users/archit/Local/parameter-golf/EXPERIMENT_LOG.md) so future work has full context.
+All meaningful experiment outcomes should be appended to `EXPERIMENT_LOG.md` so future work has full context.
