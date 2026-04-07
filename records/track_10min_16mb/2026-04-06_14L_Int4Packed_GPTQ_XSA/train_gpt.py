@@ -75,8 +75,8 @@ class Hyperparameters:
     lawa_enabled = bool(int(os.environ.get("LAWA_ENABLED", "0")))
     lawa_k = int(os.environ.get("LAWA_K", 10))
     lawa_freq = int(os.environ.get("LAWA_FREQ", 100))
-    muon_wd = float(os.environ.get("MUON_WD", 0.04))
-    adam_wd = float(os.environ.get("ADAM_WD", 0.04))
+    muon_wd = float(os.environ.get("MUON_WD", 0.085))
+    adam_wd = float(os.environ.get("ADAM_WD", 0.02))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))
@@ -110,6 +110,7 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) ->
     transposed = X.size(-2) > X.size(-1)
     if transposed:
         X = X.mT
+    X = X / (X.norm(dim=-1, keepdim=True) + eps)  # MuonEq-R: row-normalize first
     X = X / (X.norm(dim=(-2, -1), keepdim=True) + eps)
     for _ in range(steps):
         A = X @ X.mT
@@ -820,7 +821,7 @@ class GPT(nn.Module):
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1417,7 +1418,7 @@ class _HessianGPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -2003,22 +2004,18 @@ def main() -> None:
         # Freeze early blocks
         for name, param in base_model.named_parameters():
             param.requires_grad_(True)
-        for i in range(min(ttt_freeze_blocks, args.num_layers)):
+        _ttt_freeze_indices = set(range(min(ttt_freeze_blocks, args.num_layers)))
+        for i in _ttt_freeze_indices:
             for param in base_model.blocks[i].parameters():
                 param.requires_grad_(False)
-            # Freeze corresponding bank slices
-            if hasattr(base_model, 'qo_bank'):
-                base_model.qo_bank.data[i].requires_grad = False
-                base_model.qo_bank.data[args.num_layers + i].requires_grad = False
-                base_model.kv_bank.data[i].requires_grad = False
-                base_model.kv_bank.data[args.num_layers + i].requires_grad = False
-                base_model.mlp_up_bank.data[i].requires_grad = False
-                base_model.mlp_down_bank.data[i].requires_grad = False
+        # Banks cover all layers; we'll mask frozen-layer gradients after backward
         ttt_params = [p for p in base_model.parameters() if p.requires_grad]
         ttt_opt = torch.optim.AdamW(ttt_params, lr=ttt_lr, weight_decay=0.0)
         ttt_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-        total_ttt_tokens = val_tokens.numel() - 1
-        ttt_steps_per_epoch = max(1, total_ttt_tokens // args.train_batch_tokens)
+        # Count actual training tokens for correct epoch sizing
+        _train_paths = sorted(glob.glob(args.train_files))
+        _train_token_count = sum(Path(p).stat().st_size // 2 - 256 for p in _train_paths) if _train_paths else val_tokens.numel() - 1
+        ttt_steps_per_epoch = max(1, _train_token_count // args.train_batch_tokens)
         total_ttt_steps = ttt_epochs * ttt_steps_per_epoch
         model.train()
         ttt_step = 0
@@ -2032,6 +2029,22 @@ def main() -> None:
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                         loss = model(x, y)
                     (loss * grad_scale).backward()
+                # Zero gradients for frozen bank slices (bank params are whole tensors,
+                # so we mask individual layer slices to prevent early-layer updates)
+                if _ttt_freeze_indices and hasattr(base_model, 'qo_bank'):
+                    n = args.num_layers
+                    with torch.no_grad():
+                        for fi in _ttt_freeze_indices:
+                            if base_model.qo_bank.grad is not None:
+                                base_model.qo_bank.grad[fi].zero_()
+                                base_model.qo_bank.grad[n + fi].zero_()
+                            if base_model.kv_bank.grad is not None:
+                                base_model.kv_bank.grad[fi].zero_()
+                                base_model.kv_bank.grad[n + fi].zero_()
+                            if base_model.mlp_up_bank.grad is not None:
+                                base_model.mlp_up_bank.grad[fi].zero_()
+                            if base_model.mlp_down_bank.grad is not None:
+                                base_model.mlp_down_bank.grad[fi].zero_()
                 # Cosine LR decay
                 ttt_step += 1
                 cos_lr = ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ttt_step / max(total_ttt_steps, 1)))
