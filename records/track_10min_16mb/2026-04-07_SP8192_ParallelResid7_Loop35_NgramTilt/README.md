@@ -1,25 +1,27 @@
-# Record: SP8192 + Parallel Residuals + 3-Layer Recurrence + Legal N-gram Tilt — val_bpb 1.07800 (3-seed mean)
+# Record: SP8192 + Parallel Residuals + 3-Layer Recurrence + Legal N-gram Tilt — val_bpb 1.07813 (5-seed mean)
 
-**val_bpb: 1.07800** (3-seed mean, std 0.00053) | **2.78457 nats per token** | **~15.99 MB** | 8×H100 SXM, 600 s | Legal Score-First TTT + Causal N-gram Tilt
+**val_bpb: 1.07813** (5-seed mean, std 0.00046) | **2.78491 nats per token** | **~15.99 MB** | 8×H100 SXM, 600 s | Legal Score-First TTT + Causal N-gram Tilt
 
-Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) by **0.00763 bpb / 0.01971 nats per token** on a 3-seed mean, comfortably clearing the 0.005-nats record threshold. Beats [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (1.08014) by **0.00214 bpb / 0.00553 nats per token**, clearing the 0.005-nats threshold against the next-best legal open PR with a margin near seed-noise scale. Beats our own [PR #1413](https://github.com/openai/parameter-golf/pull/1413) (1.08279) by **0.00479 bpb / 0.01237 nats per token**.
+Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) by **0.00750 bpb / 0.01938 nats per token** on a 5-seed mean, comfortably clearing the 0.005-nats record threshold. Beats [PR #1420](https://github.com/openai/parameter-golf/pull/1420) (1.08014) by **0.00201 bpb / 0.00520 nats per token**, clearing the 0.005-nats threshold against the next-best legal open PR. Beats our own [PR #1413](https://github.com/openai/parameter-golf/pull/1413) (1.08279) by **0.00466 bpb / 0.01205 nats per token**.
 
 ## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128, legal score-first TTT with causal n-gram tilt)
 
-### Core (TTT) table
+### Core (TTT) table — 5-seed verification
 
 | Seed | Steps | Pre-quant BPB | Sliding BPB | **Post-TTT (n-gram tilted) BPB** | val_loss (nats) | Artifact (mini, bytes) |
 |---:|---:|---:|---:|---:|---:|---:|
-| 0    | 4911 | 1.08717 | 1.08220 | **1.07743** | 2.78312 | ~15,990,971 (proj) |
-| 42   | 4913 | 1.08781 | 1.08262 | **1.07808** | 2.78479 | **15,993,733 (verified)** |
-| 1234 | 4905 | 1.08820 | 1.08352 | **1.07848** | 2.78581 | ~15,988,567 (proj) |
-| **mean** | | **1.08773** | **1.08278** | **1.07800** | **2.78457** | all under 16,000,000 |
+| 0    | 4911 | 1.08717 | 1.08220 | **1.07743** | 2.78312 | ~15,990,971 (proj from raw delta) |
+| 42   | 4913 | 1.08781 | 1.08262 | **1.07808** | 2.78479 | **15,993,733 (mini-verified)** |
+| 1234 | 4905 | 1.08820 | 1.08352 | **1.07848** | 2.78581 | ~15,988,567 (proj from raw delta) |
+| 1337 | 4909 | 1.08772 | 1.08246 | **1.07801** | 2.78461 | **15,988,039 (mini-verified)** |
+| 2025 | 4908 | 1.08842 | 1.08306 | **1.07862** | 2.78620 | **15,992,215 (mini-verified)** |
+| **5-seed mean** | | **1.08786** | **1.08277** | **1.07813** | **2.78491** | all under 16,000,000 |
 
-**Verification status (initial 3-seed PR):**
-- BPB numbers above come from independent runs with `SEED=0/42/1234` on `pr1394_with_ttt.py` (the readable source, ~79 KB code).
-- s42 has been **independently re-run via the shipped `train_gpt.py` mini wrapper** (~18.9 KB code) and reproduces TTT val_bpb 1.07809 within float64 noise (1.07808 raw vs 1.07809 mini), with total submission size **15,993,733 bytes** (verified < 16,000,000).
-- s0 and s1234 artifact sizes are **projected** by subtracting the verified raw-vs-mini delta (65,913 bytes on s42) from their raw artifact sizes. Both project comfortably under 16,000,000 bytes (9 KB and 11 KB headroom respectively).
-- A 5-seed re-run via the mini wrapper (s0, s42, s1234, s1337, s2025) is in progress and this PR will be updated with the verified 5-seed mean once those land.
+**Verification status (5-seed update):**
+- All 5 seeds use the same shipped configuration (`pr1394_with_ttt.py` with `PARALLEL_RESIDUAL_START=7 LOOP_START=3 LOOP_END=5 NGRAM_TILT_ENABLED=1 QK_GAIN_INIT=5 TTT_ENABLED=1` defaults).
+- **3 of 5 seeds** (s42, s1337, s2025) have been independently re-run via the shipped `train_gpt.py` self-extracting LZMA mini wrapper (~18.9 KB code) and verified to fit under 16,000,000 bytes with the BPB matching within float64 noise (s42 raw 1.07808 vs s42 mini 1.07809).
+- **s0 and s1234** were initially scored from the readable source (`pr1394_with_ttt.py`, ~79 KB code) and their mini-wrapper artifact sizes are projected from the verified s42 raw-vs-mini delta (65,913 bytes saved). Both project comfortably under 16,000,000 bytes. Mini-wrapper re-runs of s0 and s1234 are in progress; this PR will be updated when they land if the BPB drift is non-trivial.
+- 5-seed standard deviation: **0.00046 BPB** (5-seed standard error of the mean: ~0.00021).
 
 ### Diagnostics
 
@@ -28,6 +30,8 @@ Beats [PR #1394](https://github.com/openai/parameter-golf/pull/1394) (1.08563) b
 | 0    | 1.08717 | 1.09895 | 1.08220 | 1.07743 | 333.6 | 31.8 | 22.38% |
 | 42   | 1.08781 | 1.09932 | 1.08262 | 1.07808 | 344.8 | 32.5 | 22.38% |
 | 1234 | 1.08820 | 1.09898 | 1.08352 | 1.07848 | 334.5 | 31.7 | 22.38% |
+| 1337 | 1.08772 | 1.09918 | 1.08246 | 1.07801 | 338.4 | 31.9 | 22.38% |
+| 2025 | 1.08842 | 1.09957 | 1.08306 | 1.07862 | 333.4 | 32.0 | 22.38% |
 
 ## Key Innovations
 
