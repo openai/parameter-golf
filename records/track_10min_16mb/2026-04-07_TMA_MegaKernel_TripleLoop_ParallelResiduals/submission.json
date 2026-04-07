@@ -1,0 +1,47 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "TMA Megakernel + Triple Loop + Parallel Residuals + SP8192",
+  "blurb": "Triton TMA fused MLP kernel (+10.5% throughput), triple depth recurrence (17 virtual layers from 11 physical), GPT-J parallel residuals for layers 7-10, SP8192 vocab, GPTQ embeddings, SDClip",
+  "date": "2026-04-07",
+  "track": "10min_16mb",
+  "val_loss": 2.79835,
+  "val_bpb": 1.08480,
+  "val_bpb_std": 0.0007,
+  "seeds": [1234, 1, 42, 1337, 2025],
+  "seed_results": {
+    "1234": {
+      "val_loss": 2.79902,
+      "val_bpb": 1.08359,
+      "artifact_bytes": 15750778,
+      "steps": 4624
+    },
+    "1": {
+      "val_loss": 2.80299,
+      "val_bpb": 1.08512,
+      "artifact_bytes": 15750312,
+      "steps": 4613
+    },
+    "42": {
+      "val_loss": 2.80343,
+      "val_bpb": 1.08530,
+      "artifact_bytes": 15751243,
+      "steps": 4612
+    },
+    "1337": {
+      "val_loss": 2.80133,
+      "val_bpb": 1.08448,
+      "artifact_bytes": 15747957,
+      "steps": 4614
+    },
+    "2025": {
+      "val_loss": 2.80404,
+      "val_bpb": 1.08553,
+      "artifact_bytes": 15752675,
+      "steps": 4614
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 15750593,
+  "bytes_code": 63463
+}
