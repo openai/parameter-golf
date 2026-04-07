@@ -1,0 +1,10 @@
+configs/overnight/e01_256d_256seq_lr5e4_16steps.env
+configs/overnight/e02_256d_256seq_lr5e4_16steps_mask08.env
+configs/overnight/e03_384d_256seq_lr3e4_32steps.env
+configs/overnight/e04_384d_256seq_lr5e4_16steps.env
+configs/overnight/e05_384d_256seq_lr5e4_16steps_mask08.env
+configs/overnight/e06_384d_256seq_8layers_lr4e4_16steps.env
+configs/overnight/e07_512d_256seq_lr3e4_16steps.env
+configs/overnight/e08_256d_512seq_lr5e4_16steps.env
+configs/overnight/e09_384d_512seq_lr4e4_16steps.env
+configs/overnight/e10_384d_512seq_lr4e4_16steps_mask08.env
