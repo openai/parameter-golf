@@ -54,7 +54,7 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 64))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -64,7 +64,7 @@ class Hyperparameters:
     num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 384))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    num_heads = int(os.environ.get("NUM_HEADS", 12))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 1024.0))
@@ -74,9 +74,9 @@ class Hyperparameters:
     embed_lr = float(os.environ.get("EMBED_LR", 0.5))
     head_lr = float(os.environ.get("HEAD_LR", 0.006))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.0075))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.035))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.98))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -94,7 +94,7 @@ class Hyperparameters:
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 4, eps: float = 1e-7) -> Tensor:
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -108,7 +108,6 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 4, eps: float = 1e-7) ->
         B = b * A + c * A @ A
         X = a * X + B @ X
     return X.T if transposed else X
-
 
 class Muon(torch.optim.Optimizer):
     def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
@@ -564,10 +563,8 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-        kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = nn.Linear(dim, dim, bias=False)
-        self.c_k = nn.Linear(dim, kv_dim, bias=False)
-        self.c_v = nn.Linear(dim, kv_dim, bias=False)
+        self.kv_dim = self.num_kv_heads * self.head_dim
+        self.c_qkv = nn.Linear(dim, dim + 2 * self.kv_dim, bias=False)
         self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
@@ -575,15 +572,20 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        
+        qkv = self.c_qkv(x)
+        q, k, v = qkv.split([dim, self.kv_dim, self.kv_dim], dim=-1)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         if self.rotary:
             cos, sin = self.rotary(seqlen, x.device, q.dtype)
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
+        
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
@@ -602,6 +604,7 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         self.hidden = int(mlp_mult * dim // 1.5)
+        self.hidden = (self.hidden + 63) // 64 * 64  # Pad to multiple of 64
         # Combine fc1 and fc2 into one "fused" layer
         self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
         self.proj = nn.Linear(self.hidden, dim, bias=False)
@@ -629,11 +632,13 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_rope)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
-        return x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = self.resid_attn_scale.to(dtype=x.dtype)[None, None, :] * x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        return self.resid_mlp_scale.to(dtype=x.dtype)[None, None, :] * x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
 
 
 class GPT(nn.Module):
@@ -693,13 +698,19 @@ class GPT(nn.Module):
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits = F.linear(x, self.tok_emb.weight)
         else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+            logits = self.lm_head(x)
+
+        # In-place operations are fine for the first two steps
+        logits.div_(self.logit_softcap)
+        torch.tanh_(logits) 
+
+        # DO NOT use .mul_() here. Use out-of-place multiplication (*) 
+        # to create a new tensor for the loss function.
+        logits = logits * self.logit_softcap 
+
+        return F.cross_entropy(logits.float(), targets)
 
 
 # -----------------------------
@@ -711,7 +722,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5, mode="max-autotune", fullgraph=True)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
