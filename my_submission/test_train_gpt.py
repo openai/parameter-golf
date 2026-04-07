@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
 
+from my_submission import original_train_gpt as original_tg
 from my_submission import train_gpt as tg
 
 
@@ -83,20 +86,49 @@ def test_rotary_caches_tables():
     assert torch.allclose(sin1, sin2)
 
 
+def project_qkv_old(attn: original_tg.CausalSelfAttention, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    bsz, seqlen, _ = x.shape
+    q = attn.c_q(x).reshape(bsz, seqlen, attn.num_heads, attn.head_dim).transpose(1, 2)
+    k = attn.c_k(x).reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
+    v = attn.c_v(x).reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
+    return q, k, v
+
+
+def load_fused_qkv_from_original(
+    fused_attn: tg.CausalSelfAttention, old_attn: original_tg.CausalSelfAttention
+) -> None:
+    with torch.no_grad():
+        fused_attn.c_qkv.weight.copy_(torch.cat((old_attn.c_q.weight, old_attn.c_k.weight, old_attn.c_v.weight), dim=0))
+        fused_attn.proj.weight.copy_(old_attn.proj.weight)
+        fused_attn.q_gain.copy_(old_attn.q_gain)
+
+
 def test_causal_self_attention_runs_and_preserves_shape():
     attn = tg.CausalSelfAttention(dim=12, num_heads=3, num_kv_heads=1, rope_base=10000.0, qk_gain_init=1.5)
     x = torch.randn(2, 4, 12)
     y = attn(x)
-    assert attn.c_k.weight.shape == (4, 12)
-    assert attn.c_v.weight.shape == (4, 12)
-    q = attn.c_q(x).reshape(2, 4, 3, 4).transpose(1, 2)
-    k = attn.c_k(x).reshape(2, 4, 1, 4).transpose(1, 2)
-    v = attn.c_v(x).reshape(2, 4, 1, 4).transpose(1, 2)
+    assert attn.c_qkv.weight.shape == (20, 12)
+    q, k, v = attn.project_qkv(x)
     assert q.shape == (2, 3, 4, 4)
     assert k.shape == (2, 1, 4, 4)
     assert v.shape == (2, 1, 4, 4)
     assert y.shape == x.shape
     assert torch.isfinite(y).all()
+
+
+def test_c_qkv_matches_original_attention():
+    old_attn = original_tg.CausalSelfAttention(dim=12, num_heads=3, num_kv_heads=1, rope_base=10000.0, qk_gain_init=1.5)
+    fused_attn = tg.CausalSelfAttention(dim=12, num_heads=3, num_kv_heads=1, rope_base=10000.0, qk_gain_init=1.5)
+    load_fused_qkv_from_original(fused_attn, old_attn)
+    x = torch.randn(2, 4, 12)
+    old_y = old_attn(x)
+    fused_y = fused_attn(x)
+    old_q, old_k, old_v = project_qkv_old(old_attn, x)
+    fused_q, fused_k, fused_v = fused_attn.project_qkv(x)
+    assert torch.allclose(fused_q, old_q)
+    assert torch.allclose(fused_k, old_k)
+    assert torch.allclose(fused_v, old_v)
+    assert torch.allclose(fused_y, old_y)
 
 
 def test_mlp_runs_and_preserves_shape():
