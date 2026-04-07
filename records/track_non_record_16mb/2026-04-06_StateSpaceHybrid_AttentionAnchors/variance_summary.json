@@ -1,121 +1,164 @@
 {
   "current_public_winner_stability": {
-    "baseline": {
+    "control": {
+      "export_policy": "tok_emb,blocks.7.,blocks.8.,blocks.6.attn -> float16",
       "layout": "AAAAAAAAA",
       "runs": [
         {
-          "bytes_total": 9444341,
-          "eval_time_ms": 221886,
+          "bytes_total": 15642808,
+          "eval_time_ms": 217560,
+          "name": "full_baseline_450steps_blackwell_seed2027_top2blocks_plus_block6attn_fp16",
           "seed": 2027,
-          "train_time_ms": 134901,
-          "val_bpb": 1.82125026
+          "train_time_ms": 133911,
+          "val_bpb": 1.82051743
         },
         {
-          "bytes_total": 9445706,
-          "eval_time_ms": 183719,
-          "seed": 1337,
-          "train_time_ms": 120846,
-          "val_bpb": 1.84038899
-        },
-        {
-          "bytes_total": 9453046,
-          "eval_time_ms": 223428,
+          "bytes_total": 15638663,
+          "eval_time_ms": 215716,
+          "name": "full_baseline_450steps_blackwell_seed4242_top2blocks_plus_block6attn_fp16",
           "seed": 4242,
-          "train_time_ms": 135110,
-          "val_bpb": 1.83073574
+          "train_time_ms": 145187,
+          "val_bpb": 1.83000022
+        },
+        {
+          "bytes_total": 15641813,
+          "eval_time_ms": 219419,
+          "name": "full_baseline_450steps_blackwell_seed9001_top2blocks_plus_block6attn_fp16",
+          "seed": 9001,
+          "train_time_ms": 150077,
+          "val_bpb": 1.82466551
         }
       ],
       "val_bpb_stats": {
-        "max": 1.84038899,
-        "mean": 1.8307916633333334,
-        "min": 1.82125026,
+        "max": 1.83000022,
+        "mean": 1.8250610533333333,
+        "min": 1.82051743,
         "n": 3,
-        "std": 0.007813453869987426
+        "std": 0.003881423058830674
       }
     },
     "hybrid": {
       "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
-      "layout": "AAAAAAASS",
+      "layout": "AAAAAASSS",
       "runs": [
         {
-          "bytes_total": 9709339,
-          "eval_time_ms": 185347,
+          "bytes_total": 10026646,
+          "eval_time_ms": 159391,
+          "name": "full_anchor_s4d_aaaaaasss_rank8_corefp16_520steps_blackwell_seed2027",
           "seed": 2027,
-          "train_time_ms": 138815,
-          "val_bpb": 1.79279482
+          "train_time_ms": 139161,
+          "val_bpb": 1.76279061
         },
         {
-          "bytes_total": 9706300,
-          "eval_time_ms": 158103,
+          "bytes_total": 10026090,
+          "eval_time_ms": 159309,
+          "name": "full_anchor_s4d_aaaaaasss_rank8_corefp16_520steps_blackwell_seed1337",
           "seed": 1337,
-          "train_time_ms": 138054,
-          "val_bpb": 1.80535135
+          "train_time_ms": 135997,
+          "val_bpb": 1.77518509
         },
         {
-          "bytes_total": 9709703,
-          "eval_time_ms": 194847,
+          "bytes_total": 10024486,
+          "eval_time_ms": 162648,
+          "name": "full_anchor_s4d_aaaaaasss_rank8_corefp16_520steps_blackwell_seed4242",
           "seed": 4242,
-          "train_time_ms": 126390,
-          "val_bpb": 1.801584
+          "train_time_ms": 170469,
+          "val_bpb": 1.7681304
+        },
+        {
+          "bytes_total": 10023357,
+          "eval_time_ms": 166391,
+          "name": "full_anchor_s4d_aaaaaasss_rank8_corefp16_520steps_blackwell_seed9001",
+          "seed": 9001,
+          "train_time_ms": 147773,
+          "val_bpb": 1.76407658
         }
       ],
       "val_bpb_stats": {
-        "max": 1.80535135,
-        "mean": 1.7999100566666666,
-        "min": 1.79279482,
-        "n": 3,
-        "std": 0.005261063018227038
+        "max": 1.77518509,
+        "mean": 1.76754567,
+        "min": 1.76279061,
+        "n": 4,
+        "std": 0.00483083398961813
       }
     },
-    "mean_edge_bpb": 0.03088160666666684
+    "mean_edge_bpb": 0.05751538333333328
   },
   "promoted_candidate": {
     "best_artifact_bytes": {
       "code": 57756,
-      "model_int8_zlib": 9968890,
-      "total": 10026646
+      "model_int8_zlib": 10418470,
+      "total": 10476226
     },
-    "best_score": 1.76279061,
+    "best_score": 1.7265315,
     "best_seed": 2027,
     "best_wallclock_ms": {
-      "end_to_end_estimate": 304046,
-      "evaluation": 159391,
-      "export_roundtrip_estimate": 5494,
-      "training": 139161
+      "end_to_end_estimate": 312397,
+      "evaluation": 130148,
+      "export_roundtrip_estimate": 5360,
+      "training": 176889
     },
-    "delta_vs_previous_public_winner_bpb": 0.030004209999999976,
-    "delta_vs_strongest_legal_control_bpb": 0.05772682000000007,
+    "delta_vs_previous_public_winner_bpb": 0.03625910999999982,
+    "delta_vs_strongest_legal_control_bpb": 0.06533914999999979,
+    "delta_vs_strongest_legal_control_mean_bpb": 0.05568374999999981,
     "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
-    "iterations": 520,
-    "layout": "AAAAAASSS",
+    "iterations": 580,
+    "layout": "AAAASASSS",
     "runs": [
       {
-        "bytes_total": 10026646,
-        "eval_time_ms": 159391,
+        "bytes_total": 10476226,
+        "eval_time_ms": 130148,
+        "name": "full_anchor_s4d_aaaasasss_rank8_corefp16_580steps_blackwell_seed2027",
         "seed": 2027,
-        "train_time_ms": 139161,
-        "val_bpb": 1.76279061
+        "train_time_ms": 176889,
+        "val_bpb": 1.7265315
       },
       {
-        "bytes_total": 10026090,
-        "eval_time_ms": 159309,
+        "bytes_total": 10481953,
+        "eval_time_ms": 129763,
+        "name": "full_anchor_s4d_aaaasasss_rank8_corefp16_580steps_blackwell_seed1337",
         "seed": 1337,
-        "train_time_ms": 135997,
-        "val_bpb": 1.77518509
+        "train_time_ms": 153235,
+        "val_bpb": 1.7458423
       }
     ],
     "ssm_core": "s4d",
     "ssm_kernel_size": 64,
     "ssm_rank": 8,
     "val_bpb_stats": {
-      "max": 1.77518509,
-      "mean": 1.7689878499999998,
-      "min": 1.76279061,
+      "max": 1.7458423,
+      "mean": 1.7361869,
+      "min": 1.7265315,
       "n": 2,
-      "std": 0.006197239999999993
+      "std": 0.00965539999999998
+    }
+  },
+  "ssm_headroom_study": {
+    "rank12_candidate": {
+      "delta_vs_public_winner_bpb": 0.030523859999999958,
+      "delta_vs_strongest_legal_control_bpb": 0.05960389999999993,
+      "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+      "layout": "AAAAAASSS",
+      "run": {
+        "bytes_total": 10352195,
+        "eval_time_ms": 163656,
+        "name": "full_anchor_s4d_aaaaaasss_rank12_corefp16_560steps_blackwell_seed2027",
+        "seed": 2027,
+        "train_time_ms": 158349,
+        "val_bpb": 1.73226675
+      }
     }
   },
   "strong_control_package": {
+    "best_illegal_boundary": {
+      "bytes_total": 16211560,
+      "eval_time_ms": 201153,
+      "legal": false,
+      "name": "baseline_560_top2blocks_plus_block6attn_fp16_seed2027",
+      "reason": "artifact_bytes_exceeded_16000000",
+      "train_time_ms": 167752,
+      "val_bpb": 1.73028291
+    },
     "controls": [
       {
         "bytes_total": 9444341,
@@ -142,29 +185,37 @@
         "val_bpb": 1.82051743
       },
       {
-        "bytes_total": 17024365,
-        "eval_time_ms": 219127,
-        "legal": false,
-        "name": "baseline_450_top3blocksfp16_seed2027",
-        "train_time_ms": 160079,
-        "val_bpb": 1.82049898
+        "bytes_total": 15752677,
+        "eval_time_ms": 208718,
+        "legal": true,
+        "name": "baseline_470_top2blocks_plus_block6attn_fp16_seed2027",
+        "train_time_ms": 143668,
+        "val_bpb": 1.80064012
       },
       {
-        "bytes_total": 16013697,
-        "eval_time_ms": 217263,
+        "bytes_total": 15803271,
+        "eval_time_ms": 217439,
+        "legal": true,
+        "name": "baseline_480_top2blocks_plus_block6attn_fp16_seed2027",
+        "train_time_ms": 152342,
+        "val_bpb": 1.79187065
+      },
+      {
+        "bytes_total": 16211560,
+        "eval_time_ms": 201153,
         "legal": false,
-        "name": "baseline_450_top2blocks_plus_block6mlp_fp16_seed2027",
-        "train_time_ms": 133869,
-        "val_bpb": 1.82055702
+        "name": "baseline_560_top2blocks_plus_block6attn_fp16_seed2027",
+        "train_time_ms": 167752,
+        "val_bpb": 1.73028291
       }
     ],
     "strongest_legal_control": {
-      "bytes_total": 15642808,
-      "eval_time_ms": 217560,
+      "bytes_total": 15803271,
+      "eval_time_ms": 217439,
       "legal": true,
-      "name": "baseline_450_top2blocks_plus_block6attn_fp16_seed2027",
-      "train_time_ms": 133911,
-      "val_bpb": 1.82051743
+      "name": "baseline_480_top2blocks_plus_block6attn_fp16_seed2027",
+      "train_time_ms": 152342,
+      "val_bpb": 1.79187065
     }
   }
 }
