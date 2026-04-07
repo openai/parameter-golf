@@ -1,0 +1,23 @@
+{
+  "name": "SP8192 + Parallel Residuals + 3-Layer Recurrence + Legal N-gram Tilt",
+  "val_bpb": 1.07800,
+  "val_loss": 2.78457,
+  "bytes_total": 15996192,
+  "blurb": "3-lever stack on top of PR #1394 sp8192 baseline: (1) GPT-J parallel residuals on layers 7-10 (PR #1412 @Robby955), (2) 3-layer depth recurrence (loop layers 3-5 twice instead of 4-5 twice), (3) eval-time causal n-gram tilt with one-token exponential rescaling (PR #1420 @abaybektursun, lineage PR #1145 @AnirudhRahul). All four issue #1017 conditions verified. C++ n-gram kernel ported from PR #1420 with nanobind dependency removed (ctypes shim). 3-seed mean 1.07800 BPB beats PR #1394 (1.08563) by 0.01971 nats per token, beats PR #1420 (1.08014) by 0.00553 nats per token, beats own PR #1413 (1.08279) by 0.01237 nats per token.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-07",
+  "seed_results": {
+    "0":    {"val_bpb": 1.07743, "val_loss": 2.78312, "steps": 4911},
+    "42":   {"val_bpb": 1.07808, "val_loss": 2.78479, "steps": 4913},
+    "1234": {"val_bpb": 1.07848, "val_loss": 2.78581, "steps": 4905}
+  },
+  "lineage": [
+    "PR #1394 (clarkkev) — sp8192 base",
+    "PR #1413 (dexhunter) — sp8192 + QK5 + legal score-first TTT",
+    "PR #1412 (Robby955) — parallel residuals on layers 7-10",
+    "PR #1420 (abaybektursun) — n-gram tilt mechanism + C++ kernel",
+    "PR #1145 (AnirudhRahul) — original normalized causal n-gram cache pattern",
+    "PR #549 (abaybektursun, merged) — score-first TTT precedent"
+  ]
+}
