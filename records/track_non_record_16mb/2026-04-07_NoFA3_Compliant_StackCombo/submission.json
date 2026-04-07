@@ -1,0 +1,23 @@
+{
+  "author": "Sheng-Kai Huang",
+  "github_id": "akaiHuang",
+  "name": "No-FA3 Stack Combination — XSA-all + BigramHash 3072x112 + Parallel Muon + Mixed Q4/Q5/Q6",
+  "blurb": "Non-record stack combination that runs without Flash Attention 3 (the runpod default pytorch:2.4.0 image lacks flash_attn_3). Achieves 1.1854 BPB (single seed) on 8xH100 SXM, beating the OpenAI baseline 1.2244 by -0.039 BPB. Pure sliding-window inference (stride=32, T=0.90), no SLOT, no TTT, no use of validation data during eval. Uses Mixed Q4/Q5/Q6 quantization (Gemma-4 inspired per-layer bit allocation) instead of Full Hessian GPTQ — simpler implementation, ~100 LOC quant pipeline.",
+  "date": "2026-04-07",
+  "track": "non_record_16mb",
+  "val_bpb": 1.1854,
+  "val_loss": null,
+  "pre_quant_val_bpb": 1.2146,
+  "bytes_total": 13515044,
+  "seeds": [42],
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.4.1+cu124",
+  "cuda_version": "12.8",
+  "flash_attn_version": "NOT INSTALLED",
+  "wallclock_seconds_train": 437,
+  "wallclock_seconds_eval": 322,
+  "step_stop": 3500,
+  "training_tokens": "1.835B",
+  "throughput_tok_per_sec": 3720000,
+  "technique_summary": "11L d=512 SP1024 + XSA-all + BigramHash(3072,112) + Parallel Muon + warmdown=2000/3500 + Mixed Q4/Q5/Q6 + LZMA9 + sliding-window eval (stride=32, T=0.90)"
+}

@@ -1,0 +1,79 @@
+===nvidia-smi===
+Tue Apr  7 08:54:08 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.195.03             Driver Version: 570.195.03     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   27C    P0             71W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:2A:00.0 Off |                    0 |
+| N/A   26C    P0             70W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3A:00.0 Off |                    0 |
+| N/A   27C    P0             68W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   26C    P0             68W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9A:00.0 Off |                    0 |
+| N/A   25C    P0             69W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:AB:00.0 Off |                    0 |
+| N/A   26C    P0             68W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BA:00.0 Off |                    0 |
+| N/A   26C    P0             69W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   25C    P0             71W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+===python version===
+Python 3.11.10
+===torch===
+2.4.1+cu124 12.4
+===pip freeze===
+huggingface_hub==1.9.0
+numpy==1.26.3
+sentencepiece==0.2.1
+torch==2.4.1+cu124
+torchaudio==2.4.1+cu124
+torchvision==0.19.1+cu124
+===cpu===
+Model name:                           Intel(R) Xeon(R) Platinum 8470
+Thread(s) per core:                   2
+Core(s) per socket:                   52
+Socket(s):                            2
+===ram===
+               total        used        free      shared  buff/cache   available
+Mem:           2.0Ti        23Gi       892Gi        16Mi       1.1Ti       1.9Ti
+===git status===
+9d070df Update README.md
+origin	https://github.com/openai/parameter-golf.git (fetch)
+origin	https://github.com/openai/parameter-golf.git (push)
+===data hash===
+fineweb_train_000000.bin
+fineweb_train_000001.bin
+fineweb_train_000002.bin
+fineweb_train_000003.bin
+fineweb_train_000004.bin
+273215f9cba7c4aa14873e2e8acc14d8  fineweb_val_000000.bin

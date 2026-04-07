@@ -1,0 +1,61 @@
+W0407 08:21:53.420000 136618995090048 torch/distributed/run.py:779] 
+W0407 08:21:53.420000 136618995090048 torch/distributed/run.py:779] *****************************************
+W0407 08:21:53.420000 136618995090048 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0407 08:21:53.420000 136618995090048 torch/distributed/run.py:779] *****************************************
+======================================================================
+  SLOT-0 DDP eval (stride=32, batch=32)
+  Model: /workspace/results_attempt4/model_bf16.pt
+  Vocab: 1024, Dim: 512, Layers: 11
+  BigramHash: 3072 buckets x 112 dim
+  XSA: ALL 11 layers
+  Eval temperature: 0.9
+  World size: 8
+======================================================================
+Params: 26,903,641
+Val: 62,021,846 tokens
+Total windows: 1,938,183 | Per rank: 242,273 | Batches: 7,572
+  rank0 batch 200/7572 | BPB:1.1777 | scored:205,792 | 9s (ETA 343s)
+  rank0 batch 400/7572 | BPB:1.1851 | scored:410,592 | 18s (ETA 316s)
+  rank0 batch 600/7572 | BPB:1.1896 | scored:615,392 | 26s (ETA 302s)
+  rank0 batch 800/7572 | BPB:1.1814 | scored:820,192 | 34s (ETA 290s)
+  rank0 batch 1000/7572 | BPB:1.1916 | scored:1,024,992 | 43s (ETA 280s)
+  rank0 batch 1200/7572 | BPB:1.1909 | scored:1,229,792 | 51s (ETA 270s)
+  rank0 batch 1400/7572 | BPB:1.1879 | scored:1,434,592 | 59s (ETA 261s)
+  rank0 batch 1600/7572 | BPB:1.1900 | scored:1,639,392 | 68s (ETA 252s)
+  rank0 batch 1800/7572 | BPB:1.1968 | scored:1,844,192 | 76s (ETA 243s)
+  rank0 batch 2000/7572 | BPB:1.1954 | scored:2,048,992 | 84s (ETA 235s)
+  rank0 batch 2200/7572 | BPB:1.1940 | scored:2,253,792 | 93s (ETA 226s)
+  rank0 batch 2400/7572 | BPB:1.1940 | scored:2,458,592 | 101s (ETA 217s)
+  rank0 batch 2600/7572 | BPB:1.1911 | scored:2,663,392 | 109s (ETA 209s)
+  rank0 batch 2800/7572 | BPB:1.1904 | scored:2,868,192 | 118s (ETA 200s)
+  rank0 batch 3000/7572 | BPB:1.1894 | scored:3,072,992 | 126s (ETA 192s)
+  rank0 batch 3200/7572 | BPB:1.1918 | scored:3,277,792 | 134s (ETA 183s)
+  rank0 batch 3400/7572 | BPB:1.1920 | scored:3,482,592 | 142s (ETA 175s)
+  rank0 batch 3600/7572 | BPB:1.1913 | scored:3,687,392 | 151s (ETA 166s)
+  rank0 batch 3800/7572 | BPB:1.1877 | scored:3,892,192 | 159s (ETA 158s)
+  rank0 batch 4000/7572 | BPB:1.1887 | scored:4,096,992 | 167s (ETA 150s)
+  rank0 batch 4200/7572 | BPB:1.1874 | scored:4,301,792 | 176s (ETA 141s)
+  rank0 batch 4400/7572 | BPB:1.1864 | scored:4,506,592 | 184s (ETA 133s)
+  rank0 batch 4600/7572 | BPB:1.1861 | scored:4,711,392 | 192s (ETA 124s)
+  rank0 batch 4800/7572 | BPB:1.1860 | scored:4,916,192 | 201s (ETA 116s)
+  rank0 batch 5000/7572 | BPB:1.1871 | scored:5,120,992 | 209s (ETA 108s)
+  rank0 batch 5200/7572 | BPB:1.1878 | scored:5,325,792 | 217s (ETA 99s)
+  rank0 batch 5400/7572 | BPB:1.1892 | scored:5,530,592 | 226s (ETA 91s)
+  rank0 batch 5600/7572 | BPB:1.1904 | scored:5,735,392 | 234s (ETA 82s)
+  rank0 batch 5800/7572 | BPB:1.1899 | scored:5,940,192 | 242s (ETA 74s)
+  rank0 batch 6000/7572 | BPB:1.1898 | scored:6,144,992 | 251s (ETA 66s)
+  rank0 batch 6200/7572 | BPB:1.1925 | scored:6,349,792 | 259s (ETA 57s)
+  rank0 batch 6400/7572 | BPB:1.1922 | scored:6,554,592 | 267s (ETA 49s)
+  rank0 batch 6600/7572 | BPB:1.1910 | scored:6,759,392 | 276s (ETA 41s)
+  rank0 batch 6800/7572 | BPB:1.1915 | scored:6,964,192 | 284s (ETA 32s)
+  rank0 batch 7000/7572 | BPB:1.1915 | scored:7,168,992 | 292s (ETA 24s)
+  rank0 batch 7200/7572 | BPB:1.1918 | scored:7,373,792 | 301s (ETA 16s)
+  rank0 batch 7400/7572 | BPB:1.1919 | scored:7,578,592 | 309s (ETA 7s)
+  rank0 batch 7572/7572 | BPB:1.1922 | scored:7,753,728 | 316s (ETA 0s)
+
+======================================================================
+  SLOT-0 BPB (full val set): 1.1854
+  Tokens scored: 62,022,837
+  Time: 322s (5.4 min)
+  World size: 8
+======================================================================
