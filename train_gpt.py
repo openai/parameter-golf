@@ -70,6 +70,9 @@ class Hyperparameters:
     # BigramHash: set BIGRAM_VOCAB_SIZE > 0 to enable. 0 = disabled.
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 64))
+    # Depth recurrence: repeat num_layers unique blocks this many times.
+    # Effective depth = num_layers * depth_repeats. Default 1 = standard (no recurrence).
+    depth_repeats = int(os.environ.get("DEPTH_REPEATS", 1))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
@@ -664,6 +667,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         bigram_vocab_size: int = 0,
         bigram_dim: int = 64,
+        depth_repeats: int = 1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -682,10 +686,17 @@ class GPT(nn.Module):
         else:
             self.bigram_emb = None
             self.bigram_proj = None
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        # Depth recurrence: num_layers unique blocks, repeated depth_repeats times.
+        # effective_depth = num_layers * depth_repeats (total forward-pass layers).
+        # U-Net skip connections operate on effective depth, not unique block count.
+        self.depth_repeats = depth_repeats
+        self.num_unique_blocks = num_layers
+        effective_depth = num_layers * depth_repeats
+        self.num_encoder_layers = effective_depth // 2
+        self.num_decoder_layers = effective_depth - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        # Only create num_layers unique blocks (not effective_depth).
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -725,14 +736,23 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        # Depth recurrence: cycle through unique blocks, repeating depth_repeats times.
+        # U-Net skip connections operate on effective layer index (not unique block index).
+        effective_idx = 0
+        decoder_skip_idx = 0
+        for _repeat in range(self.depth_repeats):
+            for block in self.blocks:
+                if effective_idx < self.num_encoder_layers:
+                    # Encoder phase: run block, store skip
+                    x = block(x, x0)
+                    skips.append(x)
+                else:
+                    # Decoder phase: apply skip connection, then run block
+                    if skips:
+                        x = x + self.skip_weights[decoder_skip_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                        decoder_skip_idx += 1
+                    x = block(x, x0)
+                effective_idx += 1
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -859,6 +879,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
+        depth_repeats=args.depth_repeats,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -927,7 +948,10 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
+    effective_depth = args.num_layers * args.depth_repeats
     log0(f"model_params:{n_params}")
+    if args.depth_repeats > 1:
+        log0(f"depth_recurrence:unique_blocks={args.num_layers} repeats={args.depth_repeats} effective_depth={effective_depth}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
