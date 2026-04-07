@@ -27,6 +27,14 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from liger_kernel.transformers import LigerFusedLinearCrossEntropyLoss
+
+fused_loss_fn = LigerFusedLinearCrossEntropyLoss()
+
+torch._dynamo.config.capture_scalar_outputs = True
+
+
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -256,7 +264,16 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
+                hidden_states = model(x) 
+
+                # 2. Get the weights for projection (handle DDP wrapper if necessary)
+                raw_model = model.module if hasattr(model, 'module') else model
+                projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
+
+                # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
+                curr_loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+
+                batch_loss = curr_loss.detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -694,6 +711,7 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -703,7 +721,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -719,16 +737,8 @@ class GPT(nn.Module):
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
-
+        return x
+        
 
 # -----------------------------
 # TRAINING
@@ -951,7 +961,16 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    # 1. Forward pass (only calculates hidden states, handled by torch.compile)
+                    hidden_states = model(x) 
+
+                    # 2. Get the weights for projection (handle DDP wrapper if necessary)
+                    raw_model = model.module if hasattr(model, 'module') else model
+                    projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
+
+                    # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
+                    warmup_loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1019,7 +1038,16 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                # 1. Forward pass (only calculates hidden states, handled by torch.compile)
+                hidden_states = model(x) 
+
+                # 2. Get the weights for projection (handle DDP wrapper if necessary)
+                raw_model = model.module if hasattr(model, 'module') else model
+                projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
+
+                # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
+                loss = fused_loss_fn(projection_weight, hidden_states, y.reshape(-1))
+
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps

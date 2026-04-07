@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 import numpy as np
 import pytest
 import torch
@@ -103,6 +101,37 @@ def load_fused_qkv_from_original(
         fused_attn.q_gain.copy_(old_attn.q_gain)
 
 
+def run_hidden_stack(model: tg.GPT, input_ids: torch.Tensor) -> torch.Tensor:
+    x = model.tok_emb(input_ids)
+    x = F.rms_norm(x, (x.size(-1),))
+    x0 = x
+    skips: list[torch.Tensor] = []
+    for i in range(model.num_encoder_layers):
+        x = model.blocks[i](x, x0)
+        skips.append(x)
+    for i in range(model.num_decoder_layers):
+        if skips:
+            x = x + model.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+        x = model.blocks[model.num_encoder_layers + i](x, x0)
+    return model.final_norm(x).reshape(-1, x.size(-1))
+
+
+class RecordingLoss(torch.nn.Module):
+    def __init__(self, return_value: float):
+        super().__init__()
+        self.return_tensor = torch.tensor(return_value, dtype=torch.float32)
+        self.calls: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
+
+    def forward(self, projection_weight: torch.Tensor, hidden: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        self.calls.append((projection_weight, hidden, targets))
+        return self.return_tensor
+
+
+class ReferenceFusedLinearCrossEntropyLoss(torch.nn.Module):
+    def forward(self, projection_weight: torch.Tensor, hidden: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return F.cross_entropy(F.linear(hidden, projection_weight).float(), targets, reduction="mean")
+
+
 def test_causal_self_attention_runs_and_preserves_shape():
     attn = tg.CausalSelfAttention(dim=12, num_heads=3, num_kv_heads=1, rope_base=10000.0, qk_gain_init=1.5)
     x = torch.randn(2, 4, 12)
@@ -129,6 +158,66 @@ def test_c_qkv_matches_original_attention():
     assert torch.allclose(fused_k, old_k)
     assert torch.allclose(fused_v, old_v)
     assert torch.allclose(fused_y, old_y)
+
+
+@pytest.mark.parametrize("tie_embeddings", [True, False])
+def test_gpt_forward_uses_liger_fused_loss(monkeypatch, tie_embeddings):
+    model = tg.GPT(
+        vocab_size=32,
+        num_layers=4,
+        model_dim=8,
+        num_heads=2,
+        num_kv_heads=2,
+        mlp_mult=2,
+        tie_embeddings=tie_embeddings,
+        tied_embed_init_std=0.01,
+        logit_softcap=30.0,
+        rope_base=10000.0,
+        qk_gain_init=1.5,
+    )
+    input_ids = torch.randint(0, 32, (2, 4))
+    target_ids = torch.randint(0, 32, (2, 4))
+    hidden = run_hidden_stack(model, input_ids)
+    expected_weight = model.tok_emb.weight if tie_embeddings else model.lm_head.weight
+    spy = RecordingLoss(return_value=7.25)
+    monkeypatch.setattr(model, "fused_loss_fn", spy)
+
+    loss = model(input_ids, target_ids)
+
+    assert loss.item() == pytest.approx(7.25)
+    assert len(spy.calls) == 1
+    projection_weight, hidden_arg, targets_arg = spy.calls[0]
+    assert projection_weight is expected_weight
+    assert torch.allclose(hidden_arg, hidden)
+    assert torch.equal(targets_arg, target_ids.reshape(-1))
+
+
+@pytest.mark.parametrize("tie_embeddings", [True, False])
+def test_gpt_liger_loss_matches_linear_cross_entropy(tie_embeddings):
+    model = tg.GPT(
+        vocab_size=32,
+        num_layers=4,
+        model_dim=8,
+        num_heads=2,
+        num_kv_heads=2,
+        mlp_mult=2,
+        tie_embeddings=tie_embeddings,
+        tied_embed_init_std=0.01,
+        logit_softcap=30.0,
+        rope_base=10000.0,
+        qk_gain_init=1.5,
+    )
+    input_ids = torch.randint(0, 32, (2, 4))
+    target_ids = torch.randint(0, 32, (2, 4))
+    hidden = run_hidden_stack(model, input_ids)
+    targets = target_ids.reshape(-1)
+    projection_weight = model.tok_emb.weight if tie_embeddings else model.lm_head.weight
+    model.fused_loss_fn = ReferenceFusedLinearCrossEntropyLoss()
+
+    actual = model(input_ids, target_ids)
+    expected = F.cross_entropy(F.linear(hidden, projection_weight).float(), targets, reduction="mean")
+
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
 
 
 def test_mlp_runs_and_preserves_shape():
@@ -162,6 +251,7 @@ def test_gpt_forward_returns_scalar_loss(tie_embeddings):
         rope_base=10000.0,
         qk_gain_init=1.5,
     )
+    model.fused_loss_fn = ReferenceFusedLinearCrossEntropyLoss()
     input_ids = torch.randint(0, 32, (2, 4))
     target_ids = torch.randint(0, 32, (2, 4))
     loss = model(input_ids, target_ids)
