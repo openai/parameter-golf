@@ -1,0 +1,48 @@
+[HDC] Logging to /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-04-07_HDC_1_Step_Grad_DSV_Radial_Slyvester_Hadamard_Matrix_Symmetry/train_20260407T143352.log
+
+============================================================[HashGrad] Loaded 100,000,000 tokens from fineweb_train_000000.bin
+[HashGrad] Loaded 200,000,000 tokens from fineweb_train_000001.bin
+[HashGrad] Loaded 300,000,000 tokens from fineweb_train_000002.bin
+[HashGrad] Loaded 400,000,000 tokens from fineweb_train_000003.bin
+[HashGrad] Loaded 500,000,000 tokens from fineweb_train_000004.bin
+[HashGrad Seed42 rank=5] Shard [312,500,000, 375,000,001) — 62,500,001 tokens
+[HashGrad Seed42_r5 GPU] Uploaded 1.00 GB in 0.23s — processing 62,500,000 tokens…
+[HashGrad Seed42_r5 GPU] 62,500,000/62,500,000 tokens (100.0%) — 1481.1M tok/s[[HashGrad Seed42_r5 GPU] Done in 4.0s — filled 524,288/524,288 buckets (100.0%)[[HashGrad Seed7 rank=5] Shard [312,500,000, 375,000,001) — 62,500,001 token[H[HashGrad Seed7_r4 GPU] Uploaded 1.00 GB in 0.28s — processing 62,500,000 tokens…
+[HashGrad Seed7_r4 GPU] 62,500,000/62,500,000 tokens (100.0%) — 53685.0M tok/[H[HashGrad Seed7_r4 GPU] Done in 4.1s — filled 524,288/524,288 buckets (100.0%[H[HashGrad Seed1337 rank=6] Shard [375,000,000, 437,500,001) — 62,500,001 toke[Ha[HashGrad Seed1337_r6 GPU] Uploaded 1.00 GB in 0.25s — processing 62,500,000 tokens�[Ha[HashGrad Seed1337_r6 GPU] 62,500,000/62,500,000 tokens (100.0%) — 52095.4M tok[HashGrad Seed1337_r1 GPU] Done in 4.0s — filled 524,288/524,288 buckets (100.0%)
+%)
+led 512,639/524,288 buckets (97.8%)
+[HashGrad Prior] Done — 512,639/524,288 buckets filled
+
+[HashGrad MultiSeed] Seed 1/3: 42
+[HashGrad Seed42 rank=0] Shard [0, 62,500,001) — 62,500,001 tokens
+[HashGrad Seed42_r0 GPU] Uploaded 1.00 GB in 0.24s — processing 62,500,000 tokens…
+[HashGrad Seed42_r0 GPU] 62,500,000/62,500,000 tokens (100.0%) — 36678.9M tok/s
+[HashGrad Seed42_r0 GPU] Done in 3.7s — filled 524,288/524,288 buckets (100.0%)
+[HashGrad Seed42 dist] All-reduce complete — 524,288/524,288 buckets filled across 8 ranks
+
+[HashGrad MultiSeed] Seed 2/3: 7
+[HashGrad Seed7 rank=0] Shard [0, 62,500,001) — 62,500,001 tokens
+[HashGrad Seed7_r0 GPU] Uploaded 1.00 GB in 0.23s — processing 62,500,000 tokens…
+[HashGrad Seed7_r0 GPU] 62,500,000/62,500,000 tokens (100.0%) — 48916.6M tok/s
+[HashGrad Seed7_r0 GPU] Done in 3.9s — filled 524,288/524,288 buckets (100.0%)
+[HashGrad Seed7 dist] All-reduce complete — 524,288/524,288 buckets filled across 8 ranks
+
+[HashGrad MultiSeed] Seed 3/3: 1337
+[HashGrad Seed1337 rank=0] Shard [0, 62,500,001) — 62,500,001 tokens
+[HashGrad Seed1337_r0 GPU] Uploaded 1.00 GB in 0.23s — processing 62,500,000 tokens…
+[HashGrad Seed1337_r0 GPU] 62,500,000/62,500,000 tokens (100.0%) — 50219.2M tok/s
+[HashGrad Seed1337_r0 GPU] Done in 3.8s — filled 524,288/524,288 buckets (100.0%)
+[HashGrad Seed1337 dist] All-reduce complete — 524,288/524,288 buckets filled across 8 ranks
+
+[HashGrad MultiSeed] Phase 3 — Merging 3 frequency tables...
+[HashGrad Merge] 3 seeds merged — 524,288/524,288 buckets (100.0%), avg 2861.0 obs/bucket
+[HashGrad XORReg] No sparse buckets (count < 5) — skipping
+
+[HashGrad MultiSeed] Phase 5 — NMF fit on merged freq...
+[HashGrad NMF GPU] Active buckets: 524,288/524,288 (min_count=1)
+[HashGrad NMF GPU] iter    0/1 | KL: 6.931471 | 3.44s
+[HashGrad NMF GPU] Done — best KL: 6.931471 in 3.44s
+
+[HashGrad MultiSeed] Complete — 524,288/524,288 buckets, 16.03 MB
+
+[HashGrad-DSV] Building directional semantic vectors (vocab=1024, W=16, ctx_len=4)
