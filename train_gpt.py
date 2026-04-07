@@ -631,7 +631,7 @@ class MLP(nn.Module):
     # Using ReGLU as described in Shazeer (2020) but without bias.
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        hidden = mlp_mult * dim // 1.5
+        hidden = int(mlp_mult * dim // 1.5)
         self.fc1 = CastedLinear(dim, hidden, bias=False)
         self.fc2 = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
