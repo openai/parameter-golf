@@ -1224,7 +1224,10 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    if hasattr(base_model, 'mamba_layer_set') and len(base_model.mamba_layer_set) > 0:
+        compiled_logits = base_model.forward_logits
+    else:
+        compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -2103,9 +2106,14 @@ def main() -> None:
     base_model._mamba_grad_checkpoint = args.mamba_grad_checkpoint
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    _fullgraph = len(base_model.mamba_layer_set) == 0  # sequential scan fallback breaks fullgraph
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=_fullgraph)
-    model = compiled_model
+    if len(base_model.mamba_layer_set) == 0:
+        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+        model = compiled_model
+    else:
+        # Hybrid dispatch with varying layer types overwhelms torch.compile cache
+        # and causes dtype mismatches in compiled FlashAttention graphs.
+        # Run eager for now; optimize with per-block compile in Epic 3.
+        model = base_model
 
     # Optimizer split:
     # - 4 parameter banks -> Muon (batched Newton-Schulz)
@@ -2548,7 +2556,10 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    if hasattr(eval_model, 'mamba_layer_set') and len(eval_model.mamba_layer_set) > 0:
+        compiled_eval = eval_model
+    else:
+        compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
