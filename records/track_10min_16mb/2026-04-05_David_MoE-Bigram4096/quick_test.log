@@ -1,0 +1,55 @@
+logs/68523732-cac5-4b18-9fee-fb5134e73669.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/mnt/weka/dghazaryan/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/mnt/weka/dghazaryan/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:120.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9309 val_bpb:4.1049 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9313 train_time:694ms step_avg:694.13ms
+late_qat:enabled step:1 scale:0.0490
+step:2/20000 train_loss:8.6943 train_time:1313ms step_avg:656.53ms
+step:3/20000 train_loss:8.6140 train_time:1990ms step_avg:663.33ms
+step:4/20000 train_loss:8.4424 train_time:2662ms step_avg:665.39ms
+step:5/20000 train_loss:8.2084 train_time:3332ms step_avg:666.35ms
+step:6/20000 train_loss:8.0143 train_time:4006ms step_avg:667.71ms
+step:7/20000 train_loss:7.7735 train_time:4673ms step_avg:667.64ms
+step:8/20000 train_loss:7.5601 train_time:5346ms step_avg:668.24ms
+step:9/20000 train_loss:7.3232 train_time:6021ms step_avg:668.96ms
+step:10/20000 train_loss:7.1326 train_time:6691ms step_avg:669.07ms
+swa:start step:50
+step:178/20000 val_loss:5.0108 val_bpb:2.9677 train_time:120470ms step_avg:676.80ms
+stopping_early: wallclock_cap train_time:120470ms step:178/20000
+peak memory allocated: 23202 MiB reserved: 23522 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:5.6116 val_bpb:3.3235 eval_time:16367ms
+Serialized model: 106158518 bytes
+Code size: 111764 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
