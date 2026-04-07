@@ -688,7 +688,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        y = flash_attn_3_func(q.bfloat16(), k.bfloat16(), v.bfloat16(), causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -1726,7 +1726,7 @@ class _HessianAttn(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        y = flash_attn_3_func(q.bfloat16(), k.bfloat16(), v.bfloat16(), causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         return self.proj(y.reshape(bsz, seqlen, dim))
