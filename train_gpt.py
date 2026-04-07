@@ -67,7 +67,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 512.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 1024.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
@@ -78,9 +78,9 @@ class Hyperparameters:
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.98))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 256))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 192))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
@@ -516,12 +516,6 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
-class CastedLinear(nn.Linear):
-    def forward(self, x: Tensor) -> Tensor:
-        return F.linear(x, self.weight.to(x.dtype), 
-                        self.bias.to(x.dtype) if self.bias is not None else None)
-
-
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     # Keep small/control parameters in fp32 even when the model body runs in bf16.
     with torch.no_grad():
@@ -542,11 +536,12 @@ class Rotary(nn.Module):
         freqs = torch.outer(t, self.inv_freq)
         return freqs.cos()[None, None, :, :].to(dtype), freqs.sin()[None, None, :, :].to(dtype)
 
-@torch.jit.script
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    out = torch.empty_like(x)
     half = x.size(-1) // 2
-    x1, x2 = x[..., :half], x[..., half:]
-    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+    out[..., :half] = x[..., :half] * cos - x[..., half:] * sin
+    out[..., half:] = x[..., :half] * sin + x[..., half:] * cos
+    return out
 
 
 class CausalSelfAttention(nn.Module):
@@ -570,10 +565,10 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
+        self.c_q = nn.Linear(dim, dim, bias=False)
+        self.c_k = nn.Linear(dim, kv_dim, bias=False)
+        self.c_v = nn.Linear(dim, kv_dim, bias=False)
+        self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base) if use_rope else None
@@ -606,13 +601,15 @@ class MLP(nn.Module):
     # Using SwiGLU as introduced in Shazeer (2020)
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        hidden = int(mlp_mult * dim // 1.5)
-        self.fc1 = CastedLinear(dim, hidden, bias=False)
-        self.fc2 = CastedLinear(dim, hidden, bias=False)
-        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.hidden = int(mlp_mult * dim // 1.5)
+        # Combine fc1 and fc2 into one "fused" layer
+        self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
+        self.proj = nn.Linear(self.hidden, dim, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.proj(F.silu(self.fc1(x)) * self.fc2(x))
+        fused_out = self.fused_fc(x)
+        x1, x2 = fused_out.chunk(2, dim=-1)
+        return self.proj(F.silu(x1) * x2)
 
 
 class Block(nn.Module):
@@ -635,10 +632,8 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        return x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
 
 
 class GPT(nn.Module):
@@ -676,7 +671,7 @@ class GPT(nn.Module):
             ) for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
-        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+        self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
@@ -821,7 +816,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
-        if isinstance(module, CastedLinear):
+        if isinstance(module, nn.Linear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model)
