@@ -16,7 +16,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn.flash_attn_interface import flash_attn_func as _fa3_func
+from flash_attn_interface import flash_attn_func as _fa3_func
 def flash_attn_3_func(q, k, v, causal=True):
  return _fa3_func(q, k, v, causal=causal)
 class Hyperparameters:
