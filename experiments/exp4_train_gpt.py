@@ -53,7 +53,7 @@ class Hyperparameters():
     sliding_window_enabled = bool(int(os.environ.get('SLIDING_WINDOW_ENABLED', '1')))
 
     # Model architecture
-    vocab_size = int(os.environ.get('VOCAB_SIZE', 4096))
+    vocab_size = int(os.environ.get('VOCAB_SIZE', 1024))
     num_layers = int(os.environ.get('NUM_LAYERS', 11))
     xsa_last_n = int(os.environ.get('XSA_LAST_N', 11))
     num_kv_heads = int(os.environ.get('NUM_KV_HEADS', 4))
