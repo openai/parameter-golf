@@ -257,7 +257,8 @@ def eval_val(
                 next_raw_start = batch_seq_end * args.train_seq_len
                 next_raw_end = min(next_raw_start + args.train_seq_len * local_batch_seqs, 
                                    seq_end * args.train_seq_len + 1)
-                torch.cuda.stream(torch.cuda.Stream()).wait_stream(torch.cuda.current_stream())
+                s = torch.cuda.Stream()
+                s.wait_stream(torch.cuda.current_stream())
                 _ = val_tokens[next_raw_start:next_raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
@@ -777,7 +778,7 @@ def main() -> None:
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_math_sdp(True)
 
     logfile = None
     if master_process:
@@ -851,8 +852,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    compiled_model = base_model
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
