@@ -87,6 +87,67 @@ Use this as the default threshold for winner-adjacent searches:
 - `AUTO_STOP_STEP=1000`
 - `AUTO_STOP_MAX_VAL_BPB=1.390`
 
+## Three-Bucket Search
+
+We should stop mixing every idea into one batch. Use three separate 10-run packs:
+
+1. Same winner-surface, different mechanisms
+   - lock the top-style surface we can express today:
+     - `11` layers
+     - `MLP 3x`
+     - `lr 0.025 / 0.025 / 0.035`
+     - `WD 0.04`
+     - `Muon momentum 0.99`
+     - `warmdown 3500`
+     - `grad clip 0.3`
+     - `EMA 0.997`
+   - vary only mechanisms such as fullheads, leaky activation, untied embeddings, shared-depth, z-loss
+   - run with:
+
+```bash
+bash scripts/run_same_surface_120m.sh
+```
+
+2. Crazy different mechanisms
+   - keep current codebase but push harder on high-risk ideas:
+     - fullheads + untied
+     - fullheads + shared
+     - fullheads + MTP
+     - fullheads + hybrid delta
+     - low-KV-head runs
+     - aggressive attention-twice / layerwise-twice
+     - overtone and aggressive shared-depth variants
+   - run with:
+
+```bash
+bash scripts/run_crazy_120m.sh
+```
+
+3. Best current bets
+   - use only the strongest current profiles as a promotion tournament:
+     - `wd04_locked`
+     - `winner_wd04`
+     - `hunt_11l_fullheads`
+     - `t5_11l_fullheads`
+     - `t5_control_wd04`
+     - `t5_stack_leaky`
+     - `t5_stack_fullheads_toplr`
+     - `hunt_11l_layerwise`
+     - `hunt_11l_mtp`
+     - `hunt_shared11_mid`
+   - run with:
+
+```bash
+bash scripts/run_best_bets_120m.sh
+```
+
+Promotion rules:
+
+- promote if step-1000 `val_bpb <= 1.384`
+- strong promote if `<= 1.380`
+- kill if `> 1.390` in the winner-surface and best-bet packs
+- kill if `> 1.395` in the crazy pack
+
 ## 5-Run Moonshot Sequence
 
 Run these in order on remote GPUs, using the current branch and `TRAIN_SHARDS=1`:
