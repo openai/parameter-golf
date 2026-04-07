@@ -47,13 +47,13 @@ class Hyperparameters:
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 2000))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 400))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 16))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -61,13 +61,13 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 384))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    model_dim = int(os.environ.get("MODEL_DIM", 768))
+    num_heads = int(os.environ.get("NUM_HEADS", 12))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 512.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
@@ -75,8 +75,8 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.006))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.035))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.035))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.98))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -628,6 +628,47 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
+class LFMShortConv(nn.Module):
+    # Based on Liquid Foundation Models 
+
+    def __init__(self, dim, kernel_size=4):
+        super().__init__()
+        self.dim = dim
+        self.kernel_size = kernel_size
+        
+        # Use CastedLinear to match the script's optimization for H100s
+        self.proj = CastedLinear(dim, dim * 3, bias=False)
+        
+        # Depthwise convolution: dim parameters instead of dim^2
+        self.conv = nn.Conv1d(
+            dim, dim, 
+            kernel_size=kernel_size, 
+            padding=kernel_size - 1, 
+            groups=dim,
+            bias=False
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, L, D = x.shape
+        
+        # 1. Project to input (u), gate_b, and gate_c
+        projected = self.proj(x)
+        u, gate_b, gate_c = projected.chunk(3, dim=-1)
+        
+        # 2. Apply Liquid-style gating
+        gate_b = torch.sigmoid(gate_b)
+        gate_c = torch.sigmoid(gate_c)
+        
+        # 3. Short-range Convolution (Parallelized local mixing)
+        u_conv = u.transpose(1, 2)
+        # Shift/truncate to maintain causality (only look at past tokens)
+        u_conv = self.conv(u_conv)[..., :L] 
+        u_conv = u_conv.transpose(1, 2)
+        
+        # 4. Multiplicative interaction
+        return (u_conv * gate_b) * gate_c
+
+
 class MLP(nn.Module):
     # Using ReGLU as described in Shazeer (2020) but without bias.
     def __init__(self, dim: int, mlp_mult: int):
@@ -667,6 +708,35 @@ class Block(nn.Module):
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
+class BlockConv(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int, # Kept for signature compatibility
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.lfm_norm = RMSNorm()
+        
+        # Global Context (Standard Attention)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        
+        # Local Liquid Dynamics (Your new LFM layer)
+        self.lfm = LFMShortConv(dim, kernel_size=4)
+        
+        # Learnable residual scales (Standard in the competition script)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.lfm_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Standard residual pattern with RMSNorm
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        x = x + self.lfm_scale.to(dtype=x.dtype)[None, None, :] * self.lfm(self.lfm_norm(x))
+        return x
 
 class GPT(nn.Module):
     def __init__(
@@ -691,8 +761,19 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_layers = num_layers
-        self.blocks = nn.ModuleList(
-            [
+        self.blocks = nn.ModuleList()
+        for _ in range(num_layers // 4):
+            self.blocks.extend([
+                BlockConv(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                )
+                for _ in range(3)
+            ] + [
                 Block(
                     model_dim,
                     num_heads,
@@ -701,9 +782,7 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                 )
-                for _ in range(num_layers)
-            ]
-        )
+            ])
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
