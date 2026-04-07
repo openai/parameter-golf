@@ -511,29 +511,15 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.eps = eps
 
+    @torch._dynamo.disable
     def forward(self, x: Tensor) -> Tensor:
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
 class CastedLinear(nn.Linear):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._cached_weight_dtype = None
-        self._cached_weight = None
-        self._cached_bias_dtype = None
-        self._cached_bias = None
-    
     def forward(self, x: Tensor) -> Tensor:
-        target_dtype = x.dtype
-        if self._cached_weight_dtype != target_dtype:
-            self._cached_weight = self.weight.to(target_dtype)
-            self._cached_weight_dtype = target_dtype
-        if self.bias is not None and self._cached_bias_dtype != target_dtype:
-            self._cached_bias = self.bias.to(target_dtype)
-            self._cached_bias_dtype = target_dtype
-        else:
-            self._cached_bias = None
-        return F.linear(x, self._cached_weight, self._cached_bias)
+        return F.linear(x, self.weight.to(x.dtype), 
+                        self.bias.to(x.dtype) if self.bias is not None else None)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -545,28 +531,16 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    # Caches cos/sin tables per sequence length on the current device.
-    def __init__(self, dim: int, base: float = 10000.0):
+    def __init__(self, dim: int, max_seq_len: int = 1024, base: float = 10000.0):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self._seq_len_cached = 0
-        self._cos_cached: Tensor | None = None
-        self._sin_cached: Tensor | None = None
+        self.max_seq_len = max_seq_len
 
     def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
-        if (
-            self._cos_cached is None
-            or self._sin_cached is None
-            or self._seq_len_cached != seq_len
-            or self._cos_cached.device != device
-        ):
-            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-            freqs = torch.outer(t, self.inv_freq.to(device))
-            self._cos_cached = freqs.cos()[None, None, :, :]
-            self._sin_cached = freqs.sin()[None, None, :, :]
-            self._seq_len_cached = seq_len
-        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
+        t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
+        freqs = torch.outer(t, self.inv_freq)
+        return freqs.cos()[None, None, :, :].to(dtype), freqs.sin()[None, None, :, :].to(dtype)
 
 @torch.jit.script
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
@@ -628,49 +602,8 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
-class LFMShortConv(nn.Module):
-    # Based on Liquid Foundation Models 
-
-    def __init__(self, dim, kernel_size=4):
-        super().__init__()
-        self.dim = dim
-        self.kernel_size = kernel_size
-        
-        # Use CastedLinear to match the script's optimization for H100s
-        self.proj = CastedLinear(dim, dim * 3, bias=False)
-        
-        # Depthwise convolution: dim parameters instead of dim^2
-        self.conv = nn.Conv1d(
-            dim, dim, 
-            kernel_size=kernel_size, 
-            padding=kernel_size - 1, 
-            groups=dim,
-            bias=False
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        B, L, D = x.shape
-        
-        # 1. Project to input (u), gate_b, and gate_c
-        projected = self.proj(x)
-        u, gate_b, gate_c = projected.chunk(3, dim=-1)
-        
-        # 2. Apply Liquid-style gating
-        gate_b = torch.sigmoid(gate_b)
-        gate_c = torch.sigmoid(gate_c)
-        
-        # 3. Short-range Convolution (Parallelized local mixing)
-        u_conv = u.transpose(1, 2)
-        # Shift/truncate to maintain causality (only look at past tokens)
-        u_conv = self.conv(u_conv)[..., :L] 
-        u_conv = u_conv.transpose(1, 2)
-        
-        # 4. Multiplicative interaction
-        return (u_conv * gate_b) * gate_c
-
-
 class MLP(nn.Module):
-    # Using ReGLU as described in Shazeer (2020) but without bias.
+    # Using SwiGLU as described in Shazeer (2020) but without bias.
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         hidden = int(mlp_mult * dim // 1.5)
@@ -679,8 +612,7 @@ class MLP(nn.Module):
         self.proj = CastedLinear(hidden, dim, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc1(x)) * self.fc2(x)
-        return self.proj(x)
+        return self.proj(F.silu(self.fc1(x)) * self.fc2(x))
 
 
 class Block(nn.Module):
@@ -700,7 +632,6 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
     def forward(self, x: Tensor) -> Tensor:
         attn_out = self.attn(self.attn_norm(x))
@@ -708,35 +639,6 @@ class Block(nn.Module):
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
-class BlockConv(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int, # Kept for signature compatibility
-        rope_base: float,
-        qk_gain_init: float,
-    ):
-        super().__init__()
-        self.attn_norm = RMSNorm()
-        self.lfm_norm = RMSNorm()
-        
-        # Global Context (Standard Attention)
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        
-        # Local Liquid Dynamics (Your new LFM layer)
-        self.lfm = LFMShortConv(dim, kernel_size=4)
-        
-        # Learnable residual scales (Standard in the competition script)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.lfm_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-
-    def forward(self, x: Tensor) -> Tensor:
-        # Standard residual pattern with RMSNorm
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
-        x = x + self.lfm_scale.to(dtype=x.dtype)[None, None, :] * self.lfm(self.lfm_norm(x))
-        return x
 
 class GPT(nn.Module):
     def __init__(
@@ -761,28 +663,16 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_layers = num_layers
-        self.blocks = nn.ModuleList()
-        for _ in range(num_layers // 4):
-            self.blocks.extend([
-                BlockConv(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for _ in range(3)
-            ] + [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-            ])
+        self.blocks = nn.ModuleList([
+            Block(
+                model_dim,
+                num_heads,
+                num_kv_heads,
+                mlp_mult,
+                rope_base,
+                qk_gain_init,
+            ) for _ in range(num_layers)
+        ])
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -865,6 +755,7 @@ def main() -> None:
         logfile = f"logs/{args.run_id}.txt"
         print(logfile)
 
+    @torch.compiler.disable
     def log0(msg: str, console: bool = True) -> None:
         if not master_process:
             return
@@ -931,8 +822,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = base_model
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
+    compiled_model = torch.compile(base_model)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
