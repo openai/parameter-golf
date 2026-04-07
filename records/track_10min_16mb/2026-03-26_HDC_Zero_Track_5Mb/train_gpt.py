@@ -8561,10 +8561,22 @@ def _run_hash_grad_single(args) -> int:
         return 1
 
     # ── Load tokens ───────────────────────────────────────────────────────────
+    # IMPORTANT: use fineweb_train_*.bin explicitly — NOT *.bin — to avoid
+    # accidentally including fineweb_val_*.bin in the training corpus.
     if is_main:
         print("[HashGrad] Loading training tokens...")
-    # load_tokens loads all available training shards (no split param)
-    tokens = load_tokens(data_path)
+    _train_pattern = os.path.join(data_path, "fineweb_train_*.bin")
+    _train_shards  = sorted(glob.glob(_train_pattern))
+    if not _train_shards:
+        # Fallback: try load_tokens (which uses *.bin — may include val shards,
+        # but is kept as a last resort for non-standard directory layouts)
+        print(f"[HashGrad] WARNING: no fineweb_train_*.bin found in {data_path}; "
+              f"falling back to load_tokens (*.bin glob)")
+        tokens = load_tokens(data_path, max_tokens=500_000_000)
+    else:
+        tokens = fast_load_token_shards(
+            _train_shards, max_tokens=500_000_000, label="HashGrad"
+        )
     vocab_size = int(os.environ.get("VOCAB_SIZE", "1024"))
 
     # ── Precompute G[p] rolling-hash states ───────────────────────────────────

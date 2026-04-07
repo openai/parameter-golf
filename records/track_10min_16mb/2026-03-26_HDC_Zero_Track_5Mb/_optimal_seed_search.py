@@ -990,6 +990,10 @@ def load_tokens(data_path: str, max_tokens: int = 2_000_000) -> np.ndarray:
     Mirrors the data-loading logic in train_gpt.py to ensure identical tokens.
     Loads shards in order until max_tokens is reached.
 
+    IMPORTANT: uses fineweb_train_*.bin explicitly to avoid accidentally
+    including fineweb_val_*.bin in the training corpus.  Falls back to *.bin
+    only if no fineweb_train_*.bin files are found (non-standard layout).
+
     Parameters
     ----------
     data_path  : path to the directory containing *.bin shard files
@@ -1005,7 +1009,11 @@ def load_tokens(data_path: str, max_tokens: int = 2_000_000) -> np.ndarray:
     if not data_path.is_dir():
         raise FileNotFoundError(f"Data directory not found: {data_path}")
 
-    shard_files = sorted(glob.glob(str(data_path / "*.bin")))
+    # Prefer fineweb_train_*.bin to avoid val contamination
+    shard_files = sorted(glob.glob(str(data_path / "fineweb_train_*.bin")))
+    if not shard_files:
+        # Fallback for non-standard layouts (e.g. single-file datasets)
+        shard_files = sorted(glob.glob(str(data_path / "*.bin")))
     if not shard_files:
         raise FileNotFoundError(f"No .bin shard files found in {data_path}")
 
