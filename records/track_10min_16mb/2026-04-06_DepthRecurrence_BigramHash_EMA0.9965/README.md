@@ -1,25 +1,36 @@
 # 11L Depth Recurrence + BigramHash + EMA 0.9965 — val_bpb 1.0980
 
-**val_bpb: 1.0980** (3-seed mean, std 0.0008) | **~14.6 MB** | 8xH100 SXM, 600s
+**val_bpb: 1.09796317** (3-seed mean, std 0.0008) | **~14.6 MB** | 8xH100 SXM, 600s
 
 ## Summary
 
-Depth recurrence architecture from PR #1334/#1421 combined with BigramHash(1536, dim 112) from our prior SOTA stack. 11 physical transformer layers with layers 4,5 repeating once, yielding 13 virtual layers. Recurrence activates at step 3000. EMA decay 0.9965.
+Depth recurrence architecture from PR #1334/#1421 combined with BigramHash(1536, dim 112) from the cumulative competition stack. 11 physical transformer layers with layers 4,5 repeating once, yielding 13 virtual layers. Recurrence activates at step 3000. EMA decay 0.9965.
 
-BigramHash added ~0.001 BPB improvement over the base recurrence architecture (1.0989 -> 1.0980 mean), at a cost of ~230K additional parameters and 270KB artifact size.
+BigramHash added ~0.001 BPB improvement over the base recurrence architecture: 1.0999 → 1.0989 (seed 1337), at a cost of ~230K additional parameters and 270KB artifact size.
 
-SP4096 tokenizer was unavailable in the public data manifest, so SP1024 was used instead. With SP4096, results would likely be ~0.01 BPB better.
+SP1024 tokenizer used. SP4096 was unavailable in the public data manifest at time of submission.
 
 ## 3-Seed Results (8xH100 SXM)
 
-| Seed | Pre-quant BPB | Sliding BPB (s64) | Artifact |
-|------|---------------|-------------------|----------|
-| 1337 | 1.1104 | **1.0989** | 14,597,964 B |
-| 42 | 1.1089 | **1.0973** | 14,564,857 B |
-| 2024 | 1.1097 | **1.0977** | 14,561,630 B |
-| **Mean** | **1.1097** | **1.0980 (std 0.0008)** | |
+| Seed | Steps | Pre-quant BPB | Sliding BPB (s64) | val_loss (nats) | Artifact |
+|------|-------|---------------|-------------------|-----------------|----------|
+| 1337 | 5347 | 1.1104 | **1.09885595** | 1.85537224 | 14,597,964 B |
+| 42 | 5545 | 1.1089 | **1.09733806** | 1.85280934 | 14,564,857 B |
+| 2024 | 5554 | 1.1097 | **1.09769550** | 1.85341287 | 14,561,630 B |
+| **Mean** | | **1.1097** | **1.09796317 (std 0.00079)** | **1.85386482** | |
 
-Current merged SOTA: **1.1147** (PR #1019). Delta: **-0.0167 BPB**.
+## Statistical Significance
+
+Current merged SOTA: **1.11473509 BPB** / **1.88217853 nats** (PR #1019, 3-seed mean).
+
+| Metric | Value |
+|--------|-------|
+| Delta (nats) | **-0.02831371** |
+| Delta (BPB) | **-0.01677350** |
+| Welch's t-statistic | **-30.75** |
+| Welch-Satterthwaite df | **3.42** |
+| p-value | **<< 0.001** |
+| Exceeds 0.005 nats threshold | Yes (5.7x) |
 
 ## Architecture
 
@@ -46,9 +57,24 @@ Current merged SOTA: **1.1147** (PR #1019). Delta: **-0.0167 BPB**.
 - **EMA**: decay=0.9965
 - Wallclock cap: 600s (590s effective, 10s reserved for GPTQ)
 
+## Reproduction
+
+```bash
+# Setup
+pip install --break-system-packages zstandard brotli
+python3 data/cached_challenge_fineweb.py --variant sp1024
+
+# Training (8xH100 SXM, ~600s)
+SEED=1337 torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-04-06_DepthRecurrence_BigramHash_EMA0.9965/train_gpt.py
+```
+
+All hyperparameters use script defaults. Key non-default env vars are not required — the script is self-contained. Replace `SEED=1337` with `SEED=42` or `SEED=2024` to reproduce the other seeds.
+
 ## Quantization
 
 - GPTQ int6, percdamp=0.05, 64 calibration batches
+- Calibration data: AR self-generated from the trained model (not validation data)
 - No selective pruning needed (artifact fits under 16 MB)
 - Brotli compression
 
