@@ -403,6 +403,7 @@ GPTQ_BLOCK_SIZE = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
 ROTATION_AWARE_ENABLED = env_flag("ROTATION_AWARE_ENABLED", True)
 ROTATION_BLOCK_SIZE = int(os.environ.get("ROTATION_BLOCK_SIZE", 128))
 HESSIAN_DAMPING = float(os.environ.get("HESSIAN_DAMPING", 0.01))
+GPTQ_ACCEPT_MSE_RATIO = float(os.environ.get("GPTQ_ACCEPT_MSE_RATIO", 1.05))
 MIXED_PRECISION_EXTRA_BUDGET_BYTES = int(os.environ.get("MIXED_PRECISION_EXTRA_BUDGET_BYTES", 524288))
 MIXED_PRECISION_MAX_TENSORS = int(os.environ.get("MIXED_PRECISION_MAX_TENSORS", 2))
 SEARCH_ROTATION_OPTIONS = parse_csv_bools("SEARCH_ROTATION_OPTIONS", "0,1")
@@ -505,12 +506,13 @@ def _apply_rotation_blocks(weight: Tensor, name: str, hessian: Tensor | None, ro
     block_size = _rotation_block_size(weight.shape[1], rotation_enabled)
     if block_size == 0:
         return weight, hessian, 0
-    rot = _rotation_matrix(name, block_size)
-    rotated = weight.clone()
-    rotated_h = hessian.clone() if hessian is not None else None
+    base_weight = weight.float().contiguous()
+    rot = _rotation_matrix(name, block_size).to(dtype=base_weight.dtype)
+    rotated = base_weight.clone()
+    rotated_h = hessian.float().clone() if hessian is not None else None
     for start in range(0, weight.shape[1], block_size):
         end = start + block_size
-        rotated[:, start:end] = weight[:, start:end] @ rot
+        rotated[:, start:end] = base_weight[:, start:end] @ rot
         if rotated_h is not None:
             rotated_h[start:end, start:end] = rot.T @ rotated_h[start:end, start:end] @ rot
     return rotated.contiguous(), rotated_h.contiguous() if rotated_h is not None else None, block_size
@@ -519,11 +521,12 @@ def _apply_rotation_blocks(weight: Tensor, name: str, hessian: Tensor | None, ro
 def _invert_rotation_blocks(weight: Tensor, name: str, block_size: int) -> Tensor:
     if block_size == 0:
         return weight
-    rot_t = _rotation_matrix(name, block_size).T
-    restored = weight.clone()
+    base_weight = weight.float().contiguous()
+    rot_t = _rotation_matrix(name, block_size).to(dtype=base_weight.dtype).T
+    restored = base_weight.clone()
     for start in range(0, weight.shape[1], block_size):
         end = start + block_size
-        restored[:, start:end] = weight[:, start:end] @ rot_t
+        restored[:, start:end] = base_weight[:, start:end] @ rot_t
     return restored.contiguous()
 
 
@@ -532,6 +535,14 @@ def _weighted_error(reference: Tensor, recon: Tensor, hessian: Tensor | None) ->
     if hessian is None or err.ndim != 2 or hessian.ndim != 2 or hessian.shape[0] != err.shape[1]:
         return float(err.square().mean().item())
     return float((err @ hessian.float() * err).sum().item() / max(err.shape[0] * err.shape[1], 1))
+
+
+def _matrix_recon_mse(reference: Tensor, recon: Tensor) -> float:
+    return float((reference.float() - recon.float()).square().mean().item())
+
+
+def _dequant_matrix(q: Tensor, s: Tensor) -> Tensor:
+    return (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).contiguous()
 
 
 def _quantize_matrix_gptq(weight: Tensor, hessian: Tensor | None, clip_percentile: float) -> tuple[Tensor, Tensor, Tensor]:
@@ -592,7 +603,8 @@ def _matrix_quant_candidate(
     clip_percentile: float,
     rotation_enabled: bool,
 ) -> tuple[dict[str, object], float, int, bool]:
-    q_plain, s_plain, recon_plain = _quantize_matrix_gptq(tensor, hessian, clip_percentile)
+    q_plain, s_plain = quantize_float_tensor(tensor, clip_percentile=clip_percentile)
+    recon_plain = _dequant_matrix(q_plain, s_plain)
     best_entry = {
         "type": "matrix_int8",
         "q": q_plain,
@@ -600,23 +612,53 @@ def _matrix_quant_candidate(
         "dtype": str(tensor.dtype).removeprefix("torch."),
         "rotation_block_size": 0,
     }
-    best_recon = recon_plain
     best_score = _weighted_error(tensor, recon_plain, hessian)
-    rotated, rotated_h, block_size = _apply_rotation_blocks(tensor, name, hessian, rotation_enabled)
-    if block_size:
-        q_rot, s_rot, recon_rot = _quantize_matrix_gptq(rotated, rotated_h, clip_percentile)
-        recon_orig = _invert_rotation_blocks(recon_rot, name, block_size)
-        score_rot = _weighted_error(tensor, recon_orig, hessian)
-        if score_rot < best_score:
+    best_mse = _matrix_recon_mse(tensor, recon_plain)
+    if hessian is not None:
+        q_gptq, s_gptq, recon_gptq = _quantize_matrix_gptq(tensor, hessian, clip_percentile)
+        score_gptq = _weighted_error(tensor, recon_gptq, hessian)
+        mse_gptq = _matrix_recon_mse(tensor, recon_gptq)
+        if math.isfinite(score_gptq) and math.isfinite(mse_gptq) and score_gptq < best_score and mse_gptq <= best_mse * GPTQ_ACCEPT_MSE_RATIO:
             best_entry = {
                 "type": "matrix_int8",
-                "q": q_rot,
-                "scale": s_rot,
+                "q": q_gptq,
+                "scale": s_gptq,
+                "dtype": str(tensor.dtype).removeprefix("torch."),
+                "rotation_block_size": 0,
+            }
+            best_score = score_gptq
+            best_mse = mse_gptq
+    rotated, rotated_h, block_size = _apply_rotation_blocks(tensor, name, hessian, rotation_enabled)
+    if block_size:
+        q_rot_plain, s_rot_plain = quantize_float_tensor(rotated, clip_percentile=clip_percentile)
+        recon_rot_plain = _invert_rotation_blocks(_dequant_matrix(q_rot_plain, s_rot_plain), name, block_size)
+        score_rot_plain = _weighted_error(tensor, recon_rot_plain, hessian)
+        mse_rot_plain = _matrix_recon_mse(tensor, recon_rot_plain)
+        if math.isfinite(score_rot_plain) and math.isfinite(mse_rot_plain) and score_rot_plain < best_score and mse_rot_plain <= best_mse * GPTQ_ACCEPT_MSE_RATIO:
+            best_entry = {
+                "type": "matrix_int8",
+                "q": q_rot_plain,
+                "scale": s_rot_plain,
                 "dtype": str(tensor.dtype).removeprefix("torch."),
                 "rotation_block_size": block_size,
             }
-            best_recon = recon_orig
-            best_score = score_rot
+            best_score = score_rot_plain
+            best_mse = mse_rot_plain
+        if rotated_h is not None:
+            q_rot_gptq, s_rot_gptq, recon_rot_gptq = _quantize_matrix_gptq(rotated, rotated_h, clip_percentile)
+            recon_rot_gptq = _invert_rotation_blocks(recon_rot_gptq, name, block_size)
+            score_rot_gptq = _weighted_error(tensor, recon_rot_gptq, hessian)
+            mse_rot_gptq = _matrix_recon_mse(tensor, recon_rot_gptq)
+            if math.isfinite(score_rot_gptq) and math.isfinite(mse_rot_gptq) and score_rot_gptq < best_score and mse_rot_gptq <= best_mse * GPTQ_ACCEPT_MSE_RATIO:
+                best_entry = {
+                    "type": "matrix_int8",
+                    "q": q_rot_gptq,
+                    "scale": s_rot_gptq,
+                    "dtype": str(tensor.dtype).removeprefix("torch."),
+                    "rotation_block_size": block_size,
+                }
+                best_score = score_rot_gptq
+                best_mse = mse_rot_gptq
     return best_entry, best_score, tensor_nbytes(best_entry["q"]) + tensor_nbytes(best_entry["scale"]), best_entry["rotation_block_size"] > 0
 
 
@@ -1420,47 +1462,85 @@ def search_self_calibrated_quantization(
         for rotation_enabled in SEARCH_ROTATION_OPTIONS:
             for mixed_budget in SEARCH_MIXED_PRECISION_BUDGETS:
                 for mixed_max in SEARCH_MIXED_PRECISION_MAX_TENSORS:
-                    quant_obj, quant_stats, _, quant_blob = build_quantized_candidate(
-                        state_dict,
-                        hessians,
-                        clip_percentile=clip_percentile,
-                        rotation_enabled=rotation_enabled,
-                        mixed_precision_budget_bytes=mixed_budget,
-                        mixed_precision_max_tensors=mixed_max,
-                    )
-                    model.load_state_dict(dequantize_state_dict_int8(quant_obj), strict=True)
-                    calib_loss = eval_token_sequences(model, calib_tokens, device, compute_dtype)
-                    delta = calib_loss - baseline_loss
-                    row = {
-                        "candidate_id": f"cand_{len(artifact_rows):03d}",
-                        "clip_pct": clip_percentile,
-                        "rotation_enabled": int(rotation_enabled),
-                        "mixed_precision_budget_bytes": mixed_budget,
-                        "mixed_precision_max_tensors": mixed_max,
-                        "rotated_tensors": int(quant_stats["rotation_selected_tensors"]),
-                        "hessian_tensors": int(quant_stats["hessian_quantized_tensors"]),
-                        "mixed_precision_tensors": int(quant_stats["mixed_precision_tensors"]),
-                        "payload_bytes": int(quant_stats["int8_payload_bytes"]),
-                        "compressed_bytes": len(quant_blob),
-                        "code_bytes": code_bytes,
-                        "total_submission_bytes": len(quant_blob) + code_bytes,
-                        "calib_loss": calib_loss,
-                        "calib_delta": delta,
-                    }
-                    artifact_rows.append(row)
-                    log0(
-                        f"self_calib_candidate id:{row['candidate_id']}"
-                        f" clip_pct:{clip_percentile:.5f}"
-                        f" rotation:{int(rotation_enabled)}"
-                        f" mix_budget:{mixed_budget}"
-                        f" mix_max:{mixed_max}"
-                        f" calib_loss:{calib_loss:.6f} delta:{delta:+.6f}"
-                        f" compressed_bytes:{len(quant_blob)}"
-                        f" rotated_tensors:{quant_stats['rotation_selected_tensors']}"
-                        f" hessian_tensors:{quant_stats['hessian_quantized_tensors']}"
-                        f" mixed_precision_tensors:{quant_stats['mixed_precision_tensors']}"
-                    )
+                    try:
+                        quant_obj, quant_stats, _, quant_blob = build_quantized_candidate(
+                            state_dict,
+                            hessians,
+                            clip_percentile=clip_percentile,
+                            rotation_enabled=rotation_enabled,
+                            mixed_precision_budget_bytes=mixed_budget,
+                            mixed_precision_max_tensors=mixed_max,
+                        )
+                        model.load_state_dict(dequantize_state_dict_int8(quant_obj), strict=True)
+                        calib_loss = eval_token_sequences(model, calib_tokens, device, compute_dtype)
+                        delta = calib_loss - baseline_loss
+                        row = {
+                            "candidate_id": f"cand_{len(artifact_rows):03d}",
+                            "clip_pct": clip_percentile,
+                            "rotation_enabled": int(rotation_enabled),
+                            "mixed_precision_budget_bytes": mixed_budget,
+                            "mixed_precision_max_tensors": mixed_max,
+                            "rotated_tensors": int(quant_stats["rotation_selected_tensors"]),
+                            "hessian_tensors": int(quant_stats["hessian_quantized_tensors"]),
+                            "mixed_precision_tensors": int(quant_stats["mixed_precision_tensors"]),
+                            "payload_bytes": int(quant_stats["int8_payload_bytes"]),
+                            "compressed_bytes": len(quant_blob),
+                            "code_bytes": code_bytes,
+                            "total_submission_bytes": len(quant_blob) + code_bytes,
+                            "calib_loss": calib_loss,
+                            "calib_delta": delta,
+                        }
+                        artifact_rows.append(row)
+                        log0(
+                            f"self_calib_candidate id:{row['candidate_id']}"
+                            f" clip_pct:{clip_percentile:.5f}"
+                            f" rotation:{int(rotation_enabled)}"
+                            f" mix_budget:{mixed_budget}"
+                            f" mix_max:{mixed_max}"
+                            f" calib_loss:{calib_loss:.6f} delta:{delta:+.6f}"
+                            f" compressed_bytes:{len(quant_blob)}"
+                            f" rotated_tensors:{quant_stats['rotation_selected_tensors']}"
+                            f" hessian_tensors:{quant_stats['hessian_quantized_tensors']}"
+                            f" mixed_precision_tensors:{quant_stats['mixed_precision_tensors']}"
+                        )
+                    except RuntimeError as exc:
+                        model.load_state_dict(state_dict, strict=True)
+                        log0(
+                            "self_calib_candidate_error"
+                            f" clip_pct:{clip_percentile:.5f}"
+                            f" rotation:{int(rotation_enabled)}"
+                            f" mix_budget:{mixed_budget}"
+                            f" mix_max:{mixed_max}"
+                            f" error:{exc}"
+                        )
     model.load_state_dict(state_dict, strict=True)
+    if not artifact_rows:
+        quant_obj, quant_stats, _, quant_blob = build_quantized_candidate(
+            state_dict,
+            None,
+            clip_percentile=INT8_CLIP_PERCENTILE,
+            rotation_enabled=False,
+            mixed_precision_budget_bytes=0,
+            mixed_precision_max_tensors=0,
+        )
+        fallback_row = {
+            "candidate_id": "cand_fallback",
+            "clip_pct": INT8_CLIP_PERCENTILE,
+            "rotation_enabled": 0,
+            "mixed_precision_budget_bytes": 0,
+            "mixed_precision_max_tensors": 0,
+            "rotated_tensors": int(quant_stats["rotation_selected_tensors"]),
+            "hessian_tensors": int(quant_stats["hessian_quantized_tensors"]),
+            "mixed_precision_tensors": int(quant_stats["mixed_precision_tensors"]),
+            "payload_bytes": int(quant_stats["int8_payload_bytes"]),
+            "compressed_bytes": len(quant_blob),
+            "code_bytes": code_bytes,
+            "total_submission_bytes": len(quant_blob) + code_bytes,
+            "calib_loss": baseline_loss,
+            "calib_delta": 0.0,
+        }
+        artifact_rows.append(fallback_row)
+        log0("self_calib_fallback selected legacy int8 candidate after all search candidates failed")
     artifact_rows.sort(key=lambda row: (float(row["calib_loss"]), int(row["total_submission_bytes"])))
     frontier_rows = build_pareto_frontier(artifact_rows)
     eval_frontier_rows = sorted(frontier_rows, key=lambda row: (float(row["calib_loss"]), int(row["total_submission_bytes"])))[:SEARCH_MAX_FRONTIER_EVALS]
