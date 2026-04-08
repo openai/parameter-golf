@@ -860,6 +860,8 @@ class NgramMixer:
   ar,ac=torch.where(am); N=ar.numel(); npa=np_[ar,ac]
   gp=(s.uni[yb[ar,ac]]+0.5)/(s.ut+0.5*V) if s.ut>0 else torch.full((N,),1.0/V,device=s.dev)
   gh=torch.zeros(N,device=s.dev,dtype=torch.bool)
+  g_order=torch.zeros(N,device=s.dev)
+  g_ctxcount=torch.ones(N,device=s.dev)
   for o in range(s.maxN,1,-1):
    oi=o-2; cw=o-1; el=(ac>=(cw-1))&(~gh)
    if not bool(el.any()): continue
@@ -870,9 +872,13 @@ class NgramMixer:
    cc=s.ctx[oi][ck]; fc=s.full[oi][fk]; v=cc>=s.minC
    if bool(v.any()):
     ei=torch.where(el)[0]; d=ei[v]
-    gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1); gh[d]=True
+    gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1)
+    g_order[d]=float(o); g_ctxcount[d]=cc[v]; gh[d]=True
   pr=lp.exp(); ent=-(pr[ar,ac]*lp[ar,ac]).sum(dim=-1)
-  al=(0.20+0.55*torch.sigmoid(2.0*(ent-2.5))+0.80*gp).clamp(max=0.95)
+  order_feat=(g_order/s.maxN).clamp(max=1.0)
+  count_feat=(g_ctxcount.clamp(min=1).log()/5.0).clamp(max=1.0)
+  al=0.15+0.50*torch.sigmoid(2.0*(ent-2.5))+0.20*order_feat+0.10*count_feat
+  al=al.clamp(max=0.95)
   mp=((1.0-al)*npa+al*gp).clamp(min=1e-12); out=nll.clone()
   out[ar,ac]=-mp.log(); return out
 
