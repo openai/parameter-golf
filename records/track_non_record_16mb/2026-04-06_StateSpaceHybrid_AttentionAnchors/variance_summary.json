@@ -1,39 +1,39 @@
 ﻿{
     "current_public_winner_stability":  {
                                             "control":  {
-                                                            "export_policy":  "tok_emb,blocks.7.,blocks.8.,blocks.6.attn -\u003e float16",
+                                                            "export_policy":  "tok_emb,blocks.7.,blocks.8. -\u003e float16",
                                                             "layout":  "AAAAAAAAA",
                                                             "runs":  [
                                                                          {
-                                                                             "name":  "full_baseline_517steps_blackwell_seed2027_top2blocks_plus_block6attn_fp16",
+                                                                             "name":  "full_baseline_730steps_blackwell_seed2027_top2blocksfp16",
                                                                              "seed":  2027,
-                                                                             "val_bpb":  1.7606354,
-                                                                             "bytes_total":  15997493,
-                                                                             "train_time_ms":  147844,
-                                                                             "eval_time_ms":  207443
+                                                                             "val_bpb":  1.65376228,
+                                                                             "bytes_total":  15979462,
+                                                                             "train_time_ms":  293093,
+                                                                             "eval_time_ms":  233089
                                                                          },
                                                                          {
-                                                                             "name":  "full_baseline_517steps_blackwell_seed4242_top2blocks_plus_block6attn_fp16",
+                                                                             "name":  "full_baseline_730steps_blackwell_seed4242_top2blocksfp16",
                                                                              "seed":  4242,
-                                                                             "val_bpb":  1.75942525,
-                                                                             "bytes_total":  15982566,
-                                                                             "train_time_ms":  193842,
-                                                                             "eval_time_ms":  228119
+                                                                             "val_bpb":  1.6455032,
+                                                                             "bytes_total":  15973351,
+                                                                             "train_time_ms":  248275,
+                                                                             "eval_time_ms":  192171
                                                                          },
                                                                          {
-                                                                             "name":  "full_baseline_517steps_blackwell_seed9001_top2blocks_plus_block6attn_fp16",
+                                                                             "name":  "full_baseline_730steps_blackwell_seed9001_top2blocksfp16",
                                                                              "seed":  9001,
-                                                                             "val_bpb":  1.76777743,
-                                                                             "bytes_total":  15997295,
-                                                                             "train_time_ms":  204312,
-                                                                             "eval_time_ms":  233966
+                                                                             "val_bpb":  1.65947334,
+                                                                             "bytes_total":  15991534,
+                                                                             "train_time_ms":  231423,
+                                                                             "eval_time_ms":  215213
                                                                          }
                                                                      ],
                                                             "val_bpb_stats":  {
-                                                                                  "min":  1.75942525,
-                                                                                  "max":  1.76777743,
-                                                                                  "mean":  1.76261269,
-                                                                                  "std":  0.00368529,
+                                                                                  "min":  1.6455032,
+                                                                                  "max":  1.65947334,
+                                                                                  "mean":  1.65291294,
+                                                                                  "std":  0.00573482,
                                                                                   "n":  3
                                                                               }
                                                         },
@@ -42,54 +42,74 @@
                                                            "layout":  "AAAASASSS",
                                                            "runs":  [
                                                                         {
-                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_corefp16_700steps_blackwell_seed2027",
+                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed2027",
                                                                             "seed":  2027,
-                                                                            "val_bpb":  1.68195191,
-                                                                            "bytes_total":  11248890,
-                                                                            "train_time_ms":  177883,
-                                                                            "eval_time_ms":  125716
+                                                                            "val_bpb":  1.61118819,
+                                                                            "bytes_total":  12542838,
+                                                                            "train_time_ms":  430336,
+                                                                            "eval_time_ms":  153401
                                                                         },
                                                                         {
-                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_corefp16_700steps_blackwell_seed1337",
+                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed1337",
                                                                             "seed":  1337,
-                                                                            "val_bpb":  1.69065755,
-                                                                            "bytes_total":  11258877,
-                                                                            "train_time_ms":  169985,
-                                                                            "eval_time_ms":  125649
+                                                                            "val_bpb":  1.61088286,
+                                                                            "bytes_total":  12553887,
+                                                                            "train_time_ms":  420594,
+                                                                            "eval_time_ms":  152981
                                                                         },
                                                                         {
-                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_corefp16_700steps_blackwell_seed4242",
+                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed4242",
                                                                             "seed":  4242,
-                                                                            "val_bpb":  1.67609765,
-                                                                            "bytes_total":  11250919,
-                                                                            "train_time_ms":  299536,
-                                                                            "eval_time_ms":  170597
+                                                                            "val_bpb":  1.61544702,
+                                                                            "bytes_total":  12557296,
+                                                                            "train_time_ms":  307494,
+                                                                            "eval_time_ms":  148432
                                                                         },
                                                                         {
-                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_corefp16_700steps_blackwell_seed9001",
+                                                                            "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed9001",
                                                                             "seed":  9001,
-                                                                            "val_bpb":  1.6881932,
-                                                                            "bytes_total":  11246419,
-                                                                            "train_time_ms":  272929,
-                                                                            "eval_time_ms":  149921
+                                                                            "val_bpb":  1.62902041,
+                                                                            "bytes_total":  12549828,
+                                                                            "train_time_ms":  337729,
+                                                                            "eval_time_ms":  135930
                                                                         }
                                                                     ],
                                                            "val_bpb_stats":  {
-                                                                                 "min":  1.67609765,
-                                                                                 "max":  1.69065755,
-                                                                                 "mean":  1.68422508,
-                                                                                 "std":  0.00566447,
+                                                                                 "min":  1.61088286,
+                                                                                 "max":  1.62902041,
+                                                                                 "mean":  1.61663462,
+                                                                                 "std":  0.00737503,
                                                                                  "n":  4
                                                                              }
                                                        },
-                                            "mean_edge_bpb":  0.07838761
+                                            "mean_edge_bpb":  0.03627832
                                         },
     "data_realism_limit":  {
-                               "note":  "No additional local fineweb_train_*.bin shards were available during this continuation.",
+                               "note":  "No additional local or alternate-machine fineweb_train_*.bin shards were available during this continuation.",
                                "train_shard_names":  [
                                                          "fineweb_train_000000.bin"
                                                      ],
-                               "train_shards_detected":  1
+                               "train_shards_detected":  1,
+                               "alternate_environment_checks":  [
+                                                                    {
+                                                                        "host":  "vm-ubuntu-pitlab",
+                                                                        "reachable":  true,
+                                                                        "gpu":  "none_detected",
+                                                                        "train_shards_detected":  0
+                                                                    },
+                                                                    {
+                                                                        "host":  "ubuntu-dev",
+                                                                        "reachable":  true,
+                                                                        "gpu":  "none_detected",
+                                                                        "train_shards_detected":  0
+                                                                    },
+                                                                    {
+                                                                        "host":  "widelab-mac",
+                                                                        "reachable":  true,
+                                                                        "gpu":  "Apple M4",
+                                                                        "train_shards_detected":  0
+                                                                    }
+                                                                ]
                            },
     "strong_control_package":  {
                                    "controls":  [
@@ -221,6 +241,24 @@
                                                               "delta_bpb_transfer_minus_pre_transfer":  -0.01268043,
                                                               "verdict":  "positive_transfer"
                                                           },
+                                           "smear_init_tuning":  {
+                                                                     "default_init":  {
+                                                                                          "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed2027",
+                                                                                          "val_bpb":  1.61118819,
+                                                                                          "bytes_total":  12542838,
+                                                                                          "train_time_ms":  430336,
+                                                                                          "eval_time_ms":  153401
+                                                                                      },
+                                                                     "lighter_init":  {
+                                                                                          "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smearm05_1000steps_blackwell_seed2027",
+                                                                                          "val_bpb":  1.6153407,
+                                                                                          "bytes_total":  12556917,
+                                                                                          "train_time_ms":  300405,
+                                                                                          "eval_time_ms":  138970
+                                                                                      },
+                                                                     "delta_bpb_lighter_minus_default":  0.00415251,
+                                                                     "verdict":  "negative_tuning"
+                                                                 },
                                            "bigram_hash_reference":  {
                                                                          "candidate":  {
                                                                                            "name":  "full_anchor_s4d_aaaasasss_rank8_corefp16_600steps_blackwell_seed2027_bigram1024x64",
@@ -237,52 +275,53 @@
                                                                      }
                                        },
     "promoted_candidate":  {
-                               "best_score":  1.61118819,
+                               "best_score":  1.59674695,
                                "best_seed":  2027,
                                "best_artifact_bytes":  {
-                                                           "code":  57756,
-                                                           "model_int8_zlib":  12485082,
-                                                           "total":  12542838
+                                                           "code":  57941,
+                                                           "model_int8_zlib":  13191326,
+                                                           "total":  13249267
                                                        },
                                "best_wallclock_ms":  {
-                                                         "training":  430336,
-                                                         "evaluation":  153401,
-                                                         "export_roundtrip_estimate":  5866,
-                                                         "end_to_end_estimate":  589603
+                                                         "training":  312374,
+                                                         "evaluation":  124259,
+                                                         "export_roundtrip_estimate":  4989,
+                                                         "end_to_end_estimate":  441622
                                                      },
                                "layout":  "AAAASASSS",
                                "ssm_core":  "s4d",
                                "ssm_kernel_size":  96,
                                "ssm_rank":  12,
                                "smear_enabled":  1,
-                               "iterations":  1000,
+                               "smear_init":  0,
+                               "iterations":  1200,
                                "export_policy":  "ssm_coeff,ssm_log_decay,ssm_d -\u003e float16",
-                               "delta_vs_previous_public_winner_bpb":  0.07076372,
-                               "delta_vs_strongest_legal_control_bpb":  0.04257409,
-                               "delta_vs_strongest_legal_control_mean_bpb":  0.04272676,
+                               "delta_vs_previous_public_winner_bpb":  0.01444124,
+                               "delta_vs_strongest_legal_control_bpb":  0.05701533,
+                               "delta_vs_strongest_legal_control_mean_bpb":  0.0525092,
                                "runs":  [
                                             {
-                                                "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed2027",
+                                                "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1200steps_blackwell_seed2027",
                                                 "seed":  2027,
-                                                "val_bpb":  1.61118819,
-                                                "bytes_total":  12542838,
-                                                "train_time_ms":  430336,
-                                                "eval_time_ms":  153401
+                                                "val_bpb":  1.59674695,
+                                                "bytes_total":  13249267,
+                                                "train_time_ms":  312374,
+                                                "eval_time_ms":  124259
                                             },
                                             {
-                                                "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1000steps_blackwell_seed1337",
+                                                "name":  "full_anchor_s4d_aaaasasss_rank12_k96_corefp16_smear_1200steps_blackwell_seed1337",
                                                 "seed":  1337,
-                                                "val_bpb":  1.61088286,
-                                                "bytes_total":  12553887,
-                                                "train_time_ms":  420594,
-                                                "eval_time_ms":  152981
+                                                "val_bpb":  1.60406053,
+                                                "bytes_total":  13254319,
+                                                "train_time_ms":  317053,
+                                                "eval_time_ms":  124169
                                             }
                                         ],
                                "val_bpb_stats":  {
-                                                     "min":  1.61088286,
-                                                     "max":  1.61118819,
-                                                     "mean":  1.61103552,
-                                                     "std":  0.00015266,
+                                                     "min":  1.59674695,
+                                                     "max":  1.60406053,
+                                                     "mean":  1.60040374,
+                                                     "std":  0.00365679,
                                                      "n":  2
                                                  }
                            }

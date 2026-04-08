@@ -3,26 +3,26 @@
     "github_id":  "greqone",
     "name":  "Non-record: state-space hybrid with attention anchors",
     "track_label":  "fixed-predictor",
-    "blurb":  "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, a fixed-predictor 5A/4S S4D-style hybrid, targeted recurrent-core fp16 export, a longer S4D kernel, SmearGate transfer, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
+    "blurb":  "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, a fixed-predictor 5A/4S S4D-style hybrid, a longer S4D kernel, SmearGate, additional Blackwell scale, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
     "date":  "2026-04-08T00:00:00Z",
     "metric_name":  "final_int8_zlib_roundtrip_exact val_bpb",
-    "val_loss":  2.72042376,
-    "val_bpb":  1.61118819,
+    "val_loss":  2.69604033,
+    "val_bpb":  1.59674695,
     "baseline_val_loss":  2.79230833,
     "baseline_val_bpb":  1.65376228,
-    "kept_vs_baseline_delta_bpb":  -0.04257409,
-    "previous_promoted_val_bpb":  1.68195191,
-    "previous_promoted_delta_bpb":  -0.07076372,
+    "kept_vs_baseline_delta_bpb":  -0.05701533,
+    "previous_promoted_val_bpb":  1.61118819,
+    "previous_promoted_delta_bpb":  -0.01444124,
     "artifact_bytes":  {
-                           "code":  57756,
-                           "model_int8_zlib":  12485082,
-                           "total":  12542838
+                           "code":  57941,
+                           "model_int8_zlib":  13191326,
+                           "total":  13249267
                        },
     "wallclock_ms":  {
-                         "training":  430336,
-                         "evaluation":  153401,
-                         "export_roundtrip_estimate":  5866,
-                         "end_to_end_estimate":  589603
+                         "training":  312374,
+                         "evaluation":  124259,
+                         "export_roundtrip_estimate":  4989,
+                         "end_to_end_estimate":  441622
                      },
     "compile_settings":  {
                              "enable_torch_compile":  0,
@@ -34,11 +34,12 @@
                         "ssm_kernel_size":  96,
                         "ssm_rank":  12,
                         "smear_enabled":  1,
+                        "smear_init":  0,
                         "int8_force_float_name_patterns":  "ssm_coeff,ssm_log_decay,ssm_d",
                         "train_batch_tokens":  32768,
                         "train_seq_len":  1024,
                         "val_batch_size":  262144,
-                        "iterations":  1000,
+                        "iterations":  1200,
                         "seed":  2027
                     },
     "baseline_match":  {
@@ -54,23 +55,24 @@
     "current_public_winner_variance":  {
                                            "hybrid_layout":  "AAAASASSS",
                                            "hybrid_export_policy":  "ssm_coeff,ssm_log_decay,ssm_d -\u003e float16",
-                                           "hybrid_mean_val_bpb":  1.68422508,
-                                           "hybrid_std_val_bpb":  0.00566447,
+                                           "hybrid_mean_val_bpb":  1.61663462,
+                                           "hybrid_std_val_bpb":  0.00737503,
                                            "hybrid_runs":  4,
-                                           "control_mean_val_bpb":  1.76261269,
-                                           "control_std_val_bpb":  0.00368529,
+                                           "control_mean_val_bpb":  1.65291294,
+                                           "control_std_val_bpb":  0.00573482,
                                            "control_runs":  3,
-                                           "mean_edge_bpb":  -0.07838761
+                                           "mean_edge_bpb":  -0.03627832
                                        },
     "promoted_candidate_stats":  {
                                      "layout":  "AAAASASSS",
                                      "ssm_rank":  12,
                                      "ssm_kernel_size":  96,
                                      "smear_enabled":  1,
-                                     "iterations":  1000,
+                                     "smear_init":  0,
+                                     "iterations":  1200,
                                      "export_policy":  "ssm_coeff,ssm_log_decay,ssm_d -\u003e float16",
-                                     "mean_val_bpb":  1.61103552,
-                                     "std_val_bpb":  0.00015266,
+                                     "mean_val_bpb":  1.60040374,
+                                     "std_val_bpb":  0.00365679,
                                      "runs":  2
                                  },
     "strong_control_frontier":  {
@@ -94,13 +96,19 @@
                                  "rank12_k64_900_val_bpb":  1.62978755,
                                  "rank16_k64_900_val_bpb":  1.6306908,
                                  "rank12_k96_900_val_bpb":  1.62958731,
-                                 "kept_no_transfer_val_bpb":  1.62386862
+                                 "pre_transfer_val_bpb":  1.62386862
                              },
     "fixed_predictor_transfer_finding":  {
                                              "positive_transfer":  "SmearGate",
                                              "smear_transfer_val_bpb":  1.61118819,
                                              "pre_transfer_val_bpb":  1.62386862,
                                              "delta_bpb_transfer_minus_pre_transfer":  -0.01268043,
+                                             "smear_init_tuning":  {
+                                                                       "default_smear_init_val_bpb":  1.61118819,
+                                                                       "smear_init_minus_0_5_val_bpb":  1.6153407,
+                                                                       "delta_bpb_minus_0_5_minus_default":  0.00415251,
+                                                                       "verdict":  "negative_tuning"
+                                                                   },
                                              "negative_transfer_reference":  {
                                                                                  "transfer":  "BigramHash",
                                                                                  "bigram_vocab_size":  1024,
@@ -111,12 +119,38 @@
                                                                                  "verdict":  "negative_transfer"
                                                                              }
                                          },
+    "realism_probe":  {
+                          "local_train_shards":  1,
+                          "local_train_shard_names":  [
+                                                          "fineweb_train_000000.bin"
+                                                      ],
+                          "alternate_environment_checks":  [
+                                                               {
+                                                                   "host":  "vm-ubuntu-pitlab",
+                                                                   "reachable":  true,
+                                                                   "gpu":  "none_detected",
+                                                                   "train_shards_detected":  0
+                                                               },
+                                                               {
+                                                                   "host":  "ubuntu-dev",
+                                                                   "reachable":  true,
+                                                                   "gpu":  "none_detected",
+                                                                   "train_shards_detected":  0
+                                                               },
+                                                               {
+                                                                   "host":  "widelab-mac",
+                                                                   "reachable":  true,
+                                                                   "gpu":  "Apple M4",
+                                                                   "train_shards_detected":  0
+                                                               }
+                                                           ]
+                      },
     "scope":  {
                   "training_shards":  1,
                   "gpu_lane":  "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
                   "record_claim":  false
               },
-    "bytes_total":  12542838,
-    "bytes_model_int8_zlib":  12485082,
-    "bytes_code":  57756
+    "bytes_total":  13249267,
+    "bytes_model_int8_zlib":  13191326,
+    "bytes_code":  57941
 }

@@ -29,34 +29,35 @@ What it is:
   - `S` = compile-friendly S4D-style state-space block
 - Interpretation: four early exact-attention blocks, one mid attention anchor, and a four-block SSM tail
 - SSM core: `S4D-Lin` descendant using learned exponential depthwise conv kernels
-- Kept transfer: `SmearGate`, tested as a fixed-predictor one-at-a-time transfer on top of the scaled hybrid
+- Kept transfer: `SmearGate`, retained as a fixed-predictor one-at-a-time transfer
+- Kept smear tuning: default `SMEAR_INIT=0.0`
 - Kept export policy: keep only `ssm_coeff`, `ssm_log_decay`, and `ssm_d` in `float16`; quantize the rest with the standard int8+zlib path
 - Seed: `2027`
 - Fixed config: `TRAIN_BATCH_TOKENS=32768`, `TRAIN_SEQ_LEN=1024`, `VAL_BATCH_SIZE=262144`
-- Training budget: `1000` steps on the single available train shard
+- Training budget: `1200` steps on the single available train shard
 - Kept run compile setting: `ENABLE_TORCH_COMPILE=0`, `SDP_BACKEND=math`
 - GPU lane: single `NVIDIA RTX PRO 6000 Blackwell Workstation Edition`
-- Primary score: `val_bpb = 1.61118819`
-- Primary loss: `val_loss = 2.72042376`
+- Primary score: `val_bpb = 1.59674695`
+- Primary loss: `val_loss = 2.69604033`
 - Model params: `17,111,592`
 
 ## Controlled Comparison
 
 All rows below use the same scorer path, the same tokenizer, the same full validation split, and the same one-shard local training data.
 
-The strongest retained legal all-attention control in this continuation is now the `730`-step artifact-budget-aware control that preserves `tok_emb` and the top two attention blocks in `float16`.
+The strongest retained legal all-attention control in this continuation remains the `730`-step artifact-budget-aware control that preserves `tok_emb` and the top two attention blocks in `float16`.
 
 | Run | Layout | Train time | Eval time | Total bytes | val_bpb | val_loss | Legality |
 |---|---|---:|---:|---:|---:|---:|---|
-| Previous promoted hybrid | `AAAASASSS` | `177,883 ms` | `125,716 ms` | `11,248,890` | `1.68195191` | `2.83990535` | legal |
+| Previous promoted hybrid | `AAAASASSS` | `430,336 ms` | `153,401 ms` | `12,542,838` | `1.61118819` | `2.72042376` | legal |
 | Strongest legal all-attention control | `AAAAAAAAA` | `293,093 ms` | `233,089 ms` | `15,979,462` | `1.65376228` | `2.79230833` | legal |
-| Near byte-cap boundary control | `AAAAAAAAA` | `338,240 ms` | `231,955 ms` | `16,021,806` | `1.65807490` | `2.79959001` | illegal |
+| Nearest byte-cap boundary control | `AAAAAAAAA` | `338,240 ms` | `231,955 ms` | `16,021,806` | `1.65807490` | `2.79959001` | illegal |
 | Lower-score but lower-loss illegal control | `AAAAAAAAA` | `385,470 ms` | `237,867 ms` | `16,217,131` | `1.62477053` | `2.74335699` | illegal |
-| **Kept hybrid** | **`AAAASASSS`** | **`430,336 ms`** | **`153,401 ms`** | **`12,542,838`** | **`1.61118819`** | **`2.72042376`** | **legal** |
+| **Kept hybrid** | **`AAAASASSS`** | **`312,374 ms`** | **`124,259 ms`** | **`13,249,267`** | **`1.59674695`** | **`2.69604033`** | **legal** |
 
-Delta vs the strongest legal all-attention control: `-0.04257409` BPB.
+Delta vs the strongest legal all-attention control: `-0.05701533` BPB.
 
-Delta vs the previous promoted kept result: `-0.07076372` BPB.
+Delta vs the previous promoted kept result: `-0.01444124` BPB.
 
 Important legality note:
 
@@ -67,46 +68,54 @@ Important legality note:
 
 ## Variance / Stability Package
 
-Before promoting a new winner, the previous public winner `AAAASASSS` + `SSM_RANK=12` was rerun on the same Blackwell lane to test whether its gain survived additional seeds.
+Before promoting a new winner, the previous public winner `AAAASASSS` + `SSM_KERNEL_SIZE=96` + `SmearGate` was rerun on the same Blackwell lane to test whether its gain survived additional seeds.
 
-Retained reruns for `AAAASASSS` + `SSM_RANK=12` + `ssm_coeff,ssm_log_decay,ssm_d -> float16` at `700` steps:
-
-- seed `2027`: `1.68195191` BPB
-- seed `1337`: `1.69065755` BPB
-- seed `4242`: `1.67609765` BPB
-- seed `9001`: `1.68819320` BPB
-- mean: `1.68422508`
-- stddev: `0.00566447`
-
-Matched `517`-step artifact-aware all-attention reruns:
-
-- seed `2027`: `1.76063540` BPB
-- seed `4242`: `1.75942525` BPB
-- seed `9001`: `1.76777743` BPB
-- mean: `1.76261269`
-- stddev: `0.00368529`
-
-Mean edge for the previous public winner over that matched control package: `-0.07838761` BPB.
-
-The promoted `AAAASASSS` + `SSM_KERNEL_SIZE=96` + `SmearGate` continuation also has a retained rerun package:
+Retained reruns for the previous public winner at `1000` steps:
 
 - seed `2027`: `1.61118819` BPB
 - seed `1337`: `1.61088286` BPB
-- mean: `1.61103552`
-- stddev: `0.00015266`
+- seed `4242`: `1.61544702` BPB
+- seed `9001`: `1.62902041` BPB
+- mean: `1.61663462`
+- stddev: `0.00737503`
+
+Matched `730`-step artifact-aware all-attention reruns:
+
+- seed `2027`: `1.65376228` BPB
+- seed `4242`: `1.64550320` BPB
+- seed `9001`: `1.65947334` BPB
+- mean: `1.65291294`
+- stddev: `0.00573482`
+
+Mean edge for the previous public winner over that control package: `-0.03627832` BPB.
+
+The promoted `1200`-step continuation also has a retained rerun package:
+
+- seed `2027`: `1.59674695` BPB
+- seed `1337`: `1.60406053` BPB
+- mean: `1.60040374`
+- stddev: `0.00365679`
+
+Mean edge for the promoted candidate over the refreshed control mean: `-0.05250920` BPB.
 
 ## Data / Scale Reality
 
 The biggest realism bottleneck in this local campaign remains unchanged:
 
 - detected local train shards: `1`
-- available shard: `fineweb_train_000000.bin`
+- available local shard: `fineweb_train_000000.bin`
 
-No additional local `fineweb_train_*.bin` shards were available during this continuation, so the kept result is still a one-shard non-record Blackwell result.
+This continuation also checked accessible alternate machines before accepting the one-shard limit:
+
+- `vm-ubuntu-pitlab`: reachable, zero visible `fineweb_train_*.bin` shards, no visible `nvidia-smi`
+- `ubuntu-dev`: reachable, zero visible `fineweb_train_*.bin` shards, no visible `nvidia-smi`
+- `widelab-mac`: reachable, Apple `M4`, zero visible `fineweb_train_*.bin` shards
+
+No additional local or alternate-machine multi-shard continuation path was accessible during this run, so the kept result is still a one-shard non-record Blackwell result.
 
 ## Stronger Control Frontier
 
-This continuation refreshed the legal all-attention control package before promoting a stronger hybrid point.
+This continuation kept the legal all-attention control package ahead of the hybrid before promoting a stronger hybrid point.
 
 Retained all-attention controls on the same Blackwell lane with the leaner `tok_emb,blocks.7.,blocks.8. -> float16` policy:
 
@@ -118,12 +127,12 @@ Retained all-attention controls on the same Blackwell lane with the leaner `tok_
 
 This matters for interpretation:
 
-- the public lane is now being compared against a materially stronger legal all-attention control than in the previous promotion
-- the kept hybrid still stays ahead of that stronger legal control while keeping a non-ceremonial four-block SSM tail
+- the public lane is being compared against a materially stronger legal all-attention control than in the previous promotion
+- the kept hybrid now clears that strengthened legal control frontier by `0.05701533` BPB
 
 ## Export Granularity Study
 
-The recurrent / state-space tensors remain export-sensitive, but this continuation kept the earlier recheck that asked whether the broader `ssm.* -> float16` policy was actually worth its bytes.
+The recurrent / state-space tensors remain export-sensitive, but the earlier recheck still stands:
 
 On `AAAASASSS`, `SSM_RANK=8`, `580` steps:
 
@@ -136,7 +145,7 @@ The kept export policy therefore remains the narrow recurrent-core allowlist.
 
 ## SSM Headroom Study
 
-This continuation spent additional legal bytes on the SSM side of the incumbent layout before promoting the final branch.
+This continuation carried forward the SSM-side headroom search before the final scale push.
 
 On `AAAASASSS`, `900` steps:
 
@@ -144,29 +153,40 @@ On `AAAASASSS`, `900` steps:
 - `SSM_RANK=16`, `SSM_KERNEL_SIZE=64`: `1.63069080` BPB, `12,245,342` total bytes
 - `SSM_RANK=12`, `SSM_KERNEL_SIZE=96`: `1.62958731` BPB, `12,183,567` total bytes
 
-The longer `96`-tap kernel was slightly score-positive, while further rank expansion to `16` was not.
+The longer `96`-tap kernel remained slightly score-positive, while further rank expansion to `16` was not.
 
 Scaling that stronger SSM-side point to `1000` steps without any transfer produced:
 
 - `AAAASASSS`, `SSM_KERNEL_SIZE=96`, no SmearGate: `1.62386862` BPB, `12,548,229` total bytes
 
+Scaling the same branch with retained SmearGate to `1200` steps produced the kept result:
+
+- `AAAASASSS`, `SSM_KERNEL_SIZE=96`, `SMEAR_ENABLED=1`, `1200` steps: `1.59674695` BPB, `13,249,267` total bytes
+
 ## Fixed-Predictor Transfer Study
 
-This run also tested fixed-predictor transfers one at a time instead of mixing adaptive behavior into the lane.
+This run kept the transfer study strictly fixed-predictor and one-at-a-time.
 
 Positive retained transfer:
 
 - `AAAASASSS`, `SSM_KERNEL_SIZE=96`, `1000` steps, no SmearGate: `1.62386862` BPB
 - same branch + `SMEAR_ENABLED=1`: `1.61118819` BPB
 
-`SmearGate` improved score by `0.01268043` BPB and is part of the kept result.
+`SmearGate` improved score by `0.01268043` BPB and remains part of the kept branch family.
+
+Smear tuning check:
+
+- default `SMEAR_INIT=0.0`: `1.61118819` BPB
+- lighter `SMEAR_INIT=-0.5`: `1.61534070` BPB
+
+The lighter smear init was a negative tuning step, so the kept configuration stays on the default smear initialization.
 
 Negative reference transfer:
 
 - `AAAASASSS`, `SSM_RANK=8`, `600` steps, no BigramHash: `1.71464907` BPB
 - same branch + `BIGRAM_VOCAB_SIZE=1024`, `BIGRAM_DIM=64`: `1.71975209` BPB
 
-The small fixed-predictor BigramHash side path remained a negative transfer on this hybrid branch in the current one-shard setting.
+The small fixed-predictor BigramHash side path remains negative evidence in this lane.
 
 ## Validity Notes
 
@@ -184,6 +204,7 @@ Passed for this non-record folder:
 - Stronger legal all-attention control frontier completed, including legal and illegal byte-boundary points
 - SSM-side headroom study completed
 - Fixed-predictor transfer study completed
+- Alternate-machine realism probe completed
 - Illegal higher-score all-attention points retained explicitly and not counted
 
 Not claimed here:
@@ -195,18 +216,18 @@ Not claimed here:
 
 ## Artifact Size
 
-- Code bytes: `57,756`
-- Model bytes (`final_model.int8.ptz`): `12,485,082`
-- Total bytes: `12,542,838`
+- Code bytes: `57,941`
+- Model bytes (`final_model.int8.ptz`): `13,191,326`
+- Total bytes: `13,249,267`
 
 ## Wallclock Breakdown
 
 From the kept promoted run:
 
-- Training time: `430,336 ms`
-- Evaluation time: `153,401 ms`
-- Export / serialization / roundtrip overhead: about `5,866 ms`
-- End-to-end run duration: `589.60 s`
+- Training time: `312,374 ms`
+- Evaluation time: `124,259 ms`
+- Export / serialization / roundtrip overhead: about `4,989 ms`
+- End-to-end run duration: `441.62 s`
 
 Strongest legal all-attention control:
 
@@ -226,7 +247,7 @@ $env:TOKENIZER_PATH='C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\d
 $env:TRAIN_BATCH_TOKENS='32768'
 $env:VAL_BATCH_SIZE='262144'
 $env:TRAIN_SEQ_LEN='1024'
-$env:ITERATIONS='1000'
+$env:ITERATIONS='1200'
 $env:TRAIN_LOG_EVERY='20'
 $env:VAL_LOSS_EVERY='0'
 $env:MAX_WALLCLOCK_SECONDS='0'

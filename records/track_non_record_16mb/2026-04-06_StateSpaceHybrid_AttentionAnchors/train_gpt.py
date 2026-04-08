@@ -75,6 +75,7 @@ class Hyperparameters:
     ssm_rank = int(os.environ.get("SSM_RANK", 4))
     parallel_attn_bias_init = float(os.environ.get("PARALLEL_ATTN_BIAS_INIT", 1.5))
     smear_enabled = bool(int(os.environ.get("SMEAR_ENABLED", "0")))
+    smear_init = float(os.environ.get("SMEAR_INIT", "0.0"))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 0))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
 
@@ -660,9 +661,9 @@ class CausalSelfAttention(nn.Module):
 
 
 class SmearGate(nn.Module):
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, init: float):
         super().__init__()
-        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+        self.gate = nn.Parameter(torch.full((dim,), init, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
         g = torch.sigmoid(self.gate.to(dtype=x.dtype))[None, None, :]
@@ -836,6 +837,7 @@ class GPT(nn.Module):
         ssm_rank: int,
         parallel_attn_bias_init: float,
         smear_enabled: bool,
+        smear_init: float,
         bigram_vocab_size: int,
         bigram_dim: int,
     ):
@@ -847,7 +849,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
-        self.smear = SmearGate(model_dim) if smear_enabled else None
+        self.smear = SmearGate(model_dim, smear_init) if smear_enabled else None
         self.block_layout = parse_block_layout(block_layout, num_layers)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1027,6 +1029,7 @@ def main() -> None:
         ssm_rank=args.ssm_rank,
         parallel_attn_bias_init=args.parallel_attn_bias_init,
         smear_enabled=args.smear_enabled,
+        smear_init=args.smear_init,
         bigram_vocab_size=args.bigram_vocab_size,
         bigram_dim=args.bigram_dim,
     ).to(device).bfloat16()
@@ -1108,7 +1111,7 @@ def main() -> None:
         f"ssm_core:{args.ssm_core} ssm_kernel_size:{args.ssm_kernel_size} ssm_rank:{args.ssm_rank}"
     )
     log0(
-        f"smear_enabled:{int(args.smear_enabled)} "
+        f"smear_enabled:{int(args.smear_enabled)} smear_init:{args.smear_init} "
         f"bigram_vocab_size:{args.bigram_vocab_size} bigram_dim:{args.bigram_dim}"
     )
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
