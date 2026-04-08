@@ -67,6 +67,7 @@ class Hyperparameters:
 
     # Evaluation.
     eval_stride = int(os.environ.get("EVAL_STRIDE", 16))  # sliding window stride (0 = disabled)
+    eval_overlap = int(os.environ.get("EVAL_OVERLAP", 0))  # stateful-overlap eval (0 = disabled, e.g. 1024)
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))  # batch size for sliding eval
     # Test-Time Training (TTT): online adaptation on val data during scoring
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
@@ -392,6 +393,81 @@ def eval_val_sliding(
     base_model.train()
     return float(val_loss), float(bits_per_token * tokens_per_byte)
 
+
+def eval_val_stateful_overlap(
+    args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
+    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """Stateful eval with overlapping windows: SSM state carries forward,
+    attention gets `overlap` tokens of prior context per window."""
+    seq_len = args.train_seq_len
+    overlap = args.eval_overlap
+    score_len = seq_len - overlap
+    total_tokens = val_tokens.numel() - 1
+
+    segment_tokens = (total_tokens // world_size // score_len) * score_len
+    seg_start = rank * segment_tokens
+    num_windows = segment_tokens // score_len
+
+    log0 = (lambda msg: print(msg)) if rank == 0 else (lambda msg: None)
+    log0(f"stateful_overlap_eval: {num_windows} windows, overlap={overlap}, "
+         f"score_len={score_len}, segment={segment_tokens} tokens")
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+    layer_states = None
+
+    with torch.inference_mode():
+        for wi in range(num_windows):
+            score_start = seg_start + wi * score_len
+            tok_start = max(score_start - overlap, seg_start)
+            tok_end = score_start + score_len
+            actual_overlap = score_start - tok_start
+
+            chunk = val_tokens[tok_start:tok_end + 1].to(dtype=torch.int64)
+            x = chunk[:-1].unsqueeze(0).to(device=device, non_blocking=True)
+            y = chunk[1:].unsqueeze(0).to(device=device, non_blocking=True)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits, layer_states = base_model.forward_logits_stateful(x, layer_states)
+
+            layer_states = [tuple(s.detach() for s in st) for st in layer_states]
+
+            scored_logits = logits[:, actual_overlap:, :].float()
+            scored_y = y[:, actual_overlap:]
+
+            if args.eval_temp != 1.0:
+                scored_logits = scored_logits / args.eval_temp
+
+            nll = F.cross_entropy(
+                scored_logits.reshape(-1, scored_logits.size(-1)),
+                scored_y.reshape(-1),
+                reduction="none",
+            )
+
+            loss_sum += nll.to(torch.float64).sum()
+            token_count += score_len
+
+            prev_ids = x.squeeze(0)[actual_overlap:]
+            tgt_ids = y.squeeze(0)[actual_overlap:]
+            tbytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            tbytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            byte_count += tbytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return float(val_loss), float(bits_per_token * tokens_per_byte)
 
 
 # QUANTIZATION
@@ -944,6 +1020,57 @@ class Mamba3Layer(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.mamba3(x)
 
+    def forward_stateful(self, x: Tensor, input_states=None):
+        """Forward with SSM state carry. Returns (output, final_states)."""
+        from einops import rearrange
+        from mamba_ssm.ops.triton.mamba3.mamba3_siso_combined import mamba3_siso_combined
+
+        m = self.mamba3
+        batch, seqlen, dim = x.shape
+
+        zxBCdtAtrap = m.in_proj(x)
+        z, xv, B, C, dd_dt, dd_A, trap, angles = torch.split(
+            zxBCdtAtrap,
+            [m.d_inner, m.d_inner,
+             m.d_state * m.num_bc_heads * m.mimo_rank,
+             m.d_state * m.num_bc_heads * m.mimo_rank,
+             m.nheads, m.nheads, m.nheads, m.num_rope_angles],
+            dim=-1)
+        z = rearrange(z, "b l (h p) -> b l h p", p=m.headdim)
+        xv = rearrange(xv, "b l (h p) -> b l h p", p=m.headdim)
+        B = rearrange(B, "b l (r g n) -> b l r g n", r=m.mimo_rank, g=m.num_bc_heads)
+        C = rearrange(C, "b l (r g n) -> b l r g n", r=m.mimo_rank, g=m.num_bc_heads)
+        trap = rearrange(trap, "b l h -> b h l")
+
+        _A = -F.softplus(dd_A.to(torch.float32))
+        _A = torch.clamp(_A, max=-m.A_floor)
+        DT = F.softplus(dd_dt + m.dt_bias)
+        ADT = _A * DT
+        DT = rearrange(DT, "b l n -> b n l")
+        ADT = rearrange(ADT, "b l n -> b n l")
+
+        angles = angles.unsqueeze(-2).expand(-1, -1, m.nheads, -1)
+        B = m.B_norm(B)
+        C = m.C_norm(C)
+
+        result = mamba3_siso_combined(
+            Q=C.squeeze(2), K=B.squeeze(2), V=xv,
+            ADT=ADT, DT=DT, Trap=trap,
+            Q_bias=m.C_bias.squeeze(1), K_bias=m.B_bias.squeeze(1),
+            Angles=angles, D=m.D,
+            Z=z if not m.is_outproj_norm else None,
+            chunk_size=m.chunk_size,
+            Input_States=input_states,
+            return_final_states=True,
+        )
+        y, last_angle, last_state, last_k, last_v, *rest = result
+        final_states = (last_angle, last_state, last_k, last_v)
+
+        y = rearrange(y, "b l h p -> b l (h p)")
+        if m.is_outproj_norm:
+            y = m.outproj_rmsnorm(y) * (z.squeeze(-2) * F.silu(z.squeeze(-2)))
+        y = m.out_proj(y)
+        return y, final_states
 
 
 class Rotary(nn.Module):
@@ -1078,6 +1205,14 @@ class Block(nn.Module):
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
+    def forward_stateful(self, x: Tensor, x0: Tensor, v_embed: Tensor | None = None, ssm_states=None):
+        """Forward with SSM state carry. Returns (output, final_states)."""
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        m3_out, fstate = self.mamba3.forward_stateful(self.m3_norm(x), input_states=ssm_states)
+        x = x + self.m3_scale.to(dtype=x.dtype)[None, None, :] * m3_out
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        return x, fstate
 
 
 class AttnBlock(nn.Module):
@@ -1251,6 +1386,46 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(F.linear(x, w) / self.logit_softcap)
         return logits.reshape(bsz, seqlen, -1)
 
+    def _run_blocks_stateful(self, x: Tensor, x0: Tensor, input_ids: Tensor | None = None,
+                             layer_states: list | None = None):
+        """Like _run_blocks but carries SSM state per layer. Returns (output, new_layer_states)."""
+        ve_cache = self.ve_shared(input_ids) if (self.ve_shared is not None and input_ids is not None) else None
+        new_states: list = []
+        si = 0
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            block = self.blocks[i]
+            if isinstance(block, Block):
+                prev = layer_states[si] if layer_states is not None else None
+                x, fstate = block.forward_stateful(x, x0, v_embed=self._get_ve(i, ve_cache), ssm_states=prev)
+                new_states.append(fstate)
+                si += 1
+            else:
+                x = block(x, x0, v_embed=self._get_ve(i, ve_cache))
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            block = self.blocks[bi]
+            if isinstance(block, Block):
+                prev = layer_states[si] if layer_states is not None else None
+                x, fstate = block.forward_stateful(x, x0, v_embed=self._get_ve(bi, ve_cache), ssm_states=prev)
+                new_states.append(fstate)
+                si += 1
+            else:
+                x = block(x, x0, v_embed=self._get_ve(bi, ve_cache))
+        return x, new_states
+
+    def forward_logits_stateful(self, input_ids: Tensor, layer_states: list | None = None):
+        """Forward returning (logits, new_layer_states) for stateful eval."""
+        bsz, seqlen = input_ids.shape
+        x = self._embed(input_ids)
+        x, new_states = self._run_blocks_stateful(x, x, input_ids, layer_states)
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        w = self.tok_emb.weight if self.tie_embeddings else self.lm_head.weight
+        logits = self.logit_softcap * torch.tanh(F.linear(x, w) / self.logit_softcap)
+        return logits.reshape(bsz, seqlen, -1), new_states
 
 
 # -----------------------------
@@ -1862,7 +2037,13 @@ def main() -> None:
     t_qeval = time.perf_counter()
 
     if not args.ttt_enabled:
-        if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        if args.eval_overlap > 0:
+            q_val_loss, q_val_bpb = eval_val_stateful_overlap(
+                args, base_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
+            eval_mode = "stateful_overlap"
+        elif args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
             q_val_loss, q_val_bpb = eval_val_sliding(
                 args, base_model, rank, world_size, device,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
