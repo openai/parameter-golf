@@ -30,7 +30,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Default Simple Baseline run:
+# Default Simple Baseline run (not actually reflected within Hyperparameters):
 # - 9 transformer blocks at width 512
 # - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
 # - vocab size 1024, sequence length 1024, tied embeddings
@@ -53,8 +53,8 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
@@ -65,7 +65,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -93,7 +93,7 @@ class Hyperparameters:
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
-@torch.compile(mode="max-autotune", fullgraph=True)
+@torch.compile(mode="max-autotune", fullgraph=True, dynamic=True)
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
@@ -247,19 +247,19 @@ def eval_val(
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
+    # Pre-load the first batch
+    raw_start = seq_start * args.train_seq_len
+    raw_end = min(raw_start + local_batch_seqs * args.train_seq_len + 1, val_tokens.numel())
+    next_batch = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            if batch_seq_end < seq_end:
-                next_raw_start = batch_seq_end * args.train_seq_len
-                next_raw_end = min(next_raw_start + args.train_seq_len * local_batch_seqs, 
-                                   seq_end * args.train_seq_len + 1)
-                s = torch.cuda.Stream()
-                s.wait_stream(torch.cuda.current_stream())
-                _ = val_tokens[next_raw_start:next_raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            torch.cuda.current_stream().wait_stream(torch.cuda.default_stream())
+            local = next_batch
+            next_seq_start = batch_seq_start + local_batch_seqs
+            if next_seq_start < seq_end:
+                n_raw_start = next_seq_start * args.train_seq_len
+                n_raw_end = min(n_raw_start + local_batch_seqs * args.train_seq_len + 1, val_tokens.numel())
+                next_batch = val_tokens[n_raw_start:n_raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
@@ -524,16 +524,19 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, max_seq_len: int = 1024, base: float = 10000.0):
+    def __init__(self, dim: int, max_seq_len: int, base: float = 10000.0):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self.max_seq_len = max_seq_len
+        t = torch.arange(max_seq_len, dtype=torch.float32)
+        freqs = torch.outer(t, inv_freq)
+        cos = freqs.cos()[None, None, :, :].to(torch.bfloat16)
+        sin = freqs.sin()[None, None, :, :].to(torch.bfloat16)
+        self.register_buffer("cos", cos, persistent=False)
+        self.register_buffer("sin", sin, persistent=False)
 
-    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
-        t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-        freqs = torch.outer(t, self.inv_freq)
-        return freqs.cos()[None, None, :, :].to(dtype), freqs.sin()[None, None, :, :].to(dtype)
+    def forward(self):
+        # Return the pre-calculated, pre-casted buffers
+        return self.cos, self.sin
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     out = torch.empty_like(x)
@@ -551,6 +554,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        seq_len: int=1024,
         use_rope: bool=True,
     ):
         super().__init__()
@@ -568,7 +572,8 @@ class CausalSelfAttention(nn.Module):
         self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base) if use_rope else None
+        self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, base=rope_base)
+        self.use_rope = use_rope
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -581,8 +586,8 @@ class CausalSelfAttention(nn.Module):
         
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
-        if self.rotary:
-            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        if self.use_rope:
+            cos, sin = self.rotary()
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
         
@@ -611,6 +616,7 @@ class MLP(nn.Module):
         self.hidden = calculate_hidden(mlp_mult, dim)
         self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
         self.proj = nn.Linear(self.hidden, dim, bias=False)
+        self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
         fused_out = self.fused_fc(x)
@@ -627,12 +633,13 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        seq_len: int=1024,
         use_rope: bool=True,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_rope)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len, use_rope)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.125))
@@ -671,6 +678,7 @@ class GPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         ramp_len: int=32,
+        seq_len: int=1024,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -680,14 +688,15 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_layers = num_layers
-        self.blocks = nn.ModuleList([
+        self.blocks = nn.Sequential(*[
             Block(
                 model_dim,
                 num_heads,
-                get_diamond_kv_heads(i, num_layers, num_heads),
+                get_diamond_kv_heads(i, num_layers, num_kv_heads),
                 mlp_mult,
                 rope_base,
                 qk_gain_init,
+                seq_len=seq_len,
                 use_rope=(i % 2 == 1)
             ) for i in range(num_layers)
         ])
@@ -699,7 +708,7 @@ class GPT(nn.Module):
 
         ramp = torch.linspace(0.0, 1.0, ramp_len)
         # Assuming args.train_seq_len is 1024
-        full_mask = torch.cat([ramp, torch.ones(1024 - ramp_len)])
+        full_mask = torch.cat([ramp, torch.ones(seq_len - ramp_len)])
         self.register_buffer("loss_mask", full_mask, persistent=False)
 
     def _init_weights(self) -> None:
@@ -713,8 +722,7 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
 
-        for i in range(self.num_layers):
-            x = self.blocks[i](x)
+        x = self.blocks(x)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -855,9 +863,10 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        seq_len=args.train_seq_len
     ).to(device).bfloat16()
     for module in base_model.modules():
-        if isinstance(module, nn.Linear):
+        if isinstance(module, (nn.Linear, nn.Embedding)):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model)
@@ -940,15 +949,25 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        warmup_mul = min(step / args.warmup_steps, 1.0) if args.warmup_steps > 0 else 1.0
+
+        # --- Warmdown Logic ---
         if args.warmdown_iters <= 0:
-            return 1.0
+            return warmup_mul
+            
         if max_wallclock_ms is None:
+            # Iteration-based warmdown
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
-        step_ms = elapsed_ms / max(step, 1)
-        warmdown_ms = args.warmdown_iters * step_ms
-        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+            warmdown_mul = max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if step >= warmdown_start else 1.0
+        else:
+            # Time-based warmdown
+            step_ms = elapsed_ms / max(step, 1)
+            warmdown_ms = args.warmdown_iters * step_ms
+            remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+            warmdown_mul = remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+        # The effective multiplier is the intersection of warmup and warmdown
+        return min(warmup_mul, warmdown_mul)
 
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
