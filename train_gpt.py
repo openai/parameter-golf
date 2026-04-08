@@ -829,7 +829,7 @@ def eval_val_sliding(
  return val_loss, bits_per_token * tokens_per_byte
 class NgramMixer:
  P = [36313, 27191, 51647, 81929, 131071, 174763, 233017, 282527, 357347, 451439]
- def __init__(s, V, dev, B=1<<22, maxN=12, minC=2, minT=5000):
+ def __init__(s, V, dev, B=1<<23, maxN=18, minC=2, minT=5000):
   s.V,s.B,s.M,s.maxN,s.minC,s.minT,s.dev = V,B,B-1,maxN,minC,minT,dev
   s.seen=0; s.uni=torch.zeros(V,device=dev); s.ut=0.0
   s.ctx=[torch.zeros(B,device=dev) for _ in range(maxN-1)]
