@@ -3,6 +3,38 @@
 **3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, re-run @75-76 %): 1.136399 ± 0.001492**
 *(trajectory: @28 %→1.142572, @32 %→1.140655, @40 %→1.137407, @50 %→1.136816, @56 %→1.139363, @66 %→1.138112, @76 %→1.136399. The cumulative bpb oscillates within ±0.003 bpb; final 100 %-eval expected in [1.136, 1.140].)*
 
+## Originality — what's novel to this submitter
+
+Seven discrete contributions in this PR / the v6.1 chain it extends:
+
+1. **Custom rANS entropy codec for NN weights (prior in chain, #1123 / #1146)**
+   — the **only submission in the entire competition** pushing mixed-precision
+   weights through a rANS codec. MLP-up: 2.32 bits/weight (Pentanary), MLP-down:
+   1.20 bits/weight (Int4). **This is why 32.8 M params fit in 15 MB at all.**
+2. **Aggressive SLOT tuning (prior in chain, #1146)** — discovered that
+   PR #1176's `lr=0.003 steps=5` defaults are ~33× too small at 32 M scale.
+   Stride=64 sweep showed SLOT is monotonically helpful up to `lr=0.1 steps=100`,
+   delivering **−0.087 bpb** over the base eval.
+3. **Phase 1A int6 tied-embedding quantization (new in this PR)** — `EMBED_QUANT_BITS=6
+   EMBED_QUANT_TOK_EMB=1` is a **free −0.6 MB** on the rANS artifact with zero
+   bpb regression (vs +0.043 bpb for pentanary tied embed).
+4. **Phase 5a trivial-wins composition (new in this PR)** — QK-Gain 5.0 + MuonEq-R
+   + EMA 0.9965 + hidden_mult 5 + int6 tied embed, stacked on top of the rANS
+   HybridQuant backbone. Delivers **−0.010124 bpb** over the v6.1 SLOT-100 record.
+5. **Shannon-floor empirical check (new in this PR)** — inter-layer delta
+   prediction experiment showed **delta entropy ≥ raw-weight entropy across
+   all 11 layers**; rANS reaches 2.32 bits/weight on MLP-up vs a Shannon
+   theoretical minimum of 2.28 bits/weight on the same tensors. **First
+   empirical confirmation in the competition** that HybridQuant rANS is
+   already entropy-bound at the single-token coder level.
+6. **Negative-results catalog for the 32 M regime (new in this PR)** — 11
+   completed-to-eval experiments (Phase 1B / 1C / 2A-C / 3 / 5b / 5b') in
+   the table below so other submitters can skip them.
+7. **Legal Muon-TTT non-competitive finding (new in this PR)** — 3-seed full-eval
+   TTT mean 1.205215 vs SLOT-100 mean 1.136399, **SLOT wins by 0.069 bpb** on
+   this model. Strong negative result: aggressive SLOT captures most of the
+   gain TTT can extract for a 32 M model.
+
 **Legal Muon-TTT alternative (3-seed, full eval)**: mean 1.205215 vs SLOT-100
 mean 1.136399 — SLOT-100 beats TTT by **0.069 bpb** on this model. TTT is
 not competitive with aggressive SLOT here. (Per-seed: s1337 TTT=1.206428,

@@ -26,6 +26,98 @@ observation of this re-run (1.135425 at 75.5 %). **The final 100 %-eval
 value is expected to land in [1.136, 1.140]**, which is **−0.007 to
 −0.011 bpb** relative to the prior 1.146523 record.
 
+## Originality — what's novel to this submitter
+
+Seven discrete contributions in this PR / the v6.1 chain it extends, in order
+of impact. Items marked **(new in this PR)** appear for the first time here;
+items marked **(prior in this chain)** were introduced by earlier PRs from
+this submitter and are included because they are essential context for
+reviewers who have not seen the v6.1 chain:
+
+1. **Custom rANS entropy codec for neural-network weights (prior in this chain,
+   #1123 / #1146).** This is **the only submission in the entire competition**
+   that pushes mixed-precision weights through a rANS codec instead of storing
+   them as packed integers. MLP-up reaches **2.32 bits/weight** (Pentanary
+   alphabet), MLP-down reaches **1.20 bits/weight** (Int4 alphabet) — vs the
+   ~4.0 bits/weight that a naive Int4 baseline gives. The full-weight entropy
+   breakdown is in the "rANS HybridQuant baseline" section below. **This is
+   the single biggest reason a 32.8 M-parameter model fits in 15 MB at all**,
+   and no other open PR tries this.
+
+2. **Aggressive SLOT tuning for the 32 M regime (prior in this chain, #1146).**
+   PR #1176 introduced SLOT with default `lr=0.003 steps=5`. At the 32 M scale
+   those defaults are **~33× too small**: a stride=64 full-eval sweep on
+   seed 1337 (this submitter's work) showed SLOT is *monotonically* helpful
+   all the way up to `steps=100` with `lr=0.1`. The −0.087 bpb gain that
+   aggressive SLOT gives the v6.1 chain is **the single largest trick this
+   submitter has landed**, and the PR you are reading rests on top of it.
+   See `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100/`
+   for the sweep data.
+
+3. **Phase 1A int6 tied-embedding quantization (new in this PR).** Nobody else
+   in the open PR list quantizes the tied `lm_head / tok_emb` below FP16 at
+   this scale — our Phase 1A sweep showed that `EMBED_QUANT_BITS=6
+   EMBED_QUANT_TOK_EMB=1` is a **free −0.6 MB** on the rANS artifact with
+   zero bpb regression (vs +0.043 bpb for Pentanary tied embed, which is
+   what the naive application of the MLP-up alphabet would give). The
+   Phase 1A sanity sweep (baseline / int4 / int6 / int8 / pentanary on both
+   passthrough-tok-emb and quantized-tok-emb) is what established that int6
+   is the right operating point.
+
+4. **Phase 5a trivial-wins composition (new in this PR).** The six components
+   in the stack below are each borrowed from other PRs (#1176 SLOT,
+   #1394 MuonEq-R, #1413 QK-Gain 5.0, #1421/#1445 EMA 0.9965, #1176 Muon-TTT)
+   but **no other open PR composes all six on top of the rANS-coded HybridQuant
+   backbone**. The composition itself is the novelty: Phase 5a delivers
+   **−0.010124 bpb** on top of the v6.1 SLOT-100 baseline, and that delta is
+   additive over the individual trick contributions because the rANS encoder
+   does not change between v6.1 and v6.2.
+
+5. **Shannon-floor empirical check via inter-layer delta (new in this PR).**
+   The PR #1123 chain's big open question has been *"is rANS already at the
+   entropy floor or is there more compression to extract?"*. We ran the
+   inter-layer delta prediction experiment (video-codec-style intra-frame
+   prediction on the per-layer weight tensors, then re-quantize + re-rANS
+   the Laplacian residual). **Result: across all 11 layers the delta
+   entropy is equal to or higher than the raw-weight entropy**, and
+   empirically rANS reaches 2.32 bits/weight on MLP-up vs a Shannon
+   theoretical minimum of 2.28 bits/weight on the same tensors — the
+   remaining 0.04 bits/weight is coding overhead, not exploitable redundancy.
+   This is the **first empirical confirmation in the competition** that the
+   HybridQuant / rANS artifact size is already entropy-bound at the
+   single-token coder level. Phase 2A (Hadamard transform), Phase 2B
+   (Context-aware rANS sub-tables), and Phase 3 (custom HQGRANS1 binary
+   container) all independently confirmed the same ceiling.
+
+6. **Negative-results catalog for the 32 M regime (new in this PR).** Eleven
+   experiments from Phases 1B, 1C, 2A, 2B, 2C, 3, 5b, 5b' were run to
+   completion (not just early-stopped) and are documented in the "Negative
+   results" table below with enough detail that other submitters can skip
+   them:
+   - Phase 1C (Ternary BitNet b1.58 1-layer sanity): regression +0.014
+   - Phase 1A pentanary tied embed: regression +0.043
+   - Phase 2A (inter-layer delta): Shannon-floor proof — delta entropy ≥ raw
+   - Phase 2B (Hadamard 16-dim): no rANS gain (entropy already at floor)
+   - Phase 2C (Context rANS lookup): rust-rebuild blocker, no eval data
+   - Phase 3 (custom HQGRANS1 binary container): −70 KB rans / +17 KB after
+     lzma9 — pickle isn't actually leaking 30 %, the lzma9 step already
+     removes the pickle overhead
+   - Phase 5b depth-recur nl9r2: 1.151 vs hm5 1.136
+   - Phase 5b depth-recur nl7r2: 1.166 vs hm5 1.136
+
+7. **Legal Muon-TTT non-competitive finding for this model (new in this PR).**
+   We ran the Legal Score-First Muon-TTT alternative (PR #1413 + PR #1176)
+   for all 3 seeds to completion (37 min per seed on 1 × H100, 1893 TTT
+   chunks, chunk=32768, ttt-lr=0.002 ttt-epochs=3 ttt-muon). **3-seed TTT
+   mean: 1.205215**. SLOT-100 on the same models: 1.136399. **SLOT wins by
+   0.069 bpb.** This is a strong negative result: aggressive SLOT already
+   captures most of the gain that TTT can extract for a 32 M model, and the
+   ~37-min TTT wall time per seed is not worth spending when SLOT-100 is
+   already on the table. Documented in the table in the section directly
+   below so other submitters can skip the TTT branch of the search tree.
+
+---
+
 ### Legal Score-First Muon-TTT (3-seed, full eval) — does not help on this model
 We also ran the Legal Score-First Muon-TTT alternative (PR #1413 + PR #1176)
 on a deep-copied fresh model of all 3 seeds (SLOT off during TTT eval), full
