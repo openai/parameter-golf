@@ -40,6 +40,9 @@ The original upstream challenge README has been preserved in `PARAMETER_GOLF_REA
 - One-shard FineWeb training is wired up
 - Sampling is available for sanity checks
 - Challenge-aligned validation is wired into training and standalone evaluation
+- Week 2 is complete: full-shard standalone eval was rerun successfully and reproduced the same final metric
+- Latest confirmed full-val metric from `logs/diffusion_local_diffusion_mlx_full_eval.txt`:
+  - `val_bpb:3.0502` with `val_elbo_nats:5.1501` over `62021632` validation tokens
 
 ## Important Files
 

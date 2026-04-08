@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -258,15 +259,15 @@ def load_checkpoint_into_model(model: Any, checkpoint_path: Path) -> None:
     from mlx.utils import tree_flatten, tree_unflatten
 
     expected_keys = [k for k, _ in tree_flatten(model.state)]
-    with np.load(checkpoint_path, allow_pickle=False) as state_npz:
-        loaded_keys = sorted(state_npz.files)
-        missing = sorted(set(expected_keys) - set(loaded_keys))
-        extra = sorted(set(loaded_keys) - set(expected_keys))
-        if missing or extra:
-            raise ValueError(
-                f"Checkpoint keys mismatch for {checkpoint_path}. Missing={missing[:5]} extra={extra[:5]}"
-            )
-        restored = [(key, mx.array(state_npz[key])) for key in expected_keys]
+    loaded_state = mx.load(str(checkpoint_path))
+    loaded_keys = sorted(loaded_state.keys())
+    missing = sorted(set(expected_keys) - set(loaded_keys))
+    extra = sorted(set(loaded_keys) - set(expected_keys))
+    if missing or extra:
+        raise ValueError(
+            f"Checkpoint keys mismatch for {checkpoint_path}. Missing={missing[:5]} extra={extra[:5]}"
+        )
+    restored = [(key, loaded_state[key]) for key in expected_keys]
     model.update(tree_unflatten(restored))
 
 
@@ -297,9 +298,20 @@ def standalone_main() -> None:
     checkpoint_path = Path(args_ns.checkpoint)
     if not checkpoint_path.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    eval_kind = "full" if args.val_max_tokens == 0 else f"subset_{args.val_max_tokens}"
+    logfile = out_dir / f"{checkpoint_path.stem}_{eval_kind}_eval.txt"
+    print(logfile)
 
     def log(msg: str) -> None:
         print(msg)
+        with logfile.open("a", encoding="utf-8") as f:
+            print(msg, file=f)
+
+    log("=" * 100, )
+    log(f"Running Python {sys.version}")
+    log("=" * 100)
 
     sp, dataset_name, actual_train_files, expected_train_files, val_tokens, byte_luts, mask_token_id = prepare_validation_state(
         args,
