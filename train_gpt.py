@@ -671,6 +671,7 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        '''
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -684,6 +685,30 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        '''
+        # Create a temporary Python list to handle the memory pointers
+        blocks_list = []
+        for i in range(num_layers): 
+            if i == 2:
+                blocks_list.append(blocks_list[1])
+            elif i == 4:
+                blocks_list.append(blocks_list[3])
+            else:
+                # USE YOUR ORIGINAL VARIABLES HERE, NOT CONFIG!
+                blocks_list.append(
+                    Block(
+                        model_dim,
+                        num_heads,
+                        num_kv_heads,
+                        mlp_mult,
+                        rope_base,
+                        qk_gain_init,
+                    )
+                )
+                
+        # Wrap it so PyTorch tracks the gradients
+        self.blocks = nn.ModuleList(blocks_list)
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
