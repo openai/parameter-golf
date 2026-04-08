@@ -546,21 +546,20 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 class LoRALinear(nn.Module):
     def __init__(self, out_features: int, in_features: int, rank: int = 64):
         super().__init__()
-        # Unique adapters for this specific block
         self.lora_A = nn.Parameter(torch.zeros((in_features, rank)))
         self.lora_B = nn.Parameter(torch.zeros((rank, out_features)))
-        
-        # Init: A is random, B is zero so the layer starts as an identity of Master
         nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
         nn.init.zeros_(self.lora_B)
         self.scaling = 1.0 / rank
 
     def forward(self, x: Tensor, master_weight: Tensor) -> Tensor:
-        # Reconstruct weight: W = W_master + (A @ B).T
-        # We transpose (A@B) to match nn.Linear weight shape [out, in]
-        weight = master_weight + (self.lora_A @ self.lora_B).T * self.scaling
-        return F.linear(x, weight)
+        res = F.linear(x, master_weight)
 
+        orig_shape = x.shape
+        x_flat = x.view(-1, orig_shape[-1])
+        lora_res = (x_flat @ self.lora_A) @ self.lora_B
+
+        return res + (lora_res * self.scaling).view(orig_shape[0], orig_shape[1], -1)
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rank=64):
