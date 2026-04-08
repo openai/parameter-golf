@@ -1,4 +1,4 @@
-"""Profile training steps: 1-GPU baseline vs compiled, then optionally 8-GPU."""
+"""Profile compiled model on 1-GPU with chrome trace."""
 
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -6,6 +6,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import time
+from torch.profiler import profile, ProfilerActivity
 
 # Set env vars to match our standard config
 for k, v in {
@@ -43,45 +44,56 @@ model = GPT(
 
 print(f"Model: {sum(p.numel() for p in model.parameters())/1e6:.1f}M params")
 
-# Fake batch — same micro-batch as 8xH100 (each GPU gets 131072 tokens)
 seq_len = args.train_seq_len
 bsz = 131072 // seq_len
 x = torch.randint(0, args.vocab_size, (bsz, seq_len), device=device)
 y = torch.randint(0, args.vocab_size, (bsz, seq_len), device=device)
 print(f"Batch: {bsz} seqs x {seq_len} tokens = {bsz * seq_len} tokens/step")
 
-
-def bench(model, label, warmup=20, steps=50):
-    """Warmup then benchmark wall time."""
-    model.train()
-    for _ in range(warmup):
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            loss = model(x, y)
-        loss.backward()
-        model.zero_grad()
-    torch.cuda.synchronize()
-
-    torch.cuda.synchronize()
-    t0 = time.perf_counter()
-    for _ in range(steps):
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            loss = model(x, y)
-        loss.backward()
-        model.zero_grad()
-    torch.cuda.synchronize()
-    elapsed = time.perf_counter() - t0
-    ms = elapsed / steps * 1000
-    print(f"[{label}] {ms:.1f} ms/step ({steps} steps)")
-    return ms
-
-
-# --- 1. Baseline (no compile) ---
-ms_base = bench(model, "1GPU-baseline")
-
-# --- 2. Compiled (no DDP) ---
+# Compile
 compiled = torch.compile(model, dynamic=False, fullgraph=False)
-ms_comp = bench(compiled, "1GPU-compiled", warmup=25)
 
-print(f"\n1-GPU speedup: {ms_base/ms_comp:.2f}x ({ms_base - ms_comp:.1f}ms saved)")
-print(f"\nDone. Now run with torchrun for 8-GPU DDP profile:")
-print(f"  torchrun --nproc_per_node=8 profiling/profile_ddp.py")
+# Warmup (covers Triton autotune + torch.compile JIT)
+print("Warming up (30 steps)...")
+compiled.train()
+for i in range(30):
+    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        loss = compiled(x, y)
+    loss.backward()
+    compiled.zero_grad()
+    if i % 10 == 0:
+        print(f"  warmup step {i}")
+torch.cuda.synchronize()
+
+# Benchmark
+print("Benchmarking (50 steps)...")
+torch.cuda.synchronize()
+t0 = time.perf_counter()
+for _ in range(50):
+    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+        loss = compiled(x, y)
+    loss.backward()
+    compiled.zero_grad()
+torch.cuda.synchronize()
+ms = (time.perf_counter() - t0) / 50 * 1000
+print(f"Compiled: {ms:.1f} ms/step")
+
+# Profile with trace
+print("Profiling (5 steps)...")
+with profile(
+    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+    record_shapes=True,
+    profile_memory=True,
+) as prof:
+    for _ in range(5):
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            loss = compiled(x, y)
+        loss.backward()
+        compiled.zero_grad()
+        torch.cuda.synchronize()
+
+prof.export_chrome_trace("profiling/trace_compiled.json")
+print(f"Trace saved: profiling/trace_compiled.json")
+
+print("\nTOP 20 SELF CUDA TIME")
+print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=20))
