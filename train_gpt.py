@@ -1118,6 +1118,20 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
+    # autoresearch summary block — parsed by grep "^val_bpb:\|^peak_vram_mb:"
+    if master_process:
+        total_seconds = training_time_ms / 1000.0 + (time.perf_counter() - t0)
+        peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
+        n_params_m = sum(p.numel() for p in base_model.parameters()) / 1e6
+        print("---")
+        print(f"val_bpb:          {q_val_bpb:.6f}")
+        print(f"training_seconds: {training_time_ms / 1000.0:.1f}")
+        print(f"total_seconds:    {total_seconds:.1f}")
+        print(f"peak_vram_mb:     {peak_vram_mb:.1f}")
+        print(f"num_steps:        {step}")
+        print(f"num_params_M:     {n_params_m:.1f}")
+        print(f"depth:            {args.num_layers}")
+
     if distributed:
         dist.destroy_process_group()
 
