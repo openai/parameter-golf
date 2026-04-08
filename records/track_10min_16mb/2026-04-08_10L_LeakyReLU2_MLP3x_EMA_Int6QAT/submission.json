@@ -1,0 +1,25 @@
+{
+  "author": "AVINASH0052",
+  "github_id": "AVINASH0052",
+  "name": "10L LeakyReLU2 MLP3x + EMA + Int6 QAT + LZMA9 + Sliding Eval",
+  "blurb": "10-layer GQA transformer with LeakyReLU(0.5)^2 MLP 3x (1536 hidden), Polyak EMA (decay=0.997), late-stage Int6 STE QAT (80% of training), LZMA preset=9 compression, sliding window eval (stride=256) on EMA weights. Muon optimizer + decoupled weight decay (0.04), U-Net skip connections, tied embeddings, logit softcap. All techniques are standard ML; no code copied from other submissions.",
+  "date": "2026-04-08",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": null,
+      "val_bpb": null,
+      "artifact_bytes": null,
+      "steps": null,
+      "step_avg_ms": null
+    }
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "lineage": "Based on openai/parameter-golf baseline train_gpt.py with original improvements",
+  "technique_summary": "LeakyReLU(0.5)^2 activation + MLP 3x (1536) + EMA(0.997) + Int6 STE QAT + LZMA-9 + sliding window eval (stride=256) + Muon WD=0.04"
+}
