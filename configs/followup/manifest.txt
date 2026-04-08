@@ -1,5 +1,0 @@
-configs/followup/f01_best_baseline_repeat.env
-configs/followup/f02_best_mask07.env
-configs/followup/f03_best_more_batch.env
-configs/followup/f04_best_12steps.env
-configs/followup/f05_best_more_batch_mask07.env

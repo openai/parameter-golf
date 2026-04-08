@@ -1,4 +1,0 @@
-configs/longrun/l01_mask065.env
-configs/longrun/l02_mask070.env
-configs/longrun/l03_mask075.env
-configs/longrun/l04_mask070_2shards.env
