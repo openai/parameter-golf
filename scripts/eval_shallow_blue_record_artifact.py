@@ -38,7 +38,7 @@ def main() -> None:
     parser.add_argument("--window", type=int, default=1024)
     parser.add_argument("--stride", type=int, default=1024)
     parser.add_argument("--batch-windows", type=int, default=32)
-    parser.add_argument("--alpha", type=float, default=0.20)
+    parser.add_argument("--alpha", type=float, default=0.30)
     parser.add_argument("--max-docs", type=int, default=0)
     parser.add_argument("--max-val-tokens", type=int, default=0)
     args = parser.parse_args()
