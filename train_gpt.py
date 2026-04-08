@@ -26,7 +26,6 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -60,6 +59,7 @@ class Hyperparameters:
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 0))
     rope_scaling = os.environ.get("ROPE_SCALING", "ntk").lower()
     rope_scale = float(os.environ.get("ROPE_SCALE", "1.0"))
     roundtrip_rope_scaling = os.environ.get("ROUNDTRIP_ROPE_SCALING", rope_scaling).lower()
@@ -95,6 +95,7 @@ class Hyperparameters:
     shared_depth_n = int(os.environ.get("SHARED_DEPTH_N", 0))
     shared_depth_gain = float(os.environ.get("SHARED_DEPTH_GAIN", 0.0))
     shared_depth_edge_unique = int(os.environ.get("SHARED_DEPTH_EDGE_UNIQUE", 0))
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))
     mlp_act = os.environ.get("MLP_ACT", "relu2").lower()
     leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", 0.5))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.0))
@@ -504,8 +505,6 @@ class TokenStream:
             self.pos += k
             remaining -= k
         return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
-
-
 class DistributedTokenLoader:
     def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
         self.rank = rank
@@ -522,23 +521,19 @@ class DistributedTokenLoader:
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
-
-
 class RMSNorm(nn.Module):
-    def __init__(self, eps: float | None = None):
+    def __init__(self, eps: float | None = None, scale: float = 1.0):
         super().__init__()
         self.eps = eps
+        self.scale = scale
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
-
-
+        y = F.rms_norm(x, (x.size(-1),), eps=self.eps)
+        return y if self.scale == 1.0 else y * self.scale
 class CastedLinear(nn.Linear):
     def forward(self, x: Tensor) -> Tensor:
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, self.weight.to(x.dtype), bias)
-
-
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     with torch.no_grad():
         for name, param in module.named_parameters():
@@ -556,7 +551,6 @@ def load_exported_state_dict(module: nn.Module, state_dict: dict[str, Tensor]) -
 
 def clone_export_state(module: nn.Module) -> dict[str, Tensor]:
     return {k: v.detach().clone() for k, v in export_state_dict(module).items()}
-
 class Rotary(nn.Module):
     def __init__(self, dim: int, base: float = 10000.0, train_seq_len: int = 1024, scaling: str = "ntk", scale: float = 1.0):
         super().__init__()
@@ -604,12 +598,11 @@ class Rotary(nn.Module):
             self._sin_cached = freqs.sin()[None, None, :, :]
             self._seq_len_cached = seq_len
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
-
-
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
-    half = x.size(-1) // 2
-    x1, x2 = x[..., :half], x[..., half:]
-    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+    half = cos.size(-1)
+    x1, x2 = x[..., :half], x[..., half : 2 * half]
+    y = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+    return torch.cat((y, x[..., 2 * half :]), dim=-1) if 2 * half < x.size(-1) else y
 def lm_loss(logits: Tensor, targets: Tensor, z_loss_coef: float, reduction: str) -> Tensor:
     losses = F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), targets.reshape(-1), reduction="none").reshape_as(targets)
     if z_loss_coef > 0:
@@ -624,6 +617,7 @@ class CausalSelfAttention(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         train_seq_len: int,
+        rope_dim: int,
         rope_scaling: str,
         rope_scale: float,
     ):
@@ -637,6 +631,9 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        self.rope_dim = self.head_dim if rope_dim <= 0 else min(rope_dim, self.head_dim)
+        if self.rope_dim % 2 != 0:
+            raise ValueError("rope_dim must be even")
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -644,7 +641,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len, scaling=rope_scaling, scale=rope_scale)
+        self.rotary = Rotary(self.rope_dim, base=rope_base, train_seq_len=train_seq_len, scaling=rope_scaling, scale=rope_scale)
 
     def forward(self, x: Tensor, q_delta=None, v_delta=None) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -666,8 +663,6 @@ class CausalSelfAttention(nn.Module):
         y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
-
-
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int, act: str = "relu2", leaky_relu_slope: float = 0.5):
         super().__init__()
@@ -706,6 +701,8 @@ class Block(nn.Module):
         qk_gain_init: float,
         train_seq_len: int,
         attn_twice_alpha: float,
+        norm_scale: float,
+        rope_dim: int,
         rope_scaling: str,
         rope_scale: float,
         hybrid_delta: bool,
@@ -713,10 +710,10 @@ class Block(nn.Module):
         leaky_relu_slope: float,
     ):
         super().__init__()
-        self.attn_norm = RMSNorm()
-        self.mlp_norm = RMSNorm()
+        self.attn_norm = RMSNorm(scale=norm_scale)
+        self.mlp_norm = RMSNorm(scale=norm_scale)
         self.use_delta = hybrid_delta
-        self.attn = DeltaMixer(dim) if hybrid_delta else CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len, rope_scaling, rope_scale)
+        self.attn = DeltaMixer(dim) if hybrid_delta else CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len, rope_dim, rope_scaling, rope_scale)
         self.attn_twice_alpha = attn_twice_alpha
         self.mlp = MLP(dim, mlp_mult, mlp_act, leaky_relu_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -751,6 +748,7 @@ class GPT(nn.Module):
         tied_embed_init_std: float,
         logit_softcap: float,
         rope_base: float,
+        rope_dims: int,
         qk_gain_init: float,
         train_seq_len: int,
         z_loss_coef: float,
@@ -766,6 +764,7 @@ class GPT(nn.Module):
         shared_depth_n: int,
         shared_depth_gain: float,
         shared_depth_edge_unique: int,
+        ln_scale: bool,
         mlp_act: str,
         leaky_relu_slope: float,
     ):
@@ -801,6 +800,8 @@ class GPT(nn.Module):
                     qk_gain_init,
                     train_seq_len,
                     attn_twice_alpha * (1 + attn_twice_alpha_slope * (2 * i / max(num_layers - 1, 1) - 1)),
+                    (i + 1) ** -0.5 if ln_scale else 1.0,
+                    rope_dims,
                     rope_scaling,
                     rope_scale,
                     hybrid_delta_every > 0 and (i + 1) % hybrid_delta_every == 0,
@@ -911,8 +912,6 @@ class BatchedLinearLoRA(nn.Module):
         with torch.no_grad():
             self.A.uniform_(-bound, bound)  # kaiming-uniform
             self.B.zero_()
-
-
 class NullLoRA(nn.Module):
     def forward(self, x: Tensor) -> int:
         return 0
@@ -1185,6 +1184,7 @@ def main() -> None:
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
+        rope_dims=args.rope_dims,
         qk_gain_init=args.qk_gain_init,
         train_seq_len=args.train_seq_len,
         z_loss_coef=args.z_loss_coef,
@@ -1200,6 +1200,7 @@ def main() -> None:
         shared_depth_n=args.shared_depth_n,
         shared_depth_gain=args.shared_depth_gain,
         shared_depth_edge_unique=args.shared_depth_edge_unique,
+        ln_scale=args.ln_scale,
         mlp_act=args.mlp_act,
         leaky_relu_slope=args.leaky_relu_slope,
     ).to(device).bfloat16()
@@ -1255,6 +1256,7 @@ def main() -> None:
     log0(
         f"roundtrip_eval_seq_len:{args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len} "
         f"roundtrip_eval_stride:{args.eval_stride} ttt_eval_seq_len:{args.ttt_eval_seq_len} "
+        f"rope_dims:{args.rope_dims or args.model_dim // args.num_heads} ln_scale:{int(args.ln_scale)} "
         f"rope_scaling:{args.rope_scaling} roundtrip_rope_scaling:{args.roundtrip_rope_scaling} "
         f"ttt_rope_scaling:{args.ttt_rope_scaling} muon_weight_decay:{args.muon_weight_decay} "
         f"muon_update_balance:{args.muon_update_balance} z_loss_coef:{args.z_loss_coef} "
