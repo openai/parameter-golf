@@ -21,8 +21,8 @@ export COMPRESS_METHOD=lzma
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-export DATA_PATH="${DATA_PATH:-$REPO_ROOT/data/datasets/fineweb10B_sp1024}"
-export TOKENIZER_PATH="${TOKENIZER_PATH:-$REPO_ROOT/data/tokenizers/fineweb_1024_bpe.model}"
+export DATA_PATH="$REPO_ROOT/data/datasets/fineweb10B_sp1024"
+export TOKENIZER_PATH="$REPO_ROOT/data/tokenizers/fineweb_1024_bpe.model"
 
 echo "=== Smoke Test 1xGPU ==="
 echo "REPO_ROOT=$REPO_ROOT"

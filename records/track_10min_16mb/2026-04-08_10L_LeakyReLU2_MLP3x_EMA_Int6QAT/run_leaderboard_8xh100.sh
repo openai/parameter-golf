@@ -33,8 +33,8 @@ export TIED_EMBED_LR=0.05
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-export DATA_PATH="${DATA_PATH:-$REPO_ROOT/data/datasets/fineweb10B_sp1024}"
-export TOKENIZER_PATH="${TOKENIZER_PATH:-$REPO_ROOT/data/tokenizers/fineweb_1024_bpe.model}"
+export DATA_PATH="$REPO_ROOT/data/datasets/fineweb10B_sp1024"
+export TOKENIZER_PATH="$REPO_ROOT/data/tokenizers/fineweb_1024_bpe.model"
 echo "=== Leaderboard Run: ${NUM_GPUS}xGPU ==="
 torchrun --standalone --nproc_per_node="$NUM_GPUS" "$SCRIPT_DIR/train_gpt.py"
 echo "=== Done ==="
