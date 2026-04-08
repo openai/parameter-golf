@@ -19,7 +19,7 @@ set -euo pipefail
 
 PHASE="${1:-both}"
 SEED="${2:-1337}"
-SCRIPT=records/track_10min_16mb/2026-04-09_v62_p5a_hm5/train_gpt.py
+SCRIPT=records/track_non_record_16mb/2026-04-09_v62_p5a_hm5_phase5a/train_gpt.py
 RUN_NAME="v62_p5a_hm5_s${SEED}"
 LOGDIR="logs/${RUN_NAME}"
 mkdir -p "$LOGDIR"
