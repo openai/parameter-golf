@@ -2,12 +2,25 @@
 `non-record-10min-compute-16mb` (10-minute wallclock training, 16 MB artifact, non-record)
 
 ## Headline
-**3-seed val_bpb (SLOT lr=0.1 steps=100 stride=64, re-run @40-41 %): 1.137407 ± 0.001190**
+**3-seed val_bpb (SLOT lr=0.1 steps=100 stride=64, re-run @56 %): 1.139363 ± 0.001094**
 
-*(earlier mid-eval @28-29 % reported 1.142572; @32-33 % dropped to 1.140655;
-@40-41 % further dropped to 1.137407 — the cumulative bpb is still slowly
-decreasing as the SLOT sliding-window advances, and we will keep updating the
-number as the re-run progresses toward 100 %-eval)*
+The cumulative bpb trajectory on the same rANS artifacts is not perfectly
+monotonic — different val-token sub-ranges have different local difficulty
+— so the reported number is the latest stable point we have measured.
+Running average of the 3-seed mean as the re-run progresses:
+
+| window progress | 3-seed mean | delta vs prior |
+|-----------------|-------------|----------------|
+| 28-29 %         | 1.142572    | baseline       |
+| 32-33 %         | 1.140655    | −0.0019        |
+| 40-41 %         | 1.137407    | −0.0033        |
+| 49-50 %         | 1.136816    | −0.0006        |
+| **56 %** (current) | **1.139363** | **+0.0026**    |
+
+The local minimum is around 50 %, the running average is currently rising
+back toward ~1.140 as the eval crosses a harder region of val tokens.
+The final 100 %-eval value will likely land between 1.137 and 1.142, which
+is **−0.005 to −0.009 bpb** relative to the prior 1.146523 record.
 
 > **The only submission in the competition using rANS entropy coding to pack
 > 32.8 M parameters into a 15 MB artifact** — the HybridQuantGPT v6.1 chain
@@ -16,16 +29,16 @@ number as the re-run progresses toward 100 %-eval)*
 > bit-width down to ~2.3 bits/weight (vs ~4.0 bits/weight that Int4 would give
 > naively).
 
-| seed | SLOT-100 bpb (re-run @40-41 %) | windows scored              | @32-33 %    | @28-29 % prior |
-|------|--------------------------------|-----------------------------|-------------|----------------|
-| 1337 | 1.138830                       | 396,832 / 969,088 (40.9 %)  | 1.142050    | 1.144045       |
-| 1338 | 1.136773                       | 396,832 / 969,088 (40.9 %)  | 1.139991    | 1.142021       |
-| 1339 | 1.136617                       | 393,632 / 969,088 (40.6 %)  | 1.139924    | 1.141649       |
-| **mean** | **1.137407**               |                             | 1.140655    | 1.142572       |
-| **std**  | 0.001190                   |                             | 0.001207    | 0.001247       |
+| seed | SLOT-100 bpb (re-run @56 %) | windows scored              |
+|------|-----------------------------|-----------------------------|
+| 1337 | 1.140692                    | 544,032 / 969,088 (56.1 %)  |
+| 1338 | 1.138794                    | 542,432 / 969,088 (56.0 %)  |
+| 1339 | 1.138602                    | 537,632 / 969,088 (55.5 %)  |
+| **mean** | **1.139363**            |                             |
+| **std**  | 0.001094                |                             |
 
 **Δ vs prior `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100`
-(SLOT-100 3-seed mean 1.146523):** **−0.009116 bpb**
+(SLOT-100 3-seed mean 1.146523):** **−0.007160 bpb**
 
 ### Why mid-eval? (and why a full 100 %-eval run would need extra compute)
 The 28-29 % mid-eval window is the converged region of the SLOT sliding window —

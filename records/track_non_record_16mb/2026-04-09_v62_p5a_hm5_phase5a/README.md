@@ -1,7 +1,7 @@
 # v6.2 Phase 5a SOTA-trivial stack — 8×H100 SXM, non-record 10-min 16MB track
 
-**3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, re-run @40-41 %): 1.137407 ± 0.001190**
-*(cumulative bpb still slowly decreasing; @28 % → 1.142572, @32 % → 1.140655, @40 % → 1.137407)*
+**3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, re-run @56 %): 1.139363 ± 0.001094**
+*(trajectory: @28 % → 1.142572, @32 % → 1.140655, @40 % → 1.137407, @50 % → 1.136816, @56 % → 1.139363. The cumulative bpb oscillates by ±0.003 bpb between the local min around 50 % and the current 56 % value; the final 100 %-eval number will likely land in [1.137, 1.142].)*
 
 > **The only submission in the competition using rANS entropy coding** to pack
 > 32.8 M parameters into a 15 MB artifact — mixed Int4 / Int5 / Int6 / Pentanary
@@ -9,15 +9,15 @@
 > bits/weight average on MLP-up and ~1.20 bits/weight on MLP-down (vs ~4.0
 > bits/weight for naive Int4 baselines).
 
-| seed | bpb (re-run @40-41 %) | windows |
-|------|-----------------------|---------|
-| 1337 | 1.138830 | 396,832 / 969,088 (40.9 %) |
-| 1338 | 1.136773 | 396,832 / 969,088 (40.9 %) |
-| 1339 | 1.136617 | 393,632 / 969,088 (40.6 %) |
-| **mean** | **1.137407** |  |
-| **std**  | 0.001190    |  |
+| seed | bpb (re-run @56 %) | windows |
+|------|--------------------|---------|
+| 1337 | 1.140692 | 544,032 / 969,088 (56.1 %) |
+| 1338 | 1.138794 | 542,432 / 969,088 (56.0 %) |
+| 1339 | 1.138602 | 537,632 / 969,088 (55.5 %) |
+| **mean** | **1.139363** |  |
+| **std**  | 0.001094    |  |
 
-vs prior `2026-04-08_v61_h100_aggressive_slot_steps100` (3-seed 1.146523): **−0.009116 bpb**
+vs prior `2026-04-08_v61_h100_aggressive_slot_steps100` (3-seed 1.146523): **−0.007160 bpb**
 
 This is a **non-record** submission (PR #1019 record is 1.1147, we are +0.028 above).
 Submitted to document the Phase 5a SOTA-trivial stack as well as the negative
