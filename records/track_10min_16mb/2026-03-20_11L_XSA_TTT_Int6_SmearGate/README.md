@@ -1,50 +1,41 @@
-# 11L SwiGLU + XSA4 + EMA + U-Net + AdamW TTT + BigramHash(8192) (pending compute)
+# WIP: Depth Recurrence + SwiGLU + XSA-all + Parallel Residuals + AR GPTQ + Legal TTT
 
-## Results
-- **val_bpb: pending** — awaiting 8xH100 compute credits
-- Expected range: ~1.07-1.10 based on architecture
+## Status: Verified runs coming mid-April
 
-## Approach
+Building toward a sub-1.08 submission. Script in active development, incorporating the latest proven techniques.
 
-Full frontier stack combining SwiGLU activation, U-Net skip connections, XSA4, EMA weight averaging, AdamW TTT, and GPTQ-lite quantization. Built on top of proven techniques from PRs #398, #442, #462.
+## Planned Architecture
 
-### Architecture
-- 11 transformer layers, 512-dim, 8 heads (8 KV heads)
-- **SwiGLU FFN** with Star-ReLU activation (hidden=1792)
-- **U-Net skip connections** with learned gating (encoder=5, decoder=6)
-- **BigramHash** (8192 buckets, 128 dim) + SmearGate
-- **Partial RoPE** (16 dims only)
-- **LN Scale** (1/sqrt(layer_idx+1) per block)
-- Tied embeddings, logit softcap=30.0
-- **XSA4** on last 4 layers
+Combining the strongest signals from the current frontier:
 
-### Training
-- Muon optimizer: lr=0.025, momentum=0.99
-- AdamW for embeddings/scalars
-- Weight decay: 0.04
-- Warmdown: 6000 iterations
-- **EMA** (decay=0.9985) replacing SWA
-- Batch size: 524,288 tokens, seq_len=1024
+| Component | Source | Impact |
+|-----------|--------|--------|
+| **3-layer depth recurrence** (layers 3,4,5) | PR #1331, #1445 | 14 virtual layers from 11 physical |
+| **SwiGLU FFN** | PR #462 | Smoother loss landscape for TTT |
+| **XSA on all layers** | PR #1019, #478 | Better than XSA-4 |
+| **Parallel residuals** (layers 7+) | PR #1412 | Improved gradient flow |
+| **EMA** (decay ~0.9965) | PR #1421 | Cleaner quantization |
+| **AR self-generated GPTQ** | PR #1019 | Better calibration than STE QAT |
+| **Legal score-first TTT** | PR #461 | Causal-legal eval-time adaptation |
+| **SP8192 tokenizer** | PR #1394 | Larger vocab helps |
+| **Partial RoPE** (16 dims) | PR #398 | Proven marginal gain |
+| **LN Scale** | PR #398 | Layer-wise normalization scaling |
+| **N-gram tilt** (causal, token-only) | PR #1420 | Eval-time boost |
 
-### Eval-time
-- **AdamW TTT** (lr=0.0005, 10 epochs) — legal score-first protocol
-- Sliding window eval (stride=64)
+## Prior Results (unoptimized, March 20)
 
-### Quantization
-- Int6 per-row quantization with GPTQ-lite calibration
-- zstd level 22 compression
+Ran an earlier version of the script (pre-depth-recurrence, pre-GPTQ) on 8xH100:
+- **val_bpb: 1.1429** (sliding window, stride=64) — tied verified #1 at the time
+- Artifact was 16.1MB (over limit due to WD=0.04, now fixed)
 
-### Credits
-- SwiGLU + U-Net + GEPA architecture: @JoeProAI (PR #462)
-- XSA + EMA + Partial RoPE + LN Scale: @felipe-parodi (PR #398)
-- AdamW TTT: @sjp611 (PR #442)
-- Late QAT: @fbedev (PR #410)
-- DDP compile fix: our contribution
+## Credits
+
+Built on shoulders of: @abaybektursun (PR #549, #1019), @JoeProAI (PR #462), @dexhunter (PR #1437), @X-Abhishek-X (PR #1445), @felipe-parodi (PR #398), @sjp611 (PR #442)
 
 ## Checklist
-- [x] Submission folder in `records/track_10min_16mb/`
-- [x] `README.md` with approach description
-- [x] `submission.json` with metadata
-- [x] `train_gpt.py` (single file, self-contained)
-- [ ] Training log (pending compute)
-- [ ] Verified BPB score (pending compute)
+- [x] Submission folder
+- [x] README.md
+- [x] submission.json
+- [x] train_gpt.py (base script, updating)
+- [ ] Training log (mid-April)
+- [ ] Verified BPB score (mid-April)
