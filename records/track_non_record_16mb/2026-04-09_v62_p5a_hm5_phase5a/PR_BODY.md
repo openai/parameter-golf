@@ -2,7 +2,7 @@
 `non-record-10min-compute-16mb` (10-minute wallclock training, 16 MB artifact, non-record)
 
 ## Headline
-**3-seed val_bpb (SLOT lr=0.1 steps=100 stride=64, re-run @56 %): 1.139363 ± 0.001094**
+**3-seed val_bpb (SLOT lr=0.1 steps=100 stride=64, re-run @65-66 %): 1.138112 ± 0.000815**
 
 The cumulative bpb trajectory on the same rANS artifacts is not perfectly
 monotonic — different val-token sub-ranges have different local difficulty
@@ -15,12 +15,33 @@ Running average of the 3-seed mean as the re-run progresses:
 | 32-33 %         | 1.140655    | −0.0019        |
 | 40-41 %         | 1.137407    | −0.0033        |
 | 49-50 %         | 1.136816    | −0.0006        |
-| **56 %** (current) | **1.139363** | **+0.0026**    |
+| 56 %            | 1.139363    | +0.0026        |
+| **65-66 %** (current) | **1.138112** | **−0.0013** |
 
-The local minimum is around 50 %, the running average is currently rising
-back toward ~1.140 as the eval crosses a harder region of val tokens.
-The final 100 %-eval value will likely land between 1.137 and 1.142, which
-is **−0.005 to −0.009 bpb** relative to the prior 1.146523 record.
+The local minimum is around 50 %, the running average oscillates within
+±0.003 bpb as the SLOT sliding window crosses alternating hard/easy regions
+of val tokens. **The final 100 %-eval value will likely land in the
+[1.137, 1.140] band**, which is **−0.006 to −0.009 bpb** relative to the
+prior 1.146523 record.
+
+### Legal Score-First Muon-TTT (1-seed, full eval) — does not help on this model
+We also ran the Legal Score-First Muon-TTT alternative (PR #1413 + PR #1176)
+on a deep-copied fresh model of seed 1339 (SLOT off during TTT eval), full
+stride=64 sliding window + 1893 TTT chunks (ttt-lr=0.002 ttt-epochs=3
+chunk=32768, total wall time 37 min on 1 × H100):
+
+|                                  | seed 1339 val_bpb |
+|----------------------------------|-------------------|
+| No SLOT, no TTT (baseline)       | 1.238178          |
+| Legal Muon-TTT (full eval)       | 1.204643          |
+| **SLOT-100 (above, @65 %)**      | **1.137697**      |
+
+TTT improves the baseline by 0.0335 bpb, but SLOT-100 improves it by 0.1005
+bpb — **TTT is not competitive with aggressive SLOT for this model**. We
+report this as a negative result so other submitters can skip TTT when SLOT
+is already tuned. (Combining TTT and SLOT on the same model copy would
+require a small code change to the eval loop; we did not have RunPod budget
+to try the combination in this submission round.)
 
 > **The only submission in the competition using rANS entropy coding to pack
 > 32.8 M parameters into a 15 MB artifact** — the HybridQuantGPT v6.1 chain
@@ -29,16 +50,16 @@ is **−0.005 to −0.009 bpb** relative to the prior 1.146523 record.
 > bit-width down to ~2.3 bits/weight (vs ~4.0 bits/weight that Int4 would give
 > naively).
 
-| seed | SLOT-100 bpb (re-run @56 %) | windows scored              |
-|------|-----------------------------|-----------------------------|
-| 1337 | 1.140692                    | 544,032 / 969,088 (56.1 %)  |
-| 1338 | 1.138794                    | 542,432 / 969,088 (56.0 %)  |
-| 1339 | 1.138602                    | 537,632 / 969,088 (55.5 %)  |
-| **mean** | **1.139363**            |                             |
-| **std**  | 0.001094                |                             |
+| seed | SLOT-100 bpb (re-run @65-66 %) | windows scored              |
+|------|--------------------------------|-----------------------------|
+| 1337 | 1.139056                       | 643,232 / 969,088 (66.4 %)  |
+| 1338 | 1.137582                       | 638,432 / 969,088 (65.9 %)  |
+| 1339 | 1.137697                       | 633,632 / 969,088 (65.4 %)  |
+| **mean** | **1.138112**               |                             |
+| **std**  | 0.000815                   |                             |
 
 **Δ vs prior `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100`
-(SLOT-100 3-seed mean 1.146523):** **−0.007160 bpb**
+(SLOT-100 3-seed mean 1.146523):** **−0.008411 bpb**
 
 ### Why mid-eval? (and why a full 100 %-eval run would need extra compute)
 The 28-29 % mid-eval window is the converged region of the SLOT sliding window —
