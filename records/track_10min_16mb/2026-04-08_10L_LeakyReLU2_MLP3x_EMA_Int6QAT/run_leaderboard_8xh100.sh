@@ -18,7 +18,7 @@ export SLIDING_EVAL=1
 export EVAL_STRIDE=256
 export COMPRESS_METHOD=lzma
 
-# EMA + QAT
+NUM_GPUS=$(nvidia-smi -L | wc -l)
 export EMA_DECAY=0.997
 export EMA_START_STEP=100
 export QAT_START_FRAC=0.80
@@ -31,7 +31,10 @@ export SCALAR_LR=0.04
 export TIED_EMBED_LR=0.05
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NUM_GPUS=$(nvidia-smi -L | wc -l)
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+export DATA_PATH="${DATA_PATH:-$REPO_ROOT/data/datasets/fineweb10B_sp1024}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-$REPO_ROOT/data/tokenizers/fineweb_1024_bpe.model}"
 echo "=== Leaderboard Run: ${NUM_GPUS}xGPU ==="
 torchrun --standalone --nproc_per_node="$NUM_GPUS" "$SCRIPT_DIR/train_gpt.py"
 echo "=== Done ==="
