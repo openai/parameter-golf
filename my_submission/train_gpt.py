@@ -18,7 +18,7 @@ import time
 import uuid
 import zlib
 from pathlib import Path
-
+from enum import Enum, auto
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -29,16 +29,19 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from liger_kernel.transformers import LigerFusedLinearCrossEntropyLoss
 
-fused_loss_fn = LigerFusedLinearCrossEntropyLoss()
+fused_loss_fn = LigerFusedLinearCrossEntropyLoss(softcap=float(os.environ.get("LOGIT_SOFTCAP", 30.0)))
 
 torch._dynamo.config.capture_scalar_outputs = True
 
 
 def run_fused_loss(projection_weight, hidden_states, target_ids):
-    # Instead of tanh(logits / 30.0) * 30.0
-    # Just do a 1/30.0 scaling:
-    softcap_scale = 1.0 / 30.0
-    return fused_loss_fn(projection_weight.float() * softcap_scale, hidden_states.float(), target_ids.reshape(-1))
+    return fused_loss_fn(projection_weight.float(), hidden_states.float(), target_ids.reshape(-1))
+
+
+
+class GptModes(Enum):
+    TRAIN = auto()
+    EVAL = auto()
 
 
 # -----------------------------
@@ -270,16 +273,7 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                hidden_states = model(x) 
-
-                # 2. Get the weights for projection (handle DDP wrapper if necessary)
-                raw_model = model.module if hasattr(model, 'module') else model
-                projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
-
-                # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
-                curr_loss = run_fused_loss(projection_weight, hidden_states, y)
-
-                batch_loss = curr_loss.detach()
+                batch_loss = model(GptModes.EVAL, x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -732,7 +726,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor) -> Tensor:
+    def _forward_training(self, input_ids: Tensor):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -749,6 +743,40 @@ class GPT(nn.Module):
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         return x
+
+    def _forward_eval(self, input_ids, target_ids):
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        targets = target_ids.reshape(-1)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+    def forward(self, mode: GptModes, input_ids: Tensor, target_ids=None) -> Tensor:
+        if mode == GptModes.TRAIN:
+            return self._forward_training(input_ids)
+        elif mode == GptModes.EVAL:
+            return self._forward_eval(input_ids, target_ids)
+        else:
+            raise ValueError(f"received unexpected {mode=}")
         
 
 # -----------------------------
@@ -973,7 +1001,7 @@ def main() -> None:
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     # 1. Forward pass (only calculates hidden states, handled by torch.compile)
-                    hidden_states = model(x) 
+                    hidden_states = model(GptModes.TRAIN, x) 
 
                     # 2. Get the weights for projection (handle DDP wrapper if necessary)
                     raw_model = model.module if hasattr(model, 'module') else model
@@ -1050,7 +1078,7 @@ def main() -> None:
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 # 1. Forward pass (only calculates hidden states, handled by torch.compile)
-                hidden_states = model(x) 
+                hidden_states = model(GptModes.TRAIN, x) 
 
                 # 2. Get the weights for projection (handle DDP wrapper if necessary)
                 raw_model = model.module if hasattr(model, 'module') else model
