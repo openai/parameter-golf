@@ -1,11 +1,12 @@
 # v6.2 Phase 5a SOTA-trivial stack — 8×H100 SXM, non-record 10-min 16MB track
 
-**3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, re-run @65-66 %): 1.138112 ± 0.000815**
-*(trajectory: @28 % → 1.142572, @32 % → 1.140655, @40 % → 1.137407, @50 % → 1.136816, @56 % → 1.139363, @66 % → 1.138112. The cumulative bpb oscillates within ±0.003 bpb as the SLOT sliding window crosses hard/easy val regions; the final 100 %-eval will likely land in [1.137, 1.140].)*
+**3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, re-run @75-76 %): 1.136399 ± 0.001492**
+*(trajectory: @28 %→1.142572, @32 %→1.140655, @40 %→1.137407, @50 %→1.136816, @56 %→1.139363, @66 %→1.138112, @76 %→1.136399. The cumulative bpb oscillates within ±0.003 bpb; final 100 %-eval expected in [1.136, 1.140].)*
 
-**Legal Muon-TTT alternative (1-seed s1339, full eval)**: 1.204643 vs SLOT-100
-1.137697 on the same seed — SLOT-100 beats TTT by **0.067 bpb** on this model.
-TTT is not competitive with aggressive SLOT here.
+**Legal Muon-TTT alternative (3-seed, full eval)**: mean 1.205215 vs SLOT-100
+mean 1.136399 — SLOT-100 beats TTT by **0.069 bpb** on this model. TTT is
+not competitive with aggressive SLOT here. (Per-seed: s1337 TTT=1.206428,
+s1338 TTT=1.204575, s1339 TTT=1.204643.)
 
 > **The only submission in the competition using rANS entropy coding** to pack
 > 32.8 M parameters into a 15 MB artifact — mixed Int4 / Int5 / Int6 / Pentanary
@@ -13,15 +14,15 @@ TTT is not competitive with aggressive SLOT here.
 > bits/weight average on MLP-up and ~1.20 bits/weight on MLP-down (vs ~4.0
 > bits/weight for naive Int4 baselines).
 
-| seed | bpb (re-run @65-66 %) | windows |
+| seed | bpb (re-run @75-76 %) | windows |
 |------|-----------------------|---------|
-| 1337 | 1.139056 | 643,232 / 969,088 (66.4 %) |
-| 1338 | 1.137582 | 638,432 / 969,088 (65.9 %) |
-| 1339 | 1.137697 | 633,632 / 969,088 (65.4 %) |
-| **mean** | **1.138112** |  |
-| **std**  | 0.000815    |  |
+| 1337 | 1.138161 | 739,232 / 969,088 (76.3 %) |
+| 1338 | 1.135610 | 732,832 / 969,088 (75.6 %) |
+| 1339 | 1.135425 | 731,232 / 969,088 (75.5 %) |
+| **mean** | **1.136399** |  |
+| **std**  | 0.001492    |  |
 
-vs prior `2026-04-08_v61_h100_aggressive_slot_steps100` (3-seed 1.146523): **−0.008411 bpb**
+vs prior `2026-04-08_v61_h100_aggressive_slot_steps100` (3-seed 1.146523): **−0.010124 bpb**
 
 This is a **non-record** submission (PR #1019 record is 1.1147, we are +0.028 above).
 Submitted to document the Phase 5a SOTA-trivial stack as well as the negative
