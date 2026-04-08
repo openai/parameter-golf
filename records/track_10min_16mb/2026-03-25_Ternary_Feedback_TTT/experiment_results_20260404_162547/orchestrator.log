@@ -1,0 +1,49 @@
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 3599s left] Stack    : SKC novel arch 24L dim=512 vocab=1024 sp1024
+[00:00 | 3599s left] Budget   : 3599s (59:59)
+[00:00 | 3599s left] Seeds    : 42 (1-seed budget run)
+[00:00 | 3599s left] Cloud    : COMMUNITY
+[00:00 | 3599s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519
+[00:00 | 3599s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260404_162547
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 3599s left]   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+[00:00 | 3599s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 3599s left] Retrying with SECURE cloud...
+[00:00 | 3599s left] Pod created: ID=hgp8bg7em28ijv  cost=$21.52/hr
+[00:00 | 3599s left] BUDGET CLOCK STARTED — 3599s (59:59) remaining
+[00:00 | 3599s left] Waiting for pod SSH readiness...
+[00:11 | 3588s left]   waiting... 10s
+[00:21 | 3578s left]   waiting... 20s
+[00:33 | 3566s left]   SSH not yet responding... 30s
+[00:45 | 3554s left]   SSH not yet responding... 40s
+[00:57 | 3542s left]   SSH not yet responding... 50s
+[01:08 | 3531s left]   SSH not yet responding... 60s
+[01:19 | 3520s left]   SSH not yet responding... 70s
+[01:31 | 3508s left]   SSH not yet responding... 80s
+[01:42 | 3497s left]   SSH not yet responding... 90s
+[01:53 | 3486s left]   SSH not yet responding... 100s
+[02:05 | 3474s left]   SSH not yet responding... 110s
+[02:16 | 3463s left]   SSH not yet responding... 120s
+[02:26 | 3453s left]   SSH not yet responding... 130s
+[02:37 | 3442s left]   SSH not yet responding... 140s
+[02:49 | 3430s left]   SSH not yet responding... 150s
+[03:00 | 3419s left]   SSH not yet responding... 160s
+[03:10 | 3408s left]   SSH not yet responding... 170s
+[03:23 | 3396s left]   SSH not yet responding... 180s
+[03:35 | 3384s left]   SSH not yet responding... 190s
+[03:46 | 3373s left]   SSH not yet responding... 200s
+[03:57 | 3361s left]   SSH not yet responding... 210s
+[04:08 | 3350s left]   SSH not yet responding... 220s
+[04:19 | 3340s left]   SSH not yet responding... 230s
+[04:30 | 3329s left]   SSH not yet responding... 240s
+[04:41 | 3318s left]   SSH not yet responding... 250s
+[04:52 | 3307s left]   SSH not yet responding... 260s
+[05:03 | 3296s left]   SSH not yet responding... 270s
+[05:14 | 3285s left]   SSH not yet responding... 280s
+[05:26 | 3273s left]   SSH not yet responding... 290s
+[05:37 | 3262s left]   SSH not yet responding... 300s
+[05:48 | 3251s left]   SSH not yet responding... 310s
+[05:59 | 3240s left]   SSH not yet responding... 320s
+[06:10 | 3229s left]   SSH not yet responding... 330s

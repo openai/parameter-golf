@@ -1,0 +1,271 @@
+[10:00:45] ========================================================
+[10:00:45] Cheap Multi-GPU Small SKC Orchestrator
+[10:00:45] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_100045
+[10:00:45] GPU count: 1
+[10:00:45] Min mem  : 12GB
+[10:00:45] Data     : 2 train shards
+[10:00:45] ========================================================
+[10:00:48] GC: terminating stale live pod paramgolf-small-20260407-065441 (0mk0wxqke1de0f, uptime=11155s)
+[10:00:48] KEEP_POD_ON_EXIT=1, skipping termination of pod 0mk0wxqke1de0f.
+[10:00:50] Re-using existing pod: 0mk0wxqke1de0f
+[10:00:51] Waiting for pod SSH readiness...
+[10:01:06] Pod ready: root@69.30.85.134:22044
+[10:01:06] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[10:01:23] Installing tmux and preparing logs...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+tmux is already the newest version (3.2a-4ubuntu0.2).
+0 upgraded, 0 newly installed, 0 to remove and 146 not upgraded.
+[10:01:32] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[10:02:12] Preparing data...
+wrote:/workspace/data_setup.sh
+[10:02:52] Uploading code...
+[10:03:11] Remote env overrides: TERNARY_THRESHOLD_SEARCH=1 NGRAM_CACHE_ENABLED=0 EXPORT_ONLY=0 SEED=1337 NUM_LAYERS=10 MODEL_DIM=320 KOOPMAN_MIXER_RANK=8 
+[10:03:11] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s1337_20260407_150323
+  MODEL  : SKC L=10 D=320 H=4/2
+  SKC    : block=16 caps=8 cap_dim=64
+  ENGRAM : buckets=3072 dim=112 orders=3
+  TERNARY: train_align=0@0.85 thr_search=1 scale_search=0
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 8192 tok/step  seq=256
+  VRAM   : min_gpu_mem=45GB  val_batch=32768
+  BUDGET : 45s
+  SEED   : 1337
+  GPUS   : 1
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s1337_20260407_150323.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=35 engram_scalar=12
+params:6502426 L:10 d:320 h:4 kv:2 ws:1 ga:1 s:1337
+step:1/500000 loss:7.1291 t:959ms avg:958.8ms
+step:2/500000 loss:6.9138 t:1338ms avg:668.9ms
+step:3/500000 loss:6.9517 t:1702ms avg:567.3ms
+step:4/500000 loss:6.7933 t:2065ms avg:516.2ms
+step:5/500000 loss:12.6195 t:2433ms avg:486.6ms
+step:6/500000 loss:7.6003 t:2782ms avg:463.6ms
+step:7/500000 loss:11.3545 t:3110ms avg:444.3ms
+step:8/500000 loss:9.8064 t:3444ms avg:430.5ms
+step:9/500000 loss:7.3589 t:3854ms avg:428.2ms
+step:10/500000 loss:24.4463 t:4226ms avg:422.6ms
+step:11/500000 loss:17.8342 t:4659ms avg:423.5ms
+step:12/500000 loss:9.0833 t:5051ms avg:420.9ms
+step:13/500000 loss:9.5529 t:5459ms avg:419.9ms
+step:14/500000 loss:8.5620 t:5847ms avg:417.6ms
+step:15/500000 loss:10.4479 t:6244ms avg:416.3ms
+step:16/500000 loss:8.7131 t:6647ms avg:415.4ms
+step:17/500000 loss:8.9464 t:7052ms avg:414.8ms
+step:18/500000 loss:8.6404 t:7446ms avg:413.6ms
+step:19/500000 loss:10.7415 t:7845ms avg:412.9ms
+step:20/500000 loss:8.4922 t:8247ms avg:412.4ms
+step:21/500000 loss:11.2244 t:8648ms avg:411.8ms
+step:22/500000 loss:8.3185 t:9021ms avg:410.1ms
+step:23/500000 loss:9.8102 t:9241ms avg:401.8ms
+step:24/500000 loss:8.4092 t:9477ms avg:394.9ms
+step:25/500000 loss:8.3744 t:9702ms avg:388.1ms
+step:26/500000 loss:7.9974 t:9921ms avg:381.6ms
+step:27/500000 loss:8.6969 t:10152ms avg:376.0ms
+step:28/500000 loss:7.8440 t:10398ms avg:371.3ms
+step:29/500000 loss:7.9233 t:10617ms avg:366.1ms
+step:30/500000 loss:8.1336 t:10858ms avg:361.9ms
+step:31/500000 loss:7.9221 t:11097ms avg:358.0ms
+step:32/500000 loss:7.9333 t:11315ms avg:353.6ms
+step:33/500000 loss:7.1875 t:11541ms avg:349.7ms
+step:34/500000 loss:6.9291 t:11772ms avg:346.2ms
+step:35/500000 loss:7.3215 t:11995ms avg:342.7ms
+step:36/500000 loss:7.6336 t:12213ms avg:339.2ms
+step:37/500000 loss:9.0260 t:12427ms avg:335.9ms
+step:38/500000 loss:7.3615 t:12643ms avg:332.7ms
+step:39/500000 loss:8.5412 t:13047ms avg:334.5ms
+step:40/500000 loss:7.6358 t:13449ms avg:336.2ms
+step:41/500000 loss:10.1603 t:13849ms avg:337.8ms
+step:42/500000 loss:7.9492 t:14244ms avg:339.1ms
+step:43/500000 loss:7.7601 t:14656ms avg:340.8ms
+step:44/500000 loss:6.6718 t:15046ms avg:342.0ms
+step:45/500000 loss:6.5849 t:15450ms avg:343.3ms
+step:46/500000 loss:6.4470 t:15903ms avg:345.7ms
+step:47/500000 loss:8.8128 t:16291ms avg:346.6ms
+step:48/500000 loss:7.0343 t:16682ms avg:347.5ms
+step:49/500000 loss:7.2336 t:17072ms avg:348.4ms
+step:50/500000 loss:6.6071 t:17456ms avg:349.1ms
+step:51/500000 loss:7.0670 t:17845ms avg:349.9ms
+step:52/500000 loss:6.7248 t:18253ms avg:351.0ms
+step:53/500000 loss:6.3490 t:18527ms avg:349.6ms
+step:54/500000 loss:5.9088 t:18749ms avg:347.2ms
+step:55/500000 loss:6.1827 t:18996ms avg:345.4ms
+step:56/500000 loss:5.9827 t:19214ms avg:343.1ms
+step:57/500000 loss:6.1269 t:19433ms avg:340.9ms
+step:58/500000 loss:6.0431 t:19656ms avg:338.9ms
+step:59/500000 loss:5.8779 t:19902ms avg:337.3ms
+step:60/500000 loss:5.8242 t:20124ms avg:335.4ms
+step:61/500000 loss:5.6756 t:20385ms avg:334.2ms
+step:62/500000 loss:5.8620 t:20605ms avg:332.3ms
+step:63/500000 loss:5.5730 t:20823ms avg:330.5ms
+step:64/500000 loss:5.7776 t:21043ms avg:328.8ms
+step:65/500000 loss:5.7350 t:21286ms avg:327.5ms
+step:66/500000 loss:5.6586 t:21504ms avg:325.8ms
+step:67/500000 loss:5.7221 t:21722ms avg:324.2ms
+step:68/500000 loss:5.6274 t:21941ms avg:322.7ms
+step:69/500000 loss:5.4785 t:22174ms avg:321.4ms
+step:70/500000 loss:5.4734 t:22395ms avg:319.9ms
+step:71/500000 loss:5.5347 t:22620ms avg:318.6ms
+step:72/500000 loss:5.6402 t:22837ms avg:317.2ms
+step:73/500000 loss:5.5086 t:23075ms avg:316.1ms
+step:74/500000 loss:5.4953 t:23292ms avg:314.8ms
+step:75/500000 loss:5.1924 t:23517ms avg:313.6ms
+step:76/500000 loss:5.3711 t:23735ms avg:312.3ms
+step:77/500000 loss:5.4808 t:23952ms avg:311.1ms
+step:78/500000 loss:5.3356 t:24184ms avg:310.1ms
+step:79/500000 loss:5.2984 t:24403ms avg:308.9ms
+step:80/500000 loss:5.2760 t:24624ms avg:307.8ms
+step:81/500000 loss:5.3393 t:24848ms avg:306.8ms
+step:82/500000 loss:5.1785 t:25088ms avg:306.0ms
+step:83/500000 loss:5.2056 t:25309ms avg:304.9ms
+step:84/500000 loss:5.2070 t:25530ms avg:303.9ms
+step:85/500000 loss:5.0812 t:25751ms avg:302.9ms
+step:86/500000 loss:5.1528 t:25988ms avg:302.2ms
+step:87/500000 loss:5.2952 t:26209ms avg:301.2ms
+step:88/500000 loss:5.1786 t:26429ms avg:300.3ms
+step:89/500000 loss:5.2400 t:26647ms avg:299.4ms
+step:90/500000 loss:5.1284 t:26884ms avg:298.7ms
+step:91/500000 loss:5.2595 t:27107ms avg:297.9ms
+step:92/500000 loss:5.1369 t:27329ms avg:297.1ms
+step:93/500000 loss:5.0880 t:27548ms avg:296.2ms
+step:94/500000 loss:5.0675 t:27781ms avg:295.5ms
+step:95/500000 loss:5.0707 t:28019ms avg:294.9ms
+step:96/500000 loss:4.9933 t:28240ms avg:294.2ms
+step:97/500000 loss:5.0041 t:28482ms avg:293.6ms
+step:98/500000 loss:5.0856 t:28703ms avg:292.9ms
+step:99/500000 loss:5.0123 t:28921ms avg:292.1ms
+step:100/500000 loss:5.1981 t:29137ms avg:291.4ms
+step:101/500000 loss:5.2353 t:29379ms avg:290.9ms
+step:102/500000 loss:5.3350 t:29619ms avg:290.4ms
+step:103/500000 loss:5.1351 t:29853ms avg:289.8ms
+step:104/500000 loss:5.1469 t:30097ms avg:289.4ms
+step:105/500000 loss:5.0127 t:30331ms avg:288.9ms
+step:106/500000 loss:5.0467 t:30563ms avg:288.3ms
+step:107/500000 loss:5.0061 t:30796ms avg:287.8ms
+step:108/500000 loss:4.9666 t:31030ms avg:287.3ms
+step:109/500000 loss:5.0577 t:31263ms avg:286.8ms
+step:110/500000 loss:4.9507 t:31577ms avg:287.1ms
+step:111/500000 loss:4.8811 t:31811ms avg:286.6ms
+step:112/500000 loss:4.9981 t:32045ms avg:286.1ms
+step:113/500000 loss:4.8884 t:32298ms avg:285.8ms
+step:114/500000 loss:5.0166 t:32541ms avg:285.4ms
+step:115/500000 loss:4.8764 t:32789ms avg:285.1ms
+step:116/500000 loss:4.8939 t:33023ms avg:284.7ms
+step:117/500000 loss:4.9149 t:33267ms avg:284.3ms
+step:118/500000 loss:4.9781 t:33569ms avg:284.5ms
+step:119/500000 loss:4.8581 t:33806ms avg:284.1ms
+step:120/500000 loss:4.7906 t:34044ms avg:283.7ms
+step:121/500000 loss:4.8658 t:34303ms avg:283.5ms
+step:122/500000 loss:4.8634 t:34538ms avg:283.1ms
+step:123/500000 loss:4.7920 t:34822ms avg:283.1ms
+step:124/500000 loss:4.8016 t:35211ms avg:284.0ms
+step:125/500000 loss:4.7213 t:35476ms avg:283.8ms
+step:126/500000 loss:4.7677 t:35714ms avg:283.4ms
+step:127/500000 loss:4.7188 t:35953ms avg:283.1ms
+step:128/500000 loss:4.8240 t:36210ms avg:282.9ms
+step:129/500000 loss:4.8816 t:36446ms avg:282.5ms
+step:130/500000 loss:4.8214 t:36710ms avg:282.4ms
+step:131/500000 loss:4.7354 t:36943ms avg:282.0ms
+step:132/500000 loss:4.7623 t:37199ms avg:281.8ms
+step:133/500000 loss:4.7288 t:37434ms avg:281.5ms
+step:134/500000 loss:4.7627 t:37669ms avg:281.1ms
+step:135/500000 loss:4.6859 t:38425ms avg:284.6ms
+step:136/500000 loss:4.7337 t:38667ms avg:284.3ms
+step:137/500000 loss:4.7255 t:38907ms avg:284.0ms
+step:138/500000 loss:4.8618 t:39142ms avg:283.6ms
+step:139/500000 loss:4.7121 t:39393ms avg:283.4ms
+step:140/500000 loss:4.6014 t:39631ms avg:283.1ms
+step:141/500000 loss:4.6699 t:39868ms avg:282.8ms
+step:142/500000 loss:4.8787 t:40113ms avg:282.5ms
+step:143/500000 loss:4.7122 t:40455ms avg:282.9ms
+step:144/500000 loss:4.7286 t:40857ms avg:283.7ms
+step:145/500000 loss:4.6767 t:41261ms avg:284.6ms
+step:146/500000 loss:4.6677 t:41661ms avg:285.4ms
+step:147/500000 loss:4.3980 t:42064ms avg:286.2ms
+step:148/500000 loss:4.4023 t:42463ms avg:286.9ms
+step:149/500000 loss:4.8441 t:42866ms avg:287.7ms
+step:150/500000 loss:4.7452 t:43269ms avg:288.5ms
+step:151/500000 loss:4.5695 t:43673ms avg:289.2ms
+step:152/500000 loss:4.8321 t:44073ms avg:290.0ms
+step:153/500000 loss:4.4791 t:44480ms avg:290.7ms
+step:154/500000 loss:4.5644 t:44855ms avg:291.3ms
+step:155/500000 loss:4.5735 t:45144ms avg:291.3ms
+step:155/500000 val_loss:4.4123 val_bpb:2.6562 train_time:45167ms zero_frac:0.606
+checkpoint:best_live step=155 val_bpb:2.6562
+stopping_early: wallclock_cap train_time:45167ms step:155/500000
+serialization:live_ternary_tensors=35
+lawa:candidate k=2 tensors=87 include_ternary=0
+swa:candidate count=1 tensors=87 include_ternary=0
+export_proxy:raw/raw/current val_loss:4.5519 val_bpb:2.7341
+export_proxy:raw/raw/plain val_loss:4.4280 val_bpb:2.6597
+export_proxy:raw/raw/fixed val_loss:4.5519 val_bpb:2.7341
+export_proxy:raw/raw/plain_fixed val_loss:4.4280 val_bpb:2.6597
+export_proxy:lawa/raw/current val_loss:5.0391 val_bpb:3.0268
+export_proxy:lawa/raw/plain val_loss:4.9656 val_bpb:2.9826
+export_proxy:lawa/raw/fixed val_loss:5.0391 val_bpb:3.0268
+export_proxy:lawa/raw/plain_fixed val_loss:4.9655 val_bpb:2.9826
+export_proxy:swa/raw/current val_loss:4.5614 val_bpb:2.7398
+export_proxy:swa/raw/plain val_loss:4.4365 val_bpb:2.6648
+export_proxy:swa/raw/fixed val_loss:4.5614 val_bpb:2.7398
+export_proxy:swa/raw/plain_fixed val_loss:4.4366 val_bpb:2.6649
+export_proxy:selected raw/raw/plain val_bpb:2.6597
+serialization:selected variant=raw/raw/plain proxy_bpb:2.6597
+artifact:2.67MB ternary:5331200(1353138B,turbo=0,plain=35) fp:843546(1687092B) code:224469
+budget:2894665/16000000 (2.89/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:4.4123 val_bpb:2.6562
+=== DONE ===
+Log      : /workspace/logs/small_skc_2gpu_s1337_20260407_150323.log
+Artifact : logs/small_skc_2gpu_s1337_20260407_150323_model.ternary.ptz
+[10:04:51] Launching 10-minute run...
+[10:05:24] progress » step:50/500000 loss:6.5544 t:10112ms avg:202.2ms
+[10:05:46] progress » step:200/500000 loss:3.9725 t:39529ms avg:197.6ms
+[10:06:10] progress » step:300/500000 loss:3.3278 t:58824ms avg:196.1ms
+[10:06:29] progress » step:400/500000 loss:2.9516 t:78320ms avg:195.8ms
+[10:06:49] progress » step:500/500000 loss:2.5615 t:98140ms avg:196.3ms
+[10:07:14] progress » step:650/500000 loss:2.3422 t:127305ms avg:195.9ms
+[10:07:39] progress » step:750/500000 loss:2.2533 t:146694ms avg:195.6ms
+[10:07:59] progress » step:850/500000 loss:2.3260 t:166587ms avg:196.0ms
+[10:08:20] progress » step:950/500000 loss:2.0527 t:185879ms avg:195.7ms
+[10:08:49] progress » step:1050/500000 loss:1.9340 t:205814ms avg:196.0ms
+[10:09:14] progress » step:1200/500000 loss:2.7885 t:235481ms avg:196.2ms
+[10:09:35] progress » step:1300/500000 loss:2.7605 t:255547ms avg:196.6ms
+[10:09:53] progress » step:1400/500000 loss:2.8978 t:275387ms avg:196.7ms
+[10:10:14] progress » step:1500/500000 loss:2.9799 t:295043ms avg:196.7ms
+[10:10:37] progress » step:1600/500000 loss:2.7172 t:315267ms avg:197.0ms
+[10:10:57] progress » step:1700/500000 loss:2.6023 t:335137ms avg:197.1ms
+[10:11:21] progress » step:1850/500000 loss:2.7379 t:364711ms avg:197.1ms
+[10:11:41] progress » step:1950/500000 loss:2.4231 t:384532ms avg:197.2ms
+[10:12:00] progress » checkpoint:best_export_proxy step=2000 variant=raw/raw/plain val_bpb:1.4367
+[10:12:24] progress » step:2100/500000 loss:3.6328 t:415938ms avg:198.1ms
+[10:12:45] progress » step:2200/500000 loss:3.4962 t:437465ms avg:198.8ms
+[10:13:08] progress » step:2300/500000 loss:3.4928 t:458726ms avg:199.4ms
+[10:13:31] progress » step:2400/500000 loss:3.4299 t:479700ms avg:199.9ms
+[10:13:55] progress » step:2500/500000 loss:3.3328 t:501114ms avg:200.4ms
+[10:14:18] progress » step:2650/500000 loss:3.3189 t:532894ms avg:201.1ms
+[10:14:42] progress » step:2750/500000 loss:3.2101 t:554111ms avg:201.5ms
+[10:15:02] progress » step:2850/500000 loss:3.1887 t:575166ms avg:201.8ms
+[10:15:26] progress » step:2950/500000 loss:3.1254 t:596624ms avg:202.2ms
+[10:15:45] progress » final_ternary_roundtrip val_loss:2.6863 val_bpb:1.6171
+[10:16:07] progress » final_ternary_roundtrip val_loss:2.6863 val_bpb:1.6171
+[10:16:34] RUN_ID=small_skc_2gpu_s1337_20260407_150456
+[10:17:31] Submission summary:
+{
+  "model_size": null,
+  "val_loss": 2.7393,
+  "val_bpb": 1.649
+}
+[10:17:31] KEEP_POD_ON_EXIT=1, skipping termination of pod 0mk0wxqke1de0f.
+[10:17:31] Complete. Artifacts:
+[10:17:31]   log        : /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_100045/full_run.log
+[10:17:31]   download dir: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_100045/downloads

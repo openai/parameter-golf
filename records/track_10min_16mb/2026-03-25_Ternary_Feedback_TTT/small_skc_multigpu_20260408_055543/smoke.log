@@ -1,0 +1,66 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_105827
+  MODEL  : SKC L=8 D=320 H=10/5
+  SKC    : block=16 caps=8 cap_dim=32
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=262144
+  BUDGET : 45s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260408_105827.txt
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt.py", line 2878, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt.py", line 2407, in main
+[rank1]:     embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, fp_storage=args.fp_storage,
+[rank1]:                                                                                                    ^^^^^^^^^^^^^^^
+[rank1]: AttributeError: 'Hyperparameters' object has no attribute 'fp_storage'
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 2878, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 2407, in main
+[rank0]:     embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, fp_storage=args.fp_storage,
+[rank0]:                                                                                                    ^^^^^^^^^^^^^^^
+[rank0]: AttributeError: 'Hyperparameters' object has no attribute 'fp_storage'
+[rank0]:[W408 10:58:31.225345927 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+W0408 10:58:32.068000 140387072331776 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 816 closing signal SIGTERM
+E0408 10:58:32.132000 140387072331776 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 817) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-08_10:58:32
+  host      : 4e4f5ec68daa
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 817)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

@@ -1,0 +1,18 @@
+Running skc_10L_640D_128C (L=10 D=640 C=128 MODE=validate)
+logs/cuda/run_1775395231.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.052
+params:60857743 L:10 d:640 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+ema:enabled decay=0.997 start_fraction=0.4
+step:100/10000 loss:121.6544 t:128357ms avg:1283.6ms
+step:200/10000 loss:9.3290 t:260466ms avg:1302.3ms
+step:300/10000 loss:5.6637 t:390804ms avg:1302.7ms
+step:330/10000 val_loss:11.4492 val_bpb:6.8923 train_time:437703ms zero_frac:0.312
+stopping_early: wallclock_cap train_time:437703ms step:330/10000
+swa:applied count=1 for serialization
+hessian_ternary_gptq:generating AR self-calibration data...

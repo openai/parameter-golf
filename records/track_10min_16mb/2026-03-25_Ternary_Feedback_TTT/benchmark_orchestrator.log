@@ -1,0 +1,1909 @@
+Running A_PlainTernary...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3085840 layers:4 dim:256 heads:4 seq_len:1024
+feedback:False passes:1 every:1 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:4 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=False
+step:1/100000 loss:6.9368 t:744ms step:744ms
+step:2/100000 loss:6.9010 t:1160ms step:415ms
+step:3/100000 loss:6.3337 t:1592ms step:433ms
+step:4/100000 loss:7.5457 t:2009ms step:417ms
+step:5/100000 loss:7.5486 t:2435ms step:425ms
+step:10/100000 loss:6.4375 t:4519ms step:422ms
+step:20/100000 loss:5.5245 t:8960ms step:409ms
+step:30/100000 loss:5.2389 t:13164ms step:408ms
+step:40/100000 loss:4.9442 t:17414ms step:405ms
+step:50/100000 loss:4.8858 t:21445ms step:405ms
+step:60/100000 loss:4.7283 t:25539ms step:411ms
+step:70/100000 loss:4.6634 t:29691ms step:409ms
+step:80/100000 loss:4.6132 t:33854ms step:410ms
+step:90/100000 loss:4.6682 t:37986ms step:412ms
+step:100/100000 loss:4.7010 t:42112ms step:414ms
+step:110/100000 loss:4.7213 t:46214ms step:411ms
+step:120/100000 loss:4.5917 t:50360ms step:418ms
+step:130/100000 loss:4.6498 t:54618ms step:419ms
+step:140/100000 loss:4.5200 t:58753ms step:420ms
+step:150/100000 loss:4.5568 t:62891ms step:411ms
+step:160/100000 loss:4.4737 t:67009ms step:409ms
+step:170/100000 loss:4.6484 t:71131ms step:412ms
+step:180/100000 loss:4.5994 t:75260ms step:413ms
+step:190/100000 loss:4.4265 t:79390ms step:413ms
+step:200/100000 loss:4.4744 t:83575ms step:418ms
+step:210/100000 loss:4.3680 t:87728ms step:418ms
+step:220/100000 loss:4.2584 t:91847ms step:410ms
+step:230/100000 loss:4.3010 t:95981ms step:411ms
+step:240/100000 loss:4.4092 t:100123ms step:416ms
+step:250/100000 loss:4.3032 t:104263ms step:409ms
+step:260/100000 loss:4.2051 t:108411ms step:418ms
+step:270/100000 loss:4.1012 t:112579ms step:420ms
+step:280/100000 loss:4.1032 t:116804ms step:406ms
+step:290/100000 loss:4.1200 t:120943ms step:421ms
+step:300/100000 loss:4.0734 t:125071ms step:412ms
+step:310/100000 loss:4.2714 t:129219ms step:416ms
+step:320/100000 loss:4.1789 t:133364ms step:412ms
+step:330/100000 loss:4.0323 t:137466ms step:410ms
+step:340/100000 loss:3.8775 t:141584ms step:416ms
+step:350/100000 loss:4.0245 t:145710ms step:415ms
+step:360/100000 loss:3.9426 t:149854ms step:415ms
+step:370/100000 loss:3.9983 t:153996ms step:416ms
+step:380/100000 loss:4.1191 t:158129ms step:411ms
+step:390/100000 loss:4.0885 t:162262ms step:408ms
+step:400/100000 loss:4.2299 t:166406ms step:414ms
+step:410/100000 loss:3.9853 t:170547ms step:419ms
+step:420/100000 loss:3.9639 t:174698ms step:409ms
+step:430/100000 loss:4.2670 t:178766ms step:403ms
+step:440/100000 loss:3.9170 t:182916ms step:409ms
+step:450/100000 loss:4.0363 t:187021ms step:416ms
+step:460/100000 loss:4.0370 t:191133ms step:407ms
+step:470/100000 loss:3.9030 t:195234ms step:411ms
+step:480/100000 loss:3.9162 t:199391ms step:423ms
+step:490/100000 loss:3.9334 t:203602ms step:424ms
+step:500/100000 loss:3.8898 t:207830ms step:411ms
+step:510/100000 loss:3.7221 t:211914ms step:402ms
+step:520/100000 loss:3.8371 t:216082ms step:415ms
+step:530/100000 loss:3.8061 t:220254ms step:414ms
+step:540/100000 loss:3.7425 t:224432ms step:418ms
+step:550/100000 loss:3.8944 t:228537ms step:410ms
+step:560/100000 loss:3.6169 t:232654ms step:419ms
+step:570/100000 loss:3.9612 t:236799ms step:410ms
+step:580/100000 loss:3.7962 t:240964ms step:421ms
+step:590/100000 loss:3.7339 t:245138ms step:415ms
+step:600/100000 loss:3.6732 t:249263ms step:400ms
+step:610/100000 loss:3.6165 t:253263ms step:401ms
+step:620/100000 loss:3.6815 t:257416ms step:416ms
+step:630/100000 loss:3.4200 t:261596ms step:461ms
+step:640/100000 loss:3.2020 t:265708ms step:417ms
+step:650/100000 loss:3.6256 t:269865ms step:415ms
+step:660/100000 loss:3.6670 t:273964ms step:420ms
+step:670/100000 loss:3.6170 t:278123ms step:415ms
+step:680/100000 loss:3.6112 t:282293ms step:418ms
+step:690/100000 loss:3.7027 t:286373ms step:418ms
+step:700/100000 loss:3.6759 t:290519ms step:412ms
+step:710/100000 loss:3.4702 t:294717ms step:418ms
+step:720/100000 loss:3.7349 t:298781ms step:400ms
+step:730/100000 loss:3.5202 t:302892ms step:419ms
+step:740/100000 loss:3.5661 t:306921ms step:399ms
+step:750/100000 loss:3.7606 t:311028ms step:417ms
+step:760/100000 loss:3.6146 t:315190ms step:418ms
+step:770/100000 loss:3.6250 t:319355ms step:416ms
+step:780/100000 loss:3.6884 t:323566ms step:418ms
+step:790/100000 loss:3.5957 t:327853ms step:419ms
+step:800/100000 loss:3.6628 t:332006ms step:416ms
+step:810/100000 loss:3.5543 t:336190ms step:412ms
+step:820/100000 loss:3.6411 t:340307ms step:417ms
+step:830/100000 loss:3.6303 t:344472ms step:416ms
+step:840/100000 loss:3.3615 t:348641ms step:419ms
+step:850/100000 loss:3.4681 t:352814ms step:416ms
+step:860/100000 loss:3.3731 t:356982ms step:414ms
+step:870/100000 loss:3.6025 t:361164ms step:418ms
+step:880/100000 loss:3.5938 t:365284ms step:404ms
+step:890/100000 loss:3.4384 t:369428ms step:418ms
+step:900/100000 loss:3.5159 t:373536ms step:412ms
+step:910/100000 loss:3.6036 t:377617ms step:411ms
+step:920/100000 loss:3.2698 t:381770ms step:420ms
+step:930/100000 loss:3.4391 t:385931ms step:410ms
+step:940/100000 loss:3.5413 t:390066ms step:402ms
+step:950/100000 loss:3.5453 t:394173ms step:416ms
+step:960/100000 loss:3.4208 t:398339ms step:417ms
+step:970/100000 loss:3.4047 t:402508ms step:418ms
+step:980/100000 loss:3.4683 t:406654ms step:417ms
+step:990/100000 loss:3.6478 t:410728ms step:400ms
+step:1000/100000 loss:3.3769 t:414897ms step:420ms
+step:1010/100000 loss:3.4365 t:419073ms step:419ms
+step:1020/100000 loss:3.4723 t:423240ms step:416ms
+step:1030/100000 loss:3.3775 t:427417ms step:418ms
+step:1040/100000 loss:3.5648 t:431573ms step:417ms
+step:1050/100000 loss:3.5298 t:435747ms step:419ms
+step:1060/100000 loss:3.4058 t:439925ms step:419ms
+step:1070/100000 loss:3.4585 t:444202ms step:493ms
+step:1080/100000 loss:3.4703 t:448299ms step:399ms
+step:1090/100000 loss:3.3375 t:452451ms step:418ms
+step:1100/100000 loss:3.4010 t:456621ms step:414ms
+step:1110/100000 loss:3.3470 t:460791ms step:418ms
+step:1120/100000 loss:3.3386 t:464975ms step:418ms
+step:1130/100000 loss:3.1394 t:469149ms step:419ms
+step:1140/100000 loss:3.5181 t:473317ms step:418ms
+step:1150/100000 loss:3.4608 t:477487ms step:418ms
+step:1160/100000 loss:3.4403 t:481604ms step:401ms
+step:1170/100000 loss:3.1447 t:485775ms step:415ms
+step:1180/100000 loss:3.3164 t:489945ms step:409ms
+step:1190/100000 loss:3.4656 t:494151ms step:419ms
+step:1200/100000 loss:3.3975 t:498282ms step:420ms
+step:1210/100000 loss:3.2744 t:502440ms step:421ms
+step:1220/100000 loss:3.4460 t:506608ms step:417ms
+step:1230/100000 loss:3.3721 t:510780ms step:419ms
+step:1240/100000 loss:3.3892 t:514934ms step:412ms
+step:1250/100000 loss:3.3337 t:519113ms step:418ms
+step:1260/100000 loss:3.2782 t:523272ms step:421ms
+step:1270/100000 loss:3.3414 t:527440ms step:413ms
+step:1280/100000 loss:3.3480 t:531600ms step:416ms
+step:1290/100000 loss:3.3791 t:535773ms step:419ms
+step:1300/100000 loss:3.4339 t:539937ms step:413ms
+step:1310/100000 loss:3.2850 t:544102ms step:410ms
+step:1320/100000 loss:4.2427 t:548208ms step:417ms
+step:1330/100000 loss:3.5422 t:552382ms step:436ms
+step:1340/100000 loss:3.7347 t:556498ms step:415ms
+step:1350/100000 loss:3.7530 t:560649ms step:418ms
+step:1360/100000 loss:3.5928 t:564933ms step:417ms
+step:1370/100000 loss:3.5464 t:569090ms step:421ms
+step:1380/100000 loss:3.6707 t:573179ms step:414ms
+step:1390/100000 loss:3.4730 t:577270ms step:419ms
+step:1400/100000 loss:3.5800 t:581443ms step:414ms
+step:1410/100000 loss:3.6772 t:585607ms step:421ms
+step:1420/100000 loss:3.4105 t:589704ms step:400ms
+step:1430/100000 loss:3.5382 t:593810ms step:416ms
+step:1440/100000 loss:3.4657 t:597971ms step:418ms
+step:1450/100000 loss:3.3259 t:602151ms step:419ms
+step:1460/100000 loss:3.5658 t:606307ms step:417ms
+step:1470/100000 loss:3.4744 t:610454ms step:417ms
+step:1480/100000 loss:3.4694 t:614600ms step:416ms
+step:1490/100000 loss:3.3816 t:618746ms step:415ms
+step:1500/100000 loss:3.4252 t:622929ms step:412ms
+step:1510/100000 loss:3.3792 t:627100ms step:418ms
+step:1520/100000 loss:3.3816 t:631258ms step:415ms
+step:1530/100000 loss:3.2865 t:635419ms step:411ms
+step:1540/100000 loss:3.4968 t:639584ms step:423ms
+step:1550/100000 loss:3.4819 t:643714ms step:403ms
+step:1560/100000 loss:3.4580 t:647878ms step:412ms
+step:1570/100000 loss:3.5433 t:652052ms step:420ms
+step:1580/100000 loss:3.1911 t:656219ms step:411ms
+step:1590/100000 loss:3.3595 t:660384ms step:416ms
+step:1600/100000 loss:3.3313 t:664551ms step:418ms
+step:1610/100000 loss:3.4513 t:668715ms step:422ms
+step:1620/100000 loss:3.3259 t:672837ms step:399ms
+step:1630/100000 loss:3.3139 t:677014ms step:421ms
+step:1640/100000 loss:3.4705 t:681196ms step:417ms
+step:1650/100000 loss:3.4040 t:685459ms step:419ms
+step:1660/100000 loss:3.4923 t:689639ms step:414ms
+step:1670/100000 loss:3.2810 t:693816ms step:417ms
+step:1680/100000 loss:3.3731 t:697992ms step:420ms
+step:1690/100000 loss:3.2983 t:702157ms step:419ms
+step:1700/100000 loss:3.3324 t:706320ms step:419ms
+step:1710/100000 loss:3.3796 t:710500ms step:422ms
+step:1720/100000 loss:3.3067 t:714663ms step:416ms
+step:1730/100000 loss:3.5645 t:718815ms step:413ms
+step:1740/100000 loss:3.3465 t:722994ms step:418ms
+step:1750/100000 loss:3.2314 t:727115ms step:404ms
+step:1760/100000 loss:3.3781 t:731247ms step:419ms
+step:1770/100000 loss:3.1491 t:735371ms step:417ms
+step:1780/100000 loss:3.2543 t:739476ms step:401ms
+step:1790/100000 loss:3.3912 t:743630ms step:414ms
+step:1800/100000 loss:3.0762 t:747819ms step:418ms
+step:1810/100000 loss:3.3028 t:751978ms step:413ms
+step:1820/100000 loss:3.2226 t:756089ms step:404ms
+step:1830/100000 loss:3.0834 t:760269ms step:418ms
+step:1840/100000 loss:3.2908 t:764441ms step:420ms
+step:1850/100000 loss:3.0565 t:768585ms step:412ms
+step:1860/100000 loss:3.2564 t:772711ms step:411ms
+step:1870/100000 loss:3.2845 t:776854ms step:415ms
+step:1880/100000 loss:2.9380 t:781015ms step:414ms
+step:1890/100000 loss:3.4150 t:785195ms step:418ms
+step:1900/100000 loss:3.2440 t:789364ms step:421ms
+step:1910/100000 loss:3.4929 t:793526ms step:412ms
+step:1920/100000 loss:3.0214 t:797693ms step:416ms
+step:1930/100000 loss:3.2723 t:801897ms step:418ms
+step:1940/100000 loss:3.1424 t:806168ms step:418ms
+step:1950/100000 loss:3.3414 t:810327ms step:411ms
+step:1960/100000 loss:3.3116 t:814482ms step:417ms
+step:1970/100000 loss:3.0777 t:818652ms step:418ms
+step:1980/100000 loss:3.2524 t:822826ms step:416ms
+step:1990/100000 loss:3.1928 t:827014ms step:420ms
+step:2000/100000 loss:3.1134 t:831167ms step:415ms
+step:2010/100000 loss:3.1982 t:835334ms step:419ms
+step:2020/100000 loss:3.3911 t:839505ms step:417ms
+step:2030/100000 loss:3.1305 t:843681ms step:420ms
+step:2040/100000 loss:3.1136 t:847720ms step:415ms
+step:2050/100000 loss:3.1725 t:851908ms step:416ms
+step:2060/100000 loss:2.9990 t:856055ms step:411ms
+step:2070/100000 loss:3.1052 t:860209ms step:418ms
+step:2080/100000 loss:2.9940 t:864370ms step:413ms
+step:2090/100000 loss:2.9917 t:868550ms step:420ms
+step:2100/100000 loss:3.1984 t:872712ms step:411ms
+step:2110/100000 loss:3.0955 t:876871ms step:419ms
+step:2120/100000 loss:3.1976 t:881010ms step:418ms
+step:2130/100000 loss:3.1119 t:885194ms step:419ms
+step:2140/100000 loss:3.1509 t:889372ms step:417ms
+step:2150/100000 loss:3.2349 t:893545ms step:421ms
+step:2160/100000 loss:3.1526 t:897728ms step:421ms
+step:2170/100000 loss:3.2028 t:901920ms step:416ms
+step:2180/100000 loss:3.0362 t:906085ms step:419ms
+step:2190/100000 loss:3.3285 t:910215ms step:418ms
+step:2200/100000 loss:3.1977 t:914361ms step:410ms
+step:2210/100000 loss:3.1801 t:918484ms step:414ms
+step:2220/100000 loss:3.2400 t:922640ms step:420ms
+step:2230/100000 loss:3.0337 t:926926ms step:417ms
+step:2240/100000 loss:3.1611 t:931091ms step:420ms
+step:2250/100000 loss:3.3439 t:935273ms step:420ms
+step:2260/100000 loss:3.1040 t:939377ms step:414ms
+step:2270/100000 loss:3.3698 t:943541ms step:419ms
+step:2280/100000 loss:3.2208 t:947688ms step:413ms
+step:2290/100000 loss:3.3296 t:951793ms step:400ms
+step:2300/100000 loss:3.0565 t:955920ms step:417ms
+step:2310/100000 loss:3.2125 t:960080ms step:411ms
+step:2320/100000 loss:3.0752 t:964269ms step:419ms
+step:2330/100000 loss:3.0665 t:968435ms step:407ms
+step:2340/100000 loss:3.1380 t:972603ms step:417ms
+step:2350/100000 loss:3.1756 t:976746ms step:401ms
+step:2360/100000 loss:3.1534 t:980895ms step:420ms
+step:2370/100000 loss:3.1600 t:985063ms step:414ms
+step:2380/100000 loss:3.1709 t:989230ms step:418ms
+step:2390/100000 loss:3.5027 t:993422ms step:413ms
+step:2400/100000 loss:3.0231 t:997596ms step:417ms
+step:2410/100000 loss:3.1390 t:1001754ms step:416ms
+step:2420/100000 loss:3.1574 t:1005929ms step:421ms
+step:2430/100000 loss:3.2678 t:1010105ms step:417ms
+step:2440/100000 loss:3.3705 t:1014287ms step:417ms
+step:2450/100000 loss:3.2774 t:1018468ms step:421ms
+step:2460/100000 loss:3.1137 t:1022645ms step:416ms
+step:2470/100000 loss:3.1976 t:1026824ms step:420ms
+step:2480/100000 loss:3.2343 t:1030988ms step:417ms
+step:2490/100000 loss:3.1981 t:1035170ms step:419ms
+step:2500/100000 loss:3.2487 t:1039329ms step:416ms
+step:2510/100000 loss:2.8451 t:1043545ms step:432ms
+step:2520/100000 loss:3.0319 t:1047794ms step:417ms
+step:2530/100000 loss:3.1334 t:1051968ms step:419ms
+step:2540/100000 loss:3.0462 t:1056129ms step:417ms
+step:2550/100000 loss:2.9075 t:1060300ms step:421ms
+step:2560/100000 loss:3.0867 t:1064479ms step:418ms
+step:2570/100000 loss:3.2293 t:1068646ms step:420ms
+step:2580/100000 loss:3.1149 t:1072796ms step:418ms
+step:2590/100000 loss:2.9336 t:1076949ms step:411ms
+step:2600/100000 loss:3.1220 t:1081121ms step:416ms
+step:2610/100000 loss:3.1384 t:1085293ms step:420ms
+step:2620/100000 loss:3.0882 t:1089433ms step:410ms
+step:2630/100000 loss:2.9196 t:1093614ms step:415ms
+step:2640/100000 loss:3.1527 t:1097714ms step:409ms
+step:2650/100000 loss:2.9560 t:1101815ms step:410ms
+step:2660/100000 loss:3.1086 t:1105951ms step:414ms
+step:2670/100000 loss:3.0245 t:1110145ms step:420ms
+step:2680/100000 loss:3.1446 t:1114325ms step:413ms
+step:2690/100000 loss:3.1481 t:1118452ms step:405ms
+step:2700/100000 loss:2.9584 t:1122595ms step:416ms
+step:2710/100000 loss:3.0412 t:1126751ms step:417ms
+step:2720/100000 loss:3.0539 t:1130890ms step:420ms
+step:2730/100000 loss:3.0382 t:1135019ms step:407ms
+step:2740/100000 loss:3.0087 t:1139195ms step:418ms
+step:2750/100000 loss:3.0437 t:1143360ms step:422ms
+step:2760/100000 loss:3.0513 t:1147532ms step:418ms
+step:2770/100000 loss:3.0951 t:1151695ms step:419ms
+step:2780/100000 loss:3.1100 t:1155845ms step:421ms
+step:2790/100000 loss:2.8435 t:1160028ms step:417ms
+step:2800/100000 loss:3.1065 t:1164318ms step:414ms
+step:2810/100000 loss:2.9957 t:1168483ms step:416ms
+step:2820/100000 loss:2.8410 t:1172649ms step:415ms
+step:2830/100000 loss:3.0116 t:1176818ms step:418ms
+step:2840/100000 loss:2.9853 t:1180980ms step:418ms
+step:2850/100000 loss:2.9675 t:1185162ms step:414ms
+step:2860/100000 loss:3.2740 t:1189323ms step:421ms
+step:2870/100000 loss:2.7192 t:1193523ms step:414ms
+step:2880/100000 loss:2.9418 t:1197672ms step:418ms
+val_progress:1/2
+val_progress:2/2
+step:2886/100000 val_loss:3.0429 val_bpb:1.7966 train_time:1200187ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.0429 val_bpb:1.7966
+temp_scaling optimal_T:1.00 eval_time:2503ms
+final_sliding val_loss:2.9819 val_bpb:1.7605 (stride=64, T=1.00) eval_time:8053ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=1536
+  ttt_chunk [1/2] bpb=1.766989 time=5.5s
+ttt_sliding:done val_loss=2.981921 val_bpb=1.760467 elapsed=9.6s
+legal_ttt val_loss:2.9819 val_bpb:1.7605 eval_time:9651ms
+legal_ttt_exact val_loss:2.98192059 val_bpb:1.76046726
+ngram_cache val_loss:3.1089 val_bpb:1.8355 (order=5) eval_time:2178ms
+artifact:0.77MB code:100215 total:865603/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running B_FeedbackEngramVRLXSA...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3758608 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:False engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=False
+step:1/100000 loss:6.9368 t:663ms step:663ms
+step:2/100000 loss:6.9011 t:1277ms step:614ms
+step:3/100000 loss:6.3360 t:1891ms step:613ms
+step:4/100000 loss:7.5663 t:2510ms step:619ms
+step:5/100000 loss:7.5524 t:3123ms step:613ms
+step:10/100000 loss:6.0937 t:6191ms step:615ms
+step:20/100000 loss:5.4017 t:12364ms step:612ms
+step:30/100000 loss:5.1408 t:18481ms step:620ms
+step:40/100000 loss:4.8457 t:24631ms step:615ms
+step:50/100000 loss:4.7276 t:30761ms step:614ms
+step:60/100000 loss:4.4067 t:36870ms step:617ms
+step:70/100000 loss:4.2748 t:42984ms step:609ms
+step:80/100000 loss:4.1993 t:49098ms step:609ms
+step:90/100000 loss:4.2420 t:55179ms step:616ms
+step:100/100000 loss:4.2197 t:61373ms step:611ms
+step:110/100000 loss:4.2330 t:67520ms step:613ms
+step:120/100000 loss:4.0676 t:73630ms step:610ms
+step:130/100000 loss:4.1277 t:79724ms step:631ms
+step:140/100000 loss:4.0031 t:85849ms step:609ms
+step:150/100000 loss:4.0237 t:91911ms step:590ms
+step:160/100000 loss:3.9524 t:98027ms step:611ms
+step:170/100000 loss:4.3089 t:104153ms step:607ms
+step:180/100000 loss:4.1711 t:110271ms step:616ms
+step:190/100000 loss:3.9178 t:116390ms step:618ms
+step:200/100000 loss:3.9671 t:122559ms step:612ms
+step:210/100000 loss:3.9546 t:128720ms step:617ms
+step:220/100000 loss:3.8017 t:134862ms step:615ms
+step:230/100000 loss:3.9433 t:140990ms step:611ms
+step:240/100000 loss:4.0630 t:147145ms step:618ms
+step:250/100000 loss:3.9454 t:153282ms step:615ms
+step:260/100000 loss:3.8189 t:159415ms step:618ms
+step:270/100000 loss:3.6677 t:165536ms step:613ms
+step:280/100000 loss:3.7715 t:171669ms step:613ms
+step:290/100000 loss:3.7560 t:177819ms step:616ms
+step:300/100000 loss:3.7244 t:184033ms step:613ms
+step:310/100000 loss:3.9155 t:190185ms step:616ms
+step:320/100000 loss:3.8477 t:196345ms step:616ms
+step:330/100000 loss:3.6956 t:202487ms step:618ms
+step:340/100000 loss:3.6113 t:208632ms step:616ms
+step:350/100000 loss:3.7443 t:214767ms step:616ms
+step:360/100000 loss:3.6624 t:220908ms step:616ms
+step:370/100000 loss:3.7232 t:227011ms step:610ms
+step:380/100000 loss:3.8694 t:233087ms step:601ms
+step:390/100000 loss:3.8781 t:239184ms step:617ms
+step:400/100000 loss:3.9917 t:245302ms step:609ms
+step:410/100000 loss:3.7000 t:251442ms step:613ms
+step:420/100000 loss:3.7041 t:257530ms step:606ms
+step:430/100000 loss:4.1666 t:263668ms step:614ms
+step:440/100000 loss:3.6292 t:269790ms step:612ms
+step:450/100000 loss:3.7969 t:275894ms step:615ms
+step:460/100000 loss:3.8312 t:282046ms step:618ms
+step:470/100000 loss:3.6780 t:288169ms step:616ms
+step:480/100000 loss:3.6730 t:294325ms step:616ms
+step:490/100000 loss:3.6790 t:300576ms step:612ms
+step:500/100000 loss:3.7166 t:306703ms step:613ms
+step:510/100000 loss:3.5461 t:312850ms step:614ms
+step:520/100000 loss:3.6942 t:319011ms step:613ms
+step:530/100000 loss:3.7114 t:325151ms step:616ms
+step:540/100000 loss:3.6479 t:331286ms step:615ms
+step:550/100000 loss:3.8333 t:337416ms step:617ms
+step:560/100000 loss:3.5074 t:343551ms step:617ms
+step:570/100000 loss:4.0176 t:349679ms step:611ms
+step:580/100000 loss:3.8534 t:355786ms step:607ms
+step:590/100000 loss:3.7090 t:361925ms step:613ms
+step:600/100000 loss:3.6485 t:368068ms step:615ms
+step:610/100000 loss:3.6364 t:374197ms step:615ms
+step:620/100000 loss:3.5938 t:380350ms step:611ms
+step:630/100000 loss:3.4539 t:386495ms step:618ms
+step:640/100000 loss:3.3609 t:392633ms step:617ms
+step:650/100000 loss:3.6315 t:398755ms step:615ms
+step:660/100000 loss:3.6812 t:404904ms step:618ms
+step:670/100000 loss:3.7975 t:410984ms step:610ms
+step:680/100000 loss:3.6426 t:417099ms step:616ms
+step:690/100000 loss:3.6734 t:423294ms step:616ms
+step:700/100000 loss:3.7701 t:429448ms step:617ms
+step:710/100000 loss:3.6787 t:435567ms step:607ms
+step:720/100000 loss:3.7734 t:441662ms step:618ms
+step:730/100000 loss:3.6280 t:447786ms step:606ms
+step:740/100000 loss:3.6787 t:453889ms step:605ms
+step:750/100000 loss:3.8507 t:460010ms step:610ms
+step:760/100000 loss:3.6490 t:466119ms step:612ms
+step:770/100000 loss:3.6743 t:472288ms step:617ms
+step:780/100000 loss:3.6591 t:478388ms step:611ms
+step:790/100000 loss:3.5904 t:484542ms step:612ms
+step:800/100000 loss:3.6957 t:490687ms step:617ms
+step:810/100000 loss:3.6894 t:496799ms step:608ms
+step:820/100000 loss:3.7554 t:502935ms step:617ms
+step:830/100000 loss:3.6671 t:509070ms step:614ms
+step:840/100000 loss:3.5309 t:515208ms step:618ms
+step:850/100000 loss:3.4866 t:521333ms step:605ms
+step:860/100000 loss:3.5211 t:527443ms step:608ms
+step:870/100000 loss:3.6126 t:533538ms step:610ms
+step:880/100000 loss:3.6840 t:539762ms step:614ms
+step:890/100000 loss:3.5187 t:545907ms step:616ms
+step:900/100000 loss:3.5540 t:552043ms step:615ms
+step:910/100000 loss:3.6700 t:558160ms step:613ms
+step:920/100000 loss:3.5135 t:564301ms step:615ms
+step:930/100000 loss:3.5202 t:570436ms step:617ms
+step:940/100000 loss:3.7598 t:576563ms step:612ms
+step:950/100000 loss:3.6439 t:582705ms step:614ms
+step:960/100000 loss:3.5463 t:588774ms step:610ms
+step:970/100000 loss:3.7047 t:594862ms step:607ms
+step:980/100000 loss:3.4892 t:600950ms step:611ms
+step:990/100000 loss:3.8542 t:607084ms step:613ms
+step:1000/100000 loss:3.5804 t:613215ms step:608ms
+step:1010/100000 loss:3.5270 t:619309ms step:610ms
+step:1020/100000 loss:3.5939 t:625433ms step:613ms
+step:1030/100000 loss:3.5455 t:631567ms step:617ms
+step:1040/100000 loss:3.6787 t:637709ms step:610ms
+step:1050/100000 loss:3.6568 t:643832ms step:612ms
+step:1060/100000 loss:3.5966 t:649927ms step:611ms
+step:1070/100000 loss:3.5910 t:656073ms step:618ms
+step:1080/100000 loss:3.5408 t:662299ms step:608ms
+step:1090/100000 loss:3.4441 t:668424ms step:612ms
+step:1100/100000 loss:3.6428 t:674552ms step:610ms
+step:1110/100000 loss:3.5556 t:680675ms step:615ms
+step:1120/100000 loss:3.6577 t:686814ms step:614ms
+step:1130/100000 loss:3.2796 t:692946ms step:608ms
+step:1140/100000 loss:3.6890 t:699080ms step:612ms
+step:1150/100000 loss:3.5148 t:705208ms step:615ms
+step:1160/100000 loss:3.5296 t:711326ms step:615ms
+step:1170/100000 loss:3.3497 t:717440ms step:616ms
+step:1180/100000 loss:3.4653 t:723560ms step:610ms
+step:1190/100000 loss:3.5027 t:729699ms step:616ms
+step:1200/100000 loss:3.4651 t:735818ms step:612ms
+step:1210/100000 loss:3.3256 t:741969ms step:610ms
+step:1220/100000 loss:3.4458 t:748094ms step:614ms
+step:1230/100000 loss:3.4451 t:754202ms step:609ms
+step:1240/100000 loss:3.5214 t:760330ms step:609ms
+step:1250/100000 loss:3.4915 t:766497ms step:614ms
+step:1260/100000 loss:3.4371 t:772601ms step:608ms
+step:1270/100000 loss:3.7072 t:778791ms step:681ms
+step:1280/100000 loss:3.4213 t:784878ms step:614ms
+step:1290/100000 loss:3.5196 t:791004ms step:609ms
+step:1300/100000 loss:3.4735 t:797123ms step:609ms
+step:1310/100000 loss:3.3419 t:803202ms step:618ms
+step:1320/100000 loss:4.0387 t:809308ms step:605ms
+step:1330/100000 loss:3.4968 t:815434ms step:609ms
+step:1340/100000 loss:3.3523 t:821537ms step:612ms
+step:1350/100000 loss:3.3970 t:827641ms step:613ms
+step:1360/100000 loss:3.3309 t:833755ms step:610ms
+step:1370/100000 loss:3.3664 t:839884ms step:610ms
+step:1380/100000 loss:3.4965 t:845992ms step:607ms
+step:1390/100000 loss:3.3286 t:852136ms step:612ms
+step:1400/100000 loss:3.4541 t:858259ms step:612ms
+step:1410/100000 loss:3.5634 t:864377ms step:615ms
+step:1420/100000 loss:3.3601 t:870507ms step:614ms
+step:1430/100000 loss:3.4625 t:876629ms step:614ms
+step:1440/100000 loss:3.4332 t:882758ms step:619ms
+step:1450/100000 loss:3.3791 t:888881ms step:610ms
+step:1460/100000 loss:3.4948 t:895010ms step:612ms
+step:1470/100000 loss:3.3861 t:901217ms step:608ms
+step:1480/100000 loss:3.4562 t:907350ms step:618ms
+step:1490/100000 loss:3.4454 t:913489ms step:614ms
+step:1500/100000 loss:3.4350 t:919624ms step:627ms
+step:1510/100000 loss:3.4383 t:925730ms step:612ms
+step:1520/100000 loss:3.3744 t:931848ms step:616ms
+step:1530/100000 loss:3.2494 t:937968ms step:610ms
+step:1540/100000 loss:3.4678 t:944131ms step:612ms
+step:1550/100000 loss:3.4825 t:950248ms step:609ms
+step:1560/100000 loss:3.4509 t:956317ms step:610ms
+step:1570/100000 loss:3.5758 t:962376ms step:607ms
+step:1580/100000 loss:3.2735 t:968467ms step:609ms
+step:1590/100000 loss:3.3204 t:974610ms step:614ms
+step:1600/100000 loss:3.5650 t:980722ms step:608ms
+step:1610/100000 loss:3.4191 t:986788ms step:611ms
+step:1620/100000 loss:3.2950 t:992903ms step:607ms
+step:1630/100000 loss:3.3671 t:998993ms step:604ms
+step:1640/100000 loss:3.4235 t:1005110ms step:610ms
+step:1650/100000 loss:3.3383 t:1011222ms step:612ms
+step:1660/100000 loss:3.4171 t:1017342ms step:620ms
+step:1670/100000 loss:3.3289 t:1023562ms step:612ms
+step:1680/100000 loss:3.3412 t:1029686ms step:611ms
+step:1690/100000 loss:3.3151 t:1035780ms step:608ms
+step:1700/100000 loss:3.3304 t:1041888ms step:612ms
+step:1710/100000 loss:3.3966 t:1047988ms step:606ms
+step:1720/100000 loss:3.3399 t:1054105ms step:615ms
+step:1730/100000 loss:3.7358 t:1060216ms step:612ms
+step:1740/100000 loss:3.4064 t:1066313ms step:607ms
+step:1750/100000 loss:3.2367 t:1072420ms step:614ms
+step:1760/100000 loss:3.3542 t:1078523ms step:611ms
+step:1770/100000 loss:3.2077 t:1084634ms step:616ms
+step:1780/100000 loss:3.1812 t:1090748ms step:609ms
+step:1790/100000 loss:3.3707 t:1096845ms step:608ms
+step:1800/100000 loss:3.0511 t:1102969ms step:608ms
+step:1810/100000 loss:3.2546 t:1109083ms step:608ms
+step:1820/100000 loss:3.1649 t:1115199ms step:614ms
+step:1830/100000 loss:3.1250 t:1121337ms step:613ms
+step:1840/100000 loss:3.2411 t:1127451ms step:613ms
+step:1850/100000 loss:3.1575 t:1133535ms step:606ms
+step:1860/100000 loss:3.2134 t:1139727ms step:607ms
+step:1870/100000 loss:3.2043 t:1145808ms step:610ms
+step:1880/100000 loss:2.9731 t:1151920ms step:610ms
+step:1890/100000 loss:3.4314 t:1158019ms step:609ms
+step:1900/100000 loss:3.1542 t:1164104ms step:613ms
+step:1910/100000 loss:4.0445 t:1170202ms step:613ms
+step:1920/100000 loss:3.0733 t:1176299ms step:608ms
+step:1930/100000 loss:3.2369 t:1182382ms step:611ms
+step:1940/100000 loss:3.1008 t:1188501ms step:614ms
+step:1950/100000 loss:3.2171 t:1194598ms step:612ms
+val_progress:1/2
+val_progress:2/2
+step:1959/100000 val_loss:3.2630 val_bpb:1.9265 train_time:1200108ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.2630 val_bpb:1.9265
+temp_scaling optimal_T:1.00 eval_time:4901ms
+final_sliding val_loss:3.2521 val_bpb:1.9200 (stride=64, T=1.00) eval_time:15641ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=84480
+  ttt_chunk [1/2] bpb=1.942349 time=11.0s
+ttt_sliding:done val_loss=3.252069 val_bpb=1.919958 elapsed=19.0s
+legal_ttt val_loss:3.2521 val_bpb:1.9200 eval_time:19049ms
+legal_ttt_exact val_loss:3.25206944 val_bpb:1.91995783
+ngram_cache val_loss:3.2969 val_bpb:1.9465 (order=5) eval_time:2828ms
+artifact:1.75MB code:100215 total:1847855/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running C_CapsulesNoKoopman...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3792720 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=False
+step:1/100000 loss:6.9368 t:681ms step:680ms
+step:2/100000 loss:6.9011 t:1303ms step:622ms
+step:3/100000 loss:6.3358 t:1930ms step:627ms
+step:4/100000 loss:7.5747 t:2556ms step:626ms
+step:5/100000 loss:7.5511 t:3195ms step:639ms
+step:10/100000 loss:6.3735 t:6331ms step:629ms
+step:20/100000 loss:5.3846 t:12621ms step:632ms
+step:30/100000 loss:5.1172 t:18977ms step:628ms
+step:40/100000 loss:4.8354 t:25229ms step:623ms
+step:50/100000 loss:4.7245 t:31527ms step:629ms
+step:60/100000 loss:4.4123 t:37788ms step:625ms
+step:70/100000 loss:4.2867 t:44072ms step:628ms
+step:80/100000 loss:4.2098 t:50357ms step:628ms
+step:90/100000 loss:4.2867 t:56635ms step:628ms
+step:100/100000 loss:4.2345 t:62890ms step:626ms
+step:110/100000 loss:4.2363 t:69136ms step:623ms
+step:120/100000 loss:4.0748 t:75370ms step:624ms
+step:130/100000 loss:4.1253 t:81602ms step:620ms
+step:140/100000 loss:4.0260 t:87866ms step:626ms
+step:150/100000 loss:4.0277 t:94158ms step:623ms
+step:160/100000 loss:3.9502 t:100383ms step:609ms
+step:170/100000 loss:4.2955 t:106652ms step:630ms
+step:180/100000 loss:4.1721 t:112929ms step:635ms
+step:190/100000 loss:3.9320 t:119191ms step:629ms
+step:200/100000 loss:3.9503 t:125495ms step:629ms
+step:210/100000 loss:3.9355 t:131840ms step:631ms
+step:220/100000 loss:3.8176 t:138213ms step:631ms
+step:230/100000 loss:3.9350 t:144441ms step:631ms
+step:240/100000 loss:4.0478 t:150562ms step:606ms
+step:250/100000 loss:3.9479 t:156830ms step:629ms
+step:260/100000 loss:3.8498 t:162961ms step:607ms
+step:270/100000 loss:3.6600 t:169218ms step:633ms
+step:280/100000 loss:3.7718 t:175521ms step:627ms
+step:290/100000 loss:3.7532 t:181631ms step:606ms
+step:300/100000 loss:3.7423 t:187861ms step:626ms
+step:310/100000 loss:3.9199 t:194126ms step:634ms
+step:320/100000 loss:3.8520 t:200245ms step:607ms
+step:330/100000 loss:3.6972 t:206521ms step:633ms
+step:340/100000 loss:3.5855 t:212638ms step:608ms
+step:350/100000 loss:3.7390 t:218900ms step:634ms
+step:360/100000 loss:3.6897 t:225210ms step:633ms
+step:370/100000 loss:3.7392 t:231525ms step:636ms
+step:380/100000 loss:3.8520 t:237793ms step:629ms
+step:390/100000 loss:3.8725 t:243985ms step:626ms
+step:400/100000 loss:3.9792 t:250230ms step:629ms
+step:410/100000 loss:3.7076 t:256602ms step:609ms
+step:420/100000 loss:3.6981 t:262836ms step:609ms
+step:430/100000 loss:4.1821 t:269064ms step:629ms
+step:440/100000 loss:3.6485 t:275355ms step:634ms
+step:450/100000 loss:3.7750 t:281568ms step:608ms
+step:460/100000 loss:3.8216 t:287693ms step:606ms
+step:470/100000 loss:3.6594 t:294007ms step:631ms
+step:480/100000 loss:3.6611 t:300250ms step:628ms
+step:490/100000 loss:3.6733 t:306577ms step:634ms
+step:500/100000 loss:3.7229 t:312858ms step:613ms
+step:510/100000 loss:3.5556 t:319202ms step:633ms
+step:520/100000 loss:3.6466 t:325526ms step:633ms
+step:530/100000 loss:3.6672 t:331647ms step:608ms
+step:540/100000 loss:3.6354 t:337909ms step:632ms
+step:550/100000 loss:3.8179 t:344207ms step:630ms
+step:560/100000 loss:3.4872 t:350520ms step:628ms
+step:570/100000 loss:4.0200 t:356811ms step:624ms
+step:580/100000 loss:3.8386 t:363078ms step:628ms
+step:590/100000 loss:3.6715 t:369394ms step:638ms
+step:600/100000 loss:3.6306 t:375818ms step:633ms
+step:610/100000 loss:3.6168 t:381943ms step:609ms
+step:620/100000 loss:3.5758 t:388215ms step:630ms
+step:630/100000 loss:3.4367 t:394349ms step:610ms
+step:640/100000 loss:3.3278 t:400626ms step:634ms
+step:650/100000 loss:3.6351 t:406828ms step:633ms
+step:660/100000 loss:3.6624 t:413113ms step:628ms
+step:670/100000 loss:3.7801 t:419423ms step:633ms
+step:680/100000 loss:3.6186 t:425721ms step:632ms
+step:690/100000 loss:3.6723 t:431963ms step:624ms
+step:700/100000 loss:3.7231 t:438236ms step:629ms
+step:710/100000 loss:3.6522 t:444465ms step:607ms
+step:720/100000 loss:3.8002 t:450689ms step:633ms
+step:730/100000 loss:3.6242 t:456991ms step:624ms
+step:740/100000 loss:3.6558 t:463261ms step:630ms
+step:750/100000 loss:3.8390 t:469565ms step:629ms
+step:760/100000 loss:3.6224 t:475857ms step:636ms
+step:770/100000 loss:3.6570 t:482034ms step:608ms
+step:780/100000 loss:3.6283 t:488310ms step:632ms
+step:790/100000 loss:3.5637 t:494763ms step:652ms
+step:800/100000 loss:3.6838 t:501077ms step:628ms
+step:810/100000 loss:3.6549 t:507390ms step:634ms
+step:820/100000 loss:3.7523 t:513720ms step:632ms
+step:830/100000 loss:3.6418 t:520040ms step:631ms
+step:840/100000 loss:3.4603 t:526352ms step:631ms
+step:850/100000 loss:3.4529 t:532485ms step:608ms
+step:860/100000 loss:3.4946 t:538763ms step:634ms
+step:870/100000 loss:3.5774 t:545065ms step:630ms
+step:880/100000 loss:3.6608 t:551311ms step:630ms
+step:890/100000 loss:3.4941 t:557612ms step:633ms
+step:900/100000 loss:3.5002 t:563929ms step:634ms
+step:910/100000 loss:3.6427 t:570053ms step:608ms
+step:920/100000 loss:3.3656 t:576340ms step:633ms
+step:930/100000 loss:3.4744 t:582650ms step:632ms
+step:940/100000 loss:3.6895 t:588974ms step:634ms
+step:950/100000 loss:3.5810 t:595290ms step:628ms
+step:960/100000 loss:3.4553 t:601587ms step:629ms
+step:970/100000 loss:3.5093 t:607893ms step:633ms
+step:980/100000 loss:3.4467 t:614275ms step:627ms
+step:990/100000 loss:3.6873 t:620553ms step:627ms
+step:1000/100000 loss:3.4651 t:626811ms step:630ms
+step:1010/100000 loss:3.4403 t:633135ms step:633ms
+step:1020/100000 loss:3.4947 t:639444ms step:621ms
+step:1030/100000 loss:3.4059 t:645684ms step:634ms
+step:1040/100000 loss:3.5845 t:651940ms step:630ms
+step:1050/100000 loss:3.5486 t:658255ms step:636ms
+step:1060/100000 loss:3.4295 t:664551ms step:628ms
+step:1070/100000 loss:3.4524 t:670844ms step:623ms
+step:1080/100000 loss:3.4344 t:677131ms step:632ms
+step:1090/100000 loss:3.3096 t:683468ms step:636ms
+step:1100/100000 loss:3.4633 t:689603ms step:608ms
+step:1110/100000 loss:3.3407 t:695892ms step:634ms
+step:1120/100000 loss:3.3788 t:702204ms step:632ms
+step:1130/100000 loss:3.1150 t:708459ms step:608ms
+step:1140/100000 loss:3.4807 t:714741ms step:631ms
+step:1150/100000 loss:3.3722 t:721047ms step:626ms
+step:1160/100000 loss:3.3666 t:727365ms step:631ms
+step:1170/100000 loss:3.1175 t:733763ms step:699ms
+step:1180/100000 loss:3.2756 t:740090ms step:634ms
+step:1190/100000 loss:3.3534 t:746404ms step:631ms
+step:1200/100000 loss:3.2749 t:752722ms step:633ms
+step:1210/100000 loss:3.1663 t:759042ms step:634ms
+step:1220/100000 loss:3.3253 t:765382ms step:631ms
+step:1230/100000 loss:3.2720 t:771690ms step:632ms
+step:1240/100000 loss:3.3104 t:778012ms step:634ms
+step:1250/100000 loss:3.2324 t:784317ms step:623ms
+step:1260/100000 loss:3.1801 t:790578ms step:616ms
+step:1270/100000 loss:3.3015 t:796862ms step:631ms
+step:1280/100000 loss:3.2278 t:803121ms step:634ms
+step:1290/100000 loss:3.2700 t:809415ms step:635ms
+step:1300/100000 loss:3.2709 t:815762ms step:630ms
+step:1310/100000 loss:3.0872 t:822059ms step:631ms
+step:1320/100000 loss:3.8649 t:828197ms step:609ms
+step:1330/100000 loss:3.2030 t:834451ms step:631ms
+step:1340/100000 loss:3.1490 t:840750ms step:630ms
+step:1350/100000 loss:3.1518 t:847031ms step:633ms
+step:1360/100000 loss:3.1129 t:853430ms step:695ms
+step:1370/100000 loss:3.1444 t:859757ms step:631ms
+step:1380/100000 loss:3.2984 t:866080ms step:632ms
+step:1390/100000 loss:3.1327 t:872285ms step:629ms
+step:1400/100000 loss:3.2613 t:878595ms step:631ms
+step:1410/100000 loss:3.4125 t:884903ms step:634ms
+step:1420/100000 loss:3.1697 t:891205ms step:630ms
+step:1430/100000 loss:3.2726 t:897499ms step:629ms
+step:1440/100000 loss:3.2703 t:903792ms step:627ms
+step:1450/100000 loss:3.1213 t:910026ms step:610ms
+step:1460/100000 loss:3.2989 t:916326ms step:637ms
+step:1470/100000 loss:3.2393 t:922649ms step:633ms
+step:1480/100000 loss:3.2593 t:928973ms step:633ms
+step:1490/100000 loss:3.1749 t:935289ms step:632ms
+step:1500/100000 loss:3.2123 t:941603ms step:630ms
+step:1510/100000 loss:3.1806 t:947911ms step:629ms
+step:1520/100000 loss:3.1701 t:954246ms step:633ms
+step:1530/100000 loss:3.0558 t:960599ms step:632ms
+step:1540/100000 loss:3.2776 t:966903ms step:635ms
+step:1550/100000 loss:3.2466 t:973200ms step:637ms
+step:1560/100000 loss:3.2472 t:979548ms step:617ms
+step:1570/100000 loss:3.3246 t:985804ms step:617ms
+step:1580/100000 loss:2.9924 t:992116ms step:635ms
+step:1590/100000 loss:3.1540 t:998447ms step:634ms
+step:1600/100000 loss:3.1201 t:1004699ms step:627ms
+step:1610/100000 loss:3.2648 t:1011021ms step:630ms
+step:1620/100000 loss:3.1294 t:1017332ms step:632ms
+step:1630/100000 loss:3.0836 t:1023621ms step:634ms
+step:1640/100000 loss:3.2315 t:1029932ms step:635ms
+step:1650/100000 loss:3.1848 t:1036295ms step:628ms
+step:1660/100000 loss:3.2782 t:1042624ms step:636ms
+step:1670/100000 loss:3.0858 t:1048941ms step:631ms
+step:1680/100000 loss:3.1263 t:1055247ms step:630ms
+step:1690/100000 loss:3.0645 t:1061548ms step:635ms
+step:1700/100000 loss:3.1148 t:1067866ms step:635ms
+step:1710/100000 loss:3.1617 t:1074189ms step:632ms
+step:1720/100000 loss:3.0964 t:1080499ms step:631ms
+step:1730/100000 loss:3.3890 t:1086742ms step:636ms
+step:1740/100000 loss:3.1269 t:1093045ms step:640ms
+step:1750/100000 loss:3.0124 t:1099420ms step:631ms
+step:1760/100000 loss:3.1532 t:1105728ms step:631ms
+step:1770/100000 loss:2.9406 t:1111855ms step:609ms
+step:1780/100000 loss:3.0277 t:1118133ms step:635ms
+step:1790/100000 loss:3.1742 t:1124450ms step:634ms
+step:1800/100000 loss:2.8329 t:1130683ms step:606ms
+step:1810/100000 loss:3.0365 t:1136997ms step:633ms
+step:1820/100000 loss:2.9777 t:1143137ms step:609ms
+step:1830/100000 loss:2.8543 t:1149285ms step:632ms
+step:1840/100000 loss:3.0492 t:1155498ms step:624ms
+step:1850/100000 loss:2.8358 t:1161810ms step:635ms
+step:1860/100000 loss:3.0204 t:1168058ms step:630ms
+step:1870/100000 loss:3.0205 t:1174364ms step:630ms
+step:1880/100000 loss:2.6514 t:1180692ms step:631ms
+step:1890/100000 loss:3.1525 t:1186916ms step:609ms
+step:1900/100000 loss:2.9649 t:1193017ms step:609ms
+step:1910/100000 loss:3.5183 t:1199312ms step:631ms
+val_progress:1/2
+val_progress:2/2
+step:1912/100000 val_loss:3.0554 val_bpb:1.8040 train_time:1200574ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.0554 val_bpb:1.8040
+temp_scaling optimal_T:1.00 eval_time:4961ms
+final_sliding val_loss:3.0034 val_bpb:1.7731 (stride=64, T=1.00) eval_time:16156ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=118592
+  ttt_chunk [1/2] bpb=1.784263 time=11.5s
+ttt_sliding:done val_loss=3.003291 val_bpb=1.773084 elapsed=19.8s
+legal_ttt val_loss:3.0033 val_bpb:1.7731 eval_time:19790ms
+legal_ttt_exact val_loss:3.00329081 val_bpb:1.77308382
+ngram_cache val_loss:3.1208 val_bpb:1.8426 (order=5) eval_time:2872ms
+artifact:1.76MB code:100215 total:1857735/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running D_KoopCaps...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=False
+step:1/100000 loss:6.9368 t:682ms step:682ms
+step:2/100000 loss:6.9011 t:1308ms step:626ms
+step:3/100000 loss:6.3364 t:1919ms step:611ms
+step:4/100000 loss:7.5701 t:2532ms step:612ms
+step:5/100000 loss:7.5477 t:3141ms step:608ms
+step:10/100000 loss:6.0966 t:6226ms step:609ms
+step:20/100000 loss:5.4813 t:12448ms step:631ms
+step:30/100000 loss:5.1206 t:18611ms step:610ms
+step:40/100000 loss:4.8496 t:24850ms step:628ms
+step:50/100000 loss:4.7412 t:31013ms step:608ms
+step:60/100000 loss:4.4061 t:37205ms step:609ms
+step:70/100000 loss:4.2753 t:43385ms step:606ms
+step:80/100000 loss:4.2187 t:49676ms step:630ms
+step:90/100000 loss:4.2539 t:56000ms step:634ms
+step:100/100000 loss:4.2329 t:62250ms step:609ms
+step:110/100000 loss:4.2554 t:68362ms step:608ms
+step:120/100000 loss:4.1625 t:74651ms step:637ms
+step:130/100000 loss:4.1853 t:80985ms step:633ms
+step:140/100000 loss:4.0658 t:87314ms step:629ms
+step:150/100000 loss:4.0499 t:93605ms step:627ms
+step:160/100000 loss:4.0498 t:99808ms step:615ms
+step:170/100000 loss:4.4349 t:106132ms step:634ms
+step:180/100000 loss:4.2899 t:112451ms step:632ms
+step:190/100000 loss:4.0070 t:118658ms step:611ms
+step:200/100000 loss:4.0269 t:124944ms step:633ms
+step:210/100000 loss:4.0166 t:131292ms step:624ms
+step:220/100000 loss:3.8571 t:137568ms step:628ms
+step:230/100000 loss:4.0222 t:143780ms step:625ms
+step:240/100000 loss:4.1027 t:150116ms step:634ms
+step:250/100000 loss:3.9757 t:156451ms step:629ms
+step:260/100000 loss:3.9007 t:162750ms step:630ms
+step:270/100000 loss:3.7184 t:169071ms step:632ms
+step:280/100000 loss:3.8146 t:175413ms step:637ms
+step:290/100000 loss:3.7766 t:181560ms step:609ms
+step:300/100000 loss:3.7529 t:187855ms step:633ms
+step:310/100000 loss:3.9264 t:194178ms step:636ms
+step:320/100000 loss:3.8762 t:200505ms step:632ms
+step:330/100000 loss:3.7164 t:206935ms step:636ms
+step:340/100000 loss:3.6266 t:213268ms step:632ms
+step:350/100000 loss:3.7555 t:219595ms step:633ms
+step:360/100000 loss:3.6970 t:225920ms step:631ms
+step:370/100000 loss:3.7261 t:232250ms step:632ms
+step:380/100000 loss:3.8641 t:238578ms step:634ms
+step:390/100000 loss:3.8849 t:244904ms step:632ms
+step:400/100000 loss:4.0129 t:251268ms step:664ms
+step:410/100000 loss:3.7100 t:257577ms step:629ms
+step:420/100000 loss:3.7312 t:263827ms step:630ms
+step:430/100000 loss:4.1879 t:270124ms step:626ms
+step:440/100000 loss:3.6621 t:276408ms step:632ms
+step:450/100000 loss:3.8126 t:282643ms step:632ms
+step:460/100000 loss:3.8549 t:288963ms step:633ms
+step:470/100000 loss:3.7132 t:295277ms step:628ms
+step:480/100000 loss:3.6749 t:301573ms step:629ms
+step:490/100000 loss:3.7082 t:307710ms step:608ms
+step:500/100000 loss:3.7420 t:314011ms step:633ms
+step:510/100000 loss:3.5729 t:320314ms step:617ms
+step:520/100000 loss:3.6414 t:326729ms step:654ms
+step:530/100000 loss:3.7193 t:333037ms step:629ms
+step:540/100000 loss:3.6556 t:339363ms step:633ms
+step:550/100000 loss:3.8657 t:345688ms step:635ms
+step:560/100000 loss:3.5290 t:352013ms step:635ms
+step:570/100000 loss:4.0492 t:358340ms step:632ms
+step:580/100000 loss:3.8786 t:364545ms step:609ms
+step:590/100000 loss:3.7067 t:370878ms step:632ms
+step:600/100000 loss:3.6564 t:377219ms step:633ms
+step:610/100000 loss:3.6530 t:383488ms step:622ms
+step:620/100000 loss:3.6150 t:389824ms step:633ms
+step:630/100000 loss:3.4423 t:396178ms step:633ms
+step:640/100000 loss:3.3509 t:402521ms step:639ms
+step:650/100000 loss:3.6407 t:408850ms step:633ms
+step:660/100000 loss:3.6972 t:415193ms step:634ms
+step:670/100000 loss:3.8730 t:421554ms step:637ms
+step:680/100000 loss:3.6483 t:427907ms step:634ms
+step:690/100000 loss:3.6930 t:434238ms step:632ms
+step:700/100000 loss:3.7635 t:440569ms step:637ms
+step:710/100000 loss:3.6962 t:447003ms step:623ms
+step:720/100000 loss:3.8124 t:453305ms step:626ms
+step:730/100000 loss:3.6501 t:459626ms step:629ms
+step:740/100000 loss:3.7011 t:465943ms step:636ms
+step:750/100000 loss:3.8698 t:472284ms step:630ms
+step:760/100000 loss:3.6354 t:478600ms step:622ms
+step:770/100000 loss:3.6854 t:484897ms step:626ms
+step:780/100000 loss:3.6668 t:491239ms step:627ms
+step:790/100000 loss:3.6060 t:497544ms step:632ms
+step:800/100000 loss:3.7401 t:503831ms step:624ms
+step:810/100000 loss:3.7015 t:510105ms step:610ms
+step:820/100000 loss:3.7871 t:516417ms step:637ms
+step:830/100000 loss:3.6955 t:522770ms step:638ms
+step:840/100000 loss:3.5187 t:529123ms step:639ms
+step:850/100000 loss:3.5089 t:535464ms step:634ms
+step:860/100000 loss:3.5703 t:541809ms step:637ms
+step:870/100000 loss:3.6171 t:548195ms step:671ms
+step:880/100000 loss:3.7008 t:554364ms step:610ms
+step:890/100000 loss:3.5442 t:560669ms step:639ms
+step:900/100000 loss:3.5539 t:567111ms step:633ms
+step:910/100000 loss:3.6807 t:573465ms step:637ms
+step:920/100000 loss:3.4923 t:579815ms step:636ms
+step:930/100000 loss:3.5614 t:586139ms step:633ms
+step:940/100000 loss:3.7960 t:592470ms step:632ms
+step:950/100000 loss:3.6663 t:598806ms step:635ms
+step:960/100000 loss:3.5958 t:605130ms step:638ms
+step:970/100000 loss:3.6482 t:611466ms step:634ms
+step:980/100000 loss:3.5112 t:617815ms step:637ms
+step:990/100000 loss:3.8631 t:624144ms step:632ms
+step:1000/100000 loss:3.6071 t:630429ms step:626ms
+step:1010/100000 loss:3.5178 t:636734ms step:619ms
+step:1020/100000 loss:3.5945 t:642999ms step:623ms
+step:1030/100000 loss:3.5675 t:649307ms step:634ms
+step:1040/100000 loss:3.7376 t:655629ms step:634ms
+step:1050/100000 loss:3.6697 t:661991ms step:629ms
+step:1060/100000 loss:3.5866 t:668295ms step:627ms
+step:1070/100000 loss:3.5999 t:674622ms step:637ms
+step:1080/100000 loss:3.5709 t:680939ms step:633ms
+step:1090/100000 loss:3.4793 t:687372ms step:631ms
+step:1100/100000 loss:3.6763 t:693737ms step:635ms
+step:1110/100000 loss:3.5837 t:700013ms step:610ms
+step:1120/100000 loss:3.6445 t:706311ms step:631ms
+step:1130/100000 loss:3.3057 t:712630ms step:629ms
+step:1140/100000 loss:3.6990 t:718958ms step:630ms
+step:1150/100000 loss:3.5202 t:725271ms step:631ms
+step:1160/100000 loss:3.5217 t:731608ms step:634ms
+step:1170/100000 loss:3.3761 t:737934ms step:639ms
+step:1180/100000 loss:3.4679 t:744244ms step:624ms
+step:1190/100000 loss:3.5137 t:750574ms step:636ms
+step:1200/100000 loss:3.4735 t:756921ms step:635ms
+step:1210/100000 loss:3.3316 t:763275ms step:632ms
+step:1220/100000 loss:3.4610 t:769619ms step:633ms
+step:1230/100000 loss:3.4706 t:775942ms step:633ms
+step:1240/100000 loss:3.5679 t:782262ms step:627ms
+step:1250/100000 loss:3.5196 t:788586ms step:629ms
+step:1260/100000 loss:3.4856 t:794914ms step:633ms
+step:1270/100000 loss:3.7135 t:801244ms step:635ms
+step:1280/100000 loss:3.4347 t:807703ms step:626ms
+step:1290/100000 loss:3.5339 t:813985ms step:629ms
+step:1300/100000 loss:3.4785 t:820270ms step:625ms
+step:1310/100000 loss:3.3601 t:826601ms step:636ms
+step:1320/100000 loss:4.0186 t:832933ms step:633ms
+step:1330/100000 loss:3.4961 t:839271ms step:629ms
+step:1340/100000 loss:3.3399 t:845573ms step:634ms
+step:1350/100000 loss:3.4025 t:851864ms step:634ms
+step:1360/100000 loss:3.3806 t:858212ms step:659ms
+step:1370/100000 loss:3.3787 t:864510ms step:624ms
+step:1380/100000 loss:3.4772 t:870823ms step:632ms
+step:1390/100000 loss:3.3345 t:877159ms step:633ms
+step:1400/100000 loss:3.4852 t:883499ms step:635ms
+step:1410/100000 loss:3.5636 t:889853ms step:636ms
+step:1420/100000 loss:3.3606 t:896197ms step:630ms
+step:1430/100000 loss:3.4890 t:902525ms step:634ms
+step:1440/100000 loss:3.4694 t:908849ms step:628ms
+step:1450/100000 loss:3.3786 t:915194ms step:633ms
+step:1460/100000 loss:3.4790 t:921539ms step:635ms
+step:1470/100000 loss:3.3865 t:927976ms step:635ms
+step:1480/100000 loss:3.4598 t:934304ms step:631ms
+step:1490/100000 loss:3.4327 t:940679ms step:635ms
+step:1500/100000 loss:3.4419 t:947023ms step:636ms
+step:1510/100000 loss:3.4510 t:953370ms step:633ms
+step:1520/100000 loss:3.3783 t:959723ms step:634ms
+step:1530/100000 loss:3.2623 t:966052ms step:636ms
+step:1540/100000 loss:3.4699 t:972373ms step:632ms
+step:1550/100000 loss:3.4687 t:978695ms step:641ms
+step:1560/100000 loss:3.4467 t:984999ms step:634ms
+step:1570/100000 loss:3.5830 t:991287ms step:630ms
+step:1580/100000 loss:3.2949 t:997566ms step:631ms
+step:1590/100000 loss:3.3268 t:1003874ms step:637ms
+step:1600/100000 loss:3.5570 t:1010170ms step:628ms
+step:1610/100000 loss:3.4289 t:1016522ms step:635ms
+step:1620/100000 loss:3.3078 t:1022837ms step:625ms
+step:1630/100000 loss:3.3765 t:1029143ms step:628ms
+step:1640/100000 loss:3.3969 t:1035425ms step:630ms
+step:1650/100000 loss:3.3466 t:1041746ms step:637ms
+step:1660/100000 loss:3.4236 t:1048148ms step:627ms
+step:1670/100000 loss:3.3423 t:1054506ms step:633ms
+step:1680/100000 loss:3.3595 t:1060825ms step:638ms
+step:1690/100000 loss:3.3153 t:1067153ms step:635ms
+step:1700/100000 loss:3.3233 t:1073487ms step:634ms
+step:1710/100000 loss:3.3833 t:1079808ms step:632ms
+step:1720/100000 loss:3.3346 t:1086141ms step:637ms
+step:1730/100000 loss:3.7357 t:1092462ms step:635ms
+step:1740/100000 loss:3.3962 t:1098777ms step:638ms
+step:1750/100000 loss:3.2338 t:1105102ms step:634ms
+step:1760/100000 loss:3.3636 t:1111433ms step:632ms
+step:1770/100000 loss:3.2047 t:1117776ms step:638ms
+step:1780/100000 loss:3.1804 t:1124125ms step:635ms
+step:1790/100000 loss:3.3688 t:1130516ms step:627ms
+step:1800/100000 loss:3.0540 t:1136866ms step:638ms
+step:1810/100000 loss:3.2493 t:1143221ms step:632ms
+step:1820/100000 loss:3.1682 t:1149542ms step:632ms
+step:1830/100000 loss:3.1218 t:1155866ms step:632ms
+step:1840/100000 loss:3.2417 t:1162192ms step:638ms
+step:1850/100000 loss:3.1618 t:1168617ms step:634ms
+step:1860/100000 loss:3.2183 t:1174898ms step:623ms
+step:1870/100000 loss:3.2049 t:1181208ms step:625ms
+step:1880/100000 loss:2.9698 t:1187535ms step:636ms
+step:1890/100000 loss:3.4365 t:1193827ms step:632ms
+step:1900/100000 loss:3.1508 t:1200152ms step:631ms
+val_progress:1/2
+val_progress:2/2
+step:1900/100000 val_loss:3.2566 val_bpb:1.9227 train_time:1200152ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.2566 val_bpb:1.9227
+temp_scaling optimal_T:1.00 eval_time:3854ms
+final_sliding val_loss:3.2473 val_bpb:1.9171 (stride=64, T=1.00) eval_time:12287ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=1.938071 time=9.8s
+ttt_sliding:done val_loss=3.247293 val_bpb=1.917138 elapsed=16.6s
+legal_ttt val_loss:3.2473 val_bpb:1.9171 eval_time:16626ms
+legal_ttt_exact val_loss:3.24729262 val_bpb:1.91713769
+ngram_cache val_loss:3.2868 val_bpb:1.9405 (order=5) eval_time:2592ms
+artifact:1.76MB code:100215 total:1861319/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running E_FullArchitecture_TurboQuant...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9368 t:1096ms step:1096ms
+step:2/100000 loss:6.9013 t:2103ms step:1006ms
+step:3/100000 loss:6.3385 t:3098ms step:994ms
+step:4/100000 loss:7.6475 t:4098ms step:1000ms
+step:5/100000 loss:7.5300 t:5094ms step:996ms
+step:10/100000 loss:6.5012 t:10115ms step:1008ms
+step:20/100000 loss:5.5607 t:20138ms step:1002ms
+step:30/100000 loss:5.1465 t:30214ms step:1003ms
+step:40/100000 loss:4.8797 t:40217ms step:998ms
+step:50/100000 loss:4.7640 t:50379ms step:1001ms
+step:60/100000 loss:4.4572 t:60423ms step:1011ms
+step:70/100000 loss:4.2885 t:70488ms step:1042ms
+step:80/100000 loss:4.2323 t:80516ms step:1005ms
+step:90/100000 loss:4.2728 t:90573ms step:1007ms
+step:100/100000 loss:4.2883 t:100600ms step:1004ms
+step:110/100000 loss:4.2314 t:110639ms step:1006ms
+step:120/100000 loss:4.0887 t:120663ms step:1005ms
+step:130/100000 loss:4.1481 t:130718ms step:997ms
+step:140/100000 loss:4.0450 t:140758ms step:1010ms
+step:150/100000 loss:4.0901 t:150779ms step:1002ms
+step:160/100000 loss:4.1970 t:160802ms step:1006ms
+step:170/100000 loss:4.4321 t:170963ms step:1007ms
+step:180/100000 loss:4.2805 t:181045ms step:1011ms
+step:190/100000 loss:4.0355 t:191096ms step:1001ms
+step:200/100000 loss:4.1103 t:201148ms step:1004ms
+step:210/100000 loss:4.1110 t:211231ms step:1002ms
+step:220/100000 loss:4.2803 t:221281ms step:1003ms
+step:230/100000 loss:4.7031 t:231304ms step:1006ms
+step:240/100000 loss:4.5926 t:241352ms step:1002ms
+step:250/100000 loss:4.3781 t:251396ms step:1002ms
+step:260/100000 loss:4.1725 t:261413ms step:1005ms
+step:270/100000 loss:3.9539 t:271432ms step:996ms
+step:280/100000 loss:4.0085 t:281449ms step:1009ms
+step:290/100000 loss:4.2155 t:291587ms step:999ms
+step:300/100000 loss:4.8115 t:301614ms step:996ms
+step:310/100000 loss:4.2617 t:311616ms step:995ms
+step:320/100000 loss:4.1125 t:321657ms step:1009ms
+step:330/100000 loss:3.9226 t:331677ms step:1000ms
+step:340/100000 loss:3.8396 t:341680ms step:1000ms
+step:350/100000 loss:3.9452 t:351770ms step:1063ms
+step:360/100000 loss:4.0020 t:361821ms step:1013ms
+step:370/100000 loss:4.7270 t:371872ms step:1003ms
+step:380/100000 loss:4.4099 t:381912ms step:1000ms
+step:390/100000 loss:4.2698 t:391959ms step:1001ms
+step:400/100000 loss:4.1764 t:401993ms step:1001ms
+step:410/100000 loss:3.8863 t:412154ms step:1008ms
+step:420/100000 loss:3.8855 t:422211ms step:1006ms
+step:430/100000 loss:4.3892 t:432269ms step:1006ms
+step:440/100000 loss:3.8074 t:442305ms step:1002ms
+step:450/100000 loss:3.9523 t:452363ms step:1005ms
+step:460/100000 loss:3.9577 t:462410ms step:1004ms
+step:470/100000 loss:3.7967 t:472436ms step:1003ms
+step:480/100000 loss:3.8135 t:482435ms step:998ms
+step:490/100000 loss:3.8277 t:492432ms step:998ms
+step:500/100000 loss:3.8673 t:502421ms step:1000ms
+step:510/100000 loss:3.6972 t:512413ms step:1000ms
+step:520/100000 loss:3.7594 t:522432ms step:999ms
+step:530/100000 loss:3.8081 t:532658ms step:1022ms
+step:540/100000 loss:4.0056 t:542700ms step:1002ms
+step:550/100000 loss:4.1625 t:552740ms step:1001ms
+step:560/100000 loss:6.1136 t:562766ms step:1013ms
+step:570/100000 loss:4.6523 t:572828ms step:1008ms
+step:580/100000 loss:4.1414 t:582862ms step:1004ms
+step:590/100000 loss:3.8287 t:592872ms step:998ms
+step:600/100000 loss:3.9545 t:602930ms step:1004ms
+step:610/100000 loss:3.8974 t:612968ms step:1006ms
+step:620/100000 loss:3.7258 t:623012ms step:998ms
+step:630/100000 loss:3.6535 t:633058ms step:1014ms
+step:640/100000 loss:3.4788 t:643117ms step:1002ms
+step:650/100000 loss:3.7696 t:653263ms step:999ms
+step:660/100000 loss:3.8193 t:663292ms step:1004ms
+step:670/100000 loss:3.9173 t:673316ms step:1002ms
+step:680/100000 loss:3.7900 t:683320ms step:996ms
+step:690/100000 loss:3.7651 t:693324ms step:1002ms
+step:700/100000 loss:3.8503 t:703341ms step:1018ms
+step:710/100000 loss:3.7851 t:713393ms step:1000ms
+step:720/100000 loss:3.8531 t:723414ms step:1000ms
+step:730/100000 loss:3.7100 t:733414ms step:1000ms
+step:740/100000 loss:3.7777 t:743429ms step:998ms
+step:750/100000 loss:3.9573 t:753482ms step:1000ms
+step:760/100000 loss:3.7634 t:763523ms step:1001ms
+step:770/100000 loss:3.7779 t:773674ms step:999ms
+step:780/100000 loss:3.7516 t:783730ms step:1000ms
+step:790/100000 loss:3.6940 t:793762ms step:1023ms
+step:800/100000 loss:3.7735 t:803773ms step:999ms
+step:810/100000 loss:4.6839 t:813805ms step:1013ms
+step:820/100000 loss:4.0086 t:823865ms step:1002ms
+step:830/100000 loss:3.7680 t:833896ms step:1004ms
+step:840/100000 loss:3.6410 t:843919ms step:995ms
+step:850/100000 loss:3.5782 t:853905ms step:994ms
+step:860/100000 loss:3.5872 t:863909ms step:1003ms
+step:870/100000 loss:3.6497 t:873923ms step:1001ms
+step:880/100000 loss:3.7675 t:883933ms step:997ms
+step:890/100000 loss:3.5621 t:894141ms step:1000ms
+step:900/100000 loss:3.5769 t:904165ms step:1004ms
+step:910/100000 loss:3.6979 t:914182ms step:998ms
+step:920/100000 loss:3.5144 t:924215ms step:1005ms
+step:930/100000 loss:3.5347 t:934235ms step:1005ms
+step:940/100000 loss:3.7530 t:944254ms step:995ms
+step:950/100000 loss:3.6307 t:954256ms step:1000ms
+step:960/100000 loss:3.5692 t:964360ms step:1044ms
+step:970/100000 loss:3.5981 t:974396ms step:1004ms
+step:980/100000 loss:3.5147 t:984445ms step:1005ms
+step:990/100000 loss:3.7909 t:994483ms step:997ms
+step:1000/100000 loss:3.5923 t:1004528ms step:1003ms
+step:1010/100000 loss:3.5247 t:1014699ms step:1007ms
+step:1020/100000 loss:3.5689 t:1024750ms step:1013ms
+step:1030/100000 loss:3.5402 t:1034770ms step:1002ms
+step:1040/100000 loss:3.6134 t:1044783ms step:1000ms
+step:1050/100000 loss:3.6454 t:1054808ms step:991ms
+step:1060/100000 loss:3.5191 t:1064815ms step:988ms
+step:1070/100000 loss:3.5494 t:1074884ms step:1003ms
+step:1080/100000 loss:3.4494 t:1084977ms step:1010ms
+step:1090/100000 loss:3.3928 t:1095036ms step:1010ms
+step:1100/100000 loss:3.6822 t:1105069ms step:1002ms
+step:1110/100000 loss:3.5182 t:1115093ms step:1003ms
+step:1120/100000 loss:3.6052 t:1125111ms step:1007ms
+step:1130/100000 loss:3.2685 t:1135254ms step:1001ms
+step:1140/100000 loss:3.6390 t:1145279ms step:1001ms
+step:1150/100000 loss:3.4956 t:1155309ms step:1000ms
+step:1160/100000 loss:3.4691 t:1165338ms step:1004ms
+step:1170/100000 loss:3.3362 t:1175383ms step:1006ms
+step:1180/100000 loss:3.4197 t:1185396ms step:997ms
+step:1190/100000 loss:3.4513 t:1195409ms step:1005ms
+val_progress:1/2
+val_progress:2/2
+step:1195/100000 val_loss:3.4767 val_bpb:2.0527 train_time:1200426ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.4767 val_bpb:2.0527
+temp_scaling optimal_T:1.05 eval_time:6739ms
+final_sliding val_loss:3.4766 val_bpb:2.0525 (stride=64, T=1.05) eval_time:21686ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.070764 time=16.9s
+ttt_sliding:done val_loss=3.476577 val_bpb=2.052503 elapsed=28.0s
+legal_ttt val_loss:3.4766 val_bpb:2.0525 eval_time:27988ms
+legal_ttt_exact val_loss:3.47657720 val_bpb:2.05250279
+ngram_cache val_loss:3.5095 val_bpb:2.0721 (order=5) eval_time:3166ms
+artifact:1.76MB code:100215 total:1862611/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running Stability_Seed_42...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9368 t:1093ms step:1093ms
+step:2/100000 loss:6.9013 t:2100ms step:1007ms
+step:3/100000 loss:6.3386 t:3099ms step:999ms
+step:4/100000 loss:7.6471 t:4100ms step:1001ms
+step:5/100000 loss:7.5281 t:5106ms step:1005ms
+step:10/100000 loss:6.4619 t:10162ms step:1012ms
+step:20/100000 loss:5.5483 t:20143ms step:971ms
+step:30/100000 loss:5.1957 t:30013ms step:974ms
+step:40/100000 loss:4.9272 t:40046ms step:1003ms
+step:50/100000 loss:4.7767 t:49888ms step:973ms
+step:60/100000 loss:4.4594 t:59900ms step:1003ms
+step:70/100000 loss:4.3217 t:69932ms step:1010ms
+step:80/100000 loss:4.2215 t:79983ms step:1008ms
+step:90/100000 loss:4.2693 t:90034ms step:997ms
+step:100/100000 loss:4.2364 t:100078ms step:1018ms
+step:110/100000 loss:4.2242 t:110275ms step:1005ms
+step:120/100000 loss:4.1094 t:120359ms step:1006ms
+step:130/100000 loss:4.2536 t:130283ms step:1010ms
+step:140/100000 loss:4.0854 t:140296ms step:985ms
+step:150/100000 loss:4.1056 t:150370ms step:1015ms
+step:160/100000 loss:4.0765 t:160361ms step:1001ms
+step:170/100000 loss:4.3582 t:170392ms step:991ms
+step:180/100000 loss:4.2153 t:180436ms step:1003ms
+step:190/100000 loss:3.9726 t:190439ms step:983ms
+step:200/100000 loss:4.0751 t:200488ms step:1009ms
+step:210/100000 loss:4.0883 t:210311ms step:971ms
+step:220/100000 loss:4.0086 t:220357ms step:1004ms
+step:230/100000 loss:4.1674 t:230831ms step:1102ms
+step:240/100000 loss:4.1652 t:241220ms step:1007ms
+step:250/100000 loss:4.3555 t:251645ms step:1003ms
+step:260/100000 loss:4.2597 t:261720ms step:1017ms
+step:270/100000 loss:4.1180 t:271576ms step:976ms
+step:280/100000 loss:4.5162 t:281607ms step:998ms
+step:290/100000 loss:4.3482 t:291686ms step:1011ms
+step:300/100000 loss:4.6154 t:301796ms step:1006ms
+step:310/100000 loss:4.4994 t:311772ms step:1002ms
+step:320/100000 loss:4.1355 t:321794ms step:1012ms
+step:330/100000 loss:4.0954 t:331844ms step:1004ms
+step:340/100000 loss:3.9703 t:341895ms step:1011ms
+step:350/100000 loss:4.3618 t:352004ms step:1038ms
+step:360/100000 loss:4.0793 t:362097ms step:1031ms
+step:370/100000 loss:4.1224 t:372093ms step:1002ms
+step:380/100000 loss:4.1487 t:381896ms step:972ms
+step:390/100000 loss:4.0775 t:391941ms step:1007ms
+step:400/100000 loss:4.1483 t:401981ms step:989ms
+step:410/100000 loss:3.8770 t:412072ms step:1010ms
+step:420/100000 loss:3.8830 t:422145ms step:1006ms
+step:430/100000 loss:4.3239 t:432216ms step:1008ms
+step:440/100000 loss:3.8301 t:442283ms step:1012ms
+step:450/100000 loss:3.9502 t:452340ms step:1006ms
+step:460/100000 loss:3.9663 t:462415ms step:1005ms
+step:470/100000 loss:3.8047 t:472490ms step:1011ms
+step:480/100000 loss:3.8031 t:482563ms step:1007ms
+step:490/100000 loss:3.8117 t:492559ms step:1009ms
+step:500/100000 loss:3.8451 t:502590ms step:1004ms
+step:510/100000 loss:3.6552 t:512618ms step:1004ms
+step:520/100000 loss:3.7792 t:522675ms step:988ms
+step:530/100000 loss:3.7994 t:532648ms step:983ms
+step:540/100000 loss:3.7551 t:542672ms step:1007ms
+step:550/100000 loss:3.9292 t:552714ms step:1008ms
+step:560/100000 loss:3.6986 t:562757ms step:1008ms
+step:570/100000 loss:4.6681 t:572823ms step:1003ms
+step:580/100000 loss:4.0840 t:582913ms step:1002ms
+step:590/100000 loss:3.9015 t:592972ms step:1010ms
+step:600/100000 loss:3.8757 t:603046ms step:1001ms
+step:610/100000 loss:3.9256 t:613148ms step:1007ms
+step:620/100000 loss:3.9856 t:623227ms step:1007ms
+step:630/100000 loss:3.8809 t:633305ms step:1007ms
+step:640/100000 loss:4.0370 t:643335ms step:997ms
+step:650/100000 loss:4.3799 t:653405ms step:1003ms
+step:660/100000 loss:4.0513 t:663478ms step:1009ms
+step:670/100000 loss:4.2270 t:673420ms step:1003ms
+step:680/100000 loss:4.0249 t:683450ms step:996ms
+step:690/100000 loss:3.9170 t:693465ms step:999ms
+step:700/100000 loss:4.0240 t:703436ms step:1008ms
+step:710/100000 loss:4.0354 t:713465ms step:975ms
+step:720/100000 loss:4.0323 t:723546ms step:1010ms
+step:730/100000 loss:3.8895 t:733500ms step:998ms
+step:740/100000 loss:3.8810 t:743586ms step:1007ms
+step:750/100000 loss:4.1480 t:753593ms step:976ms
+step:760/100000 loss:3.8338 t:763633ms step:1007ms
+step:770/100000 loss:3.8937 t:773700ms step:1010ms
+step:780/100000 loss:3.8613 t:783770ms step:1009ms
+step:790/100000 loss:3.7643 t:793869ms step:1010ms
+step:800/100000 loss:3.8526 t:803949ms step:1007ms
+step:810/100000 loss:3.8462 t:814002ms step:1005ms
+step:820/100000 loss:3.9996 t:824073ms step:1007ms
+step:830/100000 loss:3.8929 t:834151ms step:1008ms
+step:840/100000 loss:3.7941 t:844226ms step:1009ms
+step:850/100000 loss:3.8878 t:854276ms step:1008ms
+step:860/100000 loss:4.2550 t:864365ms step:1003ms
+step:870/100000 loss:3.8222 t:874415ms step:1017ms
+step:880/100000 loss:3.9917 t:884403ms step:972ms
+step:890/100000 loss:3.7531 t:894395ms step:972ms
+step:900/100000 loss:3.7381 t:904376ms step:1002ms
+step:910/100000 loss:4.2297 t:914229ms step:974ms
+step:920/100000 loss:3.7834 t:924265ms step:1007ms
+step:930/100000 loss:3.7639 t:934331ms step:1009ms
+step:940/100000 loss:3.9345 t:944397ms step:1007ms
+step:950/100000 loss:3.8639 t:954280ms step:975ms
+step:960/100000 loss:3.7060 t:964313ms step:1009ms
+step:970/100000 loss:3.7688 t:974395ms step:1006ms
+step:980/100000 loss:3.6605 t:984475ms step:1008ms
+step:990/100000 loss:3.9860 t:994552ms step:1011ms
+step:1000/100000 loss:3.9343 t:1004602ms step:1001ms
+step:1010/100000 loss:10.9579 t:1014433ms step:973ms
+step:1020/100000 loss:4.7568 t:1024483ms step:1010ms
+step:1030/100000 loss:4.8706 t:1034478ms step:1006ms
+step:1040/100000 loss:4.0699 t:1044540ms step:999ms
+step:1050/100000 loss:3.9391 t:1054553ms step:997ms
+step:1060/100000 loss:3.7356 t:1064601ms step:1001ms
+step:1070/100000 loss:3.7773 t:1074838ms step:1006ms
+step:1080/100000 loss:3.7747 t:1085149ms step:1037ms
+step:1090/100000 loss:3.7338 t:1095385ms step:1040ms
+step:1100/100000 loss:3.9433 t:1105525ms step:975ms
+step:1110/100000 loss:3.7240 t:1115560ms step:1004ms
+step:1120/100000 loss:3.8199 t:1125640ms step:1009ms
+step:1130/100000 loss:3.5303 t:1135631ms step:1009ms
+step:1140/100000 loss:4.1347 t:1145721ms step:1012ms
+step:1150/100000 loss:3.7707 t:1155779ms step:1007ms
+step:1160/100000 loss:3.6897 t:1165998ms step:1010ms
+step:1170/100000 loss:3.5192 t:1176098ms step:1010ms
+step:1180/100000 loss:3.8973 t:1186180ms step:1008ms
+step:1190/100000 loss:3.9623 t:1196262ms step:1003ms
+step:1200/100000 loss:3.7805 t:1206358ms step:1006ms
+step:1210/100000 loss:3.6559 t:1216356ms step:997ms
+step:1220/100000 loss:3.6694 t:1226443ms step:1009ms
+step:1230/100000 loss:3.7751 t:1236384ms step:1001ms
+step:1240/100000 loss:3.6974 t:1246399ms step:1000ms
+step:1250/100000 loss:3.6364 t:1256450ms step:1007ms
+step:1260/100000 loss:3.5946 t:1266514ms step:996ms
+step:1270/100000 loss:3.9766 t:1276375ms step:1007ms
+step:1280/100000 loss:3.8223 t:1286431ms step:1006ms
+step:1290/100000 loss:4.0060 t:1296407ms step:1007ms
+step:1300/100000 loss:3.9745 t:1306492ms step:1003ms
+step:1310/100000 loss:3.5490 t:1316576ms step:1008ms
+step:1320/100000 loss:4.2676 t:1326505ms step:977ms
+step:1330/100000 loss:3.7620 t:1336593ms step:1010ms
+step:1340/100000 loss:3.5496 t:1346675ms step:1009ms
+step:1350/100000 loss:3.5338 t:1356744ms step:1009ms
+step:1360/100000 loss:3.4952 t:1366702ms step:1002ms
+step:1370/100000 loss:3.5742 t:1376842ms step:1008ms
+step:1380/100000 loss:5.2526 t:1386929ms step:1005ms
+step:1390/100000 loss:3.6879 t:1396919ms step:1002ms
+step:1400/100000 loss:3.6988 t:1406968ms step:1003ms
+step:1410/100000 loss:3.8718 t:1417015ms step:1008ms
+step:1420/100000 loss:3.4992 t:1427045ms step:1008ms
+step:1430/100000 loss:3.6334 t:1437075ms step:1009ms
+step:1440/100000 loss:3.6176 t:1447280ms step:1023ms
+step:1450/100000 loss:3.5056 t:1457308ms step:989ms
+step:1460/100000 loss:3.6875 t:1467529ms step:1022ms
+step:1470/100000 loss:3.5365 t:1477762ms step:1016ms
+step:1480/100000 loss:3.5637 t:1487870ms step:1021ms
+step:1490/100000 loss:3.5522 t:1498075ms step:1025ms
+step:1500/100000 loss:3.5718 t:1508274ms step:1020ms
+step:1510/100000 loss:3.5770 t:1518504ms step:1022ms
+step:1520/100000 loss:3.4776 t:1528717ms step:1035ms
+step:1530/100000 loss:3.3409 t:1538951ms step:1019ms
+step:1540/100000 loss:3.5480 t:1549173ms step:1022ms
+step:1550/100000 loss:3.5613 t:1559265ms step:989ms
+step:1560/100000 loss:3.5347 t:1569406ms step:1012ms
+step:1570/100000 loss:3.6801 t:1579467ms step:1015ms
+step:1580/100000 loss:3.4009 t:1589564ms step:1011ms
+step:1590/100000 loss:3.4664 t:1599734ms step:1022ms
+step:1600/100000 loss:3.6961 t:1609963ms step:1048ms
+step:1610/100000 loss:3.5456 t:1707611ms step:12228ms
+val_progress:1/2
+val_progress:2/2
+step:1617/100000 val_loss:3.4640 val_bpb:2.0452 train_time:1811728ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.4640 val_bpb:2.0452
+temp_scaling optimal_T:1.00 eval_time:90108ms
+final_sliding val_loss:3.4692 val_bpb:2.0482 (stride=64, T=1.00) eval_time:346009ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.061967 time=226.0s
+ttt_sliding:done val_loss=3.469225 val_bpb=2.048162 elapsed=382.3s
+legal_ttt val_loss:3.4692 val_bpb:2.0482 eval_time:382509ms
+legal_ttt_exact val_loss:3.46922494 val_bpb:2.04816216
+ngram_cache val_loss:3.4792 val_bpb:2.0542 (order=5) eval_time:37732ms
+artifact:1.76MB code:100215 total:1859227/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running Stability_Seed_1337...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9369 t:14457ms step:14456ms
+step:2/100000 loss:6.9162 t:28959ms step:14501ms
+step:3/100000 loss:6.4377 t:43267ms step:14307ms
+step:4/100000 loss:7.1842 t:57534ms step:14266ms
+step:5/100000 loss:7.0665 t:71842ms step:14307ms
+step:10/100000 loss:6.9074 t:139916ms step:14136ms
+step:20/100000 loss:5.3009 t:268298ms step:12433ms
+step:30/100000 loss:5.1418 t:396272ms step:12884ms
+step:40/100000 loss:4.8740 t:522009ms step:13529ms
+step:50/100000 loss:4.8604 t:651910ms step:12832ms
+step:60/100000 loss:4.5817 t:783100ms step:12605ms
+step:70/100000 loss:4.3406 t:993649ms step:12208ms
+step:80/100000 loss:4.2413 t:1125887ms step:12189ms
+step:90/100000 loss:4.2612 t:1257422ms step:14200ms
+step:100/100000 loss:4.2292 t:1382052ms step:12082ms
+step:110/100000 loss:4.1887 t:1542676ms step:18115ms
+step:120/100000 loss:4.0133 t:1697638ms step:14120ms
+val_progress:1/2
+val_progress:2/2
+step:126/100000 val_loss:4.0573 val_bpb:2.3955 train_time:1812852ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.0573 val_bpb:2.3955
+temp_scaling optimal_T:1.00 eval_time:100663ms
+final_sliding val_loss:4.0541 val_bpb:2.3935 (stride=64, T=1.00) eval_time:308953ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.401012 time=190.9s
+ttt_sliding:done val_loss=4.054156 val_bpb=2.393494 elapsed=327.1s
+legal_ttt val_loss:4.0542 val_bpb:2.3935 eval_time:327163ms
+legal_ttt_exact val_loss:4.05415576 val_bpb:2.39349381
+ngram_cache val_loss:3.9904 val_bpb:2.3560 (order=5) eval_time:24026ms
+artifact:1.76MB code:100215 total:1862687/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running Stability_Seed_7...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9364 t:12689ms step:12688ms
+step:2/100000 loss:6.8875 t:25213ms step:12524ms
+step:3/100000 loss:6.2851 t:37736ms step:12522ms
+step:4/100000 loss:6.7646 t:49539ms step:11800ms
+step:5/100000 loss:8.7395 t:61613ms step:12074ms
+step:10/100000 loss:6.6310 t:127118ms step:12500ms
+step:20/100000 loss:5.4214 t:252159ms step:12798ms
+step:30/100000 loss:5.1590 t:380226ms step:12547ms
+step:40/100000 loss:4.9126 t:508600ms step:12626ms
+step:50/100000 loss:4.8364 t:634806ms step:13582ms
+step:60/100000 loss:4.4896 t:760922ms step:12850ms
+step:70/100000 loss:4.3137 t:895044ms step:1118ms
+step:80/100000 loss:4.2035 t:908721ms step:1127ms
+step:90/100000 loss:4.2407 t:919415ms step:1041ms
+step:100/100000 loss:4.2302 t:930440ms step:1072ms
+step:110/100000 loss:4.2702 t:941755ms step:1399ms
+step:120/100000 loss:4.0955 t:952848ms step:1044ms
+step:130/100000 loss:4.1989 t:963401ms step:1048ms
+step:140/100000 loss:4.0439 t:974348ms step:1070ms
+step:150/100000 loss:4.0906 t:984955ms step:1058ms
+step:160/100000 loss:4.0318 t:995650ms step:1069ms
+step:170/100000 loss:4.4849 t:1006491ms step:1048ms
+step:180/100000 loss:4.2167 t:1017309ms step:1081ms
+step:190/100000 loss:4.0576 t:1027987ms step:1109ms
+step:200/100000 loss:4.1098 t:1038289ms step:1025ms
+step:210/100000 loss:4.0817 t:1048601ms step:1021ms
+step:220/100000 loss:4.1213 t:1058938ms step:1036ms
+step:230/100000 loss:4.0455 t:1069775ms step:1035ms
+step:240/100000 loss:4.1476 t:1079998ms step:1016ms
+step:250/100000 loss:3.9960 t:1090235ms step:1025ms
+step:260/100000 loss:3.9521 t:1100508ms step:1022ms
+step:270/100000 loss:3.7755 t:1110689ms step:1023ms
+step:280/100000 loss:3.9781 t:1120968ms step:1017ms
+step:290/100000 loss:4.3101 t:1131175ms step:1019ms
+step:300/100000 loss:4.8664 t:1141450ms step:1024ms
+step:310/100000 loss:4.3326 t:1151751ms step:1034ms
+step:320/100000 loss:4.5500 t:1162238ms step:1061ms
+step:330/100000 loss:4.8385 t:1172552ms step:1040ms
+step:340/100000 loss:3.8494 t:1182885ms step:1039ms
+step:350/100000 loss:3.9224 t:1193489ms step:1071ms
+step:360/100000 loss:3.9385 t:1203989ms step:1035ms
+step:370/100000 loss:3.8788 t:1214528ms step:1047ms
+step:380/100000 loss:3.9737 t:1224913ms step:1031ms
+step:390/100000 loss:4.0573 t:1235194ms step:1021ms
+step:400/100000 loss:4.1597 t:1245632ms step:1113ms
+step:410/100000 loss:3.8828 t:1259659ms step:2044ms
+step:420/100000 loss:4.2209 t:1276909ms step:1561ms
+step:430/100000 loss:4.3979 t:1293859ms step:1522ms
+step:440/100000 loss:3.8311 t:1313694ms step:2184ms
+step:450/100000 loss:3.9548 t:1325181ms step:1008ms
+step:460/100000 loss:4.0631 t:1335382ms step:1049ms
+step:470/100000 loss:3.9907 t:1345711ms step:1038ms
+step:480/100000 loss:4.0673 t:1355932ms step:1018ms
+step:490/100000 loss:3.8240 t:1366230ms step:1028ms
+step:500/100000 loss:3.9434 t:1376471ms step:1017ms
+step:510/100000 loss:3.6706 t:1386759ms step:1025ms
+step:520/100000 loss:3.9228 t:1397132ms step:1017ms
+step:530/100000 loss:3.9964 t:1407344ms step:996ms
+step:540/100000 loss:3.7790 t:1417677ms step:1022ms
+step:550/100000 loss:3.9587 t:1428093ms step:1049ms
+step:560/100000 loss:3.6840 t:1438357ms step:1024ms
+step:570/100000 loss:4.0435 t:1448623ms step:1018ms
+step:580/100000 loss:3.8871 t:1458856ms step:1056ms
+step:590/100000 loss:3.7446 t:1469181ms step:1020ms
+step:600/100000 loss:3.7100 t:1479458ms step:1021ms
+step:610/100000 loss:3.9025 t:1489688ms step:1022ms
+step:620/100000 loss:3.7239 t:1499998ms step:1022ms
+step:630/100000 loss:3.5674 t:1510238ms step:1032ms
+step:640/100000 loss:3.5863 t:1520667ms step:1035ms
+step:650/100000 loss:3.6560 t:1530969ms step:1018ms
+step:660/100000 loss:3.7340 t:1541459ms step:1021ms
+step:670/100000 loss:3.8448 t:1551728ms step:1024ms
+step:680/100000 loss:3.6441 t:1561997ms step:1025ms
+step:690/100000 loss:3.7420 t:1572307ms step:1021ms
+step:700/100000 loss:3.8279 t:1582611ms step:1025ms
+step:710/100000 loss:3.6756 t:1593127ms step:1042ms
+step:720/100000 loss:3.7477 t:1603626ms step:1023ms
+step:730/100000 loss:3.6208 t:1614248ms step:1025ms
+step:740/100000 loss:3.6264 t:1624631ms step:1029ms
+step:750/100000 loss:3.8209 t:1635067ms step:1025ms
+step:760/100000 loss:3.6375 t:1645459ms step:1011ms
+step:770/100000 loss:3.6891 t:1655590ms step:1012ms
+step:780/100000 loss:3.6125 t:1665686ms step:1013ms
+step:790/100000 loss:3.6005 t:1675847ms step:1024ms
+step:800/100000 loss:3.6308 t:1686029ms step:1021ms
+step:810/100000 loss:3.6483 t:1696230ms step:1016ms
+step:820/100000 loss:3.7283 t:1706289ms step:983ms
+step:830/100000 loss:3.6403 t:1716471ms step:1018ms
+step:840/100000 loss:3.5157 t:1726687ms step:1022ms
+step:850/100000 loss:3.4533 t:1736882ms step:1016ms
+step:860/100000 loss:3.4668 t:1747036ms step:1015ms
+step:870/100000 loss:3.5758 t:1757382ms step:1022ms
+step:880/100000 loss:3.6753 t:1767525ms step:1021ms
+step:890/100000 loss:3.4852 t:1777644ms step:1026ms
+step:900/100000 loss:3.4983 t:1788081ms step:1031ms
+step:910/100000 loss:3.6227 t:1798416ms step:1026ms
+val_progress:1/2
+val_progress:2/2
+step:912/100000 val_loss:3.5461 val_bpb:2.0937 train_time:1800446ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.5461 val_bpb:2.0937
+temp_scaling optimal_T:1.00 eval_time:6900ms
+final_sliding val_loss:3.5435 val_bpb:2.0920 (stride=64, T=1.00) eval_time:22132ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.104882 time=16.0s
+ttt_sliding:done val_loss=3.543538 val_bpb=2.092035 elapsed=26.9s
+legal_ttt val_loss:3.5435 val_bpb:2.0920 eval_time:26906ms
+legal_ttt_exact val_loss:3.54353785 val_bpb:2.09203504
+ngram_cache val_loss:3.5648 val_bpb:2.1047 (order=5) eval_time:3073ms
+artifact:1.76MB code:100215 total:1862547/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running Stability_Seed_2024...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9371 t:1094ms step:1094ms
+step:2/100000 loss:6.9112 t:2100ms step:1005ms
+step:3/100000 loss:6.3448 t:3108ms step:1008ms
+step:4/100000 loss:7.1153 t:4116ms step:1008ms
+step:5/100000 loss:7.0787 t:5113ms step:997ms
+step:10/100000 loss:6.5566 t:10244ms step:1050ms
+step:20/100000 loss:5.4838 t:20475ms step:1002ms
+step:30/100000 loss:5.1101 t:30634ms step:1017ms
+step:40/100000 loss:4.8535 t:40700ms step:1010ms
+step:50/100000 loss:4.7716 t:50693ms step:982ms
+step:60/100000 loss:4.4386 t:60631ms step:1016ms
+step:70/100000 loss:4.3016 t:70759ms step:1014ms
+step:80/100000 loss:4.2067 t:80933ms step:1015ms
+step:90/100000 loss:4.2589 t:91086ms step:1019ms
+step:100/100000 loss:4.2229 t:101227ms step:1005ms
+step:110/100000 loss:4.2194 t:111360ms step:995ms
+step:120/100000 loss:4.0830 t:121450ms step:1021ms
+step:130/100000 loss:4.1246 t:131700ms step:1010ms
+step:140/100000 loss:4.0421 t:141847ms step:1009ms
+step:150/100000 loss:4.0957 t:151978ms step:1016ms
+step:160/100000 loss:3.9866 t:162092ms step:1009ms
+step:170/100000 loss:4.3889 t:172193ms step:1014ms
+step:180/100000 loss:4.3015 t:182340ms step:1008ms
+step:190/100000 loss:4.1014 t:192445ms step:1006ms
+step:200/100000 loss:4.1183 t:202524ms step:1002ms
+step:210/100000 loss:4.1315 t:212558ms step:1005ms
+step:220/100000 loss:3.9921 t:222635ms step:1002ms
+step:230/100000 loss:4.2683 t:232664ms step:1001ms
+step:240/100000 loss:4.4858 t:242722ms step:1006ms
+step:250/100000 loss:4.8736 t:253200ms step:1319ms
+step:260/100000 loss:4.0248 t:264264ms step:1000ms
+step:270/100000 loss:3.9146 t:274306ms step:1003ms
+step:280/100000 loss:4.0252 t:284319ms step:1004ms
+step:290/100000 loss:4.1321 t:294444ms step:1002ms
+step:300/100000 loss:4.0943 t:304464ms step:998ms
+step:310/100000 loss:4.2568 t:314502ms step:1001ms
+step:320/100000 loss:4.0937 t:324541ms step:1004ms
+step:330/100000 loss:4.1292 t:334696ms step:1013ms
+step:340/100000 loss:4.2749 t:344868ms step:1014ms
+step:350/100000 loss:4.3755 t:355026ms step:1014ms
+step:360/100000 loss:4.0214 t:365188ms step:1015ms
+step:370/100000 loss:3.9679 t:375475ms step:1014ms
+step:380/100000 loss:4.0900 t:385648ms step:1021ms
+step:390/100000 loss:4.2975 t:395771ms step:1004ms
+step:400/100000 loss:4.3123 t:405880ms step:1008ms
+step:410/100000 loss:3.9351 t:415982ms step:1005ms
+step:420/100000 loss:3.9163 t:426091ms step:1005ms
+step:430/100000 loss:4.4494 t:436223ms step:1009ms
+step:440/100000 loss:3.8335 t:446332ms step:1015ms
+step:450/100000 loss:4.1639 t:456453ms step:1006ms
+step:460/100000 loss:4.2064 t:466623ms step:1047ms
+step:470/100000 loss:4.0074 t:476806ms step:1005ms
+step:480/100000 loss:4.0933 t:486960ms step:1025ms
+step:490/100000 loss:3.9422 t:497216ms step:1013ms
+step:500/100000 loss:4.6950 t:507352ms step:1012ms
+step:510/100000 loss:3.8535 t:517482ms step:1005ms
+step:520/100000 loss:3.9660 t:527701ms step:1018ms
+step:530/100000 loss:4.2986 t:537906ms step:1022ms
+step:540/100000 loss:4.5084 t:548098ms step:1019ms
+step:550/100000 loss:4.3211 t:558930ms step:1094ms
+step:560/100000 loss:4.2929 t:569802ms step:1090ms
+step:570/100000 loss:4.5200 t:580633ms step:1090ms
+step:580/100000 loss:4.1679 t:591484ms step:1087ms
+step:590/100000 loss:3.9439 t:602340ms step:1079ms
+step:600/100000 loss:3.9807 t:613347ms step:1091ms
+step:610/100000 loss:5.6615 t:623968ms step:1046ms
+step:620/100000 loss:4.6913 t:634839ms step:1092ms
+step:630/100000 loss:3.8634 t:645649ms step:1092ms
+step:640/100000 loss:3.6993 t:656713ms step:1086ms
+step:650/100000 loss:3.8791 t:667522ms step:1083ms
+step:660/100000 loss:3.9431 t:678376ms step:1080ms
+step:670/100000 loss:4.0603 t:689286ms step:1093ms
+step:680/100000 loss:3.8137 t:700159ms step:1084ms
+step:690/100000 loss:3.9006 t:711005ms step:1083ms
+step:700/100000 loss:3.9650 t:721854ms step:1086ms
+step:710/100000 loss:3.8341 t:732847ms step:1079ms
+step:720/100000 loss:4.3452 t:743706ms step:1085ms
+step:730/100000 loss:3.9276 t:754556ms step:1086ms
+step:740/100000 loss:4.3696 t:765294ms step:1047ms
+step:750/100000 loss:4.0990 t:776147ms step:1106ms
+step:760/100000 loss:3.8511 t:786897ms step:1048ms
+step:770/100000 loss:3.9034 t:797701ms step:1085ms
+step:780/100000 loss:3.8962 t:808562ms step:1086ms
+step:790/100000 loss:3.9321 t:819409ms step:1086ms
+step:800/100000 loss:4.0205 t:830299ms step:1074ms
+step:810/100000 loss:4.0514 t:841215ms step:1091ms
+step:820/100000 loss:4.3091 t:852263ms step:1085ms
+step:830/100000 loss:4.0939 t:863165ms step:1085ms
+step:840/100000 loss:3.7754 t:874066ms step:1085ms
+step:850/100000 loss:4.1964 t:884916ms step:1085ms
+step:860/100000 loss:3.8703 t:895788ms step:1085ms
+step:870/100000 loss:3.9254 t:906726ms step:1122ms
+step:880/100000 loss:4.0376 t:917616ms step:1091ms
+step:890/100000 loss:3.8124 t:928487ms step:1089ms
+step:900/100000 loss:3.8782 t:939224ms step:1084ms
+step:910/100000 loss:5.1398 t:950110ms step:1094ms
+step:920/100000 loss:3.8825 t:960956ms step:1087ms
+step:930/100000 loss:4.2185 t:972008ms step:1087ms
+step:940/100000 loss:4.0657 t:982908ms step:1087ms
+step:950/100000 loss:4.0080 t:993796ms step:1089ms
+step:960/100000 loss:3.9146 t:1004624ms step:1078ms
+step:970/100000 loss:4.0065 t:1015533ms step:1077ms
+step:980/100000 loss:3.7506 t:1026334ms step:1087ms
+step:990/100000 loss:4.2125 t:1037182ms step:1087ms
+step:1000/100000 loss:3.8704 t:1048070ms step:1091ms
+step:1010/100000 loss:4.7830 t:1058929ms step:1078ms
+step:1020/100000 loss:4.0411 t:1069775ms step:1077ms
+step:1030/100000 loss:3.8227 t:1080637ms step:1084ms
+step:1040/100000 loss:4.7504 t:1091685ms step:1191ms
+step:1050/100000 loss:4.1553 t:1102557ms step:1087ms
+step:1060/100000 loss:5.0457 t:1113430ms step:1087ms
+step:1070/100000 loss:4.9598 t:1124465ms step:1134ms
+step:1080/100000 loss:4.1627 t:1134731ms step:1014ms
+step:1090/100000 loss:3.9797 t:1144926ms step:1041ms
+step:1100/100000 loss:4.0832 t:1155004ms step:1005ms
+step:1110/100000 loss:5.0239 t:1165054ms step:995ms
+step:1120/100000 loss:4.5438 t:1175069ms step:997ms
+step:1130/100000 loss:3.6951 t:1185137ms step:1009ms
+step:1140/100000 loss:4.5821 t:1195460ms step:1034ms
+step:1150/100000 loss:3.7916 t:1205458ms step:1007ms
+step:1160/100000 loss:3.8663 t:1215736ms step:1000ms
+step:1170/100000 loss:3.6385 t:1226263ms step:1050ms
+step:1180/100000 loss:3.8051 t:1236577ms step:1032ms
+step:1190/100000 loss:3.7467 t:1246887ms step:1026ms
+step:1200/100000 loss:3.6706 t:1257749ms step:1078ms
+step:1210/100000 loss:3.6850 t:1267879ms step:1003ms
+step:1220/100000 loss:3.7123 t:1278170ms step:1026ms
+step:1230/100000 loss:3.6722 t:1288263ms step:998ms
+step:1240/100000 loss:3.7811 t:1298328ms step:1014ms
+step:1250/100000 loss:3.7334 t:1308423ms step:1009ms
+step:1260/100000 loss:3.6777 t:1318454ms step:1005ms
+step:1270/100000 loss:3.9437 t:1328524ms step:1011ms
+step:1280/100000 loss:3.8845 t:1338621ms step:1001ms
+step:1290/100000 loss:4.0023 t:1348619ms step:1003ms
+step:1300/100000 loss:3.8040 t:1358601ms step:997ms
+step:1310/100000 loss:3.8975 t:1368645ms step:1020ms
+step:1320/100000 loss:4.2800 t:1378655ms step:1010ms
+step:1330/100000 loss:4.1725 t:1388629ms step:999ms
+step:1340/100000 loss:3.7873 t:1398655ms step:1002ms
+step:1350/100000 loss:3.6284 t:1408671ms step:1002ms
+step:1360/100000 loss:3.7258 t:1418763ms step:1024ms
+step:1370/100000 loss:3.6360 t:1428855ms step:1020ms
+step:1380/100000 loss:3.7492 t:1438952ms step:1009ms
+step:1390/100000 loss:3.6702 t:1449066ms step:1028ms
+step:1400/100000 loss:3.6795 t:1459266ms step:1009ms
+step:1410/100000 loss:3.7899 t:1469376ms step:1021ms
+step:1420/100000 loss:3.8670 t:1479451ms step:1008ms
+step:1430/100000 loss:3.7288 t:1489450ms step:1004ms
+step:1440/100000 loss:3.7321 t:1499367ms step:1006ms
+step:1450/100000 loss:3.5967 t:1509495ms step:1003ms
+step:1460/100000 loss:3.6200 t:1519625ms step:1009ms
+step:1470/100000 loss:3.5876 t:1529735ms step:1043ms
+step:1480/100000 loss:3.6686 t:1539795ms step:1017ms
+step:1490/100000 loss:3.6216 t:1549832ms step:979ms
+step:1500/100000 loss:3.6268 t:1559960ms step:1006ms
+step:1510/100000 loss:3.6454 t:1570087ms step:1086ms
+step:1520/100000 loss:3.5760 t:1580171ms step:1008ms
+step:1530/100000 loss:3.4419 t:1590303ms step:1017ms
+step:1540/100000 loss:3.6592 t:1600363ms step:1007ms
+step:1550/100000 loss:3.6703 t:1610441ms step:998ms
+step:1560/100000 loss:3.6503 t:1620439ms step:1011ms
+step:1570/100000 loss:3.7794 t:1630497ms step:1005ms
+step:1580/100000 loss:3.4617 t:1640665ms step:1028ms
+step:1590/100000 loss:3.5130 t:1650759ms step:978ms
+step:1600/100000 loss:3.7551 t:1660812ms step:1012ms
+step:1610/100000 loss:3.5820 t:1670891ms step:1008ms
+step:1620/100000 loss:3.4820 t:1680984ms step:1010ms
+step:1630/100000 loss:3.5550 t:1691182ms step:1084ms
+step:1640/100000 loss:3.5297 t:1701324ms step:1010ms
+step:1650/100000 loss:3.4905 t:1711449ms step:1012ms
+step:1660/100000 loss:3.5684 t:1721604ms step:1038ms
+step:1670/100000 loss:3.5114 t:1731749ms step:1008ms
+step:1680/100000 loss:3.5363 t:1741859ms step:1000ms
+step:1690/100000 loss:3.4724 t:1752020ms step:1000ms
+step:1700/100000 loss:3.4700 t:1762128ms step:1019ms
+step:1710/100000 loss:3.5910 t:1772126ms step:1006ms
+step:1720/100000 loss:3.5049 t:1782395ms step:1041ms
+step:1730/100000 loss:3.9123 t:1792559ms step:1005ms
+val_progress:1/2
+val_progress:2/2
+step:1738/100000 val_loss:3.4835 val_bpb:2.0567 train_time:1800646ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.4835 val_bpb:2.0567
+temp_scaling optimal_T:1.00 eval_time:6842ms
+final_sliding val_loss:3.4863 val_bpb:2.0582 (stride=64, T=1.00) eval_time:22015ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.073833 time=16.5s
+ttt_sliding:done val_loss=3.486299 val_bpb=2.058242 elapsed=27.3s
+legal_ttt val_loss:3.4863 val_bpb:2.0582 eval_time:27340ms
+legal_ttt_exact val_loss:3.48629858 val_bpb:2.05824210
+ngram_cache val_loss:3.5064 val_bpb:2.0702 (order=5) eval_time:3089ms
+artifact:1.76MB code:100215 total:1864043/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Running Stability_Seed_999...
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:3793360 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=1@64 temp_scaling=1 ttt=True ngram_cache=True
+turbo_quant: train=0 export=1 kv=True
+step:1/100000 loss:6.9364 t:1089ms step:1089ms
+step:2/100000 loss:6.9176 t:2091ms step:1002ms
+step:3/100000 loss:6.5340 t:3098ms step:1007ms
+step:4/100000 loss:6.3789 t:4109ms step:1010ms
+step:5/100000 loss:7.0867 t:5123ms step:1013ms
+step:10/100000 loss:6.0677 t:10166ms step:1010ms
+step:20/100000 loss:5.1720 t:20201ms step:1009ms
+step:30/100000 loss:5.1495 t:30327ms step:1014ms
+step:40/100000 loss:4.8657 t:40432ms step:1001ms
+step:50/100000 loss:4.7258 t:50594ms step:1007ms
+step:60/100000 loss:4.4782 t:60663ms step:985ms
+step:70/100000 loss:4.3139 t:70852ms step:1010ms
+step:80/100000 loss:4.2066 t:80923ms step:1008ms
+step:90/100000 loss:4.2216 t:90969ms step:1027ms
+step:100/100000 loss:4.2768 t:101041ms step:1007ms
+step:110/100000 loss:4.2487 t:111135ms step:1011ms
+step:120/100000 loss:4.1231 t:121218ms step:1006ms
+step:130/100000 loss:4.2503 t:131291ms step:1008ms
+step:140/100000 loss:4.1643 t:141285ms step:974ms
+step:150/100000 loss:5.5584 t:151375ms step:1012ms
+step:160/100000 loss:7.3314 t:161389ms step:1007ms
+step:170/100000 loss:6.8169 t:171580ms step:1017ms
+step:180/100000 loss:6.7360 t:181754ms step:1029ms
+step:190/100000 loss:4.8982 t:192080ms step:1006ms
+step:200/100000 loss:11.1648 t:202178ms step:1011ms
+step:210/100000 loss:6.7304 t:212289ms step:1001ms
+step:220/100000 loss:4.7223 t:222389ms step:1009ms
+step:230/100000 loss:4.6295 t:232536ms step:1006ms
+step:240/100000 loss:4.7827 t:242591ms step:1013ms
+step:250/100000 loss:5.4450 t:252641ms step:1008ms
+step:260/100000 loss:4.4991 t:262804ms step:1003ms
+step:270/100000 loss:5.2358 t:272890ms step:1013ms
+step:280/100000 loss:4.1204 t:282981ms step:1015ms
+step:290/100000 loss:4.1231 t:293067ms step:1012ms
+step:300/100000 loss:4.0270 t:303191ms step:1024ms
+step:310/100000 loss:4.1355 t:313431ms step:1009ms
+step:320/100000 loss:4.0484 t:323602ms step:1006ms
+step:330/100000 loss:4.9943 t:333851ms step:1028ms
+step:340/100000 loss:3.8783 t:344212ms step:1035ms
+step:350/100000 loss:4.1329 t:354528ms step:1034ms
+step:360/100000 loss:3.8479 t:364868ms step:1029ms
+step:370/100000 loss:3.9319 t:375172ms step:1031ms
+step:380/100000 loss:4.0511 t:385486ms step:1031ms
+step:390/100000 loss:4.0219 t:395780ms step:1031ms
+step:400/100000 loss:4.1200 t:406115ms step:1024ms
+step:410/100000 loss:3.8726 t:416450ms step:1038ms
+step:420/100000 loss:3.8606 t:426785ms step:1044ms
+step:430/100000 loss:4.3655 t:437127ms step:1025ms
+step:440/100000 loss:3.8509 t:447461ms step:1032ms
+step:450/100000 loss:3.9928 t:457760ms step:1042ms
+step:460/100000 loss:3.9684 t:468068ms step:1026ms
+step:470/100000 loss:3.9114 t:478334ms step:1028ms
+step:480/100000 loss:4.7057 t:488639ms step:1024ms
+step:490/100000 loss:3.9728 t:498944ms step:1030ms
+step:500/100000 loss:4.1484 t:509257ms step:1033ms
+step:510/100000 loss:3.7128 t:519546ms step:1028ms
+step:520/100000 loss:3.8933 t:529828ms step:1026ms
+step:530/100000 loss:3.8346 t:540163ms step:1030ms
+step:540/100000 loss:3.7826 t:550587ms step:1023ms
+step:550/100000 loss:3.9629 t:560876ms step:1029ms
+step:560/100000 loss:3.6755 t:571190ms step:1022ms
+step:570/100000 loss:4.1586 t:581517ms step:1025ms
+step:580/100000 loss:3.9938 t:591833ms step:1031ms
+step:590/100000 loss:3.8343 t:602104ms step:1017ms
+step:600/100000 loss:3.8182 t:612370ms step:1021ms
+step:610/100000 loss:3.7720 t:622628ms step:1027ms
+step:620/100000 loss:3.7185 t:632916ms step:1033ms
+step:630/100000 loss:3.5743 t:643199ms step:1024ms
+step:640/100000 loss:3.5614 t:653437ms step:1023ms
+step:650/100000 loss:3.7895 t:663757ms step:1048ms
+step:660/100000 loss:3.8003 t:674865ms step:1111ms
+step:670/100000 loss:3.9593 t:685860ms step:1111ms
+step:680/100000 loss:3.7668 t:696792ms step:1084ms
+step:690/100000 loss:3.8250 t:707770ms step:1087ms
+step:700/100000 loss:3.8794 t:718757ms step:1096ms
+step:710/100000 loss:3.9303 t:729691ms step:1091ms
+step:720/100000 loss:3.8834 t:740662ms step:1083ms
+step:730/100000 loss:3.7626 t:751580ms step:1120ms
+step:740/100000 loss:3.8568 t:762446ms step:1074ms
+step:750/100000 loss:3.9600 t:773220ms step:1086ms
+step:760/100000 loss:3.7648 t:784185ms step:1106ms
+step:770/100000 loss:3.8151 t:795260ms step:1103ms
+step:780/100000 loss:3.7608 t:806007ms step:1104ms
+step:790/100000 loss:3.7285 t:816921ms step:1092ms
+step:800/100000 loss:3.8185 t:827841ms step:1086ms
+step:810/100000 loss:4.1450 t:838645ms step:1091ms
+step:820/100000 loss:3.9655 t:849586ms step:1086ms
+step:830/100000 loss:3.9994 t:860482ms step:1087ms
+step:840/100000 loss:4.4617 t:871313ms step:1080ms
+step:850/100000 loss:3.6573 t:882068ms step:1072ms
+step:860/100000 loss:3.6723 t:892817ms step:1075ms
+step:870/100000 loss:3.8233 t:903701ms step:1112ms
+step:880/100000 loss:4.1281 t:914574ms step:1075ms
+step:890/100000 loss:7.2318 t:925363ms step:1089ms
+step:900/100000 loss:4.3816 t:936146ms step:1081ms
+step:910/100000 loss:3.9975 t:946975ms step:1075ms
+step:920/100000 loss:3.8218 t:957723ms step:1073ms
+step:930/100000 loss:4.1248 t:968512ms step:1094ms
+step:940/100000 loss:4.1241 t:979304ms step:1072ms
+step:950/100000 loss:3.9037 t:990082ms step:1078ms
+step:960/100000 loss:3.7946 t:1000823ms step:1072ms
+step:970/100000 loss:4.3381 t:1011589ms step:1073ms
+step:980/100000 loss:4.0502 t:1022362ms step:1084ms
+step:990/100000 loss:4.1747 t:1033289ms step:1077ms
+step:1000/100000 loss:5.4331 t:1044063ms step:1072ms
+step:1010/100000 loss:4.2953 t:1054853ms step:1084ms
+step:1020/100000 loss:3.9182 t:1065749ms step:1093ms
+step:1030/100000 loss:8.6552 t:1076556ms step:1084ms
+step:1040/100000 loss:6.6254 t:1087387ms step:1084ms
+step:1050/100000 loss:4.1078 t:1098236ms step:1089ms
+step:1060/100000 loss:4.4191 t:1109084ms step:1077ms
+step:1070/100000 loss:3.8495 t:1119887ms step:1080ms
+step:1080/100000 loss:4.4021 t:1130762ms step:1078ms
+step:1090/100000 loss:4.3891 t:1141633ms step:1097ms
+step:1100/100000 loss:4.1323 t:1152587ms step:1092ms
+step:1110/100000 loss:3.8988 t:1163406ms step:1077ms
+step:1120/100000 loss:5.2483 t:1174295ms step:1094ms
+step:1130/100000 loss:3.6821 t:1185221ms step:1100ms
+step:1140/100000 loss:3.8319 t:1196191ms step:1095ms
+step:1150/100000 loss:3.8721 t:1207067ms step:1093ms
+step:1160/100000 loss:3.7543 t:1217940ms step:1084ms
+step:1170/100000 loss:3.6902 t:1228805ms step:1088ms
+step:1180/100000 loss:3.6182 t:1239669ms step:1082ms
+step:1190/100000 loss:3.8483 t:1250566ms step:1080ms
+step:1200/100000 loss:4.8507 t:1261459ms step:1097ms
+step:1210/100000 loss:4.2119 t:1272483ms step:1085ms
+step:1220/100000 loss:3.7338 t:1283362ms step:1091ms
+step:1230/100000 loss:3.5796 t:1294230ms step:1086ms
+step:1240/100000 loss:3.7794 t:1305082ms step:1073ms
+step:1250/100000 loss:3.7920 t:1316052ms step:1128ms
+step:1260/100000 loss:3.6490 t:1327145ms step:1064ms
+step:1270/100000 loss:3.8770 t:1337827ms step:1070ms
+step:1280/100000 loss:3.6290 t:1348528ms step:1050ms
+step:1290/100000 loss:3.6602 t:1359309ms step:1129ms
+step:1300/100000 loss:3.6851 t:1370019ms step:1066ms
+step:1310/100000 loss:3.6848 t:1380746ms step:1075ms
+step:1320/100000 loss:4.2390 t:1391623ms step:1072ms
+step:1330/100000 loss:4.0627 t:1402361ms step:1077ms
+step:1340/100000 loss:3.4879 t:1413084ms step:1074ms
+step:1350/100000 loss:3.7547 t:1423806ms step:1072ms
+step:1360/100000 loss:3.5959 t:1434517ms step:1068ms
+step:1370/100000 loss:3.5183 t:1445319ms step:1071ms
+step:1380/100000 loss:4.8183 t:1455818ms step:1010ms
+step:1390/100000 loss:3.5853 t:1466078ms step:1080ms
+step:1400/100000 loss:3.9705 t:1476659ms step:1003ms
+step:1410/100000 loss:3.9746 t:1486776ms step:1049ms
+step:1420/100000 loss:3.4667 t:1496868ms step:1016ms
+step:1430/100000 loss:3.8333 t:1507088ms step:1019ms
+step:1440/100000 loss:3.5840 t:1517149ms step:1004ms
+step:1450/100000 loss:3.5860 t:1527192ms step:1007ms
+step:1460/100000 loss:3.5058 t:1537264ms step:1029ms
+step:1470/100000 loss:3.5672 t:1547328ms step:994ms
+step:1480/100000 loss:3.5679 t:1557410ms step:1002ms
+step:1490/100000 loss:3.5281 t:1567485ms step:1002ms
+step:1500/100000 loss:3.5354 t:1577569ms step:1005ms
+step:1510/100000 loss:3.5587 t:1587660ms step:1006ms
+step:1520/100000 loss:3.4891 t:1597720ms step:1006ms
+step:1530/100000 loss:3.3641 t:1607823ms step:1007ms
+step:1540/100000 loss:3.5608 t:1617898ms step:1011ms
+step:1550/100000 loss:3.6122 t:1628092ms step:1009ms
+step:1560/100000 loss:3.5137 t:1638248ms step:1020ms
+step:1570/100000 loss:3.6877 t:1648446ms step:1020ms
+step:1580/100000 loss:3.3568 t:1658620ms step:1026ms
+step:1590/100000 loss:3.4246 t:1668840ms step:1030ms
+step:1600/100000 loss:3.6508 t:1679042ms step:1022ms
+step:1610/100000 loss:3.5027 t:1689254ms step:1020ms
+step:1620/100000 loss:3.4019 t:1699417ms step:1013ms
+step:1630/100000 loss:3.4683 t:1709585ms step:1016ms
+step:1640/100000 loss:3.4354 t:1719747ms step:1026ms
+step:1650/100000 loss:3.4186 t:1729959ms step:1018ms
+step:1660/100000 loss:3.4767 t:1740157ms step:1017ms
+step:1670/100000 loss:3.4361 t:1750493ms step:1022ms
+step:1680/100000 loss:3.4233 t:1760685ms step:1015ms
+step:1690/100000 loss:3.3919 t:1770902ms step:1022ms
+step:1700/100000 loss:3.3800 t:1781048ms step:1014ms
+step:1710/100000 loss:3.4827 t:1791210ms step:1016ms
+val_progress:1/2
+val_progress:2/2
+step:1719/100000 val_loss:3.3973 val_bpb:2.0058 train_time:1800366ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.3973 val_bpb:2.0058
+temp_scaling optimal_T:1.00 eval_time:6852ms
+final_sliding val_loss:3.4067 val_bpb:2.0113 (stride=64, T=1.00) eval_time:21992ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=119232
+  ttt_chunk [1/2] bpb=2.021254 time=17.0s
+ttt_sliding:done val_loss=3.406711 val_bpb=2.011255 elapsed=27.9s
+legal_ttt val_loss:3.4067 val_bpb:2.0113 eval_time:27929ms
+legal_ttt_exact val_loss:3.40671081 val_bpb:2.01125505
+ngram_cache val_loss:3.4196 val_bpb:2.0190 (order=5) eval_time:3120ms
+artifact:1.76MB code:100215 total:1862287/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz
+Report fully written to benchmark_report.md

@@ -1,0 +1,30 @@
+BATCH3_START: Sat Apr  4 01:23:06 CDT 2026
+START: EA_wht8  Sat Apr  4 01:23:06 CDT 2026
+BATCH3_START: Sat Apr  4 01:23:42 CDT 2026
+START: EA_wht8  Sat Apr  4 01:23:42 CDT 2026
+final_result EA_wht8: BPB=2.1109  steps=1096
+START: EB_caps16  Sat Apr  4 01:28:16 CDT 2026
+final_result EA_wht8: BPB=2.0990  steps=1007
+START: EB_caps16  Sat Apr  4 01:28:51 CDT 2026
+final_result EB_caps16: BPB=2.0983  steps=983
+START: EC_wht8_caps16  Sat Apr  4 01:33:25 CDT 2026
+final_result EB_caps16: BPB=2.1076  steps=980
+START: EC_wht8_caps16  Sat Apr  4 01:34:01 CDT 2026
+final_result EC_wht8_caps16: BPB=1.9673  steps=1372
+START: ED_engram16  Sat Apr  4 01:38:31 CDT 2026
+final_result ED_engram16: BPB=2.0386  steps=1647
+START: EE_lr_low16  Sat Apr  4 01:43:38 CDT 2026
+final_result EE_lr_low16: BPB=2.0188  steps=1693
+START: EF_dim256  Sat Apr  4 01:48:44 CDT 2026
+final_result EF_dim256: BPB=2.1727  steps=778
+START: EG_8L_dim256  Sat Apr  4 01:53:58 CDT 2026
+final_result EG_8L_dim256: BPB=2.5179  steps=591
+START: EH_8L_dim512  Sat Apr  4 01:59:16 CDT 2026
+final_result EH_8L_dim512: BPB=2.3788  steps=125
+START: EJ_koop_3step  Sat Apr  4 02:05:29 CDT 2026
+final_result EJ_koop_3step: BPB=2.0686  steps=1670
+START: EK_koop_3step_w001  Sat Apr  4 02:10:35 CDT 2026
+final_result EK_koop_3step_w001: BPB=2.0792  steps=1670
+START: EL_best_small  Sat Apr  4 02:15:41 CDT 2026
+final_result EL_best_small: BPB=1.8034  steps=1605
+BATCH3_COMPLETE: Sat Apr  4 02:20:52 CDT 2026

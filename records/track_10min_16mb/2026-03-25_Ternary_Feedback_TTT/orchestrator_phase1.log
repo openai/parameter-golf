@@ -1,0 +1,102 @@
+[06:54:41] ========================================================
+[06:54:41] Cheap Multi-GPU Small SKC Orchestrator
+[06:54:41] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_065441
+[06:54:41] GPU count: 1
+[06:54:41] Min mem  : 12GB
+[06:54:41] Data     : 2 train shards
+[06:54:41] ========================================================
+[06:54:45] Secure candidate: A40 (NVIDIA A40)  1x  mem=48GB  stock=High  price=$0.4/hr
+[06:54:45] Trying 1xNVIDIA A40 on SECURE...
+[06:54:46]   success: pod=0mk0wxqke1de0f cost=$0.4/hr
+[06:54:46] Waiting for pod SSH readiness...
+[06:55:27] Pod ready: root@69.30.85.134:22044
+[06:55:27] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[06:55:46] Installing tmux and preparing logs...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 1s (550 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... debconf: delaying package configuration, since apt-utils is not installed
+(Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[06:55:57] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[06:56:38] Preparing data...
+wrote:/workspace/data_setup.sh
+[06:57:20] Uploading code...
+[06:57:40] Uploading latent checkpoint...
+[07:03:24] Remote env overrides: NGRAM_CACHE_ENABLED=0 EXPORT_ONLY=1 LATENT_CHECKPOINT_PATH=/workspace/skc_h100_s42_20260407_095718_pre_export_state.pt SEED=1337 
+[07:03:24] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s1337_20260407_120329
+  MODEL  : SKC L=8 D=256 H=4/2
+  SKC    : block=16 caps=8 cap_dim=64
+  ENGRAM : buckets=3072 dim=112 orders=3
+  TERNARY: train_align=0@0.85 thr_search=0 scale_search=0
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 8192 tok/step  seq=256
+  VRAM   : min_gpu_mem=45GB  val_batch=32768
+  BUDGET : 45s
+  SEED   : 1337
+  GPUS   : 1
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s1337_20260407_120329.txt
+export_only:loaded checkpoint=/workspace/skc_h100_s42_20260407_095718_pre_export_state.pt step=6148 tag=None metric=None:None
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=31 engram_scalar=12
+params:3810120 L:8 d:256 h:4 kv:2 ws:1 ga:1 s:1337
+step:6148/500000 val_loss:2.5492 val_bpb:1.5346 train_time:0ms zero_frac:0.706
+checkpoint:best_live step=6148 val_bpb:1.5346
+stopping_early: wallclock_cap train_time:0ms step:6148/500000
+serialization:live_ternary_tensors=28
+export_proxy:raw/raw/current val_loss:5.1491 val_bpb:3.0928
+export_proxy:raw/raw/plain val_loss:2.6481 val_bpb:1.5906
+export_proxy:selected raw/raw/plain val_bpb:1.5906
+serialization:selected variant=raw/raw/plain proxy_bpb:1.5906
+artifact:1.72MB ternary:2756608(621834B,turbo=0,plain=28) fp:791368(1582736B) code:224469
+budget:1940985/16000000 (1.94/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:2.5493 val_bpb:1.5346
+=== DONE ===
+Log      : /workspace/logs/small_skc_2gpu_s1337_20260407_120329.log
+Artifact : logs/small_skc_2gpu_s1337_20260407_120329_model.ternary.ptz
+[07:03:52] Launching 10-minute run...
+[07:04:16] progress » final_ternary_roundtrip val_loss:2.5493 val_bpb:1.5346
+[07:04:35] progress » final_sliding val_loss:2.6176 val_bpb:1.5757 (stride=32, T=1.00) eval_time:22802ms
+[07:05:00] RUN_ID=small_skc_2gpu_s1337_20260407_120358
+[07:05:45] Submission summary:
+{
+  "model_size": null,
+  "val_loss": 2.6176,
+  "val_bpb": 1.5757
+}
+[07:05:45] KEEP_POD_ON_EXIT=1, skipping termination of pod 0mk0wxqke1de0f.
+[07:05:45] Complete. Artifacts:
+[07:05:45]   log        : /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_065441/full_run.log
+[07:05:45]   download dir: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_065441/downloads

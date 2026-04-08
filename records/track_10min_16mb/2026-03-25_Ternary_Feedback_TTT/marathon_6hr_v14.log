@@ -1,0 +1,43 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+"=========================================================================="
+"LAUNCHING: 6-Hour CUDA Marathon (SP1024 | Native Hybrid)"
+"RUN ID: cuda_marathon_sp1024_20260402_122510"
+"=========================================================================="
+logs/cuda/cuda_marathon_sp1024_20260402_122510.txt
+params:1524556 L:8 d:128 h:8 kv:4 ws:1 ga:8 s:1337
+Traceback (most recent call last):
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2943, in <module>
+    main()
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2561, in main
+    with torch.autocast(device_type="cuda", dtype=ptdtype): loss = model(x, y)
+                                                                   ^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 1807, in forward
+    hidden, consistency_losses, _, jepa_loss = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 1690, in _compute_hidden
+    x, x0 = self._apply_embedding(input_ids)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 1639, in _apply_embedding
+    x = self.tok_emb(input_ids).float()
+        ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 586, in forward
+    return F.embedding(input, w_qat, self.padding_idx, self.max_norm,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\site-packages\torch\nn\functional.py", line 2551, in embedding
+    return torch.embedding(weight, input, padding_idx, scale_grad_by_freq, sparse)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu! (when checking argument for argument index in method wrapper_CUDA__index_select)

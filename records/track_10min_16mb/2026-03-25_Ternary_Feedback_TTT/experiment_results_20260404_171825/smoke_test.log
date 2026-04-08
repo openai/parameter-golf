@@ -1,0 +1,103 @@
+==========================================================================
+  SKC Competition Run — 8×H100 SXM
+  RUN_ID : skc_h100_s42_20260404_222037
+  MODEL  : SKC  L=11  D=512  vocab=1024  (~48M params / ~12.8MB est)
+  LOCKED : XSA=ALL_LAYERS  bigram=3072×112  (recal FB: +0.019 BPB vs FA)
+  GPTQ   : Full Hessian Ternary GPTQ + selective pruning → 15.5MB target
+  BUDGET : 30s
+  SEED   : 42
+  DATA   : /workspace/data/datasets/fineweb10B_sp1024
+==========================================================================
+logs/cuda/skc_h100_s42_20260404_222037.txt
+torch.compile enabled: mode=default
+DDP enabled: 8 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:8 ga:1 s:42
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank3]:W0404 22:20:58.668000 1826 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank0]:W0404 22:20:58.671000 1823 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank6]:W0404 22:20:58.699000 1829 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank7]:W0404 22:20:58.724000 1830 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank4]:W0404 22:20:58.755000 1827 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank5]:W0404 22:20:58.797000 1828 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank1]:W0404 22:20:58.819000 1824 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break from `Tensor.item()`, consider setting:
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0]     torch._dynamo.config.capture_scalar_outputs = True
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] or:
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] to include these operations in the captured graph.
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] Graph break: from user code at:
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0]   File "/workspace/train_gpt.py", line 2150, in forward
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0]     if self.training and self.architecture == "skc" and skc_aux.item() != 0.0:
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] 
+[rank2]:W0404 22:20:58.942000 1825 torch/_dynamo/variables/tensor.py:1379] [0/0] 

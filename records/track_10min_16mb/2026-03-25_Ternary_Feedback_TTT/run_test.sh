@@ -1,0 +1,15 @@
+#!/bin/bash
+export ITERATIONS=50
+export VAL_LOSS_EVERY=10
+export MAX_WALLCLOCK_SECONDS=60
+export SLIDING_EVAL=0
+export TTT_ENABLED=0
+export MOE_ENABLED=0
+export KOOPMAN_SPECULATOR_ENABLED=0
+export BIGRAM_HASH_ENABLED=1
+export ENGRAM_NUM_ORDERS=3
+export VRL_ENABLED=1
+export TMA_ROPE=0
+export FEEDBACK_ENABLED=1
+
+bash run_mlx_reasoner.sh

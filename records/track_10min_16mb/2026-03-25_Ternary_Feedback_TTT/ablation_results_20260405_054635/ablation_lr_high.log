@@ -1,0 +1,37 @@
+============================================================
+  ABLATION: lr_high
+  TIME:     Sun Apr  5 11:22:06 UTC 2026
+============================================================
+  RUN_ID       : abl_lr_high_1775388126
+  ARCHITECTURE : skc
+  LAYERS       : 11
+  DIM          : 512
+  CURRICULUM   : 1
+  BIGRAM       : 1
+  XSA_START    : 0
+  PARTIAL_ROPE : 16
+  LN_DAMPING   : 1
+  LAWA/SWA     : 1/1
+  SMEARGATE    : 1
+  MATRIX_LR    : 0.035
+  WARMDOWN     : 0.5
+  FEEDBACK     : 0
+  CAPSULE      : 0
+  VRL          : 0
+  BUDGET       : 300s
+============================================================
+logs/cuda/abl_lr_high_1775388126.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:42
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/500000 val_loss:6.9322 val_bpb:4.1731 train_time:0ms zero_frac:0.309
+step:25/500000 loss:23.8124 t:33719ms avg:1348.8ms
+step:50/500000 loss:15.6344 t:71661ms avg:1433.2ms
+step:75/500000 loss:6.2709 t:120864ms avg:1611.5ms
+step:100/500000 loss:5.9917 t:181338ms avg:1813.4ms
+step:100/500000 val_loss:5.8286 val_bpb:3.5088 train_time:181350ms zero_frac:0.319

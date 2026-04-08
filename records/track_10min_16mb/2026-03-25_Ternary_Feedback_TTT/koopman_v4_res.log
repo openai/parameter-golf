@@ -1,0 +1,56 @@
+==========================================================================
+PATH 2 V2: Koopman SSM + Engram Memory (Seed 42)
+==========================================================================
+model_params:4578432 arch:koopman_ssm layers:6 dim:256 heads:4 seq_len:1024
+koopman_ssm: state_dim=192 rank=4 conv_kernel=4 decay_window=32 mlp_mult=3
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:784ms step:783ms
+step:2/200 loss:6.9015 t:1306ms step:523ms
+step:3/200 loss:6.3748 t:1824ms step:517ms
+step:4/200 loss:7.7032 t:2343ms step:519ms
+step:5/200 loss:7.9198 t:2868ms step:524ms
+step:10/200 loss:5.9103 t:5511ms step:518ms
+step:20/200 loss:5.3691 t:10707ms step:535ms
+step:30/200 loss:5.2608 t:15917ms step:517ms
+step:40/200 loss:4.9427 t:21093ms step:517ms
+step:50/200 loss:4.8694 t:26301ms step:519ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.8184 val_bpb:2.8449 train_time:26302ms
+step:60/200 loss:4.5176 t:31463ms step:516ms
+step:70/200 loss:4.3662 t:36685ms step:522ms
+step:80/200 loss:4.2767 t:41855ms step:513ms
+step:90/200 loss:4.3317 t:47175ms step:644ms
+step:100/200 loss:4.3107 t:52376ms step:519ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.2945 val_bpb:2.5355 train_time:52376ms
+step:110/200 loss:4.2561 t:57552ms step:515ms
+step:120/200 loss:4.1189 t:62754ms step:516ms
+step:130/200 loss:4.1416 t:67930ms step:515ms
+step:140/200 loss:4.0989 t:73119ms step:520ms
+step:150/200 loss:4.1004 t:78296ms step:515ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.1213 val_bpb:2.4333 train_time:78297ms
+step:160/200 loss:4.0156 t:83487ms step:517ms
+step:170/200 loss:4.4132 t:88665ms step:515ms
+step:180/200 loss:4.3025 t:93840ms step:522ms
+step:190/200 loss:4.0204 t:99050ms step:517ms
+step:200/200 loss:4.0783 t:104224ms step:514ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.0595 val_bpb:2.3968 train_time:104225ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.0595 val_bpb:2.3968
+final_sliding val_loss:4.0540 val_bpb:2.3934 (stride=64, T=1.10) eval_time:14105ms
+
+==========================================================================
+BENCHMARK COMPLETE at: Sun Mar 29 15:13:23 CDT 2026
+==========================================================================

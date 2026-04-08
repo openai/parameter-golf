@@ -1,0 +1,12 @@
+[23:56:42] Launching 8K FLASH TRAINING (Target 200ms)...
+[23:56:42] ========================================================
+[23:56:42] Cheap Multi-GPU Small SKC Orchestrator
+[23:56:42] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_235642
+[23:56:42] GPU count: 2
+[23:56:42] Min mem  : 44GB
+[23:56:42] Data     : 12 train shards
+[23:56:42] ========================================================
+[23:56:45] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
+[23:56:45] Trying 2xNVIDIA A40 on SECURE...
+[23:56:46]   success: pod=iw3my6x6mseqhm cost=$0.8/hr
+[23:56:46] Waiting for pod SSH readiness...

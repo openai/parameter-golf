@@ -1,0 +1,73 @@
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 3599s left] Stack    : SKC novel arch 24L dim=512 vocab=1024 sp1024
+[00:00 | 3599s left] Budget   : 3599s (59:59)
+[00:00 | 3599s left] Seeds    : 42 (1-seed budget run)
+[00:00 | 3599s left] Cloud    : COMMUNITY
+[00:00 | 3599s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519_runpod
+[00:00 | 3599s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260404_164352
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 3599s left]   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+[00:00 | 3599s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 3599s left] Retrying with SECURE cloud...
+[00:00 | 3599s left] Pod created: ID=9lwgy810r6221r  cost=$21.52/hr
+[00:00 | 3599s left] BUDGET CLOCK STARTED — 3599s (59:59) remaining
+[00:00 | 3599s left] Waiting for pod SSH readiness...
+[00:11 | 3588s left]   waiting... 10s
+[00:22 | 3577s left] Pod ready: root@103.207.149.126:14018  T+22s
+[00:22 | 3577s left] === PHASE: Verification ===
+0, NVIDIA H100 80GB HBM3, 81559 MiB
+1, NVIDIA H100 80GB HBM3, 81559 MiB
+2, NVIDIA H100 80GB HBM3, 81559 MiB
+3, NVIDIA H100 80GB HBM3, 81559 MiB
+4, NVIDIA H100 80GB HBM3, 81559 MiB
+5, NVIDIA H100 80GB HBM3, 81559 MiB
+6, NVIDIA H100 80GB HBM3, 81559 MiB
+7, NVIDIA H100 80GB HBM3, 81559 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 8
+[00:25 | 3574s left] === PHASE: Install dependencies ===
+[00:25 | 3574s left] Installing FlashAttention-3 (optional — train_gpt.py falls back to sdp if absent)...
+FA3 installed
+[01:20 | 3519s left] Installing sentencepiece + zstandard...
+pip OK
+[01:21 | 3518s left] Installing tmux...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 2s (239 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[01:33 | 3506s left] Installing huggingface-hub...
+hf hub OK
+[01:36 | 3503s left] === PHASE: Download sp1024 data (60 train shards + val) ===
+[01:37 | 3502s left] Downloading val shard...
+val shard downloaded
+[01:42 | 3497s left] Downloading tokenizer...
+[01:43 | 3496s left] FATAL: Tokenizer download failed
+[01:43 | 3496s left] Terminating pod 9lwgy810r6221r...
+{
+  "podTerminate": null
+}

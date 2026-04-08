@@ -1,0 +1,81 @@
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 3599s left] Stack    : SKC novel arch 24L dim=512 vocab=1024 sp1024
+[00:00 | 3599s left] Budget   : 3599s (59:59)
+[00:00 | 3599s left] Seeds    : 42, 1337
+[00:00 | 3599s left] Cloud    : COMMUNITY
+[00:00 | 3599s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519
+[00:00 | 3599s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260404_155805
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 3599s left]   image: runpod/pytorch:2.6.0-py3.12-cuda12.8.1-devel-ubuntu22.04
+[00:00 | 3599s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 3599s left] Retrying with SECURE cloud...
+[00:00 | 3599s left] Pod created: ID=qwcupnzzx9tttf  cost=$21.52/hr
+[00:00 | 3599s left] BUDGET CLOCK STARTED — 3599s (59:59) remaining
+[00:00 | 3599s left] Waiting for pod SSH readiness...
+[00:10 | 3589s left]   waiting... 10s
+[00:21 | 3578s left]   waiting... 20s
+[00:32 | 3567s left]   waiting... 30s
+[00:43 | 3556s left]   waiting... 40s
+[00:53 | 3546s left]   waiting... 50s
+[01:04 | 3535s left]   waiting... 60s
+[01:14 | 3525s left]   waiting... 70s
+[01:25 | 3514s left]   waiting... 80s
+[01:35 | 3504s left]   waiting... 90s
+[01:46 | 3493s left]   waiting... 100s
+[01:56 | 3483s left]   waiting... 110s
+[02:07 | 3472s left]   waiting... 120s
+[02:17 | 3462s left]   waiting... 130s
+[02:28 | 3451s left]   waiting... 140s
+[02:38 | 3441s left]   waiting... 150s
+[02:49 | 3430s left]   waiting... 160s
+[02:59 | 3420s left]   waiting... 170s
+[03:10 | 3409s left]   waiting... 180s
+[03:20 | 3399s left]   waiting... 190s
+[03:32 | 3387s left]   waiting... 200s
+[03:42 | 3377s left]   waiting... 210s
+[03:53 | 3366s left]   waiting... 220s
+[04:03 | 3356s left]   waiting... 230s
+[04:14 | 3345s left]   waiting... 240s
+[04:24 | 3335s left]   waiting... 250s
+[04:35 | 3324s left]   waiting... 260s
+[04:46 | 3313s left]   waiting... 270s
+[04:56 | 3303s left]   waiting... 280s
+[05:07 | 3292s left]   waiting... 290s
+[05:18 | 3281s left]   waiting... 300s
+[05:29 | 3270s left]   waiting... 310s
+[05:41 | 3258s left]   waiting... 320s
+[05:51 | 3248s left]   waiting... 330s
+[06:02 | 3237s left]   waiting... 340s
+[06:13 | 3226s left]   waiting... 350s
+[06:23 | 3216s left]   waiting... 360s
+[06:35 | 3204s left]   waiting... 370s
+[06:46 | 3193s left]   waiting... 380s
+[06:57 | 3182s left]   waiting... 390s
+[07:08 | 3171s left]   waiting... 400s
+[07:18 | 3161s left]   waiting... 410s
+[07:29 | 3150s left]   waiting... 420s
+[07:39 | 3140s left]   waiting... 430s
+[07:50 | 3129s left]   waiting... 440s
+[08:01 | 3118s left]   waiting... 450s
+[08:11 | 3108s left]   waiting... 460s
+[08:22 | 3097s left]   waiting... 470s
+[08:33 | 3086s left]   waiting... 480s
+[08:43 | 3076s left]   waiting... 490s
+[08:54 | 3065s left]   waiting... 500s
+[09:05 | 3054s left]   waiting... 510s
+[09:15 | 3044s left]   waiting... 520s
+[09:26 | 3033s left]   waiting... 530s
+[09:37 | 3022s left]   waiting... 540s
+[09:47 | 3012s left]   waiting... 550s
+[09:58 | 3001s left]   waiting... 560s
+[10:08 | 2991s left]   waiting... 570s
+[10:19 | 2980s left]   waiting... 580s
+[10:30 | 2969s left]   waiting... 590s
+[10:40 | 2959s left]   waiting... 600s
+[10:40 | 2959s left] FATAL: Pod not SSH-ready after 600s
+[10:40 | 2959s left] Terminating pod qwcupnzzx9tttf...
+{
+  "podTerminate": null
+}

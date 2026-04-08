@@ -1,0 +1,15 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+"=========================================================================="
+"LAUNCHING: 6-Hour CUDA Marathon (SP1024 | Native Hybrid)"
+"RUN ID: cuda_marathon_sp1024_20260402_122114"
+"=========================================================================="
+logs/cuda/cuda_marathon_sp1024_20260402_122114.txt
+Traceback (most recent call last):
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2882, in <module>
+    main()
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2399, in main
+    train_loader = DataLoader(args.train_files, args.train_batch_tokens, args.train_seq_len,
+                   ^^^^^^^^^^
+NameError: name 'DataLoader' is not defined

@@ -1,0 +1,40 @@
+[00:09:53] ========================================================
+[00:09:53] Cheap-GPU Export Sweep
+[00:09:53] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_export_sweep_20260406_000953
+[00:09:53] Data shards: 20
+[00:09:53] Run seconds/config: 420
+[00:09:53] Eval mode: full_validate
+[00:09:53] ========================================================
+[00:09:53] Trying 1xNVIDIA A40 on COMMUNITY...
+[00:09:53]   failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:09:53] Trying 1xNVIDIA A40 on SECURE...
+[00:09:54]   success: pod=cf1hognmdbvnao cost=$0.4/hr
+[00:09:54] Waiting for pod SSH readiness...
+[00:10:20] Pod ready: root@194.68.245.32:22073
+[00:10:20] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[00:10:33] Installing dependencies...
+deps_ok
+[00:10:40] Downloading dataset...
+fineweb_val_000000.bin: ok
+fineweb_1024_bpe.model: ok
+shards: 5/20
+shards: 10/20
+shards: 15/20
+shards: 20/20
+[00:11:09] Uploading code...
+[00:11:21] Smoke testing...
+[00:13:00] Starting run: winner_full
+[00:41:11] Starting run: winner_full_bigram_128
+[01:09:28] Starting run: winner_full_gptq_lite
+[01:18:23] Downloading full logs bundle...
+[01:19:48] Ranking by exported BPB...
+RUN	LAST_RAW_BPB	FINAL_BPB
+winner_full_bigram_128	4.0298	3.0373
+winner_full	4.0342	3.0388
+[01:19:48] Terminating pod cf1hognmdbvnao...
+{
+  "podTerminate": null
+}
+[01:19:49] Done. Artifacts at /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_export_sweep_20260406_000953

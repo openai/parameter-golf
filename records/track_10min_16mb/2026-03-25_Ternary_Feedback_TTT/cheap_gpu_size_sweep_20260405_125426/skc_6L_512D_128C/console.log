@@ -1,0 +1,25 @@
+Running skc_6L_512D_128C (L=6 D=512 C=128 MODE=validate SMOKE=0)
+logs/cuda/run_1775411857.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:24405641 L:6 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+ema:enabled decay=0.997 start_fraction=0.4
+step:0/10000 val_loss:6.9309 val_bpb:4.1723 train_time:0ms zero_frac:0.309
+step:20/10000 loss:23.4381 t:14978ms avg:748.9ms
+step:40/10000 loss:26.4182 t:30424ms avg:760.6ms
+step:60/10000 loss:27.1235 t:45673ms avg:761.2ms
+step:80/10000 loss:13.3898 t:62308ms avg:778.8ms
+step:100/10000 loss:7.2996 t:78626ms avg:786.3ms
+step:120/10000 loss:6.0875 t:94974ms avg:791.5ms
+step:140/10000 loss:5.4530 t:113711ms avg:812.2ms
+step:160/10000 loss:5.0256 t:133717ms avg:835.7ms
+step:180/10000 loss:4.8971 t:153557ms avg:853.1ms
+step:200/10000 loss:4.5875 t:173063ms avg:865.3ms
+step:200/10000 val_loss:6.8217 val_bpb:4.1066 train_time:173067ms zero_frac:0.318
+step:220/10000 loss:4.3508 t:192811ms avg:876.4ms
+step:240/10000 loss:4.3053 t:215597ms avg:898.3ms

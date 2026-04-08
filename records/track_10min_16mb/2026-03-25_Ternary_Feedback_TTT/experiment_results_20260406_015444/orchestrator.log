@@ -1,0 +1,169 @@
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 5400s left] Stack    : SKC novel arch 11L dim=512 vocab=1024 sp1024
+[00:00 | 5400s left] Budget   : 5400s (59:59)
+[00:00 | 5400s left] Seeds    : 42, 1337, 7 (3-seed run)
+[00:00 | 5400s left] Cloud    : COMMUNITY
+[00:00 | 5400s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519_runpod
+[00:00 | 5400s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260406_015444
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 5400s left]   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+[00:00 | 5400s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 5400s left] Retrying with SECURE cloud...
+[00:00 | 5400s left] Pod created: ID=nc9ikqk0z1bigo  cost=$21.52/hr
+[00:00 | 5400s left] BUDGET CLOCK STARTED — 5400s (59:59) remaining
+[00:00 | 5400s left] Waiting for pod SSH readiness...
+[00:11 | 5389s left]   waiting... 10s
+[00:24 | 5376s left] Pod ready: root@103.207.149.115:13717  T+24s
+[00:24 | 5376s left] === PHASE: Verification ===
+0, NVIDIA H100 80GB HBM3, 81559 MiB
+1, NVIDIA H100 80GB HBM3, 81559 MiB
+2, NVIDIA H100 80GB HBM3, 81559 MiB
+3, NVIDIA H100 80GB HBM3, 81559 MiB
+4, NVIDIA H100 80GB HBM3, 81559 MiB
+5, NVIDIA H100 80GB HBM3, 81559 MiB
+6, NVIDIA H100 80GB HBM3, 81559 MiB
+7, NVIDIA H100 80GB HBM3, 81559 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 8
+[00:29 | 5371s left] === PHASE: Install dependencies ===
+[00:29 | 5371s left] FlashAttention: SKC architecture uses WHT spectral mixing, NOT attention — FA not needed.
+[00:29 | 5371s left]   (fallback to torch.sdpa exists in code for non-SKC architectures but won't be used)
+[00:29 | 5371s left] Installing sentencepiece + zstandard...
+pip OK
+[00:31 | 5369s left] Installing tmux...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 1s (374 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[00:40 | 5360s left] Installing huggingface-hub...
+hf hub OK
+[00:44 | 5356s left] === PHASE: Download sp1024 data (60 train shards + val) ===
+[00:46 | 5354s left] Downloading val shard...
+val shard downloaded
+[00:53 | 5347s left] Downloading tokenizer...
+tokenizer downloaded
+[00:57 | 5343s left] Downloading 60 train shards in parallel...
+  10/60 shards done (0 failed)
+  20/60 shards done (0 failed)
+  30/60 shards done (0 failed)
+  40/60 shards done (0 failed)
+  50/60 shards done (0 failed)
+  60/60 shards done (0 failed)
+Download complete: 60/60 shards available (0 failed)
+[01:40 | 5300s left] Data verified: train_shards=60  val_shards=1  T+100s
+[01:40 | 5300s left] === PHASE: Upload code ===
+[01:44 | 5296s left] Code uploaded  T+104s
+[01:44 | 5296s left] === PHASE: Smoke test (FAST_SMOKE=1) ===
+[03:04 | 5216s left] Smoke test PASSED ✓  bpb=4.0191  T+184s
+[03:04 | 5216s left] === PHASE: Seed 42 (full 600s run) ===
+[03:04 | 5216s left] --- seed42: starting (phase_budget=1500s, 5216s overall left) ---
+[03:07 | 5213s left] seed42 launched in tmux 'pg_seed42'
+[03:43 | 5177s left] seed42 » step:100/500000 loss:6.7468 t:20534ms avg:205.3ms
+[04:15 | 5145s left] seed42 » step:240/500000 loss:6.4142 t:49505ms avg:206.3ms
+[04:50 | 5110s left] seed42 » step:420/500000 loss:4.4359 t:87799ms avg:209.0ms
+[05:25 | 5075s left] seed42 » step:560/500000 loss:3.9035 t:117903ms avg:210.5ms
+[05:58 | 5042s left] seed42 » step:720/500000 loss:3.5457 t:153218ms avg:212.8ms
+[06:30 | 5010s left] seed42 » step:860/500000 loss:3.5021 t:185827ms avg:216.1ms
+[07:04 | 4976s left] seed42 » step:1000/500000 val_loss:3.2676 val_bpb:1.9670 train_time:218280ms zero_frac:0.448
+[07:38 | 4942s left] seed42 » step:1140/500000 loss:3.2672 t:250681ms avg:219.9ms
+[08:10 | 4910s left] seed42 » step:1280/500000 loss:3.1351 t:283200ms avg:221.3ms
+[08:42 | 4878s left] seed42 » step:1400/500000 loss:3.3146 t:313997ms avg:224.3ms
+[09:15 | 4845s left] seed42 » step:1520/500000 loss:3.1207 t:346009ms avg:227.6ms
+[09:47 | 4812s left] seed42 » step:1660/500000 loss:3.1349 t:383550ms avg:231.1ms
+[10:20 | 4780s left] seed42 » step:1780/500000 loss:3.2583 t:415701ms avg:233.5ms
+[10:56 | 4744s left] seed42 » step:1900/500000 loss:3.0106 t:447618ms avg:235.6ms
+[11:30 | 4710s left] seed42 » step:2040/500000 loss:3.0677 t:485066ms avg:237.8ms
+[12:02 | 4678s left] seed42 » step:2160/500000 loss:3.1304 t:517003ms avg:239.4ms
+[12:35 | 4645s left] seed42 » step:2280/500000 loss:2.9929 t:548862ms avg:240.7ms
+[13:07 | 4613s left] seed42 » step:2400/500000 loss:3.0688 t:580946ms avg:242.1ms
+[13:41 | 4579s left] seed42 » hessian_ternary_gptq:done in 11.1s
+[14:13 | 4547s left] seed42 » final_ternary_roundtrip val_loss:6.7129 val_bpb:4.0411
+[14:47 | 4513s left] seed42 » final_sliding val_loss:6.5611 val_bpb:3.9490 (stride=64, T=1.10) eval_time:4767ms
+[18:06 | 4314s left] seed42 COMPLETED ✓  T+1086s
+[18:13 | 4307s left] seed42 tagged artifacts as RUN_ID=skc_h100_s42_20260406_065753
+[18:40 | 4280s left] seed42 result: ngram_cache val_loss:4.9580 val_bpb:2.9846 (order=5) eval_time:193631ms
+[18:40 | 4280s left] === PHASE: Seed 1337 (full 600s run) ===
+[18:40 | 4280s left] --- seed1337: starting (phase_budget=1500s, 4280s overall left) ---
+[18:44 | 4276s left] seed1337 launched in tmux 'pg_seed1337'
+[19:18 | 4242s left] seed1337 » step:80/500000 loss:6.7461 t:16581ms avg:207.3ms
+[19:51 | 4209s left] seed1337 » step:240/500000 loss:6.7690 t:50125ms avg:208.9ms
+[20:30 | 4170s left] seed1337 » step:420/500000 loss:6.7632 t:89025ms avg:212.0ms
+[21:05 | 4135s left] seed1337 » step:580/500000 loss:6.7715 t:123837ms avg:213.5ms
+[21:39 | 4101s left] seed1337 » step:720/500000 loss:6.8158 t:155393ms avg:215.8ms
+[22:12 | 4068s left] seed1337 » step:860/500000 loss:6.4807 t:188063ms avg:218.7ms
+[22:45 | 4035s left] seed1337 » step:1000/500000 val_loss:4.8171 val_bpb:2.8998 train_time:220936ms zero_frac:0.427
+[23:18 | 4002s left] seed1337 » step:1140/500000 loss:4.2864 t:253466ms avg:222.3ms
+[23:52 | 3968s left] seed1337 » step:1300/500000 loss:3.8184 t:291008ms avg:223.9ms
+[24:28 | 3932s left] seed1337 » step:1420/500000 loss:3.7161 t:323404ms avg:227.7ms
+[25:02 | 3898s left] seed1337 » step:1540/500000 loss:3.7320 t:355829ms avg:231.1ms
+[25:34 | 3866s left] seed1337 » step:1660/500000 loss:3.5205 t:388308ms avg:233.9ms
+[26:08 | 3832s left] seed1337 » step:1800/500000 loss:3.5450 t:425804ms avg:236.6ms
+[26:40 | 3800s left] seed1337 » step:1920/500000 loss:3.5634 t:458100ms avg:238.6ms
+[27:13 | 3767s left] seed1337 » step:2040/500000 loss:3.4228 t:490551ms avg:240.5ms
+[27:45 | 3735s left] seed1337 » step:2160/500000 loss:3.4398 t:522976ms avg:242.1ms
+[28:17 | 3703s left] seed1337 » step:2280/500000 loss:3.3160 t:555290ms avg:243.5ms
+[28:51 | 3669s left] seed1337 » step:2400/500000 loss:3.4319 t:587608ms avg:244.8ms
+[29:24 | 3636s left] seed1337 » hessian_ternary_gptq:done in 11.0s
+[29:57 | 3603s left] seed1337 » final_ternary_roundtrip val_loss:19.8179 val_bpb:11.9301
+[30:30 | 3570s left] seed1337 » final_sliding val_loss:18.5182 val_bpb:11.1458 (stride=64, T=1.10) eval_time:4758ms
+[33:48 | 3372s left] seed1337 COMPLETED ✓  T+2028s
+[33:52 | 3368s left] seed1337 tagged artifacts as RUN_ID=skc_h100_s1337_20260406_071330
+[34:10 | 3350s left] seed1337 result: ngram_cache val_loss:8.1440 val_bpb:4.9026 (order=5) eval_time:190259ms
+[34:10 | 3350s left] === PHASE: Seed 7 (full 600s run) ===
+[34:10 | 3350s left] --- seed7: starting (phase_budget=1500s, 3350s overall left) ---
+[34:12 | 3348s left] seed7 launched in tmux 'pg_seed7'
+[34:45 | 3315s left] seed7 » step:80/500000 loss:6.7585 t:16788ms avg:209.9ms
+[35:19 | 3281s left] seed7 » step:240/500000 loss:6.7542 t:50287ms avg:209.5ms
+[35:51 | 3249s left] seed7 » step:380/500000 loss:5.8409 t:80489ms avg:211.8ms
+[36:24 | 3216s left] seed7 » step:540/500000 loss:4.2923 t:115216ms avg:213.4ms
+[36:56 | 3184s left] seed7 » step:680/500000 loss:3.7867 t:145845ms avg:214.5ms
+[37:30 | 3150s left] seed7 » step:820/500000 loss:3.6502 t:178726ms avg:218.0ms
+[38:02 | 3118s left] seed7 » step:960/500000 loss:3.3785 t:211704ms avg:220.5ms
+[38:36 | 3084s left] seed7 » step:1100/500000 loss:3.3134 t:244681ms avg:222.4ms
+[39:11 | 3049s left] seed7 » step:1260/500000 loss:3.3453 t:282022ms avg:223.8ms
+[39:45 | 3015s left] seed7 » step:1380/500000 loss:3.4035 t:312798ms avg:226.7ms
+[40:22 | 2978s left] seed7 » step:1520/500000 loss:3.2293 t:350160ms avg:230.4ms
+[40:58 | 2942s left] seed7 » step:1660/500000 loss:3.2158 t:387659ms avg:233.5ms
+[41:31 | 2909s left] seed7 » step:1780/500000 loss:3.3257 t:419793ms avg:235.8ms
+[42:04 | 2876s left] seed7 » step:1900/500000 loss:3.0943 t:451836ms avg:237.8ms
+[42:37 | 2843s left] seed7 » step:2020/500000 loss:3.2355 t:483833ms avg:239.5ms
+[43:10 | 2810s left] seed7 » step:2140/500000 loss:3.1307 t:515745ms avg:241.0ms
+[43:49 | 2771s left] seed7 » step:2300/500000 loss:3.2172 t:558711ms avg:242.9ms
+[44:25 | 2735s left] seed7 » step:2420/500000 loss:3.1515 t:590850ms avg:244.2ms
+[44:59 | 2701s left] seed7 » hessian_ternary_gptq:done in 11.1s
+[45:32 | 2668s left] seed7 » final_ternary_roundtrip val_loss:4.6990 val_bpb:2.8287
+[46:05 | 2635s left] seed7 » final_sliding val_loss:4.6206 val_bpb:2.7811 (stride=64, T=1.10) eval_time:4766ms
+[48:51 | 2469s left] seed7 » ngram_cache val_loss:4.0525 val_bpb:2.4396 (order=5) eval_time:195867ms
+[49:27 | 2433s left] seed7 COMPLETED ✓  T+2967s
+[49:33 | 2427s left] seed7 tagged artifacts as RUN_ID=skc_h100_s7_20260406_072858
+[49:54 | 2406s left] seed7 result: ngram_cache val_loss:4.0525 val_bpb:2.4396 (order=5) eval_time:195867ms
+[49:54 | 2406s left] Cleanup: terminating pod after abnormal exit (code=258)
+[49:54 | 2406s left] Terminating pod nc9ikqk0z1bigo...
+{
+  "podTerminate": null
+}

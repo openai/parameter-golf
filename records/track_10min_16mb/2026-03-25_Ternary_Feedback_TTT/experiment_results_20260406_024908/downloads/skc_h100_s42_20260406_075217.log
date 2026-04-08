@@ -1,0 +1,85 @@
+logs/cuda/skc_h100_s42_20260406_075217.txt
+DDP enabled: 8 GPUs find_unused=0 static_graph=1
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:32003852 L:8 d:512 h:8 kv:4 ws:8 ga:1 s:42
+step:0/500000 val_loss:6.9330 val_bpb:4.1736 train_time:0ms zero_frac:0.413
+step:40/500000 loss:6.7998 t:7689ms avg:192.2ms
+step:80/500000 loss:6.7618 t:15211ms avg:190.1ms
+step:120/500000 loss:6.7680 t:22799ms avg:190.0ms
+step:160/500000 loss:6.7729 t:30425ms avg:190.2ms
+step:200/500000 loss:6.7753 t:38061ms avg:190.3ms
+step:240/500000 loss:6.7579 t:45709ms avg:190.5ms
+step:280/500000 loss:6.7860 t:53611ms avg:191.5ms
+step:320/500000 loss:6.7859 t:61485ms avg:192.1ms
+step:360/500000 loss:6.8332 t:69360ms avg:192.7ms
+step:400/500000 loss:6.7714 t:77301ms avg:193.3ms
+step:440/500000 loss:6.7871 t:85226ms avg:193.7ms
+step:480/500000 loss:6.7791 t:93087ms avg:193.9ms
+step:520/500000 loss:6.7958 t:101282ms avg:194.8ms
+step:560/500000 loss:6.8167 t:109649ms avg:195.8ms
+step:600/500000 loss:6.7297 t:118040ms avg:196.7ms
+step:640/500000 loss:6.5752 t:126590ms avg:197.8ms
+step:680/500000 loss:6.3075 t:135164ms avg:198.8ms
+step:720/500000 loss:5.7748 t:143735ms avg:199.6ms
+step:760/500000 loss:5.3261 t:152309ms avg:200.4ms
+step:800/500000 loss:5.0109 t:160948ms avg:201.2ms
+step:840/500000 loss:4.6903 t:169533ms avg:201.8ms
+step:880/500000 loss:4.4980 t:178124ms avg:202.4ms
+step:920/500000 loss:4.3722 t:187746ms avg:204.1ms
+step:960/500000 loss:3.9824 t:197740ms avg:206.0ms
+step:1000/500000 loss:3.9925 t:207607ms avg:207.6ms
+step:1000/500000 val_loss:3.7863 val_bpb:2.2793 train_time:207608ms zero_frac:0.432
+step:1040/500000 loss:3.9946 t:217514ms avg:209.1ms
+step:1080/500000 loss:3.9317 t:227409ms avg:210.6ms
+step:1120/500000 loss:3.9227 t:237294ms avg:211.9ms
+step:1160/500000 loss:3.8620 t:247250ms avg:213.1ms
+step:1200/500000 loss:3.9560 t:257131ms avg:214.3ms
+step:1240/500000 loss:3.7570 t:267026ms avg:215.3ms
+step:1280/500000 loss:3.7549 t:276854ms avg:216.3ms
+step:1320/500000 loss:3.7774 t:286687ms avg:217.2ms
+step:1360/500000 loss:3.7853 t:296518ms avg:218.0ms
+step:1400/500000 loss:3.6314 t:306481ms avg:218.9ms
+step:1440/500000 loss:3.6056 t:316363ms avg:219.7ms
+step:1480/500000 loss:3.3806 t:326239ms avg:220.4ms
+step:1520/500000 loss:3.3810 t:336080ms avg:221.1ms
+step:1560/500000 loss:3.5539 t:346009ms avg:221.8ms
+step:1600/500000 loss:3.5288 t:355896ms avg:222.4ms
+step:1640/500000 loss:3.4236 t:365833ms avg:223.1ms
+step:1680/500000 loss:3.5033 t:375698ms avg:223.6ms
+step:1720/500000 loss:3.4904 t:385558ms avg:224.2ms
+step:1760/500000 loss:3.4441 t:395408ms avg:224.7ms
+step:1800/500000 loss:3.4302 t:405250ms avg:225.1ms
+step:1840/500000 loss:3.4876 t:415133ms avg:225.6ms
+step:1880/500000 loss:3.4299 t:425002ms avg:226.1ms
+step:1920/500000 loss:3.4440 t:434937ms avg:226.5ms
+step:1960/500000 loss:3.4994 t:444779ms avg:226.9ms
+step:2000/500000 loss:3.3171 t:454727ms avg:227.4ms
+step:2000/500000 val_loss:3.1050 val_bpb:1.8691 train_time:454728ms zero_frac:0.468
+step:2040/500000 loss:3.3094 t:464646ms avg:227.8ms
+step:2080/500000 loss:3.2996 t:474496ms avg:228.1ms
+step:2120/500000 loss:3.3521 t:484337ms avg:228.5ms
+step:2160/500000 loss:3.3328 t:494207ms avg:228.8ms
+step:2200/500000 loss:3.2933 t:504045ms avg:229.1ms
+step:2240/500000 loss:3.2895 t:513905ms avg:229.4ms
+step:2280/500000 loss:3.2226 t:523837ms avg:229.8ms
+step:2320/500000 loss:3.3388 t:533754ms avg:230.1ms
+step:2360/500000 loss:3.1685 t:543588ms avg:230.3ms
+step:2400/500000 loss:3.3044 t:553437ms avg:230.6ms
+step:2440/500000 loss:3.2618 t:563300ms avg:230.9ms
+step:2480/500000 loss:3.3048 t:573174ms avg:231.1ms
+step:2520/500000 loss:3.3764 t:583023ms avg:231.4ms
+step:2560/500000 loss:3.0042 t:592867ms avg:231.6ms
+step:2590/500000 val_loss:2.9584 val_bpb:1.7809 train_time:600256ms zero_frac:0.474
+stopping_early: wallclock_cap train_time:600256ms step:2590/500000
+swa:applied count=5 tensors=126 include_ternary=0
+hessian_ternary_gptq:using real held-out tokens (32768 tokens)
+hessian_ternary_gptq:collecting Hessians...
+hessian_ternary_gptq:collected 48 Hessian matrices
+hessian_ternary_gptq:done in 10.5s
+artifact:9.81MB ternary:29360128(6330800B) fp:2119436(4238872B) code:189284
+budget:9995020/16000000 (10.00/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:5.1001 val_bpb:3.0702
+temp_scaling optimal_T:1.10 eval_time:23856ms
+final_sliding val_loss:4.9918 val_bpb:3.0045 (stride=64, T=1.10) eval_time:4767ms
+ngram_cache val_loss:4.2125 val_bpb:2.5359 (order=5) eval_time:196380ms

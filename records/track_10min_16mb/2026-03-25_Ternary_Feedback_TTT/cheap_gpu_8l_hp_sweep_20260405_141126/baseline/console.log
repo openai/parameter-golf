@@ -1,0 +1,37 @@
+Running skc_8L_512D_128C (L=8 D=512 C=128 MODE=validate SMOKE=0)
+logs/cuda/run_1775416496.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:32022220 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/10000 val_loss:6.9310 val_bpb:4.1724 train_time:0ms zero_frac:0.309
+step:20/10000 loss:20.9215 t:19187ms avg:959.3ms
+step:40/10000 loss:28.9808 t:38906ms avg:972.6ms
+step:60/10000 loss:28.8183 t:59642ms avg:994.0ms
+step:80/10000 loss:30.0486 t:81548ms avg:1019.4ms
+step:100/10000 loss:11.9053 t:103220ms avg:1032.2ms
+step:120/10000 loss:6.6950 t:129143ms avg:1076.2ms
+step:140/10000 loss:6.0305 t:154668ms avg:1104.8ms
+step:160/10000 loss:5.6167 t:179898ms avg:1124.4ms
+step:180/10000 loss:5.5154 t:206317ms avg:1146.2ms
+step:200/10000 loss:4.9900 t:243679ms avg:1218.4ms
+step:200/10000 val_loss:4.8047 val_bpb:2.8924 train_time:243687ms zero_frac:0.318
+step:220/10000 loss:4.6222 t:285266ms avg:1296.7ms
+step:240/10000 loss:4.5540 t:323553ms avg:1348.1ms
+step:260/10000 loss:4.4164 t:360494ms avg:1386.5ms
+step:280/10000 loss:4.4161 t:398902ms avg:1424.6ms
+step:300/10000 loss:4.3726 t:435240ms avg:1450.8ms
+step:300/10000 val_loss:4.1590 val_bpb:2.5037 train_time:435248ms zero_frac:0.319
+stopping_early: wallclock_cap train_time:435248ms step:300/10000
+artifact:10.07MB ternary:29360128(6330800B) fp:2141900(4283800B) code:176975
+budget:10246707/16000000 (10.25/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:4.3955 val_bpb:2.6461
+=== DONE skc_8L_512D_128C ===
+Log      : logs/ablation_skc_8L_512D_128C_baseline.log
+Artifact : logs/ablation_skc_8L_512D_128C_baseline_model.ternary.ptz
+Submit   : logs/ablation_skc_8L_512D_128C_baseline_submission.json

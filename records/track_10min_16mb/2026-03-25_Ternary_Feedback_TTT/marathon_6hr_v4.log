@@ -1,0 +1,14 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+"=========================================================================="
+"LAUNCHING: 6-Hour CUDA Marathon (Architecture: TKA-H | Shared: 2)"
+"RUN ID: cuda_marathon_win_20260402_110950"
+"=========================================================================="
+logs/cuda/cuda_marathon_win_20260402_110950.txt
+Skipping torch.compile because COMPILE_MODE=none
+params:4826956 L:8 d:128 h:8 kv:4 ws:1 ga:8 s:1337
+C:\Python312\Lib\site-packages\torch\_inductor\compile_fx.py:1604: UserWarning: NVIDIA GeForce GTX 1650 Ti does not support bfloat16 compilation natively, skipping
+  warnings.warn(
+warmup:1/5
+client_loop: send disconnect: Broken pipe

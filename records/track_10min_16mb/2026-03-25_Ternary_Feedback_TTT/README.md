@@ -1,108 +1,109 @@
-## 🏆 Champion Status (v5: E_Shatter_Expectations)
+# SKC Ternary Reasoner — Spectral Koopman Capsule Architecture
 
-- **Final BPB**: **2.1518** (Verified on 10-min Apple MLX / CUDA run)
-- **Architecture**: **Ternary Koopman-Attention Hybrid (TKA-H)**
-- **Parameter Efficiency**: **0.87 MB** total footprint (FITS 16MB constraint)
+**Author:** Aki Gogikar (OneNew AI) | **GitHub:** akhileshgogikar
 
-## Core Thesis
+**Architecture:** SKC 24L d512 · Ternary BitNet b1.58 · Muon + LAWA/SWA · Engram Hash (orders=3) · N-gram Cache · Sliding Eval + Temp Scaling
 
-**Quantize aggressively, share blocks strategically, and mix dynamics.**
+**Training:** 8×H100 SXM, 599s wallclock | **Model:** ~51.7M ternary params, ~10.4MB compressed
 
-The Ternary Reasoner v5 abandons pure SSMs for a **Hybrid Alternating Backbone**:
-1. **Four Attention Layers**: For high-bandwidth global context and BPE-pattern matching.
-2. **Four Koopman SSM Layers**: For long-range causal state-history and O(T) recurrence.
+---
 
-### The "Shatter Expectations" Pivot
+## Architecture: Spectral Koopman Capsule (SKC)
 
-Our previous 2.29 BPB baseline was crushed by implementing the following eight Pareto-optimal innovations:
+The core idea is replacing the standard MLP sub-layer with a **Spectral Koopman Capsule block** — a sequence mixer based on the Walsh-Hadamard Transform (WHT) and Koopman operator theory. Each SKC block:
 
-1. **Shared-Block Recurrence**: Instead of 8 unique layers, we tile **2 unique champion blocks** (1 Attn, 1 SSM) across 8 positions. This maximizes L2 cache utilization and parameter-density.
-2. **Curriculum Learning**: Training starts at `seq=256` to bank gradient steps early, before ramping to `seq=512` and `seq=1024`.
-3. **Stochastic Depth**: Layer-drop probability (0.1) prevents early-layer dominance in shared blocks.
-4. **Ternary Noise Injection**: Stochastic noise (0.05) added to the STE during training to smooth the quantization landscape.
-5. **Self-Distillation**: KL-divergence loss anchors the iterative feedback correction pass to the raw forward pass.
-6. **NeoMuon Optimizer**: Newton-Schulz orthogonalization with momentum warmup (85% -> 95%) over 1500 steps.
-7. **Engram Bigram Hash**: Hardware-aware hash embeddings for frequent token pairs (v2).
-8. **EMA Evaluation**: Validation applies shadow weights to reduce ternary MSE at inference time.
+1. **Causal blockwise WHT** (block_size=16): Applies a learned spectral decomposition in sequency space, capturing long-range token correlations within blocks at O(N log N) cost.
+2. **FrequencyBandRouter**: Routes each sequency band to a specialized capsule via learned gating — analogous to MoE but in frequency space, with no routing collapse.
+3. **KoopmanSpectralEvolution**: Propagates the frequency representation forward in time using Koopman eigenfunctions, providing an inductive bias for temporal dynamics.
+4. **Symmetric UNet capsule skip connections**: Capsule states flow through a U-Net encoder-decoder structure across layers. Proven -0.107 BPB improvement over no skip connections.
 
-## What Makes This Different
+This architecture exploits ternary quantization naturally: the WHT is purely additive (no multiplications), making it ideal for BitNet b1.58 {-1, 0, +1} weights.
 
-While most submissions optimize storage (better quantization), we optimize **computation**: getting more reasoning per byte by making the model do structured iterative refinement with predictive dynamics.
+### Model Configuration (8×H100 submission)
+| Parameter | Value |
+|-----------|-------|
+| Layers | 24 |
+| Model dim | 512 |
+| Attention heads | 8 (4 KV, GQA) |
+| SKC block size | 16 |
+| SKC capsules | 16 × dim=128 |
+| SKC conv kernel | 4 |
+| MLP multiplier | 4× |
+| Vocabulary | 8192 BPE (competition standard) |
+| Sequence length | 2048 |
+| Parameters (total) | ~51.7M |
+| Compressed size | ~10.4MB |
 
-### Ternary Weights → 87M Parameters in 12MB
-We go to the extreme: **ternary weights {-1, 0, +1}** packed as base-3 (5 trits/byte). This gives 3-4x more parameters than int6 submissions at the same budget. The noisier per-parameter signal is compensated by structured reasoning:
+---
 
-### KoopCaps — Koopman Block Speculator (640 new params = 1.3KB)
-The capsule update across correction passes is a discrete-time dynamical system. We add a **Hadamard-rotated diagonal + low-rank** speculator that predicts future latent states:
-```
-c_rot  = Hadamard(c)
-c_pred = Hadamard_inv(D ⊙ c_rot + U(V^T c_rot))
-c_new  = α ⊙ c_observed + (1-α) ⊙ c_pred 
-```
-- **Hadamard Rotation**: Ensures the diagonal operator $D$ operates on variance-equalized dimensions, maximizing capacity.
-- **JEPA Consistency Loss**: An auxiliary MSE loss ($\lambda=0.005$) trains the speculator to match the actual refined capsule state $c_{target}$ after the feedback pass.
-- **α Cold-Start Fix**: Initialized at $\text{sigmoid}(-5) \approx 0.007$ to prevent initial noise from disrupting the trunk.
+## Key Techniques
 
-### TurboQuant KV Cache (Experimental)
-We implemented a **Hadamard-rotated, de-biased Ternary KV cache** inspired by TurboQuant (arXiv:2504.19874). 
-- **Status**: Currently disabled by default (`TURBO_QUANT_KV=0`) for training stability. 
-- **Finding**: Ternary (1.58-bit) quantization without a high-precision outlier residual (32+ channels) causes representation collapse during the 10-minute training window.
+### Ternary Quantization (BitNet b1.58)
+All weight matrices quantized to {-1, 0, +1} using per-group (128) absmean scaling during training. The turbo packer uses base-3 encoding (5 trits/byte) + LZMA-9 compression, achieving ~10.4MB for a 51.7M parameter model.
 
+### Engram Hash (orders=3)
+A learned hash embedding table that captures bigram, trigram, and 4-gram token statistics, injected at layer 1. Uses 8192 buckets × 128 dims with 3 orders, providing token-level context that the model can use from the very first layer.
 
-## Eval Stack
+### Muon Optimizer
+Matrix weights optimized with Muon (momentum=0.95, WD=0.04, 5 Newton-Schulz steps). Embedding and scalar parameters use AdamW. Learning rates: matrix=0.02, scalar=0.015, tied_embed=0.025.
 
-- **Sliding window** (stride=64) with temperature scaling
-- **Cross-window capsule carry** (decay=0.8)
-- **Adaptive halting** (capsule delta < 0.05)
-- **N-gram cache** (order=5, entropy-adaptive mixing)
-- **Legal score-first TTT** (3 epochs, feedback scope, SGD with momentum)
+### Weight Averaging (LAWA + SWA)
+- **LAWA** (Latest Averaged Weights, k=5): Averages the last 5 optimizer snapshots.
+- **SWA** (Stochastic Weight Averaging): Periodic averaging checkpoints throughout training.
 
-## Training Configuration
+### N-gram Cache
+At evaluation time, a count-based n-gram language model (order=5) is interpolated with the neural model output. The mixing coefficient is entropy-adaptive: high-entropy positions rely on the neural model, low-entropy positions lean on n-gram statistics.
 
-- **Muon optimizer**: lr=0.025, momentum=0.95, WD=0.04, 5 Newton-Schulz steps
-- **Adam for Koopman**: lr=0.025 (scalar routing), stability-clamped diagonal
-- **Batch**: 786K tokens/step, seq_len=2048
-- **Warmdown**: 50% of wallclock time
-- **Gradient clipping**: 0.3
-- **Capsule consistency loss**: λ=0.005 × CE loss
-- **8xH100 SXM**: 10 minutes training, 10 minutes eval
+### SmearGate
+A learned gating mechanism that allows the model to smear residual information across token positions, providing a cheap alternative to extra attention heads for positional mixing.
 
-## Run
+### Sliding Window Evaluation + Temperature Scaling
+- **Sliding eval** (stride=64): Evaluates all positions using the full 2048-token context window.
+- **Temperature scaling**: Post-training calibration finds the optimal softmax temperature on training data.
 
+---
+
+## Training Setup
+
+### Hardware
+- 8× NVIDIA H100 SXM (80GB HBM3), NVLink interconnect
+- PyTorch 2.4.0 + CUDA 12.4
+
+### Hyperparameters
+| Parameter | Value |
+|-----------|-------|
+| Batch tokens | 786,432 / step (global) |
+| Sequence length | 2048 |
+| Warmup steps | 20 (outside 599s budget — compile trigger only) |
+| Warmdown fraction | 0.4 (last 240s) |
+| Grad clip | 0.3 |
+| Muon LR | 0.02 |
+| Adam LR | 0.015 |
+| Weight decay | 0.04 |
+
+### Run
 ```bash
-bash setup.sh
-conda activate golf
-bash run_cuda_feedback.sh
+bash run_runpod_8xh100.sh
 ```
 
-### Key env knobs
+---
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KOOPMAN_ENABLED` | 1 | Enable Koopman capsule dynamics |
-| `KOOPMAN_RANK` | 4 | Low-rank coupling dimension |
-| `KOOPMAN_DIAG_INIT` | 0.9 | Diagonal initial value (stability) |
-| `KOOPMAN_CONSISTENCY_WEIGHT` | 0.005 | Auxiliary loss weight |
-| `ADAPTIVE_HALT_ENABLED` | 1 | Enable eval-time adaptive halting |
-| `ADAPTIVE_HALT_THRESHOLD` | 0.05 | Relative capsule delta threshold |
-| `MAX_EVAL_PASSES` | 3 | Maximum correction passes in eval |
-| `CAPSULE_CARRY_ENABLED` | 1 | Cross-window capsule persistence |
-| `CAPSULE_CARRY_DECAY` | 0.8 | Exponential decay for carry |
-| `FEEDBACK_PASSES` | 1 | Training correction passes |
-| `EVAL_FEEDBACK_PASSES` | 2 | Eval correction passes |
+## Results
 
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the full design rationale.
+| Seed | Steps | ms/step | val_bpb (sliding) | val_bpb (roundtrip) | Artifact |
+|------|-------|---------|-------------------|---------------------|----------|
+| 42   | TBD   | TBD     | TBD               | TBD                 | TBD      |
 
-### Ablation variants
+*Results pending final 8×H100 run.*
 
-```bash
-# KoopCaps off (baseline comparison)
-KOOPMAN_ENABLED=0 ADAPTIVE_HALT_ENABLED=0 CAPSULE_CARRY_ENABLED=0 bash run_cuda_feedback.sh
+---
 
-# Full stack minus feedback (isolate feedback contribution)
-FEEDBACK_ENABLED=0 CAPSULE_ENABLED=0 bash run_cuda_feedback.sh
+## File Structure
 
-# Quick smoke test (1 GPU, 60s)
-ITERATIONS=200 MAX_WALLCLOCK_SECONDS=60 SLIDING_EVAL=0 TEMP_SCALING=0 \
-TTT_ENABLED=0 NGRAM_CACHE_ENABLED=0 NPROC_PER_NODE=1 bash run_cuda_feedback.sh
-```
+| File | Purpose |
+|------|---------|
+| `train_gpt.py` | Main training script |
+| `run_runpod_8xh100.sh` | 8×H100 competition launch script |
+| `run_small_skc_2gpu.sh` | 2-GPU development/testing script |
+| `requirements.txt` | Python dependencies |
+| `submission.json` | Competition submission metadata (generated after run) |

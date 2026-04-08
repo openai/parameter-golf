@@ -1,0 +1,20 @@
+[16:38:13] ========================================================
+[16:38:13] Cheap-GPU Convergence Sweep Round 2
+[16:38:13] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_convergence_sweep_round2_20260405_163813
+[16:38:13] Data shards: 20
+[16:38:13] Run seconds/config: 420
+[16:38:13] Eval mode: proxy_roundtrip
+[16:38:13] ========================================================
+[16:38:13] Trying 1xNVIDIA A40 on COMMUNITY...
+[16:38:13]   failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[16:38:13] Trying 1xNVIDIA A40 on SECURE...
+[16:38:15]   success: pod=1usqzh7ehqm3yg cost=$0.4/hr
+[16:38:15] Waiting for pod SSH readiness...
+[16:39:00] Pod ready: root@194.68.245.28:22173
+[16:39:00] Verifying GPU and runtime...
+[16:39:02] Installing dependencies...
+[16:39:05] FATAL: Dependency install failed
+[16:39:05] Terminating pod 1usqzh7ehqm3yg...
+{
+  "podTerminate": null
+}

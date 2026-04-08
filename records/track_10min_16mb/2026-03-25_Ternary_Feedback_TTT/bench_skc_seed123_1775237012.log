@@ -1,0 +1,21 @@
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:612130 arch:skc layers:4 dim:128 heads:4 seq_len:256
+feedback:False passes:0 every:1 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=False@64 temp_scaling=False ttt=0 ngram_cache=0
+turbo_quant: train=0 export=1 kv=0
+convergence: noise=0.05 sdepth=0.2 ema_eval=0 self_distill=0.0 curriculum=False(seq:256->512->256 @70%/90%)
+weight_averaging: lawa=False(k=10 freq=100) swa=False(every=50 start_scale=0.2) smeargate=False
+radical: tko=True weight_sharing=False inside_out=False(p1=0.2 p2=0.55) skc=True deq=False
+step:1/50 loss:6.9408 t:45355ms step:45355ms
+step:2/50 loss:6.5610 t:58212ms step:11766ms
+step:3/50 loss:6.1402 t:59297ms step:1047ms
+step:4/50 loss:6.0344 t:60173ms step:871ms
+step:5/50 loss:5.9664 t:61019ms step:835ms
+step:50/50 loss:4.6820 t:85893ms step:424ms
+step:50/50 val_loss:6.1783 val_bpb:3.6142 train_time:85898ms
+final_eval val_loss:6.1699 val_bpb:3.6093
+artifact:0.34MB code:174314 total:516342/16000000 (FITS
+Done. Artifact saved to logs/mlx_01e23f5d_model.ternary.ptz

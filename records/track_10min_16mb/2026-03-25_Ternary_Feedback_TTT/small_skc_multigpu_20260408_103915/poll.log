@@ -1,0 +1,76 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_154258
+  MODEL  : SKC L=8 D=320 H=8/4
+  SKC    : block=64 caps=32 cap_dim=128
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=45GB  val_batch=262144
+  BUDGET : 599s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=1 ngram=1
+  SMOKE  : 0
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260408_154258.txt
+params:3213704 L:8 d:320 h:8 kv:4 ws:2 ga:4 s:42
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 3114, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 2734, in main
+[rank0]:     loss = model(x, y)
+[rank0]:            ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 1997, in forward
+[rank0]:     hidden, consistency_losses, _, jepa_loss = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank0]:                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 1897, in _compute_hidden
+[rank0]:     x, v_out = self._run_block(i, x, x0, v0=v0)
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 1865, in _run_block
+[rank0]:     x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor)
+[rank0]:                                                                      ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1729, in __getattr__
+[rank0]:     raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+[rank0]: AttributeError: 'SKCLayer' object has no attribute 'mlp'
+W0408 15:43:10.951000 137697284784768 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 905 closing signal SIGTERM
+E0408 15:43:11.166000 137697284784768 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 904) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-08_15:43:10
+  host      : 058b7ccb9382
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 904)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

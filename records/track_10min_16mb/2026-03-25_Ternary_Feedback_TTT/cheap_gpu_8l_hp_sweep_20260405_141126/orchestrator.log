@@ -1,0 +1,39 @@
+[14:11:26] ========================================================
+[14:11:26] Cheap-GPU 8L Hyperparameter Sweep
+[14:11:26] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_8l_hp_sweep_20260405_141126
+[14:11:26] Data shards: 20
+[14:11:26] Run seconds/config: 420
+[14:11:26] Base config: skc_8L_512D_128C
+[14:11:26] Eval mode: proxy_roundtrip
+[14:11:26] ========================================================
+[14:11:26] Trying 1xNVIDIA A40 on COMMUNITY...
+[14:11:27]   failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[14:11:27] Trying 1xNVIDIA A40 on SECURE...
+[14:11:29]   success: pod=ga8p0cfy3c17g4 cost=$0.4/hr
+[14:11:29] Waiting for pod SSH readiness...
+[14:12:06] Pod ready: root@69.30.85.67:22196
+[14:12:06] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[14:12:16] Installing dependencies...
+deps_ok
+[14:12:22] Downloading dataset...
+fineweb_val_000000.bin: ok
+fineweb_1024_bpe.model: ok
+shards: 5/20
+shards: 10/20
+shards: 15/20
+shards: 20/20
+[14:12:45] Uploading code...
+[14:13:03] Smoke testing 8L sweep path...
+[14:14:49] Starting run: baseline
+[14:23:57] Starting run: lawa_on
+[14:32:38] Starting run: swa_off
+[14:41:15] Starting run: warmdown_30
+[14:50:10] Starting run: warmdown_70
+[14:58:59] Downloading full logs bundle...
+[14:59:20] Cleanup: terminating pod after abnormal exit (code=1)
+[14:59:20] Terminating pod ga8p0cfy3c17g4...
+{
+  "podTerminate": null
+}

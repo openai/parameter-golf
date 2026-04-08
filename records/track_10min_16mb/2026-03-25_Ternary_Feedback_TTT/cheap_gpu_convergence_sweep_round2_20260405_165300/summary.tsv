@@ -1,0 +1,5 @@
+RUN	LAST_RAW_BPB	FINAL_BPB
+distill_002_tq_train	4.0381	4.0382
+distill_002_bigram_128	4.0391	4.0392
+distill_005	4.0409	4.0419
+distill_002	4.0388	4.0436

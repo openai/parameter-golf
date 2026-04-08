@@ -1,0 +1,31 @@
+============================================================
+  ABLATION: no_lawa (MODE=validate)
+  TIME:     Sun Apr  5 13:10:32 UTC 2026
+============================================================
+  RUN_ID       : final_no_lawa_1775394632
+  MODE         : validate
+  LAWA         : 0
+  WARMDOWN     : 0.5
+  SKC_CAPS     : 16 x 128
+  BUDGET       : 420s
+============================================================
+logs/cuda/final_no_lawa_1775394632.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/500000 val_loss:6.9333 val_bpb:4.1737 train_time:0ms zero_frac:0.309
+step:25/500000 loss:25.1153 t:33669ms avg:1346.8ms
+step:50/500000 loss:20.0081 t:73469ms avg:1469.4ms
+step:75/500000 loss:10.5271 t:120082ms avg:1601.1ms
+step:100/500000 loss:7.0875 t:174226ms avg:1742.3ms
+step:125/500000 loss:5.6127 t:239006ms avg:1912.0ms
+step:150/500000 loss:5.1950 t:317958ms avg:2119.7ms
+step:175/500000 loss:4.7873 t:397542ms avg:2271.7ms
+step:190/500000 val_loss:4.6309 val_bpb:2.7877 train_time:446223ms zero_frac:0.315
+stopping_early: wallclock_cap train_time:446223ms step:190/500000
+hessian_ternary_gptq:generating AR self-calibration data...

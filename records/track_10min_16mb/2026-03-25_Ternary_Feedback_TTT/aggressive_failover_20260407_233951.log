@@ -1,0 +1,12 @@
+[23:39:51] Launching AGGRESSIVE FAILOVER (A100 Tier)...
+[23:39:51] ========================================================
+[23:39:51] Cheap Multi-GPU Small SKC Orchestrator
+[23:39:51] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_233951
+[23:39:51] GPU count: 2
+[23:39:51] Min mem  : 80GB
+[23:39:51] Data     : 12 train shards
+[23:39:51] ========================================================
+[23:39:54] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  2x  mem=80GB  stock=Medium  price=$2.98/hr
+[23:39:54] Trying 2xNVIDIA A100-SXM4-80GB on SECURE...
+[23:39:55]   success: pod=47q7g0ge4gdy8x cost=$2.98/hr
+[23:39:55] Waiting for pod SSH readiness...

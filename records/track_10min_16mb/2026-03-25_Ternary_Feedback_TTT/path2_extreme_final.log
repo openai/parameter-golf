@@ -1,0 +1,48 @@
+==========================================================================
+PATH 2 EXTREME: 3.02M Saturated Universal SSM + VRL + TTT
+==========================================================================
+model_params:3114240 arch:koopman_ssm layers:8 dim:256 heads:4 seq_len:1024
+koopman_ssm: state_dim=384 rank=4 conv_kernel=4 decay_window=32 mlp_mult=4
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:True@0.05 carry:True@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=True ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:10567ms step:10565ms
+step:2/200 loss:6.8987 t:15915ms step:5348ms
+step:3/200 loss:6.3222 t:21724ms step:5800ms
+step:4/200 loss:7.2068 t:30607ms step:8882ms
+step:5/200 loss:7.4199 t:40379ms step:9771ms
+step:10/200 loss:6.3518 t:82297ms step:4519ms
+step:20/200 loss:5.2503 t:127485ms step:4622ms
+step:30/200 loss:5.1139 t:172897ms step:4492ms
+step:40/200 loss:4.8417 t:221398ms step:4717ms
+step:50/200 loss:4.6866 t:268014ms step:4538ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.7574 val_bpb:2.8089 train_time:268015ms
+step:60/200 loss:4.3934 t:317408ms step:5217ms
+step:70/200 loss:4.2011 t:365534ms step:4554ms
+step:80/200 loss:4.0856 t:412156ms step:4559ms
+step:90/200 loss:4.1417 t:457976ms step:4512ms
+step:100/200 loss:4.1251 t:503208ms step:4504ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.0406 val_bpb:2.3856 train_time:503208ms
+step:110/200 loss:4.0419 t:549380ms step:4522ms
+step:120/200 loss:3.8768 t:595170ms step:4507ms
+val_progress:1/2
+val_progress:2/2
+step:122/200 val_loss:3.9343 val_bpb:2.3229 train_time:604474ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.4032 val_bpb:2.5997
+final_sliding val_loss:4.3976 val_bpb:2.5962 (stride=64, T=1.00) eval_time:83299ms
+ttt_sliding:start chunks=2 chunk_tokens=32768 stride=64 ttt_lr=0.002 ttt_epochs=1 scope=feedback
+ttt_sliding:params unfrozen=145408
+
+==========================================================================
+BENCHMARK COMPLETE at: Sun Mar 29 16:09:03 CDT 2026
+==========================================================================

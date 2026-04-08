@@ -1,0 +1,40 @@
+==========================================================================
+  Small SKC Competition Run — 8×H100 SXM
+  RUN_ID : skc_h100_s42_20260407_095606
+  MODEL  : SKC  L=8  D=256  vocab=1024
+  SKC    : block=16  caps=8  cap_dim=64
+  ENGRAM : buckets=3072×112  orders=3
+  CURR   : 64 -> 128 -> 256
+  BATCH  : 8192 tok/step  seq=256
+  GPTQ   : disabled for smoke test
+  BUDGET : 45s
+  SEED   : 42
+  GPUS   : 8
+  SMOKE  : 1
+  DATA   : /workspace/data/datasets/fineweb10B_sp1024
+==========================================================================
+logs/cuda/skc_h100_s42_20260407_095606.txt
+DDP enabled: 8 GPUs find_unused=0 static_graph=1
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=31 engram_scalar=12
+params:3810120 L:8 d:256 h:4 kv:2 ws:8 ga:1 s:42
+step:0/500000 val_loss:6.9307 val_bpb:4.1722 train_time:0ms zero_frac:0.674
+step:50/500000 loss:6.7875 t:4657ms avg:93.1ms
+step:100/500000 loss:5.2055 t:9068ms avg:90.7ms
+step:150/500000 loss:4.7971 t:13487ms avg:89.9ms
+step:200/500000 loss:4.1112 t:18025ms avg:90.1ms
+step:250/500000 loss:3.9682 t:22753ms avg:91.0ms
+step:300/500000 loss:3.9995 t:27456ms avg:91.5ms
+step:350/500000 loss:4.0885 t:33039ms avg:94.4ms
+step:400/500000 loss:3.9751 t:38981ms avg:97.5ms
+step:450/500000 loss:3.9684 t:44894ms avg:99.8ms
+step:451/500000 val_loss:3.4952 val_bpb:2.1041 train_time:45012ms zero_frac:0.681
+stopping_early: wallclock_cap train_time:45012ms step:451/500000
+serialization:live_ternary_tensors=28
+lawa:applied k=5 tensors=74 include_ternary=0
+artifact:2.01MB ternary:2756608(670917B,turbo=28,plain=0) fp:791368(1582736B) code:205394
+budget:2216230/16000000 (2.22/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:4.9358 val_bpb:2.9713
+=== DONE ===
+Log      : /workspace/logs/skc_h100_s42_20260407_095606.log
+Artifact : logs/skc_h100_s42_20260407_095606_model.ternary.ptz

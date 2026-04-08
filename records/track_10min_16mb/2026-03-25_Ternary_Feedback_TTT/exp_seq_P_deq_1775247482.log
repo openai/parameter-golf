@@ -1,0 +1,42 @@
+====== START P_deq @ Fri Apr  3 16:14:06 CDT 2026 ======
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:621059 arch:skc layers:4 dim:128 heads:4 seq_len:256
+feedback:False passes:1 every:2 eval_passes:2 capsule:True engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=2 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@32 temp_scaling=False ttt=False ngram_cache=False
+turbo_quant: train=False export=1 kv=True
+convergence: noise=0.0 sdepth=0.0 ema_eval=False self_distill=0.0 curriculum=True(seq:64->128->256 @35%/65%)
+weight_averaging: lawa=True(k=5 freq=100) swa=True(every=50 start_scale=0.2) smeargate=True
+radical: tko=True weight_sharing=0 inside_out=0(p1=0.2 p2=0.55) skc=True deq=True
+Traceback (most recent call last):
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 3825, in <module>
+    main()
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 3692, in main
+    loss, grads = compiled_loss_and_grad(x, y)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/mlx/nn/utils.py", line 35, in wrapped_value_grad_fn
+    value, grad = value_grad_fn(model.trainable_parameters(), *args, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.12/site-packages/mlx/nn/utils.py", line 29, in inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 3577, in <lambda>
+    func = nn.value_and_grad(model, lambda x, y: model.loss(x, y))
+                                                 ^^^^^^^^^^^^^^^^
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 2344, in loss
+    hidden, capsule_state, consistency_losses, jepa_loss, moe_losses = self(input_ids, carry_capsules=carry_capsules)
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 2286, in __call__
+    x, _ = self.deq_feedback.fixed_point_iter(encoded, _deq_f, train_mode=self.training)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 1866, in fixed_point_iter
+    z_accel = self.anderson_acceleration(f_history, x_history)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py", line 1797, in anderson_acceleration
+    if float(mx.max(resid_norms).item()) < 1e-5:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: [eval] Attempting to eval an array during function transformations like compile or vmap is not allowed.
+====== END P_deq @ Fri Apr  3 16:14:07 CDT 2026 ======

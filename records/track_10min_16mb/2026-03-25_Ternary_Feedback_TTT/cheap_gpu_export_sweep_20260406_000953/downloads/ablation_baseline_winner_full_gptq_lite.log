@@ -1,0 +1,65 @@
+logs/cuda/run_1775455775.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:0/10000 val_loss:6.9316 val_bpb:4.1727 train_time:0ms zero_frac:0.414
+step:20/10000 loss:10.0653 t:21413ms avg:1070.7ms
+step:40/10000 loss:6.8270 t:43312ms avg:1082.8ms
+step:60/10000 loss:6.9468 t:66194ms avg:1103.2ms
+step:80/10000 loss:6.9351 t:89160ms avg:1114.5ms
+step:100/10000 loss:6.9777 t:114600ms avg:1146.0ms
+step:120/10000 loss:6.8719 t:141279ms avg:1177.3ms
+step:140/10000 loss:6.9094 t:168247ms avg:1201.8ms
+step:160/10000 loss:6.9618 t:195037ms avg:1219.0ms
+step:180/10000 loss:6.8605 t:228792ms avg:1271.1ms
+step:200/10000 loss:6.8780 t:266319ms avg:1331.6ms
+step:200/10000 val_loss:6.6864 val_bpb:4.0251 train_time:266324ms zero_frac:0.417
+step:220/10000 loss:6.8665 t:303855ms avg:1381.2ms
+step:240/10000 loss:6.8888 t:341448ms avg:1422.7ms
+step:260/10000 loss:6.8603 t:378838ms avg:1457.1ms
+step:280/10000 loss:6.8551 t:416212ms avg:1486.5ms
+step:290/10000 val_loss:6.6857 val_bpb:4.0247 train_time:434859ms zero_frac:0.418
+stopping_early: wallclock_cap train_time:434859ms step:290/10000
+gptq_lite:searching 5 percentiles...
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 3856, in <module>
+    main()
+  File "/workspace/train_gpt.py", line 3646, in main
+    sd = gptq_lite_clip_search(sd, group_size=args.bitnet_group_size,
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 2743, in gptq_lite_clip_search
+    rows, cols = t.shape
+    ^^^^^^^^^^
+ValueError: too many values to unpack (expected 2)
+E0406 06:17:22.761000 140009211982464 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 470) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-06_06:17:22
+  host      : 7c24598338e2
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 470)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

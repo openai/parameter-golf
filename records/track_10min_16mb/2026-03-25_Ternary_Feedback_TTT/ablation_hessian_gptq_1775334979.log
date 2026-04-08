@@ -1,0 +1,36 @@
+========================================================
+  ABLATION: HESSIAN_TERNARY_GPTQ on vs off
+  5-min × 2 runs  |  Sat Apr  4 15:36:19 CDT 2026
+========================================================
+
+>>> GA: HESSIAN_TERNARY_GPTQ=1  (Full Hessian + AR self-calibration)
+GA complete
+  steps   : 227
+  tokens  : 1.9M
+  bpb     : 2.4049
+  artifact: 3.22
+  gptq_t  : n/a (off)
+RESULT_GA:   steps   : 227
+  tokens  : 1.9M
+  bpb     : 2.4049
+  artifact: 3.22
+  gptq_t  : n/a (off)
+
+>>> GB: HESSIAN_TERNARY_GPTQ=0  (percentile clipping only)
+GB complete
+  steps   : 236
+  tokens  : 1.9M
+  bpb     : 2.4127
+  artifact: 3.22
+  gptq_t  : n/a (off)
+RESULT_GB:   steps   : 236
+  tokens  : 1.9M
+  bpb     : 2.4127
+  artifact: 3.22
+  gptq_t  : n/a (off)
+
+========================================================
+  VERDICT
+========================================================
+
+Logs: ablation_GA_hessian_on_1775334979.log  |  ablation_GB_hessian_off_1775334979.log

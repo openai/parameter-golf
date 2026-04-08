@@ -1,0 +1,65 @@
+logs/cuda/run_1775451452.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:0/10000 val_loss:6.9316 val_bpb:4.1727 train_time:0ms zero_frac:0.414
+step:20/10000 loss:10.0653 t:21629ms avg:1081.5ms
+step:40/10000 loss:6.8270 t:43767ms avg:1094.2ms
+step:60/10000 loss:6.9301 t:66597ms avg:1110.0ms
+step:80/10000 loss:6.8861 t:89734ms avg:1121.7ms
+step:100/10000 loss:6.9519 t:114830ms avg:1148.3ms
+step:120/10000 loss:6.9116 t:142227ms avg:1185.2ms
+step:140/10000 loss:6.9040 t:169047ms avg:1207.5ms
+step:160/10000 loss:6.8958 t:195567ms avg:1222.3ms
+step:180/10000 loss:6.8807 t:229557ms avg:1275.3ms
+step:200/10000 loss:6.8691 t:266509ms avg:1332.5ms
+step:200/10000 val_loss:6.7043 val_bpb:4.0359 train_time:266525ms zero_frac:0.417
+step:220/10000 loss:6.8694 t:304447ms avg:1383.8ms
+step:240/10000 loss:6.8639 t:342115ms avg:1425.5ms
+step:260/10000 loss:6.8541 t:379634ms avg:1460.1ms
+step:280/10000 loss:6.8529 t:417400ms avg:1490.7ms
+step:290/10000 val_loss:6.6837 val_bpb:4.0235 train_time:436223ms zero_frac:0.418
+stopping_early: wallclock_cap train_time:436223ms step:290/10000
+hessian_ternary_gptq:using real held-out tokens (32768 tokens)
+hessian_ternary_gptq:collecting Hessians...
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 3854, in <module>
+    main()
+  File "/workspace/train_gpt.py", line 3637, in main
+    hessians = _collect_hessians_for_ternary(base_model, calib_tokens, device, seq_len=1024)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 2808, in _collect_hessians_for_ternary
+    hessians[name] /= max(n_batches, 1)
+RuntimeError: Inplace update to inference tensor outside InferenceMode is not allowed.You can make a clone to get a normal tensor before doing inplace update.See https://github.com/pytorch/rfcs/pull/17 for more details.
+E0406 05:05:32.690000 139771389940352 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 344) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-06_05:05:32
+  host      : 36adabc0d37c
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 344)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

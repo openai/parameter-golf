@@ -1,0 +1,139 @@
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:4223814 arch:skc layers:6 dim:256 heads:4 seq_len:2048
+feedback:True passes:1 every:1 eval_passes:2 capsule:True engram:1(4h2o@L1) vrl:1 xsa_start:8 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=8 diag_init=0.9 consist_w=0.005 halt:1@0.05 carry:1@0.8
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=False@64 temp_scaling=1 ttt=0 ngram_cache=0
+turbo_quant: train=0 export=1 kv=0
+convergence: noise=0.05 sdepth=0.2 ema_eval=0 self_distill=0.0 curriculum=False(seq:256->512->2048 @70%/90%)
+weight_averaging: lawa=False(k=10 freq=100) swa=False(every=50 start_scale=0.2) smeargate=True
+radical: tko=True weight_sharing=False inside_out=False(p1=0.2 p2=0.55) skc=True deq=False
+val_progress:1/947
+val_progress:25/947
+val_progress:50/947
+val_progress:75/947
+val_progress:100/947
+val_progress:125/947
+val_progress:150/947
+val_progress:175/947
+val_progress:200/947
+val_progress:225/947
+val_progress:250/947
+val_progress:275/947
+val_progress:300/947
+val_progress:325/947
+val_progress:350/947
+val_progress:375/947
+val_progress:400/947
+val_progress:425/947
+val_progress:450/947
+val_progress:475/947
+val_progress:500/947
+val_progress:525/947
+val_progress:550/947
+val_progress:575/947
+val_progress:600/947
+val_progress:625/947
+val_progress:650/947
+val_progress:675/947
+val_progress:700/947
+val_progress:725/947
+val_progress:750/947
+val_progress:775/947
+val_progress:800/947
+val_progress:825/947
+val_progress:850/947
+val_progress:875/947
+val_progress:900/947
+val_progress:925/947
+val_progress:947/947
+step:0/200 val_loss:6.9322 val_bpb:4.1056 train_time:0ms
+step:1/200 loss:6.9388 t:126599ms step:126517ms
+step:2/200 loss:6.2121 t:394918ms step:266932ms
+step:3/200 loss:6.1492 t:703506ms step:306774ms
+val_progress:1/947
+val_progress:25/947
+val_progress:50/947
+val_progress:75/947
+val_progress:100/947
+val_progress:125/947
+val_progress:150/947
+val_progress:175/947
+val_progress:200/947
+val_progress:225/947
+val_progress:250/947
+val_progress:275/947
+val_progress:300/947
+val_progress:325/947
+val_progress:350/947
+val_progress:375/947
+val_progress:400/947
+val_progress:425/947
+val_progress:450/947
+val_progress:475/947
+val_progress:500/947
+val_progress:525/947
+val_progress:550/947
+val_progress:575/947
+val_progress:600/947
+val_progress:625/947
+val_progress:650/947
+val_progress:675/947
+val_progress:700/947
+val_progress:725/947
+val_progress:750/947
+val_progress:775/947
+val_progress:800/947
+val_progress:825/947
+val_progress:850/947
+val_progress:875/947
+val_progress:900/947
+val_progress:925/947
+val_progress:947/947
+step:3/200 val_loss:9.8523 val_bpb:5.8351 train_time:705216ms
+EMA shadow weights applied
+val_progress:1/947
+val_progress:25/947
+val_progress:50/947
+val_progress:75/947
+val_progress:100/947
+val_progress:125/947
+val_progress:150/947
+val_progress:175/947
+val_progress:200/947
+val_progress:225/947
+val_progress:250/947
+val_progress:275/947
+val_progress:300/947
+val_progress:325/947
+val_progress:350/947
+val_progress:375/947
+val_progress:400/947
+val_progress:425/947
+val_progress:450/947
+val_progress:475/947
+val_progress:500/947
+val_progress:525/947
+val_progress:550/947
+val_progress:575/947
+val_progress:600/947
+val_progress:625/947
+val_progress:650/947
+val_progress:675/947
+val_progress:700/947
+val_progress:725/947
+val_progress:750/947
+val_progress:775/947
+val_progress:800/947
+val_progress:825/947
+val_progress:850/947
+val_progress:875/947
+val_progress:900/947
+val_progress:925/947
+val_progress:947/947
+final_eval val_loss:9.8357 val_bpb:5.8253
+temp_scaling optimal_T:0.95 eval_time:29706ms
+artifact:2.98MB code:174314 total:3149690/16000000 (FITS
+Done. Artifact saved to logs/mlx_d3486e6f_model.ternary.ptz

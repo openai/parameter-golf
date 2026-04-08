@@ -1,0 +1,37 @@
+[13:28:08] ========================================================
+[13:28:08] Cheap-GPU Compute-Optimal Size Sweep
+[13:28:08] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_size_sweep_20260405_132808
+[13:28:08] Data shards: 20
+[13:28:08] Run seconds/config: 420
+[13:28:08] Eval mode: proxy_roundtrip
+[13:28:08] Configs: skc_6L_512D_128C skc_8L_512D_128C skc_10L_512D_128C
+[13:28:08] ========================================================
+[13:28:08] Trying 1xNVIDIA A40 on COMMUNITY...
+[13:28:09]   failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[13:28:09] Trying 1xNVIDIA A40 on SECURE...
+[13:28:10]   success: pod=hcx4obprzmn9a3 cost=$0.4/hr
+[13:28:10] Waiting for pod SSH readiness...
+[13:28:46] Pod ready: root@69.30.85.154:22030
+[13:28:46] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[13:28:54] Installing dependencies...
+deps_ok
+[13:29:01] Downloading dataset...
+fineweb_val_000000.bin: ok
+fineweb_1024_bpe.model: ok
+shards: 5/20
+shards: 10/20
+shards: 15/20
+shards: 20/20
+[13:29:25] Uploading code...
+[13:29:42] Smoke testing size sweep path...
+[13:31:21] Starting size config: skc_6L_512D_128C
+[13:41:10] Starting size config: skc_8L_512D_128C
+[13:51:03] Starting size config: skc_10L_512D_128C
+[14:00:47] Downloading full logs bundle...
+[14:04:34] Cleanup: terminating pod after abnormal exit (code=1)
+[14:04:34] Terminating pod hcx4obprzmn9a3...
+{
+  "podTerminate": null
+}

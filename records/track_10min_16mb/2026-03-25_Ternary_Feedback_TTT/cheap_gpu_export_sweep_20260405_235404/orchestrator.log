@@ -1,0 +1,34 @@
+[23:54:04] ========================================================
+[23:54:04] Cheap-GPU Export Sweep
+[23:54:04] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/cheap_gpu_export_sweep_20260405_235404
+[23:54:04] Data shards: 20
+[23:54:04] Run seconds/config: 420
+[23:54:04] Eval mode: full_validate
+[23:54:04] ========================================================
+[23:54:04] Trying 1xNVIDIA A40 on COMMUNITY...
+[23:54:05]   failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[23:54:05] Trying 1xNVIDIA A40 on SECURE...
+[23:54:06]   success: pod=3c67r7eef49jqr cost=$0.4/hr
+[23:54:06] Waiting for pod SSH readiness...
+[23:54:43] Pod ready: root@194.68.245.32:22126
+[23:54:43] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[23:54:54] Installing dependencies...
+deps_ok
+[23:55:01] Downloading dataset...
+fineweb_val_000000.bin: ok
+fineweb_1024_bpe.model: ok
+shards: 5/20
+shards: 10/20
+shards: 15/20
+shards: 20/20
+[23:55:27] Uploading code...
+[23:55:43] Smoke testing...
+[23:57:26] Starting run: winner_full
+[00:06:36] Starting run: winner_full_bigram_128
+[00:09:27] Cleanup: terminating pod after abnormal exit (code=255)
+[00:09:27] Terminating pod 3c67r7eef49jqr...
+{
+  "podTerminate": null
+}

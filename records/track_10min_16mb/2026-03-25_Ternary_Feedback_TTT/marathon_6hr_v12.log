@@ -1,0 +1,17 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+"=========================================================================="
+"LAUNCHING: 6-Hour CUDA Marathon (SP1024 | Native Hybrid)"
+"RUN ID: cuda_marathon_sp1024_20260402_122235"
+"=========================================================================="
+logs/cuda/cuda_marathon_sp1024_20260402_122235.txt
+Skipping torch.compile because COMPILE_MODE=none
+params:1524556 L:8 d:128 h:8 kv:4 ws:1 ga:8 s:1337
+Traceback (most recent call last):
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2932, in <module>
+    main()
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2544, in main
+    model.train()
+    ^^^^^
+NameError: name 'model' is not defined. Did you mean: 'code'?

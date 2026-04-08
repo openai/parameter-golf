@@ -1,0 +1,11 @@
+Running baseline (L=8 D=512 C=128 MODE=validate SMOKE=0)
+logs/cuda/run_1775452003.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:0/10000 val_loss:6.9316 val_bpb:4.1727 train_time:0ms zero_frac:0.414
+step:20/10000 loss:10.0653 t:21315ms avg:1065.8ms
+step:40/10000 loss:6.8270 t:43037ms avg:1075.9ms
+step:60/10000 loss:6.9468 t:65689ms avg:1094.8ms
+step:80/10000 loss:6.9351 t:88839ms avg:1110.5ms
+step:100/10000 loss:6.9599 t:113840ms avg:1138.4ms
+step:120/10000 loss:6.8827 t:140302ms avg:1169.2ms

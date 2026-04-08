@@ -1,0 +1,49 @@
+============================================================
+  ABLATION: no_partial_rope
+  TIME:     Sun Apr  5 11:54:35 UTC 2026
+============================================================
+  RUN_ID       : abl_no_partial_rope_1775390075
+  ARCHITECTURE : skc
+  LAYERS       : 11
+  DIM          : 512
+  CURRICULUM   : 1
+  BIGRAM       : 1
+  XSA_START    : 0
+  PARTIAL_ROPE : 0
+  LN_DAMPING   : 1
+  LAWA/SWA     : 1/1
+  SMEARGATE    : 1
+  MATRIX_LR    : 0.02
+  WARMDOWN     : 0.5
+  FEEDBACK     : 0
+  CAPSULE      : 0
+  VRL          : 0
+  BUDGET       : 300s
+============================================================
+logs/cuda/abl_no_partial_rope_1775390075.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:42
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/500000 val_loss:6.9322 val_bpb:4.1731 train_time:0ms zero_frac:0.309
+step:25/500000 loss:20.1239 t:32421ms avg:1296.8ms
+step:50/500000 loss:29.2157 t:67923ms avg:1358.5ms
+step:75/500000 loss:11.3207 t:110223ms avg:1469.6ms
+step:100/500000 loss:6.9382 t:155131ms avg:1551.3ms
+step:100/500000 val_loss:6.3531 val_bpb:3.8245 train_time:155150ms zero_frac:0.311
+step:125/500000 loss:6.0310 t:217164ms avg:1737.3ms
+step:150/500000 loss:5.4942 t:281852ms avg:1879.0ms
+step:160/500000 val_loss:5.2505 val_bpb:3.1607 train_time:306692ms zero_frac:0.313
+stopping_early: wallclock_cap train_time:306692ms step:160/500000
+lawa:applied k=2 snapshots for serialization
+artifact:13.03MB ternary:40370176(9110491B) fp:2484848(4969696B) code:176975
+budget:13209555/16000000 (13.21/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:10.9822 val_bpb:6.6111
+
+=== DONE: no_partial_rope → val_bpb=3.1607 ===
+

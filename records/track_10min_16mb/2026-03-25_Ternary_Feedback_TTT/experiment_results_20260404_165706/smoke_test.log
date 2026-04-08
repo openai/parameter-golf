@@ -1,0 +1,1688 @@
+==========================================================================
+  SKC Competition Run — 8×H100 SXM
+  RUN_ID : skc_h100_s42_20260404_215929
+  MODEL  : SKC  L=11  D=512  vocab=1024  (~48M params / ~12.8MB est)
+  LOCKED : XSA=ALL_LAYERS  bigram=3072×112  (recal FB: +0.019 BPB vs FA)
+  GPTQ   : Full Hessian Ternary GPTQ + selective pruning → 15.5MB target
+  BUDGET : 30s
+  SEED   : 42
+  DATA   : /workspace/data/datasets/fineweb10B_sp1024
+==========================================================================
+logs/cuda/skc_h100_s42_20260404_215929.txt
+torch.compile enabled: mode=default
+DDP enabled: 8 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:8 ga:1 s:42
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank1]:     loss = model(x, y)
+[rank1]:            ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank1]:     return super().__call__(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank1]:     result = self._torchdynamo_orig_backend(
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank1]:     result = self._inner_convert(
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank1]:     result = _compile(
+[rank1]:              ^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank1]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank1]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank1]:     return function(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank1]:     return _compile_inner(code, one_graph, hooks)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank1]:     dynamo_output = compile_frame(
+[rank1]:                     ^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank1]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank1]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank1]:     tracer_output = transformations(instructions, code_options)
+[rank1]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank1]:     tracer_output = trace_frame(
+[rank1]:                     ^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank1]:     run_tracer()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank1]:     tracer.run()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank1]:     while self.step():
+[rank1]:           ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank1]:     self.dispatch_table[inst.opcode](self, inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank1]:     return inner_fn(self, inst)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank1]:     self._call(inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank1]:     self.call_function(fn, args, kwargs)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank1]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank1]:     return super().call_function(tx, args, kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank1]:     return super().call_function(tx, args, kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank1]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank1]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank1]:     return tracer.inline_call_()
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank1]:     self.run()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank1]:     while self.step():
+[rank1]:           ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank1]:     self.dispatch_table[inst.opcode](self, inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank1]:     return inner_fn(self, inst)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank1]:     self._call(inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank1]:     self.call_function(fn, args, kwargs)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank1]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank1]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank1]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank1]:     return super().call_function(tx, args, kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank1]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank1]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank1]:     return tracer.inline_call_()
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank1]:     self.run()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank1]:     while self.step():
+[rank1]:           ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank1]:     self.dispatch_table[inst.opcode](self, inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank1]:     return inner_fn(self, inst)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank1]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank1]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank1]:     return wrap_fx_proxy(tx, proxy)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank1]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank1]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank1]:                        ^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank1]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank1]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank1]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank1]:     _wrap_graph_break_with_torch_runtime_err(
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank1]:     raise exc.with_traceback(e.__traceback__) from None
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank1]:     gb_fn()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank1]:     lambda: unimplemented(
+[rank1]:             ^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank1]:     raise Unsupported(
+[rank1]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank1]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:1', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank1]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank1]:   Developer debug context: 
+
+[rank1]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank1]: from user code:
+[rank1]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank1]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank1]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank1]:     x = x + self.engram(input_ids, hidden=x)
+[rank1]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank1]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank1]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank0]:     loss = model(x, y)
+[rank0]:            ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank0]:     result = self._torchdynamo_orig_backend(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank0]:     result = self._inner_convert(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank0]:     result = _compile(
+[rank0]:              ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank0]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank0]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank0]:     return function(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank0]:     return _compile_inner(code, one_graph, hooks)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank0]:     dynamo_output = compile_frame(
+[rank0]:                     ^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank0]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank0]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank0]:     tracer_output = transformations(instructions, code_options)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank0]:     tracer_output = trace_frame(
+[rank0]:                     ^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank0]:     run_tracer()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank0]:     tracer.run()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank0]:     while self.step():
+[rank0]:           ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank0]:     self.dispatch_table[inst.opcode](self, inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank0]:     return inner_fn(self, inst)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank0]:     self._call(inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank0]:     self.call_function(fn, args, kwargs)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank0]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank0]:     return super().call_function(tx, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank0]:     return super().call_function(tx, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank0]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank0]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank0]:     return tracer.inline_call_()
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank0]:     self.run()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank0]:     while self.step():
+[rank0]:           ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank0]:     self.dispatch_table[inst.opcode](self, inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank0]:     return inner_fn(self, inst)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank0]:     self._call(inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank0]:     self.call_function(fn, args, kwargs)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank0]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank0]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank0]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank0]:     return super().call_function(tx, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank0]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank0]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank0]:     return tracer.inline_call_()
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank0]:     self.run()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank0]:     while self.step():
+[rank0]:           ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank0]:     self.dispatch_table[inst.opcode](self, inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank0]:     return inner_fn(self, inst)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank0]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank0]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank0]:     return wrap_fx_proxy(tx, proxy)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank0]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank0]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank0]:                        ^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank0]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank0]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank0]:     _wrap_graph_break_with_torch_runtime_err(
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank0]:     raise exc.with_traceback(e.__traceback__) from None
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank0]:     gb_fn()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank0]:     lambda: unimplemented(
+[rank0]:             ^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank0]:     raise Unsupported(
+[rank0]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank0]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:0', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank0]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank0]:   Developer debug context: 
+
+[rank0]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank0]: from user code:
+[rank0]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank0]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank0]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank0]:     x = x + self.engram(input_ids, hidden=x)
+[rank0]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank0]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank0]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank4]:     loss = model(x, y)
+[rank4]:            ^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank4]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank4]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank4]:     return super().__call__(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank4]:     result = self._torchdynamo_orig_backend(
+[rank4]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank4]:     result = self._inner_convert(
+[rank4]:              ^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank4]:     result = _compile(
+[rank4]:              ^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank4]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank4]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank4]:     return function(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank4]:     return _compile_inner(code, one_graph, hooks)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank4]:     dynamo_output = compile_frame(
+[rank4]:                     ^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank4]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank4]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank4]:     tracer_output = transformations(instructions, code_options)
+[rank4]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank4]:     tracer_output = trace_frame(
+[rank4]:                     ^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank4]:     run_tracer()
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank4]:     tracer.run()
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank4]:     while self.step():
+[rank4]:           ^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank4]:     self.dispatch_table[inst.opcode](self, inst)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank4]:     return inner_fn(self, inst)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank4]:     self._call(inst)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank4]:     self.call_function(fn, args, kwargs)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank4]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank4]:     return super().call_function(tx, args, kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank4]:     return super().call_function(tx, args, kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank4]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank4]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank4]:     return tracer.inline_call_()
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank4]:     self.run()
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank4]:     while self.step():
+[rank4]:           ^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank4]:     self.dispatch_table[inst.opcode](self, inst)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank4]:     return inner_fn(self, inst)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank4]:     self._call(inst)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank4]:     self.call_function(fn, args, kwargs)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank4]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank4]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank4]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank4]:     return super().call_function(tx, args, kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank4]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank4]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank4]:     return tracer.inline_call_()
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank4]:     self.run()
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank4]:     while self.step():
+[rank4]:           ^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank4]:     self.dispatch_table[inst.opcode](self, inst)
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank4]:     return inner_fn(self, inst)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank4]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank4]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank4]:     return wrap_fx_proxy(tx, proxy)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank4]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank4]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank4]:                        ^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank4]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank4]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank4]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank4]:     _wrap_graph_break_with_torch_runtime_err(
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank4]:     raise exc.with_traceback(e.__traceback__) from None
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank4]:     gb_fn()
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank4]:     lambda: unimplemented(
+[rank4]:             ^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank4]:     raise Unsupported(
+[rank4]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank4]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:4', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank4]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank4]:   Developer debug context: 
+
+[rank4]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank4]: from user code:
+[rank4]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank4]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank4]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank4]:     x = x + self.engram(input_ids, hidden=x)
+[rank4]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank4]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank4]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank3]:     loss = model(x, y)
+[rank3]:            ^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank3]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank3]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank3]:     return super().__call__(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank3]:     result = self._torchdynamo_orig_backend(
+[rank3]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank3]:     result = self._inner_convert(
+[rank3]:              ^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank3]:     result = _compile(
+[rank3]:              ^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank3]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank3]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank3]:     return function(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank3]:     return _compile_inner(code, one_graph, hooks)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank3]:     dynamo_output = compile_frame(
+[rank3]:                     ^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank3]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank3]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank3]:     tracer_output = transformations(instructions, code_options)
+[rank3]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank3]:     tracer_output = trace_frame(
+[rank3]:                     ^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank3]:     run_tracer()
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank3]:     tracer.run()
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank3]:     while self.step():
+[rank3]:           ^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank3]:     self.dispatch_table[inst.opcode](self, inst)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank3]:     return inner_fn(self, inst)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank3]:     self._call(inst)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank3]:     self.call_function(fn, args, kwargs)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank3]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank3]:     return super().call_function(tx, args, kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank3]:     return super().call_function(tx, args, kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank3]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank3]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank3]:     return tracer.inline_call_()
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank3]:     self.run()
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank3]:     while self.step():
+[rank3]:           ^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank3]:     self.dispatch_table[inst.opcode](self, inst)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank3]:     return inner_fn(self, inst)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank3]:     self._call(inst)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank3]:     self.call_function(fn, args, kwargs)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank3]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank3]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank3]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank3]:     return super().call_function(tx, args, kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank3]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank3]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank3]:     return tracer.inline_call_()
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank3]:     self.run()
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank3]:     while self.step():
+[rank3]:           ^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank3]:     self.dispatch_table[inst.opcode](self, inst)
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank3]:     return inner_fn(self, inst)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank3]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank3]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank3]:     return wrap_fx_proxy(tx, proxy)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank3]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank3]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank3]:                        ^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank3]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank3]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank3]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank3]:     _wrap_graph_break_with_torch_runtime_err(
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank3]:     raise exc.with_traceback(e.__traceback__) from None
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank3]:     gb_fn()
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank3]:     lambda: unimplemented(
+[rank3]:             ^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank3]:     raise Unsupported(
+[rank3]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank3]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:3', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank3]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank3]:   Developer debug context: 
+
+[rank3]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank3]: from user code:
+[rank3]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank3]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank3]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank3]:     x = x + self.engram(input_ids, hidden=x)
+[rank3]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank3]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank3]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank2]:     loss = model(x, y)
+[rank2]:            ^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank2]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank2]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank2]:     return super().__call__(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank2]:     result = self._torchdynamo_orig_backend(
+[rank2]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank2]:     result = self._inner_convert(
+[rank2]:              ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank2]:     result = _compile(
+[rank2]:              ^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank2]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank2]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank2]:     return function(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank2]:     return _compile_inner(code, one_graph, hooks)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank2]:     dynamo_output = compile_frame(
+[rank2]:                     ^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank2]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank2]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank2]:     tracer_output = transformations(instructions, code_options)
+[rank2]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank2]:     tracer_output = trace_frame(
+[rank2]:                     ^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank2]:     run_tracer()
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank2]:     tracer.run()
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank2]:     while self.step():
+[rank2]:           ^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank2]:     self.dispatch_table[inst.opcode](self, inst)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank2]:     return inner_fn(self, inst)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank2]:     self._call(inst)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank2]:     self.call_function(fn, args, kwargs)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank2]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank2]:     return super().call_function(tx, args, kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank2]:     return super().call_function(tx, args, kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank2]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank2]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank2]:     return tracer.inline_call_()
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank2]:     self.run()
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank2]:     while self.step():
+[rank2]:           ^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank2]:     self.dispatch_table[inst.opcode](self, inst)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank2]:     return inner_fn(self, inst)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank2]:     self._call(inst)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank2]:     self.call_function(fn, args, kwargs)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank2]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank2]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank2]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank2]:     return super().call_function(tx, args, kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank2]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank2]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank2]:     return tracer.inline_call_()
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank2]:     self.run()
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank2]:     while self.step():
+[rank2]:           ^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank2]:     self.dispatch_table[inst.opcode](self, inst)
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank2]:     return inner_fn(self, inst)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank2]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank2]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank2]:     return wrap_fx_proxy(tx, proxy)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank2]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank2]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank2]:                        ^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank2]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank2]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank2]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank2]:     _wrap_graph_break_with_torch_runtime_err(
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank2]:     raise exc.with_traceback(e.__traceback__) from None
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank2]:     gb_fn()
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank2]:     lambda: unimplemented(
+[rank2]:             ^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank2]:     raise Unsupported(
+[rank2]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank2]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:2', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank2]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank2]:   Developer debug context: 
+
+[rank2]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank2]: from user code:
+[rank2]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank2]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank2]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank2]:     x = x + self.engram(input_ids, hidden=x)
+[rank2]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank2]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank2]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank7]:     loss = model(x, y)
+[rank7]:            ^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank7]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank7]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank7]:     return super().__call__(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank7]:     result = self._torchdynamo_orig_backend(
+[rank7]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank7]:     result = self._inner_convert(
+[rank7]:              ^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank7]:     result = _compile(
+[rank7]:              ^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank7]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank7]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank7]:     return function(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank7]:     return _compile_inner(code, one_graph, hooks)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank7]:     dynamo_output = compile_frame(
+[rank7]:                     ^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank7]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank7]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank7]:     tracer_output = transformations(instructions, code_options)
+[rank7]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank7]:     tracer_output = trace_frame(
+[rank7]:                     ^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank7]:     run_tracer()
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank7]:     tracer.run()
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank7]:     while self.step():
+[rank7]:           ^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank7]:     self.dispatch_table[inst.opcode](self, inst)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank7]:     return inner_fn(self, inst)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank7]:     self._call(inst)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank7]:     self.call_function(fn, args, kwargs)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank7]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank7]:     return super().call_function(tx, args, kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank7]:     return super().call_function(tx, args, kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank7]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank7]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank7]:     return tracer.inline_call_()
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank7]:     self.run()
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank7]:     while self.step():
+[rank7]:           ^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank7]:     self.dispatch_table[inst.opcode](self, inst)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank7]:     return inner_fn(self, inst)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank7]:     self._call(inst)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank7]:     self.call_function(fn, args, kwargs)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank7]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank7]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank7]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank7]:     return super().call_function(tx, args, kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank7]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank7]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank7]:     return tracer.inline_call_()
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank7]:     self.run()
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank7]:     while self.step():
+[rank7]:           ^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank7]:     self.dispatch_table[inst.opcode](self, inst)
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank7]:     return inner_fn(self, inst)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank7]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank7]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank7]:     return wrap_fx_proxy(tx, proxy)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank7]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank7]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank7]:                        ^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank7]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank7]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank7]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank7]:     _wrap_graph_break_with_torch_runtime_err(
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank7]:     raise exc.with_traceback(e.__traceback__) from None
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank7]:     gb_fn()
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank7]:     lambda: unimplemented(
+[rank7]:             ^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank7]:     raise Unsupported(
+[rank7]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank7]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:7', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank7]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank7]:   Developer debug context: 
+
+[rank7]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank7]: from user code:
+[rank7]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank7]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank7]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank7]:     x = x + self.engram(input_ids, hidden=x)
+[rank7]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank7]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank7]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank5]:     loss = model(x, y)
+[rank5]:            ^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank5]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank5]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank5]:     return super().__call__(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank5]:     result = self._torchdynamo_orig_backend(
+[rank5]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank5]:     result = self._inner_convert(
+[rank5]:              ^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank5]:     result = _compile(
+[rank5]:              ^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank5]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank5]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank5]:     return function(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank5]:     return _compile_inner(code, one_graph, hooks)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank5]:     dynamo_output = compile_frame(
+[rank5]:                     ^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank5]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank5]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank5]:     tracer_output = transformations(instructions, code_options)
+[rank5]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank5]:     tracer_output = trace_frame(
+[rank5]:                     ^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank5]:     run_tracer()
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank5]:     tracer.run()
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank5]:     while self.step():
+[rank5]:           ^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank5]:     self.dispatch_table[inst.opcode](self, inst)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank5]:     return inner_fn(self, inst)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank5]:     self._call(inst)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank5]:     self.call_function(fn, args, kwargs)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank5]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank5]:     return super().call_function(tx, args, kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank5]:     return super().call_function(tx, args, kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank5]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank5]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank5]:     return tracer.inline_call_()
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank5]:     self.run()
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank5]:     while self.step():
+[rank5]:           ^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank5]:     self.dispatch_table[inst.opcode](self, inst)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank5]:     return inner_fn(self, inst)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank5]:     self._call(inst)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank5]:     self.call_function(fn, args, kwargs)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank5]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank5]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank5]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank5]:     return super().call_function(tx, args, kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank5]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank5]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank5]:     return tracer.inline_call_()
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank5]:     self.run()
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank5]:     while self.step():
+[rank5]:           ^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank5]:     self.dispatch_table[inst.opcode](self, inst)
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank5]:     return inner_fn(self, inst)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank5]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank5]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank5]:     return wrap_fx_proxy(tx, proxy)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank5]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank5]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank5]:                        ^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank5]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank5]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank5]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank5]:     _wrap_graph_break_with_torch_runtime_err(
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank5]:     raise exc.with_traceback(e.__traceback__) from None
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank5]:     gb_fn()
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank5]:     lambda: unimplemented(
+[rank5]:             ^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank5]:     raise Unsupported(
+[rank5]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank5]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:5', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank5]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank5]:   Developer debug context: 
+
+[rank5]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank5]: from user code:
+[rank5]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank5]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank5]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank5]:     x = x + self.engram(input_ids, hidden=x)
+[rank5]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank5]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank5]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/train_gpt.py", line 3583, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/train_gpt.py", line 3127, in main
+[rank6]:     loss = model(x, y)
+[rank6]:            ^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank6]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank6]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank6]:     return super().__call__(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2316, in __call__
+[rank6]:     result = self._torchdynamo_orig_backend(
+[rank6]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 2052, in __call__
+[rank6]:     result = self._inner_convert(
+[rank6]:              ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 729, in __call__
+[rank6]:     result = _compile(
+[rank6]:              ^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1827, in _compile
+[rank6]:     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+[rank6]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 96, in wrapper_function
+[rank6]:     return function(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1500, in compile_inner
+[rank6]:     return _compile_inner(code, one_graph, hooks)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1534, in _compile_inner
+[rank6]:     dynamo_output = compile_frame(
+[rank6]:                     ^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1408, in compile_frame
+[rank6]:     bytecode, tracer_output = transform_code_object(code, transform)
+[rank6]:                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1608, in transform_code_object
+[rank6]:     tracer_output = transformations(instructions, code_options)
+[rank6]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1380, in transform
+[rank6]:     tracer_output = trace_frame(
+[rank6]:                     ^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 341, in _fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 863, in trace_frame
+[rank6]:     run_tracer()
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 844, in run_tracer
+[rank6]:     tracer.run()
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank6]:     while self.step():
+[rank6]:           ^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank6]:     self.dispatch_table[inst.opcode](self, inst)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank6]:     return inner_fn(self, inst)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank6]:     self._call(inst)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank6]:     self.call_function(fn, args, kwargs)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank6]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 1510, in call_function
+[rank6]:     return super().call_function(tx, args, kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank6]:     return super().call_function(tx, args, kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank6]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank6]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank6]:     return tracer.inline_call_()
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank6]:     self.run()
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank6]:     while self.step():
+[rank6]:           ^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank6]:     self.dispatch_table[inst.opcode](self, inst)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank6]:     return inner_fn(self, inst)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4093, in CALL
+[rank6]:     self._call(inst)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 4084, in _call
+[rank6]:     self.call_function(fn, args, kwargs)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1360, in call_function
+[rank6]:     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/lazy.py", line 294, in realize_and_forward
+[rank6]:     return getattr(self.realize(), name)(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/nn_module.py", line 1146, in call_function
+[rank6]:     return variables.UserFunctionVariable(fn, source=source).call_function(
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 691, in call_function
+[rank6]:     return super().call_function(tx, args, kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/functions.py", line 403, in call_function
+[rank6]:     return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1387, in inline_user_function_return
+[rank6]:     return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5668, in inline_call
+[rank6]:     return tracer.inline_call_()
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 5882, in inline_call_
+[rank6]:     self.run()
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1794, in run
+[rank6]:     while self.step():
+[rank6]:           ^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1459, in step
+[rank6]:     self.dispatch_table[inst.opcode](self, inst)
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 1001, in wrapper
+[rank6]:     return inner_fn(self, inst)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 480, in impl
+[rank6]:     self.push(fn_var.call_function(self, self.popn(nargs), {}))
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1440, in call_function
+[rank6]:     return handler(tx, args, kwargs)  # type: ignore[return-value]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builtin.py", line 1399, in _handle_insert_op_in_graph
+[rank6]:     return wrap_fx_proxy(tx, proxy)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3032, in wrap_fx_proxy
+[rank6]:     return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3107, in wrap_fx_proxy_cls
+[rank6]:     out: VTTypeAlias = _wrap_fx_proxy(
+[rank6]:                        ^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/variables/builder.py", line 3231, in _wrap_fx_proxy
+[rank6]:     example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+[rank6]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3627, in get_fake_value
+[rank6]:     return _get_fake_value_impl(node, tx, allow_non_graph_fake)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3818, in _get_fake_value_impl
+[rank6]:     _wrap_graph_break_with_torch_runtime_err(
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3616, in _wrap_graph_break_with_torch_runtime_err
+[rank6]:     raise exc.with_traceback(e.__traceback__) from None
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3613, in _wrap_graph_break_with_torch_runtime_err
+[rank6]:     gb_fn()
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 3819, in <lambda>
+[rank6]:     lambda: unimplemented(
+[rank6]:             ^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/exc.py", line 631, in unimplemented
+[rank6]:     raise Unsupported(
+[rank6]: torch._dynamo.exc.TorchRuntimeError: RuntimeError when making fake tensor call
+[rank6]:   Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function getitem>(*(FakeTensor(..., device='cuda:6', size=(48, 2048, 8), dtype=torch.int64), (slice(None, None, None), slice(None, None, None), 8)), **{}): got IndexError('index 8 is out of bounds for dimension 2 with size 8')
+[rank6]:   Hint: Your code may result in an error when running in eager. Please double check that your code doesn't contain a similar error when actually running eager/uncompiled. You can do this by removing the `torch.compile` call, or by using `torch.compiler.set_stance("force_eager")`. 
+
+[rank6]:   Developer debug context: 
+
+[rank6]:  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb4315.html
+
+[rank6]: from user code:
+[rank6]:    File "/workspace/train_gpt.py", line 2103, in forward
+[rank6]:     hidden, consistency_losses, _, jepa_loss, skc_aux = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+[rank6]:   File "/workspace/train_gpt.py", line 1994, in _compute_hidden
+[rank6]:     x = x + self.engram(input_ids, hidden=x)
+[rank6]:   File "/workspace/train_gpt.py", line 803, in __call__
+[rank6]:     head_outputs.append(table(all_indices[:, :, i]))
+
+[rank6]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+
+[rank0]:[W404 21:59:44.180557539 ProcessGroupNCCL.cpp:1575] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0404 21:59:45.129000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1821 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1822 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1823 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1824 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1825 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1826 closing signal SIGTERM
+W0404 21:59:45.130000 1814 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 1827 closing signal SIGTERM
+E0404 21:59:45.922000 1814 torch/distributed/elastic/multiprocessing/api.py:986] failed (exitcode: 1) local_rank: 0 (pid: 1820) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 990, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 981, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 317, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 1821)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 2 (local_rank: 2)
+  exitcode  : -15 (pid: 1822)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 1822
+[3]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 1823)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[4]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 4 (local_rank: 4)
+  exitcode  : 1 (pid: 1824)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[5]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 5 (local_rank: 5)
+  exitcode  : -15 (pid: 1825)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 1825
+[6]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 6 (local_rank: 6)
+  exitcode  : -15 (pid: 1826)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 1826
+[7]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 7 (local_rank: 7)
+  exitcode  : 1 (pid: 1827)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-04_21:59:45
+  host      : ccbcacf87f4d
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1820)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

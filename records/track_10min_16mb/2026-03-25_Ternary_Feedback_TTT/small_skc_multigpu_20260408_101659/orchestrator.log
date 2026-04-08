@@ -1,0 +1,39 @@
+[10:16:59] ========================================================
+[10:16:59] Cheap Multi-GPU Small SKC Orchestrator
+[10:16:59] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_101659
+[10:16:59] GPU count: 2
+[10:16:59] Min mem  : 12GB
+[10:16:59] Data     : 12 train shards
+[10:16:59] ========================================================
+0.34	NVIDIA RTX A4000	Low	16	RTX A4000
+0.38	NVIDIA GeForce RTX 4070 Ti	Low	12	RTX 4070 Ti
+0.38	NVIDIA RTX A4500	Low	20	RTX A4500
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.56	NVIDIA GeForce RTX 4080 SUPER	Low	16	RTX 4080 SUPER
+0.68	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA GeForce RTX 5090	Low	32	RTX 5090
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.18	NVIDIA H100 NVL	Low	94	H100 NVL
+0.54	NVIDIA RTX A5000	Low	24	RTX A5000
+0.78	NVIDIA L4	Low	24	L4
+0.8	NVIDIA A40	High	48	A40
+1.18	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+1.72	NVIDIA L40S	Low	48	L40S
+1.78	NVIDIA GeForce RTX 5090	High	32	RTX 5090
+2.98	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.38	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[10:17:04] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
+[10:17:04] Trying 2xNVIDIA A40 on SECURE...
+[10:17:05]   success: pod=lbmts4vh0ya7hd cost=$0.8/hr
+[10:17:05] Waiting for pod SSH readiness...
+[10:17:32] Pod ready: root@69.30.85.25:22075
+[10:17:32] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+1, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[10:17:48] Installing tmux and preparing logs...

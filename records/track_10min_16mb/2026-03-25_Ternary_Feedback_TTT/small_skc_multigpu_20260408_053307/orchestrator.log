@@ -1,0 +1,122 @@
+[05:33:07] ========================================================
+[05:33:08] Cheap Multi-GPU Small SKC Orchestrator
+[05:33:08] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_053307
+[05:33:08] GPU count: 2
+[05:33:08] Min mem  : 12GB
+[05:33:08] Data     : 12 train shards
+[05:33:08] ========================================================
+[05:33:12] GC: terminating stale live pod paramgolf-small-20260408-043557 (4z28se4bzrqbl0, uptime=3408s)
+[05:33:12] Terminating pod 4z28se4bzrqbl0...
+{
+  "podTerminate": null
+}
+0.34	NVIDIA RTX A4000	Low	16	RTX A4000
+0.38	NVIDIA GeForce RTX 4070 Ti	Low	12	RTX 4070 Ti
+0.38	NVIDIA RTX A4500	Low	20	RTX A4500
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.56	NVIDIA GeForce RTX 4080 SUPER	Low	16	RTX 4080 SUPER
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA GeForce RTX 5090	Low	32	RTX 5090
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+1.18	NVIDIA GeForce RTX 4090	High	24	RTX 4090
+1.54	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.78	NVIDIA GeForce RTX 5090	High	32	RTX 5090
+2.98	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.38	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[05:33:22] Secure candidate: RTX 4090 (NVIDIA GeForce RTX 4090)  2x  mem=24GB  stock=High  price=$1.18/hr
+[05:33:22] Trying 2xNVIDIA GeForce RTX 4090 on SECURE...
+[05:33:25]   success: pod=l4n3lx80yvc01m cost=$1.18/hr
+[05:33:25] Waiting for pod SSH readiness...
+[05:33:44] Pod ready: root@209.170.80.132:10003
+[05:33:44] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 4090, 24564 MiB
+1, NVIDIA GeForce RTX 4090, 24564 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[05:34:24] Installing tmux and preparing logs...
+[05:34:42] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[05:35:30] Preparing data...
+wrote:/workspace/data_setup.sh
+[05:36:19] Uploading code...
+[05:36:45] Remote env overrides: <none>
+[05:36:46] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_103653
+  MODEL  : SKC L=8 D=320 H=10/5
+  SKC    : block=16 caps=8 cap_dim=32
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=262144
+  BUDGET : 45s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 51, in <module>
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 51, in <module>
+    class Hyperparameters:
+  File "/workspace/train_gpt.py", line 96, in Hyperparameters
+    class Hyperparameters:
+  File "/workspace/train_gpt.py", line 96, in Hyperparameters
+    feedback_fp_storage = _e("FEEDBACK_FP_STORAGE", False, bool)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 48, in _e
+    feedback_fp_storage = _e("FEEDBACK_FP_STORAGE", False, bool)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 48, in _e
+    if t == bool: return bool(int(v))
+                              ^^^^^^
+ValueError: invalid literal for int() with base 10: 'False'
+    if t == bool: return bool(int(v))
+                              ^^^^^^
+ValueError: invalid literal for int() with base 10: 'False'
+E0408 10:36:55.838000 139667636015104 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 813) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-04-08_10:36:55
+  host      : 830b902d5d95
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 814)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-08_10:36:55
+  host      : 830b902d5d95
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 813)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+[05:37:09] Launching 10-minute run...

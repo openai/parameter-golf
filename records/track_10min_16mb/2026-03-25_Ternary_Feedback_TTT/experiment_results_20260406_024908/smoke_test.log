@@ -1,0 +1,33 @@
+==========================================================================
+  SKC Competition Run — 8×H100 SXM
+  RUN_ID : skc_h100_s42_20260406_075057
+  MODEL  : SKC  L=8  D=512  vocab=1024
+  LOCKED : XSA=ALL_LAYERS  bigram=3072×128  (cheap full-export winner)
+  GPTQ   : disabled for smoke test
+  CURRICULUM: seq=64→128→256→512→1024→2048  fast ramp to full context by 30% wallclock
+  STOCH_DEPTH: 0  (MUST be 0 — non-zero caused oscillation)
+  DELAYS : self_distill@0.10  turbo_train@0.20
+  BUDGET : 45s
+  SEED   : 42
+  GPUS   : 8
+  SMOKE  : 1
+  DATA   : /workspace/data/datasets/fineweb10B_sp1024
+==========================================================================
+logs/cuda/skc_h100_s42_20260406_075057.txt
+DDP enabled: 8 GPUs find_unused=0 static_graph=1
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:32003852 L:8 d:512 h:8 kv:4 ws:8 ga:1 s:42
+step:0/500000 val_loss:6.9330 val_bpb:4.1736 train_time:0ms zero_frac:0.413
+step:40/500000 loss:6.8687 t:8183ms avg:204.6ms
+step:80/500000 loss:6.8614 t:17473ms avg:218.4ms
+step:120/500000 loss:6.8581 t:27632ms avg:230.3ms
+step:160/500000 loss:6.8580 t:37723ms avg:235.8ms
+step:190/500000 val_loss:6.6640 val_bpb:4.0117 train_time:45320ms zero_frac:0.415
+stopping_early: wallclock_cap train_time:45320ms step:190/500000
+artifact:10.03MB ternary:29360128(6330800B) fp:2119436(4238872B) code:189284
+budget:10222176/16000000 (10.22/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.6640 val_bpb:4.0117
+=== DONE ===
+Log      : /workspace/logs/skc_h100_s42_20260406_075057.log
+Artifact : logs/skc_h100_s42_20260406_075057_model.ternary.ptz

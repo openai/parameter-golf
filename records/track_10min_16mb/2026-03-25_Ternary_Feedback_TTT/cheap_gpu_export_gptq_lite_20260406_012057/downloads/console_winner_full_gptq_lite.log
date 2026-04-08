@@ -1,0 +1,35 @@
+Running baseline (L=8 D=512 C=128 MODE=validate SMOKE=0)
+logs/cuda/run_1775456647.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:0/10000 val_loss:6.9316 val_bpb:4.1727 train_time:0ms zero_frac:0.414
+step:20/10000 loss:10.0653 t:21369ms avg:1068.4ms
+step:40/10000 loss:6.8270 t:43003ms avg:1075.1ms
+step:60/10000 loss:6.9468 t:65783ms avg:1096.4ms
+step:80/10000 loss:6.9351 t:88787ms avg:1109.8ms
+step:100/10000 loss:6.9599 t:113617ms avg:1136.2ms
+step:120/10000 loss:6.8827 t:140802ms avg:1173.3ms
+step:140/10000 loss:6.9391 t:167421ms avg:1195.9ms
+step:160/10000 loss:6.9797 t:194658ms avg:1216.6ms
+step:180/10000 loss:6.8609 t:228646ms avg:1270.3ms
+step:200/10000 loss:6.8765 t:266235ms avg:1331.2ms
+step:200/10000 val_loss:6.6924 val_bpb:4.0287 train_time:266243ms zero_frac:0.417
+step:220/10000 loss:6.8840 t:303439ms avg:1379.3ms
+step:240/10000 loss:6.8853 t:341851ms avg:1424.4ms
+step:260/10000 loss:6.8554 t:379790ms avg:1460.7ms
+step:280/10000 loss:6.8597 t:418527ms avg:1494.7ms
+step:290/10000 val_loss:6.6922 val_bpb:4.0286 train_time:437138ms zero_frac:0.417
+stopping_early: wallclock_cap train_time:437138ms step:290/10000
+gptq_lite:searching 5 percentiles...
+gptq_lite:done
+artifact:9.95MB ternary:29360128(6330800B) fp:2070284(4140568B) code:185589
+budget:10135837/16000000 (10.14/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.6920 val_bpb:4.0285
+temp_scaling optimal_T:1.10 eval_time:789496ms
+final_sliding val_loss:6.6880 val_bpb:4.0254 (stride=64, T=1.10) eval_time:157948ms
+ngram_cache val_loss:5.0476 val_bpb:3.0386 (order=5) eval_time:204465ms
+=== DONE baseline ===
+Log      : logs/ablation_baseline_winner_full_gptq_lite.log
+Artifact : logs/ablation_baseline_winner_full_gptq_lite_model.ternary.ptz
+Submit   : logs/ablation_baseline_winner_full_gptq_lite_submission.json

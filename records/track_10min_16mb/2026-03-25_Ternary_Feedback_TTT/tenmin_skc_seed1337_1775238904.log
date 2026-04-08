@@ -1,0 +1,49 @@
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:612130 arch:skc layers:4 dim:128 heads:4 seq_len:256
+feedback:False passes:0 every:1 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=False ttt=0 ngram_cache=0
+turbo_quant: train=0 export=1 kv=0
+convergence: noise=0.05 sdepth=0.2 ema_eval=0 self_distill=0.0 curriculum=False(seq:256->512->256 @70%/90%)
+weight_averaging: lawa=False(k=10 freq=100) swa=False(every=50 start_scale=0.2) smeargate=False
+radical: tko=True weight_sharing=False inside_out=False(p1=0.2 p2=0.55) skc=True deq=False
+step:0/99999 val_loss:6.9332 val_bpb:4.0558 train_time:0ms
+step:1/99999 loss:6.9362 t:723ms step:722ms
+step:2/99999 loss:6.4952 t:1303ms step:574ms
+step:3/99999 loss:6.1308 t:1867ms step:560ms
+step:4/99999 loss:6.0681 t:2440ms step:572ms
+step:5/99999 loss:6.0161 t:2981ms step:533ms
+step:50/99999 loss:4.7324 t:26030ms step:535ms
+step:100/99999 loss:4.5797 t:52159ms step:509ms
+step:150/99999 loss:4.5412 t:78026ms step:498ms
+step:200/99999 loss:4.3967 t:104055ms step:533ms
+step:200/99999 val_loss:5.9700 val_bpb:3.4924 train_time:104057ms
+step:250/99999 loss:4.3209 t:129802ms step:546ms
+step:300/99999 loss:4.3429 t:155536ms step:532ms
+step:350/99999 loss:4.3100 t:181742ms step:493ms
+step:400/99999 loss:4.2430 t:207465ms step:514ms
+step:400/99999 val_loss:5.3658 val_bpb:3.1389 train_time:207467ms
+step:450/99999 loss:4.2342 t:233729ms step:551ms
+step:500/99999 loss:4.1326 t:260119ms step:530ms
+step:550/99999 loss:4.2418 t:286332ms step:492ms
+step:600/99999 loss:4.0509 t:312964ms step:549ms
+step:600/99999 val_loss:5.0670 val_bpb:2.9641 train_time:312969ms
+step:650/99999 loss:4.0881 t:336292ms step:540ms
+step:700/99999 loss:3.9228 t:362646ms step:504ms
+step:750/99999 loss:3.9948 t:388868ms step:503ms
+step:800/99999 loss:4.2300 t:415244ms step:522ms
+step:800/99999 val_loss:4.7803 val_bpb:2.7964 train_time:415249ms
+step:850/99999 loss:4.0770 t:441822ms step:695ms
+step:900/99999 loss:3.9463 t:469174ms step:550ms
+step:950/99999 loss:3.8597 t:495924ms step:540ms
+step:1000/99999 loss:3.8087 t:522718ms step:580ms
+step:1000/99999 val_loss:4.8235 val_bpb:2.8217 train_time:522724ms
+step:1050/99999 loss:3.7152 t:551059ms step:535ms
+step:1100/99999 loss:3.9867 t:577698ms step:525ms
+step:1140/99999 val_loss:4.9403 val_bpb:2.8900 train_time:599167ms
+final_eval val_loss:4.9909 val_bpb:2.9196
+final_sliding val_loss:4.8870 val_bpb:2.8543 (stride=64, T=1.00) eval_time:1671ms
+artifact:0.34MB code:174314 total:517386/16000000 (FITS
+Done. Artifact saved to logs/mlx_7d216d75_model.ternary.ptz

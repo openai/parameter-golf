@@ -1,0 +1,74 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_154725
+  MODEL  : SKC L=8 D=320 H=8/4
+  SKC    : block=64 caps=32 cap_dim=128
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=45GB  val_batch=262144
+  BUDGET : 599s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=1 ngram=1
+  SMOKE  : 0
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260408_154725.txt
+params:3213704 L:8 d:320 h:8 kv:4 ws:2 ga:4 s:42
+../aten/src/ATen/native/cuda/ScatterGatherKernel.cu:144: operator(): block: [0,0,0], thread: [3,0,0] Assertion `idx_dim >= 0 && idx_dim < index_size && "index out of bounds"` failed.
+../aten/src/ATen/native/cuda/ScatterGatherKernel.cu:144: operator(): block: [0,0,0], thread: [4,0,0] Assertion `idx_dim >= 0 && idx_dim < index_size && "index out of bounds"` failed.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 3115, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 2735, in main
+[rank0]:     loss = model(x, y)
+[rank0]:            ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 2012, in forward
+[rank0]:     consist_sum = torch.tensor(0.0, device=input_ids.device)
+[rank0]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: RuntimeError: CUDA error: device-side assert triggered
+[rank0]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank0]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank0]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0408 15:47:34.462000 128350847586944 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 911 closing signal SIGTERM
+E0408 15:47:34.727000 128350847586944 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 910) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-08_15:47:34
+  host      : 7d65787e227a
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 910)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

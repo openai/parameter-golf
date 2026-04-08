@@ -1,0 +1,49 @@
+============================================================
+  ABLATION: vrl_on
+  TIME:     Sun Apr  5 12:26:59 UTC 2026
+============================================================
+  RUN_ID       : abl_vrl_on_1775392019
+  ARCHITECTURE : skc
+  LAYERS       : 11
+  DIM          : 512
+  CURRICULUM   : 1
+  BIGRAM       : 1
+  XSA_START    : 0
+  PARTIAL_ROPE : 16
+  LN_DAMPING   : 1
+  LAWA/SWA     : 1/1
+  SMEARGATE    : 1
+  MATRIX_LR    : 0.02
+  WARMDOWN     : 0.5
+  FEEDBACK     : 0
+  CAPSULE      : 0
+  VRL          : 1
+  BUDGET       : 300s
+============================================================
+logs/cuda/abl_vrl_on_1775392019.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:42
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/500000 val_loss:6.9322 val_bpb:4.1731 train_time:0ms zero_frac:0.309
+step:25/500000 loss:21.8997 t:33597ms avg:1343.9ms
+step:50/500000 loss:22.5845 t:70672ms avg:1413.4ms
+step:75/500000 loss:15.5173 t:118193ms avg:1575.9ms
+step:100/500000 loss:6.5099 t:174109ms avg:1741.1ms
+step:100/500000 val_loss:6.3225 val_bpb:3.8060 train_time:174125ms zero_frac:0.311
+step:125/500000 loss:5.9907 t:242639ms avg:1941.1ms
+step:150/500000 loss:5.5789 t:308240ms avg:2054.9ms
+step:150/500000 val_loss:5.4017 val_bpb:3.2518 train_time:308246ms zero_frac:0.312
+stopping_early: wallclock_cap train_time:308246ms step:150/500000
+lawa:applied k=2 snapshots for serialization
+artifact:13.03MB ternary:40370176(9111479B) fp:2484848(4969696B) code:176975
+budget:13211659/16000000 (13.21/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.7732 val_bpb:4.0774
+
+=== DONE: vrl_on → val_bpb=3.2518 ===
+

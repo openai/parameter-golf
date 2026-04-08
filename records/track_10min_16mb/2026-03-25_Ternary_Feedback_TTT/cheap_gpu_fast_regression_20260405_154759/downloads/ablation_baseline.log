@@ -1,0 +1,39 @@
+logs/cuda/run_1775422166.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:1/10000 loss:7.0866 t:1917ms avg:1917.4ms
+step:2/10000 loss:6.8051 t:3146ms avg:1573.0ms
+step:3/10000 loss:8.2176 t:4410ms avg:1469.9ms
+step:4/10000 loss:7.5891 t:5609ms avg:1402.2ms
+step:5/10000 loss:24.9873 t:6843ms avg:1368.6ms
+step:6/10000 loss:10.7551 t:8146ms avg:1357.7ms
+step:7/10000 loss:13.0423 t:9333ms avg:1333.2ms
+step:8/10000 loss:16.9312 t:10628ms avg:1328.5ms
+step:9/10000 loss:12.6337 t:12521ms avg:1391.2ms
+step:10/10000 loss:11.9301 t:13976ms avg:1397.6ms
+step:11/10000 loss:12.2562 t:15387ms avg:1398.8ms
+step:12/10000 loss:9.6016 t:16765ms avg:1397.1ms
+step:13/10000 loss:11.9821 t:18171ms avg:1397.7ms
+step:14/10000 loss:15.7589 t:19580ms avg:1398.5ms
+step:15/10000 loss:24.8691 t:20978ms avg:1398.5ms
+step:16/10000 loss:11.1825 t:22402ms avg:1400.1ms
+step:17/10000 loss:21.5244 t:24360ms avg:1432.9ms
+step:18/10000 loss:12.6917 t:26312ms avg:1461.8ms
+step:19/10000 loss:12.7236 t:28328ms avg:1490.9ms
+step:20/10000 loss:11.7056 t:30804ms avg:1540.2ms
+step:21/10000 loss:10.1527 t:32787ms avg:1561.3ms
+step:22/10000 loss:9.0983 t:34745ms avg:1579.3ms
+step:23/10000 loss:8.5517 t:36703ms avg:1595.8ms
+step:24/10000 loss:7.7994 t:38663ms avg:1611.0ms
+step:25/10000 loss:7.6698 t:40663ms avg:1626.5ms
+step:26/10000 loss:7.3810 t:42643ms avg:1640.1ms
+step:27/10000 loss:7.0952 t:44845ms avg:1660.9ms
+step:28/10000 loss:7.0409 t:46883ms avg:1674.4ms
+step:29/10000 loss:7.0343 t:48881ms avg:1685.6ms
+step:30/10000 loss:7.0296 t:50833ms avg:1694.4ms
+step:30/10000 val_loss:6.8518 val_bpb:4.1247 train_time:50841ms zero_frac:0.414
+stopping_early: wallclock_cap train_time:50841ms step:30/10000
+artifact:9.93MB ternary:29360128(6632562B) fp:2070284(4140568B) code:185213
+budget:10112981/16000000 (10.11/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.8493 val_bpb:4.1232

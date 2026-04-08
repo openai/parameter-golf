@@ -1,0 +1,217 @@
+[19:08:59] Launching PRODUCTION STABLE (Pure DDP)...
+[19:08:59] ========================================================
+[19:08:59] Cheap Multi-GPU Small SKC Orchestrator
+[19:08:59] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_190859
+[19:08:59] GPU count: 2
+[19:08:59] Min mem  : 40GB
+[19:08:59] Data     : 12 train shards
+[19:08:59] ========================================================
+[19:09:01] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
+[19:09:01] Trying 2xNVIDIA A40 on SECURE...
+[19:09:02]   success: pod=4ua5roxbebl007 cost=$0.8/hr
+[19:09:02] Waiting for pod SSH readiness...
+[19:09:49] Pod ready: root@69.30.85.132:22187
+[19:09:49] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+1, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[19:10:06] Installing tmux and preparing logs...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 531 kB in 0s (3096 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[19:10:17] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[19:10:52] Preparing data...
+wrote:/workspace/data_setup.sh
+[19:11:29] Uploading code...
+[19:11:40] Remote env overrides: HESSIAN_TERNARY_GPTQ=0 TERNARY_THRESHOLD_SEARCH=1 TERNARY_THRESHOLD_STEPS=3 EXPORT_ONLY=0 NUM_LAYERS=8 MODEL_DIM=320 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=8 MOE_TOP_K=4 BIGRAM_HASH_BUCKETS=16384 
+[19:11:40] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_001146
+  MODEL  : SKC L=8 D=320 H=8/4
+  SKC    : block=16 caps=8 cap_dim=64
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=45GB  val_batch=262144
+  BUDGET : 45s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260408_001146.txt
+DDP enabled: 2 GPUs find_unused=1 static_graph=0
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=35 engram_scalar=12
+params:29817992 L:8 d:320 h:8 kv:4 ws:2 ga:1 s:42
+[rank1]:[W408 00:11:56.829336667 reducer.cpp:1400] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W408 00:11:56.865267615 reducer.cpp:1400] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+step:1/500000 loss:7.1098 t:1146ms avg:1145.5ms
+step:2/500000 loss:6.9416 t:1555ms avg:777.7ms
+step:3/500000 loss:6.5660 t:2015ms avg:671.8ms
+step:4/500000 loss:7.0196 t:2440ms avg:609.9ms
+step:5/500000 loss:8.5415 t:2897ms avg:579.3ms
+step:6/500000 loss:9.9827 t:3388ms avg:564.7ms
+step:7/500000 loss:8.4097 t:3856ms avg:550.8ms
+step:8/500000 loss:11.1882 t:4412ms avg:551.5ms
+step:9/500000 loss:8.0290 t:4892ms avg:543.6ms
+step:10/500000 loss:8.5872 t:5338ms avg:533.8ms
+step:11/500000 loss:9.2847 t:5783ms avg:525.7ms
+step:12/500000 loss:8.1078 t:6221ms avg:518.4ms
+step:13/500000 loss:9.1392 t:6644ms avg:511.1ms
+step:14/500000 loss:7.8168 t:7075ms avg:505.3ms
+step:15/500000 loss:9.0416 t:7511ms avg:500.7ms
+step:16/500000 loss:7.8138 t:7953ms avg:497.1ms
+step:17/500000 loss:24.9729 t:8395ms avg:493.8ms
+step:18/500000 loss:10.0524 t:8852ms avg:491.8ms
+step:19/500000 loss:11.7975 t:9289ms avg:488.9ms
+step:20/500000 loss:8.9066 t:9711ms avg:485.6ms
+step:21/500000 loss:10.1047 t:10169ms avg:484.3ms
+step:22/500000 loss:11.6584 t:10610ms avg:482.3ms
+step:23/500000 loss:9.8965 t:11059ms avg:480.8ms
+step:24/500000 loss:9.6789 t:11508ms avg:479.5ms
+step:25/500000 loss:17.2766 t:12051ms avg:482.0ms
+step:26/500000 loss:11.7598 t:12543ms avg:482.4ms
+step:27/500000 loss:10.6293 t:13039ms avg:482.9ms
+step:28/500000 loss:9.3990 t:13527ms avg:483.1ms
+step:29/500000 loss:11.6595 t:14024ms avg:483.6ms
+step:30/500000 loss:9.8067 t:14522ms avg:484.1ms
+step:31/500000 loss:9.3378 t:15019ms avg:484.5ms
+step:32/500000 loss:13.2057 t:15524ms avg:485.1ms
+step:33/500000 loss:9.1475 t:16035ms avg:485.9ms
+step:34/500000 loss:8.9377 t:16616ms avg:488.7ms
+step:35/500000 loss:8.6010 t:17202ms avg:491.5ms
+step:36/500000 loss:9.5749 t:17800ms avg:494.5ms
+step:37/500000 loss:8.5338 t:18424ms avg:498.0ms
+step:38/500000 loss:10.7203 t:19053ms avg:501.4ms
+step:39/500000 loss:10.0997 t:19626ms avg:503.2ms
+step:40/500000 loss:8.9544 t:20170ms avg:504.2ms
+step:41/500000 loss:7.8762 t:20718ms avg:505.3ms
+step:42/500000 loss:9.8653 t:21281ms avg:506.7ms
+step:43/500000 loss:9.1461 t:21838ms avg:507.9ms
+step:44/500000 loss:9.0278 t:22409ms avg:509.3ms
+step:45/500000 loss:11.2596 t:22991ms avg:510.9ms
+step:46/500000 loss:10.0369 t:23555ms avg:512.1ms
+step:47/500000 loss:9.1433 t:24108ms avg:512.9ms
+step:48/500000 loss:8.4952 t:24675ms avg:514.1ms
+step:49/500000 loss:9.3955 t:25218ms avg:514.6ms
+step:50/500000 loss:7.9556 t:25765ms avg:515.3ms
+step:51/500000 loss:8.1261 t:26306ms avg:515.8ms
+step:52/500000 loss:7.5210 t:26866ms avg:516.6ms
+step:53/500000 loss:7.2996 t:27415ms avg:517.3ms
+step:54/500000 loss:7.0742 t:27958ms avg:517.7ms
+step:55/500000 loss:6.7376 t:28499ms avg:518.2ms
+step:56/500000 loss:6.6408 t:29060ms avg:518.9ms
+step:57/500000 loss:6.6197 t:29598ms avg:519.3ms
+step:58/500000 loss:6.3747 t:30162ms avg:520.0ms
+step:59/500000 loss:6.4203 t:30703ms avg:520.4ms
+step:60/500000 loss:6.3243 t:31265ms avg:521.1ms
+step:61/500000 loss:6.6102 t:31807ms avg:521.4ms
+step:62/500000 loss:6.5387 t:32361ms avg:522.0ms
+step:63/500000 loss:6.2960 t:32905ms avg:522.3ms
+step:64/500000 loss:6.0074 t:33460ms avg:522.8ms
+step:65/500000 loss:6.1817 t:33996ms avg:523.0ms
+step:66/500000 loss:6.0011 t:34534ms avg:523.2ms
+step:67/500000 loss:5.9811 t:35078ms avg:523.6ms
+step:68/500000 loss:5.9361 t:35621ms avg:523.8ms
+step:69/500000 loss:5.9383 t:36170ms avg:524.2ms
+step:70/500000 loss:5.8716 t:36716ms avg:524.5ms
+step:71/500000 loss:5.8384 t:37258ms avg:524.8ms
+step:72/500000 loss:5.7754 t:37797ms avg:525.0ms
+step:73/500000 loss:5.7716 t:38354ms avg:525.4ms
+step:74/500000 loss:5.6149 t:38893ms avg:525.6ms
+step:75/500000 loss:5.8498 t:39428ms avg:525.7ms
+step:76/500000 loss:5.6942 t:39969ms avg:525.9ms
+step:77/500000 loss:5.5748 t:40510ms avg:526.1ms
+step:78/500000 loss:5.6588 t:41062ms avg:526.4ms
+step:79/500000 loss:5.7663 t:41604ms avg:526.6ms
+step:80/500000 loss:5.5918 t:42159ms avg:527.0ms
+step:81/500000 loss:5.5809 t:42706ms avg:527.2ms
+step:82/500000 loss:5.5723 t:43273ms avg:527.7ms
+step:83/500000 loss:5.5830 t:43813ms avg:527.9ms
+step:84/500000 loss:5.5918 t:44361ms avg:528.1ms
+step:85/500000 loss:5.5885 t:44892ms avg:528.1ms
+step:86/500000 loss:5.5706 t:45456ms avg:528.6ms
+step:86/500000 val_loss:5.2239 val_bpb:3.1447 train_time:45483ms zero_frac:0.617
+checkpoint:best_live step=86 val_bpb:3.1447
+stopping_early: wallclock_cap train_time:45483ms step:86/500000
+serialization:live_ternary_tensors=84
+serialization:fast_export selected variant=raw (skipped grid search)
+artifact:9.46MB ternary:28972032(12328899B,turbo=96,plain=0) fp:518280(1036560B) code:233371
+budget:9691031/16000000 (9.69/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:5.4119 val_bpb:3.2579
+=== DONE ===
+Log      : /workspace/logs/small_skc_2gpu_s42_20260408_001146.log
+Artifact : logs/small_skc_2gpu_s42_20260408_001146_model.ternary.ptz
+[19:13:43] Launching 10-minute run...
+[19:14:23] progress » step:50/500000 loss:7.0972 t:19434ms avg:388.7ms
+[19:14:41] progress » step:100/500000 loss:5.0223 t:37363ms avg:373.6ms
+[19:14:58] progress » step:150/500000 loss:4.4045 t:55766ms avg:371.8ms
+[19:15:15] progress » step:200/500000 loss:4.2408 t:74444ms avg:372.2ms
+[19:15:34] progress » step:250/500000 loss:4.1672 t:93154ms avg:372.6ms
+[19:15:51] progress » step:300/500000 loss:3.9351 t:112146ms avg:373.8ms
+[19:16:09] progress » step:350/500000 loss:3.9501 t:131421ms avg:375.5ms
+[19:16:27] progress » step:400/500000 loss:4.0885 t:150699ms avg:376.7ms
+[19:16:48] progress » step:450/500000 loss:3.9853 t:171684ms avg:381.5ms
+[19:17:05] progress » step:450/500000 loss:3.9853 t:171684ms avg:381.5ms
+[19:17:23] progress » step:500/500000 loss:3.9703 t:192977ms avg:386.0ms
+[19:17:42] progress » step:550/500000 loss:3.9987 t:214953ms avg:390.8ms
+[19:17:59] progress » step:600/500000 loss:3.8584 t:239954ms avg:399.9ms
+[19:18:18] progress » step:600/500000 loss:3.8584 t:239954ms avg:399.9ms
+[19:18:35] progress » step:650/500000 loss:3.8985 t:265204ms avg:408.0ms
+[19:18:54] progress » step:700/500000 loss:3.9765 t:289916ms avg:414.2ms
+[19:21:21] progress » step:1000/500000 loss:3.6855 t:438707ms avg:438.7ms
+[19:21:38] progress » step:1050/500000 loss:3.7236 t:463244ms avg:441.2ms
+[19:21:56] progress » step:1050/500000 loss:3.7236 t:463244ms avg:441.2ms
+[19:22:14] progress » step:1100/500000 loss:3.8423 t:489025ms avg:444.6ms
+[19:22:31] progress » step:1150/500000 loss:3.5523 t:515624ms avg:448.4ms
+[19:22:48] progress » step:1150/500000 loss:3.5523 t:515624ms avg:448.4ms
+[19:23:06] progress » step:1200/500000 loss:3.4179 t:540569ms avg:450.5ms
+[19:23:24] progress » step:1250/500000 loss:3.5607 t:565014ms avg:452.0ms
+[19:23:42] progress » step:1250/500000 loss:3.5607 t:565014ms avg:452.0ms
+[19:23:59] progress » checkpoint:best_live step=1320 val_bpb:1.9397
+[19:24:17] progress » checkpoint:best_live step=1320 val_bpb:1.9397
+[19:24:35] progress » artifact:9.49MB ternary:28972032(12339518B,turbo=96,plain=0) fp:518280(1036560B) code:233371
+[19:25:00] RUN_ID=small_skc_2gpu_s42_20260408_001347
+[19:26:00] Submission summary:
+{
+  "model_size": null,
+  "val_loss": 4.7735,
+  "val_bpb": 2.8736
+}
+[19:26:00] Terminating pod 4ua5roxbebl007...
+{
+  "podTerminate": null
+}
+[19:26:02] Complete. Artifacts:
+[19:26:02]   log        : /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_190859/full_run.log
+[19:26:02]   download dir: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_190859/downloads

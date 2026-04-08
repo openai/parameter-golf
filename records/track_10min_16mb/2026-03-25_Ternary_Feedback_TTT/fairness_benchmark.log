@@ -1,0 +1,177 @@
+============================================================================
+APPLES-TO-APPLES FAIRNESS BENCHMARK
+Started at: Sun Mar 29 13:16:55 CDT 2026
+============================================================================
+
+==========================================================================
+RUN 1: Full Current Model — All Innovations (Control)
+==========================================================================
+model_params:3793362 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:2 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:True xsa_start:2 partial_rope:8 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:True@0.05 carry:True@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:780ms step:779ms
+step:2/200 loss:6.9012 t:1234ms step:454ms
+step:3/200 loss:6.3379 t:1880ms step:646ms
+step:4/200 loss:7.5448 t:2330ms step:450ms
+step:5/200 loss:7.5587 t:2977ms step:647ms
+step:10/200 loss:6.7170 t:5625ms step:449ms
+step:20/200 loss:5.5474 t:11343ms step:452ms
+step:30/200 loss:5.1953 t:16968ms step:448ms
+step:40/200 loss:5.0003 t:22417ms step:439ms
+step:50/200 loss:4.8664 t:27923ms step:447ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.8170 val_bpb:2.8440 train_time:27923ms
+step:60/200 loss:4.5822 t:33393ms step:447ms
+step:70/200 loss:4.3558 t:38823ms step:437ms
+step:80/200 loss:4.2701 t:44277ms step:447ms
+step:90/200 loss:4.3331 t:49808ms step:445ms
+step:100/200 loss:4.3002 t:55165ms step:428ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.2664 val_bpb:2.5189 train_time:55165ms
+step:110/200 loss:4.2715 t:60568ms step:445ms
+step:120/200 loss:4.1549 t:65984ms step:448ms
+step:130/200 loss:4.1706 t:71405ms step:438ms
+step:140/200 loss:4.0560 t:76739ms step:430ms
+step:150/200 loss:4.1093 t:82109ms step:445ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.0864 val_bpb:2.4127 train_time:82109ms
+step:160/200 loss:4.0043 t:87551ms step:442ms
+step:170/200 loss:4.3807 t:92973ms step:443ms
+step:180/200 loss:4.2261 t:98414ms step:443ms
+step:190/200 loss:3.9680 t:103887ms step:456ms
+step:200/200 loss:4.0418 t:109412ms step:443ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.0507 val_bpb:2.3916 train_time:109412ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.0507 val_bpb:2.3916
+final_sliding val_loss:4.0510 val_bpb:2.3917 (stride=64, T=1.10) eval_time:12452ms
+
+==========================================================================
+RUN 2: ISO-PARAMETER — All Innovations, Matched Params (~4.01M)
+==========================================================================
+model_params:3317458 layers:4 dim:256 heads:4 seq_len:1024
+feedback:True passes:1 every:2 eval_passes:2 capsule:True engram:True(2h2o@L1) vrl:True xsa_start:2 partial_rope:8 lrelu2:lrelu2 shared_blocks:0
+koopman:rank=2 diag_init=0.9 consist_w=0.005 halt:True@0.05 carry:True@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9315 val_bpb:4.0924 train_time:0ms
+step:1/200 loss:6.9365 t:1383ms step:1382ms
+step:2/200 loss:6.9125 t:1833ms step:450ms
+step:3/200 loss:6.4831 t:2489ms step:655ms
+step:4/200 loss:6.4343 t:2935ms step:445ms
+step:5/200 loss:6.5647 t:3579ms step:644ms
+step:10/200 loss:7.0197 t:6206ms step:450ms
+step:20/200 loss:5.3300 t:11661ms step:440ms
+step:30/200 loss:5.1613 t:17056ms step:431ms
+step:40/200 loss:4.9412 t:22514ms step:446ms
+step:50/200 loss:4.8995 t:28001ms step:443ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.8702 val_bpb:2.8754 train_time:28001ms
+step:60/200 loss:4.7205 t:33510ms step:444ms
+step:70/200 loss:4.6521 t:38971ms step:447ms
+step:80/200 loss:4.4818 t:44392ms step:444ms
+step:90/200 loss:4.4548 t:49847ms step:452ms
+step:100/200 loss:4.5924 t:55281ms step:442ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.4759 val_bpb:2.6426 train_time:55282ms
+step:110/200 loss:4.4522 t:60736ms step:453ms
+step:120/200 loss:4.2747 t:66310ms step:454ms
+step:130/200 loss:4.3342 t:71766ms step:452ms
+step:140/200 loss:4.2503 t:77250ms step:449ms
+step:150/200 loss:4.2619 t:82698ms step:444ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.2801 val_bpb:2.5270 train_time:82699ms
+step:160/200 loss:4.2142 t:88165ms step:449ms
+step:170/200 loss:4.4768 t:93625ms step:447ms
+step:180/200 loss:4.4006 t:99092ms step:451ms
+step:190/200 loss:4.1641 t:104522ms step:445ms
+step:200/200 loss:4.1924 t:109995ms step:449ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.2227 val_bpb:2.4932 train_time:109995ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.2227 val_bpb:2.4932
+final_sliding val_loss:4.2211 val_bpb:2.4920 (stride=64, T=1.10) eval_time:12406ms
+
+==========================================================================
+RUN 3: ISO-FLOP — Zero-Cost Innovations Only (Matched Params + Step Time)
+==========================================================================
+model_params:3085842 layers:4 dim:256 heads:4 seq_len:1024
+feedback:False passes:1 every:2 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:True xsa_start:2 partial_rope:8 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:444ms step:444ms
+step:2/200 loss:6.9012 t:871ms step:426ms
+step:3/200 loss:6.3378 t:1298ms step:426ms
+step:4/200 loss:7.5549 t:1720ms step:422ms
+step:5/200 loss:7.5274 t:2136ms step:416ms
+step:10/200 loss:6.5143 t:4261ms step:429ms
+step:20/200 loss:5.6486 t:8550ms step:423ms
+step:30/200 loss:5.2056 t:12797ms step:424ms
+step:40/200 loss:4.9445 t:17083ms step:431ms
+step:50/200 loss:4.8642 t:21364ms step:424ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.9447 val_bpb:2.9194 train_time:21364ms
+step:60/200 loss:4.7169 t:25639ms step:417ms
+step:70/200 loss:4.6529 t:29808ms step:422ms
+step:80/200 loss:4.6156 t:34067ms step:431ms
+step:90/200 loss:4.6684 t:38333ms step:424ms
+step:100/200 loss:4.7163 t:42590ms step:424ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.6892 val_bpb:2.7686 train_time:42591ms
+step:110/200 loss:4.7395 t:46789ms step:412ms
+step:120/200 loss:4.6091 t:50957ms step:426ms
+step:130/200 loss:4.7167 t:55316ms step:513ms
+step:140/200 loss:4.5707 t:59556ms step:424ms
+step:150/200 loss:4.6172 t:63812ms step:425ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.6086 val_bpb:2.7210 train_time:63812ms
+step:160/200 loss:4.5653 t:68053ms step:423ms
+step:170/200 loss:4.7172 t:72318ms step:423ms
+step:180/200 loss:4.7188 t:76588ms step:430ms
+step:190/200 loss:4.5321 t:80836ms step:423ms
+step:200/200 loss:4.6005 t:85083ms step:422ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.5526 val_bpb:2.6879 train_time:85083ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.5526 val_bpb:2.6879
+final_sliding val_loss:4.5607 val_bpb:2.6926 (stride=64, T=1.00) eval_time:8180ms
+
+==========================================================================
+BENCHMARK COMPLETE at: Sun Mar 29 13:22:59 CDT 2026
+==========================================================================
+
+Reference: Baseline A (from ablation_results.txt, Seed 42):
+  model_params:3085840  step ~667ms  final_sliding BPB=2.5590
+
+Reference: Baseline B — feedback+engram+tricks (Seed 42):
+  model_params:3422736  step ~844ms  final_sliding BPB=2.4084
+
+Compare: params | step time (ms) | final_sliding val_bpb

@@ -1,0 +1,16 @@
+logs/cuda/run_1775422274.txt
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:31954700 L:8 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+step:0/10000 val_loss:6.9319 val_bpb:4.1729 train_time:0ms zero_frac:0.414
+step:20/10000 loss:11.9701 t:20898ms avg:1044.9ms
+step:40/10000 loss:6.9333 t:42950ms avg:1073.7ms
+step:60/10000 loss:6.8961 t:69368ms avg:1156.1ms
+step:80/10000 loss:6.9009 t:98785ms avg:1234.8ms
+step:100/10000 loss:6.9303 t:135495ms avg:1355.0ms
+step:120/10000 loss:6.8716 t:172028ms avg:1433.6ms
+step:130/10000 val_loss:6.7133 val_bpb:4.0413 train_time:190622ms zero_frac:0.417
+stopping_early: wallclock_cap train_time:190622ms step:130/10000
+artifact:9.93MB ternary:29360128(6616808B) fp:2070284(4140568B) code:185213
+budget:10115269/16000000 (10.12/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.7133 val_bpb:4.0413

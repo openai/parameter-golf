@@ -1,0 +1,154 @@
+[12:25:53] ========================================================
+[12:25:53] Cheap Multi-GPU Small SKC Orchestrator
+[12:25:53] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_122553
+[12:25:53] GPU count: 2
+[12:25:53] Min mem  : 40GB
+[12:25:53] Data     : 2 train shards
+[12:25:53] ========================================================
+[12:25:57] Secure candidate: RTX PRO 6000 (NVIDIA RTX PRO 6000 Blackwell Server Edition)  2x  mem=96GB  stock=High  price=$3.38/hr
+[12:25:57] Trying 2xNVIDIA RTX PRO 6000 Blackwell Server Edition on SECURE...
+[12:25:58]   success: pod=n1uklwo5gdabh4 cost=$3.38/hr
+[12:25:58] Waiting for pod SSH readiness...
+[12:26:38] Pod ready: root@216.243.220.245:19904
+[12:26:38] Verifying GPU and runtime...
+0, NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB
+1, NVIDIA RTX PRO 6000 Blackwell Server Edition, 97887 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[12:26:56] Installing tmux and preparing logs...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 2s (308 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+debconf: delaying package configuration, since apt-utils is not installed
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[12:28:09] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[12:30:18] Preparing data...
+wrote:/workspace/data_setup.sh
+[12:31:36] Uploading code...
+[12:32:26] Remote env overrides: TRAIN_BATCH_TOKENS=16384 TERNARY_THRESHOLD_SEARCH=1 NGRAM_CACHE_ENABLED=0 EXPORT_ONLY=0 SEED=1337 NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 BIGRAM_HASH_BUCKETS=16384 
+[12:32:26] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s1337_20260407_173236
+  MODEL  : SKC L=8 D=256 H=4/2
+  SKC    : block=16 caps=8 cap_dim=64
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.85 thr_search=1 scale_search=0
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=256
+  VRAM   : min_gpu_mem=96GB  val_batch=32768
+  BUDGET : 45s
+  SEED   : 1337
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py:230: UserWarning: 
+NVIDIA RTX PRO 6000 Blackwell Server Edition with CUDA capability sm_120 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+If you want to use the NVIDIA RTX PRO 6000 Blackwell Server Edition GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+  warnings.warn(
+/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py:230: UserWarning: 
+NVIDIA RTX PRO 6000 Blackwell Server Edition with CUDA capability sm_120 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+If you want to use the NVIDIA RTX PRO 6000 Blackwell Server Edition GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+  warnings.warn(
+logs/cuda/small_skc_2gpu_s1337_20260407_173236.txt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 4670, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 3895, in main
+[rank0]:     model = DDP(compiled_model, **ddp_kwargs)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 824, in __init__
+[rank0]:     _sync_module_states(
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/distributed/utils.py", line 315, in _sync_module_states
+[rank0]:     _sync_params_and_buffers(process_group, module_states, broadcast_bucket_size, src)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/distributed/utils.py", line 326, in _sync_params_and_buffers
+[rank0]:     dist._broadcast_coalesced(
+[rank0]: RuntimeError: CUDA error: no kernel image is available for execution on the device
+[rank0]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank0]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank0]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt.py", line 4670, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt.py", line 3895, in main
+[rank1]:     model = DDP(compiled_model, **ddp_kwargs)
+[rank1]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 824, in __init__
+[rank1]:     _sync_module_states(
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/distributed/utils.py", line 315, in _sync_module_states
+[rank1]:     _sync_params_and_buffers(process_group, module_states, broadcast_bucket_size, src)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/distributed/utils.py", line 326, in _sync_params_and_buffers
+[rank1]:     dist._broadcast_coalesced(
+[rank1]: RuntimeError: CUDA error: no kernel image is available for execution on the device
+[rank1]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank1]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank1]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0407 17:35:08.674000 126940219658240 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 911 closing signal SIGTERM
+E0407 17:35:08.787000 126940219658240 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 910) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-07_17:35:08
+  host      : 5b97757121ab
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 910)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+[12:35:16] Launching 10-minute run...
+[13:09:29] Balance floor reached: clientBalance=49.9309599079 <= 50
+[13:09:29] Balance guard: terminating live pod paramgolf-small-20260407-125000 (272uqcfziv3jfe, uptime=1140s)
+[13:09:30] KEEP_POD_ON_EXIT=1, skipping termination of pod 272uqcfziv3jfe.

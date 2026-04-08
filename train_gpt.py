@@ -63,9 +63,15 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", 320))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    
+    # MoE options
+    moe_enabled = bool(int(os.environ.get("MOE_ENABLED", "1")))
+    moe_num_experts = int(os.environ.get("MOE_NUM_EXPERTS", 8))
+    moe_top_k = int(os.environ.get("MOE_TOP_K", 2))
+    moe_router_aux_loss_coef = float(os.environ.get("MOE_ROUTER_AUX_LOSS_COEF", 0.01))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -617,6 +623,56 @@ class MLP(nn.Module):
         return self.proj(x.square())
 
 
+class DenseMoE(nn.Module):
+    """Sparse Mixture of Experts."""
+    def __init__(
+        self,
+        dim: int,
+        mlp_mult: int,
+        num_experts: int,
+        top_k: int,
+    ):
+        super().__init__()
+        self.num_experts = num_experts
+        self.top_k = top_k
+        self.router = CastedLinear(dim, num_experts, bias=False)
+        self.experts = nn.ModuleList([
+            MLP(dim, mlp_mult)
+            for _ in range(num_experts)
+        ])
+        self.aux_loss = None
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        B, T, D = x.shape
+        x_flat = x.view(-1, D)
+        router_logits = self.router(x_flat)
+        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float32)
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+        routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+        routing_weights = routing_weights.to(x.dtype)
+        
+        final_output = torch.zeros_like(x_flat)
+        for i, expert in enumerate(self.experts):
+            expert_mask = (selected_experts == i)
+            if expert_mask.any():
+                expert_indices = expert_mask.nonzero(as_tuple=True)
+                token_indices = expert_indices[0]
+                expert_weights = routing_weights[expert_mask]
+                tokens_for_expert = x_flat[token_indices]
+                expert_out = expert(tokens_for_expert)
+                final_output.index_add_(0, token_indices, expert_out * expert_weights.unsqueeze(-1))
+                
+        if self.training:
+            density = F.softmax(router_logits, dim=1).mean(dim=0)
+            routed = torch.bincount(selected_experts.reshape(-1), minlength=self.num_experts).to(density.dtype)
+            fraction_routed = routed / float(B * T * self.top_k)
+            self.aux_loss = (density * fraction_routed).mean() * self.num_experts
+        else:
+            self.aux_loss = torch.zeros((), device=x.device, **(dict(dtype=x.dtype) if not x.dtype.is_floating_point else {}))
+
+        return final_output.view(B, T, D), self.aux_loss
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -631,18 +687,28 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        if Hyperparameters.moe_enabled:
+            self.mlp = DenseMoE(dim, mlp_mult, num_experts=Hyperparameters.moe_num_experts, top_k=Hyperparameters.moe_top_k)
+        else:
+            self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor) -> tuple[Tensor, Tensor]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
+        
+        mlp_out = self.mlp(self.mlp_norm(x))
+        if isinstance(mlp_out, tuple):
+            mlp_out, moe_loss = mlp_out
+        else:
+            moe_loss = x.new_zeros(())
+            
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+        return x, Hyperparameters.moe_router_aux_loss_coef * moe_loss
 
 
 class GPT(nn.Module):
@@ -702,15 +768,18 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
+        moe_losses: list[Tensor] = []
 
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x, aux_loss = self.blocks[i](x, x0)
             skips.append(x)
+            moe_losses.append(aux_loss)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x, aux_loss = self.blocks[self.num_encoder_layers + i](x, x0)
+            moe_losses.append(aux_loss)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -721,7 +790,12 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        
+        if self.training and moe_losses:
+            total_moe = torch.sum(torch.stack([l for l in moe_losses if l.ndim == 0]))
+            return ce_loss + total_moe
+        return ce_loss
 
 
 # -----------------------------

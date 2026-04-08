@@ -1,0 +1,47 @@
+====== START J_lr_low @ Fri Apr  3 15:17:29 CDT 2026 ======
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:612258 arch:skc layers:4 dim:128 heads:4 seq_len:256
+feedback:False passes:1 every:2 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@32 temp_scaling=False ttt=False ngram_cache=False
+turbo_quant: train=False export=1 kv=True
+convergence: noise=0.0 sdepth=0.0 ema_eval=False self_distill=0.0 curriculum=True(seq:64->128->256 @35%/65%)
+weight_averaging: lawa=True(k=5 freq=100) swa=True(every=50 start_scale=0.2) smeargate=True
+radical: tko=True weight_sharing=0 inside_out=0(p1=0.2 p2=0.55) skc=True deq=0
+step:1/200 loss:6.9357 t:165ms step:165ms
+step:2/200 loss:6.7038 t:292ms step:127ms
+step:3/200 loss:6.2847 t:420ms step:128ms
+step:4/200 loss:6.1299 t:549ms step:129ms
+step:5/200 loss:6.1490 t:679ms step:129ms
+step:10/200 loss:5.9603 t:1340ms step:133ms
+step:20/200 loss:5.7359 t:2654ms step:129ms
+step:30/200 loss:5.3654 t:4016ms step:153ms
+step:40/200 loss:5.0956 t:5342ms step:133ms
+step:50/200 loss:4.9087 t:6667ms step:133ms
+step:60/200 loss:4.8425 t:7979ms step:131ms
+step:70/200 loss:4.6984 t:9356ms step:137ms
+step:80/200 loss:4.6313 t:10682ms step:130ms
+step:90/200 loss:4.6055 t:12015ms step:129ms
+step:100/200 loss:4.6470 t:13345ms step:133ms
+step:110/200 loss:4.5020 t:14683ms step:131ms
+step:120/200 loss:4.3703 t:16011ms step:130ms
+step:130/200 loss:4.4389 t:17333ms step:133ms
+step:140/200 loss:4.2742 t:18651ms step:129ms
+step:150/200 loss:4.4938 t:19975ms step:133ms
+step:160/200 loss:4.2946 t:21328ms step:127ms
+step:170/200 loss:4.3160 t:22641ms step:134ms
+step:180/200 loss:4.3393 t:23983ms step:132ms
+step:190/200 loss:4.2039 t:25293ms step:132ms
+step:200/200 loss:4.1800 t:26653ms step:134ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.3794 val_bpb:2.5888 train_time:26653ms
+lawa:applied k=2 snapshots for serialization
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.3305 val_bpb:2.5599
+final_sliding val_loss:4.3276 val_bpb:2.5586 (stride=32, T=1.00) eval_time:3510ms
+artifact:0.35MB code:174314 total:519630/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz

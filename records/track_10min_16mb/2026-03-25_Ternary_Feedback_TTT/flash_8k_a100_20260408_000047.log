@@ -1,0 +1,17 @@
+[00:00:47] Launching 8K FLASH (A100 Tier Guarantee)...
+[00:00:47] ========================================================
+[00:00:47] Cheap Multi-GPU Small SKC Orchestrator
+[00:00:47] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_000047
+[00:00:47] GPU count: 2
+[00:00:47] Min mem  : 80GB
+[00:00:47] Data     : 12 train shards
+[00:00:47] ========================================================
+[00:00:51] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  2x  mem=80GB  stock=Medium  price=$2.98/hr
+[00:00:51] Trying 2xNVIDIA A100-SXM4-80GB on SECURE...
+[00:00:52]   success: pod=3jv6jp6tf0p6al cost=$2.98/hr
+[00:00:52] Waiting for pod SSH readiness...
+[00:26:35] FATAL: Pod not SSH-ready after 600s
+[00:26:35] Terminating pod 3jv6jp6tf0p6al...
+{
+  "podTerminate": null
+}

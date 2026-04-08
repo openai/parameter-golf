@@ -1,0 +1,41 @@
+=== SEQUENTIAL ABLATION START: Fri Apr  3 15:13:20 CDT 2026 ===
+====== START B_6layers @ Fri Apr  3 15:13:20 CDT 2026 ======
+====== END B_6layers @ Fri Apr  3 15:13:20 CDT 2026 ======
+  -> B_6layers: no BPB. Last: ====== END B_6layers @ Fri Apr  3 15:13:20 CDT 2026 ======
+====== START F_curriculum_off @ Fri Apr  3 15:13:20 CDT 2026 ======
+====== END F_curriculum_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> F_curriculum_off: no BPB. Last: ====== END F_curriculum_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START G_lawa_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END G_lawa_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> G_lawa_off: no BPB. Last: ====== END G_lawa_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START H_smeargate_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END H_smeargate_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> H_smeargate_off: no BPB. Last: ====== END H_smeargate_off @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START I_lr_high @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END I_lr_high @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> I_lr_high: no BPB. Last: ====== END I_lr_high @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START J_lr_low @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END J_lr_low @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> J_lr_low: no BPB. Last: ====== END J_lr_low @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START K_6layers_s1337 @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END K_6layers_s1337 @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> K_6layers_s1337: no BPB. Last: ====== END K_6layers_s1337 @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START L_weight_share @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END L_weight_share @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> L_weight_share: no BPB. Last: ====== END L_weight_share @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START M_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END M_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> M_feedback: no BPB. Last: ====== END M_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START N_engram @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END N_engram @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> N_engram: no BPB. Last: ====== END N_engram @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START O_inside_out @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END O_inside_out @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> O_inside_out: no BPB. Last: ====== END O_inside_out @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START P_deq @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END P_deq @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> P_deq: no BPB. Last: ====== END P_deq @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== START Q_6L_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+====== END Q_6L_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+  -> Q_6L_feedback: no BPB. Last: ====== END Q_6L_feedback @ Fri Apr  3 15:13:21 CDT 2026 ======
+=== SEQUENTIAL ABLATION COMPLETE: Fri Apr  3 15:13:21 CDT 2026 ===

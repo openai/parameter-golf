@@ -1,0 +1,70 @@
+============================================================
+  ABLATION: no_engram_orders
+  TIME:     Sun Apr  5 12:20:12 UTC 2026
+============================================================
+  RUN_ID       : abl_no_engram_orders_1775391612
+  ARCHITECTURE : skc
+  LAYERS       : 11
+  DIM          : 512
+  CURRICULUM   : 1
+  BIGRAM       : 1
+  XSA_START    : 0
+  PARTIAL_ROPE : 16
+  LN_DAMPING   : 1
+  LAWA/SWA     : 1/1
+  SMEARGATE    : 1
+  MATRIX_LR    : 0.02
+  WARMDOWN     : 0.5
+  FEEDBACK     : 0
+  CAPSULE      : 0
+  VRL          : 0
+  BUDGET       : 300s
+============================================================
+logs/cuda/abl_no_engram_orders_1775391612.txt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 3699, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 3070, in main
+[rank0]:     base_model = GPT(
+[rank0]:                  ^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 1931, in __init__
+[rank0]:     self.engram = EngramHash(
+[rank0]:                   ^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 739, in __init__
+[rank0]:     self.head_dim = hash_dim // (num_orders * num_heads)
+[rank0]:                     ~~~~~~~~~^^~~~~~~~~~~~~~~~~~~~~~~~~~
+[rank0]: ZeroDivisionError: integer division or modulo by zero
+[rank0]:[W405 12:20:17.652641250 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+E0405 12:20:18.391000 139124113707648 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 1027) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-05_12:20:18
+  host      : 4a58a0491fa8
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1027)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

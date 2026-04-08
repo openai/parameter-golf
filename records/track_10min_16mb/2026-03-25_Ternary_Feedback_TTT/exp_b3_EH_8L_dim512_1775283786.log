@@ -1,0 +1,38 @@
+START: EH_8L_dim512  Sat Apr  4 01:59:16 CDT 2026
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:15514248 arch:skc layers:8 dim:512 heads:8 seq_len:512
+feedback:False passes:1 every:2 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@32 temp_scaling=False ttt=False ngram_cache=False
+turbo_quant: train=False export=1 kv=True
+convergence: noise=0.0 sdepth=0.0 ema_eval=False self_distill=0.0 curriculum=True(seq:64->128->512 @35%/65%)
+weight_averaging: lawa=True(k=5 freq=100) swa=True(every=50 start_scale=0.2) smeargate=True
+radical: tko=False weight_sharing=0 inside_out=0(p1=0.2 p2=0.55) skc=True deq=0
+step:1/100000 loss:6.9366 t:2646ms step:2646ms
+step:2/100000 loss:6.8874 t:5047ms step:2400ms
+step:3/100000 loss:6.6412 t:7435ms step:2388ms
+step:4/100000 loss:14.7199 t:9847ms step:2411ms
+step:5/100000 loss:9.2754 t:12251ms step:2404ms
+step:10/100000 loss:9.2235 t:24215ms step:2390ms
+step:20/100000 loss:8.0775 t:48182ms step:2393ms
+step:30/100000 loss:6.5891 t:72099ms step:2449ms
+step:40/100000 loss:5.1076 t:96265ms step:2410ms
+step:50/100000 loss:4.8006 t:120280ms step:2398ms
+step:60/100000 loss:4.5176 t:144439ms step:2394ms
+step:70/100000 loss:4.3531 t:168486ms step:2401ms
+step:80/100000 loss:4.2016 t:192511ms step:2401ms
+step:90/100000 loss:4.2607 t:216868ms step:2425ms
+step:100/100000 loss:4.2467 t:241202ms step:2432ms
+step:110/100000 loss:4.1361 t:265546ms step:2418ms
+step:120/100000 loss:3.9296 t:289908ms step:2418ms
+val_progress:1/2
+val_progress:2/2
+step:125/100000 val_loss:4.0020 val_bpb:2.3646 train_time:302115ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.0020 val_bpb:2.3646
+final_sliding val_loss:4.0181 val_bpb:2.3788 (stride=32, T=1.00) eval_time:59890ms
+artifact:9.96MB code:180305 total:10139449/16000000 (FITS
+Done. Artifact saved to logs/mlx_reasoner_model.ternary.ptz

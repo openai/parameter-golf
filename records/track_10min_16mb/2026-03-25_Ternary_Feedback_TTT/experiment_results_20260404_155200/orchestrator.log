@@ -1,0 +1,51 @@
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 3599s left] Stack    : SKC novel arch 24L dim=512 vocab=1024 sp1024
+[00:00 | 3599s left] Budget   : 3599s (59:59)
+[00:00 | 3599s left] Seeds    : 42, 1337
+[00:00 | 3599s left] Cloud    : COMMUNITY
+[00:00 | 3599s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519
+[00:00 | 3599s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260404_155200
+[00:00 | 3599s left] ========================================================
+[00:00 | 3599s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 3599s left]   image: runpod/pytorch:2.6.0-py3.12-cuda12.8.1-devel-ubuntu22.04
+[00:00 | 3599s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 3599s left] Retrying with SECURE cloud...
+[00:00 | 3599s left] Pod created: ID=vpzc4tzw2phj1r  cost=$21.52/hr
+[00:00 | 3599s left] BUDGET CLOCK STARTED — 3599s (59:59) remaining
+[00:00 | 3599s left] Waiting for pod SSH readiness...
+[00:11 | 3588s left]   waiting... 10s
+[00:22 | 3577s left]   waiting... 20s
+[00:33 | 3566s left]   waiting... 30s
+[00:44 | 3555s left]   waiting... 40s
+[00:55 | 3544s left]   waiting... 50s
+[01:05 | 3534s left]   waiting... 60s
+[01:16 | 3523s left]   waiting... 70s
+[01:27 | 3512s left]   waiting... 80s
+[01:39 | 3500s left]   waiting... 90s
+[01:49 | 3490s left]   waiting... 100s
+[02:01 | 3478s left]   waiting... 110s
+[02:12 | 3467s left]   waiting... 120s
+[02:23 | 3456s left]   waiting... 130s
+[02:34 | 3445s left]   waiting... 140s
+[02:44 | 3435s left]   waiting... 150s
+[02:55 | 3424s left]   waiting... 160s
+[03:05 | 3414s left]   waiting... 170s
+[03:16 | 3403s left]   waiting... 180s
+[03:27 | 3392s left]   waiting... 190s
+[03:38 | 3381s left]   waiting... 200s
+[03:49 | 3370s left]   waiting... 210s
+[03:59 | 3360s left]   waiting... 220s
+[04:10 | 3349s left]   waiting... 230s
+[04:20 | 3339s left]   waiting... 240s
+[04:31 | 3328s left]   waiting... 250s
+[04:42 | 3317s left]   waiting... 260s
+[04:52 | 3307s left]   waiting... 270s
+[05:03 | 3296s left]   waiting... 280s
+[05:13 | 3286s left]   waiting... 290s
+[05:24 | 3275s left]   waiting... 300s
+[05:24 | 3275s left] FATAL: Pod not SSH-ready after 300s
+[05:24 | 3275s left] Terminating pod vpzc4tzw2phj1r...
+{
+  "podTerminate": null
+}

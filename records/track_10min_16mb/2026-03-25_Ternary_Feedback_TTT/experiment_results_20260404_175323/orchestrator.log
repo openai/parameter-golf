@@ -1,0 +1,87 @@
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 5400s left] Stack    : SKC novel arch 24L dim=512 vocab=1024 sp1024
+[00:00 | 5400s left] Budget   : 5400s (59:59)
+[00:00 | 5400s left] Seeds    : 42, 1337, 7 (3-seed run)
+[00:00 | 5400s left] Cloud    : COMMUNITY
+[00:00 | 5400s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519_runpod
+[00:00 | 5400s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260404_175323
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] Creating pod: 8×NVIDIA H100 80GB HBM3 COMMUNITY...
+[00:00 | 5400s left]   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+[00:00 | 5400s left] COMMUNITY failed: There are no longer any instances available with the requested specifications. Please refresh and try again.
+[00:00 | 5400s left] Retrying with SECURE cloud...
+[00:00 | 5400s left] Pod created: ID=jcrcgce2r124is  cost=$21.52/hr
+[00:00 | 5400s left] BUDGET CLOCK STARTED — 5400s (59:59) remaining
+[00:00 | 5400s left] Waiting for pod SSH readiness...
+[00:11 | 5389s left]   waiting... 10s
+[00:26 | 5374s left] Pod ready: root@63.141.33.95:22152  T+26s
+[00:26 | 5374s left] === PHASE: Verification ===
+0, NVIDIA H100 80GB HBM3, 81559 MiB
+1, NVIDIA H100 80GB HBM3, 81559 MiB
+2, NVIDIA H100 80GB HBM3, 81559 MiB
+3, NVIDIA H100 80GB HBM3, 81559 MiB
+4, NVIDIA H100 80GB HBM3, 81559 MiB
+5, NVIDIA H100 80GB HBM3, 81559 MiB
+6, NVIDIA H100 80GB HBM3, 81559 MiB
+7, NVIDIA H100 80GB HBM3, 81559 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 8
+[00:40 | 5360s left] === PHASE: Install dependencies ===
+[00:40 | 5360s left] FlashAttention: SKC architecture uses WHT spectral mixing, NOT attention — FA not needed.
+[00:40 | 5360s left]   (fallback to torch.sdpa exists in code for non-SKC architectures but won't be used)
+[00:40 | 5360s left] Installing sentencepiece + zstandard...
+pip OK
+[00:45 | 5355s left] Installing tmux...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 1s (742 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[00:57 | 5343s left] Installing huggingface-hub...
+hf hub OK
+[01:04 | 5336s left] === PHASE: Download sp1024 data (60 train shards + val) ===
+[01:08 | 5332s left] Downloading val shard...
+val shard downloaded
+[01:18 | 5322s left] Downloading tokenizer...
+tokenizer downloaded
+[01:22 | 5318s left] Downloading 60 train shards in parallel...
+  10/60 shards done (0 failed)
+  20/60 shards done (0 failed)
+  30/60 shards done (0 failed)
+  40/60 shards done (0 failed)
+  50/60 shards done (0 failed)
+  60/60 shards done (0 failed)
+Download complete: 60/60 shards available (0 failed)
+[02:36 | 5244s left] Data verified: train_shards=60  val_shards=1  T+156s
+[02:36 | 5244s left] === PHASE: Upload code ===
+[02:55 | 5225s left] Code uploaded  T+175s
+[02:55 | 5225s left] === PHASE: Smoke test (MAX_WALLCLOCK_SECONDS=30) ===
+[07:39 | 4941s left] WARNING: smoke test non-zero exit
+[07:39 | 4941s left] FATAL: Smoke test: no training output. See smoke_test.log
+[07:39 | 4941s left] Terminating pod jcrcgce2r124is...
+{
+  "podTerminate": null
+}

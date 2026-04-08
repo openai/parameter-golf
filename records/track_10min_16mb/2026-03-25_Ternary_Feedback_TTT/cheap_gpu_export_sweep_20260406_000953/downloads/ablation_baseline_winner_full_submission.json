@@ -1,0 +1,11 @@
+{
+  "author": "Aki Gogikar (OneNewAI)",
+  "github_id": "akhileshgogikar",
+  "name": "SKC Ternary Reasoner (8L d512)",
+  "blurb": "SKC Ternary Reasoner: 8L dim=512 vocab=1024 seq=2048. Spectral Koopman Capsule architecture with causal blockwise WHT (block=16), FrequencyBandRouter, KoopmanSpectralEvolution, symmetric UNet capsule skip connections. Muon optimizer, LAWA+SWA weight averaging, engram hash (orders=3), n-gram cache (order=5), temperature scaling, sliding eval. ~32.0M ternary params in ~9.9MB.",
+  "date": "2026-04-06T05:40:25Z",
+  "val_loss": 5.048,
+  "val_bpb": 3.0388,
+  "bytes_total": 10118951,
+  "bytes_code": 185223
+}

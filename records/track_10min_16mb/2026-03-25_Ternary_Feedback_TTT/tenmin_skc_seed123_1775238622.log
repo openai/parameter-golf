@@ -1,0 +1,33 @@
+Ternary Reasoner — MLX local testing
+Python 3.12.3 (main, Apr  9 2024, 08:09:14) [Clang 15.0.0 (clang-1500.3.9.4)]
+MLX 0.31.1
+model_params:612130 arch:skc layers:4 dim:128 heads:4 seq_len:256
+feedback:False passes:0 every:1 eval_passes:2 capsule:False engram:False(4h2o@L1) vrl:False xsa_start:999 partial_rope:16 lrelu2:lrelu2 shared_blocks:0
+optimizer: matrix_lr=0.035 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=False ttt=0 ngram_cache=0
+turbo_quant: train=0 export=1 kv=0
+convergence: noise=0.05 sdepth=0.2 ema_eval=0 self_distill=0.0 curriculum=False(seq:256->512->256 @70%/90%)
+weight_averaging: lawa=True(k=10 freq=100) swa=True(every=50 start_scale=0.2) smeargate=False
+radical: tko=True weight_sharing=False inside_out=False(p1=0.2 p2=0.55) skc=True deq=False
+step:1/100000 loss:6.9408 t:664ms step:664ms
+step:2/100000 loss:6.5610 t:1194ms step:525ms
+step:3/100000 loss:6.1402 t:1715ms step:517ms
+step:4/100000 loss:6.0344 t:2196ms step:478ms
+step:5/100000 loss:5.9664 t:2736ms step:536ms
+step:100/100000 loss:4.5140 t:51116ms step:497ms
+step:200/100000 loss:4.2235 t:102539ms step:495ms
+step:300/100000 loss:4.2620 t:155018ms step:551ms
+step:400/100000 loss:4.2314 t:206945ms step:513ms
+step:500/100000 loss:4.1460 t:258695ms step:501ms
+step:600/100000 loss:4.0007 t:310966ms step:581ms
+step:700/100000 loss:3.9580 t:362812ms step:530ms
+step:800/100000 loss:4.3022 t:414905ms step:478ms
+step:900/100000 loss:4.0278 t:466933ms step:538ms
+step:1000/100000 loss:3.8722 t:518863ms step:547ms
+step:1100/100000 loss:4.0473 t:571621ms step:504ms
+step:1153/100000 val_loss:5.2320 val_bpb:3.0317 train_time:600082ms
+lawa:applied k=10 snapshots for serialization
+final_eval val_loss:5.5752 val_bpb:3.2305
+final_sliding val_loss:5.5159 val_bpb:3.1934 (stride=64, T=1.00) eval_time:2692ms
+artifact:0.34MB code:174314 total:517122/16000000 (FITS
+Done. Artifact saved to logs/mlx_b650b4c4_model.ternary.ptz

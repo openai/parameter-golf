@@ -1,0 +1,343 @@
+[15:07:27] ========================================================
+[15:07:27] Cheap Multi-GPU Small SKC Orchestrator
+[15:07:27] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_150727
+[15:07:27] GPU count: 2
+[15:07:27] Min mem  : 20GB
+[15:07:27] Data     : 2 train shards
+[15:07:27] ========================================================
+[15:07:29] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
+[15:07:29] Trying 2xNVIDIA A40 on SECURE...
+[15:07:30]   success: pod=a0w15dj0nzr6pn cost=$0.8/hr
+[15:07:30] Waiting for pod SSH readiness...
+[15:08:05] Pod ready: root@194.68.245.25:22159
+[15:08:05] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+1, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[15:08:17] Installing tmux and preparing logs...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 0s (2221 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+debconf: delaying package configuration, since apt-utils is not installed
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[15:08:31] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[15:09:00] Preparing data...
+wrote:/workspace/data_setup.sh
+[15:09:34] Uploading code...
+[15:09:43] Remote env overrides: TRAIN_BATCH_TOKENS=16384 TERNARY_THRESHOLD_SEARCH=1 NGRAM_CACHE_ENABLED=0 EXPORT_ONLY=0 SEED=1337 NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 BIGRAM_HASH_BUCKETS=16384 
+[15:09:43] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s1337_20260407_200950
+  MODEL  : SKC L=8 D=256 H=4/2
+  SKC    : block=16 caps=8 cap_dim=64
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.85 thr_search=1 scale_search=0
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=45GB  val_batch=32768
+  BUDGET : 45s
+  SEED   : 1337
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s1337_20260407_200950.txt
+DDP enabled: 2 GPUs find_unused=1 static_graph=0
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=35 engram_scalar=12
+params:36721480 L:8 d:256 h:4 kv:2 ws:2 ga:1 s:1337
+[rank0]:[W407 20:10:06.225585027 reducer.cpp:1400] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W407 20:10:13.974158191 reducer.cpp:1400] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+step:1/500000 loss:7.1068 t:7901ms avg:7901.4ms
+step:2/500000 loss:7.0808 t:8424ms avg:4212.1ms
+step:3/500000 loss:6.3473 t:9033ms avg:3010.9ms
+step:4/500000 loss:7.5063 t:9535ms avg:2383.7ms
+step:5/500000 loss:11.1642 t:10044ms avg:2008.8ms
+step:6/500000 loss:11.8375 t:10509ms avg:1751.5ms
+step:7/500000 loss:10.8053 t:10949ms avg:1564.2ms
+step:8/500000 loss:13.1797 t:11367ms avg:1420.9ms
+step:9/500000 loss:10.1460 t:11792ms avg:1310.2ms
+step:10/500000 loss:11.8081 t:12213ms avg:1221.3ms
+step:11/500000 loss:9.8234 t:12606ms avg:1146.0ms
+step:12/500000 loss:15.2520 t:13014ms avg:1084.5ms
+step:13/500000 loss:9.7158 t:13424ms avg:1032.6ms
+step:14/500000 loss:14.8947 t:13821ms avg:987.2ms
+step:15/500000 loss:9.2817 t:14217ms avg:947.8ms
+step:16/500000 loss:19.4574 t:14612ms avg:913.2ms
+step:17/500000 loss:9.0250 t:14998ms avg:882.2ms
+step:18/500000 loss:13.3052 t:15382ms avg:854.5ms
+step:19/500000 loss:11.0175 t:15770ms avg:830.0ms
+step:20/500000 loss:13.4253 t:16137ms avg:806.8ms
+step:21/500000 loss:11.2780 t:16513ms avg:786.3ms
+step:22/500000 loss:13.6056 t:16898ms avg:768.1ms
+step:23/500000 loss:9.7657 t:17289ms avg:751.7ms
+step:24/500000 loss:12.3705 t:17711ms avg:738.0ms
+step:25/500000 loss:10.2565 t:18127ms avg:725.1ms
+step:26/500000 loss:11.2117 t:18542ms avg:713.2ms
+step:27/500000 loss:10.9930 t:18967ms avg:702.5ms
+step:28/500000 loss:9.1381 t:19391ms avg:692.5ms
+step:29/500000 loss:11.3549 t:19805ms avg:682.9ms
+step:30/500000 loss:8.0814 t:20228ms avg:674.3ms
+step:31/500000 loss:12.1396 t:20640ms avg:665.8ms
+step:32/500000 loss:12.8049 t:21065ms avg:658.3ms
+step:33/500000 loss:9.4187 t:21491ms avg:651.2ms
+step:34/500000 loss:16.9673 t:21922ms avg:644.8ms
+step:35/500000 loss:8.5303 t:22345ms avg:638.4ms
+step:36/500000 loss:13.1184 t:22767ms avg:632.4ms
+step:37/500000 loss:9.4185 t:23205ms avg:627.2ms
+step:38/500000 loss:18.2049 t:23638ms avg:622.1ms
+step:39/500000 loss:12.4860 t:24076ms avg:617.3ms
+step:40/500000 loss:9.4209 t:24549ms avg:613.7ms
+step:41/500000 loss:8.2057 t:24987ms avg:609.4ms
+step:42/500000 loss:9.8104 t:25415ms avg:605.1ms
+step:43/500000 loss:9.3394 t:25842ms avg:601.0ms
+step:44/500000 loss:10.3514 t:26274ms avg:597.1ms
+step:45/500000 loss:10.0570 t:26702ms avg:593.4ms
+step:46/500000 loss:11.1519 t:27133ms avg:589.8ms
+step:47/500000 loss:8.3503 t:27641ms avg:588.1ms
+step:48/500000 loss:10.8320 t:28173ms avg:586.9ms
+step:49/500000 loss:8.0878 t:28688ms avg:585.5ms
+step:50/500000 loss:8.7362 t:29199ms avg:584.0ms
+step:51/500000 loss:10.3128 t:29706ms avg:582.5ms
+step:52/500000 loss:8.3231 t:30219ms avg:581.1ms
+step:53/500000 loss:7.7738 t:30722ms avg:579.7ms
+step:54/500000 loss:7.6278 t:31223ms avg:578.2ms
+step:55/500000 loss:7.5077 t:31734ms avg:577.0ms
+step:56/500000 loss:7.1944 t:32231ms avg:575.5ms
+step:57/500000 loss:7.3659 t:32711ms avg:573.9ms
+step:58/500000 loss:7.0235 t:33204ms avg:572.5ms
+step:59/500000 loss:6.7703 t:33696ms avg:571.1ms
+step:60/500000 loss:7.0491 t:34186ms avg:569.8ms
+step:61/500000 loss:6.7358 t:34684ms avg:568.6ms
+step:62/500000 loss:6.7407 t:35183ms avg:567.5ms
+step:63/500000 loss:6.5653 t:35693ms avg:566.6ms
+step:64/500000 loss:6.7371 t:36212ms avg:565.8ms
+step:65/500000 loss:6.4890 t:36704ms avg:564.7ms
+step:66/500000 loss:6.7433 t:37195ms avg:563.6ms
+step:67/500000 loss:6.3612 t:37700ms avg:562.7ms
+step:68/500000 loss:6.4552 t:38197ms avg:561.7ms
+step:69/500000 loss:6.2376 t:38689ms avg:560.7ms
+step:70/500000 loss:6.6189 t:39178ms avg:559.7ms
+step:71/500000 loss:6.3725 t:39685ms avg:558.9ms
+step:72/500000 loss:6.1614 t:40189ms avg:558.2ms
+step:73/500000 loss:6.3338 t:40722ms avg:557.8ms
+step:74/500000 loss:5.9950 t:41233ms avg:557.2ms
+step:75/500000 loss:6.2469 t:41730ms avg:556.4ms
+step:76/500000 loss:5.9853 t:42233ms avg:555.7ms
+step:77/500000 loss:6.0867 t:42731ms avg:554.9ms
+step:78/500000 loss:6.0319 t:43220ms avg:554.1ms
+step:79/500000 loss:6.0940 t:43724ms avg:553.5ms
+step:80/500000 loss:5.9285 t:44219ms avg:552.7ms
+step:81/500000 loss:5.9751 t:44670ms avg:551.5ms
+step:82/500000 loss:5.9032 t:45171ms avg:550.9ms
+step:82/500000 val_loss:5.6685 val_bpb:3.4124 train_time:45189ms zero_frac:0.571
+checkpoint:best_live step=82 val_bpb:3.4124
+stopping_early: wallclock_cap train_time:45189ms step:82/500000
+serialization:live_ternary_tensors=148
+[15:12:55] Launching 10-minute run...
+[15:13:29] progress » checkpoint:best_live step=0 val_bpb:4.1728
+[15:13:46] progress » step:50/500000 loss:18.7041 t:17404ms avg:348.1ms
+[15:14:02] progress » step:100/500000 loss:5.2470 t:33603ms avg:336.0ms
+[15:14:19] progress » step:150/500000 loss:4.3828 t:51188ms avg:341.3ms
+[15:14:35] progress » step:200/500000 loss:4.0748 t:70309ms avg:351.5ms
+[15:14:51] progress » step:250/500000 loss:4.1253 t:90066ms avg:360.3ms
+[15:15:07] progress » step:300/500000 loss:3.7980 t:109707ms avg:365.7ms
+[15:15:24] progress » step:300/500000 loss:3.7980 t:109707ms avg:365.7ms
+[15:15:39] progress » step:350/500000 loss:3.8179 t:129635ms avg:370.4ms
+[15:15:54] progress » step:400/500000 loss:3.9961 t:149979ms avg:374.9ms
+[15:16:11] progress » step:450/500000 loss:3.9147 t:169877ms avg:377.5ms
+[15:16:28] progress » step:500/500000 loss:3.8732 t:190060ms avg:380.1ms
+[15:16:45] progress » step:550/500000 loss:3.8633 t:210415ms avg:382.6ms
+[15:17:01] progress » step:550/500000 loss:3.8633 t:210415ms avg:382.6ms
+[15:17:17] progress » step:600/500000 loss:3.7048 t:230926ms avg:384.9ms
+[15:17:32] progress » step:650/500000 loss:3.7957 t:252849ms avg:389.0ms
+[15:17:48] progress » step:650/500000 loss:3.7957 t:252849ms avg:389.0ms
+[15:18:04] progress » step:700/500000 loss:3.9138 t:274386ms avg:392.0ms
+[15:18:20] progress » step:750/500000 loss:3.9625 t:295800ms avg:394.4ms
+[15:18:36] progress » step:800/500000 loss:3.9274 t:317614ms avg:397.0ms
+[15:18:51] progress » step:800/500000 loss:3.9274 t:317614ms avg:397.0ms
+[15:19:09] progress » step:850/500000 loss:3.5447 t:339735ms avg:399.7ms
+[15:19:27] progress » step:900/500000 loss:3.7094 t:362029ms avg:402.3ms
+[15:19:46] progress » step:950/500000 loss:3.8535 t:387693ms avg:408.1ms
+[15:20:02] progress » step:950/500000 loss:3.8535 t:387693ms avg:408.1ms
+[15:20:19] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:20:34] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:20:50] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:21:05] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:21:20] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:21:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:21:52] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:22:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:22:24] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:22:39] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:23:00] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:23:21] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:23:44] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:24:06] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:24:29] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:24:51] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:25:14] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:25:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:25:57] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:26:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:26:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:27:01] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:27:22] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:27:47] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:28:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:28:29] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:28:52] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:29:13] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:29:35] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:29:57] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:30:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:30:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:31:01] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:31:25] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:31:46] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:32:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:32:29] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:32:50] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:33:11] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:33:32] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:33:54] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:34:17] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:34:41] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:35:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:35:30] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:35:51] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:36:13] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:36:35] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:36:56] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:37:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:37:39] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:38:02] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:38:24] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:38:47] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:39:09] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:39:30] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:39:53] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:40:15] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:40:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:40:58] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:41:19] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:41:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:42:02] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:42:23] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:42:44] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:43:06] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:43:27] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:43:50] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:44:11] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:44:33] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:44:54] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:45:15] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:45:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:45:57] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:46:19] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:46:41] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:47:06] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:47:27] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:47:48] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:48:12] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:48:34] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:48:55] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:49:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:49:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:50:03] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:50:26] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:50:47] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:51:10] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:51:31] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:51:53] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:52:14] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:52:35] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:52:56] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:53:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:53:41] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:54:03] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:54:25] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:54:48] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:55:11] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:55:33] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:55:55] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:56:17] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:56:39] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:57:01] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:57:23] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:57:45] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:58:07] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:58:28] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:58:49] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:59:12] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:59:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[15:59:59] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:00:21] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:00:46] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:01:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:01:29] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:01:51] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:02:19] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:02:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:03:02] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:03:23] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:03:44] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:04:06] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:04:28] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:04:50] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:05:12] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:05:33] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:05:54] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:06:15] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:06:36] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:06:57] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:07:18] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:07:40] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:08:01] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:08:22] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:08:44] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:09:06] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:09:27] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:09:49] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:10:11] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:10:32] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:10:53] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:11:15] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:11:38] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:11:59] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:12:20] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:12:41] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:13:02] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:13:24] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:13:45] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:14:08] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:14:30] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:14:53] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:15:15] progress » checkpoint:best_live step=1000 val_bpb:2.0521
+[16:15:15] FATAL: Full run did not complete in time
+[16:15:15] KEEP_POD_ON_EXIT=1, skipping termination of pod a0w15dj0nzr6pn.

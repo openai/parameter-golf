@@ -1,0 +1,167 @@
+============================================================================
+FIRST-PRINCIPLES ARCHITECTURE BENCHMARK
+Started at: Sun Mar 29 14:17:36 CDT 2026
+============================================================================
+
+==========================================================================
+PATH 1: Shared-Block Recurrent Reasoner (SHARED_BLOCKS=2)
+==========================================================================
+model_params:2794952 arch:transformer layers:4 dim:256 heads:4 seq_len:1024
+feedback:False passes:1 every:2 eval_passes:2 capsule:True engram:True(4h2o@L1) vrl:False xsa_start:-1 partial_rope:0 lrelu2:lrelu2 shared_blocks:2
+koopman:rank=4 diag_init=0.9 consist_w=0.005 halt:True@0.05 carry:True@0.8
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:1305ms step:1305ms
+step:2/200 loss:6.9007 t:1740ms step:434ms
+step:3/200 loss:6.3283 t:2161ms step:421ms
+step:4/200 loss:7.4321 t:2586ms step:425ms
+step:5/200 loss:7.5172 t:3028ms step:441ms
+step:10/200 loss:5.8912 t:5159ms step:426ms
+step:20/200 loss:5.5196 t:9644ms step:426ms
+step:30/200 loss:5.1510 t:13929ms step:419ms
+step:40/200 loss:4.8713 t:18155ms step:421ms
+step:50/200 loss:4.7408 t:22435ms step:423ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.7587 val_bpb:2.8096 train_time:22436ms
+step:60/200 loss:4.4359 t:26944ms step:456ms
+step:70/200 loss:4.2702 t:31344ms step:440ms
+step:80/200 loss:4.1973 t:35692ms step:416ms
+step:90/200 loss:4.2118 t:39932ms step:438ms
+step:100/200 loss:4.1874 t:44160ms step:436ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.1497 val_bpb:2.4500 train_time:44160ms
+step:110/200 loss:4.1599 t:48402ms step:422ms
+step:120/200 loss:4.0503 t:52630ms step:419ms
+step:130/200 loss:4.0830 t:56811ms step:408ms
+step:140/200 loss:3.9887 t:61024ms step:431ms
+step:150/200 loss:3.9656 t:65293ms step:431ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.0026 val_bpb:2.3632 train_time:65294ms
+step:160/200 loss:3.8967 t:69515ms step:423ms
+step:170/200 loss:4.2654 t:73739ms step:417ms
+step:180/200 loss:4.0754 t:77988ms step:424ms
+step:190/200 loss:3.8600 t:82221ms step:420ms
+step:200/200 loss:3.8966 t:86441ms step:423ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:3.9001 val_bpb:2.3027 train_time:86441ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:3.9001 val_bpb:2.3027
+final_sliding val_loss:3.8942 val_bpb:2.2991 (stride=64, T=1.05) eval_time:8571ms
+
+==========================================================================
+PATH 2: Koopman State Space Model (8 layers, no attention)
+==========================================================================
+model_params:3104768 arch:koopman_ssm layers:8 dim:256 heads:4 seq_len:1024
+koopman_ssm: state_dim=128 rank=4 conv_kernel=4 decay_window=32 mlp_mult=2
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:2510ms step:2510ms
+step:2/200 loss:6.8879 t:2979ms step:469ms
+step:3/200 loss:6.6979 t:3435ms step:455ms
+step:4/200 loss:9.6933 t:3898ms step:463ms
+step:5/200 loss:10.6371 t:4354ms step:456ms
+step:10/200 loss:8.3275 t:6665ms step:459ms
+step:20/200 loss:8.6136 t:11375ms step:477ms
+step:30/200 loss:6.4957 t:15967ms step:456ms
+step:40/200 loss:6.0855 t:20658ms step:463ms
+step:50/200 loss:5.9987 t:25385ms step:498ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:6.0768 val_bpb:3.5878 train_time:25385ms
+step:60/200 loss:6.1020 t:30043ms step:463ms
+step:70/200 loss:6.0029 t:34653ms step:458ms
+step:80/200 loss:6.0438 t:39252ms step:461ms
+step:90/200 loss:5.9768 t:43866ms step:461ms
+step:100/200 loss:6.0621 t:48544ms step:481ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:6.0318 val_bpb:3.5612 train_time:48544ms
+step:110/200 loss:6.0546 t:53223ms step:490ms
+step:120/200 loss:6.0468 t:57847ms step:463ms
+step:130/200 loss:6.0082 t:62473ms step:514ms
+step:140/200 loss:6.0644 t:67122ms step:454ms
+step:150/200 loss:5.9952 t:71717ms step:461ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:5.9404 val_bpb:3.5073 train_time:71717ms
+step:160/200 loss:5.9102 t:76308ms step:461ms
+step:170/200 loss:5.7795 t:80905ms step:459ms
+step:180/200 loss:5.9726 t:85488ms step:458ms
+step:190/200 loss:5.6636 t:90093ms step:459ms
+step:200/200 loss:5.5717 t:94703ms step:456ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:5.5427 val_bpb:3.2725 train_time:94704ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:5.5427 val_bpb:3.2725
+final_sliding val_loss:5.5464 val_bpb:3.2745 (stride=64, T=1.05) eval_time:12597ms
+
+==========================================================================
+BASELINE: Plain 4-layer ternary transformer (control)
+==========================================================================
+model_params:3085840 arch:transformer layers:4 dim:256 heads:4 seq_len:1024
+optimizer: matrix_lr=0.025 scalar_lr=0.025 embed_lr=0.035 muon_wd=0.04 adam_wd=0.04
+eval: sliding=True@64 temp_scaling=True ttt=False ngram_cache=False
+turbo_quant: train=0 export=1 kv=False
+val_progress:1/2
+val_progress:2/2
+step:0/200 val_loss:6.9318 val_bpb:4.0926 train_time:0ms
+step:1/200 loss:6.9368 t:455ms step:455ms
+step:2/200 loss:6.9008 t:886ms step:431ms
+step:3/200 loss:6.3306 t:1301ms step:415ms
+step:4/200 loss:7.5354 t:1719ms step:417ms
+step:5/200 loss:7.5845 t:2135ms step:416ms
+step:10/200 loss:6.0147 t:4212ms step:418ms
+step:20/200 loss:5.4099 t:8376ms step:411ms
+step:30/200 loss:5.1850 t:12535ms step:411ms
+step:40/200 loss:4.9595 t:16722ms step:414ms
+step:50/200 loss:4.8313 t:20855ms step:419ms
+val_progress:1/2
+val_progress:2/2
+step:50/200 val_loss:4.8950 val_bpb:2.8901 train_time:20856ms
+step:60/200 loss:4.6987 t:24993ms step:416ms
+step:70/200 loss:4.6078 t:29128ms step:412ms
+step:80/200 loss:4.5719 t:33278ms step:410ms
+step:90/200 loss:4.5792 t:37475ms step:420ms
+step:100/200 loss:4.6266 t:41653ms step:414ms
+val_progress:1/2
+val_progress:2/2
+step:100/200 val_loss:4.5861 val_bpb:2.7077 train_time:41653ms
+step:110/200 loss:4.6112 t:45829ms step:419ms
+step:120/200 loss:4.4343 t:50003ms step:416ms
+step:130/200 loss:4.4671 t:54166ms step:420ms
+step:140/200 loss:4.3679 t:58295ms step:408ms
+step:150/200 loss:4.3570 t:62456ms step:413ms
+val_progress:1/2
+val_progress:2/2
+step:150/200 val_loss:4.3651 val_bpb:2.5772 train_time:62456ms
+step:160/200 loss:4.2447 t:66616ms step:418ms
+step:170/200 loss:4.5100 t:70771ms step:415ms
+step:180/200 loss:4.4346 t:74928ms step:414ms
+step:190/200 loss:4.2001 t:79083ms step:413ms
+step:200/200 loss:4.2335 t:83272ms step:423ms
+val_progress:1/2
+val_progress:2/2
+step:200/200 val_loss:4.2538 val_bpb:2.5115 train_time:83272ms
+val_progress:1/2
+val_progress:2/2
+final_eval val_loss:4.2538 val_bpb:2.5115
+final_sliding val_loss:4.2498 val_bpb:2.5090 (stride=64, T=1.10) eval_time:8118ms
+
+==========================================================================
+BENCHMARK COMPLETE at: Sun Mar 29 14:22:53 CDT 2026
+==========================================================================

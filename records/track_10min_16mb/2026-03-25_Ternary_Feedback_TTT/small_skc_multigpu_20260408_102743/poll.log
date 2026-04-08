@@ -1,0 +1,5 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_153041
+  MODEL  : SKC L=8 D=320 H=8/4
+run_small_skc_2gpu.sh: line 219: SKC_BLOCK_SIZE: unbound variable

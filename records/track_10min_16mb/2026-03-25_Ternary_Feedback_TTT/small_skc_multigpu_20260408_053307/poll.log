@@ -1,0 +1,75 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260408_103717
+  MODEL  : SKC L=8 D=320 H=10/5
+  SKC    : block=16 caps=8 cap_dim=32
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 16384 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=262144
+  BUDGET : 599s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 hess=0 sliding=1 ngram=1
+  SMOKE  : 0
+==========================================================================
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 51, in <module>
+    class Hyperparameters:
+  File "/workspace/train_gpt.py", line 96, in Hyperparameters
+    feedback_fp_storage = _e("FEEDBACK_FP_STORAGE", False, bool)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 48, in _e
+    if t == bool: return bool(int(v))
+                              ^^^^^^
+ValueError: invalid literal for int() with base 10: 'False'
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 51, in <module>
+    class Hyperparameters:
+  File "/workspace/train_gpt.py", line 96, in Hyperparameters
+    feedback_fp_storage = _e("FEEDBACK_FP_STORAGE", False, bool)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/train_gpt.py", line 48, in _e
+    if t == bool: return bool(int(v))
+                              ^^^^^^
+ValueError: invalid literal for int() with base 10: 'False'
+E0408 10:37:20.329000 140282972434432 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 861) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-04-08_10:37:20
+  host      : 830b902d5d95
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 862)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-08_10:37:20
+  host      : 830b902d5d95
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 861)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

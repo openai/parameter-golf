@@ -1,0 +1,32 @@
+============================================================
+  ABLATION: no_lawa_wd30 (MODE=validate)
+  TIME:     Sun Apr  5 14:50:37 UTC 2026
+============================================================
+  RUN_ID       : final_no_lawa_wd30_1775400637
+  MODE         : validate
+  LAWA         : 0
+  WARMDOWN     : 0.3
+  SKC_CAPS     : 16 x 128
+  BUDGET       : 420s
+============================================================
+logs/cuda/final_no_lawa_wd30_1775400637.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:0/500000 val_loss:6.9333 val_bpb:4.1737 train_time:0ms zero_frac:0.309
+step:25/500000 loss:22.4368 t:28942ms avg:1157.7ms
+step:50/500000 loss:25.2629 t:62282ms avg:1245.6ms
+step:75/500000 loss:12.1655 t:98411ms avg:1312.1ms
+step:100/500000 loss:6.5246 t:144383ms avg:1443.8ms
+step:125/500000 loss:5.6989 t:190601ms avg:1524.8ms
+step:150/500000 loss:5.1608 t:251584ms avg:1677.2ms
+step:175/500000 loss:4.5994 t:318364ms avg:1819.2ms
+step:200/500000 loss:4.4788 t:385106ms avg:1925.5ms
+step:220/500000 val_loss:4.1823 val_bpb:2.5177 train_time:438466ms zero_frac:0.317
+stopping_early: wallclock_cap train_time:438466ms step:220/500000
+hessian_ternary_gptq:generating AR self-calibration data...

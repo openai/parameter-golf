@@ -1,0 +1,15 @@
+[13:17:57] === Terminating all live pods ===
+[13:17:58] All pods terminated. Waiting 30s for cleanup...
+[13:18:28] ======================================================
+[13:18:28] Starting exp1_16experts_256d_batch16k
+[13:18:28] Config: NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 TRAIN_BATCH_TOKENS=16384 BIGRAM_HASH_BUCKETS=16384
+[13:18:28] Log: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/exp_exp1_16experts_256d_batch16k_20260407_131828.log
+[13:18:28] ======================================================
+[13:18:28] ========================================================
+[13:18:28] Cheap Multi-GPU Small SKC Orchestrator
+[13:18:28] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_131828
+[13:18:28] GPU count: 2
+[13:18:28] Min mem  : 20GB
+[13:18:28] Data     : 2 train shards
+[13:18:28] ========================================================
+[13:18:30] FATAL: Balance floor already reached: clientBalance=49.5161368172 <= 50

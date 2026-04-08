@@ -1,0 +1,35 @@
+[15:41:24] ========================================================
+[15:41:24] Cheap Multi-GPU Small SKC Orchestrator
+[15:41:24] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_154124
+[15:41:24] GPU count: 2
+[15:41:24] Min mem  : 24GB
+[15:41:24] Data     : 12 train shards
+[15:41:24] ========================================================
+[15:41:24] GC: terminating stale live pod paramgolf-small-20260408-153910 (7j216rmm87qgov, uptime=108s)
+[15:41:24] KEEP_POD_ON_EXIT=1, skipping termination of pod 7j216rmm87qgov.
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.68	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA GeForce RTX 5090	Low	32	RTX 5090
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+5.18	NVIDIA H100 NVL	Low	94	H100 NVL
+0.54	NVIDIA RTX A5000	Low	24	RTX A5000
+0.88	NVIDIA A40	High	48	A40
+1.18	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+1.72	NVIDIA L40S	Low	48	L40S
+1.98	NVIDIA GeForce RTX 5090	Low	32	RTX 5090
+2.98	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+6.14	NVIDIA H100 NVL	Low	94	H100 NVL
+[15:41:27] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.88/hr
+[15:41:27] Trying 2xNVIDIA A40 on SECURE...
+[15:41:28]   success: pod=87tc44m9vkdcgp cost=$0.88/hr
+[15:41:28] Waiting for pod SSH readiness...
+[15:42:04] Pod ready: root@194.68.245.42:22034
+[15:42:04] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+1, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[15:42:17] Installing tmux and preparing logs...

@@ -1,0 +1,18 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+"=========================================================================="
+"LAUNCHING: 6-Hour CUDA Marathon (SP1024 | Native Hybrid)"
+"RUN ID: cuda_marathon_sp1024_20260402_124124"
+"=========================================================================="
+logs/cuda/cuda_marathon_sp1024_20260402_124124.txt
+Traceback (most recent call last):
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2823, in <module>
+    main()
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 2346, in main
+    base_model = GPT(
+                 ^^^^
+  File "C:\Users\Public\parameter-golf\records\track_10min_16mb\2026-03-25_Ternary_Feedback_TTT\train_gpt.py", line 1519, in __init__
+    koopman_diag_init=Hyperparameters.koopman_diag_init,
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'Hyperparameters' has no attribute 'koopman_diag_init'

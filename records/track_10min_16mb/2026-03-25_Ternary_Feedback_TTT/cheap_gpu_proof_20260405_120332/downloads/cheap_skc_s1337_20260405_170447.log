@@ -1,0 +1,45 @@
+logs/cuda/cheap_skc_s1337_20260405_170447.txt
+DDP enabled: 1 GPUs
+Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.025
+params:43379312 L:11 d:512 h:8 kv:4 ws:1 ga:8 s:1337
+warmup:1/5
+warmup:2/5
+warmup:3/5
+warmup:4/5
+warmup:5/5
+step:1/500000 loss:7.0300 t:1279ms avg:1279.0ms
+step:2/500000 loss:6.7545 t:2572ms avg:1286.1ms
+step:3/500000 loss:8.3399 t:3896ms avg:1298.8ms
+step:4/500000 loss:7.7915 t:5230ms avg:1307.6ms
+step:5/500000 loss:23.2406 t:6662ms avg:1332.3ms
+step:6/500000 loss:8.1007 t:8073ms avg:1345.5ms
+step:7/500000 loss:32.2710 t:9470ms avg:1352.8ms
+step:8/500000 loss:15.7338 t:10874ms avg:1359.2ms
+step:9/500000 loss:12.7277 t:12590ms avg:1398.8ms
+step:10/500000 loss:30.0123 t:14314ms avg:1431.4ms
+step:11/500000 loss:17.0123 t:16040ms avg:1458.2ms
+step:12/500000 loss:23.4928 t:17773ms avg:1481.1ms
+step:13/500000 loss:17.8169 t:19513ms avg:1501.0ms
+step:14/500000 loss:26.1732 t:21227ms avg:1516.2ms
+step:15/500000 loss:14.8200 t:22957ms avg:1530.5ms
+step:16/500000 loss:32.7692 t:25524ms avg:1595.2ms
+step:17/500000 loss:16.7818 t:28113ms avg:1653.7ms
+step:18/500000 loss:22.0008 t:30640ms avg:1702.2ms
+step:19/500000 loss:18.3077 t:33151ms avg:1744.8ms
+step:20/500000 loss:15.0504 t:35621ms avg:1781.0ms
+step:21/500000 loss:16.5848 t:38114ms avg:1815.0ms
+step:22/500000 loss:12.3696 t:40625ms avg:1846.6ms
+step:23/500000 loss:11.3646 t:43252ms avg:1880.5ms
+step:24/500000 loss:10.9345 t:45864ms avg:1911.0ms
+step:25/500000 loss:10.0105 t:48480ms avg:1939.2ms
+step:26/500000 loss:9.9606 t:51085ms avg:1964.8ms
+step:27/500000 loss:9.9647 t:53683ms avg:1988.3ms
+step:28/500000 loss:9.9713 t:56292ms avg:2010.4ms
+step:29/500000 loss:9.9311 t:58899ms avg:2031.0ms
+step:30/500000 loss:9.9676 t:61496ms avg:2049.9ms
+step:30/500000 val_loss:9.8058 val_bpb:5.9030 train_time:61502ms zero_frac:0.308
+stopping_early: wallclock_cap train_time:61502ms step:30/500000
+artifact:13.00MB ternary:40370176(8704850B) fp:2484848(4969696B) code:176975
+budget:13177423/16000000 (13.18/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:14.5572 val_bpb:8.7632

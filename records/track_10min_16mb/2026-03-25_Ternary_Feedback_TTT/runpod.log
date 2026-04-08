@@ -1,0 +1,17 @@
+[10:16:59] ========================================================
+[10:16:59] Cheap Multi-GPU Small SKC Orchestrator
+[10:16:59] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_101659
+[10:16:59] GPU count: 2
+[10:16:59] Min mem  : 12GB
+[10:16:59] Data     : 12 train shards
+[10:16:59] ========================================================
+[10:17:04] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
+[10:17:04] Trying 2xNVIDIA A40 on SECURE...
+[10:17:05]   success: pod=lbmts4vh0ya7hd cost=$0.8/hr
+[10:17:05] Waiting for pod SSH readiness...
+[10:17:32] Pod ready: root@69.30.85.25:22075
+[10:17:32] Verifying GPU and runtime...
+0, NVIDIA A40, 46068 MiB
+1, NVIDIA A40, 46068 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[10:17:48] Installing tmux and preparing logs...

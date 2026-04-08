@@ -1,0 +1,157 @@
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)
+[00:00 | 5400s left] Stack    : small SKC arch 8L dim=256 vocab=1024 sp1024
+[00:00 | 5400s left] Budget   : 5400s (59:59)
+[00:00 | 5400s left] Seeds    : 42
+[00:00 | 5400s left] Cloud    : SECURE
+[00:00 | 5400s left] SSH key  : /Users/akhileshgogikar/.ssh/id_ed25519_runpod
+[00:00 | 5400s left] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401
+[00:00 | 5400s left] ========================================================
+[00:00 | 5400s left] GC: terminating stale live pod paramgolf-small-20260407-035237 (40mq3ghsso535h, uptime=3651s)
+[00:00 | 5400s left] Terminating pod 40mq3ghsso535h...
+{
+  "podTerminate": null
+}
+[00:00 | 5400s left] Pod allocation attempt 1/3
+[00:00 | 5400s left] Creating pod: 8×NVIDIA H100 80GB HBM3 SECURE...
+[00:00 | 5400s left]   image: runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+[00:00 | 5400s left] Pod created: ID=hh72uxat0o9m6o  cost=$21.52/hr
+[00:00 | 5400s left] BUDGET CLOCK STARTED — 5400s total
+[00:00 | 5400s left] Waiting for pod SSH readiness...
+[00:12 | 5388s left]   waiting... 10s
+[00:24 | 5376s left]   waiting... 20s
+[00:37 | 5363s left] Pod ready: root@103.207.149.70:18473  T+37s
+[00:37 | 5363s left] === PHASE: Verification ===
+0, NVIDIA H100 80GB HBM3, 81559 MiB
+1, NVIDIA H100 80GB HBM3, 81559 MiB
+2, NVIDIA H100 80GB HBM3, 81559 MiB
+3, NVIDIA H100 80GB HBM3, 81559 MiB
+4, NVIDIA H100 80GB HBM3, 81559 MiB
+5, NVIDIA H100 80GB HBM3, 81559 MiB
+6, NVIDIA H100 80GB HBM3, 81559 MiB
+7, NVIDIA H100 80GB HBM3, 81559 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 8
+[00:48 | 5352s left] === PHASE: Install dependencies ===
+[00:48 | 5352s left] FlashAttention: SKC architecture uses WHT spectral mixing, NOT attention — FA not needed.
+[00:48 | 5352s left]   (fallback to torch.sdpa exists in code for non-SKC architectures but won't be used)
+[00:48 | 5352s left] Installing sentencepiece + zstandard...
+pip OK
+[00:54 | 5346s left] Installing tmux...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libevent-core-2.1-7 libutempter0
+The following NEW packages will be installed:
+  libevent-core-2.1-7 libutempter0 tmux
+0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
+Need to get 531 kB of archives.
+After this operation, 1365 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
+Fetched 531 kB in 2s (236 kB/s)
+Selecting previously unselected package libevent-core-2.1-7:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
+Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
+Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Selecting previously unselected package libutempter0:amd64.
+Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
+Unpacking libutempter0:amd64 (1.2.1-2build2) ...
+Selecting previously unselected package tmux.
+Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
+Unpacking tmux (3.2a-4ubuntu0.2) ...
+Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
+Setting up libutempter0:amd64 (1.2.1-2build2) ...
+Setting up tmux (3.2a-4ubuntu0.2) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
+[01:07 | 5333s left] Installing huggingface-hub...
+hf hub OK
+[01:10 | 5330s left] === PHASE: Download sp1024 data (20 train shards + val) ===
+[01:11 | 5329s left] Downloading val shard...
+val shard downloaded
+[01:17 | 5323s left] Downloading tokenizer...
+tokenizer downloaded
+[01:20 | 5320s left] Downloading 20 train shards in parallel...
+  10/20 shards done (0 failed)
+  20/20 shards done (0 failed)
+Download complete: 20/20 shards available (0 failed)
+[01:44 | 5296s left] Data verified: train_shards=20  val_shards=1  T+104s
+[01:44 | 5296s left] === PHASE: Upload code ===
+[01:55 | 5285s left] Code uploaded  T+115s
+[01:55 | 5285s left] === PHASE: Smoke test (FAST_SMOKE=1) ===
+[03:02 | 5218s left] Smoke test PASSED ✓  bpb=2.9713  T+182s
+[03:04 | 5216s left] === PHASE: Seed 42 (phase_budget=1500s) ===
+[03:04 | 5216s left] --- seed42: starting (phase_budget=1500s, 5216s overall left) ---
+[03:09 | 5211s left] seed42 launched in tmux 'pg_seed42'
+[03:49 | 5171s left] seed42 » step:250/500000 loss:3.3209 t:22890ms avg:91.6ms
+[04:27 | 5133s left] seed42 » step:650/500000 loss:2.1556 t:59131ms avg:91.0ms
+[05:06 | 5094s left] seed42 » step:1100/500000 loss:1.8209 t:99839ms avg:90.8ms
+[05:43 | 5057s left] seed42 » step:1500/500000 loss:1.5571 t:136169ms avg:90.8ms
+[06:19 | 5021s left] seed42 » step:1900/500000 loss:1.5479 t:172474ms avg:90.8ms
+[06:53 | 4987s left] seed42 » step:2300/500000 loss:1.5566 t:207150ms avg:90.1ms
+[07:26 | 4954s left] seed42 » step:2650/500000 loss:2.2893 t:238730ms avg:90.1ms
+[08:01 | 4919s left] seed42 » step:3050/500000 loss:2.4867 t:275199ms avg:90.2ms
+[08:36 | 4884s left] seed42 » step:3400/500000 loss:2.6094 t:307635ms avg:90.5ms
+[09:11 | 4849s left] seed42 » step:3800/500000 loss:2.2619 t:344282ms avg:90.6ms
+[09:46 | 4814s left] seed42 » step:4150/500000 loss:2.2699 t:376290ms avg:90.7ms
+[10:20 | 4780s left] seed42 » step:4500/500000 loss:3.4493 t:412893ms avg:91.8ms
+[10:55 | 4745s left] seed42 » step:4800/500000 loss:3.0368 t:447061ms avg:93.1ms
+[11:32 | 4708s left] seed42 » step:5100/500000 loss:3.0244 t:481167ms avg:94.3ms
+[12:08 | 4672s left] seed42 » step:5450/500000 loss:3.0209 t:520535ms avg:95.5ms
+[12:41 | 4639s left] seed42 » step:5750/500000 loss:3.3981 t:554233ms avg:96.4ms
+[13:15 | 4605s left] seed42 » step:6000/500000 val_loss:2.5555 val_bpb:1.5384 train_time:582453ms zero_frac:0.706
+[13:49 | 4571s left] seed42 » ngram_cache:progress 32768/499968 (6.6%)
+[14:24 | 4536s left] seed42 » ngram_cache:progress 98304/499968 (19.7%)
+[15:00 | 4500s left] seed42 » ngram_cache:progress 163840/499968 (32.8%)
+[15:34 | 4466s left] seed42 » ngram_cache:progress 212992/499968 (42.6%)
+[16:08 | 4432s left] seed42 » ngram_cache:progress 278528/499968 (55.7%)
+[16:43 | 4397s left] seed42 » ngram_cache:progress 344064/499968 (68.8%)
+[17:18 | 4362s left] seed42 » ngram_cache:progress 409600/499968 (81.9%)
+[17:50 | 4330s left] seed42 » ngram_cache:progress 475136/499968 (95.0%)
+[18:24 | 4296s left] seed42 COMPLETED ✓  T+1104s
+[18:28 | 4292s left] seed42 tagged artifacts as RUN_ID=skc_h100_s42_20260407_095718
+[18:59 | 4261s left] seed42 result: ngram_cache val_loss:4.4965 val_bpb:2.7069 (order=5) eval_time:269512ms
+[18:59 | 4261s left] === PHASE: Download all artifacts (4261s remaining) ===
+[19:03 | 4257s left] Downloading /workspace/logs/ ...
+[19:22 | 4238s left]   /workspace/logs synced
+[19:22 | 4238s left] Downloading artifacts from /workspace/ and /workspace/logs/ ...
+[19:39 | 4221s left]   final_model.ternary.ptz downloaded
+[19:43 | 4217s left]   submission.json downloaded
+[19:48 | 4212s left]   mlx_reasoner_model.ternary.ptz downloaded
+[19:48 | 4212s left] === Terminating pod hh72uxat0o9m6o ===
+[19:48 | 4212s left] Terminating pod hh72uxat0o9m6o...
+{
+  "podTerminate": null
+}
+[19:49 | 4211s left] ========================================================
+[19:49 | 4211s left] EXPERIMENT COMPLETE — 1189s / 5400s used
+[19:49 | 4211s left] ========================================================
+[19:49 | 4211s left] 
+[19:49 | 4211s left] All artifacts at: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401
+[19:49 | 4211s left] 
+[19:49 | 4211s left] Files:
+[19:49 | 4211s left]   [1.9M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/final_model.ternary.ptz
+[19:49 | 4211s left]   [1.9M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/mlx_reasoner_model.ternary.ptz
+[19:49 | 4211s left]   [9.5K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/seed42_run.log
+[19:49 | 4211s left]   [1.2K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095606.log
+[19:49 | 4211s left]   [1.9M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095606_model.ternary.ptz
+[19:49 | 4211s left]   [617B]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095606_submission.json
+[19:49 | 4211s left]   [8.8K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095718.log
+[19:49 | 4211s left]   [1.9M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095718_model.ternary.ptz
+[19:49 | 4211s left]   [7.3M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095718_pre_export_state.pt
+[19:49 | 4211s left]   [617B]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095718_submission.json
+[19:49 | 4211s left]   [1.9M]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/skc_h100_s42_20260407_095718_tagged.ternary.ptz
+[19:49 | 4211s left]   [617B]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/downloads/submission.json
+[19:49 | 4211s left]   [11K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/orchestrator.log
+[19:49 | 4211s left]   [9.5K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/seed42.log
+[19:49 | 4211s left]   [1.8K]  /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/smoke_test.log
+[19:49 | 4211s left] 
+[19:49 | 4211s left] BPB results:
+[19:49 | 4211s left]   seed42.log: ngram_cache val_loss:4.4965 val_bpb:2.7069 (order=5) eval_time:269512ms
+[19:49 | 4211s left]   seed42_run.log: ngram_cache val_loss:4.4965 val_bpb:2.7069 (order=5) eval_time:269512ms
+[19:49 | 4211s left]   skc_h100_s42_20260407_095606.log: final_ternary_roundtrip val_loss:4.9358 val_bpb:2.9713
+[19:49 | 4211s left]   skc_h100_s42_20260407_095718.log: ngram_cache val_loss:4.4965 val_bpb:2.7069 (order=5) eval_time:269512ms
+[19:49 | 4211s left] 
+[19:49 | 4211s left] Submit the .ternary.ptz with the lowest ngram_cache / final_sliding val_bpb
+[19:49 | 4211s left] Full log: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/experiment_results_20260407_045401/orchestrator.log
