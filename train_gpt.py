@@ -61,10 +61,10 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 6))
+    num_layers = int(os.environ.get("NUM_LAYERS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 768))
-    num_heads = int(os.environ.get("NUM_HEADS", 12))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
@@ -598,14 +598,17 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
+def calculate_hidden(mlp_mult: int, dim: int):
+    raw_hidden = int(mlp_mult * dim // 1.5)
+    multiplier = raw_hidden / 64
+    return 64 if multiplier == 0 else (2**round(math.log2(multiplier))) * 64
+
 
 class MLP(nn.Module):
     # Using SwiGLU as introduced in Shazeer (2020)
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        self.hidden = int(mlp_mult * dim // 1.5)
-        self.hidden = (self.hidden + 63) // 64 * 64  # Pad to multiple of 64
-        # Combine fc1 and fc2 into one "fused" layer
+        self.hidden = calculate_hidden(mlp_mult, dim)
         self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
         self.proj = nn.Linear(self.hidden, dim, bias=False)
 
@@ -632,13 +635,12 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_rope)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.125))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.resid_attn_scale.to(dtype=x.dtype)[None, None, :] * x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
-        return self.resid_mlp_scale.to(dtype=x.dtype)[None, None, :] * x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        y = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        return self.resid_scale.to(dtype=x.dtype)[None, None, :] * x + y + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(y))
 
 
 class GPT(nn.Module):
@@ -672,7 +674,7 @@ class GPT(nn.Module):
                 mlp_mult,
                 rope_base,
                 qk_gain_init,
-                use_rope=(i % 2 == 0)
+                use_rope=(i % 2 == 1)
             ) for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
@@ -722,7 +724,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5, mode="max-autotune", fullgraph=True)
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
