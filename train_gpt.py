@@ -872,7 +872,7 @@ class NgramMixer:
     ei=torch.where(el)[0]; d=ei[v]
     gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1); gh[d]=True
   pr=lp.exp(); ent=-(pr[ar,ac]*lp[ar,ac]).sum(dim=-1)
-  al=(0.20+0.55*torch.sigmoid(2.0*(ent-2.5))+0.15*gp).clamp(max=0.95)
+  al=(0.20+0.55*torch.sigmoid(2.0*(ent-2.5))+0.25*gp).clamp(max=0.95)
   mp=((1.0-al)*npa+al*gp).clamp(min=1e-12); out=nll.clone()
   out[ar,ac]=-mp.log(); return out
 
