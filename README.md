@@ -1,13 +1,13 @@
 # Diffusion Notes For Parameter Golf
 
-This repo is currently set up as a week-1 masked diffusion prototype for the Parameter Golf challenge on Apple Silicon with MLX.
+This repo is currently set up as a week-2 masked diffusion baseline for the Parameter Golf challenge on Apple Silicon with MLX.
 
 The original upstream challenge README has been preserved in `PARAMETER_GOLF_README.md`.
 
 ## Current Status
 
 - Main training script: `train_diffusion.py`
-- Scope currently matches the week-1 goal from `DIFFUSION_IMPLEMENTATION_PLAN.md`
+- Scope now includes the week-2 validation milestone from `DIFFUSION_IMPLEMENTATION_PLAN.md`
 - Available baseline configs:
   - `configs/diffusion_tiny.env`
   - `configs/diffusion_local.env`
@@ -22,20 +22,24 @@ The original upstream challenge README has been preserved in `PARAMETER_GOLF_REA
 - FineWeb shard loading on the local `sp1024` dataset subset
 - Sample generation by iterative unmasking
 - MLX-friendly microbatching for Apple Silicon
+- Deterministic diffusion validation over the fixed `fineweb_val_*` split
+- D3PM-style ELBO lower-bound reporting as `val_elbo_nats`, `val_bits_per_token`, and `val_bpb`
+- Standalone checkpoint evaluation via `diffusion_eval.py`
 
-## Important Caveat
+## Validation Behavior
 
-The current diffusion validation path is only a masked-denoising proxy loss. It is not yet the real Parameter Golf metric (`val_bpb` on the fixed FineWeb validation split).
+- `proxy_loss` is retained as debugging telemetry only.
+- The main comparison metric is now `val_bpb`, derived from a deterministic ELBO-style lower bound.
+- The default local and scale configs now validate on a subset of the validation shard for faster iteration.
+- `VAL_MAX_TOKENS` controls that subset size. Use `VAL_MAX_TOKENS=0` for challenge-aligned full-split numbers.
 
-On 2026-04-08, we found that the diffusion validation corruption settings were coupled to the training corruption settings, which invalidated later cross-run comparisons based on reported diffusion `val_loss`. Those post-week-1 experiment artifacts and claims were removed so the repo reflects the intended week-1 baseline state again.
-
-## Week-1 Outcome
+## Milestone Status
 
 - End-to-end diffusion training works locally
 - Synthetic debugging mode is in place
 - One-shard FineWeb training is wired up
 - Sampling is available for sanity checks
-- Proper challenge-aligned evaluation remains the next major step
+- Challenge-aligned validation is wired into training and standalone evaluation
 
 ## Important Files
 
@@ -43,6 +47,8 @@ On 2026-04-08, we found that the diffusion validation corruption settings were c
 - Diffusion implementation plan: `DIFFUSION_IMPLEMENTATION_PLAN.md`
 - Diffusion notes and cleanup log: `EXPERIMENT_LOG.md`
 - Main training script: `train_diffusion.py`
+- Standalone evaluator: `diffusion_eval.py`
+- Validation/objective helpers: `diffusion_objectives.py`, `validation_common.py`
 
 ## Running The Baseline Local Config
 
@@ -50,6 +56,16 @@ On 2026-04-08, we found that the diffusion validation corruption settings were c
 cd parameter-golf
 set -a; source configs/diffusion_local.env; set +a
 ./.venv/bin/python train_diffusion.py
+```
+
+This local config intentionally uses a validation subset. For a full-shard run, override with `VAL_MAX_TOKENS=0`.
+
+## Running Standalone Validation
+
+```bash
+cd parameter-golf
+set -a; source configs/diffusion_local.env; set +a
+VAL_MAX_TOKENS=0 ./.venv/bin/python diffusion_eval.py --checkpoint logs/your_run_id_diffusion_mlx.npz
 ```
 
 ## Running The Tiny Synthetic Config

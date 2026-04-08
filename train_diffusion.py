@@ -1,28 +1,17 @@
 #!/usr/bin/env python3
 """
-Simple MLX masked diffusion language model for Parameter Golf week 1.
+Simple MLX masked diffusion language model for Parameter Golf week 2.
 
-This script intentionally stays close to `train_gpt_mlx.py` for:
-- environment-variable configuration
-- shard loading
-- MLX compilation patterns
-- Mac-friendly microbatching
-
-It implements the smallest useful discrete diffusion baseline:
-- bidirectional Transformer denoiser
-- absorbing-mask corruption
-- masked-token cross-entropy objective
-- iterative unmasking samples for sanity checks
-- synthetic repeated-pattern mode for quick overfit debugging
+This script keeps the week-1 training objective intact while replacing the
+validation path with a deterministic, challenge-aligned pipeline:
+- proxy_loss: fixed-seed masked-denoising CE for debugging
+- val_elbo_nats / val_bpb: D3PM-style lower-bound estimate for comparison
 """
 from __future__ import annotations
 
-import glob
 import math
-import os
 import sys
 import time
-import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -34,80 +23,11 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
-COMPUTE_DTYPE = mx.bfloat16
-
-
-class Hyperparameters:
-    data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
-    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
-    run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
-    seed: int = int(os.environ.get("SEED", 1337))
-
-    iterations: int = int(os.environ.get("ITERATIONS", 4_000))
-    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 50))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 200))
-    val_at_start: bool = bool(int(os.environ.get("VAL_AT_START", "1")))
-    val_at_end: bool = bool(int(os.environ.get("VAL_AT_END", "1")))
-    sample_every: int = int(os.environ.get("SAMPLE_EVERY", 200))
-    train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 65_536))
-    val_batch_tokens: int = int(os.environ.get("VAL_BATCH_TOKENS", 65_536))
-    val_max_tokens: int = int(os.environ.get("VAL_MAX_TOKENS", 0))
-    grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 4))
-    train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", 256))
-    mlx_max_microbatch_tokens: int = int(os.environ.get("MLX_MAX_MICROBATCH_TOKENS", 8_192))
-    mlx_eager_eval: bool = bool(int(os.environ.get("MLX_EAGER_EVAL", "1")))
-    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 5))
-    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
-
-    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 6))
-    model_dim: int = int(os.environ.get("MODEL_DIM", 256))
-    num_heads: int = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
-    tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.02))
-    rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
-    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-
-    learning_rate: float = float(os.environ.get("LEARNING_RATE", 3e-4))
-    weight_decay: float = float(os.environ.get("WEIGHT_DECAY", 0.0))
-    beta1: float = float(os.environ.get("BETA1", 0.9))
-    beta2: float = float(os.environ.get("BETA2", 0.95))
-    adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
-
-    num_diffusion_steps: int = int(os.environ.get("NUM_DIFFUSION_STEPS", 32))
-    mask_schedule: str = os.environ.get("MASK_SCHEDULE", "cosine")
-    min_mask_rate: float = float(os.environ.get("MIN_MASK_RATE", 0.0))
-    max_mask_rate: float = float(os.environ.get("MAX_MASK_RATE", 1.0))
-    mask_token_id: int = int(os.environ.get("MASK_TOKEN_ID", -1))
-    sample_temperature: float = float(os.environ.get("SAMPLE_TEMPERATURE", 1.0))
-    sample_prompt: str = os.environ.get("SAMPLE_PROMPT", "")
-    sample_num_steps: int = int(os.environ.get("SAMPLE_NUM_STEPS", 0))
-
-    train_shards: int = int(os.environ.get("TRAIN_SHARDS", 0))
-    synthetic_data: bool = bool(int(os.environ.get("SYNTHETIC_DATA", "0")))
-    synthetic_vocab_size: int = int(os.environ.get("SYNTHETIC_VOCAB_SIZE", 32))
-    synthetic_pattern_len: int = int(os.environ.get("SYNTHETIC_PATTERN_LEN", 8))
-    synthetic_train_tokens: int = int(os.environ.get("SYNTHETIC_TRAIN_TOKENS", 131_072))
-    synthetic_val_tokens: int = int(os.environ.get("SYNTHETIC_VAL_TOKENS", 16_384))
-
-    out_dir: str = os.environ.get("OUT_DIR", "logs")
-
-    @property
-    def train_files(self) -> str:
-        return f"{self.data_path}/fineweb_train_*.bin"
-
-    @property
-    def val_files(self) -> str:
-        return f"{self.data_path}/fineweb_val_*.bin"
-
-    @property
-    def microbatch_tokens(self) -> int:
-        return self.train_batch_tokens // self.grad_accum_steps
-
-    @property
-    def sample_steps(self) -> int:
-        return self.sample_num_steps if self.sample_num_steps > 0 else self.num_diffusion_steps
+from diffusion_config import Hyperparameters
+from diffusion_eval import evaluate_diffusion_model, format_metrics_for_log, prepare_validation_state
+from diffusion_model import DiffusionTransformer
+from diffusion_objectives import args_mask_rates, corrupt_batch_np
+from validation_common import load_data_shard
 
 
 def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
@@ -137,25 +57,6 @@ def accumulate_flat_grads(
     return accum
 
 
-def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
-    return (x * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + eps)).astype(x.dtype)
-
-
-def load_data_shard(path: Path) -> np.ndarray:
-    header_bytes = 256 * np.dtype("<i4").itemsize
-    token_bytes = np.dtype("<u2").itemsize
-    header = np.fromfile(path, dtype="<i4", count=256)
-    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
-        raise ValueError(f"Unexpected shard header for {path}")
-    num_tokens = int(header[2])
-    if path.stat().st_size != header_bytes + num_tokens * token_bytes:
-        raise ValueError(f"Shard size mismatch for {path}")
-    tokens = np.fromfile(path, dtype="<u2", count=num_tokens, offset=header_bytes)
-    if tokens.size != num_tokens:
-        raise ValueError(f"Short read for {path}")
-    return tokens.astype(np.int32, copy=False)
-
-
 class TokenStream:
     def __init__(
         self,
@@ -164,6 +65,8 @@ class TokenStream:
         log_fn: Callable[[str], None] | None = None,
         dataset_name: str = "",
     ):
+        import glob
+
         files = [Path(p) for p in sorted(glob.glob(pattern))]
         if train_shards > 0:
             files = files[:train_shards]
@@ -239,132 +142,6 @@ class SyntheticLoader:
         return chunk.reshape(-1, seq_len)
 
 
-class CastedLinear(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int):
-        super().__init__()
-        self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
-
-    def __call__(self, x: mx.array) -> mx.array:
-        return x @ self.weight.astype(x.dtype).T
-
-
-class RMSNormNoWeight(nn.Module):
-    def __call__(self, x: mx.array) -> mx.array:
-        return rms_norm(x)
-
-
-class BidirectionalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, rope_base: float):
-        super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError("MODEL_DIM must be divisible by NUM_HEADS")
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
-        self.q_proj = CastedLinear(dim, dim)
-        self.k_proj = CastedLinear(dim, dim)
-        self.v_proj = CastedLinear(dim, dim)
-        self.out_proj = CastedLinear(dim, dim)
-        self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
-        self.scale = self.head_dim ** -0.5
-
-    def __call__(self, x: mx.array) -> mx.array:
-        bsz, seqlen, dim = x.shape
-        q = self.q_proj(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.k_proj(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.v_proj(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
-        k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
-        y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale)
-        y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
-        return self.out_proj(y)
-
-
-class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int):
-        super().__init__()
-        hidden = dim * mlp_mult
-        self.fc = CastedLinear(dim, hidden)
-        self.proj = CastedLinear(hidden, dim)
-
-    def __call__(self, x: mx.array) -> mx.array:
-        x = nn.relu(self.fc(x))
-        return self.proj(x * x)
-
-
-class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, mlp_mult: int, rope_base: float):
-        super().__init__()
-        self.attn_norm = RMSNormNoWeight()
-        self.mlp_norm = RMSNormNoWeight()
-        self.attn = BidirectionalSelfAttention(dim, num_heads, rope_base)
-        self.mlp = MLP(dim, mlp_mult)
-
-    def __call__(self, x: mx.array) -> mx.array:
-        x = x + self.attn(self.attn_norm(x))
-        x = x + self.mlp(self.mlp_norm(x))
-        return x
-
-
-class DiffusionTransformer(nn.Module):
-    def __init__(
-        self,
-        vocab_size: int,
-        num_layers: int,
-        dim: int,
-        num_heads: int,
-        mlp_mult: int,
-        num_diffusion_steps: int,
-        rope_base: float,
-        tied_embed_init_std: float,
-        logit_softcap: float,
-    ):
-        super().__init__()
-        if logit_softcap <= 0.0:
-            raise ValueError("LOGIT_SOFTCAP must be positive")
-        self.logit_softcap = logit_softcap
-        self.tok_emb = nn.Embedding(vocab_size, dim)
-        self.time_emb = nn.Embedding(num_diffusion_steps + 1, dim)
-        self.blocks = [Block(dim, num_heads, mlp_mult, rope_base) for _ in range(num_layers)]
-        self.final_norm = RMSNormNoWeight()
-        self.tok_emb.weight = (
-            mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
-        ).astype(COMPUTE_DTYPE)
-        self.time_emb.weight = (
-            mx.random.normal(self.time_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
-        ).astype(COMPUTE_DTYPE)
-
-    def softcap(self, logits: mx.array) -> mx.array:
-        c = self.logit_softcap
-        return c * mx.tanh(logits / c)
-
-    def hidden(self, input_ids: mx.array, timesteps: mx.array) -> mx.array:
-        x = self.tok_emb(input_ids).astype(COMPUTE_DTYPE)
-        t = self.time_emb(timesteps).astype(COMPUTE_DTYPE)[:, None, :]
-        x = rms_norm(x + t)
-        for block in self.blocks:
-            x = block(x)
-        return self.final_norm(x)
-
-    def logits(self, input_ids: mx.array, timesteps: mx.array) -> mx.array:
-        h = self.hidden(input_ids, timesteps)
-        logits = h @ self.tok_emb.weight.astype(h.dtype).T
-        return self.softcap(logits)
-
-    def loss(
-        self,
-        corrupted_ids: mx.array,
-        target_ids: mx.array,
-        timesteps: mx.array,
-        loss_mask: mx.array,
-    ) -> mx.array:
-        logits = self.logits(corrupted_ids, timesteps).astype(mx.float32)
-        losses = nn.losses.cross_entropy(logits, target_ids, reduction="none").astype(mx.float32)
-        weights = loss_mask.astype(mx.float32)
-        return mx.sum(losses * weights) / mx.maximum(mx.sum(weights), mx.array(1.0, dtype=mx.float32))
-
-
 def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
     if max_norm <= 0:
         return grads_tree
@@ -394,106 +171,6 @@ def build_synthetic_tokens(args: Hyperparameters) -> tuple[np.ndarray, np.ndarra
     return train_tokens, val_tokens
 
 
-def load_validation_tokens(pattern: str, seq_len: int, max_tokens: int = 0) -> np.ndarray:
-    files = [Path(p) for p in sorted(glob.glob(pattern))]
-    if not files:
-        raise FileNotFoundError(f"No files found for pattern: {pattern}")
-    tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
-    if max_tokens > 0:
-        tokens = tokens[:max_tokens]
-    usable = (tokens.size // seq_len) * seq_len
-    if usable <= 0:
-        raise ValueError(
-            f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}; "
-            f"got {tokens.size} tokens after VAL_MAX_TOKENS={max_tokens}"
-        )
-    return tokens[:usable]
-
-
-def choose_mask_token_id(sp: spm.SentencePieceProcessor | None, args: Hyperparameters) -> int:
-    if args.mask_token_id >= 0:
-        if args.mask_token_id >= args.vocab_size:
-            raise ValueError(f"MASK_TOKEN_ID={args.mask_token_id} must be < VOCAB_SIZE={args.vocab_size}")
-        return args.mask_token_id
-    if sp is None:
-        return args.vocab_size - 1
-    for token_id in (sp.pad_id(),):
-        if 0 <= token_id < args.vocab_size and token_id != sp.unk_id():
-            return int(token_id)
-    for token_id in range(args.vocab_size - 1, -1, -1):
-        if sp.is_unused(token_id) or sp.is_control(token_id):
-            return token_id
-    for token_id in (sp.eos_id(), sp.bos_id()):
-        if 0 <= token_id < args.vocab_size and token_id != sp.unk_id():
-            return int(token_id)
-    return args.vocab_size - 1
-
-
-def mask_rate_for_t(timesteps: np.ndarray, args: Hyperparameters) -> np.ndarray:
-    frac = timesteps.astype(np.float32) / float(args.num_diffusion_steps)
-    if args.mask_schedule == "linear":
-        rate = frac
-    elif args.mask_schedule == "cosine":
-        rate = np.sin(0.5 * np.pi * frac) ** 2
-    else:
-        raise ValueError(f"Unknown MASK_SCHEDULE={args.mask_schedule}")
-    return np.clip(rate, args.min_mask_rate, args.max_mask_rate)
-
-
-def corrupt_batch_np(
-    clean_ids: np.ndarray,
-    args: Hyperparameters,
-    rng: np.random.Generator,
-    mask_token_id: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-    batch, seq_len = clean_ids.shape
-    timesteps = rng.integers(1, args.num_diffusion_steps + 1, size=(batch,), dtype=np.int32)
-    mask_rates = mask_rate_for_t(timesteps, args)
-    mask = rng.random((batch, seq_len), dtype=np.float32) < mask_rates[:, None]
-    no_mask_rows = np.where(mask.sum(axis=1) == 0)[0]
-    if no_mask_rows.size:
-        cols = rng.integers(0, seq_len, size=(no_mask_rows.size,), dtype=np.int32)
-        mask[no_mask_rows, cols] = True
-    corrupted = clean_ids.copy()
-    corrupted[mask] = mask_token_id
-    return corrupted, timesteps, mask.astype(np.float32), float(mask.mean())
-
-
-def make_eval_batches(tokens: np.ndarray, batch_tokens: int, seq_len: int) -> list[np.ndarray]:
-    usable_batch = (batch_tokens // seq_len) * seq_len
-    if usable_batch <= 0:
-        raise ValueError(f"VAL_BATCH_TOKENS too small for TRAIN_SEQ_LEN={seq_len}")
-    seqs_per_batch = usable_batch // seq_len
-    total_seqs = tokens.size // seq_len
-    return [tokens[i * seq_len : j * seq_len].reshape(-1, seq_len) for i in range(0, total_seqs, seqs_per_batch) for j in [min(i + seqs_per_batch, total_seqs)]]
-
-
-def eval_val(
-    model: DiffusionTransformer,
-    compiled_loss,
-    val_batches: list[np.ndarray],
-    args: Hyperparameters,
-    mask_token_id: int,
-) -> tuple[float, float]:
-    rng = np.random.default_rng(12345)
-    total_loss = 0.0
-    total_masked = 0.0
-    total_tokens = 0.0
-    for batch in val_batches:
-        corrupted, timesteps, loss_mask, _ = corrupt_batch_np(batch, args, rng, mask_token_id)
-        x = mx.array(corrupted, dtype=mx.int32)
-        y = mx.array(batch, dtype=mx.int32)
-        t = mx.array(timesteps, dtype=mx.int32)
-        m = mx.array(loss_mask, dtype=mx.float32)
-        loss = compiled_loss(x, y, t, m).astype(mx.float32)
-        mx.eval(loss)
-        masked = float(loss_mask.sum())
-        total_loss += float(loss.item()) * masked
-        total_masked += masked
-        total_tokens += float(loss_mask.size)
-    return total_loss / max(total_masked, 1.0), total_masked / max(total_tokens, 1.0)
-
-
 def decode_ids(ids: list[int], sp: spm.SentencePieceProcessor | None, synthetic: bool) -> str:
     if synthetic or sp is None:
         return " ".join(str(int(x)) for x in ids)
@@ -507,6 +184,8 @@ def sample_text(
     sp: spm.SentencePieceProcessor | None,
     mask_token_id: int,
 ) -> str:
+    from diffusion_objectives import mask_rate_for_t
+
     rng = np.random.default_rng(args.seed + 999)
     tokens = np.full((1, args.train_seq_len), mask_token_id, dtype=np.int32)
     fixed = np.zeros((1, args.train_seq_len), dtype=bool)
@@ -526,8 +205,20 @@ def sample_text(
         if step == 1:
             reveal = current_mask
         else:
-            p_now = mask_rate_for_t(np.array([step], dtype=np.int32), args)[0]
-            p_next = mask_rate_for_t(np.array([step - 1], dtype=np.int32), args)[0]
+            p_now = mask_rate_for_t(
+                np.array([step], dtype=np.int32),
+                num_diffusion_steps=args.num_diffusion_steps,
+                mask_schedule=args.mask_schedule,
+                min_mask_rate=args.min_mask_rate,
+                max_mask_rate=args.max_mask_rate,
+            )[0]
+            p_next = mask_rate_for_t(
+                np.array([step - 1], dtype=np.int32),
+                num_diffusion_steps=args.num_diffusion_steps,
+                mask_schedule=args.mask_schedule,
+                min_mask_rate=args.min_mask_rate,
+                max_mask_rate=args.max_mask_rate,
+            )[0]
             keep_prob = 0.0 if p_now <= 0 else float(np.clip(p_next / p_now, 0.0, 1.0))
             keep_masked = rng.random(current_mask.shape) < keep_prob
             reveal = current_mask & ~keep_masked
@@ -546,6 +237,7 @@ def loss_and_grad_chunked(
     train_loader,
     rng: np.random.Generator,
     mask_token_id: int,
+    mask_rates: np.ndarray,
     compiled_loss_and_grad,
 ) -> tuple[mx.array, dict, float]:
     chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
@@ -555,7 +247,13 @@ def loss_and_grad_chunked(
     masked_fraction_sum = 0.0
     for chunk_tokens in chunk_sizes:
         clean_np = train_loader.next_batch(chunk_tokens, args.train_seq_len)
-        corrupted_np, timesteps_np, loss_mask_np, masked_fraction = corrupt_batch_np(clean_np, args, rng, mask_token_id)
+        corrupted_np, timesteps_np, loss_mask_np, masked_fraction = corrupt_batch_np(
+            clean_np,
+            args,
+            rng,
+            mask_token_id,
+            mask_rates=mask_rates,
+        )
         x = mx.array(corrupted_np, dtype=mx.int32)
         y = mx.array(clean_np, dtype=mx.int32)
         t = mx.array(timesteps_np, dtype=mx.int32)
@@ -592,28 +290,21 @@ def main() -> None:
 
     mx.random.seed(args.seed)
     np_rng = np.random.default_rng(args.seed)
+    mask_rates = args_mask_rates(args)
 
-    sp: spm.SentencePieceProcessor | None = None
-    dataset_name = "synthetic"
+    sp, dataset_name, actual_train_files, expected_train_files, val_tokens, byte_luts, mask_token_id = prepare_validation_state(
+        args,
+        log_fn=log,
+    )
+
     if args.synthetic_data:
-        train_tokens, val_tokens = build_synthetic_tokens(args)
+        train_tokens, _ = build_synthetic_tokens(args)
         train_loader = SyntheticLoader(train_tokens)
-        val_batches = make_eval_batches(val_tokens, args.val_batch_tokens, args.train_seq_len)
-        args.vocab_size = max(args.vocab_size, args.synthetic_vocab_size)
+        train_shard_msg = "synthetic"
     else:
-        if not args.tokenizer_path.endswith(".model"):
-            raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
-        sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-        if int(sp.vocab_size()) != args.vocab_size:
-            raise ValueError(
-                f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
-            )
-        dataset_name = Path(args.data_path).resolve().name
         train_loader = TokenLoader(args.train_files, train_shards=args.train_shards, log_fn=log, dataset_name=dataset_name)
-        val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, max_tokens=args.val_max_tokens)
-        val_batches = make_eval_batches(val_tokens, args.val_batch_tokens, args.train_seq_len)
+        train_shard_msg = args.train_shards if args.train_shards > 0 else actual_train_files
 
-    mask_token_id = choose_mask_token_id(sp, args)
     model = DiffusionTransformer(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
@@ -632,11 +323,6 @@ def main() -> None:
         bias_correction=True,
     )
 
-    compiled_loss = mx.compile(
-        lambda x, y, t, m: model.loss(x, y, t, m),
-        inputs=model.state,
-        outputs=model.state,
-    )
     compiled_logits = mx.compile(
         lambda x, t: model.logits(x, t),
         inputs=model.state,
@@ -649,12 +335,26 @@ def main() -> None:
     )
 
     n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
-    train_shard_msg = args.train_shards if args.train_shards > 0 else "all"
     log(f"run_id:{args.run_id}")
     log(f"mode:{'synthetic' if args.synthetic_data else 'fineweb'} dataset:{dataset_name}")
-    log(f"tokenizer_path:{args.tokenizer_path if sp is not None else 'synthetic'}")
-    log(f"mask_token_id:{mask_token_id} mask_schedule:{args.mask_schedule} diffusion_steps:{args.num_diffusion_steps}")
-    log(f"validation_tokens:{sum(batch.size for batch in val_batches)} val_max_tokens:{args.val_max_tokens}")
+    if sp is not None:
+        log(f"tokenizer_path:{args.tokenizer_path}")
+        log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.size - 1}")
+    if expected_train_files is None:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
+    elif isinstance(actual_train_files, int) and actual_train_files < expected_train_files:
+        log(
+            f"WARNING: train_loader:subset dataset:{dataset_name} "
+            f"train_shards:{actual_train_files}/{expected_train_files} "
+            f"new epochs will arrive sooner than the full dataset"
+        )
+    else:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
+    log(
+        f"mask_token_id:{mask_token_id} mask_schedule:{args.mask_schedule} diffusion_steps:{args.num_diffusion_steps} "
+        f"val_metric:{args.val_metric} val_seed:{args.val_seed}"
+    )
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} dim:{args.model_dim} "
         f"heads:{args.num_heads} seq_len:{args.train_seq_len}"
@@ -674,7 +374,14 @@ def main() -> None:
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
             for _ in range(args.grad_accum_steps):
-                loss, grads, _ = loss_and_grad_chunked(args, train_loader, np_rng, mask_token_id, compiled_loss_and_grad)
+                loss, grads, _ = loss_and_grad_chunked(
+                    args,
+                    train_loader,
+                    np_rng,
+                    mask_token_id,
+                    mask_rates,
+                    compiled_loss_and_grad,
+                )
                 warmup_loss = warmup_loss + loss.astype(mx.float32) / args.grad_accum_steps
                 accum = accumulate_flat_grads(accum, grads, 1.0 / args.grad_accum_steps)
             mx.eval(warmup_loss, accum)
@@ -700,8 +407,18 @@ def main() -> None:
         elif step > 0 and args.val_loss_every > 0 and step % args.val_loss_every == 0:
             should_run_val = True
         if should_run_val:
-            val_loss, val_masked = eval_val(model, compiled_loss, val_batches, args, mask_token_id)
-            log(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_masked_frac:{val_masked:.4f}")
+            metrics = evaluate_diffusion_model(
+                model,
+                compiled_logits,
+                val_tokens,
+                args,
+                mask_token_id,
+                byte_luts,
+                eval_phase="periodic",
+                log_fn=log,
+            )
+            metric_parts = format_metrics_for_log(metrics).split()
+            log(f"step:{step}/{args.iterations} {' '.join(part for part in metric_parts if not part.startswith('tokens:'))}")
         if last_step:
             break
 
@@ -715,6 +432,7 @@ def main() -> None:
                 train_loader,
                 np_rng,
                 mask_token_id,
+                mask_rates,
                 compiled_loss_and_grad,
             )
             train_loss = train_loss + loss.astype(mx.float32) / args.grad_accum_steps
@@ -748,6 +466,18 @@ def main() -> None:
             elapsed_ms = 1000.0 * (time.perf_counter() - t0)
             if elapsed_ms >= max_wallclock_ms:
                 stop_after_step = step
+
+    final_metrics = evaluate_diffusion_model(
+        model,
+        compiled_logits,
+        val_tokens,
+        args,
+        mask_token_id,
+        byte_luts,
+        eval_phase="final",
+        log_fn=log,
+    )
+    log(f"final_diffusion_eval {format_metrics_for_log(final_metrics)}")
 
     out_path = out_dir / f"{args.run_id}_diffusion_mlx.npz"
     flat_state = {k: v for k, v in tree_flatten(model.state)}
