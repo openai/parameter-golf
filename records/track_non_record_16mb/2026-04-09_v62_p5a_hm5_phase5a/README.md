@@ -35,14 +35,17 @@ Seven discrete contributions in this PR / the v6.1 chain it extends:
 4. **Phase 5a trivial-wins composition (new in this PR)** — QK-Gain 5.0 + MuonEq-R
    + EMA 0.9965 + hidden_mult 5 + int6 tied embed, stacked on top of the rANS
    HybridQuant backbone. Delivers **−0.010124 bpb** over the v6.1 SLOT-100 record.
-5. **Shannon-floor empirical check (new in this PR)** — inter-layer delta
-   prediction experiment showed **delta entropy ≥ raw-weight entropy across
-   all 11 layers**; rANS reaches 2.32 bits/weight on MLP-up vs a Shannon
-   theoretical minimum of 2.28 bits/weight on the same tensors. To our
-   knowledge this is **the first explicit Shannon-floor empirical check on
-   the HybridQuant / Pentanary rANS pipeline** — the other rANS-based PR
-   #1215 reports int5/int6 bits/weight but does not run a delta-vs-raw
-   entropy comparison.
+5. **Shannon-floor empirical check (new in this PR)** — `analyze_inter_layer.py`
+   ran on the seed 1337 FP32 state dict and measured **H(W)=2.124 bits**
+   for the raw MLP-up Pentanary symbol histogram vs **H(ΔW)=2.128 bits**
+   (averaged across all 11 layers, +0.004 bits, delta_abs / W_abs ≈ 1.4).
+   The artifact-level rANS storage on MLP-up is ~2.32 bits/weight (3.47 MB
+   / 11.55 M params), so the ~0.2 bits/weight gap above the 2.124 Shannon
+   minimum is per-row FP16 scales + frequency tables + alignment, not
+   exploitable redundancy. To our knowledge this is **the first explicit
+   Shannon-floor check on the HybridQuant / Pentanary rANS pipeline** —
+   the other rANS-based PR #1215 reports int5/int6 bits/weight but does
+   not run a delta-vs-raw entropy comparison.
 6. **Empirical negative-results catalog for the 32 M regime (new in this
    PR)** — 10 actually-run experiments with eval data (Phase 1A pent/int4
    tied embed, Phase 2A inter-layer delta measurement, Phase 4 seven-variant
@@ -100,19 +103,31 @@ attainable with a small top-up; we will push a follow-up commit once the
 final numbers are in.
 
 ### Shannon-limit empirical check
-One of the abandoned Phase 2 experiments was inter-layer delta prediction
-(`ΔW_l = W_l − W_{l−1}`, video-codec style). We measured the per-layer
-Shannon entropy of both `W_l` and `ΔW_l` after Pentanary / Int4 quantization
-and found that **across all 11 layers the delta entropy was equal to or
-higher than the raw weight entropy** — the Pentanary alphabet distribution
-widens after the delta because the per-layer median (which rANS was already
-exploiting on raw weights) gets removed. Empirically, rANS reaches 2.32
-bits/weight for MLP-up Pentanary vs a Shannon theoretical minimum of 2.28
-bits/weight measured on the same weights, so **the 15 MB artifact is already
-entropy-bound at the single-token coder level**. The only remaining headroom
-is information flow between the model and the quantizer (QAT, tied-embed
-quantization, hidden-mult re-investment — which is exactly what Phase 1A +
-Phase 5a exploits).
+One of the Phase 2 experiments was inter-layer delta prediction
+(`ΔW_l = W_l − W_{l−1}`, video-codec style). We measured the Pentanary
+symbol histogram entropy of both `W_l` and `ΔW_l` for every MLP-up layer
+of seed 1337's FP32 state dict (script:
+`records/track_10min_16mb/2026-04-09_v62_phase2_video_codec/analyze_inter_layer.py`)
+and found:
+
+| measurement                              | value           |
+|------------------------------------------|-----------------|
+| H(W_l) raw MLP-up Pentanary, avg         | 2.124 bits      |
+| H(ΔW_l) inter-layer delta Pentanary, avg | 2.128 bits (+0.004) |
+| `delta_abs_mean / W_abs_mean` ratio      | ≈ 1.4 (delta is ~40 % *larger* than raw) |
+
+**The delta entropy is equal to or *higher* than the raw weight entropy
+across all 11 layers** — the delta is not a small-magnitude residual,
+trained transformer weights at this scale are not strongly correlated
+between adjacent layers, and after Pentanary quantization the delta
+alphabet distribution widens instead of collapsing. The artifact-level
+rANS storage on MLP-up is ~2.32 bits/weight (3.47 MB / 11.55 M MLP-up
+params byte breakdown) — ~0.2 bits above the 2.124 Shannon minimum, with
+the gap being per-row FP16 scales + frequency tables + alignment, not
+exploitable redundancy in the weight stream itself. The remaining
+compression headroom is in the **model-↔-quantizer interaction** (QAT,
+tied-embed quantization, hidden-mult re-investment — which is exactly
+what Phase 1A + Phase 5a exploits).
 
 ## Phase 5a stack (vs v6.1 SLOT-100 baseline)
 

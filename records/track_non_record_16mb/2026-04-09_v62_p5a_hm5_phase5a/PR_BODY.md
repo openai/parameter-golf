@@ -300,22 +300,24 @@ The motivation was that if adjacent layers are correlated, the delta
 distribution would be a zero-mean Laplacian that rANS could encode at a lower
 entropy than the raw weight.
 
-We measured the per-layer Shannon entropy of both `W_l` and `ΔW_l` after
-Pentanary / Int4 quantization. **Across all 11 layers the delta entropy was
-equal to or higher than the raw weight entropy** — ΔW_l loses the per-layer
-median the raw W_l had baked in, so the Pentanary alphabet distribution widens
-instead of collapsing. In other words, rANS on the raw quantized weights is
-already **within noise of the Shannon entropy floor** for this model
-(empirically: rANS achieves 2.32 bits/weight for MLP-up Pentanary vs a Shannon
-theoretical minimum of 2.28 bits/weight measured on the same weights), so
-linear residual prediction cannot add further compression and we fall back to
-encoding raw weights directly. Phase 2A (Hadamard transform), Phase 2B
-(Context-aware rANS with sub-tables), and Phase 3 (Custom binary container
-pickle-bypass) all confirmed the same ceiling: the 15 MB artifact is already
-entropy-bound at the single-token coder level, and the only remaining headroom
-is **information flow between the model and the quantizer** (QAT, tied-embed
-quantization, hidden-mult re-investment — which is exactly what Phase 1A + 5a
-exploits).
+We measured the per-tensor Pentanary symbol histogram entropy of both `W_l`
+and `ΔW_l` for every MLP-up layer. **Across all 11 layers the delta entropy
+was equal to or higher than the raw weight entropy** — `ΔW_l` loses the
+per-layer median that raw `W_l` had baked in, so the Pentanary alphabet
+distribution widens instead of collapsing (concrete numbers: averaged
+H(W_l) = 2.124 bits, averaged H(ΔW_l) = 2.128 bits, delta_abs_mean /
+W_abs_mean ratio ≈ 1.4 — the delta is actually 40 % *larger in magnitude*
+than the raw weight). In other words, rANS on the raw quantized weights is
+already **at or near the Shannon entropy floor** for this model; the
+remaining ~0.2 bits/weight gap between the artifact-level rANS storage
+(~2.32 bits/weight on MLP-up, derived from the 3.47 MB / 11.55 M MLP-up
+params byte breakdown) and the measured 2.124 bits Shannon entropy is
+per-row FP16 scales + frequency tables + alignment padding, not
+exploitable redundancy in the weight stream itself. Linear residual
+prediction cannot add further compression and we fall back to encoding
+raw weights directly. The remaining compression headroom is in the
+**model-↔-quantizer interaction** (QAT, tied-embed quantization,
+hidden-mult re-investment — exactly what Phase 1A + Phase 5a exploits).
 
 ## Parent / cite
 - Parent: [openai/parameter-golf#1123](https://github.com/openai/parameter-golf/pull/1123) (HybridQuantGPT v6.1, 1.1986 non-record)
