@@ -834,7 +834,6 @@ class NgramMixer:
   s.seen=0; s.uni=torch.zeros(V,device=dev); s.ut=0.0
   s.ctx=[torch.zeros(B,device=dev) for _ in range(maxN-1)]
   s.full=[torch.zeros(B,device=dev) for _ in range(maxN-1)]
-  s.log_w=torch.zeros(2,device=dev)
  def _bk(s,h): return h & s.M
  def update(s, t):
   t=t.to(s.dev).long(); n=t.numel(); s.seen+=n
@@ -858,9 +857,11 @@ class NgramMixer:
   pos=torch.arange(slen,device=s.dev,dtype=torch.int64).view(1,-1)
   am=(pos>=st)&(pos<et)
   if s.seen<s.minT or not bool(am.any()): return nll
-  ar,ac=torch.where(am); npa=np_[ar,ac]
-  gp=(s.uni[yb[ar,ac]]+0.5)/(s.ut+0.5*V) if s.ut>0 else torch.full((ar.numel(),),1.0/V,device=s.dev)
-  gh=torch.zeros(ar.numel(),device=s.dev,dtype=torch.bool)
+  ar,ac=torch.where(am); N=ar.numel(); npa=np_[ar,ac]
+  gp=(s.uni[yb[ar,ac]]+0.5)/(s.ut+0.5*V) if s.ut>0 else torch.full((N,),1.0/V,device=s.dev)
+  gh=torch.zeros(N,device=s.dev,dtype=torch.bool)
+  g_order=torch.zeros(N,device=s.dev)
+  g_count=torch.ones(N,device=s.dev)
   for o in range(s.maxN,1,-1):
    oi=o-2; cw=o-1; el=(ac>=(cw-1))&(~gh)
    if not bool(el.any()): continue
@@ -871,13 +872,14 @@ class NgramMixer:
    cc=s.ctx[oi][ck]; fc=s.full[oi][fk]; v=cc>=s.minC
    if bool(v.any()):
     ei=torch.where(el)[0]; d=ei[v]
-    gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1); gh[d]=True
-  nll_neural=-npa.clamp(min=1e-12).log()
-  nll_ngram=-gp.clamp(min=1e-12).log()
-  w=torch.softmax(s.log_w,dim=0)
-  mixed_nll=-torch.logsumexp(torch.stack([torch.log(w[0])-nll_neural, torch.log(w[1])-nll_ngram]),dim=0)
-  s.log_w[0]-=0.05*nll_neural.mean(); s.log_w[1]-=0.05*nll_ngram.mean()
-  out=nll.clone(); out[ar,ac]=mixed_nll; return out
+    gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1)
+    g_order[d]=float(o); g_count[d]=cc[v]; gh[d]=True
+  pr=lp.exp(); ent=-(pr[ar,ac]*lp[ar,ac]).sum(dim=-1)
+  al_base=0.20+0.55*torch.sigmoid(2.0*(ent-2.5))
+  quality=(g_count.clamp(min=1).log()/5.0).clamp(max=1.0)*(g_order/s.maxN)
+  al=al_base*(0.5+0.5*quality)
+  mp=((1.0-al)*npa+al*gp).clamp(min=1e-12); out=nll.clone()
+  out[ar,ac]=-mp.log(); return out
 
 def eval_val_slot(
  args: Hyperparameters,
