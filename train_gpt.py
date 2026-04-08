@@ -48,27 +48,29 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 40))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 64))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.2))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 12))
+    num_layers = int(os.environ.get("NUM_LAYERS", 32))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 1024.0))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
+    rank_min = int(os.environ.get("RANK_MIN", 32))
+    rank_step = int(os.environ.get("RANK_STEP", 32))
+    rank_max = int(os.environ.get("RANK_MAX", 128))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.5))
@@ -84,7 +86,8 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 2.0))
+
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -96,10 +99,9 @@ class Hyperparameters:
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
-    # Muon uses this to normalize matrix-shaped gradients before applying them.
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
-    X /= X.norm() + eps
+    X = X / (X.norm().to(X.dtype) + eps)
     transposed = G.size(0) > G.size(1)
     if transposed:
         X = X.T
@@ -510,7 +512,6 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.eps = eps
 
-    @torch._dynamo.disable
     def forward(self, x: Tensor) -> Tensor:
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
@@ -542,176 +543,176 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     out[..., half:] = x[..., :half] * sin + x[..., half:] * cos
     return out
 
+class LoRALinear(nn.Module):
+    def __init__(self, out_features: int, in_features: int, rank: int = 64):
+        super().__init__()
+        # Unique adapters for this specific block
+        self.lora_A = nn.Parameter(torch.zeros((in_features, rank)))
+        self.lora_B = nn.Parameter(torch.zeros((rank, out_features)))
+        
+        # Init: A is random, B is zero so the layer starts as an identity of Master
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B)
+        self.scaling = 1.0 / rank
+
+    def forward(self, x: Tensor, master_weight: Tensor) -> Tensor:
+        # Reconstruct weight: W = W_master + (A @ B).T
+        # We transpose (A@B) to match nn.Linear weight shape [out, in]
+        weight = master_weight + (self.lora_A @ self.lora_B).T * self.scaling
+        return F.linear(x, weight)
+
 
 class CausalSelfAttention(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-        use_rope: bool=True,
-    ):
+    def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rank=64):
         super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError("model_dim must be divisible by num_heads")
-        if num_heads % num_kv_heads != 0:
-            raise ValueError("num_heads must be divisible by num_kv_heads")
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
         self.kv_dim = self.num_kv_heads * self.head_dim
-        self.c_qkv = nn.Linear(dim, dim + 2 * self.kv_dim, bias=False)
-        self.proj = nn.Linear(dim, dim, bias=False)
-        self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base) if use_rope else None
 
-    def forward(self, x: Tensor) -> Tensor:
-        bsz, seqlen, dim = x.shape
+        qkv_out_dim = num_heads * self.head_dim + 2 * self.kv_dim
+        self.c_qkv = LoRALinear(qkv_out_dim, dim, rank=rank)
+        self.proj = LoRALinear(dim, num_heads * self.head_dim, rank=rank)
         
-        qkv = self.c_qkv(x)
-        q, k, v = qkv.split([dim, self.kv_dim, self.kv_dim], dim=-1)
+        # Layer-specific gain parameters
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+
+    def forward(self, x: Tensor, qkv_master: Tensor, proj_master: Tensor) -> Tensor:
+        bsz, seqlen, _ = x.shape
+        qkv = self.c_qkv(x, qkv_master)
+        
+        # Split into Q, K, V based on GQA dimensions
+        q, k, v = qkv.split([self.num_heads * self.head_dim, self.kv_dim, self.kv_dim], dim=-1)
+        
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        
+
+        # Apply RMSNorm to Q and K as per the baseline's stability strategy
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
-        if self.rotary:
-            cos, sin = self.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos, sin)
-            k = apply_rotary_emb(k, cos, sin)
-        
+
+        # Apply Rotary Positional Embeddings
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
+
+        # Apply the Q-Gain scaling
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+
+        # Scaled Dot Product Attention with GQA support
         y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
+            q, k, v, 
+            is_causal=True, 
+            enable_gqa=(self.num_kv_heads != self.num_heads)
         )
-        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, -1)
+        return self.proj(y, proj_master)
 
 
 class MLP(nn.Module):
-    # Using SwiGLU as introduced in Shazeer (2020)
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim, hidden, rank=64):
         super().__init__()
-        self.hidden = int(mlp_mult * dim // 1.5)
-        self.hidden = (self.hidden + 63) // 64 * 64  # Pad to multiple of 64
-        # Combine fc1 and fc2 into one "fused" layer
-        self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
-        self.proj = nn.Linear(self.hidden, dim, bias=False)
+        self.fused_fc = LoRALinear(2 * hidden, dim, rank=rank)
+        self.proj = LoRALinear(dim, hidden, rank=rank)
 
-    def forward(self, x: Tensor) -> Tensor:
-        fused_out = self.fused_fc(x)
+    def forward(self, x: Tensor, fc1_master: Tensor, fc2_master: Tensor) -> Tensor:
+        fused_out = self.fused_fc(x, fc1_master)
         x1, x2 = fused_out.chunk(2, dim=-1)
-        return self.proj(F.silu(x1) * x2)
-
+        return self.proj(F.silu(x1) * x2, fc2_master)
 
 class Block(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-        use_rope: bool=True,
-    ):
+    def __init__(self, dim, hidden, num_heads, num_kv_heads, rope_base, qk_gain_init, rank=64):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, use_rope)
-        self.mlp = MLP(dim, mlp_mult)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        
+        # Now passing all required positional arguments to CausalSelfAttention
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rank=rank)
+        self.mlp = MLP(dim, hidden, rank=rank)
+        
+        self.attn_scale = nn.Parameter(torch.ones(dim))
+        self.mlp_scale = nn.Parameter(torch.ones(dim))
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.resid_attn_scale.to(dtype=x.dtype)[None, None, :] * x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
-        return self.resid_mlp_scale.to(dtype=x.dtype)[None, None, :] * x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+    def forward(self, x: Tensor, qkv_master: Tensor, proj_master: Tensor, fc1_master: Tensor, fc2_master: Tensor) -> Tensor:
+        x = x + self.attn_scale * self.attn(self.attn_norm(x), qkv_master, proj_master)
+        x = x + self.mlp_scale * self.mlp(self.mlp_norm(x), fc1_master, fc2_master)
+        return x
 
+# Calculate U-shaped ranks
+def get_rank(layer_idx, num_layers, r_min, r_max, step=32):
+    mid = (num_layers - 1) / 2
+    dist = abs(layer_idx - mid) / mid
+    rank = r_min + (r_max - r_min) * (dist ** 2)
+    return int(round(rank / step) * step)
 
 class GPT(nn.Module):
-    def __init__(
-        self,
-        vocab_size: int,
-        num_layers: int,
-        model_dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        tie_embeddings: bool,
-        tied_embed_init_std: float,
-        logit_softcap: float,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
+    def __init__(self, args: Hyperparameters):
         super().__init__()
-        if logit_softcap <= 0.0:
-            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
-        self.tie_embeddings = tie_embeddings
-        self.tied_embed_init_std = tied_embed_init_std
-        self.logit_softcap = logit_softcap
-        self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_layers = num_layers
-        self.blocks = nn.ModuleList([
-            Block(
-                model_dim,
-                num_heads,
-                num_kv_heads,
-                mlp_mult,
-                rope_base,
-                qk_gain_init,
-                use_rope=(i % 2 == 0)
-            ) for i in range(num_layers)
-        ])
+        # Store attributes needed in forward()
+        self.num_layers = args.num_layers
+        self.tie_embeddings = args.tie_embeddings
+        
+        hidden = int(args.mlp_mult * args.model_dim // 1.5)
+        hidden = (hidden + 63) // 64 * 64 
+        
+        self.masters = nn.ParameterDict({
+            'qkv': nn.Parameter(torch.randn(args.model_dim + 2 * (args.num_kv_heads * (args.model_dim // args.num_heads)), args.model_dim)),
+            'proj': nn.Parameter(torch.randn(args.model_dim, args.model_dim)),
+            'fc1': nn.Parameter(torch.randn(2 * hidden, args.model_dim)),
+            'fc2': nn.Parameter(torch.randn(args.model_dim, hidden)),
+        })
+        
+        self.tok_emb = nn.Embedding(args.vocab_size, args.model_dim)
+        
+        # Initialize lm_head as None or Linear to avoid torch.compile errors
+        self.lm_head = None if args.tie_embeddings else nn.Linear(args.model_dim, args.vocab_size, bias=False)
+
+        self.blocks = nn.ModuleList()
+        for i in range(args.num_layers):
+            layer_rank = get_rank(i, args.num_layers, args.rank_min, args.rank_max, args.rank_step)
+            self.blocks.append(
+                Block(
+                    args.model_dim, 
+                    hidden, 
+                    args.num_heads, 
+                    args.num_kv_heads, 
+                    rope_base=args.rope_base, 
+                    qk_gain_init=args.qk_gain_init, 
+                    rank=layer_rank
+                )
+            )
         self.final_norm = RMSNorm()
-        self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
-        if self.lm_head is not None:
-            self.lm_head._zero_init = True
         self._init_weights()
 
-    def _init_weights(self) -> None:
-        if self.tie_embeddings:
-            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
-                nn.init.zeros_(module.weight)
+    def _init_weights(self):
+        for p in self.masters.values():
+            nn.init.normal_(p, std=0.02)
+        nn.init.normal_(self.tok_emb.weight, std=0.0075)
+        if self.lm_head is not None:
+            nn.init.normal_(self.lm_head.weight, std=0.02)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
 
-        for i in range(self.num_layers):
-            x = self.blocks[i](x)
+        qkv_master = self.masters['qkv']
+        proj_master = self.masters['proj']
+        fc1_master = self.masters['fc1']
+        fc2_master = self.masters['fc2']
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
+        for block in self.blocks:
+            x = block(x, qkv_master, proj_master, fc1_master, fc2_master)
+
+        x = self.final_norm(x)
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
         else:
             logits = self.lm_head(x)
 
-        # In-place operations are fine for the first two steps
-        logits.div_(self.logit_softcap)
-        torch.tanh_(logits) 
-
-        # DO NOT use .mul_() here. Use out-of-place multiplication (*) 
-        # to create a new tensor for the loss function.
-        logits = logits * self.logit_softcap 
-
-        return F.cross_entropy(logits.float(), targets)
-
+        return F.cross_entropy(logits.view(-1, logits.size(-1)), target_ids.view(-1))
 
 # -----------------------------
 # TRAINING
@@ -813,19 +814,7 @@ def main() -> None:
     # MODEL + OPTIMIZER SETUP
     # -----------------------------
 
-    base_model = GPT(
-        vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
-        model_dim=args.model_dim,
-        num_heads=args.num_heads,
-        num_kv_heads=args.num_kv_heads,
-        mlp_mult=args.mlp_mult,
-        tie_embeddings=args.tie_embeddings,
-        tied_embed_init_std=args.tied_embed_init_std,
-        logit_softcap=args.logit_softcap,
-        rope_base=args.rope_base,
-        qk_gain_init=args.qk_gain_init,
-    ).to(device).bfloat16()
+    base_model = GPT(args).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, nn.Linear):
             module.float()
@@ -838,15 +827,18 @@ def main() -> None:
     # - untied lm_head (Adam) uses HEAD_LR
     # - matrix params in transformer blocks use MATRIX_LR via Muon
     # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
+    body_named_params = [
+        (n, p) for n, p in base_model.named_parameters() 
+        if "tok_emb" not in n and "lm_head" not in n
+    ]
     matrix_params = [
         p
-        for name, p in block_named_params
+        for name, p in body_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     scalar_params = [
         p
-        for name, p in block_named_params
+        for name, p in body_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
