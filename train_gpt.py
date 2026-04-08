@@ -834,6 +834,7 @@ class NgramMixer:
   s.seen=0; s.uni=torch.zeros(V,device=dev); s.ut=0.0
   s.ctx=[torch.zeros(B,device=dev) for _ in range(maxN-1)]
   s.full=[torch.zeros(B,device=dev) for _ in range(maxN-1)]
+  s.log_w=torch.zeros(2,device=dev)
  def _bk(s,h): return h & s.M
  def update(s, t):
   t=t.to(s.dev).long(); n=t.numel(); s.seen+=n
@@ -871,10 +872,12 @@ class NgramMixer:
    if bool(v.any()):
     ei=torch.where(el)[0]; d=ei[v]
     gp[d]=(fc[v].clamp(max=cc[v])/cc[v].clamp(min=1)).clamp(0,1); gh[d]=True
-  pr=lp.exp(); ent=-(pr[ar,ac]*lp[ar,ac]).sum(dim=-1)
-  al=0.20+0.55*torch.sigmoid(2.0*(ent-2.5))
-  mp=(1.0-al)*npa+al*gp; out=nll.clone()
-  out[ar,ac]=-mp.clamp(min=1e-12).log(); return out
+  nll_neural=-npa.clamp(min=1e-12).log()
+  nll_ngram=-gp.clamp(min=1e-12).log()
+  w=torch.softmax(s.log_w,dim=0)
+  mixed_nll=-torch.logsumexp(torch.stack([torch.log(w[0])-nll_neural, torch.log(w[1])-nll_ngram]),dim=0)
+  s.log_w[0]-=0.05*nll_neural.mean(); s.log_w[1]-=0.05*nll_ngram.mean()
+  out=nll.clone(); out[ar,ac]=mixed_nll; return out
 
 def eval_val_slot(
  args: Hyperparameters,
