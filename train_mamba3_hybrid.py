@@ -993,6 +993,18 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
                 param.data = param.data.float()
 
 
+@torch._dynamo.disable
+def _mamba3_ssd_kernel(Q, K, V, ADT, DT, Trap, Q_bias, K_bias, Angles, D, Z,
+                       chunk_size, Input_States=None, return_final_states=False):
+    from mamba_ssm.ops.triton.mamba3.mamba3_siso_combined import mamba3_siso_combined
+    return mamba3_siso_combined(
+        Q=Q, K=K, V=V, ADT=ADT, DT=DT, Trap=Trap,
+        Q_bias=Q_bias, K_bias=K_bias, Angles=Angles, D=D, Z=Z,
+        chunk_size=chunk_size, Input_States=Input_States,
+        return_final_states=return_final_states,
+    )
+
+
 class Mamba3Layer(nn.Module):
     """Pure Mamba-3 SISO layer. Uses the Mamba3 module directly."""
     def __init__(self, dim: int, d_state: int = 64, expand: float = 2,
@@ -1017,19 +1029,10 @@ class Mamba3Layer(nn.Module):
                 dst.bias = src.bias
             setattr(self.mamba3, attr, dst)
 
-    @torch._dynamo.disable
-    def forward(self, x: Tensor) -> Tensor:
-        return self.mamba3(x)
-
-    @torch._dynamo.disable
-    def forward_stateful(self, x: Tensor, input_states=None):
-        """Forward with SSM state carry. Returns (output, final_states)."""
+    def _pre_ssd(self, x):
+        """Pre-SSD ops: in_proj, split, reshape, compute ADT/DT, norms."""
         from einops import rearrange
-        from mamba_ssm.ops.triton.mamba3.mamba3_siso_combined import mamba3_siso_combined
-
         m = self.mamba3
-        batch, seqlen, dim = x.shape
-
         zxBCdtAtrap = m.in_proj(x)
         z, xv, B, C, dd_dt, dd_A, trap, angles = torch.split(
             zxBCdtAtrap,
@@ -1043,20 +1046,47 @@ class Mamba3Layer(nn.Module):
         B = rearrange(B, "b l (r g n) -> b l r g n", r=m.mimo_rank, g=m.num_bc_heads)
         C = rearrange(C, "b l (r g n) -> b l r g n", r=m.mimo_rank, g=m.num_bc_heads)
         trap = rearrange(trap, "b l h -> b h l")
-
         _A = -F.softplus(dd_A.to(torch.float32))
         _A = torch.clamp(_A, max=-m.A_floor)
         DT = F.softplus(dd_dt + m.dt_bias)
         ADT = _A * DT
         DT = rearrange(DT, "b l n -> b n l")
         ADT = rearrange(ADT, "b l n -> b n l")
-
         angles = angles.unsqueeze(-2).expand(-1, -1, m.nheads, -1)
-        B = m.B_norm(B)
-        C = m.C_norm(C)
+        B = m.B_norm(B).squeeze(2)
+        C = m.C_norm(C).squeeze(2)
+        return z, xv, B, C, ADT, DT, trap, angles
 
-        result = mamba3_siso_combined(
-            Q=C.squeeze(2), K=B.squeeze(2), V=xv,
+    def _post_ssd(self, y, z):
+        """Post-SSD ops: reshape, optional norm, out_proj."""
+        from einops import rearrange
+        m = self.mamba3
+        y = rearrange(y, "b l h p -> b l (h p)")
+        if m.is_outproj_norm:
+            z_flat = rearrange(z, "b l h p -> b l (h p)")
+            y = m.outproj_rmsnorm(y) * (z_flat * F.silu(z_flat))
+        y = m.out_proj(y)
+        return y
+
+    def forward(self, x: Tensor) -> Tensor:
+        m = self.mamba3
+        z, xv, B, C, ADT, DT, trap, angles = self._pre_ssd(x)
+        y = _mamba3_ssd_kernel(
+            Q=C, K=B, V=xv,
+            ADT=ADT, DT=DT, Trap=trap,
+            Q_bias=m.C_bias.squeeze(1), K_bias=m.B_bias.squeeze(1),
+            Angles=angles, D=m.D,
+            Z=z if not m.is_outproj_norm else None,
+            chunk_size=m.chunk_size,
+        )
+        return self._post_ssd(y, z)
+
+    def forward_stateful(self, x: Tensor, input_states=None):
+        """Forward with SSM state carry. Returns (output, final_states)."""
+        m = self.mamba3
+        z, xv, B, C, ADT, DT, trap, angles = self._pre_ssd(x)
+        result = _mamba3_ssd_kernel(
+            Q=C, K=B, V=xv,
             ADT=ADT, DT=DT, Trap=trap,
             Q_bias=m.C_bias.squeeze(1), K_bias=m.B_bias.squeeze(1),
             Angles=angles, D=m.D,
@@ -1067,12 +1097,7 @@ class Mamba3Layer(nn.Module):
         )
         y, last_angle, last_state, last_k, last_v, *rest = result
         final_states = (last_angle, last_state, last_k, last_v)
-
-        y = rearrange(y, "b l h p -> b l (h p)")
-        if m.is_outproj_norm:
-            y = m.outproj_rmsnorm(y) * (z.squeeze(-2) * F.silu(z.squeeze(-2)))
-        y = m.out_proj(y)
-        return y, final_states
+        return self._post_ssd(y, z), final_states
 
 
 class Rotary(nn.Module):

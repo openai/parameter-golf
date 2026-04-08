@@ -91,19 +91,36 @@ def bench(model, label, warmup=20, steps=50):
     return ms
 
 
-# --- 1. DDP without compile ---
-model_nocompile = DDP(base_model, device_ids=[local_rank], broadcast_buffers=False)
-ms_ddp_nocompile = bench(model_nocompile, "8GPU-DDP-nocompile")
-del model_nocompile
-
-# --- 2. DDP with compile (matches training script) ---
+# --- 1. DDP compiled (baseline) ---
 compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
 model_compiled = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
-ms_ddp_compiled = bench(model_compiled, "8GPU-DDP-compiled", warmup=25)
+ms_baseline = bench(model_compiled, "compiled+DDP", warmup=25)
+del model_compiled
+
+# --- 2. DDP compiled + static_graph ---
+compiled_model2 = torch.compile(base_model, dynamic=False, fullgraph=False)
+model_static = DDP(compiled_model2, device_ids=[local_rank], broadcast_buffers=False, static_graph=True)
+ms_static = bench(model_static, "compiled+DDP+static_graph", warmup=25)
+del model_static
+
+# --- 3. DDP compiled + small buckets (5MB) ---
+compiled_model3 = torch.compile(base_model, dynamic=False, fullgraph=False)
+model_small_bucket = DDP(compiled_model3, device_ids=[local_rank], broadcast_buffers=False,
+                         bucket_cap_mb=5)
+ms_small_bucket = bench(model_small_bucket, "compiled+DDP+5MB_buckets", warmup=25)
+del model_small_bucket
+
+# --- 4. DDP compiled + gradient_as_bucket_view ---
+compiled_model4 = torch.compile(base_model, dynamic=False, fullgraph=False)
+model_bucket_view = DDP(compiled_model4, device_ids=[local_rank], broadcast_buffers=False,
+                        gradient_as_bucket_view=True)
+ms_bucket_view = bench(model_bucket_view, "compiled+DDP+grad_bucket_view", warmup=25)
+del model_bucket_view
 
 log0(f"\n{'='*50}")
-log0(f"8-GPU DDP no-compile:  {ms_ddp_nocompile:.1f} ms/step")
-log0(f"8-GPU DDP compiled:    {ms_ddp_compiled:.1f} ms/step")
-log0(f"Speedup: {ms_ddp_nocompile/ms_ddp_compiled:.2f}x ({ms_ddp_nocompile - ms_ddp_compiled:.1f}ms saved)")
+log0(f"compiled+DDP (baseline):     {ms_baseline:.1f} ms/step")
+log0(f"+ static_graph:              {ms_static:.1f} ms/step")
+log0(f"+ 5MB buckets:               {ms_small_bucket:.1f} ms/step")
+log0(f"+ gradient_as_bucket_view:   {ms_bucket_view:.1f} ms/step")
 
 dist.destroy_process_group()
