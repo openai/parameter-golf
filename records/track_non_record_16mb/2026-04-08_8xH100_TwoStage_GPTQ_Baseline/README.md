@@ -1,4 +1,4 @@
-# Non-record: 8xH100->1xH100 Two-Stage GPTQ Baseline
+# Non-record: Checkpointed 8xH100->1xH100 GPTQ Baseline
 
 **Author:** Jaksen ([@jaksen](https://github.com/jaksen))
 **Base:** [2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072](../../track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md)
@@ -40,6 +40,26 @@ size of `15,651,808` bytes.
   end.
 - A baseline I can reuse for future compliant reruns without keeping the full
   post-train path on `8xH100`.
+
+## Lineage / Credit
+
+This submission is directly based on the public record lineage in
+[2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072](../../track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md).
+
+I am not claiming the following techniques as new in this folder:
+
+- AR self-generated GPTQ calibration
+- XSA on all 11 layers
+- BigramHash `3072 x 112`
+- selective pruning
+- `lzma` preset 9 packaging
+
+The specific local contribution here is narrower:
+
+- checkpointing the trained model on `8xH100`
+- moving GPTQ, artifact packing, and final eval to `1xH100`
+- preserving the strongest saved result from that path
+- preserving the recovered raw Stage 1 and Stage 2 Modal logs
 
 ## Canonical Evidence
 
