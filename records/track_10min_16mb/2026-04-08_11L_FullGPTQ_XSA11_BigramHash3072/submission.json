@@ -1,0 +1,17 @@
+{
+  "author": "AVINASH0052",
+  "github_id": "AVINASH0052",
+  "name": "11L FullGPTQ + XSA-all + BigramHash 3072x112",
+  "blurb": "11L 512d GQA 8H/4KV, LeakyReLU(0.5)^2 MLP 3x, Parameter Banking + Parallel Muon, BigramHash 3072x112, XSA all 11 layers, SmearGate, Partial RoPE 16/64, LN Scale 1/sqrt(L+1), VE128 layers 9-10, U-Net skips, EMA(0.997) + Tight SWA, Late QAT, Full Hessian GPTQ int6 with AR self-gen calibration, Selective +/-1 pruning, LZMA-9, Sliding window stride=64",
+  "date": "2026-04-08",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "seeds": [1337],
+  "seed_results": {},
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": null,
+  "cuda_version": null,
+  "technique_summary": "Full Hessian GPTQ int6 + AR self-gen calibration + XSA-all + BigramHash 3072x112 + Parallel Muon + Parameter Banking + LZMA9",
+  "train_command": "SEED=1337 torchrun --standalone --nproc_per_node=8 train_gpt.py"
+}
