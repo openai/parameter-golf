@@ -1,0 +1,32 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Midnight 12L",
+  "blurb": "12-layer Rascal with mixed-int quantization (attn=int5, mlp=int6, embed=int8) and Brotli compression, adding depth via size headroom from compression gains",
+  "date": "2026-04-07T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.1057,
+    "val_bpb_exact": 1.10567949,
+    "steps": 6160,
+    "train_time_s": 600,
+    "bytes_total": 15631603
+  },
+  "seed_300": {
+    "val_bpb": 1.1058,
+    "val_bpb_exact": 1.10582448,
+    "steps": 6154,
+    "train_time_s": 600,
+    "bytes_total": 15624171
+  },
+  "seed_42": {
+    "val_bpb": 1.1064,
+    "val_bpb_exact": 1.10641160,
+    "steps": 6153,
+    "train_time_s": 600,
+    "bytes_total": 15619003
+  },
+  "val_bpb": 1.1060,
+  "bytes_total": 15631603,
+  "bytes_code": 124698,
+  "hardware": "8xH100 SXM"
+}

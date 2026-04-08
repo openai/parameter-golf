@@ -1,0 +1,65 @@
+============================================
+  MIDNIGHT 12L — Brotli + Mixed-Int, Full 600s, 8xH100
+  Seed: 300
+  Loader mode: coprime | no trigram | no n-gram eval
+  SKIP_GPTQ=1 | COMPRESSOR=brotli | Parallel Muon | XSA-all-11
+  Quant policy: attn=5 mlp=6 aux=6 embed=8 other=8
+  NUM_LAYERS=12 | Bigram 2048 | RoPE 16
+============================================
+logs/a8a368a1-a0f8-412e-8f82-9ac7516a76b5.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:29355620
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 mode:default fullgraph=1
+mlp_kernel_mode:eager
+scale_init:attn=1.0000 mlp=1.0000 resid_mix=(1.0000,0.0000) ln_scale=1
+quant_policy:attn=5 mlp=6 aux=6 embed=8 other=8 artifact=final_model.mixed.ptz
+seed:300
+loader:coprime shards:80 blocks:3906240 seq_len:2048 shards_per_batch:1 cache:4 batch_stride:63 hold_steps:64
+warmup_step:1/20
+warmup_step:20/20
+loader_reset:loader:coprime shards:80 blocks:3906240 seq_len:2048 shards_per_batch:1 cache:4 batch_stride:63 hold_steps:64
+step:0/20000 val_loss:6.9319 val_bpb:4.1054 train_time:0ms step_avg:0.03ms
+step:1/20000 train_loss:6.9350 train_time:367ms step_avg:366.97ms
+step:10/20000 train_loss:6.4465 train_time:1140ms step_avg:113.95ms
+step:500/20000 train_loss:2.3270 train_time:48464ms step_avg:96.93ms
+step:1000/20000 train_loss:2.1535 train_time:97244ms step_avg:97.24ms
+step:1500/20000 train_loss:2.1519 train_time:146044ms step_avg:97.36ms
+step:2000/20000 train_loss:2.0235 train_time:194819ms step_avg:97.41ms
+step:2500/20000 train_loss:2.0996 train_time:243550ms step_avg:97.42ms
+step:3000/20000 train_loss:1.9831 train_time:292000ms step_avg:97.33ms
+step:3500/20000 train_loss:2.0164 train_time:340696ms step_avg:97.34ms
+step:4000/20000 train_loss:2.0334 train_time:389469ms step_avg:97.37ms
+step:4000/20000 val_loss:2.0047 val_bpb:1.1873 train_time:389533ms step_avg:97.38ms
+step:4500/20000 train_loss:1.9785 train_time:438166ms step_avg:97.37ms
+step:5000/20000 train_loss:2.0658 train_time:486830ms step_avg:97.37ms
+swa:start step:5500
+step:5500/20000 train_loss:1.9856 train_time:535279ms step_avg:97.32ms
+late_qat:enabled step:5635 scale:0.1498
+step:6000/20000 train_loss:1.9733 train_time:584658ms step_avg:97.44ms
+step:6154/20000 val_loss:1.9082 val_bpb:1.1301 train_time:600107ms step_avg:97.51ms
+stopping_early: wallclock_cap train_time:600107ms step:6154/20000
+peak memory allocated: 24652 MiB reserved: 24800 MiB
+gptq:SKIPPED (SKIP_GPTQ=1)
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9068 val_bpb:1.1293 eval_time:2243ms
+Serialized model: 115607162 bytes
+Code size: 124698 bytes
+mixed_quantize: 0 GPTQ tensors, 4 naive tensors int5:2 int6:2 int8:3
+Serialized model mixed+brotli: 15499473 bytes
+Total submission size mixed+brotli: 15624171 bytes
+final_quant_roundtrip val_loss:1.9301 val_bpb:1.1431 eval_time:6608ms
+final_quant_roundtrip_exact val_loss:1.93005026 val_bpb:1.14308448
+final_sliding_window val_loss:1.8671 val_bpb:1.1058 stride:64 eval_time:83717ms
+final_sliding_window_exact val_loss:1.86713338 val_bpb:1.10582448
+============================================
+  DONE
+============================================
