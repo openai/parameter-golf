@@ -41,7 +41,8 @@ else
 fi
 
 # MLflow + TensorBoard (for our tracking + profiling)
-pip install mlflow tensorboard torch-tb-profiler -q
+# --ignore-installed handles system-managed packages on RunPod/Docker images
+pip install mlflow tensorboard torch-tb-profiler --ignore-installed -q
 
 # ---------------------------------------------------------
 # 2. Download dataset (sp1024, all shards)
@@ -63,7 +64,7 @@ print(f'CUDA:          {torch.cuda.is_available()}')
 print(f'GPUs:          {torch.cuda.device_count()}')
 for i in range(torch.cuda.device_count()):
     p = torch.cuda.get_device_properties(i)
-    print(f'  GPU {i}: {p.name} ({p.total_mem // 1024**3}GB)')
+    print(f'  GPU {i}: {p.name} ({p.total_memory // 1024**3}GB)')
 try:
     from flash_attn_interface import flash_attn_func
     print(f'FlashAttn3:    OK')

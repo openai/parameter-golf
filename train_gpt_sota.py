@@ -1158,6 +1158,53 @@ def _classify_param(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
+# --- Hadamard rotation for incoherence processing ---
+
+_HADAMARD_ENABLE = bool(int(os.environ.get("HADAMARD_GPTQ", "1")))
+
+def _hadamard_matrix(n: int, device: str = "cpu") -> Tensor:
+    """Build a normalized Walsh-Hadamard matrix of size n (must be power of 2)."""
+    H = torch.ones(1, 1, device=device)
+    while H.shape[0] < n:
+        H = torch.cat([
+            torch.cat([H, H], dim=1),
+            torch.cat([H, -H], dim=1),
+        ], dim=0)
+    return H / math.sqrt(n)
+
+def _next_power_of_2(n: int) -> int:
+    return 1 << (n - 1).bit_length()
+
+def hadamard_rotate_weight(W: Tensor, H_right: Tensor | None = None) -> tuple[Tensor, Tensor, int]:
+    """Rotate weight columns: W' = W @ H. Returns (W_rotated, H_matrix, orig_cols).
+    Pads columns to next power of 2 if needed."""
+    rows, cols = W.shape
+    padded_cols = _next_power_of_2(cols)
+    if padded_cols != cols:
+        W = F.pad(W, (0, padded_cols - cols))
+    if H_right is None:
+        H_right = _hadamard_matrix(padded_cols, device=W.device)
+    W_rot = W @ H_right
+    return W_rot, H_right, cols
+
+def hadamard_rotate_hessian(H: Tensor, H_right: Tensor) -> Tensor:
+    """Rotate Hessian: H' = R^T H R where R is the Hadamard matrix."""
+    cols = H.shape[0]
+    padded = H_right.shape[0]
+    if cols < padded:
+        H_padded = torch.zeros(padded, padded, dtype=H.dtype, device=H.device)
+        H_padded[:cols, :cols] = H
+        damp = 0.01 * torch.diag(H).mean().clamp_min(1e-6)
+        for i in range(cols, padded):
+            H_padded[i, i] = damp
+        H = H_padded
+    return H_right.T @ H @ H_right
+
+def hadamard_unrotate_weight(W_rot: Tensor, H_right: Tensor, orig_cols: int) -> Tensor:
+    """Inverse rotate: W = W' @ H^T, then unpad."""
+    W = W_rot @ H_right.T
+    return W[:, :orig_cols]
+
 def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
@@ -1181,11 +1228,25 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
 
 def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
     """Full GPTQ: Hessian-aware int6 quantization with Cholesky error compensation.
-    If hessian is None, falls back to percentile search."""
+    If hessian is None, falls back to percentile search.
+    When HADAMARD_GPTQ=1, applies Hadamard incoherence processing to spread
+    weight outliers before quantization, reducing quantization error."""
     t32 = weight.float()
     if t32.ndim != 2 or hessian is None:
         return _quantize_int6_percentile(t32, clip_range)
     rows, cols = t32.shape
+
+    # Hadamard incoherence processing: rotate weights + Hessian
+    had_applied = False
+    orig_cols = cols
+    if _HADAMARD_ENABLE:
+        padded_cols = _next_power_of_2(cols)
+        H_right = _hadamard_matrix(padded_cols, device=t32.device)
+        t32, _, orig_cols = hadamard_rotate_weight(t32, H_right)
+        hessian = hadamard_rotate_hessian(hessian, H_right)
+        rows, cols = t32.shape
+        had_applied = True
+
     H = hessian.float().clone()
     dead = torch.diag(H) == 0
     H[dead, dead] = 1
@@ -1232,7 +1293,9 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
         if mse < best_err:
             best_q, best_scale, best_err = Q, s, mse
     best_q = best_q[:, inv_perm]
-    return best_q, best_scale
+    if had_applied:
+        return best_q, best_scale, orig_cols
+    return best_q, best_scale, None
 
 def _quantize_int6_percentile(t32, clip_range=31):
     """Fallback: percentile search (for 1D or no-Hessian cases)."""
@@ -1524,12 +1587,16 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             cr = 31  # int6 for all weights
             H = hessians.get(name) if hessians else None
             if H is not None:
-                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr)
+                q, s, had_orig_cols = quantize_int6_gptq(t, hessian=H, clip_range=cr)
             else:
                 q, s = quantize_int6_per_row(t, clip_range=cr)
+                had_orig_cols = None
             result[name + ".q"] = q
             result[name + ".scale"] = s
-            meta[name] = {"type": "int6"}
+            m = {"type": "int6"}
+            if had_orig_cols is not None:
+                m["had_cols"] = had_orig_cols
+            meta[name] = m
         else:
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
@@ -1552,9 +1619,16 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             continue
         q, s = result[name + ".q"], result[name + ".scale"]
         if s.ndim > 0:
-            out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
+            w = q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
         else:
-            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+            w = q.float() * float(s.item())
+        # Inverse Hadamard rotation if applied during quantization
+        if isinstance(info, dict) and "had_cols" in info:
+            orig_cols = info["had_cols"]
+            padded_cols = w.shape[1]
+            H_right = _hadamard_matrix(padded_cols, device=w.device)
+            w = hadamard_unrotate_weight(w, H_right, orig_cols)
+        out[name] = w.to(orig_dtype)
     return out
 
 # --- Training ---
