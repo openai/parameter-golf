@@ -21,9 +21,11 @@ Seven discrete contributions in this PR / the v6.1 chain it extends:
    + the custom Rust codec `rans_codec_rs` is the chain's core originality
    claim — see the "rANS HybridQuant baseline" section.
 2. **Aggressive SLOT tuning (prior in chain, #1146)** — discovered that
-   PR #1176's `lr=0.003 steps=5` defaults are ~33× too small at 32 M scale.
-   Stride=64 sweep showed SLOT is monotonically helpful up to `lr=0.1 steps=100`,
-   delivering **−0.087 bpb** over the base eval.
+   SLOT defaults (`lr=0.003 steps=5` from PR #1128 and `lr=0.005 steps=8`
+   from PR #1176) are ~20–33× too conservative at 32 M scale. Stride=64
+   sweep showed SLOT is monotonically helpful up to `lr=0.1 steps=100`,
+   delivering **~−0.1 bpb** over the no-SLOT base eval (from ~1.234 to
+   1.1365).
 3. **Phase 1A int6 tied-embedding quantization (new in this PR)** — the
    parent chain stored the tied `lm_head / tok_emb` as FP16 passthrough
    (1.05 MB / 7 % of the artifact). Phase 1A's sweep showed
@@ -41,9 +43,13 @@ Seven discrete contributions in this PR / the v6.1 chain it extends:
    the HybridQuant / Pentanary rANS pipeline** — the other rANS-based PR
    #1215 reports int5/int6 bits/weight but does not run a delta-vs-raw
    entropy comparison.
-6. **Negative-results catalog for the 32 M regime (new in this PR)** — 11
-   completed-to-eval experiments (Phase 1B / 1C / 2A-C / 3 / 5b / 5b') in
-   the table below so other submitters can skip them.
+6. **Empirical negative-results catalog for the 32 M regime (new in this
+   PR)** — 10 actually-run experiments with eval data (Phase 1A pent/int4
+   tied embed, Phase 2A inter-layer delta measurement, Phase 4 seven-variant
+   architecture sweep, Phase 5b two depth-recur attempts) + 5 code-written
+   stubs dropped before execution (Phase 1B / 1C / 2B / 2C / 3) — in the
+   two tables below, split honestly so reviewers can see which negatives
+   are empirically grounded and which are only code-level.
 7. **Legal Muon-TTT non-competitive finding (new in this PR)** — 3-seed full-eval
    TTT mean 1.205215 vs SLOT-100 mean 1.136399, **SLOT wins by 0.069 bpb** on
    this model. Strong negative result: aggressive SLOT captures most of the
@@ -124,17 +130,33 @@ and rANS serializer are all unchanged from v6.1 baseline.
 
 ## Negative results we tried
 
+Split honestly: **actually run with eval data** vs **code written but
+not run to eval**.
+
+### Actually run (eval data available)
+
 | Phase | Idea | Outcome |
 |---|---|---|
-| 1B    | FP32 scalar → Int8       | -0.05 MB only, kept |
-| 1C    | Pentanary → Ternary (BitNet b1.58 1-layer sanity) | regression +0.014, abandoned |
-| 1A pent_tok | Tied embed Pentanary | regression +0.043, abandoned |
-| 2A    | Inter-layer delta prediction (ΔW = W_l - W_{l-1}) | delta entropy *higher* than W, abandoned |
-| 2B    | Hadamard 16-dim block transform | no rANS gain, abandoned |
-| 2C    | Context-aware rANS (lookup-table)| Rust codec rebuild blocker, abandoned for speed |
-| 3     | Custom HQGRANS1 binary container (pickle-bypass) | only -70 KB rans / +17 KB after lzma9 — pickle isn't actually leaking 30%, abandoned |
-| 5b    | Depth Recurrence (PR #1239 style, unique 9 × recur 2 = 18 effective) | 30 % eval @ 1.151 vs hm5 @ 1.136, abandoned |
-| 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective | broken (VE_LAYERS=9,10 absent), then fixed: 92% @ 1.166, worse |
+| 1A pent_tok | Tied embed Pentanary        | killed @4 % sliding, early bpb +0.0428 above baseline, abandoned |
+| 1A int4_tok | Tied embed Int4             | +0.0095 regression — int6_tok dominates, abandoned |
+| 2A    | Inter-layer delta entropy measurement (`analyze_inter_layer.py`) | H(W)=2.124 bits vs H(ΔW)=2.128 bits (+0.004), delta magnitude 1.4× raw — Shannon-floor evidence |
+| 4     | `p5a_bg4096` BigramHash 4096 | ~1.146 mid-eval vs hm5 ~1.144, abandoned |
+| 4     | `p5a_bg8192` BigramHash 8192 | ~1.148 mid-eval, abandoned |
+| 4     | `p5a_nl12` num_layers 12     | ~1.147 mid-eval, abandoned |
+| 4     | `p5a_ve4` ve_layers 7,8,9,10 | ~1.150 mid-eval, abandoned |
+| 4     | `p5a_bg4096_hm5`             | ~1.144 mid-eval, tie with hm5-only but +0.5 MB, abandoned |
+| 5b    | Depth Recurrence `nl9r2` (9 unique × recur 2 = 18 effective, cf. PR #1394 / #1421 / #1445 depth-recur chain) | 30 % eval @ 1.151 vs hm5 @ 1.136, abandoned |
+| 5b'   | Depth Recurrence `nl7r2` (7 unique × recur 2 = 14 effective) | 92 % eval @ 1.166 (post-bugfix re-run), worse |
+
+### Code written, NOT run to eval (abandoned before execution)
+
+| Phase | Idea | Reason stopped |
+|---|---|---|
+| 1B    | FP32 layer scalars → Int8 | Stub only; target tensors < 1 % of artifact |
+| 1C    | Pentanary → Ternary (BitNet b1.58) | `TernaryLinear` + `MLP_UP_TYPE` env + `run.sh` added but **never trained or evaluated**; Phase 1A int6_tok landed the byte savings without the BitNet-at-32M risk |
+| 2B    | Hadamard 16-dim block transform | Planning note only; dropped after Phase 2A Shannon-floor result |
+| 2C    | Context-aware rANS lookup table | Outline only; same reason + Rust codec rebuild blocker |
+| 3     | Custom `HQGRANS1` binary container | `serialize_hybrid_binary` / `deserialize_hybrid_binary` added, but lzma9-after-rANS already absorbs most pickle overhead — net benefit ≈ 0 on the `.rans.ptz.xz` path, kept for future lzma-free experiments |
 
 ## Architecture re-investment table (Phase 4 sanity sweep, 1-seed s1337 SLOT@100)
 
@@ -179,10 +201,11 @@ Phase 5a env vars (`QK_GAIN_INIT=5.0`, `MUON_EQ_R=1`, `EMBED_QUANT_BITS=6`,
 
 ## Reference
 - Parent: openai/parameter-golf#1123 (HybridQuantGPT v6.1, 1.1986 non-record)
-- SLOT origin: openai/parameter-golf#1176 (steps=5 lr=0.003 default)
-- QK 5.0: openai/parameter-golf#1413
-- MuonEq-R: openai/parameter-golf#1394
-- EMA 0.9965: openai/parameter-golf#1421, openai/parameter-golf#1445
+- SLOT origin: openai/parameter-golf#1128 (AnubhavBharadwaaj, 2026-03-30 09:43 UTC, `SLOT_LR=0.003 SLOT_STEPS=5`)
+- SLOT + Muon-TTT variant: openai/parameter-golf#1176 (bigbag, `SLOT_LR=0.005 SLOT_STEPS=8`, QK-Gain 4.0)
+- QK-Gain 5.0: openai/parameter-golf#1413 (dexhunter)
+- MuonEq-R: openai/parameter-golf#1394 (clarkkev)
+- EMA 0.9965: openai/parameter-golf#1421, openai/parameter-golf#1445 (X-Abhishek-X)
 - Prior records (this submitter):
   - `2026-04-08_v61_aggressive_slot_1159` (3-seed 1.157108, SLOT-20)
   - `2026-04-08_v61_slot_steps50_1150` (3-seed 1.148772, SLOT-50)

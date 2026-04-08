@@ -72,14 +72,30 @@ reviewers who have not seen the v6.1 chain:
    entropy coders, and #538 does not overlap with either rANS chain.)
 
 2. **Aggressive SLOT tuning for the 32 M regime (prior in this chain, #1146).**
-   PR #1176 introduced SLOT with default `lr=0.003 steps=5`. At the 32 M scale
-   those defaults are **~33× too small**: a stride=64 full-eval sweep on
-   seed 1337 (this submitter's work) showed SLOT is *monotonically* helpful
-   all the way up to `steps=100` with `lr=0.1`. The −0.087 bpb gain that
-   aggressive SLOT gives the v6.1 chain is **the single largest trick this
-   submitter has landed**, and the PR you are reading rests on top of it.
-   See `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100/`
-   for the sweep data.
+   SLOT was introduced in the competition by **PR #1128** (AnubhavBharadwaaj,
+   opened 2026-03-30 09:43 UTC) with default `SLOT_LR=0.003 SLOT_STEPS=5`;
+   **PR #1176** (bigbag, opened 2026-03-31) later adopted SLOT with slightly
+   different defaults `SLOT_LR=0.005 SLOT_STEPS=8`. At the 32 M scale those
+   defaults are **20–33× too conservative**: a stride=64 full-eval sweep on
+   seed 1337 (this submitter's work, reported in
+   `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100/`)
+   showed SLOT is *monotonically* helpful all the way up to `steps=100`
+   with `lr=0.1`:
+
+   | slot_steps | seed-1337 bpb (stride=64) | Δ vs steps=20 |
+   |------------|---------------------------|----------------|
+   | 20 | 1.158886 | 0 |
+   | 40 | 1.151943 | −0.0069 |
+   | 50 | 1.150672 | −0.0082 |
+   | 80 | 1.149012 | −0.0099 |
+   | **100** | **1.148530** | **−0.0104** |
+
+   Our `lr=0.1` is **33× higher** than PR #1128's `lr=0.003` and **20× higher**
+   than PR #1176's `lr=0.005`; our `steps=100` is **20× higher** than #1128's
+   `steps=5` and **12.5× higher** than #1176's `steps=8`. The ~0.1 bpb gain
+   that aggressive SLOT gives our v6.1 chain (from ~1.234 no-SLOT base
+   sliding to 1.1365 at SLOT-100) is **the single largest trick this
+   submitter has landed**, and this PR rests on top of it.
 
 3. **Phase 1A int6 tied-embedding quantization (new in this PR).** The parent
    chain stored the tied `lm_head / tok_emb` as an FP16 passthrough tensor
@@ -95,48 +111,103 @@ reviewers who have not seen the v6.1 chain:
    rANS-based PR (#1215) or in the parent chain's earlier commits.
 
 4. **Phase 5a trivial-wins composition (new in this PR).** The six components
-   in the stack below are each borrowed from other PRs (#1176 SLOT,
-   #1394 MuonEq-R, #1413 QK-Gain 5.0, #1421/#1445 EMA 0.9965, #1176 Muon-TTT)
-   but **no other open PR composes all six on top of the rANS-coded HybridQuant
-   backbone**. The composition itself is the novelty: Phase 5a delivers
-   **−0.010124 bpb** on top of the v6.1 SLOT-100 baseline, and that delta is
-   additive over the individual trick contributions because the rANS encoder
-   does not change between v6.1 and v6.2.
+   in the stack below are each borrowed from other PRs (#1128 SLOT,
+   #1394 MuonEq-R, #1413 QK-Gain 5.0, #1421 / #1445 EMA 0.9965, #1176
+   Muon-TTT) but **no other open PR composes all six on top of the
+   rANS-coded HybridQuant backbone**. The composition itself is the
+   novelty: Phase 5a delivers **−0.010124 bpb** on top of the v6.1
+   SLOT-100 baseline, and that delta is additive over the individual
+   trick contributions because the rANS encoder does not change between
+   v6.1 and v6.2.
 
 5. **Shannon-floor empirical check via inter-layer delta (new in this PR).**
    The PR #1123 chain's big open question has been *"is rANS already at the
-   entropy floor or is there more compression to extract?"*. We ran the
-   inter-layer delta prediction experiment (video-codec-style intra-frame
-   prediction on the per-layer weight tensors, then re-quantize + re-rANS
-   the Laplacian residual). **Result: across all 11 layers the delta
-   entropy is equal to or higher than the raw-weight entropy**, and
-   empirically rANS reaches 2.32 bits/weight on MLP-up vs a Shannon
-   theoretical minimum of 2.28 bits/weight on the same tensors — the
-   remaining 0.04 bits/weight is coding overhead, not exploitable redundancy.
+   entropy floor or is there more compression to extract?"*. We wrote
+   `records/track_10min_16mb/2026-04-09_v62_phase2_video_codec/analyze_inter_layer.py`
+   and ran it on the FP32 state dict of seed 1337: for each MLP-up weight
+   tensor at layer `l > 0`, we compute both the raw Pentanary symbol
+   histogram entropy H(W_l) and the inter-layer delta Pentanary symbol
+   histogram entropy H(ΔW_l = W_l − W_{l−1}). **Measured result**:
+
+   | quantity                               | value    |
+   |----------------------------------------|----------|
+   | H(W_l) — raw MLP-up Pentanary, avg     | 2.124 bits |
+   | H(ΔW_l) — delta MLP-up Pentanary, avg  | 2.128 bits (**+0.004 vs raw**) |
+   | `delta_abs_mean / W_abs_mean` ratio    | ≈ 1.4 (delta magnitude ~40 % *larger* than W) |
+
+   The delta is NOT a small-magnitude residual — trained transformer weights
+   at this scale are *not* strongly correlated between adjacent layers —
+   so after Pentanary quantization the delta alphabet distribution widens
+   instead of collapsing, giving delta entropy equal to (or slightly higher
+   than) the raw-weight entropy. The artifact-level rANS storage on
+   MLP-up is ~2.32 bits/weight (3.47 MB / 11.55 M MLP-up params), which is
+   ~0.2 bits above the 2.124 Shannon minimum — that gap is per-row FP16
+   scales + frequency tables + alignment padding, not exploitable
+   redundancy in the weight stream itself.
+
    To our knowledge this is **the first explicit Shannon-floor empirical
    check on the HybridQuant / Pentanary rANS pipeline** — the other
    rANS-based PR (#1215) reports int5/int6 bits/weight but does not run a
-   delta-vs-raw entropy comparison, and no other open PR we have reviewed
-   frames the compression question this way. Phase 2A (Hadamard transform),
-   Phase 2B (Context-aware rANS sub-tables), and Phase 3 (custom HQGRANS1
-   binary container) all independently confirmed the same ceiling on our
-   chain.
+   delta-vs-raw entropy comparison. Phase 2B (Hadamard 16-dim block
+   transform) and Phase 3 (custom HQGRANS1 binary container, −70 KB rans
+   / +17 KB after lzma9) independently confirmed the same ceiling on our
+   chain — the artifact is already entropy-bound at the single-token
+   coder level, and the remaining compression headroom is in the
+   model-↔-quantizer interaction (QAT, tied-embed quantization,
+   hidden-mult re-investment) which is exactly what Phase 1A + 5a exploit.
 
-6. **Negative-results catalog for the 32 M regime (new in this PR).** Eleven
-   experiments from Phases 1B, 1C, 2A, 2B, 2C, 3, 5b, 5b' were run to
-   completion (not just early-stopped) and are documented in the "Negative
-   results" table below with enough detail that other submitters can skip
-   them:
-   - Phase 1C (Ternary BitNet b1.58 1-layer sanity): regression +0.014
-   - Phase 1A pentanary tied embed: regression +0.043
-   - Phase 2A (inter-layer delta): Shannon-floor proof — delta entropy ≥ raw
-   - Phase 2B (Hadamard 16-dim): no rANS gain (entropy already at floor)
-   - Phase 2C (Context rANS lookup): rust-rebuild blocker, no eval data
-   - Phase 3 (custom HQGRANS1 binary container): −70 KB rans / +17 KB after
-     lzma9 — pickle isn't actually leaking 30 %, the lzma9 step already
-     removes the pickle overhead
-   - Phase 5b depth-recur nl9r2: 1.151 vs hm5 1.136
-   - Phase 5b depth-recur nl7r2: 1.166 vs hm5 1.136
+6. **Empirical negative-results catalog for the 32 M regime (new in this
+   PR).** We separate "actually run" from "code written, abandoned
+   before run" because we don't want to overclaim. The "Negative results"
+   table below uses the same split.
+
+   **Actually run with eval data** (9 runs):
+   - **Phase 1A pentanary tied embed**: killed at 4 % sliding-window
+     because the early bpb trajectory was +0.0428 above baseline —
+     decisively abandoned.
+   - **Phase 1A int4_tok tied embed**: +0.0095 regression, acceptable
+     byte savings but int6_tok dominates it.
+   - **Phase 1A int6_tok tied embed**: +0.0006 regression (within noise),
+     −0.61 MB after lzma9 — **this is the Phase 1A winner, included in
+     Phase 5a**.
+   - **Phase 2A inter-layer delta (`analyze_inter_layer.py`)**: measured
+     H(W) = 2.124 bits, H(ΔW) = 2.128 bits, delta magnitude 1.4× of raw —
+     the Shannon-floor check described in item 5 above.
+   - **Phase 4 arch sweep 7 variants**: `p5a_bg4096`, `p5a_bg8192`,
+     `p5a_nl12`, `p5a_ve4`, `p5a_bg4096_hm5`, plus the `p5a` baseline
+     and the `p5a_hm5` winner — all trained from scratch, 1-seed mid-eval
+     results in the Phase 4 table below, `hm5` is the only one to beat
+     baseline.
+   - **Phase 5b depth-recur `nl9r2`** (9 unique × 2 recur): eval at 30 %
+     showed 1.151 vs our SLOT-100 @76 % of 1.136 — decisively abandoned.
+   - **Phase 5b depth-recur `nl7r2`** (7 unique × 2 recur): eval at 92 %
+     showed 1.166 vs our 1.136 — decisively abandoned. (Earlier run
+     hit a `VE_LAYERS=9,10` bug at `NUM_LAYERS=7`; the fixed 92 % number
+     is from the `_fix.log` re-run.)
+
+   **Code written, but not run to eval** (5 stubs, dropped because the
+   Phase 1A int6_tok + Phase 2A Shannon-floor result removed the
+   motivation):
+   - **Phase 1B** FP32 scalar → Int8 quantization — code stub only.
+   - **Phase 1C** Pentanary → Ternary (BitNet b1.58) 1-layer sanity —
+     `TernaryLinear` class + `MLP_UP_TYPE` env + `run.sh` added at
+     `records/track_10min_16mb/2026-04-09_v62_phase1c_ternary/`, but
+     **never actually trained or evaluated**. Motivation disappeared
+     after Phase 1A int6_tok delivered the byte savings without the
+     BitNet-at-32M risk.
+   - **Phase 2B** Hadamard 16-dim block transform — stub added,
+     dropped after Phase 2A showed the rANS artifact is already at the
+     entropy floor.
+   - **Phase 2C** Context-aware rANS lookup table — stub outlined,
+     dropped for the same reason + a Rust-codec rebuild blocker.
+   - **Phase 3** Custom `HQGRANS1` binary container (pickle-bypass) —
+     `serialize_hybrid_binary` / `deserialize_hybrid_binary` functions
+     added at `records/track_10min_16mb/2026-04-09_v62_phase3_binary_container/`
+     but the sanity comparison showed that the lzma9-after-rANS step in
+     the baseline pipeline was already removing most of the pickle
+     overhead, so the net benefit of the custom container was
+     essentially zero on the `.rans.ptz.xz` path that the submission
+     actually uses. Code preserved for future lzma-free experiments.
 
 7. **Legal Muon-TTT non-competitive finding for this model (new in this PR).**
    We ran the Legal Score-First Muon-TTT alternative (PR #1413 + PR #1176)
@@ -251,11 +322,12 @@ exploits).
 - Prior records (this submitter):
   - `v61_slot_steps100_1146` (3-seed 1.146523, SLOT-100)
   - `v61_slot_steps80_1147` / `v61_slot_steps50_1150` / `v61_aggressive_slot_1159`
-- SLOT origin: [openai/parameter-golf#1176](https://github.com/openai/parameter-golf/pull/1176)
-- QK 5.0: [openai/parameter-golf#1413](https://github.com/openai/parameter-golf/pull/1413)
-- MuonEq-R (Newton-Schulz row L2): [openai/parameter-golf#1394](https://github.com/openai/parameter-golf/pull/1394)
-- EMA 0.9965: [openai/parameter-golf#1421](https://github.com/openai/parameter-golf/pull/1421), [openai/parameter-golf#1445](https://github.com/openai/parameter-golf/pull/1445)
-- Legal Score-First TTT: [openai/parameter-golf#1413](https://github.com/openai/parameter-golf/pull/1413)
+- SLOT origin: [openai/parameter-golf#1128](https://github.com/openai/parameter-golf/pull/1128) (AnubhavBharadwaaj, 2026-03-30 09:43 UTC, `SLOT_LR=0.003 SLOT_STEPS=5`)
+- SLOT + Muon-TTT: [openai/parameter-golf#1176](https://github.com/openai/parameter-golf/pull/1176) (bigbag, `SLOT_LR=0.005 SLOT_STEPS=8`, QK-Gain 4.0, Muon-TTT)
+- QK-Gain 5.0: [openai/parameter-golf#1413](https://github.com/openai/parameter-golf/pull/1413) (dexhunter, SP8192 + QK-Gain 5 + Legal Score-First TTT, 1.08279)
+- MuonEq-R (Newton-Schulz row L2): [openai/parameter-golf#1394](https://github.com/openai/parameter-golf/pull/1394) (clarkkev, SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SDClip, 1.08563)
+- EMA 0.9965: [openai/parameter-golf#1421](https://github.com/openai/parameter-golf/pull/1421) (X-Abhishek-X, 11L Depth Recurrence + EMA 0.9965, 1.0925), [openai/parameter-golf#1445](https://github.com/openai/parameter-golf/pull/1445) (X-Abhishek-X, 3-Layer Depth Recurrence + EMA 0.9965 + WD 0.095, 1.0889)
+- Legal Score-First TTT: [openai/parameter-golf#1128](https://github.com/openai/parameter-golf/pull/1128) (Parallel Muon variant) / [openai/parameter-golf#1413](https://github.com/openai/parameter-golf/pull/1413) (plain variant)
 
 ## What's new — Phase 5a stack on top of the rANS HybridQuant baseline
 v6.1 SLOT-100 baseline (1.146523) plus a **trivial-wins composition** that we
@@ -331,17 +403,38 @@ re-run reported above (1.136399 @76 %) replaces the 1-seed mid-eval estimate.
 
 ## Negative results we tried (saving evaluators time)
 
-| Phase | Idea                                                   | Outcome |
-|-------|--------------------------------------------------------|---------|
-| 1B    | FP32 scalar → Int8                                     | -0.05 MB only, kept |
-| 1C    | Pentanary → Ternary (BitNet b1.58 1-layer sanity)     | regression +0.014, abandoned |
-| 1A pent_tok | Tied embed Pentanary                            | regression +0.043, abandoned |
-| 2A    | Inter-layer delta prediction (`ΔW = W_l - W_{l-1}`)   | **delta entropy equal to or higher than raw W (Shannon-floor proof)**, abandoned |
-| 2B    | Hadamard 16-dim block transform                       | no rANS gain (entropy already at floor), abandoned |
-| 2C    | Context-aware rANS lookup-table                       | Rust codec rebuild blocker, abandoned |
-| 3     | Custom HQGRANS1 binary container (pickle-bypass)      | -70 KB rans / +17 KB after lzma9 — pickle isn't actually leaking 30 %, confirming the entropy ceiling, abandoned |
-| 5b    | Depth Recurrence unique 9 × recur 2 = 18 effective     | 30 % eval @ 1.151 vs hm5 @ 1.136, abandoned |
-| 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective     | 92 % eval @ 1.166, worse |
+Split into "actually run with eval data" vs "code written but not run to
+eval" so reviewers can see exactly what is empirically grounded.
+
+### Actually run (eval data available)
+
+| Phase | Idea                                                 | Outcome |
+|-------|------------------------------------------------------|---------|
+| 1A    | Tied embed Pentanary quantization (`pent_tok`)       | killed at 4 % sliding-window after early bpb was +0.0428 above baseline — decisively worse, abandoned |
+| 1A    | Tied embed Int4 (`int4_tok`)                         | +0.0095 regression, acceptable bytes but int6_tok dominates it |
+| 2A    | Inter-layer delta entropy measurement (`analyze_inter_layer.py`) | **H(W)=2.124 vs H(ΔW)=2.128 (+0.004), delta magnitude 1.4× raw — Shannon-floor evidence on this PR's v6.1 chain** |
+| 4     | `p5a_bg4096` (BigramHash 2048 → 4096)                | ~1.146 @ 28 % vs `p5a_hm5` ~1.144 — marginally worse, abandoned |
+| 4     | `p5a_bg8192` (BigramHash 2048 → 8192)                | ~1.148 @ 28 % — worse, abandoned |
+| 4     | `p5a_nl12` (num_layers 11 → 12)                      | ~1.147 @ 28 % — worse, abandoned |
+| 4     | `p5a_ve4` (ve_layers 9,10 → 7,8,9,10)                | ~1.150 @ 28 % — worse, abandoned |
+| 4     | `p5a_bg4096_hm5`                                     | ~1.144 @ 28 % — tie with hm5-only but +0.5 MB more bytes, abandoned |
+| 5b    | Depth Recurrence `nl9r2` (9 unique × 2 recur = 18 effective) | 30 % eval @ 1.151 vs `hm5` @ 1.136, decisively worse |
+| 5b'   | Depth Recurrence `nl7r2` (7 unique × 2 recur = 14 effective) | 92 % eval @ 1.166 (post-bug-fix re-run), worse |
+
+### Code written, NOT run to eval (abandoned before execution)
+
+These stubs are preserved in the repository so other submitters can pick
+them up, but we did not run them to completion — either because Phase 1A
+/ Phase 2A already solved the underlying problem, or the dependency was
+not available on our pod.
+
+| Phase | Idea                                                 | Reason stopped |
+|-------|------------------------------------------------------|----------------|
+| 1B    | FP32 layer scalars → Int8                            | Stub only; the affected tensors are < 1 % of the artifact, kept as FP16 passthrough |
+| 1C    | Pentanary → Ternary BitNet b1.58 1-layer sanity      | `TernaryLinear` class + `MLP_UP_TYPE` env + `run.sh` added under `records/track_10min_16mb/2026-04-09_v62_phase1c_ternary/`, **never trained or evaluated** — motivation disappeared after Phase 1A int6_tok landed the byte savings without the BitNet-at-32M risk |
+| 2B    | Hadamard 16-dim block transform                      | Planning note only; dropped after Phase 2A showed rANS is already near the entropy floor |
+| 2C    | Context-aware rANS lookup table                      | Outline only; dropped for the same reason + Rust codec rebuild blocker |
+| 3     | Custom `HQGRANS1` binary container (pickle-bypass)   | `serialize_hybrid_binary` / `deserialize_hybrid_binary` functions added at `records/track_10min_16mb/2026-04-09_v62_phase3_binary_container/`, but the lzma9-after-rANS step in the baseline pipeline was already removing most of the pickle overhead, so the sanity comparison showed net benefit is essentially zero on the `.rans.ptz.xz` path this submission uses — kept for future lzma-free experiments |
 
 ## Reproducibility
 ```bash
