@@ -1,0 +1,7 @@
+run_id,seed,qk_gain,ttt_enabled,ttt_lr,ttt_epochs,ttt_freeze,val_bpb,roundtrip_bpb,train_s,eval_s,bytes_total,log_path
+runA_seed1337_qk5_ttt6_f2,1337,5.0,1,0.0005,6,2,1.08250260,1.09687424,595.091,97.120,15148097,analysis/2026-04-08_record_push/runA_seed1337_qk5_ttt6_f2.log
+runB_seed1337_qk525_ttt8_f1,1337,5.25,1,0.00045,8,1,1.07765960,1.09149096,595.140,73.997,15161417,analysis/2026-04-08_record_push/runB_seed1337_qk525_ttt8_f1.log
+runC_seed1337_qk5_nottt,1337,5.0,0,0.0005,0,11,1.10884414,1.12541234,595.085,74.456,15151733,analysis/2026-04-08_record_push/runC_seed1337_qk5_nottt.log
+runD_seed42_qk525_ttt8_f1,42,5.25,1,0.00045,8,1,1.07913183,1.09299539,NA,NA,15171524,analysis/2026-04-08_record_push/runD_seed42_qk525_ttt8_f1.log
+runD_seed1337_qk525_ttt8_f1,1337,5.25,1,0.00045,8,1,1.07804121,1.09181877,NA,NA,15163267,analysis/2026-04-08_record_push/runD_seed1337_qk525_ttt8_f1.log
+runD_seed2025_qk525_ttt8_f1,2025,5.25,1,0.00045,8,1,1.07903865,1.09294735,NA,NA,15188203,analysis/2026-04-08_record_push/runD_seed2025_qk525_ttt8_f1.log
