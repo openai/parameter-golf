@@ -34,15 +34,42 @@ items marked **(prior in this chain)** were introduced by earlier PRs from
 this submitter and are included because they are essential context for
 reviewers who have not seen the v6.1 chain:
 
-1. **Custom rANS entropy codec for neural-network weights (prior in this chain,
-   #1123 / #1146).** This is **the only submission in the entire competition**
-   that pushes mixed-precision weights through a rANS codec instead of storing
-   them as packed integers. MLP-up reaches **2.32 bits/weight** (Pentanary
-   alphabet), MLP-down reaches **1.20 bits/weight** (Int4 alphabet) — vs the
-   ~4.0 bits/weight that a naive Int4 baseline gives. The full-weight entropy
-   breakdown is in the "rANS HybridQuant baseline" section below. **This is
-   the single biggest reason a 32.8 M-parameter model fits in 15 MB at all**,
-   and no other open PR tries this.
+1. **First rANS entropy codec for mixed-precision NN weights in the
+   competition (prior in this chain, #1123 opened 2026-03-30).** To our
+   knowledge (searching open + closed PRs with `rANS` / `arithmetic coding`
+   keywords on 2026-04-08) there are exactly **two** rANS-based PR chains
+   in the entire competition:
+   - **this chain (sisegod #1123 → #1146 → #1465, opened 2026-03-30)** — the
+     first rANS submission chronologically,
+   - `turbo-indubitable`'s #1215 (opened 2026-04-01, two days later) — a
+     separate 12-layer LeakyReLU² + Soft XSA architecture with int5/int6
+     rANS roundtrip, 1.1601 bpb at 15,912,601 bytes.
+
+   The **distinctive** part of our rANS stack relative to #1215 is the
+   aggressive mixed-precision alphabet layout:
+   - MLP-up: **Pentanary** (5 symbols), **2.32 bits/weight** (this chain)
+     vs int5/int6-only in #1215 (≥5 bits/weight before rANS, never below
+     3 bits/weight after rANS).
+   - MLP-down: **Int4**, **1.20 bits/weight** (after rANS frequency table).
+   - Attention Q/K: Int6, V/O: Int5.
+   - Token embed (tied lm_head): Int6 after Phase 1A (new in this PR — see
+     item 3 below).
+
+   The Pentanary MLP-up alphabet in particular is what pushes our artifact
+   size meaningfully below naive int5/int6 rANS: we reach **2.32 bits/weight
+   on 23 % of the artifact** where #1215's int5/int6-only path cannot go
+   below ~3.0 bits/weight even with optimal rANS frequency tables. This is
+   why a 32.8 M-parameter model fits in 15.56 MB (with room for Phase 5a
+   re-investment) on our side while #1215's 12 L at int5/int6 sits at
+   15.91 MB. **The whole rANS + Pentanary + Int4 + Int5 + Int6 +
+   passthrough-FP16 mixed stack — together with its custom Rust codec
+   `rans_codec_rs` — is the chain's core originality claim**, and it was
+   committed two days before the other rANS submission appeared.
+
+   (A separate PR, `cruz-andr` #538, uses *arithmetic coding* instead of
+   rANS with an FP8 + SWA backbone at 1.1511 bpb. We mention it for
+   completeness; rANS and arithmetic coding are related but distinct
+   entropy coders, and #538 does not overlap with either rANS chain.)
 
 2. **Aggressive SLOT tuning for the 32 M regime (prior in this chain, #1146).**
    PR #1176 introduced SLOT with default `lr=0.003 steps=5`. At the 32 M scale
@@ -54,15 +81,18 @@ reviewers who have not seen the v6.1 chain:
    See `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100/`
    for the sweep data.
 
-3. **Phase 1A int6 tied-embedding quantization (new in this PR).** Nobody else
-   in the open PR list quantizes the tied `lm_head / tok_emb` below FP16 at
-   this scale — our Phase 1A sweep showed that `EMBED_QUANT_BITS=6
-   EMBED_QUANT_TOK_EMB=1` is a **free −0.6 MB** on the rANS artifact with
-   zero bpb regression (vs +0.043 bpb for Pentanary tied embed, which is
-   what the naive application of the MLP-up alphabet would give). The
-   Phase 1A sanity sweep (baseline / int4 / int6 / int8 / pentanary on both
-   passthrough-tok-emb and quantized-tok-emb) is what established that int6
-   is the right operating point.
+3. **Phase 1A int6 tied-embedding quantization (new in this PR).** The parent
+   chain stored the tied `lm_head / tok_emb` as an FP16 passthrough tensor
+   in the rANS artifact (1.05 MB / 7 % of the artifact). This PR's Phase 1A
+   sweep (baseline / int4 / int6 / int8 / pentanary on both
+   passthrough-tok-emb and quantized-tok-emb) established that
+   `EMBED_QUANT_BITS=6 EMBED_QUANT_TOK_EMB=1` is a **free −0.6 MB** on the
+   rANS artifact with zero bpb regression, while `pentanary_tok` regresses
+   by +0.043 bpb (the tied-embed sensitivity to aggressive quantization is
+   much higher than MLP-up's, because the same tensor is used for both the
+   input lookup and the output logits). This int6-tied-embed operating
+   point is introduced in this PR — we have not seen it used in the other
+   rANS-based PR (#1215) or in the parent chain's earlier commits.
 
 4. **Phase 5a trivial-wins composition (new in this PR).** The six components
    in the stack below are each borrowed from other PRs (#1176 SLOT,
@@ -83,11 +113,14 @@ reviewers who have not seen the v6.1 chain:
    empirically rANS reaches 2.32 bits/weight on MLP-up vs a Shannon
    theoretical minimum of 2.28 bits/weight on the same tensors — the
    remaining 0.04 bits/weight is coding overhead, not exploitable redundancy.
-   This is the **first empirical confirmation in the competition** that the
-   HybridQuant / rANS artifact size is already entropy-bound at the
-   single-token coder level. Phase 2A (Hadamard transform), Phase 2B
-   (Context-aware rANS sub-tables), and Phase 3 (custom HQGRANS1 binary
-   container) all independently confirmed the same ceiling.
+   To our knowledge this is **the first explicit Shannon-floor empirical
+   check on the HybridQuant / Pentanary rANS pipeline** — the other
+   rANS-based PR (#1215) reports int5/int6 bits/weight but does not run a
+   delta-vs-raw entropy comparison, and no other open PR we have reviewed
+   frames the compression question this way. Phase 2A (Hadamard transform),
+   Phase 2B (Context-aware rANS sub-tables), and Phase 3 (custom HQGRANS1
+   binary container) all independently confirmed the same ceiling on our
+   chain.
 
 6. **Negative-results catalog for the 32 M regime (new in this PR).** Eleven
    experiments from Phases 1B, 1C, 2A, 2B, 2C, 3, 5b, 5b' were run to
@@ -141,12 +174,17 @@ delta and the TTT-updated parameters before computing per-window loss —
 and we did not have RunPod budget to try the combination in this
 submission round.)
 
-> **The only submission in the competition using rANS entropy coding to pack
-> 32.8 M parameters into a 15 MB artifact** — the HybridQuantGPT v6.1 chain
-> (this PR and its parent #1123) encodes mixed Int4 / Int5 / Int6 / Pentanary
-> quantized weights directly through a custom rANS codec, bringing the average
-> bit-width down to ~2.3 bits/weight (vs ~4.0 bits/weight that Int4 would give
-> naively).
+> **First submission in the competition to use rANS entropy coding for
+> mixed-precision NN weights, and one of only two rANS-based PR chains** —
+> the HybridQuantGPT v6.1 chain (this PR and its parent #1123, opened
+> 2026-03-30) encodes mixed Int4 / Int5 / Int6 / **Pentanary** quantized
+> weights through a custom Rust rANS codec, bringing the average bit-width
+> down to ~2.3 bits/weight (vs ~4.0 bits/weight that Int4 would give
+> naively, and vs ~3.0+ bits/weight that int5/int6-only rANS can reach).
+> The other rANS-based chain is `turbo-indubitable`'s #1215 (opened two
+> days later on 2026-04-01, int5/int6-only on a 12 L LeakyReLU² backbone);
+> our distinctive contribution is the **Pentanary MLP-up alphabet** +
+> full HybridQuant mixed-alphabet stack.
 
 | seed | SLOT-100 bpb (re-run @75-76 %) | windows scored              |
 |------|--------------------------------|-----------------------------|
@@ -249,11 +287,21 @@ weight tensor with a per-alphabet frequency table:
 | rANS metadata (counts + per-row scales) | — | —         | 11 %              |
 | `torch.save` pickle overhead            | — | —         | 30 %              |
 
-**No other submission in the competition compresses this aggressively at the
-single-weight level** — Int4 baselines give ~4.0 bits/weight, our rANS stack
-gives ~2.32 bits/weight on MLP-up and ~1.20 on MLP-down, which is **1.7–3.3×
-better compression per weight at equivalent quality**. This is the single
-biggest reason the 32.8 M-parameter model fits in 15 MB at all.
+**Comparison to the only other rANS-based chain (#1215) and the arithmetic
+coding chain (#538)** — `turbo-indubitable`'s #1215 runs int5/int6 through a
+per-tensor adaptive rANS roundtrip on a 12 L LeakyReLU² backbone and reaches
+15,912,601 bytes at 1.1601 bpb; `cruz-andr`'s #538 uses FP8 + arithmetic
+coding on a different backbone at 1.1511 bpb. The distinctive part of our
+stack is the **Pentanary MLP-up alphabet** (5 symbols after quantization):
+at 2.32 bits/weight on 23 % of the artifact it is below what int5/int6-only
+rANS can reach (~3.0 bits/weight minimum), and it is what lets a 32.8 M
+model fit in 15.56 MB while #1215's 12 L-int5/int6 sits at 15.91 MB. **The
+Pentanary + rANS combination — and the whole HybridQuant mixed-alphabet
+stack — is the originality claim of the v6.1 chain** (first opened in
+#1123 on 2026-03-30, two days before #1215). Naive Int4 baselines give
+~4.0 bits/weight; our rANS stack gives 2.32 bits/weight on MLP-up and 1.20
+on MLP-down, which is **1.7–3.3× better compression per weight at
+equivalent quality**.
 
 The training loop, model classes, rANS serializer, and aggressive SLOT default
 (`steps=100 lr=0.1`) are all unchanged from
