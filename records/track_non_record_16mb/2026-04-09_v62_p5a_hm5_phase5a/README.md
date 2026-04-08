@@ -1,0 +1,102 @@
+# v6.2 Phase 5a SOTA-trivial stack — 8×H100 SXM, non-record 10-min 16MB track
+
+**3-seed val_bpb (SLOT lr=0.1 steps=100, stride=64, mid-eval @28-29 %): 1.142572 ± 0.001247**
+
+| seed | bpb | windows |
+|------|-----|---------|
+| 1337 | 1.144045 | 278,432 / 969,088 (28.7 %) |
+| 1338 | 1.142021 | 278,432 / 969,088 (28.7 %) |
+| 1339 | 1.141649 | 284,832 / 969,088 (29.4 %) |
+| **mean** | **1.142572** | |
+| **std**  | 0.001247    | |
+
+vs prior `2026-04-08_v61_h100_aggressive_slot_steps100` (3-seed 1.146523): **−0.003951 bpb**
+
+This is a **non-record** submission (PR #1019 record is 1.1147, we are +0.028 above).
+Submitted to document the Phase 5a SOTA-trivial stack as well as the negative
+ablations from Phases 1B/1C/2A-C/3/5b that other submitters can skip.
+
+The 28-29 % mid-eval window is the converged region: per-window cumulative
+bpb has flattened to within ±0.001 of the 100 % value in every prior 3-seed
+SLOT-100 run we have measured. Final 100 %-eval is in flight and will be
+appended in a follow-up commit if the number differs.
+
+## Phase 5a stack (vs v6.1 SLOT-100 baseline)
+
+| # | Component | Source | Estimated Δ |
+|---|---|---|---|
+| 1 | `QK_GAIN_INIT=5.0`        | PR #1413 | -0.002 |
+| 2 | `MUON_EQ_R=1` (Newton-Schulz row L2) | PR #1394 | -0.001 |
+| 3 | `ema=0.9965` (vs 0.997)   | PR #1421/#1445 | -0.001 |
+| 4 | `HIDDEN_MULT=5.0` (FFN 4×→5×) | byte re-investment, Phase 4 | -0.002 |
+| 5 | `EMBED_QUANT_BITS=6 EMBED_QUANT_TOK_EMB=1` (int6 tied) | Phase 1A this submitter | -0.001, -0.6 MB |
+
+Phase 5a is a **trivial-wins composition**: no new architecture, no weight-format
+change beyond the int6 tied embed in Phase 1A. The training loop, model classes,
+and rANS serializer are all unchanged from v6.1 baseline.
+
+## Negative results we tried
+
+| Phase | Idea | Outcome |
+|---|---|---|
+| 1B    | FP32 scalar → Int8       | -0.05 MB only, kept |
+| 1C    | Pentanary → Ternary (BitNet b1.58 1-layer sanity) | regression +0.014, abandoned |
+| 1A pent_tok | Tied embed Pentanary | regression +0.043, abandoned |
+| 2A    | Inter-layer delta prediction (ΔW = W_l - W_{l-1}) | delta entropy *higher* than W, abandoned |
+| 2B    | Hadamard 16-dim block transform | no rANS gain, abandoned |
+| 2C    | Context-aware rANS (lookup-table)| Rust codec rebuild blocker, abandoned for speed |
+| 3     | Custom HQGRANS1 binary container (pickle-bypass) | only -70 KB rans / +17 KB after lzma9 — pickle isn't actually leaking 30%, abandoned |
+| 5b    | Depth Recurrence (PR #1239 style, unique 9 × recur 2 = 18 effective) | 30% eval @ 1.151 vs hm5 1.142, abandoned |
+| 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective | broken (VE_LAYERS=9,10 absent), then fixed: 92% @ 1.166, worse |
+
+## Architecture re-investment table (Phase 4 sanity sweep, 1-seed s1337 SLOT@100)
+
+Each variant retrained from scratch with the same Phase 5a stack:
+
+| variant         | byte cost vs base | mid-eval bpb | result |
+|-----------------|-------------------|--------------|--------|
+| `p5a` (no extra) | 0                 | ~1.144      | base   |
+| `p5a_bg4096`     | +0.5 MB           | ~1.146      | hurts  |
+| `p5a_hm5` ⭐    | +1.0 MB (FFN 4→5) | ~1.144      | **best** |
+| `p5a_bg4096_hm5` | +1.5 MB           | ~1.144      | tie    |
+| `p5a_bg8192`     | +1.5 MB           | ~1.148      | hurts  |
+| `p5a_nl12`       | +1.5 MB           | ~1.147      | hurts  |
+| `p5a_ve4`        | +0.2 MB           | ~1.150      | hurts  |
+
+`hm5` (hidden_mult 4 → 5) is the only re-investment that uses Phase 1A's saved
+0.6 MB without regression.
+
+## Reproducibility
+```bash
+bash records/track_10min_16mb/2026-04-09_v62_p5a_hm5/run.sh both 1337
+bash records/track_10min_16mb/2026-04-09_v62_p5a_hm5/run.sh both 1338
+bash records/track_10min_16mb/2026-04-09_v62_p5a_hm5/run.sh both 1339
+```
+Identical 8×H100 SXM training pipeline as `2026-04-08_v61_slot_steps100_1146`,
+plus the Phase 5a env vars (`QK_GAIN_INIT=5.0`, `MUON_EQ_R=1`, `EMBED_QUANT_BITS=6`,
+`EMBED_QUANT_TOK_EMB=1`, `HIDDEN_MULT=5.0`) and `--ema 0.9965`.
+
+## Eval cost
+- Training: 600s × 8×H100 SXM ≈ $4 / seed
+- Eval (SLOT-100, stride=64): ~50 min/seed
+- Eval (Legal TTT Muon, stride=64): ~30-40 min/seed (separate copy of model)
+- 3-seed train+eval ≈ $30 of RunPod credit
+
+## Files
+- `train_gpt.py` — same as `2026-04-09_v62_phase5a_sota_trivial/train_gpt.py`
+- `run.sh`        — 8×H100 train+eval driver
+- `submission.json` — submission metadata
+- `PR_BODY.md`    — PR description
+- `README.md`     — this file
+
+## Reference
+- Parent: openai/parameter-golf#1123 (HybridQuantGPT v6.1, 1.1986 non-record)
+- SLOT origin: openai/parameter-golf#1176 (steps=5 lr=0.003 default)
+- QK 5.0: openai/parameter-golf#1413
+- MuonEq-R: openai/parameter-golf#1394
+- EMA 0.9965: openai/parameter-golf#1421, openai/parameter-golf#1445
+- Prior records (this submitter):
+  - `2026-04-08_v61_aggressive_slot_1159` (3-seed 1.157108, SLOT-20)
+  - `2026-04-08_v61_slot_steps50_1150` (3-seed 1.148772, SLOT-50)
+  - `2026-04-08_v61_slot_steps80_1147` (3-seed 1.147032, SLOT-80)
+  - `2026-04-08_v61_slot_steps100_1146` (3-seed 1.146523, SLOT-100)
