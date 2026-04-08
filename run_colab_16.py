@@ -84,7 +84,7 @@ env = " ".join([
     f"VE_LAYERS=8,9,10",
     # --- Legal Score-First TTT ---
     f"TTT_ENABLED=1",
-    f"TTT_LR=0.001",
+    f"TTT_LR=0.005",  # matched to PR #1460 (was 0.001)
     f"TTT_EPOCHS=3",
     f"TTT_CHUNK_SIZE=32768",
     # --- JEPA latent prediction ---

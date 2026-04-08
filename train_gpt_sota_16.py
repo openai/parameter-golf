@@ -2080,9 +2080,17 @@ def run_legal_ttt(
             model.train()
             if hash_emb is not None:
                 hash_emb.train()
+            num_batches = math.ceil(nseq / batch_seqs)
+            total_steps = args.ttt_epochs * num_batches
+            step = 0
             for _epoch in range(args.ttt_epochs):
                 perm = torch.randperm(nseq, device=device)
                 for bi in range(0, nseq, batch_seqs):
+                    # Cosine LR decay (like PR #1460)
+                    cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * step / max(1, total_steps)))
+                    for pg in ttt_optimizer.param_groups:
+                        pg["lr"] = cos_lr
+                    step += 1
                     idx = perm[bi:bi + batch_seqs]
                     bx, by = xs[idx], ys[idx]
                     ttt_optimizer.zero_grad(set_to_none=True)
