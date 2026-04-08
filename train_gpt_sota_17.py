@@ -983,19 +983,21 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         if self.ngpt:
             # nGPT: representations live on the unit hypersphere.
-            # After blending with skip x0, re-normalize so x_in is on sphere.
-            x_in = F.normalize(mix[0][None, None, :] * x + mix[1][None, None, :] * x0, dim=-1)
-            # Attn: no prenorm (x_in already on sphere). Sphere-walk update.
+            # Use F.rms_norm instead of F.normalize — same isotropy guarantee but uses
+            # an optimized custom CUDA kernel whose backward doesn't OOM Triton registers.
+            D = x.size(-1)
+            x_in = F.rms_norm(mix[0][None, None, :] * x + mix[1][None, None, :] * x0, (D,))
+            # Attn: no prenorm (x_in already normalized). Sphere-walk update.
             attn_out, raw_v = self.attn(x_in, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
             step_a = self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
-            x_out = F.normalize(x_in + step_a, dim=-1)
+            x_out = F.rms_norm(x_in + step_a, (D,))
             # MLP: no prenorm. Another sphere-walk step.
             mlp_out = self.mlp(x_out, up_w, down_w, self.mlp_slope)
             step_m = self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * mlp_out
-            x_out = F.normalize(x_out + step_m, dim=-1)
+            x_out = F.rms_norm(x_out + step_m, (D,))
             if self.dtg_gate is not None:
                 gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
-                x_out = F.normalize(x_in + gate * (x_out - x_in), dim=-1)
+                x_out = F.rms_norm(x_in + gate * (x_out - x_in), (D,))
             return x_out, raw_v
         else:
             x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
@@ -1018,19 +1020,20 @@ class Block(nn.Module):
         """Parallel residual: attn reads lane0, MLP reads lane1, write to both lanes."""
         mix = self.resid_mix.to(dtype=x_lane0.dtype)
         if self.ngpt:
-            # nGPT parallel: normalize blended inputs, then sphere-walk each lane.
-            attn_in = F.normalize(mix[0][None, None, :] * x_lane0 + mix[1][None, None, :] * x0, dim=-1)
+            # nGPT parallel: rms_norm blended inputs (same isotropy as L2, OOM-safe backward).
+            D = x_lane0.size(-1)
+            attn_in = F.rms_norm(mix[0][None, None, :] * x_lane0 + mix[1][None, None, :] * x0, (D,))
             attn_out, raw_v = self.attn(attn_in, q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
             scaled_attn = self.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
-            mlp_in = F.normalize(mix[0][None, None, :] * x_lane1 + mix[1][None, None, :] * x0, dim=-1)
+            mlp_in = F.rms_norm(mix[0][None, None, :] * x_lane1 + mix[1][None, None, :] * x0, (D,))
             mlp_out = self.mlp(mlp_in, up_w, down_w, self.mlp_slope)
             scaled_mlp = self.mlp_scale.to(dtype=mlp_out.dtype)[None, None, :] * mlp_out
             ppl_d = ppl.to(dtype=x_lane0.dtype)
             prl_d = prl.to(dtype=x_lane0.dtype)
-            new_lane0 = F.normalize(
-                prl_d[0][None, None, :] * x_lane0 + ppl_d[0, 0][None, None, :] * scaled_attn + ppl_d[0, 1][None, None, :] * scaled_mlp, dim=-1)
-            new_lane1 = F.normalize(
-                prl_d[1][None, None, :] * x_lane1 + ppl_d[1, 0][None, None, :] * scaled_attn + ppl_d[1, 1][None, None, :] * scaled_mlp, dim=-1)
+            new_lane0 = F.rms_norm(
+                prl_d[0][None, None, :] * x_lane0 + ppl_d[0, 0][None, None, :] * scaled_attn + ppl_d[0, 1][None, None, :] * scaled_mlp, (D,))
+            new_lane1 = F.rms_norm(
+                prl_d[1][None, None, :] * x_lane1 + ppl_d[1, 0][None, None, :] * scaled_attn + ppl_d[1, 1][None, None, :] * scaled_mlp, (D,))
             return new_lane0, new_lane1, raw_v
         else:
             # Attn reads lane0
@@ -1316,8 +1319,7 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
-        # nGPT: L2-normalize to unit sphere; else RMSNorm for scale stability
-        x = F.normalize(x, dim=-1) if self.ngpt else F.rms_norm(x, (x.size(-1),))
+        x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x = self._run_backbone(x, input_ids)
         x_flat = x.reshape(-1, x.size(-1))
@@ -1368,7 +1370,7 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
-        x = F.normalize(x, dim=-1) if self.ngpt else F.rms_norm(x, (x.size(-1),))
+        x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
         x = self._run_backbone(x, input_ids)
         if self.tie_embeddings:
