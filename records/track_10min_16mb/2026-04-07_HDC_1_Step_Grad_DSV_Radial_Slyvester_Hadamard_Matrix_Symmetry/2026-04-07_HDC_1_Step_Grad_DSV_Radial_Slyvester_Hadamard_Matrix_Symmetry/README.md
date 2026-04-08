@@ -1,4 +1,4 @@
-# HDC/VSA Zero-Weight Language Model — Quick Reference
+# HDC_1_Step_Grad_DSV_Radial_Slyvester_Hadamard_Matrix_Symmetry_Language_Model — Quick Reference
 
 > **Leaderboard submission checklist** — see [§ Leaderboard Submission](#leaderboard-submission) at the bottom.
 
