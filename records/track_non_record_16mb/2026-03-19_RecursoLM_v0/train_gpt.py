@@ -57,6 +57,8 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 512))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    checkpoint_every = int(os.environ.get("CHECKPOINT_EVERY", 100))
+    checkpoint_dir = os.environ.get("CHECKPOINT_DIR", "checkpoints")
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
@@ -456,6 +458,14 @@ class TokenStream:
         self.tokens = load_data_shard(self.files[0])
         self.pos = 0
 
+    def state_dict(self) -> dict:
+        return {"file_idx": self.file_idx, "pos": self.pos}
+
+    def load_state_dict(self, state: dict) -> None:
+        self.file_idx = state["file_idx"]
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = state["pos"]
+
     def _advance_file(self) -> None:
         self.file_idx = (self.file_idx + 1) % len(self.files)
         self.tokens = load_data_shard(self.files[self.file_idx])
@@ -548,7 +558,10 @@ def build_alibi_bias(seqlen: int, n_heads: int, device: torch.device, dtype: tor
     q_pos = torch.arange(seqlen, device=device)
     k_pos = torch.arange(seqlen, device=device)
     rel = (k_pos[None, :] - q_pos[:, None]).clamp(max=0).to(dtype)
-    return slopes[:, None, None] * rel[None, :, :]
+    alibi = slopes[:, None, None] * rel[None, :, :]
+    # Bake in the causal mask so we can pass is_causal=False to SDPA
+    causal = torch.triu(torch.full((seqlen, seqlen), float('-inf'), device=device, dtype=dtype), diagonal=1)
+    return alibi + causal
 
 
 class CausalSelfAttention(nn.Module):
@@ -586,14 +599,35 @@ class CausalSelfAttention(nn.Module):
         k = F.rms_norm(k, (k.size(-1),))
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         alibi = build_alibi_bias(seqlen, self.num_heads, x.device, q.dtype)
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=alibi,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        if self.num_kv_heads != self.num_heads:
+            try:
+                y = F.scaled_dot_product_attention(
+                    q,
+                    k,
+                    v,
+                    attn_mask=alibi,
+                    is_causal=False,
+                    enable_gqa=True,
+                )
+            except TypeError:
+                repeats = self.num_heads // self.num_kv_heads
+                k = k.repeat_interleave(repeats, dim=1)
+                v = v.repeat_interleave(repeats, dim=1)
+                y = F.scaled_dot_product_attention(
+                    q,
+                    k,
+                    v,
+                    attn_mask=alibi,
+                    is_causal=False,
+                )
+        else:
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=alibi,
+                is_causal=False,
+            )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -680,6 +714,7 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        self.skip_weights = nn.Parameter(torch.empty(0, model_dim, dtype=torch.float32))
         self.gate_norm = RMSNorm()
         self.recurrence_gate = CastedLinear(model_dim, 1, bias=False)
         self.final_norm = RMSNorm()
@@ -703,7 +738,7 @@ class GPT(nn.Module):
         for _ in range(self.recurrence_steps):
             h_prev = x
             for block in self.blocks:
-                x = block(x, x0)
+                x = torch.utils.checkpoint.checkpoint(block, x, x0, use_reentrant=False)
             gate = torch.sigmoid(self.recurrence_gate(self.gate_norm(x))).to(dtype=x.dtype)
             x = gate * x + (1.0 - gate) * h_prev
 
@@ -728,6 +763,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    torch._dynamo.config.suppress_errors = True
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -740,9 +776,12 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    if "GRAD_ACCUM_STEPS" in os.environ:
+        grad_accum_steps = int(os.environ["GRAD_ACCUM_STEPS"])
+    else:
+        if 8 % world_size != 0:
+            raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+        grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -760,7 +799,7 @@ def main() -> None:
 
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
+    enable_mem_efficient_sdp(True)
     enable_math_sdp(False)
 
     logfile = None
@@ -837,8 +876,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -892,7 +931,7 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=True math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -905,6 +944,28 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+
+    # -----------------------------
+    # CHECKPOINT RESUME
+    # -----------------------------
+
+    resume_step = 0
+    resume_training_time_ms = 0.0
+    ckpt_path = os.path.join(args.checkpoint_dir, "latest.pt")
+    if os.path.exists(ckpt_path):
+        log0(f"Resuming from checkpoint: {ckpt_path}")
+        ckpt = torch.load(ckpt_path, map_location=device)
+        base_model.load_state_dict(ckpt["model"])
+        for opt, opt_state in zip(optimizers, ckpt["optimizers"], strict=True):
+            opt.load_state_dict(opt_state)
+        resume_step = ckpt["step"]
+        resume_training_time_ms = ckpt.get("training_time_ms", 0.0)
+        resume_stream_state = ckpt.get("stream_state", None)
+        log0(f"Resumed at step {resume_step}, training_time_ms={resume_training_time_ms:.0f}ms")
+        del ckpt
+        torch.cuda.empty_cache()
+    else:
+        resume_stream_state = None
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -961,12 +1022,16 @@ def main() -> None:
     # MAIN TRAINING LOOP
     # -----------------------------
 
-    training_time_ms = 0.0
+    training_time_ms = resume_training_time_ms
     stop_after_step: int | None = None
+    if resume_stream_state is not None:
+        train_loader.stream.load_state_dict(resume_stream_state)
+    if master_process:
+        os.makedirs(args.checkpoint_dir, exist_ok=True)
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
-    step = 0
+    step = resume_step
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
@@ -1041,6 +1106,22 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+
+        # Periodic checkpoint save.
+        if args.checkpoint_every > 0 and step % args.checkpoint_every == 0 and master_process:
+            ckpt_data = {
+                "step": step,
+                "model": base_model.state_dict(),
+                "optimizers": [opt.state_dict() for opt in optimizers],
+                "training_time_ms": approx_training_time_ms,
+                "stream_state": train_loader.stream.state_dict(),
+            }
+            ckpt_tmp = os.path.join(args.checkpoint_dir, "latest.tmp.pt")
+            ckpt_final = os.path.join(args.checkpoint_dir, "latest.pt")
+            torch.save(ckpt_data, ckpt_tmp)
+            os.replace(ckpt_tmp, ckpt_final)
+            del ckpt_data
+            log0(f"checkpoint saved at step {step}")
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
