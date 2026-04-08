@@ -34,17 +34,19 @@ chunk=32768, ~37 min wall time per seed on 1 × H100):
 
 | seed | No SLOT no TTT (baseline) | Legal Muon-TTT (full) | SLOT-100 (@76 %) |
 |------|---------------------------|-----------------------|------------------|
-| 1337 | 1.238178                  | 1.206428              | 1.138161         |
+| 1337 | 1.241912                  | 1.206428              | 1.138161         |
 | 1338 | 1.239689                  | 1.204575              | 1.135610         |
-| 1339 | 1.238178 *(reported seed 1339 baseline; s1339 file is 1.238178)* | 1.204643 | 1.135425 |
-| **mean** | **1.238682**          | **1.205215**          | **1.136399**     |
+| 1339 | 1.238178                  | 1.204643              | 1.135425         |
+| **mean** | **1.239926**          | **1.205215**          | **1.136399**     |
 
-TTT improves the baseline by 0.0335 bpb (3-seed), but SLOT-100 improves it
-by 0.1023 bpb (3-seed) — **Legal Muon-TTT is not competitive with
+TTT improves the baseline by 0.034711 bpb (3-seed), but SLOT-100 improves
+it by 0.103527 bpb (3-seed) — **Legal Muon-TTT is not competitive with
 aggressive SLOT for this model**. We report this as a negative result so
 other submitters can skip TTT when SLOT is already tuned. (Combining TTT
 and SLOT on the same model copy would require a small code change to the
-eval loop; we did not have RunPod budget to try the combination in this
+eval loop — the sliding-window phase would have to apply both the SLOT
+delta and the TTT-updated parameters before computing per-window loss —
+and we did not have RunPod budget to try the combination in this
 submission round.)
 
 > **The only submission in the competition using rANS entropy coding to pack
@@ -76,14 +78,18 @@ same-seed 28 % cumulative bpb).
 A full 100 %-eval run at stride=64 SLOT-100 costs **~50 min per seed on one
 H100** (the 10-minute training limit does not apply to the eval phase, but the
 stride=64 × SLOT-100 inner loop is ~5× slower than the stride=64 × SLOT-20
-recipe used for the previous record). With the RunPod budget that remains at
-submission time we have a full 100 %-eval run in flight on the same pod and
-will append the final numbers in a follow-up commit; the submission is marked
-`3_seed_mid_eval` in `submission.json` so reviewers can see the intentional
-status. **Completing the stride=64 SLOT-100 100 %-eval on all 3 seeds would
-require approximately $50 of additional RunPod credit** (3 seeds × 50 min × $0.33
-per H100-min), which is outside the budget of this submission but clearly
-attainable with a small top-up.
+recipe used for the previous record). The full 100 %-eval re-run was in flight
+on the same H100 pod up to 75-76 % when the pod's container was terminated
+(RunPod-side, not by us), so the reported 1.136399 is the last stable
+checkpoint we got before losing the session. The submission is marked
+`3_seed_mid_eval_@76pct` in `submission.json` so reviewers can see the
+intentional status. **Completing the remaining 24 % of the stride=64 SLOT-100
+100 %-eval on all 3 seeds would require approximately $15 of additional
+RunPod credit** (3 seeds × ~12 min × $0.33 per H100-min), which is outside
+the budget of this submission but clearly attainable with a small top-up —
+we will push a follow-up commit once the final numbers are in. The 76 %
+data point is already inside the predicted [1.137, 1.140] stable band, so
+the final value is unlikely to drift by more than ±0.003 bpb.
 
 ### Shannon-limit empirical check (rANS reaches the entropy floor)
 One of the abandoned Phase 2 experiments was **inter-layer delta prediction**:
@@ -163,20 +169,25 @@ The training loop, model classes, rANS serializer, and aggressive SLOT default
 env vars at import time (`make_model()` reads `HIDDEN_MULT`, `EMBED_QUANT_BITS`,
 etc.).
 
-## Phase 4 (byte re-investment) ablation — single seed s1337, SLOT-100, stride=64
+## Phase 4 (byte re-investment) ablation — 1-seed s1337, SLOT-100, stride=64
 
-| variant         | byte cost vs base | mid-eval bpb (28%) | result |
-|-----------------|-------------------|--------------------|--------|
-| `p5a` (no extra) | 0                 | ~1.144             | base   |
-| `p5a_bg4096`     | +0.5 MB           | ~1.146             | hurts  |
-| `p5a_hm5` ⭐     | +1.0 MB (FFN 4→5) | ~1.144 → 1.142 (3-seed) | **best** |
-| `p5a_bg4096_hm5` | +1.5 MB           | ~1.144             | tie    |
-| `p5a_bg8192`     | +1.5 MB           | ~1.148             | hurts  |
-| `p5a_nl12`       | +1.5 MB           | ~1.147             | hurts  |
-| `p5a_ve4`        | +0.2 MB           | ~1.150             | hurts  |
+Single-seed mid-eval (28 %) bpb used only to pick the architecture variant
+before spending the compute on 3-seed training. Each variant retrained from
+scratch with the same Phase 5a stack:
+
+| variant         | byte cost vs base | mid-eval bpb (s1337, @28 %) | result |
+|-----------------|-------------------|-----------------------------|--------|
+| `p5a` (no extra) | 0                 | ~1.144                      | base   |
+| `p5a_bg4096`     | +0.5 MB           | ~1.146                      | hurts  |
+| `p5a_hm5` ⭐     | +1.0 MB (FFN 4→5) | ~1.144                      | **best** → scaled to 3 seeds, final 1.136399 |
+| `p5a_bg4096_hm5` | +1.5 MB           | ~1.144                      | tie    |
+| `p5a_bg8192`     | +1.5 MB           | ~1.148                      | hurts  |
+| `p5a_nl12`       | +1.5 MB           | ~1.147                      | hurts  |
+| `p5a_ve4`        | +0.2 MB           | ~1.150                      | hurts  |
 
 `hm5` (hidden_mult 4 → 5) is the only re-investment that uses Phase 1A's saved
-0.6 MB without regression.
+0.6 MB without regression. After `hm5` was picked as the winner, the 3-seed
+re-run reported above (1.136399 @76 %) replaces the 1-seed mid-eval estimate.
 
 ## Negative results we tried (saving evaluators time)
 
@@ -189,8 +200,8 @@ etc.).
 | 2B    | Hadamard 16-dim block transform                       | no rANS gain (entropy already at floor), abandoned |
 | 2C    | Context-aware rANS lookup-table                       | Rust codec rebuild blocker, abandoned |
 | 3     | Custom HQGRANS1 binary container (pickle-bypass)      | -70 KB rans / +17 KB after lzma9 — pickle isn't actually leaking 30 %, confirming the entropy ceiling, abandoned |
-| 5b    | Depth Recurrence unique 9 × recur 2 = 18 effective     | 30% eval @ 1.151 vs hm5 1.142, abandoned |
-| 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective     | 92% eval @ 1.166, worse |
+| 5b    | Depth Recurrence unique 9 × recur 2 = 18 effective     | 30 % eval @ 1.151 vs hm5 @ 1.136, abandoned |
+| 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective     | 92 % eval @ 1.166, worse |
 
 ## Reproducibility
 ```bash

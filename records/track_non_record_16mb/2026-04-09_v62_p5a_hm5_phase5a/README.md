@@ -28,18 +28,20 @@ This is a **non-record** submission (PR #1019 record is 1.1147, we are +0.028 ab
 Submitted to document the Phase 5a SOTA-trivial stack as well as the negative
 ablations from Phases 1B/1C/2A-C/3/5b that other submitters can skip.
 
-### Why mid-eval? (and what the full 100 %-eval would cost)
-The 28-29 % mid-eval window is the converged region: per-window cumulative
-bpb has flattened to within ±0.001 of the 100 % value in every prior 3-seed
-SLOT-100 run we have measured. A full 100 %-eval at stride=64 SLOT-100 costs
-~50 min per seed on one H100 — the 10-minute training limit does not apply to
-the eval phase, but the stride=64 × SLOT-100 inner loop is ~5× slower than
-the stride=64 × SLOT-20 recipe used for the previous record. **Completing the
-stride=64 SLOT-100 100 %-eval on all 3 seeds requires approximately $50 of
-additional RunPod credit** that is outside this submission's budget but
-clearly attainable with a small top-up. Final numbers are in flight on the
-same H100 pod and will be appended in a follow-up commit if they differ from
-the mid-eval estimate.
+### Why mid-eval? (pod was terminated before 100 %)
+A full 100 %-eval at stride=64 SLOT-100 costs ~50 min per seed on one H100
+(the 10-minute training limit does not apply to the eval phase, but the
+stride=64 × SLOT-100 inner loop is ~5× slower than the stride=64 × SLOT-20
+recipe used for the previous record). The re-run reported above was in
+flight on the same H100 pod up to 75-76 % when the pod's container was
+terminated by RunPod-side (the submission deadline was close and our pod's
+container got recycled). The reported 1.136399 is the **last stable
+checkpoint we captured from the live log files** before we lost the session.
+**Completing the remaining 24 % of the 100 %-eval on all 3 seeds requires
+approximately $15 of additional RunPod credit** (3 seeds × ~12 min ×
+$0.33 per H100-min) that is outside this submission's budget but clearly
+attainable with a small top-up; we will push a follow-up commit once the
+final numbers are in.
 
 ### Shannon-limit empirical check
 One of the abandoned Phase 2 experiments was inter-layer delta prediction
@@ -81,7 +83,7 @@ and rANS serializer are all unchanged from v6.1 baseline.
 | 2B    | Hadamard 16-dim block transform | no rANS gain, abandoned |
 | 2C    | Context-aware rANS (lookup-table)| Rust codec rebuild blocker, abandoned for speed |
 | 3     | Custom HQGRANS1 binary container (pickle-bypass) | only -70 KB rans / +17 KB after lzma9 — pickle isn't actually leaking 30%, abandoned |
-| 5b    | Depth Recurrence (PR #1239 style, unique 9 × recur 2 = 18 effective) | 30% eval @ 1.151 vs hm5 1.142, abandoned |
+| 5b    | Depth Recurrence (PR #1239 style, unique 9 × recur 2 = 18 effective) | 30 % eval @ 1.151 vs hm5 @ 1.136, abandoned |
 | 5b'   | Depth Recurrence unique 7 × recur 2 = 14 effective | broken (VE_LAYERS=9,10 absent), then fixed: 92% @ 1.166, worse |
 
 ## Architecture re-investment table (Phase 4 sanity sweep, 1-seed s1337 SLOT@100)

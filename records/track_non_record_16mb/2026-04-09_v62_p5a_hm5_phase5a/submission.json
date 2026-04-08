@@ -14,7 +14,7 @@
     "1338": 1.135610,
     "1339": 1.135425
   },
-  "val_bpb_note": "Re-run at 75-76% of stride=64 SLOT-100 sliding window (eval_final3.log on 2026-04-08). Trajectory of 3-seed mean on the same rANS artifacts: @28% -> 1.142572, @32% -> 1.140655, @40% -> 1.137407, @50% -> 1.136816, @56% -> 1.139363, @66% -> 1.138112, @76% -> 1.136399. The cumulative bpb oscillates within +/-0.003 bpb; the final 100% is expected in [1.136, 1.140]. Full 100%-eval for SLOT-100 in flight; will be appended in follow-up commit if it completes.",
+  "val_bpb_note": "Re-run at 75-76% of stride=64 SLOT-100 sliding window (eval_final3.log on 2026-04-08). Trajectory of 3-seed mean on the same rANS artifacts: @28% -> 1.142572, @32% -> 1.140655, @40% -> 1.137407, @50% -> 1.136816, @56% -> 1.139363, @66% -> 1.138112, @76% -> 1.136399. The cumulative bpb oscillates within +/-0.003 bpb; the final 100% is expected in [1.136, 1.140]. The RunPod container was terminated by RunPod-side before the re-run hit 100%; the reported 1.136399 is the last stable checkpoint from the live logs. A follow-up commit will append the final 100% numbers once additional RunPod credit is approved (~$15 for 3 seeds * 12 min).",
   "ttt_bpb_per_seed": {
     "1337": 1.206428,
     "1338": 1.204575,
@@ -32,5 +32,6 @@
   "hardware": "8x H100 80GB SXM",
   "derived_from_pr": 1123,
   "cite_pr": [1176, 1394, 1413, 1421, 1445],
-  "status": "3_seed_mid_eval"
+  "status": "3_seed_mid_eval_@76pct_pod_terminated",
+  "pod_terminated_note": "RunPod container was terminated by RunPod-side (container not found on SSH reconnect) while the SLOT-100 stride=64 re-run was at 75-76% of the sliding window. The reported 1.136399 3-seed mean is the last stable checkpoint we captured from the live log files. Completing the remaining 24% (~12 min per seed on one H100) would require roughly $15 of additional RunPod credit and is planned as a follow-up commit once the budget is approved."
 }
