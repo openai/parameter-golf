@@ -53,19 +53,19 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 64))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = int(os.environ.get("MLP_MULT", 3))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -73,11 +73,11 @@ class Hyperparameters:
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.5))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.0075))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.03))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.9))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 192))
@@ -93,7 +93,7 @@ class Hyperparameters:
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
-
+@torch.compile(mode="max-autotune", fullgraph=True)
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
@@ -643,6 +643,19 @@ class Block(nn.Module):
         return self.resid_scale.to(dtype=x.dtype)[None, None, :] * x + y + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(y))
 
 
+def get_diamond_kv_heads(layer_idx, total_layers, num_heads, p=2.0):
+    midpoint = (total_layers - 1) / 2
+    norm_dist = abs(layer_idx - midpoint) / midpoint
+    curve = norm_dist ** p
+    max_kv = max(1, num_heads // 2)
+    raw_kv = 1 + (max_kv - 1) * curve
+    kv_heads = 2 ** round(math.log2(raw_kv))
+    while num_heads % kv_heads != 0:
+        kv_heads //= 2
+        
+    return int(max(2, kv_heads))
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -657,6 +670,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        ramp_len: int=32,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -670,7 +684,7 @@ class GPT(nn.Module):
             Block(
                 model_dim,
                 num_heads,
-                num_kv_heads,
+                get_diamond_kv_heads(i, num_layers, num_heads),
                 mlp_mult,
                 rope_base,
                 qk_gain_init,
@@ -682,6 +696,11 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
+
+        ramp = torch.linspace(0.0, 1.0, ramp_len)
+        # Assuming args.train_seq_len is 1024
+        full_mask = torch.cat([ramp, torch.ones(1024 - ramp_len)])
+        self.register_buffer("loss_mask", full_mask, persistent=False)
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -699,20 +718,32 @@ class GPT(nn.Module):
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
+        
         if self.tie_embeddings:
             logits = F.linear(x, self.tok_emb.weight)
         else:
             logits = self.lm_head(x)
 
-        # In-place operations are fine for the first two steps
         logits.div_(self.logit_softcap)
         torch.tanh_(logits) 
-
-        # DO NOT use .mul_() here. Use out-of-place multiplication (*) 
-        # to create a new tensor for the loss function.
         logits = logits * self.logit_softcap 
 
-        return F.cross_entropy(logits.float(), targets)
+        # --- MODIFIED LOSS CALCULATION ---
+        if self.training:
+            # reduction='none' gives us a loss value for every single token
+            loss = F.cross_entropy(logits.float(), targets, reduction='none')
+            
+            # Reshape loss back to [batch, seq_len] to align with our mask
+            loss = loss.view(input_ids.size(0), input_ids.size(1))
+            
+            # Apply the ramp [0.0 ... 1.0 ... 1.0]
+            # The mask broadcasts across the batch dimension automatically
+            weighted_loss = loss * self.loss_mask
+            
+            return weighted_loss.mean()
+        else:
+            # Validation remains standard mean cross-entropy
+            return F.cross_entropy(logits.float(), targets)
 
 
 # -----------------------------
@@ -720,11 +751,8 @@ class GPT(nn.Module):
 # -----------------------------
 
 def main() -> None:
-    global zeropower_via_newtonschulz5
-
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -738,7 +766,7 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 1 #// world_size # Original: 8 // world_size for distributed.
+    grad_accum_steps = 8 // world_size if distributed else 1
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
