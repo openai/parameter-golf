@@ -55,6 +55,8 @@ The corresponding implementation and metadata live in:
 - [train_gpt.py](train_gpt.py)
 - [run_gptq.py](run_gptq.py)
 - [stock.env](stock.env)
+- [stage1_modal_seed314.log](stage1_modal_seed314.log)
+- [stage2_modal_seed314.log](stage2_modal_seed314.log)
 
 ## What Changed From The Base Stack
 
@@ -75,6 +77,10 @@ The key local additions are execution-focused rather than modeling-focused:
   sliding-window eval path on `1xH100`
 - [proxy_results.md](proxy_results.md) preserves the promoted smoke, proxy, and
   funded run summaries that led to the saved baseline
+- [stage1_modal_seed314.log](stage1_modal_seed314.log) preserves the recovered
+  raw Stage 1 `8xH100` training log
+- [stage2_modal_seed314.log](stage2_modal_seed314.log) preserves the recovered
+  raw Stage 2 `1xH100` GPTQ/eval log
 
 ## Operational Findings
 
@@ -131,8 +137,12 @@ For review, the important files in this folder are:
 - [run_gptq.py](run_gptq.py)
 - [stock.env](stock.env)
 - [requirements.txt](requirements.txt)
+- [stage1_modal_seed314.log](stage1_modal_seed314.log)
+- [stage2_modal_seed314.log](stage2_modal_seed314.log)
 
-I did not preserve the raw Modal train logs in this folder. The canonical saved
-evidence available now is the run summary in [proxy_results.md](proxy_results.md)
-with the app IDs, terminal stages, and saved metrics. If I recover additional
-raw logs later, I should append them without changing the core claim.
+One small logging quirk is preserved in the Stage 2 log: after the exact
+sliding-window result, the script also prints
+`final_int8_zlib_roundtrip_exact` with the same final `1.13071788` value. That
+label comes directly from the inherited logging path in
+[run_gptq.py](run_gptq.py); the actual artifact bytes and GPTQ path above it
+show that this submission is the recovered Stage 2 int6+lzma run.
