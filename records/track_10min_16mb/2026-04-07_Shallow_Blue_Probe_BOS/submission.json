@@ -1,0 +1,11 @@
+{
+  "author": "jxgod",
+  "github_id": "jxgod",
+  "name": "Shallow Blue: BOS-Reset Exact Memory Probe",
+  "blurb": "Standard 9L/512d SP-1024 backbone with a folder-local deploy-only Shallow Blue evaluator: causal exact 3-gram, bounded exact repeat, and a compact two-level uplift probe under BOS-reset non-overlap evaluation.",
+  "date": "2026-04-08",
+  "val_loss": 2.07145173,
+  "val_bpb": 1.19948112,
+  "bytes_total": 15933037,
+  "bytes_code": 92939
+}
