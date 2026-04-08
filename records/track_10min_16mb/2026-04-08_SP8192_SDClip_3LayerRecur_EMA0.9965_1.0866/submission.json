@@ -1,0 +1,10 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "name": "Record: SP8192 + SDClip + 3-Layer Depth Recurrence + EMA 0.9965",
+  "blurb": "SP8192 tokenizer with SDClip quantization (c=k*std), 3-layer depth recurrence (3,4,5), EMA 0.9965, WD=0.095, MLR=0.022, early recurrence (step 2000), extended warmdown (72%). Zero selective pruning.",
+  "date": "2026-04-08T00:00:00Z",
+  "val_loss": 2.80668370,
+  "val_bpb": 1.08655472,
+  "bytes_total": 15978870
+}
