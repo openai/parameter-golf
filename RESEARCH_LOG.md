@@ -137,6 +137,36 @@ Next :
 - compare val_bpb vs baseline
 - if works → tune jepa_lambda and ema_decay
 
+## Observations from JEPA Run 
+8XH100 in 600 seconds 
+
+- It is taking alot of time to start the warmup steps are slow
+- step_avg: 64ms (slightly slower than baseline due to two encoders)
+- The step avg is increasing as we move forward
+- The step avg has also reached 69ms in some steps around the 
+- Loss is going down consistently
+  
+# Val_bpb 
+- 1000/7000 :  1.3831
+- 2000/7000 : 1.3248
+- 3000/7000 :  1.3010
+- 4000/7000 : 1.2855
+- 5000/7000 : 1.2776 
+- 6000/7000 : 1.2702
+- 7000/7000 : 1.2646
+
+Final roundtrip : 1.2699
+OpenAI baseline: 1.2244
+0.045 over baseline which is not bad. 
+
+Model size : large (135MB) : My mistake, I should have verified the layers and model dimensions 
+
+## Next step 
+- Reduce model size
+- Increase the step_avg above baseline
+- Reduce the val_bpb 
+
+
 ## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
 - On a larger scale, when is complicated too complicated? 
