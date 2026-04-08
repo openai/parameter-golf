@@ -64,7 +64,7 @@ class Hyperparameters:
 
     # Model shape – 10 layers, 3x MLP, GQA
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -255,6 +255,34 @@ def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
 
+def pack_int6(t: Tensor) -> tuple[Tensor, int]:
+    """Pack int8 tensor (values [-31,31]) into 6-bit packed uint8.
+    4 values → 3 bytes.  Returns (packed_uint8, original_numel)."""
+    numel = t.numel()
+    flat = (t.flatten().to(torch.int16) + 31).to(torch.uint8)  # [0, 62]
+    pad = (4 - numel % 4) % 4
+    if pad:
+        flat = torch.cat([flat, torch.zeros(pad, dtype=torch.uint8)])
+    flat = flat.reshape(-1, 4)
+    v0, v1, v2, v3 = flat[:, 0], flat[:, 1], flat[:, 2], flat[:, 3]
+    b0 = (v0 << 2) | (v1 >> 4)
+    b1 = ((v1 & 0xF) << 4) | (v2 >> 2)
+    b2 = ((v2 & 0x3) << 6) | v3
+    return torch.stack([b0, b1, b2], dim=1).flatten().contiguous(), numel
+
+
+def unpack_int6(packed: Tensor, numel: int) -> Tensor:
+    """Unpack 6-bit packed uint8 → int8 tensor (values [-31,31])."""
+    packed = packed.reshape(-1, 3)
+    b0, b1, b2 = packed[:, 0], packed[:, 1], packed[:, 2]
+    v0 = b0 >> 2
+    v1 = ((b0 & 0x3) << 4) | (b1 >> 4)
+    v2 = ((b1 & 0xF) << 2) | (b2 >> 6)
+    v3 = b2 & 0x3F
+    flat = torch.stack([v0, v1, v2, v3], dim=1).flatten()[:numel]
+    return (flat.to(torch.int16) - 31).to(torch.int8)
+
+
 def quantize_float_tensor_int6(t: Tensor) -> tuple[Tensor, Tensor]:
     """Per-row int6 for 2-D, per-tensor int6 for 1-D / scalars."""
     t32 = t.float()
@@ -303,14 +331,17 @@ def quantize_state_dict_int6(state_dict: dict[str, Tensor]):
             continue
         stats["num_float_tensors"] += 1
         q, s = quantize_float_tensor_int6(t)
+        packed, orig_numel = pack_int6(q)
+        qmeta[name] = {"shape": list(q.shape), "numel": orig_numel}
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
-        quantized[name] = q
+            qmeta[name]["scheme"] = "per_row"
+            qmeta[name]["axis"] = 0
+        quantized[name] = packed
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int6_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        stats["int6_payload_bytes"] += tensor_nbytes(packed) + tensor_nbytes(s)
     obj: dict = {
-        "__quant_format__": "int6_per_row_v1",
+        "__quant_format__": "int6_packed_v2",
         "quantized": quantized, "scales": scales, "dtypes": dtypes,
         "passthrough": passthrough,
     }
@@ -325,10 +356,17 @@ def dequantize_state_dict_int6(obj: dict) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     pt_dtypes = obj.get("passthrough_orig_dtypes", {})
-    for name, q in obj["quantized"].items():
+    for name, packed in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        shape = meta.get("shape")
+        numel = meta.get("numel")
+        if shape is not None and numel is not None:
+            q = unpack_int6(packed, numel).reshape(shape)
+        else:
+            q = packed  # fallback: already int8
+        if meta.get("scheme") == "per_row" or s.ndim > 0:
             out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype).contiguous()
         else:
             out[name] = (q.float() * float(s.item())).to(dtype).contiguous()
