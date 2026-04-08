@@ -11,17 +11,17 @@
 
 | Seed | val_bpb | Size |
 |------|---------|------|
-| 1337 | 1.09820924 | 14.46 MB |
-| 42   | 1.09775873 | 14.46 MB |
-| 2024 | 1.09798646 | 14.46 MB |
-| **Mean** | **1.09798481** | **14.46 MB** |
+| 1337 | 1.09820924 | < 14.5 MB |
+| 42   | 1.09775873 | < 14.5 MB |
+| 2024 | 1.09798646 | < 14.5 MB |
+| **Mean** | **1.09798481** | **< 14.5 MB** |
 
 ## Files
 - `trainFreqGPTQ_gpt.py` - Training script with Frequency-Weighted GPTQ Calibration
 - `submission.json` - Submission metadata
-- `freqgptq_s1337.log` - Training log seed 1337
-- `freqgptq_s42.log` - Training log seed 42
-- `freqgptq_s2024.log` - Training log seed 2024
+- `freqgptq_seed_1337.log` - Training log seed 1337
+- `freqgptq_seed_42.log` - Training log seed 42
+- `freqgptq_seed_2024.log` - Training log seed 2024
 
 ## Core Innovations
 
