@@ -2789,8 +2789,8 @@ def main() -> None:
 
         dist.barrier()
     master_process = rank == 0
-    torch.backends.cuda.matmul.allow_tf32 = False
-    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
     os.makedirs("logs/cuda/", exist_ok=True)
     logfile = f"logs/cuda/{args.run_id}.txt" if master_process else None
@@ -2851,11 +2851,7 @@ def main() -> None:
         moe_enabled=args.moe_enabled,
         moe_num_experts=args.moe_num_experts,
         moe_top_k=args.moe_top_k,
-    ).to(device).float()
-
-    for module in base_model.modules():
-        if isinstance(module, nn.Linear):
-            module.float()
+    ).to(device)
 
     # Re-enable standard compilation for Linux
     compiled_model = torch.compile(base_model) if args.compile_mode != "none" else base_model
@@ -2957,7 +2953,8 @@ def main() -> None:
                 if distributed: model.require_backward_grad_sync = mi == grad_accum_steps - 1
                 x, y = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
                 x, y = x.to(device), y.to(device)
-                loss = model(x, y, elapsed_fraction=0.0)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    loss = model(x, y, elapsed_fraction=0.0)
                 (loss * grad_scale).backward()
             for o in optimizers: o.step()
             zero_grad_all()
@@ -3074,7 +3071,8 @@ def main() -> None:
             x, y = x.to(device), y.to(device)
             elapsed_sec = time.perf_counter() - t0
             elapsed_frac = min(elapsed_sec / max(args.max_wallclock_seconds, 1e-9), 1.0)
-            loss = model(x, y, elapsed_fraction=elapsed_frac)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = model(x, y, elapsed_fraction=elapsed_frac)
             train_loss.add_(loss.detach())
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
