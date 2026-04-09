@@ -1,0 +1,87 @@
+W0331 16:56:38.572000 105373 torch/distributed/run.py:851] 
+W0331 16:56:38.572000 105373 torch/distributed/run.py:851] *****************************************
+W0331 16:56:38.572000 105373 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0331 16:56:38.572000 105373 torch/distributed/run.py:851] *****************************************
+logs/3495f9e8-40ad-4b61-963f-f1d58172f4f0.txt
+mixed_seq_len: GPU0=2048x36=73728tok GPU1=2048x36=73728tok GPU2=2048x36=73728tok GPU3=2048x36=73728tok GPU4=2048x36=73728tok GPU5=6144x10=61440tok GPU6=6144x10=61440tok GPU7=6144x10=61440tok total=552960
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62017536
+model_params:29751910
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_7 active_layers:[5, 6, 7, 8, 9, 10, 11]
+window_attn:size=512 layers:[2, 4, 6, 8, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.022 head_lr:0.0 matrix_lr:0.024 matrix_lr_late:0.019 scalar_lr:0.02 scalar_lr_late:0.038 leaky_slope:0.5
+train_batch_tokens:589824 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:7
+gptq:reserving 14000ms from training budget, effective=586000ms
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9299 val_bpb:4.1042 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9241 train_time:116ms step_avg:116.31ms
+step:2/20000 train_loss:6.8550 train_time:164ms step_avg:81.92ms
+step:3/20000 train_loss:6.5545 train_time:232ms step_avg:77.19ms
+step:4/20000 train_loss:6.5538 train_time:300ms step_avg:75.10ms
+step:5/20000 train_loss:6.6732 train_time:369ms step_avg:73.70ms
+step:6/20000 train_loss:6.5121 train_time:437ms step_avg:72.90ms
+step:7/20000 train_loss:6.2632 train_time:506ms step_avg:72.33ms
+step:8/20000 train_loss:6.1568 train_time:574ms step_avg:71.74ms
+step:9/20000 train_loss:5.9563 train_time:642ms step_avg:71.38ms
+step:10/20000 train_loss:5.6894 train_time:711ms step_avg:71.10ms
+step:500/20000 train_loss:2.2815 train_time:34634ms step_avg:69.27ms
+step:1000/20000 train_loss:2.1968 train_time:69360ms step_avg:69.36ms
+step:1500/20000 train_loss:2.0974 train_time:104047ms step_avg:69.36ms
+step:2000/20000 train_loss:2.0594 train_time:138750ms step_avg:69.38ms
+step:2500/20000 train_loss:1.9683 train_time:173460ms step_avg:69.38ms
+step:3000/20000 train_loss:1.8863 train_time:208178ms step_avg:69.39ms
+step:3500/20000 train_loss:1.8808 train_time:242900ms step_avg:69.40ms
+step:4000/20000 train_loss:1.9220 train_time:277613ms step_avg:69.40ms
+step:4000/20000 val_loss:2.0637 val_bpb:1.2222 train_time:277636ms step_avg:69.41ms
+step:4500/20000 train_loss:1.8490 train_time:312313ms step_avg:69.40ms
+step:5000/20000 train_loss:2.0188 train_time:347034ms step_avg:69.41ms
+step:5500/20000 train_loss:2.0031 train_time:381743ms step_avg:69.41ms
+step:6000/20000 train_loss:1.9706 train_time:416445ms step_avg:69.41ms
+step:6500/20000 train_loss:1.9644 train_time:451134ms step_avg:69.41ms
+step:7000/20000 train_loss:1.9541 train_time:485831ms step_avg:69.40ms
+step:7500/20000 train_loss:1.9347 train_time:520515ms step_avg:69.40ms
+swa:start step:7650
+late_qat:enabled step:7840 scale:0.1498
+step:8000/20000 train_loss:1.9458 train_time:555610ms step_avg:69.45ms
+step:8000/20000 val_loss:1.9197 val_bpb:1.1370 train_time:555694ms step_avg:69.46ms
+step:8432/20000 val_loss:1.9036 val_bpb:1.1274 train_time:586063ms step_avg:69.50ms
+stopping_early: wallclock_cap train_time:586063ms step:8432/20000
+peak memory allocated: 18548 MiB reserved: 18800 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9024 val_bpb:1.1267 eval_time:2505ms
+Serialized model: 116408386 bytes
+Code size: 34101 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:calibrating with 256 batches (train data)...
+gptq:collected hessians for 74 layers (train data)
+Serialized model int6+brotli: 15689245 bytes
+Total submission size int6+brotli: 15723346 bytes
+final_int6_roundtrip val_loss:1.8934 val_bpb:1.1214 eval_time:7284ms
+final_int6_roundtrip_exact val_loss:1.89337883 val_bpb:1.12136176
+final_int6_sliding_window val_loss:1.8773 val_bpb:1.1119 stride:128 eval_time:123399ms
+final_int6_sliding_window_exact val_loss:1.87732994 val_bpb:1.11189540
