@@ -1,0 +1,14 @@
+{
+  "team_name": "Kurtis Stuckert",
+  "model_name": "custom_tokenizer_v3_dp",
+  "description": "Custom 1024-token vocabulary with boundary-aware DP segmentation. Improves full-validation compression over SentencePiece and outperforms naive baseline, but does not surpass optimized SentencePiece under fixed compute.",
+  "params": {
+    "vocab_size": 1024,
+    "tokenizer": "custom_jsonl",
+    "tokenizer_path": "overlay/vocab_best_v3.jsonl",
+    "sequence_length": 1024
+  },
+  "results": {
+    "val_bpb": 1.2206
+  }
+}
