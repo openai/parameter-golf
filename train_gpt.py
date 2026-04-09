@@ -3194,26 +3194,7 @@ def main() -> None:
                 ema.update(base_model)
 
         # Export-aligned training phase: switch TernaryLinear to use calibrated quantizer
-        if master_process and args.export_aligned_train and not _aligned_phase_started:
-            aligned_frac = args.export_aligned_train_start_fraction
-            cur_frac = elapsed_ms / max_wallclock_ms if max_wallclock_ms else step / args.iterations
-            if cur_frac >= aligned_frac:
-                # Run calibration search if enabled
-                if args.ternary_threshold_search or args.ternary_scale_search:
-                    if _proxy_calib_tokens is None:
-                        _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
-                    log0(f"step:{step} export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
-                    if ema is not None:
-                        _ema_orig = ema.apply_shadow(base_model)
-                        _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
-                        ema.restore(base_model, _ema_orig)
-                    else:
-                        _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
-                    log0(f"step:{step} export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
-                global _EXPORT_CALIB
-                _EXPORT_CALIB = _export_calib
-                _aligned_phase_started = True
-                log0(f"step:{step} export_aligned_train:activated calib_tensors={len(_EXPORT_CALIB)}", flush=True)
+        # [calibration moved to post-training to avoid DDP collective sync issues]
 
         # Export proxy eval: periodically serialize+reload+score to track round-trip BPB
         if (master_process and args.export_proxy_eval
@@ -3271,6 +3252,26 @@ def main() -> None:
     if distributed:
         torch.distributed.barrier()
         log0("ema:ranks synchronized for export", flush=True)
+
+    # --- Calibration (post-training, after all ranks exit training loop) ---
+    # Runs only on master; other ranks wait at the barrier below.
+    # Moving calibration here avoids DDP collective sequence-number divergence.
+    if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
+        if _proxy_calib_tokens is None:
+            _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
+        log0(f"export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
+        if ema is not None and _orig_ema_weights is None:
+            _ema_orig_c = ema.apply_shadow(base_model)
+            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+            ema.restore(base_model, _ema_orig_c)
+        else:
+            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+        global _EXPORT_CALIB
+        _EXPORT_CALIB = _export_calib
+        log0(f"export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
+
+    if distributed:
+        torch.distributed.barrier()  # wait for rank 0 to finish calibration
 
     # --- Apply EMA shadow weights before serialization ---
     _ema_original = None
