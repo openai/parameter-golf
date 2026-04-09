@@ -2323,7 +2323,11 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     all_starts = list(range(0, total_tokens, stride))
     my_starts = [s for idx, s in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
 
-    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    # Disable carry in sliding window eval: the batch dimension contains windows at
+    # different temporal offsets, so mean(dim=0) of capsule state would smear together
+    # semantically unrelated positions, corrupting the carry signal. Carry is only
+    # meaningful for a single sequential stream (batch_size=1).
+    use_carry = False
     decay = args.capsule_carry_decay
 
     base_model.eval()
@@ -2445,7 +2449,9 @@ def eval_val_sliding_ttt(
         f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
         f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
     )
-    use_carry = args.capsule_carry_enabled and args.capsule_enabled
+    # Disable carry for same reason as eval_val_sliding: batched windows are at different
+    # temporal offsets so averaging their capsule states smears unrelated context.
+    use_carry = False
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
     carry_capsules = None
     original_grad, ttt_params = collect_ttt_params(base_model, args.ttt_scope)
@@ -2818,38 +2824,6 @@ def gptq_lite_clip_search(state_dict: dict, group_size: int, num_percentiles: in
 # ---------------------------------------------------------------------------
 # EMA helper
 # ---------------------------------------------------------------------------
-class EMAHelper:
-    """Exponential Moving Average for model weights. Maintains shadow copy.
-    Applied to latent FP32 weights; ternary quantization happens at export."""
-    def __init__(self, model: nn.Module, decay: float = 0.997):
-        self.decay = decay
-        self.shadow: dict[str, Tensor] = {}
-        for name, p in model.named_parameters():
-            if p.requires_grad:
-                self.shadow[name] = p.data.clone()
-
-    @torch.no_grad()
-    def update(self, model: nn.Module) -> None:
-        for name, p in model.named_parameters():
-            if name in self.shadow:
-                self.shadow[name].mul_(self.decay).add_(p.data, alpha=1 - self.decay)
-
-    def apply_shadow(self, model: nn.Module, move_to_cpu: bool = False) -> dict[str, Tensor]:
-        """Replace model weights with EMA shadow. Returns original weights for restore."""
-        original = {}
-        for name, p in model.named_parameters():
-            if name in self.shadow:
-                original[name] = p.data.cpu() if move_to_cpu else p.data.clone()
-                p.data.copy_(self.shadow[name].to(p.device))
-        return original
-
-    @staticmethod
-    def restore(model: nn.Module, original: dict[str, Tensor]) -> None:
-        for name, p in model.named_parameters():
-            if name in original:
-                p.data.copy_(original[name])
-
-
 class EMAHelper:
     """Exponential Moving Average for model weights. Maintains shadow copy.
     Applied to latent FP32 weights; ternary quantization happens at export."""
@@ -3278,20 +3252,29 @@ def main() -> None:
         # Export-aligned training phase: switch TernaryLinear to use calibrated quantizer
         # [calibration moved to post-training to avoid DDP collective sync issues]
 
-        # Export proxy eval: periodically serialize+reload+score to track round-trip BPB
+        # Export proxy eval: periodically serialize+reload+score to track round-trip BPB.
+        # Snapshot EMA state (not live weights) so _best_proxy_sd is already smoothed.
         if (master_process and args.export_proxy_eval
                 and step > 0 and step % args.export_proxy_every == 0):
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
+            # Temporarily apply EMA so proxy eval and snapshot capture smoothed weights
+            _proxy_ema_orig = None
+            if ema is not None:
+                _proxy_ema_orig = ema.apply_shadow(base_model)
             proxy_bpb = _proxy_roundtrip_bpb(
                 base_model.state_dict(), base_model, _export_calib,
                 args.bitnet_group_size, _proxy_calib_tokens, args, device
             )
-            log0(f"step:{step} export_proxy_bpb:{proxy_bpb:.4f} best:{_best_proxy_bpb:.4f}", flush=True)
             if proxy_bpb < _best_proxy_bpb and args.export_proxy_use_best:
                 _best_proxy_bpb = proxy_bpb
+                # Snapshot the EMA-smoothed weights, not live training weights
                 _best_proxy_sd = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
                 log0(f"step:{step} export_proxy:new_best {proxy_bpb:.4f}", flush=True)
+            # Restore live weights to continue training
+            if ema is not None and _proxy_ema_orig is not None:
+                ema.restore(base_model, _proxy_ema_orig)
+            log0(f"step:{step} export_proxy_bpb:{proxy_bpb:.4f} best:{_best_proxy_bpb:.4f}", flush=True)
 
         if stop_after_step is not None and step >= stop_after_step:
             log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
@@ -3355,19 +3338,17 @@ def main() -> None:
     if distributed:
         torch.distributed.barrier()  # wait for rank 0 to finish calibration
 
-    # --- Restore best proxy checkpoint BEFORE EMA so EMA smooths it, not vice versa ---
-    # Bug fix: _best_proxy_sd was captured from live training weights. If we restore it
-    # AFTER applying EMA shadow, we overwrite the carefully accumulated smoothed weights
-    # with noisy per-step weights. Do the restore first, then let EMA apply on top.
-    if master_process and _best_proxy_sd is not None and args.export_proxy_use_best:
-        log0(f"serialization:restoring best_proxy_sd (proxy_bpb={_best_proxy_bpb:.4f}) before EMA", flush=True)
-        base_model.load_state_dict(_best_proxy_sd)
-
-    # --- Apply EMA shadow weights before serialization ---
+    # --- Select export weights: best proxy snapshot (already EMA-smoothed) or final EMA ---
+    # _best_proxy_sd is captured via ema.apply_shadow during proxy eval, so it already
+    # contains smoothed weights. If we have it, load it directly and skip EMA apply.
+    # If not, apply EMA shadow now to get the smoothed final weights.
     _ema_original = None
-    if ema is not None:
+    if master_process and _best_proxy_sd is not None and args.export_proxy_use_best:
+        log0(f"serialization:using best_proxy_sd (EMA-smoothed, proxy_bpb={_best_proxy_bpb:.4f})", flush=True)
+        base_model.load_state_dict(_best_proxy_sd)
+        # No EMA apply needed — proxy_sd already contains the smoothed weights
+    elif ema is not None:
         log0("ema:applying shadow weights...", flush=True)
-        # Move original weights to CPU to free VRAM for master process export
         _ema_original = ema.apply_shadow(base_model, move_to_cpu=True)
         log0("ema:applied shadow weights and offloaded originals to CPU", flush=True)
 
@@ -3395,11 +3376,15 @@ def main() -> None:
                                        num_percentiles=args.gptq_lite_percentiles)
             log0("gptq_lite:done")
             # Reload clipped weights into base_model so calibration runs on the same
-            # weight distribution that will actually be quantized (bug fix: without this,
-            # calibrate_ternary tunes thresholds against unclipped weights then applies
-            # them to clipped weights, producing mismatched calib).
-            base_model.load_state_dict({k: v.to(base_model.state_dict()[k].device)
-                                        for k, v in sd.items()}, strict=False)
+            # distribution that will actually be quantized. Must happen BEFORE popping
+            # lm_head.weight so the tied embedding isn't left unclipped in base_model.
+            _dev = next(base_model.parameters()).device
+            base_model.load_state_dict({k: v.to(_dev) for k, v in sd.items()}, strict=False)
+
+        # Pop tied lm_head AFTER any base_model reload so the saved sd and base_model
+        # stay consistent (tied weight is always accessible via tok_emb at eval time).
+        if base_model.tie_embeddings:
+            sd.pop("lm_head.weight", None)
 
         # Final calibration pass at export time (if not already done during training)
         final_calib = _export_calib
@@ -3409,9 +3394,6 @@ def main() -> None:
             log0("serialization:running_final_calib_search", flush=True)
             final_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
             log0(f"serialization:calib_done tensors={len(final_calib)}", flush=True)
-
-        if base_model.tie_embeddings:
-            sd.pop("lm_head.weight", None)
 
         # Two methods: Standard Base-3 vs Bitmask Mapping
         methods = {}
