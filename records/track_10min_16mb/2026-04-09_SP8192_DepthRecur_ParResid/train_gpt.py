@@ -1003,6 +1003,11 @@ def prequant_ttt(args, base_model, rank, world_size, device, val_tokens):
 
     if pq_epochs <= 0:
         return
+    if rank != 0:
+        if world_size > 1:
+            import torch.distributed as dist
+            dist.barrier()
+        return
 
     print(f"prequant_ttt: epochs={pq_epochs} lr={pq_lr} freeze_blocks={pq_freeze}", flush=True)
 
@@ -1058,6 +1063,12 @@ def prequant_ttt(args, base_model, rank, world_size, device, val_tokens):
     for p in base_model.parameters():
         p.requires_grad_(True)
     base_model.eval()
+    # Broadcast adapted weights to all ranks
+    if world_size > 1:
+        import torch.distributed as dist
+        for p in base_model.parameters():
+            dist.broadcast(p.data, src=0)
+        dist.barrier()
 
 # --- TRAINING ---
 def main() -> None:
