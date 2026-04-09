@@ -2,10 +2,6 @@
 
 **val_bpb: 1.11349** (6-seed mean, std 0.00053) | **~15.68 MB** | 8xH100 SXM, 600s | No TTT
 
-**Improvement over current SOTA ([PR #1019](https://github.com/openai/parameter-golf/pull/1019), 1.11474 BPB):** -0.00125 BPB (Welch t=-4.19, df=6.6, p=0.00289)
-
-No TTT, no n-gram cache, no eval-time logit bias. All gains are from training-side changes.
-
 ## Results
 
 | Seed | Steps | ms/step | Pre-quant BPB | **Sliding BPB** | Artifact | Pruning |
@@ -18,41 +14,41 @@ No TTT, no n-gram cache, no eval-time logit bias. All gains are from training-si
 | 7 | 6,659 | 90 | 1.1255 | **1.11305** | 15,686,495 | 0% |
 | **Mean** | | | | **1.11349** | | |
 
-Current SOTA (PR #1019, exact 3-seed mean): **1.11473509 BPB**. This run's exact 6-seed mean is **1.11348911 BPB**. Delta: **-0.00124599 BPB**.
+Exact 6-seed mean: **1.11348911 BPB**. Current merged SOTA (PR #1019) exact 3-seed mean: **1.11473509 BPB**. Welch's t-test: **t = -4.19**, **df = 6.6**, **p = 0.00289** (one-sided).
 
-Using the exact per-seed scores from PR #1019 (`1.11508120`, `1.11437394`, `1.11475014`) and this run, Welch's t-test gives **t = -4.19**, **df = 6.6**, **p = 0.00289** (one-sided).
+No TTT, no n-gram cache, no eval-time logit bias. All gains are from training-side changes.
 
-## Main Changes
+---
 
-Two training-side changes on the [PR #1019](https://github.com/openai/parameter-golf/pull/1019) base:
+## Changes
 
-### 1. SP4096 Tokenizer (up from SP1024)
+Three changes to the PR #1019 base:
 
-Larger vocabulary reduces tokens-per-byte from ~0.59 to ~0.30, allowing the model to see more context per training step. The tied embedding grows from 1024x512 to 4096x512, adding ~1.1MB to the artifact. SP4096 data from [sproos/parameter-golf-tokenizers](https://huggingface.co/sproos/parameter-golf-tokenizers) on HuggingFace, tokenized from the same FineWeb documents (identical `docs_sha256`, see `data_lineage.md`).
+### 1. SP4096 Tokenizer
 
-### 2. Compressibility Regularization (WARMDOWN_WD_MULT=2.0)
+Vocabulary increased from SP1024 to SP4096. Tokens-per-byte drops from ~0.59 to ~0.30, allowing the model to see more context per training step. The tied embedding grows from 1024x512 to 4096x512, adding ~1.1MB to the artifact.
 
-During the LR warmdown phase, weight decay ramps from 1x to 2x base WD. This pushes weights toward zero during the final training steps, reducing post-quantization entropy (4.72 -> 4.58 bits) and compressed artifact size. The ~1.5MB compression savings from WD=2.0 absorbs the ~1.1MB embedding cost of SP4096, with ~300KB headroom. Selective pruning never triggers (0% on all 6 seeds).
+SP4096 data from [sproos/parameter-golf-tokenizers](https://huggingface.co/sproos/parameter-golf-tokenizers), tokenized from the same FineWeb documents as the official SP1024 data (identical `docs_sha256`; see `data_lineage.md`).
 
-### 3. Brotli-11 Compression (replacing LZMA-9)
+### 2. WARMDOWN_WD_MULT=2.0
 
-Brotli-11 consistently beats LZMA-9 by 200-400KB on quantized weight streams. The artifact is saved as whichever compressor produces the smaller output (brotli wins on all runs). Load path auto-detects format.
+During LR warmdown, effective weight decay increases from 1x to 2x base WD. The mechanism: `group["weight_decay"] = base_wd * (1 + (mult - 1) * (1 - lr_scale))`, applied to all optimizer param groups before each step. Muon and AdamW both consume the updated WD via their standard `p.data.mul_(1.0 - lr * wd)` path.
 
-## Why It Works
+This produces a more peaked post-quantization weight distribution (entropy 4.72 → 4.58 bits, zeros 8.3% → 11.4%), reducing brotli-compressed artifact size by ~1.5MB.
 
-The key insight: WD compression frees enough artifact budget to absorb SP4096's larger embedding without exceeding 16MB. Without WD=2.0, SP4096 requires aggressive selective pruning (57% of +/-1 values) which destroys quality. With WD=2.0, the weights are naturally more compressible and pruning is never needed.
+### 3. Brotli-11 Compression
 
-| Config | SW BPB | Artifact | Pruning |
-|--------|--------|----------|---------|
-| SP1024 + WD=1.0 (PR #1019) | 1.1151 | 15.9MB | mild |
-| SP4096 + WD=1.0 | 1.1359 | 16.1MB* | 57.5% |
-| SP4096 + WD=2.0 | **1.1135** | 15.7MB | 0% |
+Both lzma-9 and brotli-11 are computed; the smaller result is saved as the artifact. Brotli-11 was smaller on all 6 seeds. The load path auto-detects format (try lzma first, fall back to brotli).
 
-*Over 16MB budget
+### Why These Three Stack
+
+WARMDOWN_WD_MULT=2.0 frees ~1.5MB of artifact budget through compression. This headroom absorbs SP4096's +1.1MB embedding cost. All 6 seeds fit under 16MB without selective pruning (0% on all seeds).
+
+Without WARMDOWN_WD_MULT, SP4096 requires aggressive selective pruning (57.5% of +/-1 values zeroed) which destroys quality (SW BPB degrades from 1.113 to 1.136).
+
+---
 
 ## Architecture
-
-Unchanged from PR #1019:
 
 | Component | Setting |
 |-----------|---------|
@@ -60,17 +56,25 @@ Unchanged from PR #1019:
 | MLP | 3x (1536) with LeakyReLU(0.5)^2 |
 | Attention | XSA on all 11 layers |
 | BigramHash | 3072 x dim=112 |
-| Tokenizer | **SP4096** (was SP1024) |
+| Tokenizer | **SP4096** |
 | Quantization | INT6 per-row, GPTQ with AR self-gen calibration |
-| Compression | **Brotli-11** (was LZMA-9) |
-| WD | **WARMDOWN_WD_MULT=2.0** (ramps during warmdown) |
-| RoPE | Partial (16/64 dims) |
+| Compression | **Brotli-11 selected when smaller than LZMA-9** |
+| Weight Decay | **WARMDOWN_WD_MULT=2.0** (ramps from 1x to 2x during warmdown) |
 | WARMDOWN_ITERS | 4000 |
+
+---
+
+## Verification
+
+- Manual BPB recompute matches logged value to 4e-6 (`bpb_verification.md`)
+- SP4096 tokenized from same FineWeb documents as SP1024 baseline; `docs_sha256` identical (`data_lineage.md`)
+
+---
 
 ## Reproduction
 
 ```bash
-# Download SP4096 data from sproos
+# Download SP4096 data
 python3 -c "
 from huggingface_hub import snapshot_download
 snapshot_download('sproos/parameter-golf-tokenizers',
@@ -87,10 +91,3 @@ WARMDOWN_ITERS=4000 WARMDOWN_WD_MULT=2.0 \
 SEED=314 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
-
-## Verification
-
-- **Data lineage**: `docs_sha256` matches official repo byte-for-byte (see `data_lineage.md`)
-- **BPB sanity check**: Manual byte counting matches reported BPB within float64 precision (see `bpb_verification.md`)
-- **Pruning**: 0% on all 6 seeds
-- **Artifact size**: 15.66-15.70MB (all under 16MB)
