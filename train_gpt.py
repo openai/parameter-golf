@@ -1758,6 +1758,11 @@ class SKCLayer(nn.Module):
 
         if self.training:
             self.spectral_aux_loss = self.aux_loss_fn(s_spec)
+        else:
+            # Sever any lingering computational graph from the last training micro-batch.
+            # Without this, the graph from the most recent training step stays alive in
+            # GPU memory for the entire duration of the validation loop.
+            self.spectral_aux_loss = None
 
         mlp_in = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
         if isinstance(self.local_mlp, TernaryMoE):
@@ -2009,17 +2014,21 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         return x, x
 
-    def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None, elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None]:
+    def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
+                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         """Run one effective layer. In shared mode, uses shared weights + per-layer scales."""
         if self.blocks is not None:
-            # Standard unique-block mode
-            return self.blocks[layer_idx](x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
-        
+            # Standard unique-block mode — only SKCLayer accepts prev_capsules
+            blk = self.blocks[layer_idx]
+            if isinstance(blk, SKCLayer):
+                return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+            return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
+
         # Shared block mode: use shared weights but per-layer scale/mix params
         block = self.shared_block_bank[self._block_map[layer_idx]]
         mix = self.per_layer_resid_mixes[layer_idx].to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-        
+
         layer_type = self._layer_types[layer_idx]
         if layer_type == "ssm":
             # Koopman SSM block
@@ -2027,7 +2036,8 @@ class GPT(nn.Module):
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == "skc":
-            x, v_out = block(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
+            # Pass prev_capsules so KoopmanDynamics sees cross-window carry state
+            x, v_out = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
             return x, v_out
         else:
             # Attention block
@@ -2042,13 +2052,16 @@ class GPT(nn.Module):
         x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
         return x, v_out
 
-    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None = None, elapsed_fraction: float = 1.0) -> Tensor:
+    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
+                      v0: Tensor | None = None, elapsed_fraction: float = 1.0,
+                      prev_capsules: Tensor | None = None) -> Tensor:
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(max(1, self.training_depth_recurrence)):
-                x, _ = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
+                x, _ = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
+                                       prev_capsules=prev_capsules)
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
         return x
@@ -2071,7 +2084,10 @@ class GPT(nn.Module):
                     and i == self.engram_inject_layer):
                 x = x + self.engram(input_ids, hidden=x)
             for _ in range(max(1, self.training_depth_recurrence)):
-                x, v_out = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
+                # Pass carry_capsules as prev_capsules so SKCLayer Koopman dynamics
+                # receive cross-window state rather than always resetting to None.
+                x, v_out = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
+                                           prev_capsules=carry_capsules)
                 if v0 is None and v_out is not None:
                     v0 = v_out.detach()
             skips.append(x)
@@ -2131,7 +2147,8 @@ class GPT(nn.Module):
                     if (delta / norm).item() < Hyperparameters.adaptive_halt_threshold:
                         break
 
-            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0, elapsed_fraction=elapsed_fraction)
+            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
+                                   elapsed_fraction=elapsed_fraction, prev_capsules=carry_capsules)
             
             # After fast-forward: we ran one decoder pass with speculated state, now stop
             if fast_forwarded:
@@ -2695,7 +2712,10 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
     torch.save(q_obj, buf)
     blob = _lzma.compress(buf.getvalue(), preset=1)  # fast preset for proxy
     loaded = torch.load(io.BytesIO(_lzma.decompress(blob)), map_location="cpu", weights_only=False)
-    orig_sd = {k: v.clone() for k, v in base_model.state_dict().items()}
+    # Offload backup to CPU to avoid doubling GPU resident state right when the device
+    # is under peak pressure (ternary state dict just loaded on top of live weights).
+    # load_state_dict handles moving CPU tensors back to GPU automatically.
+    orig_sd = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
     missing, unexpected = base_model.load_state_dict(deq_sd(loaded), strict=False)
     base_model.eval()
     loss_sum = 0.0
@@ -3597,6 +3617,11 @@ def main() -> None:
         ngram_byte_sum = 0.0
         ngram_tok_count = 0
         scored_tokens: list[int] = []
+        # Tail of the previous chunk used to bridge n-gram context across chunk boundaries.
+        # Without this, the cache never sees the (N-1)-token context that spans the seam
+        # between consecutive chunks, so transition probabilities at every boundary are
+        # estimated from an empty context — dragging down augmented BPB at every window edge.
+        _ngram_boundary_ctx: list[int] = []
         base_model.eval()
         use_carry = args.capsule_carry_enabled and args.capsule_enabled
         decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
@@ -3647,8 +3672,12 @@ def main() -> None:
                     ngram_byte_sum += tok_b
                     ngram_tok_count += 1
                     scored_tokens.append(target_tok)
-                # Update cache with scored tokens
-                ngram_cache.update(chunk[1:].tolist())
+                # Update cache. Prepend the tail of the previous chunk so the cache
+                # learns the n-gram context that spans the chunk boundary — otherwise
+                # every boundary token is scored from an empty context.
+                chunk_toks = chunk[1:].tolist()
+                ngram_cache.update(_ngram_boundary_ctx + chunk_toks)
+                _ngram_boundary_ctx = chunk_toks[-(args.ngram_max_order - 1):]
         ngram_val_loss = ngram_loss_sum / max(ngram_tok_count, 1)
         ngram_bpb = (ngram_val_loss / math.log(2.0)) * (ngram_tok_count / max(ngram_byte_sum, 1))
         ngram_time_ms = 1000.0 * (time.perf_counter() - t_ngram)
