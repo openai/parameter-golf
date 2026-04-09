@@ -2671,7 +2671,9 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
     probe_thr = thr_vals[len(thr_vals)//2] if len(thr_vals) > 1 else 0.05
     probe_sm = scale_vals[len(scale_vals)//2] if len(scale_vals) > 1 else 1.0
     sensitivities: list[tuple[float, str]] = []
-    for name in all_candidates:
+    size_sorted = sorted(all_candidates, key=lambda n: sd[n].numel(), reverse=True)
+    rank_pool = size_sorted[:min(top_n * 4, len(size_sorted))]  # pre-filter
+    for name in rank_pool:
         probe = {name: {"thr": probe_thr, "scale_mult": probe_sm}}
         delta = abs(_proxy_roundtrip_bpb(sd, base_model, probe, group_size, proxy_tokens, args, device) - baseline_bpb)
         sensitivities.append((delta, name))
