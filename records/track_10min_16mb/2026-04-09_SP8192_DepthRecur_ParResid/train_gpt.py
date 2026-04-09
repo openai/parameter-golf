@@ -16,10 +16,10 @@ except ImportError:
     _COMPRESSOR = "zlib"
 
 class Hyperparameters:
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp8192")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_8192_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 42))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -32,12 +32,12 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
+    mlp_mult = float(os.environ.get("MLP_MULT", 4.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -56,7 +56,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.04))
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.085))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 10240))
@@ -73,10 +73,10 @@ class Hyperparameters:
     ngram_order = int(os.environ.get("NGRAM_ORDER", 7))
     ngram_alpha = float(os.environ.get("NGRAM_ALPHA", 0.20))
     ngram_pretrain_tokens = int(os.environ.get("NGRAM_PRETRAIN_TOKENS", 2_000_000))
-    depth_recur_start = int(os.environ.get("DEPTH_RECUR_START", -1))
-    depth_recur_end = int(os.environ.get("DEPTH_RECUR_END", -1))
-    depth_recur_count = int(os.environ.get("DEPTH_RECUR_COUNT", 1))
-    parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", -1))
+    depth_recur_start = int(os.environ.get("DEPTH_RECUR_START", 3))
+    depth_recur_end = int(os.environ.get("DEPTH_RECUR_END", 5))
+    depth_recur_count = int(os.environ.get("DEPTH_RECUR_COUNT", 2))
+    parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", 7))
 
 # --- MUON OPTIMIZER ---
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -253,7 +253,6 @@ def _find_best_row_scales(W: Tensor, clip_range: int = 31) -> Tensor:
     best_s = t32.abs().amax(dim=1) / clip_range
     best_s = best_s.clamp_min(1.0 / clip_range)
     best_err = torch.full((t32.shape[0],), float('inf'))
-    # Percentile-based clips
     for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
         row_clip = torch.quantile(t32.abs(), pct, dim=1) if pct < 1.0 else t32.abs().amax(dim=1)
         s = (row_clip / clip_range).clamp_min(1.0 / clip_range)
