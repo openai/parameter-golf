@@ -1,0 +1,82 @@
+{
+  "author": "Joel Pfeiffer",
+  "github_id": "jpfeiffe",
+  "name": "SP4096 + Compressibility Regularization (WD=2.0) + Brotli-11",
+  "blurb": "SP4096 tokenizer + warmdown WD ramp (2x) + brotli-11 compression on the #1019 GPTQ+XSA stack. WD compression frees 1.5MB to absorb SP4096's larger embedding. 6-seed exact mean: 1.11348911 BPB, beating PR #1019's 1.11473509 BPB by 0.00125 (Welch t=-4.19, df=6.6, p=0.00289). No TTT, no eval-time compute.",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_loss": 2.59428,
+  "val_bpb": 1.11348911,
+  "val_loss_std": 0.00089,
+  "val_bpb_std": 0.00052927,
+  "seeds": [314, 42, 999, 1337, 2024, 7],
+  "seed_results": {
+    "314": {
+      "val_loss": 2.59556426,
+      "val_bpb": 1.11409842,
+      "artifact_bytes": 15665083,
+      "steps": 6699,
+      "step_avg_ms": 89.0
+    },
+    "42": {
+      "val_loss": 2.59603741,
+      "val_bpb": 1.11417990,
+      "artifact_bytes": 15667940,
+      "steps": 6664,
+      "step_avg_ms": 90.0
+    },
+    "999": {
+      "val_loss": 2.59439602,
+      "val_bpb": 1.11347544,
+      "artifact_bytes": 15697830,
+      "steps": 6659,
+      "step_avg_ms": 90.0
+    },
+    "1337": {
+      "val_loss": 2.59345526,
+      "val_bpb": 1.11307168,
+      "artifact_bytes": 15660616,
+      "steps": 6658,
+      "step_avg_ms": 90.0
+    },
+    "2024": {
+      "val_loss": 2.59343677,
+      "val_bpb": 1.11306375,
+      "artifact_bytes": 15693397,
+      "steps": 6664,
+      "step_avg_ms": 90.0
+    },
+    "7": {
+      "val_loss": 2.59339416,
+      "val_bpb": 1.11304546,
+      "artifact_bytes": 15686495,
+      "steps": 6659,
+      "step_avg_ms": 90.0
+    }
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_pr1019_bpb": -0.00124599,
+  "t_statistic": -4.19,
+  "welch_df": 6.6,
+  "p_value_one_sided": 0.00289,
+  "artifact_bytes_mean": 15678560,
+  "artifact_bytes_max": 15697830,
+  "train_steps_mean": 6667,
+  "step_avg_ms_mean": 89.8,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "flash_attn_version": "2.8.3 (FA3 Hopper kernels)",
+  "tokenizer": "SP4096 (from sproos/parameter-golf-tokenizers)",
+  "data_source": "sproos/parameter-golf-tokenizers (docs_sha256 matches official willdepueoai/parameter-golf)",
+  "no_eval_time_compute": true,
+  "techniques": [
+    "SP4096 tokenizer (larger vocabulary, fewer tokens per byte)",
+    "WARMDOWN_WD_MULT=2.0 (compressibility regularization during warmdown)",
+    "Brotli-11 compression (replacing LZMA-9)",
+    "AR self-gen GPTQ calibration (from #1019)",
+    "XSA on all 11 layers (from #1019)",
+    "BigramHash 3072x112 (from #1019)",
+    "Selective pruning disabled (0% on all seeds)"
+  ],
+  "technique_summary": "SP4096 + WD=2.0 warmdown ramp + Brotli-11 on #1019 GPTQ+XSA base"
+}

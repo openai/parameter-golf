@@ -1,0 +1,18 @@
+# SP4096 + WD=2.0 + Brotli-11, SEED=42
+# Logs were captured via SSH from RunPod H100 pods.
+# Full training logs were not saved before pod termination.
+# Key metrics extracted during run monitoring:
+
+VOCAB_SIZE=4096
+DATA_PATH=./data/datasets/fineweb10B_sp4096
+TOKENIZER_PATH=./data/tokenizers/fineweb_4096_bpe.model
+WARMDOWN_WD_MULT=2.0
+QUANT_SCALE_MODE=per_row
+SEED=42
+
+train_loader:dataset:fineweb10B_sp4096 train_shards:80
+model_params:29033564
+step:6664/20000 val_loss:2.6238 val_bpb:1.1261 train_time:600083ms step_avg:90.05ms
+stopping_early: wallclock_cap train_time:600083ms step:6664/20000
+Total submission size int6+brotli: 15667940 bytes
+final_int6_sliding_window_exact val_loss:2.59603741 val_bpb:1.11417990
