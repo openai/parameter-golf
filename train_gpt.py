@@ -101,7 +101,7 @@ class Hyperparameters:
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
  ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
  ttt_eta = float(os.environ.get("TTT_ETA", 0.1))
- ttt_layers_str = os.environ.get("TTT_LAYERS", "8,9,10")
+ ttt_layers_str = os.environ.get("TTT_LAYERS", "10")
  ttt_clip = float(os.environ.get("TTT_CLIP", 0.1))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
  a, b, c = (3.4445, -4.7750, 2.0315)
@@ -536,7 +536,8 @@ class MLP(nn.Module):
    nn.init.eye_(self.ttt_target.weight)
    self.ttt_target.weight.data.mul_(0.1)
  def get_v_target(self, x0: Tensor) -> Tensor:
-  return self.ttt_target(self.ttt_conv(x0.transpose(1, 2))[:, :, :x0.size(1)].transpose(1, 2))
+  x0 = x0.to(self.ttt_conv.weight.dtype)
+  return self.ttt_target(self.ttt_conv(x0.transpose(1, 2))[:, :, :x0.size(1)].transpose(1, 2)).float()
  def forward(self, x: Tensor, x0: Tensor | None = None) -> Tensor:
   h = F.leaky_relu(self.fc(x), negative_slope=0.5)
   z = h.square()
