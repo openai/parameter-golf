@@ -571,13 +571,11 @@ class DistributedTokenLoader:
     def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
         self.rank, self.world_size, self.device = rank, world_size, device
         self.stream = TokenStream(pattern)
+        self._copy_stream = torch.cuda.Stream(device) if device.type == "cuda" else None
+        self._prefetch: tuple[Tensor, Tensor] | None = None
 
-    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        # global_tokens is the per-step macro budget. Each call serves one micro-batch
-        # (the outer grad_accum loop calls us grad_accum_steps times per step), so
-        # divide by both world_size AND grad_accum_steps to get the correct token budget.
+    def _load_raw(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
-        # Clamp up to the nearest multiple of seq_len so reshape never fails.
         if local_tokens < seq_len:
             local_tokens = seq_len
         else:
@@ -585,10 +583,27 @@ class DistributedTokenLoader:
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
-        local = chunk[start:start + per_rank_span].pin_memory().to(self.device, non_blocking=True).to(torch.int64)
-        local = torch.clamp(local, 0, 1023)
+        # Cast to int64 on CPU before pinning — avoids a second GPU kernel launch
+        local_cpu = chunk[start:start + per_rank_span].to(torch.int64)
+        local_cpu = torch.clamp(local_cpu, 0, 1023)
+        if self._copy_stream is not None:
+            with torch.cuda.stream(self._copy_stream):
+                local = local_cpu.pin_memory().to(self.device, non_blocking=True)
+        else:
+            local = local_cpu.to(self.device)
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
+        return x, y
+
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
+        if self._prefetch is not None and self._copy_stream is not None:
+            torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
+            x, y = self._prefetch
+        else:
+            x, y = self._load_raw(global_tokens, seq_len, grad_accum_steps)
+        # Kick off next prefetch in background
+        if self._copy_stream is not None:
+            self._prefetch = self._load_raw(global_tokens, seq_len, grad_accum_steps)
         return x, y
 
 # ---------------------------------------------------------------------------

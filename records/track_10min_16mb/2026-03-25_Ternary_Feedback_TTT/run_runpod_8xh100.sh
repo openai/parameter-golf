@@ -98,23 +98,19 @@ export WARMUP_STEPS=20
 export COMPILER_WARMUP_STEPS=20
 export SEED=${SEED:-42}   # overridable: SEED=1337 bash run_runpod_8xh100.sh
 
-# ── Batch (small batch = more gradient steps = better convergence) ───────────
-# KEY INSIGHT: 16K tokens/step converges much better than 786K — more optimizer
-# updates in the 599s window. Maximizing gradient descent steps is the #1 priority.
-# On 8×H100, 16K = 1 seq/GPU (2K tokens/GPU). VRAM is underutilized (~104MB/80GB)
-# but step count is maximized.
+# ── Batch sizing for 8×H100 SXM (80GB each) ────────────────────────────────
+# With autocast(bf16) + TF32 now enabled, each step is compute-bound, not memory-bound.
+# The model is tiny (~4.5M params, ~2.75MB) — 1 seq/GPU (16K/8GPUs) severely
+# under-utilizes H100 tensor cores. We need more tokens/GPU to keep SMs busy.
 #
-# WEIGHT MIRRORING via LOCAL SGD:
-# Instead of standard DDP (expensive all-reduce every step), each GPU trains
-# its own weight copy independently and syncs every K steps. This:
-#   - Eliminates NCCL all-reduce latency on (K-1)/K of all steps → faster steps
-#   - 8 GPUs explore 8 different gradient trajectories → better optimization landscape
-#   - Periodic averaging acts as implicit regularization (like SWA during training)
-#   - VRAM "usage": each GPU holds a full independent model replica — all 8 copies
-#     are meaningfully different between syncs (exploring different weight neighborhoods)
-# At sync, weights are averaged across all 8 GPUs, combining their discoveries.
-# LOCAL_SGD_SYNC_EVERY=10 means ~10× less communication overhead vs DDP.
-export TRAIN_BATCH_TOKENS=16384   # 16K = proven sweet spot from sweep; maximizes gradient updates in 599s
+# Target: ~32 seqs/GPU = 65K tokens/GPU = 524K tokens/step globally
+# Activations per seq at D=320, L=8, T=2048, bf16 ≈ 320*2048*8*2B ≈ 10MB/seq
+# 32 seqs/GPU × 10MB ≈ 320MB VRAM for activations — well within 80GB
+#
+# More tokens/step = better gradient estimates + fewer Muon all-reduces per token
+# Tradeoff: fewer steps in 599s, but each step is higher quality
+# At ~2ms/step with bf16 + compile: 524K batch → ~30K steps in 599s
+export TRAIN_BATCH_TOKENS=524288  # 512K = 32 seqs/GPU on 8×H100 — fills compute without OOM
 export TRAIN_SEQ_LEN=2048
 export LOCAL_SGD_SYNC_EVERY=10       # Weight mirroring: each GPU explores independently, syncs every 10 steps
                                      # Eliminates all-reduce on 9/10 steps → faster per-step throughput
@@ -200,10 +196,20 @@ export BITNET_GROUP_SIZE=128
 export TURBO_QUANT_EXPORT=1
 export TURBO_QUANT_TRAIN=0
 export TURBO_QUANT_KV=1
-export EXPORT_ALIGNED_TRAIN=0
+export EXPORT_ALIGNED_TRAIN=1
 export EXPORT_ALIGNED_TRAIN_START_FRACTION=0.85
-export TERNARY_THRESHOLD_SEARCH=0
-export TERNARY_SCALE_SEARCH=0
+export TERNARY_THRESHOLD_SEARCH=1
+export TERNARY_THRESHOLD_LOW=0.02
+export TERNARY_THRESHOLD_HIGH=0.15
+export TERNARY_THRESHOLD_STEPS=4
+export TERNARY_SCALE_SEARCH=1
+export TERNARY_SCALE_MULT_LOW=0.9
+export TERNARY_SCALE_MULT_HIGH=1.1
+export TERNARY_SCALE_MULT_STEPS=3
+export TERNARY_CALIB_TOP_N=5
+export EXPORT_PROXY_EVAL=1
+export EXPORT_PROXY_EVERY=2000   # Every 2000 steps (~60s at fast throughput) — low overhead
+export EXPORT_PROXY_NUM_SEQS=16
 export AVERAGE_TERNARY_PARAMS=0
 export SAVE_PRE_EXPORT_STATE=1
 export FAST_EXPORT=1              # Skip variant grid search — use LAWA directly (saves 30-60min post-training)
@@ -230,7 +236,7 @@ echo "           block_size=${SKC_BLOCK_SIZE}  caps=${SKC_NUM_CAPSULES}×${SKC_C
 echo "           UNet caps skip (proven -0.107 BPB) auto-enabled for SKC arch"
 echo "  BUDGET : ${MAX_WALLCLOCK_SECONDS}s wallclock  (compiler_warmup=${COMPILER_WARMUP_STEPS} steps pre-budget, lr_warmup=${WARMUP_STEPS} steps in-budget)"
 echo "  SEQ    : ${TRAIN_SEQ_LEN} (competition standard)"
-echo "  BATCH  : ${TRAIN_BATCH_TOKENS} tokens/step → $((786432/2048)) seqs/step globally"
+echo "  BATCH  : ${TRAIN_BATCH_TOKENS} tokens/step → $((TRAIN_BATCH_TOKENS/2048)) seqs/step globally ($((TRAIN_BATCH_TOKENS/2048/8)) seqs/GPU)"
 echo "  LR     : matrix=${MATRIX_LR}  scalar=${SCALAR_LR}  warmdown_frac=${WARMDOWN_FRACTION}"
 echo "  EXTRAS : engram(orders=3)  ngram_cache  TKO=off  LAWA  SWA  smeargate  temp_scaling"
 echo "  FIXED  : curriculum(dead code)  capsule/speculator(hurt)  moe(risky)"
