@@ -53,9 +53,119 @@
 - 量子化劣化: bpb +0.0013 (1.2979 → 1.2992)
 - eval_time: 32,679 ms
 <<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
 
 ## 次にやること候補
 1. ベースライン bpb 1.2992 を基準に改善実験
+=======
+
+## exp1: SmearGate + Sliding Window Eval — RTX 4090
+
+### 変更点
+- SmearGate アーキテクチャを適用
+- 評価モードを `sliding_window` (stride=64, batch_seqs=32) に変更
+
+### 学習
+- 設定はベースラインと同じ (GQA 8h/4kv, tie_emb, 同LR, seq_len=1024, 1800s cap)
+- 早期停止: step **1940 / 20000** (wallclock cap)
+- step time: ~928 ms/step
+- step 1940: val_bpb=**1.2969**
+
+### val_bpb 推移 (学習中評価)
+| step | val_bpb |
+|------|---------|
+| 0    | 4.1075  |
+| 200  | 1.6848  |
+| 400  | 1.5149  |
+| 600  | 1.4507  |
+| 800  | 1.4061  |
+| 1000 | 1.3726  |
+| 1200 | 1.3484  |
+| 1400 | 1.3305  |
+| 1600 | 1.3164  |
+| 1800 | 1.3030  |
+| 1940 | **1.2969** |
+
+### 提出物サイズ
+| 項目 | サイズ |
+|---|---|
+| Serialized model | 67,281,771 B |
+| Serialized model int8+zlib | 14,873,087 B (3.91x圧縮) |
+| **Total submission int8+zlib** | **14,927,442 B (~14.2 MiB)** |
+
+### Sliding Window 最終評価 (int8+zlib roundtrip)
+- val_loss = **2.13559351**
+- val_bpb  = **1.26482039**
+- peak mem: 10892 MiB allocated / 11238 MiB reserved
+- eval_time: 1,451,742 ms (~24分)
+
+### ベースライン比較
+| 実験 | 評価方法 | val_bpb (int8+zlib) |
+|------|---------|---------------------|
+| baseline | 通常eval | 1.2992 |
+| **exp1 SmearGate+SW** | **sliding_window stride=64** | **1.2648** |
+| 改善 | | **-0.0344** |
+
+> sliding window 評価によって bpb が 1.2992 → **1.2648** に改善 (記録更新)
+
+## 次にやること候補
+1. SmearGate+SW をベースに追加改善実験 (現在 bpb **1.2648**)
+>>>>>>> 3964fd62dd4fdfb1e8bf8300d2ae826402080596
+=======
+
+## exp1: SmearGate + Sliding Window Eval — RTX 4090
+
+### 変更点
+- SmearGate アーキテクチャを適用
+- 評価モードを `sliding_window` (stride=64, batch_seqs=32) に変更
+
+### 学習
+- 設定はベースラインと同じ (GQA 8h/4kv, tie_emb, 同LR, seq_len=1024, 1800s cap)
+- 早期停止: step **1940 / 20000** (wallclock cap)
+- step time: ~928 ms/step
+- step 1940: val_bpb=**1.2969**
+
+### val_bpb 推移 (学習中評価)
+| step | val_bpb |
+|------|---------|
+| 0    | 4.1075  |
+| 200  | 1.6848  |
+| 400  | 1.5149  |
+| 600  | 1.4507  |
+| 800  | 1.4061  |
+| 1000 | 1.3726  |
+| 1200 | 1.3484  |
+| 1400 | 1.3305  |
+| 1600 | 1.3164  |
+| 1800 | 1.3030  |
+| 1940 | **1.2969** |
+
+### 提出物サイズ
+| 項目 | サイズ |
+|---|---|
+| Serialized model | 67,281,771 B |
+| Serialized model int8+zlib | 14,873,087 B (3.91x圧縮) |
+| **Total submission int8+zlib** | **14,927,442 B (~14.2 MiB)** |
+
+### Sliding Window 最終評価 (int8+zlib roundtrip)
+- val_loss = **2.13559351**
+- val_bpb  = **1.26482039**
+- peak mem: 10892 MiB allocated / 11238 MiB reserved
+- eval_time: 1,451,742 ms (~24分)
+
+### ベースライン比較
+| 実験 | 評価方法 | val_bpb (int8+zlib) |
+|------|---------|---------------------|
+| baseline | 通常eval | 1.2992 |
+| **exp1 SmearGate+SW** | **sliding_window stride=64** | **1.2648** |
+| 改善 | | **-0.0344** |
+
+> sliding window 評価によって bpb が 1.2992 → **1.2648** に改善 (記録更新)
+
+## 次にやること候補
+1. SmearGate+SW をベースに追加改善実験 (現在 bpb **1.2648**)
+>>>>>>> 3964fd62dd4fdfb1e8bf8300d2ae826402080596
 =======
 
 ## exp1: SmearGate + Sliding Window Eval — RTX 4090
