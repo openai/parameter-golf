@@ -100,7 +100,7 @@ class Hyperparameters:
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
  ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
- ttt_eta = float(os.environ.get("TTT_ETA", 0.01))
+ ttt_eta = float(os.environ.get("TTT_ETA", 0.1))
  ttt_layers_str = os.environ.get("TTT_LAYERS", "8,9,10")
  ttt_clip = float(os.environ.get("TTT_CLIP", 0.1))
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
@@ -531,10 +531,10 @@ class MLP(nn.Module):
   self.ttt = ttt
   if ttt:
    self.ttt_conv = nn.Conv1d(dim, dim, kernel_size=5, padding=4, groups=dim, bias=False)
-   nn.init.zeros_(self.ttt_conv.weight)
+   nn.init.normal_(self.ttt_conv.weight, std=0.02)
    self.ttt_target = CastedLinear(dim, dim, bias=False)
    nn.init.eye_(self.ttt_target.weight)
-   self.ttt_target.weight.data.mul_(0.01)
+   self.ttt_target.weight.data.mul_(0.1)
  def get_v_target(self, x0: Tensor) -> Tensor:
   return self.ttt_target(self.ttt_conv(x0.transpose(1, 2))[:, :, :x0.size(1)].transpose(1, 2))
  def forward(self, x: Tensor, x0: Tensor | None = None) -> Tensor:
@@ -546,8 +546,8 @@ class MLP(nn.Module):
    mid = z.size(1) // 2
    dw = torch.einsum('bsd,bsh->dh', v[:, :mid], z[:, :mid].detach())
    dn = dw.norm()
-   if dn > 1e-3:
-    dw = dw * (1e-3 / dn)
+   if dn > 0.01:
+    dw = dw * (0.01 / dn)
    corr = F.linear(z, dw)
    mask = (torch.arange(z.size(1), device=z.device) >= mid).to(out.dtype)
    out = out + corr * mask[None, :, None]
