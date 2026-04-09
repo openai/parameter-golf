@@ -613,8 +613,20 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.leaky_relu(self.fc(x), negative_slope=0.5)
+        x = torch.relu(self.fc(x))
         return self.proj(x.square())
+
+
+class JEPAPredictor(nn.Module):
+    """Small 2-layer MLP that maps context embedding to predicted target embedding."""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.fc1 = CastedLinear(dim, dim, bias=False)
+        self.fc2 = CastedLinear(dim, dim, bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
 
 
 class Block(nn.Module):
@@ -645,24 +657,6 @@ class Block(nn.Module):
         return x
 
 
-
-class TrigramHash(nn.Module):
-    def __init__(self, num_buckets: int, embed_dim: int, model_dim: int):
-        super().__init__()
-        self.num_buckets = num_buckets
-        self.embedding = nn.Embedding(num_buckets, embed_dim)
-        self.proj = nn.Linear(embed_dim, model_dim, bias=False)
-        self.embedding.weight.data = self.embedding.weight.data.half()
-
-    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
-        t0 = input_ids[..., :-2]
-        t1 = input_ids[..., 1:-1]
-        t2 = input_ids[..., 2:]
-        hashed = (36313 * t2 ^ 27191 * t1 ^ 51749 * t0) % self.num_buckets
-        out = self.proj(self.embedding(hashed).to(dtype=torch.bfloat16))
-        pad = torch.zeros(*input_ids.shape[:-1], 2, out.shape[-1], dtype=out.dtype, device=out.device)
-        return torch.cat([pad, out], dim=-2)
-
 class GPT(nn.Module):
     def __init__(
         self,
@@ -685,7 +679,6 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.trigram = TrigramHash(num_buckets=4096, embed_dim=128, model_dim=model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -704,6 +697,16 @@ class GPT(nn.Module):
             ]
         )
         self.final_norm = RMSNorm()
+        # JEPA components
+        self.jepa_predictor = JEPAPredictor(model_dim)
+        self.target_blocks = copy.deepcopy(self.blocks)
+        self.target_final_norm = copy.deepcopy(self.final_norm)
+        for p in self.target_blocks.parameters():
+            p.requires_grad_(False)
+        for p in self.target_final_norm.parameters():
+            p.requires_grad_(False)
+        self.jepa_lambda = 0.1
+        self.ema_decay = 0.996
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
@@ -716,13 +719,21 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
+
+    def update_ema(self) -> None:
+        """Update target encoder weights via EMA after each training step."""
+        with torch.no_grad():
+            for p, p_ema in zip(self.blocks.parameters(), self.target_blocks.parameters()):
+                p_ema.data = self.ema_decay * p_ema.data + (1 - self.ema_decay) * p.data
+            for p, p_ema in zip(self.final_norm.parameters(), self.target_final_norm.parameters()):
+                p_ema.data = self.ema_decay * p_ema.data + (1 - self.ema_decay) * p.data
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids) + self.trigram(input_ids)
+        # --- context encoder (full sequence, with gradients) ---
+        x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-
-        # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
@@ -730,17 +741,44 @@ class GPT(nn.Module):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
+        context_emb = self.final_norm(x)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        # --- target encoder (full sequence, no gradients, EMA weights) ---
+        with torch.no_grad():
+            xt = self.tok_emb(input_ids)
+            xt = F.rms_norm(xt, (xt.size(-1),))
+            xt0 = xt
+            target_skips: list[Tensor] = []
+            for i in range(self.num_encoder_layers):
+                xt = self.target_blocks[i](xt, xt0)
+                target_skips.append(xt)
+            for i in range(self.num_decoder_layers):
+                if target_skips:
+                    xt = xt + self.skip_weights[i].to(dtype=xt.dtype)[None, None, :] * target_skips.pop()
+                xt = self.target_blocks[self.num_encoder_layers + i](xt, xt0)
+            target_emb = self.target_final_norm(xt)
+
+        # --- JEPA loss: predicted embedding vs target embedding ---
+        predicted_emb = self.jepa_predictor(context_emb)
+        jepa_loss = F.mse_loss(
+            F.normalize(predicted_emb.float(), dim=-1),
+            F.normalize(target_emb.float(), dim=-1),
+        )
+
+        # --- CE loss: standard token prediction ---
+        x_flat = context_emb.reshape(-1, context_emb.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        return ce_loss + self.jepa_lambda * jepa_loss
+
 
 
 # -----------------------------
@@ -1031,14 +1069,6 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            import random as _rnd
-            midpoint = args.iterations // 2
-            if step < midpoint:
-                p_real = 1.0 - (step / max(midpoint, 1)) * 0.5
-            else:
-                p_real = 0.5 + ((step - midpoint) / max(midpoint, 1)) * 0.5
-            if step > args.warmup_steps and _rnd.random() > p_real:
-                pass  # scheduled sampling placeholder
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
@@ -1059,6 +1089,7 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+        base_model.update_ema()
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)

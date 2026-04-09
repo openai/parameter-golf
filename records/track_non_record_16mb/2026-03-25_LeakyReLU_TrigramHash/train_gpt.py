@@ -652,7 +652,6 @@ class TrigramHash(nn.Module):
         self.num_buckets = num_buckets
         self.embedding = nn.Embedding(num_buckets, embed_dim)
         self.proj = nn.Linear(embed_dim, model_dim, bias=False)
-        self.embedding.weight.data = self.embedding.weight.data.half()
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         t0 = input_ids[..., :-2]
@@ -662,7 +661,6 @@ class TrigramHash(nn.Module):
         out = self.proj(self.embedding(hashed).to(dtype=torch.bfloat16))
         pad = torch.zeros(*input_ids.shape[:-1], 2, out.shape[-1], dtype=out.dtype, device=out.device)
         return torch.cat([pad, out], dim=-2)
-
 class GPT(nn.Module):
     def __init__(
         self,
@@ -685,8 +683,8 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.trigram = TrigramHash(num_buckets=4096, embed_dim=128, model_dim=model_dim)
         self.num_encoder_layers = num_layers // 2
+        self.trigram = TrigramHash(num_buckets=8192, embed_dim=128, model_dim=model_dim)
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
@@ -717,8 +715,8 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids) + self.trigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),)) + self.trigram(input_ids)
         x0 = x
         skips: list[Tensor] = []
 
@@ -1031,14 +1029,6 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            import random as _rnd
-            midpoint = args.iterations // 2
-            if step < midpoint:
-                p_real = 1.0 - (step / max(midpoint, 1)) * 0.5
-            else:
-                p_real = 0.5 + ((step - midpoint) / max(midpoint, 1)) * 0.5
-            if step > args.warmup_steps and _rnd.random() > p_real:
-                pass  # scheduled sampling placeholder
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
