@@ -489,7 +489,14 @@ def churn_fn(model: nn.Module, group_size: int = 64):
 def ns_orth(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
-    X /= X.norm() + eps
+    norm = X.norm()
+    # Guard against near-zero gradients (sparse MoE experts that were not selected).
+    # Dividing by a tiny norm would explode X and cause Newton-Schulz to diverge to NaN
+    # within a few iterations. Return the zero tensor — no update is correct behaviour
+    # when no gradient signal exists.
+    if norm < eps:
+        return X
+    X /= norm
     transposed = G.size(0) > G.size(1)
     if transposed:
         X = X.T
@@ -536,6 +543,11 @@ class Muon(torch.optim.Optimizer):
                     g *= max(1, g.size(0) / g.size(1)) ** 0.5
                     updates_flat[curr:curr + p.numel()] = g.reshape(-1)
                 curr += p.numel()
+            # all_reduce is called uniformly across ranks (the 'distributed' flag is not
+            # data-dependent, so all ranks take the same branch — no deadlock risk).
+            # Parameters with p.grad is None on their assigned rank leave their slot at
+            # zero; SUM reduction still produces the correct aggregated update because
+            # zero contributes nothing. This handles MoE sparse routing correctly.
             if distributed:
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
             wd = group.get("wd", 0.0)
@@ -1337,8 +1349,14 @@ class FeedbackAdapter(nn.Module):
         # Generate keys and values
         k = self.k_proj(sketch)  # [B, S, D]
         v = self.v_proj(sketch)  # [B, S, D]
-        
-        # Initialize fast weight matrix if None
+
+        # Fast-weight memory is intentionally initialised to zero at every forward call.
+        # The model processes full sequences non-autoregressively, so "state" within a
+        # call is the sketch itself — there is no meaningful token-at-a-time accumulation
+        # across calls to persist. Cross-call persistence would require storing a (B,D,D)
+        # buffer that varies with batch size, which is impractical. The delta-rule update
+        # below accumulates from zero using the current sketch, giving the correct
+        # content-addressable behaviour for this architecture.
         memory_matrix = torch.zeros((B, D, D), device=x.device, dtype=torch.float32)
 
         # Fast-Weight Update (Delta Rule)
@@ -2706,12 +2724,17 @@ class NgramCache:
 def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
                           proxy_tokens: torch.Tensor, args, device) -> float:
     """Export sd with calib, reload into base_model, score on proxy_tokens. Returns BPB."""
-    import io, lzma as _lzma
+    # No compression for proxy eval: we only need round-trip quantization fidelity, not
+    # submission-format artifact size. lzma at even preset=1 consumes significant CPU time
+    # (seconds per call) that directly eats the training wall-clock budget when proxy eval
+    # is frequent. The raw torch.save/load round-trip still exercises q_sd → deq_sd
+    # correctly; only the lzma size estimate is skipped.
+    import io
     q_obj, _ = q_sd(sd, group_size=group_size, calib=calib)
     buf = io.BytesIO()
     torch.save(q_obj, buf)
-    blob = _lzma.compress(buf.getvalue(), preset=1)  # fast preset for proxy
-    loaded = torch.load(io.BytesIO(_lzma.decompress(blob)), map_location="cpu", weights_only=False)
+    buf.seek(0)
+    loaded = torch.load(buf, map_location="cpu", weights_only=False)
     # Offload backup to CPU to avoid doubling GPU resident state right when the device
     # is under peak pressure (ternary state dict just loaded on top of live weights).
     # load_state_dict handles moving CPU tensors back to GPU automatically.
@@ -3023,7 +3046,10 @@ def main() -> None:
     ).to(device)
 
     # Re-enable standard compilation for Linux
-    compiled_model = torch.compile(base_model, mode=args.compile_mode) if args.compile_mode != "none" else base_model
+    # dynamic=True: accept varying sequence lengths and batch sizes without recompilation.
+    # Without this, every curriculum seq-len change triggers a full recompile and
+    # torch._dynamo.reset(), eating wall-clock budget that should go to weight updates.
+    compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=True) if args.compile_mode != "none" else base_model
     
     # MoE with top-k routing leaves non-selected expert params unused on each step.
     # find_unused_parameters must be True whenever MoE is active to prevent DDP hangs.
