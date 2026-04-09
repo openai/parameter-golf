@@ -1,8 +1,8 @@
 {
   "author": "Jaksen",
   "github_id": "jaksen",
-  "name": "Checkpointed 8xH100->1xH100 GPTQ Baseline",
-  "blurb": "My strongest saved 8xH100-backed result to date. This folder preserves the public AR self-generated GPTQ + XSA-all + BigramHash record lineage while adding a checkpointed 8xH100->1xH100 execution path: Stage 1 trains and checkpoints on 8xH100, then Stage 2 runs GPTQ and sliding-window eval on 1xH100. Saved seed-314 result: 1.13071788 BPB at 15,651,808 bytes.",
+  "name": "Checkpointed AR Self-Gen GPTQ + XSA-all + BigramHash 3072x112",
+  "blurb": "My strongest saved 8xH100-backed result to date. This folder preserves the public AR self-generated GPTQ + XSA-all + BigramHash 3072x112 record lineage while adding a checkpointed 8xH100->1xH100 execution path: Stage 1 trains and checkpoints on 8xH100, then Stage 2 runs GPTQ and sliding-window eval on 1xH100. Saved seed-314 result: 1.13071788 BPB at 15,651,808 bytes.",
   "date": "2026-04-08",
   "track": "non_record_16mb",
   "status": "non_record_baseline",

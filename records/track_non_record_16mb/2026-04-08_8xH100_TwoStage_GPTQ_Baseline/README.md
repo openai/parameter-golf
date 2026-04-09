@@ -1,8 +1,8 @@
-# Non-record: Checkpointed 8xH100->1xH100 GPTQ Baseline
+# Non-record: Checkpointed AR Self-Gen GPTQ + XSA-all + BigramHash 3072x112
 
 **Author:** Jaksen ([@jaksen](https://github.com/jaksen))
 **Base:** [2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072](../../track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md)
-**Contribution:** A validated checkpointed `8xH100 -> 1xH100` execution path for this stack
+**Contribution:** A validated checkpointed `8xH100 -> 1xH100` execution path for the public AR self-gen GPTQ + XSA-all + BigramHash `3072 x 112` stack
 **Best saved result:** `1.13071788 val_bpb`, `15,651,808` bytes, `seed=314`
 
 ## The Short Version
