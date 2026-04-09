@@ -70,7 +70,7 @@ class Hyperparameters:
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
     rope_dims = int(os.environ.get("ROPE_DIMS", 64))
-    ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
+    ln_scale = bool(int(os.environ.get("LN_SCALE", "0")))
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.99))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
