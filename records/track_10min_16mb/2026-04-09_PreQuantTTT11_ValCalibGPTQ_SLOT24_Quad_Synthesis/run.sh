@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 3-seed runner for the Pre-Quant TTT + Val-Calib GPTQ + Legal Eval TTT synthesis.
+# 3-seed runner for the Pre-Quant TTT + Val-Calib GPTQ + SLOT-24 quad-stack synthesis.
 # Run this from the repo root after data download. Each seed: ~10 min train + ~9 min eval = ~19 min wall.
 # Total wallclock for 3 seeds: ~60 min on 8xH100 SXM (~$3-5 per seed on RunPod).
 
@@ -38,8 +38,18 @@ export PREQUANT_TTT_COSINE_DECAY=1
 # Val-Calibrated GPTQ — Hessians computed on validation data
 export GPTQ_CALIB_SOURCE=val
 
-# Eval-Time Legal Score-First TTT (Track B) — fits in remaining ~330s eval budget
-export TTT_ENABLED=1
+# SLOT-24 — per-window hidden delta + logit bias on the frozen post-quant model
+# Replaces eval-time legal TTT in this synthesis (much bigger gain per eval second)
+export SLOT_ENABLED=1
+export SLOT_STEPS=24
+export SLOT_LR=0.012
+export SLOT_LR_MIN=0.001
+export SLOT_BATCH_SEQS=32
+export SLOT_EVAL_STRIDE=96
+
+# Eval-Time Legal Score-First TTT — disabled by default (SLOT supersedes it)
+# Set TTT_ENABLED=1 SLOT_ENABLED=0 to use this fallback path
+export TTT_ENABLED=0
 export TTT_LR=0.005
 export TTT_EPOCHS=2
 export TTT_FREEZE_BLOCKS=2
@@ -69,6 +79,6 @@ echo ""
 echo "============ FINAL VAL_BPB BY SEED ============"
 for SEED in 42 1337 2024; do
   echo "--- seed $SEED ---"
-  grep -E "(final_int6_sliding_window|final_int6_ttt|post-prequant-ttt|val_calib_gptq)" "train_seed${SEED}.log" || true
+  grep -E "(final_int6_sliding_window|final_int6_slot|final_int6_ttt|post-prequant-ttt|val_calib_gptq|slot_eval:done)" "train_seed${SEED}.log" || true
 done
 echo "==============================================="

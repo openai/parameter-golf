@@ -104,10 +104,10 @@ class Hyperparameters():
     parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", "7"))
 
     # Eval-time legal score-first TTT (Track B). STACKED ON TOP of pre-quant TTT.
-    # PR #1487 left this disabled (TTT_ENABLED=0). We enable it as the default so
-    # the synthesis runs out-of-the-box. Tuned to fit the remaining ~330s of eval
-    # budget after pre-quant TTT (172s) + sliding eval (80s) + GPTQ (10s).
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    # PR #1487 left this disabled (TTT_ENABLED=0). In this synthesis SLOT-24
+    # supersedes legal TTT (much bigger gain per eval second). Set TTT_ENABLED=1
+    # and SLOT_ENABLED=0 to fall back to the legal TTT path instead.
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.005))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 2))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
@@ -131,6 +131,20 @@ class Hyperparameters():
     # the quantization objective with the eval distribution. "train" replicates
     # PR #1487's behavior (Hessians from train_loader) for fallback / ablation.
     gptq_calib_source = os.environ.get("GPTQ_CALIB_SOURCE", "val")
+
+    # SLOT-24 (Sample-Level Online Test-time adaptation, ported from PR #1488/#1313).
+    # Per-window: optimize a fresh hidden_delta [bsz,1,dim] + logit_bias [bsz,1,vocab]
+    # for slot_steps AdamW iterations on the FROZEN base model, then score the
+    # window's stride tokens with the learned delta+bias. Throwaway params, no
+    # weight gradients on the model. Replaces eval-time legal score-first TTT
+    # in this synthesis (SLOT delta is much more parameter-efficient and the eval
+    # budget cannot fit both). Set SLOT_ENABLED=0 to fall back to legal TTT.
+    slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "1")))
+    slot_steps = int(os.environ.get("SLOT_STEPS", 24))
+    slot_lr = float(os.environ.get("SLOT_LR", 0.012))
+    slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
+    slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
+    slot_eval_stride = int(os.environ.get("SLOT_EVAL_STRIDE", 96))
 
     # Compression
     compressor = os.environ.get('COMPRESSOR', 'brotli')  #(lzma or brotli)
@@ -718,7 +732,10 @@ class GPT(nn.Module):
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
 
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
+    def forward_hidden(self, input_ids: Tensor) -> Tensor:
+        """Returns the post-final-norm (and post-head-proj) hidden state.
+        Split out of forward_logits so that SLOT can add a per-window delta to
+        the hidden state without re-running the transformer stack."""
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.embed_proj is not None:
@@ -789,11 +806,20 @@ class GPT(nn.Module):
         x = self.final_norm(x)
         if self.head_proj is not None:
             x = self.head_proj(x)
+        return x
+
+    def compute_logits(self, hidden: Tensor) -> Tensor:
+        """Project hidden state to vocab logits with softcap. Tied or untied
+        head depending on configuration. Used both by forward_logits (normal
+        path) and by SLOT eval (where the hidden state has a learned delta)."""
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(hidden, self.tok_emb.weight)
         else:
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(hidden)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        return self.compute_logits(self.forward_hidden(input_ids))
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         logits = self.forward_logits(input_ids)
@@ -1679,6 +1705,138 @@ def eval_val_sliding(
 
 
 # ----------------------------------------
+# SLOT-24 — Sample-Level Online Test-time adaptation
+# Ported from PR #1488 / PR #1313 (anthony-maio, ndokutovich).
+# Per window: optimize a fresh hidden_delta + logit_bias on the FROZEN base
+# model for slot_steps AdamW iterations, then score the window's stride tokens
+# with the learned delta+bias. No weight gradients on the model itself.
+# ----------------------------------------
+
+def eval_val_slot(
+    h: Hyperparameters,
+    base_model: nn.Module,
+    device: torch.device,
+    val_data: ValidationData,
+) -> tuple[float, float]:
+    """SLOT-24 eval: per-window AdamW optimization of a hidden delta + logit
+    bias on a frozen model, then score the window. Adapted from PR #1488 to
+    work with PR #1487's GPT class (which now exposes forward_hidden /
+    compute_logits split). Replaces sliding-window eval as the FINAL score."""
+    stride = h.slot_eval_stride if h.slot_eval_stride > 0 else h.eval_stride
+    seq_s = h.eval_seq_len if h.eval_seq_len > 0 else h.train_seq_len
+    total_tok = val_data.val_tokens.numel() - 1
+
+    ws_list = list(range(0, total_tok, stride))
+    ws_list = [ws for ws in ws_list if min(ws + seq_s, total_tok) - ws >= 1]
+    my_ws = ws_list[h.rank::h.world_size]
+
+    # Tied or untied projection weight, frozen
+    if base_model.tie_embeddings:
+        proj_w = base_model.tok_emb.weight.detach().float()
+    else:
+        proj_w = base_model.lm_head.weight.detach().float()
+    softcap = base_model.logit_softcap
+
+    # Compile forward_hidden for fast repeated calls
+    compiled_hidden = torch.compile(base_model.forward_hidden, dynamic=False, fullgraph=False)
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_sum = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+    t0 = time.perf_counter()
+    for bi in range(0, len(my_ws), h.slot_batch_seqs):
+        bws = my_ws[bi:bi + h.slot_batch_seqs]
+        bsz = len(bws)
+        xb_cpu = torch.zeros(bsz, seq_s, dtype=torch.int64)
+        yb_cpu = torch.zeros(bsz, seq_s, dtype=torch.int64)
+        wlens: list[int] = []
+        for i, ws in enumerate(bws):
+            wend = min(ws + seq_s, total_tok)
+            wlen = wend - ws
+            wlens.append(wlen)
+            xb_cpu[i, :wlen] = val_data.val_tokens[ws:wend]
+            yb_cpu[i, :wlen] = val_data.val_tokens[ws + 1:wend + 1]
+        xb = xb_cpu.to(device=device, non_blocking=True)
+        yb = yb_cpu.to(device=device, non_blocking=True)
+
+        # Compute hidden state ONCE per batch under no_grad — frozen model
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            hidden = compiled_hidden(xb)
+        hidden_f = hidden.detach().float()
+
+        # Build mask: only the last `stride` tokens of each non-first window
+        # contribute to both training loss and final score (matching PR #1488).
+        mask = torch.zeros(bsz, seq_s, device=device)
+        for i, ws in enumerate(bws):
+            wlen = wlens[i]
+            s = 0 if ws == 0 else max(wlen - stride, 0)
+            mask[i, s:wlen] = 1.0
+        valid_count = mask.sum()
+        if valid_count == 0:
+            continue
+
+        # Per-window throwaway parameters
+        delta = torch.zeros(bsz, 1, hidden_f.size(-1), device=device, dtype=torch.float32, requires_grad=True)
+        logit_bias = torch.zeros(bsz, 1, proj_w.size(0), device=device, dtype=torch.float32, requires_grad=True)
+        slot_opt = torch.optim.AdamW([delta, logit_bias], lr=h.slot_lr, weight_decay=1e-8, eps=1e-5)
+
+        targets_flat = yb.reshape(-1)
+        for step_i in range(h.slot_steps):
+            lr_t = h.slot_lr_min + 0.5 * (h.slot_lr - h.slot_lr_min) * (
+                1 + math.cos(math.pi * step_i / max(h.slot_steps, 1))
+            )
+            for pg in slot_opt.param_groups:
+                pg['lr'] = lr_t
+            slot_opt.zero_grad()
+            h_aug = hidden_f + delta
+            lp = F.linear(h_aug, proj_w) + logit_bias
+            lg = softcap * torch.tanh(lp / softcap)
+            nll = F.cross_entropy(
+                lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none"
+            ).reshape(bsz, seq_s)
+            slot_loss = (nll * mask).sum() / valid_count
+            slot_loss.backward()
+            slot_opt.step()
+
+        # Final score with the optimized delta+bias
+        with torch.no_grad():
+            h_aug = hidden_f + delta.detach()
+            lp = F.linear(h_aug, proj_w) + logit_bias.detach()
+            lg = softcap * torch.tanh(lp / softcap)
+            nll = F.cross_entropy(
+                lg.reshape(-1, lg.size(-1)), targets_flat, reduction="none"
+            ).reshape(bsz, seq_s)
+            for i, ws in enumerate(bws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                chunk_nll = nll[i, s:wlen]
+                loss_sum += chunk_nll.sum().to(torch.float64)
+                token_count += float(wlen - s)
+                prev_ids = xb[i, s:wlen]
+                tgt_ids = yb[i, s:wlen]
+                tb = val_data.base_bytes_lut[tgt_ids].to(torch.float64)
+                tb += (val_data.has_leading_space_lut[tgt_ids] & ~val_data.is_boundary_token_lut[prev_ids]).to(torch.float64)
+                byte_sum += tb.sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_sum, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / max(byte_sum.item(), 1)
+    val_bpb = bits_per_token * tokens_per_byte
+
+    base_model.train()
+    log(f"slot_eval:done steps={h.slot_steps} stride={stride} elapsed={time.perf_counter() - t0:.1f}s "
+        f"val_loss={val_loss:.6f} val_bpb={val_bpb:.6f}")
+    return val_loss, val_bpb
+
+
+# ----------------------------------------
 # TTT (Test-Time Training) - Legal Score-First
 # ----------------------------------------
 
@@ -1864,22 +2022,42 @@ def run_evals(
     val_data: ValidationData,
     eval_model: torch.nn.Module
 ):
-    # Save state dict BEFORE any inference_mode evals (for TTT later)
-    if h.ttt_enabled:
-        ttt_sd = {k: v.detach().clone() for k, v in eval_model.state_dict().items()}
+    # SLOT and legal-TTT both need a fresh, non-inference_mode copy of the
+    # post-quant model. Save the state dict BEFORE any inference_mode evals.
+    saved_sd = None
+    if h.ttt_enabled or h.slot_enabled:
+        saved_sd = {k: v.detach().clone() for k, v in eval_model.state_dict().items()}
+
     compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
     timed_eval("final_int6_roundtrip", eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
         timed_eval("final_int6_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
+
+    # SLOT-24: per-window hidden delta + logit bias on a frozen post-quant
+    # model. THIS IS THE FINAL SUBMISSION SCORE when SLOT is enabled.
+    if h.slot_enabled:
+        slot_model = GPT(h).to(device).bfloat16()
+        restore_fp32_params(slot_model)
+        slot_model.load_state_dict(saved_sd, strict=True)
+        if hasattr(slot_model, 'set_recurrence_active'):
+            slot_model.set_recurrence_active(True)
+        timed_eval("final_int6_slot", eval_val_slot, h, slot_model, device, val_data)
+        del slot_model
+
+    # Eval-time legal score-first TTT (Track B). Disabled by default when SLOT
+    # is on (eval budget can't fit both). Set TTT_ENABLED=1 SLOT_ENABLED=0 to
+    # use this path instead.
     if h.ttt_enabled:
-        # TTT needs fresh model with clean tensors (no inference_mode)
         ttt_model = GPT(h).to(device).bfloat16()
         restore_fp32_params(ttt_model)
-        ttt_model.load_state_dict(ttt_sd, strict=True)
+        ttt_model.load_state_dict(saved_sd, strict=True)
         if hasattr(ttt_model, 'set_recurrence_active'):
             ttt_model.set_recurrence_active(True)
-        del ttt_sd
         timed_eval("final_int6_ttt", eval_val_ttt, h, ttt_model, device, val_data, log_fn=log)
+        del ttt_model
+
+    if saved_sd is not None:
+        del saved_sd
 
 # -----------------------------
 # Training
