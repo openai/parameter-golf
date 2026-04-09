@@ -14,7 +14,7 @@
   },
   "hardware": "8xH100 80GB SXM (Vast.ai)",
   "pytorch_version": "2.5.1+cu124",
-  "cuda_version": "13.0",
+  "cuda_version": "12.4",
   "flash_attn_version": "flash_attn_3 3.0.0 (compiled from source, Hopper)",
   "technique_summary": "FA3 dtype compatibility wrapper + XSA-all + Full Hessian GPTQ + BigramHash 3072x112 + EMA + LeakyReLU(0.5)^2"
 }

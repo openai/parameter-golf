@@ -51,7 +51,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ## Hardware
 
 - 8× NVIDIA H100 80GB HBM3 SXM (Vast.ai, Nebraska)
-- PyTorch 2.5.1+cu124, CUDA 13.0
+- PyTorch 2.5.1+cu124, CUDA 12.4
 - Flash Attention 3 (compiled from source for Hopper)
 - 96ms/step average
 
