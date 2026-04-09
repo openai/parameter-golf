@@ -1468,7 +1468,7 @@ def prequant_ttt_adapt_adamw(
 
 
 def serialize(h: Hyperparameters, base_model: torch.nn.Module, code: str,
-              val_data: "ValidationData" | None = None) -> int:
+              val_data=None) -> int:
     model_bytes = None
     code_bytes = len(code.encode("utf-8"))
     if h.is_main_process:
