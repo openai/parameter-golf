@@ -1,0 +1,30 @@
+{
+  "val_bpb": 0.39642360,
+  "val_loss": 0.66934287,
+  "author": "Renqian Luo",
+  "github_id": "renqianluo",
+  "description": "Per-sample SLOT + causal backoff n-gram (order=22, 4M buckets, alpha_center=2.5) + TTT (1ep AdamW, freeze=10, first-chunks 2nd pass 10%) + GPTQ damp=0.005 + beta1=0.6 beta2=0.5 + LR=0.432 + bsz=128 + stride=64",
+  "seed_results": {
+    "1337": {
+      "val_bpb": 0.39805911,
+      "val_loss": 0.67210435,
+      "train_time_seconds": 600.076,
+      "eval_time_seconds": 593.7,
+      "artifact_bytes": 15858672
+    },
+    "42": {
+      "val_bpb": 0.39442862,
+      "val_loss": 0.66597444,
+      "train_time_seconds": 600.071,
+      "eval_time_seconds": 594.8,
+      "artifact_bytes": 15870248
+    },
+    "314": {
+      "val_bpb": 0.39678306,
+      "val_loss": 0.66994981,
+      "train_time_seconds": 600.061,
+      "eval_time_seconds": 587.4,
+      "artifact_bytes": 15896340
+    }
+  }
+}

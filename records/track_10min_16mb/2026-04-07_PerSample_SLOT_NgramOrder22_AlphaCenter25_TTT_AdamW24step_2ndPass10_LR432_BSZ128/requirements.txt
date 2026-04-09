@@ -1,0 +1,2 @@
+torch>=2.0
+lzma
