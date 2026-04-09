@@ -1,0 +1,9 @@
+{
+  "name": "DepthScale: Parameter-Shared Iterative Transformer",
+  "val_bpb": 1.1962,
+  "bytes_total": 30130131,
+  "blurb": "5 physical layers x 2 iterations = 10 effective depth via parameter sharing with iteration-aware RoPE. 36.2M params at 768d. 3-seed mean: 1.1962 (std 0.0005). Novel architecture: same weights reused across iterations with RoPE offset distinguishing passes. Non-record submission -- artifact exceeds 16MB at int8 (30MB); demonstrates parameter-shared depth as viable architecture needing int6 quantization to fit budget.",
+  "author": "aeyoung",
+  "github_id": "Lumi-node",
+  "date": "2026-04-09"
+}

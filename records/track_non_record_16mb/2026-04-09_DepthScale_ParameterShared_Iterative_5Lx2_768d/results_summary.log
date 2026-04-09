@@ -1,0 +1,25 @@
+DepthScale-I4: depth_iters=2 physical_layers=5 effective_depth=10
+  I4=0 dim=768 heads=8 curriculum=none
+model_params:36183592 (36.2M)
+
+=== Seed 1337 ===
+step:5583/20000 val_loss:2.0101 val_bpb:1.1902 train_time:600106ms step_avg:107.49ms
+stopping_early: wallclock train_time:600106ms step:5583/20000
+peak memory: 24695 MiB
+Serialized model int8+zlib: 30111815 bytes
+final_int8_zlib_roundtrip_exact val_loss:2.02064813 val_bpb:1.19674164
+
+=== Seed 42 ===
+stopping_early: wallclock train_time:600xxx step:~5500/20000
+Serialized model int8+zlib: 30130131 bytes
+final_int8_zlib_roundtrip_exact val_loss:2.01931206 val_bpb:1.19595034
+
+=== Seed 2025 ===
+stopping_early: wallclock train_time:600xxx step:~5500/20000
+Serialized model int8+zlib: 30170827 bytes
+final_int8_zlib_roundtrip_exact val_loss:2.01907849 val_bpb:1.19581201
+
+=== Summary ===
+Mean val_bpb: 1.19617 (std 0.0005)
+Hardware: 8xH100 SXM, PyTorch 2.4.1+cu124
+Note: Artifact exceeds 16MB (30MB at int8+zlib). Non-record submission.
