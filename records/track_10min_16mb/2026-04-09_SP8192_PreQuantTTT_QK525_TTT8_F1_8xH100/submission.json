@@ -1,0 +1,37 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "SP8192 + Pre-Quant TTT (QK 5.25, 8ep, freeze-1) + GPTQ int6",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "hardware": "8xH100 80GB SXM",
+  "val_bpb": 1.07873723,
+  "val_bpb_std": 0.00049363,
+  "roundtrip_val_bpb": 1.09258717,
+  "roundtrip_val_bpb_std": 0.00054369,
+  "seeds": [
+    42,
+    1337,
+    2025
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.07913183,
+      "roundtrip_val_bpb": 1.09299539,
+      "bytes_total": 15171524
+    },
+    "1337": {
+      "val_bpb": 1.07804121,
+      "roundtrip_val_bpb": 1.09181877,
+      "bytes_total": 15163267
+    },
+    "2025": {
+      "val_bpb": 1.07903865,
+      "roundtrip_val_bpb": 1.09294735,
+      "bytes_total": 15188203
+    }
+  },
+  "best_single_seed_sweep_val_bpb": 1.0776596,
+  "technique_summary": "SP8192 + Pre-Quant AdamW TTT + QK_GAIN_INIT=5.25 + TTT(8 epochs, freeze first block) + Full Hessian GPTQ int6 + sliding-window eval",
+  "notes": "No tokenizer/dataset edits; no eval-time adaptation; fixed predictor at evaluation."
+}
