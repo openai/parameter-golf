@@ -112,7 +112,7 @@ class Hyperparameters:
     moe_enabled = _e("MOE_ENABLED", 1, bool)
     moe_num_experts = _e("MOE_NUM_EXPERTS", 3, int)
     moe_top_k = _e("MOE_TOP_K", 1, int)
-    moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.01, float)
+    moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.001, float)
     moe_start_fraction = _e("MOE_START_FRACTION", 0.65, float) # C10: MoE dormant early
     moe_layer_frac = _e("MOE_LAYER_FRAC", 0.67, float)  # MoE only in top (1-frac) of layers
     vrl_enabled = _e("VRL_ENABLED", 1, bool)
@@ -1973,7 +1973,7 @@ class GPT(nn.Module):
         """Run one effective layer. In shared mode, uses shared weights + per-layer scales."""
         if self.blocks is not None:
             # Standard unique-block mode
-            return self.blocks[layer_idx](x, x0, v0=v0)
+            return self.blocks[layer_idx](x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
         
         # Shared block mode: use shared weights but per-layer scale/mix params
         block = self.shared_block_bank[self._block_map[layer_idx]]
@@ -1987,23 +1987,23 @@ class GPT(nn.Module):
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == "skc":
-            x, v_out = block(x, x0, v0=v0)
+            x, v_out = block(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
             return x, v_out
         else:
             # Attention block
             attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
-            
-        x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor)
+
+        x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor, elapsed_fraction=elapsed_fraction)
         return x, v_out
 
-    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None = None) -> Tensor:
+    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None = None, elapsed_fraction: float = 1.0) -> Tensor:
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(max(1, self.training_depth_recurrence)):
-                x, _ = self._run_block(bi, x, x0, v0=v0)
+                x, _ = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
         return x
@@ -2086,7 +2086,7 @@ class GPT(nn.Module):
                     if (delta / norm).item() < Hyperparameters.adaptive_halt_threshold:
                         break
 
-            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0)
+            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0, elapsed_fraction=elapsed_fraction)
             
             # After fast-forward: we ran one decoder pass with speculated state, now stop
             if fast_forwarded:
