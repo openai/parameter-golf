@@ -969,3 +969,94 @@ Current best single-seed: 1.1153. Need 0.0036 more improvement. Sources:
 2. **More Tier 2 techniques**: sparse attention gate (+0.0003-0.0005), VE+skip gates (+0.0003-0.0005)
 3. **3-seed on Modal at 82ms**: the faster hardware gives ~700 more steps, worth ~0.001-0.002 improvement
 4. **Tier 3 techniques**: BOS-aligned batches, alternating window layers
+
+## NanoGPT technique stacking: ablation results
+
+### Run 1: QK gain 2.5 + sigmoid rescale + partial key offset (all three)
+
+| Metric | Value |
+|---|---|
+| Sliding eval | **1.1153** |
+| Pre-quant | 1.1237 |
+| Quant gap | 0.0053 |
+| vs baseline seq4096 | -0.0012 |
+| vs #1 | +0.0006 |
+
+Sigmoid rescale widened the quant gap. Pre-quant improved but quantization ate the gain.
+
+### Run 2: QK gain 2.5 + partial key offset (no sigmoid)
+
+| Metric | Value |
+|---|---|
+| Sliding eval | **1.1139** |
+| Pre-quant | 1.1226 |
+| Quant gap | 0.0051 |
+| vs baseline seq4096 | -0.0026 |
+| vs #1 | **-0.0008** |
+
+Removing sigmoid improved both pre-quant and quant gap. First config to beat #1.
+
+### Run 3: QK gain 2.5 + partial key offset + sparse attention gate
+
+| Metric | Value |
+|---|---|
+| Sliding eval | **1.1137** |
+| Pre-quant | **1.1209** |
+| Quant gap | 0.0067 |
+| vs baseline seq4096 | -0.0028 |
+| vs #1 | **-0.0010** |
+
+Best pre-quant yet (1.1209), but quant gap exploded to 0.0067. The sparse gate parameters are quantization-sensitive (small values, zero-initialized). Net sliding improvement: only 0.0002 over the no-gate version.
+
+### The quantization wall
+
+A clear pattern emerges across all experiments:
+
+| Config | Pre-quant | Quant gap | Sliding eval |
+|---|---|---|---|
+| Baseline seq4096 (3-seed local) | 1.1259 | 0.0046 | 1.1165 |
+| + QK2.5 + PKO | 1.1226 (-0.0033) | 0.0051 (+0.0005) | 1.1139 (-0.0026) |
+| + QK2.5 + sigmoid + PKO | 1.1237 (-0.0022) | 0.0053 (+0.0007) | 1.1153 (-0.0012) |
+| + QK2.5 + PKO + SAG | 1.1209 (-0.0050) | 0.0067 (+0.0021) | 1.1137 (-0.0028) |
+
+Every technique that improves pre-quant also widens the quant gap. The net sliding eval improvement is always smaller than the pre-quant gain because quantization eats ~40-60% of it. This is the fundamental ceiling: **int6 quantization limits how much pre-quant gains translate to post-quant gains.**
+
+### Submission viability
+
+Best single-seed: **1.1137 BPB** (0.0010 below #1's 1.1147).
+
+Submission requires: **0.005 nats** improvement ≈ **0.003 BPB** below #1 ≈ **1.1117** or lower.
+
+Gap remaining: **0.0020 BPB**. No 3-seed run would change this — the improvement is real but insufficient for the submission threshold.
+
+### Techniques tried summary (complete)
+
+**Architecture changes:**
+- SWA window sizes: 256, 512 ✓
+- SWA layer counts: 3, 5, 6, 7, 8 full layers ✓
+- 12 layers: doesn't fit at int6 ✓
+- Backout: hurts ✓
+- seq_len: 2048, 4096 ✓ (4096 was the breakthrough)
+- QK gain init 2.5: helps ✓
+- Partial key offset: helps ✓
+- Sparse attention gate: helps pre-quant but widens quant gap ✓
+- Asymmetric logit rescale (sigmoid): widens quant gap ✓
+
+**Optimizer changes:**
+- Cautious WD: catastrophic for quantization ✓
+- MTP (0.2 and 0.02): hurts ✓
+- Batch schedule (3 variants): worse ✓
+- EMA decay 0.999: worse than 0.997 ✓
+
+**Quantization changes:**
+- Full Hessian GPTQ ✓
+- Hadamard rotation: no effect ✓
+- SpQR analysis: no outliers ✓
+- Mixed int5/int6: too lossy ✓
+- Pruning: hurts quality ✓
+- More calibration data: negligible ✓
+- Re-quantize at different seq_len: model incompatible ✓
+
+**Eval changes:**
+- TTT: neutral ✓
+- Sliding eval at different seq_len: model incompatible ✓

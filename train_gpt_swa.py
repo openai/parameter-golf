@@ -377,7 +377,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda,sparse_attn_gate",
     ).split(",")
     if pattern
 )
@@ -640,6 +640,10 @@ class CausalSelfAttention(nn.Module):
         self.use_xsa = False  # set by GPT.__init__ for deep layers only
         self.window_size = (-1, -1)  # (-1,-1) = full attention; set by GPT.__init__ per layer
         self.partial_key_offset = False  # set by GPT.__init__ for full-attention layers
+        # Sparse attention gate: per-head gate using first 12 dims of residual stream.
+        # From NanoGPT speedrun. Enables context-based no-op — if the attention window
+        # has no useful content, the gate learns to zero out that head's output.
+        self.sparse_attn_gate = None  # set by GPT.__init__ if enabled
         # Gated attention and value residual (non-banked small params)
         self.gated_attention = gated_attention
         if gated_attention:
@@ -683,6 +687,10 @@ class CausalSelfAttention(nn.Module):
             k[:, 1:, :, rd:] = k[:, :-1, :, rd:]
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         y = flash_attn_3_func(q, k, v, causal=True, window_size=self.window_size)
+        # Sparse attention gate: per-head sigmoid gate using first 12 dims of input.
+        # From NanoGPT speedrun — enables context-based no-op per head.
+        if self.sparse_attn_gate is not None:
+            y = y * torch.sigmoid(F.linear(x[..., :12], self.sparse_attn_gate)).reshape(bsz, seqlen, self.num_heads, 1)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -925,6 +933,13 @@ class GPT(nn.Module):
             for i in range(num_layers):
                 if self.blocks[i].attn.window_size == (-1, -1):
                     self.blocks[i].attn.partial_key_offset = True
+        # Sparse attention gate: per-head gate using 12 dims. From NanoGPT speedrun.
+        sag_enabled = bool(int(os.environ.get("SPARSE_ATTN_GATE", "0")))
+        if sag_enabled:
+            for i in range(num_layers):
+                self.blocks[i].attn.sparse_attn_gate = nn.Parameter(
+                    torch.zeros(num_heads, 12, dtype=torch.float32)
+                )
         # Backout: freeze attention input for last N layers
         backout_layers = int(os.environ.get("BACKOUT_LAYERS", "0"))
         self._backout_layers = backout_layers
