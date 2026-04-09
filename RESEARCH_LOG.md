@@ -166,7 +166,39 @@ Model size : large (135MB) : My mistake, I should have verified the layers and m
 - Increase the step_avg above baseline
 - Reduce the val_bpb 
 
+## Modified JEPA Run 
+- Reduced the model size by deleting the target encoder before serialisation + tried to different approaches with changed hyper-params, reduced model_dim and reduced num_layers 
 
+# Results of reduced model_dim along with a deleted targer enoder : 
+Our half run estimated a val_bpb of : 1.28 - 1.30 
+
+# Results of reduced num_layers along with a deleted targer enoder : 
+# Val_bpb 
+Step 0 : 4.1081 
+Step 1000 : 1.4147
+Step 2000 : 1.3619 
+Step 3000 : 1.3411
+Step 4000 : 1.3258
+Step 5000 : 1.3179
+Step 6000 : 1.3114
+Step 7000 : 1.3114
+Higher than the reduced model_dim run wich proves that layers are important.
+
+# Model size
+Reduced to a 91MB from 135MB 
+
+# Step Avg with model_dim = 386 and num_layers = 9
+Average of 55ms 
+
+# Step Avg with model_dim = 512 and num_layers = 6
+Average of 40ms (way below baseline) which is obvious but we shouldn't go way below baseline. 
+
+## To think about next 
+- How might we reducing the model size?
+- Need to utilise each step properly
+- A good spot for layers can be 8 but how much of the model size does that increase? 
+
+---
 ## Key insights
 - Where is the model not communicating when it should be? That gap is always an opportunity.
 - On a larger scale, when is complicated too complicated? 
