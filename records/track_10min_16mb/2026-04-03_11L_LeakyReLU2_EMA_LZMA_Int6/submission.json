@@ -1,0 +1,10 @@
+{
+  "author": "Trung Nguyen",
+  "github_id": "htrung1105",
+  "name": "11L EMA + LeakyReLU² + LZMA + Int6 GPTQ-lite",
+  "blurb": "11L/512d Transformer with LeakyReLU(0.5)² MLP, EMA averaging, BigramHash(2048), XSA on last 4 layers, Partial RoPE (16/64), Value Embedding, SmearGate, U-Net skips, GPTQ-lite int6 quantization with LZMA compression. Temperature scaling T=0.90 for evaluation.",
+  "date": "2026-04-03T00:00:00Z",
+  "val_loss": 1.90834717,
+  "val_bpb": 1.13023446,
+  "bytes_total": 15865691
+}
