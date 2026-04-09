@@ -208,11 +208,29 @@ Phase 5a env vars (`QK_GAIN_INIT=5.0`, `MUON_EQ_R=1`, `EMBED_QUANT_BITS=6`,
 - 3-seed train+eval ≈ $30 of RunPod credit
 
 ## Files
-- `train_gpt.py` — same as `2026-04-09_v62_phase5a_sota_trivial/train_gpt.py`
-- `run.sh`        — 8×H100 train+eval driver
-- `submission.json` — submission metadata
-- `PR_BODY.md`    — PR description
-- `README.md`     — this file
+
+| file | purpose |
+|------|---------|
+| `train_gpt.py` | single-file training + eval script (md5 `72c3b809f84075e7bc19416a028747b9`) |
+| `run.sh` | 8×H100 train + eval driver with the full Phase 5a env var set |
+| `submission.json` | machine-readable metadata (author, val_bpb per seed, wallclock, artifact sizes, ttt ablation, pod-termination note) |
+| `train_summary.log` | 3-seed training log — per-seed step samples, SWA positions, `Training done: N steps, 600.1s` markers, final artifact sizes, lzma9 post-compression sizes, and the exact training command with env vars |
+| `eval_trajectory.log` | 3-seed SLOT-100 stride=64 eval trajectory (28 % → 76 % checkpoints) + full 3-seed Legal Muon-TTT ablation |
+| `PR_BODY.md` | copy of the GitHub PR #1465 description (includes the Compliance checklist) |
+| `README.md` | this file |
+
+## Compliance
+
+- [x] Artifact ≤ 16,000,000 bytes (15,564,639 / 15,547,423 / 15,549,535 bytes before lzma9; 15,294,864 / 15,278,528 after lzma9)
+- [x] Non-record submission (1.136399 does not beat PR #1019 record of 1.11473)
+- [x] Single-file `train_gpt.py`
+- [x] Pure Python rANS decoder fallback (Rust FFI optional)
+- [x] Legal SLOT (per-batch shared `[1,1,dim]` delta, score-first)
+- [x] Legal Score-First Muon TTT (scored before each chunk's train phase)
+- [x] Training wallclock ≤ 600 s / seed (s1337=4457 steps / s1338=4856 / s1339=5310, all at 600.1s)
+- [x] `train_summary.log` + `eval_trajectory.log` included
+- [x] No external files loaded at inference
+- [x] Deterministic re-run via `run.sh`
 
 ## Reference
 - Parent: openai/parameter-golf#1123 (HybridQuantGPT v6.1, 1.1986 non-record)

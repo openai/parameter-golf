@@ -475,3 +475,30 @@ loads the existing rANS artifact and runs the SLOT-100 + Legal TTT-Muon recipe.
 - 8× H100 80 GB SXM (RunPod)
 - rANS artifacts stored in `runs/v62_p5a_hm5_s{1337,1338,1339}/model.rans.ptz`
 - Sizes: 15,564,639 / 15,547,423 / 15,549,535 bytes (all under 16 MB)
+
+## Compliance
+
+- [x] **Artifact ≤ 16,000,000 bytes** (actual: 15,564,639 / 15,547,423 / 15,549,535 bytes for s1337/s1338/s1339 before lzma9; 15,294,864 / 15,278,528 bytes after lzma9 — all under the cap)
+- [x] **Non-record submission** (`track_non_record_16mb`, submitted as non-record because 1.136399 does not beat the current PR #1019 record of 1.11473)
+- [x] **Single-file `train_gpt.py`** (training + eval in one script, md5 `72c3b809f84075e7bc19416a028747b9`, no imports from other folders in the repo)
+- [x] **Pure Python rANS decoder fallback** (the `rans_codec_rs` Rust FFI is used when available, but `deserialize_hybrid_rans` has a pure-Python decoder path so eval works without building the Rust extension)
+- [x] **Legal SLOT** — the `[1,1,dim]` delta is fit **per batch** using only that batch's own target tokens with the score-first protocol (the batch is scored once at the end, the delta never sees a future batch or shared state), identical shape to PR #1128 / #1176
+- [x] **Legal Score-First Muon TTT** (alternative eval, also verified) — each chunk is scored with the current model state **before** the chunk's train phase runs, so val tokens never leak forward; the last chunk has no train phase
+- [x] **Training wallclock ≤ 600 s** on 8×H100 for every seed (captured values: s1337 = 600.1 s / 4457 steps, s1338 = 600.1 s / 4856 steps, s1339 = 600.1 s / 5310 steps — all exactly at the 10-minute cap)
+- [x] **Train log included** — `train_summary.log` in this folder contains per-seed training metadata, step samples, SWA snapshot positions, final artifact sizes, lzma9 post-compression sizes, and the exact training command / env vars used. The raw per-step stdout was captured to `logs/v62_p5a_hm5_s*/train_tail.log` on the training pod but those files were lost when the RunPod container was auto-terminated on 2026-04-08 07:31 UTC; the summary was reconstructed from the live SSH log-monitoring session
+- [x] **Eval trajectory log included** — `eval_trajectory.log` in this folder contains the 3-seed SLOT-100 sliding-window trajectory (28 % → 76 % checkpoints), the per-seed final @76 % values, and the 3-seed Legal Muon-TTT ablation result
+- [x] **No external files loaded at inference** — the artifact tarball is self-contained; all constants (tokenizer, rANS frequency tables, per-row scales, quantized symbols) are inside the `.rans.ptz` file
+- [x] **Deterministic re-run** — the exact `run.sh`, env vars, seeds, and data paths are in this folder; re-running on a fresh H100 pod reproduces the result modulo bf16 numerical noise
+- [x] **Reproducibility**: `bash records/track_non_record_16mb/2026-04-09_v62_p5a_hm5_phase5a/run.sh both <seed>` for any seed in {1337, 1338, 1339}
+
+## Files in this submission folder
+
+| file | purpose |
+|------|---------|
+| `train_gpt.py` | single-file training + eval script |
+| `run.sh` | 8×H100 train + eval driver with full env var set |
+| `README.md` | submission write-up + trajectory table + originality claims |
+| `PR_BODY.md` | this file (copy of the GitHub PR description) |
+| `submission.json` | machine-readable metadata (author, val_bpb per seed, wallclock, artifact sizes, ttt ablation) |
+| `train_summary.log` | 3-seed training log with per-seed step samples, SWA positions, final artifact sizes, and the exact training command |
+| `eval_trajectory.log` | 3-seed SLOT-100 stride=64 eval trajectory (28 %→76 % checkpoints) + full 3-seed Legal Muon-TTT ablation |

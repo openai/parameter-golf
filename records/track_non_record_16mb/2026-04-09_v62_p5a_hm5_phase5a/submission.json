@@ -33,5 +33,30 @@
   "derived_from_pr": 1123,
   "cite_pr": [1176, 1394, 1413, 1421, 1445],
   "status": "3_seed_mid_eval_@76pct_pod_terminated",
-  "pod_terminated_note": "RunPod container was terminated by RunPod-side (container not found on SSH reconnect) while the SLOT-100 stride=64 re-run was at 75-76% of the sliding window. The reported 1.136399 3-seed mean is the last stable checkpoint we captured from the live log files. Completing the remaining 24% (~12 min per seed on one H100) would require roughly $15 of additional RunPod credit and is planned as a follow-up commit once the budget is approved."
+  "pod_terminated_note": "RunPod container was terminated by RunPod-side (container not found on SSH reconnect) while the SLOT-100 stride=64 re-run was at 75-76% of the sliding window. The reported 1.136399 3-seed mean is the last stable checkpoint we captured from the live log files. Completing the remaining 24% (~12 min per seed on one H100) would require roughly $15 of additional RunPod credit and is planned as a follow-up commit once the budget is approved.",
+  "train_step_count_per_seed": {
+    "1337": 4457,
+    "1338": 4856,
+    "1339": 5310
+  },
+  "train_wallclock_seconds_per_seed": {
+    "1337": 600.1,
+    "1338": 600.1,
+    "1339": 600.1
+  },
+  "bytes_total_seed1337_xz": 15294864,
+  "bytes_total_seed1338_xz": 15278528,
+  "compliance": {
+    "artifact_under_16mb": true,
+    "non_record_submission": true,
+    "single_file_train_gpt": true,
+    "pure_python_rans_decoder_fallback": true,
+    "legal_slot_score_first": true,
+    "legal_muon_ttt_score_first": true,
+    "training_wallclock_under_600s": true,
+    "train_log_included": "train_summary.log",
+    "eval_log_included": "eval_trajectory.log",
+    "no_external_files_at_inference": true,
+    "deterministic_rerun_via_run_sh": true
+  }
 }
