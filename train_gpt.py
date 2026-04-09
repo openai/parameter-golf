@@ -444,14 +444,26 @@ def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
 # ---------------------------------------------------------------------------
 # Ternary diagnostics (logged during training)
 # ---------------------------------------------------------------------------
+def _row_padded_ternary_q(w: torch.Tensor, group_size: int) -> torch.Tensor:
+    """Quantize w using the exact same row-padded layout as q_sd export.
+    Returns quantized tensor shaped (nrows, ncols) — padding is stripped back off."""
+    g = group_size
+    if w.ndim == 3:
+        w = w.reshape(w.shape[0], -1)
+    nrows, ncols = w.shape
+    pad = (g - ncols % g) % g
+    w_p = F.pad(w, (0, pad)) if pad > 0 else w
+    w_g = w_p.reshape(-1, g)
+    scale = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+    q = (w_g / scale).round().clamp(-1, 1)
+    return q.reshape(nrows, ncols + pad)[:, :ncols]  # strip padding
+
 def tern_stats(model: nn.Module, group_size: int = 64):
     total = zeros = 0
     with torch.no_grad():
         for name, p in model.named_parameters():
-            if p.ndim == 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
-                w = p.detach().float().reshape(-1, group_size)
-                scale = w.abs().mean(-1, keepdim=True).clamp(min=1e-8).half().float()
-                q = (w / scale).round().clamp(-1, 1)
+            if p.ndim >= 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
+                q = _row_padded_ternary_q(p.detach().float(), group_size)
                 zeros += int((q == 0).sum().item())
                 total += int(q.numel())
     return {"zero_frac": zeros / max(total, 1), "total_weights": total}
@@ -463,10 +475,8 @@ def churn_fn(model: nn.Module, group_size: int = 64):
     total = flipped = 0
     with torch.no_grad():
         for name, p in model.named_parameters():
-            if p.ndim == 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
-                w = p.detach().float().reshape(-1, group_size)
-                scale = w.abs().mean(-1, keepdim=True).clamp(min=1e-8).half().float()
-                q = (w / scale).round().clamp(-1, 1).cpu().numpy()
+            if p.ndim >= 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
+                q = _row_padded_ternary_q(p.detach().float(), group_size).cpu().numpy()
                 if name in _prev_committed:
                     flipped += int(np.sum(q != _prev_committed[name]))
                     total += q.size
@@ -748,13 +758,16 @@ class TernaryLinear(nn.Linear):
         w = self.weight.float()
         g = self.group_size
 
-        if w.numel() % g != 0:
-            raise RuntimeError(
-                f"TernaryLinear group_size={g} does not divide weight numel={w.numel()} "
-                f"(shape={tuple(w.shape)}). Adjust architecture so all ternary layer "
-                f"widths are multiples of BITNET_GROUP_SIZE={g}."
-            )
-        w_g = w.reshape(-1, g)
+        # Row-padded grouping — exactly matches q_sd export layout:
+        #   pad each row to next multiple of g, reshape to (-1, g), quantize, unpad.
+        # A flat w.reshape(-1, g) gives a different grouping when ncols % g != 0.
+        orig_shape = w.shape
+        if w.ndim == 3:
+            w = w.reshape(w.shape[0], -1)  # merge trailing dims like q_sd does
+        nrows, ncols = w.shape
+        pad = (g - ncols % g) % g
+        w_padded = F.pad(w, (0, pad)) if pad > 0 else w   # (nrows, ncols+pad)
+        w_g = w_padded.reshape(-1, g)                      # (nrows*(ncols+pad)//g, g)
         if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
             H = _build_hadamard_pt(g, w.device).to(w.dtype)
             w_g = w_g @ H
@@ -773,7 +786,9 @@ class TernaryLinear(nn.Linear):
 
         if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
             dequant = dequant @ H  # Self-inverse
-        w_ternary = w + (dequant.reshape(w.shape) - w).detach()
+        # Unpad and restore original shape for the straight-through estimator
+        dequant_unpadded = dequant.reshape(nrows, ncols + pad)[:, :ncols].reshape(orig_shape)
+        w_ternary = w.reshape(orig_shape) + (dequant_unpadded - w.reshape(orig_shape)).detach()
         return F.linear(x, w_ternary.to(x.dtype),
                         self.bias.to(x.dtype) if self.bias is not None else None)
 
@@ -1981,8 +1996,9 @@ class GPT(nn.Module):
                     nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def _apply_embedding(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
-        clamped_ids = torch.clamp(input_ids, 0, self.tok_emb.num_embeddings - 1)
-        x = self.tok_emb(clamped_ids).float()
+        # No clamping — invalid IDs should raise immediately so we catch vocab mismatches
+        # rather than silently training on wrong embeddings while Engram sees raw IDs.
+        x = self.tok_emb(input_ids).float()
         if self.embed_proj is not None:
             x = self.embed_proj(x)
         # Engram input injection (ungated, no hidden state yet)
@@ -2294,11 +2310,16 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
             loss_sum += batch_loss.to(torch.float64) * n
             token_count += n
             prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
-            # Defensive clipping to prevent CUDA device-side asserts if vocab/LUT mismatch occurs
-            max_idx = base_bytes_lut.size(0) - 1
-            prev_ids = torch.clamp(prev_ids, 0, max_idx)
-            tgt_ids = torch.clamp(tgt_ids, 0, max_idx)
-            
+            # No clamping — LUT must cover the full vocab range. A mismatch here means
+            # the LUT was built from a different tokenizer than the data, which would
+            # silently corrupt byte_count and lie about BPB. Fail fast instead.
+            lut_size = base_bytes_lut.size(0)
+            if lut_size < tgt_ids.max().item() + 1 or lut_size < prev_ids.max().item() + 1:
+                raise RuntimeError(
+                    f"byte LUT size {lut_size} is smaller than max token ID "
+                    f"{max(tgt_ids.max().item(), prev_ids.max().item())+1}. "
+                    f"LUT was built from a different tokenizer than the val data."
+                )
             tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
             tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
             byte_count += tok_bytes.to(torch.float64).sum()
@@ -3056,7 +3077,10 @@ def main() -> None:
     # These are intentionally distinct: compiler warmup triggers torch.compile graph
     # capture before the LR warmup; the state is restored after so no real gradient
     # steps are counted against the budget.
-    _compile_warmup_n = args.compiler_warmup_steps if args.compiler_warmup_steps > 0 else args.warmup_steps
+    # COMPILER_WARMUP_STEPS controls compile graph-capture warmup independently of LR warmup.
+    # If 0, no compiler warmup runs. WARMUP_STEPS is purely for LR/optimizer warmup
+    # and is NOT used as a fallback here — that conflation prevented clean ablations.
+    _compile_warmup_n = args.compiler_warmup_steps
     if _compile_warmup_n > 0:
         _ms = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
         _os = [copy.deepcopy(o.state_dict()) for o in optimizers]
