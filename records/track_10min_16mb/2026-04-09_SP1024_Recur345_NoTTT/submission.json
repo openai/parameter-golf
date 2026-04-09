@@ -1,0 +1,22 @@
+{
+  "author": "Joshua Martinez",
+  "github_id": "your-github-id",
+  "name": "SP1024 + Depth Recurrence (L3-5) + Parallel Residuals + QK-Gain 5.25 (Track A - No TTT)",
+  "blurb": "Track A baseline with 3-layer depth recurrence (11→14 virtual layers). No pre-quant TTT (legality concerns). Hyperparameters from PR #1487: QK-Gain 5.25, WD 0.095, warmdown 0.72. SP1024 tokenizer saves ~4M params for architecture capacity.",
+  "date": "2026-04-09T20:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [314, 42, 999],
+  "seed_results": {},
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "eval_time_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int6_brotli": null,
+  "bytes_code": null,
+  "run_notes": "Track A baseline: depth recurrence (L3-5) replaces looping (L4-5). No TTT. Expected ~1.08-1.09 BPB. Tests if depth recurrence beats our previous looping approach."
+}
