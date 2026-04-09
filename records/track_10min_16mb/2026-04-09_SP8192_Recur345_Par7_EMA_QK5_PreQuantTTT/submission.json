@@ -1,0 +1,25 @@
+{
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "name": "SP8192 + 3-Layer Depth Recurrence + Parallel Residuals + EMA + QK5 + Pre-Quant AdamW TTT",
+  "blurb": "Merged stack: PR #1471 base (11L, 512dim, GQA 8/4, squared LeakyReLU, MuonEq-R) with 3-layer depth recurrence (layers 3,4,5 -> 13 virtual layers), parallel residuals from layer 7, EMA 0.9965, QK-Gain 5.0, skip gates, and pre-quantization AdamW TTT (6 epochs, lr=0.0005, freeze 2 blocks, cosine decay) ported from PR #1423. SDClip GPTQ int6 (k=12.85) + int8 embeddings (k=20.0) + brotli compression. Track A: no eval-time adaptation.",
+  "date": "2026-04-09T00:00:00Z",
+  "val_loss": 2.75849894,
+  "val_bpb": 1.06790039,
+  "val_loss_std": 0.00241,
+  "val_bpb_std": 0.00117,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42":   {"val_loss": 2.76184107, "val_bpb": 1.06919475},
+    "1337": {"val_loss": 2.75771579, "val_bpb": 1.06759772},
+    "2024": {"val_loss": 2.75593596, "val_bpb": 1.06690869}
+  },
+  "pre_quant_val_loss": 2.81114117,
+  "pre_quant_val_bpb": 1.08828035,
+  "step_stop": 5001,
+  "wallclock_seconds": 590.057,
+  "eval_time_seconds": 104.389,
+  "bytes_total": 15948623,
+  "bytes_model_int6_brotli": 15861058,
+  "bytes_code": 87565
+}
