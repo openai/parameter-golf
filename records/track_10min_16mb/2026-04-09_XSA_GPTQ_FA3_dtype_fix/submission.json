@@ -1,0 +1,20 @@
+{
+  "author": "gavinsaunders1985",
+  "name": "XSA-all + GPTQ + BigramHash 3072 + EMA + FA3 dtype fix",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_bpb": 1.1220,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.1220,
+      "steps": 6244,
+      "step_avg_ms": 96.0
+    }
+  },
+  "hardware": "8xH100 80GB SXM (Vast.ai)",
+  "pytorch_version": "2.5.1+cu124",
+  "cuda_version": "13.0",
+  "flash_attn_version": "flash_attn_3 3.0.0 (compiled from source, Hopper)",
+  "technique_summary": "FA3 dtype compatibility wrapper + XSA-all + Full Hessian GPTQ + BigramHash 3072x112 + EMA + LeakyReLU(0.5)^2"
+}
