@@ -1,0 +1,32 @@
+{
+  "author": "Jaksen",
+  "github_id": "jaksen",
+  "name": "Checkpointed AR Self-Gen GPTQ + XSA-all + BigramHash 3072x112",
+  "blurb": "My strongest saved 8xH100-backed result to date. This folder preserves the public AR self-generated GPTQ + XSA-all + BigramHash 3072x112 record lineage while adding a checkpointed 8xH100->1xH100 execution path: Stage 1 trains and checkpoints on 8xH100, then Stage 2 runs GPTQ and sliding-window eval on 1xH100. Saved seed-314 result: 1.13071788 BPB at 15,651,808 bytes.",
+  "date": "2026-04-08",
+  "track": "non_record_16mb",
+  "status": "non_record_baseline",
+  "val_bpb": 1.13071788,
+  "bytes_total": 15651808,
+  "artifact_bytes_max": 15651808,
+  "seeds": [
+    314
+  ],
+  "seed_results": {
+    "314": {
+      "stage1_hardware": "8xH100 80GB",
+      "stage2_hardware": "1xH100 80GB",
+      "post_ema_val_bpb": 1.1501,
+      "final_roundtrip_val_bpb": 1.15442828,
+      "final_sliding_val_bpb": 1.13071788,
+      "artifact_bytes": 15651808,
+      "stage1_steps": 4783,
+      "stage1_step_avg_ms": 124.0,
+      "checkpoint_saved": true
+    }
+  },
+  "hardware": "8xH100 80GB stage 1 + 1xH100 80GB stage 2",
+  "based_on_record_dir": "records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
+  "technique_summary": "Inherited AR self-generated GPTQ + XSA-all + BigramHash 3072x112 stack with a validated checkpointed two-stage 8xH100 to 1xH100 execution path",
+  "notes": "Saved strongest 8xH100-backed result currently tracked in this repo. Useful because it proves the execution path, preserves recovered raw Stage 1 and Stage 2 logs, and avoids overclaiming inherited modeling ideas as new."
+}
