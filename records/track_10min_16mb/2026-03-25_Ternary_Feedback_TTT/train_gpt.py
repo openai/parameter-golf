@@ -19,15 +19,27 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 try:
-    from flash_attn_interface import flash_attn_func
-except ImportError:
+    from flash_attn_interface import flash_attn_func as _fa3_func
     def flash_attn_func(q, k, v, causal=False, **kwargs):
-        q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
-        if q.size(1) != k.size(1):
-            r = q.size(1) // k.size(1)
-            k = k.repeat_interleave(r, dim=1)
-            v = v.repeat_interleave(r, dim=1)
-        return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
+        return _fa3_func(q, k, v, causal=causal)
+except ImportError:
+    try:
+        from flash_attn import flash_attn_func as _fa2_func
+        def flash_attn_func(q, k, v, causal=False, **kwargs):
+            # flash_attn v2: expects (B, T, H, D), returns (B, T, H, D)
+            if q.size(2) != k.size(2):
+                r = q.size(2) // k.size(2)
+                k = k.repeat_interleave(r, dim=2)
+                v = v.repeat_interleave(r, dim=2)
+            return _fa2_func(q, k, v, causal=causal)
+    except ImportError:
+        def flash_attn_func(q, k, v, causal=False, **kwargs):
+            q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            if q.size(1) != k.size(1):
+                r = q.size(1) // k.size(1)
+                k = k.repeat_interleave(r, dim=1)
+                v = v.repeat_interleave(r, dim=1)
+            return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 
 # ---------------------------------------------------------------------------
 # Hardware Optimization Setup
