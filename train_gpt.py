@@ -2346,12 +2346,14 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     all_starts = list(range(0, total_tokens, stride))
     my_starts = [s for idx, s in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
 
-    # Disable carry in sliding window eval: the batch dimension contains windows at
-    # different temporal offsets, so mean(dim=0) of capsule state would smear together
-    # semantically unrelated positions, corrupting the carry signal. Carry is only
-    # meaningful for a single sequential stream (batch_size=1).
-    use_carry = False
-    decay = args.capsule_carry_decay
+    # Carry is only meaningful for a single sequential stream (batch_size=1).
+    # When batch_size > 1 the batch dimension contains windows at different temporal
+    # offsets; mean(dim=0) of capsule state smears unrelated contexts, corrupting the
+    # carry signal. Honor capsule_carry_enabled only when we are running sequentially.
+    use_carry = args.capsule_carry_enabled and (batch_size == 1)
+    decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    if args.capsule_carry_enabled and not use_carry:
+        log0("eval_val_sliding: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
 
     base_model.eval()
     carry_capsules = None
@@ -2394,6 +2396,13 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 sy = y_batch[j, score_from:wlen]
                 loss_sum += scored.to(torch.float64).sum()
                 token_count += float(wlen - score_from)
+                lut_size = base_bytes_lut.size(0)
+                if lut_size < sy.max().item() + 1 or lut_size < sx.max().item() + 1:
+                    raise RuntimeError(
+                        f"byte LUT size {lut_size} is smaller than max token ID "
+                        f"{max(sy.max().item(), sx.max().item())+1}. "
+                        f"LUT was built from a different tokenizer than the val data."
+                    )
                 tok_bytes = base_bytes_lut[sy].to(torch.int16)
                 tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(torch.int16)
                 byte_count += tok_bytes.to(torch.float64).sum()
@@ -2472,10 +2481,14 @@ def eval_val_sliding_ttt(
         f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
         f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
     )
-    # Disable carry for same reason as eval_val_sliding: batched windows are at different
-    # temporal offsets so averaging their capsule states smears unrelated context.
-    use_carry = False
+    # Carry is only meaningful for a single sequential stream (batch_size=1).
+    # When batch_size > 1 the batch dimension contains windows at different temporal
+    # offsets; mean(dim=0) of capsule state smears unrelated contexts, corrupting the
+    # carry signal. Honor capsule_carry_enabled only when we are running sequentially.
+    use_carry = args.capsule_carry_enabled and (batch_size == 1)
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
+    if args.capsule_carry_enabled and not use_carry:
+        log0("eval_val_sliding_ttt: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
     carry_capsules = None
     original_grad, ttt_params = collect_ttt_params(base_model, args.ttt_scope)
     log0(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)}")
@@ -2537,6 +2550,13 @@ def eval_val_sliding_ttt(
                         token_count += float(wlen - score_from)
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
+                        lut_size = base_bytes_lut.size(0)
+                        if lut_size < sy.max().item() + 1 or lut_size < sx.max().item() + 1:
+                            raise RuntimeError(
+                                f"byte LUT size {lut_size} is smaller than max token ID "
+                                f"{max(sy.max().item(), sx.max().item())+1}. "
+                                f"LUT was built from a different tokenizer than the val data."
+                            )
                         tok_bytes = base_bytes_lut[sy].to(torch.int16)
                         tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(torch.int16)
                         byte_count += tok_bytes.to(torch.float64).sum()
@@ -3078,13 +3098,11 @@ def main() -> None:
     # ---------------------------------------------------------------------------
 
     # --- Compiler warmup ---
-    # Use COMPILER_WARMUP_STEPS if set, otherwise fall back to WARMUP_STEPS.
-    # These are intentionally distinct: compiler warmup triggers torch.compile graph
-    # capture before the LR warmup; the state is restored after so no real gradient
-    # steps are counted against the budget.
     # COMPILER_WARMUP_STEPS controls compile graph-capture warmup independently of LR warmup.
-    # If 0, no compiler warmup runs. WARMUP_STEPS is purely for LR/optimizer warmup
-    # and is NOT used as a fallback here — that conflation prevented clean ablations.
+    # If 0, no compiler warmup runs. If > 0, runs that many steps to trigger torch.compile
+    # graph capture before the real training budget begins; model/optimizer state is fully
+    # restored afterward so no gradient steps are charged against the training budget.
+    # WARMUP_STEPS is purely for LR/optimizer warmup and is never used here as a fallback.
     _compile_warmup_n = args.compiler_warmup_steps
     if _compile_warmup_n > 0:
         _ms = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
@@ -3277,8 +3295,9 @@ def main() -> None:
             if ema_progress >= args.ema_start_fraction:
                 ema.update(base_model)
 
-        # Export-aligned training phase: switch TernaryLinear to use calibrated quantizer
-        # [calibration moved to post-training to avoid DDP collective sync issues]
+        # Export-aligned training: mid-training calibration fires at export_aligned_train_start_fraction
+        # (see block above near the wallclock cap sync). After that step _EXPORT_CALIB is populated
+        # and TernaryLinear.forward trains through the calibrated quantization thresholds.
 
         # Export proxy eval: periodically serialize+reload+score to track round-trip BPB.
         # Snapshot EMA state (not live weights) so _best_proxy_sd is already smoothed.
@@ -3372,9 +3391,11 @@ def main() -> None:
         torch.distributed.barrier()
         log0("ema:ranks synchronized for export", flush=True)
 
-    # --- Calibration (post-training, after all ranks exit training loop) ---
-    # Runs only on master; other ranks wait at the barrier below.
-    # Moving calibration here avoids DDP collective sequence-number divergence.
+    # --- Post-training calibration refinement ---
+    # Mid-training calibration (at export_aligned_train_start_fraction) already populated
+    # _EXPORT_CALIB and the model trained through those thresholds. This pass re-runs
+    # calibration on the final (EMA-smoothed) weights to capture any drift in the last
+    # training phase. Runs only on master after all ranks exit the training loop.
     if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
         if _proxy_calib_tokens is None:
             _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
