@@ -1,0 +1,8 @@
+{
+  "description": "SP8192 + Score-First TTT + Eval-Time Hash Embedding",
+  "val_bpb_mean": 1.08269,
+  "val_bpb_std": 0.00060,
+  "seeds": [1337, 42, 2025],
+  "hardware": "8xH100 SXM",
+  "framework": "PyTorch 2.9.1+cu128"
+}
