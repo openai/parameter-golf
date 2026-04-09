@@ -877,7 +877,7 @@ class NgramMixer:
   pr=lp.exp(); ent=-(pr[ar,ac]*lp[ar,ac]).sum(dim=-1)
   order_feat=(g_order/s.maxN).clamp(max=1.0)
   count_feat=(g_ctxcount.clamp(min=1).log()/5.0).clamp(max=1.0)
-  al=0.15+0.50*torch.sigmoid(2.0*(ent-2.5))+0.55*order_feat+0.30*count_feat
+  al=0.15+0.50*torch.sigmoid(2.0*(ent-2.5))+0.35*order_feat+0.20*count_feat
   al=al.clamp(max=0.95)
   mp=((1.0-al)*npa+al*gp).clamp(min=1e-12); out=nll.clone()
   out[ar,ac]=-mp.log(); return out
