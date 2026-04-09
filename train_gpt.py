@@ -3334,7 +3334,12 @@ def main() -> None:
         if args.churn_log_every > 0 and step % args.churn_log_every == 0:
             log0(f"step:{step} churn:{churn_fn(base_model, args.bitnet_group_size):.4f} zero:{tern_stats(base_model, args.bitnet_group_size)['zero_frac']:.3f}")
 
-        # Mid-training calibration: populate _EXPORT_CALIB so model trains through quantization thresholds
+        # Mid-training calibration: populate _EXPORT_CALIB so model trains through quantization thresholds.
+        # CRITICAL: _EXPORT_CALIB is a Python global read by TernaryLinear.forward on every rank.
+        # Calibration only runs on rank 0 (needs model access), but the result must be broadcast to
+        # every rank before training resumes, otherwise ranks diverge: rank 0 trains with calibrated
+        # thresholds while all other ranks use empty thresholds — making all-reduced gradients
+        # mathematically inconsistent.
         if (args.export_aligned_train
                 and (args.ternary_threshold_search or args.ternary_scale_search)
                 and step == int(args.iterations * args.export_aligned_train_start_fraction)):
@@ -3352,11 +3357,21 @@ def main() -> None:
                 _mid_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
                 if ema is not None and _mid_ema_orig is not None:
                     ema.restore(base_model, _mid_ema_orig)
-                global _EXPORT_CALIB
-                _EXPORT_CALIB = _mid_calib
-                log0(f"export_aligned_train:calibrated tensors={len(_mid_calib)} — training through quantization thresholds", flush=True)
+                log0(f"export_aligned_train:calibrated tensors={len(_mid_calib)} — broadcasting to all ranks", flush=True)
+            else:
+                _mid_calib = {}
+            # Broadcast calibration dict from rank 0 → all ranks so every rank trains
+            # through the same quantization thresholds. broadcast_object_list handles
+            # arbitrary Python objects and is safe for dicts with string/float values.
             if distributed:
-                dist.barrier()  # wait for master to finish calibration before resuming
+                _calib_list = [_mid_calib]
+                dist.broadcast_object_list(_calib_list, src=0)
+                _mid_calib = _calib_list[0]
+            global _EXPORT_CALIB
+            _EXPORT_CALIB = _mid_calib
+            log0(f"export_aligned_train:calib_synced rank={rank} tensors={len(_EXPORT_CALIB)}", flush=True)
+            if distributed:
+                dist.barrier()  # all ranks confirm receipt before resuming
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 

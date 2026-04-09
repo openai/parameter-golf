@@ -189,7 +189,6 @@ export SELF_DISTILL_KL_WEIGHT=0   # Gradient conflict with ternary quantization
 # The loop's last_step block (after wallclock cap fires) still runs: it gives a final val_bpb
 # reading and saves best_live_state.pt, but this happens AFTER the 599s window closes.
 export VAL_LOSS_EVERY=0
-export EXPORT_PROXY_EVAL=0        # No mid-training quantize+eval proxy — purely post-training
 export TRAIN_LOG_EVERY=50         # Print loss every 50 steps (was 20) — negligible overhead reduction
 
 # Post-training eval: runs after the 599s budget, fully outside training time.
@@ -214,8 +213,8 @@ export TERNARY_SCALE_MULT_LOW=0.9
 export TERNARY_SCALE_MULT_HIGH=1.1
 export TERNARY_SCALE_MULT_STEPS=3
 export TERNARY_CALIB_TOP_N=5
-export EXPORT_PROXY_EVAL=1
-export EXPORT_PROXY_EVERY=2000   # Every 2000 steps (~60s at fast throughput) — low overhead
+export EXPORT_PROXY_EVAL=1        # Mid-training proxy: track round-trip BPB, snapshot best checkpoint
+export EXPORT_PROXY_EVERY=2000    # Every 2000 steps (~60s at fast throughput) — low overhead
 export EXPORT_PROXY_NUM_SEQS=16
 export AVERAGE_TERNARY_PARAMS=0
 export SAVE_PRE_EXPORT_STATE=1
