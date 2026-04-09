@@ -248,7 +248,13 @@ class Hyperparameters:
     ternary_scale_mult_low = _e("TERNARY_SCALE_MULT_LOW", 0.9, float)
     ternary_scale_mult_high = _e("TERNARY_SCALE_MULT_HIGH", 1.1, float)
     ternary_scale_mult_steps = _e("TERNARY_SCALE_MULT_STEPS", 3, int)
-    ternary_calib_top_n = _e("TERNARY_CALIB_TOP_N", 15, int)
+    ternary_calib_top_n = _e("TERNARY_CALIB_TOP_N", 4, int)
+    calib_prefilter_mult = _e("CALIB_PREFILTER_MULT", 2, int)
+    calib_max_candidates = _e("CALIB_MAX_CANDIDATES", 12, int)
+    calib_max_evals = _e("CALIB_MAX_EVALS", 32, int)
+    calib_max_seconds = _e("CALIB_MAX_SECONDS", 90.0, float)
+    calib_second_pass = _e("CALIB_SECOND_PASS", 0, bool)
+    calib_proxy_max_tok = _e("CALIB_PROXY_MAX_TOK", 4096, int)
     # Export proxy eval during training (select checkpoint by round-trip BPB)
     export_proxy_eval = _e("EXPORT_PROXY_EVAL", 0, bool)
     export_proxy_every = _e("EXPORT_PROXY_EVERY", 300, int)
@@ -2639,18 +2645,31 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
 
 def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> dict:
     """Search per-tensor (thr, scale_mult) to minimize round-trip proxy BPB.
-    Ranks candidates by proxy ΔBPB sensitivity (not size). Does two passes.
+    Budget-capped: respects CALIB_MAX_EVALS and CALIB_MAX_SECONDS limits.
     Returns calib dict."""
-    group_size = args.bitnet_group_size
-    sd = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
-    top_n = args.ternary_calib_top_n  # used as pre-filter by size before sensitivity ranking
+    import time as _time
+    t_start = _time.perf_counter()
+    evals = [0]  # mutable counter
 
-    # Pre-filter: all ternary-eligible 2D weight tensors
-    all_candidates = [
-        name for name, t in sd.items()
-        if t.ndim == 2 and t.numel() > 16384
-        and "tok_emb" not in name and "lm_head" not in name and "embed_proj" not in name
-    ]
+    group_size = args.bitnet_group_size
+    top_n = args.ternary_calib_top_n
+    max_evals = args.calib_max_evals
+    max_seconds = args.calib_max_seconds
+    proxy_max_tok = args.calib_proxy_max_tok
+
+    # Trim proxy tokens to budget-friendly size
+    proxy_tokens = proxy_tokens[:proxy_max_tok] if proxy_tokens.numel() > proxy_max_tok else proxy_tokens
+
+    sd = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+
+    def _budget_ok():
+        return evals[0] < max_evals and (_time.perf_counter() - t_start) < max_seconds
+
+    def _eval(calib_override):
+        if not _budget_ok():
+            return float("inf")
+        evals[0] += 1
+        return _proxy_roundtrip_bpb(sd, base_model, calib_override, group_size, proxy_tokens, args, device)
 
     # Build search grids
     thr_vals = [0.0]
@@ -2662,34 +2681,51 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
         lo, hi, n = args.ternary_scale_mult_low, args.ternary_scale_mult_high, args.ternary_scale_mult_steps
         scale_vals += [lo + (hi - lo) * i / max(n - 1, 1) for i in range(n)]
 
+    # Pre-filter: top candidates by size (cheap, no proxy evals)
+    all_eligible = [
+        name for name, t in sd.items()
+        if t.ndim == 2 and t.numel() > 16384
+        and "tok_emb" not in name and "lm_head" not in name and "embed_proj" not in name
+    ]
+    prefilter_k = min(max(top_n * args.calib_prefilter_mult, top_n), args.calib_max_candidates)
+    size_sorted = sorted(all_eligible, key=lambda n: sd[n].numel(), reverse=True)
+    rank_pool = size_sorted[:prefilter_k]
+
     # Baseline BPB
     calib: dict = {}
-    baseline_bpb = _proxy_roundtrip_bpb(sd, base_model, calib, group_size, proxy_tokens, args, device)
+    baseline_bpb = _eval(calib)
+    if baseline_bpb == float("inf"):
+        return calib  # budget already exhausted
 
-    # Sensitivity ranking: perturb each candidate with a single mid-point config,
-    # rank by how much BPB changes (high sensitivity = most important to tune)
+    # Sensitivity ranking over rank_pool (not all tensors)
     probe_thr = thr_vals[len(thr_vals)//2] if len(thr_vals) > 1 else 0.05
     probe_sm = scale_vals[len(scale_vals)//2] if len(scale_vals) > 1 else 1.0
     sensitivities: list[tuple[float, str]] = []
-    size_sorted = sorted(all_candidates, key=lambda n: sd[n].numel(), reverse=True)
-    rank_pool = size_sorted[:min(top_n * 4, len(size_sorted))]  # pre-filter
     for name in rank_pool:
+        if not _budget_ok():
+            # Budget hit: fall back to size ordering for remaining candidates
+            remaining = [n for n in rank_pool if n not in {s[1] for s in sensitivities}]
+            sensitivities += [(0.0, n) for n in remaining]
+            break
         probe = {name: {"thr": probe_thr, "scale_mult": probe_sm}}
-        delta = abs(_proxy_roundtrip_bpb(sd, base_model, probe, group_size, proxy_tokens, args, device) - baseline_bpb)
+        delta = abs(_eval(probe) - baseline_bpb)
         sensitivities.append((delta, name))
     sensitivities.sort(reverse=True)
     candidates = [name for _, name in sensitivities[:top_n]]
 
     def _search_one(name: str, current_calib: dict, ref_bpb: float):
         best_bpb = ref_bpb
-        best_thr, best_sm = current_calib.get(name, {}).get("thr", 0.0), current_calib.get(name, {}).get("scale_mult", 1.0)
+        best_thr = current_calib.get(name, {}).get("thr", 0.0)
+        best_sm = current_calib.get(name, {}).get("scale_mult", 1.0)
         for thr in thr_vals:
             for sm in scale_vals:
                 if thr == best_thr and sm == best_sm:
                     continue
+                if not _budget_ok():
+                    return best_thr, best_sm, best_bpb
                 test_calib = dict(current_calib)
                 test_calib[name] = {"thr": thr, "scale_mult": sm}
-                bpb = _proxy_roundtrip_bpb(sd, base_model, test_calib, group_size, proxy_tokens, args, device)
+                bpb = _eval(test_calib)
                 if bpb < best_bpb:
                     best_bpb = bpb
                     best_thr, best_sm = thr, sm
@@ -2697,17 +2733,24 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
 
     # Pass 1: greedy forward search over sensitivity-ranked candidates
     for name in candidates:
+        if not _budget_ok():
+            break
         best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
         if best_thr != 0.0 or best_sm != 1.0:
             calib[name] = {"thr": best_thr, "scale_mult": best_sm}
             baseline_bpb = best_bpb
 
-    # Pass 2: re-optimize already-selected tensors given the full current calib context
-    for name in list(calib.keys()):
-        best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
-        calib[name] = {"thr": best_thr, "scale_mult": best_sm}
-        baseline_bpb = best_bpb
+    # Pass 2 (optional): re-optimize selected tensors with full context
+    if args.calib_second_pass:
+        for name in list(calib.keys()):
+            if not _budget_ok():
+                break
+            best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
+            calib[name] = {"thr": best_thr, "scale_mult": best_sm}
+            baseline_bpb = best_bpb
 
+    elapsed = _time.perf_counter() - t_start
+    print(f"calib:budget evals={evals[0]}/{max_evals} time={elapsed:.1f}s/{max_seconds}s", flush=True)
     return calib
 
 
@@ -3258,7 +3301,7 @@ def main() -> None:
     # Moving calibration here avoids DDP collective sequence-number divergence.
     if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
         if _proxy_calib_tokens is None:
-            _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
+            _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
         log0(f"export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
         if ema is not None and _orig_ema_weights is None:
             _ema_orig_c = ema.apply_shadow(base_model)
