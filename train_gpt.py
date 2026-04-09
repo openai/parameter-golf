@@ -1158,6 +1158,16 @@ class KoopmanTokenMixer(nn.Module):
         """
         B, T, S = x.shape
         W = 32 # Chunk size
+        # Pad T to next multiple of W so reshape is always valid
+        T_orig = T
+        T_pad = ((T + W - 1) // W) * W
+        if T_pad > T:
+            pad = T_pad - T
+            x = F.pad(x, (0, 0, 0, pad))
+            gate = F.pad(gate, (0, 0, 0, pad))
+            if dt_gate is not None:
+                dt_gate = F.pad(dt_gate, (0, 0, 0, pad))
+            T = T_pad
         num_chunks = T // W
         
         if self._use_hadamard:
@@ -1201,6 +1211,10 @@ class KoopmanTokenMixer(nn.Module):
         # 5. Global state: h = h_local + d_local * chunk_prefix
         h = h_local + d_local * chunk_prefixes
         h = h.reshape(B, T, S)
+
+        # Strip padding if we padded earlier
+        if T_orig < T:
+            h = h[:, :T_orig]
 
         # 6. Low-rank coupling
         U = self.mixer_lowrank_U.to(x.dtype)
