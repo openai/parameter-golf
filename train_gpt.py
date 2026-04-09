@@ -75,9 +75,9 @@ class Hyperparameters:
     run_id = os.environ.get("RUN_ID", f"run_{int(time.time())}")
     seed = _e("SEED", 42, int)
     compile_mode = _e("COMPILE_MODE", "default", str)
-    val_batch_size = _e("VAL_BATCH_SIZE", 65536, int)
-    val_loss_every = _e("VAL_LOSS_EVERY", 0, int)
-    train_log_every = _e("TRAIN_LOG_EVERY", 100, int)
+    # val_batch_size, val_loss_every, and train_log_every are defined below near
+    # their related TTT/eval knobs — removed the duplicate early definitions that
+    # were silently overwritten and misled anyone reading the top of the config block.
     iterations = _e("ITERATIONS", 10000, int)
     warmdown_fraction = _e("WARMDOWN_FRACTION", 0.35, float)
     warmup_steps = _e("WARMUP_STEPS", 5, int)
@@ -2377,8 +2377,11 @@ def ld_val(pattern, seq_len, max_tok=int(os.environ.get("VAL_MAX_TOKENS", 500000
 
 def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens,
              base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, temperature: float = 1.0):
-    # Safer batching for 20M parameter models on limited VRAM
-    local_batch_tokens = min(args.val_batch_size, 131072) // (world_size * grad_accum_steps)
+    # Eval batch size is independent of training gradient accumulation steps —
+    # grad_accum_steps is a training microbatching concern, not an eval concern.
+    # Dividing by it silently shrinks eval throughput as accumulation increases,
+    # making validation slower and noisier with no quality benefit.
+    local_batch_tokens = min(args.val_batch_size, 131072) // world_size
     local_batch_seqs = max(1, local_batch_tokens // args.train_seq_len)
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
@@ -3029,9 +3032,11 @@ def main() -> None:
     args = Hyperparameters()
     code = Path(__file__).read_text(encoding="utf-8")
 
-    # Wire global quantization flags from args — must happen before any model construction
-    # so TernaryLinear.forward and KV cache paths see the correct values.
-    global _TURBO_QUANT_TRAIN, _TURBO_QUANT_KV
+    # Declare all module-level globals mutated inside main() in one place.
+    # Python requires a global declaration to appear before the first assignment
+    # in a function scope; a second declaration for the same name later in the
+    # function is a SyntaxError and prevents the module from loading at all.
+    global _TURBO_QUANT_TRAIN, _TURBO_QUANT_KV, _EXPORT_CALIB
     _TURBO_QUANT_TRAIN = args.turbo_quant_train
     _TURBO_QUANT_KV = bool(int(os.environ.get("TURBO_QUANT_KV", "0")))
 
@@ -3266,13 +3271,13 @@ def main() -> None:
     _best_proxy_sd: dict | None = None
     _proxy_calib_tokens: torch.Tensor | None = None
     train_loss = torch.zeros((), device=device)
-    torch.cuda.synchronize()
+    if device.type == "cuda": torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
 
     for step in range(args.iterations):
         if args.val_loss_every > 0 and step > 0 and step % args.val_loss_every == 0:
-            torch.cuda.synchronize()
+            if device.type == "cuda": torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             
             # Apply EMA shadow weights for evaluation
@@ -3289,7 +3294,7 @@ def main() -> None:
             tstats = tern_stats(base_model, group_size=args.bitnet_group_size)
             log0(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                  f"train_time:{training_time_ms:.0f}ms zero_frac:{tstats['zero_frac']:.3f}")
-            torch.cuda.synchronize()
+            if device.type == "cuda": torch.cuda.synchronize()
             t0 = time.perf_counter()
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -3471,7 +3476,7 @@ def main() -> None:
         if (args.export_aligned_train
                 and (args.ternary_threshold_search or args.ternary_scale_search)
                 and step == int(args.iterations * args.export_aligned_train_start_fraction)):
-            torch.cuda.synchronize()
+            if device.type == "cuda": torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             if distributed:
                 dist.barrier()  # ensure all ranks finish current step before calibration
@@ -3495,12 +3500,12 @@ def main() -> None:
                 _calib_list = [_mid_calib]
                 dist.broadcast_object_list(_calib_list, src=0)
                 _mid_calib = _calib_list[0]
-            global _EXPORT_CALIB
             _EXPORT_CALIB = _mid_calib
+            _aligned_phase_started = True  # prevents redundant final calibration at export time
             log0(f"export_aligned_train:calib_synced rank={rank} tensors={len(_EXPORT_CALIB)}", flush=True)
             if distributed:
                 dist.barrier()  # all ranks confirm receipt before resuming
-            torch.cuda.synchronize()
+            if device.type == "cuda": torch.cuda.synchronize()
             t0 = time.perf_counter()
 
         # Wallclock cap sync
@@ -3514,7 +3519,7 @@ def main() -> None:
                 stop_after_step = step
 
     # --- Post-Training Final Evaluation and crystallization ---
-    torch.cuda.synchronize()
+    if device.type == "cuda": torch.cuda.synchronize()
     training_time_ms += 1000.0 * (time.perf_counter() - t0)
     
     # Final eval WITH EMA weights applied
@@ -3549,7 +3554,6 @@ def main() -> None:
             ema.restore(base_model, _ema_orig_c)
         else:
             _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
-        global _EXPORT_CALIB
         _EXPORT_CALIB = _export_calib
         log0(f"export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
 
@@ -3669,25 +3673,25 @@ def main() -> None:
 
     opt_temp = 1.0
     if args.temp_scaling:
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         t_temp = time.perf_counter()
         # Use a validation slice for calibration — do NOT use train_loader (no .stream, and it's leakage)
         calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=65536).to(device)
         opt_temp = find_temp(args, base_model, rank, world_size, device, grad_accum_steps,
                              calib_tokens, base_bytes_lut, has_leading_space_lut,
                              is_boundary_token_lut)
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         temp_time_ms = 1000.0 * (time.perf_counter() - t_temp)
         log0(f"temp_scaling optimal_T:{opt_temp:.2f} eval_time:{temp_time_ms:.0f}ms")
 
     if args.sliding_eval:
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         t_sliding = time.perf_counter()
         sw_loss, sw_bpb = eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps,
                                            val_tokens, base_bytes_lut, has_leading_space_lut,
                                            is_boundary_token_lut, stride=args.sliding_eval_stride,
                                            temperature=opt_temp)
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
         log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
              f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}) eval_time:{sliding_time_ms:.0f}ms")
@@ -3695,14 +3699,14 @@ def main() -> None:
         augmented_val_loss, augmented_val_bpb = sw_loss, sw_bpb
 
     if args.ttt_enabled:
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_loss, ttt_bpb = eval_val_sliding_ttt(
             args, base_model, rank, world_size, device, val_tokens, base_bytes_lut,
             has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride,
             batch_seqs=args.ttt_batch_seqs, temperature=opt_temp, log0=log0,
         )
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         ttt_time_ms = 1000.0 * (time.perf_counter() - t_ttt)
         log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms")
         log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
@@ -3711,7 +3715,7 @@ def main() -> None:
 
     # --- N-gram cache evaluation (single-rank, sequential) ---
     if args.ngram_cache_enabled and master_process:
-        torch.cuda.synchronize()
+        if device.type == "cuda": torch.cuda.synchronize()
         t_ngram = time.perf_counter()
         ngram_cache = NgramCache(
             max_order=args.ngram_max_order,
