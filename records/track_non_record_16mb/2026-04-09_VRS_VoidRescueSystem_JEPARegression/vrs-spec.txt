@@ -1,0 +1,293 @@
+VRS SPEC
+========
+
+Status
+------
+Final repository spec aligned with the current corrected implementation in
+`vrs/train_jepa_vrs.py` and the paper
+`docs/vrs_void_rescue_system_for_regression_transformers.pdf`.
+
+
+Overview
+--------
+VRS (Void Rescue System) is a regression-based causal transformer with a small
+auxiliary decoder.
+
+The system has two jointly trained parts:
+
+1. Navigator (Model A)
+   A causal decoder-only transformer that predicts a continuous latent
+   `v_void` for the next token.
+
+2. Rescuer (Model B)
+   A small context-free MLP that maps `v_void -> v_rescued` before final
+   decoding through the shared token embedding table.
+
+The central hypothesis is that regression latents can contain useful token
+information while still decoding poorly because they fall in weakly aligned
+regions of embedding space. VRS is designed to rescue those latents.
+
+
+Tokenizer and Data
+------------------
+- Dataset: FineWeb tokenized as `fineweb10B_sp1024`
+- Tokenizer: SentencePiece BPE, vocab size `1024`
+- Default data path: `./data/datasets/fineweb10B_sp1024`
+- Default tokenizer path: `./data/tokenizers/fineweb_1024_bpe.model`
+- Sequence length: `1024`
+- Global train batch tokens: `524288`
+- Validation batch tokens: `524288`
+
+
+Main Architecture
+-----------------
+Default base VRS configuration:
+
+- `vocab_size = 1024`
+- `model_dim = 512`
+- `num_layers = 9`
+- `num_heads = 8`
+- `num_kv_heads = 4`
+- `mlp_mult = 2`
+- `rope_base = 10000`
+- `logit_softcap = 30`
+
+Navigator details:
+
+- causal decoder-only transformer
+- grouped-query attention (GQA)
+- RoPE on Q/K
+- RMSNorm
+- MLP uses `relu(x)^2`
+- no final LM head
+- output latent is the final normalized hidden state, called `v_void`
+
+Internal skip structure:
+
+- `num_encoder_layers = num_layers // 2`
+- `num_decoder_layers = num_layers - num_encoder_layers`
+- the first half stores skip activations
+- the second half consumes them through learned `skip_weights`
+
+For the 9-layer base model:
+
+- 4 layers store skips
+- 5 layers consume skips
+
+
+Rescuer Architecture
+--------------------
+Default Rescuer in the main corrected implementation:
+
+- input: `v_void` with dimension `512`
+- `Linear(512 -> 512, bias=False)`
+- `SiLU`
+- `Linear(512 -> 512, bias=False)`
+- output: `v_rescued`
+
+Parameter count:
+
+- Rescuer params: `524,288`
+- Base total params: `17,584,200`
+- Base Navigator params: `17,059,912`
+
+The extra-testing ablation script also supports:
+
+- linear Rescuer: single `Linear(512 -> 512, bias=False)`
+
+
+Training Objective
+------------------
+Training is pure regression.
+
+The target is the detached target token embedding:
+
+`target_emb = tok_emb(target_ids).detach()`
+
+Navigator loss:
+
+`loss_A = MSE(v_void, target_emb)`
+
+Rescuer loss:
+
+`loss_B = MSE(v_rescued, target_emb)`
+
+Total loss:
+
+`loss = weight_A * loss_A + weight_B * loss_B`
+
+Default weights:
+
+- `weight_A = 0.5`
+- `weight_B = 0.5`
+
+Important:
+
+- no cross-entropy is used for training
+- no softmax is used for training
+- BPB is evaluation-only
+
+
+Decoding and Metrics
+--------------------
+Raw Navigator decoding:
+
+`logits_A = v_void @ E^T`
+
+Rescued decoding:
+
+`logits_B = v_rescued @ E^T`
+
+Softcap:
+
+`softcap(z) = c * tanh(z / c)` with `c = 30`
+
+Validation metrics:
+
+- `val_bpb`
+  BPB computed from rescued logits after softcap and CE
+- `val_bpb_A`
+  BPB computed from raw Navigator logits under the same decoding pipeline
+- `nn_acc`
+  top-1 decoded-token accuracy from rescued logits
+
+Important interpretation:
+
+- `val_bpb_A` is an internal raw-path probe inside the jointly trained VRS system
+- it is not a separately trained baseline by itself
+
+
+Optimization
+------------
+The training code uses:
+
+- Muon for matrix-shaped transformer and Rescuer parameters
+- Adam for embeddings and scalar/control parameters
+
+Default learning-rate settings in the corrected implementation:
+
+- `EMBED_LR = 0.005`
+- `MATRIX_LR = 0.04`
+- `SCALAR_LR = 0.04`
+- `RESCUER_LR = 0.04`
+
+Embedding LR is intentionally lower because the shared embedding table acts as:
+
+1. input embedding lookup
+2. detached MSE target
+3. decoding basis for logits
+
+
+Corrected Long-Run Schedule
+---------------------------
+The corrected long runs decouple training wallclock from LR-schedule wallclock.
+
+Canonical corrected 1-hour recipe:
+
+- `MAX_WALLCLOCK_SECONDS = 3600`
+- `LR_WALLCLOCK_SECONDS = 600`
+- `WARMDOWN_ITERS = 20000`
+- `LR_MIN_SCALE = 0.02`
+- `RESCUER_LR = 0.04`
+
+Interpretation:
+
+- training can continue for up to one hour
+- the LR schedule follows the stable 10-minute trajectory
+- after warmdown, LR does not decay to zero; it stays at a small floor
+
+The corrected reported runs do not use:
+
+- Periodic Rescuer Reset
+- Rescuer Catch-Up
+- detached-Rescuer training
+
+Those features exist in code for experimentation, but they are not part of the
+main corrected result.
+
+
+Canonical Commands
+------------------
+Main corrected 1-hour VRS run:
+
+`MAX_WALLCLOCK_SECONDS=3600 LR_WALLCLOCK_SECONDS=600 LR_MIN_SCALE=0.02 ITERATIONS=100000 WARMDOWN_ITERS=20000 RESCUER_LR=0.04 SEED=42 torchrun --standalone --nproc_per_node=8 vrs/train_jepa_vrs.py`
+
+Original 10-minute submitable VRS run:
+
+`MAX_WALLCLOCK_SECONDS=600 ITERATIONS=20000 WARMDOWN_ITERS=20000 RESCUER_LR=0.04 SEED=42 torchrun --standalone --nproc_per_node=8 vrs/runs/submitable_10min/scripts/vrs_golf_parameter.py`
+
+Standalone regression-only baseline:
+
+`MAX_WALLCLOCK_SECONDS=600 ITERATIONS=20000 WARMDOWN_ITERS=20000 SEED=42 torchrun --standalone --nproc_per_node=8 vrs/baseline/train_jepa_regression_baseline.py`
+
+
+Standalone Regression Baseline
+------------------------------
+The repo includes a real external regression-only baseline:
+
+- file: `vrs/baseline/train_jepa_regression_baseline.py`
+- standalone script
+- Navigator-only
+- same regression target type as Model A
+- no Rescuer
+
+Observed 10-minute baseline results:
+
+- seed 17: min BPB `2.1214`, peak `nn_acc = 0.5005`
+- seed 42: min BPB `2.0941`, peak `nn_acc = 0.5014`
+- seed 1332: min BPB `2.1301`, peak `nn_acc = 0.5018`
+
+These baselines provide the external reference that `val_bpb_A` alone cannot.
+
+
+Important Experimental Variants
+-------------------------------
+The repo also contains:
+
+- original 10-minute submitable runs
+- 41-minute base-scale run
+- 1-hour 2x Navigator run
+- 1-hour 4x Navigator run
+- linear Rescuer ablation
+- freeze-Navigator ablation
+
+The linear-rescuer result is notable because a simple linear correction preserved
+most of the rescue effect and slightly improved BPB in the tested setting,
+suggesting that part of the raw decoding gap may be approximately linear.
+
+
+Main Results Snapshot
+---------------------
+Reported rescued BPB:
+
+- 10-minute 0.5M VRS mean: `1.8667`
+- 41-minute base run: `1.8480`
+- 1-hour 2x run: `1.7570`
+- 1-hour 4x run: `1.7733`
+
+The 4x run achieved the strongest internal rescue gap:
+
+- rescued BPB `1.7733`
+- raw-path BPB A `2.4144`
+- gain `+0.6411`
+
+
+Repository Notes
+----------------
+- The GitHub-facing root README is `README.md`
+- The final paper is stored at
+  `docs/vrs_void_rescue_system_for_regression_transformers.pdf`
+- The canonical workbook is
+  `metrics/vrs_metrics_master.xlsx`
+- Extracted paper figures are stored in `figures/`
+
+
+DOI
+---
+Zenodo DOI:
+
+`10.5281/zenodo.19477224`
+
+Zenodo record:
+
+`https://zenodo.org/records/19477224`
