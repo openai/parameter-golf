@@ -99,7 +99,7 @@ class Hyperparameters:
  slot_lr = float(os.environ.get("SLOT_LR", 0.012))
  slot_lr_min = float(os.environ.get("SLOT_LR_MIN", 0.001))
  slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 32))
- ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+ ttt_enabled = False
  ttt_eta = float(os.environ.get("TTT_ETA", 0.1))
  ttt_layers_str = os.environ.get("TTT_LAYERS", "10")
  ttt_clip = float(os.environ.get("TTT_CLIP", 0.1))
