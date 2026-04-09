@@ -160,9 +160,12 @@ def parse_val_bpb(output: str) -> float | None:
 
 
 def parse_final_train_loss(output: str) -> float | None:
-    """Extract the last train_loss from training output (used as fast proxy)."""
+    """Average the last 10 train_loss values for a stable proxy metric."""
     matches = re.findall(r"train_loss:(\d+\.\d+)", output)
-    return float(matches[-1]) if matches else None
+    if not matches:
+        return None
+    last_n = [float(m) for m in matches[-10:]]
+    return sum(last_n) / len(last_n)
 
 
 def parse_sliding_bpb(output: str) -> float | None:
