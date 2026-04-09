@@ -1,6 +1,6 @@
 {
   "author": "Sidhant Thole",
-  "github_id": "sidhantthole",
+  "github_id": "SPThole",
   "name": "MetaSGD + Cross-Chunk Split + Delta-Loss Meta-TTT (exp106)",
   "blurb": "Three-part redesign of exp101's FOMAML meta-TTT to fix same-batch inner/outer leakage: (A) cross-chunk split — inner/outer draw from different sequences (different fineweb10B docs); (B) delta-loss outer objective L_meta=(w_post+w_delta)*L_post - w_delta*L_pre, explicitly rewarding improvement from inner step; (C) MetaSGD — learned per-layer-per-bank inner-loop LR scales (~66 scalars, excluded from 16MB export). Training stopped early at step 6686/7500 (wall-clock). In-script int6 eval crashed (meta_sgd strict load); standalone ttt_from_checkpoint.py used instead. Float-path TTT (QAT off): baseline 1.13767→1.11469 (delta -0.02299). Int6 canonical TTT partial (80%): 1.14160→1.11800. TTT delta ~0.023 bpb — invariant to all meta-TTT formulations. MetaSGD scales converged to ~1.0 (no per-layer LR differentiation learned). Peak GPU 31.7GB vs 23GB for exp101 due to MetaSGD gradient storage.",
   "date": "2026-04-09",
