@@ -1068,7 +1068,9 @@ class TernaryMoE(nn.Module):
         if self.training:
             density = F.softmax(router_logits, dim=1).mean(dim=0)
             fraction_routed = selected_experts.float().histc(bins=self.num_experts, min=0, max=self.num_experts - 1) / float(B * T * self.top_k)
-            self.aux_loss = (density * fraction_routed).mean() * self.num_experts
+            # Standard load-balancing: N * sum(f_i * P_i). With uniform routing this gives 1.0.
+            # .mean() * N == sum(f_i*P_i)/N * N but only if all N are equal; use .sum() directly.
+            self.aux_loss = (density * fraction_routed).sum() * self.num_experts
         else:
             self.aux_loss = None
 
@@ -1902,10 +1904,13 @@ class GPT(nn.Module):
                 base_block.ln_scale_factor = 1.0
                 self.shared_block_bank = nn.ModuleList([_make_block(0) for _ in range(shared_blocks)])
                 self._block_map = [i % shared_blocks for i in range(num_layers)]
+            # Zero-init (SkipInit/ReZero): residual branches start closed, same as the
+            # per-block gate/scale params. ones would open all residuals at step 0 causing
+            # gradient explosion at depth with shared blocks.
             self.per_layer_attn_scales = nn.ParameterList([
-                nn.Parameter(torch.ones(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
+                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
             self.per_layer_mlp_scales = nn.ParameterList([
-                nn.Parameter(torch.ones(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
+                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
             self.per_layer_resid_mixes = nn.ParameterList([
                 nn.Parameter(torch.stack((torch.ones(model_dim), torch.zeros(model_dim))).float())
                 for _ in range(num_layers)])
@@ -2011,7 +2016,12 @@ class GPT(nn.Module):
             attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
 
-        x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor, elapsed_fraction=elapsed_fraction)
+        # Only TernaryMoE accepts elapsed_fraction; plain MLP.forward only takes x.
+        _mlp_in = block.mlp_norm(x) * block.ln_scale_factor
+        _mlp_out = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
+                    if isinstance(block.mlp, TernaryMoE)
+                    else block.mlp(_mlp_in))
+        x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
         return x, v_out
 
     def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None = None, elapsed_fraction: float = 1.0) -> Tensor:
@@ -2882,6 +2892,12 @@ def main() -> None:
     args = Hyperparameters()
     code = Path(__file__).read_text(encoding="utf-8")
 
+    # Wire global quantization flags from args — must happen before any model construction
+    # so TernaryLinear.forward and KV cache paths see the correct values.
+    global _TURBO_QUANT_TRAIN, _TURBO_QUANT_KV
+    _TURBO_QUANT_TRAIN = args.turbo_quant_train
+    _TURBO_QUANT_KV = bool(int(os.environ.get("TURBO_QUANT_KV", "0")))
+
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -3339,6 +3355,14 @@ def main() -> None:
     if distributed:
         torch.distributed.barrier()  # wait for rank 0 to finish calibration
 
+    # --- Restore best proxy checkpoint BEFORE EMA so EMA smooths it, not vice versa ---
+    # Bug fix: _best_proxy_sd was captured from live training weights. If we restore it
+    # AFTER applying EMA shadow, we overwrite the carefully accumulated smoothed weights
+    # with noisy per-step weights. Do the restore first, then let EMA apply on top.
+    if master_process and _best_proxy_sd is not None and args.export_proxy_use_best:
+        log0(f"serialization:restoring best_proxy_sd (proxy_bpb={_best_proxy_bpb:.4f}) before EMA", flush=True)
+        base_model.load_state_dict(_best_proxy_sd)
+
     # --- Apply EMA shadow weights before serialization ---
     _ema_original = None
     if ema is not None:
@@ -3362,10 +3386,6 @@ def main() -> None:
         _est_fp_bytes = _fp_params * 2  # bf16
         _est_total_mb = (_est_ternary_bytes + _est_fp_bytes + 170000) / 1e6
         log0(f"param_audit: total={_ternary_params+_fp_params:,} ternary_candidates={_ternary_params:,}({len(_ternary_names)}) fp={_fp_params:,}({len(_fp_names)}) est_raw={(_est_ternary_bytes+_est_fp_bytes)/1e6:.2f}MB est_compressed≈{_est_total_mb:.2f}MB")
-        # Use best proxy-selected checkpoint if export_proxy tracking found a better one
-        if _best_proxy_sd is not None and args.export_proxy_use_best:
-            log0(f"serialization:using best_proxy_sd (proxy_bpb={_best_proxy_bpb:.4f})", flush=True)
-            base_model.load_state_dict(_best_proxy_sd)
         sd = base_model.state_dict()
 
         # GPTQ-lite: per-row clip percentile search before quantization
@@ -3374,6 +3394,12 @@ def main() -> None:
             sd = gptq_lite_clip_search(sd, group_size=args.bitnet_group_size,
                                        num_percentiles=args.gptq_lite_percentiles)
             log0("gptq_lite:done")
+            # Reload clipped weights into base_model so calibration runs on the same
+            # weight distribution that will actually be quantized (bug fix: without this,
+            # calibrate_ternary tunes thresholds against unclipped weights then applies
+            # them to clipped weights, producing mismatched calib).
+            base_model.load_state_dict({k: v.to(base_model.state_dict()[k].device)
+                                        for k, v in sd.items()}, strict=False)
 
         # Final calibration pass at export time (if not already done during training)
         final_calib = _export_calib
