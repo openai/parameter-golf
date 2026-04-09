@@ -2639,18 +2639,18 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
 
 def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> dict:
     """Search per-tensor (thr, scale_mult) to minimize round-trip proxy BPB.
-    Operates on top-N tensors by size. Returns calib dict."""
+    Ranks candidates by proxy ΔBPB sensitivity (not size). Does two passes.
+    Returns calib dict."""
     group_size = args.bitnet_group_size
     sd = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    top_n = args.ternary_calib_top_n  # used as pre-filter by size before sensitivity ranking
 
-    # Rank tensors by size, filter to ternary candidates
-    candidates = [
+    # Pre-filter: all ternary-eligible 2D weight tensors
+    all_candidates = [
         name for name, t in sd.items()
         if t.ndim == 2 and t.numel() > 16384
         and "tok_emb" not in name and "lm_head" not in name and "embed_proj" not in name
     ]
-    candidates.sort(key=lambda n: sd[n].numel(), reverse=True)
-    candidates = candidates[:args.ternary_calib_top_n]
 
     # Build search grids
     thr_vals = [0.0]
@@ -2662,25 +2662,49 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
         lo, hi, n = args.ternary_scale_mult_low, args.ternary_scale_mult_high, args.ternary_scale_mult_steps
         scale_vals += [lo + (hi - lo) * i / max(n - 1, 1) for i in range(n)]
 
-    # Baseline
+    # Baseline BPB
     calib: dict = {}
     baseline_bpb = _proxy_roundtrip_bpb(sd, base_model, calib, group_size, proxy_tokens, args, device)
 
-    for name in candidates:
-        best_bpb = baseline_bpb
-        best_thr, best_sm = 0.0, 1.0
+    # Sensitivity ranking: perturb each candidate with a single mid-point config,
+    # rank by how much BPB changes (high sensitivity = most important to tune)
+    probe_thr = thr_vals[len(thr_vals)//2] if len(thr_vals) > 1 else 0.05
+    probe_sm = scale_vals[len(scale_vals)//2] if len(scale_vals) > 1 else 1.0
+    sensitivities: list[tuple[float, str]] = []
+    for name in all_candidates:
+        probe = {name: {"thr": probe_thr, "scale_mult": probe_sm}}
+        delta = abs(_proxy_roundtrip_bpb(sd, base_model, probe, group_size, proxy_tokens, args, device) - baseline_bpb)
+        sensitivities.append((delta, name))
+    sensitivities.sort(reverse=True)
+    candidates = [name for _, name in sensitivities[:top_n]]
+
+    def _search_one(name: str, current_calib: dict, ref_bpb: float):
+        best_bpb = ref_bpb
+        best_thr, best_sm = current_calib.get(name, {}).get("thr", 0.0), current_calib.get(name, {}).get("scale_mult", 1.0)
         for thr in thr_vals:
             for sm in scale_vals:
-                if thr == 0.0 and sm == 1.0:
+                if thr == best_thr and sm == best_sm:
                     continue
-                test_calib = dict(calib)
+                test_calib = dict(current_calib)
                 test_calib[name] = {"thr": thr, "scale_mult": sm}
                 bpb = _proxy_roundtrip_bpb(sd, base_model, test_calib, group_size, proxy_tokens, args, device)
                 if bpb < best_bpb:
                     best_bpb = bpb
                     best_thr, best_sm = thr, sm
+        return best_thr, best_sm, best_bpb
+
+    # Pass 1: greedy forward search over sensitivity-ranked candidates
+    for name in candidates:
+        best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
         if best_thr != 0.0 or best_sm != 1.0:
             calib[name] = {"thr": best_thr, "scale_mult": best_sm}
+            baseline_bpb = best_bpb
+
+    # Pass 2: re-optimize already-selected tensors given the full current calib context
+    for name in list(calib.keys()):
+        best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
+        calib[name] = {"thr": best_thr, "scale_mult": best_sm}
+        baseline_bpb = best_bpb
 
     return calib
 
@@ -3254,6 +3278,18 @@ def main() -> None:
     # --- Serialization ---
     if master_process:
         log0("serialization:started", flush=True)
+        # Verification printout: param budget accounting
+        _sd_check = base_model.state_dict()
+        _ternary_names = [k for k, v in _sd_check.items()
+                          if v.ndim == 2 and v.numel() > 16384
+                          and "tok_emb" not in k and "lm_head" not in k and "embed_proj" not in k]
+        _fp_names = [k for k in _sd_check if k not in _ternary_names]
+        _ternary_params = sum(_sd_check[k].numel() for k in _ternary_names)
+        _fp_params = sum(_sd_check[k].numel() for k in _fp_names)
+        _est_ternary_bytes = _ternary_params * 1.585 / 8 + (_ternary_params / args.bitnet_group_size) * 2
+        _est_fp_bytes = _fp_params * 2  # bf16
+        _est_total_mb = (_est_ternary_bytes + _est_fp_bytes + 170000) / 1e6
+        log0(f"param_audit: total={_ternary_params+_fp_params:,} ternary_candidates={_ternary_params:,}({len(_ternary_names)}) fp={_fp_params:,}({len(_fp_names)}) est_raw={(_est_ternary_bytes+_est_fp_bytes)/1e6:.2f}MB est_compressed≈{_est_total_mb:.2f}MB")
         # Use best proxy-selected checkpoint if export_proxy tracking found a better one
         if _best_proxy_sd is not None and args.export_proxy_use_best:
             log0(f"serialization:using best_proxy_sd (proxy_bpb={_best_proxy_bpb:.4f})", flush=True)

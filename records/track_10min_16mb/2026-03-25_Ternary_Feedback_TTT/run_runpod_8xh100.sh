@@ -70,9 +70,9 @@ export VOCAB_SIZE=1024
 # Why 8L works well: MoE gives effective parameter density vs depth.
 export ARCHITECTURE=skc
 export NUM_LAYERS=8
-export MODEL_DIM=320
-export NUM_HEADS=8             # 320/40 = 8 heads × 40 head_dim
-export NUM_KV_HEADS=4          # GQA: 2:1 ratio
+export MODEL_DIM=2304          # Empirically verified: 14.91MB artifact (fits 16MB budget)
+export NUM_HEADS=16            # 2304/144 = 16 heads × 144 head_dim
+export NUM_KV_HEADS=8          # GQA: 2:1 ratio
 export MLP_MULT=4
 
 # MoE: proven winner from sweep (8 experts, top-4 routing)
@@ -231,7 +231,7 @@ LOG="${DIR}/logs/${RUN_ID}.log"
 echo "=========================================================================="
 echo "  SKC Competition Run — 8×H100 SXM (FIXED)"
 echo "  RUN ID : ${RUN_ID}"
-echo "  MODEL  : SKC  L=${NUM_LAYERS}  D=${MODEL_DIM}  H=${NUM_HEADS}  (~51.7M params / ~10.4MB)"
+echo "  MODEL  : SKC  L=${NUM_LAYERS}  D=${MODEL_DIM}  H=${NUM_HEADS}  (~92M params / ~14.9MB empirical)"
 echo "           block_size=${SKC_BLOCK_SIZE}  caps=${SKC_NUM_CAPSULES}×${SKC_CAPSULE_DIM}"
 echo "           UNet caps skip (proven -0.107 BPB) auto-enabled for SKC arch"
 echo "  BUDGET : ${MAX_WALLCLOCK_SECONDS}s wallclock  (compiler_warmup=${COMPILER_WARMUP_STEPS} steps pre-budget, lr_warmup=${WARMUP_STEPS} steps in-budget)"
