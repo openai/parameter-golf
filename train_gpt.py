@@ -528,8 +528,14 @@ class Muon(torch.optim.Optimizer):
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
             curr = 0
+            # Track which parameters had active gradients so weight decay is not applied
+            # to dormant MoE experts. Without this guard, experts that receive no routing
+            # tokens on a step (p.grad is None) would have their weights multiplied by
+            # (1 - lr * wd) every step, iteratively decaying them to zero permanently.
+            has_grad: set[int] = set()
             for i, p in enumerate(params):
                 if i % world_size == rank and p.grad is not None:
+                    has_grad.add(id(p))
                     g = p.grad
                     state = self.state[p]
                     if "momentum_buffer" not in state:
@@ -550,12 +556,24 @@ class Muon(torch.optim.Optimizer):
             # zero contributes nothing. This handles MoE sparse routing correctly.
             if distributed:
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+                # After all_reduce, a param has an active update if ANY rank computed one.
+                # Rebuild has_grad as a collective: a param with non-zero update should get WD.
+                # Use the updates_flat norm as a proxy: if the slice is non-zero, treat as active.
+                has_grad_collective: set[int] = set()
+                curr_tmp = 0
+                for p in params:
+                    slc = updates_flat[curr_tmp:curr_tmp + p.numel()]
+                    if slc.norm().item() > 0:
+                        has_grad_collective.add(id(p))
+                    curr_tmp += p.numel()
+                has_grad = has_grad_collective
             wd = group.get("wd", 0.0)
             curr = 0
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
-                
-                if wd > 0:
+                # Only apply weight decay when the parameter received a real gradient.
+                # Dormant MoE experts (zero update) must not decay.
+                if wd > 0 and id(p) in has_grad:
                     p.mul_(1 - lr * wd)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -638,6 +656,12 @@ class DistributedTokenLoader:
             x, y = self._prefetch
         else:
             x, y = self._load_raw(global_tokens, seq_len, grad_accum_steps)
+            # First-call data race: _load_raw issues a non-blocking PCIe copy on
+            # _copy_stream. Without this synchronisation, the main CUDA stream starts
+            # the forward pass on x,y before the host→device transfer has completed,
+            # training on uninitialized GPU memory for the very first batch.
+            if self._copy_stream is not None:
+                torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
         # Kick off next prefetch in background
         if self._copy_stream is not None:
             self._prefetch = self._load_raw(global_tokens, seq_len, grad_accum_steps)
@@ -1312,7 +1336,13 @@ class FeedbackPooler(nn.Module):
         self.num_tokens = max(1, num_tokens)
         self.proj = QATLinear(model_dim, feedback_dim, bias=False, fp_storage=fp_storage)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, valid_len: int | None = None) -> Tensor:
+        # Truncate to valid_len before pooling so zero-padded positions (added by the
+        # sliding-window eval batcher for the final partial chunk) do not get averaged
+        # into the sketch. Pooling zeros into the dense representation contaminates all
+        # token predictions for the valid prefix via the FeedbackAdapter broadcast.
+        if valid_len is not None and valid_len < x.size(1):
+            x = x[:, :valid_len, :]
         pooled = F.adaptive_avg_pool1d(x.transpose(1, 2), self.num_tokens).transpose(1, 2)
         return self.proj(F.rms_norm(pooled, (pooled.size(-1),)))
 
@@ -1572,7 +1602,11 @@ class Block(nn.Module):
         x = mix[0] * x + mix[1] * x0
         attn_out, v_out = self.attn(self.attn_norm(x) * self.ln_scale_factor, v0=v0)
         x = x + self.attn_scale.to(dtype=x.dtype) * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype) * self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
+        # Only TernaryMoE accepts elapsed_fraction; plain MLP.forward only takes x.
+        # Passing it unconditionally crashes with TypeError when moe_enabled=False.
+        _mlp_in = self.mlp_norm(x) * self.ln_scale_factor
+        _mlp_out = self.mlp(_mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(self.mlp, TernaryMoE) else self.mlp(_mlp_in)
+        x = x + self.mlp_scale.to(dtype=x.dtype) * _mlp_out
         return x, v_out
 
 
@@ -1621,7 +1655,15 @@ def causal_spectral_decay_scan(x_blocks, decay_rates, gate):
         
         states = torch.einsum('ijd,bjd->bid', M, block_finals)
         prefix_states = torch.cat([torch.zeros_like(states[:, :1, :]), states[:, :-1, :]], dim=1)
-        return x_blocks + prefix_states[:, :, None, :] * decay[None, None, None, :]
+        # Apply exponential per-step decay within each block so the prefix state
+        # fades across time steps: token t within the block sees prefix * decay^(t+1).
+        # Without this, prefix_states broadcasts as a flat bias — every token in the
+        # block receives the same prefix * decay regardless of its offset, which is
+        # a step function rather than a proper linear-RNN/SSM causal scan.
+        t = torch.arange(1, block_sz + 1, device=decay.device, dtype=decay.dtype)
+        # time_decay: (block_sz, D) — decay raised to successive powers
+        time_decay = decay[None, :] ** t[:, None]   # (block_sz, D)
+        return x_blocks + prefix_states[:, :, None, :] * time_decay[None, None, :, :]
     return x_blocks
 
 class SpectralTernaryAuxLoss(nn.Module):
@@ -1727,7 +1769,7 @@ class SKCLayer(nn.Module):
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
 
-    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0):
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None):
         mix = self.resid_mix.to(x.dtype)
         x = mix[0] * x + mix[1] * x0
         normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
@@ -1772,7 +1814,10 @@ class SKCLayer(nn.Module):
         s_conv = s_conv.transpose(1, 2)
         
         skc_out = self.spec_proj_out(s_conv)
-        x = x + self.skc_scale.to(x.dtype)[None, None, :] * skc_out
+        # Use per-layer external scale when provided (shared-block mode) so each
+        # reuse of this block at a different depth has its own independent SkipInit scale.
+        _scale = external_skc_scale if external_skc_scale is not None else self.skc_scale.to(x.dtype)
+        x = x + _scale[None, None, :] * skc_out
 
         if self.training:
             self.spectral_aux_loss = self.aux_loss_fn(s_spec)
@@ -1951,6 +1996,11 @@ class GPT(nn.Module):
                 nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
             self.per_layer_mlp_scales = nn.ParameterList([
                 nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
+            # Per-layer SKC residual scales for shared-block mode. Without these, all
+            # layers sharing the same SKCLayer block use the same internal skc_scale,
+            # breaking SkipInit depth-wise gradient invariance.
+            self.per_layer_skc_scales = nn.ParameterList([
+                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
             self.per_layer_resid_mixes = nn.ParameterList([
                 nn.Parameter(torch.stack((torch.ones(model_dim), torch.zeros(model_dim))).float())
                 for _ in range(num_layers)])
@@ -1959,6 +2009,7 @@ class GPT(nn.Module):
             self.shared_block_bank = None
             self.per_layer_attn_scales = None
             self.per_layer_mlp_scales = None
+            self.per_layer_skc_scales = None
             self.per_layer_resid_mixes = None
             self._block_map = None
             self.blocks = nn.ModuleList([_make_block(i) for i in range(num_layers)])
@@ -2054,8 +2105,13 @@ class GPT(nn.Module):
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == "skc":
-            # Pass prev_capsules so KoopmanDynamics sees cross-window carry state
-            x, v_out = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+            # Pass prev_capsules so KoopmanDynamics sees cross-window carry state.
+            # Pass per_layer_skc_scales[layer_idx] to override the block's shared
+            # internal skc_scale — without this, all layers sharing one SKCLayer block
+            # apply the exact same residual scale, breaking SkipInit depth invariance.
+            _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
+            x, v_out = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
+                             external_skc_scale=_skc_scale)
             return x, v_out
         else:
             # Attention block
@@ -2084,7 +2140,7 @@ class GPT(nn.Module):
                 x = self.feedback_adapters[i](x, sketch)
         return x
 
-    def _compute_hidden(self, input_ids: Tensor, elapsed_fraction: float = 1.0, carry_capsules: Tensor | None = None) -> tuple[Tensor, list, Tensor | None, list]:
+    def _compute_hidden(self, input_ids: Tensor, elapsed_fraction: float = 1.0, carry_capsules: Tensor | None = None, feedback_valid_len: int | None = None) -> tuple[Tensor, list, Tensor | None, list]:
         """Core KoopCaps-HRM forward: encode → [correct]^N → decode.
 
         Returns (hidden, consistency_losses, capsule_state) where consistency_losses
@@ -2131,7 +2187,7 @@ class GPT(nn.Module):
 
         for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
-                sketch = self.feedback_pooler(self.final_norm(x))
+                sketch = self.feedback_pooler(self.final_norm(x), valid_len=feedback_valid_len)
             else:
                 sketch = None
 
@@ -2213,17 +2269,20 @@ class GPT(nn.Module):
                 if hasattr(m, '_last_capsules'):
                     del m._last_capsules
 
-    def forward_logits(self, input_ids: Tensor, temperature: float = 1.0) -> Tensor:
-        hidden, _, _, _ = self._compute_hidden(input_ids)
+    def forward_logits(self, input_ids: Tensor, temperature: float = 1.0,
+                       feedback_valid_len: int | None = None) -> Tensor:
+        hidden, _, _, _ = self._compute_hidden(input_ids, feedback_valid_len=feedback_valid_len)
         logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
         if temperature != 1.0:
             logits = logits / temperature
         return logits.reshape(input_ids.size(0), input_ids.size(1), -1)
 
     def forward_logits_with_carry(self, input_ids: Tensor, carry_capsules: Tensor | None = None,
-                                   temperature: float = 1.0) -> tuple[Tensor, Tensor | None]:
+                                   temperature: float = 1.0,
+                                   feedback_valid_len: int | None = None) -> tuple[Tensor, Tensor | None]:
         """Forward pass that accepts and returns capsule state for cross-window carry."""
-        hidden, _, capsule_state, _ = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
+        hidden, _, capsule_state, _ = self._compute_hidden(input_ids, carry_capsules=carry_capsules,
+                                                           feedback_valid_len=feedback_valid_len)
         logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
         if temperature != 1.0:
             logits = logits / temperature
@@ -2407,9 +2466,13 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 chunk = val_tokens[start:end + 1].to(dtype=torch.int64, device=device)
                 x_batch[j, :wlen] = chunk[:-1]
                 y_batch[j, :wlen] = chunk[1:]
+            # Pass min valid length so FeedbackPooler clips zero-padding before
+            # adaptive_avg_pool1d — padding zeros would corrupt the sketch for all tokens.
+            _fvl = min(wlens) if min(wlens) < seq_len else None
             if use_carry:
                 logits, capsule_state = base_model.forward_logits_with_carry(
-                    x_batch, carry_capsules=carry_capsules, temperature=temperature)
+                    x_batch, carry_capsules=carry_capsules, temperature=temperature,
+                    feedback_valid_len=_fvl)
                 if capsule_state is not None:
                     cs_avg = capsule_state.mean(dim=0, keepdim=True).detach()
                     if carry_capsules is not None:
@@ -2417,7 +2480,8 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                     else:
                         carry_capsules = cs_avg.detach()
             else:
-                logits = base_model.forward_logits(x_batch, temperature=temperature)
+                logits = base_model.forward_logits(x_batch, temperature=temperature,
+                                                   feedback_valid_len=_fvl)
             nll = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y_batch.reshape(-1),
@@ -2621,7 +2685,20 @@ def eval_val_sliding_ttt(
                     x = local[:-1].reshape(-1, seq_len)
                     y = local[1:].reshape(-1, seq_len)
                     optimizer.zero_grad(set_to_none=True)
-                    loss = base_model(x, y, temperature=temperature, carry_capsules=carry_capsules) if use_carry else base_model(x, y, temperature=temperature)
+                    if use_carry:
+                        # Use forward_logits_with_carry so carry_capsules is updated
+                        # sequentially within the sub-batch loop. Without this, every
+                        # sub-batch receives the same static carry from the previous
+                        # chunk end — the Koopman state acts as a frozen anchor rather
+                        # than a flowing temporal state, breaking BPTT continuity.
+                        logits_ttt, _cs = base_model.forward_logits_with_carry(
+                            x, carry_capsules=carry_capsules, temperature=temperature)
+                        loss = F.cross_entropy(logits_ttt.reshape(-1, logits_ttt.size(-1)).float(), y.reshape(-1))
+                        if _cs is not None:
+                            carry_capsules = (_cs.mean(dim=0, keepdim=True) * (1 - decay) +
+                                              (carry_capsules if carry_capsules is not None else 0) * decay).detach()
+                    else:
+                        loss = base_model(x, y, temperature=temperature)
                     loss.backward()
                     if world_size > 1:
                         for p in ttt_params:
@@ -3307,6 +3384,11 @@ def main() -> None:
                     base_model.lm_head.weight.copy_(full_weight)
                 base_model.tie_embeddings = False
                 base_model.lm_head.weight.requires_grad_(True)
+                # The head was excluded from opt_head at init time (tied weight).
+                # Now that it is independent, inject it into the optimizer — otherwise
+                # requires_grad_(True) enables gradient accumulation but opt_head.step()
+                # is completely blind to the parameter and it never actually updates.
+                opt_head.param_groups[0]['params'].append(base_model.lm_head.weight)
                 for g in opt_head.param_groups:
                     g["lr"] = g["base_lr"] = args.head_lr
                 _untied = True
