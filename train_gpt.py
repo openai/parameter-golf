@@ -2641,7 +2641,9 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
     loss_sum = 0.0
     tok_count = 0
     seq_len = min(args.train_seq_len, 512)
-    with torch.inference_mode():
+    # Use no_grad instead of inference_mode: inference_mode caches tensors that
+    # cannot be saved for backward, causing errors when the model returns to training.
+    with torch.no_grad():
         for i in range(0, min(proxy_tokens.numel() - 1, 32768), seq_len):
             chunk = proxy_tokens[i:i + seq_len + 1].to(device)
             chunk = chunk.to(torch.int64)
