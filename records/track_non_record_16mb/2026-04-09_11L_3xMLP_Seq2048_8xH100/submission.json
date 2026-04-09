@@ -1,0 +1,18 @@
+{
+    "author": "Rohan Abhilash",
+    "github_id": "Rohan-Abhilash",
+    "name": "11L 3x MLP Seq2048 (Non-Record)",
+    "blurb": "Non-record submission: architecture scaling from baseline (11 layers, 3x MLP, seq_len 2048, warmdown 2000). Post-quant val_bpb 1.1791 vs baseline 1.2244 (-3.7%). Artifact 24.5MB (over 16MB — needs int6 QAT + GPTQ + LZMA). 5611 steps in 600s on 8xH100 SXM at 107ms/step.",
+    "date": "2026-04-09",
+    "track": "non-record-16mb",
+    "val_loss": 1.99078677,
+    "val_bpb": 1.17905606,
+    "pre_quant_val_loss": 2.0022,
+    "pre_quant_val_bpb": 1.1858,
+    "step_stop": 5611,
+    "wallclock_seconds": 600,
+    "bytes_total": 24456914,
+    "bytes_model_int8_zlib": 24409272,
+    "bytes_code": 47642,
+    "gpu": "8xH100 SXM 80GB"
+}
