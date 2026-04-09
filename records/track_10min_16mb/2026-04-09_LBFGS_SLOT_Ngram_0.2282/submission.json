@@ -2,7 +2,7 @@
   "author": "Chidera Ibe",
   "github_id": "ChideraIbe123",
   "name": "L-BFGS SLOT + Entropy-Adaptive N-gram Mixer",
-  "blurb": "L-BFGS SLOT (6 steps, strong Wolfe line search) combined with vectorized order-12 n-gram backoff mixer. Entropy-adaptive alpha mixes neural and n-gram probabilities per-token, with target-independent order and context-count features boosting n-gram trust for high-confidence matches. Novel: no other submission combines second-order SLOT optimization with adaptive n-gram mixing. Built on PR #1313 base.",
+  "blurb": "L-BFGS SLOT (6 steps, strong Wolfe line search) combined with vectorized order-12 n-gram backoff mixer. Entropy-adaptive alpha mixes neural and n-gram probabilities per-token, with target-independent order and context-count features boosting n-gram trust for high-confidence matches. Novel: no other submission combines second-order SLOT optimization with adaptive n-gram mixing.",
   "date": "2026-04-09T00:00:00Z",
   "val_loss": 0.38521446,
   "val_bpb": 0.22814622,
