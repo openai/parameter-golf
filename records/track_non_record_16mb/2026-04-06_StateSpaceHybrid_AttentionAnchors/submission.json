@@ -1,28 +1,28 @@
-﻿{
+{
     "author":  "Greg / Codex AutoResearch",
     "github_id":  "greqone",
     "name":  "Non-record: state-space hybrid with attention anchors",
     "track_label":  "fixed-predictor",
-    "blurb":  "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, a fixed-predictor 5A/4S S4D-style hybrid, a longer S4D kernel, SmearGate, additional Blackwell scale, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
-    "date":  "2026-04-08T00:00:00Z",
+    "blurb":  "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, a fixed-predictor 5A/4S S4D-style hybrid, modestly larger recurrent rank, substantially more same-lane Blackwell scale, retained SmearGate, targeted recurrent-core fp16 export, and ENABLE_TORCH_COMPILE=0. This remains a fixed-predictor non-record result with no eval-time adaptation or TTT.",
+    "date":  "2026-04-09T00:00:00Z",
     "metric_name":  "final_int8_zlib_roundtrip_exact val_bpb",
-    "val_loss":  2.69604033,
-    "val_bpb":  1.59674695,
-    "baseline_val_loss":  2.79230833,
-    "baseline_val_bpb":  1.65376228,
-    "kept_vs_baseline_delta_bpb":  -0.05701533,
-    "previous_promoted_val_bpb":  1.61118819,
-    "previous_promoted_delta_bpb":  -0.01444124,
+    "val_loss":  2.54054976,
+    "val_bpb":  1.50465667,
+    "baseline_val_loss":  2.64510742,
+    "baseline_val_bpb":  1.56658161,
+    "kept_vs_baseline_delta_bpb":  -0.06192494,
+    "previous_promoted_val_bpb":  1.59674695,
+    "previous_promoted_delta_bpb":  -0.09209028,
     "artifact_bytes":  {
                            "code":  57941,
-                           "model_int8_zlib":  13191326,
-                           "total":  13249267
+                           "model_int8_zlib":  15202327,
+                           "total":  15260268
                        },
     "wallclock_ms":  {
-                         "training":  312374,
-                         "evaluation":  124259,
-                         "export_roundtrip_estimate":  4989,
-                         "end_to_end_estimate":  441622
+                         "training":  609292,
+                         "evaluation":  141595,
+                         "export_roundtrip_estimate":  5135,
+                         "end_to_end_estimate":  756022
                      },
     "compile_settings":  {
                              "enable_torch_compile":  0,
@@ -32,71 +32,81 @@
                         "block_layout":  "AAAASASSS",
                         "ssm_core":  "s4d",
                         "ssm_kernel_size":  96,
-                        "ssm_rank":  12,
+                        "ssm_rank":  14,
                         "smear_enabled":  1,
                         "smear_init":  0,
+                        "qk_gain_init":  1.5,
                         "int8_force_float_name_patterns":  "ssm_coeff,ssm_log_decay,ssm_d",
                         "train_batch_tokens":  32768,
                         "train_seq_len":  1024,
                         "val_batch_size":  262144,
-                        "iterations":  1200,
+                        "iterations":  2200,
                         "seed":  2027
                     },
     "baseline_match":  {
                            "type":  "strongest_legal_all_attention_control_same_blackwell_lane",
                            "block_layout":  "AAAAAAAAA",
-                           "iterations":  730,
+                           "iterations":  1420,
                            "seed":  2027,
-                           "int8_force_float_name_patterns":  "tok_emb,blocks.7.,blocks.8.",
-                           "train_time_ms":  293093,
-                           "evaluation_time_ms":  233089,
-                           "artifact_bytes_total":  15979462
+                           "int8_force_float_name_patterns":  "tok_emb,blocks.8.",
+                           "train_time_ms":  442368,
+                           "evaluation_time_ms":  222490,
+                           "artifact_bytes_total":  15993409
                        },
     "current_public_winner_variance":  {
                                            "hybrid_layout":  "AAAASASSS",
                                            "hybrid_export_policy":  "ssm_coeff,ssm_log_decay,ssm_d -\u003e float16",
-                                           "hybrid_mean_val_bpb":  1.61663462,
-                                           "hybrid_std_val_bpb":  0.00737503,
+                                           "hybrid_mean_val_bpb":  1.59988596,
+                                           "hybrid_std_val_bpb":  0.00509915,
                                            "hybrid_runs":  4,
                                            "control_mean_val_bpb":  1.65291294,
                                            "control_std_val_bpb":  0.00573482,
                                            "control_runs":  3,
-                                           "mean_edge_bpb":  -0.03627832
+                                           "mean_edge_bpb":  -0.05302698
                                        },
+    "refreshed_strongest_control_stats":  {
+                                              "export_policy":  "tok_emb,blocks.8. -\u003e float16",
+                                              "mean_val_bpb":  1.56762053,
+                                              "std_val_bpb":  0.00146925,
+                                              "runs":  2
+                                          },
     "promoted_candidate_stats":  {
                                      "layout":  "AAAASASSS",
-                                     "ssm_rank":  12,
+                                     "ssm_rank":  14,
                                      "ssm_kernel_size":  96,
                                      "smear_enabled":  1,
                                      "smear_init":  0,
-                                     "iterations":  1200,
+                                     "qk_gain_init":  1.5,
+                                     "iterations":  2200,
                                      "export_policy":  "ssm_coeff,ssm_log_decay,ssm_d -\u003e float16",
-                                     "mean_val_bpb":  1.60040374,
-                                     "std_val_bpb":  0.00365679,
+                                     "mean_val_bpb":  1.50540634,
+                                     "std_val_bpb":  0.00106019,
                                      "runs":  2
                                  },
     "strong_control_frontier":  {
-                                    "strongest_legal_control_val_bpb":  1.65376228,
-                                    "strongest_legal_control_iterations":  730,
-                                    "strongest_legal_control_bytes_total":  15979462,
-                                    "nearest_illegal_boundary_val_bpb":  1.6580749,
-                                    "nearest_illegal_boundary_iterations":  740,
-                                    "nearest_illegal_boundary_bytes_total":  16021806,
-                                    "lower_illegal_boundary_val_bpb":  1.62477053,
-                                    "lower_illegal_boundary_iterations":  800,
-                                    "lower_illegal_boundary_bytes_total":  16217131
+                                    "strongest_legal_control_val_bpb":  1.56658161,
+                                    "strongest_legal_control_iterations":  1420,
+                                    "strongest_legal_control_bytes_total":  15993409,
+                                    "nearest_illegal_boundary_val_bpb":  1.56591641,
+                                    "nearest_illegal_boundary_iterations":  1425,
+                                    "nearest_illegal_boundary_bytes_total":  16006424,
+                                    "previous_strongest_legal_control_val_bpb":  1.65376228,
+                                    "previous_strongest_legal_control_iterations":  730,
+                                    "previous_strongest_legal_control_bytes_total":  15979462
                                 },
     "export_granularity_finding":  {
-                                       "narrow_core_fp16_val_bpb":  1.7265315,
-                                       "full_ssm_fp16_val_bpb":  1.72652974,
-                                       "delta_bpb_full_minus_narrow":  -1.76E-06,
-                                       "delta_bytes_full_minus_narrow":  3929952
+                                       "narrow_core_fp16_val_bpb":  1.59674695,
+                                       "top_block_full_ssm_fp16_val_bpb":  1.59674681,
+                                       "delta_bpb_top_block_minus_narrow":  -1.4E-07,
+                                       "delta_bytes_top_block_minus_narrow":  865213
                                    },
     "ssm_headroom_finding":  {
-                                 "rank12_k64_900_val_bpb":  1.62978755,
-                                 "rank16_k64_900_val_bpb":  1.6306908,
-                                 "rank12_k96_900_val_bpb":  1.62958731,
-                                 "pre_transfer_val_bpb":  1.62386862
+                                 "rank12_k96_1200_val_bpb":  1.59674695,
+                                 "rank12_k128_1200_val_bpb":  1.60650831,
+                                 "rank14_k96_1200_val_bpb":  1.59638095,
+                                 "rank14_k96_1800_val_bpb":  1.53097696,
+                                 "rank14_k96_2000_val_bpb":  1.51685767,
+                                 "rank14_k96_2200_val_bpb":  1.50465667
                              },
     "fixed_predictor_transfer_finding":  {
                                              "positive_transfer":  "SmearGate",
@@ -109,6 +119,12 @@
                                                                        "delta_bpb_minus_0_5_minus_default":  0.00415251,
                                                                        "verdict":  "negative_tuning"
                                                                    },
+                                             "qk_gain_tuning":  {
+                                                                    "default_qk_gain_init_val_bpb":  1.50465667,
+                                                                    "qk_gain_init_1_7_val_bpb":  1.53303405,
+                                                                    "delta_bpb_qkg17_minus_default":  0.02837738,
+                                                                    "verdict":  "negative_tuning"
+                                                                },
                                              "negative_transfer_reference":  {
                                                                                  "transfer":  "BigramHash",
                                                                                  "bigram_vocab_size":  1024,
@@ -143,14 +159,16 @@
                                                                    "gpu":  "Apple M4",
                                                                    "train_shards_detected":  0
                                                                }
-                                                           ]
+                                                           ],
+                          "remote_h100_path_feasible":  false,
+                          "runpodctl_configured":  false
                       },
     "scope":  {
                   "training_shards":  1,
                   "gpu_lane":  "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
                   "record_claim":  false
               },
-    "bytes_total":  13249267,
-    "bytes_model_int8_zlib":  13191326,
+    "bytes_total":  15260268,
+    "bytes_model_int8_zlib":  15202327,
     "bytes_code":  57941
 }
