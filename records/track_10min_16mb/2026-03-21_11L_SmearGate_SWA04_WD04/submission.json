@@ -1,0 +1,20 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "11L Int6 QAT + SmearGate + SWA(0.4) + WD=0.04",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "blurb": "11 layers with int6 per-row QAT (STE), per-dim SmearGate, SWA every 50 steps from 40% of training, Muon WD=0.04, sliding window eval stride=64, zstd-22. 3-seed mean 1.1488.",
+  "val_loss": 1.93870439,
+  "val_bpb": 1.14821298,
+  "seed_results": {
+    "7": {"val_loss": 1.93992270, "val_bpb": 1.14893454, "steps": 8380, "ms_per_step": 71.59},
+    "42": {"val_loss": 1.93870439, "val_bpb": 1.14821298, "steps": 8393, "ms_per_step": 71.79},
+    "1337": {"val_loss": 1.94069820, "val_bpb": 1.14939383, "steps": 8390, "ms_per_step": 71.51}
+  },
+  "mean_val_loss": 1.93977510,
+  "mean_val_bpb": 1.14884712,
+  "bytes_total": 15177275,
+  "bytes_model_int6_zstd": 15092787,
+  "bytes_code": 84488
+}
