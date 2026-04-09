@@ -2838,7 +2838,10 @@ def main() -> None:
         device = torch.device("cpu")
     if distributed:
         dist_backend = "nccl" if device.type == "cuda" else "gloo"
-        dist.init_process_group(backend=dist_backend, device_id=device if device.type == "cuda" else None)
+        from datetime import timedelta
+        _nccl_timeout_sec = int(os.environ.get("TORCH_NCCL_TIMEOUT_SEC", "7200"))
+        dist.init_process_group(backend=dist_backend, device_id=device if device.type == "cuda" else None,
+                                timeout=timedelta(seconds=_nccl_timeout_sec))
 
         dist.barrier()
     master_process = rank == 0
@@ -3191,9 +3194,6 @@ def main() -> None:
                 ema.update(base_model)
 
         # Export-aligned training phase: switch TernaryLinear to use calibrated quantizer
-        # Barrier so rank1 waits while rank0 calibrates
-        if args.export_aligned_train and not _aligned_phase_started and distributed:
-            dist.barrier()
         if master_process and args.export_aligned_train and not _aligned_phase_started:
             aligned_frac = args.export_aligned_train_start_fraction
             cur_frac = elapsed_ms / max_wallclock_ms if max_wallclock_ms else step / args.iterations
@@ -3203,18 +3203,16 @@ def main() -> None:
                     if _proxy_calib_tokens is None:
                         _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
                     log0(f"step:{step} export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
-                    eval_sd = base_model.state_dict()
                     if ema is not None:
                         _ema_orig = ema.apply_shadow(base_model)
-                        eval_sd = base_model.state_dict()
+                        _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
                         ema.restore(base_model, _ema_orig)
-                    _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+                    else:
+                        _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
                     log0(f"step:{step} export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
                 global _EXPORT_CALIB
                 _EXPORT_CALIB = _export_calib
                 _aligned_phase_started = True
-        if args.export_aligned_train and distributed:
-            dist.barrier()  # re-sync after calibration
                 log0(f"step:{step} export_aligned_train:activated calib_tensors={len(_EXPORT_CALIB)}", flush=True)
 
         # Export proxy eval: periodically serialize+reload+score to track round-trip BPB
