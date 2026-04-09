@@ -2189,13 +2189,13 @@ class GPT(nn.Module):
             ce_loss = ce_loss + Hyperparameters.moe_router_aux_loss_coef * moe_aux
 
         # Spectral entropy aux loss — prevents spectral collapse in SKC layers.
+        # Accumulate on device without .item() to avoid host-device sync every step.
         if self.training:
             spec_aux = torch.zeros((), device=input_ids.device)
             for m in self.modules():
                 if isinstance(m, SKCLayer) and hasattr(m, 'spectral_aux_loss'):
                     spec_aux = spec_aux + m.spectral_aux_loss
-            if spec_aux.item() != 0.0:
-                ce_loss = ce_loss + spec_aux
+            ce_loss = ce_loss + spec_aux
 
         return ce_loss
 
@@ -2953,10 +2953,13 @@ def main() -> None:
     ).to(device)
 
     # Re-enable standard compilation for Linux
-    compiled_model = torch.compile(base_model) if args.compile_mode != "none" else base_model
+    compiled_model = torch.compile(base_model, mode=args.compile_mode) if args.compile_mode != "none" else base_model
     
-    use_find_unused = args.untie_at_fraction > 0 or not args.tie_embeddings or args.shared_blocks > 0
-    
+    # MoE with top-k routing leaves non-selected expert params unused on each step.
+    # find_unused_parameters must be True whenever MoE is active to prevent DDP hangs.
+    use_find_unused = (args.untie_at_fraction > 0 or not args.tie_embeddings
+                       or args.shared_blocks > 0 or args.moe_enabled)
+
     if distributed:
         model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
     else:
@@ -3051,7 +3054,6 @@ def main() -> None:
             for mi in range(grad_accum_steps):
                 if distributed: model.require_backward_grad_sync = mi == grad_accum_steps - 1
                 x, y = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
-                x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     loss = model(x, y, elapsed_fraction=0.0)
                 (loss * grad_scale).backward()
@@ -3167,9 +3169,8 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro == grad_accum_steps - 1
             x, y = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
-            x, y = x.to(device), y.to(device)
-            elapsed_sec = time.perf_counter() - t0
-            elapsed_frac = min(elapsed_sec / max(args.max_wallclock_seconds, 1e-9), 1.0)
+            elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+            elapsed_frac = min(elapsed_ms / 1000.0 / max(args.max_wallclock_seconds, 1e-9), 1.0)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 loss = model(x, y, elapsed_fraction=elapsed_frac)
             train_loss.add_(loss.detach())
