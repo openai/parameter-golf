@@ -1,10 +1,10 @@
 # Non-Record: State-Space Hybrid with Attention Anchors
 
-This folder records a local continuation of the README wishlist `state-space models` lane.
+This folder records a V8 promotion of the README wishlist `state-space models` lane.
 
 This is **not** a leaderboard record attempt.
 This is **not** an official 8xH100 / 10-minute lane run.
-This is **not** a full-train-shards claim.
+This is **not** a full-train-shards claim for the kept run.
 This is **not** a statistical-significance claim for a record.
 
 Track label for this folder:
@@ -18,8 +18,9 @@ What it is:
 - A scorer-clean hybrid architecture study on the standard `train_gpt.py` path.
 - Standard primary metric: `final_int8_zlib_roundtrip_exact val_bpb`.
 - Full official validation split (`fineweb_val_*.bin`, `62,021,632` scored tokens).
-- Local one-shard training on the single available `fineweb_train_000000.bin` shard.
-- A Blackwell workstation continuation that refreshed the strongest legal all-attention control package before promoting a stronger hybrid point.
+- The kept promoted result still trains on the single locally available `fineweb_train_000000.bin` shard.
+- Phase 0 now includes a three-seed rerun package for the current kept hybrid family and the refreshed strongest legal all-attention control family on the same Blackwell lane.
+- Phase 1 now includes a bounded Modal H100 continuation over an 80-shard cached train view, improving realism without changing the non-record status of the kept point.
 - A compile-friendly architecture family, while the kept run below explicitly used `ENABLE_TORCH_COMPILE=0`.
 
 ## Kept Result
@@ -32,94 +33,91 @@ What it is:
 - Kept transfer: `SmearGate`, retained as a fixed-predictor one-at-a-time transfer
 - Kept attention tuning: default `QK_GAIN_INIT=1.5`
 - Kept export policy: keep only `ssm_coeff`, `ssm_log_decay`, and `ssm_d` in `float16`; quantize the rest with the standard int8+zlib path
-- Seed: `2027`
+- Seed: `4242`
 - Fixed config: `TRAIN_BATCH_TOKENS=32768`, `TRAIN_SEQ_LEN=1024`, `VAL_BATCH_SIZE=262144`
-- Training budget: `2200` steps on the single available train shard
+- Training budget: `2200` steps on the single locally available train shard
 - Kept run compile setting: `ENABLE_TORCH_COMPILE=0`, `SDP_BACKEND=math`
 - GPU lane: single `NVIDIA RTX PRO 6000 Blackwell Workstation Edition`
-- Primary score: `val_bpb = 1.50465667`
-- Primary loss: `val_loss = 2.54054976`
+- Primary score: `val_bpb = 1.50126339`
+- Primary loss: `val_loss = 2.53482035`
 - Model params: `17,119,784`
 
 ## Controlled Comparison
 
-All rows below use the same scorer path, the same tokenizer, the same full validation split, and the same one-shard local training data.
+All rows below use the same scorer path, the same tokenizer, the same full validation split, and the same one-shard local training data unless explicitly labeled as the separate H100 realism probe.
 
-The strongest retained legal all-attention control in this continuation is now the leaner `top1blockfp16` family that preserves `tok_emb` and only the top attention block in `float16`, then spends the recovered byte budget on more Blackwell training steps.
+The strongest retained legal all-attention control in this continuation remains the leaner `top1blockfp16` family that preserves `tok_emb` and only the top attention block in `float16`, then spends the recovered byte budget on more Blackwell training steps.
 
 | Run | Layout | Train time | Eval time | Total bytes | val_bpb | val_loss | Legality |
 |---|---|---:|---:|---:|---:|---:|---|
-| Previous promoted hybrid | `AAAASASSS` | `312,374 ms` | `124,259 ms` | `13,249,267` | `1.59674695` | `2.69604033` | legal |
-| Previous strongest legal control | `AAAAAAAAA` | `293,093 ms` | `233,089 ms` | `15,979,462` | `1.65376228` | `2.79230833` | legal |
-| **Refreshed strongest legal control** | **`AAAAAAAAA`** | **`442,368 ms`** | **`222,490 ms`** | **`15,993,409`** | **`1.56658161`** | **`2.64510742`** | **legal** |
-| Nearest refreshed byte-cap boundary control | `AAAAAAAAA` | `492,617 ms` | `212,123 ms` | `16,006,424` | `1.56591641` | `2.64398426` | illegal |
-| **Kept hybrid** | **`AAAASASSS`** | **`609,292 ms`** | **`141,595 ms`** | **`15,260,268`** | **`1.50465667`** | **`2.54054976`** | **legal** |
+| Previous public winner | `AAAASASSS` | `609,292 ms` | `141,595 ms` | `15,260,268` | `1.50465667` | `2.54054976` | legal |
+| Strongest legal all-attention control | `AAAAAAAAA` | `442,368 ms` | `222,490 ms` | `15,993,409` | `1.56658161` | `2.64510742` | legal |
+| Control rerun on same lane | `AAAAAAAAA` | `431,256 ms` | `190,006 ms` | `15,996,880` | `1.56838339` | `2.64814966` | legal |
+| Nearest byte-cap boundary control | `AAAAAAAAA` | `492,617 ms` | `212,123 ms` | `16,006,424` | `1.56591641` | `2.64398426` | illegal |
+| **Kept hybrid** | **`AAAASASSS`** | **`1,207,089 ms`** | **`124,606 ms`** | **`15,272,426`** | **`1.50126339`** | **`2.53482035`** | **legal** |
 
-Delta vs the refreshed strongest legal all-attention control: `-0.06192494` BPB.
+Delta vs the strongest legal all-attention control: `-0.06531822` BPB.
 
-Delta vs the previous promoted kept result: `-0.09209028` BPB.
+Delta vs the previous public winner: `-0.00339328` BPB.
 
 Important legality note:
 
-- the retained legal control is now the `1420`-step `top1blockfp16` point at `1.56658161` BPB
+- the strongest retained legal control remains the `1420`-step `top1blockfp16` point at `1.56658161` BPB
+- the additional `4242` rerun stayed legal but was weaker at `1.56838339` BPB
 - the nearby `1425`-step control was slightly better on raw BPB but crossed the cap at `16,006,424` bytes
-- the older `740`-step and `800`-step `top2blocksfp16` points remain retained legality references only
-- all higher-score illegal controls are documentation only and are not admissible as counted controls
+- all higher-score illegal controls remain documentation only and are not admissible as counted controls
 
-## Variance / Stability Package
+## Phase 0 Variance Package
 
-Before promoting a new winner, the previous public winner `AAAASASSS` + `SSM_KERNEL_SIZE=96` + `SmearGate` at `1200` steps was rerun on the same Blackwell lane to verify that its gain survived more seeds.
+The current kept hybrid family was rerun twice more on the same Blackwell lane before promoting V8.
 
-Retained reruns for the previous public winner at `1200` steps:
-
-- seed `2027`: `1.59674695` BPB
-- seed `1337`: `1.60406053` BPB
-- seed `4242`: `1.59435882` BPB
-- seed `9001`: `1.60437754` BPB
-- mean: `1.59988596`
-- stddev: `0.00509915`
-
-The earlier strongest control package at `730` steps was also rerun:
-
-- seed `2027`: `1.65376228` BPB
-- seed `4242`: `1.64550320` BPB
-- seed `9001`: `1.65947334` BPB
-- mean: `1.65291294`
-- stddev: `0.00573482`
-
-Mean edge for the previous public winner over that prior control package: `-0.05302698` BPB.
-
-The refreshed strongest control family also has a retained rerun package:
-
-- seed `2027`: `1.56658161` BPB
-- seed `1337`: `1.56865945` BPB
-- mean: `1.56762053`
-- stddev: `0.00146925`
-
-The promoted `2200`-step hybrid continuation has a retained rerun package:
+Retained reruns for the current kept hybrid family at `2200` steps:
 
 - seed `2027`: `1.50465667` BPB
 - seed `1337`: `1.50615600` BPB
-- mean: `1.50540634`
-- stddev: `0.00106019`
+- seed `4242`: `1.50126339` BPB
+- mean: `1.50402535`
+- sample stddev: `0.00250666`
 
-Mean edge for the promoted candidate over the refreshed control mean: `-0.06221419` BPB.
+The refreshed strongest legal control family at `1420` steps was also rerun to three seeds:
+
+- seed `2027`: `1.56658161` BPB
+- seed `1337`: `1.56865945` BPB
+- seed `4242`: `1.56838339` BPB
+- mean: `1.56787482`
+- sample stddev: `0.00112842`
+
+Mean paired hybrid-minus-control edge across the three matching seeds: `-0.06384946` BPB.
+
+Paired edge sample stddev: `0.00284710`.
 
 ## Data / Scale Reality
 
-The biggest realism bottleneck in this local campaign remains unchanged:
+The biggest local realism bottleneck remains the same:
 
-- detected local train shards: `1`
+- local dataset directory: `C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\data\datasets\fineweb10B_sp1024`
+- local train shards detected: `1`
 - available local shard: `fineweb_train_000000.bin`
+- manifest-declared train shards for the full dataset: `195`
 
-This continuation again checked bounded alternate-machine options before accepting the one-shard limit:
+This continuation again checked bounded alternate-machine options before accepting the local one-shard limit:
 
 - `vm-ubuntu-pitlab`: reachable, zero visible `fineweb_train_*.bin` shards, no visible `nvidia-smi`
 - `ubuntu-dev`: reachable, zero visible `fineweb_train_*.bin` shards, no visible `nvidia-smi`
 - `widelab-mac`: reachable, Apple `M4`, zero visible `fineweb_train_*.bin` shards
-- `runpodctl`: installed locally but not configured with an API key, so no usable remote H100 lane was available from this workspace
+- `runpodctl`: installed locally but not configured with an API key, so no usable RunPod path was available from this workspace
 
-No additional local or alternate-machine multi-shard continuation path was accessible during this run, so the kept result is still a one-shard non-record Blackwell result.
+A usable remote H100 path did exist through Modal without new human setup:
+
+- cached volume: `pg-data`
+- cached train view: `fineweb10B_sp1024_train080`
+- train shards visible on that view: `80`
+- bounded H100 continuation: `modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8`
+- exact result: `val_bpb = 1.84995753`, `val_loss = 3.12357579`, `9,265,387` total bytes
+
+This improves the realism package because the same fixed-predictor hybrid recipe was exercised on a real multi-shard H100 path. It does **not** convert the kept result into an official-lane claim, and it does **not** replace the local Blackwell kept run as the promoted non-record point.
+
+Phase 6 official-lane feasibility was not triggered in this campaign because the raw improvement over `1.50465667` was `0.00339328` BPB, below the `0.01` threshold required to force an official-lane feasibility attempt.
 
 ## Refreshed Control Frontier
 
@@ -136,7 +134,8 @@ Retained `top1blockfp16` controls on the same Blackwell lane with `tok_emb,block
 This matters for interpretation:
 
 - the public lane is no longer being compared only against the older `730`-step `top2blocksfp16` baseline
-- the kept hybrid now clears a much stronger legal all-attention control by `0.06192494` BPB
+- the kept hybrid now clears a much stronger legal all-attention control by `0.06531822` BPB
+- the strongest legal control remained stable enough across three seeds that the hybrid still keeps a material edge on the refreshed package
 
 ## Export Granularity Study
 
@@ -165,9 +164,10 @@ The longer `128`-tap kernel regressed. A modest rank increase to `14` was slight
 
 Scaling the stronger rank-14 point on the same lane produced:
 
-- `1800` steps: `1.53097696` BPB, `14,765,396` total bytes
-- `2000` steps: `1.51685767` BPB, `15,051,906` total bytes
-- `2200` steps: `1.50465667` BPB, `15,260,268` total bytes
+- `1800` steps, seed `2027`: `1.53097696` BPB, `14,765,396` total bytes
+- `2000` steps, seed `2027`: `1.51685767` BPB, `15,051,906` total bytes
+- `2200` steps, seed `2027`: `1.50465667` BPB, `15,260,268` total bytes
+- `2200` steps, seed `4242`: `1.50126339` BPB, `15,272,426` total bytes
 
 The kept result therefore spends the remaining legal budget on recurrent capacity plus more same-lane Blackwell scale, not on more attention.
 
@@ -189,12 +189,12 @@ Smear tuning check:
 
 The lighter smear init was negative.
 
-New transfer check on the stronger rank-14 branch:
+QK-gain tuning check on the stronger rank-14 branch:
 
-- `2200`-step rank-14 hybrid, default `QK_GAIN_INIT=1.5`: `1.50465667` BPB
+- `1800`-step rank-14 hybrid, default `QK_GAIN_INIT=1.5`: `1.53097696` BPB
 - same branch + `QK_GAIN_INIT=1.7`: `1.53303405` BPB
 
-This QK-gain increase was strongly negative on the stronger branch, so the kept configuration stays on the default attention-gain setting.
+This QK-gain increase was negative on the stronger branch, so the kept configuration stays on the default attention-gain setting.
 
 Negative reference transfer retained from earlier in the lane:
 
@@ -212,48 +212,55 @@ Passed for this non-record folder:
 - Artifact byte audit under the decimal `16,000,000` byte cap for the kept promoted run
 - No validation-data training
 - No evaluation-time downloads or external services
-- Quantization/export policy explicitly accounted for in bytes
+- Recurrent export policy explicitly accounted for separately from the attention/MLP export policy
 - Kept run configuration explicitly recorded with `ENABLE_TORCH_COMPILE=0`
 - Fixed-predictor labeling explicit; no eval-time adaptation or TTT
-- Expanded rerun package for the previous public winner completed
-- Refreshed legal all-attention control frontier completed, including legal and illegal byte-boundary points
-- SSM-side headroom study completed
-- Fixed-predictor transfer study completed
-- Alternate-machine realism probe completed
-- Local H100 / official-lane feasibility was not possible from the accessible environments during this run
+- Phase 0 expanded rerun package completed
+- Phase 1 realism package completed with a bounded Modal H100 multi-shard continuation
+- Phase 2 refreshed legal all-attention control frontier completed, including legal and illegal byte-boundary points
+- Phase 3 fixed-predictor transfer study completed
+- Phase 4 SSM-side headroom study completed
+- Phase 6 official-lane feasibility was not triggered by this promotion
 
 Not claimed here:
 
-- full training set usage
+- full training set usage for the kept run
 - official record-lane legality
-- H100 or 8xH100 confirmation
+- official-lane feasibility confirmation
 - statistical significance for a record claim
 
 ## Artifact Size
 
 - Code bytes: `57,941`
-- Model bytes (`final_model.int8.ptz`): `15,202,327`
-- Total bytes: `15,260,268`
+- Model bytes (`final_model.int8.ptz`): `15,214,485`
+- Total bytes: `15,272,426`
+- Remaining legal headroom: `727,574`
 
 ## Wallclock Breakdown
 
 From the kept promoted run:
 
-- Training time: `609,292 ms`
-- Evaluation time: `141,595 ms`
-- Export / serialization / roundtrip overhead: about `5,135 ms`
-- End-to-end run duration: `756.02 s`
+- Training time: `1,207,089 ms`
+- Evaluation time: `124,606 ms`
+- Export / serialization / roundtrip overhead: about `5,764 ms`
+- End-to-end run duration: `1,337.46 s`
 
-Refreshed strongest legal all-attention control:
+Strongest legal all-attention control:
 
 - Training time: `442,368 ms`
 - Evaluation time: `222,490 ms`
 - Export / serialization / roundtrip overhead: about `8,179 ms`
 - End-to-end run duration: `673.04 s`
 
-## Exact Command
+Modal H100 realism continuation:
 
-PowerShell command used for the kept run from the research workspace:
+- Training time: `88,650 ms`
+- Evaluation time: `79,800 ms`
+- End-to-end run duration: `264.98 s`
+
+## Exact Commands
+
+PowerShell command used for the kept promoted run from the research workspace:
 
 ```powershell
 $env:CUDA_VISIBLE_DEVICES='1'
@@ -278,7 +285,13 @@ $env:SSM_RANK='14'
 $env:PARALLEL_ATTN_BIAS_INIT='1.5'
 $env:SMEAR_ENABLED='1'
 $env:INT8_FORCE_FLOAT_NAME_PATTERNS='ssm_coeff,ssm_log_decay,ssm_d'
-$env:SEED='2027'
-$env:RUN_ID='full_anchor_s4d_aaaasasss_rank14_k96_corefp16_smear_2200steps_blackwell_seed2027'
+$env:SEED='4242'
+$env:RUN_ID='full_anchor_s4d_aaaasasss_rank14_k96_corefp16_smear_2200steps_blackwell_seed4242'
 C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\.venv\Scripts\python.exe C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf-ssm-hybrid-research-scale\train_gpt.py
+```
+
+PowerShell command used for the bounded Modal H100 realism continuation:
+
+```powershell
+C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf\.venv\Scripts\python.exe C:\Users\GreQ\.codex_playground\OpenAIGolf\parameter-golf-ssm-hybrid-research-scale\experiments\state_space_hybrid\modal_phase1_probe.py --mode train --run-name modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8 --iterations 400 --seed 4242
 ```
