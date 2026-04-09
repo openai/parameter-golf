@@ -415,10 +415,8 @@ def cmd_full(args: argparse.Namespace) -> None:
             json.dump(curve, f, indent=2)
         print(f"Saved baseline loss curve ({len(curve)} points) to {BASELINE_CURVE_FILE}")
 
-    # Update fast baseline (using FP BPB from this full run's eval_val)
-    if fp_bpb is not None:
-        save_fast_baseline(fp_bpb)
-        print(f"Updated fast baseline to {fp_bpb:.4f}")
+    # NOTE: Do NOT update fast baseline here — fast proxy uses train_loss, not BPB.
+    # Full runs update the loss curve for early stopping, but not the fast baseline.
 
     # Log experiment
     entry = {
