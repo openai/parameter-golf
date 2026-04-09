@@ -1,0 +1,19 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-22",
+  "name": "11L XSA4 + EMA + Self-Distillation TTT (PR379 base)",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "blurb": "PR379 architecture (XSA4, EMA, int6+zstd) with SDTTT eval-time adaptation. 3-seed mean 1.1287 sliding BPB. No custom kernels — stock PyTorch SDPA.",
+  "val_loss": 1.90463555,
+  "val_bpb": 1.12803544,
+  "seed_results": {
+    "7": {"val_loss": 1.90692587, "val_bpb": 1.12939190},
+    "42": {"val_loss": 1.90573712, "val_bpb": 1.12868785},
+    "1337": {"val_loss": 1.90463555, "val_bpb": 1.12803544}
+  },
+  "mean_val_loss": 1.90576618,
+  "mean_val_bpb": 1.12870506,
+  "bytes_total": 15698717,
+  "bytes_code": 79975
+}
