@@ -1,0 +1,15 @@
+{
+  "author": "Kenneth Malloy",
+  "github_id": "KenMalloy",
+  "name": "DeepFloor",
+  "blurb": "DeepFloor recurrent multi-view submission with adaptive floor or fused cross-token recurrence, high-precision runtime state, and stability-controlled low-bit artifact accounting.",
+  "date": "2026-04-03T13:45:10Z",
+  "track": "non_record_16mb",
+  "val_loss": 5.4912109375,
+  "val_bpb": 7.922142788006486,
+  "bytes_total": 56477,
+  "bytes_model_estimated": 8448,
+  "bytes_code": 48029,
+  "wallclock_seconds": 0.46419291698839515,
+  "device": "cuda"
+}

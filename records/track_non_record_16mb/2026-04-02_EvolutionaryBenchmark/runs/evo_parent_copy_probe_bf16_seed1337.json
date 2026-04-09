@@ -1,0 +1,102 @@
+{
+  "config": {
+    "device": "cuda",
+    "dtype": "bf16",
+    "seed": 1337,
+    "output_json": "records/track_non_record_16mb/2026-04-02_EvolutionaryBenchmark/runs/evo_parent_copy_probe_bf16_seed1337.json",
+    "model_dim": 512,
+    "num_layers": 9,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0,
+    "qk_gain_init": 1.5,
+    "spine_variant": "plain",
+    "xsa_last_n": 0,
+    "vocab_size": 256,
+    "seq_len": 256,
+    "stride": 64,
+    "batch_size": 8,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 90000000,
+    "val_tokens": 5000000,
+    "test_tokens": 5000000
+  },
+  "base": {
+    "train": {
+      "train_seconds_target": 30.0,
+      "train_seconds_actual": 30.030151010025293,
+      "steps_completed": 874,
+      "final_loss": 1.7900598049163818,
+      "tokens_seen": 1789952
+    },
+    "val": {
+      "loss": 1.7744140625,
+      "bpb": 2.5599383684523893,
+      "tokens": 16384.0
+    },
+    "test": {
+      "loss": 1.6962890625,
+      "bpb": 2.447227818382939,
+      "tokens": 16384.0
+    }
+  },
+  "evolution": {
+    "population_size": 16,
+    "generations": 6,
+    "tournament_size": 4,
+    "crossover_strategy": "parent_copy",
+    "crossover_percentile": 50.0,
+    "mutation_std": 0.0005,
+    "mutation_fraction": 0.05,
+    "history": [
+      {
+        "generation": 0,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      },
+      {
+        "generation": 1,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      },
+      {
+        "generation": 2,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      },
+      {
+        "generation": 3,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      },
+      {
+        "generation": 4,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      },
+      {
+        "generation": 5,
+        "best_bpb": 2.5599383684523893,
+        "mean_bpb": 2.5599383684523893,
+        "worst_bpb": 2.5599383684523893
+      }
+    ],
+    "final_best_val_bpb": 2.5599383684523893,
+    "final_best_test_bpb": 2.447227818382939,
+    "ensemble_results": []
+  }
+}

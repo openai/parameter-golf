@@ -1,0 +1,1233 @@
+[deepfloor] output_dir=/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox
+[deepfloor] enwik8_path=/workspace/data/enwik8
+[deepfloor] gpus=0,1,2,3,4,5,6,7
++ /usr/bin/python3 -m unittest tests.test_run_deepfloor_suite tests.test_evolutionary_benchmark tests.test_deepfloor_evolution tests.test_spectral_flood_walk_v3 -v
+test_resolve_python_bin_accepts_existing_path (tests.test_run_deepfloor_suite.RunDeepFloorSuiteTests.test_resolve_python_bin_accepts_existing_path) ... ok
+test_resolve_python_bin_raises_for_missing_command (tests.test_run_deepfloor_suite.RunDeepFloorSuiteTests.test_resolve_python_bin_raises_for_missing_command) ... ok
+test_resolve_python_bin_uses_path_lookup_for_command_name (tests.test_run_deepfloor_suite.RunDeepFloorSuiteTests.test_resolve_python_bin_uses_path_lookup_for_command_name) ... ok
+test_committee_adaptive_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_adaptive_smoke) ... ok
+test_committee_compressibility_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_compressibility_smoke) ... ok
+test_committee_schedule_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_schedule_smoke) ... ok
+test_committee_schedule_supports_prune_stages (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_schedule_supports_prune_stages) ... ok
+test_committee_signals_block_widen_when_population_converged (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_signals_block_widen_when_population_converged) ... ok
+test_committee_signals_capture_branch_distance_and_widen_readiness (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_committee_signals_capture_branch_distance_and_widen_readiness) ... ok
+test_crossover_viability_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_crossover_viability_smoke) ... ok
+test_default_vocab_size_matches_byte_level_enwik8 (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_default_vocab_size_matches_byte_level_enwik8) ... ok
+test_delta_importance_prefers_larger_delta_magnitude_outside_overlap (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_delta_importance_prefers_larger_delta_magnitude_outside_overlap) ... ok
+test_delta_overlap_crossover_recombines_around_base (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_delta_overlap_crossover_recombines_around_base) ... ok
+test_delta_sparse_consensus_requires_shared_strong_agreement (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_delta_sparse_consensus_requires_shared_strong_agreement) ... ok
+test_delta_sparse_union_keeps_only_strong_parent_patches (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_delta_sparse_union_keeps_only_strong_parent_patches) ... ok
+test_evolution_loop_parent_copy_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_evolution_loop_parent_copy_smoke) ... ok
+test_evolution_loop_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_evolution_loop_smoke) ... ok
+test_layer_swap_keeps_whole_groups_together (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_layer_swap_keeps_whole_groups_together) ... ok
+test_mutate_state_respects_zero_fraction_and_changes_with_noise (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_mutate_state_respects_zero_fraction_and_changes_with_noise) ... ok
+test_overlap_crossover_respects_overlap_zone (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_overlap_crossover_respects_overlap_zone) ... ok
+test_recipe_evolution_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_recipe_evolution_smoke) ... ok
+test_sampled_quantile_threshold_tracks_large_distribution (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_sampled_quantile_threshold_tracks_large_distribution) ... ok
+test_sentencepiece_tokenization_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_sentencepiece_tokenization_smoke) ... ok
+test_sign_consensus_averages_when_parents_agree_on_direction (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_sign_consensus_averages_when_parents_agree_on_direction) ... ok
+test_tournament_helpers_pick_best_and_force_distinct_parents (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_tournament_helpers_pick_best_and_force_distinct_parents) ... ok
+test_vmap_throughput_chunking_reports_num_chunks (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_vmap_throughput_chunking_reports_num_chunks) ... ok
+test_vmap_throughput_smoke (tests.test_evolutionary_benchmark.EvolutionaryBenchmarkTests.test_vmap_throughput_smoke) ... ok
+test_confirm_results_rerank_best (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_confirm_results_rerank_best) ... ok
+test_crossover_produces_valid_genome (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_crossover_produces_valid_genome) ... ok
+test_deepfloor_cli_dispatch_does_not_require_transformer_shared_args (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_deepfloor_cli_dispatch_does_not_require_transformer_shared_args) ... ok
+test_evaluate_deepfloor_genome_returns_bpb (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_evaluate_deepfloor_genome_returns_bpb) ... ok
+test_floor_mode_canonicalizes_fused_only_state_core_genes (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_floor_mode_canonicalizes_fused_only_state_core_genes) ... ok
+test_fused_mode_preserves_hippo_genes (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_fused_mode_preserves_hippo_genes) ... ok
+test_gene_space_compact_has_stability_genes (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_gene_space_compact_has_stability_genes) ... ok
+test_mutation_can_change_genes (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_mutation_can_change_genes) ... ok
+test_random_genome_produces_valid_v3_config (tests.test_deepfloor_evolution.DeepFloorEvolutionTests.test_random_genome_produces_valid_v3_config) ... ok
+test_artifact_estimate_excludes_inactive_cross_token_branch (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_artifact_estimate_excludes_inactive_cross_token_branch) ... ok
+test_artifact_estimate_grows_with_views (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_artifact_estimate_grows_with_views) ... ok
+test_build_hippo_matrix_is_lower_triangular_with_negative_diagonal (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_build_hippo_matrix_is_lower_triangular_with_negative_diagonal) ... ok
+test_cosine_lr_schedule_decays_during_training (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_cosine_lr_schedule_decays_during_training) ... ok
+test_floor_forward_emits_logits_and_floor_metadata (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_floor_forward_emits_logits_and_floor_metadata) ... ok
+test_floor_training_smoke (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_floor_training_smoke) ... ok
+test_fused_forward_emits_logits_without_floor_events (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_fused_forward_emits_logits_without_floor_events) ... ok
+test_fused_hippo_transition_is_clamped_to_decay (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_fused_hippo_transition_is_clamped_to_decay) ... ok
+test_fused_lowrank_hippo_exposes_trainable_correction (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_fused_lowrank_hippo_exposes_trainable_correction) ... ok
+test_fused_training_smoke (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_fused_training_smoke) ... ok
+test_jacobian_proxy_loss_samples_valid_depth (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_jacobian_proxy_loss_samples_valid_depth) ... ok
+test_project_view_combination_emits_logits (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_project_view_combination_emits_logits) ... ok
+test_recurrent_block_param_count_matches_qkvo (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_recurrent_block_param_count_matches_qkvo) ... ok
+test_stochastic_rounding_changes_logits (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_stochastic_rounding_changes_logits) ... ok
+test_training_forward_reports_tbptt_detaches (tests.test_spectral_flood_walk_v3.SpectralFloodWalkV3Tests.test_training_forward_reports_tbptt_detaches) ... ok
+
+----------------------------------------------------------------------
+Ran 51 tests in 5.996s
+
+OK
+[gate] smoke on gpu=0
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 32 --recurrent-heads 4 --num-distinct-blocks 2 --view-count 2 --train-recurrence-steps 4 --eval-recurrence-steps 6 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode floor --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/smoke/floor_smoke.json --train-floor-interval 2
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/smoke/floor_smoke.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 32,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "floor",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 4,
+    "eval_recurrence_steps": 6,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 2,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 9216,
+    "estimated_mb": 0.0087890625,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.6260802270844579,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.576583385467529,
+        "ce_loss": 5.556640625,
+        "bpb": 8.01653787368965,
+        "grad_norm": 1.4838627576828003,
+        "jacobian_proxy_loss": 1.9942680597305298,
+        "jacobian_proxy_gain": 2.4071855545043945,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          2,
+          2
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 5.664392471313477,
+        "ce_loss": 5.6484375,
+        "bpb": 8.148972770021254,
+        "grad_norm": 1.568882703781128,
+        "jacobian_proxy_loss": 1.5954800844192505,
+        "jacobian_proxy_gain": 2.2581231594085693,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          2,
+          2
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.693660259246826,
+        "ce_loss": 5.6494140625,
+        "bpb": 8.150381651897122,
+        "grad_norm": 1.3862427473068237,
+        "jacobian_proxy_loss": 4.424603462219238,
+        "jacobian_proxy_gain": 3.0984740257263184,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          2,
+          2
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.868192195892334,
+        "ce_loss": 5.8662109375,
+        "bpb": 8.463153428339847,
+        "grad_norm": 1.1366926431655884,
+        "jacobian_proxy_loss": 0.1981048434972763,
+        "jacobian_proxy_gain": 1.4400897026062012,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          2,
+          2
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.868192195892334
+  },
+  "val": {
+    "loss": 5.650146484375,
+    "bpb": 8.151438313304023,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.58935546875,
+    "bpb": 8.063735416531232,
+    "tokens": 128.0
+  }
+}
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 32 --recurrent-heads 4 --num-distinct-blocks 2 --view-count 2 --train-recurrence-steps 4 --eval-recurrence-steps 6 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode fused --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/smoke/fused_smoke.json --kernel-feature-map identity
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/smoke/fused_smoke.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 32,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "fused",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 4,
+    "eval_recurrence_steps": 6,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 8,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "identity",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 9472,
+    "estimated_mb": 0.009033203125,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.6644269389798865,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.71883487701416,
+        "ce_loss": 5.71875,
+        "bpb": 8.25041226508376,
+        "grad_norm": 6.326954364776611,
+        "jacobian_proxy_loss": 0.008497528731822968,
+        "jacobian_proxy_gain": 1.0871820449829102,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 5.573194980621338,
+        "ce_loss": 5.5712890625,
+        "bpb": 8.037671101827673,
+        "grad_norm": 5.079232692718506,
+        "jacobian_proxy_loss": 0.19057653844356537,
+        "jacobian_proxy_gain": 1.4315507411956787,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.735630035400391,
+        "ce_loss": 5.73046875,
+        "bpb": 8.267318847594177,
+        "grad_norm": 3.0640058517456055,
+        "jacobian_proxy_loss": 0.516133189201355,
+        "jacobian_proxy_gain": 1.7134240865707397,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.747339725494385,
+        "ce_loss": 5.7470703125,
+        "bpb": 8.291269839483936,
+        "grad_norm": 4.048309326171875,
+        "jacobian_proxy_loss": 0.02696334570646286,
+        "jacobian_proxy_gain": 1.1592051982879639,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.747339725494385
+  },
+  "val": {
+    "loss": 5.733642578125,
+    "bpb": 8.271897713690748,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.6787109375,
+    "bpb": 8.192648108173167,
+    "tokens": 128.0
+  }
+}
+[gate] matrix on gpu=1
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 32 --recurrent-heads 4 --num-distinct-blocks 1 --view-count 2 --train-recurrence-steps 6 --eval-recurrence-steps 8 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode floor --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/floor_d32_v2.json --train-floor-interval 2
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/floor_d32_v2.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 32,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 1,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "floor",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 6,
+    "eval_recurrence_steps": 8,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 2,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 8192,
+    "estimated_mb": 0.0078125,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.6037068460136652,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.892980575561523,
+        "ce_loss": 5.8427734375,
+        "bpb": 8.429340263319013,
+        "grad_norm": 1.9060640335083008,
+        "jacobian_proxy_loss": 5.02073335647583,
+        "jacobian_proxy_gain": 3.23569917678833,
+        "jacobian_probe_step": 1,
+        "floor_counts": [
+          3,
+          3
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 6.028383255004883,
+        "ce_loss": 6.00390625,
+        "bpb": 8.661805772837253,
+        "grad_norm": 1.9752553701400757,
+        "jacobian_proxy_loss": 2.4477086067199707,
+        "jacobian_proxy_gain": 2.5595154762268066,
+        "jacobian_probe_step": 0,
+        "floor_counts": [
+          3,
+          3
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.610649108886719,
+        "ce_loss": 5.5771484375,
+        "bpb": 8.04612439308288,
+        "grad_norm": 1.579416036605835,
+        "jacobian_proxy_loss": 3.3500869274139404,
+        "jacobian_proxy_gain": 2.825324296951294,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          3,
+          3
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.843786716461182,
+        "ce_loss": 5.787109375,
+        "bpb": 8.349033996394528,
+        "grad_norm": 1.5438650846481323,
+        "jacobian_proxy_loss": 5.667712688446045,
+        "jacobian_proxy_gain": 3.3756957054138184,
+        "jacobian_probe_step": 0,
+        "floor_counts": [
+          3,
+          3
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.843786716461182
+  },
+  "val": {
+    "loss": 5.619384765625,
+    "bpb": 8.107058534214177,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.65234375,
+    "bpb": 8.154608297524726,
+    "tokens": 128.0
+  }
+}
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 32 --recurrent-heads 4 --num-distinct-blocks 1 --view-count 2 --train-recurrence-steps 6 --eval-recurrence-steps 8 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode fused --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/fused_d32_v2.json --kernel-feature-map identity
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/fused_d32_v2.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 32,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 1,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "fused",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 6,
+    "eval_recurrence_steps": 8,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 8,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "identity",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 8448,
+    "estimated_mb": 0.008056640625,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.652866905904375,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.731679916381836,
+        "ce_loss": 5.7314453125,
+        "bpb": 8.268727729470045,
+        "grad_norm": 8.697857856750488,
+        "jacobian_proxy_loss": 0.023479308933019638,
+        "jacobian_proxy_gain": 1.1482295989990234,
+        "jacobian_probe_step": 1,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 5.527740001678467,
+        "ce_loss": 5.517578125,
+        "bpb": 7.960182598654925,
+        "grad_norm": 5.331554889678955,
+        "jacobian_proxy_loss": 1.0161712169647217,
+        "jacobian_proxy_gain": 2.0030531883239746,
+        "jacobian_probe_step": 0,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.459262847900391,
+        "ce_loss": 5.458984375,
+        "bpb": 7.875649686102838,
+        "grad_norm": 6.608133792877197,
+        "jacobian_proxy_loss": 0.02786445803940296,
+        "jacobian_proxy_gain": 1.161926507949829,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.632306098937988,
+        "ce_loss": 5.6044921875,
+        "bpb": 8.085573085607189,
+        "grad_norm": 3.6659152507781982,
+        "jacobian_proxy_loss": 2.78136944770813,
+        "jacobian_proxy_gain": 2.6627438068389893,
+        "jacobian_probe_step": 0,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.632306098937988
+  },
+  "val": {
+    "loss": 5.531982421875,
+    "bpb": 7.98096360632398,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.647216796875,
+    "bpb": 8.14721166767642,
+    "tokens": 128.0
+  }
+}
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 64 --recurrent-heads 4 --num-distinct-blocks 2 --view-count 2 --train-recurrence-steps 8 --eval-recurrence-steps 12 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode floor --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/floor_d64_v2.json --train-floor-interval 4
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/floor_d64_v2.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 64,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "floor",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 8,
+    "eval_recurrence_steps": 12,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 4,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 24576,
+    "estimated_mb": 0.0234375,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.7033028829609975,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.575345516204834,
+        "ce_loss": 5.5546875,
+        "bpb": 8.013720109937914,
+        "grad_norm": 2.8217079639434814,
+        "jacobian_proxy_loss": 2.0657918453216553,
+        "jacobian_proxy_gain": 2.432286262512207,
+        "jacobian_probe_step": 7,
+        "floor_counts": [
+          4,
+          4
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 5.790200710296631,
+        "ce_loss": 5.7666015625,
+        "bpb": 8.319447477001297,
+        "grad_norm": 2.961905002593994,
+        "jacobian_proxy_loss": 2.3599205017089844,
+        "jacobian_proxy_gain": 2.531203269958496,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          4,
+          4
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.7769083976745605,
+        "ce_loss": 5.681640625,
+        "bpb": 8.19687475380077,
+        "grad_norm": 2.7007036209106445,
+        "jacobian_proxy_loss": 9.526754379272461,
+        "jacobian_proxy_gain": 4.081543922424316,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          4,
+          4
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.728869438171387,
+        "ce_loss": 5.6025390625,
+        "bpb": 8.082755321855453,
+        "grad_norm": 2.2249109745025635,
+        "jacobian_proxy_loss": 12.633040428161621,
+        "jacobian_proxy_gain": 4.5492987632751465,
+        "jacobian_probe_step": 6,
+        "floor_counts": [
+          4,
+          4
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.728869438171387
+  },
+  "val": {
+    "loss": 5.1934814453125,
+    "bpb": 7.49260992610119,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.4481201171875,
+    "bpb": 7.859975875233805,
+    "tokens": 128.0
+  }
+}
++ /usr/bin/python3 /workspace/parameter-golf/spectral_flood_walk_v3.py --device cuda --seq-len 16 --stride 8 --batch-size 2 --train-steps 4 --eval-batches 4 --report-every 1 --recurrent-dim 64 --recurrent-heads 4 --num-distinct-blocks 2 --view-count 2 --train-recurrence-steps 8 --eval-recurrence-steps 12 --floor-min-interval 1 --floor-max-interval 3 --floor-threshold 0.01 --no-cache-dataset-on-device --enwik8-path /workspace/data/enwik8 --cross-token-mode fused --output-json /workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/fused_d64_v2.json --kernel-feature-map elu_plus_1
+{
+  "config": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-03_DeepFloor/runs/fullbox/matrix/fused_d64_v2.json",
+    "device": "cuda",
+    "seed": 1337,
+    "vocab_size": 256,
+    "seq_len": 16,
+    "stride": 8,
+    "batch_size": 2,
+    "train_steps": 4,
+    "eval_batches": 4,
+    "report_every": 1,
+    "cache_dataset_on_device": false,
+    "recurrent_dim": 64,
+    "recurrent_heads": 4,
+    "num_distinct_blocks": 2,
+    "view_count": 2,
+    "view_combination": "average",
+    "cross_token_mode": "fused",
+    "block_has_residual": true,
+    "block_nonlinearity": "gelu",
+    "recurrence_step_size": 1.0,
+    "state_decay": 1.0,
+    "contraction_target": 0.995,
+    "train_recurrence_steps": 8,
+    "eval_recurrence_steps": 12,
+    "tbptt_chunk": 16,
+    "norm_interval_k": 16,
+    "train_floor_interval": 8,
+    "floor_min_interval": 1,
+    "floor_max_interval": 3,
+    "floor_threshold": 0.01,
+    "kernel_feature_map": "elu_plus_1",
+    "accumulator_decay": 0.999,
+    "state_core": "scalar_decay",
+    "hippo_delta_scale": 0.0,
+    "hippo_rank": 1,
+    "quantization": "ternary",
+    "jacobian_lambda": 0.01,
+    "stochastic_round_p": 0.0,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "warmup_steps": 4,
+    "min_lr_scale": 0.1
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 95000000,
+    "val_tokens": 2500000,
+    "test_tokens": 2500000,
+    "raw_bytes": 100000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": "bytes",
+    "tokenizer_vocab_size": 256,
+    "residency": "cpu"
+  },
+  "artifact": {
+    "estimated_bytes": 25600,
+    "estimated_mb": 0.0244140625,
+    "quantization": "ternary"
+  },
+  "train": {
+    "steps": 4,
+    "elapsed_seconds": 0.8003062369534746,
+    "history": [
+      {
+        "step": 0,
+        "loss": 5.458984375,
+        "ce_loss": 5.458984375,
+        "bpb": 7.875649686102838,
+        "grad_norm": 4.715560436248779,
+        "jacobian_proxy_loss": 0.0,
+        "jacobian_proxy_gain": 0.781280517578125,
+        "jacobian_probe_step": 7,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.001
+      },
+      {
+        "step": 1,
+        "loss": 5.314453601837158,
+        "ce_loss": 5.314453125,
+        "bpb": 7.6671351684743545,
+        "grad_norm": 4.662245273590088,
+        "jacobian_proxy_loss": 3.0441300623351708e-05,
+        "jacobian_proxy_gain": 1.0005173683166504,
+        "jacobian_probe_step": 2,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.0015
+      },
+      {
+        "step": 2,
+        "loss": 5.118174076080322,
+        "ce_loss": 5.1181640625,
+        "bpb": 7.383949911424861,
+        "grad_norm": 4.802366256713867,
+        "jacobian_proxy_loss": 0.0009855686221271753,
+        "jacobian_proxy_gain": 1.0263937711715698,
+        "jacobian_probe_step": 3,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      },
+      {
+        "step": 3,
+        "loss": 5.1806640625,
+        "ce_loss": 5.1806640625,
+        "bpb": 7.474118351480421,
+        "grad_norm": 3.6883544921875,
+        "jacobian_proxy_loss": 0.0,
+        "jacobian_proxy_gain": 0.9526227116584778,
+        "jacobian_probe_step": 6,
+        "floor_counts": [
+          0,
+          0
+        ],
+        "state_norm_counts": [
+          0,
+          0
+        ],
+        "accumulator_norm_counts": [
+          0,
+          0
+        ],
+        "tbptt_detach_counts": [
+          0,
+          0
+        ],
+        "lr": 0.002
+      }
+    ],
+    "final_loss": 5.1806640625
+  },
+  "val": {
+    "loss": 5.033203125,
+    "bpb": 7.261377188224333,
+    "tokens": 128.0
+  },
+  "test": {
+    "loss": 5.0953369140625,
+    "bpb": 7.351017297576443,
+    "tokens": 128.0
+  }
+}
+[launch] gpu=0 profile=compact seed=1337 label=deepfloor_recipe_compact_seed1337
+[launch] gpu=1 profile=compact seed=2025 label=deepfloor_recipe_compact_seed2025
+[launch] gpu=2 profile=compact seed=4242 label=deepfloor_recipe_compact_seed4242
+[launch] gpu=3 profile=compact seed=5151 label=deepfloor_recipe_compact_seed5151
+[launch] gpu=4 profile=frontier seed=1337 label=deepfloor_recipe_frontier_seed1337
+[launch] gpu=5 profile=frontier seed=2025 label=deepfloor_recipe_frontier_seed2025
+[launch] gpu=6 profile=frontier seed=4242 label=deepfloor_recipe_frontier_seed4242
+[launch] gpu=7 profile=frontier seed=5151 label=deepfloor_recipe_frontier_seed5151
+== smoke ==
+name	mode	views	dim	val_bpb	test_bpb	artifact_mb
+floor_smoke.json	floor	2	32	8.1514	8.0637	0.0088
+fused_smoke.json	fused	2	32	8.2719	8.1926	0.009
+
+== matrix ==
+name	mode	views	dim	val_bpb	test_bpb	artifact_mb
+floor_d32_v2.json	floor	2	32	8.1071	8.1546	0.0078
+floor_d64_v2.json	floor	2	64	7.4926	7.86	0.0234
+fused_d32_v2.json	fused	2	32	7.981	8.1472	0.0081
+fused_d64_v2.json	fused	2	64	7.2614	7.351	0.0244
+
+== evolution ==
+name	profile	seed	population	generations	best_val_bpb	best_test_bpb	artifact_mb	confirm_results
+deepfloor_recipe_compact_seed1337.json	compact	1337	12	6	5.3619	5.404	0.0244	3
+deepfloor_recipe_compact_seed2025.json	compact	2025	12	6	5.2328	5.2732	0.0334	3
+deepfloor_recipe_compact_seed4242.json	compact	4242	12	6	5.1777	5.5187	0.041	3
+deepfloor_recipe_compact_seed5151.json	compact	5151	12	6	5.3222	5.5699	0.0205	3
+deepfloor_recipe_frontier_seed1337.json	frontier	1337	12	6	4.4156	4.4372	0.1201	3
+deepfloor_recipe_frontier_seed2025.json	frontier	2025	12	6	4.1101	4.0239	0.1377	3
+deepfloor_recipe_frontier_seed4242.json	frontier	4242	12	6	4.3356	4.5996	0.5156	3
+deepfloor_recipe_frontier_seed5151.json	frontier	5151	12	6	5.2129	5.0534	0.1602	3
+

@@ -1,0 +1,188 @@
+{
+  "config": {
+    "device": "cuda",
+    "dtype": "bf16",
+    "seed": 1337,
+    "output_json": "records/track_non_record_16mb/2026-04-02_EvolutionaryBenchmark/runs/throughput_bf16_standard_chunk256.json",
+    "model_dim": 512,
+    "num_layers": 9,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0,
+    "qk_gain_init": 1.5,
+    "spine_variant": "plain",
+    "xsa_last_n": 0,
+    "vocab_size": 256,
+    "seq_len": 256,
+    "stride": 64,
+    "batch_size": 8,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0
+  },
+  "device": "cuda",
+  "param_dtype": "torch.bfloat16",
+  "model_param_mb_estimate": 40.78919982910156,
+  "results": [
+    {
+      "population_size": 8,
+      "status": "ok",
+      "batch_eval_s": 0.012289011383056641,
+      "models_per_second": 650.9880860741918,
+      "estimated_population_param_mb": 326.3135986328125,
+      "population_chunk_size": 8,
+      "num_chunks": 1,
+      "estimated_chunk_param_mb": 326.3135986328125,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 125829120.0,
+        "max_allocated_bytes": 108496384.0,
+        "max_reserved_bytes": 125829120.0,
+        "free_bytes": 84173520896.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 780140544.0,
+        "max_allocated_bytes": 656840704.0,
+        "max_reserved_bytes": 780140544.0,
+        "free_bytes": 83517112320.0,
+        "total_bytes": 85017493504.0
+      }
+    },
+    {
+      "population_size": 64,
+      "status": "ok",
+      "batch_eval_s": 0.07574010162353516,
+      "models_per_second": 844.9949053159563,
+      "estimated_population_param_mb": 2610.5087890625,
+      "population_chunk_size": 64,
+      "num_chunks": 1,
+      "estimated_chunk_param_mb": 2610.5087890625,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 780140544.0,
+        "max_allocated_bytes": 656840704.0,
+        "max_reserved_bytes": 780140544.0,
+        "free_bytes": 83517112320.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 6014631936.0,
+        "max_allocated_bytes": 4694583808.0,
+        "max_reserved_bytes": 6014631936.0,
+        "free_bytes": 78282620928.0,
+        "total_bytes": 85017493504.0
+      }
+    },
+    {
+      "population_size": 256,
+      "status": "ok",
+      "batch_eval_s": 0.29191728515625004,
+      "models_per_second": 876.9607454487489,
+      "estimated_population_param_mb": 10442.03515625,
+      "population_chunk_size": 256,
+      "num_chunks": 1,
+      "estimated_chunk_param_mb": 10442.03515625,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 6014631936.0,
+        "max_allocated_bytes": 4694583808.0,
+        "max_reserved_bytes": 6014631936.0,
+        "free_bytes": 78282620928.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543678976.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      }
+    },
+    {
+      "population_size": 1024,
+      "status": "ok",
+      "batch_eval_s": 1.1674864013671875,
+      "models_per_second": 877.0980105642708,
+      "estimated_population_param_mb": 41768.140625,
+      "population_chunk_size": 256,
+      "num_chunks": 4,
+      "estimated_chunk_param_mb": 10442.03515625,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543678976.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543679488.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      }
+    },
+    {
+      "population_size": 4096,
+      "status": "ok",
+      "batch_eval_s": 4.667761407470702,
+      "models_per_second": 877.5084333668802,
+      "estimated_population_param_mb": 167072.5625,
+      "population_chunk_size": 256,
+      "num_chunks": 16,
+      "estimated_chunk_param_mb": 10442.03515625,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543679488.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543679488.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      }
+    },
+    {
+      "population_size": 16384,
+      "status": "ok",
+      "batch_eval_s": 18.67510732421875,
+      "models_per_second": 877.3175819317764,
+      "estimated_population_param_mb": 668290.25,
+      "population_chunk_size": 256,
+      "num_chunks": 64,
+      "estimated_chunk_param_mb": 10442.03515625,
+      "cuda_memory_before": {
+        "allocated_bytes": 81364480.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543679488.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      },
+      "cuda_memory_after": {
+        "allocated_bytes": 78218752.0,
+        "reserved_bytes": 24134025216.0,
+        "max_allocated_bytes": 18543679488.0,
+        "max_reserved_bytes": 24134025216.0,
+        "free_bytes": 60163227648.0,
+        "total_bytes": 85017493504.0
+      }
+    }
+  ]
+}

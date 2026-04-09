@@ -1,0 +1,7 @@
+profile=smoke
+seed=1337
+launcher=python
+nproc_per_node=8
+device=cpu
+record_dir=/Users/kennethmalloy/Local Documents/Developer/parameter-golf/records/track_non_record_16mb/2026-03-31_SpectralFloodWalk_v0
+repo_root=/Users/kennethmalloy/Local Documents/Developer/parameter-golf

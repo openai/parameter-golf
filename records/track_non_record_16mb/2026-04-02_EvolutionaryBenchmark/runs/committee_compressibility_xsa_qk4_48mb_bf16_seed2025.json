@@ -1,0 +1,299 @@
+{
+  "config": {
+    "device": "cuda",
+    "dtype": "bf16",
+    "seed": 2025,
+    "output_json": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-02_EvolutionaryBenchmark/runs/committee_compressibility_xsa_qk4_48mb_bf16_seed2025.json",
+    "model_dim": 512,
+    "num_layers": 9,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005,
+    "rope_base": 10000.0,
+    "logit_softcap": 30.0,
+    "qk_gain_init": 4.0,
+    "spine_variant": "xsa",
+    "xsa_last_n": 4,
+    "vocab_size": 256,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": null,
+    "tokenizer_model_path": null,
+    "cache_dataset_on_device": true,
+    "hard_replay_topk": 4,
+    "hard_replay_eval_batches": 2,
+    "use_best_archive_for_spawn": true,
+    "seq_len": 256,
+    "stride": 64,
+    "batch_size": 8,
+    "base_lr": 0.002,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0
+  },
+  "dataset": {
+    "enwik8_path": "/workspace/data/enwik8",
+    "train_tokens": 90000000,
+    "val_tokens": 5000000,
+    "test_tokens": 5000000,
+    "tokenization_mode": "bytes",
+    "tokenizer_name": null,
+    "tokenizer_model_path": null,
+    "tokenizer_vocab_size": 256,
+    "raw_bytes": 100000000,
+    "residency": "cuda"
+  },
+  "committee_schedule": {
+    "stage_copies": [
+      2,
+      4,
+      8
+    ],
+    "stage_train_seconds": [
+      120.0,
+      30.0,
+      15.0
+    ],
+    "stage_signature": "2x120->4x30->8x15",
+    "spawn_noise_std": 0.0,
+    "eval_batches": 8,
+    "hard_replay_topk": 4,
+    "hard_replay_eval_batches": 2,
+    "use_best_archive_for_spawn": true
+  },
+  "committee_compressibility": {
+    "artifact_limit_mb": 48.0,
+    "base_artifact_mb": 40.78919982910156,
+    "available_delta_budget_mb": 7.2108001708984375,
+    "delta_budget_fractions": [
+      0.25,
+      0.5,
+      1.0
+    ],
+    "basis_ranks": [
+      1,
+      2,
+      4
+    ],
+    "analysis_topk": 8192,
+    "full_committee_val_bpb": 2.220967249427346,
+    "full_committee_test_bpb": 2.148968948418092,
+    "member_count": 8
+  },
+  "delta_analysis": {
+    "branch_count": 8,
+    "num_params": 21385288,
+    "pairwise_l2_mean": 364.4828681945801,
+    "pairwise_l2_std": 194.583250007726,
+    "pairwise_cosine_mean": 0.47741169201449096,
+    "pairwise_cosine_std": 0.4004188293186881,
+    "topk_support_jaccard_mean": 0.2456033070019303,
+    "effective_rank_90": 2,
+    "singular_values": [
+      836.60009765625,
+      722.239501953125,
+      145.3231964111328,
+      139.75643920898438,
+      71.2210464477539,
+      70.36727142333984,
+      68.7374267578125,
+      68.02947998046875
+    ]
+  },
+  "compression_trials": [
+    {
+      "strategy": "branch_sparse",
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890240,
+      "support": 39380,
+      "val_bpb": 7.5057119084092205,
+      "test_bpb": 7.5021249522515,
+      "retention_vs_full_ensemble": 0.29590361001453136
+    },
+    {
+      "strategy": "shared_union_sparse",
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890260,
+      "support": 94513,
+      "val_bpb": 7.512569458638399,
+      "test_bpb": 7.510302899282678,
+      "retention_vs_full_ensemble": 0.2956335061732502
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890268,
+      "support": 315042,
+      "val_bpb": 7.465681140603068,
+      "test_bpb": 7.462595341889962,
+      "retention_vs_full_ensemble": 0.29749023667088187
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 2,
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890264,
+      "support": 236279,
+      "val_bpb": 7.469446700743709,
+      "test_bpb": 7.467135941846716,
+      "retention_vs_full_ensemble": 0.29734026339678027
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 4,
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890268,
+      "support": 157517,
+      "val_bpb": 7.496989034348784,
+      "test_bpb": 7.494249780677167,
+      "retention_vs_full_ensemble": 0.2962478988900198
+    },
+    {
+      "strategy": "branch_sparse",
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780528,
+      "support": 78761,
+      "val_bpb": 7.4933170327702125,
+      "test_bpb": 7.490322900810017,
+      "retention_vs_full_ensemble": 0.296393071281314
+    },
+    {
+      "strategy": "shared_union_sparse",
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780520,
+      "support": 189026,
+      "val_bpb": 7.481224416640096,
+      "test_bpb": 7.478485248959804,
+      "retention_vs_full_ensemble": 0.296872159654423
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780532,
+      "support": 630086,
+      "val_bpb": 7.380081505659003,
+      "test_bpb": 7.3729312409580565,
+      "retention_vs_full_ensemble": 0.30094074811021004
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 2,
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780536,
+      "support": 472563,
+      "val_bpb": 7.411588555314419,
+      "test_bpb": 7.4075388798345525,
+      "retention_vs_full_ensemble": 0.29966143328812
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 4,
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780532,
+      "support": 315039,
+      "val_bpb": 7.462058670027945,
+      "test_bpb": 7.4589625523557865,
+      "retention_vs_full_ensemble": 0.29763465387213695
+    },
+    {
+      "strategy": "branch_sparse",
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561056,
+      "support": 157522,
+      "val_bpb": 7.462928214310707,
+      "test_bpb": 7.46029361208214,
+      "retention_vs_full_ensemble": 0.2975999749225083
+    },
+    {
+      "strategy": "shared_union_sparse",
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561060,
+      "support": 378053,
+      "val_bpb": 7.4333717058900515,
+      "test_bpb": 7.430476979902054,
+      "retention_vs_full_ensemble": 0.29878328937425486
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561072,
+      "support": 1260176,
+      "val_bpb": 7.180577933031152,
+      "test_bpb": 7.182833657479868,
+      "retention_vs_full_ensemble": 0.309302018603648
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 2,
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561072,
+      "support": 945130,
+      "val_bpb": 7.262381824879348,
+      "test_bpb": 7.2594304306078925,
+      "retention_vs_full_ensemble": 0.3058180226518513
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 4,
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561072,
+      "support": 630084,
+      "val_bpb": 7.364721993084422,
+      "test_bpb": 7.361546075462265,
+      "retention_vs_full_ensemble": 0.30156837576664336
+    }
+  ],
+  "best_by_budget": [
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 0.25,
+      "budget_mb": 1.8027000427246094,
+      "bytes_used": 1890268,
+      "support": 315042,
+      "val_bpb": 7.465681140603068,
+      "test_bpb": 7.462595341889962,
+      "retention_vs_full_ensemble": 0.29749023667088187
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 0.5,
+      "budget_mb": 3.6054000854492188,
+      "bytes_used": 3780532,
+      "support": 630086,
+      "val_bpb": 7.380081505659003,
+      "test_bpb": 7.3729312409580565,
+      "retention_vs_full_ensemble": 0.30094074811021004
+    },
+    {
+      "strategy": "shared_basis",
+      "rank": 1,
+      "budget_fraction": 1.0,
+      "budget_mb": 7.2108001708984375,
+      "bytes_used": 7561072,
+      "support": 1260176,
+      "val_bpb": 7.180577933031152,
+      "test_bpb": 7.182833657479868,
+      "retention_vs_full_ensemble": 0.309302018603648
+    }
+  ]
+}
