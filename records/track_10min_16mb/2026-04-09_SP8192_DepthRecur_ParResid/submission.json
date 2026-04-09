@@ -1,0 +1,24 @@
+{
+  "author": "Dipkumar Patel",
+  "github_id": "dippatel1994",
+  "name": "SP8192 + Depth Recurrence + Parallel Residuals + U-Net Skips + GPTQ",
+  "blurb": "SP8192 tokenizer (from kevclark/parameter-golf) with 3-layer depth recurrence (layers 3-5 looped 2x, 13 effective layers from 10 physical), parallel residuals on layers 7+, U-Net skip connections, BigramHash(10240), SmearGate, EMA(0.997), LeakyReLU^2, GQA(8q/4kv), partial RoPE(16), value residual(0.95), XSA(last 4), orthogonal init, Muon+AdamW, late QAT, full-Hessian GPTQ int6/int5 with percentile-search scales, zlib compression. 14.09MB artifact.",
+  "date": "2026-04-09T10:00:00Z",
+  "val_bpb": 1.6323,
+  "val_loss": 4.2165,
+  "note": "Result from 1xH100 (1/8 competition compute). Expect significant improvement on 8xH100 with batch=786432.",
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_loss": 4.21651923, "val_bpb": 1.63234599}
+  },
+  "pre_quant_val_loss": 3.3467,
+  "pre_quant_val_bpb": 1.2956,
+  "step_stop": 2855,
+  "wallclock_seconds": 600.130,
+  "eval_time_seconds": 16.795,
+  "bytes_total": 14091501,
+  "bytes_model_int6_zlib": 14021703,
+  "bytes_code": 70261,
+  "gpu_config": "1xH100 SXM 80GB (competition requires 8xH100)",
+  "tokenizer_source": "MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192"
+}
