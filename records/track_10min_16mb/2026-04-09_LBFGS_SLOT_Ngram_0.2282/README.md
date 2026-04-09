@@ -52,12 +52,14 @@ All features are target-independent, preserving Shannon compression equivalence.
 | + n-gram (entropy-only alpha) | 0.2968 | Added vectorized n-gram mixer |
 | + order & count features | **0.2282** | Target-independent adaptive mixing |
 
-## Architecture (unchanged from #1313)
+## Architecture
 
 - 11L, 512d, 8 heads, 4 KV heads (GQA)
 - LeakyReLU(0.5)^2 MLP with 3x expansion
 - SmearGate + BigramHash + XSA-all + QK-Gain 4.0
 - EMA + SWA + Late QAT + GPTQ int6 + lzma compression
+- L-BFGS SLOT (6 steps, strong Wolfe, history_size=10)
+- Order-12 vectorized n-gram backoff (4M hash buckets) with entropy-adaptive mixing
 
 ## Compliance
 
