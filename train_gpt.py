@@ -1735,10 +1735,12 @@ class SKCLayer(nn.Module):
         s_spec = s_decay.view(B, T_pad, self.capsule_dim)[:, :T, :]
         
         routing_weights, capsules = self.router(s_spec, T)
-        carry = getattr(self, '_carry_capsules', None) if self.training else None
-        evolved_caps = self.koopman(capsules, carry if carry is not None else prev_capsules)
-        if self.training:
-            self._last_capsules = evolved_caps.detach()
+        # Do NOT carry state across batches: training batches are randomized independent
+        # documents, so cross-batch carry injects semantically unrelated noise.  Worse,
+        # carry was only active during training (self.training), so the model trained on
+        # noisy carry but eval ran with carry=None — a guaranteed train/eval mismatch.
+        # Use prev_capsules (intra-sequence, passed explicitly) but never cross-batch state.
+        evolved_caps = self.koopman(capsules, prev_capsules)
         
         synth_spec = torch.einsum("btn,bnc->btc", routing_weights, evolved_caps)
         
@@ -2546,7 +2548,7 @@ def eval_val_sliding_ttt(
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs <= 0:
                 continue
-            cosine_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+            cosine_lr = args.ttt_lr  # constant LR across all chunks — cosine decay paralyzed adaptation at end of val file
             for group in optimizer.param_groups:
                 group["lr"] = cosine_lr
             my_seq_s = (chunk_seqs * rank) // world_size
@@ -3002,6 +3004,9 @@ def main() -> None:
         "mixer_conv", "skc_scale", "mlp_scale", "attn_scale", "resid_mix",
         "skip_weights", "vocab_bias", "content_router", "content_scale",
         "gate_proj", "decay_rates",
+        # MoE router must go to AdamW — Muon orthogonalizes weight matrices which
+        # destroys top-k expert clustering and causes expert collapse.
+        "router",
     )
     def _is_skc_structural(name: str) -> bool:
         return any(k in name for k in _SKC_STRUCTURAL)
@@ -3216,8 +3221,7 @@ def main() -> None:
         # Restore original feedback passes
         base_model.feedback_passes = _orig_fp
 
-        # Advance SKC capsule carry state for next step
-        base_model.step_capsule_carry()
+        # (cross-batch carry removed: randomized batches make it noise, not signal)
 
         # Gradient clipping
         if args.grad_clip_norm > 0:
@@ -3310,6 +3314,32 @@ def main() -> None:
             log0(f"step:{step+1}/{args.iterations} loss:{train_loss.item():.4f} t:{approx_ms:.0f}ms avg:{approx_ms/(step+1):.1f}ms")
         if args.churn_log_every > 0 and step % args.churn_log_every == 0:
             log0(f"step:{step} churn:{churn_fn(base_model, args.bitnet_group_size):.4f} zero:{tern_stats(base_model, args.bitnet_group_size)['zero_frac']:.3f}")
+
+        # Mid-training calibration: populate _EXPORT_CALIB so model trains through quantization thresholds
+        if (args.export_aligned_train
+                and (args.ternary_threshold_search or args.ternary_scale_search)
+                and step == int(args.iterations * args.export_aligned_train_start_fraction)):
+            torch.cuda.synchronize()
+            training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            if distributed:
+                dist.barrier()  # ensure all ranks finish current step before calibration
+            if master_process:
+                if _proxy_calib_tokens is None:
+                    _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
+                log0(f"export_aligned_train:calibrating at step:{step}", flush=True)
+                _mid_ema_orig = None
+                if ema is not None:
+                    _mid_ema_orig = ema.apply_shadow(base_model)
+                _mid_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+                if ema is not None and _mid_ema_orig is not None:
+                    ema.restore(base_model, _mid_ema_orig)
+                global _EXPORT_CALIB
+                _EXPORT_CALIB = _mid_calib
+                log0(f"export_aligned_train:calibrated tensors={len(_mid_calib)} — training through quantization thresholds", flush=True)
+            if distributed:
+                dist.barrier()  # wait for master to finish calibration before resuming
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
 
         # Wallclock cap sync
         if stop_after_step is None and max_wallclock_ms is not None and step % 10 == 0:
