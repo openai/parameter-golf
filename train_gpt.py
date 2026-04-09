@@ -81,6 +81,7 @@ class Hyperparameters:
     iterations = _e("ITERATIONS", 10000, int)
     warmdown_fraction = _e("WARMDOWN_FRACTION", 0.35, float)
     warmup_steps = _e("WARMUP_STEPS", 5, int)
+    compiler_warmup_steps = _e("COMPILER_WARMUP_STEPS", 0, int)  # separate pre-budget compile warmup
     train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 786432, int)
     train_seq_len = _e("TRAIN_SEQ_LEN", 2048, int)
     max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
@@ -172,11 +173,6 @@ class Hyperparameters:
     stochastic_depth_prob = _e("STOCHASTIC_DEPTH_PROB", 0.1, float)
     ternary_noise_scale = _e("TERNARY_NOISE_SCALE", 0.02, float)
     self_distill_kl_weight = _e("SELF_DISTILL_KL_WEIGHT", 0.1, float)
-    curriculum_enabled = _e("CURRICULUM_ENABLED", 1, bool)
-    curriculum_phase1_frac = _e("CURRICULUM_PHASE1_FRAC", 0.15, float)
-    curriculum_phase2_frac = _e("CURRICULUM_PHASE2_FRAC", 0.40, float)
-    curriculum_phase1_seq = _e("CURRICULUM_PHASE1_SEQ", 256, int)
-    curriculum_phase2_seq = _e("CURRICULUM_PHASE2_SEQ", 512, int)
     ema_enabled = _e("EMA_ENABLED", 1, bool)
     ema_eval_apply = _e("EMA_EVAL_APPLY", 1, bool)
     ema_decay = _e("EMA_DECAY", 0.997, float)
@@ -603,7 +599,8 @@ class DistributedTokenLoader:
         start = self.rank * per_rank_span
         # Cast to int64 on CPU before pinning — avoids a second GPU kernel launch
         local_cpu = chunk[start:start + per_rank_span].to(torch.int64)
-        local_cpu = torch.clamp(local_cpu, 0, 1023)
+        # Do NOT silently clamp tokens — bad token IDs should surface as a hard error,
+        # not silently corrupt training inputs with wrong-vocab gradients.
         if self._copy_stream is not None:
             with torch.cuda.stream(self._copy_stream):
                 local = local_cpu.pin_memory().to(self.device, non_blocking=True)
@@ -751,6 +748,12 @@ class TernaryLinear(nn.Linear):
         w = self.weight.float()
         g = self.group_size
 
+        if w.numel() % g != 0:
+            raise RuntimeError(
+                f"TernaryLinear group_size={g} does not divide weight numel={w.numel()} "
+                f"(shape={tuple(w.shape)}). Adjust architecture so all ternary layer "
+                f"widths are multiples of BITNET_GROUP_SIZE={g}."
+            )
         w_g = w.reshape(-1, g)
         if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
             H = _build_hadamard_pt(g, w.device).to(w.dtype)
@@ -2174,11 +2177,9 @@ class GPT(nn.Module):
         if reduction == "none":
             return F.cross_entropy(logits.float(), targets, reduction="none").reshape(input_ids.shape)
         logits_f = logits.float()
-        lse = torch.logsumexp(logits_f, dim=-1)
-        # Final desperate safety clamping right before gather to guarantee no CUDA ScatterGather panics
-        safe_targets = torch.clamp(targets, 0, logits_f.shape[-1] - 1)
-        target_logits = logits_f.gather(1, safe_targets.unsqueeze(1)).squeeze(1)
-        ce_loss = (lse - target_logits).mean()
+        # Use F.cross_entropy directly — it fails fast on out-of-range targets rather than
+        # silently clamping them (which poisons gradients with wrong-label supervision).
+        ce_loss = F.cross_entropy(logits_f, targets)
         
         if self.training and consistency_losses and Hyperparameters.koopman_consistency_weight > 0:
             consist_sum = torch.tensor(0.0, device=input_ids.device)
@@ -3061,11 +3062,16 @@ def main() -> None:
     # ---------------------------------------------------------------------------
 
     # --- Compiler warmup ---
-    if args.warmup_steps > 0:
+    # Use COMPILER_WARMUP_STEPS if set, otherwise fall back to WARMUP_STEPS.
+    # These are intentionally distinct: compiler warmup triggers torch.compile graph
+    # capture before the LR warmup; the state is restored after so no real gradient
+    # steps are counted against the budget.
+    _compile_warmup_n = args.compiler_warmup_steps if args.compiler_warmup_steps > 0 else args.warmup_steps
+    if _compile_warmup_n > 0:
         _ms = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
         _os = [copy.deepcopy(o.state_dict()) for o in optimizers]
         model.train()
-        for ws in range(args.warmup_steps):
+        for ws in range(_compile_warmup_n):
             zero_grad_all()
             for mi in range(grad_accum_steps):
                 if distributed: model.require_backward_grad_sync = mi == grad_accum_steps - 1
@@ -3075,7 +3081,7 @@ def main() -> None:
                 (loss * grad_scale).backward()
             for o in optimizers: o.step()
             zero_grad_all()
-            log0(f"warmup:{ws+1}/{args.warmup_steps}")
+            log0(f"warmup:{ws+1}/{_compile_warmup_n}")
         log0("probe:restoring_pre_warmup_state", flush=True)
         base_model.load_state_dict(_ms, strict=True)
         log0("probe:restoring_optimizers", flush=True)
