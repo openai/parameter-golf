@@ -78,6 +78,8 @@ export MODEL_DIM=1536
 export NUM_HEADS=24            # head_dim = 1536/24 = 64 (hardware sweet spot)
 export NUM_KV_HEADS=6          # GQA: num_heads/4
 export MLP_MULT=3              # MLP_MULT=3 vs 4: better wall-clock vs capacity tradeoff
+export EMBED_DIM=256           # FP embedding rank: 192-256 band for V=1024 (small vocab → small embed)
+export PARTIAL_ROPE_DIMS=32    # Partial RoPE: 32 dims is sufficient for seq_len=2048
 
 # MoE: proven winner from sweep (4 experts, top-1 routing, lighter than before)
 export MOE_ENABLED=1
