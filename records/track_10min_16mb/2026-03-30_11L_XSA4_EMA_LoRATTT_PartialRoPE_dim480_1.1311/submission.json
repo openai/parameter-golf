@@ -1,0 +1,38 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-30",
+  "name": "11L XSA4 + EMA + LoRA TTT + Partial RoPE + GPTQ-lite (dim480)",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "blurb": "PR #462 architecture compressed to ~15.5MB: MODEL_DIM=480, NUM_KV_HEADS=4, MLP_HIDDEN=1536, 11L. EMA (decay 0.9985), Partial RoPE (16/64 dims), Late QAT int6 STE (threshold 0.15), single-pass LoRA TTT (rank 8, lr 0.01, 1 epoch), XSA on deepest 4 layers, BigramHash (8192 buckets, dim 128), SmearGate, int6+zstd-22 compression (3.83x ratio). ~7,900 steps in 600s on 8xH100 SXM Iceland. NVIDIA Inception member.",
+  "val_loss": 1.90718,
+  "val_bpb": 1.13112447,
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.90869,
+      "val_bpb": 1.13041826,
+      "steps": 7847,
+      "ms_per_step": 76.47,
+      "bytes_total": 15489698
+    },
+    "42": {
+      "val_loss": 1.90791,
+      "val_bpb": 1.13161931,
+      "steps": 7958,
+      "ms_per_step": 75.40,
+      "bytes_total": 15462345
+    },
+    "7": {
+      "val_loss": 1.90493,
+      "val_bpb": 1.13133583,
+      "steps": 7935,
+      "ms_per_step": 75.62,
+      "bytes_total": 15436056
+    }
+  },
+  "mean_val_loss": 1.90718,
+  "mean_val_bpb": 1.13112447,
+  "bytes_total": 15462699,
+  "bytes_model_int6_zstd": 15398603,
+  "bytes_code": 64073
+}
