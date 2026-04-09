@@ -70,20 +70,25 @@ export VOCAB_SIZE=1024
 # Why 8L works well: MoE gives effective parameter density vs depth.
 export ARCHITECTURE=skc
 export NUM_LAYERS=8
-export MODEL_DIM=2304          # Empirically verified: 14.91MB artifact (fits 16MB budget)
-export NUM_HEADS=16            # 2304/144 = 16 heads × 144 head_dim
-export NUM_KV_HEADS=8          # GQA: 2:1 ratio
-export MLP_MULT=4
+# D=1536 mainline: quality-per-second optimized for 599s budget.
+# D=2304 yielded ~14.9MB but only ~1200 steps in 599s on 8×H100 (too few updates).
+# D=1536 gives ~8MB artifact, ~2× more steps → better final loss trajectory.
+# head_dim=64 (1536/24): hardware-optimal; KV ratio=1/4 (GQA).
+export MODEL_DIM=1536
+export NUM_HEADS=24            # head_dim = 1536/24 = 64 (hardware sweet spot)
+export NUM_KV_HEADS=6          # GQA: num_heads/4
+export MLP_MULT=3              # MLP_MULT=3 vs 4: better wall-clock vs capacity tradeoff
 
-# MoE: proven winner from sweep (8 experts, top-4 routing)
+# MoE: proven winner from sweep (4 experts, top-1 routing, lighter than before)
 export MOE_ENABLED=1
-export MOE_NUM_EXPERTS=8
-export MOE_TOP_K=4
+export MOE_NUM_EXPERTS=4
+export MOE_TOP_K=1
+export MOE_LAYER_FRAC=0.67     # Upper 33% of layers get MoE (keeps lower layers dense)
 
-# SKC-specific hyperparams (scaled for dim=320)
-export SKC_BLOCK_SIZE=16       # Sweet spot: beats 8, 32, 64, 128
-export SKC_NUM_CAPSULES=8      # Scaled for 320D (was 16 for 512D)
-export SKC_CAPSULE_DIM=64      # Scaled for 320D (was 128 for 512D)
+# SKC-specific hyperparams (scaled for D=1536)
+export SKC_BLOCK_SIZE=64       # Larger block_size for wider model
+export SKC_NUM_CAPSULES=24     # capsule_num ≈ model_dim/64, capped at 24
+export SKC_CAPSULE_DIM=64      # Capsule dim = 64 (semantic slot width)
 export SKC_CONV_KERNEL=4
 
 # ── Training budget ──────────────────────────────────────────────────────────
@@ -110,7 +115,7 @@ export SEED=${SEED:-42}   # overridable: SEED=1337 bash run_runpod_8xh100.sh
 # More tokens/step = better gradient estimates + fewer Muon all-reduces per token
 # Tradeoff: fewer steps in 599s, but each step is higher quality
 # At ~2ms/step with bf16 + compile: 524K batch → ~30K steps in 599s
-export TRAIN_BATCH_TOKENS=524288  # 512K = 32 seqs/GPU on 8×H100 — fills compute without OOM
+export TRAIN_BATCH_TOKENS=262144  # 256K = 16 seqs/GPU on 8×H100 — more frequent updates for D=1536
 export TRAIN_SEQ_LEN=2048
 export LOCAL_SGD_SYNC_EVERY=10       # Weight mirroring: each GPU explores independently, syncs every 10 steps
                                      # Eliminates all-reduce on 9/10 steps → faster per-step throughput
@@ -148,10 +153,10 @@ export TKO_ENABLED=0                  # Always hurts: proven across all ablation
 
 # ── Engram hash (proven BPB improvement with orders=3) ───────────────────────
 export BIGRAM_HASH_ENABLED=1
-export BIGRAM_HASH_BUCKETS=16384      # Sweep winner used 16384 — match exactly
-export BIGRAM_HASH_DIM=128
+export BIGRAM_HASH_BUCKETS=8192       # V=1024 → 1024²=1M bigrams; 8192 is sane floor for D=1536
+export BIGRAM_HASH_DIM=48             # Smaller dim matches D=1536 (was 128 for wider model)
 export ENGRAM_NUM_HEADS=4
-export ENGRAM_NUM_ORDERS=3
+export ENGRAM_NUM_ORDERS=2            # 2 orders (not 3): with small vocab+limited buckets, 3+ is collision-heavy
 export ENGRAM_INJECT_LAYER=1
 
 # ── N-gram cache (free BPB at eval, interpolated with neural model) ───────────
@@ -233,7 +238,7 @@ echo "  SKC Competition Run — 8×H100 SXM (FIXED)"
 echo "  RUN ID : ${RUN_ID}"
 echo "  MODEL  : SKC  L=${NUM_LAYERS}  D=${MODEL_DIM}  H=${NUM_HEADS}  (~92M params / ~14.9MB empirical)"
 echo "           block_size=${SKC_BLOCK_SIZE}  caps=${SKC_NUM_CAPSULES}×${SKC_CAPSULE_DIM}"
-echo "           UNet caps skip (proven -0.107 BPB) auto-enabled for SKC arch"
+echo "           mlp_mult=${MLP_MULT}  UNet caps skip (proven -0.107 BPB) auto-enabled for SKC arch"
 echo "  BUDGET : ${MAX_WALLCLOCK_SECONDS}s wallclock  (compiler_warmup=${COMPILER_WARMUP_STEPS} steps pre-budget, lr_warmup=${WARMUP_STEPS} steps in-budget)"
 echo "  SEQ    : ${TRAIN_SEQ_LEN} (competition standard)"
 echo "  BATCH  : ${TRAIN_BATCH_TOKENS} tokens/step → $((TRAIN_BATCH_TOKENS/2048)) seqs/step globally ($((TRAIN_BATCH_TOKENS/2048/8)) seqs/GPU)"
@@ -245,6 +250,7 @@ echo "==========================================================================
 
 # ── Launch: 8-GPU DDP via torchrun ───────────────────────────────────────────
 OMP_NUM_THREADS=1 \
+TORCH_NCCL_TIMEOUT_SEC=7200 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py 2>&1 | tee "$LOG"
 
 # Preserve per-run artifacts before next seed overwrites them
