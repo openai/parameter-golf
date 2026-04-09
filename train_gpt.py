@@ -545,9 +545,8 @@ class MLP(nn.Module):
    v = self.get_v_target(x0)
    mid = z.size(1) // 2
    dw = torch.einsum('bsd,bsh->dh', v[:, :mid], z[:, :mid].detach())
-   dn = dw.norm()
-   if dn > 0.01:
-    dw = dw * (0.01 / dn)
+   dn = dw.norm().clamp(min=1e-8)
+   dw = dw * torch.clamp(torch.tensor(0.01, device=dw.device) / dn, max=1.0)
    corr = F.linear(z, dw)
    mask = (torch.arange(z.size(1), device=z.device) >= mid).to(out.dtype)
    out = out + corr * mask[None, :, None]
