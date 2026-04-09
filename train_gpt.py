@@ -54,15 +54,15 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 8))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 12))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
@@ -72,13 +72,13 @@ class Hyperparameters:
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.4))
-    head_lr = float(os.environ.get("HEAD_LR", 0.008))
+    head_lr = float(os.environ.get("HEAD_LR", 0.01))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.0075))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.9))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 192))
     beta1 = float(os.environ.get("BETA1", 0.9))
@@ -544,58 +544,42 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-        seq_len: int=1024,
-        use_rope: bool=True,
-    ):
+    def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len=1024, use_rope=True):
         super().__init__()
-        if dim % num_heads != 0:
-            raise ValueError("model_dim must be divisible by num_heads")
-        if num_heads % num_kv_heads != 0:
-            raise ValueError("num_heads must be divisible by num_kv_heads")
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
-        if self.head_dim % 2 != 0:
-            raise ValueError("head_dim must be even for RoPE")
         self.kv_dim = self.num_kv_heads * self.head_dim
-        self.c_qkv = nn.Linear(dim, dim + 2 * self.kv_dim, bias=False)
+        self.c_qk = nn.Linear(dim, dim + self.kv_dim, bias=False)
+        self.c_v = nn.Linear(dim, self.kv_dim, bias=False)
         self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, base=rope_base)
         self.use_rope = use_rope
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, emb: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        
-        qkv = self.c_qkv(x)
-        q, k, v = qkv.split([dim, self.kv_dim, self.kv_dim], dim=-1)
+        qk = self.c_qk(x)
+        q, k = qk.split([dim, self.kv_dim], dim=-1)
+        v = self.c_v(emb)
+
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        
+
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         if self.use_rope:
             cos, sin = self.rotary()
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
-        
+
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
+            q, k, v, 
+            is_causal=True, 
+            enable_gqa=(self.num_kv_heads != self.num_heads)
         )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
@@ -639,11 +623,11 @@ class Block(nn.Module):
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.125))
-        self.emb_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.025))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
 
     def forward(self, x: Tensor, emb: Tensor) -> Tensor:
-        y = self.emb_scale.to(dtype=x.dtype)[None, None, :] * emb + x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), emb)
+        y = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         return self.resid_scale.to(dtype=x.dtype)[None, None, :] * x + y + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(y))
 
 
@@ -766,7 +750,7 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 1 #8 // world_size
+    grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
