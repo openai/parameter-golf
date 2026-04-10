@@ -1,0 +1,73 @@
+Running stage: train
+[2026-03-25 10:57:07] INFO: Data loaded at: /mnt/inputs/fineweb
+[2026-03-25 10:57:07] INFO: Prefetching data from GCS FUSE to local SSD...
+[2026-03-25 10:58:55] INFO: Prefetch complete in 107.5s
+[2026-03-25 10:58:55] INFO: Data path: /tmp/fineweb_local/datasets/fineweb10B_sp1024
+[2026-03-25 10:58:55] INFO: Tokenizer: /tmp/fineweb_local/tokenizers/fineweb_1024_bpe.model
+[2026-03-25 10:58:55] INFO: Found 80 train shards, 1 val shards
+[2026-03-25 10:59:03] INFO: Launching torchrun with 8 GPUs...
+[2026-03-25 10:59:34] INFO: logs/7beaa7a0-ca2f-4838-a937-29ccbacc9a48.txt
+[2026-03-25 10:59:34] INFO: train_loader:dataset:fineweb10B_sp1024 train_shards:80
+[2026-03-25 10:59:34] INFO: val_tokens:62021632
+[2026-03-25 10:59:34] INFO: model_params:28337254
+[2026-03-25 10:59:34] INFO: world_size:8 grad_accum_steps:1
+[2026-03-25 10:59:34] INFO: v42: 11L LeakyReLU(0.5)² Late-QAT@0.15 int6-all FullGPTQ EMA(0.997) TightSWA XSA-all(11) PartialRoPE(16/64) LNScale VE128 SmearGate BigramHash(8192) QATalign(0.9995) VRL Prune(0.07) RawBinary
+[2026-03-25 10:59:34] INFO: XSA:last_11 layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+[2026-03-25 10:59:34] INFO: FA3:True SWA:True warmdown:6000 adam_wd:0.04
+[2026-03-25 11:01:28] INFO: step:0/20000 val_loss:6.9310 val_bpb:4.1049 train_time:0ms step_avg:0.03ms
+[2026-03-25 11:01:28] INFO: step:10/20000 train_loss:6.0739 train_time:928ms step_avg:92.80ms
+[2026-03-25 11:01:48] INFO: step:200/20000 val_loss:2.6148 val_bpb:1.5486 train_time:18038ms step_avg:90.19ms
+[2026-03-25 11:02:09] INFO: step:400/20000 val_loss:2.3791 val_bpb:1.4090 train_time:36180ms step_avg:90.45ms
+[2026-03-25 11:02:29] INFO: step:600/20000 val_loss:2.2887 val_bpb:1.3555 train_time:54240ms step_avg:90.40ms
+[2026-03-25 11:02:49] INFO: step:800/20000 val_loss:2.2330 val_bpb:1.3225 train_time:72359ms step_avg:90.45ms
+[2026-03-25 11:03:09] INFO: step:1000/20000 val_loss:2.1995 val_bpb:1.3027 train_time:90399ms step_avg:90.40ms
+[2026-03-25 11:03:29] INFO: step:1200/20000 val_loss:2.1754 val_bpb:1.2884 train_time:108547ms step_avg:90.46ms
+[2026-03-25 11:03:50] INFO: step:1400/20000 val_loss:2.1588 val_bpb:1.2786 train_time:126731ms step_avg:90.52ms
+[2026-03-25 11:04:10] INFO: step:1600/20000 val_loss:2.1409 val_bpb:1.2680 train_time:144807ms step_avg:90.50ms
+[2026-03-25 11:04:30] INFO: step:1800/20000 val_loss:2.1180 val_bpb:1.2544 train_time:162983ms step_avg:90.55ms
+[2026-03-25 11:04:50] INFO: step:2000/20000 val_loss:2.0973 val_bpb:1.2422 train_time:181049ms step_avg:90.52ms
+[2026-03-25 11:05:10] INFO: step:2200/20000 val_loss:2.0848 val_bpb:1.2347 train_time:199214ms step_avg:90.55ms
+[2026-03-25 11:05:31] INFO: step:2400/20000 val_loss:2.0701 val_bpb:1.2260 train_time:217319ms step_avg:90.55ms
+[2026-03-25 11:05:51] INFO: step:2600/20000 val_loss:2.0615 val_bpb:1.2210 train_time:235498ms step_avg:90.58ms
+[2026-03-25 11:06:11] INFO: step:2800/20000 val_loss:2.0490 val_bpb:1.2136 train_time:253682ms step_avg:90.60ms
+[2026-03-25 11:06:31] INFO: step:3000/20000 val_loss:2.0433 val_bpb:1.2102 train_time:271786ms step_avg:90.60ms
+[2026-03-25 11:06:52] INFO: step:3200/20000 val_loss:2.0359 val_bpb:1.2058 train_time:289972ms step_avg:90.62ms
+[2026-03-25 11:07:12] INFO: step:3400/20000 val_loss:2.0275 val_bpb:1.2008 train_time:308035ms step_avg:90.60ms
+[2026-03-25 11:07:32] INFO: step:3600/20000 val_loss:2.0218 val_bpb:1.1974 train_time:326193ms step_avg:90.61ms
+[2026-03-25 11:07:52] INFO: step:3800/20000 val_loss:2.0155 val_bpb:1.1937 train_time:344292ms step_avg:90.60ms
+[2026-03-25 11:08:13] INFO: step:4000/20000 val_loss:2.0088 val_bpb:1.1897 train_time:362464ms step_avg:90.62ms
+[2026-03-25 11:08:33] INFO: step:4200/20000 val_loss:2.0029 val_bpb:1.1862 train_time:380658ms step_avg:90.63ms
+[2026-03-25 11:08:53] INFO: step:4400/20000 val_loss:1.9950 val_bpb:1.1815 train_time:398763ms step_avg:90.63ms
+[2026-03-25 11:09:13] INFO: step:4600/20000 val_loss:1.9889 val_bpb:1.1780 train_time:416928ms step_avg:90.64ms
+[2026-03-25 11:09:33] INFO: step:4800/20000 val_loss:1.9816 val_bpb:1.1736 train_time:434990ms step_avg:90.62ms
+[2026-03-25 11:09:54] INFO: step:5000/20000 val_loss:1.9737 val_bpb:1.1689 train_time:453175ms step_avg:90.64ms
+[2026-03-25 11:10:14] INFO: step:5200/20000 val_loss:1.9669 val_bpb:1.1649 train_time:471255ms step_avg:90.63ms
+[2026-03-25 11:10:34] INFO: step:5400/20000 val_loss:1.9588 val_bpb:1.1601 train_time:489439ms step_avg:90.64ms
+[2026-03-25 11:10:39] INFO: swa:start step:5450
+[2026-03-25 11:10:55] INFO: step:5600/20000 val_loss:1.9516 val_bpb:1.1559 train_time:507732ms step_avg:90.67ms
+[2026-03-25 11:11:05] INFO: late_qat:soft_round enabled step:5718 scale:0.1500
+[2026-03-25 11:11:15] INFO: step:5800/20000 val_loss:1.9438 val_bpb:1.1513 train_time:525945ms step_avg:90.68ms
+[2026-03-25 11:11:35] INFO: step:6000/20000 val_loss:1.9362 val_bpb:1.1467 train_time:544246ms step_avg:90.71ms
+[2026-03-25 11:11:56] INFO: step:6200/20000 val_loss:1.9285 val_bpb:1.1422 train_time:562433ms step_avg:90.72ms
+[2026-03-25 11:12:16] INFO: step:6400/20000 val_loss:1.9210 val_bpb:1.1377 train_time:580711ms step_avg:90.74ms
+[2026-03-25 11:12:36] INFO: step:6600/20000 val_loss:1.9163 val_bpb:1.1350 train_time:598898ms step_avg:90.74ms
+[2026-03-25 11:12:40] INFO: step:6613/20000 val_loss:1.9163 val_bpb:1.1349 train_time:600168ms step_avg:90.76ms
+[2026-03-25 11:12:40] INFO: stopping_early: wallclock_cap train_time:600168ms step:6613/20000
+[2026-03-25 11:12:40] INFO: peak memory allocated: 22126 MiB reserved: 22260 MiB
+[2026-03-25 11:12:40] INFO: ema:applying EMA weights
+[2026-03-25 11:12:40] INFO: gptq:calibrating with 256 batches...
+[2026-03-25 11:13:19] INFO: gptq:collected hessians for 68 layers
+[2026-03-25 11:13:41] INFO: prune:zeroed 2664519/27754496 int6 weights (9.6%) threshold=0
+[2026-03-25 11:14:00] INFO: model:15690309 code:97894 total:15788203 (15.79 MB)
+[2026-03-25 11:14:00] INFO: Size OK: 15.79 MB
+[2026-03-25 11:15:28] INFO: final_int6_sliding_window val_loss:1.8836 val_bpb:1.1156 eval_time:73132ms
+[2026-03-25 11:15:28] INFO: final_int6_sliding_window_exact val_loss:1.88356410 val_bpb:1.11555275
+[2026-03-25 11:15:28] INFO: final_int6_sliding_window_s64 val_loss:1.8836 val_bpb:1.1156
+[2026-03-25 11:15:28] INFO: final_int6_sliding_window_s64_exact val_loss:1.88356410 val_bpb:1.11555275
+[2026-03-25 11:15:28] INFO: ngram_eval:order=5 alpha=0.2 min_count=2 buckets=4194304 backoff=True entropy_adaptive=True
+[2026-03-25 11:17:32] INFO: final_int6_sliding_window_ngram5 val_loss:1.7290 val_bpb:1.0240 eval_time:123615ms
+[2026-03-25 11:17:32] INFO: final_int6_sliding_window_ngram5_exact val_loss:1.72897765 val_bpb:1.02400067
+[2026-03-25 11:17:40] INFO: Model files: ['final_model.int6.ptz']
+[2026-03-25 11:17:40] INFO:   Copied final_model.int6.ptz to output
+[2026-03-25 11:17:40] INFO: Training complete. Final BPP (int8+zlib): 1.02400067
+Stage completed successfully
