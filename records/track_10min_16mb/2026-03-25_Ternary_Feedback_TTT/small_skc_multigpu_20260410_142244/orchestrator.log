@@ -1,0 +1,47 @@
+[14:22:44] ========================================================
+[14:22:45] Cheap Multi-GPU Small SKC Orchestrator
+[14:22:45] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_142244
+[14:22:45] GPU count: 2
+[14:22:45] Min mem  : 24GB
+[14:22:45] Data     : 12 train shards
+[14:22:45] ========================================================
+[14:22:45] GC: terminating stale live pod paramgolf-small-20260410-141528 (q3iwhgfvlllqfk, uptime=400s)
+[14:22:45] Terminating pod q3iwhgfvlllqfk...
+{
+  "podTerminate": null
+}
+0.32	NVIDIA RTX A5000	Low	24	RTX A5000
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.66	NVIDIA RTX A6000	Low	48	RTX A6000
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+0.88	NVIDIA A40	Low	48	A40
+1.18	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+1.72	NVIDIA L40S	Low	48	L40S
+2.98	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[14:22:48] Secure candidate: RTX 4090 (NVIDIA GeForce RTX 4090)  2x  mem=24GB  stock=Medium  price=$1.18/hr
+[14:22:48] Trying 2xNVIDIA GeForce RTX 4090 on SECURE...
+[14:22:49]   failed: Something went wrong. Please try again later or contact support.
+[14:22:49] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  2x  mem=80GB  stock=Medium  price=$2.98/hr
+[14:22:49] Trying 2xNVIDIA A100-SXM4-80GB on SECURE...
+[14:22:50]   success: pod=gr8327zevofdtv cost=$2.98/hr
+[14:22:50] Waiting for pod SSH readiness...
+[14:23:26] Pod ready: root@204.12.201.57:5676
+[14:23:26] Verifying GPU and runtime...
+0, NVIDIA A100-SXM4-80GB, 81920 MiB
+1, NVIDIA A100-SXM4-80GB, 81920 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[14:23:41] Installing tmux and preparing logs...
+[14:24:29] FATAL: Failed to install tmux
+[14:24:29] Terminating pod gr8327zevofdtv...
+{
+  "podTerminate": null
+}

@@ -1,0 +1,74 @@
+[14:38:56] ========================================================
+[14:38:56] Cheap Multi-GPU Small SKC Orchestrator
+[14:38:56] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_143856
+[14:38:56] GPU count: 2
+[14:38:56] Min mem  : 24GB
+[14:38:56] Data     : 12 train shards
+[14:38:56] ========================================================
+[14:38:59] GC: terminating stale live pod paramgolf-small-20260410-143554 (0svr6ju3s4z9jw, uptime=0s)
+[14:38:59] Terminating pod 0svr6ju3s4z9jw...
+{
+  "podTerminate": null
+}
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.18	NVIDIA H100 NVL	Low	94	H100 NVL
+0.54	NVIDIA RTX A5000	Low	24	RTX A5000
+0.88	NVIDIA A40	Low	48	A40
+0.98	NVIDIA RTX A6000	Low	48	RTX A6000
+1.18	NVIDIA GeForce RTX 4090	High	24	RTX 4090
+1.54	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.72	NVIDIA L40S	Low	48	L40S
+2.98	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+6.14	NVIDIA H100 NVL	Low	94	H100 NVL
+[14:39:02] Secure candidate: RTX 4090 (NVIDIA GeForce RTX 4090)  2x  mem=24GB  stock=High  price=$1.18/hr
+[14:39:02] Trying 2xNVIDIA GeForce RTX 4090 on SECURE...
+[14:39:03]   success: pod=5eqzt06uiuk3i8 cost=$1.18/hr
+[14:39:03] Waiting for pod SSH readiness...
+[14:39:49] Pod ready: root@149.36.1.221:22347
+[14:39:49] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 4090, 24564 MiB
+1, NVIDIA GeForce RTX 4090, 24564 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[14:42:10] Installing tmux and preparing logs...
+[14:42:57] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[14:44:16] Preparing data...
+wrote:/workspace/data_setup.sh
+[14:45:01] Uploading code...
+[14:45:14] Remote env overrides: TRAIN_BATCH_TOKENS=8192 MAX_WALLCLOCK_SECONDS=600 COMPILE_MODE=reduce-overhead 
+[14:45:14] Starting GPU watchdog...
+[14:45:14] NOTICE: Entering Graph Capture / Compilation phase. GPU util will be 0% for up to 10 minutes.
+[14:45:14] GPU watchdog: started (10m grace period for compilation)
+[14:45:14] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_194517
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.0 thr_search=0 scale_search=0
+  CURR   : 64 -> 128 -> 256 -> 512 -> 1024 @ 24% / 76%
+  BATCH  : 8192 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_194517.txt
+params:6185767 L:8 d:640 h:8 kv:2 ws:2 ga:1 s:42
+probe:ema_init_start
+ema:enabled decay=0.997 start_fraction=0.2
+step:0 curr_seq_len_jump:64
+[14:48:03] FATAL: Smoke failed

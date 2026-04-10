@@ -1,0 +1,43 @@
+[15:11:07] ========================================================
+[15:11:07] Cheap Multi-GPU Small SKC Orchestrator
+[15:11:07] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_151107
+[15:11:07] GPU count: 2
+[15:11:07] Min mem  : 24GB
+[15:11:07] Data     : 12 train shards
+[15:11:07] ========================================================
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.66	NVIDIA RTX A6000	Low	48	RTX A6000
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+5.18	NVIDIA H100 NVL	Low	94	H100 NVL
+0.54	NVIDIA RTX A5000	Low	24	RTX A5000
+0.78	NVIDIA L4	Low	24	L4
+0.88	NVIDIA A40	Low	48	A40
+0.98	NVIDIA RTX A6000	Low	48	RTX A6000
+1.18	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+1.54	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.72	NVIDIA L40S	Low	48	L40S
+2.98	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[15:11:09] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  2x  mem=80GB  stock=Medium  price=$2.98/hr
+[15:11:09] Trying 2xNVIDIA A100-SXM4-80GB on SECURE...
+[15:11:10]   success: pod=udx1x3b3f5yzuh cost=$2.98/hr
+[15:11:10] Waiting for pod SSH readiness...
+[15:11:35] Pod ready: root@154.54.102.53:13292
+[15:11:35] Verifying GPU and runtime...
+0, NVIDIA A100-SXM4-80GB, 81920 MiB
+1, NVIDIA A100-SXM4-80GB, 81920 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[15:11:51] Installing tmux and preparing logs...
+[15:12:02] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[16:12:49] FATAL: Install job did not complete in time
+[16:12:49] Terminating pod udx1x3b3f5yzuh...
+{
+  "podTerminate": null
+}

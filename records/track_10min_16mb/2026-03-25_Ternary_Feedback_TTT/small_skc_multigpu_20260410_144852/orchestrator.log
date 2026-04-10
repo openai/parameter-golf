@@ -1,0 +1,259 @@
+[14:48:52] ========================================================
+[14:48:52] Cheap Multi-GPU Small SKC Orchestrator
+[14:48:52] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_144852
+[14:48:52] GPU count: 2
+[14:48:52] Min mem  : 24GB
+[14:48:52] Data     : 12 train shards
+[14:48:52] ========================================================
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.18	NVIDIA H100 NVL	Low	94	H100 NVL
+0.88	NVIDIA A40	Low	48	A40
+0.98	NVIDIA RTX A6000	Low	48	RTX A6000
+1.18	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+1.54	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.72	NVIDIA L40S	Low	48	L40S
+2.98	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[14:48:54] Secure candidate: RTX 4090 (NVIDIA GeForce RTX 4090)  2x  mem=24GB  stock=Medium  price=$1.18/hr
+[14:48:54] Trying 2xNVIDIA GeForce RTX 4090 on SECURE...
+[14:48:55]   success: pod=b51b352r70c429 cost=$1.18/hr
+[14:48:55] Waiting for pod SSH readiness...
+[14:49:11] Pod ready: root@209.170.80.132:15511
+[14:49:11] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 4090, 24564 MiB
+1, NVIDIA GeForce RTX 4090, 24564 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[14:49:25] Installing tmux and preparing logs...
+[14:49:37] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[14:50:13] Preparing data...
+wrote:/workspace/data_setup.sh
+[14:50:51] Uploading code...
+[14:51:02] Remote env overrides: TRAIN_BATCH_TOKENS=8192 MAX_WALLCLOCK_SECONDS=600 COMPILE_MODE=default 
+[14:51:02] Starting GPU watchdog...
+[14:51:02] GPU watchdog: started (10m grace period for compilation)
+[14:51:02] NOTICE: Entering Graph Capture / Compilation phase. GPU util will be 0% for up to 10 minutes.
+[14:51:02] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_195106
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.0 thr_search=0 scale_search=0
+  CURR   : 64 -> 128 -> 256 -> 512 -> 1024 @ 24% / 76%
+  BATCH  : 8192 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_195106.txt
+params:6185767 L:8 d:640 h:8 kv:2 ws:2 ga:1 s:42
+probe:ema_init_start
+ema:enabled decay=0.997 start_fraction=0.2
+step:0 curr_seq_len_jump:64
+[15:01:14] Launching 10-minute run...
+[15:01:34] progress » step:0 curr_seq_len_jump:64
+[15:01:51] progress » step:0 curr_seq_len_jump:64
+[15:02:06] GPU watchdog: 0% util detected after warmup (streak 1/3)
+[15:02:07] progress » step:0 curr_seq_len_jump:64
+[15:02:24] progress » step:0 curr_seq_len_jump:64
+[15:02:40] progress » step:0 curr_seq_len_jump:64
+[15:02:56] progress » step:0 curr_seq_len_jump:64
+[15:03:10] GPU watchdog: 0% util detected after warmup (streak 2/3)
+[15:03:14] progress » step:0 curr_seq_len_jump:64
+[15:03:33] progress » step:0 curr_seq_len_jump:64
+[15:03:50] progress » step:0 curr_seq_len_jump:64
+[15:04:07] progress » step:0 curr_seq_len_jump:64
+[15:04:14] GPU watchdog: 0% util detected after warmup (streak 3/3)
+[15:04:14] FATAL: GPU usage stuck at 0% for too long. Terminating pod.
+[15:04:14] Terminating pod b51b352r70c429...
+{
+  "podTerminate": null
+}
+[15:04:28] progress » step:0 curr_seq_len_jump:64
+[15:04:49] progress » step:0 curr_seq_len_jump:64
+[15:05:11] progress » step:0 curr_seq_len_jump:64
+[15:05:32] progress » step:0 curr_seq_len_jump:64
+[15:05:54] progress » step:0 curr_seq_len_jump:64
+[15:06:15] progress » step:0 curr_seq_len_jump:64
+[15:06:37] progress » step:0 curr_seq_len_jump:64
+[15:06:58] progress » step:0 curr_seq_len_jump:64
+[15:07:19] progress » step:0 curr_seq_len_jump:64
+[15:07:40] progress » step:0 curr_seq_len_jump:64
+[15:08:01] progress » step:0 curr_seq_len_jump:64
+[15:08:23] progress » step:0 curr_seq_len_jump:64
+[15:08:44] progress » step:0 curr_seq_len_jump:64
+[15:09:05] progress » step:0 curr_seq_len_jump:64
+[15:09:26] progress » step:0 curr_seq_len_jump:64
+[15:09:47] progress » step:0 curr_seq_len_jump:64
+[15:10:10] progress » step:0 curr_seq_len_jump:64
+[15:10:33] progress » step:0 curr_seq_len_jump:64
+[15:10:54] progress » step:0 curr_seq_len_jump:64
+[15:11:15] progress » step:0 curr_seq_len_jump:64
+[15:11:36] progress » step:0 curr_seq_len_jump:64
+[15:11:58] progress » step:0 curr_seq_len_jump:64
+[15:12:19] progress » step:0 curr_seq_len_jump:64
+[15:12:40] progress » step:0 curr_seq_len_jump:64
+[15:13:02] progress » step:0 curr_seq_len_jump:64
+[15:13:23] progress » step:0 curr_seq_len_jump:64
+[15:13:44] progress » step:0 curr_seq_len_jump:64
+[15:14:06] progress » step:0 curr_seq_len_jump:64
+[15:14:27] progress » step:0 curr_seq_len_jump:64
+[15:14:48] progress » step:0 curr_seq_len_jump:64
+[15:15:10] progress » step:0 curr_seq_len_jump:64
+[15:15:31] progress » step:0 curr_seq_len_jump:64
+[15:15:52] progress » step:0 curr_seq_len_jump:64
+[15:16:14] progress » step:0 curr_seq_len_jump:64
+[15:16:35] progress » step:0 curr_seq_len_jump:64
+[15:16:56] progress » step:0 curr_seq_len_jump:64
+[15:17:18] progress » step:0 curr_seq_len_jump:64
+[15:17:39] progress » step:0 curr_seq_len_jump:64
+[15:18:00] progress » step:0 curr_seq_len_jump:64
+[15:18:21] progress » step:0 curr_seq_len_jump:64
+[15:18:43] progress » step:0 curr_seq_len_jump:64
+[15:19:04] progress » step:0 curr_seq_len_jump:64
+[15:19:25] progress » step:0 curr_seq_len_jump:64
+[15:19:47] progress » step:0 curr_seq_len_jump:64
+[15:20:08] progress » step:0 curr_seq_len_jump:64
+[15:20:30] progress » step:0 curr_seq_len_jump:64
+[15:20:51] progress » step:0 curr_seq_len_jump:64
+[15:21:12] progress » step:0 curr_seq_len_jump:64
+[15:21:34] progress » step:0 curr_seq_len_jump:64
+[15:21:55] progress » step:0 curr_seq_len_jump:64
+[15:22:16] progress » step:0 curr_seq_len_jump:64
+[15:22:38] progress » step:0 curr_seq_len_jump:64
+[15:22:59] progress » step:0 curr_seq_len_jump:64
+[15:23:20] progress » step:0 curr_seq_len_jump:64
+[15:23:41] progress » step:0 curr_seq_len_jump:64
+[15:24:02] progress » step:0 curr_seq_len_jump:64
+[15:24:23] progress » step:0 curr_seq_len_jump:64
+[15:24:45] progress » step:0 curr_seq_len_jump:64
+[15:25:06] progress » step:0 curr_seq_len_jump:64
+[15:25:27] progress » step:0 curr_seq_len_jump:64
+[15:25:48] progress » step:0 curr_seq_len_jump:64
+[15:26:09] progress » step:0 curr_seq_len_jump:64
+[15:26:30] progress » step:0 curr_seq_len_jump:64
+[15:26:52] progress » step:0 curr_seq_len_jump:64
+[15:27:13] progress » step:0 curr_seq_len_jump:64
+[15:27:34] progress » step:0 curr_seq_len_jump:64
+[15:27:56] progress » step:0 curr_seq_len_jump:64
+[15:28:17] progress » step:0 curr_seq_len_jump:64
+[15:28:40] progress » step:0 curr_seq_len_jump:64
+[15:29:01] progress » step:0 curr_seq_len_jump:64
+[15:29:22] progress » step:0 curr_seq_len_jump:64
+[15:29:45] progress » step:0 curr_seq_len_jump:64
+[15:30:06] progress » step:0 curr_seq_len_jump:64
+[15:30:27] progress » step:0 curr_seq_len_jump:64
+[15:30:49] progress » step:0 curr_seq_len_jump:64
+[15:31:10] progress » step:0 curr_seq_len_jump:64
+[15:31:31] progress » step:0 curr_seq_len_jump:64
+[15:31:53] progress » step:0 curr_seq_len_jump:64
+[15:32:14] progress » step:0 curr_seq_len_jump:64
+[15:32:36] progress » step:0 curr_seq_len_jump:64
+[15:32:57] progress » step:0 curr_seq_len_jump:64
+[15:33:19] progress » step:0 curr_seq_len_jump:64
+[15:33:40] progress » step:0 curr_seq_len_jump:64
+[15:34:02] progress » step:0 curr_seq_len_jump:64
+[15:34:24] progress » step:0 curr_seq_len_jump:64
+[15:34:45] progress » step:0 curr_seq_len_jump:64
+[15:35:06] progress » step:0 curr_seq_len_jump:64
+[15:35:27] progress » step:0 curr_seq_len_jump:64
+[15:35:48] progress » step:0 curr_seq_len_jump:64
+[15:36:10] progress » step:0 curr_seq_len_jump:64
+[15:36:31] progress » step:0 curr_seq_len_jump:64
+[15:36:53] progress » step:0 curr_seq_len_jump:64
+[15:37:14] progress » step:0 curr_seq_len_jump:64
+[15:37:35] progress » step:0 curr_seq_len_jump:64
+[15:37:56] progress » step:0 curr_seq_len_jump:64
+[15:38:17] progress » step:0 curr_seq_len_jump:64
+[15:38:39] progress » step:0 curr_seq_len_jump:64
+[15:39:00] progress » step:0 curr_seq_len_jump:64
+[15:39:21] progress » step:0 curr_seq_len_jump:64
+[15:39:43] progress » step:0 curr_seq_len_jump:64
+[15:40:04] progress » step:0 curr_seq_len_jump:64
+[15:40:26] progress » step:0 curr_seq_len_jump:64
+[15:40:47] progress » step:0 curr_seq_len_jump:64
+[15:41:09] progress » step:0 curr_seq_len_jump:64
+[15:41:30] progress » step:0 curr_seq_len_jump:64
+[15:41:51] progress » step:0 curr_seq_len_jump:64
+[15:42:13] progress » step:0 curr_seq_len_jump:64
+[15:42:34] progress » step:0 curr_seq_len_jump:64
+[15:42:55] progress » step:0 curr_seq_len_jump:64
+[15:43:17] progress » step:0 curr_seq_len_jump:64
+[15:43:38] progress » step:0 curr_seq_len_jump:64
+[15:43:59] progress » step:0 curr_seq_len_jump:64
+[15:44:21] progress » step:0 curr_seq_len_jump:64
+[15:44:42] progress » step:0 curr_seq_len_jump:64
+[15:45:04] progress » step:0 curr_seq_len_jump:64
+[15:45:25] progress » step:0 curr_seq_len_jump:64
+[15:45:47] progress » step:0 curr_seq_len_jump:64
+[15:46:08] progress » step:0 curr_seq_len_jump:64
+[15:46:29] progress » step:0 curr_seq_len_jump:64
+[15:46:50] progress » step:0 curr_seq_len_jump:64
+[15:47:12] progress » step:0 curr_seq_len_jump:64
+[15:47:33] progress » step:0 curr_seq_len_jump:64
+[15:47:54] progress » step:0 curr_seq_len_jump:64
+[15:48:15] progress » step:0 curr_seq_len_jump:64
+[15:48:37] progress » step:0 curr_seq_len_jump:64
+[15:48:58] progress » step:0 curr_seq_len_jump:64
+[15:49:19] progress » step:0 curr_seq_len_jump:64
+[15:49:40] progress » step:0 curr_seq_len_jump:64
+[15:50:02] progress » step:0 curr_seq_len_jump:64
+[15:50:23] progress » step:0 curr_seq_len_jump:64
+[15:50:44] progress » step:0 curr_seq_len_jump:64
+[15:51:05] progress » step:0 curr_seq_len_jump:64
+[15:51:27] progress » step:0 curr_seq_len_jump:64
+[15:51:48] progress » step:0 curr_seq_len_jump:64
+[15:52:09] progress » step:0 curr_seq_len_jump:64
+[15:52:31] progress » step:0 curr_seq_len_jump:64
+[15:52:52] progress » step:0 curr_seq_len_jump:64
+[15:53:13] progress » step:0 curr_seq_len_jump:64
+[15:53:34] progress » step:0 curr_seq_len_jump:64
+[15:53:55] progress » step:0 curr_seq_len_jump:64
+[15:54:16] progress » step:0 curr_seq_len_jump:64
+[15:54:38] progress » step:0 curr_seq_len_jump:64
+[15:54:59] progress » step:0 curr_seq_len_jump:64
+[15:55:20] progress » step:0 curr_seq_len_jump:64
+[15:55:42] progress » step:0 curr_seq_len_jump:64
+[15:56:03] progress » step:0 curr_seq_len_jump:64
+[15:56:24] progress » step:0 curr_seq_len_jump:64
+[15:56:46] progress » step:0 curr_seq_len_jump:64
+[15:57:07] progress » step:0 curr_seq_len_jump:64
+[15:57:29] progress » step:0 curr_seq_len_jump:64
+[15:57:50] progress » step:0 curr_seq_len_jump:64
+[15:58:11] progress » step:0 curr_seq_len_jump:64
+[15:58:33] progress » step:0 curr_seq_len_jump:64
+[15:58:55] progress » step:0 curr_seq_len_jump:64
+[15:59:16] progress » step:0 curr_seq_len_jump:64
+[15:59:37] progress » step:0 curr_seq_len_jump:64
+[15:59:59] progress » step:0 curr_seq_len_jump:64
+[16:00:20] progress » step:0 curr_seq_len_jump:64
+[16:00:41] progress » step:0 curr_seq_len_jump:64
+[16:01:02] progress » step:0 curr_seq_len_jump:64
+[16:01:25] progress » step:0 curr_seq_len_jump:64
+[16:01:46] progress » step:0 curr_seq_len_jump:64
+[16:02:07] progress » step:0 curr_seq_len_jump:64
+[16:02:29] progress » step:0 curr_seq_len_jump:64
+[16:02:50] progress » step:0 curr_seq_len_jump:64
+[16:03:11] progress » step:0 curr_seq_len_jump:64
+[16:03:33] progress » step:0 curr_seq_len_jump:64
+[16:03:54] progress » step:0 curr_seq_len_jump:64
+[16:04:16] progress » step:0 curr_seq_len_jump:64
+[16:04:37] progress » step:0 curr_seq_len_jump:64
+[16:04:37] FATAL: Full run did not complete in time
+[16:04:37] Terminating pod b51b352r70c429...
+{
+  "podTerminate": null
+}

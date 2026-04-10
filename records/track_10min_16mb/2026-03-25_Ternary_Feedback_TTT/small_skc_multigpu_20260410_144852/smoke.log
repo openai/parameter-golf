@@ -1,0 +1,21 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_195106
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=0@0.0 thr_search=0 scale_search=0
+  CURR   : 64 -> 128 -> 256 -> 512 -> 1024 @ 24% / 76%
+  BATCH  : 8192 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_195106.txt
+params:6185767 L:8 d:640 h:8 kv:2 ws:2 ga:1 s:42
+probe:ema_init_start
+ema:enabled decay=0.997 start_fraction=0.2
+step:0 curr_seq_len_jump:64

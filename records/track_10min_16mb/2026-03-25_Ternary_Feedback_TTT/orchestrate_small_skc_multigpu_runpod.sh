@@ -24,14 +24,15 @@ MIN_VCPU_COUNT="${MIN_VCPU_COUNT:-1}"
 MIN_SYSTEM_MEMORY_GB="${MIN_SYSTEM_MEMORY_GB:-8}"
 DATA_SHARDS="${DATA_SHARDS:-12}"
 HF_REPO="willdepueoai/parameter-golf"
-BALANCE_FLOOR="30"
+BALANCE_FLOOR="10"
 BALANCE_CHECK_SECONDS="${BALANCE_CHECK_SECONDS:-30}"
-SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-180}"
+SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-600}"
 LATENT_CHECKPOINT_LOCAL_PATH="${LATENT_CHECKPOINT_LOCAL_PATH:-}"
 SCP_RETRIES="${SCP_RETRIES:-3}"
 KEEP_POD_ON_EXIT="${KEEP_POD_ON_EXIT:-0}"
 POD_TERMINATED=0
 BALANCE_WATCH_PID=""
+GPU_WATCH_PID=""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Auto-discover trainer path (local or project root)
@@ -52,8 +53,39 @@ ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
 log() { printf "[%s] %s\n" "$(date +%H:%M:%S)" "$*" | tee -a "$ORCH_LOG"; }
 die() {
     log "FATAL: $*"
-    [[ -n "${POD_ID:-}" ]] && terminate_pod "$POD_ID" || true
+    [[ -n "${GPU_WATCH_PID:-}" ]] && kill "$GPU_WATCH_PID" 2>/dev/null || true
+    [[ -n "${BALANCE_WATCH_PID:-}" ]] && kill "$BALANCE_WATCH_PID" 2>/dev/null || true
+    [[ -n "${POD_ID:-}" && "${POD_TERMINATED:-0}" -eq 0 ]] && terminate_pod "$POD_ID" || true
     exit 1
+}
+
+watch_gpu_utilization() {
+    local warmup_remaining=600  # 10 minute grace for torch.compile
+    local zero_util_count=0
+    local max_zero_util=3
+    log "GPU watchdog: started (10m grace period for compilation)"
+    while [[ -n "${POD_ID:-}" ]]; do
+        sleep 60
+        if [[ $warmup_remaining -gt 0 ]]; then
+            warmup_remaining=$(( warmup_remaining - 60 ))
+            continue
+        fi
+        local util
+        util=$(ssh "${SSH_BASE[@]}" -p "$POD_PORT" "root@${POD_HOST}" "nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1" 2>/dev/null || echo "-1")
+        if [[ "$util" == "0" ]]; then
+            zero_util_count=$(( zero_util_count + 1 ))
+            log "GPU watchdog: 0% util detected after warmup (streak ${zero_util_count}/${max_zero_util})"
+            if [[ $zero_util_count -ge $max_zero_util ]]; then
+                log "FATAL: GPU usage stuck at 0% for too long. Terminating pod."
+                terminate_pod "$POD_ID"
+                return 1
+            fi
+        elif [[ "$util" == "-1" ]]; then
+            return 0 # Pod likely gone
+        else
+            zero_util_count=0
+        fi
+    done
 }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
@@ -99,15 +131,27 @@ REMOTE_ENV_KEYS=(
     KOOPMAN_SPECULATOR_ENABLED
     TTT_ENABLED
     EMA_ENABLED
+    EMA_START_FRACTION
     MOE_START_FRACTION
+    MOE_ROUTER_AUX_LOSS_COEF
     BIGRAM_HASH_ENABLED
     ENGRAM_NUM_HEADS
     ENGRAM_NUM_ORDERS
     ENGRAM_INJECT_LAYER
     LN_SCALE_DAMPING
     MAX_WALLCLOCK_SECONDS
+    WARMDOWN_FRACTION
     PARTIAL_ROPE_DIMS
     CURRICULUM_ENABLED
+    CURRICULUM_PHASE1_FRAC
+    CURRICULUM_PHASE2_FRAC
+    CURRICULUM_PHASE3_FRAC
+    CURRICULUM_PHASE4_FRAC
+    CURRICULUM_PHASE5_FRAC
+    EXPORT_PROXY_EVAL
+    EXPORT_PROXY_EVERY
+    EXPORT_PROXY_NUM_SEQS
+    COMPILE_MODE
 )
 
 build_remote_env_prefix() {
@@ -543,15 +587,16 @@ GPU_COUNT_ACTUAL=$(r_retry "nvidia-smi --query-gpu=name --format=csv,noheader | 
 [[ "$GPU_COUNT_ACTUAL" -eq "$GPU_COUNT" ]] || log "WARNING: expected ${GPU_COUNT} GPUs, got ${GPU_COUNT_ACTUAL}"
 
 log "Installing tmux and preparing logs..."
-r_retry "apt-get update -qq && apt-get install -y -q tmux && mkdir -p /workspace/logs" || die "Failed to install tmux"
+r_retry "which tmux || (export DEBIAN_FRONTEND=noninteractive; apt-get update -qq || true; apt-get install -y -q -o DPkg::Lock::Timeout=300 tmux); mkdir -p /workspace/logs" || die "Failed to install tmux"
 
 log "Installing dependencies..."
 INSTALL_SCRIPT_CONTENT=$(cat <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if ! which tmux >/dev/null 2>&1; then
-  apt-get update -qq
-  apt-get install -y -q tmux
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq || true
+  apt-get install -y -q -o DPkg::Lock::Timeout=300 tmux
 fi
 pip install -q sentencepiece zstandard huggingface-hub
 echo deps_ok
@@ -643,7 +688,10 @@ fi
 
 REMOTE_ENV_PREFIX="$(build_remote_env_prefix)"
 log "Remote env overrides: ${REMOTE_ENV_PREFIX:-<none>}"
-
+log "Starting GPU watchdog..."
+watch_gpu_utilization &
+GPU_WATCH_PID=$!
+log "NOTICE: Entering Graph Capture / Compilation phase. GPU util will be 0% for up to 10 minutes."
 log "Smoke test..."
 r_retry "cd /workspace && timeout ${SMOKE_TIMEOUT_SECONDS}s env ${REMOTE_ENV_PREFIX}FAST_SMOKE=1 NPROC_PER_NODE=${GPU_COUNT} GRAD_ACCUM_STEPS=1 bash run_small_skc_2gpu.sh 2>&1 | tee /workspace/logs/smoke.log" | tee -a "$ORCH_LOG" || die "Smoke failed"
 download_from_pod "/workspace/logs/smoke.log" "${LOCAL_ARTIFACTS_DIR}/smoke.log" 0 1 || true
@@ -662,6 +710,8 @@ fi
 log "RUN_ID=${RUN_ID}"
 
 download_run_artifacts "$RUN_ID"
+[[ -n "${GPU_WATCH_PID:-}" ]] && kill "$GPU_WATCH_PID" 2>/dev/null || true
+[[ -n "${BALANCE_WATCH_PID:-}" ]] && kill "$BALANCE_WATCH_PID" 2>/dev/null || true
 
 if [[ -f "${DOWNLOAD_DIR}/${RUN_ID}_submission.json" ]]; then
     log "Submission summary:"
