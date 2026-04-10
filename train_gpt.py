@@ -748,16 +748,25 @@ class DistributedTokenLoader:
         self.stream = TokenStream(pattern)
         self._copy_stream = torch.cuda.Stream(device) if device.type == "cuda" else None
         self._prefetch: tuple[Tensor, Tensor] | None = None
-        self._pinned_local_cpu: Tensor | None = None
-        self._pinned_local_cpu_capacity = 0
+        # Double-buffer for pinned staging memory.
+        # A single pinned buffer is unsafe: wait_stream() synchronises the GPU but not
+        # the CPU. After wait_stream(), the CPU immediately calls _load_raw() for the
+        # next prefetch and copy_() would overwrite the same physical pages that the
+        # DMA engine may still be reading for the *previous* transfer. Using two buffers
+        # (A and B) means the CPU always writes to the buffer that the GPU is not
+        # currently reading from, eliminating the race.
+        self._pinned_buffers: list[Tensor | None] = [None, None]
+        self._pinned_buf_idx: int = 0  # index of the buffer to write into NEXT
 
-    def _get_pinned_local_cpu(self, size: int) -> Tensor:
+    def _get_pinned_buf(self, size: int) -> Tensor:
+        """Return the next double-buffer slot, (re)allocating if too small."""
         if self._copy_stream is None:
             raise RuntimeError("Pinned CPU staging is only available for CUDA loaders")
-        if self._pinned_local_cpu is None or self._pinned_local_cpu_capacity < size:
-            self._pinned_local_cpu = torch.empty(size, dtype=torch.int64, pin_memory=True)
-            self._pinned_local_cpu_capacity = size
-        return self._pinned_local_cpu[:size]
+        idx = self._pinned_buf_idx
+        self._pinned_buf_idx = 1 - idx  # toggle for next call
+        if self._pinned_buffers[idx] is None or self._pinned_buffers[idx].numel() < size:  # type: ignore[union-attr]
+            self._pinned_buffers[idx] = torch.empty(size, dtype=torch.int64, pin_memory=True)
+        return self._pinned_buffers[idx][:size]  # type: ignore[index]
 
     def _load_raw(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
@@ -768,15 +777,14 @@ class DistributedTokenLoader:
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
-        # Cast to int64 on CPU before pinning — avoids a second GPU kernel launch
+        # Cast to int64 on CPU before pinning — avoids a second GPU kernel launch.
+        # Do NOT silently clamp tokens — bad IDs should surface as a hard error.
         local_cpu = chunk[start:start + per_rank_span].to(torch.int64)
-        # Do NOT silently clamp tokens — bad token IDs should surface as a hard error,
-        # not silently corrupt training inputs with wrong-vocab gradients.
         if self._copy_stream is not None:
-            pinned_local = self._get_pinned_local_cpu(per_rank_span)
-            pinned_local.copy_(local_cpu)
+            pinned = self._get_pinned_buf(per_rank_span)
+            pinned.copy_(local_cpu)
             with torch.cuda.stream(self._copy_stream):
-                local = pinned_local.to(self.device, non_blocking=True)
+                local = pinned.to(self.device, non_blocking=True)
         else:
             local = local_cpu.to(self.device)
         x = local[:-1].reshape(-1, seq_len)
@@ -785,17 +793,16 @@ class DistributedTokenLoader:
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         if self._prefetch is not None and self._copy_stream is not None:
+            # GPU waits for the background copy to land before consuming x, y.
             torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
             x, y = self._prefetch
         else:
+            # First call: no prefetch queued yet. Load synchronously then wait.
             x, y = self._load_raw(global_tokens, seq_len, grad_accum_steps)
-            # First-call data race: _load_raw issues a non-blocking PCIe copy on
-            # _copy_stream. Without this synchronisation, the main CUDA stream starts
-            # the forward pass on x,y before the host→device transfer has completed,
-            # training on uninitialized GPU memory for the very first batch.
             if self._copy_stream is not None:
                 torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
-        # Kick off next prefetch in background
+        # Kick off next prefetch into the OTHER pinned buffer (double-buffer toggle
+        # happens inside _get_pinned_buf so this write never races the GPU read above).
         if self._copy_stream is not None:
             self._prefetch = self._load_raw(global_tokens, seq_len, grad_accum_steps)
         return x, y
@@ -1179,7 +1186,11 @@ class CausalSelfAttention(nn.Module):
         )
         # VRL: learnable mixing weight for value residual
         if vrl_enabled:
-            self.vrl_alpha = nn.Parameter(torch.tensor(0.5, dtype=torch.float32))
+            # sigmoid(4.0) ≈ 0.982: nearly all V from current sequence at init.
+            # sigmoid(0.5) ≈ 0.622 would forcibly blend in 38% V0 from step 0,
+            # shocking early momentum buffers before the model can organically learn
+            # when to open the shortcut.
+            self.vrl_alpha = nn.Parameter(torch.tensor(4.0, dtype=torch.float32))
 
         # Hadamard cache for KV quantizer
         if (self.head_dim & (self.head_dim - 1)) == 0:
@@ -1928,7 +1939,7 @@ class SKCLayer(nn.Module):
         self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
 
-    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None):
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
         mix = self.resid_mix.to(x.dtype)
         x = mix[0] * x + mix[1] * x0
         normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
@@ -1991,7 +2002,10 @@ class SKCLayer(nn.Module):
             mlp_out = self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction)
         else:
             mlp_out = self.local_mlp(mlp_in)
-        x = x + self.mlp_scale.to(x.dtype)[None, None, :] * mlp_out
+        # Use per-layer external MLP scale when provided (shared-block mode) so each
+        # reuse of this block at a different depth has its own independent SkipInit scale.
+        _m_scale = external_mlp_scale if external_mlp_scale is not None else self.mlp_scale.to(x.dtype)
+        x = x + _m_scale[None, None, :] * mlp_out
         return x, None
 
 
@@ -2314,8 +2328,9 @@ class GPT(nn.Module):
             # internal skc_scale — without this, all layers sharing one SKCLayer block
             # apply the exact same residual scale, breaking SkipInit depth invariance.
             _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
+            _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
             x, v_out = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
-                             external_skc_scale=_skc_scale)
+                             external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
             return x, v_out
         else:
             # Attention block
