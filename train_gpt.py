@@ -61,7 +61,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -70,10 +70,12 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
-    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 4096))
+    bigram_hash_buckets = int(os.environ.get("BIGRAM_HASH_BUCKETS", 0))
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 0))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -677,6 +679,18 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.use_xsa = False
+
+    def _xsa_remove_self_value(self, y: Tensor, v: Tensor) -> Tensor:
+        """Subtract self-value projection: z_i = y_i - (y_i^T v_i / ||v_i||^2) * v_i.
+        GQA-aware: reshapes heads into groups matching KV heads."""
+        B, T, H, D = y.shape
+        Hkv = v.size(2)
+        group = H // Hkv
+        y_g = y.reshape(B, T, Hkv, group, D)
+        vn = F.normalize(v, dim=-1).unsqueeze(3)  # (B, T, Hkv, 1, D)
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        return (y_g - proj).reshape(B, T, H, D)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -693,14 +707,21 @@ class CausalSelfAttention(nn.Module):
              assert self.num_heads % self.num_kv_heads == 0
         repeat = self.num_heads // self.num_kv_heads
         k = k.repeat_interleave(repeat, dim=1)
-        v = v.repeat_interleave(repeat, dim=1)
+        v_expanded = v.repeat_interleave(repeat, dim=1)
         y = F.scaled_dot_product_attention(
             q,
             k,
-            v,
+            v_expanded,
             attn_mask=None,
             is_causal=True,
         )
+        if self.use_xsa:
+            # XSA: remove self-value direction from attention output
+            # y is (B, H, T, D), v is (B, Hkv, T, D) -> transpose to (B, T, *, D)
+            y = self._xsa_remove_self_value(
+                y.transpose(1, 2),  # (B, T, H, D)
+                v.transpose(1, 2),  # (B, T, Hkv, D)
+            ).transpose(1, 2)  # back to (B, H, T, D)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -799,6 +820,7 @@ class GPT(nn.Module):
         use_smeargate: bool = False,
         bigram_hash_buckets: int = 0,
         bigram_hash_dim: int = 128,
+        xsa_last_n: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -826,6 +848,9 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -1001,6 +1026,7 @@ def main() -> None:
         use_smeargate=args.use_smeargate,
         bigram_hash_buckets=args.bigram_hash_buckets,
         bigram_hash_dim=args.bigram_hash_dim,
+        xsa_last_n=args.xsa_last_n,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1133,6 +1159,14 @@ def main() -> None:
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     # -----------------------------
+    # EMA SETUP
+    # -----------------------------
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_decay > 0:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+        log0(f"ema:enabled decay={args.ema_decay}")
+
+    # -----------------------------
     # MAIN TRAINING LOOP
     # -----------------------------
 
@@ -1205,6 +1239,12 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        if ema_state is not None:
+            d = args.ema_decay
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1230,6 +1270,16 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+
+    # -----------------------------
+    # APPLY EMA WEIGHTS
+    # -----------------------------
+    if ema_state is not None:
+        log0("ema:applying EMA weights for eval and serialization")
+        avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype)
+                     for name, t in ema_state.items()}
+        del ema_state
+        base_model.load_state_dict(avg_state, strict=True)
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
