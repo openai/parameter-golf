@@ -183,6 +183,8 @@ export WEIGHT_SHARING=0           # Explicit off: weight sharing degrades SKC pe
 export XSA_START_LAYER=999        # Default=0 (XSA on ALL layers) — disable entirely for SKC
 export STOCHASTIC_DEPTH_PROB=0    # Regularization hurts in underfitting regime (10-min budget)
 export SELF_DISTILL_KL_WEIGHT=0   # Gradient conflict with ternary quantization
+export INSIDE_OUT_TRAINING=0      # Not wired into trainer; explicit off avoids defaulting to experimental branch
+export DEQ_FEEDBACK=0             # Not wired into trainer; explicit off avoids defaulting to experimental branch
 
 # ── Eval stack ────────────────────────────────────────────────────────────────
 # Training phase: zero validation — every millisecond of the 599s budget is training compute.
