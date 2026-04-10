@@ -1,0 +1,13 @@
+{
+    "author": "Abhay Anand",
+    "github_id": "AbhayAnandUCSD",
+    "name": "11L Depth Recurrence + BigramHash + EMA 0.9965",
+    "blurb": "Depth recurrence (layers 4,5 repeat once for 13 virtual layers, activated at step 3000) with BigramHash(1536, 112) and EMA 0.9965. Built on PR #1334 by @aryanbhosale and PR #1421 by @X-Abhishek-X, with BigramHash added from our prior SOTA stack. SP1024 tokenizer, GPTQ int6 + Brotli.",
+    "date": "2026-04-06T00:00:00Z",
+    "track": "10min_16mb",
+    "val_loss": 1.85386482,
+    "val_bpb": 1.09796317,
+    "wallclock_seconds": 600,
+    "bytes_total": 14574817,
+    "gpu": "8xH100 SXM"
+}
