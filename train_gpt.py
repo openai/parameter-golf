@@ -67,7 +67,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 4))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -92,8 +92,8 @@ class Hyperparameters:
     ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
 
     # Depth recurrence
-    recur_layers = os.environ.get("RECUR_LAYERS", "3,4,5")
-    enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.35))
+    recur_layers = os.environ.get("RECUR_LAYERS", "")
+    enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.0))
 
     # Parallel residuals (GPT-J style) from this layer index onward
     parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", 7))
@@ -384,7 +384,7 @@ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 # SDClip: clip = k * std(row). k=12.85 for int6 range (-31,31), k=20.0 for int8 range (-127,127)
 SDCLIP_K_INT8 = float(os.environ.get("SDCLIP_K_INT8", 20.0))  # for embeddings
 SDCLIP_K_INT6 = float(os.environ.get("SDCLIP_K_INT6", 12.85))  # for weight matrices
-USE_INT6 = bool(int(os.environ.get("USE_INT6", "1")))  # int6 for weight matrices
+USE_INT6 = bool(int(os.environ.get("USE_INT6", "0")))  # int8 by default, int6 optional
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
