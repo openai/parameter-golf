@@ -1,0 +1,13 @@
+seed,weight_decay,run_id,fp_val_bpb_final,q_val_bpb_final,val_bpb_gap,total_submission_size_int8_zlib_bytes,last_fp_eval_step,log_path
+1337,0.0,hf_verify_sp1024_1gpu_wd0_seed1337,1.483,1.48402956,0.001029559999999874,14989968,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1337/wd_0/train.log
+1337,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1337,1.5679,1.56824575,0.0003457499999999225,12294208,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1337/wd_0p1/train.log
+1338,0.0,hf_verify_sp1024_1gpu_wd0_seed1338,1.4786,1.47932786,0.0007278600000000246,14982129,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1338/wd_0/train.log
+1338,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1338,1.565,1.56510805,0.0001080500000001372,12297479,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1338/wd_0p1/train.log
+1339,0.0,hf_verify_sp1024_1gpu_wd0_seed1339,1.4793,1.48015001,0.0008500099999999566,14987147,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1339/wd_0/train.log
+1339,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1339,1.5634,1.56407424,0.0006742400000001592,12290078,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1339/wd_0p1/train.log
+1340,0.0,hf_verify_sp1024_1gpu_wd0_seed1340,1.4776,1.47821541,0.0006154099999999829,14973396,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1340/wd_0/train.log
+1340,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1340,1.5649,1.56527519,0.0003751899999999697,12285957,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1340/wd_0p1/train.log
+1341,0.0,hf_verify_sp1024_1gpu_wd0_seed1341,1.4785,1.47931191,0.0008119100000001378,14987216,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1341/wd_0/train.log
+1341,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1341,1.5676,1.56842323,0.0008232299999999526,12290811,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1341/wd_0p1/train.log
+1342,0.0,hf_verify_sp1024_1gpu_wd0_seed1342,1.484,1.48486654,0.0008665400000000822,14983783,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1342/wd_0/train.log
+1342,0.1,hf_verify_sp1024_1gpu_wd0p1_seed1342,1.5703,1.57079041,0.0004904100000000522,12297798,1000,/root/parameter-golf/wd_quant_study_a100_pgpu310/runs/seed_1342/wd_0p1/train.log
