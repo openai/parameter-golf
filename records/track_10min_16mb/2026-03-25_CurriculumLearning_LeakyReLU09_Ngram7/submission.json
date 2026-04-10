@@ -1,0 +1,17 @@
+{
+  "name": "Curriculum Learning + LeakyReLU(0.9)² + 7-gram Backoff",
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "val_bpb": 0.9633,
+  "val_loss": 1.6265,
+  "bytes_total": 15560351,
+  "artifact_bytes": 15560351,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 131,
+  "hardware": "8xH100 SXM",
+  "seed": 42,
+  "num_seeds": 1,
+  "date": "2026-03-25",
+  "blurb": "PR #753 base + curriculum learning (hardest-first shard reorder, PR #650) + LeakyReLU(0.9)² slope optimization (MatoTeziTanka sweep) + 7-gram backoff eval cache. 1 seed, 2 additional pending compute grant.",
+  "notes": "Previously PR #486 (formerly #2 on leaderboard, TrigramHash originator). $360 personal compute spent."
+}
