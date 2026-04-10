@@ -400,20 +400,25 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 def quantize_float_tensor(t: Tensor, is_embedding: bool = False) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        # SDClip: clip threshold = k * std(row)
-        # int6 for weight matrices (clip_range=31), int8 for embeddings (clip_range=127)
-        if USE_INT6 and not is_embedding:
-            clip_range = 31
-            k = SDCLIP_K_INT6
-        else:
-            clip_range = 127
-            k = SDCLIP_K_INT8
-        row_std = t32.std(dim=1)
-        clip_abs = (k * row_std).clamp_min(1e-10)
-        scale = (clip_abs / clip_range).clamp_min(1.0 / clip_range)
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -clip_range, clip_range).to(torch.int8)
-        return q.contiguous(), scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        # GPTQ-lite: search for optimal clip percentile per weight matrix.
+        # Try multiple candidates and pick the one minimizing reconstruction MSE.
+        clip_range = 127
+        best_q, best_s, best_err = None, None, float('inf')
+        for pct in [0.999, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                clip_abs = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                clip_abs = t32.abs().amax(dim=1)
+            scale = (clip_abs / clip_range).clamp_min(1.0 / clip_range)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -clip_range, clip_range).to(torch.int8)
+            recon = q.float() * scale[:, None]
+            err = (t32 - recon).pow(2).mean().item()
+            if err < best_err:
+                best_q = q.contiguous()
+                best_s = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+                best_err = err
+        return best_q, best_s
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
