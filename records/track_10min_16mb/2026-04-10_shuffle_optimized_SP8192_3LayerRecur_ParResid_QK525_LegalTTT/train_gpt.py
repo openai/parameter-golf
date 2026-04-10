@@ -3,6 +3,11 @@ from pathlib import Path
 import random,re,subprocess,sys,time,uuid,numpy as np,sentencepiece as spm,torch,torch.distributed as dist,torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor,nn
+import threading
+import queue
+import os
+import glob
+from pathlib import Path
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
 _logger_hparams=None
@@ -56,34 +61,96 @@ def _get_shard_memmap(file):
 	if mm is not None:return mm
 	n=_read_num_tokens(file);mm=np.memmap(file,mode='r',dtype='<u2',offset=_SHARD_HEADER_BYTES,shape=(n,));_MMAP_CACHE[key]=mm;return mm
 class ShuffledSequenceLoader:
-	def __init__(self,h,device):
-		self.world_size=h.world_size;self.seq_len=h.train_seq_len;self.device=device;all_files=[Path(p)for p in sorted(glob.glob(h.train_files))]
-		if not all_files:raise FileNotFoundError(f"No files found for pattern: {h.train_files}")
-		self.files=all_files[h.rank::h.world_size];self.rng=np.random.Generator(np.random.PCG64(h.rank));self.num_tokens=[_read_num_tokens(f)for f in self.files];self.start_inds=[[]for _ in self.files]
-		for si in range(len(self.files)):self._reset_shard(si)
-		self.global_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432))
-		world_size=int(os.environ.get('WORLD_SIZE','1'))
-		self.grad_accum_steps=8//world_size
-		self.device_tokens=self.global_tokens//(self.world_size*self.grad_accum_steps);
-		self.device_batch_size=self.device_tokens//self.seq_len
+    def __init__(self, h, device, prefetch_size=100):
+        self.device = device
+        self.world_size = h.world_size
+        self.seq_len = h.train_seq_len
+        
+        # Hardcoded logic constants
+        self.global_tokens = int(os.environ.get('TRAIN_BATCH_TOKENS', 786432))
+        world_size_env = int(os.environ.get('WORLD_SIZE', '1'))
+        self.grad_accum_steps = 8 // world_size_env
+        self.device_tokens = self.global_tokens // (self.world_size * self.grad_accum_steps)
+        self.device_batch_size = self.device_tokens // self.seq_len
 
-	def _reset_shard(self,si):max_phase=min(self.seq_len-1,max(0,self.num_tokens[si]-self.seq_len-1));phase=int(self.rng.integers(max_phase+1))if max_phase>0 else 0;num_sequences=(self.num_tokens[si]-1-phase)//self.seq_len;sequence_order=self.rng.permutation(num_sequences);self.start_inds[si]=(phase+sequence_order*self.seq_len).tolist()
-	def next_batch(self):
-		remaining=np.array([len(s)for s in self.start_inds],dtype=np.float64)
-		x_np = np.empty((self.device_batch_size, self.seq_len), dtype=np.int64)
-		y_np = np.empty((self.device_batch_size, self.seq_len), dtype=np.int64)
+        # File and Indexing setup
+        all_files = [Path(p) for p in sorted(glob.glob(h.train_files))]
+        if not all_files:
+            raise FileNotFoundError(f"No files found for pattern: {h.train_files}")
+        
+        self.files = all_files[h.rank::h.world_size]
+        self.rng = np.random.Generator(np.random.PCG64(h.rank))
+        self.num_tokens = [_read_num_tokens(f) for f in self.files]
+        self.start_inds = [[] for _ in self.files]
+        
+        for si in range(len(self.files)):
+            self._reset_shard(si)
 
-		for bi in range(self.device_batch_size):
-			total=remaining.sum()
-			if total<=0:
-				for si in range(len(self.files)):self._reset_shard(si)
-				remaining=np.array([len(s)for s in self.start_inds],dtype=np.float64);total=remaining.sum()
-			probs=remaining/total;si=int(self.rng.choice(len(self.files),p=probs));start_ind=self.start_inds[si].pop();remaining[si]-=1;mm=_get_shard_memmap(self.files[si]);
-			window=mm[start_ind:start_ind+self.seq_len+1]
-			x_np[bi]=window[:-1]
-			y_np[bi]=window[1:]
-		return torch.from_numpy(x_np).to(self.device,non_blocking=True),torch.from_numpy(y_np).to(self.device,non_blocking=True)
+        # The Queue now stores tensors that are already on the GPU
+        # maxsize=1 ensures we only buffer one extra batch in VRAM
+        self.batch_queue = queue.Queue(maxsize=prefetch_size)
+        self.stop_event = threading.Event()
+        self.loader_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self.loader_thread.start()
 
+    def _reset_shard(self, si):
+        max_phase = min(self.seq_len - 1, max(0, self.num_tokens[si] - self.seq_len - 1))
+        phase = int(self.rng.integers(max_phase + 1)) if max_phase > 0 else 0
+        num_sequences = (self.num_tokens[si] - 1 - phase) // self.seq_len
+        sequence_order = self.rng.permutation(num_sequences)
+        self.start_inds[si] = (phase + sequence_order * self.seq_len).tolist()
+
+    def _produce_and_upload_batch(self):
+        # 1. Generate on CPU using original logic
+        remaining = np.array([len(s) for s in self.start_inds], dtype=np.float64)
+        x_np = np.empty((self.device_batch_size, self.seq_len), dtype=np.int64)
+        y_np = np.empty((self.device_batch_size, self.seq_len), dtype=np.int64)
+
+        for bi in range(self.device_batch_size):
+            total = remaining.sum()
+            if total <= 0:
+                for si in range(len(self.files)):
+                    self._reset_shard(si)
+                remaining = np.array([len(s) for s in self.start_inds], dtype=np.float64)
+                total = remaining.sum()
+            
+            probs = remaining / total
+            si = int(self.rng.choice(len(self.files), p=probs))
+            start_ind = self.start_inds[si].pop()
+            remaining[si] -= 1
+            
+            mm = _get_shard_memmap(self.files[si])
+            window = mm[start_ind : start_ind + self.seq_len + 1]
+            x_np[bi] = window[:-1]
+            y_np[bi] = window[1:]
+
+        # 2. Convert to torch and immediately move to GPU
+        # We do this in the background thread to hide the transfer latency
+        x_gpu = torch.from_numpy(x_np).to(self.device, non_blocking=True)
+        y_gpu = torch.from_numpy(y_np).to(self.device, non_blocking=True)
+        return x_gpu, y_gpu
+
+    def _worker_loop(self):
+        while not self.stop_event.is_set():
+            # Generate and ship to GPU
+            batch = self._produce_and_upload_batch()
+            
+            # The thread waits here if the GPU cache (queue) is full.
+            # It only triggers the next "produce and upload" after a batch is consumed.
+            self.batch_queue.put(batch)
+
+    def next_batch(self):
+        """Returns a batch that is already sitting in GPU memory."""
+        # Main thread just grabs the ready-to-use GPU tensors
+        return self.batch_queue.get()
+
+    def stop(self):
+        self.stop_event.set()
+        try:
+            self.batch_queue.get_nowait()
+        except queue.Empty:
+            pass
+        self.loader_thread.join()
 class RMSNorm(nn.Module):
 	def __init__(self,eps=None):super().__init__();self.eps=eps
 	def forward(self,x):return F.rms_norm(x,(x.size(-1),),eps=self.eps)
