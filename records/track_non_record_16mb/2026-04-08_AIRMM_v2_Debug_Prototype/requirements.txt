@@ -1,0 +1,5 @@
+# AIR-MM v2 uses only standard PyTorch ops.
+# No additional dependencies beyond the base train_gpt.py requirements.
+torch
+numpy
+sentencepiece
