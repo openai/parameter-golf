@@ -1,0 +1,11 @@
+{
+  "author": "Jack Princz",
+  "github_id": "jfprincz",
+  "name": "Wider MLP 3x + int6 Quantization + Sliding Window Eval, val_bpb=1.1659",
+  "blurb": "3x MLP expansion (hidden=1536) with int6 per-row quantization on MLP and attention weights, int8 on embeddings, zstd-22 compression, and sliding window evaluation at stride=256 with batched forward_logits.",
+  "date": "2026-03-19T08:09:18Z",
+  "val_loss": 1.96858429,
+  "val_bpb": 1.16590600,
+  "bytes_total": 14855508,
+  "bytes_code": 55795
+}
