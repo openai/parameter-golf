@@ -1,0 +1,14 @@
+{
+  "name": "dTTT + BigramHash 3072x112 + GPTQ int6",
+  "val_bpb": 1.0800,
+  "bytes_total": 15873363,
+  "blurb": "Discriminative pre-quant AdamW TTT (per-block LR 0.3x-1.0x, freeze=0, 10 epochs) on BigramHash 3072x112 base. Builds directly on PR #1351 dTTT framework; only change is scaling BigramHash from 2048x128 to 3072x112 following PR #1019/1405 best practices. 3-seed mean 1.0800 (std 0.0002). All artifacts under 16MB, all training under 600s.",
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "hardware": "8xH100_SXM",
+  "seeds": [1337, 42, 2025],
+  "mean_val_bpb": 1.0800,
+  "std_val_bpb": 0.0002
+}
