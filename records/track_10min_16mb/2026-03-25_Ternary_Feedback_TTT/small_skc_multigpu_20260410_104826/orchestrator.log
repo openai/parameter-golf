@@ -1,0 +1,234 @@
+[10:48:26] ========================================================
+[10:48:26] Cheap Multi-GPU Small SKC Orchestrator
+[10:48:26] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_104826
+[10:48:26] GPU count: 2
+[10:48:26] Min mem  : 24GB
+[10:48:26] Data     : 12 train shards
+[10:48:26] ========================================================
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+0.88	NVIDIA A40	Low	48	A40
+0.98	NVIDIA RTX A6000	Low	48	RTX A6000
+1.54	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+2.98	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[10:48:32] Secure candidate: H100 SXM (NVIDIA H100 80GB HBM3)  2x  mem=80GB  stock=High  price=$5.98/hr
+[10:48:32] Trying 2xNVIDIA H100 80GB HBM3 on SECURE...
+[10:48:34]   success: pod=r63ddy3n6d6bk8 cost=$5.98/hr
+[10:48:34] Waiting for pod SSH readiness...
+[10:49:02] Pod ready: root@64.247.201.58:18395
+[10:49:02] Verifying GPU and runtime...
+0, NVIDIA H100 80GB HBM3, 81559 MiB
+1, NVIDIA H100 80GB HBM3, 81559 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[10:49:29] Installing tmux and preparing logs...
+[10:49:43] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[10:50:30] Preparing data...
+wrote:/workspace/data_setup.sh
+[10:51:37] Uploading code...
+[10:52:02] Remote env overrides: <none>
+[10:52:02] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_155211
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 4096 tok/step  seq=2048
+  VRAM   : min_gpu_mem=80GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_155211.txt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 4544, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 3706, in main
+[rank0]:     base_model = GPT(
+[rank0]:                  ^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 2440, in __init__
+[rank0]:     self.engram = EngramHash(
+[rank0]:                   ^^^^^^^^^^^
+[rank0]: TypeError: EngramHash.__init__() got an unexpected keyword argument 'vocab_size'
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt.py", line 4544, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt.py", line 3706, in main
+[rank1]:     base_model = GPT(
+[rank1]:                  ^^^^
+[rank1]:   File "/workspace/train_gpt.py", line 2440, in __init__
+[rank1]:     self.engram = EngramHash(
+[rank1]:                   ^^^^^^^^^^^
+[rank1]: TypeError: EngramHash.__init__() got an unexpected keyword argument 'vocab_size'
+[rank0]:[W410 15:52:34.268990455 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+W0410 15:52:35.891000 136210733732480 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 873 closing signal SIGTERM
+E0410 15:52:35.924000 136210733732480 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 872) of binary: /usr/bin/python3
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 905, in <module>
+    main()
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-10_15:52:35
+  host      : 817b25f6f4b6
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 872)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+[10:52:58] Launching 10-minute run...
+[10:58:53] progress » step:50/500000 loss:nan t:4929ms avg:98.6ms
+[10:59:16] progress » step:300/500000 loss:nan t:26964ms avg:89.9ms
+[10:59:42] progress » step:550/500000 loss:nan t:51139ms avg:93.0ms
+[11:00:07] progress » step:800/500000 loss:nan t:75331ms avg:94.2ms
+[11:00:27] progress » step:1050/500000 loss:nan t:99104ms avg:94.4ms
+[11:00:48] progress » step:1250/500000 loss:nan t:118481ms avg:94.8ms
+[11:01:17] progress » step:1550/500000 loss:nan t:146582ms avg:94.6ms
+[11:01:39] progress » step:1800/500000 loss:nan t:170724ms avg:94.8ms
+[11:02:13] progress » step:2150/500000 loss:nan t:204344ms avg:95.0ms
+[11:02:39] progress » step:2400/500000 loss:nan t:228474ms avg:95.2ms
+[11:03:00] progress » step:2600/500000 loss:nan t:247540ms avg:95.2ms
+[11:03:21] progress » step:2850/500000 loss:nan t:271351ms avg:95.2ms
+[11:03:43] progress » step:3100/500000 loss:nan t:294905ms avg:95.1ms
+[11:04:07] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:04:28] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:04:51] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:05:11] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:05:34] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:05:56] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:06:18] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:06:39] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:07:02] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:07:26] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:07:56] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:08:18] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:08:40] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:09:04] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:09:27] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:09:48] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:10:11] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:10:34] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:10:53] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:11:15] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:11:37] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:12:01] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:12:23] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:12:54] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:13:14] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:13:37] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:13:57] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:14:20] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:14:40] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:14:58] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:15:16] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:15:40] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:16:01] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:16:33] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:16:54] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:17:21] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:17:45] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:18:11] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:18:31] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:18:53] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:19:14] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:19:38] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:20:01] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:20:22] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:20:43] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:21:03] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:21:24] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:21:46] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:22:07] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:22:27] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:22:55] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:23:13] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:23:33] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:23:52] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:24:11] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:24:35] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:25:02] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:25:29] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:25:54] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:26:14] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:26:38] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:26:57] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:27:25] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:27:47] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:28:12] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:28:33] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:29:03] progress » step:3150/500000 loss:nan t:299623ms avg:95.1ms
+[11:29:52] progress » step:150/500000 loss:4.4825 t:14059ms avg:93.7ms
+[11:30:12] progress » step:400/500000 loss:3.8238 t:37658ms avg:94.1ms
+[11:30:44] progress » step:700/500000 loss:4.1711 t:67851ms avg:96.9ms
+[11:31:07] progress » step:950/500000 loss:3.9885 t:92019ms avg:96.9ms
+[11:31:28] progress » step:1150/500000 loss:3.7363 t:111818ms avg:97.2ms
+[11:31:51] progress » step:1400/500000 loss:3.6649 t:136163ms avg:97.3ms
+[11:32:12] progress » step:1600/500000 loss:3.7152 t:156510ms avg:97.8ms
+[11:32:36] progress » step:1850/500000 loss:3.8288 t:180828ms avg:97.7ms
+[11:32:56] progress » step:2050/500000 loss:3.4449 t:200652ms avg:97.9ms
+[11:33:20] progress » step:2250/500000 loss:3.4824 t:220784ms avg:98.1ms
+[11:33:41] progress » step:2500/500000 loss:3.3496 t:244340ms avg:97.7ms
+[11:34:13] progress » step:2850/500000 loss:3.5242 t:278376ms avg:97.7ms
+[11:34:35] progress » step:3050/500000 loss:3.3756 t:297719ms avg:97.6ms
+[11:34:57] progress » step:3300/500000 loss:3.6448 t:321993ms avg:97.6ms
+[11:35:16] progress » step:3500/500000 loss:3.5637 t:341195ms avg:97.5ms
+[11:35:41] progress » step:3750/500000 loss:3.6977 t:365435ms avg:97.4ms
+[11:36:02] progress » step:3950/500000 loss:3.3252 t:384847ms avg:97.4ms
+[11:36:23] progress » step:4200/500000 loss:3.7158 t:408927ms avg:97.4ms
+[11:36:44] progress » step:4400/500000 loss:3.3051 t:428242ms avg:97.3ms
+[11:37:04] progress » step:4600/500000 loss:3.8612 t:447509ms avg:97.3ms
+[11:37:26] progress » step:4800/500000 loss:3.4318 t:467293ms avg:97.4ms
+[11:37:49] progress » step:5050/500000 loss:3.5641 t:491921ms avg:97.4ms
+[11:38:14] progress » step:5300/500000 loss:3.6048 t:516554ms avg:97.5ms
+[11:38:37] progress » step:5550/500000 loss:3.6540 t:540968ms avg:97.5ms
+[11:38:58] progress » step:5750/500000 loss:3.5217 t:560522ms avg:97.5ms
+[11:39:22] progress » step:6000/500000 loss:3.7496 t:584914ms avg:97.5ms
+[11:39:43] progress » final_evaluation:completed val_loss:3.4779 val_bpb:2.0937
+[11:40:09] progress » final_ternary_roundtrip val_loss:3.4776 val_bpb:2.0935
+[11:40:42] RUN_ID=small_skc_2gpu_s42_20260410_162918
+[11:41:20] Submission summary:
+{
+  "model_size": null,
+  "val_loss": 3.4776,
+  "val_bpb": 2.0935
+}
+[11:41:20] Terminating pod r63ddy3n6d6bk8...
+{
+  "podTerminate": null
+}
+[11:41:22] Complete. Artifacts:
+[11:41:22]   log        : /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_104826/full_run.log
+[11:41:22]   download dir: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_104826/downloads

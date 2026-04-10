@@ -1,0 +1,43 @@
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_171253
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 4096 tok/step  seq=2048
+  VRAM   : min_gpu_mem=23GB  val_batch=262144
+  BUDGET : 599s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 0
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_171253.txt
+params:6185767 L:8 d:640 h:8 kv:2 ws:2 ga:1 s:42
+probe:ema_init_start
+ema:enabled decay=0.997 start_fraction=0.4
+step:0 curr_seq_len_jump:64
+step:172/500000 loss:4.4308 t:29960ms avg:174.2ms
+step:172 curr_seq_len_jump:128
+step:328/500000 loss:4.2202 t:60038ms avg:183.0ms
+step:328 curr_seq_len_jump:256
+step:501/500000 loss:4.0510 t:90030ms avg:179.7ms
+step:561 curr_seq_len_jump:512
+step:654/500000 loss:3.7018 t:119981ms avg:183.5ms
+step:818/500000 loss:4.2048 t:149820ms avg:183.2ms
+step:818 curr_seq_len_jump:1024
+step:977/500000 loss:3.7441 t:179719ms avg:183.9ms
+step:1136/500000 loss:3.7423 t:209722ms avg:184.6ms
+step:1136 curr_seq_len_jump:2048
+step:1288/500000 loss:3.9034 t:239655ms avg:186.1ms
+step:1438/500000 loss:3.6038 t:269608ms avg:187.5ms
+step:1628/500000 loss:3.9346 t:299626ms avg:184.0ms
+step:1808/500000 loss:4.0213 t:329608ms avg:182.3ms
+step:1973/500000 loss:3.7856 t:359588ms avg:182.3ms
+step:2152/500000 loss:4.2608 t:389457ms avg:181.0ms
+step:2315/500000 loss:3.7682 t:419402ms avg:181.2ms
+step:2485/500000 loss:3.6230 t:449345ms avg:180.8ms
+step:2672/500000 loss:3.6464 t:479305ms avg:179.4ms
+step:2835/500000 loss:3.7327 t:509326ms avg:179.7ms

@@ -62,6 +62,15 @@ POD_RETRY_SLEEP_SECONDS="${POD_RETRY_SLEEP_SECONDS:-15}"
 
 # ── Local paths ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/experiment_results_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
@@ -509,7 +518,7 @@ require_cmd ssh
 require_cmd scp
 [[ -f "$LOCAL_SSH_KEY" ]]    || die "SSH private key not found: $LOCAL_SSH_KEY"
 [[ -f "$LOCAL_SSH_PUB" ]]    || die "SSH public key not found: $LOCAL_SSH_PUB"
-[[ -f "${SCRIPT_DIR}/train_gpt.py" ]] || die "train_gpt.py not found in $SCRIPT_DIR"
+[[ -f "${TRAINER_PATH}" ]] || die "train_gpt.py not found in $SCRIPT_DIR"
 [[ -f "${SCRIPT_DIR}/run_h100_skc_competition.sh" ]] || die "run_h100_skc_competition.sh not found in $SCRIPT_DIR"
 gc_stale_pods "$POD_NAME"
 enforce_balance_floor
@@ -646,7 +655,7 @@ log "Data verified: train_shards=${TRAIN_COUNT}  val_shards=${VAL_COUNT}  T+$(t_
 
 # ── 6. Upload code ────────────────────────────────────────────────────────────
 log "=== PHASE: Upload code ==="
-ul "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_h100_skc_competition.sh" \
+ul "${TRAINER_PATH}" "${SCRIPT_DIR}/run_h100_skc_competition.sh" \
     || die "Code upload failed"
 r "chmod +x /workspace/run_h100_skc_competition.sh && mkdir -p /workspace/logs"
 log "Code uploaded  T+$(t_elapsed)s"

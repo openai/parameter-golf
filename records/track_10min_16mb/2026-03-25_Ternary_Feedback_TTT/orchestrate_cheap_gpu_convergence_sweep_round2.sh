@@ -33,6 +33,15 @@ RUN_MATRIX=(
 )
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/cheap_gpu_convergence_sweep_round2_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
@@ -288,7 +297,7 @@ with ThreadPoolExecutor(max_workers=4) as ex:
 PYEOF" | tee -a "$ORCH_LOG" || die "dataset download failed"
 
 log "Uploading code..."
-ul "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
+ul "${TRAINER_PATH}" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
 
 log "Smoke testing..."
 r "cd /workspace && chmod +x run_single_ablation.sh && FAST_SMOKE=1 MODE=screen DATA_ROOT=/workspace/data DATA_DIR=/workspace/data/datasets/fineweb10B_sp1024 TOKENIZER_DIR=/workspace/data/tokenizers timeout 180 bash run_single_ablation.sh ${BASE_CONFIG} > /workspace/logs/convergence_smoke.log 2>&1" || true

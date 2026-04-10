@@ -68,6 +68,15 @@ ABLATION_CONFIGS=(
 
 # ── Local paths ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/ablation_results_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
@@ -306,7 +315,7 @@ command -v ssh  >/dev/null 2>&1 || die "ssh not found"
 command -v scp  >/dev/null 2>&1 || die "scp not found"
 [[ -f "$LOCAL_SSH_KEY" ]]    || die "SSH private key not found: $LOCAL_SSH_KEY"
 [[ -f "$LOCAL_SSH_PUB" ]]    || die "SSH public key not found: $LOCAL_SSH_PUB"
-[[ -f "${SCRIPT_DIR}/train_gpt.py" ]] || die "train_gpt.py not found in $SCRIPT_DIR"
+[[ -f "${TRAINER_PATH}" ]] || die "train_gpt.py not found in $SCRIPT_DIR"
 [[ -f "${SCRIPT_DIR}/run_single_ablation.sh" ]] || die "run_single_ablation.sh not found in $SCRIPT_DIR"
 
 # ── 1. Create pod ─────────────────────────────────────────────────────────────
@@ -427,7 +436,7 @@ log "Data verified: train=${TRAIN_COUNT} val=${VAL_COUNT}  T+$(t_elapsed)s"
 
 # ── 6. Upload code ────────────────────────────────────────────────────────────
 log "=== PHASE: Upload code ==="
-ul "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
+ul "${TRAINER_PATH}" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
 r "chmod +x /workspace/run_single_ablation.sh && mkdir -p /workspace/logs"
 log "Code uploaded  T+$(t_elapsed)s"
 
@@ -442,7 +451,7 @@ r "cd /workspace && \
     VOCAB_SIZE=1024 TRAIN_BATCH_TOKENS=32768 TRAIN_SEQ_LEN=1024 COMPILE_MODE=none SEED=42 \
     DATA_PATH=/workspace/data/datasets/fineweb10B_sp1024 \
     TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_1024_bpe.model \
-    OMP_NUM_THREADS=1 timeout 120 torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1" \
+    OMP_NUM_THREADS=1 timeout 120 torchrun --standalone --nproc_per_node=1 "${TRAINER_PATH}" 2>&1" \
     > "$SMOKE_LOG" 2>&1 || log "WARNING: smoke test non-zero exit"
 
 SMOKE_ERR=$(grep -cE "^Traceback|CUDA error|RuntimeError|ImportError|OutOfMemoryError" "$SMOKE_LOG" 2>/dev/null || echo 0)
@@ -463,7 +472,7 @@ if [[ "$SMOKE_ERR" -gt 0 ]]; then
             VOCAB_SIZE=1024 TRAIN_BATCH_TOKENS=16384 TRAIN_SEQ_LEN=1024 COMPILE_MODE=none SEED=42 \
             DATA_PATH=/workspace/data/datasets/fineweb10B_sp1024 \
             TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_1024_bpe.model \
-            OMP_NUM_THREADS=1 timeout 120 torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1" \
+            OMP_NUM_THREADS=1 timeout 120 torchrun --standalone --nproc_per_node=1 "${TRAINER_PATH}" 2>&1" \
             > "${SMOKE_LOG}.retry" 2>&1 || true
         SMOKE_OK=$(grep -cE "step:[0-9]" "${SMOKE_LOG}.retry" 2>/dev/null || echo 0)
         [[ "$SMOKE_OK" -eq 0 ]] && die "Smoke test failed even with reduced batch"

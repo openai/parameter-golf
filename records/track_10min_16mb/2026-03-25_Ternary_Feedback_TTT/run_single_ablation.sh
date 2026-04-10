@@ -22,6 +22,15 @@ fi
 MODE="${MODE:-screen}"
 FAST_SMOKE="${FAST_SMOKE:-0}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 cd "$DIR"
 
 # ── Architecture Defaults ───────────────────────────────────────────────────
@@ -183,7 +192,7 @@ mkdir -p logs
 echo "Running ${CONFIG} (L=${NUM_LAYERS} D=${MODEL_DIM} C=${SKC_CAPSULE_DIM} MODE=${MODE} SMOKE=${FAST_SMOKE})"
 RUN_NAME="ablation_${CONFIG}${RUN_TAG:+_${RUN_TAG}}"
 LOG="logs/${RUN_NAME}.log"
-OMP_NUM_THREADS=1 torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee "$LOG"
+OMP_NUM_THREADS=1 torchrun --standalone --nproc_per_node=1 "${TRAINER_PATH}" 2>&1 | tee "$LOG"
 
 cp final_model.ternary.ptz "logs/${RUN_NAME}_model.ternary.ptz" 2>/dev/null || true
 cp submission.json "logs/${RUN_NAME}_submission.json" 2>/dev/null || true

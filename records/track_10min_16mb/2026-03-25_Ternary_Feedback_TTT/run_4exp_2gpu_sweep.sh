@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SWEEP_LOG="${SCRIPT_DIR}/sweep_4exp_2gpu_$(date +%Y%m%d_%H%M%S).log"
 log() { printf "[%s] %s\n" "$(date +%H:%M:%S)" "$*" | tee -a "$SWEEP_LOG"; }
 
-export RUNPOD_API_KEY="rpa_IXDRQPZKIX32BK35KRMWWJSV0I41ZA80L504CTIMjealdx"
+export RUNPOD_API_KEY="${RUNPOD_API_KEY:?ERROR: Please export RUNPOD_API_KEY before running.}"
 
 # ---------------------------------------------------------------------------
 # Step 1: Terminate ALL existing pods

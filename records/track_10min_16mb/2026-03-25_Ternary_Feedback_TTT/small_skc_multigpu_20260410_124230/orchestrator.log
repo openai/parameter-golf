@@ -1,0 +1,130 @@
+[12:42:30] ========================================================
+[12:42:30] Cheap Multi-GPU Small SKC Orchestrator
+[12:42:30] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_124230
+[12:42:30] GPU count: 2
+[12:42:30] Min mem  : 24GB
+[12:42:30] Data     : 12 train shards
+[12:42:30] ========================================================
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+0.88	NVIDIA A40	Low	48	A40
+1.18	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+1.72	NVIDIA L40S	Low	48	L40S
+2.98	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[12:42:34] Secure candidate: RTX 4090 (NVIDIA GeForce RTX 4090)  2x  mem=24GB  stock=Medium  price=$1.18/hr
+[12:42:34] Trying 2xNVIDIA GeForce RTX 4090 on SECURE...
+[12:42:35]   success: pod=frg8rhcl3qhft6 cost=$1.18/hr
+[12:42:35] Waiting for pod SSH readiness...
+[12:42:50] Pod ready: root@209.170.80.132:12930
+[12:42:50] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 4090, 24564 MiB
+1, NVIDIA GeForce RTX 4090, 24564 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[12:43:06] Installing tmux and preparing logs...
+[12:43:17] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[12:43:53] Preparing data...
+wrote:/workspace/data_setup.sh
+[12:44:33] Uploading code...
+[12:44:50] Remote env overrides: <none>
+[12:44:51] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_174455
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 4096 tok/step  seq=2048
+  VRAM   : min_gpu_mem=24GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+logs/cuda/small_skc_2gpu_s42_20260410_174455.txt
+params:6185767 L:8 d:640 h:8 kv:2 ws:2 ga:1 s:42
+probe:ema_init_start
+ema:enabled decay=0.997 start_fraction=0.4
+step:0 curr_seq_len_jump:64
+step:1/2 loss:6.9323 t:2033ms avg:2033.3ms
+step:1 curr_seq_len_jump:512
+step:2/2 loss:6.9317 t:6157ms avg:3078.3ms
+final_evaluation:starting step:2/2
+final_evaluation:completed val_loss:6.9314 val_bpb:4.1726
+ema:ranks synchronized for export
+export_calib:starting thr_search=True scale_search=True
+calib:budget evals=32/32 time=21.9s/30.0s
+export_calib:done calibrated=0 tensors
+ema:applying shadow weights...
+ema:applied shadow weights and offloaded originals to CPU
+serialization:started
+param_audit: total=10,465,357 ternary_candidates=3,645,440(10) fp=6,819,917(168) est_raw=14.42MB est_compressed≈14.59MB
+serialization:running_final_calib_search
+calib:budget evals=32/32 time=21.4s/30.0s
+serialization:calib_done tensors=0
+artifact:8.31MB ternary:3645440(681254B) fp:6559821(13119642B) code:237149
+budget:8544141/16000000 (8.54/16.00MB) FITS
+eval_feedback_passes:2
+final_ternary_roundtrip val_loss:6.9314 val_bpb:4.1726
+scoreboard: raw_bpb=4.1726 roundtrip_bpb=4.1726 augmented_bpb=4.1726
+=== DONE ===
+Log      : /workspace/logs/small_skc_2gpu_s42_20260410_174455.log
+Artifact : logs/small_skc_2gpu_s42_20260410_174455_model.ternary.ptz
+[12:46:15] Launching 10-minute run...
+[12:46:39] progress » step:0 curr_seq_len_jump:64
+[12:46:56] progress » step:0 curr_seq_len_jump:64
+[12:47:13] progress » step:196 curr_seq_len_jump:128
+[12:47:33] progress » step:371/500000 loss:4.1697 t:60026ms avg:161.8ms
+[12:47:51] progress » step:371 curr_seq_len_jump:256
+[12:48:10] progress » step:559/500000 loss:4.3955 t:89963ms avg:160.9ms
+[12:48:27] progress » step:640 curr_seq_len_jump:512
+[12:48:45] progress » step:722/500000 loss:3.9918 t:119865ms avg:166.0ms
+[12:49:06] progress » step:921 curr_seq_len_jump:1024
+[12:49:28] progress » step:921 curr_seq_len_jump:1024
+[12:49:47] progress » step:1117/500000 loss:4.2132 t:179777ms avg:160.9ms
+[12:50:05] progress » step:1317 curr_seq_len_jump:2048
+[12:50:25] progress » step:1317 curr_seq_len_jump:2048
+[12:50:43] progress » step:1512/500000 loss:3.3102 t:239751ms avg:158.6ms
+[12:51:04] progress » step:1707/500000 loss:3.8185 t:269550ms avg:157.9ms
+[12:52:37] progress » step:2305/500000 loss:3.9759 t:359405ms avg:155.9ms
+[12:52:55] progress » step:2305/500000 loss:3.9759 t:359405ms avg:155.9ms
+[12:53:13] progress » step:2511/500000 loss:3.9959 t:389388ms avg:155.1ms
+[12:53:31] progress » step:2511/500000 loss:3.9959 t:389388ms avg:155.1ms
+[12:53:49] progress » step:2704/500000 loss:4.1637 t:419400ms avg:155.1ms
+[12:54:08] progress » step:2900/500000 loss:3.8806 t:449283ms avg:154.9ms
+[12:54:29] progress » step:2900/500000 loss:3.8806 t:449283ms avg:154.9ms
+[12:54:50] progress » step:3096/500000 loss:3.5232 t:479288ms avg:154.8ms
+[12:55:09] progress » step:3284/500000 loss:3.5483 t:509251ms avg:155.1ms
+[12:55:27] progress » step:3284/500000 loss:3.5483 t:509251ms avg:155.1ms
+[12:55:47] progress » step:3284/500000 loss:3.5483 t:509251ms avg:155.1ms
+[12:56:06] progress » step:3479/500000 loss:3.3344 t:539129ms avg:155.0ms
+[12:56:23] progress » step:3479/500000 loss:3.3344 t:539129ms avg:155.0ms
+[12:56:41] progress » step:3679/500000 loss:3.8004 t:569052ms avg:154.7ms
+[12:56:59] progress » final_evaluation:completed val_loss:3.5512 val_bpb:2.1378
+[12:57:18] progress » final_evaluation:completed val_loss:3.5512 val_bpb:2.1378
+[12:57:42] RUN_ID=small_skc_2gpu_s42_20260410_174620
+[12:58:17] Submission summary:
+{
+  "model_size": null,
+  "val_loss": 3.5517,
+  "val_bpb": 2.1381
+}
+[12:58:17] Terminating pod frg8rhcl3qhft6...
+{
+  "podTerminate": null
+}
+[12:58:18] Complete. Artifacts:
+[12:58:18]   log        : /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_124230/full_run.log
+[12:58:18]   download dir: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_124230/downloads

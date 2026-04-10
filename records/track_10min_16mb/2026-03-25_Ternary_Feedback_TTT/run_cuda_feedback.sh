@@ -107,4 +107,4 @@ SEED=${SEED:-42} \
 KOOPMAN_LR=${KOOPMAN_LR:-0.01} \
 COMPILE_MODE=${COMPILE_MODE:-default} \
 OMP_NUM_THREADS=${OMP_NUM_THREADS:-1} \
-torchrun --standalone --nproc_per_node=${NPROC_PER_NODE:-8} train_gpt.py
+torchrun --standalone --nproc_per_node=${NPROC_PER_NODE:-8} "${TRAINER_PATH}"

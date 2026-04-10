@@ -1,5 +1,14 @@
 #!/bin/bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 cd "$DIR"
 
 echo "Syncing latest architectural fixes to winlaptop..."

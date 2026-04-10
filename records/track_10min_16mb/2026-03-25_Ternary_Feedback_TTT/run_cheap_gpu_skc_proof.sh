@@ -6,6 +6,15 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 cd "$DIR"
 
 OMP_THREADS="${OMP_NUM_THREADS:-1}"
@@ -16,7 +25,7 @@ export DATA_PATH="${DATA_PATH:-/workspace/data/datasets/fineweb10B_sp1024}"
 export TOKENIZER_PATH="${TOKENIZER_PATH:-/workspace/data/tokenizers/fineweb_1024_bpe.model}"
 export VOCAB_SIZE=1024
 
-[[ -f "${DIR}/train_gpt.py" ]] || { echo "ERROR: ${DIR}/train_gpt.py not found" >&2; exit 1; }
+[[ -f "${TRAINER_PATH}" ]] || { echo "ERROR: ${DIR}/train_gpt.py not found" >&2; exit 1; }
 [[ -d "${DATA_PATH}" ]] || { echo "ERROR: DATA_PATH not found: ${DATA_PATH}" >&2; exit 1; }
 [[ -f "${TOKENIZER_PATH}" ]] || { echo "ERROR: TOKENIZER_PATH not found: ${TOKENIZER_PATH}" >&2; exit 1; }
 
@@ -148,7 +157,7 @@ echo "==========================================================================
 
 LOG="${DIR}/logs/${RUN_ID}.log"
 env OMP_NUM_THREADS="${OMP_THREADS}" \
-    torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee "$LOG"
+    torchrun --standalone --nproc_per_node=1 "${TRAINER_PATH}" 2>&1 | tee "$LOG"
 
 cp final_model.ternary.ptz "logs/${RUN_ID}_model.ternary.ptz" 2>/dev/null || true
 cp submission.json "logs/${RUN_ID}_submission.json" 2>/dev/null || true

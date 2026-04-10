@@ -1,0 +1,12 @@
+{
+  "author": "Aki Gogikar (OneNewAI)",
+  "github_id": "akhileshgogikar",
+  "name": "KoopCaps-HRM Ternary Reasoner",
+  "blurb": "KoopCaps-HRM: 20M ternary SKC MoE with EMA, GPTQ-lite, and deterministic export.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": 3.4776,
+  "val_bpb": 2.0935,
+  "augmented_val_bpb": 2.0935,
+  "bytes_total": 8523106,
+  "bytes_code": 231298
+}

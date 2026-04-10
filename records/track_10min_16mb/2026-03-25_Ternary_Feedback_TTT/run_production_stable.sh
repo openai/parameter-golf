@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
 # PRODUCTION STABLE RUN: Pure DDP / 320D / 8 Experts
-# Stabilized version without experimental Sync/Feedback logic.
+# Stabilized baseline with explicit batch sizing and EMA.
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROD_LOG="${SCRIPT_DIR}/production_stable_$(date +%Y%m%d_%H%M%S).log"
 
-export RUNPOD_API_KEY="rpa_IXDRQPZKIX32BK35KRMWWJSV0I41ZA80L504CTIMjealdx"
+export RUNPOD_API_KEY="${RUNPOD_API_KEY:?ERROR: Please export RUNPOD_API_KEY before running.}"
 
 # Winning Architecture
 export NUM_LAYERS=8
@@ -16,18 +16,16 @@ export MODEL_DIM=320
 export KOOPMAN_MIXER_RANK=4
 export MOE_ENABLED=1
 export MOE_NUM_EXPERTS=8
-export MOE_TOP_K=4
+export MOE_TOP_K=1
 export BIGRAM_HASH_BUCKETS=16384
 
-# Stable DDP Flags
-export LOCAL_SGD_SYNC_EVERY=8
-export LOCAL_SGD_WARMUP_STEPS=30
+# Stable Training Flags
 export FEEDBACK_ENABLED=0
-export HESSIAN_TERNARY_GPTQ=0
+export EMA_ENABLED=1
 
 # Hardware & Scaling
-# Unsetting TRAIN_BATCH_TOKENS to allow autotuning for max throughput (Target: ~800ms/step)
-unset TRAIN_BATCH_TOKENS
+# Explicit batch tokens to avoid OOMs on 2-GPU pods (replaces unreliable autotune fiction)
+export TRAIN_BATCH_TOKENS=262144
 export GPU_COUNT=2
 export MIN_GPU_MEMORY_GB=40
 export TERNARY_THRESHOLD_SEARCH=1

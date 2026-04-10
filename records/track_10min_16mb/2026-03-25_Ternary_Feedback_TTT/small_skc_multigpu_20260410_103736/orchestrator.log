@@ -1,0 +1,73 @@
+[10:37:36] ========================================================
+[10:37:36] Cheap Multi-GPU Small SKC Orchestrator
+[10:37:36] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260410_103736
+[10:37:36] GPU count: 2
+[10:37:36] Min mem  : 24GB
+[10:37:36] Data     : 12 train shards
+[10:37:36] ========================================================
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+0.98	NVIDIA RTX 5000 Ada Generation	Low	32	RTX 5000 Ada
+1.38	NVIDIA GeForce RTX 5090	Medium	32	RTX 5090
+1.38	NVIDIA L40	Low	48	L40
+1.48	NVIDIA RTX 6000 Ada Generation	Low	48	RTX 6000 Ada
+1.58	NVIDIA L40S	Low	48	L40S
+2	NVIDIA A100-SXM4-40GB	Low	40	A100 SXM 40GB
+2.38	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+2.78	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+1.18	NVIDIA GeForce RTX 4090	Low	24	RTX 4090
+1.98	NVIDIA GeForce RTX 5090	High	32	RTX 5090
+2.98	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+5.98	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+[10:37:40] Secure candidate: RTX 5090 (NVIDIA GeForce RTX 5090)  2x  mem=32GB  stock=High  price=$1.98/hr
+[10:37:40] Trying 2xNVIDIA GeForce RTX 5090 on SECURE...
+[10:37:42]   success: pod=j8be93j0vewmlt cost=$1.98/hr
+[10:37:42] Waiting for pod SSH readiness...
+[10:38:12] Pod ready: root@213.192.2.66:40149
+[10:38:12] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 5090, 32607 MiB
+1, NVIDIA GeForce RTX 5090, 32607 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[10:38:47] Installing tmux and preparing logs...
+[10:39:00] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[10:39:53] Preparing data...
+wrote:/workspace/data_setup.sh
+[10:40:51] Uploading code...
+[10:41:07] Remote env overrides: <none>
+[10:41:07] Smoke test...
+==========================================================================
+  Cheap Multi-GPU Small SKC Run
+  RUN_ID : small_skc_2gpu_s42_20260410_154112
+  MODEL  : SKC L=8 D=640 H=8/2
+  SKC    : block=64 caps=24 cap_dim=96
+  ENGRAM : buckets=16384 dim=112 orders=3
+  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
+  CURR   : 64 -> 128 -> 256 @ 35% / 65%
+  BATCH  : 4096 tok/step  seq=2048
+  VRAM   : min_gpu_mem=32GB  val_batch=16384
+  BUDGET : 10s
+  SEED   : 42
+  GPUS   : 2
+  EXPORT : turbo=1 sliding=0 ngram=0
+  SMOKE  : 1
+==========================================================================
+/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py:230: UserWarning: 
+NVIDIA GeForce RTX 5090 with CUDA capability sm_120 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+If you want to use the NVIDIA GeForce RTX 5090 GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+  warnings.warn(
+/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py:230: UserWarning: 
+NVIDIA GeForce RTX 5090 with CUDA capability sm_120 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+If you want to use the NVIDIA GeForce RTX 5090 GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+  warnings.warn(
+[10:44:27] Launching 10-minute run...
+[11:58:57] FATAL: Full run did not complete in time
+[11:58:57] Terminating pod j8be93j0vewmlt...
+{
+  "podTerminate": null
+}

@@ -28,6 +28,15 @@ ABLATION_CONFIGS=(
 )
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${SCRIPT_DIR}/aligned_shootout_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
@@ -95,7 +104,7 @@ for i in range(${DATA_SHARDS}):
 \""
 
 log "Uploading code..."
-"${SCP_BASE[@]}" "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_single_ablation.sh" root@${POD_HOST}:/workspace/
+"${SCP_BASE[@]}" "${TRAINER_PATH}" "${SCRIPT_DIR}/run_single_ablation.sh" root@${POD_HOST}:/workspace/
 "${SSH_BASE[@]}" "chmod +x /workspace/run_single_ablation.sh && mkdir -p /workspace/logs"
 
 RESULTS=()

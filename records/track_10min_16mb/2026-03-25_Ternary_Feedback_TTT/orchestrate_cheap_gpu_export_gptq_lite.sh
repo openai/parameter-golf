@@ -28,6 +28,15 @@ RUN_TAG="winner_full_gptq_lite"
 RUN_ENVS="LAWA_ENABLED=0 SWA_ENABLED=1 WARMDOWN_FRACTION=0.5 SELF_DISTILL_KL_WEIGHT=0.02 BIGRAM_HASH_DIM=128 TURBO_QUANT_TRAIN=1 HESSIAN_TERNARY_GPTQ=0 GPTQ_LITE_ENABLED=1"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/cheap_gpu_export_gptq_lite_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 ORCH_LOG="${LOCAL_ARTIFACTS_DIR}/orchestrator.log"
@@ -238,7 +247,7 @@ with ThreadPoolExecutor(max_workers=4) as ex:
 PYEOF" | tee -a "$ORCH_LOG" || die "dataset download failed"
 
 log "Uploading code..."
-ul "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
+ul "${TRAINER_PATH}" "${SCRIPT_DIR}/run_single_ablation.sh" || die "Code upload failed"
 
 log "Smoke testing..."
 r "cd /workspace && FAST_SMOKE=1 MODE=screen timeout 180 bash run_single_ablation.sh ${BASE_CONFIG} > /workspace/logs/export_smoke.log 2>&1" || true

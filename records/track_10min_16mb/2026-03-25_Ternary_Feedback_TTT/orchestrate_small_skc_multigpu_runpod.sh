@@ -3,7 +3,11 @@
 # Cheap multi-GPU RunPod orchestrator for the small SKC proxy run.
 # Chooses the lowest-cost viable 2-GPU community pod live, with fallbacks.
 # ============================================================================
-set -uo pipefail
+set -euo pipefail
+
+# Load local secret if exists
+PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+[[ -f "${PROJECT_ROOT}/.runpod_secret.sh" ]] && source "${PROJECT_ROOT}/.runpod_secret.sh"
 
 RUNPOD_API_KEY="${RUNPOD_API_KEY:?ERROR: export RUNPOD_API_KEY=<your key>}"
 
@@ -11,7 +15,7 @@ LOCAL_SSH_KEY="${LOCAL_SSH_KEY:-$HOME/.ssh/id_ed25519_runpod}"
 LOCAL_SSH_PUB="${LOCAL_SSH_KEY}.pub"
 POD_IMAGE="runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 POD_NAME="paramgolf-small-$(date +%Y%m%d-%H%M%S)"
-RUNPOD_API="https://api.runpod.io/graphql?api_key=${RUNPOD_API_KEY}"
+RUNPOD_API="https://api.runpod.io/graphql"
 GPU_COUNT="${GPU_COUNT:-2}"
 MIN_GPU_MEMORY_GB="${MIN_GPU_MEMORY_GB:-24}"
 VOLUME_GB="${VOLUME_GB:-20}"
@@ -30,6 +34,15 @@ POD_TERMINATED=0
 BALANCE_WATCH_PID=""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Auto-discover trainer path (local or project root)
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+else
+    # Fallback for scripts that don't define SCRIPT_DIR
+    TRAINER_PATH="./train_gpt.py"
+fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/small_skc_multigpu_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
 DOWNLOAD_DIR="${LOCAL_ARTIFACTS_DIR}/downloads"
@@ -50,15 +63,9 @@ REMOTE_ENV_KEYS=(
     VAL_BATCH_SIZE
     MATRIX_LR
     SCALAR_LR
-    SELF_DISTILL_KL_WEIGHT
-    LAWA_ENABLED
-    SWA_ENABLED
-    AVERAGE_TERNARY_PARAMS
     TURBO_QUANT_TRAIN
     TURBO_QUANT_EXPORT
-    HESSIAN_TERNARY_GPTQ
     GPTQ_LITE_ENABLED
-    SELECTIVE_PRUNING
     EXPORT_ALIGNED_TRAIN
     EXPORT_ALIGNED_TRAIN_START_FRACTION
     TERNARY_THRESHOLD_SEARCH
@@ -87,24 +94,17 @@ REMOTE_ENV_KEYS=(
     SKC_CONV_KERNEL
     SKC_BLOCK_SIZE
     FEEDBACK_ENABLED
-    CAPSULE_ENABLED
-    DEQ_FEEDBACK
-    DEQ_MAX_ITER
     VRL_ENABLED
     KOOPMAN_ENABLED
     KOOPMAN_SPECULATOR_ENABLED
     TTT_ENABLED
     EMA_ENABLED
-    WEIGHT_SHARING
-    INSIDE_OUT_TRAINING
-    TKO_ENABLED
     MOE_START_FRACTION
     BIGRAM_HASH_ENABLED
     ENGRAM_NUM_HEADS
     ENGRAM_NUM_ORDERS
     ENGRAM_INJECT_LAYER
     LN_SCALE_DAMPING
-    SMEARGATE_ENABLED
     MAX_WALLCLOCK_SECONDS
     PARTIAL_ROPE_DIMS
     CURRICULUM_ENABLED
@@ -126,6 +126,7 @@ build_remote_env_prefix() {
 gql() {
     curl -s --request POST \
         --header "content-type: application/json" \
+        --header "Authorization: ${RUNPOD_API_KEY}" \
         --url "$RUNPOD_API" \
         --data "$(jq -n --arg q "$1" '{"query": $q}')"
 }
@@ -240,7 +241,7 @@ pick_gpu_candidates() {
         .data.gpuTypes[]?
         | select(.lowestPrice.uninterruptablePrice != null)
         | select((.memoryInGb // 0) >= $min_mem)
-        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000"; "i")) | not)
+        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060"; "i")) | not)
         | [.lowestPrice.uninterruptablePrice, .id, .lowestPrice.stockStatus, (.memoryInGb | tostring), .displayName]
         | @tsv
     ' | sort -n
@@ -261,7 +262,7 @@ pick_secure_gpu_candidates() {
         .data.gpuTypes[]?
         | select(.lowestPrice.uninterruptablePrice != null)
         | select((.memoryInGb // 0) >= $min_mem)
-        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000"; "i")) | not)
+        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060"; "i")) | not)
         | [.lowestPrice.uninterruptablePrice, .id, .lowestPrice.stockStatus, (.memoryInGb | tostring), .displayName]
         | @tsv
     ' | sort -n
@@ -504,7 +505,6 @@ download_run_artifacts() {
     download_from_pod "/workspace/logs/${run_id}.log" "${DOWNLOAD_DIR}/${run_id}.log" 0 1 || true
     download_from_pod "/workspace/logs/${run_id}_model.ternary.ptz" "${DOWNLOAD_DIR}/${run_id}_model.ternary.ptz" 0 1 || true
     download_from_pod "/workspace/logs/${run_id}_submission.json" "${DOWNLOAD_DIR}/${run_id}_submission.json" 0 1 || true
-    download_from_pod "/workspace/logs/${run_id}_pre_export_state.pt" "${DOWNLOAD_DIR}/${run_id}_pre_export_state.pt" 0 1 || true
 }
 
 log "========================================================"
@@ -522,7 +522,7 @@ require_cmd scp
 require_cmd python3
 [[ -f "$LOCAL_SSH_KEY" ]] || die "SSH private key not found: $LOCAL_SSH_KEY"
 [[ -f "$LOCAL_SSH_PUB" ]] || die "SSH public key not found: $LOCAL_SSH_PUB"
-[[ -f "${SCRIPT_DIR}/train_gpt.py" ]] || die "train_gpt.py not found in $SCRIPT_DIR"
+[[ -f "${PROJECT_ROOT}/train_gpt.py" ]] || die "train_gpt.py not found in $PROJECT_ROOT"
 [[ -f "${SCRIPT_DIR}/run_small_skc_2gpu.sh" ]] || die "run_small_skc_2gpu.sh not found in $SCRIPT_DIR"
 
 gc_stale_pods "$POD_NAME"
@@ -632,7 +632,7 @@ wait_for_log_token "/workspace/logs/data_setup.log" "=== DATA DONE ===" 3600 || 
 download_from_pod "/workspace/logs/data_setup.log" "${LOCAL_ARTIFACTS_DIR}/data_setup.log" 0 1 || true
 
 log "Uploading code..."
-ul_retry "${SCRIPT_DIR}/train_gpt.py" "${SCRIPT_DIR}/run_small_skc_2gpu.sh" || die "Upload failed"
+ul_retry "${PROJECT_ROOT}/train_gpt.py" "${SCRIPT_DIR}/run_small_skc_2gpu.sh" || die "Upload failed"
 
 if [[ -n "${LATENT_CHECKPOINT_LOCAL_PATH}" ]]; then
     [[ -f "${LATENT_CHECKPOINT_LOCAL_PATH}" ]] || die "LATENT_CHECKPOINT_LOCAL_PATH not found: ${LATENT_CHECKPOINT_LOCAL_PATH}"

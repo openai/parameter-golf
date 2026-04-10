@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FAILOVER_LOG="${SCRIPT_DIR}/failover_winner_$(date +%Y%m%d_%H%M%S).log"
 
-export RUNPOD_API_KEY="rpa_IXDRQPZKIX32BK35KRMWWJSV0I41ZA80L504CTIMjealdx"
+export RUNPOD_API_KEY="${RUNPOD_API_KEY:?ERROR: Please export RUNPOD_API_KEY before running.}"
 
 # ── Architecture: SKC + MoE (Proven 1.68 BPB Winner) ──
 export NUM_LAYERS=8

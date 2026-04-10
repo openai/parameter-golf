@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FLASH_LOG="${SCRIPT_DIR}/flash_8k_a100_$(date +%Y%m%d_%H%M%S).log"
 
-export RUNPOD_API_KEY="rpa_IXDRQPZKIX32BK35KRMWWJSV0I41ZA80L504CTIMjealdx"
+export RUNPOD_API_KEY="${RUNPOD_API_KEY:?ERROR: Please export RUNPOD_API_KEY before running.}"
 
 # ── Architecture ──
 export NUM_LAYERS=8
