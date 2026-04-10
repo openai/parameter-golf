@@ -1,0 +1,41 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Bandit: ClownCar Crawler x Cubric Ngram9",
+  "blurb": "Frugendorff ClownCar crawler (4 flat + 1 crawlerx4 loops, inst_dim=32, DN=0, causality-fixed) + X-WING ngram oracle (shared tables, 3D Cubric 54-cell warm-start, entropy-adaptive alpha 0.20-0.75, complementary training COMPLEMENT_ALPHA=0.5). GPTQ-int6+zstd ~9.3MB. 3-seed mean val_bpb=0.4961 (std 0.0003).",
+  "date": "2026-03-29T00:00:00Z",
+  "seed_4": {
+    "val_bpb": 0.4964,
+    "val_bpb_exact": 0.49638543,
+    "sliding_window_bpb": 1.1874,
+    "sliding_window_bpb_exact": 1.18735672,
+    "post_ema_bpb": 1.2063,
+    "steps": 7116,
+    "train_time_s": 570,
+    "eval_time_s": 168
+  },
+  "seed_444": {
+    "val_bpb": 0.4957,
+    "val_bpb_exact": 0.49571114,
+    "sliding_window_bpb": 1.1860,
+    "sliding_window_bpb_exact": 1.18595371,
+    "post_ema_bpb": 1.2047,
+    "steps": 7092,
+    "train_time_s": 570,
+    "eval_time_s": 168
+  },
+  "seed_300": {
+    "val_bpb": 0.4961,
+    "val_bpb_exact": 0.49606916,
+    "sliding_window_bpb": 1.1868,
+    "sliding_window_bpb_exact": 1.18681899,
+    "post_ema_bpb": 1.2056,
+    "steps": 7111,
+    "train_time_s": 570,
+    "eval_time_s": 168
+  },
+  "val_bpb": 0.4961,
+  "bytes_total": 9214394,
+  "bytes_code": 181137,
+  "hardware": "8xH100 SXM"
+}

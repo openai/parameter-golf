@@ -1,0 +1,41 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "B-WING: Per-Order Entropy Shift + Fixed Order Multipliers",
+  "blurb": "X-WING base + PR #809 n-gram innovations: per-order entropy center shift (-0.25 per order), fixed order multipliers (0.3,0.3,0.97,2.0x4), alpha 0.05-0.60 clip 0.95. Complementary training (alpha=0.5). Orders 2-9, 8M buckets. 3-seed mean val_bpb=PENDING.",
+  "date": "2026-03-26",
+  "seed_1337": {
+    "val_bpb": "PENDING",
+    "val_bpb_exact": "PENDING",
+    "sliding_window_bpb": "PENDING",
+    "sliding_window_bpb_exact": "PENDING",
+    "post_ema_bpb": "PENDING",
+    "steps": "PENDING",
+    "train_time_s": 600,
+    "eval_time_s": "PENDING"
+  },
+  "seed_42": {
+    "val_bpb": "PENDING",
+    "val_bpb_exact": "PENDING",
+    "sliding_window_bpb": "PENDING",
+    "sliding_window_bpb_exact": "PENDING",
+    "post_ema_bpb": "PENDING",
+    "steps": "PENDING",
+    "train_time_s": 600,
+    "eval_time_s": "PENDING"
+  },
+  "seed_2024": {
+    "val_bpb": "PENDING",
+    "val_bpb_exact": "PENDING",
+    "sliding_window_bpb": "PENDING",
+    "sliding_window_bpb_exact": "PENDING",
+    "post_ema_bpb": "PENDING",
+    "steps": "PENDING",
+    "train_time_s": 600,
+    "eval_time_s": "PENDING"
+  },
+  "val_bpb": "PENDING",
+  "bytes_total": "PENDING",
+  "bytes_code": "PENDING",
+  "hardware": "8xH100 SXM"
+}

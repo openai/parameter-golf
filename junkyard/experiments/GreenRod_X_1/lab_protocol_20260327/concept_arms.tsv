@@ -1,0 +1,5 @@
+arm	enabled	gdn_enabled	gdn_num_layers	gdn_lr	xsa_last_n	notes
+control	1	0	0	0.0018	11	Baseline (no GDN)
+gdn2	1	1	2	0.0018	9	2 DeltaNet layers + 9 standard attention
+gdn4	1	1	4	0.0018	7	4 DeltaNet layers + 7 standard attention
+gdn6	1	1	6	0.0018	5	6 DeltaNet layers + 5 standard attention

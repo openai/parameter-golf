@@ -1,0 +1,37 @@
+logs/9b5c30db-e83d-4f1a-8d08-a123c4510d3a.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=/home/frosty40/parameter-golf-lab/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:0 max_wallclock_seconds:20.000
+compile:enabled=0 mode:default fullgraph=0
+mlp_kernel_mode:eager
+scale_init:attn=1.0000 mlp=1.0000 resid_mix=(1.0000,0.0000) ln_scale=1
+seed:444
+loader:coprime shards:1 blocks:48828 seq_len:2048 shards_per_batch:1 cache:1 batch_stride:1 hold_steps:64
+step:1/20000 train_loss:6.9333 train_time:3569ms step_avg:3569.10ms
+late_qat:enabled step:1 scale:0.0013
+step:2/20000 train_loss:9.1655 train_time:6372ms step_avg:3186.23ms
+step:3/20000 train_loss:9.1582 train_time:9233ms step_avg:3077.64ms
+step:4/20000 train_loss:9.1321 train_time:12091ms step_avg:3022.63ms
+step:5/20000 train_loss:9.1507 train_time:14951ms step_avg:2990.15ms
+step:6/20000 train_loss:9.1656 train_time:17815ms step_avg:2969.16ms
+step:7/20000 train_loss:9.1292 train_time:20669ms step_avg:2952.74ms
+stopping_early: wallclock_cap train_time:0ms step:7/20000
+peak memory allocated: 5988 MiB reserved: 6112 MiB
+gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6
+ema:applying EMA weights
+diagnostic_eval:skipped POST_EMA_DIAGNOSTIC=0
+Serialized model: 106158518 bytes
+Code size: 121545 bytes
+gptq_quantize: 0 GPTQ layers, 5 naive layers
+Serialized model int6+zstd: 4166311 bytes
+Total submission size int6+zstd: 4287856 bytes
+smoke_skip_quant_eval:1 -> skipping final_int6_roundtrip eval
+final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1
