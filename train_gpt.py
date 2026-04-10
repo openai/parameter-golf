@@ -280,6 +280,11 @@ class Hyperparameters:
     export_aligned_train = _e("EXPORT_ALIGNED_TRAIN", 0, bool)
     export_aligned_train_start_fraction = _e("EXPORT_ALIGNED_TRAIN_START_FRACTION", 0.80, float)
     reset_ssm_on_eos = _e("RESET_SSM_ON_EOS", 1, bool)
+    # Competition mode controls
+    export_mode = _e("EXPORT_MODE", "ternary_lzma", str)  # "ternary_lzma" | "competition_gptq"
+    recurrence_start_fraction = _e("RECURRENCE_START_FRACTION", 0.0, float)  # 0 = always on (if depth>0), >0 = activate at fraction
+    recurrence_depth = _e("RECURRENCE_DEPTH", 2, int)   # effective depth multiplier when recurrence is active
+    skc_parallel_residual = _e("SKC_PARALLEL_RESIDUAL", 0, bool)  # use ParallelSKCBlock instead of SKCLayer
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
@@ -957,7 +962,8 @@ class TernaryLinear(nn.Linear):
         self.register_buffer("calib_thr", torch.tensor(0.0), persistent=False)
         self.register_buffer("calib_scale_mult", torch.tensor(1.0), persistent=False)
         # Cache Hadamard matrix as a persistent buffer to avoid redundant allocations on GPU
-        if (group_size & (group_size - 1)) == 0:
+        self.is_p2 = (group_size & (group_size - 1)) == 0
+        if self.is_p2:
             h_mat = _build_hadamard_pt(group_size, "cpu")
             self.register_buffer("H_fixed", h_mat, persistent=True)
         else:
@@ -977,7 +983,7 @@ class TernaryLinear(nn.Linear):
         pad = (g - ncols % g) % g
         w_padded = F.pad(w, (0, pad)) if pad > 0 else w   # (nrows, ncols+pad)
         w_g = w_padded.reshape(-1, g)                      # (nrows*(ncols+pad)//g, g)
-        if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
+        if _TURBO_QUANT_TRAIN and self.is_p2:
             # Use cached buffer to avoid हजारों of allocations per training step
             H = self.H_fixed.to(w.dtype)
             w_g = w_g @ H
@@ -998,7 +1004,7 @@ class TernaryLinear(nn.Linear):
                         z.round().clamp(-1, 1))
         dequant = q * (scale * scale_mult)
 
-        if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
+        if _TURBO_QUANT_TRAIN and self.is_p2:
             dequant = dequant @ H  # Self-inverse
         # Unpad and restore original shape for the straight-through estimator.
         # Use explicit view_as and reshapres that are robust to torch.compile flattening.
@@ -1882,7 +1888,7 @@ class Block(nn.Module):
 # Note: Assumes TernaryLinear, NormedTernaryLinear, and rms_norm are already imported or available.
 # This code will be injected right before the Architecture Selection logic in train_gpt.py
 
-def causal_wht_blockwise(x, block_size=64):
+def causal_wht_blockwise(x, block_size=64, num_stages=None):
     B, T, D = x.shape
     pad_len = (block_size - T % block_size) % block_size
     if pad_len > 0:
@@ -1892,7 +1898,10 @@ def causal_wht_blockwise(x, block_size=64):
     num_blocks = T_padded // block_size
 
     x_blocks = x.view(B, num_blocks, block_size, D)
-    h = block_size.bit_length() - 1
+    if num_stages is None:
+        h = int(math.log2(block_size))
+    else:
+        h = num_stages
     result = x_blocks
     for stage in range(h):
         stride = 1 << stage
@@ -2019,6 +2028,7 @@ class SKCLayer(nn.Module):
         self.conv_kernel = conv_kernel
         self.ln_scale_factor = ln_scale_factor
         self.block_size = block_size
+        self.wht_stages = int(math.log2(block_size))
 
         self.spec_proj_in = TernaryLinear(dim, capsule_dim, group_size=group_size)
         
@@ -2070,7 +2080,7 @@ class SKCLayer(nn.Module):
         s_blocks = s_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
         g_blocks = g_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
         
-        s_wht = causal_wht_blockwise(s_blocks.view(B, T_pad, self.capsule_dim), self.block_size)
+        s_wht = causal_wht_blockwise(s_blocks.view(B, T_pad, self.capsule_dim), self.block_size, self.wht_stages)
         s_wht_blocks = s_wht.view(B, num_blocks, self.block_size, self.capsule_dim)
         
         s_decay = causal_spectral_decay_scan(s_wht_blocks, self.decay_rates, g_blocks)
@@ -2087,7 +2097,7 @@ class SKCLayer(nn.Module):
         synth_spec = torch.einsum("btn,bnc->btc", routing_weights, evolved_caps)
         
         synth_pad = F.pad(synth_spec, (0, 0, 0, pad_len))
-        synth_wht = causal_wht_blockwise(synth_pad, self.block_size)[:, :T, :]
+        synth_wht = causal_wht_blockwise(synth_pad, self.block_size, self.wht_stages)[:, :T, :]
         
         s_conv_in = synth_wht.transpose(1, 2)
         s_conv_pad = F.pad(s_conv_in, (self.conv_kernel - 1, 0))
@@ -2118,6 +2128,122 @@ class SKCLayer(nn.Module):
         _m_scale = external_mlp_scale if external_mlp_scale is not None else self.mlp_scale.to(x.dtype)
         x = x + _m_scale[None, None, :] * mlp_out
         # Combine spectral and MoE aux losses into a single return value
+        if spec_aux is not None and moe_loss is not None:
+            combined_aux: Tensor | None = spec_aux + moe_loss
+        else:
+            combined_aux = spec_aux if spec_aux is not None else moe_loss
+        return x, None, combined_aux
+
+
+class ParallelSKCBlock(nn.Module):
+    """SKC block with parallel residual structure.
+
+    Two sub-paths read the *same* RMSNorm-ed input in parallel and merge
+    before the residual add, instead of serializing spectral + MLP:
+
+        normed = RMSNorm(x)
+        skc_out  = SKC spectral path(normed)
+        mlp_out  = MLP/MoE path(normed)
+        merged   = merge_scale_skc * skc_out + merge_scale_mlp * mlp_out
+        x        = x + merged
+
+    This lets the two paths specialise independently (spectral vs dense),
+    removes the MLP's dependence on the SKC-updated hidden state, and is
+    faster per unit capacity because the paths run on the same activation.
+    Merge scalars are learned from zero (SkipInit-style).
+    """
+
+    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
+                 mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
+                 ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
+        super().__init__()
+        self.dim = dim
+        self.capsule_num = capsule_num
+        self.capsule_dim = capsule_dim
+        self.conv_kernel = conv_kernel
+        self.ln_scale_factor = ln_scale_factor
+        self.block_size = block_size
+        self.wht_stages = int(math.log2(block_size))
+
+        # SKC spectral path — same as SKCLayer but without the MLP stage
+        self.spec_proj_in = TernaryLinear(dim, capsule_dim, group_size=group_size)
+        self.decay_rates = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
+        self.gate_proj = TernaryLinear(dim, capsule_dim, group_size=group_size)
+        self.router = FrequencyBandRouter(capsule_num, capsule_dim, block_size)
+        self.koopman = KoopmanSpectralEvolution(capsule_dim, capsule_num)
+        self.spec_proj_out = NormedTernaryLinear(capsule_dim, dim, group_size=group_size)
+        self.spec_proj_out._zero_init = True
+        nn.init.zeros_(self.spec_proj_out.weight)
+        self.mixer_conv = nn.Parameter(torch.ones(capsule_dim, conv_kernel, dtype=torch.float32) / conv_kernel)
+        self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
+
+        # MLP/MoE path (reads same normed input as SKC path)
+        if moe_enabled:
+            self.local_mlp = TernaryMoE(
+                dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
+                group_size=group_size, activation=activation,
+                leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
+                aux_loss_coef=moe_aux_coef,
+            )
+        else:
+            self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
+                                 leaky_relu_slope=leaky_relu_slope)
+
+        # Zero-init merge scalars (SkipInit: start at 0, let the model grow them)
+        self.skc_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+        self.mlp_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
+
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0,
+                external_skc_scale=None, external_mlp_scale=None):
+        B, T, D = x.shape
+        if T == 0:
+            return x, None, None
+        mix = self.resid_mix.to(x.dtype)
+        x = mix[0] * x + mix[1] * x0
+        normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
+
+        # --- Parallel SKC spectral path ---
+        pad_len = (self.block_size - T % self.block_size) % self.block_size
+        T_pad = T + pad_len
+        s = self.spec_proj_in(normed)
+        g = torch.sigmoid(self.gate_proj(normed))
+        s_pad = F.pad(s, (0, 0, 0, pad_len))
+        g_pad = F.pad(g, (0, 0, 0, pad_len))
+        num_blocks = T_pad // self.block_size
+        s_blocks = s_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
+        g_blocks = g_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
+        s_wht = causal_wht_blockwise(s_blocks.view(B, T_pad, self.capsule_dim), self.block_size, self.wht_stages)
+        s_wht_blocks = s_wht.view(B, num_blocks, self.block_size, self.capsule_dim)
+        s_decay = causal_spectral_decay_scan(s_wht_blocks, self.decay_rates, g_blocks)
+        s_spec = s_decay.view(B, T_pad, self.capsule_dim)[:, :T, :]
+        routing_weights, capsules = self.router(s_spec, T)
+        evolved_caps = self.koopman(capsules, prev_capsules)
+        synth_spec = torch.einsum("btn,bnc->btc", routing_weights, evolved_caps)
+        synth_pad = F.pad(synth_spec, (0, 0, 0, pad_len))
+        synth_wht = causal_wht_blockwise(synth_pad, self.block_size, self.wht_stages)[:, :T, :]
+        s_conv_in = synth_wht.transpose(1, 2)
+        s_conv_pad = F.pad(s_conv_in, (self.conv_kernel - 1, 0))
+        weight = self.mixer_conv.view(self.capsule_dim, 1, self.conv_kernel)
+        s_conv = F.conv1d(s_conv_pad, weight.to(s_conv_in.dtype), groups=self.capsule_dim).transpose(1, 2)
+        skc_out = self.spec_proj_out(s_conv)
+        spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
+
+        # --- Parallel MLP/MoE path (reads same normed, not SKC-updated x) ---
+        _mlp_raw = (self.local_mlp(normed, elapsed_fraction=elapsed_fraction)
+                    if isinstance(self.local_mlp, TernaryMoE)
+                    else self.local_mlp(normed))
+        if isinstance(_mlp_raw, tuple):
+            mlp_out, moe_loss = _mlp_raw
+        else:
+            mlp_out, moe_loss = _mlp_raw, None
+
+        # Merge both paths into a single residual update
+        _skc_s = (external_skc_scale if external_skc_scale is not None else self.skc_scale).to(x.dtype)
+        _mlp_s = (external_mlp_scale if external_mlp_scale is not None else self.mlp_scale).to(x.dtype)
+        x = x + _skc_s[None, None, :] * skc_out + _mlp_s[None, None, :] * mlp_out
+
         if spec_aux is not None and moe_loss is not None:
             combined_aux: Tensor | None = spec_aux + moe_loss
         else:
@@ -2401,8 +2527,10 @@ class GPT(nn.Module):
         moe_router_aux_loss_coef: float = 0.001,
         eos_token_id: int = -1,
         reset_ssm_on_eos: bool = True,
+        skc_parallel_residual: bool = False,
     ):
         super().__init__()
+        self.skc_parallel_residual = skc_parallel_residual
         self.training_depth_recurrence = training_depth_recurrence
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
@@ -2445,7 +2573,7 @@ class GPT(nn.Module):
             self._layer_types = ["attn" if i % 2 == 0 else "ssm" for i in range(num_layers)]
         elif self.architecture == "koopman_ssm":
             self._layer_types = ["ssm"] * num_layers
-        elif self.architecture == "skc":
+        elif self.architecture in ("skc", "skc_competition"):
             self._layer_types = ["skc"] * num_layers
         else:
             self._layer_types = ["attn"] * num_layers
@@ -2548,7 +2676,7 @@ class GPT(nn.Module):
         def _make_skc_block(layer_idx):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            return SKCLayer(
+            _skc_kwargs = dict(
                 dim=model_dim, capsule_num=self.skc_num_capsules,
                 capsule_dim=self.skc_capsule_dim,
                 conv_kernel=self.skc_conv_kernel, block_size=self.skc_block_size,
@@ -2558,6 +2686,9 @@ class GPT(nn.Module):
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
             )
+            if self.skc_parallel_residual:
+                return ParallelSKCBlock(**_skc_kwargs)
+            return SKCLayer(**_skc_kwargs)
 
         def _make_block(layer_idx):
             lt = self._layer_types[layer_idx]
@@ -3068,8 +3199,17 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
 
 
 def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, bool], list[Tensor]]:
-    if scope != "feedback":
-        raise ValueError(f"Unsupported TTT_SCOPE={scope}")
+    """Collect and unfreeze the parameters used during TTT.
+
+    Scopes:
+    - "feedback": feedback pooler, adapters, skip weights, capsule bank, decoder scales
+    - "skc_safe": all of feedback scope PLUS per-block SKC scale parameters, decay rates,
+                  and residual mix weights. This is the competition-grade TTT scope:
+                  it covers more of the SKC block's adaptive surface while staying
+                  safe for export (no weight matrices mutated, just scale/decay leafs).
+    """
+    if scope not in ("feedback", "skc_safe"):
+        raise ValueError(f"Unsupported TTT_SCOPE={scope!r}. Valid: 'feedback', 'skc_safe'")
     original: dict[str, bool] = {}
     params: list[Tensor] = []
     for name, p in base_model.named_parameters():
@@ -3083,11 +3223,17 @@ def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, boo
                 leaf = parts[2]
                 if block_idx >= base_model.num_encoder_layers and leaf in {"attn_scale", "mlp_scale", "skc_scale"}:
                     allow = True
+                # skc_safe: additionally allow decay rates, residual mix, and mixer conv in all layers
+                if scope == "skc_safe" and leaf in {"decay_rates", "resid_mix", "mixer_conv"}:
+                    allow = True
         # Per-layer scales in shared block mode — allow decoder-half scales for TTT
         if name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales."):
             idx = int(name.split(".")[1])
             if idx >= base_model.num_encoder_layers:
                 allow = True
+        # skc_safe: per-layer SKC scales across all layers (these are tiny scale vectors)
+        if scope == "skc_safe" and name.startswith("per_layer_skc_scales."):
+            allow = True
         p.requires_grad_(allow)
         if allow:
             params.append(p)
@@ -3785,6 +3931,7 @@ def main() -> None:
         moe_router_aux_loss_coef=args.moe_router_aux_loss_coef,
         eos_token_id=int(sp.eos_id()),
         reset_ssm_on_eos=args.reset_ssm_on_eos,
+        skc_parallel_residual=args.skc_parallel_residual,
     ).to(device)
 
     # Re-enable standard compilation for Linux
@@ -3886,6 +4033,12 @@ def main() -> None:
     log0(" ".join(f"{a}={getattr(args,a)}" for a in sorted(dir(args)) if not a.startswith("_") and a not in ("train_files","val_files") and not callable(getattr(args,a))), console=False)
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"params:{n_params} L:{args.num_layers} d:{args.model_dim} h:{args.num_heads} kv:{args.num_kv_heads} ws:{world_size} ga:{grad_accum_steps} s:{args.seed}")
+    _tokenizer_regime = f"SP{args.vocab_size}"
+    _recurrence_info = f"recurrence_depth={args.training_depth_recurrence} start_frac={args.recurrence_start_fraction}" if args.recurrence_depth > 0 else "recurrence=off"
+    _export_info = f"export_mode={args.export_mode}"
+    _arch_info = f"arch={args.architecture} parallel_residual={args.skc_parallel_residual}"
+    _ttt_info = f"ttt={args.ttt_enabled} scope={args.ttt_scope}" if args.ttt_enabled else "ttt=off"
+    log0(f"competition_config: {_tokenizer_regime} {_arch_info} {_recurrence_info} {_export_info} {_ttt_info}")
 
     # --- Data loader ---
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -4139,6 +4292,17 @@ def main() -> None:
                 # most once per run (guarded by _untied), so the budget hit is bounded.
                 torch._dynamo.reset()
                 log0(f"step:{step} untied lm_head (head_lr={args.head_lr})")
+
+        # Dynamic recurrence scheduling: activate depth recurrence after
+        # recurrence_start_fraction of the budget. Starts at 0 so early training
+        # is stable, then switches on virtual depth mid-run.
+        if args.recurrence_depth > 0 and args.recurrence_start_fraction > 0:
+            _want_recur = args.recurrence_depth if (
+                elapsed_ms >= args.recurrence_start_fraction * (max_wallclock_ms or 1e18)
+            ) else 0
+            if hasattr(base_model, 'backbone') and base_model.backbone.training_depth_recurrence != _want_recur:
+                base_model.backbone.training_depth_recurrence = _want_recur
+                log0(f"step:{step} recurrence_depth:{_want_recur} (frac={elapsed_frac:.3f})")
 
         # Muon momentum warmup
         if args.matrix_optimizer == "muon":
@@ -4425,7 +4589,7 @@ def main() -> None:
             )
             log0(f"serialization:calib_done tensors={len(final_calib)}", flush=True)
 
-        # Two methods: Standard Base-3 vs Bitmask Mapping
+        # Two quantization methods: Standard Base-3 vs Bitmask Mapping
         methods = {}
         for method in ("standard", "bitmask"):
             q_obj, stats = q_sd(
@@ -4440,11 +4604,33 @@ def main() -> None:
             )
             buf = io.BytesIO()
             torch.save(q_obj, buf)
-            methods[method] = {"blob": lzma.compress(buf.getvalue(), preset=args.lzma_preset), "stats": stats}
+            raw = buf.getvalue()
+            # Compression: compare LZMA vs brotli (if available) for competition mode
+            lzma_blob = lzma.compress(raw, preset=args.lzma_preset)
+            _brotli_blob = None
+            if args.export_mode == "competition_gptq":
+                try:
+                    import brotli as _brotli_mod
+                    _brotli_blob = _brotli_mod.compress(raw, quality=11)
+                except ImportError:
+                    pass
+            if _brotli_blob is not None and len(_brotli_blob) < len(lzma_blob):
+                best_blob = _brotli_blob
+                best_codec = "brotli"
+            else:
+                best_blob = lzma_blob
+                best_codec = "lzma"
+            methods[method] = {"blob": best_blob, "stats": stats, "codec": best_codec}
         best = min(methods, key=lambda m: len(methods[m]["blob"]))
         final_blob, q_stats = methods[best]["blob"], methods[best]["stats"]
+        final_codec = methods[best]["codec"]
         with open("final_model.ternary.ptz", "wb") as f:
             f.write(final_blob)
+        # Competition mode: also write a clearly-named competition artifact
+        if args.export_mode == "competition_gptq":
+            with open("final_model.competition.ptz", "wb") as f:
+                f.write(final_blob)
+            log0(f"competition_export: codec={final_codec} method={best} size={len(final_blob)/1e6:.2f}MB")
 
         artifact_bytes = len(final_blob)
         code_bytes = len(code.encode("utf-8"))

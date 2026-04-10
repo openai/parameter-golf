@@ -3,7 +3,17 @@
     {
       "name": "sp_bpe_1024",
       "dataset_suffix": "sp1024",
-      "vocab_size": 1024
+      "vocab_size": 1024,
+      "notes": "Research/legacy tokenizer. Used in skc_research_ternary_sp1024 branch."
+    },
+    {
+      "name": "sp_bpe_8192",
+      "dataset_suffix": "sp8192",
+      "vocab_size": 8192,
+      "model_file": "fineweb_8192_bpe.model",
+      "vocab_file": "fineweb_8192_bpe.vocab",
+      "data_path": "fineweb10B_sp8192",
+      "notes": "Competition tokenizer. SP8192 matches leaderboard-leader tokenizer regime."
     }
   ]
 }
