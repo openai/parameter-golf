@@ -1,0 +1,11 @@
+{
+  "author": "Khoa Phan",
+  "github_id": "Tonyy1977",
+  "name": "Recursive Transformer 4B/7L + VE + QAT Int6 + Score-First TTT",
+  "blurb": "Novel recursive/looped transformer: 4 shared blocks applied 7 times in a U-Net encoder-decoder pattern with skip connections. ValueEmbedding reinjects token identity into attention. Int6 QAT from step 0 via STE. Score-first TTT+sliding window eval. 30M params at dim=1024 vs standard 512.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": 1.9748,
+  "val_bpb": 1.1696,
+  "bytes_total": 15847007,
+  "bytes_code": 68750
+}
