@@ -69,6 +69,9 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 0))
+    eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -276,6 +279,99 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+) -> tuple[float, float]:
+    """Sliding window evaluation: each token scored with maximum context.
+
+    Windows of train_seq_len advance by stride. Only the last stride tokens
+    per window contribute to the score (first window scores all).
+    """
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if min(ws + seq_len, total_tokens) - ws >= 1]
+    total_windows = len(window_starts)
+
+    my_s = (total_windows * rank) // world_size
+    my_e = (total_windows * (rank + 1)) // world_size
+    my_windows = window_starts[my_s:my_e]
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model.eval()
+    with torch.inference_mode():
+        for bi in range(0, len(my_windows), batch_seqs):
+            batch_ws = my_windows[bi:bi + batch_seqs]
+            bsz = len(batch_ws)
+
+            x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+            wlens: list[int] = []
+
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + seq_len, total_tokens)
+                wlen = end - ws
+                wlens.append(wlen)
+                chunk = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                x_batch[i, :wlen] = chunk[:-1]
+                y_batch[i, :wlen] = chunk[1:]
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = base_model.forward_logits(x_batch)
+
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, seq_len)
+
+            for i, ws in enumerate(batch_ws):
+                wlen = wlens[i]
+                s = 0 if ws == 0 else max(wlen - stride, 0)
+                scored_nll = nll[i, s:wlen].to(torch.float64)
+                loss_sum += scored_nll.sum()
+                token_count += float(wlen - s)
+                tgt = y_batch[i, s:wlen]
+                prev = x_batch[i, s:wlen]
+                tb = base_bytes_lut[tgt].to(torch.float64)
+                tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                byte_count += tb.sum()
+
+            if rank == 0 and (bi // batch_seqs) % 50 == 0:
+                done = min(bi + batch_seqs, len(my_windows))
+                pct = done / len(my_windows) * 100
+                running_bpb = 0.0
+                if token_count.item() > 0:
+                    rl = (loss_sum / token_count).item()
+                    running_bpb = rl / math.log(2.0) * (token_count.item() / byte_count.item())
+                print(f"  sliding_eval [{pct:5.1f}%] {done}/{len(my_windows)} windows running_bpb={running_bpb:.6f}", flush=True)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.train()
+    return val_loss, bits_per_token * tokens_per_byte
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -649,6 +745,22 @@ class Block(nn.Module):
         return x
 
 
+class SmearGate(nn.Module):
+    """Blend each token's embedding with the previous token's via a learned gate.
+    gate = sigmoid(self.gate) ≈ 0.95 at init (mostly pass-through).
+    output = gate * current + (1 - gate) * prev_token
+    Cost: model_dim params only.
+    """
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.full((dim,), 3.0, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        g = torch.sigmoid(self.gate).to(dtype=x.dtype)
+        x_prev = torch.cat([torch.zeros_like(x[:, :1]), x[:, :-1]], dim=1)
+        return g * x + (1.0 - g) * x_prev
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -663,6 +775,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        use_smeargate: bool = False,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -671,6 +784,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.smeargate = SmearGate(model_dim) if use_smeargate else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -701,9 +815,12 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def _encode(self, input_ids: Tensor) -> Tensor:
+        """Shared embedding + transformer body; returns (bsz*seq, dim) hidden states."""
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        if self.smeargate is not None:
+            x = self.smeargate(x)
         x0 = x
         skips: list[Tensor] = []
 
@@ -716,7 +833,10 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
-        x = self.final_norm(x).reshape(-1, x.size(-1))
+        return self.final_norm(x)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        x = self._encode(input_ids).reshape(-1, self.tok_emb.weight.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -726,6 +846,19 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        """Return logits (bsz, seq_len, vocab) without computing loss."""
+        x = self._encode(input_ids).reshape(input_ids.size(0), input_ids.size(1), -1)
+        x = x.reshape(-1, x.size(-1))
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return logits.reshape(input_ids.size(0), input_ids.size(1), -1)
 
 
 # -----------------------------
@@ -839,6 +972,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        use_smeargate=args.use_smeargate,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -865,6 +999,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if base_model.smeargate is not None:
+        scalar_params.append(base_model.smeargate.gate)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1103,18 +1239,35 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        model,
-        rank,
-        world_size,
-        device,
-        grad_accum_steps,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-    )
+    if args.eval_stride > 0 and args.eval_stride < args.train_seq_len:
+        log0(f"final_eval_mode:sliding_window stride:{args.eval_stride} batch_seqs:{args.eval_batch_seqs}")
+        q_val_loss, q_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            stride=args.eval_stride,
+            batch_seqs=args.eval_batch_seqs,
+        )
+    else:
+        log0("final_eval_mode:standard")
+        q_val_loss, q_val_bpb = eval_val(
+            args,
+            model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
     torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
