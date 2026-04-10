@@ -1,0 +1,16 @@
+{
+  "name": "research_hub_20260327_darklab_02",
+  "version": "1.0.0",
+  "description": "Cinematic, user-friendly variant of the local Parameter Golf research dashboard.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@playwright/test": "^1.58.2",
+    "echarts": "^6.0.0"
+  }
+}

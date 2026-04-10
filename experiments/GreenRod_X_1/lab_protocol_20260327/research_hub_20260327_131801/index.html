@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Parameter Golf Research Hub</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="bg-grid"></div>
+
+  <header class="shell header">
+    <div>
+      <p class="eyebrow">Scientific dashboard</p>
+      <h1>Research Hub</h1>
+      <p class="lede">Unified view of experiments, runs, logs, and sweep artifacts across GPU and API testing.</p>
+    </div>
+    <div class="header-meta">
+      <div class="meta-chip"><span>Scope</span><strong id="scopeLabel">Loading</strong></div>
+      <div class="meta-chip"><span>Generated</span><strong id="generatedAt">Loading</strong></div>
+    </div>
+  </header>
+
+  <main class="shell layout">
+    <section class="summary" aria-label="Summary cards">
+      <article class="stat-card">
+        <span>Total records</span>
+        <strong id="statTotal">0</strong>
+        <small>Indexed files and summaries</small>
+      </article>
+      <article class="stat-card">
+        <span>OK</span>
+        <strong id="statOk">0</strong>
+        <small>Stable or metric-bearing records</small>
+      </article>
+      <article class="stat-card">
+        <span>Warn</span>
+        <strong id="statWarn">0</strong>
+        <small>Proxy runs or promotion notes</small>
+      </article>
+      <article class="stat-card">
+        <span>Error</span>
+        <strong id="statError">0</strong>
+        <small>Tracebacks and failed runs</small>
+      </article>
+      <article class="stat-card wide">
+        <span>Best metric</span>
+        <strong id="bestMetricValue">—</strong>
+        <small id="bestMetricLabel">Select a metric to rank records</small>
+      </article>
+    </section>
+
+    <section class="controls" aria-label="Filters and sort controls">
+      <label>
+        <span>Search</span>
+        <input id="searchInput" type="search" placeholder="Search path, notes, metrics, or snippets">
+      </label>
+      <label>
+        <span>Category</span>
+        <select id="categoryFilter"></select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select id="statusFilter">
+          <option value="all">All</option>
+          <option value="ok">ok</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+          <option value="unknown">unknown</option>
+        </select>
+      </label>
+      <label>
+        <span>Sort metric</span>
+        <select id="metricSelect"></select>
+      </label>
+      <label>
+        <span>Direction</span>
+        <select id="sortDir">
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
+      </label>
+      <button id="resetBtn" class="ghost">Reset</button>
+    </section>
+
+    <section class="content">
+      <div class="table-card">
+        <div class="table-head">
+          <div>
+            <h2>Records</h2>
+            <p id="resultCount">Loading index...</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Category</th>
+                <th>Experiment</th>
+                <th>Run tag</th>
+                <th>Metric</th>
+                <th>Path</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="detail-card" aria-label="Record details">
+        <div class="table-head">
+          <div>
+            <h2>Details</h2>
+            <p id="detailTitle">Select a record</p>
+          </div>
+          <button id="copyPathBtn" class="ghost" disabled>Copy path</button>
+        </div>
+        <dl id="detailMeta" class="detail-meta"></dl>
+        <div class="detail-block">
+          <h3>Snippet</h3>
+          <pre id="detailSnippet">No record selected.</pre>
+        </div>
+        <div class="detail-block">
+          <h3>Metrics</h3>
+          <div id="detailMetrics" class="metric-grid"></div>
+        </div>
+        <div class="detail-block">
+          <h3>Notes</h3>
+          <ul id="detailNotes" class="notes-list"></ul>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <template id="rowTemplate">
+    <tr class="record-row">
+      <td data-col="status"></td>
+      <td data-col="category"></td>
+      <td data-col="experiment"></td>
+      <td data-col="runTag"></td>
+      <td data-col="metric"></td>
+      <td data-col="path"></td>
+    </tr>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

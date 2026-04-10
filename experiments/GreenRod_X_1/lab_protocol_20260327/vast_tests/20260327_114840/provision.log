@@ -1,0 +1,178 @@
+Searching offers...
+Selected offer_id=31592050 machine=23341 price=0.22675925925925927
+Creating instance...
+Started. {'success': True, 'new_contract': 33666282, 'instance_api_key': 'a54c3d2f97df25541a04cfa56df3b7eb0cfeb358d6d16ad48428af961be6a73b'}
+INSTANCE_ID=33666282
+Destroying old instance 33666282...
+destroying instance 33666282.
+Creating A100 instance from offer 31004401...
+Started. {'success': True, 'new_contract': 33666328, 'instance_api_key': '04ab5c96915f46cb5a6be5ee958358312f0c7b7d242caab5356e904762294108'}
+NEW_INSTANCE=33666328
+Waiting for instance 33666328...
+status=None waited=0s
+status=None waited=10s
+status=None waited=20s
+status=None waited=30s
+status=None waited=40s
+status=None waited=50s
+status=None waited=60s
+status=None waited=70s
+status=None waited=80s
+status=None waited=90s
+status=None waited=100s
+status=None waited=110s
+status=None waited=120s
+status=None waited=130s
+status=None waited=140s
+status=None waited=150s
+status=None waited=160s
+status=None waited=170s
+status=None waited=180s
+status=None waited=190s
+status=None waited=200s
+status=None waited=210s
+status=None waited=220s
+status=None waited=230s
+status=None waited=240s
+status=None waited=250s
+status=None waited=260s
+status=None waited=270s
+status=None waited=280s
+status=None waited=290s
+status=None waited=300s
+status=None waited=310s
+status=None waited=320s
+status=None waited=330s
+status=None waited=340s
+status=None waited=350s
+status=None waited=360s
+status=None waited=370s
+status=None waited=380s
+status=None waited=390s
+status=None waited=400s
+status=None waited=410s
+status=None waited=420s
+status=None waited=430s
+status=None waited=440s
+status=None waited=450s
+status=None waited=460s
+status=None waited=470s
+Destroying unreachable instance 33666328...
+destroying instance 33666328.
+Creating replacement A100 SXM4 from offer 20120880...
+Started. {'success': True, 'new_contract': 33666872, 'instance_api_key': '9dd3a4f73ae8310be4915396f9f31668047809fd396d1df1bf0df2b806e528ea'}
+NEW_INSTANCE=33666872
+status=unknown waited=480s
+Waiting for instance 33666872 cur_state=running...
+state=running waited=0s
+SSH_URL=ssh://root@ssh4.vast.ai:26872
+Checking SSH readiness on root@ssh4.vast.ai:26872...
+ssh retry 1/30
+status=unknown waited=490s
+ssh retry 2/30
+status=unknown waited=500s
+ssh retry 3/30
+status=unknown waited=510s
+ssh retry 4/30
+status=unknown waited=520s
+ssh retry 5/30
+status=unknown waited=530s
+ssh retry 6/30
+status=unknown waited=540s
+ssh retry 7/30
+status=unknown waited=550s
+ssh retry 8/30
+status=unknown waited=560s
+ssh retry 9/30
+status=unknown waited=570s
+ssh retry 10/30
+status=unknown waited=580s
+ssh retry 11/30
+status=unknown waited=590s
+ssh retry 12/30
+status=unknown waited=600s
+ssh retry 13/30
+status=unknown waited=610s
+Warning: Permanently added '[ssh4.vast.ai]:26872' (ED25519) to the list of known hosts.
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+OK
+GPU 0: NVIDIA A100-SXM4-40GB (UUID: GPU-664a90dd-51d4-2d47-25fc-d2eb3bce6d56)
+SSH_READY=1
+status=unknown waited=620s
+status=unknown waited=630s
+status=unknown waited=640s
+status=unknown waited=650s
+status=unknown waited=660s
+status=unknown waited=670s
+status=unknown waited=680s
+status=unknown waited=690s
+status=unknown waited=700s
+status=unknown waited=710s
+status=unknown waited=720s
+status=unknown waited=730s
+status=unknown waited=740s
+status=unknown waited=750s
+status=unknown waited=760s
+status=unknown waited=770s
+status=unknown waited=780s
+status=unknown waited=790s
+status=unknown waited=800s
+status=unknown waited=810s
+status=unknown waited=820s
+status=unknown waited=830s
+status=unknown waited=840s
+status=unknown waited=850s
+status=unknown waited=860s
+status=unknown waited=870s
+status=unknown waited=880s
+status=unknown waited=890s
+ERROR: instance not running
+Destroying prior instance 33666872...
+destroying instance 33666872.
+Creating 4090 instance (proxy SSH, no --direct) offer 33220761...
+Started. {'success': False, 'new_contract': 33667306, 'instance_api_key': 'bab6d41dec6f9e96a35fac45810477f2710c0c7f623195a02b0f4f440dc4b583'}
+NEW_INSTANCE=33667306
+Destroying stuck instance 33667306...
+destroying instance 33667306.
+Creating replacement 4090 instance offer 30714845...
+Started. {'success': True, 'new_contract': 33667350, 'instance_api_key': '2ad4b1804917775a396e60ae11f77f424c8c753b055355d8d59fe6d3927812a5'}
+NEW_INSTANCE=33667350
+Waiting for instance 33667350 running...
+state=running actual=loading intended=running t=5s
+SSH_URL=ssh://root@ssh2.vast.ai:27350
+ssh retry 1/36
+ssh retry 2/36
+ssh retry 3/36
+ssh retry 4/36
+ssh retry 5/36
+ssh retry 6/36
+ssh retry 7/36
+ssh retry 8/36
+ssh retry 9/36
+ssh retry 10/36
+ssh retry 11/36
+ssh retry 12/36
+ssh retry 13/36
+ssh retry 14/36
+ssh retry 15/36
+ssh retry 16/36
+ssh retry 17/36
+ssh retry 18/36
+ssh retry 19/36
+ssh retry 20/36
+ssh retry 21/36
+ssh retry 22/36
+ssh retry 23/36
+ssh retry 24/36
+ssh retry 25/36
+ssh retry 26/36
+ssh retry 27/36
+ssh retry 28/36
+Warning: Permanently added '[ssh2.vast.ai]:27350' (ED25519) to the list of known hosts.
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+OK
+GPU 0: NVIDIA GeForce RTX 4090 (UUID: GPU-2e521f27-d1a4-5b36-0155-ab210ff0b4cd)
+SSH_READY=1
+PAYLOAD_TAR=/tmp/lab_ab_payload_20260327_114840.tar.gz
