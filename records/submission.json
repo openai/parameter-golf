@@ -1,0 +1,11 @@
+{
+  "author": "Samuel Wangai",
+  "github_id": "swangai7178",
+  "name": "M3-Pro-12L-Optimized",
+  "blurb": "SP-1024 12x384 Muon-optimized run on MacBook Pro M3 Pro (Nairobi); utilizes weight-tying and manual thermal management (4200+ RPM) to maintain 14.5k tok/s under the 600s compute cap.",
+  "date": "2026-03-24T19:56:49Z",
+  "val_loss": 3.2257,
+  "val_bpb": 1.9105,
+  "bytes_total": 7915654,
+  "bytes_code": 49152
+}
