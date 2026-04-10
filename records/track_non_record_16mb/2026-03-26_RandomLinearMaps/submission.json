@@ -1,0 +1,24 @@
+{
+  "name": "Fielding Johnston",
+  "github": "fielding",
+  "val_bpb": {
+    "42": 1.9313,
+    "1337": 1.9079,
+    "2024": 1.9439
+  },
+  "val_bpb_long_run": 1.6073,
+  "val_bpb_long_run_note": "200K steps / 3.75hr on 4xH200 (unlimited compute track)",
+  "artifact_bytes": {
+    "42": 2402339,
+    "1337": 2399355,
+    "2024": 2388159
+  },
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "seeds_used_for_random_maps": "derived from SEED + layer_index, not searched",
+  "key_techniques": [
+    "random_linear_maps",
+    "learned_low_rank_adapters",
+    "seeded_random_projections"
+  ]
+}
