@@ -1,0 +1,11 @@
+{
+  "author": "Spruce Campbell",
+  "github_id": "mtybadger",
+  "name": "SWE 2048 Vocab Size NorMuon Int6",
+  "blurb": "SP-2048 8x1536 run using the published Hugging Face fineweb10B_sp2048 tokenizer and the current train_gpt.py; score is the slided window eval final int8+zstd roundtrip metric under the 16,000,000-byte cap.",
+  "date": "2026-03-19T19:25:29Z",
+  "val_loss": 2.37795556,
+  "val_bpb": 1.1584934,
+  "bytes_total": 15353270,
+  "bytes_code": 63530
+}
