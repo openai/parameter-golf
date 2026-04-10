@@ -1,5 +1,4 @@
-"Ternary training script for OpenAI's Parameter Golf Challenge. Ciprian-Florin Ifrim - 24 March 2026"
-
+from __future__ import annotations
 import copy
 import glob
 import io
@@ -37,9 +36,12 @@ except ImportError:
         def flash_attn_func(q, k, v, causal=False, **kwargs):
             q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
             if q.size(1) != k.size(1):
-                r = q.size(1) // k.size(1)
-                k = k.repeat_interleave(r, dim=1)
-                v = v.repeat_interleave(r, dim=1)
+                # Use unsqueeze and expand for virtual memory broadcast instead of physical copy
+                B, H_q, T, D = q.shape
+                _, H_kv, _, _ = k.shape
+                groups = H_q // H_kv
+                k = k[:, :, None, :, :].expand(B, H_kv, groups, T, D).reshape(B, H_q, T, D)
+                v = v[:, :, None, :, :].expand(B, H_kv, groups, T, D).reshape(B, H_q, T, D)
             return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 
 # ---------------------------------------------------------------------------
@@ -99,8 +101,9 @@ class Hyperparameters:
     iterations = _e("ITERATIONS", 10000, int)
     warmdown_fraction = _e("WARMDOWN_FRACTION", 0.35, float)
     warmup_steps = _e("WARMUP_STEPS", 5, int)
-    compiler_warmup_steps = _e("COMPILER_WARMUP_STEPS", 0, int)  # separate pre-budget compile warmup
-    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 786432, int)
+    warmup_fraction = _e("WARMUP_FRACTION", 0.01, float)
+    compiler_warmup_steps = _e("COMPILER_WARMUP_STEPS", 1, int)  # separate pre-budget compile warmup
+    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 262144, int)
     train_seq_len = _e("TRAIN_SEQ_LEN", 2048, int)
     max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
     num_kv_heads = _e("NUM_KV_HEADS", 4, int)
@@ -127,16 +130,16 @@ class Hyperparameters:
     eval_feedback_passes = _e("EVAL_FEEDBACK_PASSES", 2, int)
     feedback_fp_storage = _e_fp_storage("FEEDBACK_FP_STORAGE", 0)
     feedback_every = _e("FEEDBACK_EVERY", 2, int)
+    feedback_every_fraction = _e("FEEDBACK_EVERY_FRACTION", 0.0, float)
     untie_at_fraction = _e("UNTIE_AT_FRACTION", 0.0, float)
     moe_enabled = _e("MOE_ENABLED", 1, bool)
     moe_num_experts = _e("MOE_NUM_EXPERTS", 3, int)
     moe_top_k = _e("MOE_TOP_K", 1, int)
     moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.001, float)
-    moe_start_fraction = _e("MOE_START_FRACTION", 0.65, float) # C10: MoE dormant early
+    moe_start_fraction = _e("MOE_START_FRACTION", 0.65, float) # router warmup ends here; sparse MoE is active before that
     moe_layer_frac = _e("MOE_LAYER_FRAC", 0.67, float)  # MoE only in top (1-frac) of layers
     vrl_enabled = _e("VRL_ENABLED", 1, bool)
     vrl_start_layer = _e("VRL_START_LAYER", 10, int)
-    adam_lr = _e("ADAM_LR", 0.001, float)
     adam_wd = _e("ADAM_WD", 0.04, float)
     beta1 = 0.9
     beta2 = 0.95
@@ -179,18 +182,7 @@ class Hyperparameters:
     skc_capsule_dim = _e("SKC_CAPSULE_DIM", 128, int)
     skc_conv_kernel = _e("SKC_CONV_KERNEL", 4, int)
     skc_block_size = _e("SKC_BLOCK_SIZE", 64, int)
-    tko_enabled = _e("TKO_ENABLED", 0, bool)
-    weight_sharing = _e("WEIGHT_SHARING", 0, bool)
-    inside_out_training = _e("INSIDE_OUT_TRAINING", 0, bool)
-    deq_feedback = _e("DEQ_FEEDBACK", 0, bool)
-    deq_max_iter = _e("DEQ_MAX_ITER", 3, int)
-    deq_tol = _e("DEQ_TOL", 0.01, float)
-    deq_anderson_m = _e("DEQ_ANDERSON_M", 3, int)
-
     fp_storage = _e_fp_storage("FP_STORAGE", 0)
-    stochastic_depth_prob = _e("STOCHASTIC_DEPTH_PROB", 0.0, float)
-    ternary_noise_scale = _e("TERNARY_NOISE_SCALE", 0.0, float)
-    self_distill_kl_weight = _e("SELF_DISTILL_KL_WEIGHT", 0.0, float)
     ema_enabled = _e("EMA_ENABLED", 1, bool)
     ema_eval_apply = _e("EMA_EVAL_APPLY", 1, bool)
     ema_decay = _e("EMA_DECAY", 0.997, float)
@@ -205,8 +197,10 @@ class Hyperparameters:
     muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
     muon_momentum_warmup_start = _e("MUON_MOMENTUM_WARMUP_START", 0.85, float)
     muon_momentum_warmup_steps = _e("MUON_MOMENTUM_WARMUP_STEPS", 500, int)
+    muon_momentum_warmup_fraction = _e("MUON_MOMENTUM_WARMUP_FRACTION", 0.10, float)
     muon_wd = _e("MUON_WD", 0.04, float)
     muon_backend_steps = _e("MUON_BACKEND_STEPS", 5, int)
+    muon_active_grad_eps = _e("MUON_ACTIVE_GRAD_EPS", 1e-9, float)
     # Eval features
     sliding_eval = _e("SLIDING_EVAL", 1, bool)
     sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 64, int)
@@ -224,7 +218,8 @@ class Hyperparameters:
     ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
     ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
     ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
-    ttt_enabled = _e("TTT_ENABLED", 1, bool)
+    ngram_alpha_max = _e("NGRAM_ALPHA_MAX", 0.85, float)
+    ttt_enabled = _e("TTT_ENABLED", 0, bool)
     ttt_scope = _e("TTT_SCOPE", "feedback")
     ttt_lr = _e("TTT_LR", 0.002, float)
     ttt_epochs = _e("TTT_EPOCHS", 3, int)
@@ -233,9 +228,12 @@ class Hyperparameters:
     ttt_batch_seqs = _e("TTT_BATCH_SEQS", 32, int)
     ttt_grad_clip = _e("TTT_GRAD_CLIP", 1.0, float)
     val_batch_size = _e("VAL_BATCH_SIZE", 32768, int)
-    val_loss_every = _e("VAL_LOSS_EVERY", 200, int)
+    val_loss_every = _e("VAL_LOSS_EVERY", 400, int)
+    val_loss_every_fraction = _e("VAL_LOSS_EVERY_FRACTION", 0.50, float)
     train_log_every = _e("TRAIN_LOG_EVERY", 20, int)
+    train_log_every_fraction = _e("TRAIN_LOG_EVERY_FRACTION", 0.05, float)
     churn_log_every = _e("CHURN_LOG_EVERY", 0, int)
+    churn_log_every_fraction = _e("CHURN_LOG_EVERY_FRACTION", 0.0, float)
     batch_tokens_start = _e("BATCH_TOKENS_START", 0, int)
     batch_schedule_fraction = _e("BATCH_SCHEDULE_FRACTION", 0.0, float)
     seq_len_start = _e("SEQ_LEN_START", 0, int)
@@ -269,31 +267,19 @@ class Hyperparameters:
     calib_prefilter_mult = _e("CALIB_PREFILTER_MULT", 2, int)
     calib_max_candidates = _e("CALIB_MAX_CANDIDATES", 12, int)
     calib_max_evals = _e("CALIB_MAX_EVALS", 32, int)
-    calib_max_seconds = _e("CALIB_MAX_SECONDS", 90.0, float)
+    calib_max_seconds = _e("CALIB_MAX_SECONDS", 30.0, float)
     calib_second_pass = _e("CALIB_SECOND_PASS", 0, bool)
     calib_proxy_max_tok = _e("CALIB_PROXY_MAX_TOK", 4096, int)
     # Export proxy eval during training (select checkpoint by round-trip BPB)
     export_proxy_eval = _e("EXPORT_PROXY_EVAL", 0, bool)
     export_proxy_every = _e("EXPORT_PROXY_EVERY", 300, int)
+    export_proxy_every_fraction = _e("EXPORT_PROXY_EVERY_FRACTION", 0.25, float)
     export_proxy_num_seqs = _e("EXPORT_PROXY_NUM_SEQS", 16, int)
     export_proxy_use_best = _e("EXPORT_PROXY_USE_BEST", 1, bool)
     # Export-aligned training: use calibrated quantizer in final phase
     export_aligned_train = _e("EXPORT_ALIGNED_TRAIN", 0, bool)
     export_aligned_train_start_fraction = _e("EXPORT_ALIGNED_TRAIN_START_FRACTION", 0.80, float)
-
-_RESERVED_EXPERIMENTAL_DEFAULTS = {
-    "tko_enabled": False,
-    "weight_sharing": False,
-    "inside_out_training": False,
-    "deq_feedback": False,
-    "deq_max_iter": 3,
-    "deq_tol": 0.01,
-    "deq_anderson_m": 3,
-    "stochastic_depth_prob": 0.0,
-    "ternary_noise_scale": 0.0,
-    "self_distill_kl_weight": 0.0,
-}
-
+    reset_ssm_on_eos = _e("RESET_SSM_ON_EOS", 1, bool)
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
@@ -302,15 +288,34 @@ def validate_config_surface(args) -> None:
         raise ValueError(f"SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}")
     if args.matrix_optimizer not in {"muon", "adamw", "adam"}:
         raise ValueError(f"MATRIX_OPTIMIZER must be one of muon/adamw/adam, got {args.matrix_optimizer!r}")
-    unsupported = []
-    for name, default in _RESERVED_EXPERIMENTAL_DEFAULTS.items():
-        if getattr(args, name) != default:
-            unsupported.append(f"{name}={getattr(args, name)!r}")
-    if unsupported:
-        raise ValueError(
-            "Unsupported experimental hyperparameters are configured but not wired in this script: "
-            + ", ".join(unsupported)
-        )
+    for frac_name in (
+        "warmup_fraction",
+        "muon_momentum_warmup_fraction",
+        "warmdown_fraction",
+        "ema_start_fraction",
+        "feedback_every_fraction",
+        "untie_at_fraction",
+        "seq_schedule_fraction",
+        "batch_schedule_fraction",
+        "curr_p1_f",
+        "curr_p2_f",
+        "curr_p3_f",
+        "curr_p4_f",
+        "curr_p5_f",
+        "val_loss_every_fraction",
+        "train_log_every_fraction",
+        "churn_log_every_fraction",
+        "export_proxy_every_fraction",
+        "export_aligned_train_start_fraction",
+        "moe_start_fraction",
+    ):
+        frac_val = getattr(args, frac_name)
+        if not (0.0 <= frac_val <= 1.0):
+            raise ValueError(f"{frac_name.upper()} must be in [0, 1], got {frac_val}")
+    if args.muon_active_grad_eps < 0.0:
+        raise ValueError(f"MUON_ACTIVE_GRAD_EPS must be >= 0, got {args.muon_active_grad_eps}")
+    if not (0.0 <= args.ngram_alpha_max < 1.0):
+        raise ValueError(f"NGRAM_ALPHA_MAX must be in [0, 1), got {args.ngram_alpha_max}")
 
 
 def resolve_eval_feedback_passes(args, feedback_passes: int | None = None) -> int:
@@ -399,6 +404,8 @@ def export_ternary_param_names(model: nn.Module) -> set[str]:
             names.add(f"{module_name}.weight" if module_name else "weight")
     return names
 
+_LM_HEAD_STATE_KEY = "tok_stem.lm_head.weight"
+
 
 def export_fp16_param_names(model: nn.Module) -> set[str]:
     """Return parameter names that must bypass fp_storage quantisation at export.
@@ -414,11 +421,14 @@ def export_fp16_param_names(model: nn.Module) -> set[str]:
     """
     names: set[str] = set()
     if not getattr(model, "tie_embeddings", False):
-        names.add("lm_head.weight")
+        names.add(_LM_HEAD_STATE_KEY)
     # Walk all named parameters and mark plain nn.Linear weights that are not
     # inside a QATLinear (identified by presence of fp_storage attribute).
     for full_name, module in model.named_modules():
         if isinstance(module, nn.Linear) and not hasattr(module, "fp_storage"):
+            weight_name = full_name + ".weight"
+            names.add(weight_name)
+        if isinstance(module, nn.Embedding) and not hasattr(module, "fp_storage"):
             weight_name = full_name + ".weight"
             names.add(weight_name)
     return names
@@ -427,8 +437,11 @@ def export_fp16_param_names(model: nn.Module) -> set[str]:
 def load_roundtrip_state_strict(model: nn.Module, state_dict: dict[str, Tensor]) -> None:
     """Strictly load a round-trip state dict, allowing only the tied lm_head omission."""
     load_state = dict(state_dict)
-    if getattr(model, "tie_embeddings", False) and "lm_head.weight" not in load_state:
-        load_state["lm_head.weight"] = model.lm_head.weight.detach().cpu().clone()
+    # Backward compatibility for older artifacts that saved the bare key.
+    if "lm_head.weight" in load_state and _LM_HEAD_STATE_KEY not in load_state:
+        load_state[_LM_HEAD_STATE_KEY] = load_state.pop("lm_head.weight")
+    if getattr(model, "tie_embeddings", False) and _LM_HEAD_STATE_KEY not in load_state:
+        load_state[_LM_HEAD_STATE_KEY] = model.tok_stem.lm_head.weight.detach().cpu().clone()
     model.load_state_dict(load_state, strict=True)
 
 # ---------------------------------------------------------------------------
@@ -616,10 +629,13 @@ def ns_orth(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     return X.T if transposed else X
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True, wd: float = 0.0):
-        super().__init__(params, dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, wd=wd))
-        self._flat_update_buffers: dict[int, Tensor] = {}
-        self._active_param_masks: dict[int, Tensor] = {}
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
+                 nesterov: bool = True, wd: float = 0.0, active_grad_eps: float = 1e-9):
+        super().__init__(params, dict(
+            lr=lr, momentum=momentum, backend_steps=backend_steps,
+            nesterov=nesterov, wd=wd, active_grad_eps=active_grad_eps,
+        ))
+        self._comm_buffers: dict[int, Tensor] = {}
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -637,20 +653,16 @@ class Muon(torch.optim.Optimizer):
             lr, momentum = group["lr"], group["momentum"]
             backend_steps, nesterov = group["backend_steps"], group["nesterov"]
             total_params = sum(int(p.numel()) for p in params)
-            updates_flat = self._flat_update_buffers.get(group_idx)
-            if (updates_flat is None or updates_flat.numel() != total_params
-                    or updates_flat.device != params[0].device):
-                updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
-                self._flat_update_buffers[group_idx] = updates_flat
+            comm_size = total_params + len(params)
+            comm_buffer = self._comm_buffers.get(group_idx)
+            if (comm_buffer is None or comm_buffer.numel() != comm_size
+                    or comm_buffer.device != params[0].device):
+                comm_buffer = torch.zeros(comm_size, device=params[0].device, dtype=torch.bfloat16)
+                self._comm_buffers[group_idx] = comm_buffer
             else:
-                updates_flat.zero_()
-            active_param_mask = self._active_param_masks.get(group_idx)
-            if (active_param_mask is None or active_param_mask.numel() != len(params)
-                    or active_param_mask.device != params[0].device):
-                active_param_mask = torch.zeros(len(params), device=params[0].device, dtype=torch.int32)
-                self._active_param_masks[group_idx] = active_param_mask
-            else:
-                active_param_mask.zero_()
+                comm_buffer.zero_()
+            updates_flat = comm_buffer[:total_params]
+            active_param_mask = comm_buffer[total_params:]
             curr = 0
             # Track which parameters had active gradients so weight decay is not applied
             # to dormant MoE experts. Without this guard, experts that receive no routing
@@ -658,27 +670,34 @@ class Muon(torch.optim.Optimizer):
             # (1 - lr * wd) every step, iteratively decaying them to zero permanently.
             for i, p in enumerate(params):
                 # DDP with find_unused_parameters=True zero-fills gradients for dormant
-                # experts, so p.grad is never None. Use magnitude check to distinguish
-                # genuinely active gradients from DDP-injected zero fills.
-                if i % world_size == rank and p.grad is not None and p.grad.norm() > 1e-7:
-                    active_param_mask[i] = 1
+                # experts, so p.grad is never None. Determine activity mask purely
+                # via tensor operations to avoid host-device synchronization.
+                if i % world_size == rank and p.grad is not None:
+                    # Compute norm without pulling to CPU; avoid 'if p.grad.norm() > eps'
+                    grad_norm = p.grad.norm()
+                    active_flag = (grad_norm > group.get("active_grad_eps", 1e-9)).to(updates_flat.dtype)
+                    
+                    # Only update the active mask and momentum if active_flag == 1
+                    active_param_mask[i] = active_flag
+                    
                     g = p.grad
                     state = self.state[p]
                     if "momentum_buffer" not in state:
                         state["momentum_buffer"] = torch.zeros_like(g)
+                    
                     buf = state["momentum_buffer"]
                     buf.mul_(momentum).add_(g)
                     if nesterov:
                         g = g.add(buf, alpha=momentum)
-                    # Do NOT apply rms_norm here. ns_orth relies on the global 2D
-                    # spectral structure of the gradient matrix; row-wise normalisation
-                    # independently scales every row to unit variance, destroying the
-                    # matrix geometry before Newton-Schulz can recover it. ns_orth
-                    # already scales internally via Frobenius norm.
+                        
+                    # Newton-Schulz update is computed regardless to keep graph uniform 
+                    # for torch.compile, but zeroed out dynamically via active_flag mask.
                     g = g.bfloat16()
-                    g = ns_orth(g, steps=backend_steps)
-                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
-                    updates_flat[curr:curr + p.numel()] = g.reshape(-1)
+                    g_orth = ns_orth(g, steps=backend_steps)
+                    g_orth *= max(1, g_orth.size(0) / g_orth.size(1)) ** 0.5
+                    
+                    g_update = g_orth * active_flag.to(g_orth.dtype)
+                    updates_flat[curr:curr + p.numel()] = g_update.reshape(-1)
                 curr += p.numel()
             # all_reduce is called uniformly across ranks (the 'distributed' flag is not
             # data-dependent, so all ranks take the same branch — no deadlock risk).
@@ -686,10 +705,10 @@ class Muon(torch.optim.Optimizer):
             # zero; SUM reduction still produces the correct aggregated update because
             # zero contributes nothing. This handles MoE sparse routing correctly.
             if distributed:
-                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
-                # Reduce active-gradient flags separately so MoE dormant experts skip WD
-                # without per-parameter `.item()` host syncs on the hot path.
-                dist.all_reduce(active_param_mask, op=dist.ReduceOp.SUM)
+                # Fuse update payload + active-gradient flags into one collective.
+                # The mask only needs to preserve 0 vs >0 after the sum, which bf16
+                # does reliably for the small world sizes we train with.
+                dist.all_reduce(comm_buffer, op=dist.ReduceOp.SUM)
             wd = group.get("wd", 0.0)
             curr = 0
             for i, p in enumerate(params):
@@ -697,7 +716,7 @@ class Muon(torch.optim.Optimizer):
                 # Only apply weight decay when the parameter received a real gradient.
                 # Dormant MoE experts (zero update) must not decay.
                 if wd > 0:
-                    active = active_param_mask[i].clamp(max=1).to(dtype=p.dtype)
+                    active = active_param_mask[i].clamp(max=1.0).to(dtype=p.dtype)
                     p.mul_(1 - lr * wd * active)
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
@@ -937,6 +956,12 @@ class TernaryLinear(nn.Linear):
         # to mid-training updates; buffer tensors are tracked by Dynamo across updates.
         self.register_buffer("calib_thr", torch.tensor(0.0), persistent=False)
         self.register_buffer("calib_scale_mult", torch.tensor(1.0), persistent=False)
+        # Cache Hadamard matrix as a persistent buffer to avoid redundant allocations on GPU
+        if (group_size & (group_size - 1)) == 0:
+            h_mat = _build_hadamard_pt(group_size, "cpu")
+            self.register_buffer("H_fixed", h_mat, persistent=True)
+        else:
+            self.register_buffer("H_fixed", None, persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.float()
@@ -953,25 +978,32 @@ class TernaryLinear(nn.Linear):
         w_padded = F.pad(w, (0, pad)) if pad > 0 else w   # (nrows, ncols+pad)
         w_g = w_padded.reshape(-1, g)                      # (nrows*(ncols+pad)//g, g)
         if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
-            H = _build_hadamard_pt(g, w.device).to(w.dtype)
+            # Use cached buffer to avoid हजारों of allocations per training step
+            H = self.H_fixed.to(w.dtype)
             w_g = w_g @ H
-        scale = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+        # Match q_sd export exactly: the per-group scale is bottlenecked through fp16
+        # before reconstruction, so the STE path must see the same truncation.
+        # Clamp after half() to guard against fp16 underflow: 1e-8 → 0.0 in fp16 → NaN on division.
+        # fp16 min normalized ≈ 6.1e-5; use 1e-4 to stay safely above the subnormal range.
+        scale = w_g.abs().mean(-1, keepdim=True).half().float().clamp(min=1e-4)
 
-        # Read calibration from buffer tensors (Dynamo-safe) rather than global dict
-        thr = self.calib_thr.item()
-        scale_mult = self.calib_scale_mult.item()
+        # Read calibration from buffer tensors (Dynamo-safe) as tensors
+        thr = self.calib_thr
+        scale_mult = self.calib_scale_mult
         z = w_g / scale
-        if thr > 0.0:
-            q = torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1))
-        else:
-            q = z.round().clamp(-1, 1)
+        
+        # Binary selection via torch.where ensures no graph breaks from .item()
+        q = torch.where(thr > 0.0,
+                        torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1)),
+                        z.round().clamp(-1, 1))
         dequant = q * (scale * scale_mult)
 
         if _TURBO_QUANT_TRAIN and (g & (g - 1)) == 0:
             dequant = dequant @ H  # Self-inverse
-        # Unpad and restore original shape for the straight-through estimator
+        # Unpad and restore original shape for the straight-through estimator.
+        # Use explicit view_as and reshapres that are robust to torch.compile flattening.
         dequant_unpadded = dequant.reshape(nrows, ncols + pad)[:, :ncols].reshape(orig_shape)
-        w_ternary = w.reshape(orig_shape) + (dequant_unpadded - w.reshape(orig_shape)).detach()
+        w_ternary = w.view(orig_shape) + (dequant_unpadded - w.view(orig_shape)).detach()
         return F.linear(x, w_ternary.to(x.dtype),
                         self.bias.to(x.dtype) if self.bias is not None else None)
 
@@ -1079,19 +1111,21 @@ class EngramHash(nn.Module):
         B, T = ids_long.shape
         for order in range(self.num_orders):
             p = primes[order*self.num_heads : (order+1)*self.num_heads]
-            if T <= order + 1:
-                h = ids_long.new_zeros((B, T, self.num_heads))
-            elif order == 0:
-                h = (ids_long[:, :-1].unsqueeze(-1) * p + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
-            elif order == 1:
-                h = (ids_long[:, :-2].unsqueeze(-1) * (p*p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
-            elif order == 2:
-                h = (ids_long[:, :-3].unsqueeze(-1) * (p**3) + ids_long[:, 1:-2].unsqueeze(-1) * (p**2) + ids_long[:, 2:-1].unsqueeze(-1) * p + ids_long[:, 3:].unsqueeze(-1)) % self.buckets_per_head
-            else:
-                h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
-                h = torch.cat(h_ls, dim=-1)
-            if h.size(1) != T:
-                h = torch.nn.functional.pad(h, (0, 0, order+1, 0), value=0)
+            h = ids_long.new_zeros((B, T, self.num_heads))
+            if T > order + 1:
+                if order == 0:
+                    h_val = (ids_long[:, :-1].unsqueeze(-1) * p + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
+                elif order == 1:
+                    h_val = (ids_long[:, :-2].unsqueeze(-1) * (p*p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
+                elif order == 2:
+                    h_val = (ids_long[:, :-3].unsqueeze(-1) * (p**3) + ids_long[:, 1:-2].unsqueeze(-1) * (p**2) + ids_long[:, 2:-1].unsqueeze(-1) * p + ids_long[:, 3:].unsqueeze(-1)) % self.buckets_per_head
+                else:
+                    h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
+                    h_val = torch.cat(h_ls, dim=-1)
+                
+                # Assign to the valid suffix (trailing T-(order+1) tokens)
+                if h_val.size(1) > 0:
+                    h[:, T - h_val.size(1):, :] = h_val
             parts.append(h)
         all_indices = torch.cat(parts, dim=-1)
         head_outputs = [table(all_indices[:, :, i]) for i, table in enumerate(self.tables)]
@@ -1103,7 +1137,8 @@ class EngramHash(nn.Module):
             h_norm = torch.nn.functional.normalize(hidden.to(memory.dtype), dim=-1)
             m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
             gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
-            gate_scale = (F.softplus(self._gate_scale_raw.float()) + 0.1).clamp(max=4.0)
+            # Replace clamp with a smooth Sigmoid bound to preserve non-zero gradients
+            gate_scale = 3.9 * torch.sigmoid(self._gate_scale_raw.float()) + 0.1
             gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
             return gate * self.proj(memory)
         return self.proj(memory)
@@ -1281,40 +1316,76 @@ class TernaryMoE(nn.Module):
             MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
             for _ in range(num_experts)
         ])
-    def forward(self, x: Tensor, elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None]:
-        if elapsed_fraction < self.moe_start_fraction:
-            return self.experts[0](x)
+
+    def _router_warmup_progress(self, elapsed_fraction: float) -> float:
+        if not self.training or self.moe_start_fraction <= 0.0:
+            return 1.0
+        return max(0.0, min(elapsed_fraction / self.moe_start_fraction, 1.0))
+
+    def forward(self, x: torch.Tensor, elapsed_fraction: float = 1.0) -> tuple[torch.Tensor, torch.Tensor | None]:
         B, T, D = x.shape
         x_flat = x.reshape(-1, D)
+        route_alpha = self._router_warmup_progress(elapsed_fraction)
+        # Warm up the sparse router instead of doing an expensive dense all-expert mean.
+        # Early in training we:
+        # 1. soften the router distribution with temperature, and
+        # 2. keep one extra expert alive with annealed mass.
+        # By moe_start_fraction the path has converged to the true top-k router.
+        extra_experts = 1 if (self.training and route_alpha < 1.0 and self.top_k < self.num_experts) else 0
+        effective_top_k = min(self.num_experts, self.top_k + extra_experts)
+        temp_scale = max(self.num_experts / max(effective_top_k, 1) - 1.0, 0.0)
+        router_temp = 1.0 + (1.0 - route_alpha) * temp_scale
         router_logits = self.router(x_flat)
-        router_probs = F.softmax(router_logits, dim=1, dtype=torch.float32)
-        routing_weights, selected_experts = torch.topk(router_probs, self.top_k, dim=-1)
-        if self.top_k > 1:
-            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+        router_probs = F.softmax(router_logits / router_temp, dim=1, dtype=torch.float32)
+        routing_weights, selected_experts = torch.topk(router_probs, effective_top_k, dim=-1)
+
+        if effective_top_k > 1:
+            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+        if effective_top_k > self.top_k:
+            primary = routing_weights[:, :self.top_k]
+            extras = routing_weights[:, self.top_k:]
+            primary_mass = route_alpha + (1.0 - route_alpha) * (self.top_k / effective_top_k)
+            extra_mass = max(0.0, 1.0 - primary_mass)
+            primary = primary / primary.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+            extras = extras / extras.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+            routing_weights = torch.cat((primary * primary_mass, extras * extra_mass), dim=-1)
         routing_weights = routing_weights.to(x.dtype)
         
         final_output = torch.zeros_like(x_flat)
-        # Iterative gather over active experts
+        # Dispatch tokens to experts. 
+        # We iterate over experts, but we avoid host-sync any() checks by using 
+        # vectorized index_add_ which gracefully handles empty indices.
+        selected_experts_flat = selected_experts.reshape(-1)
+        routing_weights_flat = routing_weights.reshape(-1)
+        # Duplicate tokens for top-k routing
+        x_flat_rep = x_flat.repeat_interleave(effective_top_k, dim=0)
+        
         for i, expert in enumerate(self.experts):
-            expert_mask = (selected_experts == i)
-            if expert_mask.any():
-                expert_indices = expert_mask.nonzero(as_tuple=True)
-                token_indices = expert_indices[0]
-                expert_weights = routing_weights[expert_mask]
-                tokens_for_expert = x_flat[token_indices]
+            # Find which repetitions of tokens are assigned to this expert
+            expert_mask = (selected_experts_flat == i)
+            # expert_mask.nonzero() is usually faster than iterating and checking any()
+            token_indices = expert_mask.nonzero(as_tuple=True)[0]
+            
+            # Use size(0) check instead of .any() to reduce host-device synchronization latency
+            if token_indices.size(0) > 0:
+                tokens_for_expert = x_flat_rep[token_indices]
                 expert_out = expert(tokens_for_expert)
-                final_output.index_add_(0, token_indices, expert_out * expert_weights.unsqueeze(-1))
-                
-        # Auxiliary load balancing loss — returned functionally to avoid mutating module
-        # state inside a compiled graph (Dynamo side-effect trap / endless recompiles).
-        # Pre-scaled by aux_loss_coef so callers can sum all aux losses without separate scaling.
-        aux_loss: Tensor | None = None
+                # Weighted contribution to the original token positions
+                # token_indices // effective_top_k maps the repeated index back to the original token index
+                final_output.index_add_(0, token_indices // effective_top_k, 
+                                        expert_out * routing_weights_flat[token_indices].unsqueeze(-1))
+
+        # Auxiliary load balancing loss (standard MoE entropy loss)
+        aux_loss = None
         if self.training:
-            density = router_probs.mean(dim=0)
-            routed_counts = torch.bincount(selected_experts.reshape(-1), minlength=self.num_experts)
-            fraction_routed = routed_counts.to(router_probs.dtype) / float(B * T * self.top_k)
-            raw_aux = (density * fraction_routed).sum() * self.num_experts
-            aux_loss = raw_aux * self.aux_loss_coef
+            # probs: [B*T, num_experts]. mean across tokens.
+            probs_mean = router_probs.mean(dim=0)
+            # density: fraction of tokens assigned to each expert.
+            # selected_experts: [B*T, top_k].
+            expert_counts = torch.bincount(selected_experts_flat, minlength=self.num_experts)
+            density = expert_counts.to(probs_mean.dtype) / selected_experts_flat.numel()
+            # Standard MoE loss to prevent expert collapse
+            aux_loss = self.aux_loss_coef * (probs_mean * density).sum() * (self.num_experts ** 2)
 
         return final_output.view(B, T, D), aux_loss
 
@@ -1399,7 +1470,8 @@ class KoopmanTokenMixer(nn.Module):
         h_t = F.conv1d(x_padded, weight, groups=S)
         return h_t.transpose(1, 2).contiguous()
 
-    def _causal_decay_scan(self, x: Tensor, gate: Tensor, override_window: int | None = None, dt_gate: Tensor | None = None) -> Tensor:
+    def _causal_decay_scan(self, x: Tensor, gate: Tensor, override_window: int | None = None,
+                           dt_gate: Tensor | None = None, reset_mask: Tensor | None = None) -> Tensor:
         """High-Performance Parallel Chunked Scan (CV-Scan) for CUDA.
         Hierarchical scan (O(log T) depth) for sub-500ms step times.
         """
@@ -1414,6 +1486,8 @@ class KoopmanTokenMixer(nn.Module):
             gate = F.pad(gate, (0, 0, 0, pad))
             if dt_gate is not None:
                 dt_gate = F.pad(dt_gate, (0, 0, 0, pad))
+            if reset_mask is not None:
+                reset_mask = torch.cat((reset_mask, reset_mask.new_zeros((B, pad))), dim=1)
             T = T_pad
         num_chunks = T // W
         
@@ -1424,11 +1498,17 @@ class KoopmanTokenMixer(nn.Module):
         if dt_gate is not None:
             logD = -F.softplus(dt_gate.float())
             D = torch.exp(logD).to(x.dtype)
-            B_vals = (gate * x * (1.0 - D)).to(x.dtype)
         else:
             D_static = torch.clamp(self.mixer_diag, -0.999, 0.999).to(x.dtype)
             D = D_static.view(1, 1, S).expand(B, T, S)
-            B_vals = (gate * x * (1.0 - D_static.abs())).to(x.dtype)
+        if reset_mask is not None:
+            # Reset the recurrent carry on EOS positions so the next document sees
+            # only the boundary token, not the full state from the previous document.
+            D = torch.where(reset_mask.unsqueeze(-1), torch.zeros_like(D), D)
+        if dt_gate is not None:
+            B_vals = (gate * x * (1.0 - D)).to(x.dtype)
+        else:
+            B_vals = (gate * x * (1.0 - D.abs())).to(x.dtype)
 
         # 2. Reshape to chunks (B, num_chunks, W, S)
         D_c = D.reshape(B, num_chunks, W, S)
@@ -1472,14 +1552,14 @@ class KoopmanTokenMixer(nn.Module):
             h = h @ self._H.to(dtype=x.dtype, device=x.device)
         return h
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, reset_mask: Tensor | None = None) -> Tensor:
         # KoopmanBlock already applies RMSNorm and depth-wise ln_scale_factor before
         # calling the mixer. Re-normalizing here would erase that depth-aware scaling.
         s = self.proj_in(x)
         g = torch.sigmoid(self.g_proj(x))
         dt_gate = self.dt_proj(x)
         s = self._short_causal_conv(s)
-        h = self._causal_decay_scan(s, g, dt_gate=dt_gate)
+        h = self._causal_decay_scan(s, g, dt_gate=dt_gate, reset_mask=reset_mask)
         return self.proj_out(h)
 
 
@@ -1513,11 +1593,12 @@ class KoopmanBlock(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
     def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                elapsed_fraction: float = 1.0) -> tuple[Tensor, None, Tensor | None]:
+                elapsed_fraction: float = 1.0,
+                reset_mask: Tensor | None = None) -> tuple[Tensor, None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
 
-        mixer_out = self.mixer(self.attn_norm(x) * self.ln_scale_factor)
+        mixer_out = self.mixer(self.attn_norm(x) * self.ln_scale_factor, reset_mask=reset_mask)
         x = x + self.attn_scale.to(dtype=x.dtype) * mixer_out
 
         _mlp_raw = (self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
@@ -1546,7 +1627,8 @@ class FeedbackPooler(nn.Module):
         if valid_len is not None and valid_len < x.size(1):
             x = x[:, :valid_len, :]
         pooled = F.adaptive_avg_pool1d(x.transpose(1, 2), self.num_tokens).transpose(1, 2)
-        return self.proj(F.rms_norm(pooled, (pooled.size(-1),)))
+        # Ensure contiguity before RMSNorm to avoid implicit memory copies in the kernel
+        return self.proj(F.rms_norm(pooled.contiguous(), (pooled.size(-1),)))
 
 
 class FeedbackAdapter(nn.Module):
@@ -1967,6 +2049,9 @@ class SKCLayer(nn.Module):
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
 
     def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
+        B, T, D = x.shape
+        if T == 0:
+            return x, None, None
         mix = self.resid_mix.to(x.dtype)
         x = mix[0] * x + mix[1] * x0
         normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
@@ -2040,6 +2125,209 @@ class SKCLayer(nn.Module):
         return x, None, combined_aux
 
 
+# --- ARCHITECTURAL SURFACES ---
+
+class TokenStem(nn.Module):
+    """Handles embeddings, output projection, and logit softcapping."""
+    def __init__(self, vocab_size, embed_dim, model_dim, tied=True):
+        super().__init__()
+        self.tied = tied
+        self.tok_emb = nn.Embedding(vocab_size, embed_dim)
+        self.embed_proj = nn.Linear(embed_dim, model_dim, bias=False) if embed_dim != model_dim else None
+        self.embed_proj_rev = nn.Linear(model_dim, embed_dim, bias=False) if embed_dim != model_dim else None
+        self.lm_head = nn.Linear(model_dim, vocab_size, bias=False)
+        if tied:
+            self.lm_head.weight = self.tok_emb.weight
+
+    def apply_embedding(self, x):
+        h = self.tok_emb(x)
+        if self.embed_proj is not None:
+            h = self.embed_proj(h)
+        return h
+
+    def compute_logits(self, x, softcap=None):
+        if self.embed_proj_rev is not None:
+            x = self.embed_proj_rev(x)
+        logits = self.lm_head(x)
+        if softcap is not None:
+            logits = softcap(logits)
+        return logits
+
+class Backbone(nn.Module):
+    """Handles the block stack and skip-connection topology."""
+    def __init__(self, blocks, shared_block_bank, block_map, 
+                 per_layer_attn_scales, per_layer_mlp_scales, 
+                 per_layer_skc_scales, per_layer_resid_mixes,
+                 layer_types, skip_weights, num_encoder_layers,
+                 num_decoder_layers, num_skip_weights,
+                 training_depth_recurrence):
+        super().__init__()
+        self.blocks = blocks
+        self.shared_block_bank = shared_block_bank
+        self.block_map = block_map
+        self.per_layer_attn_scales = per_layer_attn_scales
+        self.per_layer_mlp_scales = per_layer_mlp_scales
+        self.per_layer_skc_scales = per_layer_skc_scales
+        self.per_layer_resid_mixes = per_layer_resid_mixes
+        self.layer_types = layer_types
+        self.skip_weights = skip_weights
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.num_skip_weights = num_skip_weights
+        self.training_depth_recurrence = training_depth_recurrence
+
+    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
+                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None,
+                   reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
+        """Run one effective layer. Returns (x, v_out, aux_loss)."""
+        if self.blocks is not None:
+            blk = self.blocks[layer_idx]
+            if isinstance(blk, SKCLayer):
+                return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+            if isinstance(blk, KoopmanBlock):
+                return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=reset_mask)
+            return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
+
+        # Shared block mode
+        block = self.shared_block_bank[self.block_map[layer_idx]]
+        mix = self.per_layer_resid_mixes[layer_idx].to(dtype=x.dtype)
+        x = mix[0] * x + mix[1] * x0
+
+        layer_type = self.layer_types[layer_idx]
+        if layer_type == "ssm":
+            mixer_out = block.mixer(block.attn_norm(x) * block.ln_scale_factor, reset_mask=reset_mask)
+            x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
+            v_out = None
+        elif layer_type == "skc":
+            _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
+            _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
+            x, v_out, aux_loss = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
+                                       external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
+            return x, v_out, aux_loss
+        else:
+            attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
+            x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
+
+        _mlp_in = block.mlp_norm(x) * block.ln_scale_factor
+        _mlp_raw = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
+                    if isinstance(block.mlp, TernaryMoE)
+                    else block.mlp(_mlp_in))
+        _mlp_out, moe_loss = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
+        x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
+        return x, v_out, moe_loss
+
+    def decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
+                      v0: Tensor | None, elapsed_fraction: float, prev_capsules: Tensor | None,
+                      reset_mask: Tensor | None,
+                      feedback_adapters: nn.ModuleList | None) -> tuple[Tensor, Tensor | None]:
+        dec_aux: Tensor | None = None
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if i < self.num_skip_weights:
+                x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
+            for _ in range(max(1, self.training_depth_recurrence)):
+                x, _, blk_aux = self.run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
+                                                prev_capsules=prev_capsules, reset_mask=reset_mask)
+                if blk_aux is not None:
+                    dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
+            if feedback_adapters is not None and sketch is not None:
+                x = feedback_adapters[i](x, sketch)
+        return x, dec_aux
+
+class LatentCorrector(nn.Module):
+    """Handles capsule memory, feedback passes, and adaptive halting."""
+    def __init__(self, capsule_bank, feedback_pooler, feedback_adapter, threshold):
+        super().__init__()
+        self.capsule_bank = capsule_bank
+        self.feedback_pooler = feedback_pooler
+        self.feedback_adapter = feedback_adapter
+        self.adaptive_halt_threshold = threshold
+
+    def forward(self, x, x0, input_ids, backbone, engram, engram_inject_layer,
+                num_passes, elapsed_fraction, carry_capsules, feedback_valid_len,
+                ssm_reset_mask,
+                training, engram_enabled, feedback_enabled, final_norm,
+                koopman_speculator_steps, koopman_speculator_enabled, 
+                adaptive_halt_enabled):
+        skips: list[Tensor] = []
+        v0 = None
+        enc_aux: Tensor | None = None
+
+        # --- Encoder pass ---
+        for i in range(backbone.num_encoder_layers):
+            if engram_enabled and i == engram_inject_layer:
+                x = x + engram(input_ids, hidden=x)
+            for _ in range(max(1, backbone.training_depth_recurrence)):
+                x, v_out, blk_aux = backbone.run_block(
+                    i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask
+                )
+                if blk_aux is not None:
+                    enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
+                if v0 is None and v_out is not None:
+                    v0 = v_out
+            skips.append(x)
+
+        # Capsule initialization
+        capsule_state = None
+        if carry_capsules is not None:
+            B_curr = x.shape[0]
+            carry_avg = carry_capsules.mean(dim=0, keepdim=True).expand(B_curr, -1, -1)
+            capsule_state = carry_avg
+        if self.capsule_bank is not None:
+            x, capsule_state, _, _ = self.capsule_bank(x, prev_capsules=capsule_state)
+        grounded_capsule_state = capsule_state
+        encoded = x
+
+        # Iterative correction
+        sketch = None
+        consistency_losses = []
+        speculative_losses = []
+        prev_capsule_state = None
+        fast_forwarded = False
+
+        for correction_pass in range(num_passes + 1):
+            if correction_pass > 0 and feedback_enabled and self.feedback_pooler is not None:
+                sketch = self.feedback_pooler(final_norm(x), valid_len=feedback_valid_len)
+            else:
+                sketch = None
+
+            if self.capsule_bank is not None and correction_pass > 0:
+                prev_capsule_state = grounded_capsule_state
+                spec_steps = koopman_speculator_steps if (koopman_speculator_enabled and correction_pass == 1) else 0
+                encoded, capsule_state, c_pred, c_spec = self.capsule_bank(
+                    encoded, prev_capsules=grounded_capsule_state, speculate_steps=spec_steps
+                )
+                grounded_capsule_state = capsule_state
+                if c_pred is not None:
+                    consistency_losses.append((c_pred, grounded_capsule_state.detach()))
+                if c_spec is not None:
+                    speculative_losses.append(c_spec)
+
+                if (not training and koopman_speculator_enabled and c_spec is not None and not fast_forwarded):
+                    capsule_state = c_spec
+                    fast_forwarded = True
+
+                if (not training and adaptive_halt_enabled and prev_capsule_state is not None 
+                        and correction_pass >= 1 and not fast_forwarded):
+                    delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2))
+                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-8
+                    if ((delta / norm) < self.adaptive_halt_threshold).any():
+                        grounded_capsule_state = prev_capsule_state
+                        break
+
+            x, dec_aux = backbone.decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
+                                               elapsed_fraction=elapsed_fraction, prev_capsules=None,
+                                               reset_mask=ssm_reset_mask,
+                                               feedback_adapters=self.feedback_adapter)
+            if dec_aux is not None:
+                enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
+            if fast_forwarded: break
+
+        c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
+        jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
+        return final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -2111,6 +2399,8 @@ class GPT(nn.Module):
         moe_layer_frac: float = 0.67,
         moe_start_fraction: float = 0.65,
         moe_router_aux_loss_coef: float = 0.001,
+        eos_token_id: int = -1,
+        reset_ssm_on_eos: bool = True,
     ):
         super().__init__()
         self.training_depth_recurrence = training_depth_recurrence
@@ -2147,6 +2437,8 @@ class GPT(nn.Module):
         self.moe_layer_frac = moe_layer_frac
         self.moe_start_fraction = moe_start_fraction
         self.moe_router_aux_loss_coef = moe_router_aux_loss_coef
+        self.eos_token_id = int(eos_token_id)
+        self.reset_ssm_on_eos = bool(reset_ssm_on_eos)
 
         # Determine per-layer block types for hybrid architecture
         if self.architecture == "hybrid":
@@ -2161,20 +2453,69 @@ class GPT(nn.Module):
             raise ValueError(f"Unsupported FEEDBACK_REPLAY={feedback_replay}")
         if self.feedback_target not in {"decoder"}:
             raise ValueError(f"Unsupported FEEDBACK_TARGET={feedback_target}")
-        self.tok_emb = nn.Embedding(vocab_size, self.embed_dim)
-        self.embed_proj = nn.Linear(self.embed_dim, model_dim, bias=False) if self.embed_dim != model_dim else None
-        self.embed_proj_rev = nn.Linear(model_dim, self.embed_dim, bias=False) if self.embed_dim != model_dim else None
+        
+        self.tok_stem = TokenStem(vocab_size, embed_dim, model_dim, tied=tie_embeddings)
+        
+        # Metadata / Infrastructure
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.register_buffer("_distill_hidden0", None, persistent=False)
+        
+        if shared_blocks > 0:
+            self._block_map = [i % shared_blocks for i in range(num_layers)] # Default map
+        else:
+            self._block_map = list(range(num_layers))
 
-        # Block construction: supports transformer, koopman_ssm, and hybrid architectures
+        # Secondary Components
+        self.engram = None
+        if bigram_hash_enabled:
+            self.engram = EngramHash(
+                num_buckets=bigram_hash_buckets,
+                hash_dim=bigram_hash_dim,
+                model_dim=model_dim,
+                fp_storage=False,
+                num_heads=engram_num_heads,
+                num_orders=engram_num_orders,
+            )
+        self.engram_inject_layer = engram_inject_layer
+
+        self.capsule_bank = None
+        if capsule_enabled:
+            self.capsule_bank = CapsuleBank(
+                model_dim=model_dim, 
+                capsule_num=capsule_num, 
+                capsule_dim=capsule_dim, 
+                fp_storage=fp_storage,
+                koopman_enabled=koopman_enabled,
+                koopman_rank=koopman_rank,
+                koopman_diag_init=koopman_diag_init
+            )
+
+        self.feedback_pooler = None
+        if feedback_enabled:
+            self.feedback_pooler = FeedbackPooler(
+                model_dim=model_dim, 
+                feedback_dim=feedback_dim, 
+                num_tokens=feedback_sketch_tokens, 
+                fp_storage=feedback_fp_storage
+            )
+
+        self.feedback_adapters = None
+        if feedback_enabled:
+            self.feedback_adapters = nn.ModuleList([
+                FeedbackAdapter(model_dim, feedback_dim, feedback_fp_storage)
+                for _ in range(self.num_decoder_layers)
+            ])
+
+        # Block Factory logic (consolidated)
+        moe_layer_threshold = int(math.ceil(num_layers * self.moe_layer_frac))
+        
         def _make_attn_block(layer_idx):
             layer_vrl = vrl_enabled and layer_idx >= vrl_start_layer
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             layer_xsa = xsa_start_layer >= 0 and layer_idx >= xsa_start_layer
+            layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
             return Block(
                 dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads,
                 mlp_mult=mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init,
@@ -2182,7 +2523,7 @@ class GPT(nn.Module):
                 no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len,
                 train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims,
                 vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa,
-                moe_enabled=moe_enabled, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
+                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
             )
@@ -2192,20 +2533,20 @@ class GPT(nn.Module):
             d_win = self.koopman_decay_window
             if num_layers > 1:
                 d_win = min(16 * (2 ** layer_idx), 256)
+            layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
             return KoopmanBlock(
                 dim=model_dim, state_dim=self.koopman_state_dim,
                 mlp_mult=mlp_mult, mixer_rank=self.koopman_mixer_rank,
                 conv_kernel=self.koopman_conv_kernel, decay_window=d_win,
                 group_size=group_size, activation=activation,
                 leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf,
-                moe_enabled=moe_enabled, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
+                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
             )
 
         def _make_skc_block(layer_idx):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
-            moe_layer_threshold = int(math.ceil(num_layers * self.moe_layer_frac))
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
             return SKCLayer(
                 dim=model_dim, capsule_num=self.skc_num_capsules,
@@ -2224,106 +2565,65 @@ class GPT(nn.Module):
             if lt == "skc": return _make_skc_block(layer_idx)
             return _make_attn_block(layer_idx)
 
+        # Final Infrastructure Construction
+        self.per_layer_attn_scales = None
+        self.per_layer_mlp_scales = None
+        self.per_layer_skc_scales = None
+        self.per_layer_resid_mixes = None
+        self.shared_block_bank = None
+        
         if shared_blocks > 0:
             if self.architecture == "hybrid":
-                # Hybrid: one shared attention block + one shared SSM block
                 base_attn = _make_attn_block(0)
-                base_attn.attn.vrl_enabled = False  # VRL handled at GPT level
+                base_attn.attn.vrl_enabled = False
                 base_ssm = _make_ssm_block(1)
                 self.shared_block_bank = nn.ModuleList([base_attn, base_ssm])
-                self._block_map = [0 if self._layer_types[i] == "attn" else 1
-                                   for i in range(num_layers)]
+                self._block_map = [0 if self._layer_types[i] == "attn" else 1 for i in range(num_layers)]
             else:
-                # Standard: N unique blocks of same type, tiled across depth
-                base_block = _make_block(0)
-                if hasattr(base_block, 'attn') and hasattr(base_block.attn, 'vrl_enabled'):
-                    base_block.attn.vrl_enabled = False
-                base_block.ln_scale_factor = 1.0
                 self.shared_block_bank = nn.ModuleList([_make_block(0) for _ in range(shared_blocks)])
-                self._block_map = [i % shared_blocks for i in range(num_layers)]
-            # Zero-init (SkipInit/ReZero): residual branches start closed, same as the
-            # per-block gate/scale params. ones would open all residuals at step 0 causing
-            # gradient explosion at depth with shared blocks.
-            self.per_layer_attn_scales = nn.ParameterList([
-                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
-            self.per_layer_mlp_scales = nn.ParameterList([
-                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
-            # Per-layer SKC residual scales for shared-block mode. Without these, all
-            # layers sharing the same SKCLayer block use the same internal skc_scale,
-            # breaking SkipInit depth-wise gradient invariance.
-            self.per_layer_skc_scales = nn.ParameterList([
-                nn.Parameter(torch.zeros(model_dim, dtype=torch.float32)) for _ in range(num_layers)])
+            
+            self.per_layer_attn_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
+            self.per_layer_mlp_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
+            self.per_layer_skc_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
             self.per_layer_resid_mixes = nn.ParameterList([
                 nn.Parameter(torch.stack((torch.ones(model_dim), torch.zeros(model_dim))).float())
                 for _ in range(num_layers)])
-            self.blocks = None
-        else:
-            self.shared_block_bank = None
-            self.per_layer_attn_scales = None
-            self.per_layer_mlp_scales = None
-            self.per_layer_skc_scales = None
-            self.per_layer_resid_mixes = None
-            self._block_map = None
-            self.blocks = nn.ModuleList([_make_block(i) for i in range(num_layers)])
 
-        # VRL dead-end guard: if layer 0 is not an attention block it will always
-        # return v_out=None, so v0 is never captured and all vrl_alpha parameters
-        # in deeper attention blocks are permanently dead weight. Disable VRL on
-        # every block so the parameters are not wasted on a path that never fires.
-        if self._layer_types[0] != "attn":
-            all_blocks = list(self.blocks or []) + list(self.shared_block_bank or [])
-            for blk in all_blocks:
-                if hasattr(blk, "attn") and hasattr(blk.attn, "vrl_enabled"):
-                    blk.attn.vrl_enabled = False
+        self.backbone = Backbone(
+            blocks=nn.ModuleList([_make_block(i) for i in range(num_layers)]) if shared_blocks <= 0 else None,
+            shared_block_bank=self.shared_block_bank,
+            block_map=self._block_map,
+            per_layer_attn_scales=self.per_layer_attn_scales,
+            per_layer_mlp_scales=self.per_layer_mlp_scales,
+            per_layer_skc_scales=self.per_layer_skc_scales,
+            per_layer_resid_mixes=self.per_layer_resid_mixes,
+            layer_types=self._layer_types,
+            skip_weights=self.skip_weights,
+            num_encoder_layers=self.num_encoder_layers,
+            num_decoder_layers=self.num_decoder_layers,
+            num_skip_weights=self.num_skip_weights,
+            training_depth_recurrence=training_depth_recurrence,
+        )
 
         self.final_norm = RMSNorm()
-
-        # EngramHash — Engram-inspired multi-head n-gram memory with context gating
-        self.engram = None
-        self.engram_inject_layer = engram_inject_layer
-        if bigram_hash_enabled:
-            self.engram = EngramHash(
-                bigram_hash_buckets, bigram_hash_dim, model_dim,
-                fp_storage=fp_storage, num_heads=engram_num_heads,
-                num_orders=engram_num_orders,
-            )
-
-        # Capsule bank — with Koopman-driven predictive dynamics
-        self.capsule_bank = None
-        if capsule_enabled:
-            self.capsule_bank = CapsuleBank(
-                model_dim, capsule_num, capsule_dim, fp_storage=feedback_fp_storage,
-                koopman_enabled=self.koopman_enabled,
-                koopman_rank=self.koopman_rank,
-                koopman_diag_init=self.koopman_diag_init,
-            )
-
-        self.feedback_pooler = None
-        self.feedback_adapters = None
-        if self.feedback_enabled and self.feedback_replay == "decoder":
-            self.feedback_pooler = FeedbackPooler(
-                model_dim,
-                feedback_dim,
-                feedback_sketch_tokens,
-                fp_storage=feedback_fp_storage,
-            )
-            self.feedback_adapters = nn.ModuleList(
-                [
-                    FeedbackAdapter(model_dim, feedback_dim, fp_storage=feedback_fp_storage)
-                    for _ in range(self.num_decoder_layers)
-                ]
-            )
-        self.lm_head = nn.Linear(model_dim, vocab_size, bias=False)
-        if self.tie_embeddings:
-            self.lm_head.weight.requires_grad_(False)
+        self.latent_corrector = LatentCorrector(
+            capsule_bank=self.capsule_bank,
+            feedback_pooler=self.feedback_pooler,
+            feedback_adapter=self.feedback_adapters,
+            threshold=adaptive_halt_threshold
+        )
         self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
         self._init_weights(tied_embed_init_std)
 
     def _init_weights(self, tied_embed_init_std: float) -> None:
         if self.tie_embeddings:
-            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=tied_embed_init_std)
-        for module in self.modules():
+            # Standardize: tok_stem.tok_emb is the ground truth
+            nn.init.normal_(self.tok_stem.tok_emb.weight, mean=0.0, std=tied_embed_init_std)
+        for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
+                # GPT-level tie check: if name matches lm_head and tie is enabled, skip!
+                if self.tie_embeddings and "tok_stem.lm_head" in name:
+                    continue
                 if getattr(module, "_zero_init", False):
                     # Explicitly zero output projections so residual branches
                     # start silent and open up gradually during training.
@@ -2334,25 +2634,28 @@ class GPT(nn.Module):
                     nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def _apply_embedding(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
-        # No clamping — invalid IDs should raise immediately so we catch vocab mismatches
-        # rather than silently training on wrong embeddings while Engram sees raw IDs.
-        x = self.tok_emb(input_ids).float()
-        if self.embed_proj is not None:
-            x = self.embed_proj(x)
-        # Engram input injection (ungated, no hidden state yet)
+        x = self.tok_stem.apply_embedding(input_ids).float()
         if self.engram is not None and self.engram_inject_layer < 0:
             x = x + self.engram(input_ids, hidden=None)
         x = F.rms_norm(x, (x.size(-1),))
         return x, x
 
+    def _build_ssm_reset_mask(self, input_ids: Tensor) -> Tensor | None:
+        if not self.reset_ssm_on_eos or self.eos_token_id < 0:
+            return None
+        return input_ids.eq(self.eos_token_id)
+
     def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
+                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None,
+                   reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
         """Run one effective layer. Returns (x, v_out, aux_loss). In shared mode, uses shared weights + per-layer scales."""
         if self.blocks is not None:
             # Standard unique-block mode — all block types now return (x, v_out, aux_loss)
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
                 return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+            if isinstance(blk, KoopmanBlock):
+                return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=reset_mask)
             return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
 
         # Shared block mode: use shared weights but per-layer scale/mix params
@@ -2363,7 +2666,7 @@ class GPT(nn.Module):
         layer_type = self._layer_types[layer_idx]
         if layer_type == "ssm":
             # Koopman SSM block
-            mixer_out = block.mixer(block.attn_norm(x) * block.ln_scale_factor)
+            mixer_out = block.mixer(block.attn_norm(x) * block.ln_scale_factor, reset_mask=reset_mask)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == "skc":
@@ -2391,7 +2694,8 @@ class GPT(nn.Module):
 
     def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
                       v0: Tensor | None = None, elapsed_fraction: float = 1.0,
-                      prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+                      prev_capsules: Tensor | None = None,
+                      reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
         dec_aux: Tensor | None = None
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -2399,7 +2703,7 @@ class GPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(max(1, self.training_depth_recurrence)):
                 x, _, blk_aux = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                                prev_capsules=prev_capsules)
+                                                prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
                     dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
             if self.feedback_adapters is not None and sketch is not None:
@@ -2414,117 +2718,28 @@ class GPT(nn.Module):
 
     def _compute_hidden(self, input_ids: Tensor, elapsed_fraction: float = 1.0,
                         carry_capsules: Tensor | None = None, feedback_valid_len: int | None = None,
-                        feedback_passes: int | None = None) -> tuple[Tensor, list, Tensor | None, list]:
-        """Core KoopCaps-HRM forward: encode → [correct]^N → decode.
-
-        Returns (hidden, consistency_losses, capsule_state) where consistency_losses
-        is a list of (c_pred, c_actual) pairs for the Koopman dynamics auxiliary loss.
-        """
+                        feedback_passes: int | None = None) -> tuple[Tensor, list, Tensor | None, list, Tensor | None]:
+        """Orchestrates the forward pass via modular surfaces."""
         x, x0 = self._apply_embedding(input_ids)
-        skips: list[Tensor] = []
-        v0 = None
-        enc_aux: Tensor | None = None
-
-        # --- Encoder pass (runs once) ---
-        for i in range(self.num_encoder_layers):
-            # Engram injection at internal layer (context-gated)
-            if (self.engram is not None
-                    and self.engram_inject_layer >= 0
-                    and i == self.engram_inject_layer):
-                x = x + self.engram(input_ids, hidden=x)
-            for _ in range(max(1, self.training_depth_recurrence)):
-                # Do NOT pass carry_capsules as prev_capsules here.
-                # carry_capsules is the global CapsuleBank summary (high-level manifold).
-                # Injecting it into per-layer SKCLayer Koopman dynamics blends two
-                # incompatible state manifolds, corrupting the low-level representations.
-                # SKC layers maintain their own internal carry independently.
-                x, v_out, blk_aux = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                                     prev_capsules=None)
-                if blk_aux is not None:
-                    enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
-                if v0 is None and v_out is not None:
-                    v0 = v_out  # keep graph alive for VRL gradient super-highway
-            skips.append(x)
-
-        # Capsule state initialization — use carry_capsules for cross-window persistence
-        capsule_state = None
-        if carry_capsules is not None:
-            B_curr = x.shape[0]
-            carry_avg = carry_capsules.mean(dim=0, keepdim=True).expand(B_curr, -1, -1)
-            capsule_state = carry_avg
-        if self.capsule_bank is not None:
-            x, capsule_state, _, _ = self.capsule_bank(x, prev_capsules=capsule_state)
-        grounded_capsule_state = capsule_state
-
-        encoded = x
         num_passes = self._resolve_feedback_passes(feedback_passes)
+        ssm_reset_mask = self._build_ssm_reset_mask(input_ids)
+        
+        return self.latent_corrector(
+            x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer,
+            num_passes, elapsed_fraction, carry_capsules, feedback_valid_len,
+            ssm_reset_mask,
+            training=self.training,
+            engram_enabled=(self.engram is not None),
+            feedback_enabled=self.feedback_enabled,
+            final_norm=self.final_norm,
+            koopman_speculator_steps=self.koopman_speculator_steps,
+            koopman_speculator_enabled=self.koopman_speculator_enabled,
+            adaptive_halt_enabled=self.adaptive_halt_enabled
+        )
 
-        # --- Iterative correction loop with Koopman dynamics ---
-        sketch = None
-        consistency_losses = []
-        speculative_losses = []
-        prev_capsule_state = None
-        fast_forwarded = False
-
-        for correction_pass in range(num_passes + 1):
-            if correction_pass > 0 and self.feedback_enabled and self.feedback_pooler is not None:
-                sketch = self.feedback_pooler(self.final_norm(x), valid_len=feedback_valid_len)
-            else:
-                sketch = None
-
-            if self.capsule_bank is not None and correction_pass > 0:
-                prev_capsule_state = grounded_capsule_state
-                spec_steps = self.koopman_speculator_steps if (self.koopman_speculator_enabled and correction_pass == 1) else 0
-                
-                encoded, capsule_state, c_pred, c_spec = self.capsule_bank(
-                    encoded, prev_capsules=grounded_capsule_state, speculate_steps=spec_steps
-                )
-                grounded_capsule_state = capsule_state
-                if c_pred is not None:
-                    consistency_losses.append((c_pred, grounded_capsule_state.detach()))
-                    
-                if c_spec is not None:
-                    speculative_losses.append(c_spec)
-
-                # Fast-Forward Diffusion (EVAL MODE ONLY)
-                # Set capsule state to speculated future and let the decoder pass below
-                # run with this speculated state (don't break — we need the decoder pass).
-                if (not self.training and self.koopman_speculator_enabled
-                        and c_spec is not None and not fast_forwarded):
-                    capsule_state = c_spec
-                    fast_forwarded = True
-                    # Fall through to _decoder_pass, then break on next iteration
-
-                # Adaptive halting (eval only)
-                if (not self.training and self.adaptive_halt_enabled
-                        and prev_capsule_state is not None and correction_pass >= 1 and not fast_forwarded):
-                    delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2))
-                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-8
-                    if (delta / norm).item() < self.adaptive_halt_threshold:
-                        grounded_capsule_state = prev_capsule_state  # rollback to match decoder features
-                        break
-
-            x, dec_aux = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
-                                            elapsed_fraction=elapsed_fraction, prev_capsules=None)
-            if dec_aux is not None:
-                enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
-
-            # After fast-forward: we ran one decoder pass with speculated state, now stop
-            if fast_forwarded:
-                break
-
-        c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
-        jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
-
-        return self.final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux
-
-    def _compute_logits(self, x: Tensor) -> Tensor:
-        if self.tie_embeddings:
-            proj = self.embed_proj_rev(x) if self.embed_proj_rev is not None else x
-            logits_raw = F.linear(proj, self.tok_emb.weight.to(x.dtype))
-        else:
-            logits_raw = self.lm_head(x)
-        return logits_raw + self.vocab_bias.to(x.dtype)
+    def _compute_logits(self, hidden: torch.Tensor) -> torch.Tensor:
+        # Standardize: TokenStem handles head-projection and internal softcapping
+        return self.tok_stem.compute_logits(hidden, softcap=self._softcap)
 
     def _softcap(self, logits: Tensor) -> Tensor:
         """Bound logits to (-c, c) without hard clipping gradients."""
@@ -2577,7 +2792,8 @@ class GPT(nn.Module):
             feedback_valid_len=feedback_valid_len,
             feedback_passes=feedback_passes,
         )
-        logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
+        # Standardize: TokenStem.compute_logits already applications softcap if self._softcap was set.
+        logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
         return logits.reshape(input_ids.size(0), input_ids.size(1), -1)
@@ -2593,7 +2809,7 @@ class GPT(nn.Module):
             feedback_valid_len=feedback_valid_len,
             feedback_passes=feedback_passes,
         )
-        logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
+        logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
         return logits.reshape(input_ids.size(0), input_ids.size(1), -1), capsule_state
@@ -2607,7 +2823,7 @@ class GPT(nn.Module):
             carry_capsules=carry_capsules,
             feedback_passes=feedback_passes,
         )
-        logits = self._softcap(self._compute_logits(hidden.reshape(-1, hidden.size(-1))))
+        logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
         logits = logits.reshape(-1, self.vocab_bias.numel())
@@ -2673,6 +2889,24 @@ def build_luts(sp, vocab_size: int, device: torch.device):
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
 
+def token_byte_count(prev_ids: Tensor, tgt_ids: Tensor,
+                     base_bytes_lut: Tensor,
+                     has_leading_space_lut: Tensor,
+                     is_boundary_token_lut: Tensor) -> Tensor:
+    """Return byte count for target tokens using the same boundary rules as validation."""
+    if prev_ids.numel() == 0 or tgt_ids.numel() == 0:
+        return torch.zeros((), device=base_bytes_lut.device, dtype=torch.float64)
+    lut_size = base_bytes_lut.size(0)
+    max_token_id = max(prev_ids.max().item(), tgt_ids.max().item())
+    if lut_size < max_token_id + 1:
+        raise RuntimeError(
+            f"byte LUT size {lut_size} is smaller than max token ID {max_token_id + 1}. "
+            f"LUT was built from a different tokenizer than the scored data."
+        )
+    tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
+    tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
+    return tok_bytes.to(torch.float64).sum()
+
 def ld_val(pattern, seq_len, max_tok=int(os.environ.get("VAL_MAX_TOKENS", 500000))):
     files = sorted(glob.glob(pattern))
     assert files, f"No files: {pattern}"
@@ -2688,6 +2922,8 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
     # grad_accum_steps is a training microbatching concern, not an eval concern.
     # Dividing by it silently shrinks eval throughput as accumulation increases,
     # making validation slower and noisier with no quality benefit.
+    # local_batch_tokens ceiling is set to 131072. On large GPUs (H100/A100),
+    # setting VAL_BATCH_SIZE above this limit will not increase eval throughput.
     local_batch_tokens = min(args.val_batch_size, 131072) // world_size
     local_batch_seqs = max(1, local_batch_tokens // args.train_seq_len)
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
@@ -2719,19 +2955,10 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
             loss_sum += batch_loss.to(torch.float64) * n
             token_count += n
             prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
-            # No clamping — LUT must cover the full vocab range. A mismatch here means
-            # the LUT was built from a different tokenizer than the data, which would
-            # silently corrupt byte_count and lie about BPB. Fail fast instead.
-            lut_size = base_bytes_lut.size(0)
-            if lut_size < tgt_ids.max().item() + 1 or lut_size < prev_ids.max().item() + 1:
-                raise RuntimeError(
-                    f"byte LUT size {lut_size} is smaller than max token ID "
-                    f"{max(tgt_ids.max().item(), prev_ids.max().item())+1}. "
-                    f"LUT was built from a different tokenizer than the val data."
-                )
-            tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
-            tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
-            byte_count += tok_bytes.to(torch.float64).sum()
+            byte_count += token_byte_count(
+                prev_ids, tgt_ids,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
@@ -2825,16 +3052,10 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 sy = y_batch[j, score_from:wlen]
                 loss_sum += scored.to(torch.float64).sum()
                 token_count += float(wlen - score_from)
-                lut_size = base_bytes_lut.size(0)
-                if lut_size < sy.max().item() + 1 or lut_size < sx.max().item() + 1:
-                    raise RuntimeError(
-                        f"byte LUT size {lut_size} is smaller than max token ID "
-                        f"{max(sy.max().item(), sx.max().item())+1}. "
-                        f"LUT was built from a different tokenizer than the val data."
-                    )
-                tok_bytes = base_bytes_lut[sy].to(torch.int16)
-                tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(torch.int16)
-                byte_count += tok_bytes.to(torch.float64).sum()
+                byte_count += token_byte_count(
+                    sx, sy,
+                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                )
 
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
@@ -3021,16 +3242,10 @@ def eval_val_sliding_ttt(
                         token_count += float(wlen - score_from)
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
-                        lut_size = base_bytes_lut.size(0)
-                        if lut_size < sy.max().item() + 1 or lut_size < sx.max().item() + 1:
-                            raise RuntimeError(
-                                f"byte LUT size {lut_size} is smaller than max token ID "
-                                f"{max(sy.max().item(), sx.max().item())+1}. "
-                                f"LUT was built from a different tokenizer than the val data."
-                            )
-                        tok_bytes = base_bytes_lut[sy].to(torch.int16)
-                        tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(torch.int16)
-                        byte_count += tok_bytes.to(torch.float64).sum()
+                        byte_count += token_byte_count(
+                            sx, sy,
+                            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                        )
 
             if ci == num_chunks - 1 or args.ttt_epochs <= 0:
                 continue
@@ -3133,11 +3348,13 @@ class NgramCache:
     """Dynamic n-gram cache built from already-scored tokens. Zero artifact cost.
     Uses entropy-adaptive alpha to blend n-gram empirical probabilities with neural logits."""
     def __init__(self, max_order: int = 5, alpha_base: float = 0.05,
-                 alpha_scale: float = 0.55, entropy_center: float = 4.0):
+                 alpha_scale: float = 0.55, entropy_center: float = 4.0,
+                 alpha_max: float = 0.85):
         self.max_order = max_order
         self.alpha_base = alpha_base
         self.alpha_scale = alpha_scale
         self.entropy_center = entropy_center
+        self.alpha_max = alpha_max
         # counts[order] maps tuple(context) -> {next_token: count}
         self.counts: list[dict] = [{} for _ in range(max_order + 1)]
         self.total_counts: list[dict] = [{} for _ in range(max_order + 1)]
@@ -3177,31 +3394,28 @@ class NgramCache:
         probs = neural_logprobs.exp()
         H = -(probs * neural_logprobs).sum().item()
         # Sigmoid schedule: higher entropy → more trust in cache
-        return self.alpha_base + self.alpha_scale * (1.0 / (1.0 + math.exp(-2.0 * (H - self.entropy_center))))
+        alpha = self.alpha_base + self.alpha_scale * (1.0 / (1.0 + math.exp(-2.0 * (H - self.entropy_center))))
+        return max(0.0, min(self.alpha_max, alpha))
 
 
 # ---------------------------------------------------------------------------
 # Export calibration: per-tensor threshold + scale_mult search
 # ---------------------------------------------------------------------------
 def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
-                          proxy_tokens: torch.Tensor, args, device) -> float:
-    """Export sd with calib, reload into base_model, score on proxy_tokens. Returns BPB."""
-    # No compression for proxy eval: we only need round-trip quantization fidelity, not
-    # submission-format artifact size. lzma at even preset=1 consumes significant CPU time
-    # (seconds per call) that directly eats the training wall-clock budget when proxy eval
-    # is frequent. The raw torch.save/load round-trip still exercises q_sd → deq_sd
-    # correctly; only the lzma size estimate is skipped.
-    import io
-    # Offload backup to CPU to avoid doubling GPU resident state right when the device
-    # is under peak pressure (ternary state dict just loaded on top of live weights).
-    # load_state_dict handles moving CPU tensors back to GPU automatically.
+                          proxy_tokens: torch.Tensor, args, device,
+                          base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
+                          is_boundary_token_lut: Tensor) -> float:
+    """Export sd with calib, reload into base_model, score true byte-weighted proxy BPB."""
+    # The proxy path is only meant to exercise q_sd -> deq_sd fidelity. Serializing
+    # q_obj through torch.save/load on every proxy eval burns CPU time without changing
+    # the dequantized weights, so reconstruct directly from the quantized object.
     was_training = base_model.training
     ternary_names = export_ternary_param_names(base_model)
     fp16_names = export_fp16_param_names(base_model)
     sd_for_export = dict(sd)
     if getattr(base_model, "tie_embeddings", False):
+        sd_for_export.pop(_LM_HEAD_STATE_KEY, None)
         sd_for_export.pop("lm_head.weight", None)
-    orig_sd = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
     eval_feedback_passes = resolve_eval_feedback_passes(args)
     try:
         q_obj, _ = q_sd(
@@ -3213,14 +3427,11 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
             turbo_quant_export=args.turbo_quant_export,
             fp16_names=fp16_names,
         )
-        buf = io.BytesIO()
-        torch.save(q_obj, buf)
-        buf.seek(0)
-        loaded = torch.load(buf, map_location="cpu", weights_only=False)
-        load_roundtrip_state_strict(base_model, deq_sd(loaded))
+        load_roundtrip_state_strict(base_model, deq_sd(q_obj))
         base_model.eval()
         loss_sum = 0.0
         tok_count = 0
+        byte_count = 0.0
         seq_len = min(args.train_seq_len, 512)
         # Use no_grad instead of inference_mode: inference_mode caches tensors that
         # cannot be saved for backward, causing errors when the model returns to training.
@@ -3235,13 +3446,20 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
                     loss = base_model(x, y, feedback_passes=eval_feedback_passes).item()
                 loss_sum += loss * y.numel()
                 tok_count += y.numel()
-        return (loss_sum / max(tok_count, 1)) / math.log(2.0)
+                byte_count += token_byte_count(
+                    x.reshape(-1), y.reshape(-1),
+                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                ).item()
+        val_loss = loss_sum / max(tok_count, 1)
+        return (val_loss / math.log(2.0)) * (tok_count / max(byte_count, 1.0))
     finally:
-        base_model.load_state_dict(orig_sd)
+        base_model.load_state_dict(sd)
         base_model.train(was_training)
 
 
-def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> dict:
+def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device,
+                      base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
+                      is_boundary_token_lut: Tensor) -> dict:
     """Search per-tensor (thr, scale_mult) to minimize round-trip proxy BPB.
     Budget-capped: respects CALIB_MAX_EVALS and CALIB_MAX_SECONDS limits.
     Returns calib dict."""
@@ -3258,7 +3476,7 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
     # Trim proxy tokens to budget-friendly size
     proxy_tokens = proxy_tokens[:proxy_max_tok] if proxy_tokens.numel() > proxy_max_tok else proxy_tokens
 
-    sd = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    sd = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
     ternary_names = export_ternary_param_names(base_model)
 
     def _budget_ok():
@@ -3268,7 +3486,10 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device) -> d
         if not _budget_ok():
             return float("inf")
         evals[0] += 1
-        return _proxy_roundtrip_bpb(sd, base_model, calib_override, group_size, proxy_tokens, args, device)
+        return _proxy_roundtrip_bpb(
+            sd, base_model, calib_override, group_size, proxy_tokens, args, device,
+            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
 
     # Build search grids
     thr_vals = [0.0]
@@ -3562,6 +3783,8 @@ def main() -> None:
         moe_layer_frac=args.moe_layer_frac,
         moe_start_fraction=args.moe_start_fraction,
         moe_router_aux_loss_coef=args.moe_router_aux_loss_coef,
+        eos_token_id=int(sp.eos_id()),
+        reset_ssm_on_eos=args.reset_ssm_on_eos,
     ).to(device)
 
     # Re-enable standard compilation for Linux
@@ -3577,8 +3800,9 @@ def main() -> None:
         and args.feedback_passes > 0
         and max(args.feedback_every, 1) > 1
     )
+    sparse_moe = args.moe_enabled and args.moe_top_k < args.moe_num_experts
     use_find_unused = (args.untie_at_fraction > 0 or not args.tie_embeddings
-                       or args.moe_enabled or feedback_interleaving)
+                       or sparse_moe or feedback_interleaving)
 
     if distributed:
         model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
@@ -3624,6 +3848,7 @@ def main() -> None:
             momentum=args.muon_momentum,
             backend_steps=args.muon_backend_steps,
             wd=args.muon_wd,
+            active_grad_eps=args.muon_active_grad_eps,
         )
     elif args.matrix_optimizer == "adamw":
         opt_matrix = torch.optim.AdamW(
@@ -3671,7 +3896,31 @@ def main() -> None:
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
+    def elapsed_fraction(elapsed_ms: float, step: int) -> float:
+        if max_wallclock_ms is not None:
+            return min(max(elapsed_ms / max(max_wallclock_ms, 1e-9), 0.0), 1.0)
+        return min(step / max(args.iterations, 1), 1.0)
+
+    def interval_ms_from_fraction(interval_fraction: float) -> float | None:
+        if max_wallclock_ms is None or interval_fraction <= 0.0:
+            return None
+        return max(max_wallclock_ms * interval_fraction, 1.0)
+
+    def advance_interval(next_ms: float | None, interval_ms: float | None, elapsed_ms: float) -> float | None:
+        if next_ms is None or interval_ms is None:
+            return next_ms
+        while next_ms <= elapsed_ms:
+            next_ms += interval_ms
+        return next_ms
+
     def lr_mul(step: int, elapsed_ms: float):
+        # In timed runs, LR warmup is wallclock-based so it survives hardware changes.
+        if max_wallclock_ms is not None and args.warmup_fraction > 0:
+            warmup_ms = max_wallclock_ms * args.warmup_fraction
+            if elapsed_ms < warmup_ms:
+                return max(min(elapsed_ms / max(warmup_ms, 1e-9), 1.0), 1e-3)
+        elif args.warmup_steps > 0 and step < args.warmup_steps:
+            return (step + 1) / args.warmup_steps
         if args.warmdown_fraction <= 0:
             return 1.0
         if max_wallclock_ms is None:
@@ -3681,6 +3930,8 @@ def main() -> None:
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
+    _orig_ema_weights = None  # Global scope for export path stability
+    
     _seq_switched = False
     _batch_switched = False
     active_seq_len = args.seq_len_start if args.seq_len_start > 0 else args.train_seq_len
@@ -3735,18 +3986,35 @@ def main() -> None:
     _best_proxy_bpb: float = float("inf")
     _best_proxy_sd: dict | None = None
     _proxy_calib_tokens: torch.Tensor | None = None
+    _feedback_interval_ms = (
+        interval_ms_from_fraction(args.feedback_every_fraction)
+        if args.feedback_enabled and args.feedback_passes > 0 and args.feedback_every_fraction > 0
+        else None
+    )
+    _next_feedback_ms = 0.0 if _feedback_interval_ms is not None else None
+    _val_interval_ms = interval_ms_from_fraction(args.val_loss_every_fraction) if args.val_loss_every > 0 else None
+    _next_val_ms = _val_interval_ms
+    _proxy_interval_ms = interval_ms_from_fraction(args.export_proxy_every_fraction)
+    _next_proxy_ms = _proxy_interval_ms
+    _train_log_interval_ms = interval_ms_from_fraction(args.train_log_every_fraction) if args.train_log_every > 0 else None
+    _next_train_log_ms = _train_log_interval_ms
+    _churn_log_interval_ms = interval_ms_from_fraction(args.churn_log_every_fraction) if args.churn_log_every > 0 else None
+    _next_churn_log_ms = _churn_log_interval_ms
     train_loss = torch.zeros((), device=device)
     if device.type == "cuda": torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
 
     for step in range(args.iterations):
-        if args.val_loss_every > 0 and step > 0 and step % args.val_loss_every == 0:
+        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        if step > 0 and (
+            (_next_val_ms is not None and elapsed_ms >= _next_val_ms)
+            or (_next_val_ms is None and args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        ):
             if device.type == "cuda": torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             
             # Apply EMA shadow weights for evaluation
-            _orig_ema_weights = None
             if args.ema_enabled and args.ema_eval_apply and ema is not None:
                 _orig_ema_weights = ema.apply_shadow(base_model)
                 
@@ -3760,14 +4028,16 @@ def main() -> None:
             log0(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                  f"train_time:{training_time_ms:.0f}ms zero_frac:{tstats['zero_frac']:.3f}")
             if device.type == "cuda": torch.cuda.synchronize()
+            _next_val_ms = advance_interval(_next_val_ms, _val_interval_ms, training_time_ms)
             t0 = time.perf_counter()
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        elapsed_prog = elapsed_fraction(elapsed_ms, step)
 
         # Sequence length schedule
         if args.curr_enabled:
-            frac = elapsed_ms / max_wallclock_ms if max_wallclock_ms else step / args.iterations
+            frac = elapsed_prog
             target_seq_len = args.train_seq_len
             if frac < args.curr_p1_f: target_seq_len = args.curr_p1_s
             elif frac < args.curr_p2_f: target_seq_len = args.curr_p2_s
@@ -3813,9 +4083,13 @@ def main() -> None:
         use_feedback = (
             args.feedback_enabled
             and args.feedback_passes > 0
-            and max(args.feedback_every, 1) > 0
-            and step % max(args.feedback_every, 1) == 0
+            and (
+                (_next_feedback_ms is not None and elapsed_ms >= _next_feedback_ms)
+                or (_next_feedback_ms is None and max(args.feedback_every, 1) > 0 and step % max(args.feedback_every, 1) == 0)
+            )
         )
+        if use_feedback and _next_feedback_ms is not None:
+            _next_feedback_ms = advance_interval(_next_feedback_ms, _feedback_interval_ms, elapsed_ms)
         feedback_passes = args.feedback_passes if use_feedback else 0
 
         for micro in range(grad_accum_steps):
@@ -3823,7 +4097,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro == grad_accum_steps - 1
             x, y = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
             elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-            elapsed_frac = min(elapsed_ms / 1000.0 / max(args.max_wallclock_seconds, 1e-9), 1.0)
+            elapsed_frac = elapsed_fraction(elapsed_ms, step)
             with autocast_context(device):
                 loss = model(x, y, elapsed_fraction=elapsed_frac, feedback_passes=feedback_passes)
             train_loss.add_(loss.detach())
@@ -3844,23 +4118,20 @@ def main() -> None:
                 should_untie = not _untied and step >= int(args.iterations * args.untie_at_fraction)
             if should_untie and base_model.tie_embeddings:
                 with torch.no_grad():
-                    base_weight = base_model.tok_emb.weight.float()
-                    if base_model.embed_proj_rev is not None:
-                        full_weight = base_weight @ base_model.embed_proj_rev.weight.float()
-                    else:
-                        full_weight = base_weight
-                    base_model.lm_head.weight.copy_(full_weight)
+                    untied_head = nn.Parameter(base_model.tok_stem.lm_head.weight.detach().clone())
+                base_model.tok_stem.lm_head.weight = untied_head
+                base_model.tok_stem.tied = False
                 base_model.tie_embeddings = False
-                base_model.lm_head.weight.requires_grad_(True)
+                base_model.tok_stem.lm_head.weight.requires_grad_(True)
                 # The head was excluded from opt_head at init time (tied weight).
                 # Now that it is independent, inject it into the optimizer — otherwise
                 # requires_grad_(True) enables gradient accumulation but opt_head.step()
                 # is completely blind to the parameter and it never actually updates.
-                opt_head.param_groups[0]['params'].append(base_model.lm_head.weight)
+                opt_head.param_groups[0]['params'].append(base_model.tok_stem.lm_head.weight)
                 for g in opt_head.param_groups:
                     g["lr"] = g["base_lr"] = args.head_lr
                 if ema is not None:
-                    ema.add_parameter("lm_head.weight", base_model.lm_head.weight)
+                    ema.add_parameter(_LM_HEAD_STATE_KEY, base_model.tok_stem.lm_head.weight)
                 _untied = True
                 # Reset is required here: untying introduces a new requires_grad=True
                 # parameter into the compiled graph, which dynamic=True cannot absorb —
@@ -3871,17 +4142,25 @@ def main() -> None:
 
         # Muon momentum warmup
         if args.matrix_optimizer == "muon":
-            frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+            if max_wallclock_ms is not None and args.muon_momentum_warmup_fraction > 0:
+                frac = min(
+                    elapsed_ms / max(max_wallclock_ms * args.muon_momentum_warmup_fraction, 1e-9),
+                    1.0,
+                )
+            else:
+                frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
             for g in opt_matrix.param_groups:
                 g["momentum"] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
 
         # LR scheduling
         for opt in optimizers:
             for g in opt.param_groups:
-                if "base_lr" in g:
-                    g["lr"] = g["base_lr"] * scale
-                else:
-                    g["lr"] = args.adam_lr * scale
+                if "base_lr" not in g:
+                    raise RuntimeError(
+                        f"Optimizer param group missing 'base_lr' — all groups must have "
+                        f"base_lr stamped at construction. Group keys: {list(g.keys())}"
+                    )
+                g["lr"] = g["base_lr"] * scale
             opt.step()
         zero_grad_all()
 
@@ -3893,7 +4172,7 @@ def main() -> None:
 
         # EMA update (only after start_fraction of training)
         if ema is not None:
-            ema_progress = elapsed_ms / max_wallclock_ms if max_wallclock_ms else step / args.iterations
+            ema_progress = elapsed_fraction(elapsed_ms, step)
             if ema_progress >= args.ema_start_fraction:
                 ema.update(base_model)
 
@@ -3901,28 +4180,34 @@ def main() -> None:
         # (see block above near the wallclock cap sync). After that step _EXPORT_CALIB is populated
         # and TernaryLinear.forward trains through the calibrated quantization thresholds.
 
-        # Export proxy eval: periodically serialize+reload+score to track round-trip BPB.
+        # Export proxy eval: periodically quantize+reload+score to track round-trip BPB.
         # Snapshot EMA state (not live weights) so _best_proxy_sd is already smoothed.
         if (master_process and args.export_proxy_eval
-                and step > 0 and step % args.export_proxy_every == 0):
+                and step > 0
+                and ((_next_proxy_ms is not None and elapsed_ms >= _next_proxy_ms)
+                     or (_next_proxy_ms is None and args.export_proxy_every > 0 and step % args.export_proxy_every == 0))):
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
             # Temporarily apply EMA so proxy eval and snapshot capture smoothed weights
             _proxy_ema_orig = None
             if ema is not None:
                 _proxy_ema_orig = ema.apply_shadow(base_model)
+            _proxy_sd = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
             proxy_bpb = _proxy_roundtrip_bpb(
-                base_model.state_dict(), base_model, _export_calib,
-                args.bitnet_group_size, _proxy_calib_tokens, args, device
+                _proxy_sd, base_model, _export_calib,
+                args.bitnet_group_size, _proxy_calib_tokens, args, device,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             )
             if proxy_bpb < _best_proxy_bpb and args.export_proxy_use_best:
                 _best_proxy_bpb = proxy_bpb
-                # Snapshot the EMA-smoothed weights, not live training weights
-                _best_proxy_sd = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
+                # Snapshot the EMA-smoothed weights, not live training weights.
+                # Reuse the CPU export snapshot we just scored instead of cloning again.
+                _best_proxy_sd = _proxy_sd
                 log0(f"step:{step} export_proxy:new_best {proxy_bpb:.4f}", flush=True)
             # Restore live weights to continue training
             if ema is not None and _proxy_ema_orig is not None:
                 ema.restore(base_model, _proxy_ema_orig)
+            _next_proxy_ms = advance_interval(_next_proxy_ms, _proxy_interval_ms, elapsed_ms)
             log0(f"step:{step} export_proxy_bpb:{proxy_bpb:.4f} best:{_best_proxy_bpb:.4f}", flush=True)
 
         if stop_after_step is not None and step >= stop_after_step:
@@ -3931,10 +4216,14 @@ def main() -> None:
         
         approx_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
-        if args.train_log_every > 0 and (step + 1) % args.train_log_every == 0:
+        if ((_next_train_log_ms is not None and approx_ms >= _next_train_log_ms)
+                or (_next_train_log_ms is None and args.train_log_every > 0 and (step + 1) % args.train_log_every == 0)):
             log0(f"step:{step+1}/{args.iterations} loss:{train_loss.item():.4f} t:{approx_ms:.0f}ms avg:{approx_ms/(step+1):.1f}ms")
-        if args.churn_log_every > 0 and step % args.churn_log_every == 0:
+            _next_train_log_ms = advance_interval(_next_train_log_ms, _train_log_interval_ms, approx_ms)
+        if ((_next_churn_log_ms is not None and approx_ms >= _next_churn_log_ms)
+                or (_next_churn_log_ms is None and args.churn_log_every > 0 and step % args.churn_log_every == 0)):
             log0(f"step:{step} churn:{churn_fn(base_model, args.bitnet_group_size):.4f} zero:{tern_stats(base_model, args.bitnet_group_size)['zero_frac']:.3f}")
+            _next_churn_log_ms = advance_interval(_next_churn_log_ms, _churn_log_interval_ms, approx_ms)
 
         # Mid-training calibration: populate _EXPORT_CALIB so model trains through quantization thresholds.
         # CRITICAL: _EXPORT_CALIB is a Python global read by TernaryLinear.forward on every rank.
@@ -3945,7 +4234,8 @@ def main() -> None:
         if (args.export_aligned_train
                 and not _aligned_phase_started
                 and (args.ternary_threshold_search or args.ternary_scale_search)
-                and step >= int(args.iterations * args.export_aligned_train_start_fraction)):
+                and ((max_wallclock_ms is not None and elapsed_ms >= args.export_aligned_train_start_fraction * max_wallclock_ms)
+                     or (max_wallclock_ms is None and step >= int(args.iterations * args.export_aligned_train_start_fraction)))):
             if device.type == "cuda": torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             if distributed:
@@ -3957,7 +4247,25 @@ def main() -> None:
                 _mid_ema_orig = None
                 if ema is not None:
                     _mid_ema_orig = ema.apply_shadow(base_model)
-                _mid_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+                # Hard deadline: calibrate_ternary has a soft budget (calib_max_seconds) but a
+                # single slow _proxy_roundtrip_bpb call can blow past it on slow GPUs, leaving
+                # rank 1 hanging at broadcast_object_list. Run in a daemon thread so we can
+                # enforce a wall-clock ceiling that is guaranteed to return before the NCCL
+                # collective times out. Deadline = calib_max_seconds + 30s grace.
+                _calib_deadline = args.calib_max_seconds + 30.0
+                _calib_result: list[dict] = [{}]
+                def _run_calib():
+                    _calib_result[0] = calibrate_ternary(
+                        base_model, _proxy_calib_tokens, args, device,
+                        base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                    )
+                import threading as _threading
+                _calib_thread = _threading.Thread(target=_run_calib, daemon=True)
+                _calib_thread.start()
+                _calib_thread.join(timeout=_calib_deadline)
+                if _calib_thread.is_alive():
+                    log0(f"export_aligned_train:calibration timed out after {_calib_deadline:.0f}s — using partial result", flush=True)
+                _mid_calib = _calib_result[0]
                 if ema is not None and _mid_ema_orig is not None:
                     ema.restore(base_model, _mid_ema_orig)
                 log0(f"export_aligned_train:calibrated tensors={len(_mid_calib)} — broadcasting to all ranks", flush=True)
@@ -4029,10 +4337,16 @@ def main() -> None:
         log0(f"export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
         if ema is not None and _orig_ema_weights is None:
             _ema_orig_c = ema.apply_shadow(base_model)
-            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+            _export_calib = calibrate_ternary(
+                base_model, _proxy_calib_tokens, args, device,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
             ema.restore(base_model, _ema_orig_c)
         else:
-            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+            _export_calib = calibrate_ternary(
+                base_model, _proxy_calib_tokens, args, device,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
         base_model.apply_export_calib(_export_calib)
         _EXPORT_CALIB = _export_calib  # keep for export pipeline lookups (non-compiled path)
         log0(f"export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
@@ -4089,20 +4403,26 @@ def main() -> None:
         # Pop tied lm_head AFTER any base_model reload so the saved sd and base_model
         # stay consistent (tied weight is always accessible via tok_emb at eval time).
         if base_model.tie_embeddings:
+            sd.pop(_LM_HEAD_STATE_KEY, None)
             sd.pop("lm_head.weight", None)
 
         # Final calibration pass at export time (if not already done during training)
         final_calib = _export_calib
         needs_final_calib = ((args.ternary_threshold_search or args.ternary_scale_search)
-                             and (using_best_proxy_sd or not _aligned_phase_started))
+                             and (using_best_proxy_sd or not _aligned_phase_started or args.gptq_lite_enabled))
         if needs_final_calib:
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
             if using_best_proxy_sd:
                 log0("serialization:recalibrating_selected_proxy_weights", flush=True)
+            elif args.gptq_lite_enabled:
+                log0("serialization:recalibrating_post_gptq_lite_weights", flush=True)
             else:
                 log0("serialization:running_final_calib_search", flush=True)
-            final_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
+            final_calib = calibrate_ternary(
+                base_model, _proxy_calib_tokens, args, device,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
             log0(f"serialization:calib_done tensors={len(final_calib)}", flush=True)
 
         # Two methods: Standard Base-3 vs Bitmask Mapping
@@ -4212,6 +4532,7 @@ def main() -> None:
             alpha_base=args.ngram_alpha_base,
             alpha_scale=args.ngram_alpha_scale,
             entropy_center=args.ngram_entropy_center,
+            alpha_max=args.ngram_alpha_max,
         )
         seq_len = args.train_seq_len
         total_tokens_ng = val_tokens.numel() - 1
@@ -4303,6 +4624,7 @@ def main() -> None:
         # Log all three scoreboard slots for full transparency
         log0(f"scoreboard: raw_bpb={final_bpb:.4f} roundtrip_bpb={roundtrip_val_bpb:.4f} augmented_bpb={augmented_val_bpb:.4f}")
 
+        # Scoreboard log omitted for brevity in diff; submission.json write continues here.
         with open("submission.json", "w") as f:
             json.dump({
                 "author": "Aki Gogikar (OneNewAI)",
