@@ -83,7 +83,7 @@ class Hyperparameters:
     if think_mlp_mult == 0:
         think_mlp_mult = mlp_mult
     if think_mlp_mult < 1:
-        raise ValueError(f"THINK_MLP_MULT must be >= 1 or 0 for default, got {think_mlp_mult}")
+        raise ValueError(f"THINK_MLP_MULT must be >= 1 or -1 for default, got {think_mlp_mult}")
 
     # Optimizer hyperparameters
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -98,6 +98,16 @@ class Hyperparameters:
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
+
+    # Mixed precision quantization
+    # QUANT_BITS: bits for encoder/decoder weights (default 8)
+    # THINK_QUANT_BITS: bits for think block weights (default 8, use 8 to preserve loop precision)
+    quant_bits = int(os.environ.get("QUANT_BITS", 8))
+    think_quant_bits = int(os.environ.get("THINK_QUANT_BITS", 8))
+
+    # Noisy QAT: inject quantization-calibrated noise into think block weights during training
+    # Trains think weights to be robust to quantization error that compounds through loop passes
+    noisy_qat = bool(int(os.environ.get("NOISY_QAT", 0)))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
@@ -314,7 +324,8 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
+    max_val = (1 << (bits - 1)) - 1  # 127 for 8-bit, 31 for 6-bit, 15 for 5-bit
     t32 = t.float()
     if t32.ndim == 2:
         clip_abs = (
@@ -323,16 +334,18 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        scale = (clip_abs / float(max_val)).clamp_min(1.0 / float(max_val))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -max_val, max_val).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(max_val) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[str, int] | None = None):
+    # Mixed precision: tensor_bits maps tensor name patterns to bit widths.
+    # e.g. {"think_blocks": 8, "default": 6} means think blocks get int8, rest get int6.
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -343,6 +356,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
         0,
     )
+
+    def _get_bits(name: str) -> int:
+        if tensor_bits is None:
+            return 8
+        for pattern, bits in tensor_bits.items():
+            if pattern != "default" and pattern in name:
+                return bits
+        return tensor_bits.get("default", 8)
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -363,9 +384,12 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        bits = _get_bits(name)
+        q, s = quantize_float_tensor(t, bits=bits)
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits}
+        else:
+            qmeta[name] = {"bits": bits}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -486,9 +510,22 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    # Supports Noisy QAT: when _noisy_qat=True, injects quantization-calibrated noise during training.
+    _noisy_qat: bool = False
+    _noisy_qat_bits: int = 8
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if self.training and self._noisy_qat:
+            with torch.no_grad():
+                max_val = (1 << (self._noisy_qat_bits - 1)) - 1  # 127 for int8, 15 for int5
+                amax = self.weight.float().abs().amax(dim=1, keepdim=True).clamp_min(1e-12)
+                step_size = amax / max_val
+            noise = (torch.rand_like(w) - 0.5) * step_size.to(w.dtype)
+            w = w + noise
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -856,6 +893,14 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+
+    # Enable Noisy QAT on think block weights only
+    if args.noisy_qat:
+        for module in base_model.think_blocks.modules():
+            if isinstance(module, CastedLinear):
+                module._noisy_qat = True
+                module._noisy_qat_bits = args.think_quant_bits
+
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1092,7 +1137,14 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # Mixed precision quantization: think blocks get more bits, encoder/decoder get fewer
+    tensor_bits = {
+        "think_blocks": args.think_quant_bits,
+        "default": args.quant_bits,
+    }
+    log0(f"quantization: encoder/decoder={args.quant_bits}bit think={args.think_quant_bits}bit noisy_qat={args.noisy_qat}")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), tensor_bits=tensor_bits)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
