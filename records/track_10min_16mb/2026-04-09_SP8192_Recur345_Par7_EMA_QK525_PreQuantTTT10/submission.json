@@ -1,0 +1,25 @@
+{
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "name": "SP8192 + 3-Layer Depth Recurrence + Parallel Residuals + EMA + QK5.25 + Pre-Quant AdamW TTT (10ep, freeze-1)",
+  "blurb": "Tuned variant: QK-Gain 5.25, pre-quant TTT with 10 epochs (lr=0.00045, freeze 1 block, cosine decay). Base: PR #1471 (11L, 512dim, GQA 8/4, squared LeakyReLU, MuonEq-R) with 3-layer depth recurrence (layers 3,4,5), parallel residuals from layer 7, EMA 0.9965, skip gates. TTT technique from PR #1423. SDClip GPTQ int6 + brotli. Track A: no eval-time adaptation.",
+  "date": "2026-04-09T01:00:00Z",
+  "val_loss": 2.73821369,
+  "val_bpb": 1.06004785,
+  "val_loss_std": 0.00056,
+  "val_bpb_std": 0.00022,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42":   {"val_loss": 2.73869546, "val_bpb": 1.06023436},
+    "1337": {"val_loss": 2.73758736, "val_bpb": 1.05980538},
+    "2024": {"val_loss": 2.73835824, "val_bpb": 1.06010381}
+  },
+  "pre_quant_val_loss": 2.80898549,
+  "pre_quant_val_bpb": 1.08744582,
+  "step_stop": 5161,
+  "wallclock_seconds": 590.076,
+  "eval_time_seconds": 79.401,
+  "bytes_total": 15954437,
+  "bytes_model_int6_brotli": 15866872,
+  "bytes_code": 87565
+}
