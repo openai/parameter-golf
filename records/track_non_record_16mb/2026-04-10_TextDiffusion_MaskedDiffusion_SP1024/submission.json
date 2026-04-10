@@ -1,0 +1,11 @@
+{
+  "author": "Aldo Giambuzzi",
+  "github_id": "Heron4gf",
+  "name": "Text Diffusion Experiment",
+  "blurb": "Short description of what you tried",
+  "date": "2026-04-10T00:00:00Z",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0
+}
