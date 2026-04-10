@@ -1,0 +1,3 @@
+# mamba-ssm wheel (cu12 + torch2.9, no CUDA C++ deps needed — Mamba-3 uses pure Triton)
+# For other torch/cuda combos: https://github.com/state-spaces/mamba/releases/latest
+mamba_ssm @ https://github.com/state-spaces/mamba/releases/download/v2.3.1/mamba_ssm-2.3.1%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
