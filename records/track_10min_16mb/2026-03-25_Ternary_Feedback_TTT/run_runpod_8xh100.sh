@@ -9,10 +9,9 @@
 #   EMA_ENABLED=1: only implemented weight-averaging mechanism in the trainer.
 #   COMPILER_WARMUP_STEPS=20: pre-budget graph capture (outside 599s window).
 #   WARMUP_STEPS=20: in-budget linear LR ramp (0 → base over first 20 steps).
-#   CURRICULUM_ENABLED=0: intentionally off — H100 handles full seq=2048 from
-#     step 1 and more gradient steps beats shorter-context warmup.
-#     (Note: CURRICULUM_ENABLED does drive real sequence-length scheduling;
-#     this is a deliberate performance tradeoff, not dead code.)
+#   CURRICULUM_ENABLED=1: context warmup (seq=64 -> 2048) allows for better
+#     representation maturity before tackling long-range dependencies.
+#     Jump to full 2048 sequence happens at 24% of wall-clock.
 #   TTT_ENABLED=0, VAL_LOSS_EVERY=0: every ms of 599s budget is training compute.
 #   TURBO_QUANT_TRAIN=1 + TURBO_QUANT_EXPORT=1: Hadamard rotation must match.
 #
@@ -51,7 +50,7 @@ export NUM_LAYERS=8
 export MODEL_DIM=1536
 export NUM_HEADS=24
 export NUM_KV_HEADS=6
-export MLP_MULT=3
+export MLP_MULT=4
 export EMBED_DIM=256
 export PARTIAL_ROPE_DIMS=32
 
@@ -59,6 +58,8 @@ export PARTIAL_ROPE_DIMS=32
 export MOE_ENABLED=1
 export MOE_NUM_EXPERTS=4
 export MOE_TOP_K=1
+export MOE_START_FRACTION=0.30
+export MOE_ROUTER_AUX_LOSS_COEF=0.01
 export MOE_LAYER_FRAC=0.67
 
 # SKC
@@ -80,10 +81,19 @@ export TRAIN_SEQ_LEN=2048
 export TRAINING_DEPTH_RECURRENCE=0
 
 # ── Curriculum ────────────────────────────────────────────────────────────────
-# Intentionally disabled: H100 handles full seq=2048 from step 1.
-# CURRICULUM_ENABLED does drive real seq-len scheduling in the trainer;
-# disabling it here maximizes gradient steps on full context throughout.
-export CURRICULUM_ENABLED=0
+# Now enabled: though H100 handles full seq=2048, context warmup allows for better
+# representation maturity before tackling long-range dependencies.
+export CURRICULUM_ENABLED=1
+export CURRICULUM_PHASE1_FRAC=0.04
+export CURRICULUM_PHASE2_FRAC=0.08
+export CURRICULUM_PHASE3_FRAC=0.13
+export CURRICULUM_PHASE4_FRAC=0.18
+export CURRICULUM_PHASE5_FRAC=0.24
+export CURRICULUM_PHASE1_SEQ=64
+export CURRICULUM_PHASE2_SEQ=128
+export CURRICULUM_PHASE3_SEQ=256
+export CURRICULUM_PHASE4_SEQ=512
+export CURRICULUM_PHASE5_SEQ=1024
 
 # ── Optimizer ────────────────────────────────────────────────────────────────
 export MATRIX_OPTIMIZER=muon
@@ -91,20 +101,20 @@ export MATRIX_LR=0.02
 export SCALAR_LR=0.015
 export TIED_EMBED_LR=0.025
 export HEAD_LR=0.015
-export MUON_WD=0.04
-export ADAM_WD=0.04
+export MUON_WD=0.090
+export ADAM_WD=0.090
 export MUON_MOMENTUM=0.95
 export MUON_MOMENTUM_WARMUP_START=0.85
 export MUON_MOMENTUM_WARMUP_STEPS=0
 export MUON_BACKEND_STEPS=5
 export GRAD_CLIP_NORM=0.3
-export WARMDOWN_FRACTION=0.4
+export WARMDOWN_FRACTION=0.20
 
 # ── Weight averaging ─────────────────────────────────────────────────────────
 # EMA is the only implemented averaging mechanism in the trainer.
 export EMA_ENABLED=1
 export EMA_DECAY=0.997
-export EMA_START_FRACTION=0.1    # Start EMA early so it captures most of training
+export EMA_START_FRACTION=0.20    # Start EMA slightly later to avoid step-1 noise
 
 # ── Engram hash ───────────────────────────────────────────────────────────────
 export BIGRAM_HASH_ENABLED=1
@@ -149,20 +159,20 @@ export BITNET_GROUP_SIZE=128
 export TURBO_QUANT_TRAIN=1        # Must match EXPORT — Hadamard rotation at both
 export TURBO_QUANT_EXPORT=1
 export TURBO_QUANT_KV=1
-export EXPORT_ALIGNED_TRAIN=1
-export EXPORT_ALIGNED_TRAIN_START_FRACTION=0.85
-export TERNARY_THRESHOLD_SEARCH=1
+export EXPORT_ALIGNED_TRAIN=0
+export EXPORT_ALIGNED_TRAIN_START_FRACTION=0.0
+export TERNARY_THRESHOLD_SEARCH=0
 export TERNARY_THRESHOLD_LOW=0.02
 export TERNARY_THRESHOLD_HIGH=0.15
 export TERNARY_THRESHOLD_STEPS=4
-export TERNARY_SCALE_SEARCH=1
+export TERNARY_SCALE_SEARCH=0
 export TERNARY_SCALE_MULT_LOW=0.9
 export TERNARY_SCALE_MULT_HIGH=1.1
 export TERNARY_SCALE_MULT_STEPS=3
 export TERNARY_CALIB_TOP_N=5
 export EXPORT_PROXY_EVAL=1
-export EXPORT_PROXY_EVERY=2000
-export EXPORT_PROXY_NUM_SEQS=16
+export EXPORT_PROXY_EVERY=1200
+export EXPORT_PROXY_NUM_SEQS=4
 export LZMA_PRESET=3
 
 # ── torch.compile ─────────────────────────────────────────────────────────────
@@ -186,6 +196,7 @@ echo "  BUDGET : ${MAX_WALLCLOCK_SECONDS}s  (compiler_warmup=${COMPILER_WARMUP_S
 echo "  BATCH  : ${TRAIN_BATCH_TOKENS} tokens/step ($((TRAIN_BATCH_TOKENS/2048)) seqs/step, $((TRAIN_BATCH_TOKENS/2048/8)) seqs/GPU)"
 echo "  LR     : matrix=${MATRIX_LR}  scalar=${SCALAR_LR}  warmdown_frac=${WARMDOWN_FRACTION}"
 echo "  QUANT  : turbo_train=${TURBO_QUANT_TRAIN} turbo_export=${TURBO_QUANT_EXPORT} aligned=${EXPORT_ALIGNED_TRAIN}@${EXPORT_ALIGNED_TRAIN_START_FRACTION}"
+echo "  CURR   : 64 -> 128 -> 256 -> 512 -> 1024 @ 24% / 76%"
 echo "  AVGING : EMA decay=${EMA_DECAY} start=${EMA_START_FRACTION}"
 echo "=========================================================================="
 

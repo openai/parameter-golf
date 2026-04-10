@@ -50,14 +50,14 @@ export NUM_LAYERS="${NUM_LAYERS:-8}"
 export MODEL_DIM="${MODEL_DIM:-640}"
 export NUM_HEADS="${NUM_HEADS:-8}"
 export NUM_KV_HEADS="${NUM_KV_HEADS:-2}"
-export MLP_MULT="${MLP_MULT:-2}"
+export MLP_MULT="${MLP_MULT:-4}"
 
 # MoE enabled and scaled to 4 experts (~14MB export size at D=640)
 export MOE_ENABLED=1
 export MOE_NUM_EXPERTS="${MOE_NUM_EXPERTS:-4}"
 export MOE_TOP_K=1
-export MOE_START_FRACTION=0.65
-export MOE_ROUTER_AUX_LOSS_COEF=0.02
+export MOE_START_FRACTION=0.30
+export MOE_ROUTER_AUX_LOSS_COEF=0.01
 
 # Spectral Koopman Capsule
 export SKC_NUM_CAPSULES="${SKC_NUM_CAPSULES:-24}"
@@ -91,12 +91,12 @@ export LN_SCALE_DAMPING=1
 export CURRICULUM_ENABLED=1
 # Fractions are wallclock-based. Ramp through short contexts quickly,
 # land at full seq=2048 by 20% of budget (120s of 599s).
-export CURRICULUM_PHASE1_FRAC=0.05   # 0–5%:   seq=64   (~30s)
-export CURRICULUM_PHASE2_FRAC=0.10   # 5–10%:  seq=128  (~30s)
-export CURRICULUM_PHASE3_FRAC=0.17   # 10–17%: seq=256  (~42s)
-export CURRICULUM_PHASE4_FRAC=0.25   # 17–25%: seq=512  (~48s)
-export CURRICULUM_PHASE5_FRAC=0.35   # 25–35%: seq=1024 (~60s)
-# 35–100%: seq=2048 ← 65% of budget at full context (~390s)
+export CURRICULUM_PHASE1_FRAC=0.04   # 0–4%:   seq=64   (~24s)
+export CURRICULUM_PHASE2_FRAC=0.08   # 4–8%:   seq=128  (~24s)
+export CURRICULUM_PHASE3_FRAC=0.13   # 8–13%:  seq=256  (~30s)
+export CURRICULUM_PHASE4_FRAC=0.18   # 13–18%: seq=512  (~30s)
+export CURRICULUM_PHASE5_FRAC=0.24   # 18–24%: seq=1024 (~36s)
+# 24–100%: seq=2048 ← 76% of budget at full context (~455s)
 export CURRICULUM_PHASE1_SEQ=64
 export CURRICULUM_PHASE2_SEQ=128
 export CURRICULUM_PHASE3_SEQ=256
@@ -114,7 +114,7 @@ export COMPILE_MODE="${COMPILE_MODE:-none}"
 
 # 4096 tokens/step = 1 sequence per GPU at seq=2048.
 if [[ -z "${TRAIN_BATCH_TOKENS:-}" ]]; then
-    export TRAIN_BATCH_TOKENS=4096
+    export TRAIN_BATCH_TOKENS=32768
 else
     export TRAIN_BATCH_TOKENS
 fi
@@ -137,30 +137,31 @@ export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-50}"
 export MATRIX_LR=0.005
 export SCALAR_LR=0.001
 export TIED_EMBED_LR=0.004
-export MUON_WD=0.04
-export ADAM_WD=0.04
+export MUON_WD=0.090
+export ADAM_WD=0.090
 export MUON_MOMENTUM=0.95
 export MUON_MOMENTUM_WARMUP_START=0.85
 export MUON_MOMENTUM_WARMUP_STEPS=1500
 export MUON_BACKEND_STEPS=3
 export GRAD_CLIP_NORM=0.3
-export WARMDOWN_FRACTION=0.5
+export WARMDOWN_FRACTION=0.20
 
 # Weight averaging: EMA is the only implemented averaging mechanism.
 export EMA_ENABLED=1
 export EMA_DECAY=0.997
+export EMA_START_FRACTION=0.20
 
 # ── Export/eval path ──────────────────────────────────────────────────────────
 export BITNET_GROUP_SIZE=128
 export TURBO_QUANT_TRAIN="${TURBO_QUANT_TRAIN:-1}"   # Must match EXPORT — Hadamard rotation applied at both train & export
 export TURBO_QUANT_EXPORT="${TURBO_QUANT_EXPORT:-1}"
-export EXPORT_ALIGNED_TRAIN="${EXPORT_ALIGNED_TRAIN:-1}"
-export EXPORT_ALIGNED_TRAIN_START_FRACTION="${EXPORT_ALIGNED_TRAIN_START_FRACTION:-0.85}"
-export TERNARY_THRESHOLD_SEARCH="${TERNARY_THRESHOLD_SEARCH:-1}"  # Critical for good roundtrip BPB
+export EXPORT_ALIGNED_TRAIN="${EXPORT_ALIGNED_TRAIN:-0}"
+export EXPORT_ALIGNED_TRAIN_START_FRACTION="${EXPORT_ALIGNED_TRAIN_START_FRACTION:-0.0}"
+export TERNARY_THRESHOLD_SEARCH="${TERNARY_THRESHOLD_SEARCH:-0}"
 export TERNARY_THRESHOLD_LOW="${TERNARY_THRESHOLD_LOW:-0.35}"
 export TERNARY_THRESHOLD_HIGH="${TERNARY_THRESHOLD_HIGH:-0.65}"
 export TERNARY_THRESHOLD_STEPS="${TERNARY_THRESHOLD_STEPS:-5}"
-export TERNARY_SCALE_SEARCH="${TERNARY_SCALE_SEARCH:-1}"   # Critical for good roundtrip BPB
+export TERNARY_SCALE_SEARCH="${TERNARY_SCALE_SEARCH:-0}"
 export TERNARY_SCALE_MULT_LOW="${TERNARY_SCALE_MULT_LOW:-0.85}"
 export TERNARY_SCALE_MULT_HIGH="${TERNARY_SCALE_MULT_HIGH:-1.15}"
 export TERNARY_SCALE_MULT_STEPS="${TERNARY_SCALE_MULT_STEPS:-3}"
@@ -171,9 +172,9 @@ export SLIDING_EVAL_STRIDE="${SLIDING_EVAL_STRIDE:-32}"
 export TEMP_SCALING="${TEMP_SCALING:-0}"          # Off for proxy run — post-training overhead
 export NGRAM_CACHE_ENABLED="${NGRAM_CACHE_ENABLED:-0}"  # Off for proxy run — expensive post-training computation
 export LZMA_PRESET="${LZMA_PRESET:-4}"  # Reliable and fast for 16MB limit
-export EXPORT_PROXY_EVAL="${EXPORT_PROXY_EVAL:-0}"  # Off — avoid mid-training export proxy overhead
-export EXPORT_PROXY_EVERY="${EXPORT_PROXY_EVERY:-1}"
-export EXPORT_PROXY_NUM_SEQS="${EXPORT_PROXY_NUM_SEQS:-8}"
+export EXPORT_PROXY_EVAL="${EXPORT_PROXY_EVAL:-1}"  # ON: capture best checkpoint across MoE spikes
+export EXPORT_PROXY_EVERY="${EXPORT_PROXY_EVERY:-1200}"
+export EXPORT_PROXY_NUM_SEQS="${EXPORT_PROXY_NUM_SEQS:-4}"
 export EXPORT_PROXY_USE_BEST="${EXPORT_PROXY_USE_BEST:-1}"
 export NGRAM_MAX_ORDER="${NGRAM_MAX_ORDER:-5}"
 export NGRAM_ALPHA_BASE="${NGRAM_ALPHA_BASE:-0.05}"
@@ -211,7 +212,7 @@ echo "  MODEL  : SKC L=${NUM_LAYERS} D=${MODEL_DIM} H=${NUM_HEADS}/${NUM_KV_HEAD
 echo "  SKC    : block=${SKC_BLOCK_SIZE} caps=${SKC_NUM_CAPSULES} cap_dim=${SKC_CAPSULE_DIM}"
 echo "  ENGRAM : buckets=${BIGRAM_HASH_BUCKETS} dim=${BIGRAM_HASH_DIM} orders=${ENGRAM_NUM_ORDERS}"
 echo "  TERNARY: train_align=${EXPORT_ALIGNED_TRAIN}@${EXPORT_ALIGNED_TRAIN_START_FRACTION} thr_search=${TERNARY_THRESHOLD_SEARCH} scale_search=${TERNARY_SCALE_SEARCH}"
-echo "  CURR   : 64 -> 128 -> 256 @ 35% / 65%"
+echo "  CURR   : 64 -> 128 -> 256 -> 512 -> 1024 @ 24% / 76%"
 echo "  BATCH  : ${TRAIN_BATCH_TOKENS} tok/step  seq=${TRAIN_SEQ_LEN}"
 echo "  VRAM   : min_gpu_mem=${MIN_GPU_MEM_GB}GB  val_batch=${VAL_BATCH_SIZE}"
 echo "  BUDGET : ${MAX_WALLCLOCK_SECONDS}s"

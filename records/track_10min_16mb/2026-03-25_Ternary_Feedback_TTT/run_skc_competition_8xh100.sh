@@ -48,7 +48,7 @@ export NUM_LAYERS=8
 export MODEL_DIM=1536
 export NUM_HEADS=24
 export NUM_KV_HEADS=6
-export MLP_MULT=3
+export MLP_MULT=4
 export EMBED_DIM=256
 export PARTIAL_ROPE_DIMS=32
 
@@ -122,8 +122,8 @@ export MATRIX_LR=0.025
 export SCALAR_LR=0.018
 export TIED_EMBED_LR=0.030
 export HEAD_LR=0.018
-export MUON_WD=0.08          # up from 0.04 (research default)
-export ADAM_WD=0.08
+export MUON_WD=0.090         # entropy reduction: forces sparsity → better LZMA/brotli compression
+export ADAM_WD=0.090
 export QK_GAIN_INIT=3.0      # up from 2.25 (research default)
 export MUON_MOMENTUM=0.95
 export MUON_MOMENTUM_WARMUP_START=0.85
@@ -139,9 +139,12 @@ export EMA_START_FRACTION=0.20
 
 # ── Engram hash ───────────────────────────────────────────────────────────────
 export BIGRAM_HASH_ENABLED=1
-export BIGRAM_HASH_BUCKETS=8192
-export BIGRAM_HASH_DIM=48
-export ENGRAM_NUM_HEADS=4
+# EngramLite: 2 heads × 2 orders = 4 total heads → triggers the unrolled static-graph
+# fast-path in EngramHash.forward(), eliminating Python loops and graph-break risk.
+# buckets=3072 and dim=112 (28 per head) balance coverage with artifact size.
+export BIGRAM_HASH_BUCKETS=3072
+export BIGRAM_HASH_DIM=112
+export ENGRAM_NUM_HEADS=2
 export ENGRAM_NUM_ORDERS=2
 export ENGRAM_INJECT_LAYER=1
 

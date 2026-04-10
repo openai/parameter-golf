@@ -43,7 +43,7 @@ export NUM_LAYERS=8
 export MODEL_DIM=640           # 5×128, tensor-core aligned
 export NUM_HEADS=8
 export NUM_KV_HEADS=2
-export MLP_MULT=4
+export MLP_MULT=4  # entropy reduction: MLP_MULT=4 with WD=0.090 targets high sparsity for compression
 export EMBED_DIM=128
 export PARTIAL_ROPE_DIMS=16
 
@@ -105,8 +105,8 @@ export MATRIX_LR=0.025
 export SCALAR_LR=0.018
 export TIED_EMBED_LR=0.030
 export HEAD_LR=0.018
-export MUON_WD=0.08
-export ADAM_WD=0.08
+export MUON_WD=0.090
+export ADAM_WD=0.090
 export QK_GAIN_INIT=3.0
 export MUON_MOMENTUM=0.95
 export MUON_MOMENTUM_WARMUP_START=0.85
@@ -122,9 +122,9 @@ export EMA_START_FRACTION=0.20
 
 # ── Engram hash ───────────────────────────────────────────────────────────────
 export BIGRAM_HASH_ENABLED=1
-export BIGRAM_HASH_BUCKETS=8192
-export BIGRAM_HASH_DIM=48
-export ENGRAM_NUM_HEADS=4
+export BIGRAM_HASH_BUCKETS=3072   # EngramLite
+export BIGRAM_HASH_DIM=112
+export ENGRAM_NUM_HEADS=2         # 2×2 = 4 total → unrolled fast-path in forward()
 export ENGRAM_NUM_ORDERS=2
 export ENGRAM_INJECT_LAYER=1
 

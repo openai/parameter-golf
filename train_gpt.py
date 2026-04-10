@@ -155,8 +155,8 @@ class Hyperparameters:
     partial_rope_dims = _e("PARTIAL_ROPE_DIMS", 16, int)
     ln_scale_damping = _e("LN_SCALE_DAMPING", 1, bool)
     bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)  # C1: was hardcoded False in main()
-    bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 4096, int)
-    bigram_hash_dim = _e("BIGRAM_HASH_DIM", 64, int)
+    bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 3072, int)  # was 4096; 3072 balances coverage vs artifact budget
+    bigram_hash_dim = _e("BIGRAM_HASH_DIM", 112, int)  # was 64; 112 = 4×28, divisible by 4 heads
     engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
     engram_num_orders = _e("ENGRAM_NUM_ORDERS", 3, int)
     engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)
@@ -614,23 +614,38 @@ def churn_fn(model: nn.Module, group_size: int = 64):
 # Muon optimizer (Newton-Schulz orthogonalized momentum)
 # ---------------------------------------------------------------------------
 def ns_orth(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    """Newton-Schulz orthogonalization with MuonEq-R row-normalization.
+
+    MuonEq-R: per-row L2 normalization before global normalization. This clamps
+    row-wise variance produced by KoopmanTokenMixer and SKCLayer spectral ops,
+    preventing a few high-norm rows from dominating the orthogonalization and
+    allowing the model to sustain higher matrix learning rates without diverging.
+    The clamp(min=eps) also handles dormant MoE expert rows with zero gradient.
+    """
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
+
+    # 1. MuonEq-R: per-row normalization — clamp prevents division-by-zero on
+    #    dormant MoE expert rows that received no tokens and have zero gradient.
+    row_norms = X.norm(p=2, dim=-1, keepdim=True).clamp(min=eps)
+    X = X / row_norms
+
+    # 2. Global normalization (guard: return zero tensor if near-zero after row-norm)
     norm = X.norm()
-    # Guard against near-zero gradients (sparse MoE experts that were not selected).
-    # Dividing by a tiny norm would explode X and cause Newton-Schulz to diverge to NaN
-    # within a few iterations. Return the zero tensor — no update is correct behaviour
-    # when no gradient signal exists.
     if norm < eps:
         return X
     X /= norm
-    transposed = G.size(0) > G.size(1)
+
+    transposed = X.size(0) > X.size(1)
     if transposed:
         X = X.T
+
+    # 3. Newton-Schulz iteration
     for _ in range(steps):
         A = X @ X.T
         B = b * A + c * A @ A
         X = a * X + B @ X
+
     return X.T if transposed else X
 
 class Muon(torch.optim.Optimizer):
@@ -1109,33 +1124,59 @@ class EngramHash(nn.Module):
         return torch.cat(parts, dim=-1)
 
     def forward(self, input_ids: Tensor, hidden: Tensor | None = None) -> Tensor:
-        """Fully vectorized n-gram retrieval."""
+        """Fully vectorized n-gram retrieval.
+
+        Fast-path for num_orders=2, num_heads=2 (4 total heads): all writes are
+        statically-sized and use no Python loops, eliminating potential graph-break
+        sources for the torch.compile Inductor backend. Falls back to the general
+        loop for other configurations.
+        """
         num_total_heads = self.num_orders * self.num_heads
-        primes = self._primes[:num_total_heads]
-        parts = []
         ids_long = input_ids.long()
         B, T = ids_long.shape
-        for order in range(self.num_orders):
-            p = primes[order*self.num_heads : (order+1)*self.num_heads]
-            h = ids_long.new_zeros((B, T, self.num_heads))
-            if T > order + 1:
-                if order == 0:
-                    h_val = (ids_long[:, :-1].unsqueeze(-1) * p + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
-                elif order == 1:
-                    h_val = (ids_long[:, :-2].unsqueeze(-1) * (p*p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
-                elif order == 2:
-                    h_val = (ids_long[:, :-3].unsqueeze(-1) * (p**3) + ids_long[:, 1:-2].unsqueeze(-1) * (p**2) + ids_long[:, 2:-1].unsqueeze(-1) * p + ids_long[:, 3:].unsqueeze(-1)) % self.buckets_per_head
-                else:
-                    h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
-                    h_val = torch.cat(h_ls, dim=-1)
-                
-                # Assign to the valid suffix (trailing T-(order+1) tokens)
-                if h_val.size(1) > 0:
-                    h[:, T - h_val.size(1):, :] = h_val
-            parts.append(h)
-        all_indices = torch.cat(parts, dim=-1)
-        head_outputs = [table(all_indices[:, :, i]) for i, table in enumerate(self.tables)]
-        memory = torch.cat(head_outputs, dim=-1)
+
+        if num_total_heads == 4:
+            # Unrolled fast-path: hardcoded bigram × 2 heads + trigram × 2 heads.
+            # Pre-allocate a single index tensor — no Python loop, no dynamic slices.
+            p = self._primes[:4]
+            h_indices = ids_long.new_zeros((B, T, 4))
+            if T > 1:
+                # Bigram heads 0 & 1: hash(prev, curr) for each of the 2 bigram primes
+                bg = (ids_long[:, :-1].unsqueeze(-1) * p[:2]
+                      + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
+                h_indices[:, 1:, :2] = bg
+            if T > 2:
+                # Trigram heads 2 & 3: hash(pp, prev, curr) for each of the 2 trigram primes
+                tg = (ids_long[:, :-2].unsqueeze(-1) * (p[2:] * p[2:])
+                      + ids_long[:, 1:-1].unsqueeze(-1) * p[2:]
+                      + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
+                h_indices[:, 2:, 2:] = tg
+            head_outputs = [table(h_indices[:, :, i]) for i, table in enumerate(self.tables)]
+            memory = torch.cat(head_outputs, dim=-1)
+        else:
+            # General path for other head/order counts
+            primes = self._primes[:num_total_heads]
+            parts = []
+            for order in range(self.num_orders):
+                p = primes[order*self.num_heads : (order+1)*self.num_heads]
+                h = ids_long.new_zeros((B, T, self.num_heads))
+                if T > order + 1:
+                    if order == 0:
+                        h_val = (ids_long[:, :-1].unsqueeze(-1) * p + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
+                    elif order == 1:
+                        h_val = (ids_long[:, :-2].unsqueeze(-1) * (p*p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
+                    elif order == 2:
+                        h_val = (ids_long[:, :-3].unsqueeze(-1) * (p**3) + ids_long[:, 1:-2].unsqueeze(-1) * (p**2) + ids_long[:, 2:-1].unsqueeze(-1) * p + ids_long[:, 3:].unsqueeze(-1)) % self.buckets_per_head
+                    else:
+                        h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
+                        h_val = torch.cat(h_ls, dim=-1)
+                    if h_val.size(1) > 0:
+                        h[:, T - h_val.size(1):, :] = h_val
+                parts.append(h)
+            all_indices = torch.cat(parts, dim=-1)
+            head_outputs = [table(all_indices[:, :, i]) for i, table in enumerate(self.tables)]
+            memory = torch.cat(head_outputs, dim=-1)
+
         if hidden is not None:
             # Normalize in the computation dtype (bf16/fp16) — cosine similarity is
             # scale-invariant so fp32 precision is not needed here. Single cast to
@@ -3203,20 +3244,27 @@ def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, boo
 
     Scopes:
     - "feedback": feedback pooler, adapters, skip weights, capsule bank, decoder scales
+    - "capsule_bank": ONLY the capsule bank parameters. Most restrictive scope —
+                      safe even at SP8192 because it touches no weight matrices and
+                      cannot OOM through embedding-table backward passes.
     - "skc_safe": all of feedback scope PLUS per-block SKC scale parameters, decay rates,
                   and residual mix weights. This is the competition-grade TTT scope:
                   it covers more of the SKC block's adaptive surface while staying
                   safe for export (no weight matrices mutated, just scale/decay leafs).
     """
-    if scope not in ("feedback", "skc_safe"):
-        raise ValueError(f"Unsupported TTT_SCOPE={scope!r}. Valid: 'feedback', 'skc_safe'")
+    if scope not in ("feedback", "capsule_bank", "skc_safe"):
+        raise ValueError(f"Unsupported TTT_SCOPE={scope!r}. Valid: 'feedback', 'capsule_bank', 'skc_safe'")
     original: dict[str, bool] = {}
     params: list[Tensor] = []
     for name, p in base_model.named_parameters():
         original[name] = p.requires_grad
-        allow = (name.startswith("feedback_pooler.") or name.startswith("feedback_adapters.")
-                or name == "skip_weights" or name.startswith("capsule_bank."))
-        if name.startswith("blocks."):
+        if scope == "capsule_bank":
+            # Most restrictive: only capsule bank — no matrices, no embeddings, no OOM risk
+            allow = name.startswith("capsule_bank.")
+        else:
+            allow = (name.startswith("feedback_pooler.") or name.startswith("feedback_adapters.")
+                    or name == "skip_weights" or name.startswith("capsule_bank."))
+        if scope != "capsule_bank" and name.startswith("blocks."):
             parts = name.split(".")
             if len(parts) >= 3:
                 block_idx = int(parts[1])
@@ -3227,7 +3275,9 @@ def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, boo
                 if scope == "skc_safe" and leaf in {"decay_rates", "resid_mix", "mixer_conv"}:
                     allow = True
         # Per-layer scales in shared block mode — allow decoder-half scales for TTT
-        if name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales."):
+        if scope != "capsule_bank" and (
+            name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales.")
+        ):
             idx = int(name.split(".")[1])
             if idx >= base_model.num_encoder_layers:
                 allow = True
