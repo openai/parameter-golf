@@ -1,0 +1,56 @@
+{
+  "author": "Marko Sisovic",
+  "github_id": "msisovic",
+  "name": "Parallel Residuals + CUTLASS EVT Fusion",
+  "blurb": "Built from PR #1523. Restores fuller parallel residual routing on top of the newer GPT-J-style split-lane baseline by writing attention and MLP outputs into both lanes together at block end, while keeping decoder skips on lane0 only. Includes CUTLASS EVT fusion for reproducible throughput. Exact 3-seed legal-TTT mean: 1.07438392 BPB / 2.77524526 nats.",
+  "date": "2026-04-11",
+  "track": "10min_16mb",
+  "val_loss": 2.77524526,
+  "val_bpb": 1.07438392,
+  "val_loss_std": 0.00088531,
+  "val_bpb_std": 0.00034274,
+  "seeds": [
+    1337,
+    2024,
+    42
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.77643814,
+      "val_bpb": 1.07484573,
+      "post_ema_val_loss": 2.79713907,
+      "post_ema_val_bpb": 1.0828597,
+      "artifact_bytes": 15958373,
+      "steps": 4685,
+      "step_avg_ms": 125.53
+    },
+    "2024": {
+      "val_loss": 2.77497814,
+      "val_bpb": 1.07428051,
+      "post_ema_val_loss": 2.79599887,
+      "post_ema_val_bpb": 1.08241829,
+      "artifact_bytes": 15956287,
+      "steps": 4734,
+      "step_avg_ms": 124.25
+    },
+    "42": {
+      "val_loss": 2.7743195,
+      "val_bpb": 1.07402553,
+      "post_ema_val_loss": 2.79522873,
+      "post_ema_val_bpb": 1.08212015,
+      "artifact_bytes": 15959005,
+      "steps": 4733,
+      "step_avg_ms": 124.26
+    }
+  },
+  "baseline_pr": 1523,
+  "artifact_bytes_mean": 15957888.33,
+  "artifact_bytes_max": 15959005,
+  "bytes_total": 15959005,
+  "code_bytes": 90249,
+  "train_steps_mean": 4717.33,
+  "step_avg_ms_mean": 124.68,
+  "hardware": "8xH100 80GB SXM",
+  "evaluation": "legal_ttt_exact",
+  "technique_summary": "Parallel residual routing + GPT-J-style parallel-in-time lane update + lane0-only decoder skips + CUTLASS EVT fusion + legal TTT"
+}

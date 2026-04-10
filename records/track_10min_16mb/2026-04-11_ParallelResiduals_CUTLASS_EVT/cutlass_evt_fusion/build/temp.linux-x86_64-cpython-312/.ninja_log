@@ -1,0 +1,3 @@
+# ninja log v7
+0	23732	1775855226248827926	/root/parameter-golf/cutlass_evt_fusion/build/temp.linux-x86_64-cpython-312/csrc/torch_binding.o	6ac0536d088097cc
+0	42738	1775855226248827926	/root/parameter-golf/cutlass_evt_fusion/build/temp.linux-x86_64-cpython-312/csrc/gemm_act_grad.o	66e66090569f32a4
