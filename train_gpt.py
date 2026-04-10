@@ -657,7 +657,10 @@ class Muon(torch.optim.Optimizer):
             # tokens on a step (p.grad is None) would have their weights multiplied by
             # (1 - lr * wd) every step, iteratively decaying them to zero permanently.
             for i, p in enumerate(params):
-                if i % world_size == rank and p.grad is not None:
+                # DDP with find_unused_parameters=True zero-fills gradients for dormant
+                # experts, so p.grad is never None. Use magnitude check to distinguish
+                # genuinely active gradients from DDP-injected zero fills.
+                if i % world_size == rank and p.grad is not None and p.grad.norm() > 1e-7:
                     active_param_mask[i] = 1
                     g = p.grad
                     state = self.state[p]
@@ -928,7 +931,12 @@ class TernaryLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=False, group_size=64):
         super().__init__(in_features, out_features, bias=bias)
         self.group_size = group_size
-        self._calib_name: str | None = None  # Set by GPT after construction for aligned training
+        self._calib_name: str | None = None  # used by apply_export_calib_to_model
+        # Calibration values as PyTorch buffers so torch.compile reads them dynamically.
+        # Global dict (_EXPORT_CALIB) is baked into the graph at trace time and is blind
+        # to mid-training updates; buffer tensors are tracked by Dynamo across updates.
+        self.register_buffer("calib_thr", torch.tensor(0.0), persistent=False)
+        self.register_buffer("calib_scale_mult", torch.tensor(1.0), persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.float()
@@ -949,10 +957,9 @@ class TernaryLinear(nn.Linear):
             w_g = w_g @ H
         scale = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
 
-        # Export-aligned training: apply calibrated threshold + scale_mult if set
-        calib = _EXPORT_CALIB.get(self._calib_name, {}) if self._calib_name else {}
-        thr = calib.get("thr", 0.0)
-        scale_mult = calib.get("scale_mult", 1.0)
+        # Read calibration from buffer tensors (Dynamo-safe) rather than global dict
+        thr = self.calib_thr.item()
+        scale_mult = self.calib_scale_mult.item()
         z = w_g / scale
         if thr > 0.0:
             q = torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1))
@@ -1259,20 +1266,20 @@ class TernaryMoE(nn.Module):
         activation: str = "relu2",
         leaky_relu_slope: float = 0.5,
         moe_start_fraction: float = 0.65,
+        aux_loss_coef: float = 0.001,
     ):
         super().__init__()
         self.num_experts = num_experts
         self.top_k = top_k
         self.moe_start_fraction = moe_start_fraction
+        self.aux_loss_coef = aux_loss_coef
         # Router is a lightweight dense fp16/32 layer
         self.router = nn.Linear(dim, num_experts, bias=False)
         self.experts = nn.ModuleList([
             MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
             for _ in range(num_experts)
         ])
-        self.aux_loss = None
-
-    def forward(self, x: Tensor, elapsed_fraction: float = 1.0) -> Tensor:
+    def forward(self, x: Tensor, elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None]:
         if elapsed_fraction < self.moe_start_fraction:
             return self.experts[0](x)
         B, T, D = x.shape
@@ -1296,18 +1303,18 @@ class TernaryMoE(nn.Module):
                 expert_out = expert(tokens_for_expert)
                 final_output.index_add_(0, token_indices, expert_out * expert_weights.unsqueeze(-1))
                 
-        # Auxiliary load balancing loss calculation (only if training)
+        # Auxiliary load balancing loss — returned functionally to avoid mutating module
+        # state inside a compiled graph (Dynamo side-effect trap / endless recompiles).
+        # Pre-scaled by aux_loss_coef so callers can sum all aux losses without separate scaling.
+        aux_loss: Tensor | None = None
         if self.training:
             density = router_probs.mean(dim=0)
             routed_counts = torch.bincount(selected_experts.reshape(-1), minlength=self.num_experts)
             fraction_routed = routed_counts.to(router_probs.dtype) / float(B * T * self.top_k)
-            # Standard load-balancing: N * sum(f_i * P_i). With uniform routing this gives 1.0.
-            # .mean() * N == sum(f_i*P_i)/N * N but only if all N are equal; use .sum() directly.
-            self.aux_loss = (density * fraction_routed).sum() * self.num_experts
-        else:
-            self.aux_loss = None
+            raw_aux = (density * fraction_routed).sum() * self.num_experts
+            aux_loss = raw_aux * self.aux_loss_coef
 
-        return final_output.view(B, T, D)
+        return final_output.view(B, T, D), aux_loss
 
 
 class MLP(nn.Module):
@@ -1481,7 +1488,7 @@ class KoopmanBlock(nn.Module):
                  activation: str = "lrelu2", leaky_relu_slope: float = 0.5,
                  ln_scale_factor: float = 1.0, moe_enabled: bool = False,
                  moe_num_experts: int = 8, moe_top_k: int = 2,
-                 moe_start_fraction: float = 0.65):
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
         self.attn_norm = RMSNorm()
@@ -1493,6 +1500,7 @@ class KoopmanBlock(nn.Module):
                 dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
                 group_size=group_size, activation=activation,
                 leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
+                aux_loss_coef=moe_aux_coef,
             )
         else:
             self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
@@ -1503,24 +1511,23 @@ class KoopmanBlock(nn.Module):
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
     def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                elapsed_fraction: float = 1.0) -> tuple[Tensor, None]:
+                elapsed_fraction: float = 1.0) -> tuple[Tensor, None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
 
         mixer_out = self.mixer(self.attn_norm(x) * self.ln_scale_factor)
         x = x + self.attn_scale.to(dtype=x.dtype) * mixer_out
 
-        if isinstance(self.mlp, TernaryMoE):
-            mlp_out = self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
+        _mlp_raw = (self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
+                    if isinstance(self.mlp, TernaryMoE)
+                    else self.mlp(self.mlp_norm(x) * self.ln_scale_factor))
+        if isinstance(_mlp_raw, tuple):
+            mlp_out, moe_loss = _mlp_raw
         else:
-            mlp_out = self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
-        if isinstance(mlp_out, tuple): 
-            mlp_out, moe_loss = mlp_out
-        else:
-            moe_loss = None
+            mlp_out, moe_loss = _mlp_raw, None
 
         x = x + self.mlp_scale.to(dtype=x.dtype) * mlp_out
-        return x, moe_loss
+        return x, None, moe_loss
 
 
 class FeedbackPooler(nn.Module):
@@ -1728,6 +1735,7 @@ class Block(nn.Module):
         moe_num_experts: int = 8,
         moe_top_k: int = 2,
         moe_start_fraction: float = 0.65,
+        moe_aux_coef: float = 0.001,
     ):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
@@ -1753,6 +1761,7 @@ class Block(nn.Module):
                 dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
                 group_size=group_size, activation=activation,
                 leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
+                aux_loss_coef=moe_aux_coef,
             )
         else:
             self.mlp = MLP(
@@ -1768,17 +1777,21 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None, elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None]:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
+                elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
         attn_out, v_out = self.attn(self.attn_norm(x) * self.ln_scale_factor, v0=v0)
         x = x + self.attn_scale.to(dtype=x.dtype) * attn_out
-        # Only TernaryMoE accepts elapsed_fraction; plain MLP.forward only takes x.
-        # Passing it unconditionally crashes with TypeError when moe_enabled=False.
         _mlp_in = self.mlp_norm(x) * self.ln_scale_factor
-        _mlp_out = self.mlp(_mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(self.mlp, TernaryMoE) else self.mlp(_mlp_in)
+        _mlp_raw = (self.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
+                    if isinstance(self.mlp, TernaryMoE) else self.mlp(_mlp_in))
+        if isinstance(_mlp_raw, tuple):
+            _mlp_out, moe_loss = _mlp_raw
+        else:
+            _mlp_out, moe_loss = _mlp_raw, None
         x = x + self.mlp_scale.to(dtype=x.dtype) * _mlp_out
-        return x, v_out
+        return x, v_out, moe_loss
 
 
 
@@ -1914,7 +1927,7 @@ class SKCLayer(nn.Module):
     def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
                  mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
                  ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
-                 moe_start_fraction: float = 0.65):
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -1941,6 +1954,7 @@ class SKCLayer(nn.Module):
                 dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
                 group_size=group_size, activation=activation,
                 leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
+                aux_loss_coef=moe_aux_coef,
             )
         else:
             self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
@@ -2000,24 +2014,28 @@ class SKCLayer(nn.Module):
         _scale = external_skc_scale if external_skc_scale is not None else self.skc_scale.to(x.dtype)
         x = x + _scale[None, None, :] * skc_out
 
-        if self.training:
-            self.spectral_aux_loss = self.aux_loss_fn(s_spec)
-        else:
-            # Sever any lingering computational graph from the last training micro-batch.
-            # Without this, the graph from the most recent training step stays alive in
-            # GPU memory for the entire duration of the validation loop.
-            self.spectral_aux_loss = None
+        # Spectral aux loss returned functionally — never stored as module state to
+        # avoid Dynamo side-effect traps (m.spectral_aux_loss = None inside compiled graph).
+        spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
 
         mlp_in = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
-        if isinstance(self.local_mlp, TernaryMoE):
-            mlp_out = self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction)
+        _mlp_raw = (self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction)
+                    if isinstance(self.local_mlp, TernaryMoE)
+                    else self.local_mlp(mlp_in))
+        if isinstance(_mlp_raw, tuple):
+            mlp_out, moe_loss = _mlp_raw
         else:
-            mlp_out = self.local_mlp(mlp_in)
+            mlp_out, moe_loss = _mlp_raw, None
         # Use per-layer external MLP scale when provided (shared-block mode) so each
         # reuse of this block at a different depth has its own independent SkipInit scale.
         _m_scale = external_mlp_scale if external_mlp_scale is not None else self.mlp_scale.to(x.dtype)
         x = x + _m_scale[None, None, :] * mlp_out
-        return x, None
+        # Combine spectral and MoE aux losses into a single return value
+        if spec_aux is not None and moe_loss is not None:
+            combined_aux: Tensor | None = spec_aux + moe_loss
+        else:
+            combined_aux = spec_aux if spec_aux is not None else moe_loss
+        return x, None, combined_aux
 
 
 class GPT(nn.Module):
@@ -2164,6 +2182,7 @@ class GPT(nn.Module):
                 vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa,
                 moe_enabled=moe_enabled, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
+                moe_aux_coef=moe_router_aux_loss_coef,
             )
 
         def _make_ssm_block(layer_idx):
@@ -2179,6 +2198,7 @@ class GPT(nn.Module):
                 leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf,
                 moe_enabled=moe_enabled, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
+                moe_aux_coef=moe_router_aux_loss_coef,
             )
 
         def _make_skc_block(layer_idx):
@@ -2193,6 +2213,7 @@ class GPT(nn.Module):
                 leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf,
                 moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
+                moe_aux_coef=moe_router_aux_loss_coef,
             )
 
         def _make_block(layer_idx):
@@ -2323,10 +2344,10 @@ class GPT(nn.Module):
         return x, x
 
     def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
-        """Run one effective layer. In shared mode, uses shared weights + per-layer scales."""
+                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
+        """Run one effective layer. Returns (x, v_out, aux_loss). In shared mode, uses shared weights + per-layer scales."""
         if self.blocks is not None:
-            # Standard unique-block mode — only SKCLayer accepts prev_capsules
+            # Standard unique-block mode — all block types now return (x, v_out, aux_loss)
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
                 return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
@@ -2344,15 +2365,11 @@ class GPT(nn.Module):
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == "skc":
-            # Pass prev_capsules so KoopmanDynamics sees cross-window carry state.
-            # Pass per_layer_skc_scales[layer_idx] to override the block's shared
-            # internal skc_scale — without this, all layers sharing one SKCLayer block
-            # apply the exact same residual scale, breaking SkipInit depth invariance.
             _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
             _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
-            x, v_out = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
-                             external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
-            return x, v_out
+            x, v_out, aux_loss = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
+                                       external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
+            return x, v_out, aux_loss
         else:
             # Attention block
             attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
@@ -2360,25 +2377,32 @@ class GPT(nn.Module):
 
         # Only TernaryMoE accepts elapsed_fraction; plain MLP.forward only takes x.
         _mlp_in = block.mlp_norm(x) * block.ln_scale_factor
-        _mlp_out = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
+        _mlp_raw = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
                     if isinstance(block.mlp, TernaryMoE)
                     else block.mlp(_mlp_in))
+        if isinstance(_mlp_raw, tuple):
+            _mlp_out, moe_loss = _mlp_raw
+        else:
+            _mlp_out, moe_loss = _mlp_raw, None
         x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
-        return x, v_out
+        return x, v_out, moe_loss
 
     def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
                       v0: Tensor | None = None, elapsed_fraction: float = 1.0,
-                      prev_capsules: Tensor | None = None) -> Tensor:
+                      prev_capsules: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+        dec_aux: Tensor | None = None
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(max(1, self.training_depth_recurrence)):
-                x, _ = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                       prev_capsules=prev_capsules)
+                x, _, blk_aux = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
+                                                prev_capsules=prev_capsules)
+                if blk_aux is not None:
+                    dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
-        return x
+        return x, dec_aux
 
     def _resolve_feedback_passes(self, feedback_passes: int | None = None) -> int:
         num_passes = self.default_feedback_passes if feedback_passes is None else int(feedback_passes)
@@ -2397,6 +2421,7 @@ class GPT(nn.Module):
         x, x0 = self._apply_embedding(input_ids)
         skips: list[Tensor] = []
         v0 = None
+        enc_aux: Tensor | None = None
 
         # --- Encoder pass (runs once) ---
         for i in range(self.num_encoder_layers):
@@ -2411,8 +2436,10 @@ class GPT(nn.Module):
                 # Injecting it into per-layer SKCLayer Koopman dynamics blends two
                 # incompatible state manifolds, corrupting the low-level representations.
                 # SKC layers maintain their own internal carry independently.
-                x, v_out = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                           prev_capsules=None)
+                x, v_out, blk_aux = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
+                                                     prev_capsules=None)
+                if blk_aux is not None:
+                    enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
                 if v0 is None and v_out is not None:
                     v0 = v_out  # keep graph alive for VRL gradient super-highway
             skips.append(x)
@@ -2475,9 +2502,11 @@ class GPT(nn.Module):
                         grounded_capsule_state = prev_capsule_state  # rollback to match decoder features
                         break
 
-            x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
-                                   elapsed_fraction=elapsed_fraction, prev_capsules=None)
-            
+            x, dec_aux = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
+                                            elapsed_fraction=elapsed_fraction, prev_capsules=None)
+            if dec_aux is not None:
+                enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
+
             # After fast-forward: we ran one decoder pass with speculated state, now stop
             if fast_forwarded:
                 break
@@ -2485,7 +2514,7 @@ class GPT(nn.Module):
         c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
         jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
 
-        return self.final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss
+        return self.final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux
 
     def _compute_logits(self, x: Tensor) -> Tensor:
         if self.tie_embeddings:
@@ -2508,10 +2537,21 @@ class GPT(nn.Module):
         raise ValueError(f"Unsupported softcap_type={self.softcap_type!r}")
 
     def register_ternary_calib_names(self):
-        """Set _calib_name on each TernaryLinear so aligned training can look up per-tensor calib."""
+        """Set _calib_name on each TernaryLinear so apply_export_calib_to_model can look up values."""
         for name, module in self.named_modules():
             if isinstance(module, TernaryLinear):
                 module._calib_name = name + ".weight"
+
+    def apply_export_calib(self, calib_dict: dict) -> None:
+        """Write calibration values into TernaryLinear buffer tensors in-place.
+        Dynamo reads these buffers dynamically — unlike a global Python dict which is
+        baked into the compiled graph at trace time and blind to mid-training updates.
+        """
+        for module in self.modules():
+            if isinstance(module, TernaryLinear) and module._calib_name:
+                entry = calib_dict.get(module._calib_name, {})
+                module.calib_thr.fill_(entry.get("thr", 0.0))
+                module.calib_scale_mult.fill_(entry.get("scale_mult", 1.0))
 
     def step_capsule_carry(self):
         """Call after each training step to advance SKC layer carry state."""
@@ -2530,7 +2570,7 @@ class GPT(nn.Module):
     def forward_logits(self, input_ids: Tensor, temperature: float = 1.0,
                        feedback_valid_len: int | None = None,
                        feedback_passes: int | None = None) -> Tensor:
-        hidden, _, _, _ = self._compute_hidden(
+        hidden, _, _, _, _ = self._compute_hidden(
             input_ids,
             feedback_valid_len=feedback_valid_len,
             feedback_passes=feedback_passes,
@@ -2545,7 +2585,7 @@ class GPT(nn.Module):
                                    feedback_valid_len: int | None = None,
                                    feedback_passes: int | None = None) -> tuple[Tensor, Tensor | None]:
         """Forward pass that accepts and returns capsule state for cross-window carry."""
-        hidden, _, capsule_state, _ = self._compute_hidden(
+        hidden, _, capsule_state, _, _ = self._compute_hidden(
             input_ids,
             carry_capsules=carry_capsules,
             feedback_valid_len=feedback_valid_len,
@@ -2559,7 +2599,7 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str = "mean",
                 temperature: float = 1.0, elapsed_fraction: float = 1.0,
                 carry_capsules: Tensor | None = None, feedback_passes: int | None = None) -> Tensor:
-        hidden, consistency_losses, _, jepa_loss = self._compute_hidden(
+        hidden, consistency_losses, _, jepa_loss, block_aux = self._compute_hidden(
             input_ids,
             elapsed_fraction=elapsed_fraction,
             carry_capsules=carry_capsules,
@@ -2590,25 +2630,13 @@ class GPT(nn.Module):
             spec_loss = spec_sum / len(jepa_loss)
             ce_loss = ce_loss + self.koopman_speculator_weight * spec_loss
 
-        # MoE auxiliary router loss — regularizes expert routing to prevent collapse.
-        # moe_router_aux_loss_coef controls the balance; set to 0 to disable.
-        if self.training and self.moe_router_aux_loss_coef > 0:
-            moe_aux = torch.zeros((), device=input_ids.device)
-            for m in self.modules():
-                if isinstance(m, TernaryMoE) and m.aux_loss is not None:
-                    moe_aux = moe_aux + m.aux_loss
-                    m.aux_loss = None
-            ce_loss = ce_loss + self.moe_router_aux_loss_coef * moe_aux
-
-        # Spectral entropy aux loss — prevents spectral collapse in SKC layers.
-        # Accumulate on device without .item() to avoid host-device sync every step.
-        if self.training:
-            spec_aux = torch.zeros((), device=input_ids.device)
-            for m in self.modules():
-                if isinstance(m, SKCLayer) and getattr(m, "spectral_aux_loss", None) is not None:
-                    spec_aux = spec_aux + m.spectral_aux_loss
-                    m.spectral_aux_loss = None
-            ce_loss = ce_loss + spec_aux
+        # Block aux losses (MoE load-balancing + SKC spectral entropy) are returned
+        # functionally from _compute_hidden — no module state mutation, no Dynamo traps.
+        # MoE aux is pre-scaled by aux_loss_coef (== moe_router_aux_loss_coef) inside
+        # TernaryMoE.forward; SKC spectral aux is pre-scaled by weight=0.01 in
+        # SpectralTernaryAuxLoss — just add directly to ce_loss.
+        if self.training and block_aux is not None:
+            ce_loss = ce_loss + block_aux
 
         return ce_loss
 
@@ -3935,9 +3963,12 @@ def main() -> None:
                 _calib_list = [_mid_calib]
                 dist.broadcast_object_list(_calib_list, src=0)
                 _mid_calib = _calib_list[0]
-            _EXPORT_CALIB = _mid_calib
+            # Write calibration into TernaryLinear buffers (Dynamo-safe) — global dict
+            # assignment is baked into compiled graphs at trace time and stays stale.
+            base_model.apply_export_calib(_mid_calib)
+            _EXPORT_CALIB = _mid_calib  # keep for export pipeline lookups (non-compiled path)
             _aligned_phase_started = True  # prevents redundant final calibration at export time
-            log0(f"export_aligned_train:calib_synced rank={rank} tensors={len(_EXPORT_CALIB)}", flush=True)
+            log0(f"export_aligned_train:calib_synced rank={rank} tensors={len(_mid_calib)}", flush=True)
             if distributed:
                 dist.barrier()  # all ranks confirm receipt before resuming
             if device.type == "cuda": torch.cuda.synchronize()
@@ -3989,7 +4020,8 @@ def main() -> None:
             ema.restore(base_model, _ema_orig_c)
         else:
             _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device)
-        _EXPORT_CALIB = _export_calib
+        base_model.apply_export_calib(_export_calib)
+        _EXPORT_CALIB = _export_calib  # keep for export pipeline lookups (non-compiled path)
         log0(f"export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
 
     if distributed:
