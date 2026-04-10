@@ -8,7 +8,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
-NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-2}"   # Default 2 — this is a 2-GPU script
 OMP_THREADS="${OMP_NUM_THREADS:-1}"
 FAST_SMOKE="${FAST_SMOKE:-0}"
 
@@ -65,12 +65,12 @@ export VRL_ENABLED=1
 export KOOPMAN_ENABLED=1
 export KOOPMAN_RANK=8
 export KOOPMAN_SPECULATOR_ENABLED=0
-export TTT_ENABLED=1
+export TTT_ENABLED=0     # Disabled: expensive post-training eval path extends total wall-clock beyond 10min
 export EMA_ENABLED=1
 
 # Advanced Sprint Options
-export WEIGHT_SHARING=1
-export INSIDE_OUT_TRAINING=1
+export WEIGHT_SHARING=0        # Disabled: not wired into trainer, in validator reject list → startup failure
+export INSIDE_OUT_TRAINING=0   # Disabled: not wired into trainer, in validator reject list → startup failure
 # C3: TKO_ENABLED=1 removed — it was dead code (line 161 overrides it to 0)
 export XSA_START_LAYER=999
 
@@ -164,7 +164,7 @@ export SELF_DISTILL_KL_WEIGHT=0
 
 # ── Export/eval path: faithful to the local small-model line ─────────────────
 export BITNET_GROUP_SIZE=128
-export TURBO_QUANT_TRAIN="${TURBO_QUANT_TRAIN:-0}"
+export TURBO_QUANT_TRAIN="${TURBO_QUANT_TRAIN:-1}"   # Must match EXPORT — Hadamard rotation applied at both train & export
 export TURBO_QUANT_EXPORT="${TURBO_QUANT_EXPORT:-1}"
 export EXPORT_ALIGNED_TRAIN="${EXPORT_ALIGNED_TRAIN:-1}"
 export EXPORT_ALIGNED_TRAIN_START_FRACTION="${EXPORT_ALIGNED_TRAIN_START_FRACTION:-0.85}"
@@ -180,10 +180,10 @@ export TURBO_QUANT_KV="${TURBO_QUANT_KV:-1}"
 export GPTQ_LITE_ENABLED="${GPTQ_LITE_ENABLED:-0}"
 export HESSIAN_TERNARY_GPTQ="${HESSIAN_TERNARY_GPTQ:-0}"
 export SELECTIVE_PRUNING="${SELECTIVE_PRUNING:-0}"
-export SLIDING_EVAL="${SLIDING_EVAL:-1}"
+export SLIDING_EVAL="${SLIDING_EVAL:-0}"          # Off for proxy run — extends total wall-clock beyond 10min
 export SLIDING_EVAL_STRIDE="${SLIDING_EVAL_STRIDE:-32}"
-export TEMP_SCALING="${TEMP_SCALING:-1}"
-export NGRAM_CACHE_ENABLED="${NGRAM_CACHE_ENABLED:-1}"  # Off for dev — expensive post-training computation
+export TEMP_SCALING="${TEMP_SCALING:-0}"          # Off for proxy run — post-training overhead
+export NGRAM_CACHE_ENABLED="${NGRAM_CACHE_ENABLED:-0}"  # Off for proxy run — expensive post-training computation
 export SAVE_PRE_EXPORT_STATE="${SAVE_PRE_EXPORT_STATE:-0}"  # Off for dev — saves time and disk
 export FAST_EXPORT="${FAST_EXPORT:-0}"          # Skip variant grid — LAWA directly, fast export
 export LZMA_PRESET="${LZMA_PRESET:-4}"  # Reliable and fast for 16MB limit

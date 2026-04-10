@@ -126,9 +126,9 @@ export TRAINING_DEPTH_RECURRENCE=0   # Off: slows steps, contradicts maximize-st
 export ACTIVATION_CHECKPOINTING=0    # Not needed without depth recurrence
 
 # ── Curriculum ───────────────────────────────────────────────────────────────
-# DEAD CODE: train_gpt.py line 3197 unconditionally sets active_seq_len = train_seq_len.
-# All CURRICULUM_PHASE* vars are parsed but never used in the training loop.
-# Training always runs at TRAIN_SEQ_LEN=2048. Fine — H100 handles full seq from step 1.
+# Curriculum is off: H100 handles full seq=2048 from step 1 and more steps > shorter context.
+# Note: CURRICULUM_ENABLED does drive sequence-length scheduling via active_seq_len in the
+# current trainer — this is intentionally disabled, not dead code.
 export CURRICULUM_ENABLED=0
 
 # ── Optimizer (SKC-tuned from ablations) ─────────────────────────────────────
@@ -200,7 +200,7 @@ export TEMP_SCALING=1             # Calibrate optimal softmax T on training data
 # ── Ternary quantization ──────────────────────────────────────────────────────
 export BITNET_GROUP_SIZE=128
 export TURBO_QUANT_EXPORT=1
-export TURBO_QUANT_TRAIN=0
+export TURBO_QUANT_TRAIN=1   # Must match EXPORT — Hadamard rotation applied at both train & export
 export TURBO_QUANT_KV=1
 export EXPORT_ALIGNED_TRAIN=1
 export EXPORT_ALIGNED_TRAIN_START_FRACTION=0.85
