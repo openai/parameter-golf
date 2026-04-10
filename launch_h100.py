@@ -49,12 +49,15 @@ python3 -c "import torch; print(f'PyTorch {{torch.__version__}}')" || true
 python3 -c "import flash_attn; print(f'FlashAttn {{flash_attn.__version__}}')" 2>/dev/null || echo "No flash_attn"
 nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || true
 
-# Clone repo
+# Clone repo (remove stale non-git dir from template if present)
+if [ -d parameter-golf ] && [ ! -d parameter-golf/.git ]; then
+    rm -rf parameter-golf
+fi
 if [ ! -d parameter-golf ]; then
     git clone https://github.com/dljr-github/parameter-golf.git
 fi
 cd parameter-golf
-git pull origin main
+git fetch origin main && git reset --hard origin/main
 
 # Install deps (some may already be in the template)
 pip install -q sentencepiece brotli numpy huggingface-hub 2>/dev/null || true
