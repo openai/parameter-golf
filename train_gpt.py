@@ -2243,6 +2243,16 @@ class GPT(nn.Module):
             self._block_map = None
             self.blocks = nn.ModuleList([_make_block(i) for i in range(num_layers)])
 
+        # VRL dead-end guard: if layer 0 is not an attention block it will always
+        # return v_out=None, so v0 is never captured and all vrl_alpha parameters
+        # in deeper attention blocks are permanently dead weight. Disable VRL on
+        # every block so the parameters are not wasted on a path that never fires.
+        if self._layer_types[0] != "attn":
+            all_blocks = list(self.blocks or []) + list(self.shared_block_bank or [])
+            for blk in all_blocks:
+                if hasattr(blk, "attn") and hasattr(blk.attn, "vrl_enabled"):
+                    blk.attn.vrl_enabled = False
+
         self.final_norm = RMSNorm()
 
         # EngramHash — Engram-inspired multi-head n-gram memory with context gating
@@ -2856,6 +2866,15 @@ def eval_val_sliding_ttt(
 ):
     seq_len = args.train_seq_len
     batch_size = batch_seqs
+    # Contiguous rank-segment partitioning: each rank owns a temporally-contiguous
+    # slice of the validation tokens. This preserves the Markov chain so Koopman
+    # carry state remains coherent within each rank's segment. Round-robin chunk
+    # interleaving (ci % world_size) would skip alternate chunks, breaking carry.
+    full_tokens = val_tokens.numel() - 1
+    rank_start = (full_tokens * rank) // world_size
+    rank_end   = (full_tokens * (rank + 1)) // world_size
+    # val_tokens index: rank_start .. rank_end+1 (need +1 for the y-label token)
+    val_tokens = val_tokens[rank_start : rank_end + 1]
     total_tokens = val_tokens.numel() - 1
     ttt_chunk = args.ttt_chunk_tokens
     window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
@@ -2869,7 +2888,7 @@ def eval_val_sliding_ttt(
         chunk_windows[chunk_idx].append(ws)
 
     log0(
-        f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
+        f"ttt_sliding:start rank={rank}/{world_size} chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
         f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
     )
     # Carry is only meaningful for a single sequential stream (batch_size=1).
@@ -2898,12 +2917,9 @@ def eval_val_sliding_ttt(
             windows = chunk_windows[ci]
             if not windows:
                 continue
-            # Document-level parallelism: each rank owns disjoint chunks entirely.
-            # Temporal parallelism (splitting one chunk across ranks) causes future
-            # leakage when gradients are all-reduced: Rank 1's future-text gradients
-            # contaminate Rank 0's optimizer, invalidating causal TTT BPB measurement.
-            if ci % world_size != rank:
-                continue
+            # Each rank processes all chunks within its contiguous token segment.
+            # Contiguous partitioning (rank_start/rank_end above) ensures temporal
+            # continuity for carry state; no chunk-skipping needed here.
             chunk_start = ci * ttt_chunk
             chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
             my_windows = windows
@@ -3339,7 +3355,7 @@ def gptq_lite_clip_search(state_dict: dict, group_size: int, num_percentiles: in
             if H is not None:
                 recon_g = recon_g @ H
             recon = recon_g.reshape(t_padded.shape)[:t.shape[0], :t.shape[1]]
-            mse = (t_clipped - recon).pow(2).mean().item()
+            mse = (t - recon).pow(2).mean().item()  # measure vs original, not clipped
             if mse < best_mse:
                 best_mse = mse
                 best_t = t_clipped
