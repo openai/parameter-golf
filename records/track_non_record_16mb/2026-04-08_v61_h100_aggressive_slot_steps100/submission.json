@@ -1,0 +1,28 @@
+{
+  "author": "sisegod",
+  "github_id": "sisegod",
+  "name": "Non-Record: HybridQuantGPT v6.1 H100 + Aggressive SLOT (lr=0.1 steps=100, 3-seed 1.146523)",
+  "blurb": "Non-record submission. 8xH100 SXM 600s training (within the 10-min compute limit, derived from PR #1123 ported to H100 with FA3 + Parallel Muon + SWA) followed by aggressive SLOT eval (PR #1176 style with search-tuned slot_lr=0.1, slot_steps=100, 33x PR #1176's default). 3-seed mean val_bpb 1.146523 ± 0.001516 (s1337=1.148530, s1338=1.144866, s1339=1.146173). Does NOT beat the current PR #1019 record (1.1147), so submitted as a non-record contribution to document (a) the H100 port of PR #1123, (b) the discovery that PR #1176's SLOT defaults (lr=0.003, steps=5) are 33x too small at the 32M scale and slot_steps is monotonically helpful all the way to 100 (not 20 as previously assumed from a stride=256 quick-eval ablation).",
+  "date": "2026-04-08T00:00:00Z",
+  "track": "non-record-10min-compute-16mb",
+  "compute_note": "10-min training compute (within official 10-min limit) + ~50-min single-GPU eval (eval is unbounded). Submitted as non-record because 1.146523 does not beat the current 1.1147 PR #1019 record.",
+  "val_loss": null,
+  "val_bpb": 1.146523,
+  "val_bpb_std": 0.001516,
+  "val_bpb_per_seed": {
+    "1337": 1.148530,
+    "1338": 1.144866,
+    "1339": 1.146173
+  },
+  "step_stop_mean": 5314,
+  "wallclock_seconds": 600.1,
+  "bytes_total_seed1337": 14976857,
+  "bytes_total_seed1338": 14981529,
+  "bytes_total_seed1339": 14978137,
+  "bytes_code": null,
+  "seeds": [1337, 1338, 1339],
+  "hardware": "8x H100 80GB SXM",
+  "derived_from_pr": 1123,
+  "cite_pr": [1176],
+  "status": "3_seed_verified_steps100"
+}
