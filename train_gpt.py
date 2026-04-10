@@ -1502,14 +1502,18 @@ class KoopmanBlock(nn.Module):
         self.mlp_scale = nn.Parameter(torch.zeros(dim))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None) -> tuple[Tensor, None]:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
+                elapsed_fraction: float = 1.0) -> tuple[Tensor, None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-        
+
         mixer_out = self.mixer(self.attn_norm(x) * self.ln_scale_factor)
         x = x + self.attn_scale.to(dtype=x.dtype) * mixer_out
-        
-        mlp_out = self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
+
+        if isinstance(self.mlp, TernaryMoE):
+            mlp_out = self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
+        else:
+            mlp_out = self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
         if isinstance(mlp_out, tuple): 
             mlp_out, moe_loss = mlp_out
         else:
@@ -2397,7 +2401,7 @@ class GPT(nn.Module):
                 x, v_out = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
                                            prev_capsules=carry_capsules)
                 if v0 is None and v_out is not None:
-                    v0 = v_out.detach()
+                    v0 = v_out  # keep graph alive for VRL gradient super-highway
             skips.append(x)
 
         # Capsule state initialization — use carry_capsules for cross-window persistence
@@ -2652,11 +2656,13 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
     model.eval()
     eval_smoke = int(os.environ.get("FAST_SMOKE", "0")) == 1
-    t_eval_start = time.perf_counter()
+    smoke_batch_limit = int(os.environ.get("FAST_SMOKE_BATCHES", "128"))
     with torch.inference_mode():
         for i, batch_start in enumerate(range(seq_start, seq_end, local_batch_seqs)):
-            # Safety cap for smoke tests to prevent 10-minute hangs
-            if eval_smoke and (i >= 128 or (time.perf_counter() - t_eval_start) > 30.0):
+            # Safety cap for smoke tests — use deterministic batch limit only.
+            # Wall-clock time is unsynchronized across ranks and causes NCCL deadlock
+            # when one rank breaks out while others are still inside the forward pass.
+            if eval_smoke and i >= smoke_batch_limit:
                 break
             batch_end = min(batch_start + local_batch_seqs, seq_end)
             raw_start = batch_start * args.train_seq_len
