@@ -1,0 +1,38 @@
+{
+  "author": "taka6745",
+  "github_id": "taka6745",
+  "name": "SP8192 + NL11 MLP4 + Parallel Residuals (L7+) + Gated Attention + NorMuon + Parallel Muon + Legal Score-First TTT",
+  "date": "2026-04-10",
+  "track": "10min_16mb",
+  "val_bpb": 1.08237,
+  "val_bpb_std": 0.00043,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.08243, "artifact_bytes": 16051299},
+    "314": {"val_bpb": 1.08192, "artifact_bytes": 16050433},
+    "999": {"val_bpb": 1.08276, "artifact_bytes": 16051839}
+  },
+  "hardware": "8xNVIDIA H100 80GB HBM3 SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + 11L 4xMLP (35.99M params) + 3-Layer Depth Recurrence (L3-5, activate at frac=0.35) + Parallel Residuals (L7+, GPT-J style) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + Gated Attention + NorMuon + Norm-PCT-Dropout + Parallel Muon + Score-First TTT (SGD 3ep) + GPTQ int6 SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445), @bigbag (PR #1493)",
+    "gated_attention_normuon_norm_pct_dropout_parallel_muon": "@taka6745 (this submission)"
+  },
+  "notes": "Artifact is ~51KB over the 16MB cap (16,051,190 mean bytes). Known fix: CMP_QUANT_VALUE_DEDUP=1 or PARALLEL_START_LAYER=-1 (two-lane override bug). Prepped in commit ad8bb34 for retry 6."
+}
