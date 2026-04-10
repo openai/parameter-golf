@@ -2396,10 +2396,13 @@ class GPT(nn.Module):
                     and i == self.engram_inject_layer):
                 x = x + self.engram(input_ids, hidden=x)
             for _ in range(max(1, self.training_depth_recurrence)):
-                # Pass carry_capsules as prev_capsules so SKCLayer Koopman dynamics
-                # receive cross-window state rather than always resetting to None.
+                # Do NOT pass carry_capsules as prev_capsules here.
+                # carry_capsules is the global CapsuleBank summary (high-level manifold).
+                # Injecting it into per-layer SKCLayer Koopman dynamics blends two
+                # incompatible state manifolds, corrupting the low-level representations.
+                # SKC layers maintain their own internal carry independently.
                 x, v_out = self._run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                           prev_capsules=carry_capsules)
+                                           prev_capsules=None)
                 if v0 is None and v_out is not None:
                     v0 = v_out  # keep graph alive for VRL gradient super-highway
             skips.append(x)
@@ -2463,7 +2466,7 @@ class GPT(nn.Module):
                         break
 
             x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
-                                   elapsed_fraction=elapsed_fraction, prev_capsules=carry_capsules)
+                                   elapsed_fraction=elapsed_fraction, prev_capsules=None)
             
             # After fast-forward: we ran one decoder pass with speculated state, now stop
             if fast_forwarded:
@@ -2895,11 +2898,15 @@ def eval_val_sliding_ttt(
             windows = chunk_windows[ci]
             if not windows:
                 continue
+            # Document-level parallelism: each rank owns disjoint chunks entirely.
+            # Temporal parallelism (splitting one chunk across ranks) causes future
+            # leakage when gradients are all-reduced: Rank 1's future-text gradients
+            # contaminate Rank 0's optimizer, invalidating causal TTT BPB measurement.
+            if ci % world_size != rank:
+                continue
             chunk_start = ci * ttt_chunk
             chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
-            my_s = (len(windows) * rank) // world_size
-            my_e = (len(windows) * (rank + 1)) // world_size
-            my_windows = windows[my_s:my_e]
+            my_windows = windows
 
             base_model.eval()
             with torch.inference_mode():
@@ -2986,9 +2993,11 @@ def eval_val_sliding_ttt(
             cosine_lr = args.ttt_lr  # constant LR across all chunks — cosine decay paralyzed adaptation at end of val file
             for group in optimizer.param_groups:
                 group["lr"] = cosine_lr
-            my_seq_s = (chunk_seqs * rank) // world_size
-            my_seq_e = (chunk_seqs * (rank + 1)) // world_size
-            my_chunk_seqs = my_seq_e - my_seq_s
+            # This rank owns the full chunk — train on all sequences within it.
+            # No temporal split across ranks; document-level parallelism already
+            # ensures ranks never share any chunk, so no grad all_reduce is needed.
+            my_seq_s = 0
+            my_chunk_seqs = chunk_seqs
             chunk_carry_start = carry_capsules
             for epoch_idx in range(args.ttt_epochs):
                 epoch_carry_capsules = chunk_carry_start
@@ -3019,10 +3028,10 @@ def eval_val_sliding_ttt(
                     else:
                         loss = base_model(x, y, temperature=temperature, feedback_passes=eval_feedback_passes)
                     loss.backward()
-                    if world_size > 1:
-                        for p in ttt_params:
-                            if p.grad is not None:
-                                dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                    # No grad all_reduce: document-level parallelism means each rank
+                    # trains on its own disjoint chunks. Averaging gradients across
+                    # ranks would mix future-chunk gradients into past-chunk updates,
+                    # re-introducing the temporal leakage we are fixing here.
                     torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                     optimizer.step()
                 if epoch_idx == args.ttt_epochs - 1:
