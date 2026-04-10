@@ -1,0 +1,90 @@
+{
+  "name": "Record: SP8192 + Parallel Residuals + 3-Layer Recurrence + Token-Only N-gram Tilt \u2014 val_bpb 1.08091 (5-seed mean, causal-corrected)",
+  "val_bpb": 1.08091,
+  "val_loss": 2.7921,
+  "bytes_total": 15995572,
+  "blurb": "Causal-corrected 5-seed mean 1.08091 BPB (val_loss 2.79210 nats per token, std 0.00043). Beats PR #1394 (clarkkev, 1.08563) by +0.01219 nats per token, clearing the 0.005-nat record bar by 2.4x. Beats merged SOTA PR #1019 (1.11473) by +0.08736 nats per token. The originally-posted 1.07807 5-seed mean used a non-causal n-gram kernel inherited from PR #1420 (within_hint and word_hint gated emission on is_bnd[tokens_[p]]/is_ws[tokens_[p]], leaking 1-2 bits about the answer per scored position, Issue #1017 condition 2 violation). Fix matches @abaybektursun proposed patch in the PR #1420 thread: derive prev_is_bnd/prev_is_ws from tokens_[p-1] for hint gating, while updates use the actual target token via tok_is_bnd/tok_is_ws (causal because they happen after hint emission for that position). 5 seeds re-run from this submission folder with the patched kernel; the corrected number is the legitimate value. PR #1420 has the identical bug; @abaybektursun has acknowledged it. Pre-fix per-seed values preserved in seed_results_pre_fix for the public record.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-07",
+  "seed_results": {
+    "0": {
+      "val_bpb": 1.08035,
+      "val_loss": 2.79067,
+      "steps": 4911,
+      "artifact_bytes": 15994644
+    },
+    "42": {
+      "val_bpb": 1.08097,
+      "val_loss": 2.79225,
+      "steps": 4906,
+      "artifact_bytes": 15995572
+    },
+    "1234": {
+      "val_bpb": 1.08127,
+      "val_loss": 2.79303,
+      "steps": 4915,
+      "artifact_bytes": 15993531
+    },
+    "1337": {
+      "val_bpb": 1.0806,
+      "val_loss": 2.79131,
+      "steps": 4905,
+      "artifact_bytes": 15988802
+    },
+    "2025": {
+      "val_bpb": 1.08135,
+      "val_loss": 2.79324,
+      "steps": 4911,
+      "artifact_bytes": 15993360
+    }
+  },
+  "lineage": [
+    "PR #1394 (clarkkev) \u2014 sp8192 base",
+    "PR #1413 (dexhunter) \u2014 sp8192 + QK5 + legal score-first TTT",
+    "PR #1412 (Robby955) \u2014 parallel residuals on layers 7-10",
+    "PR #1420 (abaybektursun) \u2014 n-gram tilt mechanism + C++ kernel",
+    "PR #1145 (AnirudhRahul) \u2014 original normalized causal n-gram cache pattern",
+    "PR #549 (abaybektursun, merged) \u2014 score-first TTT precedent"
+  ],
+  "seed_results_pre_fix": {
+    "0": {
+      "val_bpb": 1.07751,
+      "val_loss": 2.78333,
+      "steps": 4918,
+      "artifact_bytes": 15992304
+    },
+    "42": {
+      "val_bpb": 1.07809,
+      "val_loss": 2.78481,
+      "steps": 4911,
+      "artifact_bytes": 15993733
+    },
+    "1234": {
+      "val_bpb": 1.07813,
+      "val_loss": 2.78492,
+      "steps": 4908,
+      "artifact_bytes": 15990539
+    },
+    "1337": {
+      "val_bpb": 1.07801,
+      "val_loss": 2.78461,
+      "steps": 4909,
+      "artifact_bytes": 15988039
+    },
+    "2025": {
+      "val_bpb": 1.07862,
+      "val_loss": 2.7862,
+      "steps": 4908,
+      "artifact_bytes": 15992215
+    }
+  },
+  "correction_note": {
+    "date": "2026-04-07",
+    "issue": "Issue #1017 condition 2 (causality)",
+    "root_cause": "fused_expert_kernel.cpp::get_hints_batch read tokens_[p] (target token) and used is_bnd[tok]/is_ws[tok] to gate within_hint/word_hint emission, leaking 1-2 bits per scored position",
+    "fix": "kernel patched to derive prev_is_bnd/prev_is_ws from tokens_[p-1] for hint gates only; updates still use current tok (causal because they happen after hint emission). Additionally NGRAM_WITHIN_BETA=0 NGRAM_WORD_BETA=0 disables within/word experts (they contribute negative BPB once causal). Only token_hint contributes (already causal).",
+    "leak_magnitude_nats": 0.00284,
+    "shared_with": "PR #1420 (acknowledged by @abaybektursun in PR #1420 thread, fix proposal at https://github.com/openai/parameter-golf/pull/1420#issuecomment-4199452189)"
+  }
+}
