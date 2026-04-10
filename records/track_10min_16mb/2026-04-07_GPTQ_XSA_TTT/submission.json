@@ -1,0 +1,14 @@
+{
+  "author": "DilpreetBansi",
+  "github_id": "DilpreetBansi",
+  "name": "AR Self-Gen GPTQ + XSA-all + Legal Score-First TTT",
+  "blurb": "First demonstration of TTT on GPTQ-quantized models. LoRA-constrained TTT (rank-8 on Q/V, ~158K params) keeps model in GPTQ basin while adapting to validation distribution. Extended eval context (4096 tokens), layer-wise LR decay, cosine schedule. Built on PR #1019 SOTA stack.",
+  "date": "2026-04-07",
+  "track": "10min_16mb",
+  "val_bpb": 0.0,
+  "val_loss": 0.0,
+  "seeds": [314, 42, 999],
+  "hardware": "8xH100 80GB SXM",
+  "comparison_baseline_pr": 1019,
+  "technique_summary": "PR #1019 stack + LoRA TTT (rank-8 Q/V, lr=0.01, 3 epochs, 32K chunks, extended 4096 eval, layer-wise LR decay 0.7, cosine schedule)"
+}
