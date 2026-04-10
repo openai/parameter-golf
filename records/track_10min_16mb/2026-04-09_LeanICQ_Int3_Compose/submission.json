@@ -1,0 +1,41 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Non-Record: SP8192 + LeanICQ Int3 Compose (Hessian k-means centroids + outlier extraction)",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_bpb": 1.08720,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_bpb": 1.08720, "val_loss_nats": 2.80835, "artifact_bytes": 15879906}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "is_record": false,
+  "technique_summary": "LeanQuant (Hessian-weighted k-means, 8 centroids = int3) + ICQuant (top 2% outliers as int8) + packed 3-bit bitstream + GPTQ int8 embeddings + Score-First TTT + Brotli-11",
+  "mechanism_tags": ["leanquant", "icquant", "int3", "hessian-kmeans-centroids", "outlier-extraction", "packed-bitstream", "score-first-ttt"],
+  "pareto_curve": {
+    "int6_oversized": {"matrix_bits": 6, "val_bpb": 1.07212, "artifact_bytes": 27508903, "fits_16mb": false},
+    "int5": {"matrix_bits": 5, "val_bpb": 1.07308, "artifact_bytes": 23856991, "fits_16mb": false},
+    "int4": {"matrix_bits": 4, "val_bpb": 1.07623, "artifact_bytes": 19900098, "fits_16mb": false},
+    "int3_submitted": {"matrix_bits": 3, "val_bpb": 1.08720, "artifact_bytes": 15879906, "fits_16mb": true}
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "note": "Single seed only (s42). Multi-seed not pursued due to non-record status."
+  },
+  "attribution": {
+    "sp8192_baseline": "@clarkkev (PR #1394)",
+    "leanquant_paper": "Zhang et al. arXiv:2407.10032",
+    "icquant_paper": "Dettmers et al. arXiv:2505.00850",
+    "score_first_ttt": "@abaybektursun (PR #549)"
+  }
+}
