@@ -14,6 +14,7 @@ from .eval import eval_val
 from .lr_schedulers import get_scheduler
 from .optim import Muon
 from .serialization import dequantize_state_dict_int8, quantize_state_dict_int8
+from .ternary import serialize_ternary_lzma, deserialize_ternary_lzma
 
 
 def run_training(
@@ -66,8 +67,20 @@ def run_training(
     def eval_val_quantized_roundtrip() -> tuple[float, float]:
         # Validate on the quantized->dequantized weights that match submission-time path.
         fp_state = {name: tensor.detach().to("cpu").contiguous() for name, tensor in base_model.state_dict().items()}
-        quant_obj, _quant_stats = quantize_state_dict_int8(fp_state)
-        q_state = dequantize_state_dict_int8(quant_obj)
+        
+        if args.ternary_enabled:
+            blob = serialize_ternary_lzma(fp_state)
+            q_state = deserialize_ternary_lzma(blob)
+        else:
+            quant_obj, _quant_stats = quantize_state_dict_int8(
+                fp_state,
+                ptq_bits=args.ptq_bits,
+                ptq_mlp_bits=args.ptq_mlp_bits,
+                int6_layer_start=args.int6_layer_start,
+                int6_layer_end=args.int6_layer_end,
+            )
+            q_state = dequantize_state_dict_int8(quant_obj)
+            
         base_model.load_state_dict(q_state, strict=True)
         try:
             return eval_val(

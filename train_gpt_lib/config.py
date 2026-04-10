@@ -30,6 +30,22 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
+    # Quantization and Ternary
+    ternary_enabled = bool(int(os.environ.get("TERNARY_ENABLED", "0")))
+    qat_bits = int(os.environ.get("QAT_BITS", "0"))
+    ptq_bits = int(os.environ.get("PTQ_BITS", "8"))
+    ptq_mlp_bits = int(os.environ.get("PTQ_MLP_BITS", "8"))
+    int6_layer_start = int(os.environ.get("INT6_LAYER_START", "0"))
+    int6_layer_end = int(os.environ.get("INT6_LAYER_END", "0"))
+    
+    # Initialization
+    init_scheme = os.environ.get("INIT_SCHEME", "default")
+
+    # Batch Packing
+    pack_batches = bool(int(os.environ.get("PACK_BATCHES", "0")))
+    bos_id = int(os.environ.get("BOS_ID", "1"))
+    pad_token_id = int(os.environ.get("PAD_TOKEN_ID", "0"))
+
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 9))

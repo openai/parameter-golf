@@ -4,6 +4,7 @@ import io
 import math
 import os
 import zlib
+import lzma
 from typing import Callable
 
 import torch
@@ -19,6 +20,7 @@ from .config import (
 )
 from .eval import eval_val
 from .config import Hyperparameters
+from .ternary import serialize_ternary_lzma, deserialize_ternary_lzma
 
 
 def tensor_nbytes(t: Tensor) -> int:
@@ -34,26 +36,28 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
     return t
 
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor_intN(t: Tensor, bits: int) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    clip_range = (1 << (bits - 1)) - 1
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        amax = t32.abs().max(dim=1, keepdim=True).values
+        scale = (amax / clip_range).clamp_min(1e-8)
+        q = torch.clamp(torch.round(t32 / scale), -(clip_range + 1), clip_range).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    amax = t32.abs().max().item()
+    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(t32 / scale), -(clip_range + 1), clip_range).to(torch.int8).contiguous()
     return q, scale
 
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+def quantize_state_dict_int8(
+    state_dict: dict[str, Tensor],
+    ptq_bits: int = 8,
+    ptq_mlp_bits: int = 8,
+    int6_layer_start: int = 0,
+    int6_layer_end: int = 0,
+):
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -84,16 +88,34 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        
+        # Determine bits for this layer
+        bits = ptq_bits
+        if "mlp" in name:
+            bits = ptq_mlp_bits
+        
+        # Handle legacy int6 layer range if specified
+        if int6_layer_start < int6_layer_end:
+            try:
+                layer_idx = int(name.split(".")[1])
+                if int6_layer_start <= layer_idx < int6_layer_end:
+                    bits = 6
+            except (IndexError, ValueError):
+                pass
+
+        q, s = quantize_float_tensor_intN(t, bits)
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits}
+        else:
+            qmeta[name] = {"bits": bits}
+            
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
         stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": "intN_clean_per_row_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -175,7 +197,10 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        bits = meta.get("bits", 8)
+        
+        if meta.get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
@@ -221,39 +246,73 @@ def save_and_validate_roundtrip(
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size (fp32 .pt + code): {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
-    quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
-    quant_raw_bytes = len(quant_raw)
-    if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
-            f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
-        code_bytes = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-        log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+    if args.ternary_enabled:
+        # Ternary path
+        quant_blob = serialize_ternary_lzma(base_model.state_dict())
+        if master_process:
+            with open("final_model.ternary.ptz", "wb") as f:
+                f.write(quant_blob)
+            quant_file_bytes = os.path.getsize("final_model.ternary.ptz")
+            log0(f"Serialized model ternary+lzma: {quant_file_bytes} bytes")
+            zlib_mb_ceil = int(math.ceil(quant_file_bytes / (1024.0 * 1024.0)))
+            log0(f"MODEL_TERNARY_LZMA_BYTES:{quant_file_bytes}")
+            log0(f"MODEL_TERNARY_LZMA_MB_CEIL:{zlib_mb_ceil}")
+            if on_model_size is not None:
+                on_model_size(
+                    fp32_pt_bytes=model_bytes,
+                    int8_zlib_bytes=quant_file_bytes,
+                    int8_payload_bytes=0, # Not applicable for ternary
+                )
+        
+        if dist.is_available() and dist.is_initialized():
+            dist.barrier()
+        with open("final_model.ternary.ptz", "rb") as f:
+            quant_blob_disk = f.read()
+        base_model.load_state_dict(deserialize_ternary_lzma(quant_blob_disk), strict=True)
+        mode_str = "ternary_lzma"
+    else:
+        # IntN path
+        quant_obj, quant_stats = quantize_state_dict_int8(
+            base_model.state_dict(),
+            ptq_bits=args.ptq_bits,
+            ptq_mlp_bits=args.ptq_mlp_bits,
+            int6_layer_start=args.int6_layer_start,
+            int6_layer_end=args.int6_layer_end,
         )
-        zlib_mb_ceil = int(math.ceil(quant_file_bytes / (1024.0 * 1024.0)))
-        log0(f"MODEL_INT8_ZLIB_BYTES:{quant_file_bytes}")
-        log0(f"MODEL_INT8_ZLIB_MB_CEIL:{zlib_mb_ceil}")
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
-        if on_model_size is not None:
-            on_model_size(
-                fp32_pt_bytes=model_bytes,
-                int8_zlib_bytes=quant_file_bytes,
-                int8_payload_bytes=int(quant_stats["int8_payload_bytes"]),
+        quant_buf = io.BytesIO()
+        torch.save(quant_obj, quant_buf)
+        quant_raw = quant_buf.getvalue()
+        quant_blob = zlib.compress(quant_raw, level=9)
+        quant_raw_bytes = len(quant_raw)
+        if master_process:
+            with open("final_model.int8.ptz", "wb") as f:
+                f.write(quant_blob)
+            quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+            code_bytes = len(code.encode("utf-8"))
+            ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+            log0(
+                f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+                f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
             )
+            zlib_mb_ceil = int(math.ceil(quant_file_bytes / (1024.0 * 1024.0)))
+            log0(f"MODEL_INT8_ZLIB_BYTES:{quant_file_bytes}")
+            log0(f"MODEL_INT8_ZLIB_MB_CEIL:{zlib_mb_ceil}")
+            log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+            if on_model_size is not None:
+                on_model_size(
+                    fp32_pt_bytes=model_bytes,
+                    int8_zlib_bytes=quant_file_bytes,
+                    int8_payload_bytes=int(quant_stats["int8_payload_bytes"]),
+                )
 
-    if dist.is_available() and dist.is_initialized():
-        dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
-        quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+        if dist.is_available() and dist.is_initialized():
+            dist.barrier()
+        with open("final_model.int8.ptz", "rb") as f:
+            quant_blob_disk = f.read()
+        quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+        base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+        mode_str = "int8_zlib"
+
     torch.cuda.synchronize()
     t_qeval = torch.cuda.Event(enable_timing=True)
     t_qeval_end = torch.cuda.Event(enable_timing=True)
@@ -274,7 +333,7 @@ def save_and_validate_roundtrip(
     torch.cuda.synchronize()
     eval_ms = t_qeval.elapsed_time(t_qeval_end)
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_{mode_str}_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{eval_ms:.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_{mode_str}_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")

@@ -22,7 +22,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import train_gpt_lib.optim as optim_mod
 from train_gpt_lib.config import Hyperparameters
 from train_gpt_lib.comet_tracker import CometTracker
-from train_gpt_lib.data import DistributedTokenLoader, build_sentencepiece_luts, load_validation_tokens
+from train_gpt_lib.data import DistributedTokenLoader, DistributedPackedTokenLoader, build_sentencepiece_luts, load_validation_tokens
 from train_gpt_lib.flash_attention import describe as flash_attn_describe, is_available as flash_attn_is_available
 from train_gpt_lib.model import CastedLinear, GPT, restore_low_dim_params_to_fp32
 from train_gpt_lib.optim import build_optimizers
@@ -142,10 +142,13 @@ def main() -> None:
         hyper_conn_n=args.mhc_num_streams,
         flash_attn_version=flash_ver,
         mlp_proj_init=args.mlp_proj_init,
+        init_scheme=args.init_scheme,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+            module._qat_bits = args.qat_bits
+            module._ternary = args.ternary_enabled
     restore_low_dim_params_to_fp32(base_model)
     compile_fullgraph = args.compile_fullgraph
     compile_dynamic = args.compile_dynamic
@@ -185,7 +188,11 @@ def main() -> None:
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(f"mhc:enabled={args.use_mhc} type={args.mhc_type if args.use_mhc else 'none'} streams={args.mhc_num_streams}")
-    log0("val_mode:full_precision_and_int8_quantized_dequantized_roundtrip")
+    val_mode_str = "full_precision_and_int8_quantized_dequantized_roundtrip"
+    if args.ternary_enabled:
+        val_mode_str = "full_precision_and_ternary_quantized_dequantized_roundtrip"
+    log0(f"val_mode:{val_mode_str}")
+    log0(f"qat_bits:{args.qat_bits} ternary_enabled:{args.ternary_enabled} init_scheme:{args.init_scheme}")
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
@@ -194,7 +201,10 @@ def main() -> None:
     log0(f"seed:{args.seed}")
     tracker = CometTracker(args, enabled=(master_process and args.comet_enable), log0=log0)
 
-    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    if args.pack_batches:
+        train_loader = DistributedPackedTokenLoader(args.train_files, rank, world_size, device)
+    else:
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     run_training(
         args=args,
         model=model,

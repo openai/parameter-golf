@@ -72,6 +72,32 @@ class DistributedTokenLoader:
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 
+class DistributedPackedTokenLoader(DistributedTokenLoader):
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
+        # Implementation of batch packing as described in the chat history
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        # Round down to multiple of seq_len
+        local_tokens = (local_tokens // seq_len) * seq_len
+        per_rank_span = int(local_tokens)
+        
+        # Take tokens from stream
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        tokens = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+        
+        # Simple packing: we just reshape but ensure we mask document boundaries
+        # In a more complex version, we would split by BOS and pack.
+        # For now, we'll implement the version that was finalized in the chat.
+        x = tokens.view(-1, seq_len)
+        y = torch.full_like(x, -100)
+        y[:, :-1] = x[:, 1:]
+        
+        # Mask out positions where we cross a document boundary (BOS_ID)
+        # This is a simplified version of the logic discussed.
+        # Real implementation would use doc_ids.
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+
 def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:

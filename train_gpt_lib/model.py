@@ -10,6 +10,8 @@ from torch import Tensor, nn
 
 from .config import CONTROL_TENSOR_NAME_PATTERNS
 from .flash_attention import get_flash_attn_fn
+from .ternary import ternary_ste
+from .initialization import apply_initialization
 
 
 class RMSNorm(nn.Module):
@@ -22,9 +24,25 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    _qat_bits = 0
+    _ternary = False
+
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight
+        if self._ternary:
+            w = ternary_ste(w)
+        elif self._qat_bits > 0:
+            # Generic intN QAT
+            clip_range = (1 << (self._qat_bits - 1)) - 1
+            # Per-row max abs
+            amax = w.abs().max(dim=1, keepdim=True).values
+            scale = (amax / clip_range).clamp_min(1e-8)
+            w_q = (w / scale).round().clamp(-(clip_range + 1), clip_range)
+            w_dq = w_q * scale
+            w = w + (w_dq - w).detach()
+
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w.to(x.dtype), bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -223,6 +241,7 @@ class GPT(nn.Module):
         hyper_conn_n: int = 1,
         flash_attn_version: int = 0,
         mlp_proj_init: str = "zero",
+        init_scheme: str = "default",
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -259,6 +278,7 @@ class GPT(nn.Module):
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
+        apply_initialization(self, init_scheme, num_layers)
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
