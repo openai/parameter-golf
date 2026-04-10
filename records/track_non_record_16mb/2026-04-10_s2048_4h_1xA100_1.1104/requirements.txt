@@ -1,0 +1,5 @@
+# A100 (Ampere) — FA3 is Hopper-only, falls back to PyTorch SDP (flash backend)
+# FA2 can be installed for modest speedup: pip install flash-attn --no-build-isolation
+sentencepiece
+zstandard
+# LZMA is in stdlib, no install needed
