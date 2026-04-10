@@ -1,0 +1,10 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "name": "Record: 3-Layer Depth Recurrence + EMA 0.9965 + WD 0.095 + Early Recurrence",
+  "blurb": "3-layer depth recurrence (layers 3,4,5) with EMA decay 0.9965, WD=0.095, MLR=0.022, early recurrence activation (step 2000), and extended warmdown (72%). Built on PR #1334 architecture with innovations from PR #1331.",
+  "date": "2026-04-07T00:00:00Z",
+  "val_loss": 2.50552189,
+  "val_bpb": 1.08887087,
+  "bytes_total": 15895711
+}
