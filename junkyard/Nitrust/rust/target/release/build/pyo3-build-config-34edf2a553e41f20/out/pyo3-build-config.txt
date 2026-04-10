@@ -1,0 +1,11 @@
+implementation=CPython
+version=3.9
+shared=true
+abi3=true
+lib_name=python3.13
+lib_dir=/home/frosty40/miniconda3/lib
+executable=/home/frosty40/miniconda3/bin/python
+pointer_width=64
+build_flags=
+python_framework_prefix=
+suppress_build_script_link_lines=false
