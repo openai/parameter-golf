@@ -136,6 +136,11 @@ class Hyperparameters:
     ngram_eval_min_count = int(os.environ.get("NGRAM_EVAL_MIN_COUNT", 2))
     ngram_eval_buckets = int(os.environ.get("NGRAM_EVAL_BUCKETS", 4_194_304))
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
+    cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))
+    cubric_count_decay = float(os.environ.get("CUBRIC_COUNT_DECAY", 0.02))
+    cubric_boost_confident = bool(int(os.environ.get("CUBRIC_BOOST_CONFIDENT", "1")))
+    cubric_prune_noisy = bool(int(os.environ.get("CUBRIC_PRUNE_NOISY", "1")))
+    cubric_reweight_orders = bool(int(os.environ.get("CUBRIC_REWEIGHT_ORDERS", "1")))
     compile_enabled = bool(int(os.environ.get("COMPILE_ENABLED", "1")))
     compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 def maybe_torch_compile(obj, args: Hyperparameters):
@@ -968,6 +973,55 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+def _cubric_c_step(ctx_tables, full_tables, buf_mp, buf_np_, buf_ma, buf_or, buf_ck, buf_fk, min_order, max_order, count_decay, boost_confident, prune_noisy, reweight_orders):
+    all_matched = np.concatenate(buf_ma) if buf_ma else np.array([], dtype=bool)
+    all_orders = np.concatenate(buf_or) if buf_or else np.array([], dtype=np.int32)
+    all_mp = np.concatenate(buf_mp) if buf_mp else np.array([])
+    all_np_ = np.concatenate(buf_np_) if buf_np_ else np.array([])
+    if len(all_matched) == 0 or not all_matched.any():
+        return
+    m_idx = np.nonzero(all_matched)[0]
+    order_acc = {}
+    for n in range(min_order, max_order + 1):
+        om = m_idx[all_orders[m_idx] == n]
+        if len(om) > 0:
+            order_acc[n] = float(np.mean(all_np_[om] > all_mp[om]))
+    if count_decay > 0.0:
+        df = 1.0 - count_decay
+        for n in range(min_order, max_order + 1):
+            a = ctx_tables[n] > 0
+            if a.any():
+                ctx_tables[n][a] = np.maximum((ctx_tables[n][a].astype(np.float64) * df).astype(np.uint32), 1)
+                full_tables[n][a] = np.minimum(full_tables[n][a], ctx_tables[n][a])
+    if boost_confident:
+        for si in range(len(buf_ma)):
+            m = np.nonzero(buf_ma[si])[0]
+            if len(m) == 0: continue
+            conf = (buf_mp[si][m] > 0.5) & (buf_np_[si][m] > 0.3)
+            if not conf.any(): continue
+            ci = m[conf]; ords = buf_or[si][ci]
+            for n in range(min_order, max_order + 1):
+                nm = ords == n
+                if not nm.any() or n not in buf_ck[si]: continue
+                np.add.at(ctx_tables[n], buf_ck[si][n][ci[nm]], 1)
+                np.add.at(full_tables[n], buf_fk[si][n][ci[nm]], 1)
+    if prune_noisy:
+        for n in range(min_order, max_order + 1):
+            noisy = (ctx_tables[n] > 20) & (full_tables[n].astype(np.float64) / np.maximum(ctx_tables[n].astype(np.float64), 1.0) < 0.01)
+            if noisy.any():
+                ctx_tables[n][noisy] = 0; full_tables[n][noisy] = 0
+    if reweight_orders and order_acc:
+        avg = np.mean(list(order_acc.values()))
+        for n, acc in order_acc.items():
+            if acc > avg + 0.1:
+                b = ctx_tables[n] > 0
+                if b.any():
+                    ctx_tables[n][b] = np.minimum((ctx_tables[n][b].astype(np.float64) * 1.05).astype(np.uint32), 2**31-1)
+                    full_tables[n][b] = np.minimum((full_tables[n][b].astype(np.float64) * 1.05).astype(np.uint32), ctx_tables[n][b])
+            elif acc < avg - 0.1:
+                s = ctx_tables[n] > 0
+                if s.any():
+                    ctx_tables[n][s] = np.maximum((ctx_tables[n][s].astype(np.float64) * 0.95).astype(np.uint32), 1)
 def eval_val_sliding_hashed_ngram(
     args: Hyperparameters,
     base_model: nn.Module,
@@ -1030,6 +1084,8 @@ def eval_val_sliding_hashed_ngram(
     loss_sum = 0.0
     token_count = 0.0
     byte_count = 0.0
+    _cc = getattr(args, 'cubric_cadence', 0); _con = _cc > 0; _ccnt = 0; _cfired = 0
+    _bmp: list = []; _bnp: list = []; _bma: list = []; _bor: list = []; _bck: list = []; _bfk: list = []
 
     base_model.eval()
     compiled_logits = maybe_torch_compile(base_model.forward_logits, args)
@@ -1088,7 +1144,9 @@ def eval_val_sliding_hashed_ngram(
                 # Multi-order backoff: try highest order first, fall back
                 p_ng = np.zeros(seg_len, dtype=np.float64)
                 ng_matched = np.zeros(seg_len, dtype=np.bool_)
+                _ng_ord = np.zeros(seg_len, dtype=np.int32) if _con else None
                 tgt_np = val_np[global_j].astype(np.uint64)
+                _sck: dict = {}; _sfk: dict = {}
 
                 for n in range(max_order, min_order - 1, -1):
                     ctx_width = n - 1
@@ -1105,6 +1163,11 @@ def eval_val_sliding_hashed_ngram(
                     ctx_key = (ctx_hash & mask).astype(np.int64)
                     full_key = ((ctx_hash ^ (tgt_np[v_idx] * primes[ctx_width % len(primes)])) & mask).astype(np.int64)
 
+                    if _con:
+                        ck = np.zeros(seg_len, dtype=np.int64); ck[v_idx] = ctx_key
+                        fk = np.zeros(seg_len, dtype=np.int64); fk[v_idx] = full_key
+                        _sck[n] = ck; _sfk[n] = fk
+
                     ctx_counts = ctx_tables[n][ctx_key].astype(np.float64)
                     full_counts = full_tables[n][full_key].astype(np.float64)
                     has_data = ctx_counts >= float(min_count)
@@ -1114,6 +1177,7 @@ def eval_val_sliding_hashed_ngram(
                         hit_idx = v_idx[has_data]
                         p_ng[hit_idx] = p[has_data]
                         ng_matched[hit_idx] = True
+                        if _ng_ord is not None: _ng_ord[hit_idx] = n
 
                 # Mix where n-gram matched
                 if ng_matched.any():
