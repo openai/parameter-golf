@@ -1,0 +1,186 @@
++ set -euo pipefail
+++ dirname ./scripts/run_candidate_v1_long_1gpu.sh
++ cd ./scripts/..
++ '[' -d .venv-cu128 ']'
++ . .venv-cu128/bin/activate
+++ deactivate nondestructive
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
+++ '[' -n '' ']'
+++ unset VIRTUAL_ENV
+++ unset VIRTUAL_ENV_PROMPT
+++ '[' '!' nondestructive = nondestructive ']'
+++ VIRTUAL_ENV=/workspace/parameter-golf/.venv-cu128
+++ export VIRTUAL_ENV
+++ _OLD_VIRTUAL_PATH=/workspace/parameter-golf/.venv-cu128/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/workspace/parameter-golf/.venv-cu128/bin:/workspace/parameter-golf/.venv-cu128/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export PATH
+++ '[' -n '' ']'
+++ '[' -z '' ']'
+++ _OLD_VIRTUAL_PS1=
+++ PS1='(.venv-cu128) '
+++ export PS1
+++ VIRTUAL_ENV_PROMPT='(.venv-cu128) '
+++ export VIRTUAL_ENV_PROMPT
+++ hash -r
++ set -a
++ . ./experiments/candidate_v1_config.env
+++ RUN_ID=candidate_11l_partialrope_lnscale_gptqv1
+++ CANDIDATE_SCRIPT=./experiments/candidate_11l_partialrope_lnscale_gptqv1/train_gpt.py
+++ DATA_PATH=./data/datasets/fineweb10B_sp1024
+++ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model
+++ VOCAB_SIZE=1024
+++ SEED=1337
+++ NUM_LAYERS=11
+++ MODEL_DIM=512
+++ NUM_HEADS=8
+++ NUM_KV_HEADS=4
+++ MLP_MULT=3
+++ TIE_EMBEDDINGS=1
+++ BIGRAM_VOCAB_SIZE=2048
+++ BIGRAM_DIM=128
+++ XSA_LAST_N=4
+++ ROPE_DIMS=16
+++ LN_SCALE=1
+++ VE_ENABLED=1
+++ VE_DIM=128
+++ VE_LAYERS=9,10
+++ MATRIX_LR=0.025
+++ SCALAR_LR=0.025
+++ TIED_EMBED_LR=0.035
+++ MUON_MOMENTUM=0.99
+++ MUON_MOMENTUM_WARMUP_START=0.92
+++ MUON_MOMENTUM_WARMUP_STEPS=1500
+++ MUON_WD=0.04
+++ ADAM_WD=0.04
+++ BETA1=0.9
+++ BETA2=0.95
+++ GRAD_CLIP_NORM=0.3
+++ TRAIN_BATCH_TOKENS=786432
+++ TRAIN_SEQ_LEN=2048
+++ EVAL_SEQ_LEN=2048
+++ ITERATIONS=9000
+++ MAX_WALLCLOCK_SECONDS=600
+++ TRAIN_LOG_EVERY=500
+++ VAL_LOSS_EVERY=2000
+++ WARMUP_STEPS=20
+++ WARMDOWN_ITERS=3500
+++ EVAL_STRIDE=64
+++ SWA_ENABLED=1
+++ SWA_EVERY=50
+++ QAT_ENABLED=0
+++ LATE_QAT_THRESHOLD=0.15
++ set +a
++ RUN_ID=candidate_v1_ab_1gpu_shards4_t600
++ DATA_PATH=./data/datasets/fineweb10B_sp1024
++ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model
++ VOCAB_SIZE=1024
++ SEED=1337
++ ITERATIONS=3000
++ TRAIN_BATCH_TOKENS=131072
++ VAL_LOSS_EVERY=500
++ TRAIN_LOG_EVERY=100
++ MAX_WALLCLOCK_SECONDS=600
++ RUN_ID=candidate_v1_ab_1gpu_shards4_t600
++ DATA_PATH=./data/datasets/fineweb10B_sp1024
++ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model
++ VOCAB_SIZE=1024
++ SEED=1337
++ ITERATIONS=3000
++ TRAIN_BATCH_TOKENS=131072
++ VAL_LOSS_EVERY=500
++ TRAIN_LOG_EVERY=100
++ MAX_WALLCLOCK_SECONDS=600
++ torchrun --standalone --nproc_per_node=1 ./experiments/candidate_11l_partialrope_lnscale_gptqv1/train_gpt.py
+logs/candidate_v1_ab_1gpu_shards4_t600.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:4
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:131072 train_seq_len:2048 iterations:3000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/3000 val_loss:6.9279 val_bpb:4.1031 train_time:0ms step_avg:0.02ms
+step:1/3000 train_loss:6.9306 train_time:981ms step_avg:981.42ms
+step:2/3000 train_loss:8.7510 train_time:1349ms step_avg:674.53ms
+step:3/3000 train_loss:8.5464 train_time:1671ms step_avg:557.11ms
+step:4/3000 train_loss:7.9521 train_time:1994ms step_avg:498.62ms
+step:5/3000 train_loss:7.2505 train_time:2316ms step_avg:463.21ms
+step:6/3000 train_loss:6.7568 train_time:2630ms step_avg:438.34ms
+step:7/3000 train_loss:6.3665 train_time:2953ms step_avg:421.83ms
+step:8/3000 train_loss:6.1295 train_time:3282ms step_avg:410.22ms
+step:9/3000 train_loss:6.0081 train_time:3587ms step_avg:398.59ms
+step:10/3000 train_loss:5.9910 train_time:3933ms step_avg:393.33ms
+step:100/3000 train_loss:3.6718 train_time:25128ms step_avg:251.28ms
+step:200/3000 train_loss:3.0549 train_time:48146ms step_avg:240.73ms
+step:300/3000 train_loss:2.7987 train_time:71452ms step_avg:238.17ms
+step:400/3000 train_loss:2.7257 train_time:94767ms step_avg:236.92ms
+step:500/3000 train_loss:2.6380 train_time:118259ms step_avg:236.52ms
+step:500/3000 val_loss:2.5849 val_bpb:1.5309 train_time:118267ms step_avg:236.53ms
+step:600/3000 train_loss:2.5773 train_time:141355ms step_avg:235.59ms
+step:700/3000 train_loss:2.3234 train_time:164763ms step_avg:235.38ms
+step:800/3000 train_loss:2.4700 train_time:188732ms step_avg:235.91ms
+step:900/3000 train_loss:2.4536 train_time:212142ms step_avg:235.71ms
+step:1000/3000 train_loss:2.3998 train_time:235511ms step_avg:235.51ms
+step:1000/3000 val_loss:2.4121 val_bpb:1.4286 train_time:235526ms step_avg:235.53ms
+step:1100/3000 train_loss:2.3987 train_time:258964ms step_avg:235.42ms
+step:1200/3000 train_loss:2.3419 train_time:282286ms step_avg:235.24ms
+step:1300/3000 train_loss:2.3776 train_time:305873ms step_avg:235.29ms
+step:1400/3000 train_loss:2.3336 train_time:329935ms step_avg:235.67ms
+step:1500/3000 train_loss:2.3312 train_time:353540ms step_avg:235.69ms
+step:1500/3000 val_loss:2.3412 val_bpb:1.3866 train_time:353560ms step_avg:235.71ms
+step:1600/3000 train_loss:2.1575 train_time:376199ms step_avg:235.12ms
+step:1700/3000 train_loss:2.2955 train_time:399716ms step_avg:235.13ms
+step:1800/3000 train_loss:2.3383 train_time:423572ms step_avg:235.32ms
+swa:start step:1900
+step:1900/3000 train_loss:2.2486 train_time:446707ms step_avg:235.11ms
+step:2000/3000 train_loss:2.3226 train_time:470690ms step_avg:235.35ms
+step:2000/3000 val_loss:2.2555 val_bpb:1.3358 train_time:470717ms step_avg:235.36ms
+late_qat:enabled step:2025 scale:0.1500
+step:2100/3000 train_loss:2.3615 train_time:493908ms step_avg:235.19ms
+step:2200/3000 train_loss:2.0601 train_time:516943ms step_avg:234.97ms
+step:2300/3000 train_loss:2.1703 train_time:540908ms step_avg:235.18ms
+step:2400/3000 train_loss:2.2681 train_time:564467ms step_avg:235.19ms
+step:2500/3000 train_loss:2.2329 train_time:588089ms step_avg:235.24ms
+step:2500/3000 val_loss:2.1832 val_bpb:1.2930 train_time:588137ms step_avg:235.25ms
+step:2552/3000 val_loss:2.1809 val_bpb:1.2916 train_time:600043ms step_avg:235.13ms
+stopping_early: wallclock_cap train_time:600043ms step:2552/3000
+peak memory allocated: 4027 MiB reserved: 4966 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.1840 val_bpb:1.2935 eval_time:15517ms
+Serialized model: 106178569 bytes
+Code size: 67625 bytes
+Serialized model int6+zstd: 12821686 bytes
+Total submission size int6+zstd: 12889311 bytes
+Total submission size int8+zlib: 12889311 bytes
+final_int6_roundtrip val_loss:2.2086 val_bpb:1.3081 eval_time:45960ms
+final_int6_roundtrip_exact val_loss:2.20862019 val_bpb:1.30806928
+final_int6_sliding_window val_loss:2.1678 val_bpb:1.2839 stride:64 eval_time:565606ms
+final_int6_sliding_window_exact val_loss:2.16777362 val_bpb:1.28388104
+final_int8_zlib_roundtrip_exact val_loss:2.16777362 val_bpb:1.28388104
