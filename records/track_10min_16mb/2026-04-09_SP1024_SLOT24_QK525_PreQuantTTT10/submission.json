@@ -1,0 +1,25 @@
+{
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "name": "SP1024 + SLOT-24 + QK5.25 + Pre-Quant AdamW TTT (10ep) + XSA + VRL + BigramHash + SmearGate",
+  "blurb": "PR #1313 SLOT base (frozen-model SLOT-24 with delta+logit_bias optimization) enhanced with QK-Gain 5.25 and pre-quant AdamW TTT (10 epochs, lr=0.00045, freeze 1 block, cosine decay). Architecture: 11L, 512dim, GQA 8/4, MLP 3x, squared LeakyReLU, XSA-all, VRL, BigramHash 1024, SmearGate, EMA 0.997, Late QAT, mixed int6/int8 + LZMA. SLOT: 24 AdamW steps per window, cosine LR 0.012->0.001, delta+logit_bias on scored positions.",
+  "date": "2026-04-09T02:00:00Z",
+  "val_loss": 1.39545390,
+  "val_bpb": 0.82646827,
+  "val_loss_std": 0.00497,
+  "val_bpb_std": 0.00294,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42":   {"val_loss": 1.39008818, "val_bpb": 0.82329038},
+    "1337": {"val_loss": 1.40000648, "val_bpb": 0.82916457},
+    "2024": {"val_loss": 1.39626703, "val_bpb": 0.82694986}
+  },
+  "pre_quant_val_loss": 1.87568620,
+  "pre_quant_val_bpb": 1.11088702,
+  "step_stop": 6591,
+  "wallclock_seconds": 600.041,
+  "eval_time_seconds": 253.325,
+  "bytes_total": 15764692,
+  "bytes_model_int6_lzma": 15698076,
+  "bytes_code": 66616
+}
