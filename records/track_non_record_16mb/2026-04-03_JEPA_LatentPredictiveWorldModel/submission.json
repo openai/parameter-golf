@@ -1,0 +1,18 @@
+{
+    "author": "adi-suresh01",
+    "github_id": "adi-suresh01",
+    "val_bpb": 1.3299,
+    "artifact_bytes": 15316173,
+    "date": "2026-04-03",
+    "description": "JEPA-LM: First JEPA implementation for Parameter Golf. Multi-horizon latent prediction auxiliary loss at the encoder-decoder boundary.",
+    "track": "non_record_16mb",
+    "hardware": "1xH100 (development runs, 8xH100 pending)",
+    "config": {
+        "num_layers": 10,
+        "model_dim": 512,
+        "mlp_mult": 3,
+        "jepa_loss_weight": 0.5,
+        "jepa_bottleneck": 128,
+        "jepa_horizons": 3
+    }
+}
