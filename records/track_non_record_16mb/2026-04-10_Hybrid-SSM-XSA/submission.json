@@ -1,0 +1,17 @@
+{
+  "author": "Jash Vora",
+  "github_id": "Jash-Vora",
+  "name": "Hybrid XSA-SSM",
+  "blurb": "Unlimited compute track: Hybrid Transformer–SSM model with a mid-layer Mamba insertion, XSA applied to final layers, and VE/bigram enhancements. Trained with Muon optimizer under a 10-minute hard wallclock cap (stopped at step 3723). Mixed int6/int8 quantization with zstd/zlib compression enabled large MLP and attention banks to fit under the 16,000,000-byte limit. Achieved 1.2146 BPB pre-quantization and 1.255216 BPB after full int8/int6 + compression roundtrip.",
+  "date": "2026-04-10",
+  "track": "non-record-16mb",
+  "val_loss": 2.119375,
+  "val_bpb": 1.255216,
+  "pre_quant_val_loss": 2.0508,
+  "pre_quant_val_bpb": 1.2146,
+  "step_stop": 3723,
+  "wallclock_seconds": 600,
+  "bytes_total": 14915938,
+  "bytes_model_int8_zlib": 14817018,
+  "bytes_code": 98920
+}
