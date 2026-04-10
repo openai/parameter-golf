@@ -61,11 +61,11 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 14))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
 
@@ -77,7 +77,7 @@ class Hyperparameters:
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.9))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 192))
     beta1 = float(os.environ.get("BETA1", 0.9))
@@ -504,6 +504,82 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+def _is_fp8_supported():
+    if not torch.cuda.is_available():
+        return False
+    cc = torch.cuda.get_device_capability()
+    # FP8 is supported on compute capability 8.9 (Ada) and 9.0+ (Hopper)
+    return cc[0] >= 9 or (cc[0] == 8 and cc[1] >= 9)
+
+FP8_SUPPORTED = _is_fp8_supported()
+
+def _fp8_matmul(x: Tensor, weight: Tensor) -> Tensor:
+    x_2d = x.reshape(-1, x.size(-1))
+    x_scale = (x_2d.abs().max().clamp(min=1e-12) / 448.0).float()
+    w_scale = (weight.abs().max().clamp(min=1e-12) / 448.0).float()
+    x_fp8 = (x_2d / x_scale).to(torch.float8_e4m3fn)
+    w_fp8 = (weight / w_scale).to(torch.float8_e4m3fn)
+    # weight is (Out, In), so w_fp8.t() is (In, Out) and is column-major
+    out = torch._scaled_mm(x_fp8, w_fp8.t(), scale_a=x_scale, scale_b=w_scale, out_dtype=x.dtype)
+    return out.reshape(*x.shape[:-1], weight.size(0))
+
+class FP8LinearFunction(torch.autograd.Function):
+    @staticmethod
+    @torch.amp.custom_fwd(device_type="cuda")
+    def forward(ctx, x, weight):
+        ctx.x_shape = x.shape
+        ctx.dtype = x.dtype
+        ctx.weight_dtype = weight.dtype
+        
+        x_2d = x.reshape(-1, x.size(-1))
+        x_scale = (x_2d.abs().max().clamp(min=1e-12) / 448.0).float()
+        w_scale = (weight.abs().max().clamp(min=1e-12) / 448.0).float()
+        
+        x_fp8 = (x_2d / x_scale).to(torch.float8_e4m3fn)
+        w_fp8 = (weight / w_scale).to(torch.float8_e4m3fn)
+        
+        ctx.save_for_backward(x_fp8, w_fp8, x_scale, w_scale)
+        
+        # mat2 must be col-major: w_fp8.t() is col-major because w_fp8 is row-major
+        out = torch._scaled_mm(x_fp8, w_fp8.t(), scale_a=x_scale, scale_b=w_scale, out_dtype=ctx.dtype)
+        return out.reshape(*ctx.x_shape[:-1], weight.size(0))
+
+    @staticmethod
+    @torch.amp.custom_bwd(device_type="cuda")
+    def backward(ctx, grad_output):
+        x_fp8, w_fp8, x_scale, w_scale = ctx.saved_tensors
+        grad_output_2d = grad_output.reshape(-1, grad_output.size(-1))
+        
+        go_scale = (grad_output_2d.abs().max().clamp(min=1e-12) / 448.0).float()
+        go_fp8 = (grad_output_2d / go_scale).to(torch.float8_e4m3fn)
+        
+        # 1. Grad_x = Grad_output @ Weight
+        # To make Weight (mat2) col-major, we transpose it, make it contiguous, and transpose back.
+        # This creates a tensor with the same shape but (1, Rows) strides.
+        w_fp8_col_major = w_fp8.t().contiguous().t()
+        grad_x = torch._scaled_mm(go_fp8, w_fp8_col_major, scale_a=go_scale, scale_b=w_scale, out_dtype=ctx.dtype)
+        
+        # 2. Grad_weight = Grad_output^T @ x
+        # mat1 must be row-major, mat2 must be col-major.
+        go_fp8_t = go_fp8.t().contiguous()
+        x_fp8_col_major = x_fp8.t().contiguous().t()
+        grad_weight = torch._scaled_mm(go_fp8_t, x_fp8_col_major, scale_a=go_scale, scale_b=x_scale, out_dtype=ctx.weight_dtype)
+        
+        return grad_x.reshape(*ctx.x_shape), grad_weight
+
+class FP8Linear(nn.Linear):
+    def forward(self, x: Tensor) -> Tensor:
+        if not FP8_SUPPORTED:
+            return super().forward(x)
+        if not torch.is_grad_enabled():
+            out = _fp8_matmul(x, self.weight)
+        else:
+            out = FP8LinearFunction.apply(x, self.weight)
+        if self.bias is not None:
+            out = out + self.bias
+        return out
+
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -522,9 +598,10 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, max_seq_len: int, base: float = 10000.0):
+    def __init__(self, dim: int, max_seq_len: int, p: float = 0.5, base: float = 10000.0):
         super().__init__()
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.rotary_dim = (int(dim * p) // 2) * 2
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.rotary_dim, 2, dtype=torch.float32) / self.rotary_dim))
         t = torch.arange(max_seq_len, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
         cos = freqs.cos()[None, None, :, :].to(torch.bfloat16)
@@ -533,27 +610,29 @@ class Rotary(nn.Module):
         self.register_buffer("sin", sin, persistent=False)
 
     def forward(self):
-        # Return the pre-calculated, pre-casted buffers
         return self.cos, self.sin
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
-    x1, x2 = x.chunk(2, dim=-1)
-    return torch.cat((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1)
+    rotary_dim = cos.shape[-1] * 2
+    x_rot, x_pass = x[..., :rotary_dim], x[..., rotary_dim:]
+    x1, x2 = x_rot.chunk(2, dim=-1)
+    x_rotated = torch.cat((x1 * cos - x2 * sin, x1 * sin + x2 * cos), dim=-1)
+    return torch.cat((x_rotated, x_pass), dim=-1)
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len=1024, use_rope=True):
+    def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len=1024, use_rope=True, rope_proportion=0.5):
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         self.kv_dim = self.num_kv_heads * self.head_dim
-        self.c_qk = nn.Linear(dim, dim + self.kv_dim, bias=False)
-        self.c_v = nn.Linear(dim, self.kv_dim, bias=False)
-        self.proj = nn.Linear(dim, dim, bias=False)
+        self.c_qk = FP8Linear(dim, dim + self.kv_dim, bias=False)
+        self.c_v = FP8Linear(dim, self.kv_dim, bias=False)
+        self.proj = FP8Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, base=rope_base)
+        self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, p=rope_proportion, base=rope_base)
         self.use_rope = use_rope
 
     def forward(self, x: Tensor, emb: Tensor) -> Tensor:
@@ -592,8 +671,8 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         self.hidden = calculate_hidden(mlp_mult, dim)
-        self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
-        self.proj = nn.Linear(self.hidden, dim, bias=False)
+        self.fused_fc = FP8Linear(dim, 2 * self.hidden, bias=False)
+        self.proj = FP8Linear(self.hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
@@ -614,11 +693,12 @@ class Block(nn.Module):
         seq_len: int=1024,
         use_rope: bool=True,
         resid_scale: float=0.125,
+        rope_proportion: float=0.5,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len, use_rope)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len, use_rope, rope_proportion)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(resid_scale))
@@ -646,6 +726,12 @@ def get_linear_progression_kv_heads(layer_idx, total_layers, num_heads):
         
     return int(max(2, kv_heads))
 
+def get_rope_p_smooth(i: int, num_layers: int, p_min=0.25, p_max=0.75) -> float:
+    if num_layers <= 1:
+        return p_min
+    progress = i / (num_layers - 1)
+    scale = math.sin(progress * math.pi)
+    return p_min + (p_max - p_min) * scale
 
 class GPT(nn.Module):
     def __init__(
@@ -677,7 +763,8 @@ class GPT(nn.Module):
                 qk_gain_init,
                 seq_len=seq_len,
                 use_rope=(i % 2 == 1),
-                resid_scale=1/math.sqrt(2 * num_layers)
+                resid_scale=1/math.sqrt(2 * num_layers),
+                rope_proportion=get_rope_p_smooth(i, num_layers)
             ) for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
