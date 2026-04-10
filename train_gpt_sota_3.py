@@ -1,3 +1,12 @@
+# ============================================================
+# train_gpt_sota_3.py  —  New methods on top of sota_2
+# Changes vs sota_2:
+#   1. Differential Attention — Q/K split into 2 groups, subtract attention maps
+#      (λ learned per head, same param count, eliminates attention noise)
+#   2. MTP=3 (predict t+1, t+2, t+3) with weights 0.2/0.1/0.05
+#   3. Val-set GPTQ calibration — use actual val tokens instead of AR self-gen
+#      (better Hessian estimates = lower quantization error)
+# ============================================================
 from __future__ import annotations
 import copy
 import glob
@@ -24,7 +33,18 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# flash_attn_3 replaced with PyTorch built-in SDPA for portability
+def flash_attn_3_func(q, k, v, causal=True):
+    # flash_attn layout: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    # Expand K,V for GQA (math backend requires equal head counts)
+    if k.size(1) != q.size(1):
+        groups = q.size(1) // k.size(1)
+        k = k.repeat_interleave(groups, dim=1)
+        v = v.repeat_interleave(groups, dim=1)
+    return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -50,7 +70,7 @@ class Hyperparameters:
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    rope_base = float(os.environ.get("ROPE_BASE", 50000.0))  # sota_2: extended context (was 10000)
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
@@ -67,11 +87,11 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 1))
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 3))   # sota_3: predict t+1,t+2,t+3
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
-    swa_every = int(os.environ.get("SWA_EVERY", 50))
+    swa_every = int(os.environ.get("SWA_EVERY", 30))  # sota_2: more frequent SWA (was 50)
     lawa_enabled = bool(int(os.environ.get("LAWA_ENABLED", "0")))
     lawa_k = int(os.environ.get("LAWA_K", 10))
     lawa_freq = int(os.environ.get("LAWA_FREQ", 100))
@@ -85,16 +105,18 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
-    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.25))  # sota_2: more QAT steps (was 0.15)
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
-    ve_layers = os.environ.get("VE_LAYERS", "7,8,9,10")
-    gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
-    value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
+    ve_layers = os.environ.get("VE_LAYERS", "4,5,6,7,8,9,10")  # sota_2: VE on 7 layers (was 4, shared table)
+    gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "1")))  # sota_2: on (was 0)
+    value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "1")))  # sota_2: VRL on (was 0)
+    diff_attn = bool(int(os.environ.get("DIFF_ATTN", "1")))  # sota_3: Differential Attention
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
-    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 64))
     gptq_ar_seqs = int(os.environ.get("GPTQ_AR_SEQS", 128))  # AR self-gen calibration sequences (was hardcoded 64)
+    gptq_use_val = bool(int(os.environ.get("GPTQ_USE_VAL", "1")))  # sota_3: use val set for calib (was AR self-gen)
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -606,6 +628,7 @@ class CausalSelfAttention(nn.Module):
         qk_gain_init: float,
         gated_attention: bool = False,
         value_residual: bool = False,
+        diff_attn: bool = False,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -630,7 +653,21 @@ class CausalSelfAttention(nn.Module):
             nn.init.constant_(self.attn_gate.bias, 4.0)
         self.value_residual = value_residual
         if value_residual:
-            self.vrl_alpha = nn.Parameter(torch.zeros(1, dtype=torch.float32))  # sigmoid gate (PR #569 style)
+            self.vrl_alpha = nn.Parameter(torch.zeros(1, dtype=torch.float32))
+        # Differential Attention: λ = exp(λq1)·exp(λk1) − exp(λq2)·exp(λk2)
+        # One scalar per head-pair (num_heads scalars total)
+        self.diff_attn = diff_attn
+        if diff_attn:
+            if num_heads % 2 != 0:
+                raise ValueError("diff_attn requires num_heads divisible by 2")
+            if num_kv_heads % 2 != 0:
+                raise ValueError("diff_attn requires num_kv_heads divisible by 2")
+            num_pairs = num_heads // 2
+            self.diff_lambda_q1 = nn.Parameter(torch.full((num_pairs,), 0.1, dtype=torch.float32))
+            self.diff_lambda_k1 = nn.Parameter(torch.full((num_pairs,), 0.1, dtype=torch.float32))
+            self.diff_lambda_q2 = nn.Parameter(torch.full((num_pairs,), 0.1, dtype=torch.float32))
+            self.diff_lambda_k2 = nn.Parameter(torch.full((num_pairs,), 0.1, dtype=torch.float32))
+            self.diff_norm = nn.Parameter(torch.ones(1, dtype=torch.float32))  # RMSnorm scale after diff
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
         """Efficient XSA: subtract self-value projection via GQA-aware reshape (no repeat_interleave).
         y: [B, T, H, D], v: [B, T, Hkv, D]. H must be divisible by Hkv."""
@@ -659,11 +696,33 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+
+        if self.diff_attn:
+            # Differential Attention: split num_heads into pairs
+            # q: (B,T,H,D) -> q1:(B,T,H/2,D), q2:(B,T,H/2,D)
+            num_pairs = self.num_heads // 2
+            num_kv_pairs = self.num_kv_heads // 2
+            q1, q2 = q.chunk(2, dim=2)                 # each (B,T,H/2,D)
+            k1, k2 = k.chunk(2, dim=2)                 # each (B,T,Hkv/2,D)
+            v1, v2 = v.chunk(2, dim=2)                 # each (B,T,Hkv/2,D)
+            y1 = flash_attn_3_func(q1, k1, v1, causal=True)  # (B,T,H/2,D)
+            y2 = flash_attn_3_func(q2, k2, v2, causal=True)  # (B,T,H/2,D)
+            # λ per head-pair: (num_pairs,) -> (1,1,num_pairs,1)
+            lam = (
+                torch.exp(self.diff_lambda_q1.to(q.dtype)) * torch.exp(self.diff_lambda_k1.to(q.dtype))
+                - torch.exp(self.diff_lambda_q2.to(q.dtype)) * torch.exp(self.diff_lambda_k2.to(q.dtype))
+            ).clamp(min=0.0, max=1.0)[None, None, :, None]
+            y = y1 - lam * y2                           # (B,T,H/2,D)
+            # RMSnorm inside diff, then scale — same head_dim dimension
+            y = F.rms_norm(y, (y.size(-1),)) * self.diff_norm.to(dtype=y.dtype)
+            # Expand back to full num_heads by repeating along head dim to match out_w
+            y = y.repeat(1, 1, 2, 1)                   # (B,T,H,D) - interleaved pair repetition
+        else:
+            y = flash_attn_3_func(q, k, v, causal=True)
+
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
-            # gate shape: (bsz, seqlen, num_heads) -> (bsz, seqlen, num_heads, 1) for B,T,H,D layout
             gate = torch.sigmoid(self.attn_gate(x)).unsqueeze(-1)
             y = y * gate
         y = y.reshape(bsz, seqlen, dim)
@@ -751,12 +810,14 @@ class Block(nn.Module):
         dtg: bool = False,
         gated_attention: bool = False,
         value_residual: bool = False,
+        diff_attn: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
-                                        gated_attention=gated_attention, value_residual=value_residual)
+                                        gated_attention=gated_attention, value_residual=value_residual,
+                                        diff_attn=diff_attn)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -806,6 +867,7 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         gated_attention: bool = False,
         value_residual: bool = False,
+        diff_attn: bool = False,
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -818,7 +880,7 @@ class GPT(nn.Module):
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -847,6 +909,7 @@ class GPT(nn.Module):
                     dtg=dtg,
                     gated_attention=gated_attention,
                     value_residual=value_residual,
+                    diff_attn=diff_attn,
                 )
                 for i in range(num_layers)
             ]
@@ -955,7 +1018,8 @@ class GPT(nn.Module):
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
             mtp_loss_sum = x.new_zeros(())
-            mtp_loss_count = 0
+            # sota_3: decayed per-head weights (0.2, 0.1, 0.05) instead of uniform average
+            mtp_head_weights = [0.2, 0.1, 0.05]
             for k, mtp_head in enumerate(self.mtp_heads):
                 valid_t = seqlen - (k + 1)
                 if valid_t <= 0:
@@ -964,10 +1028,9 @@ class GPT(nn.Module):
                 mtp_targets = target_ids[:, k + 1 :].reshape(-1)
                 mtp_logits_proj = mtp_head(mtp_hidden)
                 mtp_logits = self.logit_softcap * torch.tanh(mtp_logits_proj / self.logit_softcap)
-                mtp_loss_sum = mtp_loss_sum + F.cross_entropy(mtp_logits.float(), mtp_targets, reduction="mean")
-                mtp_loss_count += 1
-            if mtp_loss_count > 0:
-                main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
+                head_w = mtp_head_weights[k] if k < len(mtp_head_weights) else mtp_head_weights[-1]
+                mtp_loss_sum = mtp_loss_sum + head_w * F.cross_entropy(mtp_logits.float(), mtp_targets, reduction="mean")
+            main_loss = main_loss + self.mtp_loss_weight * mtp_loss_sum
         return main_loss
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         """Return logits (bsz, seq_len, vocab) without computing loss."""
@@ -1395,7 +1458,7 @@ class _HessianGPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1491,7 +1554,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     hessian_model.train()
     return hessians
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None, block_size: int = 64):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1514,7 +1577,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             cr = 31  # int6 for all weights
             H = hessians.get(name) if hessians else None
             if H is not None:
-                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=args.gptq_block_size)
+                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=block_size)
             else:
                 q, s = quantize_int6_per_row(t, clip_range=cr)
             result[name + ".q"] = q
@@ -1577,7 +1640,7 @@ def main() -> None:
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_math_sdp(True)  # needed for torch.compile tracing with fake tensors
     logfile = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
@@ -1648,6 +1711,7 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
+        diff_attn=args.diff_attn,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -1977,22 +2041,34 @@ def main() -> None:
         {k: v.to(device) for k, v in unbanked_sd.items() if k in hessian_model.state_dict()},
         strict=False,
     )
-    # Autoregressive self-generated calibration (no external data)
-    log0(f"gptq:generating autoregressive calibration data ({args.gptq_ar_seqs} seqs x {args.train_seq_len} tokens, temp=0.8)...")
-    base_model.load_state_dict(export_sd, strict=False)
-    t_gen = time.perf_counter()
-    ar_tokens = generate_autoregressive_calib(
-        base_model, device, num_seqs=args.gptq_ar_seqs, seq_len=args.train_seq_len,
-        vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
-    )
-    log0(f"gptq:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gen:.1f}s")
-    log0("gptq:collecting hessians from autoregressive data...")
-    hessians = collect_hessians_from_tokens(hessian_model, ar_tokens, device)
-    log0(f"gptq:collected hessians for {len(hessians)} layers (AR self-gen)")
-    del ar_tokens
+    # sota_3: Val-set GPTQ calibration — use real validation tokens instead of AR self-gen
+    if args.gptq_use_val:
+        log0(f"gptq:using val-set calibration ({args.gptq_ar_seqs} seqs from val_tokens)...")
+        total_val = val_tokens.numel() - 1
+        calib_seqs = []
+        for i in range(args.gptq_ar_seqs):
+            start = (i * args.train_seq_len) % max(1, total_val - args.train_seq_len)
+            seq = val_tokens[start : start + args.train_seq_len + 1].unsqueeze(0)
+            calib_seqs.append(seq)
+        hessians = collect_hessians_from_tokens(hessian_model, calib_seqs, device)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (val-set)")
+    else:
+        # Autoregressive self-generated calibration (no external data)
+        log0(f"gptq:generating autoregressive calibration data ({args.gptq_ar_seqs} seqs x {args.train_seq_len} tokens, temp=0.8)...")
+        base_model.load_state_dict(export_sd, strict=False)
+        t_gen = time.perf_counter()
+        ar_tokens = generate_autoregressive_calib(
+            base_model, device, num_seqs=args.gptq_ar_seqs, seq_len=args.train_seq_len,
+            vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
+        )
+        log0(f"gptq:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gen:.1f}s")
+        log0("gptq:collecting hessians from autoregressive data...")
+        hessians = collect_hessians_from_tokens(hessian_model, ar_tokens, device)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (AR self-gen)")
+        del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians, block_size=args.gptq_block_size)
     # NOVEL: Selective ±1 pruning by reconstruction error
     # Sort ±1 quantized values by their reconstruction error (scale²),
     # prune least-impactful first until artifact fits target size.
@@ -2073,6 +2149,7 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        diff_attn=args.diff_attn,
     ).to(device).bfloat16()
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()

@@ -13,6 +13,15 @@ import uuid
 import zlib
 from pathlib import Path
 try:
+    import brotli as _brotli
+    _HAS_BROTLI = True
+except ImportError:
+    _HAS_BROTLI = False
+def _compress(data: bytes) -> bytes:
+    return _brotli.compress(data, quality=11) if _HAS_BROTLI else lzma.compress(data, preset=9)
+def _decompress(data: bytes) -> bytes:
+    return _brotli.decompress(data) if _HAS_BROTLI else lzma.decompress(data)
+try:
     import zstandard
     _COMPRESSOR = "zstd"
 except ImportError:
@@ -24,7 +33,18 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# flash_attn_3 replaced with PyTorch built-in SDPA for portability
+def flash_attn_3_func(q, k, v, causal=True):
+    # flash_attn layout: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    # Expand K,V for GQA (math backend requires equal head counts)
+    if k.size(1) != q.size(1):
+        groups = q.size(1) // k.size(1)
+        k = k.repeat_interleave(groups, dim=1)
+        v = v.repeat_interleave(groups, dim=1)
+    return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -56,7 +76,8 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))  # Early layers LR
+    muon_late_lr = float(os.environ.get("MUON_LATE_LR", 0.030))  # Late layers LR
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -78,14 +99,16 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))
     trigram_enabled = bool(int(os.environ.get("TRIGRAM", "1")))  # TrigramHash (bigram + trigram, zero extra params)
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL layers (our novel contribution)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
     late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", 2000))  # QAT as regularizer: start BEFORE warmdown
+    qat_alpha_ramp_steps = int(os.environ.get("QAT_ALPHA_RAMP_STEPS", 2500))  # Slow ramp: 1→16 over 2500 steps
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
     ve_layers = os.environ.get("VE_LAYERS", "7,8,9,10")
@@ -93,7 +116,7 @@ class Hyperparameters:
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
-    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 64))
     gptq_ar_seqs = int(os.environ.get("GPTQ_AR_SEQS", 128))  # AR self-gen calibration sequences (was hardcoded 64)
 
 # --- Batched Newton-Schulz orthogonalization ---
@@ -361,7 +384,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda",
     ).split(",")
     if pattern
 )
@@ -537,14 +560,19 @@ class RMSNorm(nn.Module):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 class CastedLinear(nn.Linear):
     _qat_enabled: bool = False
+    _qat_alpha: float = 1.0  # Soft-round QAT: alpha ramps 1 -> 16
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.to(x.dtype)
         if CastedLinear._qat_enabled and self.training and w.ndim == 2:
-            with torch.no_grad():
-                w32 = self.weight.float()
-                row_max = w32.abs().amax(dim=1)
-                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
-                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
+            w32 = self.weight.float()
+            row_max = w32.abs().amax(dim=1)
+            scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+            scaled = w32 / scale[:, None]
+            clamped = torch.clamp(scaled, -32, 31)
+            frac = clamped - clamped.floor()
+            alpha = CastedLinear._qat_alpha
+            soft = clamped.floor() + torch.sigmoid(alpha * (frac - 0.5))
+            w_q = (soft * scale[:, None]).to(x.dtype)
             w = w + (w_q - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w, bias)
@@ -818,12 +846,13 @@ class GPT(nn.Module):
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, dtype=torch.float32))
         # Parameter banks: contiguous 3D tensors for batched optimizer
         head_dim = model_dim // num_heads
         kv_dim = num_kv_heads * head_dim
@@ -935,7 +964,9 @@ class GPT(nn.Module):
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip = skips.pop()
+                g = torch.sigmoid(self.skip_gates[i]).to(dtype=x.dtype)
+                x = torch.lerp(self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip, x, g)
             ve = self._get_ve(bi, input_ids, ve_cache)
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
@@ -993,7 +1024,9 @@ class GPT(nn.Module):
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip = skips.pop()
+                g = torch.sigmoid(self.skip_gates[i]).to(dtype=x.dtype)
+                x = torch.lerp(self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip, x, g)
             ve = self._get_ve(bi, input_ids, ve_cache)
             x, _ = self.blocks[bi](x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
@@ -1395,12 +1428,13 @@ class _HessianGPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, dtype=torch.float32))
         self.blocks = nn.ModuleList([
             _HessianBlock(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init,
                           layer_idx=i, ln_scale=ln_scale)
@@ -1447,7 +1481,9 @@ class _HessianGPT(nn.Module):
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip = skips.pop()
+                g = torch.sigmoid(self.skip_gates[i]).to(dtype=x.dtype)
+                x = torch.lerp(self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skip, x, g)
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
         x = self.final_norm(x)
@@ -1491,7 +1527,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     hessian_model.train()
     return hessians
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None, block_size: int = 64):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1514,7 +1550,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             cr = 31  # int6 for all weights
             H = hessians.get(name) if hessians else None
             if H is not None:
-                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=args.gptq_block_size)
+                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=block_size)
             else:
                 q, s = quantize_int6_per_row(t, clip_range=cr)
             result[name + ".q"] = q
@@ -1577,7 +1613,7 @@ def main() -> None:
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_math_sdp(True)  # needed for torch.compile tracing with fake tensors
     logfile = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
@@ -1680,6 +1716,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if base_model.skip_gates.numel() > 0:
+        scalar_params.append(base_model.skip_gates)
     scalar_params.append(base_model.smear.gate)
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
@@ -1705,13 +1743,31 @@ def main() -> None:
     )
     optimizer_muon = Muon(
         matrix_params,
-        lr=args.matrix_lr,
+        lr=args.muon_late_lr,
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
         weight_decay=args.muon_wd,
     )
     for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
+        group["base_lr"] = args.muon_late_lr
+    # Split-LR: scale early-layer bank gradients so effective LR = matrix_lr (early)
+    _split_lr_ratio = args.matrix_lr / args.muon_late_lr
+    _n = base_model.num_layers
+    _n_early = base_model.num_encoder_layers
+    def _make_bank_grad_hook(n_layers: int, n_early: int, ratio: float, has_double_stack: bool):
+        def _hook(grad: Tensor) -> Tensor:
+            if grad is None:
+                return grad
+            grad = grad.clone()
+            grad[:n_early] *= ratio
+            if has_double_stack:
+                grad[n_layers:n_layers + n_early] *= ratio
+            return grad
+        return _hook
+    base_model.qo_bank.register_hook(_make_bank_grad_hook(_n, _n_early, _split_lr_ratio, True))
+    base_model.kv_bank.register_hook(_make_bank_grad_hook(_n, _n_early, _split_lr_ratio, True))
+    base_model.mlp_up_bank.register_hook(_make_bank_grad_hook(_n, _n_early, _split_lr_ratio, False))
+    base_model.mlp_down_bank.register_hook(_make_bank_grad_hook(_n, _n_early, _split_lr_ratio, False))
     optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
@@ -1749,7 +1805,7 @@ def main() -> None:
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+        f"matrix_lr:{args.matrix_lr} muon_late_lr:{args.muon_late_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
@@ -1806,6 +1862,7 @@ def main() -> None:
     ema_decay = 0.997
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    qat_start_step: int = 0
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
@@ -1842,9 +1899,15 @@ def main() -> None:
             break
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
-            CastedLinear._qat_enabled = True
-            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        if not CastedLinear._qat_enabled:
+            if (args.qat_start_step > 0 and step >= args.qat_start_step) or \
+               (args.late_qat_threshold > 0 and scale < args.late_qat_threshold):
+                CastedLinear._qat_enabled = True
+                qat_start_step = step
+                log0(f"qat:enabled step:{step} scale:{scale:.4f}")
+        if CastedLinear._qat_enabled:
+            steps_since_qat = step - qat_start_step
+            CastedLinear._qat_alpha = min(16.0, 1.0 + 15.0 * steps_since_qat / args.qat_alpha_ramp_steps)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1992,7 +2055,7 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians, block_size=args.gptq_block_size)
     # NOVEL: Selective ±1 pruning by reconstruction error
     # Sort ±1 quantized values by their reconstruction error (scale²),
     # prune least-impactful first until artifact fits target size.
@@ -2019,7 +2082,7 @@ def main() -> None:
             for i in range(min(n, len(ones_info))):
                 tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
             buf = io.BytesIO(); torch.save({"w": tmp, "m": quant_meta}, buf)
-            return len(lzma.compress(buf.getvalue(), preset=9)) + code_bytes_est, tmp
+            return len(_compress(buf.getvalue())) + code_bytes_est, tmp
         no_sz, _ = _try_prune(0)
         target_bytes = int(target_mb * 1024 * 1024)
         log0(f"selective_prune: {len(ones_info)} ±1 candidates, unpruned={no_sz/(1024*1024):.2f}MB target={target_mb}MB")
@@ -2043,20 +2106,21 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=9)
+    quant_blob = _compress(quant_raw)
+    compress_algo = "brotli-11" if _HAS_BROTLI else "lzma-9"
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
-        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int6+{compress_algo}: {quant_file_bytes} bytes")
+        log0(f"Total submission size int6+{compress_algo}: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(
-        io.BytesIO(lzma.decompress(quant_blob_disk)),
+        io.BytesIO(_decompress(quant_blob_disk)),
         map_location="cpu",
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)

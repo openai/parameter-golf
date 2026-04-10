@@ -1,10 +1,11 @@
 from __future__ import annotations
+import os
+os.environ.setdefault('TORCHINDUCTOR_COMBO_KERNELS', '0')  # must be before torch import
 import copy
 import glob
 import io
 import lzma
 import math
-import os
 import random
 import subprocess
 import sys
@@ -13,18 +14,50 @@ import uuid
 import zlib
 from pathlib import Path
 try:
+    import brotli
+    _HAS_BROTLI = True
+except ImportError:
+    _HAS_BROTLI = False
+try:
     import zstandard
     _COMPRESSOR = "zstd"
 except ImportError:
     _COMPRESSOR = "zlib"
 import numpy as np
+
+def _compress(data: bytes) -> tuple[bytes, str]:
+    """Compress with brotli-11 (best) falling back to lzma-9."""
+    lzma_blob = lzma.compress(data, preset=9)
+    if _HAS_BROTLI:
+        brotli_blob = brotli.compress(data, quality=11)
+        if len(brotli_blob) <= len(lzma_blob):
+            return brotli_blob, "brotli-11"
+    return lzma_blob, "lzma-9"
+
+def _decompress(data: bytes) -> bytes:
+    """Decompress brotli or lzma data (auto-detect)."""
+    try:
+        return lzma.decompress(data)
+    except lzma.LZMAError:
+        return brotli.decompress(data)
 import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# flash_attn_3 replaced with PyTorch built-in SDPA for portability
+def flash_attn_3_func(q, k, v, causal=True):
+    # flash_attn layout: (B, T, H, D) -> transpose to (B, H, T, D) for SDPA
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    # Expand K,V for GQA (math backend requires equal head counts)
+    if k.size(1) != q.size(1):
+        groups = q.size(1) // k.size(1)
+        k = k.repeat_interleave(groups, dim=1)
+        v = v.repeat_interleave(groups, dim=1)
+    return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -36,13 +69,13 @@ class Hyperparameters:
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
     iterations = int(os.environ.get("ITERATIONS", 6927))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 4.0))  # PR #1125: 45-experiment sweep, -0.006 BPB
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
@@ -67,7 +100,7 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 1))
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
     mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
@@ -78,23 +111,36 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
-    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
-    bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
-    trigram_enabled = bool(int(os.environ.get("TRIGRAM", "1")))  # TrigramHash (bigram + trigram, zero extra params)
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))  # PR #1204: 112 saves budget for recurrence MLPs
+    trigram_enabled = bool(int(os.environ.get("TRIGRAM", "0")))  # OFF to match record — saves compute per step
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL layers (our novel contribution)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     dtg_enabled = bool(int(os.environ.get("DTG_ENABLED", "0")))
-    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.15))
+    late_qat_threshold = float(os.environ.get("LATE_QAT_THRESHOLD", 0.20))
+    qat_start_step = int(os.environ.get("QAT_START_STEP", 2000))
     ve_enabled = bool(int(os.environ.get("VE_ENABLED", "1")))
     ve_dim = int(os.environ.get("VE_DIM", 128))
-    ve_layers = os.environ.get("VE_LAYERS", "7,8,9,10")
+    ve_layers = os.environ.get("VE_LAYERS", "9,10")
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))  # VRL with sigmoid gates (off by default, risky)
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
     gptq_ar_seqs = int(os.environ.get("GPTQ_AR_SEQS", 128))  # AR self-gen calibration sequences (was hardcoded 64)
+    # --- Parallel Residuals (PR #1204 / modded-nanogpt PR #230) ---
+    parallel_residual = bool(int(os.environ.get("PARALLEL_RESIDUAL", "1")))
+    parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 7))  # physical layer idx
+    # --- Mini Depth Recurrence (PR #1204) ---
+    recur_layers = os.environ.get("RECUR_LAYERS", "4,5")  # physical layers to repeat
+    recur_start_step = int(os.environ.get("RECUR_START_STEP", 3000))  # delayed activation
+    repeat_untie_mlp = os.environ.get("REPEAT_UNTIE_MLP", "full")  # 'full'|'down'|'none'
+    # --- Legal Score-First TTT ---
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.0003))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_chunk_size = int(os.environ.get("TTT_CHUNK_SIZE", 2048))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -361,7 +407,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda,parallel_post_lambdas,parallel_resid_lambdas",
     ).split(",")
     if pattern
 )
@@ -779,6 +825,29 @@ class Block(nn.Module):
             x_out = x_in + gate * (x_out - x_in)
         return x_out, raw_v
 
+    def forward_parallel(self, x_lane0: Tensor, x_lane1: Tensor, x0: Tensor,
+                         q_w: Tensor, k_w: Tensor, v_w: Tensor, out_w: Tensor,
+                         up_w: Tensor, down_w: Tensor,
+                         ppl: Tensor, prl: Tensor,
+                         v_embed: Tensor | None = None, v0: Tensor | None = None) -> tuple[Tensor, Tensor, Tensor | None]:
+        """Parallel residual: attn reads lane0, MLP reads lane1, write to both lanes."""
+        mix = self.resid_mix.to(dtype=x_lane0.dtype)
+        # Attn reads lane0
+        attn_in = mix[0][None, None, :] * x_lane0 + mix[1][None, None, :] * x0
+        attn_out, raw_v = self.attn(self.attn_norm(attn_in) * self.ln_scale_factor,
+                                    q_w, k_w, v_w, out_w, v_embed=v_embed, v0=v0)
+        scaled_attn = self.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
+        # MLP reads lane1
+        mlp_in = mix[0][None, None, :] * x_lane1 + mix[1][None, None, :] * x0
+        mlp_out = self.mlp(self.mlp_norm(mlp_in) * self.ln_scale_factor, up_w, down_w)
+        scaled_mlp = self.mlp_scale.to(dtype=mlp_out.dtype)[None, None, :] * mlp_out
+        # Cross-lane writes: ppl[to_lane, from_sublayer, D], prl[lane, D]
+        ppl_d = ppl.to(dtype=x_lane0.dtype)
+        prl_d = prl.to(dtype=x_lane0.dtype)
+        new_lane0 = prl_d[0][None, None, :] * x_lane0 + ppl_d[0, 0][None, None, :] * scaled_attn + ppl_d[0, 1][None, None, :] * scaled_mlp
+        new_lane1 = prl_d[1][None, None, :] * x_lane1 + ppl_d[1, 0][None, None, :] * scaled_attn + ppl_d[1, 1][None, None, :] * scaled_mlp
+        return new_lane0, new_lane1, raw_v
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -806,6 +875,9 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         gated_attention: bool = False,
         value_residual: bool = False,
+        parallel_residual: bool = False,
+        parallel_start_layer: int = 7,
+        recur_layers: str = "",
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -817,8 +889,14 @@ class GPT(nn.Module):
         self.value_residual = value_residual
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
+        # --- Parallel Residuals ---
+        self.parallel_residual = parallel_residual
+        self.parallel_start_layer = parallel_start_layer
+        # --- Depth Recurrence ---
+        self.recur_layer_indices = [int(x) for x in recur_layers.split(",") if x.strip()]
+        self.recur_active = False  # activated at recur_start_step during training
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -867,6 +945,16 @@ class GPT(nn.Module):
             self.ve_shared = None
             self.ve_layer_scales = nn.ParameterList()
         self.value_embeds = nn.ModuleList()  # keep empty for compat
+        # Parallel residual parameters (used for layers >= parallel_start_layer)
+        if parallel_residual:
+            # Cross-lane write coefficients: [num_layers, 2(to_lane), 2(from_sublayer:attn/mlp), D]
+            self.parallel_post_lambdas = nn.Parameter(
+                torch.ones(num_layers, 2, 2, model_dim, dtype=torch.float32)
+            )
+            # Per-lane residual scaling: [num_layers, 2(lanes), D]
+            self.parallel_resid_lambdas = nn.Parameter(
+                torch.full((num_layers, 2, model_dim), math.sqrt(1.1), dtype=torch.float32)
+            )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -912,17 +1000,14 @@ class GPT(nn.Module):
         ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def _run_backbone(self, x: Tensor, input_ids: Tensor) -> Tensor:
+        """Shared backbone for forward() and forward_logits(): encoder → recurrence → decoder with parallel residuals."""
         n = self.num_layers
-        x = self.tok_emb(input_ids)
-        if self.bigram is not None:
-            x = x + self.bigram(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x = self.smear(x)
         x0 = x
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
+        # --- Encoder ---
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             x, raw_v = self.blocks[i](x, x0,
@@ -932,16 +1017,59 @@ class GPT(nn.Module):
             if v0 is None and raw_v is not None:
                 v0 = raw_v
             skips.append(x)
+        # --- Depth Recurrence (repeat specified layers between encoder and decoder) ---
+        if self.recur_active:
+            for pi in self.recur_layer_indices:
+                ve = self._get_ve(pi, input_ids, ve_cache)
+                x, _ = self.blocks[pi](x, x0,
+                    self.qo_bank[pi], self.kv_bank[pi], self.kv_bank[n + pi],
+                    self.qo_bank[n + pi], self.mlp_up_bank[pi], self.mlp_down_bank[pi],
+                    v_embed=ve, v0=v0)
+        # --- Decoder (with optional parallel residuals) ---
+        x_lane0: Tensor | None = None
+        x_lane1: Tensor | None = None
+        parallel_active = False
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
+            # Skip connection
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                if parallel_active:
+                    skip_add = self.skip_weights[i].to(dtype=x_lane0.dtype)[None, None, :] * skips.pop()
+                    x_lane0 = x_lane0 + skip_add
+                    x_lane1 = x_lane1 + skip_add
+                else:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
-        x = self.final_norm(x)
+            # Parallel residual path (for layers >= parallel_start_layer)
+            if self.parallel_residual and bi >= self.parallel_start_layer:
+                if not parallel_active:
+                    x_lane0 = x
+                    x_lane1 = x
+                    parallel_active = True
+                x_lane0, x_lane1, _ = self.blocks[bi].forward_parallel(
+                    x_lane0, x_lane1, x0,
+                    self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                    self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                    self.parallel_post_lambdas[bi], self.parallel_resid_lambdas[bi],
+                    v_embed=ve, v0=v0)
+            else:
+                x, _ = self.blocks[bi](x, x0,
+                    self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                    self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                    v_embed=ve, v0=v0)
+        # Merge parallel lanes
+        if parallel_active:
+            x = (x_lane0 + x_lane1) * 0.5
+        return self.final_norm(x)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        n = self.num_layers
+        x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x = self.smear(x)
+        x = self._run_backbone(x, input_ids)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
@@ -969,37 +1097,15 @@ class GPT(nn.Module):
             if mtp_loss_count > 0:
                 main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
         return main_loss
+
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         """Return logits (bsz, seq_len, vocab) without computing loss."""
-        n = self.num_layers
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
-        x0 = x
-        v0 = None
-        skips: list[Tensor] = []
-        ve_cache: dict = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
-                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                v_embed=ve, v0=v0)
-            if v0 is None and raw_v is not None:
-                v0 = raw_v
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
-                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                v_embed=ve, v0=v0)
-        x = self.final_norm(x)
+        x = self._run_backbone(x, input_ids)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
@@ -1395,7 +1501,7 @@ class _HessianGPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "1")))) if bigram_vocab_size > 0 else None
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1491,7 +1597,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     hessian_model.train()
     return hessians
 
-def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None):
+def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hessians: dict[str, Tensor] | None = None, block_size: int = 64):
     num_layers_total = max(
         (int(k.split(".")[1]) for k in state_dict if k.startswith("blocks.")),
         default=0,
@@ -1514,7 +1620,7 @@ def mixed_quantize_int6(state_dict: dict[str, Tensor], int6_cats: set[str], hess
             cr = 31  # int6 for all weights
             H = hessians.get(name) if hessians else None
             if H is not None:
-                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=args.gptq_block_size)
+                q, s = quantize_int6_gptq(t, hessian=H, clip_range=cr, block_size=block_size)
             else:
                 q, s = quantize_int6_per_row(t, clip_range=cr)
             result[name + ".q"] = q
@@ -1577,7 +1683,7 @@ def main() -> None:
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
     enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_math_sdp(True)  # needed for torch.compile tracing with fake tensors
     logfile = None
     if master_process:
         os.makedirs("logs", exist_ok=True)
@@ -1648,6 +1754,9 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
+        parallel_residual=args.parallel_residual,
+        parallel_start_layer=args.parallel_start_layer,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -1696,6 +1805,10 @@ def main() -> None:
         scalar_params.append(base_model.ve_shared.scale)
         for s in base_model.ve_layer_scales:
             scalar_params.append(s)
+    # Parallel residual parameters (small learned scalars)
+    if base_model.parallel_residual:
+        scalar_params.append(base_model.parallel_post_lambdas)
+        scalar_params.append(base_model.parallel_resid_lambdas)
     optimizer_tok = torch.optim.AdamW(
         tok_params,
         betas=(args.beta1, args.beta2),
@@ -1743,6 +1856,8 @@ def main() -> None:
     log0(f"mtp_num_heads:{args.mtp_num_heads} mtp_loss_weight:{args.mtp_loss_weight} mtp_params:{mtp_params}")
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
+    log0(f"parallel_residual:{args.parallel_residual} start_layer:{args.parallel_start_layer}")
+    log0(f"depth_recurrence: layers={args.recur_layers} start_step={args.recur_start_step}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
@@ -1842,9 +1957,19 @@ def main() -> None:
             break
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
-        if args.late_qat_threshold > 0 and scale < args.late_qat_threshold and not CastedLinear._qat_enabled:
-            CastedLinear._qat_enabled = True
-            log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+        if not CastedLinear._qat_enabled:
+            should_qat = (args.late_qat_threshold > 0 and scale < args.late_qat_threshold)
+            should_qat = should_qat or (args.qat_start_step > 0 and step >= args.qat_start_step)
+            if should_qat:
+                CastedLinear._qat_enabled = True
+                log0(f"qat:enabled step:{step} scale:{scale:.4f}")
+        # Activate depth recurrence at specified step
+        if not base_model.recur_active and args.recur_layers and step >= args.recur_start_step:
+            base_model.recur_active = True
+            # Need to recompile since forward graph changed
+            compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+            model = compiled_model
+            log0(f"recurrence:activated step:{step} layers:{args.recur_layers}")
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1916,6 +2041,8 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
     # Apply weight averaging
+    current_state = base_model.state_dict()
+    ema_avg = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
     if args.lawa_enabled and len(lawa_queue) > 1:
         log0(f"lawa:applying LAWA averaging k={len(lawa_queue)}")
         current_state = base_model.state_dict()
@@ -1929,9 +2056,7 @@ def main() -> None:
         base_model.load_state_dict(avg_state, strict=True)
     else:
         log0("ema:applying EMA weights")
-        current_state = base_model.state_dict()
-        avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-        base_model.load_state_dict(avg_state, strict=True)
+        base_model.load_state_dict(ema_avg, strict=True)
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
@@ -1939,10 +2064,34 @@ def main() -> None:
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    ema_val_loss = diag_val_loss
     log0(
         f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
     )
+    # SWA fix: evaluate SWA weights if available, pick better of EMA vs SWA
+    if swa_state is not None and swa_count > 1:
+        current_state = base_model.state_dict()
+        swa_avg = {name: (swa_state[name].float() / swa_count).to(dtype=current_state[name].dtype)
+                   for name in current_state}
+        base_model.load_state_dict(swa_avg, strict=True)
+        torch.cuda.synchronize()
+        t_swa = time.perf_counter()
+        swa_val_loss, swa_val_bpb = eval_val(
+            args, compiled_model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"DIAGNOSTIC post_swa val_loss:{swa_val_loss:.4f} val_bpb:{swa_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_swa):.0f}ms "
+            f"swa_count:{swa_count}"
+        )
+        if swa_val_loss < ema_val_loss:
+            log0(f"swa:selected (val_loss {swa_val_loss:.4f} < ema {ema_val_loss:.4f})")
+        else:
+            log0(f"ema:selected (val_loss {ema_val_loss:.4f} <= swa {swa_val_loss:.4f})")
+            base_model.load_state_dict(ema_avg, strict=True)
     full_state_dict = base_model.state_dict()
     export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
@@ -1992,7 +2141,7 @@ def main() -> None:
     del ar_tokens
     del hessian_model
     torch.cuda.empty_cache()
-    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians)
+    quant_result, quant_meta = mixed_quantize_int6(unbanked_sd, {"mlp", "attn"}, hessians=hessians, block_size=args.gptq_block_size)
     # NOVEL: Selective ±1 pruning by reconstruction error
     # Sort ±1 quantized values by their reconstruction error (scale²),
     # prune least-impactful first until artifact fits target size.
@@ -2019,7 +2168,7 @@ def main() -> None:
             for i in range(min(n, len(ones_info))):
                 tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
             buf = io.BytesIO(); torch.save({"w": tmp, "m": quant_meta}, buf)
-            return len(lzma.compress(buf.getvalue(), preset=9)) + code_bytes_est, tmp
+            return len(_compress(buf.getvalue())[0]) + code_bytes_est, tmp
         no_sz, _ = _try_prune(0)
         target_bytes = int(target_mb * 1024 * 1024)
         log0(f"selective_prune: {len(ones_info)} ±1 candidates, unpruned={no_sz/(1024*1024):.2f}MB target={target_mb}MB")
@@ -2043,20 +2192,20 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = lzma.compress(quant_raw, preset=9)
+    quant_blob, comp_name = _compress(quant_raw)
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = len(quant_blob)
         code_bytes = len(code.encode("utf-8"))
-        log0(f"Serialized model int6+lzma: {quant_file_bytes} bytes")
-        log0(f"Total submission size int6+lzma: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Serialized model int6+{comp_name}: {quant_file_bytes} bytes")
+        log0(f"Total submission size int6+{comp_name}: {quant_file_bytes + code_bytes} bytes")
     if distributed:
         dist.barrier()
     with open("final_model.int6.ptz", "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(
-        io.BytesIO(lzma.decompress(quant_blob_disk)),
+        io.BytesIO(_decompress(quant_blob_disk)),
         map_location="cpu",
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
@@ -2073,7 +2222,12 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        parallel_residual=args.parallel_residual,
+        parallel_start_layer=args.parallel_start_layer,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
+    # eval_model needs recurrence active (it represents the final model state)
+    eval_model.recur_active = True
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
     eval_model.mlp_up_bank.data = eval_model.mlp_up_bank.data.float()
@@ -2083,6 +2237,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
+    torch._dynamo.config.cache_size_limit = 64  # avoid recompile_limit hit on fresh eval model
     compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
