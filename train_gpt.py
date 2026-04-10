@@ -1097,13 +1097,15 @@ class EngramHash(nn.Module):
         head_outputs = [table(all_indices[:, :, i]) for i, table in enumerate(self.tables)]
         memory = torch.cat(head_outputs, dim=-1)
         if hidden is not None:
-            gate_logits = (
-                torch.nn.functional.normalize(hidden.float(), dim=-1)
-                * torch.nn.functional.normalize(self.gate_k(memory).float(), dim=-1)
-            ).sum(dim=-1, keepdim=True)
+            # Normalize in the computation dtype (bf16/fp16) — cosine similarity is
+            # scale-invariant so fp32 precision is not needed here. Single cast to
+            # match dtypes, reused for both operands to avoid redundant casts.
+            h_norm = torch.nn.functional.normalize(hidden.to(memory.dtype), dim=-1)
+            m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
+            gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
             gate_scale = (F.softplus(self._gate_scale_raw.float()) + 0.1).clamp(max=4.0)
-            gate = torch.sigmoid(gate_logits * gate_scale)
-            return gate.to(memory.dtype) * self.proj(memory)
+            gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
+            return gate * self.proj(memory)
         return self.proj(memory)
 
 
@@ -2939,6 +2941,10 @@ def eval_val_sliding_ttt(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     t0 = time.perf_counter()
+    # Hoist SGD outside the chunk loop so momentum buffers persist across chunks.
+    # Recreating the optimizer per chunk silently resets momentum state, which
+    # discards accumulated gradient curvature and hurts TTT convergence.
+    ttt_optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
 
     try:
         for ci in range(num_chunks):
@@ -3033,10 +3039,11 @@ def eval_val_sliding_ttt(
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs <= 0:
                 continue
-            optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
-            cosine_lr = args.ttt_lr  # constant LR across all chunks — cosine decay paralyzed adaptation at end of val file
+            # ttt_optimizer is hoisted outside this loop — momentum buffers persist
+            # across chunks for better convergence (see instantiation above).
+            optimizer = ttt_optimizer
             for group in optimizer.param_groups:
-                group["lr"] = cosine_lr
+                group["lr"] = args.ttt_lr
             # This rank owns the full chunk — train on all sequences within it.
             # No temporal split across ranks; document-level parallelism already
             # ensures ranks never share any chunk, so no grad all_reduce is needed.
