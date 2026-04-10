@@ -3996,16 +3996,22 @@ def main() -> None:
     training_time_ms += 1000.0 * (time.perf_counter() - t0)
     
     # Final eval WITH EMA weights applied
-    _orig_ema_weights = None
+    _final_eval_ema_orig = None
     if args.ema_enabled and args.ema_eval_apply and ema is not None:
-        _orig_ema_weights = ema.apply_shadow(base_model)
-        
+        _final_eval_ema_orig = ema.apply_shadow(base_model)
+
     log0(f"final_evaluation:starting step:{step+1}/{args.iterations}")
     val_loss, val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps,
                                  val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
-    
+
     final_loss, final_bpb = val_loss, val_bpb
     log0(f"final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}")
+
+    # Restore original weights so the export path starts from a clean state and
+    # applies EMA shadow once below. Without this restore, the export apply_shadow
+    # would be called on already-shadowed weights, corrupting _ema_original.
+    if _final_eval_ema_orig is not None:
+        ema.restore(base_model, _final_eval_ema_orig)
 
     # --- Rank Synchronization before Export ---
     if distributed:
