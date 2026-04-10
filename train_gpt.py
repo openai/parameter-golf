@@ -1020,7 +1020,12 @@ class EngramHash(nn.Module):
         # Context-aware gating
         # QATLinear so this layer trains through the same FP approximation it sees at export
         self.gate_k = QATLinear(actual_dim, model_dim, bias=False, fp_storage=fp_storage)
-        self.gate_scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
+        # gate_scale amplifies the cosine-similarity logit before sigmoid gating.
+        # Unclamped, it can saturate the gate toward 0/1 and kill gradient flow
+        # through the Engram path. Parameterise as softplus(raw) + 0.1 capped at 4.0:
+        # this keeps the effective scale in (0.1, 4.0] and ensures gradients always
+        # flow regardless of where the optimiser drives the raw parameter.
+        self._gate_scale_raw = nn.Parameter(torch.tensor(0.541, dtype=torch.float32))  # softplus(0.541)+0.1 ≈ 1.0
 
     def _hash_ngram(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
         B, T = input_ids.shape
@@ -1089,7 +1094,8 @@ class EngramHash(nn.Module):
                 torch.nn.functional.normalize(hidden.float(), dim=-1)
                 * torch.nn.functional.normalize(self.gate_k(memory).float(), dim=-1)
             ).sum(dim=-1, keepdim=True)
-            gate = torch.sigmoid(gate_logits * self.gate_scale.float())
+            gate_scale = (F.softplus(self._gate_scale_raw.float()) + 0.1).clamp(max=4.0)
+            gate = torch.sigmoid(gate_logits * gate_scale)
             return gate.to(memory.dtype) * self.proj(memory)
         return self.proj(memory)
 
