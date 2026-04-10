@@ -1280,7 +1280,8 @@ class TernaryMoE(nn.Module):
         router_logits = self.router(x_flat)
         router_probs = F.softmax(router_logits, dim=1, dtype=torch.float32)
         routing_weights, selected_experts = torch.topk(router_probs, self.top_k, dim=-1)
-        routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
+        if self.top_k > 1:
+            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True)
         routing_weights = routing_weights.to(x.dtype)
         
         final_output = torch.zeros_like(x_flat)
@@ -2454,6 +2455,7 @@ class GPT(nn.Module):
                     delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2))
                     norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-8
                     if (delta / norm).item() < self.adaptive_halt_threshold:
+                        grounded_capsule_state = prev_capsule_state  # rollback to match decoder features
                         break
 
             x = self._decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
