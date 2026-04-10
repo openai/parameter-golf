@@ -1,0 +1,102 @@
+Node: h100-048-158
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-7f99ab58-8fd7-c4af-2990-49433db15d6c)
+NCCL version 2.28.9+cuda12.9
+logs/h100_recur_ttt_seed1337.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40546304
+model_params:35941976
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:595.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0002 val_bpb:3.4849 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.0025 train_time:176ms step_avg:176.19ms
+step:2/20000 train_loss:9.8079 train_time:217ms step_avg:108.29ms
+step:3/20000 train_loss:9.8369 train_time:315ms step_avg:105.04ms
+step:4/20000 train_loss:9.3154 train_time:414ms step_avg:103.60ms
+step:5/20000 train_loss:8.8109 train_time:514ms step_avg:102.70ms
+step:6/20000 train_loss:8.6378 train_time:614ms step_avg:102.30ms
+step:7/20000 train_loss:8.3350 train_time:714ms step_avg:101.94ms
+step:8/20000 train_loss:7.8628 train_time:814ms step_avg:101.70ms
+step:9/20000 train_loss:7.8303 train_time:913ms step_avg:101.46ms
+step:10/20000 train_loss:7.5746 train_time:1013ms step_avg:101.25ms
+step:500/20000 train_loss:3.4687 train_time:50218ms step_avg:100.44ms
+step:1000/20000 train_loss:3.2968 train_time:100902ms step_avg:100.90ms
+step:1500/20000 train_loss:3.2014 train_time:151466ms step_avg:100.98ms
+step:2000/20000 train_loss:3.1697 train_time:202124ms step_avg:101.06ms
+recurrence:activated at step 2000, virtual_layers=[0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 9, 10]
+step:2500/20000 train_loss:3.0945 train_time:310476ms step_avg:124.19ms
+step:3000/20000 train_loss:2.9606 train_time:375839ms step_avg:125.28ms
+step:3500/20000 train_loss:3.1166 train_time:441164ms step_avg:126.05ms
+step:4000/20000 train_loss:3.0005 train_time:506445ms step_avg:126.61ms
+step:4000/20000 val_loss:2.9244 val_bpb:1.1323 train_time:506517ms step_avg:126.63ms
+swa:start step:4050
+late_qat:enabled step:4184 scale:0.1498
+step:4500/20000 train_loss:3.0015 train_time:572955ms step_avg:127.32ms
+step:4665/20000 val_loss:2.8480 val_bpb:1.1027 train_time:595079ms step_avg:127.56ms
+stopping_early: wallclock_cap train_time:595079ms step:4665/20000
+peak memory allocated: 33191 MiB reserved: 33240 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.8442 val_bpb:1.1013 eval_time:2017ms
+ttt:start lr=0.0003 epochs=18 freeze_blocks=1 cosine_decay=True
+ttt_adamw:params trainable=35939920 frozen=2056
+ttt_adamw:epoch 1/18 loss:2.8719 time:17.7s
+ttt_adamw:epoch 2/18 loss:2.8313 time:35.1s
+ttt_adamw:epoch 3/18 loss:2.8149 time:52.5s
+ttt_adamw:epoch 4/18 loss:2.7996 time:69.9s
+ttt_adamw:epoch 5/18 loss:2.7854 time:87.3s
+ttt_adamw:epoch 6/18 loss:2.7733 time:104.7s
+ttt_adamw:epoch 7/18 loss:2.7618 time:122.1s
+ttt_adamw:epoch 8/18 loss:2.7509 time:139.4s
+ttt_adamw:epoch 9/18 loss:2.7400 time:156.8s
+ttt_adamw:epoch 10/18 loss:2.7305 time:174.2s
+ttt_adamw:epoch 11/18 loss:2.7219 time:191.6s
+ttt_adamw:epoch 12/18 loss:2.7140 time:209.0s
+ttt_adamw:epoch 13/18 loss:2.7070 time:226.4s
+ttt_adamw:epoch 14/18 loss:2.7012 time:243.8s
+ttt_adamw:epoch 15/18 loss:2.6962 time:261.2s
+ttt_adamw:epoch 16/18 loss:2.6920 time:278.6s
+ttt_adamw:epoch 17/18 loss:2.6887 time:296.0s
+ttt_adamw:epoch 18/18 loss:2.6861 time:313.4s
+ttt_adamw:done elapsed=313.4s
+ttt:elapsed=313.4s
+DIAGNOSTIC post_ttt val_loss:2.6828 val_bpb:1.0388 eval_time:5824ms
+Serialized model: 135395695 bytes
+Code size: 118603 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 67 layers (training data)
+selective_prune: 9897304 ±1 candidates, unpruned=14.34MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+brotli+byteshuffle: 14920428 bytes
+Total submission size int6+brotli+byteshuffle: 15039031 bytes
+final_int6_roundtrip val_loss:2.7760 val_bpb:1.0749 eval_time:28887ms
+final_int6_roundtrip_exact val_loss:2.77596471 val_bpb:1.07485084
+final_int6_sliding_window val_loss:2.7459 val_bpb:1.0632 stride:64 eval_time:117321ms
+final_int6_sliding_window_exact val_loss:2.74591218 val_bpb:1.06323209
+final_int8_zlib_roundtrip_exact val_loss:2.74591218 val_bpb:1.06323209
