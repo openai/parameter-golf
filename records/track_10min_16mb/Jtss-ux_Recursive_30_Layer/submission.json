@@ -1,0 +1,9 @@
+{
+  "name": "30-Layer Recursive GPT (10 Physical x 3 Recursive) + VRL + Int8+LZMA + Parallel Muon",
+  "val_bpb": 1.1999,
+  "bytes_total": 8648712,
+  "blurb": "30-layer virtual depth via 3x weight-shared recursion (10 physical layers, d_model=640). Value Residual Learning (VRL) with sigmoid gates for deep recursion stability. Multi-Token Prediction (MTP), BigramHash(3072), Trigram embeddings. Int8 GPTQ Hessian calibration (128 seqs x 2048 tokens) + LZMA compression. Trained on 8xH100 with Parallel Muon optimizer. Final size: 8.25MB (well within 16MB limit).",
+  "author": "Jtss-ux",
+  "github_id": "Jtss-ux",
+  "date": "2026-04-06"
+}
