@@ -92,7 +92,6 @@ class Hyperparameters:
     ve_layers = os.environ.get("VE_LAYERS", "9,10")
     gated_attention = bool(int(os.environ.get("GATED_ATTENTION", "0")))
     value_residual = bool(int(os.environ.get("VALUE_RESIDUAL", "0")))
-    mask_token_id = vocab_size
     diffusion_t_samples = int(os.environ.get("DIFFUSION_T_SAMPLES", 8))
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
@@ -132,7 +131,6 @@ class Muon(torch.optim.Optimizer):
         self._world_size = dist.get_world_size() if self._distributed else 1
         self._rank = dist.get_rank() if self._distributed else 0
         ws = self._world_size
-
         self._bank_meta = []
         for group in self.param_groups:
             for p in group["params"]:
@@ -177,27 +175,21 @@ class Muon(torch.optim.Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-
         if not self._built:
             self._build()
-
         for group in self.param_groups:
             lr = group["lr"]
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
             wd = group.get("weight_decay", 0.0)
-
             prev_ag_handle = None
             prev_m = None
-
             sharded = self._distributed and hasattr(self, '_rs_futures')
-
             for i, m in enumerate(self._bank_meta):
                 p = m['p']
                 if p.grad is None:
                     continue
-
                 if prev_ag_handle is not None:
                     prev_ag_handle.wait()
                     pp = prev_m['p']
@@ -205,7 +197,6 @@ class Muon(torch.optim.Optimizer):
                     if wd > 0.0:
                         pp.data.mul_(1.0 - lr * wd)
                     pp.add_(upd.to(dtype=pp.dtype), alpha=-lr * prev_m['scale'])
-
                 if sharded and self._rs_futures[i] is not None:
                     self._rs_futures[i].wait()
                     g = m['shard']
@@ -216,15 +207,12 @@ class Muon(torch.optim.Optimizer):
                     if "momentum_buffer" not in state:
                         state["momentum_buffer"] = torch.zeros_like(g)
                     buf = state["momentum_buffer"]
-
                 buf.mul_(momentum).add_(g)
                 if nesterov:
                     update = g.add(buf, alpha=momentum)
                 else:
                     update = buf
-
                 update = zeropower_via_newtonschulz5(update, steps=backend_steps)
-
                 if sharded:
                     prev_ag_handle = dist.all_gather_into_tensor(
                         m['full_update'], update, async_op=True)
@@ -233,7 +221,6 @@ class Muon(torch.optim.Optimizer):
                     if wd > 0.0:
                         p.data.mul_(1.0 - lr * wd)
                     p.add_(update.to(dtype=p.dtype), alpha=-lr * m['scale'])
-
             if prev_ag_handle is not None:
                 prev_ag_handle.wait()
                 pp = prev_m['p']
@@ -241,10 +228,8 @@ class Muon(torch.optim.Optimizer):
                 if wd > 0.0:
                     pp.data.mul_(1.0 - lr * wd)
                 pp.add_(upd.to(dtype=pp.dtype), alpha=-lr * prev_m['scale'])
-
             if hasattr(self, '_rs_futures'):
                 del self._rs_futures
-
         return loss
 
 def build_sentencepiece_luts(
@@ -321,15 +306,15 @@ def eval_val(
             x = local[:-1].reshape(-1, seq_len)
             y = local[1:].reshape(-1, seq_len)
             nll_sum = torch.zeros((), device=device, dtype=torch.float64)
-            for _ in range(args.diffusion_t_samples):
-                t = torch.rand(1).item()
+            t_vals = [0.1, 0.3, 0.5, 0.7, 0.9]
+            for t in t_vals:
                 mask = torch.rand(x.shape, device=device) < t
                 x_noisy = x.clone()
-                x_noisy[mask] = args.mask_token_id
+                x_noisy[mask] = args.vocab_size
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     loss = model(x_noisy, x).detach()
-                nll_sum += loss.to(torch.float64) / (t + 1e-8)
-            batch_loss = nll_sum / args.diffusion_t_samples
+                nll_sum += loss.to(torch.float64) / t
+            batch_loss = nll_sum / len(t_vals)
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss * batch_token_count
             val_token_count += batch_token_count
@@ -789,6 +774,7 @@ class GPT(nn.Module):
         value_residual: bool = False,
     ):
         super().__init__()
+        self.vocab_size = vocab_size
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
@@ -918,14 +904,13 @@ class GPT(nn.Module):
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         if self.tie_embeddings:
-            logits_proj = F.linear(x_flat, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight[:-1, :])
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        
-        mask = (input_ids.reshape(-1) == Hyperparameters.mask_token_id)
+        mask = (input_ids.reshape(-1) == self.vocab_size)
         if mask.any():
             return F.cross_entropy(logits[mask].float(), target_ids.reshape(-1)[mask])
         return logits.new_zeros(())
@@ -959,7 +944,7 @@ class GPT(nn.Module):
                 v_embed=ve, v0=v0)
         x = self.final_norm(x)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x, self.tok_emb.weight[:-1, :])
         else:
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
@@ -1407,7 +1392,7 @@ def collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps
     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         for _ in range(num_batches):
             tokens, _ = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            x, y = corrupt(tokens, args.mask_token_id)
+            x, y = corrupt(tokens, args.vocab_size)
             hessian_model(x, y)
     for h in hooks:
         h.remove()
@@ -1704,7 +1689,7 @@ def main() -> None:
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 tokens, _ = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                x, y = corrupt(tokens, args.mask_token_id)
+                x, y = corrupt(tokens, args.vocab_size)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
@@ -1773,7 +1758,7 @@ def main() -> None:
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             tokens, _ = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            x, y = corrupt(tokens, args.mask_token_id)
+            x, y = corrupt(tokens, args.vocab_size)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
