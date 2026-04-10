@@ -1,0 +1,11 @@
+{
+  "author": "Tamoghno Kandar",
+  "github_id": "tamoghnokandar",
+  "name": "Int6 MLP3x Sliding Window NorMuon Flash Attention 3",
+  "blurb": "Int6 post-training quantization enables 3x MLP expansion (21.8M params in 16MB). Sliding window eval stride=256 with train@2048. NorMuon optimizer and Flash Attention 3.",
+  "date": "2026-03-20",
+  "val_loss": 1.94714096,
+  "val_bpb": 1.15320656,
+  "bytes_total": 15959964,
+  "bytes_code": 55221
+}
