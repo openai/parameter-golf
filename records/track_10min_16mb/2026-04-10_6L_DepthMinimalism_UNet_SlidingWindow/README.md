@@ -12,11 +12,11 @@ The answer is **6 layers**. Just a shallow transformer with some strong opinions
 |---|---|---|
 | Layers | 9 | **6** (33% fewer) |
 | Parameters | 17,059,912 | **16,791,064** (1.6% fewer) |
-| Pre-quant val_bpb | 1.2172 | 1.2222 |
-| Post-quant val_bpb | 1.2244 | 1.2250 |
-| **Sliding window val_bpb** | N/A | **1.2029** |
+| Pre-quant val_bpb | 1.2172 | 1.2219 |
+| Post-quant val_bpb | 1.2244 | 1.2246 |
+| **Sliding window val_bpb** | N/A | **1.2026** |
 | Training steps | 13,780 (wallclock-capped) | 20,000 (completed all) |
-| Artifact size | 15.86 MB | 15.85 MB |
+| Artifact size | 15.86 MB | 15.84 MB |
 
 
 
@@ -29,10 +29,10 @@ All metrics are from **1xA100 80GB**. Here's the napkin math for 8xH100:
 |---|---|---|
 | Baseline step_avg | 705.97ms | 43.54ms |
 | Speedup ratio | 1x | 16.2x |
-| **This model step_avg** | **307.79ms** | **~19ms (extrapolated)** |
-| Training (20K steps) | 103 min | ~6.3 min |
+| **This model step_avg** | **318.85ms** | **~19.7ms (extrapolated)** |
+| Training (20K steps) | 106 min | ~6.6 min |
 | Sliding window eval | 26 min | ~1.6 min |
-| **Total** | **129 min** | **~7.9 min** |
+| **Total** | **132 min** | **~8.2 min** |
 
 Conservative estimate with small-batch GPU inefficiency: **~9.7 min**. Either way, fits under 10 minutes. The `MAX_WALLCLOCK_SECONDS=600` warmdown handles it gracefully if the estimate is off.
 
@@ -117,14 +117,14 @@ torchrun --standalone --nproc_per_node=1 train_gpt_26e6b4a.py
 ## Key Metrics (from 1xA100 run)
 
 - Training completed all `20000/20000` steps
-- Pre-quant: `val_loss:2.0636` `val_bpb:1.2222`
-- Int8+zlib roundtrip: `val_loss:2.06835857` `val_bpb:1.22499845`
-- **Sliding window: `val_loss:2.03107700` `val_bpb:1.20292153`**
-- Step avg: `307.79ms` (A100)
-- Peak memory: `17063 MiB allocated` `18410 MiB reserved`
-- Model int8+zlib: `15,788,099 bytes`
+- Pre-quant: `val_loss:2.0631` `val_bpb:1.2219`
+- Int8+zlib roundtrip: `val_loss:2.06773341` `val_bpb:1.22462820`
+- **Sliding window: `val_loss:2.03046171` `val_bpb:1.20255713`**
+- Step avg: `318.85ms` (A100)
+- Peak memory: `16228 MiB allocated` `17974 MiB reserved`
+- Model int8+zlib: `15,784,231 bytes`
 - Code: `56,975 bytes`
-- **Total: `15,845,074 bytes` (under 16MB)**
+- **Total: `15,841,206 bytes` (under 16MB)**
 - Parameters: `16,791,064`
 
 ## Training Volume
