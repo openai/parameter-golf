@@ -1,0 +1,18 @@
+{
+  "author": "muhtasham",
+  "github_id": "Muhtasham",
+  "name": "Classical Doc-Copy 16.3M Skip-Gate Artifact",
+  "blurb": "Non-record classical submission: a 16.3M-token artifact using document-local copy plus sparse skip-copy experts over discounted hashed 4-gram backoff. Packed 10-bit n-gram token storage plus lzma state compression keeps the rebuilt artifact at 15,645,820 bytes, code at 51,122 bytes, and full validation reaches 1.79538936 bpb in 471.76s on the official FineWeb split.",
+  "date": "2026-03-27T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": null,
+  "val_bpb": 1.79538936,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": 95.78,
+  "bytes_total": 15696942,
+  "bytes_model_int8_zlib": 15645820,
+  "bytes_code": 51122,
+  "gpu": "local CPU"
+}
