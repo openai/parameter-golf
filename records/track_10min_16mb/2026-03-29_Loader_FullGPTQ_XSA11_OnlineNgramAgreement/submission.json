@@ -1,0 +1,9 @@
+{
+  "name": "Loader FullGPTQ XSA11 + Online Ngram Agreement",
+  "val_bpb": 1.11085863,
+  "bytes_total": 15953221,
+  "blurb": "Built on PR #1060 Loader_FullGPTQ_XSA11_BigramHash2816, retuned to use WARMDOWN_ITERS=4000, and adds a single-pass online causal token+within-word+word-start+agreement eval path that stays under the 10-minute eval budget. The bundled 4-seed subset (42, 1337, 2025, 15) averages 1.11085863 val_bpb with +0.00592043 nats/byte over the current 1.1194 leaderboard entry; the one-sided t-test against a 0.005 nats/byte bar gives p=0.00155.",
+  "author": "Anirudh Rahul",
+  "github_id": "AnirudhRahul",
+  "date": "2026-03-30"
+}
