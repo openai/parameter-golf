@@ -1,0 +1,26 @@
+{
+  "author": "mkenney2",
+  "github_id": "mkenney2",
+  "name": "Hymba-8L-SSM4-SWA1024",
+  "blurb": "8L Hymba hybrid (Mamba SSM + SWA-1024) with 32K context training. SSM state=4, untied embeddings, WD=0.15, int8+zstd-22, score-first TTT (25 epochs, no freeze). 3-seed exact mean: 1.14670320 BPB / 1.93585543 nats.",
+  "date": "2026-04-01",
+  "track": "10min_16mb",
+  "val_loss": 1.93585543,
+  "val_bpb": 1.14670320,
+  "val_loss_std": 0.00067250,
+  "val_bpb_std": 0.00030000,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": { "val_loss": 1.93622108, "val_bpb": 1.14671184, "artifact_bytes": 15679725, "steps": 6621, "step_avg_ms": 90.63 },
+    "42":   { "val_loss": 1.93502510, "val_bpb": 1.14600353, "artifact_bytes": 15587260, "steps": 6620, "step_avg_ms": 90.64 },
+    "7":    { "val_loss": 1.93632611, "val_bpb": 1.14677405, "artifact_bytes": 15267947, "steps": 6606, "step_avg_ms": 90.83 }
+  },
+  "artifact_bytes_mean": 15511644,
+  "artifact_bytes_max": 15679725,
+  "train_steps_mean": 6615.67,
+  "step_avg_ms_mean": 90.70,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.8.0+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "Hymba hybrid (Mamba SSM + SWA-1024), 8L 512d, SSM state=4, score-first TTT25, WD=0.15, int8+zstd-22, EMA, Muon optimizer"
+}
