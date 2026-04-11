@@ -64,7 +64,7 @@ class Hyperparameters:
     num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     #model_dim = int(os.environ.get("MODEL_DIM", 512))
-    model_dim = int(os.environ.get("MODEL_DIM", 768))  # Increased model dimension for better performance while keeping under size limit
+    model_dim = int(os.environ.get("MODEL_DIM", 640))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
