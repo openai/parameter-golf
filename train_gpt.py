@@ -1,18 +1,7 @@
 """
-The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
-
-Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 lines.
-
-MODIFICATIONS from baseline:
-  1. DEPTH RECURRENCE: Single shared Block is reused num_passes times instead of num_layers
-     independent blocks. Drastically reduces unique parameter count → smaller compressed size
-     → more budget for wider dims or more passes.
-  2. 32K VOCAB SUPPORT: Set VOCAB_SIZE=32768 and point TOKENIZER_PATH at a 32k BPE model.
-     Larger tokens cover more bytes → lower bits-per-byte at same loss.
-     Default still 1024 so baseline runs unchanged.
-  3. DEPTH_EMB=1: Learnable per-pass embedding so the shared block specializes per iteration.
-  4. ATTN_RES=1: Cross-attention over all prior pass outputs replaces fixed U-Net skips.
-  5. SWIGLU=1: SwiGLU gated activation replaces squared-ReLU in the MLP.
+train_gpt.py — Parameter Golf (targeting ≤1.1 val_bpb). Hard stop: ≤1500 lines.
+Independent layers + depth recurrence, parallel residuals, LeakyReLU²,
+partial RoPE, int6 SD-clip + Brotli, sliding-window eval, MuonEq-R, EMA, weight decay.
 """
 
 from __future__ import annotations
@@ -38,6 +27,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    import brotli
+    HAS_BROTLI = True
+except ImportError:
+    HAS_BROTLI = False
+
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -55,39 +50,73 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 20000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 200))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.0))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_passes = int(os.environ.get("NUM_PASSES", 12))
+    embed_dim = int(os.environ.get("EMBED_DIM", 64))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 3))
+    mlp_mult = int(os.environ.get("MLP_MULT", 4))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.0))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
 
-    # Feature flags (set to 0 to disable for ablation).
+    # Depth recurrence: comma-separated layer indices to loop, e.g. "3,4,5".
+    recur_layers = os.environ.get("RECUR_LAYERS", "3,4,5")
+    recur_start_frac = float(os.environ.get("RECUR_START_FRAC", 0.35))
+
+    # Parallel residuals: layers >= this index use GPT-J style parallel attn+mlp.
+    parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 7))
+
+    # Partial RoPE: apply RoPE to only first N dims per head (0 = full RoPE).
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
+
+    # Activation: "leaky_relu_sq", "swiglu", "squared_relu".
+    activation = os.environ.get("ACTIVATION", "leaky_relu_sq")
+    leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", 0.5))
+
+    # Depth embeddings for recurred passes.
     depth_emb = bool(int(os.environ.get("DEPTH_EMB", "1")))
-    attn_res = bool(int(os.environ.get("ATTN_RES", "1")))
-    attn_res_heads = int(os.environ.get("ATTN_RES_HEADS", 0))  # 0 = auto (uses num_heads)
-    attn_res_window = int(os.environ.get("ATTN_RES_WINDOW", 4))  # 0 = unlimited history
-    swiglu = bool(int(os.environ.get("SWIGLU", "1")))
+
+    # EMA model averaging.
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
+    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
+
+    # Weight decay (L2 regularization on matrix params).
+    weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.09))
+
+    # MuonEq-R: row normalization after Newton-Schulz.
+    muon_row_norm = bool(int(os.environ.get("MUON_ROW_NORM", "1")))
+
+    # Quantization settings.
+    quant_bits = int(os.environ.get("QUANT_BITS", 6))
+    quant_clip_sigmas = float(os.environ.get("QUANT_CLIP_SIGMAS", 12.85))
+    embed_quant_bits = int(os.environ.get("EMBED_QUANT_BITS", 8))
+    embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 20.0))
+
+    # GPTQ Hessian-based error compensation (optional, slower but better).
+    gptq_enabled = bool(int(os.environ.get("GPTQ_ENABLED", "0")))
+    gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 32))
+
+    # Sliding-window evaluation stride (0 = disable, use standard chunked eval).
+    sliding_stride = int(os.environ.get("SLIDING_STRIDE", 64))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.03))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.03))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.07))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.022))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.06))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -95,11 +124,21 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+
+
+# Names of control tensors that should stay in higher precision during quantization.
+CONTROL_TENSOR_NAME_PATTERNS = tuple(
+    p for p in os.environ.get(
+        "CONTROL_TENSOR_NAME_PATTERNS",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,"
+        "q_gain,skip_weight,skip_weights",
+    ).split(",") if p
+)
 
 
 # -----------------------------
-# MUON OPTIMIZER
+# MUON OPTIMIZER (with optional EqR row normalization)
 # -----------------------------
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -116,10 +155,12 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
+                 nesterov: bool = True, row_norm: bool = False):
         super().__init__(
             params,
-            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
+                 nesterov=nesterov, row_norm=row_norm),
         )
 
     @torch.no_grad()
@@ -142,6 +183,7 @@ class Muon(torch.optim.Optimizer):
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
+            row_norm = group["row_norm"]
 
             total_params = sum(int(p.numel()) for p in params)
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
@@ -157,6 +199,9 @@ class Muon(torch.optim.Optimizer):
                     if nesterov:
                         g = g.add(buf, alpha=momentum)
                     g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    # MuonEq-R: row normalization for more uniform update magnitudes
+                    if row_norm:
+                        g = g / g.norm(dim=1, keepdim=True).clamp_min(1e-7)
                     g *= max(1, g.size(0) / g.size(1)) ** 0.5
                     updates_flat[curr : curr + p.numel()] = g.reshape(-1)
                 curr += p.numel()
@@ -216,31 +261,44 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     return tokens[: usable + 1]
 
 
-def eval_val(
-    args: Hyperparameters,
-    model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    grad_accum_steps: int,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-) -> tuple[float, float]:
-    # FIX: removed grad_accum_steps from denominator — it's a training concept,
-    # not relevant to validation batch sizing. The old code made val batches 8x
-    # too small, causing ~946 forward passes per checkpoint (~30 min each).
-    local_batch_tokens = args.val_batch_size // world_size
-    if local_batch_tokens < args.train_seq_len:
-        raise ValueError(
-            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
-            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"TRAIN_SEQ_LEN={args.train_seq_len}"
-        )
+def _count_bytes(prev_ids: Tensor, tgt_ids: Tensor, base_bytes_lut: Tensor,
+                 has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> Tensor:
+    """Count bytes for a batch of (prev, target) token pairs."""
+    token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+    token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+    return token_bytes.to(torch.float64).sum()
 
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+
+def eval_val(
+    args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
+    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    model.eval()
+    seq_len = args.train_seq_len
+
+    if args.sliding_stride > 0 and args.sliding_stride < seq_len:
+        result = _eval_sliding(args, model, rank, world_size, device, val_tokens,
+                               base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+    else:
+        result = _eval_chunked(args, model, rank, world_size, device, val_tokens,
+                               base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+
+    model.train()
+    return result
+
+
+def _eval_chunked(
+    args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
+    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    local_batch_tokens = args.val_batch_size // world_size
+    seq_len = args.train_seq_len
+    if local_batch_tokens < seq_len:
+        raise ValueError("VAL_BATCH_SIZE too small for one sequence per rank")
+    local_batch_seqs = local_batch_tokens // seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
 
@@ -248,15 +306,14 @@ def eval_val(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    model.eval()
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
+            raw_start = batch_seq_start * seq_len
+            raw_end = batch_seq_end * seq_len + 1
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 batch_loss = model(x, y).detach()
@@ -264,12 +321,10 @@ def eval_val(
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
-
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+            val_byte_count += _count_bytes(
+                x.reshape(-1), y.reshape(-1),
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
+            )
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -279,84 +334,163 @@ def eval_val(
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def _eval_sliding(
+    args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
+    device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    seq_len = args.train_seq_len
+    stride = args.sliding_stride
+    total_tokens = val_tokens.numel() - 1
+    num_windows = max(1, (total_tokens - seq_len) // stride + 1)
+    win_start = (num_windows * rank) // world_size
+    win_end = (num_windows * (rank + 1)) // world_size
+    max_batch = max(1, args.val_batch_size // (seq_len * world_size))
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    base_model = model.module if hasattr(model, "module") else model
+    raw_model = base_model._orig_mod if hasattr(base_model, "_orig_mod") else base_model
+
+    with torch.inference_mode():
+        for batch_start in range(win_start, win_end, max_batch):
+            batch_end = min(batch_start + max_batch, win_end)
+            batch_size = batch_end - batch_start
+            xs, ys = [], []
+            for w in range(batch_start, batch_end):
+                token_start = w * stride
+                token_end = token_start + seq_len + 1
+                if token_end > val_tokens.numel():
+                    token_end = val_tokens.numel()
+                    token_start = token_end - seq_len - 1
+                window = val_tokens[token_start:token_end].to(device=device, dtype=torch.int64)
+                xs.append(window[:-1])
+                ys.append(window[1:])
+
+            x = torch.stack(xs)
+            y = torch.stack(ys)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = raw_model.forward_logits(x)
+            per_token_loss = F.cross_entropy(
+                logits.float().reshape(-1, logits.size(-1)), y.reshape(-1), reduction="none"
+            ).reshape(batch_size, seq_len)
+
+            for i in range(batch_size):
+                w_idx = batch_start + i
+                if w_idx == 0:
+                    count_start = 0
+                else:
+                    count_start = seq_len - stride
+
+                counted_loss = per_token_loss[i, count_start:]
+                counted_y = y[i, count_start:]
+                counted_prev = x[i, count_start:]
+
+                val_loss_sum += counted_loss.to(torch.float64).sum()
+                val_token_count += counted_loss.numel()
+                val_byte_count += _count_bytes(
+                    counted_prev, counted_y,
+                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
+                )
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
 # -----------------------------
-# POST-TRAINING QUANTIZATION
+# POST-TRAINING QUANTIZATION (int6 SD-clip + optional GPTQ)
 # -----------------------------
-CONTROL_TENSOR_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,attn_res_scale",
-    ).split(",")
-    if pattern
-)
-
-INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
-        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
-    ).split(",")
-    if pattern
-)
-
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
-INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_CLIP_PERCENTILE = 99.99984
-INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+INT6_MAX = 31   # 2^5 - 1
+INT8_MAX = 127  # 2^7 - 1
+KEEP_FLOAT_MAX_NUMEL = 65_536
+KEEP_FLOAT_STORE_DTYPE = torch.float16
+SCALE_DTYPE = torch.float16
 
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
 
-def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
-    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
-        return t.float().contiguous()
-    if t.dtype in {torch.float32, torch.bfloat16}:
-        passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
-        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
-    return t
-
-
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def _sd_clip_quantize(t: Tensor, bits: int, clip_sigmas: float) -> tuple[Tensor, Tensor]:
+    max_val = (1 << (bits - 1)) - 1  # 31 for int6, 127 for int8
     t32 = t.float()
+
     if t32.ndim == 2:
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
-    return q, scale
+        row_std = t32.std(dim=1).clamp_min(1e-8)
+        clip_abs = clip_sigmas * row_std
+        clipped = torch.clamp(t32, -clip_abs[:, None], clip_abs[:, None])
+        scale = (clip_abs / max_val).clamp_min(1e-8)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -max_val, max_val)
+        return q.to(torch.int8).contiguous(), scale.to(SCALE_DTYPE).contiguous()
+    else:
+        row_std = t32.flatten().std().clamp_min(1e-8)
+        clip_abs = float(clip_sigmas * row_std)
+        scale = torch.tensor(clip_abs / max_val if clip_abs > 0 else 1.0, dtype=torch.float32)
+        q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val)
+        return q.to(torch.int8).contiguous(), scale.to(SCALE_DTYPE)
 
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+def _gptq_quantize_layer(weight: Tensor, hessian: Tensor, bits: int,
+                          clip_sigmas: float) -> tuple[Tensor, Tensor]:
+    max_val = (1 << (bits - 1)) - 1
+    W = weight.float().clone()
+    H = hessian.float()
+    nrow, ncol = W.shape
+    damp = 0.01 * torch.diag(H).mean()
+    H.diagonal().add_(damp)
+    row_std = W.std(dim=1).clamp_min(1e-8)
+    clip_abs = clip_sigmas * row_std
+    scale = (clip_abs / max_val).clamp_min(1e-8)
+    try:
+        H_inv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+    except torch.linalg.LinAlgError:
+        H.diagonal().add_(0.1 * torch.diag(H).mean())
+        try:
+            H_inv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+        except torch.linalg.LinAlgError:
+            return _sd_clip_quantize(weight, bits, clip_sigmas)
+
+    Q = torch.zeros_like(W, dtype=torch.int8)
+    for j in range(ncol):
+        w_col = W[:, j]
+        w_clipped = torch.clamp(w_col, -clip_abs, clip_abs)
+        q_float = torch.clamp(torch.round(w_clipped / scale), -max_val, max_val)
+        Q[:, j] = q_float.to(torch.int8)
+        err = w_col - q_float * scale
+        diag_val = H_inv[j, j].clamp_min(1e-10)
+        if j < ncol - 1:
+            W[:, j + 1:] -= (err / diag_val).unsqueeze(1) * H_inv[j, j + 1:].unsqueeze(0)
+
+    return Q.contiguous(), scale.to(SCALE_DTYPE).contiguous()
+
+
+def quantize_state_dict(state_dict: dict[str, Tensor], args: Hyperparameters,
+                        hessians: dict[str, Tensor] | None = None) -> tuple[dict, dict]:
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
-    qmeta: dict[str, dict[str, object]] = {}
+    qmeta: dict[str, dict] = {}
     stats = dict.fromkeys(
-        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
-        0,
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors",
+         "baseline_tensor_bytes", "int_payload_bytes"), 0,
     )
 
     for name, tensor in state_dict.items():
-        t = tensor.detach().to("cpu").contiguous()
+        t = tensor.detach().cpu().contiguous()
         stats["param_count"] += int(t.numel())
         stats["num_tensors"] += 1
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
@@ -364,26 +498,43 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
         if not t.is_floating_point():
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
-            stats["int8_payload_bytes"] += tensor_nbytes(t)
+            stats["int_payload_bytes"] += tensor_nbytes(t)
             continue
-
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
-            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+        is_control = any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
+        if t.numel() <= KEEP_FLOAT_MAX_NUMEL or is_control:
+            if is_control:
+                kept = t.float().contiguous()
+            elif t.dtype in {torch.float32, torch.bfloat16}:
+                passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+                kept = t.to(dtype=KEEP_FLOAT_STORE_DTYPE).contiguous()
+            else:
+                kept = t
             passthrough[name] = kept
-            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            stats["int_payload_bytes"] += tensor_nbytes(kept)
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        is_embed = "tok_emb" in name or "emb_up" in name or "emb_down" in name
+        bits = args.embed_quant_bits if is_embed else args.quant_bits
+        sigma = args.embed_clip_sigmas if is_embed else args.quant_clip_sigmas
+
+        if hessians and name in hessians and args.gptq_enabled:
+            q, s = _gptq_quantize_layer(t, hessians[name], bits, sigma)
+        else:
+            q, s = _sd_clip_quantize(t, bits, sigma)
+
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits}
+        else:
+            qmeta[name] = {"bits": bits}
+
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        stats["int_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": "sd_clip_v1",
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -396,7 +547,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     return obj, stats
 
 
-def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+def dequantize_state_dict(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
@@ -404,21 +555,78 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     for name, q in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+        meta = qmeta.get(name, {})
+        if meta.get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
         else:
-            scale = float(s.item())
-            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+            out[name] = (q.float() * float(s.item())).to(dtype=dtype).contiguous()
 
     for name, t in obj["passthrough"].items():
-        out_t = t.detach().to("cpu").contiguous()
+        out_t = t.detach().cpu().contiguous()
         orig_dtype = passthrough_orig_dtypes.get(name)
         if isinstance(orig_dtype, str):
             out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
         out[name] = out_t
 
     return out
+
+
+def compress_bytes(raw: bytes) -> bytes:
+    if HAS_BROTLI:
+        return brotli.compress(raw, quality=11)
+    return zlib.compress(raw, level=9)
+
+
+def decompress_bytes(data: bytes) -> bytes:
+    if HAS_BROTLI:
+        try:
+            return brotli.decompress(data)
+        except brotli.error:
+            pass
+    return zlib.decompress(data)
+
+
+# -----------------------------
+# GPTQ HESSIAN COLLECTION
+# -----------------------------
+class HessianCollector:
+    def __init__(self):
+        self.hessians: dict[str, Tensor] = {}
+        self.counts: dict[str, int] = {}
+        self.hooks: list = []
+
+    def register(self, model: nn.Module) -> None:
+        for name, module in model.named_modules():
+            if isinstance(module, nn.Linear) and module.weight.numel() > KEEP_FLOAT_MAX_NUMEL:
+                param_name = name + ".weight"
+                self.hooks.append(
+                    module.register_forward_hook(self._make_hook(param_name, module))
+                )
+
+    def _make_hook(self, param_name: str, module: nn.Linear):
+        def hook(mod, inp, out):
+            x = inp[0].detach().float()
+            if x.ndim == 3:
+                x = x.reshape(-1, x.size(-1))
+            H = x.T @ x
+            if param_name not in self.hessians:
+                self.hessians[param_name] = H.cpu()
+                self.counts[param_name] = x.size(0)
+            else:
+                self.hessians[param_name] += H.cpu()
+                self.counts[param_name] += x.size(0)
+        return hook
+
+    def finalize(self) -> dict[str, Tensor]:
+        for h in self.hooks:
+            h.remove()
+        self.hooks.clear()
+        result = {}
+        for name, H in self.hessians.items():
+            n = self.counts[name]
+            result[name] = H / max(n, 1)
+        return result
 
 
 # -----------------------------
@@ -511,7 +719,7 @@ class CastedLinear(nn.Linear):
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     with torch.no_grad():
         for name, param in module.named_parameters():
-            if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
+            if (param.ndim < 2 or any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
                 param.data = param.data.float()
 
 
@@ -546,7 +754,8 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float,
+                 qk_gain_init: float, rope_dims: int = 0):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -560,6 +769,11 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
 
+        # Partial RoPE: only apply to first rope_dims dims of each head
+        self.rope_dims = rope_dims if 0 < rope_dims < self.head_dim else self.head_dim
+        if self.rope_dims % 2 != 0:
+            self.rope_dims = (self.rope_dims // 2) * 2  # ensure even
+
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -567,18 +781,28 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.rope_dims, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
+
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+
+        if self.rope_dims < self.head_dim:
+            q_rope = apply_rotary_emb(q[..., :self.rope_dims], cos, sin)
+            k_rope = apply_rotary_emb(k[..., :self.rope_dims], cos, sin)
+            q = torch.cat([q_rope, q[..., self.rope_dims:]], dim=-1)
+            k = torch.cat([k_rope, k[..., self.rope_dims:]], dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
+
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q, k, v,
@@ -591,98 +815,72 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim: int, mlp_mult: int, use_swiglu: bool = False):
+    def __init__(self, dim: int, mlp_mult: int, activation: str = "leaky_relu_sq",
+                 leaky_slope: float = 0.5):
         super().__init__()
         hidden = mlp_mult * dim
-        self.use_swiglu = use_swiglu
+        self.activation = activation
+        self.leaky_slope = leaky_slope
         self.fc = CastedLinear(dim, hidden, bias=False)
-        if use_swiglu:
+        if activation == "swiglu":
             self.gate = CastedLinear(dim, hidden, bias=False)
+        else:
+            self.gate = None
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.use_swiglu:
+        if self.activation == "swiglu":
             return self.proj(F.silu(self.gate(x)) * self.fc(x))
-        x = torch.relu(self.fc(x))
-        return self.proj(x.square())
-
-
-class AttnRes(nn.Module):
-    """Cross-attention over windowed prior pass outputs (replaces fixed U-Net skips).
-
-    Uses per-pass Flash Attention (is_causal=True) instead of a single attention
-    op with a custom block-causal mask. Each history pass gets its own causal
-    attention call, and results are combined via learned softmax weights.
-    This avoids the Triton TRITON_MAX_BLOCK issue and uses the fastest SDPA backend.
-    """
-    def __init__(self, dim: int, num_heads: int = 4, max_window: int = 13):
-        super().__init__()
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, dim, bias=False)
-        self.c_v = CastedLinear(dim, dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
-        self.proj._zero_init = True
-        self.attn_res_scale = nn.Parameter(torch.full((dim,), 0.02, dtype=torch.float32))
-        # Learnable per-pass mixing weights (softmaxed before use)
-        self.pass_logits = nn.Parameter(torch.zeros(max_window, dtype=torch.float32))
-
-    def forward(self, x: Tensor, history: list[Tensor]) -> Tensor:
-        if not history:
-            return x
-        B, T, D = x.shape
-        P = len(history)
-
-        x_norm = F.rms_norm(x, (x.size(-1),))
-        q = F.rms_norm(
-            self.c_q(x_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2),
-            (self.head_dim,),
-        )
-
-        # Per-pass Flash Attention with is_causal=True — no custom mask needed
-        weights = F.softmax(self.pass_logits[:P] / max(1.0, P ** 0.5), dim=0)
-        combined = torch.zeros_like(q)
-        for i, h in enumerate(history):
-            h_norm = F.rms_norm(h, (h.size(-1),))
-            k = F.rms_norm(
-                self.c_k(h_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2),
-                (self.head_dim,),
-            )
-            v = self.c_v(h_norm).reshape(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-            attn_out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-            combined = combined + weights[i] * attn_out
-
-        y = combined.transpose(1, 2).contiguous().reshape(B, T, D)
-        return x + self.attn_res_scale.to(dtype=x.dtype)[None, None, :] * self.proj(y)
+        elif self.activation == "leaky_relu_sq":
+            h = F.leaky_relu(self.fc(x), negative_slope=self.leaky_slope)
+            return self.proj(h.square())
+        else:  # squared_relu
+            h = torch.relu(self.fc(x))
+            return self.proj(h.square())
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float, use_swiglu: bool = False):
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 rope_base: float, qk_gain_init: float, activation: str = "leaky_relu_sq",
+                 leaky_slope: float = 0.5, rope_dims: int = 0):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult, use_swiglu=use_swiglu)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base,
+                                         qk_gain_init, rope_dims=rope_dims)
+        self.mlp = MLP(dim, mlp_mult, activation=activation, leaky_slope=leaky_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, parallel: bool = False) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        if parallel:
+            normed = self.attn_norm(x)
+            attn_out = self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(normed)
+            mlp_out = self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(normed))
+            x = x + attn_out + mlp_out
+        else:
+            attn_out = self.attn(self.attn_norm(x))
+            x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
+
+
+def _parse_recur_layers(s: str) -> list[int]:
+    if not s or not s.strip():
+        return []
+    return [int(x.strip()) for x in s.split(",") if x.strip()]
 
 
 class GPT(nn.Module):
     def __init__(
         self,
         vocab_size: int,
-        num_passes: int,
+        embed_dim: int,
+        num_layers: int,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -692,11 +890,12 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        depth_emb: bool = False,
-        use_attn_res: bool = False,
-        attn_res_heads: int = 4,
-        attn_res_window: int = 4,
-        use_swiglu: bool = False,
+        depth_emb: bool = True,
+        activation: str = "leaky_relu_sq",
+        leaky_slope: float = 0.5,
+        rope_dims: int = 0,
+        recur_layers: list[int] | None = None,
+        parallel_start_layer: int = 7,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -705,31 +904,39 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
-        self.num_passes = num_passes
-        self.use_attn_res = use_attn_res
-        self.attn_res_window = attn_res_window
+        self.num_layers = num_layers
+        self.recur_layers = recur_layers or []
+        self.parallel_start_layer = parallel_start_layer
+        self.recur_active = False
 
-        self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        actual_embed_dim = embed_dim if embed_dim > 0 else model_dim
+        self.tok_emb = nn.Embedding(vocab_size, actual_embed_dim)
 
-        # Depth embeddings: learnable per-pass bias injected into x0
-        self.depth_emb = nn.Embedding(num_passes, model_dim) if depth_emb else None
-
-        # Single shared block — weights reused every pass
-        self.block = Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, use_swiglu=use_swiglu)
-
-        if use_attn_res:
-            actual_attn_res_heads = attn_res_heads if attn_res_heads > 0 else num_heads
-            self.attn_res = AttnRes(model_dim, num_heads=actual_attn_res_heads)
-            self.num_encoder_passes = 0
-            self.num_decoder_passes = 0
-            self.num_skip_weights = 0
-            self.register_buffer("skip_weights", torch.empty(0, dtype=torch.float32))
+        if actual_embed_dim != model_dim:
+            self.emb_up = CastedLinear(actual_embed_dim, model_dim, bias=False)
+            self.emb_up._zero_init = True
+            self.emb_down = CastedLinear(model_dim, actual_embed_dim, bias=False)
+            self.emb_down._zero_init = True
         else:
-            self.attn_res = None
-            self.num_encoder_passes = num_passes // 2
-            self.num_decoder_passes = num_passes - self.num_encoder_passes
-            self.num_skip_weights = min(self.num_encoder_passes, self.num_decoder_passes)
-            self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+            self.emb_up = None
+            self.emb_down = None
+
+        self.blocks = nn.ModuleList([
+            Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                  qk_gain_init, activation=activation, leaky_slope=leaky_slope,
+                  rope_dims=rope_dims)
+            for _ in range(num_layers)
+        ])
+
+        self._base_schedule = list(range(num_layers))
+        self._recur_schedule = self._build_recur_schedule()
+        max_passes = max(len(self._base_schedule), len(self._recur_schedule))
+        self.depth_emb = nn.Embedding(max_passes, model_dim) if depth_emb else None
+
+        n_enc = num_layers // 2
+        n_dec = num_layers - n_enc
+        self.num_skip_weights = min(n_enc, n_dec)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
 
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
@@ -738,71 +945,81 @@ class GPT(nn.Module):
 
         self._init_weights()
 
+    def _build_recur_schedule(self) -> list[int]:
+        if not self.recur_layers:
+            return list(range(self.num_layers))
+
+        schedule = []
+        recur_set = set(self.recur_layers)
+        inserted = False
+        for i in range(self.num_layers):
+            schedule.append(i)
+            # After the last recur layer, insert the recurrence
+            if not inserted and i == max(self.recur_layers):
+                schedule.extend(self.recur_layers)
+                inserted = True
+
+        return schedule
+
+    def set_recurrence(self, active: bool) -> None:
+        self.recur_active = active
+
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
         if self.depth_emb is not None:
-            nn.init.zeros_(self.depth_emb.weight)  # zero-init for stable start
+            nn.init.zeros_(self.depth_emb.weight)
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        x = self.tok_emb(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
-        x0 = x
-
-        targets = target_ids.reshape(-1)
-
-        if self.use_attn_res:
-            history: list[Tensor] = [x0]
-            aux_losses = []
-            for p in range(self.num_passes):
-                if self.depth_emb is not None:
-                    x = x + self.depth_emb.weight[p][None, None, :]
-                src = history[-self.attn_res_window:] if self.attn_res_window > 0 else history
-                x = self.attn_res(x, src)
-                x = self.block(x, x0)
-                history.append(x)
-                if self.training and p in (self.num_passes // 3, 2 * self.num_passes // 3):
-                    aux_x = self.final_norm(x).reshape(-1, x.size(-1))
-                    if self.tie_embeddings:
-                        aux_logits_proj = F.linear(aux_x, self.tok_emb.weight)
-                    else:
-                        if self.lm_head is None:
-                            raise RuntimeError("lm_head is required when tie_embeddings=False")
-                        aux_logits_proj = self.lm_head(aux_x)
-                    aux_logits = self.logit_softcap * torch.tanh(aux_logits_proj / self.logit_softcap)
-                    aux_losses.append(F.cross_entropy(aux_logits.float(), targets, reduction="mean"))
-        else:
-            skips: list[Tensor] = []
-            for p in range(self.num_encoder_passes):
-                if self.depth_emb is not None:
-                    x = x + self.depth_emb.weight[p][None, None, :]
-                x = self.block(x, x0)
-                skips.append(x)
-            for i in range(self.num_decoder_passes):
-                p = self.num_encoder_passes + i
-                if self.depth_emb is not None:
-                    x = x + self.depth_emb.weight[p][None, None, :]
-                if i < self.num_skip_weights and skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.block(x, x0)
-
-        x = self.final_norm(x).reshape(-1, x.size(-1))
-
+    def _get_logits(self, x: Tensor) -> Tensor:
+        x = self.final_norm(x)
         if self.tie_embeddings:
+            if self.emb_down is not None:
+                x = self.emb_down(x)
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
-        if self.use_attn_res and aux_losses:
-            return main_loss + 0.3 * sum(aux_losses) / len(aux_losses)
-        return main_loss
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        if self.emb_up is not None:
+            x = self.emb_up(x)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+
+        schedule = self._recur_schedule if self.recur_active else self._base_schedule
+        n_passes = len(schedule)
+        n_enc = n_passes // 2
+        n_dec = n_passes - n_enc
+        n_skip = min(n_enc, n_dec, self.num_skip_weights)
+
+        skips: list[Tensor] = []
+        for pass_idx, layer_idx in enumerate(schedule):
+            if self.depth_emb is not None and pass_idx < self.depth_emb.weight.size(0):
+                x = x + self.depth_emb.weight[pass_idx][None, None, :]
+            is_parallel = layer_idx >= self.parallel_start_layer
+            x = self.blocks[layer_idx](x, x0, parallel=is_parallel)
+
+            if pass_idx < n_enc:
+                skips.append(x)
+            elif pass_idx >= n_enc:
+                skip_idx = pass_idx - n_enc
+                if skip_idx < n_skip and skips:
+                    skip = skips[-(skip_idx + 1)]
+                    x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skip
+
+        return self._get_logits(x)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        logits = self.forward_logits(input_ids)
+        logits = logits.reshape(-1, logits.size(-1))
+        targets = target_ids.reshape(-1)
+        return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
 # -----------------------------
@@ -823,7 +1040,7 @@ def main() -> None:
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8")
 
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
@@ -870,7 +1087,8 @@ def main() -> None:
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
     log0(
-        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True, check=False).stdout,
         console=False,
     )
     log0("=" * 100, console=False)
@@ -892,7 +1110,12 @@ def main() -> None:
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
-    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(sp, args.vocab_size, device)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+
+    recur_layers = _parse_recur_layers(args.recur_layers)
+    recur_start_step = int(args.recur_start_frac * args.iterations) if recur_layers else args.iterations + 1
 
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
@@ -900,7 +1123,8 @@ def main() -> None:
 
     base_model = GPT(
         vocab_size=args.vocab_size,
-        num_passes=args.num_passes,
+        embed_dim=args.embed_dim,
+        num_layers=args.num_layers,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
@@ -911,10 +1135,11 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         depth_emb=args.depth_emb,
-        use_attn_res=args.attn_res,
-        attn_res_heads=args.attn_res_heads,
-        attn_res_window=args.attn_res_window,
-        use_swiglu=args.swiglu,
+        activation=args.activation,
+        leaky_slope=args.leaky_relu_slope,
+        rope_dims=args.rope_dims,
+        recur_layers=recur_layers,
+        parallel_start_layer=args.parallel_start_layer,
     ).to(device).bfloat16()
 
     for module in base_model.modules():
@@ -925,27 +1150,20 @@ def main() -> None:
 
     restore_low_dim_params_to_fp32(base_model)
 
-    # FIX: fullgraph=False required because AttnRes uses a Python list (history)
-    # that grows each pass, creating dynamic shapes that break fullgraph tracing.
-    # fullgraph=False still compiles and optimizes all subgraphs.
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    model: nn.Module = (
+        DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
+        if distributed else compiled_model
+    )
 
-    block_named_params = list(base_model.block.named_parameters())
-    if base_model.attn_res is not None:
-        block_named_params += [(f"attn_res.{n}", p) for n, p in base_model.attn_res.named_parameters()]
-    matrix_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
-    scalar_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
+    matrix_params, scalar_params = [], []
+    for block in base_model.blocks:
+        for name, p in block.named_parameters():
+            if p.ndim == 2 and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS):
+                matrix_params.append(p)
+            else:
+                scalar_params.append(p)
+    scalar_params.append(base_model.skip_weights)
     if base_model.depth_emb is not None:
         scalar_params.append(base_model.depth_emb.weight)
 
@@ -953,24 +1171,18 @@ def main() -> None:
 
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
     )
     optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
+        matrix_params, lr=args.matrix_lr, momentum=args.muon_momentum,
+        backend_steps=args.muon_backend_steps, row_norm=args.muon_row_norm,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
 
     optimizer_scalar = torch.optim.Adam(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
     )
 
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
@@ -978,28 +1190,28 @@ def main() -> None:
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            fused=True,
+            betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
         )
         optimizers.insert(1, optimizer_head)
 
+    emb_proj_params = []
+    if base_model.emb_up is not None:
+        emb_proj_params.append(base_model.emb_up.weight)
+    if base_model.emb_down is not None:
+        emb_proj_params.append(base_model.emb_down.weight)
+    if emb_proj_params:
+        optimizers.append(torch.optim.Adam(
+            [{"params": emb_proj_params, "lr": token_lr, "base_lr": token_lr}],
+            betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
+        ))
+
     n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model_params:{n_params}  num_passes:{args.num_passes}")
-    log0(f"features: depth_emb={args.depth_emb} attn_res={args.attn_res} attn_res_window={args.attn_res_window} swiglu={args.swiglu}")
-    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    log0(
-        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
-        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
-    )
-    log0(
-        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
-        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
-        f"warmdown_iters:{args.warmdown_iters} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
-    )
-    log0(f"seed:{args.seed}")
+    log0(f"model:{n_params}p {args.num_layers}L {args.model_dim}d recur:{recur_layers}@{recur_start_step} parallel>={args.parallel_start_layer}")
+    log0(f"act:{args.activation} rope_dims:{args.rope_dims} muon_eqr:{args.muon_row_norm} ema:{args.ema_enabled}({args.ema_decay}) wd:{args.weight_decay}")
+    log0(f"quant:{args.quant_bits}bit clip_s:{args.quant_clip_sigmas} brotli:{HAS_BROTLI} slide:{args.sliding_stride}")
+    log0(f"ws:{world_size} ga:{grad_accum_steps} heads:{args.num_heads}/{args.num_kv_heads} qk:{args.qk_gain_init}")
+    log0(f"lr: tok={token_lr} mat={args.matrix_lr} scl={args.scalar_lr} head={args.head_lr if base_model.lm_head is not None else 0.0}")
+    log0(f"batch:{args.train_batch_tokens} seq:{args.train_seq_len} iter:{args.iterations} warmdown:{args.warmdown_iters} seed:{args.seed}")
 
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
@@ -1010,21 +1222,30 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        if step >= args.iterations:
+            return 0.0
         if args.lr_warmup_steps > 0 and step <= args.lr_warmup_steps:
             return step / args.lr_warmup_steps
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
             warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step else 1.0
+            if warmdown_start <= step:
+                return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0)
+            return 1.0
         step_ms = elapsed_ms / max(step, 1)
         warmdown_ms = args.warmdown_iters * step_ms
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
+    # EMA state
+    ema_state: dict[str, Tensor] | None = None
+    if args.ema_enabled:
+        ema_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+
     # Warmup
     if args.warmup_steps > 0:
-        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        initial_model_state = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
 
         model.train()
@@ -1047,11 +1268,19 @@ def main() -> None:
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
         zero_grad_all()
-
         if distributed:
             model.require_backward_grad_sync = True
 
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        if ema_state is not None:
+            ema_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+
+    # GPTQ Hessian collection
+    hessian_collector: HessianCollector | None = None
+    if args.gptq_enabled:
+        hessian_collector = HessianCollector()
+        hessian_collector.register(base_model)
+        log0("GPTQ Hessian collection enabled")
 
     # Main training loop
     training_time_ms = 0.0
@@ -1072,8 +1301,14 @@ def main() -> None:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
 
+            # Use EMA weights for validation if available
+            orig_state = None
+            if ema_state is not None and step > 0:
+                orig_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+                base_model.load_state_dict(ema_state, strict=True)
+
             val_loss, val_bpb = eval_val(
-                args, model, rank, world_size, device, grad_accum_steps,
+                args, model, rank, world_size, device,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             )
             log0(
@@ -1084,6 +1319,10 @@ def main() -> None:
                 best_val_bpb = val_bpb
                 best_model_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
                 log0(f"new_best val_bpb:{val_bpb:.4f} at step:{step}")
+
+            # Restore training weights
+            if orig_state is not None:
+                base_model.load_state_dict(orig_state, strict=True)
 
             torch.cuda.synchronize()
             t0 = time.perf_counter()
@@ -1096,9 +1335,13 @@ def main() -> None:
                 )
             break
 
+        # Activate depth recurrence at the configured step
+        if recur_layers and step == recur_start_step:
+            base_model.set_recurrence(True)
+            log0(f"depth_recurrence_activated at step:{step} layers:{recur_layers}")
+
         # Training step
         model.train()
-        # FIX: synchronize before starting timer so step timing is accurate
         torch.cuda.synchronize()
         step_t0 = time.perf_counter()
 
@@ -1114,7 +1357,6 @@ def main() -> None:
             (loss * grad_scale).backward()
             train_loss_accum += loss.detach()
 
-        # Single GPU sync via .item() — keeps CPU from running too far ahead
         train_loss_accum = train_loss_accum.item() * grad_scale
         if train_loss_ema == 0.0:
             train_loss_ema = train_loss_accum
@@ -1125,6 +1367,13 @@ def main() -> None:
             grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm).item()
         else:
             grad_norm = 0.0
+
+        # Weight decay on matrix params (applied before optimizer step)
+        if args.weight_decay > 0:
+            with torch.no_grad():
+                for p in matrix_params:
+                    current_lr = args.matrix_lr  # will be scaled by lr_mul below
+                    p.mul_(1.0 - current_lr * args.weight_decay)
 
         torch.cuda.synchronize()
         step_time_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1145,8 +1394,19 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # EMA update
+        if ema_state is not None:
+            with torch.no_grad():
+                decay = args.ema_decay
+                for k, v in base_model.state_dict().items():
+                    ema_state[k].mul_(decay).add_(v.detach().cpu(), alpha=1.0 - decay)
+
         if master_process and (step + 1) % args.train_log_every == 0:
-            log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} ema_loss:{train_loss_ema:.4f} grad_norm:{grad_norm:.4f} lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms")
+            log0(
+                f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} "
+                f"ema_loss:{train_loss_ema:.4f} grad_norm:{grad_norm:.4f} "
+                f"lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms"
+            )
 
         step += 1
 
@@ -1159,55 +1419,78 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
-    # Restore best model if the final state isn't the best
+    # Use EMA / best model for quantization
+    if ema_state is not None and best_model_state is None:
+        best_model_state = ema_state
     if best_model_state is not None:
         base_model.load_state_dict(best_model_state, strict=True)
         log0(f"restored best model with val_bpb:{best_val_bpb:.4f}")
 
-    # Serialization + roundtrip validation
+    # Collect GPTQ Hessians via calibration pass
+    hessians = None
+    if hessian_collector is not None:
+        log0("Running GPTQ calibration pass...")
+        calib_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        base_model.eval()
+        with torch.inference_mode():
+            for _ in range(args.gptq_calib_batches):
+                x, y = calib_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    _ = base_model.forward_logits(x)
+        hessians = hessian_collector.finalize()
+        log0(f"GPTQ Hessians collected for {len(hessians)} layers")
+
+    # Quantize + compress
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes_len = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes_len} bytes")
-        log0(f"Total submission size: {model_bytes + code_bytes_len} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_obj, quant_stats = quantize_state_dict(base_model.state_dict(), args, hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
-    if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
-            f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
-        code_bytes_len = len(code.encode("utf-8"))
-        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
-        log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{len(quant_raw)} payload_ratio:{ratio:.2f}x)"
-        )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes_len} bytes")
+    quant_blob = compress_bytes(quant_raw)
 
+    if master_process:
+        ext = ".brotli.ptz" if HAS_BROTLI else ".zlib.ptz"
+        quant_file = f"final_model.{args.quant_bits}bit{ext}"
+        with open(quant_file, "wb") as f:
+            f.write(quant_blob)
+        quant_file_bytes = os.path.getsize(quant_file)
+        code_bytes_len = len(code.encode("utf-8"))
+        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int_payload_bytes"], 1)
+        log0(
+            f"Serialized model {args.quant_bits}bit+{'brotli' if HAS_BROTLI else 'zlib'}: "
+            f"{quant_file_bytes} bytes "
+            f"(payload:{quant_stats['int_payload_bytes']} raw_torch:{len(quant_raw)} "
+            f"payload_ratio:{ratio:.2f}x)"
+        )
+        log0(f"Total submission size: {quant_file_bytes + code_bytes_len} bytes")
+
+    # Roundtrip validation
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    ext = ".brotli.ptz" if HAS_BROTLI else ".zlib.ptz"
+    quant_file = f"final_model.{args.quant_bits}bit{ext}"
+    with open(quant_file, "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    quant_state = torch.load(io.BytesIO(decompress_bytes(quant_blob_disk)), map_location="cpu")
+    base_model.load_state_dict(dequantize_state_dict(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
-        args, compiled_model, rank, world_size, device, grad_accum_steps,
+        args, compiled_model, rank, world_size, device,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
