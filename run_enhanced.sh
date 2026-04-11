@@ -1,0 +1,26 @@
+#!/bin/bash
+# Enhanced run: SOTA + depth recurrence + cosine recovery TTT
+# Expected improvement: ~0.02-0.05 bpb over baseline
+#
+# Key changes from baseline:
+# 1. DEPTH_RECURRENCE=4,5  -> layers 4&5 repeat, 13 virtual from 11 physical
+# 2. TTT_RECOVERY_EPOCHS=20 -> cosine recovery phase after standard TTT
+# 3. TTT_RECOVERY_LR=0.001  -> recovery learning rate
+# 4. TTT_EPOCHS=5           -> slightly more TTT epochs per chunk (3->5)
+# 5. TTT_FREEZE_BLOCKS=0    -> unfreeze all blocks for TTT
+
+NUM_LAYERS=11 BIGRAM_VOCAB_SIZE=1536 XSA_LAST_N=4 \
+EMA_ENABLED=1 EMA_DECAY=0.997 SWA_ENABLED=1 SWA_EVERY=50 \
+ROPE_DIMS=16 LN_SCALE=1 LATE_QAT=1 LATE_QAT_THRESHOLD=0.15 \
+VE_ENABLED=1 VE_DIM=128 VE_LAYERS=9,10 \
+DEPTH_RECURRENCE=4,5 \
+TTT_ENABLED=1 TTT_LR=0.002 TTT_EPOCHS=5 TTT_CHUNK_TOKENS=32768 \
+TTT_FREEZE_BLOCKS=0 TTT_MOMENTUM=0.9 TTT_BATCH_SEQS=32 TTT_GRAD_CLIP=1.0 \
+TTT_RECOVERY_EPOCHS=20 TTT_RECOVERY_LR=0.001 \
+MUON_WD=0.04 ADAM_WD=0.04 \
+MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 \
+MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 \
+MUON_MOMENTUM_WARMUP_STEPS=1500 WARMDOWN_ITERS=3500 \
+ITERATIONS=9000 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 \
+SEED=${SEED:-1337} \
+torchrun --standalone --nproc_per_node=${NGPU:-8} train_gpt.py
