@@ -1,0 +1,11 @@
+{
+  "author": "Marvbuster",
+  "github_id": "Marvbuster",
+  "name": "Depth Recurrence 3x3x1536 + QAT Int6 + NorMuon",
+  "blurb": "3 unique blocks repeated 3 times at dim=1536 with QAT Int6 quantization, NorMuon optimizer, sliding window eval. 51M params in 15.5MB. Pending H100 validation.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
