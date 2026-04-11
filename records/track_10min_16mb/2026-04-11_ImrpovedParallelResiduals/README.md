@@ -36,3 +36,12 @@ done
 ```
 
 The `cutlass_evt_fusion/` directory should live alongside `train_gpt.py` in the directory you run from.
+
+## CUTLASS EVT Build
+
+I include the prebuilt `.so` in `cutlass_evt_fusion/` only as a convenience for matching environments. If needed for verification, it can be rebuilt from source with:
+
+```bash
+git clone https://github.com/NVIDIA/cutlass.git /opt/cutlass
+pip install --no-build-isolation ./cutlass_evt_fusion
+```
