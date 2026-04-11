@@ -1,0 +1,11 @@
+{
+  "author": "hydeh3r3",
+  "github_id": "hydeh3r3",
+  "name": "92-Experiment Autoresearch + Sliding Window Eval",
+  "blurb": "92 local experiments on M4 Pro via autoresearch loop, ported to 8xH100. Sliding window eval (stride=64), val_seq_len=2048 with rope_base=50000, AdamW embeddings with weight decay, Muon with weight decay, relu² + RMSNorm for clean int8 quantization. Pre-quant val_bpb=1.2156 achieved; final int8+zlib run pending.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
