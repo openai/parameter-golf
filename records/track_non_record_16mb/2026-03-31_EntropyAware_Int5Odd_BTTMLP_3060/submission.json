@@ -1,0 +1,20 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Entropy-Aware Int5-Odd + BTT-MLP (1xH100 materialized eval)",
+  "blurb": "Non-record exploratory submission combining an entropy-aware 5-bin odd quantization objective with a TT/BTT-inspired structured MLP and an evaluation-time materialization path that contracts the structured MLP into dense weights for fast validation. This package is based on the best fully recovered 1xH100 run with a 1,048,576-token validation cap, not a full-validation leaderboard run.",
+  "date": "2026-03-31T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 9.82734489,
+  "val_bpb": 5.88802157,
+  "pre_quant_val_loss": 8.9222,
+  "pre_quant_val_bpb": 5.3457,
+  "step_stop": 31,
+  "wallclock_seconds": 603.522,
+  "bytes_total": 5267667,
+  "bytes_code": 83124,
+  "bytes_model_int8_zlib": null,
+  "bytes_model_int5_odd_zlib": 5184543,
+  "gpu": "1xH100 80GB HBM3",
+  "notes": "This non-record package is anchored to the recovered H100 run copied into train.log. It uses 80 FineWeb train shards and VAL_TOKEN_LIMIT=1048576, so the reported val_bpb is not directly comparable to full-validation challenge runs. The materialized eval path reduced quantized validation on the 1,048,576-token cap to 854 ms. A later 3300s H100 run advanced further but was interrupted by RunPod credit exhaustion before the final artifact and complete log could be recovered, so it is intentionally excluded from these metrics."
+}
