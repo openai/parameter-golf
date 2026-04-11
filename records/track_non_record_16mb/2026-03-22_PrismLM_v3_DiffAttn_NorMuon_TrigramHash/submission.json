@@ -1,0 +1,18 @@
+{
+  "author": "Yash Verma",
+  "github_id": "yasboop",
+  "name": "PrismLM v3 — DiffTransformer V2 + NorMuon + TrigramHash",
+  "blurb": "Non-record 8xH100 submission exploring 3 novel techniques on top of PR #315's technique stack: (1) DiffTransformer V2 attention on last 2 layers for noise-cancelled attention maps, (2) NorMuon optimizer with per-neuron row normalization for 11% better convergence, (3) TrigramHash + context-aware n-gram gating. 11 layers, 512 dim, XSA on 6 layers, Partial RoPE (16 dims), LN depth scaling, SmearGate, BigramHash(2048), int6+zstd-22 quantization, SWA, late QAT. Post-quant val_bpb 1.1715 (without sliding window eval).",
+  "date": "2026-03-22T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.97797457,
+  "val_bpb": 1.17146796,
+  "pre_quant_val_loss": 1.9598,
+  "pre_quant_val_bpb": 1.1607,
+  "step_stop": 4600,
+  "wallclock_seconds": 599.974,
+  "bytes_total": 15586651,
+  "bytes_model_int6_zstd": 15521912,
+  "bytes_code": 64739,
+  "gpu": "8xH100 SXM (Modal)"
+}
