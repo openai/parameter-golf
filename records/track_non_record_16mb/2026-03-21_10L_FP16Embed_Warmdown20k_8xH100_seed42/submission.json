@@ -1,0 +1,18 @@
+{
+  "author": "codestrongestx",
+  "github_id": "codestrongestx",
+  "name": "10L FP16 Embed Warmdown20k",
+  "blurb": "Non-record derivative submission built on the merged 10-layer FP16-embed sliding-window baseline. Main ML change is WARMDOWN_ITERS=20000; the verified 8xH100 seed-42 run reached 1.17389939 post-roundtrip while staying under the 16MB cap.",
+  "date": "2026-03-21T23:17:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.98207994,
+  "val_bpb": 1.17389939,
+  "pre_quant_val_loss": 2.0354,
+  "pre_quant_val_bpb": 1.2055,
+  "step_stop": 10919,
+  "wallclock_seconds": 600.070,
+  "ms_per_step": 54.96,
+  "bytes_total": 14178772,
+  "bytes_model_int8_zlib": 14122782,
+  "bytes_code": 55990
+}
