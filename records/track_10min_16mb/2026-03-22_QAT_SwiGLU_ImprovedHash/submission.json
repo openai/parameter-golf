@@ -1,0 +1,9 @@
+{
+  "name": "10L QAT + SwiGLU + BigramHash(10240) + SWA(frac=0.4) + WD=0.04",
+  "val_loss": null,
+  "bytes_total": null,
+  "blurb": "10 layers with QAT (int5 MLP / int6 attn via STE), SwiGLU activation, BigramHash 10240 buckets, SmearGate, SWA start_frac=0.4, WD=0.04 global, warmdown=3000. Mixed int5/int6+zstd-22 quantization. OrthoInit + muP-scaled projections.",
+  "author": "chirag-bajaj",
+  "github_id": "chirag-bajaj",
+  "date": "2026-03-23"
+}
