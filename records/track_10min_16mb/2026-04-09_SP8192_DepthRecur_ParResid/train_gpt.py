@@ -61,6 +61,7 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    gptq_reserve_seconds = float(os.environ.get("GPTQ_RESERVE_SECONDS", 10.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.25))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
@@ -1186,7 +1187,9 @@ def main() -> None:
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers: opt.zero_grad(set_to_none=True)
-    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    effective_wallclock = args.max_wallclock_seconds - args.gptq_reserve_seconds
+    max_wallclock_ms = 1000.0 * effective_wallclock if effective_wallclock > 0 else None
+    log0(f"wallclock:{args.max_wallclock_seconds:.0f}s gptq_reserve:{args.gptq_reserve_seconds:.0f}s training_budget:{effective_wallclock:.0f}s")
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0: return 1.0
         if max_wallclock_ms is None:
