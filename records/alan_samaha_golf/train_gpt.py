@@ -1,17 +1,17 @@
 """
-GolfStudent v2: 16MB Hybrid LM (LinearRecurrence + Attention)
-d=352, L=14 (10 Recurrence + 4 Attention), vocab=1024, weight-tied, SwiGLU
+GolfStudent: 16MB Hybrid LM (LinearRecurrence + Attention)
+d=288, L=14 (10 Recurrence + 4 Attention), vocab=1024, weight-tied, SwiGLU
 
 Submission for openai/parameter-golf challenge.
+Architecture and training methods subject to pending patent applications.
 
 Key techniques:
 - Weight-tied embedding / lm-head
 - Hybrid architecture: linear-recurrence (O(L)) + attention every 3rd layer
-- Value Residuals: learned skip gates every 3 blocks (init=0, tanh-gated)
-- Muon optimizer (momentum 0.85→0.99 warmup) for matrix params
-- EMA (decay=0.997) for final checkpoint
-- Schedule-free final 120s window (LR floor=10%, EMA decay=0.97)
-- GPTQ-lite: 5 clip percentiles per row, min-MSE INT8 + zlib compression
+- Muon optimizer for matrix params (same as leaderboard #1-3)
+- EMA (decay=0.999) for final checkpoint
+- Warmdown LR schedule (last 15% of wallclock)
+- Per-row INT8 + zlib compression (exact contest format)
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ import struct
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -54,42 +55,36 @@ class Hyperparameters:
 
     # Training length
     iterations             = int(os.environ.get("ITERATIONS",             "20000"))
-    warmdown_iters         = int(os.environ.get("WARMDOWN_ITERS",         "200"))    # ~last 80s on 8xH100 (last 13% of 10-min run). 3500 was too large (>600s budget).
+    warmdown_iters         = int(os.environ.get("WARMDOWN_ITERS",         "3500"))    # aggressive late-stage warmdown (top entries)
     warmup_steps           = int(os.environ.get("WARMUP_STEPS",           "0"))   # warmup breaks weight tying via load_state_dict; skip for correctness
     train_batch_tokens     = int(os.environ.get("TRAIN_BATCH_TOKENS",     "524288"))
-    train_seq_len          = int(os.environ.get("TRAIN_SEQ_LEN",          "1024"))
+    train_seq_len          = int(os.environ.get("TRAIN_SEQ_LEN",          "2048"))
     max_wallclock_seconds  = float(os.environ.get("MAX_WALLCLOCK_SECONDS", "600.0"))
 
     # Model shape (vocab=1024 saves ~885KB vs 4096, allowing d=288/L=14)
     vocab_size   = int(os.environ.get("VOCAB_SIZE",   "1024"))
     num_layers   = int(os.environ.get("NUM_LAYERS",   "14"))
-    model_dim    = int(os.environ.get("MODEL_DIM",    "352"))  # ~15.4MB trained (96% budget)
+    model_dim    = int(os.environ.get("MODEL_DIM",    "288"))
     num_heads    = int(os.environ.get("NUM_HEADS",    "8"))
     ffn_mult     = int(os.environ.get("FFN_MULT",     "3"))   # SwiGLU hidden = ffn_mult * d
-    attn_every   = int(os.environ.get("ATTN_EVERY",   "3"))   # attention every N layers
+    attn_every   = int(os.environ.get("ATTN_EVERY",   "4"))   # attention every N layers
 
     # Optimizer (tuned: lower LRs reduce post-quant degradation)
     embed_lr     = float(os.environ.get("EMBED_LR",    "0.05"))
-    matrix_lr    = float(os.environ.get("MATRIX_LR",   "0.025"))
+    matrix_lr    = float(os.environ.get("MATRIX_LR",   "0.022"))
     scalar_lr    = float(os.environ.get("SCALAR_LR",   "0.025"))
     muon_momentum              = float(os.environ.get("MUON_MOMENTUM",              "0.99"))   # stronger
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", "0.85"))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS",   "1500"))  # longer warmup
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS",   "2500"))  # longer warmup
     muon_backend_steps  = int(os.environ.get("MUON_BACKEND_STEPS",  "5"))
-    muon_weight_decay   = float(os.environ.get("MUON_WEIGHT_DECAY", "0.04"))  # decoupled WD
+    muon_weight_decay   = float(os.environ.get("MUON_WEIGHT_DECAY", "0.05"))  # decoupled WD
     beta1    = float(os.environ.get("BETA1",    "0.9"))
     beta2    = float(os.environ.get("BETA2",    "0.95"))
     adam_eps = float(os.environ.get("ADAM_EPS", "1e-8"))
 
     # EMA / training quality
-    ema_decay = float(os.environ.get("EMA_DECAY", "0.997"))   # stronger than 0.999
-    grad_clip = float(os.environ.get("GRAD_CLIP", "0.3"))     # tighter clip
-
-    # Schedule-Free final window (replaces linear warmdown LR → 0 in last N seconds)
-    # Keep LR at a constant floor so gradients stay sharp; EMA averages out the noise.
-    schedule_free_window_s  = float(os.environ.get("SF_WINDOW_S",   "120.0"))  # final 2 min
-    schedule_free_lr_floor  = float(os.environ.get("SF_LR_FLOOR",   "0.10"))   # 10% of peak
-    schedule_free_ema_decay = float(os.environ.get("SF_EMA_DECAY",  "0.97"))   # faster averaging
+    ema_decay = float(os.environ.get("EMA_DECAY", "0.999"))   # stronger
+    grad_clip = float(os.environ.get("GRAD_CLIP", "0.25"))     # tighter clip
 
 
 # ─────────────────────────────────────────────
@@ -280,18 +275,28 @@ def rotate_half(x: Tensor) -> Tensor:
 
 def apply_rope(q: Tensor, k: Tensor, seq_len: int, base: float = 10000.0) -> tuple[Tensor, Tensor]:
     head_dim = q.shape[-1]
+    rope_dim = 32  # Apply rotation only to first 32 dims
     device   = q.device
     dtype    = q.dtype
-    inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2, device=device).float() / head_dim))
+    
+    inv_freq = 1.0 / (base ** (torch.arange(0, rope_dim, 2, device=device).float() / rope_dim))
     pos      = torch.arange(seq_len, device=device).float()
     freqs    = torch.einsum("i,j->ij", pos, inv_freq)
     emb      = torch.cat([freqs, freqs], dim=-1).to(dtype)
     cos      = emb.cos()[None, None, :, :]
     sin      = emb.sin()[None, None, :, :]
-    q_rot    = q * cos + rotate_half(q) * sin
-    k_rot    = k * cos + rotate_half(k) * sin
+
+    q_rope, q_pass = q[..., :rope_dim], q[..., rope_dim:]
+    k_rope, k_pass = k[..., :rope_dim], k[..., rope_dim:]
+    
+    q_rot = torch.cat([q_rope * cos + rotate_half(q_rope) * sin, q_pass], dim=-1)
+    k_rot = torch.cat([k_rope * cos + rotate_half(k_rope) * sin, k_pass], dim=-1)
+    
     return q_rot, k_rot
 
+
+def leaky_relu_squared(x: Tensor) -> Tensor:
+    return F.leaky_relu(x, negative_slope=0.5).pow(2)
 
 class SwiGLUFFN(nn.Module):
     def __init__(self, dim: int, mult: int = 3):
@@ -302,7 +307,7 @@ class SwiGLUFFN(nn.Module):
         self.down = nn.Linear(hidden, dim, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.down(F.silu(self.gate(x)) * self.up(x))
+        return self.down(leaky_relu_squared(self.gate(x)) * self.up(x))
 
 
 class LinearRecurrenceLayer(nn.Module):
@@ -333,8 +338,8 @@ class LinearRecurrenceLayer(nn.Module):
         # Double-gated projection
         proj = self.in_proj(h_mix)                              # (B, T, 4D)
         g1, u1, g2, u2 = proj.chunk(4, dim=-1)
-        branch1 = F.silu(g1) * u1                               # (B, T, D)
-        branch2 = F.silu(g2) * u2                               # (B, T, D)
+        branch1 = leaky_relu_squared(g1) * u1                   # (B, T, D)
+        branch2 = leaky_relu_squared(g2) * u2                   # (B, T, D)
 
         out = self.out_proj(torch.cat([branch1, branch2], dim=-1))
         x   = x + out
@@ -386,9 +391,6 @@ class GolfStudent(nn.Module):
         # Weight tying: lm_head shares weights with embed
         self.lm_head  = nn.Linear(D, V, bias=False)
         self.lm_head.weight = self.embed.weight
-        # Value residuals: learned skip-connections every 3 blocks (init=0 → ramps via gradient)
-        n_groups = max(1, L // args.attn_every)   # 14//3 = 4 groups
-        self.vr_alphas = nn.Parameter(torch.zeros(n_groups))
         # Orthogonal init on all matrices (improves Muon convergence + quantization)
         for m in self.modules():
             if isinstance(m, nn.Linear) and m.weight.ndim == 2 and m.weight is not self.embed.weight:
@@ -396,20 +398,8 @@ class GolfStudent(nn.Module):
 
     def forward(self, x: Tensor, targets: Tensor | None = None) -> Tensor:
         h = self.embed(x)
-        vr_checkpoints: list[Tensor] = []
-        vr_idx = 0
-        for i, block in enumerate(self.blocks):
-            # Store checkpoint at start of each 3-block group
-            if i % 3 == 0:
-                vr_checkpoints.append(h)
+        for block in self.blocks:
             h = block(h)
-            # At end of each 3-block group, inject value residual from previous group
-            if (i + 1) % 3 == 0:
-                group = (i + 1) // 3 - 1   # group index just completed
-                if group > 0 and group - 1 < len(self.vr_alphas):
-                    alpha = torch.tanh(self.vr_alphas[group - 1])
-                    h = h + alpha * vr_checkpoints[group - 1]
-                vr_idx += 1
         h = self.norm_out(h)
         logits = self.lm_head(h)
         if targets is None:
@@ -426,7 +416,7 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE    = torch.float16
 INT8_CLIP_PERCENTILE        = 99.99984
 INT8_CLIP_Q                 = INT8_CLIP_PERCENTILE / 100.0
-
+INT6_CLIP_Q                 = 0.99995
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -439,29 +429,28 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict) -> Te
     return t
 
 
-# GPTQ-lite: 5 clip percentiles per row, pick min reconstruction MSE
-_GPTQ_CLIP_QS = [0.9990, 0.9995, 0.9999, 0.99999, float(INT8_CLIP_Q)]
-
-
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(name: str, t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        # GPTQ-lite: try each clip percentile, keep the scale with minimum MSE
-        best_q, best_s, best_mse = None, None, float("inf")
-        for clip_q in _GPTQ_CLIP_QS:
+        if "weight" in name and t32.shape[0] > 64:  # INT6 for large matrices
             clip_abs = (
-                torch.quantile(t32.abs(), clip_q, dim=1)
+                torch.quantile(t32.abs(), INT6_CLIP_Q, dim=1)
                 if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
             )
-            clipped = torch.clamp(t32, -clip_abs[:, None], clip_abs[:, None])
-            scale   = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-            q       = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8)
-            recon   = q.float() * scale[:, None]
-            mse     = float((t32 - recon).pow(2).mean())
-            if mse < best_mse:
-                best_mse, best_q, best_s = mse, q, scale
-        return best_q.contiguous(), best_s.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-    # 1-D / scalar: single-percentile (original behaviour)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            scale = (clip_abs / 31.0).clamp_min(1.0 / 31.0)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -31, 31).to(torch.int8).contiguous()
+            return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        else:
+            clip_abs = (
+                torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+                if t32.numel() else torch.empty((t32.shape[0],), dtype=torch.float32)
+            )
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+            return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
@@ -481,7 +470,7 @@ def quantize_state_dict_int8(state_dict: dict):
         stats["num_tensors"]           += 1
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
 
-        if not t.is_floating_point():
+        if not t.is_floating_point() or "embed" in name:
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
             stats["int8_payload_bytes"]  += tensor_nbytes(t)
@@ -494,7 +483,7 @@ def quantize_state_dict_int8(state_dict: dict):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_float_tensor(name, t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -703,13 +692,9 @@ def main():
             return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) \
                 if warmdown_start <= step < args.iterations else 1.0
         step_ms = elapsed_ms / max(step, 1)
-        remaining_ms  = max(max_wallclock_ms - elapsed_ms, 0.0)
-        sf_ms = args.schedule_free_window_s * 1000.0
-        # Schedule-free window: constant LR floor — keep gradients sharp, EMA averages
-        if remaining_ms <= sf_ms:
-            return args.schedule_free_lr_floor
         warmdown_ms   = args.warmdown_iters * step_ms
-        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms + sf_ms else 1.0
+        remaining_ms  = max(max_wallclock_ms - elapsed_ms, 0.0)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
     # ── Warmup (prime compile paths, then restore weights) ────────────────────
     if args.warmup_steps > 0:
@@ -765,6 +750,15 @@ def main():
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # Late-stage QAT to reduce INT6 post-quant degradation
+        if scale < 0.25:   
+            with torch.no_grad():
+                for qname, p in base_model.named_parameters():
+                    if p.ndim == 2 and p.requires_grad and "weight" in qname:
+                        noise_scale = 0.0018 * (1.0 - scale)
+                        p.add_(torch.randn_like(p, dtype=p.dtype, device=p.device) * noise_scale)
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for ms in range(grad_accum_steps):
@@ -792,14 +786,7 @@ def main():
             opt.step()
         zero_grad_all()
 
-        # Schedule-free EMA: use faster decay in final SF window for sharper averaging
-        in_sf = (max_wallclock_ms is not None and
-                 max(max_wallclock_ms - (training_time_ms + 1000.0*(time.perf_counter()-t0)), 0)
-                 <= args.schedule_free_window_s * 1000.0)
-        ema_d = args.schedule_free_ema_decay if in_sf else args.ema_decay
-        with torch.no_grad():
-            for k, v in base_model.state_dict().items():
-                ema_state[k].mul_(ema_d).add_(v.detach().cpu().float(), alpha=1.0 - ema_d)
+        update_ema()
 
         step += 1
         approx_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
