@@ -1,0 +1,15 @@
+# Runtime dependencies for remote search / training bootstraps on amd64 H100 hosts.
+# Torch comes from the base NGC PyTorch image and is reused via --system-site-packages.
+numpy
+PyYAML
+scipy
+scikit-learn
+sentencepiece
+huggingface-hub
+hf_transfer
+datasets
+tiktoken
+tqdm
+zstandard
+typing-extensions==4.15.0
+setuptools

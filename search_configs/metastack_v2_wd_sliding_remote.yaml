@@ -1,0 +1,112 @@
+runner:
+  workdir: /workspace/parameter-golf
+  script_path: records/track_10min_16mb/2026-03-20_MetaStack_v2_WD/train_gpt.py
+  python_bin: python
+  activate_script:
+  gpus: 8
+  logs_dir: logs
+
+fixed_env:
+  DATA_PATH: ./data/datasets/fineweb10B_sp1024
+  TOKENIZER_PATH: ./data/tokenizers/fineweb_1024_bpe.model
+  SEED: 1337
+  TRAIN_BATCH_TOKENS: 524288
+  TRAIN_SEQ_LEN: 1024
+  VAL_BATCH_SIZE: 524288
+  VAL_LOSS_EVERY: 1000
+  TRAIN_LOG_EVERY: 500
+  MAX_WALLCLOCK_SECONDS: 600
+  WARMUP_STEPS: 20
+  VOCAB_SIZE: 1024
+  NUM_LAYERS: 9
+  NUM_KV_HEADS: 4
+  MODEL_DIM: 512
+  NUM_HEADS: 8
+  MLP_MULT: 3
+  TIE_EMBEDDINGS: 1
+  ROPE_BASE: 10000.0
+  LOGIT_SOFTCAP: 30.0
+  EMBED_LR: 0.6
+  HEAD_LR: 0.008
+  TIED_EMBED_INIT_STD: 0.005
+  TOKEN_WEIGHT_DECAY: 0.0
+  HEAD_WEIGHT_DECAY: 0.0
+  SCALAR_WEIGHT_DECAY: 0.0
+  MUON_WEIGHT_DECAY: 0.0
+  MUON_BACKEND_STEPS: 5
+  BETA1: 0.9
+  BETA2: 0.95
+  ADAM_EPS: 1e-8
+  GRAD_CLIP_NORM: 0.0
+  SWA_ENABLED: 0
+  SWA_START_FRAC: 0.5
+  SWA_EVERY: 200
+  EVAL_SEQ_LEN: 2048
+  EVAL_STRIDE: 256
+  EVAL_SLIDING_LOG_EVERY: 2048
+  QUANT_BITS: 6
+  STE_ENABLED: 0
+  EVAL_SLIDING: 1
+  TRITON_PTXAS_PATH: /usr/local/cuda/bin/ptxas
+
+search_space:
+  ITERATIONS:
+    distribution: int_uniform
+    min: 2000
+    max: 20000
+    round_to: 500
+  MATRIX_LR:
+    distribution: log_uniform
+    min: 0.01
+    max: 0.08
+  SCALAR_LR:
+    distribution: log_uniform
+    min: 0.02
+    max: 0.08
+  TIED_EMBED_LR:
+    distribution: log_uniform
+    min: 0.01
+    max: 0.08
+  MUON_MOMENTUM:
+    distribution: uniform
+    min: 0.90
+    max: 0.995
+  MUON_MOMENTUM_WARMUP_START:
+    distribution: uniform
+    min: 0.80
+    max: 0.97
+  MUON_MOMENTUM_WARMUP_STEPS:
+    distribution: int_uniform
+    min: 250
+    max: 2000
+    round_to: 50
+  MUON_WEIGHT_DECAY:
+    distribution: log_uniform
+    min: 1.0e-5
+    max: 5.0e-2
+  QK_GAIN_INIT:
+    distribution: uniform
+    min: 1.0
+    max: 2.0
+  SCALAR_WEIGHT_DECAY:
+    distribution: log_uniform
+    min: 1.0e-6
+    max: 1.0e-2
+  WARMDOWN_FRACTION:
+    distribution: uniform
+    min: 0.05
+    max: 0.40
+
+search:
+  seed: 20260319
+  max_runs: 16
+  warm_start_suggestions: 8
+  candidate_samples: 128
+  max_observations: 200
+  prune_pareto: true
+  suggestions_per_center: 32
+  gp_alpha: 1.0e-6
+  default_proxy_int6_gap: 0.010
+  target_cost_ratios: [0.16, 0.32, 0.48, 0.64, 0.80, 1.0]
+  output_root: search_runs/metastack_v2_wd_sliding_remote
+  run_id_prefix: metastack_wd_slide_remote

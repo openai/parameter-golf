@@ -1,0 +1,23 @@
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.12-py3
+FROM --platform=linux/amd64 ${BASE_IMAGE}
+
+SHELL ["/bin/bash", "-lc"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    jq \
+    bc \
+    procps \
+    rsync \
+    openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/vast/requirements.remote.txt /tmp/requirements.remote.txt
+
+RUN python3 -m venv --system-site-packages /opt/parameter-golf-venv \
+ && /opt/parameter-golf-venv/bin/pip install --upgrade pip wheel setuptools \
+ && /opt/parameter-golf-venv/bin/pip install --no-cache-dir -r /tmp/requirements.remote.txt
+
+ENV PATH=/opt/parameter-golf-venv/bin:${PATH}
+WORKDIR /workspace/parameter-golf

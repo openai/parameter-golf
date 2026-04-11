@@ -1,0 +1,17 @@
+.git/
+.venv/
+.venv-vastai/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+data/datasets/
+logs/
+search_runs/
+deploy_runs/
+final_model.pt
+final_model.int6.ptz
+final_model.int8.ptz
+*.log
+2026-03-19-*.txt
