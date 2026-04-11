@@ -1354,7 +1354,7 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
     return out
 
 def corrupt(tokens: Tensor, mask_id: int) -> tuple[Tensor, Tensor]:
-    t = torch.rand(1).item()
+    t = torch.rand(tokens.size(0), 1, device=tokens.device)
     mask = torch.rand_like(tokens, dtype=torch.float) < t
     noisy = tokens.clone()
     noisy[mask] = mask_id
@@ -1563,6 +1563,11 @@ def main() -> None:
             opt.zero_grad(set_to_none=True)
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        # 1. Linear Warmup Phase
+        if step < args.warmup_steps:
+            return (step + 1) / args.warmup_steps
+            
+        # 2. Cooldown / Warmdown Phase
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
