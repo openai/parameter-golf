@@ -1,0 +1,9 @@
+{
+  "name": "Non-record: LoRA TTT exploration on SOTA base (negative result)",
+  "val_loss": null,
+  "bytes_total": null,
+  "blurb": "Exploration of LoRA Test-Time Training (TTT) combined with SOTA (Int5-MLP + BigramHash + SWA, 1.1428 BPB). TTT adapts per-document during eval via rank-8 LoRA on Q/V projections. Negative result: TTT does not improve SOTA because seq_len=2048 + SmearGate/BigramHash already captures local context better than TTT's 256-token chunked adaptation. Tested on 1xH100 with multiple configurations (chunk sizes 128-512, seq_len 1024-2048). Full 8xH100 run pending.",
+  "author": "hmlizama",
+  "github_id": "hmlizama",
+  "date": "2026-03-24"
+}
