@@ -80,8 +80,11 @@ nvidia-smi
 """
 
 
-def build_train_script(gpu_count):
-    env_exports = " ".join(f'{k}={v}' for k, v in TRAIN_ENV.items())
+def build_train_script(gpu_count, env_overrides=None, log_name="run_h100.log"):
+    env = dict(TRAIN_ENV)
+    if env_overrides:
+        env.update(env_overrides)
+    env_exports = " ".join(f'{k}={v}' for k, v in env.items())
     if gpu_count == 1:
         run_cmd = f"{env_exports} python3 train_gpt.py"
     else:
@@ -91,16 +94,15 @@ set -ex
 cd /workspace/parameter-golf
 
 # Run training
-{run_cmd} 2>&1 | tee run_h100.log
+{run_cmd} 2>&1 | tee {log_name}
 
 echo "=== TRAINING COMPLETE ==="
 echo "--- Key results ---"
-grep "final_int8_zlib_roundtrip_exact" run_h100.log || true
-grep "peak memory" run_h100.log || true
-grep "Serialized model" run_h100.log || true
-grep "depth_recurrence" run_h100.log || true
-grep "Total submission" run_h100.log || true
-grep "step:.*val_bpb" run_h100.log || true
+grep "final_int8_zlib_roundtrip_exact\\|quantized_sliding\\|quantized_ttt\\|quantized " {log_name} || true
+grep "peak memory" {log_name} || true
+grep "Serialized model" {log_name} || true
+grep "depth_recurrence" {log_name} || true
+grep "Total submission" {log_name} || true
 """
 
 
@@ -181,14 +183,23 @@ def main():
             print(f"\n=== Setup (clone, deps, {train_shards} train shards) ===")
             ssh.run_commands([build_setup_script(train_shards)])
 
-            print(f"\n=== Training ({gpu_count}x H100, 10 min) ===")
-            ssh.run_commands([build_train_script(gpu_count)])
+            # Run 1: Standard SOTA stack (no random adapters)
+            print(f"\n=== Run 1: Standard SOTA ({gpu_count}x H100, 10 min) ===")
+            ssh.run_commands([build_train_script(gpu_count,
+                env_overrides={"USE_RANDOM_ADAPTERS": "0"},
+                log_name="run_standard.log")])
+
+            # Run 2: Random adapters + SOTA stack
+            print(f"\n=== Run 2: Random Adapters ({gpu_count}x H100, 10 min) ===")
+            ssh.run_commands([build_train_script(gpu_count,
+                env_overrides={"USE_RANDOM_ADAPTERS": "1", "ADAPTER_RANK": "128"},
+                log_name="run_adapters.log")])
 
             # 5. Download results
             print("\n=== Downloading results ===")
             os.makedirs("h100_results", exist_ok=True)
-            ssh.get_file("/workspace/parameter-golf/run_h100.log", "h100_results/run_h100.log")
-            ssh.get_file("/workspace/parameter-golf/final_model.int8.ptz", "h100_results/final_model.int8.ptz")
+            ssh.get_file("/workspace/parameter-golf/run_standard.log", "h100_results/run_standard.log")
+            ssh.get_file("/workspace/parameter-golf/run_adapters.log", "h100_results/run_adapters.log")
 
         elapsed = time.time() - start_time
         print(f"\nTotal pod time: {elapsed/60:.1f} min")
@@ -209,30 +220,32 @@ def main():
             runpod.terminate_pod(pod_id)
             print("Pod terminated. Billing stopped.")
 
-    # 7. Print results summary
-    log_path = "h100_results/run_h100.log"
-    if os.path.exists(log_path):
+    # 7. Print results summary for both runs
+    for label, log_path in [("STANDARD (no adapters)", "h100_results/run_standard.log"),
+                            ("RANDOM ADAPTERS", "h100_results/run_adapters.log")]:
+        if not os.path.exists(log_path):
+            continue
         print("\n" + "=" * 60)
-        print("RESULTS SUMMARY")
+        print(f"RESULTS: {label}")
         print("=" * 60)
         with open(log_path) as f:
             for line in f:
                 if any(k in line for k in [
-                    "final_int8_zlib_roundtrip",
+                    "quantized ", "quantized_sliding", "quantized_ttt",
+                    "pre_quant_post_ema",
                     "peak memory",
                     "Serialized model",
                     "depth_recurrence",
                     "Total submission",
-                    "step:0/",
                     "stopping_early",
+                    "model_params",
                 ]):
-                    print(line.rstrip())
-        # Also print all val_bpb lines
-        print("\nValidation BPB progression:")
+                    print(f"  {line.rstrip()}")
+        print("\n  Validation BPB progression:")
         with open(log_path) as f:
             for line in f:
                 if "val_bpb" in line and "step:" in line:
-                    print(f"  {line.rstrip()}")
+                    print(f"    {line.rstrip()}")
 
 
 if __name__ == "__main__":
