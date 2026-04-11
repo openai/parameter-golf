@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import glob
 import json
+from logging import config
 import math
 import os
 import pickle
@@ -398,10 +399,22 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
-        self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-            for i in range(num_layers)
-        ]
+        #self.blocks = [
+        #    Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+        #    for i in range(num_layers)
+        #]
+        self.blocks = []
+        for i in range(num_layers):
+            if i == 2:
+                # Layer 3 (index 2) points to Layer 2 (index 1)'s memory!
+                self.blocks.append(self.blocks[1])
+            elif i == 4:
+                # Layer 5 (index 4) points to Layer 4 (index 3)'s memory!
+                self.blocks.append(self.blocks[3])
+            else:
+                # Create a brand new block using the raw variables
+                self.blocks.append(Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init))
+                
         self.final_norm = RMSNormNoWeight()
 
         for b in self.blocks:
