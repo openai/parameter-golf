@@ -1,0 +1,19 @@
+{
+    "name": "SLOT48_LR012_Stride96",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-04-03",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "seed_results": {
+        "1337": {"val_loss": 1.25793247, "val_bpb": 0.74502015, "steps": 6578, "artifact_bytes": 15815983},
+        "42":   {"val_loss": 1.24104846, "val_bpb": 0.73502047, "steps": 6576, "artifact_bytes": 15751595},
+        "2024": {"val_loss": 1.25222813, "val_bpb": 0.74164171, "steps": 6588, "artifact_bytes": 15793375}
+    },
+    "mean_val_loss": 1.2504,
+    "mean_val_bpb": 0.7406,
+    "std_val_bpb": 0.0051,
+    "blurb": "SLOT-48 with LR 0.012 (cosine to 0.001), stride=96, per-sample delta + logit bias, scored-position masked. Same architecture as PRs #1303 and #1313."
+}
