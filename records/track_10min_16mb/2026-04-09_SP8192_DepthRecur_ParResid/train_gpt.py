@@ -1294,7 +1294,7 @@ def main() -> None:
         with torch.no_grad():
             for ema_p, model_p in zip(ema_params, model_params_list): model_p.data.copy_(ema_p)
     # Pre-quant TTT: fine-tune on validation data before quantization
-    if bool(int(os.environ.get("PREQUANT_TTT_ENABLED", "1"))):
+    if bool(int(os.environ.get("PREQUANT_TTT_ENABLED", "0"))):
         prequant_ttt(args, base_model, rank, world_size, device, val_tokens)
     # GPTQ calibration (after EMA, before compression)
     if master_process: log0("gptq:calibrating...")
