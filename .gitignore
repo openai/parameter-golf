@@ -1,11 +1,32 @@
-data/tokenizers
-__pycache__/
-.DS_Store
-modded-nanogpt/
-modded-nanogpt
-data/datasets
-data/manifest.json
-data/docs_selected.jsonl
-.mypy_cache/
-.venv
+# Auto-generated outputs
+runs/
 logs/
+sweep_logs/
+checkpoints/
+submission/
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Data (large binary files)
+data/datasets/
+data/tokenizers/
+
+# Model artifacts
+*.pt
+*.ptz
+*.ckpt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
