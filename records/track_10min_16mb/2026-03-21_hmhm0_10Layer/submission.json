@@ -1,0 +1,8 @@
+{
+  "author": "hmhm0",
+  "track": "10min_16mb",
+  "val_bpb": 1.4444, 
+  "train_steps": 851,
+  "artifact_size_bytes": 14682364,
+  "hardware": "1xH100 PCIe"
+}
