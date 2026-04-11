@@ -1,0 +1,56 @@
+run_id:blackwell_long_20260330_262k
+gpu_summary:NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB total, local benchmark artifact
+model_params:16027720
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=False mem_efficient=False math=True
+attention_mode:gta num_heads:8 num_kv_heads:4 rope_dim:32 head_dim:64
+tie_embeddings:True embed_lr:0.04 head_lr:0.0 matrix_lr:0.032 scalar_lr:0.032
+train_batch_tokens:262144 train_seq_len:2048 iterations:2000000 warmup_steps:1 max_wallclock_seconds:7200.000
+torch_compile:False sdp_backend:math checkpoint_every:25 checkpoint_path:<sanitized>
+megakernel:enabled=True required=True runtime_can_run=True reason=extension_ready
+device:name:NVIDIA RTX PRO 6000 Blackwell Workstation Edition capability:12.0 vram_gib:95.59
+seed:1337
+warmup_step:1/1
+step:1/2000000 train_loss:6.9359 train_time:14268ms step_avg:14268.33ms
+step:10/2000000 train_loss:5.8130 train_time:144419ms step_avg:14441.90ms
+step:20/2000000 train_loss:5.6677 train_time:288148ms step_avg:14407.40ms
+checkpoint_saved:path:<sanitized> step:25 train_time:359107ms
+step:30/2000000 train_loss:5.4233 train_time:429041ms step_avg:14301.36ms
+step:50/2000000 train_loss:4.8408 train_time:673752ms step_avg:13475.03ms
+checkpoint_saved:path:<sanitized> step:50 train_time:673752ms
+step:100/2000000 train_loss:4.2643 train_time:1224604ms step_avg:12246.04ms
+checkpoint_saved:path:<sanitized> step:100 train_time:1224604ms
+step:150/2000000 train_loss:3.9146 train_time:1748694ms step_avg:11657.96ms
+checkpoint_saved:path:<sanitized> step:150 train_time:1748694ms
+step:200/2000000 train_loss:3.4110 train_time:2221345ms step_avg:11106.72ms
+checkpoint_saved:path:<sanitized> step:200 train_time:2221345ms
+step:250/2000000 train_loss:3.1404 train_time:2693444ms step_avg:10773.77ms
+checkpoint_saved:path:<sanitized> step:250 train_time:2693444ms
+step:300/2000000 train_loss:2.9636 train_time:3165495ms step_avg:10551.65ms
+checkpoint_saved:path:<sanitized> step:300 train_time:3165495ms
+step:350/2000000 train_loss:2.7159 train_time:3637519ms step_avg:10392.91ms
+checkpoint_saved:path:<sanitized> step:350 train_time:3637519ms
+step:400/2000000 train_loss:2.7350 train_time:4109420ms step_avg:10273.55ms
+checkpoint_saved:path:<sanitized> step:400 train_time:4109420ms
+step:450/2000000 train_loss:2.6776 train_time:4581590ms step_avg:10181.31ms
+checkpoint_saved:path:<sanitized> step:450 train_time:4581590ms
+step:500/2000000 train_loss:2.5861 train_time:5053701ms step_avg:10107.40ms
+checkpoint_saved:path:<sanitized> step:500 train_time:5053701ms
+step:550/2000000 train_loss:2.5870 train_time:5525653ms step_avg:10046.64ms
+checkpoint_saved:path:<sanitized> step:550 train_time:5525653ms
+step:600/2000000 train_loss:2.5825 train_time:6005113ms step_avg:10008.52ms
+checkpoint_saved:path:<sanitized> step:600 train_time:6005113ms
+step:650/2000000 train_loss:2.5066 train_time:6517591ms step_avg:10027.06ms
+checkpoint_saved:path:<sanitized> step:650 train_time:6517591ms
+step:700/2000000 train_loss:2.4737 train_time:6989583ms step_avg:9985.12ms
+checkpoint_saved:path:<sanitized> step:700 train_time:6989583ms
+step:723/2000000 val_loss:2.5300 val_bpb:1.4984 train_time:7206646ms step_avg:9967.70ms
+stopping_early: wallclock_cap train_time:7206646ms step:723/2000000
+peak memory allocated: 15715 MiB reserved: 17114 MiB
+Serialized model: 64122949 bytes
+Code size: 128382 bytes
+Total submission size: 64251331 bytes
+Serialized model int8+zlib: 8389415 bytes (payload:16289568 raw_torch:16332011 payload_ratio:3.94x)
+Total submission size int8+zlib: 8517797 bytes
+final_int8_zlib_roundtrip val_loss:2.5910 val_bpb:1.5345 eval_time:1413924ms
+final_int8_zlib_roundtrip_exact val_loss:2.59101960 val_bpb:1.53454775
