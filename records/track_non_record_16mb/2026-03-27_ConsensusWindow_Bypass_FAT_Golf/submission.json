@@ -1,0 +1,12 @@
+{
+    "author": "TheDryhtscipe",
+    "github_id": "TheDryhtscipe",
+    "name": "ConsensusWindow Bypass (FAT-Golf)",
+    "blurb": "Depthwise causal conv bypass from ORC FAT-AR. Replaces SmearGate + adds gated deep-layer bypass. Small-scale: -0.075 BPB post-quantization, 3x more robust to EMA+int6.",
+    "date": "2026-03-27T00:00:00Z",
+    "val_loss": 0.0,
+    "val_bpb": 0.0,
+    "bytes_total": 0,
+    "bytes_code": 0,
+    "note": "Small-scale results only (256d/6L/500steps on 4060 Ti). Awaiting H100 compute for full-scale validation."
+}
