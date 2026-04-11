@@ -1,0 +1,5 @@
+quantized val_loss:2.81379763 val_bpb:1.08949971 eval_time:101404ms
+quantized_sliding_window val_loss:2.77029639 val_bpb:1.07265608 eval_time:1580310ms
+ttt:start chunks=1238 ttt_lr=0.005 ttt_epochs=3
+quantized_ttt val_loss:2.76433372 val_bpb:1.07034733 eval_time:2775717ms
+EXIT_CODE=0
