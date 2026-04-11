@@ -31,7 +31,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 try:
     from hnet_tokenizer import HNetByteLM
 except ModuleNotFoundError:
-    from golf.hnet_tokenizer import HNetByteLM
+    try:
+        from golf.hnet_tokenizer import HNetByteLM
+    except ModuleNotFoundError:
+        # HNet is only needed when MODEL_ARCH=hnet. Keep the legacy GPT path importable
+        # in record folders that intentionally ship only train_gpt.py.
+        HNetByteLM = None
 try:
     from flash_attn_interface import flash_attn_func as flash_attn_3_func
 except ImportError:
@@ -2264,6 +2269,8 @@ def main() -> None:
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"model_arch:{args.model_arch} input_backend:{input_backend}")
     if is_hnet:
+        if HNetByteLM is None:
+            raise RuntimeError("MODEL_ARCH=hnet requires hnet_tokenizer.py to be present in the record folder")
         byte_codec = build_byte_codec(args.tokenizer_path, input_backend)
         model_vocab_size = byte_codec.vocab_size
         val_data = load_validation_bytes(args.val_files, val_seq_len, byte_codec, input_backend)
@@ -2862,6 +2869,8 @@ def main() -> None:
     )
     deq_unbanked = dequantize_mixed_int6(quant_state["w"], quant_state["m"], unbanked_sd)
     if is_hnet:
+        if HNetByteLM is None:
+            raise RuntimeError("MODEL_ARCH=hnet requires hnet_tokenizer.py to be present in the record folder")
         deq_state = deq_unbanked
         eval_model = HNetByteLM(
             vocab_size=model_vocab_size,
