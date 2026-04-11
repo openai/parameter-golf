@@ -183,32 +183,20 @@ def main():
             print(f"\n=== Setup (clone, deps, {train_shards} train shards) ===")
             ssh.run_commands([build_setup_script(train_shards)])
 
-            # Run 1: Standard SOTA stack (no random adapters, MLP=3 to fit 16MB)
-            print(f"\n=== Run 1: Standard SOTA ({gpu_count}x H100, 10 min) ===")
-            ssh.run_commands([build_train_script(gpu_count,
-                env_overrides={"USE_RANDOM_ADAPTERS": "0", "MLP_MULT": "3"},
-                log_name="run_standard.log")])
-
-            # Run 2: Random adapters r304 + MLP=3 + AdamW TTT
-            print(f"\n=== Run 2: Random Adapters r304 ({gpu_count}x H100, 10 min) ===")
+            # Submission run: Random adapters r304, MLP=3, no EMA, no TTT
+            print(f"\n=== Submission: Random Adapters r304 ({gpu_count}x H100, 10 min) ===")
             ssh.run_commands([build_train_script(gpu_count,
                 env_overrides={
                     "USE_RANDOM_ADAPTERS": "1",
                     "ADAPTER_RANK": "304",
                     "MLP_MULT": "3",
-                    "TTT_ENABLED": "1",
-                    "TTT_OPTIMIZER": "adamw",
-                    "TTT_LR": "0.0005",
-                    "TTT_EPOCHS": "3",
-                    "GPTQ_RESERVE_SECONDS": "8",
                 },
-                log_name="run_adapters.log")])
+                log_name="run_submission.log")])
 
             # 5. Download results
             print("\n=== Downloading results ===")
             os.makedirs("h100_results", exist_ok=True)
-            ssh.get_file("/workspace/parameter-golf/run_standard.log", "h100_results/run_standard.log")
-            ssh.get_file("/workspace/parameter-golf/run_adapters.log", "h100_results/run_adapters.log")
+            ssh.get_file("/workspace/parameter-golf/run_submission.log", "h100_results/run_submission.log")
 
         elapsed = time.time() - start_time
         print(f"\nTotal pod time: {elapsed/60:.1f} min")
@@ -230,7 +218,8 @@ def main():
             print("Pod terminated. Billing stopped.")
 
     # 7. Print results summary for both runs
-    for label, log_path in [("STANDARD (no adapters)", "h100_results/run_standard.log"),
+    for label, log_path in [("SUBMISSION", "h100_results/run_submission.log"),
+                            ("STANDARD (no adapters)", "h100_results/run_standard.log"),
                             ("RANDOM ADAPTERS", "h100_results/run_adapters.log")]:
         if not os.path.exists(log_path):
             continue
