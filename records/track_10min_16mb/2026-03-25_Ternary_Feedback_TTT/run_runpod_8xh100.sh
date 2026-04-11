@@ -6,13 +6,23 @@
 #
 # Key design decisions:
 #   ARCHITECTURE=skc 8L dim=1536: MoE gives effective parameter density vs depth.
+#   SP8192 tokenizer: 8× semantic context per sequence vs sp1024 baseline.
+#   QK_GAIN_INIT=5.25: sharpens softmax decisiveness under ternary quantization.
+#   TRAINING_DEPTH_RECURRENCE=2 @35%: simulates 16-layer network; activates after
+#     base weights stabilise so gradients don't cyclically corrupt early.
+#   MUON_WD=ADAM_WD=0.090: aggressive sparsity → tighter LZMA compression →
+#     free artifact headroom reinvested as MLP_MULT=4.
 #   EMA_ENABLED=1: only implemented weight-averaging mechanism in the trainer.
 #   COMPILER_WARMUP_STEPS=20: pre-budget graph capture (outside 599s window).
 #   WARMUP_STEPS=20: in-budget linear LR ramp (0 → base over first 20 steps).
 #   CURRICULUM_ENABLED=1: context warmup (seq=64 -> 2048) allows for better
 #     representation maturity before tackling long-range dependencies.
 #     Jump to full 2048 sequence happens at 24% of wall-clock.
-#   TTT_ENABLED=0, VAL_LOSS_EVERY=0: every ms of 599s budget is training compute.
+#   MAX_WALLCLOCK_SECONDS=570: 29s budget headroom reserved for TTT eval phase.
+#   TTT_ENABLED=1, TTT_SCOPE=skc_safe: score-first adaptation on scale/decay
+#     vectors only — no weight matrices, no embedding tables, no OOM risk.
+#     (capsule_bank scope is unavailable: CAPSULE_ENABLED=0 in this config.)
+#   VAL_LOSS_EVERY=0: no mid-training validation; every ms is training compute.
 #   TURBO_QUANT_TRAIN=1 + TURBO_QUANT_EXPORT=1: Hadamard rotation must match.
 #
 # Artifacts written by trainer:
@@ -37,10 +47,10 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 [[ -f "${PROJECT_ROOT}/train_gpt.py" ]] || { echo "ERROR: ${PROJECT_ROOT}/train_gpt.py not found" >&2; exit 1; }
 
-# ── Data ─────────────────────────────────────────────────────────────────────
-export DATA_PATH="${DATA_PATH:-/workspace/data/datasets/fineweb10B_sp1024}"
-export TOKENIZER_PATH="${TOKENIZER_PATH:-/workspace/data/tokenizers/fineweb_1024_bpe.model}"
-export VOCAB_SIZE=1024
+# ── Data & Tokenizer Migration ───────────────────────────────────────────────
+export DATA_PATH="${DATA_PATH:-/workspace/data/datasets/fineweb10B_sp8192}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-/workspace/data/tokenizers/fineweb_8192_bpe.model}"
+export VOCAB_SIZE=8192
 [[ -d "${DATA_PATH}" ]] || { echo "ERROR: DATA_PATH not found: ${DATA_PATH}" >&2; exit 1; }
 [[ -f "${TOKENIZER_PATH}" ]] || { echo "ERROR: TOKENIZER_PATH not found: ${TOKENIZER_PATH}" >&2; exit 1; }
 
@@ -53,6 +63,8 @@ export NUM_KV_HEADS=6
 export MLP_MULT=4
 export EMBED_DIM=256
 export PARTIAL_ROPE_DIMS=32
+export SKC_PARALLEL_RESIDUAL=1
+export QK_GAIN_INIT=5.25
 
 # MoE
 export MOE_ENABLED=1
@@ -79,6 +91,7 @@ export SEED=${SEED:-42}
 export TRAIN_BATCH_TOKENS=262144
 export TRAIN_SEQ_LEN=2048
 export TRAINING_DEPTH_RECURRENCE=0
+export RECURRENCE_LAYERS="${RECURRENCE_LAYERS:-3,4,5}"
 
 # ── Curriculum ────────────────────────────────────────────────────────────────
 # Now enabled: though H100 handles full seq=2048, context warmup allows for better
@@ -97,18 +110,18 @@ export CURRICULUM_PHASE5_SEQ=1024
 
 # ── Optimizer ────────────────────────────────────────────────────────────────
 export MATRIX_OPTIMIZER=muon
-export MATRIX_LR=0.02
-export SCALAR_LR=0.015
+export MATRIX_LR=0.022
+export SCALAR_LR=0.001
 export TIED_EMBED_LR=0.025
 export HEAD_LR=0.015
-export MUON_WD=0.090
-export ADAM_WD=0.090
+export MUON_WD=0.095
+export ADAM_WD=0.095
 export MUON_MOMENTUM=0.95
 export MUON_MOMENTUM_WARMUP_START=0.85
 export MUON_MOMENTUM_WARMUP_STEPS=0
 export MUON_BACKEND_STEPS=5
 export GRAD_CLIP_NORM=0.3
-export WARMDOWN_FRACTION=0.20
+export WARMDOWN_FRACTION=0.72
 
 # ── Weight averaging ─────────────────────────────────────────────────────────
 # EMA is the only implemented averaging mechanism in the trainer.
@@ -125,7 +138,7 @@ export ENGRAM_NUM_ORDERS=2
 export ENGRAM_INJECT_LAYER=1
 
 # ── N-gram cache ──────────────────────────────────────────────────────────────
-export NGRAM_CACHE_ENABLED=1
+export NGRAM_CACHE_ENABLED=0
 export NGRAM_MAX_ORDER=5
 export NGRAM_ALPHA_BASE=0.05
 export NGRAM_ALPHA_SCALE=0.55
@@ -137,7 +150,9 @@ export KOOPMAN_ENABLED=0
 export KOOPMAN_SPECULATOR_ENABLED=0
 export FEEDBACK_ENABLED=0
 export VRL_ENABLED=0
-export TTT_ENABLED=0
+export TTT_ENABLED=1
+export TTT_SCOPE=skc_safe
+export TTT_EPOCHS=1
 export SHARED_BLOCKS=0
 export WEIGHT_SHARING=0
 export INSIDE_OUT_TRAINING=0
@@ -152,13 +167,18 @@ export TRAIN_LOG_EVERY=50
 export SLIDING_EVAL=1
 export SLIDING_EVAL_STRIDE=64
 export SLIDING_BATCH_SIZE=256
-export TEMP_SCALING=1
+export TEMP_SCALING=0
 
 # ── Ternary quantization ──────────────────────────────────────────────────────
 export BITNET_GROUP_SIZE=128
 export TURBO_QUANT_TRAIN=1        # Must match EXPORT — Hadamard rotation at both
 export TURBO_QUANT_EXPORT=1
 export TURBO_QUANT_KV=1
+export EXPORT_MODE=competition_ternary
+export TERNARY_COMPRESS_BROTLI=1
+export TERNARY_CLIP_MODE=row_std
+export TERNARY_CLIP_ROWS_K=12.85
+export TERNARY_EMBED_CLIP_ROWS_K=20.0
 export EXPORT_ALIGNED_TRAIN=0
 export EXPORT_ALIGNED_TRAIN_START_FRACTION=0.0
 export TERNARY_THRESHOLD_SEARCH=0

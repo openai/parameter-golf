@@ -81,6 +81,15 @@ def _e_fp_storage(k, d=0):
         return "fp4"
     raise ValueError(f"{k} must be one of 0/1/fp4/fp8/false/true, got {v!r}")
 
+
+def _e_int_tuple(k, d=""):
+    v = os.environ.get(k, d)
+    if v is None:
+        return tuple()
+    parts = [p.strip() for p in str(v).split(",")]
+    vals = [int(p) for p in parts if p]
+    return tuple(vals)
+
 class Hyperparameters:
     data_path = _e("DATA_PATH", "./data/datasets/fineweb10B_sp1024", str)
     tokenizer_path = _e("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model", str)
@@ -121,6 +130,7 @@ class Hyperparameters:
     leaky_relu_slope = _e("LEAKY_RELU_SLOPE", 0.5, float)
     embed_dim = _e("EMBED_DIM", 254, int)
     training_depth_recurrence = _e("TRAINING_DEPTH_RECURRENCE", 0, int)
+    recurrence_layers = _e_int_tuple("RECURRENCE_LAYERS", "")
     feedback_enabled = _e("FEEDBACK_ENABLED", 0, bool)
     feedback_dim = _e("FEEDBACK_DIM", 32, int)
     feedback_sketch_tokens = _e("FEEDBACK_SKETCH_TOKENS", 2, int)
@@ -281,18 +291,28 @@ class Hyperparameters:
     export_aligned_train_start_fraction = _e("EXPORT_ALIGNED_TRAIN_START_FRACTION", 0.80, float)
     reset_ssm_on_eos = _e("RESET_SSM_ON_EOS", 1, bool)
     # Competition mode controls
-    export_mode = _e("EXPORT_MODE", "ternary_lzma", str)  # "ternary_lzma" | "competition_gptq"
+    export_mode = _e("EXPORT_MODE", "ternary_lzma", str)  # "ternary_lzma" | "competition_ternary" | "competition_gptq"
     recurrence_start_fraction = _e("RECURRENCE_START_FRACTION", 0.0, float)  # 0 = always on (if depth>0), >0 = activate at fraction
     recurrence_depth = _e("RECURRENCE_DEPTH", 2, int)   # effective depth multiplier when recurrence is active
     skc_parallel_residual = _e("SKC_PARALLEL_RESIDUAL", 0, bool)  # use ParallelSKCBlock instead of SKCLayer
+    ternary_clip_mode = _e("TERNARY_CLIP_MODE", "percentile", str)  # percentile | row_std | none
+    ternary_clip_rows_k = _e("TERNARY_CLIP_ROWS_K", 12.85, float)
+    ternary_embed_clip_rows_k = _e("TERNARY_EMBED_CLIP_ROWS_K", 20.0, float)
+    ternary_compress_brotli = _e("TERNARY_COMPRESS_BROTLI", 1, bool)
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
     args.matrix_optimizer = args.matrix_optimizer.lower()
+    args.export_mode = args.export_mode.lower()
+    args.ternary_clip_mode = args.ternary_clip_mode.lower()
     if args.softcap_type not in {"poly", "tanh"}:
         raise ValueError(f"SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}")
     if args.matrix_optimizer not in {"muon", "adamw", "adam"}:
         raise ValueError(f"MATRIX_OPTIMIZER must be one of muon/adamw/adam, got {args.matrix_optimizer!r}")
+    if args.export_mode not in {"ternary_lzma", "competition_ternary", "competition_gptq"}:
+        raise ValueError(f"EXPORT_MODE must be one of ternary_lzma/competition_ternary/competition_gptq, got {args.export_mode!r}")
+    if args.ternary_clip_mode not in {"percentile", "row_std", "none"}:
+        raise ValueError(f"TERNARY_CLIP_MODE must be one of percentile/row_std/none, got {args.ternary_clip_mode!r}")
     for frac_name in (
         "warmup_fraction",
         "muon_momentum_warmup_fraction",
@@ -2296,13 +2316,19 @@ class ParallelSKCBlock(nn.Module):
 
 class TokenStem(nn.Module):
     """Handles embeddings, output projection, and logit softcapping."""
-    def __init__(self, vocab_size, embed_dim, model_dim, tied=True):
+    def __init__(self, vocab_size, embed_dim, model_dim, tied=True, fp_storage: str | bool = False):
         super().__init__()
         self.tied = tied
-        self.tok_emb = nn.Embedding(vocab_size, embed_dim)
-        self.embed_proj = nn.Linear(embed_dim, model_dim, bias=False) if embed_dim != model_dim else None
-        self.embed_proj_rev = nn.Linear(model_dim, embed_dim, bias=False) if embed_dim != model_dim else None
-        self.lm_head = nn.Linear(model_dim, vocab_size, bias=False)
+        self.tok_emb = QATEmbedding(vocab_size, embed_dim, fp_storage=fp_storage)
+        self.embed_proj = (
+            QATLinear(embed_dim, model_dim, bias=False, fp_storage=fp_storage)
+            if embed_dim != model_dim else None
+        )
+        self.embed_proj_rev = (
+            QATLinear(model_dim, embed_dim, bias=False, fp_storage=fp_storage)
+            if embed_dim != model_dim else None
+        )
+        self.lm_head = QATLinear(model_dim, vocab_size, bias=False, fp_storage=fp_storage)
         if tied:
             self.lm_head.weight = self.tok_emb.weight
 
@@ -2327,7 +2353,8 @@ class Backbone(nn.Module):
                  per_layer_skc_scales, per_layer_resid_mixes,
                  layer_types, skip_weights, num_encoder_layers,
                  num_decoder_layers, num_skip_weights,
-                 training_depth_recurrence):
+                 training_depth_recurrence,
+                 recurrence_layers: tuple[int, ...] = ()):
         super().__init__()
         self.blocks = blocks
         self.shared_block_bank = shared_block_bank
@@ -2342,6 +2369,14 @@ class Backbone(nn.Module):
         self.num_decoder_layers = num_decoder_layers
         self.num_skip_weights = num_skip_weights
         self.training_depth_recurrence = training_depth_recurrence
+        self.recurrence_layers = frozenset(int(i) for i in recurrence_layers)
+
+    def recurrence_passes_for_layer(self, layer_idx: int) -> int:
+        if self.training_depth_recurrence <= 1:
+            return 1
+        if self.recurrence_layers and layer_idx not in self.recurrence_layers:
+            return 1
+        return self.training_depth_recurrence
 
     def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
                    elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None,
@@ -2392,7 +2427,7 @@ class Backbone(nn.Module):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
-            for _ in range(max(1, self.training_depth_recurrence)):
+            for _ in range(self.recurrence_passes_for_layer(bi)):
                 x, _, blk_aux = self.run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
                                                 prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
@@ -2424,7 +2459,7 @@ class LatentCorrector(nn.Module):
         for i in range(backbone.num_encoder_layers):
             if engram_enabled and i == engram_inject_layer:
                 x = x + engram(input_ids, hidden=x)
-            for _ in range(max(1, backbone.training_depth_recurrence)):
+            for _ in range(backbone.recurrence_passes_for_layer(i)):
                 x, v_out, blk_aux = backbone.run_block(
                     i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask
                 )
@@ -2514,6 +2549,7 @@ class GPT(nn.Module):
         leaky_relu_slope: float = 0.5,
         embed_dim: int = 0,
         training_depth_recurrence: int = 0,
+        recurrence_layers: tuple[int, ...] = (),
         fp_storage: str | bool = False,
         softcap_type: str = "poly",
         no_cache: bool = False,
@@ -2573,6 +2609,7 @@ class GPT(nn.Module):
         super().__init__()
         self.skc_parallel_residual = skc_parallel_residual
         self.training_depth_recurrence = training_depth_recurrence
+        self.recurrence_layers = tuple(int(i) for i in recurrence_layers)
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
         self.softcap_type = softcap_type
@@ -2623,7 +2660,7 @@ class GPT(nn.Module):
         if self.feedback_target not in {"decoder"}:
             raise ValueError(f"Unsupported FEEDBACK_TARGET={feedback_target}")
         
-        self.tok_stem = TokenStem(vocab_size, embed_dim, model_dim, tied=tie_embeddings)
+        self.tok_stem = TokenStem(vocab_size, embed_dim, model_dim, tied=tie_embeddings, fp_storage=fp_storage)
         
         # Metadata / Infrastructure
         self.num_encoder_layers = num_layers // 2
@@ -2775,6 +2812,7 @@ class GPT(nn.Module):
             num_decoder_layers=self.num_decoder_layers,
             num_skip_weights=self.num_skip_weights,
             training_depth_recurrence=training_depth_recurrence,
+            recurrence_layers=recurrence_layers,
         )
 
         self.final_norm = RMSNorm()
@@ -2873,7 +2911,7 @@ class GPT(nn.Module):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
-            for _ in range(max(1, self.training_depth_recurrence)):
+            for _ in range(self.backbone.recurrence_passes_for_layer(bi)):
                 x, _, blk_aux = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
                                                 prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
@@ -3772,12 +3810,20 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device,
 # ---------------------------------------------------------------------------
 # GPTQ-lite: per-row clip percentile search for ternary quantization
 # ---------------------------------------------------------------------------
-def gptq_lite_clip_search(state_dict: dict, group_size: int, num_percentiles: int = 5,
-                          ternary_names: set[str] | None = None,
-                          turbo_quant_export: bool = True) -> dict:
-    """For each ternary-candidate weight matrix, search over clip percentiles
-    to minimize per-row MSE between original and ternary-quantized weights.
-    Returns a modified state_dict with clipped weights."""
+def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int = 5,
+                        ternary_names: set[str] | None = None,
+                        turbo_quant_export: bool = True,
+                        clip_mode: str = "percentile",
+                        row_std_k: float = 12.85,
+                        embed_row_std_k: float = 20.0) -> dict:
+    """Apply ternary-native clipping before quantization.
+
+    `percentile` searches global clip percentiles and picks the lowest-MSE result.
+    `row_std` clips each row to k * std(row), with a larger k for token embeddings.
+    `none` is a no-op.
+    """
+    if clip_mode == "none":
+        return state_dict
     percentiles = [0.995 + 0.001 * i for i in range(num_percentiles)]
     turbo_quant = turbo_quant_export and (group_size & (group_size - 1)) == 0
     H = _build_hadamard_pt(group_size, torch.device("cpu")) if turbo_quant else None
@@ -3789,6 +3835,15 @@ def gptq_lite_clip_search(state_dict: dict, group_size: int, num_percentiles: in
         )
         if not is_target:
             improved[name] = tensor
+            continue
+        if clip_mode == "row_std":
+            k = embed_row_std_k if ("tok_emb" in name or "embed" in name) else row_std_k
+            if t.ndim == 2:
+                row_std = t.std(dim=-1, keepdim=True).clamp(min=1e-8)
+                clip = k * row_std
+                improved[name] = t.clamp(-clip, clip).to(tensor.dtype).to(tensor.device)
+            else:
+                improved[name] = tensor
             continue
         best_t = t.clone()
         best_mse = float("inf")
@@ -3939,7 +3994,7 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
-        embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, fp_storage=args.fp_storage,
+        embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage,
         softcap_type=args.softcap_type, no_cache=(args.compile_mode == "reduce-overhead"),
         rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len,
         feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim,
@@ -3984,11 +4039,18 @@ def main() -> None:
         skc_parallel_residual=args.skc_parallel_residual,
     ).to(device)
 
-    # Re-enable standard compilation for Linux
-    # dynamic=True: accept varying sequence lengths and batch sizes without recompilation.
-    # Without this, every curriculum seq-len change triggers a full recompile and
-    # torch._dynamo.reset(), eating wall-clock budget that should go to weight updates.
-    compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=True) if args.compile_mode != "none" else base_model
+    # Keep compilation static when sequence length / batch schedules are fixed.
+    # Dynamic compilation is only worth paying for when the competition profile
+    # actually changes shapes during training.
+    compile_dynamic = bool(
+        args.curr_enabled
+        or args.seq_len_start > 0
+        or args.batch_tokens_start > 0
+    )
+    compiled_model = (
+        torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic)
+        if args.compile_mode != "none" else base_model
+    )
     
     # MoE top-k routing and feedback interleaving can leave real submodules unused on
     # some iterations. Shared blocks are reused weights, not unused weights.
@@ -4084,7 +4146,11 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"params:{n_params} L:{args.num_layers} d:{args.model_dim} h:{args.num_heads} kv:{args.num_kv_heads} ws:{world_size} ga:{grad_accum_steps} s:{args.seed}")
     _tokenizer_regime = f"SP{args.vocab_size}"
-    _recurrence_info = f"recurrence_depth={args.training_depth_recurrence} start_frac={args.recurrence_start_fraction}" if args.recurrence_depth > 0 else "recurrence=off"
+    _recurrence_layers = ",".join(str(i) for i in args.recurrence_layers) if args.recurrence_layers else "all"
+    _recurrence_info = (
+        f"recurrence_depth={args.training_depth_recurrence} start_frac={args.recurrence_start_fraction} layers={_recurrence_layers}"
+        if args.recurrence_depth > 0 else "recurrence=off"
+    )
     _export_info = f"export_mode={args.export_mode}"
     _arch_info = f"arch={args.architecture} parallel_residual={args.skc_parallel_residual}"
     _ttt_info = f"ttt={args.ttt_enabled} scope={args.ttt_scope}" if args.ttt_enabled else "ttt=off"
@@ -4352,6 +4418,7 @@ def main() -> None:
             ) else 0
             if hasattr(base_model, 'backbone') and base_model.backbone.training_depth_recurrence != _want_recur:
                 base_model.backbone.training_depth_recurrence = _want_recur
+                base_model.training_depth_recurrence = _want_recur
                 log0(f"step:{step} recurrence_depth:{_want_recur} (frac={elapsed_frac:.3f})")
 
         # Muon momentum warmup
@@ -4600,14 +4667,25 @@ def main() -> None:
         log0(f"param_audit: total={_ternary_params+_fp_params:,} ternary_candidates={_ternary_params:,}({len(_ternary_names)}) fp={_fp_params:,}({len(_fp_names)}) est_raw={(_est_ternary_bytes+_est_fp_bytes)/1e6:.2f}MB est_compressed≈{_est_total_mb:.2f}MB")
         sd = base_model.state_dict()
 
-        # GPTQ-lite: per-row clip percentile search before quantization
-        if args.gptq_lite_enabled:
-            log0(f"gptq_lite:searching {args.gptq_lite_percentiles} percentiles...")
-            sd = gptq_lite_clip_search(sd, group_size=args.bitnet_group_size,
-                                       num_percentiles=args.gptq_lite_percentiles,
-                                       ternary_names=export_ternary_names,
-                                       turbo_quant_export=args.turbo_quant_export)
-            log0("gptq_lite:done")
+        # Ternary-native clipping before quantization. Keep GPTQ-lite as the legacy
+        # gate, but make the clipping strategy explicit and ternary-focused.
+        if args.gptq_lite_enabled or args.ternary_clip_mode != "none":
+            log0(
+                f"ternary_clip:mode={args.ternary_clip_mode} percentiles={args.gptq_lite_percentiles} "
+                f"row_std_k={args.ternary_clip_rows_k} embed_row_std_k={args.ternary_embed_clip_rows_k}",
+                flush=True,
+            )
+            sd = ternary_clip_search(
+                sd,
+                group_size=args.bitnet_group_size,
+                num_percentiles=args.gptq_lite_percentiles,
+                ternary_names=export_ternary_names,
+                turbo_quant_export=args.turbo_quant_export,
+                clip_mode=args.ternary_clip_mode,
+                row_std_k=args.ternary_clip_rows_k,
+                embed_row_std_k=args.ternary_embed_clip_rows_k,
+            )
+            log0("ternary_clip:done", flush=True)
             # Reload clipped weights into base_model so calibration runs on the same
             # distribution that will actually be quantized. Must happen BEFORE popping
             # lm_head.weight so the tied embedding isn't left unclipped in base_model.
@@ -4629,8 +4707,8 @@ def main() -> None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
             if using_best_proxy_sd:
                 log0("serialization:recalibrating_selected_proxy_weights", flush=True)
-            elif args.gptq_lite_enabled:
-                log0("serialization:recalibrating_post_gptq_lite_weights", flush=True)
+            elif args.gptq_lite_enabled or args.ternary_clip_mode != "none":
+                log0("serialization:recalibrating_post_ternary_clip_weights", flush=True)
             else:
                 log0("serialization:running_final_calib_search", flush=True)
             final_calib = calibrate_ternary(
@@ -4655,10 +4733,10 @@ def main() -> None:
             buf = io.BytesIO()
             torch.save(q_obj, buf)
             raw = buf.getvalue()
-            # Compression: compare LZMA vs brotli (if available) for competition mode
+            # Compression: compare LZMA vs Brotli for competition ternary modes.
             lzma_blob = lzma.compress(raw, preset=args.lzma_preset)
             _brotli_blob = None
-            if args.export_mode == "competition_gptq":
+            if args.ternary_compress_brotli and args.export_mode in {"competition_ternary", "competition_gptq"}:
                 try:
                     import brotli as _brotli_mod
                     _brotli_blob = _brotli_mod.compress(raw, quality=11)
@@ -4677,7 +4755,7 @@ def main() -> None:
         with open("final_model.ternary.ptz", "wb") as f:
             f.write(final_blob)
         # Competition mode: also write a clearly-named competition artifact
-        if args.export_mode == "competition_gptq":
+        if args.export_mode in {"competition_ternary", "competition_gptq"}:
             with open("final_model.competition.ptz", "wb") as f:
                 f.write(final_blob)
             log0(f"competition_export: codec={final_codec} method={best} size={len(final_blob)/1e6:.2f}MB")
@@ -4691,6 +4769,8 @@ def main() -> None:
 
         if args.eval_depth_recurrence > 0:
             base_model.training_depth_recurrence = args.eval_depth_recurrence
+            if hasattr(base_model, "backbone"):
+                base_model.backbone.training_depth_recurrence = args.eval_depth_recurrence
             log0(f"eval_depth_recurrence:{args.eval_depth_recurrence}")
         if args.eval_feedback_passes > 0:
             log0(f"eval_feedback_passes:{args.eval_feedback_passes}")
@@ -4700,7 +4780,18 @@ def main() -> None:
         dist.barrier()
 
     with open("final_model.ternary.ptz", "rb") as f:
-        loaded = torch.load(io.BytesIO(lzma.decompress(f.read())), map_location="cpu", weights_only=False)
+        raw_bytes = f.read()
+    try:
+        decompressed_bytes = lzma.decompress(raw_bytes)
+    except lzma.LZMAError:
+        try:
+            import brotli
+        except ImportError as exc:
+            raise RuntimeError(
+                "Artifact appears to be Brotli-compressed, but the brotli module is missing."
+            ) from exc
+        decompressed_bytes = brotli.decompress(raw_bytes)
+    loaded = torch.load(io.BytesIO(decompressed_bytes), map_location="cpu", weights_only=False)
     load_roundtrip_state_strict(base_model, deq_sd(loaded))
     torch._dynamo.reset()
 

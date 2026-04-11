@@ -15,7 +15,7 @@
 #   1. RunPod GraphQL → find + create 8×H100 SXM pod
 #   2. Wait for SSH readiness
 #   3. Install deps (FA3 wheel optional, sentencepiece, zstandard)
-#   4. Download sp1024 data (train shards + 1 val shard) from HuggingFace
+#   4. Download sp8192 data (train shards + 1 val shard) from HuggingFace
 #   5. Upload code (train_gpt.py + run_h100_skc_competition.sh)
 #   6. Smoke test  (FAST_SMOKE=1, MAX_WALLCLOCK_SECONDS=45)
 #   7. Seed 42     (full run; default single-seed)
@@ -503,7 +503,7 @@ run_seed() {
 # ═══════════════════════════════════════════════════════════════════════════════
 log "========================================================"
 log "PARAMETER GOLF — H100 EXPERIMENT (follow-the-leader)"
-log "Stack    : hardware-aware SKC arch (runner chooses profile) vocab=1024 sp1024"
+log "Stack    : hardware-aware SKC arch (runner chooses profile) vocab=8192 sp8192"
 log "Budget   : ${T_BUDGET}s (59:59)"
 log "Seeds    : ${SEEDS}"
 log "Cloud    : ${CLOUD_TYPE}"
@@ -556,22 +556,22 @@ log "Installing huggingface-hub..."
 r "pip install -q huggingface-hub && echo 'hf hub OK'" | tee -a "$ORCH_LOG" || die "hf hub install failed"
 
 # ── 5. Download data ──────────────────────────────────────────────────────────
-log "=== PHASE: Download sp1024 data (${DATA_SHARDS} train shards + val) ==="
+log "=== PHASE: Download sp8192 data (${DATA_SHARDS} train shards + val) ==="
 check_budget "data_download" 600 || die "Not enough time to download data"
 
-r "mkdir -p /workspace/data/datasets/fineweb10B_sp1024 /workspace/data/tokenizers"
+r "mkdir -p /workspace/data/datasets/fineweb10B_sp8192 /workspace/data/tokenizers"
 
 # Download val shard first (small, needed for smoke test)
 log "Downloading val shard..."
 r "python3 -c \"
 from huggingface_hub import hf_hub_download
 import shutil, os
-dest = '/workspace/data/datasets/fineweb10B_sp1024/fineweb_val_000000.bin'
+dest = '/workspace/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin'
 if os.path.exists(dest):
     print('val shard already exists')
 else:
     p = hf_hub_download(repo_id='${HF_REPO}', filename='fineweb_val_000000.bin',
-        subfolder='datasets/datasets/fineweb10B_sp1024', repo_type='dataset')
+        subfolder='datasets/datasets/fineweb10B_sp8192', repo_type='dataset')
     import pathlib; src = pathlib.Path(p).resolve()
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     try: os.link(src, dest)
@@ -584,11 +584,11 @@ log "Downloading tokenizer..."
 r "python3 -c \"
 from huggingface_hub import hf_hub_download
 import shutil, os
-dest = '/workspace/data/tokenizers/fineweb_1024_bpe.model'
+dest = '/workspace/data/tokenizers/fineweb_8192_bpe.model'
 if os.path.exists(dest):
     print('tokenizer already exists')
 else:
-    p = hf_hub_download(repo_id='${HF_REPO}', filename='fineweb_1024_bpe.model',
+    p = hf_hub_download(repo_id='${HF_REPO}', filename='fineweb_8192_bpe.model',
         subfolder='datasets/tokenizers', repo_type='dataset')
     import pathlib; src = pathlib.Path(p).resolve()
     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -605,7 +605,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil, os, pathlib, sys, time
 
 repo = '${HF_REPO}'
-dest_dir = '/workspace/data/datasets/fineweb10B_sp1024'
+dest_dir = '/workspace/data/datasets/fineweb10B_sp8192'
 os.makedirs(dest_dir, exist_ok=True)
 shards = [f'fineweb_train_{i:06d}.bin' for i in range(${DATA_SHARDS})]
 
@@ -616,7 +616,7 @@ def download_shard(fname, retries=3):
     for attempt in range(retries):
         try:
             p = hf_hub_download(repo_id=repo, filename=fname,
-                subfolder='datasets/datasets/fineweb10B_sp1024', repo_type='dataset')
+                subfolder='datasets/datasets/fineweb10B_sp8192', repo_type='dataset')
             src = pathlib.Path(p).resolve()
             try: os.link(src, dest)
             except: shutil.copy2(src, dest)
@@ -647,8 +647,8 @@ if actual < 10:
 PYEOF" | tee -a "$ORCH_LOG" || log "WARNING: Some train shards may have failed"
 
 # Verify
-TRAIN_COUNT=$(r "ls /workspace/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin 2>/dev/null | wc -l")
-VAL_COUNT=$(r "ls /workspace/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin 2>/dev/null | wc -l")
+TRAIN_COUNT=$(r "ls /workspace/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin 2>/dev/null | wc -l")
+VAL_COUNT=$(r "ls /workspace/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin 2>/dev/null | wc -l")
 log "Data verified: train_shards=${TRAIN_COUNT}  val_shards=${VAL_COUNT}  T+$(t_elapsed)s"
 [[ "$TRAIN_COUNT" -gt 0 ]] || die "No train shards found after download"
 [[ "$VAL_COUNT"   -gt 0 ]] || die "No val shards found after download"
