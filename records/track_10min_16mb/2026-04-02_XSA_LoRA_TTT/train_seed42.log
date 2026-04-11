@@ -1,0 +1,90 @@
+✓ Initialized. View run at 
+https://modal.com/apps/elarweis/main/ap-HupjYhLSUdv8nFzOIKWAfN
+✓ Created objects.
+├── 🔨 Created mount 
+│   /private/tmp/parameter-golf-solution/modal_xsa_ttt_quantized.py
+└── 🔨 Created function train_and_eval.
+XSA + LoRA TTT + QAT - Submission Ready
+Running on 8×H100 with seed=42...
+======================================================================
+XSA + LoRA TTT + QAT (Submission Ready)
+Config: dim=416, layers=11, steps=5000, seed=42
+GPUs: 1
+======================================================================
+
+Loading BPE-8192 data...
+Train: 1000.0M | Val: 40.5M tokens
+
+======================================================================
+Phase 1: Training with QAT
+======================================================================
+Model params: 20.55M
+Step 500/5000 | Loss 5.0980 | LR 9.76e-04 | Time 53s
+
+🔧 QAT enabled at step 750
+Step 1000/5000 | Loss 4.5962 | LR 9.05e-04 | Time 107s
+Step 1500/5000 | Loss 4.2492 | LR 7.94e-04 | Time 161s
+Step 2000/5000 | Loss 4.1317 | LR 6.55e-04 | Time 214s
+Step 2500/5000 | Loss 4.1169 | LR 5.00e-04 | Time 268s
+Step 3000/5000 | Loss 4.0218 | LR 3.45e-04 | Time 322s
+Step 3500/5000 | Loss 3.9310 | LR 2.06e-04 | Time 376s
+Step 4000/5000 | Loss 3.9193 | LR 9.55e-05 | Time 430s
+Step 4500/5000 | Loss 3.8639 | LR 2.45e-05 | Time 484s
+Step 5000/5000 | Loss 3.8045 | LR 0.00e+00 | Time 538s
+
+Training complete in 538s
+
+📦 Model Size:
+   Uncompressed: 20.71 MB
+   Compressed:   14.41 MB
+   Limit:        16.00 MB
+   Status:       ✅ OK
+
+======================================================================
+Phase 2: Standard Evaluation (no TTT)
+======================================================================
+Pre-TTT BPB: 1.5188 | Loss: 3.8637
+
+======================================================================
+Phase 3: LoRA TTT Evaluation (rank=8, 1 GPUs)
+======================================================================
+  GPU 0: Doc 20/200 | BPB 1.1311
+  GPU 0: Doc 40/200 | BPB 1.1051
+  GPU 0: Doc 60/200 | BPB 1.1068
+  GPU 0: Doc 80/200 | BPB 1.1074
+  GPU 0: Doc 100/200 | BPB 1.1075
+  GPU 0: Doc 120/200 | BPB 1.0970
+  GPU 0: Doc 140/200 | BPB 1.1037
+  GPU 0: Doc 160/200 | BPB 1.1055
+  GPU 0: Doc 180/200 | BPB 1.1093
+  GPU 0: Doc 200/200 | BPB 1.1070
+
+======================================================================
+🏆 FINAL RESULTS
+======================================================================
+  Model:        XSA + QAT, 11 layers, dim=416
+  Training:     5000 steps, 538s
+  Parameters:   20.55M
+  Model Size:   14.41 MB (compressed)
+
+  Pre-TTT BPB:  1.5188
+  Post-TTT BPB: 1.1070
+  Improvement:  27.12%
+
+  TTT Time:     166s (200 docs on 1 GPUs)
+  Total Time:   704s
+  Time Limit:   600s
+  Status:       ⚠️ OVER TIME
+======================================================================
+
+💾 Saved:
+   Checkpoint: /data/checkpoints/submission_bpb1.1070.pt
+   Artifact:   /data/checkpoints/artifact_bpb1.1070.zst
+
+🏁 Final BPB: 1.1070
+📦 Size: 14.41 MB
+⏱️ Time: 704s
+Status: NEEDS_FIX
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/elarweis/main/ap-HupjYhLSUdv8nFzOIKWAfN
