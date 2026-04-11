@@ -644,6 +644,19 @@ class Block(nn.Module):
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
+class RMSNormNoWeight(nn.Module):
+    """
+    A simplified RMSNorm that doesn't use any learnable weight parameters.
+    Saves space in Parameter Golf!
+    """
+    def __init__(self, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, x):
+        # Calculate RMS (root mean square)
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x * rms
 
 class GPT(nn.Module):
     def __init__(
