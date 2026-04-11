@@ -189,10 +189,19 @@ def main():
                 env_overrides={"USE_RANDOM_ADAPTERS": "0", "MLP_MULT": "3"},
                 log_name="run_standard.log")])
 
-            # Run 2: Random adapters r256, EMA auto-disabled in code
-            print(f"\n=== Run 2: Random Adapters r256 ({gpu_count}x H100, 10 min) ===")
+            # Run 2: Random adapters r304 + MLP=3 + AdamW TTT
+            print(f"\n=== Run 2: Random Adapters r304 ({gpu_count}x H100, 10 min) ===")
             ssh.run_commands([build_train_script(gpu_count,
-                env_overrides={"USE_RANDOM_ADAPTERS": "1", "ADAPTER_RANK": "256"},
+                env_overrides={
+                    "USE_RANDOM_ADAPTERS": "1",
+                    "ADAPTER_RANK": "304",
+                    "MLP_MULT": "3",
+                    "TTT_ENABLED": "1",
+                    "TTT_OPTIMIZER": "adamw",
+                    "TTT_LR": "0.0005",
+                    "TTT_EPOCHS": "3",
+                    "GPTQ_RESERVE_SECONDS": "8",
+                },
                 log_name="run_adapters.log")])
 
             # 5. Download results
