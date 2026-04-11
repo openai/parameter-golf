@@ -1,0 +1,9 @@
+{
+  "name": "JEPA-LM: Joint Embedding Predictive Architecture for Text Compression",
+  "val_bpb": 1.3355,
+  "bytes_total": 16487707,
+  "blurb": "First JEPA for text compression. Reinterprets U-Net transformer as encoder-decoder with 256-dim latent space, next-position predictor (MSE), and SIGReg anti-collapse regularizer. Loss: CE + 0.1*JEPA_MSE + 0.03*SIGReg. LeakyReLU(0.5)^2 activation. 19M params, 10L/512d. Novel architecture contribution - JEPA components add only ~131K params with zero eval overhead.",
+  "author": "Daniel Nobrega Medeiros",
+  "github_id": "danielxmed",
+  "date": "2026-03-29"
+}
