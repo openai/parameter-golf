@@ -25,6 +25,10 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
+# Make the submission self-contained regardless of eval-harness CWD: the
+# sibling `swarm_agents.py` lives next to this file but isn't on sys.path
+# when the harness runs `python records/.../train_gpt.py` from repo root.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from swarm_agents import BackoffNgramMixer
 INT8_CLIP_Q = 0.9999984
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
