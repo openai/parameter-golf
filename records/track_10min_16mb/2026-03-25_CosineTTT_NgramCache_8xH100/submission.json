@@ -1,0 +1,11 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "Cosine TTT + Multi-Order N-gram Cache",
+  "blurb": "Two-phase eval: 20-epoch cosine TTT recovery, then sliding-window eval with multi-order n-gram backoff (2-5gram) and entropy-adaptive interpolation. 3-seed mean val_bpb=0.9850.",
+  "date": "2026-03-25T12:00:00Z",
+  "val_loss": 1.66,
+  "val_bpb": 0.9850,
+  "bytes_total": 15621761,
+  "bytes_code": 71793
+}
