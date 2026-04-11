@@ -27,7 +27,11 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    HAS_FLASH_ATTN = True
+except ImportError:
+    HAS_FLASH_ATTN = False
 
 
 # -----------------------------------------------------------------------------
@@ -465,9 +469,14 @@ class Rotary(nn.Module):
                 inv_freq = self.inv_freq.to(device)
             t = torch.arange(seq_len, device=device, dtype=inv_freq.dtype)
             freqs = torch.outer(t, inv_freq)
-            # Shape for flash_attn (B, T, H, D) format: (1, T, 1, rope_dims/2)
-            self._cos_cached = freqs.cos()[None, :, None, :]
-            self._sin_cached = freqs.sin()[None, :, None, :]
+            if HAS_FLASH_ATTN:
+                # (1, T, 1, rope_dims/2) for flash_attn (B, T, H, D)
+                self._cos_cached = freqs.cos()[None, :, None, :]
+                self._sin_cached = freqs.sin()[None, :, None, :]
+            else:
+                # (1, 1, T, rope_dims/2) for SDPA (B, H, T, D)
+                self._cos_cached = freqs.cos()[None, None, :, :]
+                self._sin_cached = freqs.sin()[None, None, :, :]
             self._seq_len_cached = seq_len
         return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
 
@@ -524,24 +533,41 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x):
         bsz, seqlen, dim = x.shape
-        # flash_attn uses (B, T, H, D) format — no transpose needed
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin, self.rope_dims)
-        k = apply_rotary_emb(k, cos, sin, self.rope_dims)
-        q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-
-        y = flash_attn_3_func(q, k, v, causal=True)
-
-        if self.use_xsa:
-            y = self._xsa_efficient(y, v)
-
-        y = y.reshape(bsz, seqlen, dim)
+        if HAS_FLASH_ATTN:
+            # flash_attn uses (B, T, H, D) format
+            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+            q = F.rms_norm(q, (q.size(-1),))
+            k = F.rms_norm(k, (k.size(-1),))
+            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+            k = apply_rotary_emb(k, cos, sin, self.rope_dims)
+            q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+            y = flash_attn_3_func(q, k, v, causal=True)
+            if self.use_xsa:
+                y = self._xsa_efficient(y, v)
+            y = y.reshape(bsz, seqlen, dim)
+        else:
+            # SDPA fallback uses (B, H, T, D) format
+            q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+            k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+            v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+            q = F.rms_norm(q, (q.size(-1),))
+            k = F.rms_norm(k, (k.size(-1),))
+            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+            k = apply_rotary_emb(k, cos, sin, self.rope_dims)
+            q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+            y = F.scaled_dot_product_attention(q, k, v, is_causal=True,
+                                               enable_gqa=(self.num_kv_heads != self.num_heads))
+            if self.use_xsa:
+                # Transpose to (B,T,H,D) for XSA, then back
+                y = y.transpose(1, 2)
+                v_bthd = v.transpose(1, 2)
+                y = self._xsa_efficient(y, v_bthd)
+                y = y.transpose(1, 2)
+            y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
