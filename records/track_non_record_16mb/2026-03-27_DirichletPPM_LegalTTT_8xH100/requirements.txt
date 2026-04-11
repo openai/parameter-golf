@@ -1,0 +1,7 @@
+# Preserve the image-provided torch stack on cloud PyTorch images.
+# Install FlashAttention against that existing torch/CUDA stack.
+numpy
+sentencepiece
+typing-extensions==4.15.0
+zstandard
+flash-attn

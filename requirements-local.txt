@@ -1,0 +1,3 @@
+# Self-managed local stack: installs torch in addition to common repo deps.
+-r requirements-common.txt
+torch
