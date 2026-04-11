@@ -1,5 +1,6 @@
 data/tokenizers
 __pycache__/
+*.pyc
 .DS_Store
 modded-nanogpt/
 modded-nanogpt
@@ -9,3 +10,5 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+.codex
+.python-version
