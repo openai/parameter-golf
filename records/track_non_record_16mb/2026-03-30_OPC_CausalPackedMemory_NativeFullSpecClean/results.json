@@ -1,0 +1,24 @@
+{
+  "run_id": "opc_native_tokens100000000_62021846",
+  "pre_quant_val_bpb": 2.48898442865273,
+  "val_bpb": 2.48898442865273,
+  "test_bits_per_token": 6.062992566022187,
+  "test_eval_loss": 4.202546202894187,
+  "train_bits_per_token": 6.0696419226081915,
+  "train_time_sec": 52.381125042,
+  "train_tokens": 100000000,
+  "eval_tokens": 62021846,
+  "eval_bytes_per_token": 2.4359302919801884,
+  "checkpoint_format": "compressed_npz_artifact",
+  "checkpoint_bytes_raw_npz": 2705939,
+  "bytes_model_int6_zlib": 2705939,
+  "unigram_bits_per_token": 8.649563865337807,
+  "bigram_bits_per_token": 6.090255597305575,
+  "trigram_bits_per_token": 7.22427841818739,
+  "mixture_weights": [
+    0.0,
+    0.9,
+    0.1
+  ],
+  "bytes_total": 6146877
+}

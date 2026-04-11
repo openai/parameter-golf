@@ -1,0 +1,2264 @@
+{
+  "profile": "parameter-golf",
+  "adapter": {
+    "adapter": "OpcNativeDetectAdapter",
+    "artifact_path": "model_artifact.npz",
+    "vocab_size": 1024,
+    "notes": "opc-native packed-memory replay adapter for legality and replay scans.",
+    "vocab_size_source": "explicit"
+  },
+  "token_count": 131072,
+  "audited_token_count": 65536,
+  "chunk_size": 8192,
+  "chunk_count": 8,
+  "max_chunks": 8,
+  "selected_chunks": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "vocab_size_source": "explicit",
+  "trace_fields_present": [
+    "counted",
+    "gold_logprobs",
+    "loss_nats",
+    "path_ids",
+    "state_hash_after",
+    "state_hash_before",
+    "weights"
+  ],
+  "tolerances": {
+    "atol": 1e-07,
+    "rtol": 1e-07
+  },
+  "trust": {
+    "requested": "strict",
+    "achieved": "strict",
+    "satisfied": true,
+    "requirements": {
+      "basic": [
+        {
+          "name": "normalization",
+          "satisfied": true,
+          "detail": "sampled prediction vectors are normalized and shape-checked"
+        },
+        {
+          "name": "repeatability",
+          "satisfied": true,
+          "detail": "repeat scoring from the same snapshot is numerically stable"
+        },
+        {
+          "name": "future_suffix_invariance",
+          "satisfied": true,
+          "detail": "sampled positions do not change when later suffix tokens are perturbed"
+        },
+        {
+          "name": "answer_mask_invariance",
+          "satisfied": true,
+          "detail": "sampled positions do not change when the scored token and later suffix are perturbed"
+        }
+      ],
+      "traced": [
+        {
+          "name": "explicit_vocab_size",
+          "satisfied": true,
+          "detail": "the legality run declared the official vocabulary size explicitly"
+        },
+        {
+          "name": "trace_fields.gold_logprobs/loss_nats/weights/counted/path_ids",
+          "satisfied": true,
+          "detail": "the adapter exposed enough trace fields to audit gold scores, accounting, and path metadata"
+        },
+        {
+          "name": "gold_logprob_consistency",
+          "satisfied": true,
+          "detail": "reported gold-token logprobs match the returned full distributions"
+        },
+        {
+          "name": "accounting_contribution_consistency",
+          "satisfied": true,
+          "detail": "reported loss contributions match the returned distributions and trace metadata"
+        },
+        {
+          "name": "accounting_path_invariance",
+          "satisfied": true,
+          "detail": "trace-backed path metadata is stable under sampled suffix and answer perturbations"
+        }
+      ],
+      "strict": [
+        {
+          "name": "trace_fields.state_hash_before/state_hash_after",
+          "satisfied": true,
+          "detail": "the adapter exposed state hashes around score-time evaluation"
+        },
+        {
+          "name": "state_hash_consistency",
+          "satisfied": true,
+          "detail": "repeated scoring from the same snapshot preserves score-time state hashes"
+        }
+      ]
+    },
+    "missing": [],
+    "notes": [
+      "trust levels score the exposed adapter surface only",
+      "they do not cover provenance, train/eval contamination, or cross-run outcome selection"
+    ]
+  },
+  "obligations": {
+    "prefix_causal_distribution": {
+      "status": "partially_covered",
+      "checked_by": [
+        "repeatability",
+        "future_suffix_invariance",
+        "answer_mask_invariance"
+      ],
+      "notes": [
+        "sampled probes test same-position and suffix dependence within chosen chunks",
+        "this is a strong diagnostic but not an exhaustive proof over every position and run state"
+      ]
+    },
+    "full_normalized_distribution_over_official_alphabet": {
+      "status": "partially_covered",
+      "checked_by": [
+        "normalization"
+      ],
+      "notes": [
+        "sampled positions must return a non-negative 1D distribution that sums to 1",
+        "full-alphabet shape checks use the explicit --vocab-size boundary"
+      ]
+    },
+    "score_accounting_independent_of_answer": {
+      "status": "partially_covered",
+      "checked_by": [
+        "gold_logprob_consistency",
+        "accounting_contribution_consistency",
+        "accounting_path_invariance"
+      ],
+      "notes": [
+        "sampled positions compare the adapter's reported gold-token logprob against the returned full distribution",
+        "trace-aware runs also compare additive loss, weights, counted flags, and path metadata against the returned distribution",
+        "it still does not prove all answer-dependent bookkeeping is absent"
+      ]
+    },
+    "no_outcome_selection_across_validation_runs": {
+      "status": "out_of_scope",
+      "checked_by": [],
+      "notes": [
+        "the current runtime audit evaluates one declared run; it does not prove the submitted score was not chosen as best-of-k after observing outcomes"
+      ]
+    }
+  },
+  "checks": {
+    "normalization": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 3.3306690738754696e-16,
+      "covered": true,
+      "pass": true
+    },
+    "trace_coverage": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "repeatability": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "future_suffix_invariance": {
+      "probe_count": 16,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "answer_mask_invariance": {
+      "probe_count": 16,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "gold_logprob_consistency": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "accounting_contribution_consistency": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "accounting_path_invariance": {
+      "probe_count": 32,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    },
+    "state_hash_consistency": {
+      "probe_count": 8,
+      "failure_count": 0,
+      "max_abs_diff": 0.0,
+      "covered": true,
+      "pass": true
+    }
+  },
+  "probes": [
+    {
+      "kind": "normalization",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 0.0,
+      "min_value": 6.031134047998613e-10
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "positions": [
+        371,
+        1331,
+        1519,
+        2304,
+        2670,
+        3083,
+        3095,
+        5185,
+        5622,
+        7100
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "cutoff": 6685,
+      "positions": [
+        1331,
+        2304,
+        2670,
+        3083
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "cutoff": 6685,
+      "positions": [
+        1331,
+        2304,
+        2670,
+        3083
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "cutoff": 6540,
+      "positions": [
+        1519,
+        3095,
+        5185,
+        5622
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "cutoff": 6540,
+      "positions": [
+        1519,
+        3095,
+        5185,
+        5622
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "position": 371,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "position": 371,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "position": 7100,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "position": 7100,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 2.220446049250313e-16,
+      "min_value": 1.6220236059799369e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "positions": [
+        515,
+        549,
+        724,
+        1015,
+        1029,
+        3344,
+        4559,
+        5092,
+        7126,
+        7747
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "cutoff": 1218,
+      "positions": [
+        549,
+        724,
+        1015,
+        1029
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "cutoff": 1218,
+      "positions": [
+        549,
+        724,
+        1015,
+        1029
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "cutoff": 6849,
+      "positions": [
+        515,
+        3344,
+        4559,
+        5092
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "cutoff": 6849,
+      "positions": [
+        515,
+        3344,
+        4559,
+        5092
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "position": 7126,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "position": 7126,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "position": 7747,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "position": 7747,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 2.220446049250313e-16,
+      "min_value": 1.3434586303083768e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "positions": [
+        1750,
+        1881,
+        2161,
+        2333,
+        3059,
+        3802,
+        3970,
+        4655,
+        5197,
+        5780
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "cutoff": 4890,
+      "positions": [
+        2161,
+        2333,
+        3802,
+        3970
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "cutoff": 4890,
+      "positions": [
+        2161,
+        2333,
+        3802,
+        3970
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "cutoff": 7749,
+      "positions": [
+        1750,
+        1881,
+        3059,
+        4655
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "cutoff": 7749,
+      "positions": [
+        1750,
+        1881,
+        3059,
+        4655
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "position": 5197,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "position": 5197,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "position": 5780,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "position": 5780,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 2.220446049250313e-16,
+      "min_value": 1.4438746191395938e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "positions": [
+        36,
+        364,
+        664,
+        726,
+        826,
+        1057,
+        1174,
+        1601,
+        2673,
+        5485
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "cutoff": 3634,
+      "positions": [
+        664,
+        826,
+        1174,
+        2673
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "cutoff": 3634,
+      "positions": [
+        664,
+        826,
+        1174,
+        2673
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "cutoff": 1258,
+      "positions": [
+        36,
+        364,
+        726,
+        1057
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "cutoff": 1258,
+      "positions": [
+        36,
+        364,
+        726,
+        1057
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "position": 1601,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "position": 1601,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "position": 5485,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "position": 5485,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 3.3306690738754696e-16,
+      "min_value": 5.917248948702838e-10
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "positions": [
+        63,
+        73,
+        101,
+        761,
+        887,
+        2848,
+        2881,
+        3520,
+        3953,
+        6164
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "cutoff": 1032,
+      "positions": [
+        63,
+        73,
+        761,
+        887
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "cutoff": 1032,
+      "positions": [
+        63,
+        73,
+        761,
+        887
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "cutoff": 6429,
+      "positions": [
+        2848,
+        2881,
+        3520,
+        6164
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "cutoff": 6429,
+      "positions": [
+        2848,
+        2881,
+        3520,
+        6164
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "position": 101,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "position": 101,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "position": 3953,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "position": 3953,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 2.220446049250313e-16,
+      "min_value": 1.7938424598829302e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "positions": [
+        143,
+        239,
+        244,
+        825,
+        3116,
+        3763,
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "cutoff": 1012,
+      "positions": [
+        143,
+        239,
+        244,
+        825
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "cutoff": 1012,
+      "positions": [
+        143,
+        239,
+        244,
+        825
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "cutoff": 7884,
+      "positions": [
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "cutoff": 7884,
+      "positions": [
+        3871,
+        4527,
+        5400,
+        5450
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "position": 3116,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "position": 3116,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "position": 3763,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "position": 3763,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 2.220446049250313e-16,
+      "min_value": 1.4684905227496776e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "positions": [
+        154,
+        258,
+        307,
+        554,
+        673,
+        711,
+        1400,
+        3940,
+        4535,
+        6489
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "cutoff": 6554,
+      "positions": [
+        154,
+        711,
+        1400,
+        4535
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "cutoff": 6554,
+      "positions": [
+        154,
+        711,
+        1400,
+        4535
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "cutoff": 1458,
+      "positions": [
+        258,
+        307,
+        554,
+        673
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "cutoff": 1458,
+      "positions": [
+        258,
+        307,
+        554,
+        673
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "position": 3940,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "position": 3940,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "position": 6489,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "position": 6489,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "normalization",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "expected_vocab_size": 1024,
+      "vocab_size_source": "explicit",
+      "wrong_length_count": 0,
+      "observed_sizes": [
+        1024
+      ],
+      "max_abs_diff": 1.1102230246251565e-16,
+      "min_value": 1.1918842661620083e-09
+    },
+    {
+      "kind": "trace_coverage",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0,
+      "present_fields": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "missing_accounting_fields": []
+    },
+    {
+      "kind": "gold_logprob_consistency",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "missing_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_contribution_consistency",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "state_hash_consistency",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "compared_fields": [
+        "state_hash_before",
+        "state_hash_after"
+      ],
+      "mismatch_count": 0,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "repeatability",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "positions": [
+        33,
+        95,
+        109,
+        445,
+        448,
+        594,
+        2322,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "cutoff": 470,
+      "positions": [
+        95,
+        109,
+        445,
+        448
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "cutoff": 470,
+      "positions": [
+        95,
+        109,
+        445,
+        448
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "future_suffix_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "cutoff": 3922,
+      "positions": [
+        594,
+        3554,
+        3648,
+        3776
+      ],
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "cutoff": 3922,
+      "positions": [
+        594,
+        3554,
+        3648,
+        3776
+      ],
+      "probe_family": "future_suffix",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "position": 33,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "position": 33,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "answer_mask_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "position": 2322,
+      "pass": true,
+      "shape_mismatch": false,
+      "max_abs_diff": 0.0
+    },
+    {
+      "kind": "accounting_path_invariance",
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "position": 2322,
+      "probe_family": "answer_mask",
+      "pass": true,
+      "compared_fields": [
+        "weights",
+        "counted",
+        "path_ids"
+      ],
+      "max_abs_diff": 0.0
+    }
+  ],
+  "alerts": []
+}
