@@ -50,7 +50,7 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 20000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 200))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
@@ -982,6 +982,10 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
+    def _run_block(self, block: Block, x: Tensor, x0: Tensor, parallel: bool) -> Tensor:
+        """Wrapper for block forward, used as checkpoint target."""
+        return block(x, x0, parallel=parallel)
+
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.emb_up is not None:
@@ -995,12 +999,29 @@ class GPT(nn.Module):
         n_dec = n_passes - n_enc
         n_skip = min(n_enc, n_dec, self.num_skip_weights)
 
+        # Track which layer indices are recurred (appear more than once)
+        _seen: set[int] = set()
+        _recurred_passes: set[int] = set()
+        if self.recur_active:
+            for pi, li in enumerate(schedule):
+                if li in _seen:
+                    _recurred_passes.add(pi)
+                _seen.add(li)
+
         skips: list[Tensor] = []
         for pass_idx, layer_idx in enumerate(schedule):
             if self.depth_emb is not None and pass_idx < self.depth_emb.weight.size(0):
                 x = x + self.depth_emb.weight[pass_idx][None, None, :]
             is_parallel = layer_idx >= self.parallel_start_layer
-            x = self.blocks[layer_idx](x, x0, parallel=is_parallel)
+
+            # Gradient checkpoint recurred passes to save memory
+            if self.training and pass_idx in _recurred_passes:
+                x = torch.utils.checkpoint.checkpoint(
+                    self._run_block, self.blocks[layer_idx], x, x0, is_parallel,
+                    use_reentrant=False,
+                )
+            else:
+                x = self.blocks[layer_idx](x, x0, parallel=is_parallel)
 
             if pass_idx < n_enc:
                 skips.append(x)
@@ -1335,6 +1356,12 @@ def main() -> None:
         # Activate depth recurrence at the configured step
         if recur_layers and step == recur_start_step:
             base_model.set_recurrence(True)
+            # Force recompilation with the new forward path
+            compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+            if distributed:
+                model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
+            else:
+                model = compiled_model
             log0(f"depth_recurrence_activated at step:{step} layers:{recur_layers}")
 
         # Training step
