@@ -1,0 +1,9 @@
+# Seed 42 - 8xH100 SXM RunPod (extracted from session transcript, full log lost when pod terminated)
+# Config: bigram_dim=160, prune_frac=0.10, bigram_vocab=10240, WD=0.04, SWA start_frac=0.5
+# Run date: 2026-03-23
+
+Serialized model: 99158315 bytes
+Code size: 52930 bytes
+Serialized model int6+zstd: 15846081 bytes
+Total submission size int8+zlib: 15899011 bytes
+final_int8_zlib_roundtrip_exact val_loss:1.94149072 val_bpb:1.14986321
