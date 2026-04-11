@@ -1,0 +1,9 @@
+{
+  "name": "Depth-Recurrent UT + Rank-1 LoRA Per-Iteration Adaptation",
+  "val_bpb": 1.3342,
+  "bytes_total": 11385022,
+  "blurb": "Universal Transformer (1 prelude + 4 shared x 3 loops + 1 coda = 14 effective layers from 6 unique blocks) at 640d with rank-1 LoRA per-iteration adaptation. Each loop iteration gets a unique weight modification via an outer product of two learned vectors stored on AdamW. This is the first stable per-iteration adaptation for recurrent transformers — rank-8 LoRA diverges due to Muon NS5 scale factor asymmetry on rectangular matrices. Output-LN, Birkhoff mixing, timestep scaling, noisy QAT. Artifact 11.3 MB.",
+  "author": "Vilhelm Toivonen",
+  "github_id": "vimeto",
+  "date": "2026-03-30"
+}
