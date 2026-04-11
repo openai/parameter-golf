@@ -1,0 +1,14 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-04",
+  "name": "Gaussian Per-Token Loss Reweighting: A Negative Result",
+  "author": "Julian Tang",
+  "github_id": "JulianTang2027",
+  "val_bpb_baseline": 1.14416008,
+  "val_bpb_sigma2": 1.15847054,
+  "delta_bpb": 0.01431046,
+  "bytes_total_baseline": 16050780,
+  "bytes_total_sigma2": 15976011,
+  "base_submission": "PR #180 by thwu1 — 10L Int5-MLP + BigramHash(10240) + SWA(0.4) + WD=0.04",
+  "blurb": "Tests whether Gaussian per-token loss reweighting (focus training on tokens whose loss is near the batch mean) helps in the 16MB/10min setting. Single-hyperparameter addition (TOKEN_WEIGHT_SIGMA=2.0) to PR #180. Training-time weighted val_loss looks much better (1.0182 vs 1.1542 at step 6500), but final unweighted sliding-window BPB regresses by +0.0143 (1.1585 vs 1.1442). The weighted-loss improvement is an artifact of optimizing a different objective than the metric measures — a concrete cautionary tale for anyone tempted by per-token loss shaping."
+}
