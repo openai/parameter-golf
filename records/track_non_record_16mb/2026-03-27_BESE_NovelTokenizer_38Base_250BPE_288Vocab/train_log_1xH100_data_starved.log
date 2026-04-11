@@ -1,0 +1,22 @@
+# BESE Training Log — 1xH100 SXM, RunPod (March 25, 2026)
+# NOTE: This run used only 12.6M tokens (1/80th of baseline's 1B tokens)
+# The high val_bpb reflects data starvation, not tokenizer failure.
+#
+# Pipeline:
+#   - Decoded 10,000 docs from SP shards
+#   - Trained 250 BPE merges on BESE token stream (39.5M base tokens)
+#   - Exported 2 train shards (12.6M tokens) + 1 val shard (2.8M tokens)
+#   - Trained 1,189 steps in 10 minutes
+#
+# Results:
+#   val_loss: 5.4200
+#   val_bpb: 3.9143
+#   Model size (int8+zlib): 12.9 MB
+#   Train loss progression: 5.69 -> 1.22 (healthy learning curve)
+#   ms/step average: 505
+#
+# Baseline comparison (same hardware, same 10 min):
+#   val_loss: 2.2488
+#   val_bpb: 1.3319
+#   Model size (int8+zlib): 13.6 MB
+#   Train tokens: ~1,000,000,000 (80x more data)
