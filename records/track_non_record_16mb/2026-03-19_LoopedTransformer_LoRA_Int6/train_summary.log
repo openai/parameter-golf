@@ -1,0 +1,38 @@
+# Looped Transformer + LoRA Training Summary
+# Hardware: 1xH100 80GB HBM3 (RunPod)
+# Note: Detailed step logs not preserved (pod terminated to save costs)
+# These are the key metrics from 3 development runs.
+
+=== Run 1: Smoke Test ===
+Config: MODEL_DIM=384 UNIQUE_LAYERS=3 VIRTUAL_DEPTH=9 LORA_RANK=4 EXPORT_BITS=4
+Training time: 64.6s
+Tokens processed: ~6.7M
+val_bpb (pre-quant): 2.26
+val_bpb (int4 roundtrip): 2.28
+Artifact size: 1,960,000 bytes
+
+=== Run 2: Scaled Up ===
+Config: MODEL_DIM=768 UNIQUE_LAYERS=5 VIRTUAL_DEPTH=25 LORA_RANK=4 TRAIN_BATCH_TOKENS=65536 EXPORT_BITS=4
+Training time: 600s (wallclock cap)
+Tokens processed: ~59M
+val_bpb (pre-quant): 1.57
+val_bpb (int4 roundtrip): 1.78
+Artifact size: 8,560,000 bytes
+Note: Large quant gap (0.21) due to int4 without outlier protection
+
+=== Run 3: Improved (Best Result) ===
+Config: MODEL_DIM=768 UNIQUE_LAYERS=5 VIRTUAL_DEPTH=25 LORA_RANK=4 TRAIN_BATCH_TOKENS=524288 EXPORT_BITS=4
+Training time: 600s (wallclock cap)
+Tokens processed: ~203M
+Step time: ~1427ms (torch.compile fullgraph=False)
+val_bpb (pre-quant): 1.50
+val_bpb (int4 roundtrip): 1.60
+Artifact size: 8,880,000 bytes
+Note: Added outlier protection (top 1% rows in fp16), cut quant gap from 0.21 to 0.10
+
+=== Key Observations ===
+- Looped architecture works: Run 2→3 showed quality improves with more tokens, architecture is not the bottleneck
+- Main bottleneck is data throughput: 203M tokens vs baseline's 7.2B (35x less)
+- torch.compile fullgraph=True broken (graph breaks from LoRA routing), fullgraph=False gives 1427ms/step vs baseline 43ms/step
+- Int4 quantization too aggressive; switching to int6 for this submission
+- 8xH100 projection: ~1.77B tokens, estimated ~1.20 BPB
