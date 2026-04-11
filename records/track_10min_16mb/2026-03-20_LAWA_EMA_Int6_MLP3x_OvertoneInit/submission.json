@@ -1,0 +1,18 @@
+{
+  "author": "Alex Machado",
+  "github_id": "machdragon",
+  "name": "11-Layer Int6 + LAWA-EMA + Overtone Init + FA3",
+  "blurb": "PR #198 base (11L, int6 per-row MLP+attn, int8 tok_emb, zstd-22, WD=0.04, MLP 3x relu², FA3, SmearGate, BigramHash 2048x128, OrthoInit, U-Net skips, GQA 8/4, seq=2048 NTK RoPE) with SWA replaced by LAWA-EMA (decay=0.995, float32 shadow, every-step update) and Overtone init (SVD power-law embedding spectrum). Sliding window eval stride=64.",
+  "date": "2026-03-20T18:51:00Z",
+  "val_loss": 1.95035169,
+  "val_bpb": 1.15510813,
+  "pre_quant_val_loss": 1.9624,
+  "pre_quant_val_bpb": 1.1622,
+  "int6_roundtrip_val_loss": 1.98875174,
+  "int6_roundtrip_val_bpb": 1.17785080,
+  "int6_sliding_val_loss": 1.95035169,
+  "int6_sliding_val_bpb": 1.15510813,
+  "bytes_total": 12704897,
+  "bytes_model_int6_zstd": 12639639,
+  "bytes_code": 65258
+}
