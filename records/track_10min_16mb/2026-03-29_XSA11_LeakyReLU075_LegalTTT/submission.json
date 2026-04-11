@@ -1,0 +1,9 @@
+{
+  "name": "XSA-All + LeakyReLU(0.75)\u00b2 + Aggressive Legal TTT",
+  "val_bpb": 1.1219,
+  "bytes_total": 15916230,
+  "blurb": "XSA extended to all 11 layers (-0.0007 BPB), LeakyReLU(0.75)\u00b2 activation (PR #977), and aggressive legal score-first TTT (lr=0.03, 15\u00d7 higher than SOTA, -0.0033 BPB gain). Built on PR #414 stack with Parameter Banking + Parallel Muon. SDPA fallback included for environments without Flash Attention 3. Single seed: 1.1219 BPB, artifact 15.92MB.",
+  "author": "Teddy Oweh",
+  "github_id": "teddyoweh",
+  "date": "2026-03-29"
+}
