@@ -1,0 +1,14 @@
+{
+  "author": "pzydron",
+  "github_id": "Okropniak",
+  "name": "12L dim=448 LeakyReLU\u00b2 BGVOCAB=2048 \u2014 GH200 MIG proxy",
+  "blurb": "Proxy-scale submission (GH200 MIG 1g.24gb, 5k steps). 12-layer 448-dim GQA+XSA transformer with MLP\u00d73, Bigram-2048+1024dim bypass, LeakyReLU\u00b2 (slope=0.1), EMA=0.995, Optuna v1 TPE hyperparams. val_bpb=1.23263493 (int6+zstd-22, stride=64, 15.58MB). Not a SOTA record \u2014 proxy hardware. Requesting H100 access for full competition run.",
+  "date": "2026-04-02",
+  "track": "non_record_16mb",
+  "val_loss": 1.8071,
+  "val_bpb": 1.23263493,
+  "bytes_total": 15582679,
+  "bytes_code": 70494,
+  "hardware": "GH200 MIG 1g.24gb (proxy \u2014 not 8\u00d7H100)",
+  "technique_summary": "12-layer 448-dim GQA+XSA, MLP\u00d73, Bigram-2048+1024dim, LeakyReLU\u00b2, EMA=0.995, int6+zstd-22"
+}
