@@ -1,0 +1,17 @@
+{
+  "submission_name": "Hymba-LongContext",
+  "description": "Hybrid Mamba+SWA architecture enabling 32K context training at the same per-step cost as 1K, with score-first TTT evaluation",
+  "track": "10min_16mb",
+  "train_script": "train_gpt.py",
+  "seeds": [1337, 42, 7],
+  "results": {
+    "1337": {"val_bpb": 1.1866, "val_loss": 2.0036, "steps": 7334, "artifact_bytes": 14290148, "eval_time_s": 74.0},
+    "42": {"val_bpb": 1.1881, "val_loss": 2.0061, "steps": 7139, "artifact_bytes": 14555318, "eval_time_s": 66.7},
+    "7": {"val_bpb": 1.1873, "val_loss": 2.0048, "steps": 7176, "artifact_bytes": 14397340, "eval_time_s": 66.6}
+  },
+  "mean_val_bpb": 1.1873,
+  "std_val_bpb": 0.0008,
+  "hardware": "8xH100 SXM 80GB",
+  "training_time_s": 600,
+  "dependencies": ["mamba-ssm", "causal-conv1d", "zstandard"]
+}
