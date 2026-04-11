@@ -1,6 +1,6 @@
 # Record: SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT + Asynchronous Data Loader
 
-**val_bpb = 1.0803** (3-seed mean, std 0.0002) | **~15.99 MB** | 8xH100 SXM
+**val_bpb = 1.0803** (2-seed mean, std 0.0001) | **~15.99 MB** | 8xH100 SXM
 
 ## 2-Seed Results
 
