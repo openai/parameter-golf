@@ -52,7 +52,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -366,6 +366,15 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["num_nonfloat_tensors"] += 1
             passthrough[name] = t
             stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+
+        # Keep tied embedding in FP16 — it serves double duty as input lookup
+        # and output projection, so int8 errors compound through both paths.
+        if "tok_emb.weight" in name:
+            kept = t.to(dtype=torch.float16).contiguous()
+            passthrough[name] = kept
+            passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
             continue
 
         # Small float tensors are cheap enough to keep directly. We still downcast
@@ -862,10 +871,11 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
+    optimizer_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=0.01,
         fused=True,
     )
     optimizer_muon = Muon(
@@ -876,10 +886,11 @@ def main() -> None:
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
+    optimizer_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
+        weight_decay=0.01,
         fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
