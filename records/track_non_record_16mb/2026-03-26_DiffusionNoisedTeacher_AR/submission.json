@@ -1,0 +1,25 @@
+{
+    "name": "Diffusion Noised Teacher Forcing",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-03-26",
+    "track": "non_record_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "seed_results": {
+        "1337": {
+            "val_loss": 2.15000245,
+            "val_bpb": 1.27335256,
+            "steps": 3227,
+            "ms_per_step": 185.97
+        }
+    },
+    "val_loss": 2.15000245,
+    "val_bpb": 1.27335256,
+    "training_time_seconds": 600,
+    "bytes_total": 15796037,
+    "bytes_model_int8_zlib": 15731205,
+    "bytes_code": 64832,
+    "model_params": 17059912,
+    "blurb": "Non-record: standard AR transformer with diffusion-inspired auxiliary loss. Input tokens are progressively corrupted (5-35%) during training; model minimizes interpolated clean/noisy loss. Trains stably on 8xH100 for 600s, achieving 1.2734 val_bpb. Answers OpenAI's interest in diffusion approaches."
+}
