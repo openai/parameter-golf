@@ -1,0 +1,30 @@
+run_id:stacked_eval2048_best
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:20
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.06 scalar_lr:0.04
+train_batch_tokens:131072 train_seq_len:1024 eval_seq_len:2048 iterations:20000 warmup_steps:20 warmdown_iters:3000 max_wallclock_seconds:600.000 logit_softcap:15.0 muon_momentum:0.99
+seed:1337
+step:200/20000 train_loss:3.0476 train_time:39440ms step_avg:197.20ms
+step:400/20000 train_loss:2.8151 train_time:80889ms step_avg:202.22ms
+step:600/20000 train_loss:2.7099 train_time:122994ms step_avg:204.99ms
+step:800/20000 train_loss:2.5677 train_time:166172ms step_avg:207.71ms
+step:1000/20000 train_loss:2.4953 train_time:210308ms step_avg:210.31ms
+step:1200/20000 train_loss:2.4291 train_time:257005ms step_avg:214.17ms
+step:1400/20000 train_loss:2.4064 train_time:300137ms step_avg:214.38ms
+step:1600/20000 train_loss:2.2415 train_time:343208ms step_avg:214.50ms
+step:1800/20000 train_loss:2.4135 train_time:386269ms step_avg:214.59ms
+step:2000/20000 train_loss:2.4096 train_time:417807ms step_avg:208.90ms
+step:2200/20000 train_loss:2.1623 train_time:460728ms step_avg:209.42ms
+step:2400/20000 train_loss:2.3803 train_time:503929ms step_avg:209.97ms
+step:2600/20000 train_loss:2.1524 train_time:547612ms step_avg:210.62ms
+step:2800/20000 train_loss:2.4004 train_time:590680ms step_avg:210.96ms
+stopping_early: wallclock_cap train_time:600246ms step:2800/20000
+peak memory allocated: 2764 MiB reserved: 3200 MiB
+Serialized model int8+zlib: 15742808 bytes
+Total submission size int8+zlib: 15794837 bytes
+final_int8_zlib_roundtrip val_loss:2.2569 val_bpb:1.3358 eval_time:28000ms
+final_int8_zlib_roundtrip_exact val_loss:2.25686000 val_bpb:1.33577074
