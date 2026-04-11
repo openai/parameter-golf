@@ -38,7 +38,7 @@
     "Residual low-rank projection (I+AB, rank-32, 65K params) identified as promising alternative that avoids parameter loss"
   ],
   "attribution": {
-    "baseline": "@msisovic — ImprovedParallelResiduals",
+    "baseline": "ImprovedParallelResiduals",
     "sp8192_gptq": "@clarkkev (PR #1394)",
     "depth_recurrence": "@dexhunter (PR #1331, #1437)",
     "legal_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
