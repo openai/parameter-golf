@@ -1,0 +1,47 @@
+{
+  "author": "dttdrv",
+  "github_id": "dttdrv",
+  "name": "SP4096 + Linear LR Decay + Depth Recurrence + MuonEq-R",
+  "blurb": "11L SP4096 MLP-4x with linear warmdown to LR=0 (replacing cosine-to-0.05), depth recurrence on layers 4,5, parallel residuals from layer 7, QK-Gain 5.0, all-int6 GPTQ, Brotli-10. The LR schedule fix reduces the quantization gap by 61% (0.038 to 0.015 BPB) and pruning by 77%. 3-seed mean: 1.09244346 BPB. Welch t=-68.85 vs PR #1019.",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "val_bpb": 1.09244346,
+  "val_bpb_std": 0.00043499,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.09269834,
+      "val_loss": 2.51393353,
+      "artifact_bytes": 15987206,
+      "steps": 5410,
+      "step_avg_ms": 109.1
+    },
+    "314": {
+      "val_bpb": 1.09269085,
+      "val_loss": 2.51391630,
+      "artifact_bytes": 15989311,
+      "steps": 5409,
+      "step_avg_ms": 109.1
+    },
+    "999": {
+      "val_bpb": 1.09194120,
+      "val_loss": 2.51219162,
+      "artifact_bytes": 15988159,
+      "steps": 5408,
+      "step_avg_ms": 109.1
+    }
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_baseline_bpb": -0.02229163,
+  "t_statistic": -68.85,
+  "welch_df": 3.84,
+  "artifact_bytes_mean": 15988225,
+  "artifact_bytes_max": 15989311,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "flash_attn_version": "FA3 Hopper kernels",
+  "tokenizer": "SentencePiece BPE 4096 (trained on FineWeb)",
+  "compression": "Brotli quality=10",
+  "quantization": "Full Hessian GPTQ int6 per-row, 64 calibration batches",
+  "technique_summary": "SP4096 + Linear LR to zero + Depth Recurrence L4,5 + Parallel Residuals L7 + MuonEq-R + QK-Gain 5.0"
+}
