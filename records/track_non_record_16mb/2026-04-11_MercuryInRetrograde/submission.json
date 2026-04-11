@@ -1,0 +1,89 @@
+{
+  "author": "Simon Marcus",
+  "github_id": "simon-marcus",
+  "name": "Mercury in Retrograde",
+  "blurb": "Non-record text-diffusion submission: a compact Mercury-style denoising model with hybrid corruption, self-conditioning, continuation/infill parallel refinement metrics, and an intentionally documented negative result.",
+  "date": "2026-04-11",
+  "track": "non_record_16mb",
+  "non_record": true,
+  "val_loss": 2.45910030,
+  "val_bpb": 1.45641771,
+  "val_loss_std": 0.00620926,
+  "val_bpb_std": 0.00367747,
+  "bytes_total": 15677283,
+  "bytes_code": 83831,
+  "bytes_model_int8_zlib_max": 15593452,
+  "hardware": "8xH100 80GB SXM",
+  "seeds": [1337, 42, 2026],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.45349105,
+      "val_bpb": 1.45309560,
+      "artifact_bytes": 15677283,
+      "model_int8_zlib_bytes": 15593452,
+      "steps": 4628,
+      "step_avg_ms": 129.64
+    },
+    "42": {
+      "val_loss": 2.46577237,
+      "val_bpb": 1.46036929,
+      "artifact_bytes": 15531183,
+      "model_int8_zlib_bytes": 15447352,
+      "steps": 4912,
+      "step_avg_ms": 122.14
+    },
+    "2026": {
+      "val_loss": 2.45803749,
+      "val_bpb": 1.45578825,
+      "artifact_bytes": 15500938,
+      "model_int8_zlib_bytes": 15417107,
+      "steps": 4926,
+      "step_avg_ms": 121.82
+    }
+  },
+  "technique_summary": "Mercury-style compact text diffusion: progressive 25-35% hybrid corruption, mixed continuation/infill denoising, self-conditioning, small clean CE prior, and parallel refinement evaluation.",
+  "diffusion_recipe": {
+    "DIFFUSION_TRAIN_MODE": "mercury",
+    "DIFFUSION_CORRUPTION_MODE": "hybrid",
+    "DIFFUSION_HYBRID_MASK_PROB": 0.5,
+    "DIFFUSION_LOSS_WEIGHT": 1.0,
+    "DIFFUSION_PROGRESSIVE": 1,
+    "DIFFUSION_MIN_MASK_RATIO": 0.25,
+    "DIFFUSION_MAX_MASK_RATIO": 0.35,
+    "DIFFUSION_SPAN_LEN": 64,
+    "DIFFUSION_SPANS_PER_SEQ": 8,
+    "MERCURY_TASK_MODE": "mixed",
+    "MERCURY_CONTINUATION_PROB": 0.75,
+    "MERCURY_CLEAN_LOSS_WEIGHT": 0.10,
+    "MERCURY_SELF_CONDITION_PROB": 1.0,
+    "MERCURY_SELF_CONDITION_FRACTION": 0.75
+  },
+  "parallel_eval_mean": {
+    "continuation": {
+      "steps_1": {"token_acc": 0.0348, "tok_per_sec": 25123.81},
+      "steps_2": {"token_acc": 0.0345, "tok_per_sec": 36784.34},
+      "steps_4": {"token_acc": 0.0348, "tok_per_sec": 25990.89},
+      "steps_8": {"token_acc": 0.0355, "tok_per_sec": 13005.42}
+    },
+    "infill": {
+      "steps_1": {"token_acc": 0.0377, "tok_per_sec": 104971.51},
+      "steps_2": {"token_acc": 0.0384, "tok_per_sec": 52357.51},
+      "steps_4": {"token_acc": 0.0410, "tok_per_sec": 26075.30},
+      "steps_8": {"token_acc": 0.0404, "tok_per_sec": 12922.12}
+    }
+  },
+  "matched_decode_benchmark": {
+    "hardware": "1xH100",
+    "checkpoint_seed": 2026,
+    "examples": 32,
+    "prefix_tokens": 128,
+    "target_tokens": 64,
+    "ar_continuation_tok_per_sec": 1518.79,
+    "mercury_continuation_step1_token_acc": 0.0400,
+    "mercury_continuation_step1_tok_per_sec": 33315.36,
+    "mercury_continuation_step1_speedup_vs_ar": 21.94,
+    "mercury_infill_step1_token_acc": 0.0400,
+    "mercury_infill_step1_tok_per_sec": 147729.24,
+    "mercury_infill_step1_speedup_vs_ar_continuation": 97.27
+  }
+}
