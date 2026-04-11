@@ -461,7 +461,7 @@ def load_data_shard(file: Path) -> Tensor:
     tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
     if tokens_np.size != num_tokens:
         raise ValueError(f"Short read for {file}")
-    return torch.fromnumpy(tokens_np.astype(np.uint16, copy=False))
+    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
 class TokenStream:
     def __init__(self, pattern: str):
