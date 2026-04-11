@@ -1,0 +1,39 @@
+{
+  "attempt_number": 24,
+  "experiment": {
+    "bootstrap_timeout": 7200,
+    "container_disk": 50,
+    "data_variant": "sp1024",
+    "description": "Stdlib-only artifact-size ablation on target hardware using lzma preset 6 for the final quantized payload.",
+    "env_overrides": {
+      "EVAL_STRIDE": "64",
+      "MODEL_COMPRESS_CODEC": "lzma",
+      "MODEL_COMPRESS_LEVEL": "6",
+      "SEED": "1337",
+      "VAL_LOSS_EVERY": "0"
+    },
+    "gpu_count": 8,
+    "gpu_type": "NVIDIA H100 80GB HBM3",
+    "max_wallclock": 600,
+    "name": "best_record_lzma6",
+    "r2_prefix": "models/parameter-golf/h100-priority",
+    "run_command": null,
+    "shutdown_policy": "terminate",
+    "startup_timeout": 900,
+    "submission_name": "H100 Baseline: Public Best + LZMA-6 Export",
+    "tags": [
+      "h100",
+      "replication",
+      "baseline",
+      "codec",
+      "lzma"
+    ],
+    "template_id": "y5cejece4j",
+    "track": "10min_16mb",
+    "train_script": "parameter-golf/records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/train_gpt.py",
+    "train_shards": 10,
+    "volume_size": 200
+  },
+  "prepared_at": "2026-03-20T08:34:17+00:00",
+  "source_train_script": "/nvme0n1-disk/code/cutellm/parameter-golf/records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/train_gpt.py"
+}
