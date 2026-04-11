@@ -1,0 +1,1 @@
+final_int8_zlib_roundtrip_exact val_loss:2.09055653 val_bpb:1.23814533
