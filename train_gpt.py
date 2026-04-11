@@ -8,6 +8,7 @@ import random
 import sys
 import time
 import lzma
+import warnings
 from contextlib import nullcontext
 from pathlib import Path
 import traceback
@@ -18,6 +19,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.checkpoint import checkpoint
 try:
     from flash_attn_interface import flash_attn_func as _fa3_func
     def flash_attn_func(q, k, v, causal=False, **kwargs):
@@ -90,6 +92,39 @@ def _e_int_tuple(k, d=""):
     vals = [int(p) for p in parts if p]
     return tuple(vals)
 
+
+def _residual_scale_init(dim: int, init: float) -> nn.Parameter:
+    return nn.Parameter(torch.full((dim,), float(init), dtype=torch.float32))
+
+
+def _resid_mix_init(dim: int, x0_fraction: float) -> nn.Parameter:
+    x0_fraction = float(min(max(x0_fraction, 0.0), 1.0))
+    return nn.Parameter(
+        torch.stack((
+            torch.full((dim,), 1.0 - x0_fraction, dtype=torch.float32),
+            torch.full((dim,), x0_fraction, dtype=torch.float32),
+        ))
+    )
+
+
+def _resid_mix_scalar_init(x0_fraction: float) -> nn.Parameter:
+    x0_fraction = float(min(max(x0_fraction, 0.0), 1.0))
+    return nn.Parameter(torch.tensor([1.0 - x0_fraction, x0_fraction], dtype=torch.float32))
+
+
+def _squared_lrelu_weight_std(fan_in: int, negative_slope: float) -> float:
+    slope_sq = float(negative_slope) ** 2
+    out_var = 1.5 * (1.0 + slope_sq * slope_sq) - 0.25 * (1.0 + slope_sq) ** 2
+    out_var = max(out_var, 1e-6)
+    return (1.0 / (max(fan_in, 1) * math.sqrt(out_var))) ** 0.5
+
+
+_FP16_TINY = float(torch.finfo(torch.float16).tiny)
+
+
+def _ternary_group_scale(x: Tensor) -> Tensor:
+    return x.abs().mean(dim=-1, keepdim=True).half().float().clamp(min=_FP16_TINY)
+
 class Hyperparameters:
     data_path = _e("DATA_PATH", "./data/datasets/fineweb10B_sp1024", str)
     tokenizer_path = _e("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model", str)
@@ -125,9 +160,12 @@ class Hyperparameters:
     logit_softcap = _e("LOGIT_SOFTCAP", 30.0, float)
     softcap_type = _e("SOFTCAP_TYPE", "poly")
     tied_embed_init_std = _e("TIED_EMBED_INIT_STD", 0.005, float)
-    qk_gain_init = _e("QK_GAIN_INIT", 2.25, float)
+    qk_gain_init = _e("QK_GAIN_INIT", 1.0, float)
     activation_type = _e("ACTIVATION", "lrelu2")
     leaky_relu_slope = _e("LEAKY_RELU_SLOPE", 0.5, float)
+    residual_scale_init = _e("RESIDUAL_SCALE_INIT", 0.05, float)
+    resid_mix_x0_init = _e("RESID_MIX_X0_INIT", 0.05, float)
+    residual_proj_init_std = _e("RESIDUAL_PROJ_INIT_STD", 0.002, float)
     embed_dim = _e("EMBED_DIM", 254, int)
     training_depth_recurrence = _e("TRAINING_DEPTH_RECURRENCE", 0, int)
     recurrence_layers = _e_int_tuple("RECURRENCE_LAYERS", "")
@@ -141,6 +179,7 @@ class Hyperparameters:
     feedback_fp_storage = _e_fp_storage("FEEDBACK_FP_STORAGE", 0)
     feedback_every = _e("FEEDBACK_EVERY", 2, int)
     feedback_every_fraction = _e("FEEDBACK_EVERY_FRACTION", 0.0, float)
+    feedback_gate_init = _e("FEEDBACK_GATE_INIT", 0.05, float)
     untie_at_fraction = _e("UNTIE_AT_FRACTION", 0.0, float)
     moe_enabled = _e("MOE_ENABLED", 1, bool)
     moe_num_experts = _e("MOE_NUM_EXPERTS", 3, int)
@@ -148,7 +187,7 @@ class Hyperparameters:
     moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.001, float)
     moe_start_fraction = _e("MOE_START_FRACTION", 0.65, float) # router warmup ends here; sparse MoE is active before that
     moe_layer_frac = _e("MOE_LAYER_FRAC", 0.67, float)  # MoE only in top (1-frac) of layers
-    vrl_enabled = _e("VRL_ENABLED", 1, bool)
+    vrl_enabled = _e("VRL_ENABLED", 0, bool)
     vrl_start_layer = _e("VRL_START_LAYER", 10, int)
     adam_wd = _e("ADAM_WD", 0.04, float)
     beta1 = 0.9
@@ -170,7 +209,7 @@ class Hyperparameters:
     engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
     engram_num_orders = _e("ENGRAM_NUM_ORDERS", 3, int)
     engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)
-    xsa_start_layer = _e("XSA_START_LAYER", 8, int)
+    xsa_start_layer = _e("XSA_START_LAYER", -1, int)
     koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
     koopman_rank = _e("KOOPMAN_RANK", 2, int)
     koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)
@@ -187,11 +226,14 @@ class Hyperparameters:
     koopman_mixer_rank = _e("KOOPMAN_MIXER_RANK", 4, int)
     koopman_conv_kernel = _e("KOOPMAN_CONV_KERNEL", 4, int)
     koopman_decay_window = _e("KOOPMAN_DECAY_WINDOW", 32, int)
+    koopman_scan_checkpoint = _e("KOOPMAN_SCAN_CHECKPOINT", 1, bool)
+    koopman_scan_checkpoint_min_seq = _e("KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ", 1024, int)
 
     skc_num_capsules = _e("SKC_NUM_CAPSULES", 32, int)
     skc_capsule_dim = _e("SKC_CAPSULE_DIM", 128, int)
     skc_conv_kernel = _e("SKC_CONV_KERNEL", 4, int)
     skc_block_size = _e("SKC_BLOCK_SIZE", 64, int)
+    skc_aux_entropy_fraction = _e("SKC_AUX_ENTROPY_FRACTION", 0.8, float)
     fp_storage = _e_fp_storage("FP_STORAGE", 0)
     ema_enabled = _e("EMA_ENABLED", 1, bool)
     ema_eval_apply = _e("EMA_EVAL_APPLY", 1, bool)
@@ -341,6 +383,22 @@ def validate_config_surface(args) -> None:
         raise ValueError(f"MUON_ACTIVE_GRAD_EPS must be >= 0, got {args.muon_active_grad_eps}")
     if not (0.0 <= args.ngram_alpha_max < 1.0):
         raise ValueError(f"NGRAM_ALPHA_MAX must be in [0, 1), got {args.ngram_alpha_max}")
+    if args.residual_scale_init < 0.0:
+        raise ValueError(f"RESIDUAL_SCALE_INIT must be >= 0, got {args.residual_scale_init}")
+    if not (0.0 <= args.resid_mix_x0_init <= 1.0):
+        raise ValueError(f"RESID_MIX_X0_INIT must be in [0, 1], got {args.resid_mix_x0_init}")
+    if args.residual_proj_init_std < 0.0:
+        raise ValueError(f"RESIDUAL_PROJ_INIT_STD must be >= 0, got {args.residual_proj_init_std}")
+    if args.feedback_gate_init < 0.0:
+        raise ValueError(f"FEEDBACK_GATE_INIT must be >= 0, got {args.feedback_gate_init}")
+    if args.koopman_scan_checkpoint_min_seq < 0:
+        raise ValueError(
+            f"KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ must be >= 0, got {args.koopman_scan_checkpoint_min_seq}"
+        )
+    if not (0.0 <= args.skc_aux_entropy_fraction <= 1.0):
+        raise ValueError(
+            f"SKC_AUX_ENTROPY_FRACTION must be in [0, 1], got {args.skc_aux_entropy_fraction}"
+        )
 
 
 def resolve_eval_feedback_passes(args, feedback_passes: int | None = None) -> int:
@@ -505,7 +563,7 @@ def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_metho
                 t_grouped = t_grouped @ H
                 turbo_used = True
 
-            scale = t_grouped.abs().mean(-1, keepdim=True).clamp(min=1e-8).half().float()
+            scale = _ternary_group_scale(t_grouped)
             tensor_calib = (calib or {}).get(name, {})
             thr = tensor_calib.get("thr", 0.0)
             scale_mult = tensor_calib.get("scale_mult", 1.0)
@@ -601,7 +659,7 @@ def _row_padded_ternary_q(w: torch.Tensor, group_size: int) -> torch.Tensor:
     pad = (g - ncols % g) % g
     w_p = F.pad(w, (0, pad)) if pad > 0 else w
     w_g = w_p.reshape(-1, g)
-    scale = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+    scale = _ternary_group_scale(w_g)
     q = (w_g / scale).round().clamp(-1, 1)
     return q.reshape(nrows, ncols + pad)[:, :ncols]  # strip padding
 
@@ -769,12 +827,14 @@ class Muon(torch.optim.Optimizer):
 # ---------------------------------------------------------------------------
 def ld_shard(file: Path) -> Tensor:
     header_bytes = 256 * np.dtype("<i4").itemsize
-    header = np.fromfile(file, dtype="<i4", count=256)
+    header = np.memmap(file, dtype="<i4", mode="r", shape=(256,))
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
     num_tokens = int(header[2])
-    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
-    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+    tokens_np = np.memmap(file, dtype="<u2", mode="r", offset=header_bytes, shape=(num_tokens,))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="The given NumPy array is not writable")
+        return torch.from_numpy(tokens_np)
 
 class TokenStream:
     def __init__(self, pattern: str):
@@ -1024,9 +1084,7 @@ class TernaryLinear(nn.Linear):
             w_g = w_g @ H
         # Match q_sd export exactly: the per-group scale is bottlenecked through fp16
         # before reconstruction, so the STE path must see the same truncation.
-        # Clamp after half() to guard against fp16 underflow: 1e-8 → 0.0 in fp16 → NaN on division.
-        # fp16 min normalized ≈ 6.1e-5; use 1e-4 to stay safely above the subnormal range.
-        scale = w_g.abs().mean(-1, keepdim=True).half().float().clamp(min=1e-4)
+        scale = _ternary_group_scale(w_g)
 
         # Read calibration from buffer tensors (Dynamo-safe) as tensors
         thr = self.calib_thr
@@ -1475,6 +1533,8 @@ class MLP(nn.Module):
             self.gate_up = TernaryLinear(dim, hidden * 2, bias=False, group_size=group_size)
         else:
             self.fc = TernaryLinear(dim, hidden, bias=False, group_size=group_size)
+            if activation == "lrelu2":
+                self.fc._init_std = _squared_lrelu_weight_std(dim, leaky_relu_slope)
         self.proj = NormedTernaryLinear(hidden, dim, bias=False, group_size=group_size)
         self.proj._zero_init = True
 
@@ -1503,11 +1563,14 @@ class KoopmanTokenMixer(nn.Module):
       6. Project back to model dim
     """
     def __init__(self, dim: int, state_dim: int, rank: int = 4, conv_kernel: int = 4,
-                 decay_window: int = 32, group_size: int = 64):
+                 decay_window: int = 32, group_size: int = 64,
+                 scan_checkpoint: bool = True, scan_checkpoint_min_seq: int = 1024):
         super().__init__()
         self.state_dim = state_dim
         self.conv_kernel = conv_kernel
         self.decay_window = decay_window
+        self.scan_checkpoint = bool(scan_checkpoint)
+        self.scan_checkpoint_min_seq = int(scan_checkpoint_min_seq)
 
         self.proj_in = TernaryLinear(dim, state_dim, bias=False, group_size=group_size)
         self.proj_out = NormedTernaryLinear(state_dim, dim, bias=False, group_size=group_size)
@@ -1583,25 +1646,28 @@ class KoopmanTokenMixer(nn.Module):
         B_c = B_vals.reshape(B, num_chunks, W, S)
 
         # 3. Level 1: Intra-chunk parallel scan
-        # Fully unrolled for torch.compile
-        c_h = [B_c[:, :, 0]]
-        c_d = [D_c[:, :, 0]]
+        # Preallocate to avoid list/stack churn from thousands of small temporaries.
+        h_local = torch.empty_like(B_c)
+        d_local = torch.empty_like(D_c)
+        h_prev = B_c[:, :, 0]
+        d_prev = D_c[:, :, 0]
+        h_local[:, :, 0] = h_prev
+        d_local[:, :, 0] = d_prev
         for t in range(1, W):
-            c_h.append(D_c[:, :, t] * c_h[-1] + B_c[:, :, t])
-            c_d.append(D_c[:, :, t] * c_d[-1])
-        
-        h_local = torch.stack(c_h, dim=2)
-        d_local = torch.stack(c_d, dim=2)
+            h_prev = D_c[:, :, t] * h_prev + B_c[:, :, t]
+            d_prev = D_c[:, :, t] * d_prev
+            h_local[:, :, t] = h_prev
+            d_local[:, :, t] = d_prev
 
         # 4. Level 2: Inter-chunk prefix scan
         chunk_finals_h = h_local[:, :, -1] 
         chunk_finals_d = d_local[:, :, -1] 
-        
-        p_h = [torch.zeros_like(chunk_finals_h[:, 0])]
-        for i in range(num_chunks - 1):
-             p_h.append(chunk_finals_d[:, i] * p_h[-1] + chunk_finals_h[:, i])
-        
-        chunk_prefixes = torch.stack(p_h, dim=1).unsqueeze(2)
+        chunk_prefixes = torch.empty(B, num_chunks, 1, S, dtype=chunk_finals_h.dtype, device=chunk_finals_h.device)
+        prefix_prev = torch.zeros_like(chunk_finals_h[:, 0])
+        chunk_prefixes[:, 0, 0] = prefix_prev
+        for i in range(1, num_chunks):
+            prefix_prev = chunk_finals_d[:, i - 1] * prefix_prev + chunk_finals_h[:, i - 1]
+            chunk_prefixes[:, i, 0] = prefix_prev
 
         # 5. Global state: h = h_local + d_local * chunk_prefix
         h = h_local + d_local * chunk_prefixes
@@ -1620,6 +1686,14 @@ class KoopmanTokenMixer(nn.Module):
             h = h @ self._H.to(dtype=x.dtype, device=x.device)
         return h
 
+    def _should_checkpoint_scan(self, x: Tensor) -> bool:
+        return (
+            self.scan_checkpoint
+            and self.training
+            and torch.is_grad_enabled()
+            and x.size(1) >= self.scan_checkpoint_min_seq
+        )
+
     def forward(self, x: Tensor, reset_mask: Tensor | None = None) -> Tensor:
         # KoopmanBlock already applies RMSNorm and depth-wise ln_scale_factor before
         # calling the mixer. Re-normalizing here would erase that depth-aware scaling.
@@ -1627,7 +1701,14 @@ class KoopmanTokenMixer(nn.Module):
         g = torch.sigmoid(self.g_proj(x))
         dt_gate = self.dt_proj(x)
         s = self._short_causal_conv(s)
-        h = self._causal_decay_scan(s, g, dt_gate=dt_gate, reset_mask=reset_mask)
+        if self._should_checkpoint_scan(s):
+            h = checkpoint(
+                lambda s_, g_, dt_: self._causal_decay_scan(s_, g_, dt_gate=dt_, reset_mask=reset_mask),
+                s, g, dt_gate,
+                use_reentrant=False,
+            )
+        else:
+            h = self._causal_decay_scan(s, g, dt_gate=dt_gate, reset_mask=reset_mask)
         return self.proj_out(h)
 
 
@@ -1638,13 +1719,17 @@ class KoopmanBlock(nn.Module):
                  activation: str = "lrelu2", leaky_relu_slope: float = 0.5,
                  ln_scale_factor: float = 1.0, moe_enabled: bool = False,
                  moe_num_experts: int = 8, moe_top_k: int = 2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
+                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
+                 scan_checkpoint: bool = True, scan_checkpoint_min_seq: int = 1024):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.mixer = KoopmanTokenMixer(dim, state_dim, rank=mixer_rank, conv_kernel=conv_kernel,
-                                        decay_window=decay_window, group_size=group_size)
+                                        decay_window=decay_window, group_size=group_size,
+                                        scan_checkpoint=scan_checkpoint,
+                                        scan_checkpoint_min_seq=scan_checkpoint_min_seq)
         if moe_enabled:
             self.mlp = TernaryMoE(
                 dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
@@ -1655,10 +1740,11 @@ class KoopmanBlock(nn.Module):
         else:
             self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
                            leaky_relu_slope=leaky_relu_slope)
-        # SkipInit: zero-init residual scales to prevent early instability
-        self.attn_scale = nn.Parameter(torch.zeros(dim))
-        self.mlp_scale = nn.Parameter(torch.zeros(dim))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        # Small non-zero residual seeds preserve SkipInit-style stability without
+        # forcing the branch internals to wait for multiple gates to wake up.
+        self.attn_scale = _residual_scale_init(dim, residual_scale_init)
+        self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
+        self.resid_mix = _resid_mix_init(dim, resid_mix_x0_init)
 
     def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
                 elapsed_fraction: float = 1.0,
@@ -1707,7 +1793,7 @@ class FeedbackAdapter(nn.Module):
     is loaded into a fast-weight matrix $W$, which is queried by the current decoder 
     features $X$ to retrieve temporally contextualized facts without gradient descent.
     """
-    def __init__(self, model_dim: int, feedback_dim: int, fp_storage: str | bool):
+    def __init__(self, model_dim: int, feedback_dim: int, fp_storage: str | bool, gate_init: float = 0.05):
         super().__init__()
         # Initializing fast weight learning rate to ~0.11 via sigmoid(-2)
         self.fast_weight_lr = nn.Parameter(torch.tensor(-2.0, dtype=torch.float32))
@@ -1720,7 +1806,7 @@ class FeedbackAdapter(nn.Module):
         self.q_proj = nn.Linear(model_dim, model_dim, bias=False)
         
         # Gate to inject retrieved memory
-        self.out_gate = nn.Parameter(torch.zeros(model_dim, dtype=torch.float32))
+        self.out_gate = nn.Parameter(torch.full((model_dim,), float(gate_init), dtype=torch.float32))
 
     def forward(self, x: Tensor, sketch: Tensor | None) -> Tensor:
         if sketch is None:
@@ -1729,18 +1815,19 @@ class FeedbackAdapter(nn.Module):
         B, T, D = x.shape
         # sketch shape is [B, S, feedback_dim]
         # Generate keys and values
-        k = self.k_proj(sketch)  # [B, S, D]
-        v = self.v_proj(sketch)  # [B, S, D]
+        k = F.rms_norm(self.k_proj(sketch), (D,))  # [B, S, D]
+        v = F.rms_norm(self.v_proj(sketch), (D,))  # [B, S, D]
 
         # Fast-weight memory resets every forward call, so the delta-rule update from
         # zero collapses to a single outer product. Skip the zero-state BMMs entirely.
         k_t = k.transpose(1, 2)
         v_t = v.transpose(1, 2)
         lr = torch.sigmoid(self.fast_weight_lr)
-        memory_matrix = lr * torch.bmm(v_t, k) # [B, D, D]
+        sketch_len = max(int(sketch.size(1)), 1)
+        memory_matrix = (lr / sketch_len) * torch.bmm(v_t, k) # [B, D, D]
         
         # Output retrieval
-        q = self.q_proj(x) # [B, T, D]
+        q = F.rms_norm(self.q_proj(x), (D,)) # [B, T, D]
         q_t = q.transpose(1, 2) # [B, D, T]
         
         retrieved_t = torch.bmm(memory_matrix, q_t) # [B, D, T]
@@ -1888,6 +1975,8 @@ class Block(nn.Module):
         moe_top_k: int = 2,
         moe_start_fraction: float = 0.65,
         moe_aux_coef: float = 0.001,
+        residual_scale_init: float = 0.05,
+        resid_mix_x0_init: float = 0.05,
     ):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
@@ -1923,11 +2012,9 @@ class Block(nn.Module):
                 activation=activation,
                 leaky_relu_slope=leaky_relu_slope,
             )
-        # Zero-init residual scales: branches start dead and grow gradually from data.
-        # This matches the stable init already used in KoopmanBlock and SKCLayer.
-        self.attn_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.attn_scale = _residual_scale_init(dim, residual_scale_init)
+        self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
+        self.resid_mix = _resid_mix_init(dim, resid_mix_x0_init)
 
     def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
                 elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
@@ -2009,9 +2096,10 @@ def causal_spectral_decay_scan(x_blocks, decay_rates, gate):
     return x_blocks
 
 class SpectralTernaryAuxLoss(nn.Module):
-    def __init__(self, weight=0.01):
+    def __init__(self, weight=0.01, min_entropy_fraction: float = 0.8):
         super().__init__()
         self.weight = weight
+        self.min_entropy_fraction = float(min_entropy_fraction)
 
     def forward(self, x_spec):
         # Average over (Batch, Time) — dim=(0,1) — leaving a distribution over the
@@ -2023,7 +2111,8 @@ class SpectralTernaryAuxLoss(nn.Module):
         p = energy / torch.sum(energy)
         entropy = -torch.sum(p * torch.log(p + 1e-10))
         max_entropy = math.log(max(x_spec.shape[2], 1))  # shape[2] = num capsules
-        return self.weight * (max_entropy - entropy)
+        min_entropy = self.min_entropy_fraction * max_entropy
+        return self.weight * torch.relu(min_entropy - entropy)
 
 class FrequencyBandRouter(nn.Module):
     def __init__(self, num_capsules, capsule_dim, block_size):
@@ -2085,7 +2174,9 @@ class SKCLayer(nn.Module):
     def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
                  mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
                  ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
+                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
+                 aux_min_entropy_fraction: float = 0.8):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -2105,7 +2196,6 @@ class SKCLayer(nn.Module):
         
         self.spec_proj_out = NormedTernaryLinear(capsule_dim, dim, group_size=group_size)
         self.spec_proj_out._zero_init = True
-        nn.init.zeros_(self.spec_proj_out.weight)
         
         self.mixer_conv = nn.Parameter(torch.ones(capsule_dim, conv_kernel, dtype=torch.float32) / conv_kernel)
         if moe_enabled:
@@ -2118,10 +2208,10 @@ class SKCLayer(nn.Module):
         else:
             self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
         
-        self.skc_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
-        self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
+        self.skc_scale = _residual_scale_init(dim, residual_scale_init)
+        self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
+        self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
+        self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
 
     def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
         B, T, D = x.shape
@@ -2221,7 +2311,9 @@ class ParallelSKCBlock(nn.Module):
     def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
                  mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
                  ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001):
+                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
+                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
+                 aux_min_entropy_fraction: float = 0.8):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -2239,9 +2331,8 @@ class ParallelSKCBlock(nn.Module):
         self.koopman = KoopmanSpectralEvolution(capsule_dim, capsule_num)
         self.spec_proj_out = NormedTernaryLinear(capsule_dim, dim, group_size=group_size)
         self.spec_proj_out._zero_init = True
-        nn.init.zeros_(self.spec_proj_out.weight)
         self.mixer_conv = nn.Parameter(torch.ones(capsule_dim, conv_kernel, dtype=torch.float32) / conv_kernel)
-        self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01)
+        self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
 
         # MLP/MoE path (reads same normed input as SKC path)
         if moe_enabled:
@@ -2255,10 +2346,9 @@ class ParallelSKCBlock(nn.Module):
             self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
                                  leaky_relu_slope=leaky_relu_slope)
 
-        # Zero-init merge scalars (SkipInit: start at 0, let the model grow them)
-        self.skc_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.mlp_scale = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
+        self.skc_scale = _residual_scale_init(dim, residual_scale_init)
+        self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
+        self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
 
     def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0,
                 external_skc_scale=None, external_mlp_scale=None):
@@ -2425,8 +2515,9 @@ class Backbone(nn.Module):
     def decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
                       v0: Tensor | None, elapsed_fraction: float, prev_capsules: Tensor | None,
                       reset_mask: Tensor | None,
-                      feedback_adapters: nn.ModuleList | None) -> tuple[Tensor, Tensor | None]:
+                      feedback_adapters: nn.ModuleList | None) -> tuple[Tensor, Tensor | None, int]:
         dec_aux: Tensor | None = None
+        dec_aux_terms = 0
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
@@ -2436,9 +2527,10 @@ class Backbone(nn.Module):
                                                 prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
                     dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
+                    dec_aux_terms += 1
             if feedback_adapters is not None and sketch is not None:
                 x = feedback_adapters[i](x, sketch)
-        return x, dec_aux
+        return x, dec_aux, dec_aux_terms
 
 class LatentCorrector(nn.Module):
     """Handles capsule memory, feedback passes, and adaptive halting."""
@@ -2458,6 +2550,7 @@ class LatentCorrector(nn.Module):
         skips: list[Tensor] = []
         v0 = None
         enc_aux: Tensor | None = None
+        enc_aux_terms = 0
 
         # --- Encoder pass ---
         for i in range(backbone.num_encoder_layers):
@@ -2469,6 +2562,7 @@ class LatentCorrector(nn.Module):
                 )
                 if blk_aux is not None:
                     enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
+                    enc_aux_terms += 1
                 if v0 is None and v_out is not None:
                     v0 = v_out
             skips.append(x)
@@ -2521,16 +2615,21 @@ class LatentCorrector(nn.Module):
                         grounded_capsule_state = prev_capsule_state
                         break
 
-            x, dec_aux = backbone.decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0,
-                                               elapsed_fraction=elapsed_fraction, prev_capsules=None,
-                                               reset_mask=ssm_reset_mask,
-                                               feedback_adapters=self.feedback_adapter)
+            x, dec_aux, dec_aux_terms = backbone.decoder_pass(
+                encoded, x0, skips, sketch=sketch, v0=v0,
+                elapsed_fraction=elapsed_fraction, prev_capsules=None,
+                reset_mask=ssm_reset_mask,
+                feedback_adapters=self.feedback_adapter,
+            )
             if dec_aux is not None:
                 enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
+                enc_aux_terms += dec_aux_terms
             if fast_forwarded: break
 
         c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
         jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
+        if enc_aux is not None and enc_aux_terms > 0:
+            enc_aux = enc_aux / enc_aux_terms
         return final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux
 
 
@@ -2551,6 +2650,9 @@ class GPT(nn.Module):
         group_size: int = 64,
         activation: str = "relu2",
         leaky_relu_slope: float = 0.5,
+        residual_scale_init: float = 0.05,
+        resid_mix_x0_init: float = 0.05,
+        residual_proj_init_std: float = 0.002,
         embed_dim: int = 0,
         training_depth_recurrence: int = 0,
         recurrence_layers: tuple[int, ...] = (),
@@ -2566,6 +2668,7 @@ class GPT(nn.Module):
         feedback_replay: str = "decoder",
         feedback_target: str = "decoder",
         feedback_fp_storage: str | bool = True,
+        feedback_gate_init: float = 0.05,
         feedback_passes: int = 1,
         shared_blocks: int = 0,
         capsule_enabled: bool = False,
@@ -2599,10 +2702,13 @@ class GPT(nn.Module):
         koopman_mixer_rank: int = 4,
         koopman_conv_kernel: int = 4,
         koopman_decay_window: int = 32,
+        koopman_scan_checkpoint: bool = True,
+        koopman_scan_checkpoint_min_seq: int = 1024,
         skc_num_capsules: int = 32,
         skc_capsule_dim: int = 128,
         skc_conv_kernel: int = 4,
         skc_block_size: int = 64,
+        skc_aux_entropy_fraction: float = 0.8,
         moe_layer_frac: float = 0.67,
         moe_start_fraction: float = 0.65,
         moe_router_aux_loss_coef: float = 0.001,
@@ -2618,6 +2724,11 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.softcap_type = softcap_type
         self.embed_dim = embed_dim if embed_dim > 0 else model_dim
+        self.activation = activation
+        self.leaky_relu_slope = leaky_relu_slope
+        self.residual_scale_init = residual_scale_init
+        self.resid_mix_x0_init = resid_mix_x0_init
+        self.residual_proj_init_std = residual_proj_init_std
         self.feedback_enabled = feedback_enabled
         self.feedback_replay = feedback_replay.lower()
         self.feedback_target = feedback_target.lower()
@@ -2640,10 +2751,13 @@ class GPT(nn.Module):
         self.koopman_mixer_rank = koopman_mixer_rank
         self.koopman_conv_kernel = koopman_conv_kernel
         self.koopman_decay_window = koopman_decay_window
+        self.koopman_scan_checkpoint = bool(koopman_scan_checkpoint)
+        self.koopman_scan_checkpoint_min_seq = int(koopman_scan_checkpoint_min_seq)
         self.skc_num_capsules = skc_num_capsules
         self.skc_capsule_dim = skc_capsule_dim
         self.skc_conv_kernel = skc_conv_kernel
         self.skc_block_size = skc_block_size
+        self.skc_aux_entropy_fraction = float(skc_aux_entropy_fraction)
         self.moe_layer_frac = moe_layer_frac
         self.moe_start_fraction = moe_start_fraction
         self.moe_router_aux_loss_coef = moe_router_aux_loss_coef
@@ -2714,7 +2828,7 @@ class GPT(nn.Module):
         self.feedback_adapters = None
         if feedback_enabled:
             self.feedback_adapters = nn.ModuleList([
-                FeedbackAdapter(model_dim, feedback_dim, feedback_fp_storage)
+                FeedbackAdapter(model_dim, feedback_dim, feedback_fp_storage, gate_init=feedback_gate_init)
                 for _ in range(self.num_decoder_layers)
             ])
 
@@ -2736,6 +2850,10 @@ class GPT(nn.Module):
                 moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
+                residual_scale_init=self.residual_scale_init,
+                resid_mix_x0_init=self.resid_mix_x0_init,
+                scan_checkpoint=self.koopman_scan_checkpoint,
+                scan_checkpoint_min_seq=self.koopman_scan_checkpoint_min_seq,
             )
 
         def _make_ssm_block(layer_idx):
@@ -2753,6 +2871,9 @@ class GPT(nn.Module):
                 moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
+                residual_scale_init=self.residual_scale_init,
+                resid_mix_x0_init=self.resid_mix_x0_init,
+                aux_min_entropy_fraction=self.skc_aux_entropy_fraction,
             )
 
         def _make_skc_block(layer_idx):
@@ -2767,6 +2888,8 @@ class GPT(nn.Module):
                 moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
                 moe_start_fraction=self.moe_start_fraction,
                 moe_aux_coef=moe_router_aux_loss_coef,
+                residual_scale_init=self.residual_scale_init,
+                resid_mix_x0_init=self.resid_mix_x0_init,
             )
             if self.skc_parallel_residual:
                 return ParallelSKCBlock(**_skc_kwargs)
@@ -2795,11 +2918,17 @@ class GPT(nn.Module):
             else:
                 self.shared_block_bank = nn.ModuleList([_make_block(0) for _ in range(shared_blocks)])
             
-            self.per_layer_attn_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
-            self.per_layer_mlp_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
-            self.per_layer_skc_scales = nn.ParameterList([nn.Parameter(torch.zeros(model_dim)) for _ in range(num_layers)])
+            self.per_layer_attn_scales = nn.ParameterList([
+                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
+            ])
+            self.per_layer_mlp_scales = nn.ParameterList([
+                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
+            ])
+            self.per_layer_skc_scales = nn.ParameterList([
+                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
+            ])
             self.per_layer_resid_mixes = nn.ParameterList([
-                nn.Parameter(torch.stack((torch.ones(model_dim), torch.zeros(model_dim))).float())
+                _resid_mix_init(model_dim, self.resid_mix_x0_init)
                 for _ in range(num_layers)])
 
         self.backbone = Backbone(
@@ -2838,14 +2967,14 @@ class GPT(nn.Module):
                 # GPT-level tie check: if name matches lm_head and tie is enabled, skip!
                 if self.tie_embeddings and "tok_stem.lm_head" in name:
                     continue
+                init_std = getattr(module, "_init_std", None)
                 if getattr(module, "_zero_init", False):
-                    # Explicitly zero output projections so residual branches
-                    # start silent and open up gradually during training.
-                    nn.init.zeros_(module.weight)
-                    if module.bias is not None:
-                        nn.init.zeros_(module.bias)
-                else:
-                    nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                    init_std = self.residual_proj_init_std
+                if init_std is None:
+                    init_std = 0.02
+                nn.init.normal_(module.weight, mean=0.0, std=init_std)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
     def _apply_embedding(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
         x = self.tok_stem.apply_embedding(input_ids).float()
@@ -3064,9 +3193,8 @@ class GPT(nn.Module):
 
         # Block aux losses (MoE load-balancing + SKC spectral entropy) are returned
         # functionally from _compute_hidden — no module state mutation, no Dynamo traps.
-        # MoE aux is pre-scaled by aux_loss_coef (== moe_router_aux_loss_coef) inside
-        # TernaryMoE.forward; SKC spectral aux is pre-scaled by weight=0.01 in
-        # SpectralTernaryAuxLoss — just add directly to ce_loss.
+        # LatentCorrector averages them across contributing blocks/passes so their
+        # effective strength does not scale with architecture depth or feedback count.
         if self.training and block_aux is not None:
             ce_loss = ce_loss + block_aux
 
@@ -3338,6 +3466,11 @@ def restore_requires_grad(base_model: nn.Module, original: dict[str, bool]) -> N
         p.requires_grad_(original.get(name, True))
 
 
+def _reset_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
+    optimizer.zero_grad(set_to_none=True)
+    optimizer.state.clear()
+
+
 def eval_val_sliding_ttt(
     args,
     base_model,
@@ -3514,6 +3647,10 @@ def eval_val_sliding_ttt(
                     if end_tok > val_tokens.numel():
                         continue
                     local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
+                    reset_ttt_state = (
+                        base_model.eos_token_id >= 0
+                        and bool(local[:-1].eq(base_model.eos_token_id).any().item())
+                    )
                     x = local[:-1].reshape(-1, seq_len)
                     y = local[1:].reshape(-1, seq_len)
                     optimizer.zero_grad(set_to_none=True)
@@ -3539,6 +3676,13 @@ def eval_val_sliding_ttt(
                     # re-introducing the temporal leakage we are fixing here.
                     torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                     optimizer.step()
+                    if reset_ttt_state:
+                        # Keep TTT document-local: if this batch crossed an EOS
+                        # boundary, drop optimizer momentum and carry before the next
+                        # update so gradients from the previous document cannot shape
+                        # the adaptation state of the next one.
+                        _reset_optimizer_state(optimizer)
+                        epoch_carry_capsules = None
                 if epoch_idx == args.ttt_epochs - 1:
                     carry_capsules = epoch_carry_capsules
 
@@ -3861,7 +4005,7 @@ def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int 
             t_g = t_padded.reshape(-1, group_size)
             if H is not None:
                 t_g = t_g @ H
-            scale = t_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+            scale = _ternary_group_scale(t_g)
             q = (t_g / scale).round().clamp(-1, 1)
             recon_g = q * scale
             if H is not None:
@@ -3999,12 +4143,15 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
+        residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init,
+        residual_proj_init_std=args.residual_proj_init_std,
         embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage,
         softcap_type=args.softcap_type, no_cache=(args.compile_mode == "reduce-overhead"),
         rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len,
         feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim,
         feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay,
         feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage,
+        feedback_gate_init=args.feedback_gate_init,
         feedback_passes=args.feedback_passes,
         shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled,
         capsule_num=args.capsule_num, capsule_dim=args.capsule_dim,
@@ -4032,10 +4179,13 @@ def main() -> None:
         koopman_mixer_rank=args.koopman_mixer_rank,
         koopman_conv_kernel=args.koopman_conv_kernel,
         koopman_decay_window=args.koopman_decay_window,
+        koopman_scan_checkpoint=args.koopman_scan_checkpoint,
+        koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq,
         skc_num_capsules=args.skc_num_capsules,
         skc_capsule_dim=args.skc_capsule_dim,
         skc_conv_kernel=args.skc_conv_kernel,
         skc_block_size=args.skc_block_size,
+        skc_aux_entropy_fraction=args.skc_aux_entropy_fraction,
         moe_layer_frac=args.moe_layer_frac,
         moe_start_fraction=args.moe_start_fraction,
         moe_router_aux_loss_coef=args.moe_router_aux_loss_coef,
