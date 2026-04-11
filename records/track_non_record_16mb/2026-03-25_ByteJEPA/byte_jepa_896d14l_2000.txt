@@ -1,0 +1,53 @@
+model_mode:byte_jepa jepa_arch:lewm_chunk jepa_enabled:1 chunk_size:32
+val_bpb:enabled tokenizer_kind=byte260 byte_offset:4
+val_loader:bytes:1999872
+train_batch_tokens:24576 val_batch_tokens:24576 train_seq_len:256 iterations:2000
+model_dim:896 num_layers:14 num_heads:14 num_kv_heads:14 mlp_mult:4
+jepa_latent_dim:256 jepa_pred_hidden:384 jepa_pred_depth:2 jepa_pred_heads:4 projector_hidden:2048 context_hidden:2048 pred_dim_head:64 latent_weight:0.2 reg_weight:1.0
+sigreg:enabled reg_slices:1024 sigreg_knots:17 sigreg_max_t:3.0
+step:0/2000 val_loss:8.560709 val_bpb:12.354891 train_time:0ms
+step:1/2000 train_loss:13.977017 ce:8.572404 jepa:0.273068 sigreg:26.750000 latent_std:0.336320 latent_mean_norm:0.143857 latent_cov_trace:1.000000 train_time:626ms
+step:2/2000 train_loss:13.984550 ce:8.554749 jepa:0.274002 sigreg:26.875000 latent_std:0.336834 latent_mean_norm:0.143932 latent_cov_trace:1.000000 train_time:849ms
+step:3/2000 train_loss:13.946840 ce:8.542034 jepa:0.274033 sigreg:26.750000 latent_std:0.335762 latent_mean_norm:0.144078 latent_cov_trace:1.000000 train_time:1073ms
+step:4/2000 train_loss:13.957011 ce:8.552319 jepa:0.273463 sigreg:26.750000 latent_std:0.336618 latent_mean_norm:0.143249 latent_cov_trace:1.000000 train_time:1296ms
+step:5/2000 train_loss:13.961298 ce:8.556496 jepa:0.274007 sigreg:26.750000 latent_std:0.337930 latent_mean_norm:0.143156 latent_cov_trace:1.000000 train_time:1519ms
+step:6/2000 train_loss:13.887825 ce:8.532911 jepa:0.274566 sigreg:26.500000 latent_std:0.339247 latent_mean_norm:0.142314 latent_cov_trace:1.000000 train_time:1742ms
+step:7/2000 train_loss:13.903273 ce:8.523511 jepa:0.273809 sigreg:26.625000 latent_std:0.338625 latent_mean_norm:0.142633 latent_cov_trace:1.000000 train_time:1966ms
+step:8/2000 train_loss:13.879837 ce:8.525147 jepa:0.273450 sigreg:26.500000 latent_std:0.339522 latent_mean_norm:0.142770 latent_cov_trace:1.000000 train_time:2188ms
+step:9/2000 train_loss:13.847002 ce:8.542296 jepa:0.273527 sigreg:26.250000 latent_std:0.342689 latent_mean_norm:0.141548 latent_cov_trace:1.000000 train_time:2411ms
+step:10/2000 train_loss:13.776875 ce:8.522113 jepa:0.273806 sigreg:26.000000 latent_std:0.344471 latent_mean_norm:0.140706 latent_cov_trace:1.000000 train_time:2633ms
+step:100/2000 train_loss:3.515076 ce:2.870592 jepa:1.019295 sigreg:2.203125 latent_std:0.985093 latent_mean_norm:0.024047 latent_cov_trace:1.000000 train_time:22561ms
+step:200/2000 train_loss:2.925830 ce:2.351830 jepa:1.002811 sigreg:1.867188 latent_std:0.988107 latent_mean_norm:0.036074 latent_cov_trace:1.000000 train_time:44634ms
+step:300/2000 train_loss:2.621141 ce:2.069766 jepa:0.967814 sigreg:1.789062 latent_std:0.977729 latent_mean_norm:0.034698 latent_cov_trace:1.000000 train_time:66672ms
+step:400/2000 train_loss:2.480581 ce:1.971577 jepa:0.982517 sigreg:1.562500 latent_std:0.984556 latent_mean_norm:0.031336 latent_cov_trace:1.000000 train_time:88973ms
+step:500/2000 train_loss:2.201775 ce:1.697872 jepa:0.996082 sigreg:1.523438 latent_std:0.996664 latent_mean_norm:0.028678 latent_cov_trace:1.000000 train_time:111168ms
+step:500/2000 val_loss:1.818492 val_bpb:2.624463 train_time:111169ms
+step:600/2000 train_loss:2.200781 ce:1.677341 jepa:0.984388 sigreg:1.632812 latent_std:0.996639 latent_mean_norm:0.033138 latent_cov_trace:1.000000 train_time:133622ms
+step:700/2000 train_loss:2.267816 ce:1.778416 jepa:0.954812 sigreg:1.492188 latent_std:0.990799 latent_mean_norm:0.027002 latent_cov_trace:1.000000 train_time:156090ms
+step:800/2000 train_loss:2.120880 ce:1.635122 jepa:0.960042 sigreg:1.468750 latent_std:0.993815 latent_mean_norm:0.026999 latent_cov_trace:1.000000 train_time:178559ms
+step:900/2000 train_loss:2.173301 ce:1.708233 jepa:0.958153 sigreg:1.367188 latent_std:0.996383 latent_mean_norm:0.022213 latent_cov_trace:1.000000 train_time:201025ms
+step:1000/2000 train_loss:1.979460 ce:1.505195 jepa:0.949449 sigreg:1.421875 latent_std:0.989873 latent_mean_norm:0.025594 latent_cov_trace:1.000000 train_time:223500ms
+step:1000/2000 val_loss:1.575906 val_bpb:2.274362 train_time:223501ms
+step:1100/2000 train_loss:2.136794 ce:1.679596 jepa:0.942238 sigreg:1.343750 latent_std:0.985734 latent_mean_norm:0.017707 latent_cov_trace:1.000000 train_time:246444ms
+step:1200/2000 train_loss:1.933073 ce:1.472424 jepa:0.936056 sigreg:1.367188 latent_std:0.993017 latent_mean_norm:0.014938 latent_cov_trace:1.000000 train_time:269243ms
+step:1300/2000 train_loss:2.034329 ce:1.577881 jepa:0.946302 sigreg:1.335938 latent_std:0.993034 latent_mean_norm:0.015542 latent_cov_trace:1.000000 train_time:292234ms
+step:1400/2000 train_loss:1.879506 ce:1.424508 jepa:0.946864 sigreg:1.328125 latent_std:1.000018 latent_mean_norm:0.013266 latent_cov_trace:1.000000 train_time:314977ms
+step:1500/2000 train_loss:2.047089 ce:1.603306 jepa:0.922040 sigreg:1.296875 latent_std:0.991717 latent_mean_norm:0.010037 latent_cov_trace:1.000000 train_time:337736ms
+step:1500/2000 val_loss:1.490508 val_bpb:2.151115 train_time:337737ms
+step:1600/2000 train_loss:2.102085 ce:1.643604 jepa:0.917408 sigreg:1.375000 latent_std:0.988054 latent_mean_norm:0.009376 latent_cov_trace:1.000000 train_time:360760ms
+step:1700/2000 train_loss:1.957289 ce:1.516888 jepa:0.920756 sigreg:1.281250 latent_std:0.994963 latent_mean_norm:0.008413 latent_cov_trace:1.000000 train_time:383542ms
+step:1800/2000 train_loss:1.852127 ce:1.406905 jepa:0.921426 sigreg:1.304688 latent_std:0.993382 latent_mean_norm:0.005846 latent_cov_trace:1.000000 train_time:406313ms
+step:1900/2000 train_loss:1.766874 ce:1.336842 jepa:0.931414 sigreg:1.218750 latent_std:0.997315 latent_mean_norm:0.005052 latent_cov_trace:1.000000 train_time:429277ms
+step:2000/2000 train_loss:1.946893 ce:1.492084 jepa:0.906862 sigreg:1.367188 latent_std:0.989552 latent_mean_norm:0.005231 latent_cov_trace:1.000000 train_time:452453ms
+step:2000/2000 val_loss:1.466800 val_bpb:2.116898 train_time:452454ms
+peak memory allocated: 20523 MiB reserved: 21250 MiB
+Serialized model: 290981634 bytes
+Code size: 69323 bytes
+Total submission size: 291050957 bytes
+serialized_artifact_lzma:60603974 bytes
+code_bytes_lzma:69323 bytes
+Total submission size lzma: 60673297 bytes
+submission_valid_lzma:0
+int8_payload_bytes:145764776 baseline_tensor_bytes:290914344
+final_int8_zlib_roundtrip val_loss:1.472523 val_bpb:2.125158 eval_time:5927ms
+final_int8_zlib_roundtrip_exact val_loss:1.47252300 val_bpb:2.12515823
