@@ -1,0 +1,35 @@
+{
+    "author": "samacqua",
+    "github_id": "samacqua",
+    "name": "Varlen Attention + Fused MLP + doc-independent TTT",
+    "date": "2026-04-10",
+    "track": "10min_16mb",
+    "val_loss": 2.7806,
+    "val_bpb": 1.07643,
+    "val_bpb_std": 0.000291,
+    "seeds": [0, 1, 2],
+    "seed_results": {
+      "0": {
+        "val_bpb": 1.07676194, "artifact_bytes": 15992240
+      },
+      "1": {
+        "val_bpb": 1.07635404, "artifact_bytes": 15989679
+      },
+      "2": {
+        "val_bpb": 1.07619767, "artifact_bytes": 15994549
+      }
+    },
+    "compliance": {
+      "train_under_600s": true,
+      "artifact_under_16mb": true,
+      "eval_under_600s": true,
+      "no_slot": true,
+      "no_pre_quant_ttt": true,
+      "no_etlb": true,
+      "no_ngram_cache": true,
+      "score_first_ttt": true,
+      "three_seeds": true
+    },
+    "hardware": "8xH100 80GB SXM",
+    "pytorch_version": "2.9.1+cu128"
+  }
