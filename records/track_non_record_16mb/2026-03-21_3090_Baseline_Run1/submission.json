@@ -1,0 +1,14 @@
+{
+  "track": "non_record_16mb",
+  "title": "1x RTX 3090 baseline run",
+  "author": "Meet",
+  "github_id": "YOUR_GITHUB_USERNAME",
+  "hardware": "1x RTX 3090 (RunPod)",
+  "dataset": "fineweb10B_sp1024",
+  "tokenizer": "fineweb_1024_bpe.model",
+  "train_shards": 1,
+  "val_loss": 2.65578578,
+  "val_bpb": 1.57290593,
+  "artifact_size_bytes": 9283646,
+  "notes": "Non-record baseline run on 1x RTX 3090."
+}
