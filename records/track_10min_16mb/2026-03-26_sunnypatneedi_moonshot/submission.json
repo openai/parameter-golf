@@ -1,0 +1,9 @@
+{
+  "name": "11-gram Eval Cache + Hedge Mixer + Entropy-Adaptive Alpha",
+  "author": "sunnypatneedi",
+  "date": "2026-03-26",
+  "track": "10min_16mb",
+  "val_bpb": 0.8609,
+  "seeds": [42, 1337, 2025],
+  "artifact_bytes": 15918565
+}
