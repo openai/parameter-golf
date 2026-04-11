@@ -1,0 +1,18 @@
+{
+  "author": "Dohyeon.00",
+  "github_id": "ldh-at",
+  "name": "Hyperbolic Q/K Lite (1xH100, 10min)",
+  "blurb": "Non-record 1xH100 submission exploring a lightweight hyperbolic attention modification: only q/k are mixed through a Lorentz-style transform with trainable hyperbolic_qk_mix and hyperbolic_radius, while the rest of the GPT-style stack remains mostly Euclidean. Main 600s run reached final_int8_zlib_roundtrip val_bpb 1.32877977 at 11.67MB.",
+  "date": "2026-03-28T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.24358899,
+  "val_bpb": 1.32877977,
+  "pre_quant_val_loss": 2.2377,
+  "pre_quant_val_bpb": 1.3253,
+  "step_stop": 1378,
+  "wallclock_seconds": 600.217,
+  "bytes_total": 11673884,
+  "bytes_model_int8_zlib": 11624590,
+  "bytes_code": 49294,
+  "gpu": "1xH100 80GB"
+}
