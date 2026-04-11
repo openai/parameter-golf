@@ -5,7 +5,28 @@
       "Bash(ssh:*)",
       "Bash(handle64.exe \"C:\\\\Users\\\\yuito\\\\OneDrive\\\\Documents\\\\GitHub\\\\parameter-golf\\\\data\")",
       "Bash(powershell -Command 'Get-Process | Where-Object { $_.Path -like '\\\\''*parameter-golf*'\\\\'' }')",
-      "Bash(GIT_WORK_TREE=. git merge:*)"
+      "Bash(GIT_WORK_TREE=. git merge:*)",
+      "Bash(nvidia-smi --query-gpu=name,memory.total --format=csv)",
+      "Bash(chmod +x /root/parameter-golf/run_all.sh)",
+      "Bash(bash:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Read(//workspace/baseline_1942step_1.2979bpb/parameter-golf/**)",
+      "Read(//workspace/baseline_1942step_1.2979bpb/parameter-golf/data/**)",
+      "Read(//workspace/**)",
+      "Bash(find / -name \"fineweb_val*.bin\")",
+      "Bash(find / -name \"*.bin\" -path \"*fineweb*\")",
+      "Bash(find / -name \"fineweb_train*\")",
+      "Bash(find / -maxdepth 5 -type d -name \"fineweb*\")",
+      "Bash(find / -name \"*sp1024*\")",
+      "Bash(rm data:*)",
+      "Bash(mkdir data:*)",
+      "Bash(git show:*)",
+      "Bash(python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 1)",
+      "Bash(MAX_WALLCLOCK_SECONDS=60 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 EMA_DECAY=0.997 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp6_smoke torchrun --standalone --nproc_per_node=4 train_exp6.py)",
+      "Bash(grep -l \"exp1\\\\|SmearGate\" records/track_10min_16mb/*/README.md)",
+      "Bash(awk 'NR%20==0')",
+      "Bash(awk '-F[/ :]' '{for\\(i=1;i<=NF;i++\\)if\\($i==\"val_bpb\"\\){print $2, $\\(i+1\\)}}')"
     ]
   }
 }

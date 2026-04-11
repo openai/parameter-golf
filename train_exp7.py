@@ -1120,6 +1120,15 @@ def main() -> None:
         f"xsa_last_n:{args.xsa_last_n} eval_stride:{args.eval_stride}"
     )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(
+        "STARTUP_BANNER "
+        f"exp=exp7 layers={args.num_layers} mlp_mult={args.mlp_mult} "
+        f"ema=off ema_decay=none "
+        f"xsa=on xsa_last_n={args.xsa_last_n} "
+        f"bigram_hash=off "
+        f"world_size={world_size} nproc_per_node={world_size} "
+        f"gpu={torch.cuda.get_device_name(device)}"
+    )
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
