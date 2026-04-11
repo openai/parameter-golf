@@ -22,7 +22,7 @@ from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 try:
-    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    from flash_attn import flash_attn_func as flash_attn_3_func
 except ImportError:
     flash_attn_3_func = None
 
@@ -30,8 +30,8 @@ except ImportError:
 # HYPERPARAMETERS
 # -----------------------------
 # Default Simple Baseline run:
-# - 9 transformer blocks at width 512
-# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - 8 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 3x MLP expansion
 # - vocab size 1024, sequence length 1024, tied embeddings
 # - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
 
@@ -48,7 +48,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 96))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 128))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
 
     # Training length.
@@ -58,16 +58,16 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.7))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
-    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 32))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -89,17 +89,14 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 4))
-    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.15))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))
+    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.20))
     use_flash_attn_interface = bool(int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1")))
-    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.40))
+    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
 
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
-# 
-# As borrowed from modded-nanogpt
-# Background on Muon: https://kellerjordan.github.io/posts/muon/
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
@@ -377,7 +374,7 @@ INT6_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "INT6_NAME_PATTERNS",
-        "mlp.fc.weight,mlp.proj.weight,attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight",
+        "",
     ).split(",")
     if pattern
 )
@@ -385,7 +382,7 @@ INT8_QAT_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "INT8_QAT_NAME_PATTERNS",
-        "attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight",
+        "attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight,mlp.fc.weight,mlp.proj.weight",
     ).split(",")
     if pattern
 )
@@ -1382,3 +1379,97 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+====================================================================================================
+Running Python 3.12.11 | packaged by Anaconda, Inc. | (main, Jun  5 2025, 13:09:17) [GCC 11.2.0]
+Running PyTorch 2.8.0+cu128
+Sat Apr 11 15:51:43 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          Off |   00000000:04:00.0 Off |                    0 |
+| N/A   29C    P0             93W /  700W |    1185MiB /  81559MiB |      9%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            6208      C   ...nvs/cloudspace/bin/python3.12       1176MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:19417152
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_kernel:flash_attn_interface
+attention_mode:gqa num_heads:8 num_kv_heads:4
+xsa_last_n:2
+tie_embeddings:True embed_lr:0.04 head_lr:0.0 matrix_lr:0.032 scalar_lr:0.032 adam_wd:0.04 muon_wd:0.02
+train_batch_tokens:524288 train_seq_len:2048 iterations:35000 warmup_steps:20 max_wallclock_seconds:600.000
+eval_stride:128 eval_batch_seqs:32
+mlp_mult:3 rope_dims:32
+warmdown_iters:1200 warmdown_last_frac:0.200
+late_qat_last_frac:0.150
+late_qat_int8_patterns:attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight,mlp.fc.weight,mlp.proj.weight
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/35000 val_loss:6.9393 val_bpb:4.1098 train_time:0ms step_avg:0.02ms
+step:1/35000 train_loss:6.9398 train_time:367ms step_avg:366.91ms
+step:2/35000 train_loss:14.7401 train_time:735ms step_avg:367.35ms
+step:3/35000 train_loss:8.0035 train_time:1103ms step_avg:367.52ms
+step:4/35000 train_loss:6.6586 train_time:1473ms step_avg:368.15ms
+step:5/35000 train_loss:7.0874 train_time:1840ms step_avg:368.10ms
+step:6/35000 train_loss:7.2152 train_time:2208ms step_avg:368.08ms
+step:7/35000 train_loss:6.6708 train_time:2578ms step_avg:368.33ms
+step:8/35000 train_loss:6.3432 train_time:2946ms step_avg:368.28ms
+step:9/35000 train_loss:6.1982 train_time:3314ms step_avg:368.17ms
+step:10/35000 train_loss:6.1334 train_time:3681ms step_avg:368.06ms
+step:200/35000 train_loss:2.7105 train_time:74048ms step_avg:370.24ms
+step:400/35000 train_loss:2.3429 train_time:148166ms step_avg:370.41ms
+step:600/35000 train_loss:2.4496 train_time:222254ms step_avg:370.42ms
+step:800/35000 train_loss:2.2998 train_time:296221ms step_avg:370.28ms
+step:1000/35000 train_loss:2.3177 train_time:370248ms step_avg:370.25ms
+step:1200/35000 train_loss:2.2549 train_time:444261ms step_avg:370.22ms
+late_qat:enabled step:1378/35000 train_time:510217ms frac:0.150
+step:1400/35000 train_loss:2.2677 train_time:518346ms step_avg:370.25ms
+step:1600/35000 train_loss:2.1083 train_time:592458ms step_avg:370.29ms
+step:1621/35000 val_loss:2.1482 val_bpb:1.2723 train_time:600254ms step_avg:370.30ms
+stopping_early: wallclock_cap train_time:600254ms step:1621/35000
+peak memory allocated: 10126 MiB reserved: 10216 MiB
+Serialized model: 76650381 bytes
+Code size: 59176 bytes
+Total submission size: 76709557 bytes
+Serialized model mixed-quant+zlib: 15142148 bytes (payload:19476680 raw_torch:19529207 payload_ratio:3.93x)
+Total submission size mixed-quant+zlib: 15201324 bytes
+final_mixed_quant_zlib_roundtrip val_loss:2.1495 val_bpb:1.2731 eval_time:12736ms
+final_mixed_quant_zlib_roundtrip_exact val_loss:2.14953084 val_bpb:1.27307324
+final_mixed_quant_zlib_sliding_window val_loss:2.1102 val_bpb:1.2498 stride:128 eval_time:657418ms
+final_mixed_quant_zlib_sliding_window_exact val_loss:2.11022315 val_bpb:1.24979460
