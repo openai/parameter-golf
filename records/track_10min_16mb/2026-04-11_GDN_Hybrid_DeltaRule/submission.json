@@ -1,0 +1,9 @@
+{
+  "name": "GDN-Hybrid: Gated DeltaNet + Sliding Window Attention",
+  "val_bpb": 1.0283,
+  "bytes_total": 15417768,
+  "blurb": "GDN-Hybrid replaces the transformer backbone with Gated DeltaNet (delta-rule linear recurrence) + Sliding Window Attention: [GDN×5] → [SWA] → [GDN×5] → [SWA_shared]. 33.86M params, 512-dim, SP1024 tokenizer, QK-Gain 5.0, full-Hessian int6 GPTQ + zstd-22. No TTT. 3-seed cold-cache mean: 1.0283 BPB (seeds 42/1337/2024, fresh pods, VAL_LOSS_EVERY=9999, step-1 at ~105s confirming cold Triton cache). Individual seeds: 1.027163 / 1.027614 / 1.030148. All artifacts 14.48–14.70 MB. 8×H100 SXM, 590s per seed.",
+  "author": "Abhishek8108",
+  "github_id": "Abhishek8108",
+  "date": "2026-04-11"
+}

@@ -1,0 +1,5 @@
+flash-linear-attention
+zstandard
+sentencepiece
+# flash_attn_3 is pre-installed in runpod/parameter-golf:latest
+# torch, numpy, and other standard deps are pre-installed in the image

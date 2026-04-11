@@ -9,3 +9,16 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+plan.md
+experiments/
+engineering-logs.md
+career-intake/
+.claude/
+artifacts/
+docs/
+templates/
+.mcp.json
+compliance-checklist.md
+direction-1.md
+direction-2.md
+direction-5.md
