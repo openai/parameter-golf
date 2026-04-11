@@ -121,6 +121,10 @@ class Hyperparameters:
     ttt_soup_k = int(os.environ.get("TTT_SOUP_K", 1))
     recur_layers = os.environ.get("RECUR_LAYERS", "")
     recur_start_step = int(os.environ.get("RECUR_START_STEP", 2000))
+    # Progressive recurrence: gradually increase K, detach gradients at boundaries
+    progressive_recur = bool(int(os.environ.get("PROGRESSIVE_RECUR", "0")))
+    recur_max_k = int(os.environ.get("RECUR_MAX_K", 4))
+    recur_detach = bool(int(os.environ.get("RECUR_DETACH", "1")))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -922,17 +926,27 @@ class GPT(nn.Module):
     def set_recurrence_active(self, active: bool) -> None:
         self._recurrence_active = active
 
+    def set_recur_k(self, k: int) -> None:
+        """Set the number of recurrence iterations (1 = no recurrence)."""
+        self._recur_k = k
+
+    def set_recur_detach(self, detach: bool) -> None:
+        """Whether to detach gradients at recurrence boundaries."""
+        self._recur_detach = detach
+
     def _get_virtual_layers(self) -> list[int]:
         n = len(self.blocks)
         if not self._recurrence_active or not self.recur_layers:
             return list(range(n))
+        k = getattr(self, '_recur_k', 2)  # default K=2 (one extra pass)
         virtual = []
         inserted = False
         for i in range(n):
             virtual.append(i)
             if not inserted and i == self.recur_layers[-1]:
-                for rl in self.recur_layers:
-                    virtual.append(rl)
+                for _repeat in range(k - 1):  # K-1 extra passes
+                    for rl in self.recur_layers:
+                        virtual.append(rl)
                 inserted = True
         return virtual
 
@@ -970,6 +984,8 @@ class GPT(nn.Module):
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         n = self.num_layers
+        _detach = getattr(self, '_recur_detach', False)
+        _recur_set = set(self.recur_layers) if self.recur_layers else set()
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
@@ -2135,7 +2151,21 @@ def main() -> None:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if step == args.recur_start_step and base_model.recur_layers and not base_model._recurrence_active:
             base_model.set_recurrence_active(True)
-            log0(f"recurrence:activated at step {step}, virtual_layers={base_model._get_virtual_layers()}")
+            base_model.set_recur_detach(args.recur_detach)
+            if args.progressive_recur:
+                base_model.set_recur_k(2)  # start with K=2
+                log0(f"recurrence:activated progressive at step {step}, K=2, detach={args.recur_detach}")
+            else:
+                log0(f"recurrence:activated at step {step}, virtual_layers={base_model._get_virtual_layers()}")
+        # Progressive recurrence: increase K over time
+        if args.progressive_recur and base_model._recurrence_active and base_model.recur_layers:
+            steps_since_recur = step - args.recur_start_step
+            ramp_interval = 1000  # increase K every 1000 steps
+            target_k = min(2 + steps_since_recur // ramp_interval, args.recur_max_k)
+            current_k = getattr(base_model, '_recur_k', 2)
+            if target_k != current_k:
+                base_model.set_recur_k(target_k)
+                log0(f"recurrence:progressive K={target_k} at step {step}")
         should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
         if should_validate:
             torch.cuda.synchronize()
