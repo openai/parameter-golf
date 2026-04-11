@@ -183,10 +183,10 @@ def main():
             print(f"\n=== Setup (clone, deps, {train_shards} train shards) ===")
             ssh.run_commands([build_setup_script(train_shards)])
 
-            # Run 1: Standard SOTA stack (no random adapters, dim=480 to fit 16MB)
+            # Run 1: Standard SOTA stack (no random adapters, MLP=3 to fit 16MB)
             print(f"\n=== Run 1: Standard SOTA ({gpu_count}x H100, 10 min) ===")
             ssh.run_commands([build_train_script(gpu_count,
-                env_overrides={"USE_RANDOM_ADAPTERS": "0", "MODEL_DIM": "480"},
+                env_overrides={"USE_RANDOM_ADAPTERS": "0", "MLP_MULT": "3"},
                 log_name="run_standard.log")])
 
             # Run 2: Random adapters r256, EMA auto-disabled in code
