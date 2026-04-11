@@ -1,0 +1,89 @@
+<div class="content-inner">
+
+  <div class="unit-header">
+    <h1>Unit 9: Integration & Competition Strategy</h1>
+    <div class="unit-meta">
+      <span class="badge badge-violet">Week 16</span>
+      <span class="badge badge-cyan">~15 hours</span>
+      <span class="badge badge-amber">Capstone</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      Everything comes together. Read the SOTA line by line, identify remaining headroom,
+      design experiments, validate with statistical rigor, and prepare a submission.
+    </p>
+  </div>
+
+  <div class="week-section" data-week="16">
+    <div class="week-title"><span style="color: var(--pg-violet);">\u{25B6}</span> Week 16: Putting It All Together</div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span><h3>Topics</h3></div>
+
+    <div class="check-item" data-type="topic" data-id="w16-sota-walkthrough"><input type="checkbox"><div class="check-label">The SOTA stack walkthrough: reading and understanding the #1 submission line by line</div></div>
+    <div class="check-item" data-type="topic" data-id="w16-diminishing-returns">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Contribution axes and diminishing returns analysis</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Where is the most remaining headroom?
+            </p>
+            <ul style="color: var(--pg-text-muted); font-size: var(--font-size-sm); padding-left: var(--space-lg);">
+              <li><strong>Quantization</strong>: int6 GPTQ is near optimal. int5/int4 have diminishing returns.</li>
+              <li><strong>Architecture</strong>: Depth recurrence, state-space models are unexplored.</li>
+              <li><strong>Training efficiency</strong>: Parallel Muon is already highly optimized.</li>
+              <li><strong>Evaluation</strong>: Sliding window + TTT have room, but SOTA dropped TTT.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w16-experiment-design">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Experiment design: ablation methodology, statistical significance</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The submission process requires:
+            </p>
+            <ul style="color: var(--pg-text-muted); font-size: var(--font-size-sm); padding-left: var(--space-lg);">
+              <li>Beat SOTA by at least <strong>0.005 nats</strong></li>
+              <li>Provide enough runs to show this at <strong>p &lt; 0.01</strong></li>
+              <li>Typically: <strong>3-seed validation</strong> with Welch's t-test</li>
+              <li>Must reproduce on <strong>8xH100 SXM in under 10 minutes</strong></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w16-submission-process"><input type="checkbox"><div class="check-label">Submission process: records folder structure, logging, artifact generation</div></div>
+    <div class="check-item" data-type="topic" data-id="w16-risk-management"><input type="checkbox"><div class="check-label">Risk management: compute cost estimation, iterating cheaply before scaling</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span><h3>Readings</h3></div>
+    <div class="check-item" data-type="reading" data-id="w16-pr1019"><input type="checkbox"><div class="check-label">PR #1019: Current SOTA (AR Self-Gen GPTQ + XSA + BigramHash)</div></div>
+    <div class="check-item" data-type="reading" data-id="w16-pr549"><input type="checkbox"><div class="check-label">PR #549: LeakyReLU^2 + Legal TTT + Parallel Muon</div></div>
+    <div class="check-item" data-type="reading" data-id="w16-pr414"><input type="checkbox"><div class="check-label">PR #414: Earlier SOTA stack</div></div>
+    <div class="check-item" data-type="reading" data-id="w16-all-readmes"><input type="checkbox"><div class="check-label">All README files in records/track_10min_16mb/</div></div>
+    <div class="check-item" data-type="reading" data-id="w16-rules-faq"><input type="checkbox"><div class="check-label">Parameter Golf FAQ and rules (challenge page + repo README)</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span><h3>Capstone Project</h3></div>
+
+    <div class="card" style="border-color: var(--pg-violet); margin-bottom: var(--space-lg);">
+      <div class="card-header"><h3 class="card-title" style="color: var(--pg-violet);">Final Submission</h3></div>
+      <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+        Starting from the current SOTA codebase, implement one novel improvement. This is the culmination
+        of everything in the curriculum.
+      </p>
+
+      <div class="check-item" data-type="exercise" data-id="w16-cap1-implement"><input type="checkbox"><div class="check-label">Implement one novel improvement on the SOTA stack</div></div>
+      <div class="check-item" data-type="exercise" data-id="w16-cap2-validate"><input type="checkbox"><div class="check-label">Run 3-seed validation on 8xH100</div></div>
+      <div class="check-item" data-type="exercise" data-id="w16-cap3-submission"><input type="checkbox"><div class="check-label">Prepare complete submission: README.md, submission.json, train_gpt.py, train logs</div></div>
+      <div class="check-item" data-type="exercise" data-id="w16-cap4-stats"><input type="checkbox"><div class="check-label">Present results with statistical analysis (mean, std, Welch's t-test)</div></div>
+    </div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 16 / Capstone notes..." data-note-key="w16-general" data-note-type="week-note" style="min-height: 120px; margin-top: var(--space-lg);"></div>
+  </div>
+</div>
