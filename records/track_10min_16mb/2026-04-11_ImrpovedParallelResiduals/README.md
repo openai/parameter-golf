@@ -43,5 +43,12 @@ I include the prebuilt `.so` in `cutlass_evt_fusion/` only as a convenience for 
 
 ```bash
 git clone https://github.com/NVIDIA/cutlass.git /opt/cutlass
+cd /opt/cutlass
+git checkout 08185b9c3e90510ee2b656662ed0d53b06d28157
+cd -
 pip install --no-build-isolation ./cutlass_evt_fusion
 ```
+
+## Artifact Size Note
+
+The reported artifact sizes above follow the challenge's usual accounting of `train_gpt.py` code bytes plus compressed model bytes. If I also count the custom `cutlass_evt_fusion` source files that are shipped here for reproducibility, specifically `csrc/gemm_act_grad.cu`, `csrc/torch_binding.cpp`, `__init__.py`, and `setup.py`, that adds 8,579 bytes. Under that stricter accounting, the mean artifact size would be 15,965,455 bytes instead of 15,956,876.
