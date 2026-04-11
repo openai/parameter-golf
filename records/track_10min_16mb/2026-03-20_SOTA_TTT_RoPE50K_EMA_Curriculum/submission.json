@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "author": "0xjaishy",
+  "github_id": "0xjaishy",
+  "name": "SOTA+ TTT + RoPE50K + EMA + Curriculum",
+  "blurb": "PR#198 stack (11L Int6 MLP3x SmearGate BigramHash OrthoInit WD0.04) + RoPE 50K + LAWA-EMA + context-length curriculum + full-model SGD test-time training",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_code": 67947,
+  "bytes_total": 0,
+  "date": "2026-03-20",
+  "notes": "Pending 8xH100 SXM run. Conservative target: 1.125 BPB. Aggressive target: <1.10 BPB."
+}
