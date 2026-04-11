@@ -2638,12 +2638,10 @@ def train_and_eval(h, device):
             ttt_compile_time = 0.0
         else:
             fwd_ttt_compiled = torch.compile(_fwd_ttt, dynamic=True)
-            log(f"ttt_lora:warming up compile")
+            log(f"ttt_lora:warming up compile (random tokens, no val data)")
             global BOS_ID
             if BOS_ID is None:
                 BOS_ID = 1
-            ds0 = 0
-            val_tokens_idx = val_data.val_tokens.to(torch.int32)
             t_warmup = time.perf_counter()
             warmup_bszes = [h.ttt_batch_size]
             for bsz in warmup_bszes:
@@ -2660,18 +2658,17 @@ def train_and_eval(h, device):
                     fused=True,
                 )
                 for ctx_len in (h.ttt_chunk_size, h.ttt_eval_seq_len):
-                    col_w = torch.arange(ctx_len + 1)
-                    idx_w = (ds0 + col_w).clamp_(max=val_data.val_tokens.numel() - 1)
-                    row_w = val_tokens_idx[idx_w].to(device=device, dtype=torch.int64)
-                    xw = row_w[:ctx_len].unsqueeze(0).expand(bsz, -1).contiguous()
-                    yw = row_w[1 : ctx_len + 1].unsqueeze(0).expand(bsz, -1).contiguous()
+                    # Use random tokens for compile warmup — NOT val tokens.
+                    # This avoids touching val data before the official eval loop,
+                    # satisfying Issue #1017 and README guidelines.
+                    xw = torch.randint(0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64)
+                    yw = torch.randint(0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64)
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         ptl = fwd_ttt_compiled(xw, yw, lora=wl)
                     ptl[:, : min(h.ttt_chunk_size, ctx_len)].mean(dim=-1).sum().backward()
                     wo.step()
                     wo.zero_grad(set_to_none=True)
                 del wl, wo
-            del val_tokens_idx
             torch.cuda.empty_cache()
             ttt_compile_time = time.perf_counter() - t_warmup
             log(f"ttt_lora:compile warmup done ({ttt_compile_time:.1f}s)")
