@@ -1,0 +1,169 @@
+SP8192 data ready: 128 train shards, 1 val shards
+
+note: This is an issue with the package mentioned above, not pip.
+hint: See above for details.
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /ibex/project/c2334/huanyi/parameter-golf/data/
+  datasets_dir: /ibex/project/c2334/huanyi/parameter-golf/data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/v6_exp62_sota_qk525.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 14400.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: v6_exp62_sota_qk525
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /ibex/project/c2334/huanyi/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /ibex/project/c2334/huanyi/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 200
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: /ibex/project/c2334/huanyi/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 2000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40546304
+model_params:35944536
+gptq:reserving 12s, effective=14388000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0072 val_bpb: 3.4876
+1/20000 train_loss: 9.0073 train_time: 0.0m tok/s: 454362
+2/20000 train_loss: 12.2614 train_time: 0.1m tok/s: 450374
+3/20000 train_loss: 11.0707 train_time: 0.1m tok/s: 448789
+4/20000 train_loss: 9.4383 train_time: 0.1m tok/s: 447753
+5/20000 train_loss: 8.3141 train_time: 0.1m tok/s: 447202
+200/20000 train_loss: 3.6622 train_time: 5.9m tok/s: 442719
+400/20000 train_loss: 3.3864 train_time: 11.8m tok/s: 443116
+600/20000 train_loss: 3.3138 train_time: 17.7m tok/s: 443407
+800/20000 train_loss: 3.2536 train_time: 23.6m tok/s: 443604
+1000/20000 train_loss: 3.2125 train_time: 29.5m tok/s: 443717
+1200/20000 train_loss: 3.1716 train_time: 35.4m tok/s: 443780
+1400/20000 train_loss: 3.1705 train_time: 41.3m tok/s: 443811
+1600/20000 train_loss: 3.1825 train_time: 47.3m tok/s: 443812
+1800/20000 train_loss: 3.1075 train_time: 53.2m tok/s: 443791
+2000/20000 train_loss: 3.1216 train_time: 59.1m tok/s: 443767
+2000/20000 val_loss: 3.0966 val_bpb: 1.1990
+2200/20000 train_loss: 3.0967 train_time: 65.0m tok/s: 443740
+2400/20000 train_loss: 3.0812 train_time: 70.9m tok/s: 443717
+2600/20000 train_loss: 3.1018 train_time: 76.8m tok/s: 443698
+2800/20000 train_loss: 3.0634 train_time: 82.7m tok/s: 443679
+layer_loop:enabled step:2842 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+3000/20000 train_loss: 3.0332 train_time: 90.9m tok/s: 432389
+3200/20000 train_loss: 3.0379 train_time: 99.8m tok/s: 420365
+3400/20000 train_loss: 2.9864 train_time: 108.6m tok/s: 410274
+3600/20000 train_loss: 2.9870 train_time: 117.5m tok/s: 401733
+3800/20000 train_loss: 2.9655 train_time: 126.3m tok/s: 394378
+4000/20000 train_loss: 2.9861 train_time: 135.1m tok/s: 387995
+4000/20000 val_loss: 2.9654 val_bpb: 1.1482
+4200/20000 train_loss: 2.9799 train_time: 144.0m tok/s: 382392
+4400/20000 train_loss: 2.9577 train_time: 152.8m tok/s: 377439
+4600/20000 train_loss: 2.9265 train_time: 161.6m tok/s: 373011
+4800/20000 train_loss: 2.9243 train_time: 170.5m tok/s: 369061
+5000/20000 train_loss: 2.8990 train_time: 179.3m tok/s: 365502
+5200/20000 train_loss: 2.8885 train_time: 188.1m tok/s: 362273
+5400/20000 train_loss: 2.9150 train_time: 197.0m tok/s: 359341
+5600/20000 train_loss: 2.8177 train_time: 205.8m tok/s: 356663
+5800/20000 train_loss: 2.8467 train_time: 214.6m tok/s: 354200
+6000/20000 train_loss: 2.8160 train_time: 223.5m tok/s: 351940
+6000/20000 val_loss: 2.8125 val_bpb: 1.0890
+6200/20000 train_loss: 2.7801 train_time: 232.3m tok/s: 349855
+6371/20000 val_loss: 2.7826 val_bpb: 1.0774
+stopping_early: wallclock_cap train_time: 14389478ms step: 6371/20000
+peak memory allocated: 41862 MiB reserved: 41930 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.77918548 val_bpb:1.07609792 eval_time:48098ms
+Serialized model: 135431033 bytes
+Code size: 49104 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 27.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15970123 bytes
+Total submission size quantized+brotli: 16019227 bytes
+EXIT_CODE=1
