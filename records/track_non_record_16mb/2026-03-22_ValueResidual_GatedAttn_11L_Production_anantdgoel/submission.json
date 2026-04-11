@@ -1,0 +1,22 @@
+{
+  "author": "Anant Goel",
+  "github_id": "anantdgoel",
+  "name": "11L Production: Value Residual + Gated Attention",
+  "blurb": "Full community stack + Value Residual (-0.015 BPB) + Gated Attention (-0.003 BPB) on 11L MLP3x with EMA, XSA4, Partial RoPE. Unlimited compute, 1xA6000, 9500 steps.",
+  "date": "2026-03-22T22:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.97883639,
+  "val_bpb": 1.17197837,
+  "pre_quant_val_loss": 1.9772,
+  "pre_quant_val_bpb": 1.1710,
+  "step_stop": 9500,
+  "wallclock_seconds": 52327.446,
+  "bytes_total": 19450409,
+  "bytes_model_int6_zstd": 19374552,
+  "bytes_code": 47686,
+  "seed": 1337,
+  "novel_contributions": [
+    "Value Residual (ResFormer, arXiv:2410.17897) — caches layer-0 V vectors and mixes into subsequent layers via learnable scalars, -0.015 BPB",
+    "Gated Attention (arXiv:2505.06708) — per-head sigmoid gate after SDPA, eliminates attention sinks, -0.003 BPB"
+  ]
+}
