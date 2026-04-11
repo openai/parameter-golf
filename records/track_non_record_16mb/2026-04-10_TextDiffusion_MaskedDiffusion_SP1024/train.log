@@ -1,0 +1,64 @@
+oot@3afe08cdcbb4:/workspace/parameter-golf/parameter-golf# python records/track_non_record_16mb/2026-04-10_TextDiffusion_MaskedDiffusion_SP1024/train_gpt.py
+logs/b3db43f5-237a-404c-b205-17ae9812968f.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993884
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:24.7923 val_bpb:14.6834 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9357 train_time:752ms step_avg:752.03ms
+step:2/20000 train_loss:8.6776 train_time:1439ms step_avg:719.41ms
+step:3/20000 train_loss:7.0345 train_time:2208ms step_avg:735.89ms
+step:4/20000 train_loss:10.8673 train_time:2973ms step_avg:743.24ms
+step:5/20000 train_loss:13.0049 train_time:3733ms step_avg:746.58ms
+step:6/20000 train_loss:11.6809 train_time:4490ms step_avg:748.29ms
+step:7/20000 train_loss:8.3843 train_time:5254ms step_avg:750.62ms
+step:8/20000 train_loss:7.9370 train_time:6013ms step_avg:751.66ms
+step:9/20000 train_loss:7.6612 train_time:6784ms step_avg:753.79ms
+step:10/20000 train_loss:7.2290 train_time:7548ms step_avg:754.79ms
+swa:start step:100
+late_qat:enabled step:257 scale:0.1497
+step:500/20000 train_loss:3.4450 train_time:384195ms step_avg:768.39ms
+step:781/20000 val_loss:8.6850 val_bpb:5.1437 train_time:600098ms step_avg:768.37ms
+stopping_early: wallclock_cap train_time:600098ms step:781/20000
+peak memory allocated: 23153 MiB reserved: 23422 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:12.9019 val_bpb:7.6412 eval_time:94987ms
+Serialized model: 106157429 bytes
+Code size: 88601 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating diffusion calibration data (64 seqs x 2048 tokens)...
+gptq:generated 64 sequences in 0.0s
+gptq:collecting hessians from diffusion data...
+gptq:collected hessians for 68 layers (Diffusion self-gen)
+selective_prune: 8432977 ±1 candidates, unpruned=6.22MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 6431700 bytes
+Total submission size int6+lzma: 6520301 bytes
