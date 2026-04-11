@@ -1,0 +1,36 @@
+# pgolf_venv — Python 3.10, CUDA 12.8, H100
+# Recreate: uv venv /data/pgolf_venv --python 3.10 && uv pip install -r requirements-pgolf-venv.txt
+#
+# flash_attn_3 is a custom wheel — install separately:
+#   uv pip install "https://github.com/windreamer/flash-attention3-wheels/releases/download/2026.03.19-850211f/flash_attn_3-3.0.0%2B20260318.cu128torch2100cxx11abitrue.8afc61-cp39-abi3-linux_x86_64.whl"
+
+torch==2.10.0
+triton==3.6.0
+numpy==2.2.6
+einops==0.8.2
+ninja==1.13.0
+datasets==4.8.3
+huggingface_hub==1.7.1
+sentencepiece==0.2.1
+pandas==2.3.3
+pyarrow==23.0.1
+psutil==7.2.2
+pyyaml==6.0.3
+requests==2.32.5
+tqdm==4.67.3
+typer==0.24.1
+rich==14.3.3
+click==8.3.1
+packaging==26.0
+setuptools==82.0.1
+httpx==0.28.1
+aiohttp==3.13.3
+anyio==4.12.1
+filelock==3.25.2
+fsspec==2026.2.0
+jinja2==3.1.6
+sympy==1.14.0
+typing_extensions==4.15.0
+xxhash==3.6.0
+dill==0.4.1
+multiprocess==0.70.19

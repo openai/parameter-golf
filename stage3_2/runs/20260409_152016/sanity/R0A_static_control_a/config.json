@@ -1,0 +1,43 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "R0A",
+  "name": "static_control_a",
+  "role": "control",
+  "family": "baseline_control",
+  "lane": "controller",
+  "label": "20260409_152016",
+  "gpu_spec": "0",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A"
+  ],
+  "compare_to": null,
+  "why": "Primary static control. Strong static base with no dynamic controller.",
+  "validates": "The copied strong base is stable and provides the correct reference for controller deltas.",
+  "falsifies": "All controller conclusions are suspect if the control itself is unstable.",
+  "patches": [],
+  "notes": [
+    "Reference for all controller comparisons."
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

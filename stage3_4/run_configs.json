@@ -1,0 +1,290 @@
+{
+  "batch_id": "stage3_4_eval_and_late_era6_v3",
+  "description": "Stage 3.4 v3: Eval-time optimization and late branching on Era 6 stack. One implemented patch (late_branch_finishers). SLOT, n-gram bias, and ensemble eval are NOT YET IMPLEMENTED \u2014 they need patches written. The branching machinery is the consequential code; the eval-time ideas are the consequential hypotheses.",
+  "benchmarks": {
+    "our_best_bpb": 1.1631,
+    "frontier_no_ttt_bpb": 1.0848,
+    "frontier_ttt_bpb": 1.06,
+    "merged_sota_bpb": 1.1147,
+    "frontier_pr": "PR #1487 (ndokutovich) SP8192 + Recur345 + Par7 + PreQuant TTT 10ep",
+    "slot_frontier_bpb": 0.2282,
+    "slot_pr": "PR #1507 (L-BFGS SLOT with entropy-adaptive n-gram mixer)"
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "EMA_DECAY": "0.9965",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "BIGRAM_VOCAB_SIZE": "3072",
+    "BIGRAM_DIM": "112",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "VOCAB_SIZE": "8192",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model",
+    "VAL_LOSS_EVERY": "4000",
+    "TRAIN_LOG_EVERY": "500",
+    "TTT_ENABLED": "1",
+    "TTT_EPOCHS": "5",
+    "TTT_LR": "0.00045",
+    "TTT_FREEZE_BLOCKS": "0,1"
+  },
+  "phases": {
+    "lane_bc_bakeoff": {
+      "max_wallclock_seconds": 120,
+      "nproc_per_slot": 1,
+      "description": "Lane B/C: load external checkpoint (CHECKPOINT_PATH env), apply export/eval patches. No training.",
+      "checkpoint_source": "external",
+      "slots": [
+        "R0A_export",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5"
+      ]
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8,
+      "description": "Full-box eval for promoted winners. Composites allowed."
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A_export",
+      "name": "baseline_export_control",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_export_control",
+      "lane": "B",
+      "why": "Era 6 checkpoint + TTT 5ep + standard GPTQ + sliding window eval. All candidates must beat this.",
+      "validates": "The Era 6 export pipeline produces expected deployed score.",
+      "falsifies": "All comparisons invalid if control diverges.",
+      "env": {},
+      "notes": [
+        "Includes TTT and sliding window eval as defaults."
+      ]
+    },
+    {
+      "slot": "H1",
+      "name": "raw_ema_deploy_triple",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "late_branch_finishers"
+      ],
+      "family": "STATE_SELECTION",
+      "lane": "A",
+      "mechanism": "Branch at 75% wallclock into 3 export-state finishers: raw (no EMA), EMA-heavy (decay=0.9995), deploy-QAT (moderate EMA + surrogate). Export best post-GPTQ branch.",
+      "math": "At t=0.75*T, fork into 3. Each runs for (T-t)/3. Export argmin(post_quant_bpb).",
+      "placement": "In training loop at wallclock check. Patch exists in patches.py:22.",
+      "shapes": "3 copies of model state. No new parameters per branch.",
+      "init": "All branches from same checkpoint.",
+      "coefficients": "branch_start_frac=0.75. Raw: use_ema=0. EMA-heavy: decay=0.9995. Deploy: decay=0.999, surrogate=0.0005.",
+      "failure_modes": "Each branch gets too little time (~8% of total). Or TTT washes out branch differences.",
+      "why": "Export-state choice matters enormously on the frontier. This tests raw vs EMA vs deploy-aligned by running all three.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "small_to_medium",
+        "bpb_range": [
+          0.002,
+          0.008
+        ]
+      },
+      "kill_rule": "No branch separates from control, or winning branch is always default EMA.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.75,\"finishers\":[{\"name\":\"raw_finish\",\"ema_decay\":0.997,\"use_ema\":0},{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.45,\"export_surrogate_weight\":0.0005,\"use_ema\":1}]}"
+      },
+      "notes": [
+        "Patch EXISTS in patches.py:22. Patch applies cleanly to base_train_gpt.py."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "aggressive_tri_branch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "late_branch_finishers"
+      ],
+      "family": "AGGRESSIVE_TRI_BRANCH",
+      "lane": "A",
+      "mechanism": "Same branching infrastructure as H1 but harder-swinging finishers: QAT alpha=0.7, frozen embeds, boosted matrix LR.",
+      "math": "Branch at 0.72*T. Deploy-QAT-aggr: alpha=0.7, surrogate=0.0009. Family-split: lr_matrix*=1.2, lr_embed=0.",
+      "placement": "Same patch as H1, different env config. Patch exists in patches.py:22.",
+      "shapes": "Same as H1.",
+      "init": "Same as H1.",
+      "coefficients": "branch_start_frac=0.72. QAT alpha=0.7 (aggressive). Embed LR=0 (freeze).",
+      "failure_modes": "Aggressive finishers destabilize. Or branching 4% earlier weakens trunk.",
+      "why": "Branching gives permission to swing harder. If H1 shows branching works, H2 tests max aggression.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [
+          0.003,
+          0.012
+        ]
+      },
+      "kill_rule": "No branch beats control, or winner is always conservative EMA.",
+      "env": {
+        "BRANCH_ENABLE": "1",
+        "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.72,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat_aggr\",\"ema_decay\":0.999,\"qat_alpha\":0.7,\"export_surrogate_weight\":0.0009,\"use_ema\":1},{\"name\":\"family_split_aggr\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.35,\"scalar_lr_mult\":0.55,\"matrix_lr_mult\":1.2,\"use_ema\":1}]}"
+      },
+      "notes": [
+        "Same patch as H1 \u2014 different BRANCH_SPEC_JSON. Patch applies cleanly."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "ngram_logit_bias",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "ngram_bias"
+      ],
+      "family": "EVAL_TIME_COMPUTE",
+      "lane": "C",
+      "mechanism": "At eval time, compute n-gram frequency tables from prior context. Add weighted logit bias to model output. Zero training cost.",
+      "math": "logit_bias(v) = 0.15 * log(1 + count_bi(v)) + 0.10 * log(1 + count_tri(v)). logits_final = logits_model + logit_bias.",
+      "placement": "In eval loop, after model forward, before loss. Patch in patches.py:351.",
+      "shapes": "N-gram tables: hash maps. Logit bias: [V=8192] per position.",
+      "init": "Tables built online from context.",
+      "coefficients": "alpha=0.15, beta=0.10.",
+      "failure_modes": "Model already captures n-gram patterns. Or fixed alpha/beta wrong for some sequences.",
+      "why": "PR #1507 shows n-gram mixing is enormously powerful. Even simple bias is a free lunch at eval time.",
+      "dominant_metric": "eval_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [
+          0.005,
+          0.02
+        ]
+      },
+      "kill_rule": "Average eval BPB gets worse.",
+      "env": {
+        "NGRAM_BIAS": "1",
+        "NGRAM_ALPHA": "0.15",
+        "NGRAM_BETA": "0.10"
+      },
+      "notes": [
+        "Patch implemented in patches.py.",
+        "Stepping stone toward full SLOT."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "slot_per_sample_optimization",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "slot_basic"
+      ],
+      "family": "EVAL_TIME_COMPUTE",
+      "lane": "C",
+      "mechanism": "SLOT: per-sample L-BFGS optimization of a logit bias vector at eval time. Each sample gets 20 L-BFGS steps to find a bias that minimizes its own loss.",
+      "math": "delta_s = argmin_{delta} L(model(x; delta), x). delta: [V=8192]. L-BFGS max_iter=20, lr=0.1.",
+      "placement": "In eval loop, wrapping forward pass. Patch in patches.py:481.",
+      "shapes": "delta: [8192] per sample. L-BFGS state: ~3 * 8192 floats.",
+      "init": "delta_0 = 0.",
+      "coefficients": "max_iter=20, lr=0.1.",
+      "failure_modes": "Eval protocol disallows per-sample optimization. Or L-BFGS too slow.",
+      "why": "PR #1507 reaches 0.2282 BPB with SLOT. This is the paradigm shift \u2014 eval-time compute matters as much as training.",
+      "dominant_metric": "eval_bpb",
+      "expected_impact": {
+        "magnitude": "large",
+        "bpb_range": [
+          0.02,
+          0.06
+        ]
+      },
+      "kill_rule": "Eval protocol disallows it, or L-BFGS doesn't converge.",
+      "env": {
+        "SLOT_ENABLED": "1",
+        "SLOT_LBFGS_ITERS": "20",
+        "SLOT_LR": "0.1"
+      },
+      "notes": [
+        "Patch implemented in patches.py.",
+        "Highest expected value if eval protocol allows it.",
+        "Must verify competition rules before investing implementation effort."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "aggressive_ttt_10ep",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "ttt_aggressive"
+      ],
+      "family": "TTT_PUSH",
+      "lane": "B",
+      "mechanism": "Push TTT to 10 epochs, unfreeze block 1, add cosine LR decay within TTT. More params + more epochs + scheduled LR = deeper adaptation.",
+      "math": "TTT: 10 epochs, lr=0.0004 * cosine_decay, freeze=[0] only. Start from EMA(w_T).",
+      "placement": "Post-training TTT loop, after EMA apply, before export. Patch in patches.py:595.",
+      "shapes": "Same model, ~91% params unfrozen.",
+      "init": "Fresh AdamW from EMA checkpoint.",
+      "coefficients": "epochs=10, lr=0.0004, freeze=[0], cosine within TTT.",
+      "failure_modes": "Overfits to val data. Exceeds wallclock. Unfreezing block 1 destabilizes.",
+      "why": "Default TTT (5ep) is conservative. PR #1487 gets -0.034 with 10ep. Our 0.103 gap demands maximum TTT exploitation.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium_to_large",
+        "bpb_range": [
+          0.005,
+          0.02
+        ]
+      },
+      "kill_rule": "Worse post_quant_bpb than default 5ep TTT.",
+      "env": {
+        "TTT_EPOCHS": "10",
+        "TTT_LR": "0.0004",
+        "TTT_FREEZE_BLOCKS": "0",
+        "TTT_COSINE": "1"
+      },
+      "notes": [
+        "Patch implemented in patches.py.",
+        "Directly attacks the largest known lever."
+      ]
+    }
+  ]
+}

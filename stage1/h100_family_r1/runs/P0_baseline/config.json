@@ -1,0 +1,19 @@
+{
+  "batch_id": "stage1_h100_family_r1",
+  "slot": "P0",
+  "name": "baseline",
+  "hypothesis": "none",
+  "family": "baseline",
+  "role": "comparator",
+  "why": "Pure baseline comparator for all Stage 1 single-family scouts.",
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "NUM_HEADS": "8",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

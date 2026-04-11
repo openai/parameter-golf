@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "H207",
+  "name": "best_state_plus_ttt_last2",
+  "role": "candidate",
+  "family": "BEST_STATE_PLUS_TTT_LAST2",
+  "lane": "controller",
+  "label": "20260409_152016",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H207"
+  ],
+  "compare_to": "R0A",
+  "why": "The current frontier treats pre-quant TTT as a major downstream stage. This controller asks whether deployed checkpoint choice plus a narrow last-2-block TTT finisher is already a real gain on top of the strong static base.",
+  "validates": "Checkpoint selection and pre-quant TTT interact constructively, even with a narrow freeze-depth choice.",
+  "falsifies": "Best-state selection is not a meaningful TTT precursor, or narrow TTT is too weak on this base.",
+  "patches": [
+    "state_controller"
+  ],
+  "notes": [
+    "Rebased TTT-facing support family.",
+    "Narrow pre-quant TTT with last-2-block adaptation."
+  ],
+  "env": {
+    "CTRL_ENABLE": "1",
+    "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.55,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{\"checkpoint_capture_rate\":150},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":75,\"checkpoint_selection_mode\":\"best_deployed_last_k\",\"ttt_enable\":1,\"ttt_epochs\":3,\"ttt_lr\":0.0005,\"ttt_freeze_blocks\":9,\"ttt_stride\":256,\"ttt_chunks\":32,\"ttt_block_lr_decay\":1.0,\"ttt_grad_clip_norm\":0.3}},\"snapshot\":{\"every\":75,\"start_frac\":0.7,\"last_k\":8,\"score\":\"deployed\",\"mode\":\"best_deployed_last_k\"}}",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

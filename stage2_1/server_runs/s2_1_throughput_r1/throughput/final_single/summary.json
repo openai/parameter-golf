@@ -1,0 +1,44 @@
+{
+  "pack": "throughput",
+  "phase": "final_single",
+  "results": {
+    "U3": {
+      "steps": 1,
+      "step_avg_ms": null,
+      "pre_quant_bpb": null,
+      "post_quant_bpb": null,
+      "ttt_lora_bpb": null,
+      "sliding_bpb": null,
+      "doc_sliding_bpb": null,
+      "submission_size_bytes": null,
+      "score_bpb": null,
+      "returncode": -9
+    }
+  },
+  "comparisons": [],
+  "best_result": {
+    "slot": "U3",
+    "name": "throughput_xsa_all_plus_fa3",
+    "role": "candidate",
+    "family": "throughput_xsa",
+    "runner_mode": "train",
+    "patches": [
+      "xsa_all",
+      "fa3"
+    ],
+    "score_bpb": null,
+    "pre_quant_bpb": null,
+    "post_quant_bpb": null,
+    "ttt_lora_bpb": null,
+    "sliding_bpb": null,
+    "doc_sliding_bpb": null,
+    "step_avg_ms": null,
+    "steps": 1,
+    "submission_size_bytes": null,
+    "gap_to_ours": null,
+    "gap_to_merged_sota": null,
+    "gap_to_frontier_no_ttt": null,
+    "gap_to_frontier_ttt": null
+  },
+  "recommended_promotions": []
+}

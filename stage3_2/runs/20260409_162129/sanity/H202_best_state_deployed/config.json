@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "H202",
+  "name": "best_state_deployed",
+  "role": "candidate",
+  "family": "BEST_STATE_CONTROLLER",
+  "lane": "controller",
+  "label": "20260409_162129",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H202"
+  ],
+  "compare_to": "R0A",
+  "why": "The best compressed artifact often does not coincide with the latest raw checkpoint. This controller attacks train-to-deploy mismatch directly.",
+  "validates": "Export-state selection is a real first-order mechanism.",
+  "falsifies": "The static end state is already the best deployable state.",
+  "patches": [
+    "state_controller"
+  ],
+  "notes": [
+    "Lead family H202.",
+    "Decision-horizon hypothesis."
+  ],
+  "env": {
+    "CTRL_ENABLE": "1",
+    "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.55,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{\"checkpoint_capture_rate\":150},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":75,\"checkpoint_selection_mode\":\"best_deployed_last_k\"}},\"snapshot\":{\"every\":75,\"start_frac\":0.7,\"last_k\":8,\"score\":\"deployed\",\"mode\":\"best_deployed_last_k\"}}",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

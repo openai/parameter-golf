@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage2_sota_stack_strategy_r1",
+  "phase": "screen",
+  "slot": "H1",
+  "name": "smaller_batch_more_steps",
+  "role": "candidate",
+  "family": "geometry_step_budget",
+  "label": "dryrun_sota_strategy_all",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H1"
+  ],
+  "compare_to": "R0A",
+  "why": "Tests whether the record-like stack is over-batched and can gain from more optimizer steps.",
+  "validates": "Better BPB or similar BPB with more steps reached.",
+  "falsifies": "Extra gradient noise dominates the additional updates.",
+  "notes": [
+    "Derived from hypotheses_v2 H5."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_BATCH_SEQS": "256",
+    "EVAL_SEQ_LEN": "2048",
+    "EVAL_STRIDE": "256",
+    "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "INTX_BITS": "6",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MLP_HIDDEN": "1536",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

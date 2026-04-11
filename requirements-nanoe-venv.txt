@@ -1,0 +1,20 @@
+# nanoe_venv — Python 3.10, CUDA 12.4
+# Recreate: uv venv /data/nanoe_venv --python 3.10 && uv pip install -r requirements-nanoe-venv.txt
+
+torch==2.6.0+cu124
+triton==3.2.0
+pyarrow==23.0.1
+requests==2.32.5
+typing_extensions==4.15.0
+sympy==1.13.1
+jinja2==3.1.6
+filelock==3.20.0
+fsspec==2025.12.0
+networkx==3.4.2
+numpy<2
+markupsafe==3.0.2
+certifi==2026.2.25
+charset_normalizer==3.4.6
+idna==3.11
+urllib3==2.6.3
+mpmath==1.3.0

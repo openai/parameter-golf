@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage2_h100_matrix_r2",
+  "phase": "screen",
+  "slot": "S2-E3",
+  "name": "trunk_fp16_plus_muon_wd",
+  "role": "candidate",
+  "family": "muon_weight_decay",
+  "label": "dryrun_all_r2",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "S2-C0",
+    "S2-C1",
+    "S2-E3"
+  ],
+  "compare_to": "S2-C1",
+  "why": "Tests whether the Muon WD story transfers once fp16 embed export is already present.",
+  "validates": "Muon WD improves final BPB or tightens the quantization gap over the fp16 control.",
+  "falsifies": "Muon WD adds complexity without moving the controlled fp16 branch.",
+  "notes": [
+    "Matched against the fp16 export control, not the raw trunk."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MLP_HIDDEN": "992",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WEIGHT_DECAY": "0.02",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "393216",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "4096",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "batch_id": "stage3_5_event_branch_tournament",
+  "phase": "sanity",
+  "slot": "R0B",
+  "name": "static_control_b",
+  "role": "control",
+  "family": "baseline_control_repeat",
+  "lane": "branch_tournament",
+  "label": "20260325_144114",
+  "gpu_spec": "1",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0B"
+  ],
+  "compare_to": null,
+  "why": "Noise-floor control with a different seed.",
+  "validates": "Short-horizon variance is small enough to judge event-triggered branching.",
+  "falsifies": "If controls spread too much, branch wins are not separable.",
+  "patches": [],
+  "notes": [
+    "Noise-floor control."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SEED": "42",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

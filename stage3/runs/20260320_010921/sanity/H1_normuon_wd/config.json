@@ -1,0 +1,40 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H1",
+  "name": "normuon_wd",
+  "role": "candidate",
+  "family": "OPT",
+  "label": "20260320_010921",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H1"
+  ],
+  "compare_to": "R0A",
+  "why": "NorMuon adds per-row second-moment normalization on top of Muon. MuonWD=0.04 adds decoupled weight decay. Together they improve convergence geometry and quantization friendliness. Every submission beating us uses at least one.",
+  "validates": "Better val_bpb or better quant gap at matched wallclock.",
+  "falsifies": "NorMuon+WD together are not worth the complexity; the baseline Muon is already good enough.",
+  "patches": [
+    "normuon_wd"
+  ],
+  "notes": [
+    "WD=0.04 is the community sweet spot (#180). NorMuon from #89, #173.",
+    "Expect: smaller weight norms, better quant compression, possibly slower ms/step."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_WD": "0.04",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

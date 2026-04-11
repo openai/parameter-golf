@@ -1,0 +1,216 @@
+{
+  "batch_id": "stage3_original_screen",
+  "description": "Stage 3 original hypothesis screen. Tests novel mechanisms from other fields, NOT in stage2_1 or community PRs. Each hypothesis attacks a different surface with a cross-domain mechanism transfer.",
+  "benchmarks": {
+    "our_best_bpb": 1.1631,
+    "frontier_bpb": 1.1158,
+    "frontier_pr": "#639 (Full GPTQ + XSA-all + SWA/EMA)",
+    "record_sota_bpb": 1.1158
+  },
+  "defaults": {
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "WARMDOWN_ITERS": "3000",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.95",
+    "MUON_BACKEND_STEPS": "5",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "slots": ["R0A", "R0B", "H1", "H2", "H3", "H4", "H5", "H6"]
+    },
+    "composite": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "baseline_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "why": "Primary control: current root baseline. No code patches.",
+      "validates": "The patched code path reproduces baseline quality.",
+      "falsifies": "All derivative screens are suspect.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "R0B",
+      "name": "baseline_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "why": "Noise floor calibration.",
+      "validates": "Short-run variance is small enough for pruning.",
+      "falsifies": "Screen is too noisy.",
+      "env": {},
+      "notes": ["R0A vs R0B spread calibrates kill thresholds."]
+    },
+    {
+      "slot": "H1",
+      "name": "zloss_regularization",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["zloss"],
+      "family": "LOSS",
+      "why": "Z-loss: penalize log(sum(exp(logits)))^2 (PaLM, Gemini). Keeps logit magnitudes small via soft differentiable penalty on the partition function. Distinct from logit softcap (hard clamp) and label smoothing (target distribution). Nobody in the pgolf community has tried this.",
+      "validates": "Z-loss improves val_bpb by stabilizing logit magnitudes. Opens loss-function surface as an attack vector.",
+      "falsifies": "Logit softcapping (cap=30, already present) makes z-loss redundant. Kill the loss-function surface.",
+      "env": {
+        "ZLOSS_WEIGHT": "1e-4"
+      },
+      "notes": [
+        "Cross-domain: PaLM / large-scale LM stabilization.",
+        "Interaction with softcap is the key question. If softcap already clamps, z-loss adds nothing.",
+        "PaLM uses 1e-4. We start there."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "adaptive_ns_steps",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["adaptive_ns_steps"],
+      "family": "OPT_INTERNAL",
+      "why": "Schedule Newton-Schulz iterations: 7 early (noisy gradients need better ortho), 5 mid, 3 late (weights converging, cheaper is fine). From control theory gain scheduling: adapt controller precision to the operating regime. Nobody has tried varying NS steps over training.",
+      "validates": "Adaptive NS improves throughput (fewer matmuls late) without quality loss, or improves quality (better ortho early) without throughput cost.",
+      "falsifies": "5 steps is universally optimal. NS convergence is fast enough that extra early steps don't help, and 3 late steps lose quality.",
+      "env": {
+        "NS_STEPS_EARLY": "7",
+        "NS_STEPS_MID": "5",
+        "NS_STEPS_LATE": "3"
+      },
+      "notes": [
+        "Cross-domain: control theory gain scheduling.",
+        "Two potential wins: quality (early) and throughput (late).",
+        "Phase boundaries: 0-20% early, 20-80% mid, 80-100% late.",
+        "At 180s screen: early phase is ~36s, enough to see the 7-step effect."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "nuclear_norm_regularization",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["nuclear_norm"],
+      "family": "REGULARIZATION",
+      "why": "Penalize sum of singular values (nuclear norm) of weight matrices. From rate-distortion theory: concentrating energy in fewer basis coefficients improves lossy compression. Low-rank weights have fewer significant singular values, making quantization less destructive. Distinct from WD (penalizes magnitude/Frobenius, not rank) and QAT (quantization-specific noise).",
+      "validates": "Nuclear norm regularization improves post-quant val_bpb by shaping weight structure for compressibility.",
+      "falsifies": "Weight structure is already fine; quantization loss comes from outlier VALUES, not rank. Kill rank-based regularization.",
+      "env": {
+        "NUCLEAR_NORM_WEIGHT": "1e-5"
+      },
+      "notes": [
+        "Cross-domain: rate-distortion theory / transform coding.",
+        "SVD is expensive — computed only on first micro-step. If ms/step increase is >10%, the throughput cost may kill it.",
+        "Watch both pre-quant AND post-quant. Pre-quant may be worse (constrained weights) but post-quant should be better.",
+        "If it wins, explore cheaper proxies (e.g., trace norm, randomized SVD)."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "weight_perturbation",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["weight_perturbation"],
+      "family": "LANDSCAPE",
+      "why": "Add Gaussian noise to matrix weights after each optimizer step, scaled by LR. From Langevin dynamics: SGD + properly scaled noise samples from the posterior over weights, biasing toward flat (high-entropy) regions. Flat minima survive quantization better because nearby weight configurations have similar loss. Distinct from QAT (quantization-specific noise in forward), dropout (activation noise), SAM (adversarial perturbation).",
+      "validates": "Noise-biased flat minima improve post-quant val_bpb. The loss landscape geometry matters for quantization.",
+      "falsifies": "SGD stochasticity already provides enough implicit exploration. Explicit noise hurts convergence without improving flatness.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": [
+        "Cross-domain: Langevin dynamics / statistical mechanics / channel coding.",
+        "Scale=0.01 means noise std = 0.01 * current_lr. Decays with the schedule.",
+        "If it wins, the mechanism is 'geometry of the minimum matters for quantization'.",
+        "If it loses with scale=0.01, try scale=0.001 before killing (noise too large)."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "gradient_centralization",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["grad_centralization"],
+      "family": "GRAD_PREPROCESS",
+      "why": "Subtract the mean of each gradient tensor before the optimizer step. From ICCV 2020 (Yong et al.): proven to improve convergence and generalization in image classification. Never tested for language models. The hypothesis: the mean gradient component is a global shift all neurons want to make; removing it forces the optimizer to focus on differential structure between neurons.",
+      "validates": "Gradient centralization transfers from CV to LM training. Opens gradient preprocessing as an attack surface.",
+      "falsifies": "In LMs, the mean gradient carries important signal (unlike images). Centralizing hurts convergence.",
+      "env": {
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": [
+        "Cross-domain: computer vision optimization (ICCV 2020).",
+        "Applied to 2D matrix params only. Embeddings and scalars are left alone.",
+        "Interacts with Muon's Newton-Schulz: GC removes mean BEFORE clipping, Muon orthogonalizes AFTER.",
+        "Zero new hyperparameters — it's on or off."
+      ]
+    },
+    {
+      "slot": "H6",
+      "name": "zloss_plus_nuclear_norm",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["zloss", "nuclear_norm"],
+      "family": "CROSS_SURFACE",
+      "why": "Cross-surface compound: z-loss (logit output regularization) + nuclear norm (weight structure regularization). These attack different ends of the forward pass — one shapes the output distribution, the other shapes the weight matrices. If both help individually, they should compose because they're mechanistically independent.",
+      "validates": "Two novel regularizers from different surfaces compose additively.",
+      "falsifies": "Over-regularization: both constrain the model and the compound loses capacity. Or one subsumes the other.",
+      "env": {
+        "ZLOSS_WEIGHT": "1e-4",
+        "NUCLEAR_NORM_WEIGHT": "1e-5"
+      },
+      "notes": [
+        "Only interpretable after H1 and H3 solo results are in.",
+        "If H6 > max(H1, H3): compound works, different surfaces stack.",
+        "If H6 < max(H1, H3): over-regularization, pick the better solo."
+      ]
+    }
+  ]
+}

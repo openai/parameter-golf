@@ -1,0 +1,220 @@
+{
+  "batch_id": "stage2_sota_stack_strategy_r1",
+  "description": "SOTA-stack training screen: two control replicas plus six train-observable refinements, then a machine-saturating finalist phase that repartitions all visible GPUs across survivors, plus optional 8xH100 champion confirmation.",
+  "benchmarks": {
+    "training_trunk_bpb": 1.20143417,
+    "record_sota_bpb": 1.1574404
+  },
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TIED_EMBED_LR": "0.03",
+    "MATRIX_LR": "0.02",
+    "SCALAR_LR": "0.02",
+    "MUON_BACKEND_STEPS": "5",
+    "MLP_HIDDEN": "1536",
+    "INTX_BITS": "6",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+    "EVAL_SEQ_LEN": "2048",
+    "EVAL_STRIDE": "256",
+    "EVAL_BATCH_SEQS": "256"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "slots": [
+        "R0A",
+        "R0B",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6"
+      ]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "slots": [
+        "R0A",
+        "R0B",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6"
+      ]
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "sota_stack_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "record_like_control",
+      "why": "Primary control: current record-like stack.",
+      "validates": "The local code path can reproduce the public-style regime.",
+      "falsifies": "All derivative screens are suspect because the control itself is unstable.",
+      "env": {},
+      "notes": [
+        "This is the exact control for all six candidates."
+      ]
+    },
+    {
+      "slot": "R0B",
+      "name": "sota_stack_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "family": "record_like_control_repeat",
+      "why": "Noise estimate for the record-like control.",
+      "validates": "Short-run control variance is small enough for aggressive pruning.",
+      "falsifies": "The screen horizon is too noisy to interpret small deltas.",
+      "env": {},
+      "notes": [
+        "Use R0A vs R0B spread to calibrate kill thresholds."
+      ]
+    },
+    {
+      "slot": "H1",
+      "name": "smaller_batch_more_steps",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "geometry_step_budget",
+      "why": "Tests whether the record-like stack is over-batched and can gain from more optimizer steps.",
+      "validates": "Better BPB or similar BPB with more steps reached.",
+      "falsifies": "Extra gradient noise dominates the additional updates.",
+      "env": {
+        "TRAIN_BATCH_TOKENS": "524288"
+      },
+      "notes": [
+        "Derived from hypotheses_v2 H5."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "higher_muon_momentum",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "optimizer_dynamics",
+      "why": "Transfers the higher-momentum trunk win onto the SOTA stack.",
+      "validates": "Smoother updates improve early and final quality relative to the same control.",
+      "falsifies": "The record-like stack already has enough implicit smoothing.",
+      "env": {
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500"
+      },
+      "notes": [
+        "Derived from hypotheses_v2 H1."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "longer_warmdown",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "schedule_quant_robustness",
+      "why": "Tests whether the int6 stack benefits from a longer convergence tail.",
+      "validates": "Final BPB or quant gap improves on the same SOTA-style stack.",
+      "falsifies": "Longer decay just starves the short run of useful learning rate.",
+      "env": {
+        "WARMDOWN_ITERS": "3000"
+      },
+      "notes": [
+        "Derived from hypotheses_v2 H2."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "muon_weight_decay",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "regularization_quant_robustness",
+      "why": "Tests whether Muon WD helps the record-like int6 stack specifically.",
+      "validates": "Norm control reduces quantization damage without hurting fit too much.",
+      "falsifies": "Capacity loss dominates again.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.02"
+      },
+      "notes": [
+        "Derived from hypotheses_v2 H4."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "muon_backend_steps_7",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "optimizer_compute_quality",
+      "why": "Tests whether slightly more Muon orthogonalization improves per-step quality on the record-like stack.",
+      "validates": "Quality improves enough to pay for any step-time hit.",
+      "falsifies": "The extra Muon compute is pure overhead in this regime.",
+      "env": {
+        "MUON_BACKEND_STEPS": "7"
+      },
+      "notes": [
+        "This replaces the eval-only stride test in the first training screen."
+      ]
+    },
+    {
+      "slot": "H6",
+      "name": "batch_momentum_warmdown_combo",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "family": "interaction_test",
+      "why": "Tests whether the three most grounded train-side ideas stack on the SOTA baseline.",
+      "validates": "The interaction beats the best single-factor result.",
+      "falsifies": "The ideas do not compose, or one of them is carrying the whole story.",
+      "env": {
+        "TRAIN_BATCH_TOKENS": "524288",
+        "MUON_MOMENTUM": "0.99",
+        "MUON_MOMENTUM_WARMUP_START": "0.92",
+        "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+        "WARMDOWN_ITERS": "3000"
+      },
+      "notes": [
+        "Derived from hypotheses_v2 H_combined."
+      ]
+    }
+  ]
+}
