@@ -1,35 +1,24 @@
 {
   "author": "RulinShao",
   "github_id": "RulinShao",
-  "name": "Depth Recurrence + Banked Muon + Pre-Quant TTT (22ep, tuned warmdown)",
-  "blurb": "3-layer depth recurrence (layers 3,4,5 looped, recur_start=3000) + parameter-banked Parallel Muon + Pre-quant AdamW TTT (22ep lr=0.00025). warmdown_frac=0.667. SP8192, SDClip GPTQ int6 + brotli. 3-seed H100: 1.06261 BPB.",
-  "date": "2026-04-10",
+  "name": "Depth Recurrence + Banked Muon + Tuned Pre-Quant TTT",
+  "blurb": "3-layer depth recurrence (layers 3,4,5, start=3000) + parameter-banked Parallel Muon + Pre-quant AdamW TTT (22ep lr=2.5e-4). warmdown_frac=0.667. SP8192, SDClip GPTQ int6 + brotli. H200 3-seed: 1.0583 BPB. H100 3-seed: 1.0626 BPB.",
+  "date": "2026-04-11",
   "track": "10min_16mb",
   "val_loss": 2.74396,
   "val_bpb": 1.06261,
-  "val_loss_std": 0.0003,
-  "val_bpb_std": 0.0001,
   "seeds": [1337, 42, 314],
   "seed_results": {
-    "1337": {
-      "val_loss": 2.74395874,
-      "val_bpb": 1.06247570,
-      "artifact_bytes": 15039031,
-      "steps": 4670
-    },
-    "42": {
-      "val_loss": 2.74446987,
-      "val_bpb": 1.06267361,
-      "artifact_bytes": 15011335,
-      "steps": 4632
-    },
-    "314": {
-      "val_loss": 2.74447259,
-      "val_bpb": 1.06267467,
-      "artifact_bytes": 15045578,
-      "steps": 4631
-    }
+    "1337": {"val_bpb": 1.06247570, "artifact_bytes": 15039031},
+    "42": {"val_bpb": 1.06267361, "artifact_bytes": 15011335},
+    "314": {"val_bpb": 1.06267467, "artifact_bytes": 15045578}
   },
   "hardware": "8xH100 80GB SXM",
+  "h200_results": {
+    "1337": 1.05781181,
+    "42": 1.05831133,
+    "314": 1.05890772,
+    "mean": 1.05834
+  },
   "technique_summary": "Depth Recurrence (3,4,5 start=3000) + Banked Muon + TTT 22ep lr=2.5e-4 + warmdown_frac=0.667 + SP8192"
 }
