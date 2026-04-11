@@ -1,0 +1,22 @@
+{
+  "val_bpb": 1.1180,
+  "val_bpb_std": 0.000619,
+  "val_bpb_exact": "1.11799350",
+  "seeds": [1337, 42, 2025],
+  "per_seed_val_bpb": [
+    "1.11764880",
+    "1.11891002",
+    "1.11742168"
+  ],
+  "per_seed_artifact_bytes": [
+    15873596,
+    15893104,
+    15908116
+  ],
+  "artifact_bytes_mean": 15891605,
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "description": "BigramHash4096 + MoE MLP — first MoE exploration in repo",
+  "author": "davie2009kh",
+  "date": "2026-04-05"
+}
