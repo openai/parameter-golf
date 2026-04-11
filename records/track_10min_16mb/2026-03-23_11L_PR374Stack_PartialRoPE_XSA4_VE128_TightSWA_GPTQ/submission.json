@@ -1,0 +1,22 @@
+{
+  "author": "Roberto Arce",
+  "github_id": "rarce",
+  "name": "11L Partial RoPE + XSA4 + VE128 + Tight SWA + Late QAT + GPTQ-lite",
+  "blurb": "11-layer 512-dim model with MLP hidden=1408 (2.75x). Partial RoPE (16/64 dims) leaves 75% of head dims position-free. LN Scale (1/sqrt(layer+1)) damps deeper layers. XSA on last 4 layers removes self-value bias via GQA-aware orthogonal projection. Shared Value Embedding (dim=128) on layers 9,10. SmearGate for bigram context. Tight SWA (scale<0.2, 6 checkpoints) for zero-penalty weight averaging. Late QAT (STE int6 at lr_scale<0.1) avoids Muon momentum corruption. GPTQ-lite per-tensor clip ratio search minimizes reconstruction error at quantization time. Int6 step=4 on layers 1-9, int8 on layers 0,10. FP16 tied embeddings. zstd-22 compression. Muon lr=0.025, momentum=0.99, WD=0.04. Batch=786K, seq=2048, warmdown=3000, grad_clip=0.3.",
+  "date": "2026-03-23T11:30:00Z",
+  "val_loss": 1.99308832,
+  "val_bpb": 1.18041917,
+  "pre_quant_val_loss": 1.9873,
+  "pre_quant_val_bpb": 1.1770,
+  "step_stop": 4071,
+  "wallclock_seconds": 615.394,
+  "eval_time_seconds": 2.215,
+  "bytes_total": 15949473,
+  "bytes_model_int6_zstd": 15896909,
+  "bytes_code": 52564,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {"val_loss": 1.99308832, "val_bpb": 1.18041917}
+  },
+  "notes": "Single seed run. Non-record submission — documents combination of PR #374 stack techniques (Partial RoPE, LN Scale, XSA, Shared VE, Tight SWA, Late QAT) with novel GPTQ-lite clip search and MLP hidden=1408 for artifact size optimization."
+}
