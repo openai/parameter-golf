@@ -1,0 +1,11 @@
+{
+  "author": "yufengli",
+  "github_id": "yufengli",
+  "name": "LeakyReLU² + 4ep Legal TTT + Parallel Muon",
+  "blurb": "Minimal improvement on 2026-03-23_LeakyReLU_LegalTTT_ParallelMuon: increase legal score-first TTT from lr=0.002/3ep to lr=0.0025/4ep, and skip diagnostic pre-TTT evals to keep total eval under 10 minutes. Training stack unchanged (11L, LeakyReLU(0.5)^2, BigramHash(1536), XSA4, partial RoPE, VE128, EMA, tight SWA, GPTQ-lite int6, Parameter Banking + Parallel Muon).",
+  "date": "2026-03-28",
+  "val_loss": 1.88828788,
+  "val_bpb": 1.11835341,
+  "bytes_total": 15882595,
+  "bytes_code": 95763
+}
