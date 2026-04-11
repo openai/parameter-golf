@@ -1,0 +1,12 @@
+{
+  "author": "Sheldon",
+  "github_id": "Aristide021",
+  "name": "SWA + BigramHash(10240) + SmearGate + Int5MLP + MuonWD(0.04) + zstd-22",
+  "blurb": "Submission-style code snapshot for the March 21 branch that layers SWA, BigramHash embeddings, SmearGate, mixed int5/int6 quantization, Muon weight decay, and zstd compression on top of the earlier int6/QAT stack. Metrics are intentionally left null because no verified H100 train log is checked in with this folder yet.",
+  "date": "2026-03-21T00:00:00Z",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
