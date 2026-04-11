@@ -1,0 +1,23 @@
+{
+  "name": "Joshua Warren",
+  "github": "joshuaswarren",
+  "val_bpb": "1.1690",
+  "val_loss": "1.9738",
+  "num_layers": 12,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "vocab_size": 1024,
+  "seq_len": 1024,
+  "steps": 6981,
+  "step_avg_ms": 85.78,
+  "artifact_bytes": 15372888,
+  "compressed_model_bytes": 15312258,
+  "training_time_seconds": 598.84,
+  "hardware": "8xH100 SXM",
+  "quantization": "int6+zstd",
+  "eval_method": "sliding_window_stride_64",
+  "techniques": "Catalytic Residuals, Value Residual (ResFormer), Gated Attention, BigramHash(10240), 12L, 3xMLP, OrthoInit, Muon WD=0.04, SWA, Late QAT, Sliding Window Eval",
+  "novel_contribution": "First submission combining 6 independently-proven architecture improvements never stacked together: Catalytic Residuals (-0.024), Value Residual (-0.015), Gated Attention (-0.003), BigramHash(10240) (-0.070 vs 2048), 12 layers (-0.023), 3xMLP."
+}
