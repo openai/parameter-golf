@@ -1,0 +1,14 @@
+/workspace/parameter-golf/train_gpt_final.py:1097: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  qs = torch.load(io.BytesIO(_decompress(qbd, h.compressor)), map_location="cpu")
+novel_features: CAT(weight=0.001,bits=6,every=50), 2:4_Sparsity(apply_to=['mlp']), ParallelResid(from_layer=7), TTT(lr=0.005,epochs=3,chunk=32768)
+test_mode: medium
+model_params:41716840
+0/2000 val_loss: 9.0080 val_bpb: 3.2829
+500/2000 val_loss: 4.4611 val_bpb: 1.6258
+1000/2000 val_loss: 4.2525 val_bpb: 1.5498
+1500/2000 val_loss: 4.1883 val_bpb: 1.5264
+2000/2000 val_loss: 4.0599 val_bpb: 1.4796
+pre-quantization post-ema val_loss:3.80644901 val_bpb:1.38724778 eval_time:150094ms
+Serialized quantized+brotli: 16619390 bytes
+Total submission: 16687493 bytes
+quantized val_loss:3.91747750 val_bpb:1.42771175 eval_time:172239ms

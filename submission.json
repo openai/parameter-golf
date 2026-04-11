@@ -1,0 +1,27 @@
+{
+  "name": "pireylow",
+  "github_id": "pireylow",
+  "submission_type": "non-record (negative results)",
+  "val_bpb": 1.3696,
+  "val_bpb_note": "Best result: baseline + parallel residuals + TTT + QK 5.25, with sliding window eval and score-first TTT. Novel techniques (CAT, Sparsity, MoE, KAN) did not improve over baseline.",
+  "tokenizer": "sp8192",
+  "hardware": "1xH100 SXM (RunPod)",
+  "training_steps": 2000,
+  "training_mode": "medium (scaled-down from full 8xH100 config)",
+  "model_dim": 512,
+  "num_layers": 11,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "total_params": "35.9M",
+  "artifact_size_bytes": 16076488,
+  "techniques_tested": [
+    "CAT (Compressor-Aware Training)",
+    "2:4 Structured Sparsity",
+    "Hessian-Guided 2:4 Sparsity",
+    "Mixture of Experts (MoE)",
+    "KAN (Kolmogorov-Arnold Networks)",
+    "Parallel Residuals (GPT-J style)",
+    "Test-Time Training (Score-First SGD)",
+    "QK Gain tuning (4.0 vs 5.25)"
+  ]
+}
