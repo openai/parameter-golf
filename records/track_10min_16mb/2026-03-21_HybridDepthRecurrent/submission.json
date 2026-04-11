@@ -1,0 +1,20 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "Hybrid Depth-Recurrent Transformer",
+  "author": "tobias-canavesi",
+  "note": "Preliminary 2xH100 results. 8xH100 run pending i'm expecting significant improvement with more compute.",
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.24958130,
+      "val_bpb": 1.33232876,
+      "steps": 954,
+      "ms_per_step": 631.86,
+      "gpus": 2
+    }
+  },
+  "mean_val_loss": 2.24958130,
+  "mean_val_bpb": 1.33232876,
+  "artifact_bytes": 14221100,
+  "code_bytes": 58154
+}
