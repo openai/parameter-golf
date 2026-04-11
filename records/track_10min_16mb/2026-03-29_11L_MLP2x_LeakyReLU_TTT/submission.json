@@ -1,0 +1,19 @@
+{
+  "author": "Programmerryoki",
+  "github_id": "Programmerryoki",
+  "val_bpb": 1.2201,
+  "val_bpb_std": 0.0015,
+  "val_loss": 2.0575,
+  "artifact_bytes_mean": 14992711,
+  "code_bytes": 90451,
+  "training_time_seconds": 600,
+  "training_steps_mean": 7839,
+  "platform": "8xH100 SXM, PyTorch 2.9.1+cu128",
+  "date": "2026-03-29",
+  "description": "11L/512d MLP2x + LeakyReLU(0.5)² + Legal Score-First TTT + XSA4",
+  "seeds": {
+    "1337": {"val_bpb": 1.2184, "steps": 7821, "artifact_bytes": 14986599},
+    "42": {"val_bpb": 1.2212, "steps": 7833, "artifact_bytes": 15010826},
+    "2025": {"val_bpb": 1.2207, "steps": 7863, "artifact_bytes": 14980707}
+  }
+}
