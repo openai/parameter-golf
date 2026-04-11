@@ -1,0 +1,123 @@
+✓ Initialized. View run at 
+https://modal.com/apps/kshitizz36/main/ap-MwAiju0DIraknzDGYycrn2
+✓ Created objects.
+├── 🔨 Created mount 
+│   /Users/kshitiz./Programming/parameter-golf/.claude/worktrees/goofy-carson/ru
+│   n_modal.py
+├── 🔨 Created mount 
+│   /Users/kshitiz./Programming/parameter-golf/.claude/worktrees/goofy-carson/tr
+│   ain_gpt_current.py
+├── 🔨 Created function download_data.
+├── 🔨 Created function retokenize.
+├── 🔨 Created function train_1gpu.
+└── 🔨 Created function train_8gpu.
+8xH100: vocab=4096, layers=11, dim=432, eval_seq=1024, qat_frac=1.1, mlp=relu2/3, codec=zstd
+=== FULL RUN: vocab=4096 layers=11 eval_seq=1024 8xH100 10min ===
+logs/modal_8gpu_v4096_l11_eval1024_full.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/data/tokenizers/fineweb_4096_bpe.model
+train_loader:dataset:fineweb10B_sp4096 train_shards:143
+val_loader:shards pattern=/data/datasets/fineweb10B_sp4096/fineweb_val_*.bin tokens:45516800
+model_params:20266504
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+val_only:False phase2_wallclock_seconds:0.0 eval_stride:64 eval_batch_seqs:256
+quant_levels:31 depth_recurrence:1 eval_temperature:1.0
+mlp_variant:relu2 compression_codec:zstd compression_level:22
+fp16_embed:True prob_floor:0.0 fp16_passthrough:('tok_emb.weight',)
+ttt_rank:0 ttt_lr:0.001 ttt_steps:0
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:8.3152 train_time:77ms step_avg:76.59ms
+step:2/20000 train_loss:14.6753 train_time:127ms step_avg:63.68ms
+step:3/20000 train_loss:9.4705 train_time:196ms step_avg:65.46ms
+step:4/20000 train_loss:7.9352 train_time:264ms step_avg:66.03ms
+step:5/20000 train_loss:8.0201 train_time:329ms step_avg:65.80ms
+step:6/20000 train_loss:8.3550 train_time:393ms step_avg:65.42ms
+step:7/20000 train_loss:8.1565 train_time:456ms step_avg:65.15ms
+step:8/20000 train_loss:7.6939 train_time:520ms step_avg:64.97ms
+step:9/20000 train_loss:7.1889 train_time:585ms step_avg:65.05ms
+step:10/20000 train_loss:6.9818 train_time:649ms step_avg:64.93ms
+step:200/20000 train_loss:3.6520 train_time:13004ms step_avg:65.02ms
+step:400/20000 train_loss:3.4900 train_time:25947ms step_avg:64.87ms
+step:600/20000 train_loss:2.9396 train_time:38974ms step_avg:64.96ms
+step:800/20000 train_loss:3.0774 train_time:51993ms step_avg:64.99ms
+step:1000/20000 train_loss:3.0894 train_time:64985ms step_avg:64.98ms
+step:1200/20000 train_loss:3.0254 train_time:78156ms step_avg:65.13ms
+step:1400/20000 train_loss:3.2408 train_time:91176ms step_avg:65.13ms
+step:1600/20000 train_loss:3.0706 train_time:104194ms step_avg:65.12ms
+step:1800/20000 train_loss:2.9867 train_time:117165ms step_avg:65.09ms
+step:2000/20000 train_loss:2.9888 train_time:130188ms step_avg:65.09ms
+step:2200/20000 train_loss:3.0511 train_time:143193ms step_avg:65.09ms
+step:2400/20000 train_loss:2.8583 train_time:156167ms step_avg:65.07ms
+step:2600/20000 train_loss:3.0850 train_time:169128ms step_avg:65.05ms
+step:2800/20000 train_loss:3.0234 train_time:182111ms step_avg:65.04ms
+step:3000/20000 train_loss:2.8635 train_time:195080ms step_avg:65.03ms
+step:3200/20000 train_loss:2.8294 train_time:208038ms step_avg:65.01ms
+step:3400/20000 train_loss:2.9546 train_time:221021ms step_avg:65.01ms
+step:3600/20000 train_loss:2.8474 train_time:233986ms step_avg:65.00ms
+step:3800/20000 train_loss:2.8830 train_time:246988ms step_avg:65.00ms
+step:4000/20000 train_loss:2.8767 train_time:259963ms step_avg:64.99ms
+step:4200/20000 train_loss:2.9416 train_time:273020ms step_avg:65.00ms
+step:4400/20000 train_loss:2.8499 train_time:285943ms step_avg:64.99ms
+step:4600/20000 train_loss:2.8867 train_time:298935ms step_avg:64.99ms
+step:4800/20000 train_loss:2.9694 train_time:311887ms step_avg:64.98ms
+step:5000/20000 train_loss:2.9148 train_time:324852ms step_avg:64.97ms
+step:5200/20000 train_loss:2.9497 train_time:337790ms step_avg:64.96ms
+step:5400/20000 train_loss:2.9336 train_time:350859ms step_avg:64.97ms
+step:5600/20000 train_loss:2.9745 train_time:363842ms step_avg:64.97ms
+step:5800/20000 train_loss:2.9103 train_time:376807ms step_avg:64.97ms
+step:6000/20000 train_loss:2.8782 train_time:389819ms step_avg:64.97ms
+step:6200/20000 train_loss:3.1864 train_time:402854ms step_avg:64.98ms
+step:6400/20000 train_loss:2.9806 train_time:415840ms step_avg:64.98ms
+step:6600/20000 train_loss:2.8253 train_time:428851ms step_avg:64.98ms
+step:6800/20000 train_loss:2.9272 train_time:441800ms step_avg:64.97ms
+step:7000/20000 train_loss:2.9147 train_time:454774ms step_avg:64.97ms
+step:7200/20000 train_loss:2.9933 train_time:467792ms step_avg:64.97ms
+step:7400/20000 train_loss:2.8171 train_time:480829ms step_avg:64.98ms
+step:7600/20000 train_loss:2.7531 train_time:493827ms step_avg:64.98ms
+step:7800/20000 train_loss:2.8115 train_time:506842ms step_avg:64.98ms
+step:8000/20000 train_loss:2.9655 train_time:519768ms step_avg:64.97ms
+step:8200/20000 train_loss:2.6498 train_time:532705ms step_avg:64.96ms
+step:8400/20000 train_loss:2.5345 train_time:545809ms step_avg:64.98ms
+step:8600/20000 train_loss:2.7007 train_time:558760ms step_avg:64.97ms
+step:8800/20000 train_loss:2.5380 train_time:571726ms step_avg:64.97ms
+step:9000/20000 train_loss:2.8586 train_time:584729ms step_avg:64.97ms
+step:9200/20000 train_loss:2.8397 train_time:597659ms step_avg:64.96ms
+step:9237/20000 val_loss:2.7156 val_bpb:1.1803 train_time:600049ms step_avg:64.96ms
+stopping_early: wallclock_cap train_time:600049ms step:9237/20000
+peak memory allocated: 12313 MiB reserved: 13070 MiB
+Serialized model: 77568247 bytes
+Code size: 66141 bytes
+Total submission size: 77634388 bytes
+quant_levels:31 qat:off
+Serialized model int8+zstd: 15240644 bytes (payload:22166272 raw_torch:22218459 payload_ratio:3.50x)
+Total submission size int8+zstd: 15306785 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:256
+final_int8_zstd_roundtrip val_loss:2.6678 val_bpb:1.1596 eval_time:129337ms
+final_int8_zstd_roundtrip_exact val_loss:2.66775005 val_bpb:1.15955383
+Exit code: 0
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/kshitizz36/main/ap-MwAiju0DIraknzDGYycrn2
