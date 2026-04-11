@@ -1,0 +1,48 @@
+{
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "name": "Investigating the Tied-Embedding Bottleneck: Why Boundary Blocks Underperform and What It Means for 16MB Models",
+  "blurb": "Weight analysis of tied-embedding models reveals a symmetric V-shaped capacity profile where boundary blocks (first and last) contribute 2-4x less than middle blocks. Embedding decoupling (embed_dim < model_dim) activates the last block by +42-51% and flattens capacity distribution from 3.7x to 2.1x, but parameter loss from smaller embeddings outweighs the architectural gain. Documents the bottleneck mechanism, the rate-distortion constraints of the 16MB budget, and identifies residual low-rank projection as the promising follow-up direction.",
+  "date": "2026-04-11",
+  "track": "10min_16mb",
+  "val_loss": 2.80260120,
+  "val_bpb": 1.08497426,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.80260120,
+      "val_bpb": 1.08497426,
+      "post_ema_val_loss": 2.81951283,
+      "post_ema_val_bpb": 1.09152128,
+      "artifact_bytes": 16439738,
+      "steps": 4727,
+      "step_avg_ms": 124.40
+    }
+  },
+  "baseline_comparison": {
+    "name": "ImprovedParallelResiduals",
+    "val_bpb": 1.07438392,
+    "artifact_bytes": 15957888
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "over_budget": true,
+  "over_budget_note": "16.44 MB artifact exceeds 16 MB limit due to fp16 passthrough of embed_proj and head_proj. Submitted as experimental/analysis record, not as competitive entry.",
+  "technique_summary": "Embedding decoupling (embed_dim=416, model_dim=512) + extended parallel residuals (start=7) + tuned GPTQ clip_sigmas (12.0) + TTT block freezing (blocks 0-1)",
+  "key_findings": [
+    "Tied embeddings create symmetric V-shaped capacity profile: boundary blocks contribute 2-4x less than middle",
+    "Decoupling activates last block by +42-51% and flattens capacity from 3.7x to 2.1x min/max ratio",
+    "Parameter loss from smaller embedding outweighs architectural improvement on BPB",
+    "Lower clip_sigmas increases compressed artifact size despite reducing quantization error",
+    "x0 pathway unused by 9/11 blocks, skip gates suppress boundary contamination, block 10 parallel routing half-dead — all symptoms of tied-embedding constraint",
+    "Residual low-rank projection (I+AB, rank-32, 65K params) identified as promising alternative that avoids parameter loss"
+  ],
+  "attribution": {
+    "baseline": "@msisovic — ImprovedParallelResiduals",
+    "sp8192_gptq": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "legal_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "analysis_and_decoupling": "@SPThole"
+  }
+}
