@@ -2,23 +2,17 @@
   "author": "RulinShao",
   "github_id": "RulinShao",
   "name": "Depth Recurrence + Banked Muon + Tuned Pre-Quant TTT",
-  "blurb": "3-layer depth recurrence (layers 3,4,5, start=3000) + parameter-banked Parallel Muon + Pre-quant AdamW TTT (22ep lr=2.5e-4). warmdown_frac=0.667. SP8192, SDClip GPTQ int6 + brotli. H200 3-seed: 1.0583 BPB. H100 3-seed: 1.0626 BPB.",
+  "blurb": "3-layer depth recurrence (3,4,5 start=3000) + banked Parallel Muon (matrix_lr=0.020) + TTT 22ep lr=2.5e-4 + warmdown_frac=0.667. H100 3-seed: 1.0616. H200 3-seed: 1.0579.",
   "date": "2026-04-11",
   "track": "10min_16mb",
-  "val_loss": 2.74396,
-  "val_bpb": 1.06261,
+  "val_bpb": 1.06165,
   "seeds": [1337, 42, 314],
   "seed_results": {
-    "1337": {"val_bpb": 1.06247570, "artifact_bytes": 15039031},
-    "42": {"val_bpb": 1.06267361, "artifact_bytes": 15011335},
-    "314": {"val_bpb": 1.06267467, "artifact_bytes": 15045578}
+    "1337": {"val_bpb": 1.06069378},
+    "42": {"val_bpb": 1.06225324},
+    "314": {"val_bpb": 1.06199916}
   },
   "hardware": "8xH100 80GB SXM",
-  "h200_results": {
-    "1337": 1.05781181,
-    "42": 1.05831133,
-    "314": 1.05890772,
-    "mean": 1.05834
-  },
-  "technique_summary": "Depth Recurrence (3,4,5 start=3000) + Banked Muon + TTT 22ep lr=2.5e-4 + warmdown_frac=0.667 + SP8192"
+  "h200_3seed_mean": 1.05787,
+  "technique_summary": "Depth Recurrence (3,4,5 start=3000) + Banked Muon (lr=0.020) + TTT 22ep + warmdown=0.667 + SP8192"
 }

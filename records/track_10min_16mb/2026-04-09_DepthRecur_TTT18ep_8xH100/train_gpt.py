@@ -1865,7 +1865,8 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compile_mode = os.environ.get("COMPILE_MODE", "default")
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True, mode=compile_mode if compile_mode != "default" else None)
     model = compiled_model
 
     # Optimizer split:
