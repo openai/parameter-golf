@@ -1,0 +1,19 @@
+{
+  "author": "Aum Desai",
+  "github_id": "aumdesai",
+  "name": "Looped Transformer Design (non tuned at all)",
+  "blurb": "Non-record 10-minute submission: a PR315-derived looped transformer with a shared recurrent core, partial RoPE, LN scaling, late QAT, XSA4, and bigram features. It stays under the 16,000,000-byte cap and reaches 1.1462 sliding-window exact BPB without exhaustive tuning.",
+  "date": "2026-03-21T06:51:38Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": 1.93531268,
+  "val_bpb": 1.14620421,
+  "roundtrip_val_loss": 1.97599793,
+  "roundtrip_val_bpb": 1.17029728,
+  "pre_quant_val_loss": 1.9559,
+  "pre_quant_val_bpb": 1.1584,
+  "step_stop": 4851,
+  "wallclock_seconds": 600.09,
+  "bytes_total": 15589099,
+  "bytes_model_int6_zstd": 15509240,
+  "bytes_code": 79859
+}
