@@ -86,6 +86,12 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # Quantization / architecture knobs (experimental)
+    qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", "0"))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", "0"))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", "0"))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -507,10 +513,20 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    _qat_enabled: bool = False
+
     # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
     def forward(self, x: Tensor) -> Tensor:
+        w = self.weight.to(x.dtype)
+        if CastedLinear._qat_enabled and self.training and w.ndim == 2:
+            with torch.no_grad():
+                w32 = self.weight.float()
+                row_max = w32.abs().amax(dim=1)
+                scale = (row_max / 31.0).clamp_min(1.0 / 31.0)
+                w_q = (torch.clamp(torch.round(w32 / scale[:, None]), -32, 31) * scale[:, None]).to(x.dtype)
+            w = w + (w_q - w).detach()
         bias = self.bias.to(x.dtype) if self.bias is not None else None
-        return F.linear(x, self.weight.to(x.dtype), bias)
+        return F.linear(x, w, bias)
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -579,6 +595,21 @@ class CausalSelfAttention(nn.Module):
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.use_xsa = False
+
+    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
+        # Efficient XSA: subtract self-value projection via GQA-aware reshape.
+        # y: [B, H, T, D], v: [B, Hkv, T, D]
+        B, H, T, D = y.shape
+        Hkv = v.size(1)
+        group = H // Hkv
+        y_t = y.permute(0, 2, 1, 3)  # [B, T, H, D]
+        y_g = y_t.reshape(B, T, Hkv, group, D)  # [B, T, Hkv, group, D]
+        v_t = v.permute(0, 2, 1, 3)  # [B, T, Hkv, D]
+        vn = F.normalize(v_t, dim=-1).unsqueeze(-2)  # [B, T, Hkv, 1, D]
+        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
+        y_out = (y_g - proj).reshape(B, T, H, D).permute(0, 2, 1, 3)  # [B,H,T,D]
+        return y_out
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -599,8 +630,31 @@ class CausalSelfAttention(nn.Module):
             is_causal=True,
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
+        if self.use_xsa:
+            y = self._xsa_efficient(y, v)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
+
+
+class BigramHashEmbedding(nn.Module):
+    def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int):
+        super().__init__()
+        self.bigram_vocab_size = bigram_vocab_size
+        self.bigram_dim = bigram_dim
+        self.model_dim = model_dim
+        self.embed = nn.Embedding(bigram_vocab_size, bigram_dim)
+        self.proj = CastedLinear(bigram_dim, model_dim, bias=False)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        # Hash bigram as (id[i] << 10) ^ id[i+1] style to stay parser-independent.
+        bsz, seqlen = input_ids.shape
+        ids0 = input_ids[:, :-1]
+        ids1 = input_ids[:, 1:]
+        bigram = ((ids0.long() << 10) ^ ids1.long()) % self.bigram_vocab_size
+        x = self.embed(bigram)
+        zero_prefix = torch.zeros((x.size(0), 1, x.size(2)), device=x.device, dtype=x.dtype)
+        x = torch.cat((zero_prefix, x), dim=1)
+        return self.proj(x)
 
 
 class MLP(nn.Module):
@@ -659,6 +713,9 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        bigram_vocab_size: int = 0,
+        bigram_dim: int = 0,
+        xsa_last_n: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -667,6 +724,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim) if bigram_vocab_size > 0 else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -684,6 +742,11 @@ class GPT(nn.Module):
                 for i in range(num_layers)
             ]
         )
+        # Efficient partial XSA on deepest layers
+        if xsa_last_n > 0:
+            for i in range(max(0, num_layers - xsa_last_n), num_layers):
+                self.blocks[i].attn.use_xsa = True
+
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -699,6 +762,8 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
@@ -823,6 +888,7 @@ def main() -> None:
     # MODEL + OPTIMIZER SETUP
     # -----------------------------
 
+    CastedLinear._qat_enabled = args.qat_enabled
     base_model = GPT(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
@@ -835,6 +901,9 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        bigram_vocab_size=args.bigram_vocab_size,
+        bigram_dim=args.bigram_dim,
+        xsa_last_n=args.xsa_last_n,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -897,6 +966,10 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"qat_enabled:{args.qat_enabled} xsa_last_n:{args.xsa_last_n} "
+        f"bigram_vocab_size:{args.bigram_vocab_size} bigram_dim:{args.bigram_dim}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
