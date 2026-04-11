@@ -1,0 +1,25 @@
+{
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "name": "Sequence-level V-shaped Curriculum + LeakyReLU² + AWQ + Cyclic Momentum + SWA",
+  "blurb": "Online sequence-level curriculum learning: oversamples 2× sequences per batch, scores each by unigram entropy H(s) = -Σ p(t)·log₂(p(t)), then selects the half matching a V-shaped difficulty target d(step) that ramps easy→hard→easy aligned with LR warmdown and SWA. Unlike shard-level curriculum (which fails because we only consume ~6 of 80 shards), this operates within each batch where meaningful variance exists. Combined with LeakyReLU(0.5)² activation, cyclic momentum (0.85–0.95), and SWA. Run on 1×H100 due to compute constraints. Built upon PR #623.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 2.28904355,
+  "val_bpb": 1.35570052,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_loss": 2.28904355, "val_bpb": 1.35570052}
+  },
+  "pre_quant_val_loss": 2.2423,
+  "pre_quant_val_bpb": 1.3280,
+  "step_stop": 1021,
+  "wallclock_seconds": 600.300,
+  "eval_time_seconds": 17.977,
+  "bytes_total": 15250895,
+  "bytes_model_int6_zstd": 15188281,
+  "bytes_code": 62614,
+  "hardware": "1×H100 80GB",
+  "base_pr": "https://github.com/openai/parameter-golf/pull/623"
+}
