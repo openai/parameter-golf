@@ -1,0 +1,20 @@
+{
+  "author": "ymrohit",
+  "github_id": "ymrohit",
+  "name": "Hybrid Sparse Diffusion 2H 8xH100",
+  "blurb": "Unlimited compute track: the v7 hybrid sparse diffusion model trained for 100k steps on 8xH100, reached a raw full-val score of 1.5992 BPB under the 16MB cap, and was still improving, but the available cloud budget ran out before a longer run and the full exact roundtrip re-eval could be completed.",
+  "date": "2026-03-31T20:38:18Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.7001,
+  "val_bpb": 1.5992,
+  "pre_quant_val_loss": 2.7001,
+  "pre_quant_val_bpb": 1.5992,
+  "artifact_roundtrip_proxy_token_limit": 1048576,
+  "artifact_roundtrip_proxy_val_loss": 2.70768559,
+  "artifact_roundtrip_proxy_val_bpb": 1.62241719,
+  "step_stop": 100000,
+  "wallclock_seconds": 4628.742,
+  "bytes_total": 13340791,
+  "bytes_model_int8_zlib": 13279699,
+  "bytes_code": 61092
+}
