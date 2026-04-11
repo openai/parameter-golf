@@ -1,0 +1,10 @@
+{
+  "name": "Approach E: SLOT + QK-Gain + Int5 GPTQ + Score-First TTT",
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0,
+  "blurb": "SLOT eval-time delta optimization (lr=0.005, 8 AdamW steps per batch) + QK-Gain init=4.0 + Int5 GPTQ quantization + score-first TTT (3 epochs, AdamW) + sliding window eval (stride=64). Built on Approach B (33.6M params, 11L, XSA-all, VE, BigramHash).",
+  "author": "elninja",
+  "github_id": "elninja",
+  "date": "2026-04-01"
+}
