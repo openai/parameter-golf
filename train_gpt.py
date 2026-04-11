@@ -606,7 +606,7 @@ class GPT(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# CAT (Compressor-Aware Training) - novel technique
+# CAT (Compressor-Aware Training)
 # ---------------------------------------------------------------------------
 def cat_compression_loss(model, bits=6, temperature=0.1):
     dev = next(model.parameters()).device

@@ -1,17 +1,15 @@
-# Non-Record Submission: Novel Technique Exploration & Negative Results
+# Non-Record: KAN, Sparsity (Structured and Hessian-Guided), MoE, KAN Negative Results
 
-**Author:** pireylow  
 **Tokenizer:** SP8192  
-**Best val_bpb:** 1.3696 (baseline + parallel residuals + TTT, 1xH100 medium run)  
 **Submission type:** Non-record (negative results & technique exploration)
 
 ---
 
 ## Summary
 
-This submission documents a systematic exploration of five novel techniques for the 16MB parameter golf challenge, built on top of the PR #1394 baseline. All techniques were implemented as toggleable features in a single training script and evaluated across 14 runs on 1xH100 SXM (RunPod) using a scaled-down "medium" configuration (2000 steps, 2048 seq_len, 5 train shards).
+This submission documents a systematic exploration of some novel techniques, built on top of the PR #1394. All techniques were implemented as toggleable features in a single training script and evaluated across 14 runs on 1xH100 SXM (RunPod) using a scaled-down "medium" configuration (2000 steps, 2048 seq_len, 5 train shards).
 
-**Key finding:** None of the novel techniques (CAT, Sparsity, Hessian-Guided Sparsity, MoE, KAN) improved BPB over a well-tuned baseline that combines established techniques from the top leaderboard submissions (parallel residuals from PR #1412, TTT from PR #1413, QK gain tuning from top-1 record). The most effective strategy was simply combining known techniques — not inventing new ones.
+**Key finding:** None of the novel techniques (Sparsity, Hessian-Guided Sparsity, MoE, KAN) improved BPB over a well-tuned baseline that combines established techniques from the top leaderboard submissions (parallel residuals from PR #1412, TTT from PR #1413, QK gain tuning from PR #1493, CAT idea from PR #1385). The most effective strategy was simply combining some known techniques from these PRs.
 
 ---
 
@@ -21,11 +19,10 @@ This submission documents a systematic exploration of five novel techniques for 
 |---|---|
 | Hardware | 1xH100 SXM 80GB (RunPod) |
 | Training mode | `TEST_MODE=medium` (scaled-down) |
-| Training steps | 2000 (vs. 20,000 full) |
+| Training steps | 2000 |
 | Sequence length | 2048 |
 | Train shards | 5 (~500M tokens vs. 8B+ full) |
 | GPUs | 1 (vs. 8 for competition) |
-| Cost per run | ~$0.75-$1.10 at $2.99/hr |
 
 **Note:** All BPB values are from medium runs and are not directly comparable to full 8xH100 submissions. The relative comparisons between techniques are valid since all used identical medium configuration.
 
@@ -33,7 +30,7 @@ This submission documents a systematic exploration of five novel techniques for 
 
 ## Results
 
-### Round 1: Novel Techniques on PR #1394 Baseline
+### Round 1: Initial Novel Techniques on top of PR #1394
 
 Architecture: `loop_start=4, loop_end=5, qk_gain=4.0, warmdown=0.667, muon_wd=0.085`
 
@@ -72,7 +69,7 @@ Same architecture as Round 2, with sliding window eval and score-first TTT activ
 
 ## Novel Techniques Explored
 
-### 1. Compressor-Aware Training (CAT)
+### 1. Compressor-Aware Training (CAT) -- idea from PR #1385
 
 **Motivation:** In the parameter golf pipeline, model weights are quantized (GPTQ, int6) and then entropy-coded (brotli). These compression steps are applied post-training, so the model has no incentive during training to produce weights that are easy to quantize or compress. CAT introduces a differentiable proxy for quantization loss directly into the training objective, encouraging the model to learn weight distributions that are "compression-friendly" — weights that naturally cluster near quantization grid points, resulting in lower entropy and better brotli compression ratios.
 
@@ -88,19 +85,19 @@ Same architecture as Round 2, with sliding window eval and score-first TTT activ
 
 **How it works:** After training completes, all MLP weight matrices are reshaped into groups of 4 columns. Within each group, the 2 weights with smallest absolute magnitude are zeroed. The sparsified state dict is then passed to GPTQ and brotli compression. With ~50% of MLP weights zeroed, the entropy of the weight distribution drops and brotli achieves much better compression ratios, saving ~1.5MB.
 
-**Result:** Sparsity saved ~1.5MB in artifact size, allowing 12-13 layer models to fit under 16MB. However, the BPB degradation from zeroing weights (0.03-0.06 worse) consistently exceeded the improvement from additional layers at 2000 training steps. The pre-quantization BPB was comparable, but post-GPTQ the sparse models suffered more — the sparsity pattern creates structured holes that GPTQ cannot fully compensate for.
+**Result:** Sparsity saved ~1.5MB in artifact size, allowing 12-13 layer models to fit under 16MB. However, the BPB degradation from zeroing weights (0.03-0.06 worse) consistently exceeded the improvement from additional layers at 2000 training steps. The pre-quantization BPB was comparable, but post-GPTQ the sparse models suffered more.
 
-**Verdict: Negative.** 50% sparsity is too aggressive at this model scale (~36M params). The information destroyed by pruning half the MLP weights outweighs the capacity gained from 1-2 extra layers.
+**Verdict: Negative.** 50% sparsity is could be aggressive at this model scale. The information destroyed by pruning half the MLP weights outweighs the capacity gained from 1-2 extra layers.
 
 ### 3. Hessian-Guided 2:4 Sparsity
 
-**Motivation:** Naive magnitude-based pruning assumes that the smallest weights are the least important. This is not always true — a small weight connected to a high-curvature input dimension may contribute disproportionately to the loss function. GPTQ already collects full Hessian matrices (H = X^T X) for quantization. These same Hessians encode which input dimensions are most important. By combining weight magnitude with Hessian diagonal importance, we can make smarter pruning decisions: keep small-but-important weights and prune large-but-unimportant ones.
+**Motivation:** Naive magnitude-based pruning assumes that the smallest weights are the least important. This might not always be true — a small weight connected to a high-curvature input dimension may contribute disproportionately to the loss function. GPTQ already collects full Hessian matrices (H = X^T X) for quantization. These same Hessians encode which input dimensions are most important. By combining weight magnitude with Hessian diagonal importance, we can make better pruning decisions.
 
 **How it works:** The importance score for each weight is computed as `|w_ij| * sqrt(H_jj)`, where `H_jj` is the diagonal of the Hessian matrix for that layer's input. This replaces the standard `|w_ij|` magnitude criterion. The Hessians are collected as part of the existing GPTQ pipeline, so this adds zero computational overhead. Within each group of 4, the 2 weights with the highest combined importance are kept.
 
-**Result:** Hessian-guided sparsity produced marginally better results than naive magnitude pruning (1.4045 vs. 1.4045 TTT BPB at 11L), but both were substantially worse than no sparsity (1.3696 baseline TTT BPB). The fundamental constraint is that zeroing 50% of weights — regardless of how intelligently they are selected — removes too much model capacity at this scale.
+**Result:** Hessian-guided sparsity produced similar results than naive magnitude pruning, but both were substantially worse than no sparsity (1.3696 baseline TTT BPB). The fundamental constraint is that zeroing 50% of weights, regardless of how intelligently they are selected, could be removing too much model capacity at this scale.
 
-**Verdict: Negative.** While the Hessian-guided importance criterion is theoretically sound and adds zero overhead, the 2:4 structured constraint forces exactly 50% sparsity, which is too aggressive. Unstructured or lower-ratio pruning (e.g., 20-30%) might help, but would yield smaller compression savings.
+**Verdict: Negative.** While the Hessian-guided importance criterion is theoretically sound and adds zero overhead, the 2:4 structured constraint forces exactly 50% sparsity, which might be too aggressive. Unstructured or lower-ratio pruning (e.g., 20-30%) might help, but would yield smaller compression savings. 
 
 ### 4. Mixture of Experts (MoE)
 
@@ -110,7 +107,7 @@ Same architecture as Round 2, with sliding window eval and score-first TTT activ
 
 **Result:** MoE achieved the best pre-quantization BPB of all experiments (1.4291), demonstrating that increased capacity does help language modeling quality. However, the total artifact was 45.4MB — nearly 3x over the 16MB budget. The 4 expert MLPs each have independent weight matrices that learn different specializations, making them highly incompressible — brotli cannot exploit cross-expert redundancy.
 
-**Verdict: Interesting but impractical.** MoE improves BPB meaningfully but is fundamentally incompatible with the 16MB constraint. Would require sub-2-bit quantization or expert weight sharing to fit, both of which would likely negate the quality gains.
+**Verdict: Interesting but impractical.** MoE improves BPB meaningfully but is fundamentally incompatible with the 16MB constraint. Would require sub-2-bit quantization or expert weight sharing to fit, both of which would likely negate the quality gains. (Not included in final code)
 
 ### 5. KAN (Kolmogorov-Arnold Networks)
 
@@ -118,33 +115,33 @@ Same architecture as Round 2, with sliding window eval and score-first TTT activ
 
 **How it works:** Each KAN layer parameterizes its activation as a B-spline with `grid_size=5` control points and `spline_order=3`. The spline weights are 3D tensors of shape `(out_features, in_features, num_coefficients)`. Since GPTQ's Hessian collection hooks only attach to standard `nn.Linear` modules, a fallback simple quantization (round-to-nearest with row-wise scaling) was implemented for KAN's spline weight parameters.
 
-**Result:** KAN produced the largest artifact (55MB, 3.4x over budget) despite achieving worse BPB than MoE (1.5322 vs. 1.4367). The spline weights are inherently difficult to compress: they represent smooth continuous functions where every coefficient matters, so quantization introduces visible artifacts and brotli cannot find redundancy in the learned spline shapes. KAN also trained significantly slower than standard MLPs due to the B-spline evaluation overhead.
+**Result:** KAN produced the largest artifact (55MB, 3.4x over budget) despite achieving worse BPB. The spline weights are inherently difficult to compress as they represent smooth continuous functions where every coefficient matters, so quantization introduces visible artifacts and brotli cannot find redundancy in the learned spline shapes. KAN also trained significantly slower than standard MLPs due to the B-spline evaluation overhead.
 
-**Verdict: Strongly negative.** KAN is fundamentally mismatched with the parameter golf constraint. The spline parameters are expensive in both raw size and compression ratio, and the function approximation benefits do not materialize at this model scale and training budget.
+**Verdict: Negative.** KAN is fundamentally mismatched with the parameter golf constraint. The spline parameters are expensive in both raw size and compression ratio, and the function approximation benefits do not materialize at this model scale and training budget. (Not included in final code)
 
 ---
 
-## Established Techniques Adopted (Not Novel)
+## Established Techniques Adopted (Not Novel) -- Credits
 
-These techniques were adopted from the top leaderboard submissions and are not novel contributions of this work. They are included for completeness since the submitted script implements them.
+These techniques were adopted from the top leaderboard submissions or other pull requests and are not novel contributions of this work.
 
 | Technique | Source | Effect |
 |---|---|---|
 | Parallel Residuals (GPT-J style, layer 7+) | PR #1412 | Attention and MLP read from same pre-attention input |
 | Test-Time Training (Score-First SGD) | PR #1413 | ~0.03 BPB improvement via eval-time adaptation |
-| QK Gain = 5.25 | Top-1 record | Per-head learnable query scaling |
-| Recurrence Loop 3-5, enabled at 35% | Top-1 record | Wider and earlier depth recurrence |
-| Warmdown = 0.72, matrix_lr = 0.022 | Top-1 record | Hyperparameter tuning |
-| muon_wd = 0.095, ema_decay = 0.9965 | Top-1 record | Optimizer and EMA tuning |
+| QK Gain = 5.25 | PR #1493 | Per-head learnable query scaling |
+| Recurrence Loop 3-5, enabled at 35% | PR #1437 | Wider and earlier depth recurrence |
+| Warmdown = 0.72, matrix_lr = 0.022 | PR #1445 | Hyperparameter tuning |
+| muon_wd = 0.095, ema_decay = 0.9965 | PR #1445 | Optimizer and EMA tuning |
 
 ---
 
 ## Artifact Size Note
 
-The best configuration (baseline + parallel residuals + TTT) produces a 16,076,488-byte artifact, which is marginally over the 16,000,000-byte limit. The submitted `train_gpt.py` is ~68KB because it includes all experimental toggles (CAT, Sparsity, MoE configuration constants, multiple test modes, detailed logging). For a competition submission, several approaches would bring this under budget:
+Some configurations are marginally over the 16MB limit. The submitted `train_gpt.py` is ~68KB because it includes all experimental toggles (CAT, Sparsity, MoE configuration constants, multiple test modes, detailed logging). For a competition submission, several approaches would bring this under budget:
 
-- **LZMA-compressing the training script**, as the top submissions do (wrapping the code in `exec(lzma.decompress(base64.b85decode(...)))`), which reduces code from ~68KB to ~20KB.
-- **Stripping unused code paths** (removing CAT, Sparsity, MoE/KAN references) to reduce raw code size before compression.
+- **LZMA-compressing the training script**, as the top submissions do, which reduces code size.
+- **Stripping unused code paths** (removing CAT, Sparsity) to reduce raw code size before compression.
 - **Slightly reducing GPTQ calibration batches** (from 64 to 48) to shave a few KB from the quantized model.
 
 Since this is a non-record negative results submission focused on documenting technique exploration rather than competing for SOTA, we include the full uncompressed script for readability.
@@ -155,15 +152,9 @@ Since this is a non-record negative results submission focused on documenting te
 
 1. **Post-training compression is already near-optimal.** GPTQ + byte-shuffle + brotli-11 is extremely effective. Training-time techniques like CAT provide marginal compression gains (~0.4%) that do not justify the BPB cost.
 
-2. **Sparsity at 50% is too aggressive at this scale.** Whether magnitude-based or Hessian-guided, zeroing half the MLP weights at ~36M parameters destroys more information than extra layers can recover.
+2. **Sparsity at 50% might be too aggressive at this scale.** Whether magnitude-based or Hessian-guided, zeroing half the MLP weights at ~36M parameters destroys more information than extra layers can recover. It would be worth looking into further optimizations to take advantage of the additional space provided from incorporating sparsity.
 
 3. **MoE and KAN explode model size.** Expert weights and spline parameters are inherently difficult to compress. Neither architecture is compatible with extreme compression constraints without fundamentally different quantization approaches.
-
-4. **TTT is the highest-impact eval-time technique.** Score-first SGD adaptation costs zero bytes in artifact size and provides the largest single improvement (~0.03 BPB) of any technique tested.
-
-5. **Combining known techniques outperforms inventing new ones.** The best configuration was parallel residuals + TTT + QK 5.25 + tuned hyperparameters — all from existing top submissions. Novel additions consistently hurt rather than helped.
-
-6. **Medium-mode results are directionally reliable.** Techniques that hurt BPB at 2000 steps also hurt at higher step counts. However, absolute BPB values differ significantly from full runs, so medium-mode is useful for technique screening, not final evaluation.
 
 ---
 
