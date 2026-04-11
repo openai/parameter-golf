@@ -1,0 +1,9 @@
+{
+  "name": "11L INT6 XSA-all + EMA + VE — ttt_bpb 1.1487 (unsubmittable: 19MB)",
+  "val_bpb": 1.1487,
+  "bytes_total": 19030284,
+  "blurb": "11-layer INT6 QAT (mlp+attn+bigram) with XSA on all 11 layers, EMA(0.997), Value Embeddings (ve_dim=128, last 2 layers), Partial RoPE (16/64 dims), LN Scale 1/sqrt(layer+1), LZMA preset=9. ttt_bpb=1.1487, new quality best. Artifact is 19.03MB — over 16MB budget due to INT6 entropy being less compressible than INT4 under LZMA. GPTQ needed to compress below 16MB.",
+  "author": "Harsh Soni",
+  "github_id": "SoHarshH",
+  "date": "2026-04-01"
+}
