@@ -1,0 +1,9 @@
+{
+  "name": "SLOT + Split-LR + Full GPTQ + Sigmoid-Gated Skips + Soft-Round QAT + XSA-all",
+  "val_bpb": 1.1015,
+  "bytes_total": 15658061,
+  "blurb": "SLOT eval-time delta optimization (lr=0.005, 8 AdamW steps per batch) + split early/late Muon LR (0.025/0.030) + Full Hessian GPTQ int6 + sigmoid-gated U-Net skip connections + soft-round QAT with alpha ramp + Brotli-11 byte-shuffle compression + BigramHash(2816x160) + code minification (23KB wrapper). 3-seed mean: 1.1015 (std 0.0011). Built on PR #1019 by @abaybektursun.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-03-31"
+}
