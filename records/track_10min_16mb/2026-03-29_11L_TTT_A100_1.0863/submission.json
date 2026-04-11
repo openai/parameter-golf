@@ -1,0 +1,10 @@
+{
+  "author": "Boxi Yu",
+  "github_id": "BoxiYu",
+  "name": "Non-record: 11L Complement Training + TTT + No-JEPA",
+  "blurb": "Complement Training + TTT (Test-Time Training) + No-JEPA on 8xA100. Complement Training downweights loss for tokens that bigram can predict, allowing transformer to focus on hard tokens. val_bpb 1.0855 significantly beats SOTA 1.1228.",
+  "date": "2026-03-30T00:00:00Z",
+  "val_loss": 1.8329,
+  "val_bpb": 1.0855,
+  "bytes_total": 15989642
+}
