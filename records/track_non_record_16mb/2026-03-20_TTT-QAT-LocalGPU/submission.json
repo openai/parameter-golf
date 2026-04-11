@@ -1,0 +1,15 @@
+{
+  "track": "non-record-16mb",
+  "author": "Danny Collins",
+  "github_id": "Dannybc123",
+  "name": "TTT + QAT on Consumer GPU",
+  "blurb": "Test-time training on both attention and MLP projections combined with quantization-aware training, developed entirely on a laptop RTX 5070 Ti using AI-assisted autonomous experimentation (autoresearch).",
+  "date": "2026-03-20",
+  "val_loss": 2.59716585,
+  "val_bpb": 1.53818791,
+  "bytes_total": 11506921,
+  "bytes_code": 56064,
+  "hardware": "1x RTX 5070 Ti (12GB VRAM)",
+  "wallclock_seconds": 300,
+  "steps": 779
+}

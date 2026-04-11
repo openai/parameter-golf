@@ -9,3 +9,13 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Runtime artifacts (regenerated each experiment)
+final_model.pt
+final_model.int8.ptz
+run.log
+results.tsv
+
+# Our additions (not part of upstream)
+run_experiment.sh
+program.md
