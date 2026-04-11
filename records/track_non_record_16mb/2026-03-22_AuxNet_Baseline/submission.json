@@ -1,0 +1,37 @@
+{
+  "author": "jupram",
+  "github_id": "jupram",
+  "name": "AuxNetwork Baseline",
+  "blurb": "Current 9-layer 512-dim baseline snapshot with a 32-dim auxiliary bottleneck that predicts whether the next SentencePiece token has a leading space and turns that feature into a low-rank residual logit edit through the tied embedding matrix.",
+  "date": "2026-03-22T15:28:53Z",
+  "val_loss": 2.06959418,
+  "val_bpb": 1.22573025,
+  "val_loss_std": 0.00089,
+  "val_bpb_std": 0.00053,
+  "seeds": [42, 1227, 2000],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.06974043,
+      "val_bpb": 1.22581687
+    },
+    "1227": {
+      "val_loss": 2.07040067,
+      "val_bpb": 1.22620790
+    },
+    "2000": {
+      "val_loss": 2.06864145,
+      "val_bpb": 1.22516599
+    }
+  },
+  "model_params": 17227624,
+  "step_stop_mean": 13230.67,
+  "step_stop_min": 13217,
+  "step_stop_max": 13243,
+  "wallclock_seconds_mean": 600.041,
+  "wallclock_seconds_max": 600.05,
+  "bytes_total": 15924267,
+  "bytes_total_min": 15900186,
+  "bytes_total_mean": 15916206,
+  "bytes_model_int8_zlib": 15868377,
+  "bytes_code": 55890
+}
