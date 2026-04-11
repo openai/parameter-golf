@@ -1,0 +1,18 @@
+{
+  "name": "Stack Integration + Legal TTT + Parallel Muon",
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-03-28",
+  "val_bpb": 1.1193666666666668,
+  "val_bpb_std": 0.0004642796092395205,
+  "bytes_total": 15990006,
+  "bytes_code": 91356,
+  "seed_count": 3,
+  "seeds": [
+    1337,
+    42,
+    2025
+  ],
+  "train_log_alias": "train.log -> train_seed2025.log",
+  "blurb": "Promoted 2026-03-28 submission folder for the byte-identical 2026-03-23 Stack Integration + Legal TTT + Parallel Muon script. Audited inherited three-seed legal_ttt evidence: mean val_bpb 1.119367 (std 0.000464), conservative max total submission size 15990006 bytes under the 16,000,000-byte cap. The separate S04 random-map adapter folder remains non-record work and is not part of this submission evidence."
+}
