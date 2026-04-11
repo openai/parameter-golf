@@ -1,4 +1,4 @@
-# Train-Time Overparameterization (TTO)
+# Train-Time Overparameterization
 
 ## Overview
 
