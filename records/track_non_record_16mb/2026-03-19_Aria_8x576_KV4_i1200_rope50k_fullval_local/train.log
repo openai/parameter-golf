@@ -58,8 +58,6 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
-    compile_model = bool(int(os.environ.get("COMPILE_MODEL", "1")))
-    compile_fullgraph = bool(int(os.environ.get("COMPILE_FULLGRAPH", "1")))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -71,10 +69,6 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    # Optional shared-block recurrence path ("Weird-1"), disabled by default.
-    shared_blocks = int(os.environ.get("SHARED_BLOCKS", 0))
-    num_passes = int(os.environ.get("NUM_PASSES", 0))
-    pass_scale_init = float(os.environ.get("PASS_SCALE_INIT", 1.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -253,9 +247,7 @@ def eval_val(
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
-    # no_grad avoids creating "inference tensors" that can leak through module caches
-    # (e.g. RoPE tables) and later trip autograd in training mode.
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * args.train_seq_len
@@ -667,68 +659,31 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        shared_blocks: int = 0,
-        num_passes: int = 0,
-        pass_scale_init: float = 1.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
-        if shared_blocks < 0:
-            raise ValueError(f"shared_blocks must be >= 0, got {shared_blocks}")
-        if num_passes < 0:
-            raise ValueError(f"num_passes must be >= 0, got {num_passes}")
-        if pass_scale_init < 0.0:
-            raise ValueError(f"pass_scale_init must be >= 0, got {pass_scale_init}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
-        self.use_shared_blocks = shared_blocks > 0
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        if self.use_shared_blocks:
-            self.num_encoder_layers = 0
-            self.num_decoder_layers = 0
-            self.num_skip_weights = 0
-            self.skip_weights = nn.Parameter(torch.zeros((0, model_dim), dtype=torch.float32))
-            self.num_passes = num_passes if num_passes > 0 else num_layers
-            if self.num_passes <= 0:
-                raise ValueError(f"num_passes must be > 0 when shared_blocks is enabled, got {self.num_passes}")
-            self.blocks = nn.ModuleList(
-                [
-                    Block(
-                        model_dim,
-                        num_heads,
-                        num_kv_heads,
-                        mlp_mult,
-                        rope_base,
-                        qk_gain_init,
-                    )
-                    for _ in range(shared_blocks)
-                ]
-            )
-            self.pass_emb = nn.Embedding(self.num_passes, model_dim)
-            self.pass_scale = nn.Parameter(torch.full((self.num_passes,), pass_scale_init, dtype=torch.float32))
-        else:
-            self.num_passes = num_layers
-            self.num_encoder_layers = num_layers // 2
-            self.num_decoder_layers = num_layers - self.num_encoder_layers
-            self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-            self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-            self.blocks = nn.ModuleList(
-                [
-                    Block(
-                        model_dim,
-                        num_heads,
-                        num_kv_heads,
-                        mlp_mult,
-                        rope_base,
-                        qk_gain_init,
-                    )
-                    for _ in range(num_layers)
-                ]
-            )
-            self.pass_emb = None
-            self.pass_scale = None
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                )
+                for i in range(num_layers)
+            ]
+        )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -746,27 +701,16 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        if self.use_shared_blocks:
-            if self.pass_emb is None or self.pass_scale is None:
-                raise RuntimeError("Shared-block mode requires pass_emb and pass_scale")
-            for pass_idx in range(self.num_passes):
-                block = self.blocks[pass_idx % len(self.blocks)]
-                pass_bias = self.pass_emb.weight[pass_idx].to(dtype=x.dtype)[None, None, :]
-                x = x + pass_bias
-                block_out = block(x, x0)
-                # Per-pass residual interpolation keeps recurrence trainable but stable.
-                alpha = self.pass_scale[pass_idx].to(dtype=x.dtype)
-                x = x + alpha * (block_out - x)
-        else:
-            skips: list[Tensor] = []
-            # First half stores skips; second half reuses them in reverse order.
-            for i in range(self.num_encoder_layers):
-                x = self.blocks[i](x, x0)
-                skips.append(x)
-            for i in range(self.num_decoder_layers):
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                x = self.blocks[self.num_encoder_layers + i](x, x0)
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -891,32 +835,13 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-        shared_blocks=args.shared_blocks,
-        num_passes=args.num_passes,
-        pass_scale_init=args.pass_scale_init,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    use_compile = args.compile_model
-    # Shared recurrent mode currently hits an Inductor scheduler assert on some GPUs.
-    # Keep baseline behavior compiled, but default shared mode to eager unless forced.
-    if base_model.use_shared_blocks and "COMPILE_MODEL" not in os.environ:
-        use_compile = False
-    if use_compile:
-        try:
-            compiled_model = torch.compile(base_model, dynamic=False, fullgraph=args.compile_fullgraph)
-            model_core: nn.Module = compiled_model
-            log0(f"compile:enabled fullgraph:{args.compile_fullgraph}")
-        except Exception as exc:
-            model_core = base_model
-            log0(f"compile:fallback_eager reason:{type(exc).__name__}:{exc}")
-    else:
-        model_core = base_model
-        reason = "shared_recurrent_default_eager" if base_model.use_shared_blocks else "disabled_by_env"
-        log0(f"compile:disabled reason:{reason}")
-    model: nn.Module = DDP(model_core, device_ids=[local_rank], broadcast_buffers=False) if distributed else model_core
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -936,10 +861,6 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
-    if base_model.pass_emb is not None:
-        matrix_params.append(base_model.pass_emb.weight)
-    if base_model.pass_scale is not None:
-        scalar_params.append(base_model.pass_scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -976,16 +897,6 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    if base_model.use_shared_blocks:
-        log0(
-            f"architecture:shared_recurrent unique_blocks:{len(base_model.blocks)} "
-            f"effective_passes:{base_model.num_passes}"
-        )
-    else:
-        log0(
-            f"architecture:baseline num_layers:{args.num_layers} "
-            f"encoder:{base_model.num_encoder_layers} decoder:{base_model.num_decoder_layers}"
-        )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -1213,3 +1124,88 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]
+Running PyTorch 2.10.0+cu128
+Thu Mar 19 12:50:11 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5060 Ti     Off |   00000000:01:00.0  On |                  N/A |
+|  0%   40C    P0             14W /  180W |    1212MiB /  16311MiB |      1%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A          890193      G   /usr/lib/xorg/Xorg                      106MiB |
+|    0   N/A  N/A          890456      G   /usr/bin/gnome-shell                      9MiB |
+|    0   N/A  N/A          903562      G   /usr/bin/nautilus                        11MiB |
+|    0   N/A  N/A          906556      G   .../7967/usr/lib/firefox/firefox         67MiB |
+|    0   N/A  N/A         1191102      C   ...rameter-golf/.venv/bin/python        696MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:19190080
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:8192 train_seq_len:1024 iterations:1200 warmup_steps:20 max_wallclock_seconds:0.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/1200 train_loss:6.9482 train_time:179ms step_avg:179.09ms
+step:2/1200 train_loss:20.5434 train_time:348ms step_avg:173.86ms
+step:3/1200 train_loss:16.1154 train_time:516ms step_avg:171.95ms
+step:4/1200 train_loss:11.0044 train_time:685ms step_avg:171.29ms
+step:5/1200 train_loss:7.9695 train_time:853ms step_avg:170.60ms
+step:6/1200 train_loss:6.9202 train_time:1020ms step_avg:169.94ms
+step:7/1200 train_loss:6.4869 train_time:1188ms step_avg:169.76ms
+step:8/1200 train_loss:6.4513 train_time:1356ms step_avg:169.51ms
+step:9/1200 train_loss:6.3231 train_time:1533ms step_avg:170.28ms
+step:10/1200 train_loss:6.2192 train_time:1708ms step_avg:170.77ms
+step:200/1200 train_loss:3.8970 train_time:33627ms step_avg:168.14ms
+step:400/1200 train_loss:3.6156 train_time:67343ms step_avg:168.36ms
+step:600/1200 train_loss:3.4733 train_time:101122ms step_avg:168.54ms
+step:800/1200 train_loss:3.3715 train_time:134879ms step_avg:168.60ms
+step:1000/1200 train_loss:3.3034 train_time:168681ms step_avg:168.68ms
+step:1200/1200 train_loss:3.1995 train_time:202514ms step_avg:168.76ms
+step:1200/1200 val_loss:3.2144 val_bpb:1.9037 train_time:202514ms step_avg:168.76ms
+peak memory allocated: 528 MiB reserved: 540 MiB
+Serialized model: 75611021 bytes
+Code size: 47686 bytes
+Total submission size: 75658707 bytes
+Serialized model int8+zlib: 14157404 bytes (payload:19309824 raw_torch:19349945 payload_ratio:3.91x)
+Total submission size int8+zlib: 14205090 bytes
+final_int8_zlib_roundtrip val_loss:3.2150 val_bpb:1.9041 eval_time:271866ms
+final_int8_zlib_roundtrip_exact val_loss:3.21498726 val_bpb:1.90409654

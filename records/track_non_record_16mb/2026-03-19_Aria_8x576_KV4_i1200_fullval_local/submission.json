@@ -1,0 +1,17 @@
+{
+  "name": "Aria Local 8x576 KV4 i1200 full-val",
+  "author": "tiny",
+  "github": "tiny",
+  "track": "non-record-unlimited-compute-16mb",
+  "blurb": "Local full-validation run on fineweb10B_sp1024 with 8x576 KV4 and 1200 iterations; int8+zlib roundtrip exact metric under the 16,000,000-byte cap.",
+  "date": "2026-03-19",
+  "val_bpb": 1.90535128,
+  "val_loss": 3.21710583,
+  "pre_quant_val_bpb": 1.9049,
+  "pre_quant_val_loss": 3.2164,
+  "submission_size_int8_zlib_bytes": 14220659,
+  "quant_payload_bytes": 14172973,
+  "code_bytes": 47686,
+  "run_id": "aria_confirm_fullval_8x576_kv4_i1200"
+}
+
