@@ -434,9 +434,9 @@ def gptq_calibrate(model, data_pattern: str, device, n_samples: int = 256, seq_l
     if not shards: return {}
     tokens = load_data_shard(Path(shards[0]))
     was_training = model.training; model.train(False)
-    with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+    with torch.no_grad():
         for i in range(min(n_samples, len(tokens) // seq_len)):
-            x = tokens[i*seq_len:(i+1)*seq_len].unsqueeze(0).to(device=device, dtype=torch.int64)
+            x = tokens[i*seq_len:(i+1)*seq_len].unsqueeze(0).to(device)
             model(x, x)
     model.train(was_training)
     for h in hooks: h.remove()
@@ -767,13 +767,8 @@ class BigramHashEmbedding(nn.Module):
         out[..., 1:] = torch.bitwise_xor(36313 * t[..., 1:], 27191 * t[..., :-1]) % mod
         return out.long()
 
-    def trigram_hash(self, tokens: Tensor) -> Tensor:
-        t = tokens.to(torch.int32); mod = self.bigram_vocab_size - 1; out = torch.empty_like(t)
-        out[..., :2] = mod; out[..., 2:] = (36313 * t[..., 2:] ^ 27191 * t[..., 1:-1] ^ 51497 * t[..., :-2]) % mod
-        return out.long()
-
     def forward(self, token_ids: Tensor) -> Tensor:
-        h = self.embed(self.bigram_hash(token_ids)) + self.embed(self.trigram_hash(token_ids))
+        h = self.embed(self.bigram_hash(token_ids))
         if self.proj is not None:
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
@@ -1367,7 +1362,7 @@ def main() -> None:
     gptq_h = None
     if args.gptq_enabled:
         log0(f"gptq:calibrating n_samples={args.gptq_samples}")
-        train_pattern = os.path.join(args.data_path, "fineweb_train_*.bin")
+        train_pattern = os.path.join(args.data_path, "datasets", "fineweb10B_sp1024", "fineweb_train_*.bin")
         gptq_h = gptq_calibrate(base_model, train_pattern, device, n_samples=args.gptq_samples, seq_len=args.train_seq_len)
         log0(f"gptq:collected hessians for {len(gptq_h)} layers")
 
