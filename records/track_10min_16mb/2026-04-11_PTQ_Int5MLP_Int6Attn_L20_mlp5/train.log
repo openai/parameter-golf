@@ -1,0 +1,1389 @@
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import train_gpt_lib.optim as optim_mod
+from train_gpt_lib.config import Hyperparameters
+from train_gpt_lib.comet_tracker import CometTracker
+from train_gpt_lib.data import DistributedTokenLoader, DistributedPackedTokenLoader, build_sentencepiece_luts, load_validation_tokens
+from train_gpt_lib.flash_attention import describe as flash_attn_describe, is_available as flash_attn_is_available
+from train_gpt_lib.model import CastedLinear, GPT, restore_low_dim_params_to_fp32
+from train_gpt_lib.optim import build_optimizers
+from train_gpt_lib.serialization import save_and_validate_roundtrip
+from train_gpt_lib.training import run_training
+
+
+def main() -> None:
+    code = Path(__file__).read_text(encoding="utf-8")
+    args = Hyperparameters()
+    compile_muon = args.use_compile and args.use_compile_muon
+    compile_model = args.use_compile and args.use_compile_model and (not args.use_mhc or args.allow_compile_with_mhc)
+    if compile_muon:
+        optim_mod.zeropower_via_newtonschulz5 = torch.compile(optim_mod.zeropower_via_newtonschulz5)
+
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = False  # explicit: keep kernel selection deterministic
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
+
+    logfile = None
+    if master_process:
+        os.makedirs("logs", exist_ok=True)
+        logfile = f"logs/{args.run_id}.txt"
+        print(logfile)
+
+    def log0(msg: str, console: bool = True) -> None:
+        if not master_process:
+            return
+        if console:
+            print(msg)
+        if logfile is not None:
+            with open(logfile, "a", encoding="utf-8") as f:
+                print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    log0(f"Running Python {sys.version}", console=False)
+    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
+    log0("=" * 100, console=False)
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    if master_process:
+        cublas_cfg = os.environ.get("CUBLAS_WORKSPACE_CONFIG", "<not set>")
+        pythonhash = os.environ.get("PYTHONHASHSEED", "<not set>")
+        log0(f"reproducibility: seed={args.seed} rank={rank} CUBLAS_WORKSPACE_CONFIG={cublas_cfg} PYTHONHASHSEED={pythonhash}", console=False)
+
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.experiment_name:
+        log0(f"experiment_name:{args.experiment_name}")
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+
+    flash_ver = args.flash_attn_version
+    if flash_ver in (2, 3) and not flash_attn_is_available(flash_ver):
+        raise RuntimeError(
+            f"USE_FLASHATTENTION{flash_ver}=1 but flash_attn is not installed. "
+            "Run: pip install flash-attn"
+        )
+
+    base_model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+        hyper_conn_type=(args.mhc_type if args.use_mhc else "none"),
+        hyper_conn_n=args.mhc_num_streams,
+        flash_attn_version=flash_ver,
+        mlp_proj_init=args.mlp_proj_init,
+        init_scheme=args.init_scheme,
+    ).to(device).bfloat16()
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+            module._qat_bits = args.qat_bits
+            module._ternary = args.ternary_enabled
+    restore_low_dim_params_to_fp32(base_model)
+    compile_fullgraph = args.compile_fullgraph
+    compile_dynamic = args.compile_dynamic
+    if compile_model and args.use_mhc:
+        compile_fullgraph = False
+        compile_dynamic = True
+    train_model = (
+        torch.compile(base_model, dynamic=compile_dynamic, fullgraph=compile_fullgraph) if compile_model else base_model
+    )
+    model: nn.Module = (
+        DDP(
+            train_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            find_unused_parameters=args.use_mhc,
+        )
+        if distributed
+        else train_model
+    )
+
+    optimizers, optimizer_muon = build_optimizers(args, base_model)
+    n_params = sum(p.numel() for p in base_model.parameters())
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    log0(f"model_params:{n_params}")
+    if args.use_compile and args.use_mhc and args.use_compile_model and not args.allow_compile_with_mhc:
+        log0("compile:model_auto_disabled_for_mhc=True")
+    if compile_model and args.use_mhc:
+        log0("compile:model_mhc_mode=dynamic_fullgraph_off")
+    log0(f"compile:global={args.use_compile} model={compile_model} muon={compile_muon}")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"flash_attn:{flash_attn_describe()} active_version={flash_ver if flash_ver else 'torch_sdpa'}")
+    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+    )
+    log0(f"mhc:enabled={args.use_mhc} type={args.mhc_type if args.use_mhc else 'none'} streams={args.mhc_num_streams}")
+    val_mode_str = "full_precision_and_int8_quantized_dequantized_roundtrip"
+    if args.ternary_enabled:
+        val_mode_str = "full_precision_and_ternary_quantized_dequantized_roundtrip"
+    log0(f"val_mode:{val_mode_str}")
+    log0(f"qat_bits:{args.qat_bits} ternary_enabled:{args.ternary_enabled} init_scheme:{args.init_scheme}")
+    log0(
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(f"seed:{args.seed}")
+    tracker = CometTracker(args, enabled=(master_process and args.comet_enable), log0=log0)
+
+    if args.pack_batches:
+        train_loader = DistributedPackedTokenLoader(args.train_files, rank, world_size, device)
+    else:
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    run_training(
+        args=args,
+        model=model,
+        base_model=base_model,
+        optimizer_muon=optimizer_muon,
+        optimizers=optimizers,
+        train_loader=train_loader,
+        rank=rank,
+        world_size=world_size,
+        distributed=distributed,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        log0=log0,
+        on_train_log=tracker.log_train,
+        on_val_log=tracker.log_val,
+    )
+
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+
+    save_and_validate_roundtrip(
+        args=args,
+        base_model=base_model,
+        model=model,
+        rank=rank,
+        world_size=world_size,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        code=code,
+        log0=log0,
+        master_process=master_process,
+        on_model_size=tracker.log_model_size,
+    )
+    tracker.end()
+
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.11 (main, Jul 25 2025, 06:07:24) [GCC 11.4.0]
+Running PyTorch 2.10.0+cu128
+Sat Apr 11 16:33:57 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.172.08             Driver Version: 570.172.08     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H200                    On  |   00000000:82:00.0 Off |                    0 |
+| N/A   40C    P0            130W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H200                    On  |   00000000:84:00.0 Off |                    0 |
+| N/A   38C    P0            128W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H200                    On  |   00000000:86:00.0 Off |                    0 |
+| N/A   36C    P0            129W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H200                    On  |   00000000:92:00.0 Off |                    0 |
+| N/A   36C    P0            134W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H200                    On  |   00000000:95:00.0 Off |                    0 |
+| N/A   39C    P0            133W /  700W |    2907MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H200                    On  |   00000000:96:00.0 Off |                    0 |
+| N/A   41C    P0            131W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H200                    On  |   00000000:97:00.0 Off |                    0 |
+| N/A   34C    P0            125W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H200                    On  |   00000000:A1:00.0 Off |                    0 |
+| N/A   35C    P0            129W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         3721233      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    1   N/A  N/A         3721234      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    2   N/A  N/A         3721235      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    3   N/A  N/A         3721237      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    4   N/A  N/A         3721239      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    5   N/A  N/A         3721241      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    6   N/A  N/A         3721242      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    7   N/A  N/A         3721243      C   ...ameter-golf/.venv/bin/python3       1504MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+reproducibility: seed=1337 rank=0 CUBLAS_WORKSPACE_CONFIG=<not set> PYTHONHASHSEED=<not set>
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+experiment_name:ptq=int6attn+int5mlp L=20 mlp=5
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17324704
+compile:global=True model=True muon=True
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+flash_attn:unavailable (flash-attn not installed) active_version=torch_sdpa
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+mhc:enabled=False type=none streams=2
+val_mode:full_precision_and_int8_quantized_dequantized_roundtrip
+qat_bits:0 ternary_enabled:False init_scheme:default
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+comet:disabled reason=import_error detail=No module named '_sqlite3'
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import train_gpt_lib.optim as optim_mod
+from train_gpt_lib.config import Hyperparameters
+from train_gpt_lib.comet_tracker import CometTracker
+from train_gpt_lib.data import DistributedTokenLoader, DistributedPackedTokenLoader, build_sentencepiece_luts, load_validation_tokens
+from train_gpt_lib.flash_attention import describe as flash_attn_describe, is_available as flash_attn_is_available
+from train_gpt_lib.model import CastedLinear, GPT, restore_low_dim_params_to_fp32
+from train_gpt_lib.optim import build_optimizers
+from train_gpt_lib.serialization import save_and_validate_roundtrip
+from train_gpt_lib.training import run_training
+
+
+def main() -> None:
+    code = Path(__file__).read_text(encoding="utf-8")
+    args = Hyperparameters()
+    compile_muon = args.use_compile and args.use_compile_muon
+    compile_model = args.use_compile and args.use_compile_model and (not args.use_mhc or args.allow_compile_with_mhc)
+    if compile_muon:
+        optim_mod.zeropower_via_newtonschulz5 = torch.compile(optim_mod.zeropower_via_newtonschulz5)
+
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = False  # explicit: keep kernel selection deterministic
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
+
+    logfile = None
+    if master_process:
+        os.makedirs("logs", exist_ok=True)
+        logfile = f"logs/{args.run_id}.txt"
+        print(logfile)
+
+    def log0(msg: str, console: bool = True) -> None:
+        if not master_process:
+            return
+        if console:
+            print(msg)
+        if logfile is not None:
+            with open(logfile, "a", encoding="utf-8") as f:
+                print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    log0(f"Running Python {sys.version}", console=False)
+    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
+    log0("=" * 100, console=False)
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    if master_process:
+        cublas_cfg = os.environ.get("CUBLAS_WORKSPACE_CONFIG", "<not set>")
+        pythonhash = os.environ.get("PYTHONHASHSEED", "<not set>")
+        log0(f"reproducibility: seed={args.seed} rank={rank} CUBLAS_WORKSPACE_CONFIG={cublas_cfg} PYTHONHASHSEED={pythonhash}", console=False)
+
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.experiment_name:
+        log0(f"experiment_name:{args.experiment_name}")
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+
+    flash_ver = args.flash_attn_version
+    if flash_ver in (2, 3) and not flash_attn_is_available(flash_ver):
+        raise RuntimeError(
+            f"USE_FLASHATTENTION{flash_ver}=1 but flash_attn is not installed. "
+            "Run: pip install flash-attn"
+        )
+
+    base_model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+        hyper_conn_type=(args.mhc_type if args.use_mhc else "none"),
+        hyper_conn_n=args.mhc_num_streams,
+        flash_attn_version=flash_ver,
+        mlp_proj_init=args.mlp_proj_init,
+        init_scheme=args.init_scheme,
+    ).to(device).bfloat16()
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+            module._qat_bits = args.qat_bits
+            module._ternary = args.ternary_enabled
+    restore_low_dim_params_to_fp32(base_model)
+    compile_fullgraph = args.compile_fullgraph
+    compile_dynamic = args.compile_dynamic
+    if compile_model and args.use_mhc:
+        compile_fullgraph = False
+        compile_dynamic = True
+    train_model = (
+        torch.compile(base_model, dynamic=compile_dynamic, fullgraph=compile_fullgraph) if compile_model else base_model
+    )
+    model: nn.Module = (
+        DDP(
+            train_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            find_unused_parameters=args.use_mhc,
+        )
+        if distributed
+        else train_model
+    )
+
+    optimizers, optimizer_muon = build_optimizers(args, base_model)
+    n_params = sum(p.numel() for p in base_model.parameters())
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    log0(f"model_params:{n_params}")
+    if args.use_compile and args.use_mhc and args.use_compile_model and not args.allow_compile_with_mhc:
+        log0("compile:model_auto_disabled_for_mhc=True")
+    if compile_model and args.use_mhc:
+        log0("compile:model_mhc_mode=dynamic_fullgraph_off")
+    log0(f"compile:global={args.use_compile} model={compile_model} muon={compile_muon}")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"flash_attn:{flash_attn_describe()} active_version={flash_ver if flash_ver else 'torch_sdpa'}")
+    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+    )
+    log0(f"mhc:enabled={args.use_mhc} type={args.mhc_type if args.use_mhc else 'none'} streams={args.mhc_num_streams}")
+    val_mode_str = "full_precision_and_int8_quantized_dequantized_roundtrip"
+    if args.ternary_enabled:
+        val_mode_str = "full_precision_and_ternary_quantized_dequantized_roundtrip"
+    log0(f"val_mode:{val_mode_str}")
+    log0(f"qat_bits:{args.qat_bits} ternary_enabled:{args.ternary_enabled} init_scheme:{args.init_scheme}")
+    log0(
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(f"seed:{args.seed}")
+    tracker = CometTracker(args, enabled=(master_process and args.comet_enable), log0=log0)
+
+    if args.pack_batches:
+        train_loader = DistributedPackedTokenLoader(args.train_files, rank, world_size, device)
+    else:
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    run_training(
+        args=args,
+        model=model,
+        base_model=base_model,
+        optimizer_muon=optimizer_muon,
+        optimizers=optimizers,
+        train_loader=train_loader,
+        rank=rank,
+        world_size=world_size,
+        distributed=distributed,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        log0=log0,
+        on_train_log=tracker.log_train,
+        on_val_log=tracker.log_val,
+    )
+
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+
+    save_and_validate_roundtrip(
+        args=args,
+        base_model=base_model,
+        model=model,
+        rank=rank,
+        world_size=world_size,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        code=code,
+        log0=log0,
+        master_process=master_process,
+        on_model_size=tracker.log_model_size,
+    )
+    tracker.end()
+
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.13 (main, Mar 20 2026, 00:33:26) [Clang 22.1.1 ]
+Running PyTorch 2.10.0+cu128
+Sat Apr 11 16:42:09 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.172.08             Driver Version: 570.172.08     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H200                    On  |   00000000:82:00.0 Off |                    0 |
+| N/A   33C    P0            126W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H200                    On  |   00000000:84:00.0 Off |                    0 |
+| N/A   32C    P0            125W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H200                    On  |   00000000:86:00.0 Off |                    0 |
+| N/A   32C    P0            128W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H200                    On  |   00000000:92:00.0 Off |                    0 |
+| N/A   32C    P0            132W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H200                    On  |   00000000:95:00.0 Off |                    0 |
+| N/A   35C    P0            130W /  700W |    2907MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H200                    On  |   00000000:96:00.0 Off |                    0 |
+| N/A   35C    P0            127W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H200                    On  |   00000000:97:00.0 Off |                    0 |
+| N/A   31C    P0            124W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H200                    On  |   00000000:A1:00.0 Off |                    0 |
+| N/A   31C    P0            126W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         3832706      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    1   N/A  N/A         3832708      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    2   N/A  N/A         3832709      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    3   N/A  N/A         3832711      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    4   N/A  N/A         3832712      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    5   N/A  N/A         3832714      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    6   N/A  N/A         3832716      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    7   N/A  N/A         3832717      C   ...ameter-golf/.venv/bin/python3       1504MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+reproducibility: seed=1337 rank=0 CUBLAS_WORKSPACE_CONFIG=<not set> PYTHONHASHSEED=<not set>
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+experiment_name:ptq=int6attn+int5mlp L=20 mlp=5
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17324704
+compile:global=True model=True muon=True
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+flash_attn:unavailable (flash-attn not installed) active_version=torch_sdpa
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+mhc:enabled=False type=none streams=2
+val_mode:full_precision_and_int8_quantized_dequantized_roundtrip
+qat_bits:0 ternary_enabled:False init_scheme:default
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+comet:enabled
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss_full_precision:6.9306 val_bpb_full_precision:4.1047 val_loss_quantized_model:6.9307 val_bpb_quantized_model:4.1048 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9310 grad_norm:0.2777 lr_scale:1.0000 train_time:94ms step_avg:94.28ms
+step:2/20000 train_loss:8.6477 grad_norm:3.1508 lr_scale:1.0000 train_time:159ms step_avg:79.68ms
+step:3/20000 train_loss:6.0466 grad_norm:0.9922 lr_scale:1.0000 train_time:220ms step_avg:73.27ms
+step:4/20000 train_loss:6.3720 grad_norm:1.3224 lr_scale:1.0000 train_time:278ms step_avg:69.59ms
+step:5/20000 train_loss:6.7731 grad_norm:1.6697 lr_scale:1.0000 train_time:337ms step_avg:67.35ms
+step:6/20000 train_loss:6.7882 grad_norm:1.3419 lr_scale:1.0000 train_time:396ms step_avg:65.92ms
+step:7/20000 train_loss:6.1849 grad_norm:1.4273 lr_scale:1.0000 train_time:454ms step_avg:64.82ms
+step:8/20000 train_loss:5.8825 grad_norm:1.1956 lr_scale:1.0000 train_time:512ms step_avg:64.04ms
+step:9/20000 train_loss:5.6543 grad_norm:0.9809 lr_scale:1.0000 train_time:571ms step_avg:63.43ms
+step:10/20000 train_loss:5.4736 grad_norm:0.9082 lr_scale:1.0000 train_time:629ms step_avg:62.95ms
+step:50/20000 train_loss:4.1978 grad_norm:0.4565 lr_scale:1.0000 train_time:2965ms step_avg:59.30ms
+step:100/20000 train_loss:3.5559 grad_norm:0.8124 lr_scale:1.0000 train_time:5879ms step_avg:58.79ms
+step:150/20000 train_loss:3.2688 grad_norm:0.5336 lr_scale:1.0000 train_time:8791ms step_avg:58.61ms
+step:200/20000 train_loss:2.9979 grad_norm:0.3494 lr_scale:1.0000 train_time:13127ms step_avg:65.64ms
+step:250/20000 train_loss:2.8846 grad_norm:0.3580 lr_scale:1.0000 train_time:16035ms step_avg:64.14ms
+step:300/20000 train_loss:2.5961 grad_norm:0.3515 lr_scale:1.0000 train_time:18939ms step_avg:63.13ms
+step:350/20000 train_loss:2.7705 grad_norm:0.2165 lr_scale:1.0000 train_time:21851ms step_avg:62.43ms
+step:400/20000 train_loss:2.4610 grad_norm:0.3024 lr_scale:1.0000 train_time:26813ms step_avg:67.03ms
+step:450/20000 train_loss:2.5994 grad_norm:0.1590 lr_scale:1.0000 train_time:29942ms step_avg:66.54ms
+step:500/20000 train_loss:2.5841 grad_norm:0.2485 lr_scale:1.0000 train_time:32958ms step_avg:65.92ms
+step:550/20000 train_loss:2.4731 grad_norm:0.1352 lr_scale:1.0000 train_time:35906ms step_avg:65.28ms
+step:600/20000 train_loss:2.6094 grad_norm:0.1085 lr_scale:1.0000 train_time:39404ms step_avg:65.67ms
+step:650/20000 train_loss:2.4501 grad_norm:0.1219 lr_scale:1.0000 train_time:42308ms step_avg:65.09ms
+step:700/20000 train_loss:2.4950 grad_norm:0.1528 lr_scale:1.0000 train_time:45212ms step_avg:64.59ms
+step:750/20000 train_loss:2.3281 grad_norm:0.1214 lr_scale:1.0000 train_time:48116ms step_avg:64.15ms
+step:800/20000 train_loss:2.3456 grad_norm:0.1162 lr_scale:1.0000 train_time:51464ms step_avg:64.33ms
+step:850/20000 train_loss:2.7606 grad_norm:0.1000 lr_scale:1.0000 train_time:54368ms step_avg:63.96ms
+step:900/20000 train_loss:2.3796 grad_norm:0.1123 lr_scale:1.0000 train_time:57270ms step_avg:63.63ms
+step:950/20000 train_loss:2.4438 grad_norm:0.1147 lr_scale:1.0000 train_time:60726ms step_avg:63.92ms
+step:1000/20000 train_loss:2.4059 grad_norm:0.0854 lr_scale:1.0000 train_time:64677ms step_avg:64.68ms
+step:1000/20000 val_loss_full_precision:2.3711 val_bpb_full_precision:1.4043 val_loss_quantized_model:2.4059 val_bpb_quantized_model:1.4249 train_time:64679ms step_avg:64.68ms
+step:1050/20000 train_loss:2.5183 grad_norm:0.0822 lr_scale:1.0000 train_time:67595ms step_avg:64.38ms
+step:1100/20000 train_loss:2.2907 grad_norm:0.0954 lr_scale:1.0000 train_time:70493ms step_avg:64.08ms
+step:1150/20000 train_loss:2.2813 grad_norm:0.0716 lr_scale:1.0000 train_time:74197ms step_avg:64.52ms
+step:1200/20000 train_loss:2.4176 grad_norm:0.0828 lr_scale:1.0000 train_time:77099ms step_avg:64.25ms
+step:1250/20000 train_loss:2.2365 grad_norm:0.0861 lr_scale:1.0000 train_time:79999ms step_avg:64.00ms
+step:1300/20000 train_loss:2.3872 grad_norm:0.1090 lr_scale:1.0000 train_time:82900ms step_avg:63.77ms
+step:1350/20000 train_loss:2.3013 grad_norm:0.0701 lr_scale:1.0000 train_time:88482ms step_avg:65.54ms
+step:1400/20000 train_loss:2.4575 grad_norm:0.0878 lr_scale:1.0000 train_time:91457ms step_avg:65.33ms
+step:1450/20000 train_loss:2.2639 grad_norm:0.0693 lr_scale:1.0000 train_time:94357ms step_avg:65.07ms
+step:1500/20000 train_loss:2.2487 grad_norm:0.0868 lr_scale:1.0000 train_time:97257ms step_avg:64.84ms
+step:1550/20000 train_loss:2.1766 grad_norm:0.0984 lr_scale:1.0000 train_time:100447ms step_avg:64.80ms
+step:1600/20000 train_loss:2.1204 grad_norm:0.0664 lr_scale:1.0000 train_time:103346ms step_avg:64.59ms
+step:1650/20000 train_loss:2.2514 grad_norm:0.0656 lr_scale:1.0000 train_time:106247ms step_avg:64.39ms
+step:1700/20000 train_loss:2.1983 grad_norm:0.0825 lr_scale:1.0000 train_time:109145ms step_avg:64.20ms
+step:1750/20000 train_loss:2.2709 grad_norm:0.0579 lr_scale:1.0000 train_time:113029ms step_avg:64.59ms
+step:1800/20000 train_loss:2.2155 grad_norm:0.0710 lr_scale:1.0000 train_time:116484ms step_avg:64.71ms
+step:1850/20000 train_loss:2.3248 grad_norm:0.0731 lr_scale:1.0000 train_time:119386ms step_avg:64.53ms
+step:1900/20000 train_loss:2.2063 grad_norm:0.0646 lr_scale:1.0000 train_time:122403ms step_avg:64.42ms
+step:1950/20000 train_loss:2.2328 grad_norm:0.0745 lr_scale:1.0000 train_time:126307ms step_avg:64.77ms
+step:2000/20000 train_loss:2.2634 grad_norm:0.0601 lr_scale:1.0000 train_time:129211ms step_avg:64.61ms
+step:2000/20000 val_loss_full_precision:2.2522 val_bpb_full_precision:1.3339 val_loss_quantized_model:2.2971 val_bpb_quantized_model:1.3605 train_time:129212ms step_avg:64.61ms
+step:2050/20000 train_loss:2.2716 grad_norm:0.0917 lr_scale:1.0000 train_time:132619ms step_avg:64.69ms
+step:2100/20000 train_loss:2.2810 grad_norm:0.0570 lr_scale:1.0000 train_time:136043ms step_avg:64.78ms
+step:2150/20000 train_loss:2.2075 grad_norm:0.0838 lr_scale:1.0000 train_time:138949ms step_avg:64.63ms
+step:2200/20000 train_loss:2.0828 grad_norm:0.0644 lr_scale:1.0000 train_time:141853ms step_avg:64.48ms
+step:2250/20000 train_loss:2.1778 grad_norm:0.0859 lr_scale:1.0000 train_time:144757ms step_avg:64.34ms
+step:2300/20000 train_loss:2.3969 grad_norm:0.0775 lr_scale:1.0000 train_time:147874ms step_avg:64.29ms
+step:2350/20000 train_loss:2.2071 grad_norm:0.0522 lr_scale:1.0000 train_time:150907ms step_avg:64.22ms
+step:2400/20000 train_loss:2.2176 grad_norm:0.1078 lr_scale:1.0000 train_time:153830ms step_avg:64.10ms
+step:2450/20000 train_loss:2.2192 grad_norm:0.0454 lr_scale:1.0000 train_time:156741ms step_avg:63.98ms
+step:2500/20000 train_loss:2.1315 grad_norm:0.0471 lr_scale:1.0000 train_time:160210ms step_avg:64.08ms
+step:2550/20000 train_loss:2.1458 grad_norm:0.0482 lr_scale:1.0000 train_time:163119ms step_avg:63.97ms
+step:2600/20000 train_loss:2.4232 grad_norm:0.0523 lr_scale:1.0000 train_time:166033ms step_avg:63.86ms
+step:2650/20000 train_loss:2.2562 grad_norm:0.0531 lr_scale:1.0000 train_time:168952ms step_avg:63.76ms
+step:2700/20000 train_loss:2.1676 grad_norm:0.0539 lr_scale:1.0000 train_time:173692ms step_avg:64.33ms
+step:2750/20000 train_loss:2.3708 grad_norm:0.0492 lr_scale:1.0000 train_time:176613ms step_avg:64.22ms
+step:2800/20000 train_loss:2.2457 grad_norm:0.0497 lr_scale:1.0000 train_time:179527ms step_avg:64.12ms
+step:2850/20000 train_loss:2.1978 grad_norm:0.0501 lr_scale:1.0000 train_time:182609ms step_avg:64.07ms
+step:2900/20000 train_loss:2.1887 grad_norm:0.0650 lr_scale:1.0000 train_time:187109ms step_avg:64.52ms
+step:2950/20000 train_loss:2.2499 grad_norm:0.0931 lr_scale:1.0000 train_time:190030ms step_avg:64.42ms
+step:3000/20000 train_loss:2.2380 grad_norm:0.0637 lr_scale:1.0000 train_time:193460ms step_avg:64.49ms
+step:3000/20000 val_loss_full_precision:2.2043 val_bpb_full_precision:1.3055 val_loss_quantized_model:2.2648 val_bpb_quantized_model:1.3413 train_time:193462ms step_avg:64.49ms
+step:3050/20000 train_loss:2.1810 grad_norm:0.0553 lr_scale:1.0000 train_time:196381ms step_avg:64.39ms
+step:3100/20000 train_loss:2.2126 grad_norm:0.0837 lr_scale:1.0000 train_time:199781ms step_avg:64.45ms
+step:3150/20000 train_loss:2.1727 grad_norm:0.0554 lr_scale:1.0000 train_time:202690ms step_avg:64.35ms
+step:3200/20000 train_loss:2.1960 grad_norm:0.0590 lr_scale:1.0000 train_time:205603ms step_avg:64.25ms
+step:3250/20000 train_loss:2.0969 grad_norm:0.0504 lr_scale:1.0000 train_time:209156ms step_avg:64.36ms
+step:3300/20000 train_loss:2.2453 grad_norm:0.0517 lr_scale:1.0000 train_time:212182ms step_avg:64.30ms
+step:3350/20000 train_loss:2.1002 grad_norm:0.0426 lr_scale:1.0000 train_time:215091ms step_avg:64.21ms
+step:3400/20000 train_loss:2.1672 grad_norm:0.0604 lr_scale:1.0000 train_time:218010ms step_avg:64.12ms
+step:3450/20000 train_loss:2.1180 grad_norm:0.0505 lr_scale:1.0000 train_time:221591ms step_avg:64.23ms
+step:3500/20000 train_loss:2.2590 grad_norm:0.0479 lr_scale:1.0000 train_time:224493ms step_avg:64.14ms
+step:3550/20000 train_loss:2.3949 grad_norm:0.0664 lr_scale:1.0000 train_time:227394ms step_avg:64.05ms
+step:3600/20000 train_loss:2.1221 grad_norm:0.0396 lr_scale:1.0000 train_time:230297ms step_avg:63.97ms
+step:3650/20000 train_loss:2.2225 grad_norm:0.0432 lr_scale:1.0000 train_time:233748ms step_avg:64.04ms
+step:3700/20000 train_loss:2.1539 grad_norm:0.0520 lr_scale:1.0000 train_time:236659ms step_avg:63.96ms
+step:3750/20000 train_loss:2.1506 grad_norm:0.0536 lr_scale:1.0000 train_time:239578ms step_avg:63.89ms
+step:3800/20000 train_loss:2.2214 grad_norm:0.0453 lr_scale:1.0000 train_time:242695ms step_avg:63.87ms
+step:3850/20000 train_loss:2.1815 grad_norm:0.0401 lr_scale:1.0000 train_time:249192ms step_avg:64.73ms
+step:3900/20000 train_loss:1.9959 grad_norm:0.0459 lr_scale:1.0000 train_time:252104ms step_avg:64.64ms
+step:3950/20000 train_loss:2.1327 grad_norm:0.0447 lr_scale:1.0000 train_time:255015ms step_avg:64.56ms
+step:4000/20000 train_loss:2.1620 grad_norm:0.0399 lr_scale:1.0000 train_time:257929ms step_avg:64.48ms
+step:4000/20000 val_loss_full_precision:2.1741 val_bpb_full_precision:1.2876 val_loss_quantized_model:2.2556 val_bpb_quantized_model:1.3359 train_time:257931ms step_avg:64.48ms
+step:4050/20000 train_loss:2.1046 grad_norm:0.0464 lr_scale:1.0000 train_time:261411ms step_avg:64.55ms
+step:4100/20000 train_loss:2.1914 grad_norm:0.0465 lr_scale:1.0000 train_time:264319ms step_avg:64.47ms
+step:4150/20000 train_loss:2.3301 grad_norm:0.0630 lr_scale:1.0000 train_time:267230ms step_avg:64.39ms
+step:4200/20000 train_loss:2.1768 grad_norm:0.0481 lr_scale:1.0000 train_time:271819ms step_avg:64.72ms
+step:4250/20000 train_loss:2.1334 grad_norm:0.0472 lr_scale:1.0000 train_time:274735ms step_avg:64.64ms
+step:4300/20000 train_loss:2.0292 grad_norm:0.0390 lr_scale:1.0000 train_time:277640ms step_avg:64.57ms
+step:4350/20000 train_loss:2.2162 grad_norm:0.0413 lr_scale:1.0000 train_time:280549ms step_avg:64.49ms
+step:4400/20000 train_loss:2.1123 grad_norm:0.0472 lr_scale:1.0000 train_time:285915ms step_avg:64.98ms
+step:4450/20000 train_loss:2.0698 grad_norm:0.0504 lr_scale:1.0000 train_time:288822ms step_avg:64.90ms
+step:4500/20000 train_loss:2.2635 grad_norm:0.0597 lr_scale:1.0000 train_time:291727ms step_avg:64.83ms
+step:4550/20000 train_loss:2.0603 grad_norm:0.0413 lr_scale:1.0000 train_time:294631ms step_avg:64.75ms
+step:4600/20000 train_loss:1.9699 grad_norm:0.0386 lr_scale:1.0000 train_time:298603ms step_avg:64.91ms
+step:4650/20000 train_loss:2.0790 grad_norm:0.0458 lr_scale:1.0000 train_time:301603ms step_avg:64.86ms
+step:4700/20000 train_loss:2.2688 grad_norm:0.0448 lr_scale:1.0000 train_time:304512ms step_avg:64.79ms
+step:4750/20000 train_loss:1.9820 grad_norm:0.0440 lr_scale:1.0000 train_time:307415ms step_avg:64.72ms
+step:4800/20000 train_loss:2.2659 grad_norm:0.0430 lr_scale:1.0000 train_time:313676ms step_avg:65.35ms
+step:4850/20000 train_loss:2.1552 grad_norm:0.0448 lr_scale:1.0000 train_time:316579ms step_avg:65.27ms
+step:4900/20000 train_loss:2.1666 grad_norm:0.0474 lr_scale:1.0000 train_time:319481ms step_avg:65.20ms
+step:4950/20000 train_loss:2.3429 grad_norm:0.0424 lr_scale:1.0000 train_time:322386ms step_avg:65.13ms
+step:5000/20000 train_loss:2.0338 grad_norm:0.0648 lr_scale:1.0000 train_time:326177ms step_avg:65.24ms
+step:5000/20000 val_loss_full_precision:2.1547 val_bpb_full_precision:1.2761 val_loss_quantized_model:2.2383 val_bpb_quantized_model:1.3256 train_time:326179ms step_avg:65.24ms
+step:5050/20000 train_loss:2.2017 grad_norm:0.0398 lr_scale:1.0000 train_time:329097ms step_avg:65.17ms
+step:5100/20000 train_loss:2.0276 grad_norm:0.0430 lr_scale:1.0000 train_time:332115ms step_avg:65.12ms
+step:5150/20000 train_loss:2.2765 grad_norm:0.0447 lr_scale:1.0000 train_time:339679ms step_avg:65.96ms
+step:5200/20000 train_loss:2.1739 grad_norm:0.0376 lr_scale:1.0000 train_time:342588ms step_avg:65.88ms
+step:5250/20000 train_loss:2.1233 grad_norm:0.0584 lr_scale:1.0000 train_time:345489ms step_avg:65.81ms
+step:5300/20000 train_loss:2.2095 grad_norm:0.0405 lr_scale:1.0000 train_time:348386ms step_avg:65.73ms
+step:5350/20000 train_loss:2.1343 grad_norm:0.0446 lr_scale:1.0000 train_time:353965ms step_avg:66.16ms
+step:5400/20000 train_loss:2.1827 grad_norm:0.0417 lr_scale:1.0000 train_time:356864ms step_avg:66.09ms
+step:5450/20000 train_loss:2.2004 grad_norm:0.0407 lr_scale:1.0000 train_time:359765ms step_avg:66.01ms
+step:5500/20000 train_loss:2.1377 grad_norm:0.0405 lr_scale:1.0000 train_time:362856ms step_avg:65.97ms
+step:5550/20000 train_loss:2.1035 grad_norm:0.0463 lr_scale:1.0000 train_time:366540ms step_avg:66.04ms
+step:5600/20000 train_loss:2.1855 grad_norm:0.0444 lr_scale:1.0000 train_time:369731ms step_avg:66.02ms
+step:5650/20000 train_loss:2.0570 grad_norm:0.0404 lr_scale:1.0000 train_time:372632ms step_avg:65.95ms
+step:5700/20000 train_loss:2.1756 grad_norm:0.0414 lr_scale:1.0000 train_time:375840ms step_avg:65.94ms
+step:5750/20000 train_loss:2.2136 grad_norm:0.0406 lr_scale:1.0000 train_time:379767ms step_avg:66.05ms
+step:5800/20000 train_loss:2.1474 grad_norm:0.0438 lr_scale:1.0000 train_time:382666ms step_avg:65.98ms
+step:5850/20000 train_loss:2.1813 grad_norm:0.0416 lr_scale:1.0000 train_time:385956ms step_avg:65.98ms
+step:5900/20000 train_loss:2.0911 grad_norm:0.0392 lr_scale:1.0000 train_time:388857ms step_avg:65.91ms
+step:5950/20000 train_loss:2.1359 grad_norm:0.0417 lr_scale:1.0000 train_time:394595ms step_avg:66.32ms
+step:6000/20000 train_loss:2.2257 grad_norm:0.0450 lr_scale:1.0000 train_time:397967ms step_avg:66.33ms
+step:6000/20000 val_loss_full_precision:2.1429 val_bpb_full_precision:1.2692 val_loss_quantized_model:2.2393 val_bpb_quantized_model:1.3262 train_time:398022ms step_avg:66.34ms
+step:6050/20000 train_loss:2.1181 grad_norm:0.0502 lr_scale:1.0000 train_time:400949ms step_avg:66.27ms
+step:6100/20000 train_loss:2.1172 grad_norm:0.0460 lr_scale:1.0000 train_time:403851ms step_avg:66.21ms
+step:6150/20000 train_loss:2.0997 grad_norm:0.0514 lr_scale:1.0000 train_time:407577ms step_avg:66.27ms
+step:6200/20000 train_loss:2.0842 grad_norm:0.0443 lr_scale:1.0000 train_time:410477ms step_avg:66.21ms
+step:6250/20000 train_loss:2.1499 grad_norm:0.0483 lr_scale:1.0000 train_time:413378ms step_avg:66.14ms
+step:6300/20000 train_loss:2.0383 grad_norm:0.0504 lr_scale:1.0000 train_time:417735ms step_avg:66.31ms
+step:6350/20000 train_loss:2.0171 grad_norm:0.0484 lr_scale:1.0000 train_time:420641ms step_avg:66.24ms
+step:6400/20000 train_loss:2.1587 grad_norm:0.0437 lr_scale:1.0000 train_time:423714ms step_avg:66.21ms
+step:6450/20000 train_loss:2.0731 grad_norm:0.0440 lr_scale:1.0000 train_time:426617ms step_avg:66.14ms
+step:6500/20000 train_loss:2.0771 grad_norm:0.0435 lr_scale:1.0000 train_time:429935ms step_avg:66.14ms
+step:6550/20000 train_loss:2.2069 grad_norm:0.0440 lr_scale:1.0000 train_time:432840ms step_avg:66.08ms
+step:6600/20000 train_loss:2.1166 grad_norm:0.0347 lr_scale:1.0000 train_time:435742ms step_avg:66.02ms
+step:6650/20000 train_loss:2.2934 grad_norm:0.0403 lr_scale:1.0000 train_time:438642ms step_avg:65.96ms
+step:6700/20000 train_loss:2.1531 grad_norm:0.0424 lr_scale:1.0000 train_time:441865ms step_avg:65.95ms
+step:6750/20000 train_loss:2.3240 grad_norm:0.0411 lr_scale:1.0000 train_time:444768ms step_avg:65.89ms
+step:6800/20000 train_loss:2.1921 grad_norm:0.0484 lr_scale:1.0000 train_time:447668ms step_avg:65.83ms
+step:6850/20000 train_loss:2.0215 grad_norm:0.0347 lr_scale:1.0000 train_time:450975ms step_avg:65.84ms
+step:6900/20000 train_loss:2.0934 grad_norm:0.0370 lr_scale:1.0000 train_time:454281ms step_avg:65.84ms
+step:6950/20000 train_loss:2.1770 grad_norm:0.0450 lr_scale:1.0000 train_time:457187ms step_avg:65.78ms
+step:7000/20000 train_loss:2.2201 grad_norm:0.0398 lr_scale:1.0000 train_time:460092ms step_avg:65.73ms
+step:7000/20000 val_loss_full_precision:2.1296 val_bpb_full_precision:1.2613 val_loss_quantized_model:2.2332 val_bpb_quantized_model:1.3226 train_time:460094ms step_avg:65.73ms
+step:7050/20000 train_loss:2.2506 grad_norm:0.0506 lr_scale:1.0000 train_time:463004ms step_avg:65.67ms
+step:7100/20000 train_loss:2.0663 grad_norm:0.0410 lr_scale:1.0000 train_time:468063ms step_avg:65.92ms
+step:7150/20000 train_loss:2.1556 grad_norm:0.0447 lr_scale:1.0000 train_time:470971ms step_avg:65.87ms
+step:7200/20000 train_loss:2.1988 grad_norm:0.0555 lr_scale:1.0000 train_time:473873ms step_avg:65.82ms
+step:7250/20000 train_loss:2.1044 grad_norm:0.0354 lr_scale:1.0000 train_time:477262ms step_avg:65.83ms
+step:7300/20000 train_loss:2.0860 grad_norm:0.0390 lr_scale:1.0000 train_time:480169ms step_avg:65.78ms
+step:7350/20000 train_loss:2.1771 grad_norm:0.0464 lr_scale:1.0000 train_time:483209ms step_avg:65.74ms
+step:7400/20000 train_loss:2.1174 grad_norm:0.0519 lr_scale:1.0000 train_time:486113ms step_avg:65.69ms
+step:7450/20000 train_loss:2.1060 grad_norm:0.0419 lr_scale:1.0000 train_time:489712ms step_avg:65.73ms
+step:7500/20000 train_loss:2.1051 grad_norm:0.0383 lr_scale:1.0000 train_time:492619ms step_avg:65.68ms
+step:7550/20000 train_loss:2.1691 grad_norm:0.0675 lr_scale:1.0000 train_time:495521ms step_avg:65.63ms
+step:7600/20000 train_loss:1.9959 grad_norm:0.0477 lr_scale:1.0000 train_time:498424ms step_avg:65.58ms
+step:7650/20000 train_loss:2.2824 grad_norm:0.0393 lr_scale:1.0000 train_time:501729ms step_avg:65.59ms
+step:7700/20000 train_loss:2.0859 grad_norm:0.0377 lr_scale:1.0000 train_time:504631ms step_avg:65.54ms
+step:7750/20000 train_loss:2.1085 grad_norm:0.0384 lr_scale:1.0000 train_time:507535ms step_avg:65.49ms
+step:7800/20000 train_loss:2.1462 grad_norm:0.0520 lr_scale:1.0000 train_time:510438ms step_avg:65.44ms
+step:7850/20000 train_loss:2.0000 grad_norm:0.0409 lr_scale:1.0000 train_time:514646ms step_avg:65.56ms
+step:7900/20000 train_loss:2.1269 grad_norm:0.0359 lr_scale:1.0000 train_time:517564ms step_avg:65.51ms
+step:7950/20000 train_loss:2.0916 grad_norm:0.0435 lr_scale:1.0000 train_time:520475ms step_avg:65.47ms
+step:8000/20000 train_loss:2.1113 grad_norm:0.0421 lr_scale:0.9766 train_time:523386ms step_avg:65.42ms
+step:8000/20000 val_loss_full_precision:2.1184 val_bpb_full_precision:1.2547 val_loss_quantized_model:2.2223 val_bpb_quantized_model:1.3162 train_time:523387ms step_avg:65.42ms
+step:8050/20000 train_loss:2.0729 grad_norm:0.0381 lr_scale:0.9214 train_time:527588ms step_avg:65.54ms
+step:8100/20000 train_loss:2.1389 grad_norm:0.0377 lr_scale:0.8852 train_time:530485ms step_avg:65.49ms
+step:8150/20000 train_loss:2.2467 grad_norm:0.0409 lr_scale:0.8489 train_time:533385ms step_avg:65.45ms
+step:8200/20000 train_loss:2.1781 grad_norm:0.0324 lr_scale:0.8126 train_time:536285ms step_avg:65.40ms
+step:8250/20000 train_loss:2.1284 grad_norm:0.0391 lr_scale:0.7559 train_time:540632ms step_avg:65.53ms
+step:8300/20000 train_loss:2.1044 grad_norm:0.0304 lr_scale:0.7183 train_time:543605ms step_avg:65.49ms
+step:8350/20000 train_loss:2.2064 grad_norm:0.0428 lr_scale:0.6818 train_time:546506ms step_avg:65.45ms
+step:8400/20000 train_loss:2.1142 grad_norm:0.0306 lr_scale:0.6406 train_time:549749ms step_avg:65.45ms
+step:8450/20000 train_loss:2.2034 grad_norm:0.0324 lr_scale:0.6040 train_time:552649ms step_avg:65.40ms
+step:8500/20000 train_loss:2.1014 grad_norm:0.0285 lr_scale:0.5675 train_time:555549ms step_avg:65.36ms
+step:8550/20000 train_loss:2.1682 grad_norm:0.0318 lr_scale:0.5308 train_time:558453ms step_avg:65.32ms
+step:8600/20000 train_loss:2.1089 grad_norm:0.0299 lr_scale:0.4768 train_time:562622ms step_avg:65.42ms
+step:8650/20000 train_loss:2.0691 grad_norm:0.0349 lr_scale:0.4402 train_time:565521ms step_avg:65.38ms
+step:8700/20000 train_loss:2.0053 grad_norm:0.0284 lr_scale:0.4035 train_time:568422ms step_avg:65.34ms
+step:8750/20000 train_loss:2.1633 grad_norm:0.0298 lr_scale:0.3667 train_time:571321ms step_avg:65.29ms
+step:8800/20000 train_loss:2.0632 grad_norm:0.0268 lr_scale:0.3248 train_time:574603ms step_avg:65.30ms
+step:8850/20000 train_loss:2.2764 grad_norm:0.0340 lr_scale:0.2880 train_time:577504ms step_avg:65.25ms
+step:8900/20000 train_loss:2.1626 grad_norm:0.0276 lr_scale:0.2511 train_time:580403ms step_avg:65.21ms
+step:8950/20000 train_loss:2.1152 grad_norm:0.0270 lr_scale:0.2093 train_time:583677ms step_avg:65.22ms
+step:9000/20000 train_loss:1.9807 grad_norm:0.0232 lr_scale:0.1606 train_time:587478ms step_avg:65.28ms
+step:9000/20000 val_loss_full_precision:2.0742 val_bpb_full_precision:1.2284 val_loss_quantized_model:2.2054 val_bpb_quantized_model:1.3062 train_time:587480ms step_avg:65.28ms
+step:9050/20000 train_loss:2.0173 grad_norm:0.0274 lr_scale:0.1233 train_time:590404ms step_avg:65.24ms
+step:9100/20000 train_loss:2.2674 grad_norm:0.0292 lr_scale:0.0863 train_time:593304ms step_avg:65.20ms
+step:9150/20000 train_loss:1.9556 grad_norm:0.0227 lr_scale:0.0493 train_time:596205ms step_avg:65.16ms
+step:9200/20000 train_loss:2.0414 grad_norm:0.0213 lr_scale:0.0091 train_time:599349ms step_avg:65.15ms
+step:9211/20000 val_loss_full_precision:2.0676 val_bpb_full_precision:1.2246 val_loss_quantized_model:2.2001 val_bpb_quantized_model:1.3030 train_time:599988ms step_avg:65.14ms
+stopping_early: wallclock_cap train_time:599988ms step:9211/20000
+peak memory allocated: 15354 MiB reserved: 15548 MiB
+Serialized model (fp32 state_dict .pt): 68848491 bytes
+Serialized model size ceil (.pt): 66 MiB
+MODEL_FP32_PT_BYTES:68848491
+MODEL_FP32_PT_MB_CEIL:66
+Code size: 10843 bytes
+Total submission size (fp32 .pt + code): 68859334 bytes
+Serialized model int8+zlib: 15429476 bytes (payload:21389952 raw_torch:21465881 payload_ratio:3.22x)
+MODEL_INT8_ZLIB_BYTES:15429476
+MODEL_INT8_ZLIB_MB_CEIL:15
+Total submission size int8+zlib: 15440319 bytes
+final_int8_zlib_roundtrip val_loss:2.2000 val_bpb:1.3030 eval_time:1795ms
+final_int8_zlib_roundtrip_exact val_loss:2.19998935 val_bpb:1.30295761
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import train_gpt_lib.optim as optim_mod
+from train_gpt_lib.config import Hyperparameters
+from train_gpt_lib.comet_tracker import CometTracker
+from train_gpt_lib.data import DistributedTokenLoader, DistributedPackedTokenLoader, build_sentencepiece_luts, load_validation_tokens
+from train_gpt_lib.flash_attention import describe as flash_attn_describe, is_available as flash_attn_is_available
+from train_gpt_lib.model import CastedLinear, GPT, restore_low_dim_params_to_fp32
+from train_gpt_lib.optim import build_optimizers
+from train_gpt_lib.serialization import save_and_validate_roundtrip
+from train_gpt_lib.training import run_training
+
+
+def main() -> None:
+    code = Path(__file__).read_text(encoding="utf-8")
+    args = Hyperparameters()
+    compile_muon = args.use_compile and args.use_compile_muon
+    compile_model = args.use_compile and args.use_compile_model and (not args.use_mhc or args.allow_compile_with_mhc)
+    if compile_muon:
+        optim_mod.zeropower_via_newtonschulz5 = torch.compile(optim_mod.zeropower_via_newtonschulz5)
+
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = False  # explicit: keep kernel selection deterministic
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
+
+    logfile = None
+    if master_process:
+        os.makedirs("logs", exist_ok=True)
+        logfile = f"logs/{args.run_id}.txt"
+        print(logfile)
+
+    def log0(msg: str, console: bool = True) -> None:
+        if not master_process:
+            return
+        if console:
+            print(msg)
+        if logfile is not None:
+            with open(logfile, "a", encoding="utf-8") as f:
+                print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    log0(f"Running Python {sys.version}", console=False)
+    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
+    log0("=" * 100, console=False)
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    if master_process:
+        cublas_cfg = os.environ.get("CUBLAS_WORKSPACE_CONFIG", "<not set>")
+        pythonhash = os.environ.get("PYTHONHASHSEED", "<not set>")
+        log0(f"reproducibility: seed={args.seed} rank={rank} CUBLAS_WORKSPACE_CONFIG={cublas_cfg} PYTHONHASHSEED={pythonhash}", console=False)
+
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.experiment_name:
+        log0(f"experiment_name:{args.experiment_name}")
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+
+    flash_ver = args.flash_attn_version
+    if flash_ver in (2, 3) and not flash_attn_is_available(flash_ver):
+        raise RuntimeError(
+            f"USE_FLASHATTENTION{flash_ver}=1 but flash_attn is not installed. "
+            "Run: pip install flash-attn"
+        )
+
+    base_model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+        hyper_conn_type=(args.mhc_type if args.use_mhc else "none"),
+        hyper_conn_n=args.mhc_num_streams,
+        flash_attn_version=flash_ver,
+        mlp_proj_init=args.mlp_proj_init,
+        init_scheme=args.init_scheme,
+    ).to(device).bfloat16()
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+            module._qat_bits = args.qat_bits
+            module._ternary = args.ternary_enabled
+    restore_low_dim_params_to_fp32(base_model)
+    compile_fullgraph = args.compile_fullgraph
+    compile_dynamic = args.compile_dynamic
+    if compile_model and args.use_mhc:
+        compile_fullgraph = False
+        compile_dynamic = True
+    train_model = (
+        torch.compile(base_model, dynamic=compile_dynamic, fullgraph=compile_fullgraph) if compile_model else base_model
+    )
+    model: nn.Module = (
+        DDP(
+            train_model,
+            device_ids=[local_rank],
+            broadcast_buffers=False,
+            find_unused_parameters=args.use_mhc,
+        )
+        if distributed
+        else train_model
+    )
+
+    optimizers, optimizer_muon = build_optimizers(args, base_model)
+    n_params = sum(p.numel() for p in base_model.parameters())
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    log0(f"model_params:{n_params}")
+    if args.use_compile and args.use_mhc and args.use_compile_model and not args.allow_compile_with_mhc:
+        log0("compile:model_auto_disabled_for_mhc=True")
+    if compile_model and args.use_mhc:
+        log0("compile:model_mhc_mode=dynamic_fullgraph_off")
+    log0(f"compile:global={args.use_compile} model={compile_model} muon={compile_muon}")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"flash_attn:{flash_attn_describe()} active_version={flash_ver if flash_ver else 'torch_sdpa'}")
+    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+    )
+    log0(f"mhc:enabled={args.use_mhc} type={args.mhc_type if args.use_mhc else 'none'} streams={args.mhc_num_streams}")
+    val_mode_str = "full_precision_and_int8_quantized_dequantized_roundtrip"
+    if args.ternary_enabled:
+        val_mode_str = "full_precision_and_ternary_quantized_dequantized_roundtrip"
+    log0(f"val_mode:{val_mode_str}")
+    log0(f"qat_bits:{args.qat_bits} ternary_enabled:{args.ternary_enabled} init_scheme:{args.init_scheme}")
+    log0(
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(f"seed:{args.seed}")
+    tracker = CometTracker(args, enabled=(master_process and args.comet_enable), log0=log0)
+
+    if args.pack_batches:
+        train_loader = DistributedPackedTokenLoader(args.train_files, rank, world_size, device)
+    else:
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    run_training(
+        args=args,
+        model=model,
+        base_model=base_model,
+        optimizer_muon=optimizer_muon,
+        optimizers=optimizers,
+        train_loader=train_loader,
+        rank=rank,
+        world_size=world_size,
+        distributed=distributed,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        log0=log0,
+        on_train_log=tracker.log_train,
+        on_val_log=tracker.log_val,
+    )
+
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+
+    save_and_validate_roundtrip(
+        args=args,
+        base_model=base_model,
+        model=model,
+        rank=rank,
+        world_size=world_size,
+        device=device,
+        grad_accum_steps=grad_accum_steps,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        code=code,
+        log0=log0,
+        master_process=master_process,
+        on_model_size=tracker.log_model_size,
+    )
+    tracker.end()
+
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.13 (main, Mar 20 2026, 00:33:26) [Clang 22.1.1 ]
+Running PyTorch 2.10.0+cu128
+Sat Apr 11 16:57:53 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.172.08             Driver Version: 570.172.08     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H200                    On  |   00000000:82:00.0 Off |                    0 |
+| N/A   34C    P0            127W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H200                    On  |   00000000:84:00.0 Off |                    0 |
+| N/A   33C    P0            126W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H200                    On  |   00000000:86:00.0 Off |                    0 |
+| N/A   33C    P0            128W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H200                    On  |   00000000:92:00.0 Off |                    0 |
+| N/A   33C    P0            132W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H200                    On  |   00000000:95:00.0 Off |                    0 |
+| N/A   36C    P0            130W /  700W |    2907MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H200                    On  |   00000000:96:00.0 Off |                    0 |
+| N/A   36C    P0            128W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H200                    On  |   00000000:97:00.0 Off |                    0 |
+| N/A   31C    P0            124W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H200                    On  |   00000000:A1:00.0 Off |                    0 |
+| N/A   31C    P0            126W /  700W |    1511MiB / 143771MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         4037480      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    1   N/A  N/A         4037481      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    2   N/A  N/A         4037482      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    3   N/A  N/A         4037483      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    4   N/A  N/A         4037484      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    5   N/A  N/A         4037485      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    6   N/A  N/A         4037486      C   ...ameter-golf/.venv/bin/python3       1504MiB |
+|    7   N/A  N/A         4037487      C   ...ameter-golf/.venv/bin/python3       1504MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+reproducibility: seed=1337 rank=0 CUBLAS_WORKSPACE_CONFIG=<not set> PYTHONHASHSEED=<not set>
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+experiment_name:ptq=int6attn+int5mlp L=20 mlp=5
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17324704
+compile:global=True model=True muon=True
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+flash_attn:unavailable (flash-attn not installed) active_version=torch_sdpa
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+mhc:enabled=False type=none streams=2
+val_mode:full_precision_and_int8_quantized_dequantized_roundtrip
+qat_bits:0 ternary_enabled:False init_scheme:default
+train_batch_tokens:524288 train_seq_len:1024 iterations:4500 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+comet:enabled
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/4500 val_loss_full_precision:6.9306 val_bpb_full_precision:4.1047 val_loss_quantized_model:6.9307 val_bpb_quantized_model:4.1048 train_time:0ms step_avg:0.02ms
+step:1/4500 train_loss:6.9310 grad_norm:0.2777 lr_scale:1.0000 train_time:97ms step_avg:97.30ms
+step:2/4500 train_loss:8.6477 grad_norm:3.1508 lr_scale:1.0000 train_time:159ms step_avg:79.51ms
+step:3/4500 train_loss:6.0466 grad_norm:0.9921 lr_scale:1.0000 train_time:221ms step_avg:73.57ms
+step:4/4500 train_loss:6.3719 grad_norm:1.3226 lr_scale:1.0000 train_time:279ms step_avg:69.85ms
+step:5/4500 train_loss:6.7726 grad_norm:1.6693 lr_scale:1.0000 train_time:338ms step_avg:67.60ms
+step:6/4500 train_loss:6.7886 grad_norm:1.3421 lr_scale:1.0000 train_time:397ms step_avg:66.11ms
+step:7/4500 train_loss:6.1852 grad_norm:1.4269 lr_scale:1.0000 train_time:455ms step_avg:65.04ms
+step:8/4500 train_loss:5.8823 grad_norm:1.1956 lr_scale:1.0000 train_time:514ms step_avg:64.29ms
+step:9/4500 train_loss:5.6543 grad_norm:0.9832 lr_scale:1.0000 train_time:573ms step_avg:63.69ms
+step:10/4500 train_loss:5.4744 grad_norm:0.9083 lr_scale:1.0000 train_time:631ms step_avg:63.14ms
+step:50/4500 train_loss:4.2021 grad_norm:0.4837 lr_scale:1.0000 train_time:2977ms step_avg:59.54ms
+step:100/4500 train_loss:3.5370 grad_norm:0.5733 lr_scale:1.0000 train_time:6319ms step_avg:63.19ms
+step:150/4500 train_loss:3.2560 grad_norm:0.4161 lr_scale:1.0000 train_time:9881ms step_avg:65.87ms
+step:200/4500 train_loss:2.9989 grad_norm:0.4155 lr_scale:1.0000 train_time:13824ms step_avg:69.12ms
+step:250/4500 train_loss:2.8839 grad_norm:0.2712 lr_scale:1.0000 train_time:16732ms step_avg:66.93ms
+step:300/4500 train_loss:2.5964 grad_norm:0.3944 lr_scale:1.0000 train_time:19637ms step_avg:65.46ms
+step:350/4500 train_loss:2.7771 grad_norm:0.3639 lr_scale:1.0000 train_time:23055ms step_avg:65.87ms
+step:400/4500 train_loss:2.4529 grad_norm:0.1673 lr_scale:1.0000 train_time:26930ms step_avg:67.33ms
+step:450/4500 train_loss:2.6021 grad_norm:0.2156 lr_scale:1.0000 train_time:29832ms step_avg:66.29ms
+step:500/4500 train_loss:2.5803 grad_norm:0.1527 lr_scale:1.0000 train_time:32759ms step_avg:65.52ms
+step:550/4500 train_loss:2.4781 grad_norm:0.1399 lr_scale:1.0000 train_time:35675ms step_avg:64.86ms
+step:600/4500 train_loss:2.6142 grad_norm:0.1307 lr_scale:1.0000 train_time:39229ms step_avg:65.38ms
+step:650/4500 train_loss:2.4477 grad_norm:0.1563 lr_scale:1.0000 train_time:42130ms step_avg:64.82ms
+step:700/4500 train_loss:2.4927 grad_norm:0.1049 lr_scale:1.0000 train_time:45035ms step_avg:64.34ms
+step:750/4500 train_loss:2.3312 grad_norm:0.1093 lr_scale:1.0000 train_time:47935ms step_avg:63.91ms
+step:800/4500 train_loss:2.3499 grad_norm:0.1072 lr_scale:1.0000 train_time:52012ms step_avg:65.02ms
+step:850/4500 train_loss:2.7593 grad_norm:0.0801 lr_scale:1.0000 train_time:55073ms step_avg:64.79ms
+step:900/4500 train_loss:2.3813 grad_norm:0.1517 lr_scale:1.0000 train_time:57971ms step_avg:64.41ms
+step:950/4500 train_loss:2.4440 grad_norm:0.1042 lr_scale:1.0000 train_time:60871ms step_avg:64.07ms
+step:1000/4500 train_loss:2.4066 grad_norm:0.0907 lr_scale:1.0000 train_time:64464ms step_avg:64.46ms
+step:1000/4500 val_loss_full_precision:2.3740 val_bpb_full_precision:1.4060 val_loss_quantized_model:2.4092 val_bpb_quantized_model:1.4269 train_time:64467ms step_avg:64.47ms
+step:1050/4500 train_loss:2.5158 grad_norm:0.1302 lr_scale:1.0000 train_time:67377ms step_avg:64.17ms
+step:1100/4500 train_loss:2.2952 grad_norm:0.0971 lr_scale:1.0000 train_time:70275ms step_avg:63.89ms
+step:1150/4500 train_loss:2.2869 grad_norm:0.0803 lr_scale:1.0000 train_time:73805ms step_avg:64.18ms
+step:1200/4500 train_loss:2.4108 grad_norm:0.0802 lr_scale:1.0000 train_time:76704ms step_avg:63.92ms
+step:1250/4500 train_loss:2.2333 grad_norm:0.0903 lr_scale:1.0000 train_time:79611ms step_avg:63.69ms
+step:1300/4500 train_loss:2.3890 grad_norm:0.0694 lr_scale:1.0000 train_time:82649ms step_avg:63.58ms
+step:1350/4500 train_loss:2.3005 grad_norm:0.0617 lr_scale:1.0000 train_time:86214ms step_avg:63.86ms
+step:1400/4500 train_loss:2.4594 grad_norm:0.0950 lr_scale:1.0000 train_time:89149ms step_avg:63.68ms
+step:1450/4500 train_loss:2.2651 grad_norm:0.0895 lr_scale:1.0000 train_time:92053ms step_avg:63.48ms
+step:1500/4500 train_loss:2.2483 grad_norm:0.0787 lr_scale:1.0000 train_time:94974ms step_avg:63.32ms
+step:1550/4500 train_loss:2.1741 grad_norm:0.0938 lr_scale:1.0000 train_time:98365ms step_avg:63.46ms
+step:1600/4500 train_loss:2.1225 grad_norm:0.0980 lr_scale:1.0000 train_time:101264ms step_avg:63.29ms
+step:1650/4500 train_loss:2.2537 grad_norm:0.0688 lr_scale:1.0000 train_time:104166ms step_avg:63.13ms
+step:1700/4500 train_loss:2.2020 grad_norm:0.0680 lr_scale:1.0000 train_time:107065ms step_avg:62.98ms
+step:1750/4500 train_loss:2.2705 grad_norm:0.0775 lr_scale:1.0000 train_time:111819ms step_avg:63.90ms
+step:1800/4500 train_loss:2.2111 grad_norm:0.0638 lr_scale:1.0000 train_time:114849ms step_avg:63.81ms
+step:1850/4500 train_loss:2.3261 grad_norm:0.0731 lr_scale:1.0000 train_time:117751ms step_avg:63.65ms
+step:1900/4500 train_loss:2.2033 grad_norm:0.0630 lr_scale:1.0000 train_time:120650ms step_avg:63.50ms
+step:1950/4500 train_loss:2.2314 grad_norm:0.0719 lr_scale:1.0000 train_time:124673ms step_avg:63.93ms
+step:2000/4500 train_loss:2.2657 grad_norm:0.0800 lr_scale:1.0000 train_time:127584ms step_avg:63.79ms
+step:2000/4500 val_loss_full_precision:2.2537 val_bpb_full_precision:1.3348 val_loss_quantized_model:2.3111 val_bpb_quantized_model:1.3688 train_time:127584ms step_avg:63.79ms
+step:2050/4500 train_loss:2.2688 grad_norm:0.0682 lr_scale:1.0000 train_time:130495ms step_avg:63.66ms
+step:2100/4500 train_loss:2.2834 grad_norm:0.0714 lr_scale:1.0000 train_time:134198ms step_avg:63.90ms
+step:2150/4500 train_loss:2.2069 grad_norm:0.0761 lr_scale:1.0000 train_time:137096ms step_avg:63.77ms
+step:2200/4500 train_loss:2.0830 grad_norm:0.0516 lr_scale:1.0000 train_time:139996ms step_avg:63.63ms
+step:2250/4500 train_loss:2.1812 grad_norm:0.0838 lr_scale:1.0000 train_time:143024ms step_avg:63.57ms
+step:2300/4500 train_loss:2.3965 grad_norm:0.0871 lr_scale:1.0000 train_time:146459ms step_avg:63.68ms
+step:2350/4500 train_loss:2.2095 grad_norm:0.0752 lr_scale:1.0000 train_time:149359ms step_avg:63.56ms
+step:2400/4500 train_loss:2.2187 grad_norm:0.0776 lr_scale:1.0000 train_time:152260ms step_avg:63.44ms
+step:2450/4500 train_loss:2.2168 grad_norm:0.0469 lr_scale:1.0000 train_time:155163ms step_avg:63.33ms
+step:2500/4500 train_loss:2.1317 grad_norm:0.0566 lr_scale:1.0000 train_time:159295ms step_avg:63.72ms
+step:2550/4500 train_loss:2.1482 grad_norm:0.0666 lr_scale:1.0000 train_time:162207ms step_avg:63.61ms
+step:2600/4500 train_loss:2.4257 grad_norm:0.0614 lr_scale:1.0000 train_time:165110ms step_avg:63.50ms
+step:2650/4500 train_loss:2.2598 grad_norm:0.0546 lr_scale:1.0000 train_time:168017ms step_avg:63.40ms
+step:2700/4500 train_loss:2.1686 grad_norm:0.0571 lr_scale:1.0000 train_time:171474ms step_avg:63.51ms
+step:2750/4500 train_loss:2.3721 grad_norm:0.0558 lr_scale:1.0000 train_time:174525ms step_avg:63.46ms
+step:2800/4500 train_loss:2.2473 grad_norm:0.0483 lr_scale:1.0000 train_time:177427ms step_avg:63.37ms
+step:2850/4500 train_loss:2.1963 grad_norm:0.0510 lr_scale:1.0000 train_time:180328ms step_avg:63.27ms
+step:2900/4500 train_loss:2.1877 grad_norm:0.0773 lr_scale:1.0000 train_time:183704ms step_avg:63.35ms
+step:2950/4500 train_loss:2.2492 grad_norm:0.0838 lr_scale:1.0000 train_time:186607ms step_avg:63.26ms
+step:3000/4500 train_loss:2.2385 grad_norm:0.0482 lr_scale:1.0000 train_time:189511ms step_avg:63.17ms
+step:3000/4500 val_loss_full_precision:2.2043 val_bpb_full_precision:1.3055 val_loss_quantized_model:2.2677 val_bpb_quantized_model:1.3431 train_time:189513ms step_avg:63.17ms
+step:3050/4500 train_loss:2.1810 grad_norm:0.0587 lr_scale:1.0000 train_time:192424ms step_avg:63.09ms
+step:3100/4500 train_loss:2.2196 grad_norm:0.0771 lr_scale:1.0000 train_time:196063ms step_avg:63.25ms
+step:3150/4500 train_loss:2.1689 grad_norm:0.0479 lr_scale:1.0000 train_time:198966ms step_avg:63.16ms
+step:3200/4500 train_loss:2.1969 grad_norm:0.0479 lr_scale:1.0000 train_time:201924ms step_avg:63.10ms
+step:3250/4500 train_loss:2.0979 grad_norm:0.0495 lr_scale:1.0000 train_time:205646ms step_avg:63.28ms
+step:3300/4500 train_loss:2.2447 grad_norm:0.0560 lr_scale:1.0000 train_time:208875ms step_avg:63.30ms
+step:3350/4500 train_loss:2.1105 grad_norm:0.0458 lr_scale:1.0000 train_time:212911ms step_avg:63.56ms
+step:3400/4500 train_loss:2.1619 grad_norm:0.0658 lr_scale:1.0000 train_time:215813ms step_avg:63.47ms
+step:3450/4500 train_loss:2.1188 grad_norm:0.0458 lr_scale:1.0000 train_time:219574ms step_avg:63.64ms
+step:3500/4500 train_loss:2.2587 grad_norm:0.0500 lr_scale:1.0000 train_time:222514ms step_avg:63.58ms
+step:3550/4500 train_loss:2.3937 grad_norm:0.0499 lr_scale:1.0000 train_time:225423ms step_avg:63.50ms
+step:3600/4500 train_loss:2.1225 grad_norm:0.0410 lr_scale:1.0000 train_time:228328ms step_avg:63.42ms
+step:3650/4500 train_loss:2.2257 grad_norm:0.0424 lr_scale:1.0000 train_time:232498ms step_avg:63.70ms
+step:3700/4500 train_loss:2.1531 grad_norm:0.0457 lr_scale:1.0000 train_time:235523ms step_avg:63.65ms
+step:3750/4500 train_loss:2.1491 grad_norm:0.0536 lr_scale:1.0000 train_time:238793ms step_avg:63.68ms
+step:3800/4500 train_loss:2.2277 grad_norm:0.0578 lr_scale:1.0000 train_time:241700ms step_avg:63.61ms
+step:3850/4500 train_loss:2.1834 grad_norm:0.0512 lr_scale:1.0000 train_time:245734ms step_avg:63.83ms
+step:3900/4500 train_loss:1.9982 grad_norm:0.0512 lr_scale:1.0000 train_time:248642ms step_avg:63.75ms
+step:3950/4500 train_loss:2.1336 grad_norm:0.0383 lr_scale:1.0000 train_time:251546ms step_avg:63.68ms
+step:4000/4500 train_loss:2.1661 grad_norm:0.0430 lr_scale:1.0000 train_time:254489ms step_avg:63.62ms
+step:4000/4500 val_loss_full_precision:2.1752 val_bpb_full_precision:1.2883 val_loss_quantized_model:2.2510 val_bpb_quantized_model:1.3332 train_time:254491ms step_avg:63.62ms
+step:4050/4500 train_loss:2.1054 grad_norm:0.0534 lr_scale:1.0000 train_time:257778ms step_avg:63.65ms
+step:4100/4500 train_loss:2.1942 grad_norm:0.0475 lr_scale:1.0000 train_time:260729ms step_avg:63.59ms
+step:4150/4500 train_loss:2.3316 grad_norm:0.0681 lr_scale:1.0000 train_time:263729ms step_avg:63.55ms
+step:4200/4500 train_loss:2.1829 grad_norm:0.0496 lr_scale:1.0000 train_time:267432ms step_avg:63.67ms
+step:4250/4500 train_loss:2.1320 grad_norm:0.0487 lr_scale:1.0000 train_time:270333ms step_avg:63.61ms
+step:4300/4500 train_loss:2.0238 grad_norm:0.0383 lr_scale:1.0000 train_time:273234ms step_avg:63.54ms
+step:4350/4500 train_loss:2.2142 grad_norm:0.0415 lr_scale:1.0000 train_time:276135ms step_avg:63.48ms
+step:4400/4500 train_loss:2.1183 grad_norm:0.0452 lr_scale:1.0000 train_time:279837ms step_avg:63.60ms
+step:4450/4500 train_loss:2.0720 grad_norm:0.0447 lr_scale:1.0000 train_time:282751ms step_avg:63.54ms
+step:4500/4500 train_loss:2.2596 grad_norm:0.0600 lr_scale:1.0000 train_time:285674ms step_avg:63.48ms
+step:4500/4500 val_loss_full_precision:2.1657 val_bpb_full_precision:1.2827 val_loss_quantized_model:2.2432 val_bpb_quantized_model:1.3286 train_time:285675ms step_avg:63.48ms
+peak memory allocated: 15328 MiB reserved: 15708 MiB
+Serialized model (fp32 state_dict .pt): 68848491 bytes
+Serialized model size ceil (.pt): 66 MiB
+MODEL_FP32_PT_BYTES:68848491
+MODEL_FP32_PT_MB_CEIL:66
+Code size: 10843 bytes
+Total submission size (fp32 .pt + code): 68859334 bytes
+Serialized model int8+zlib: 15416793 bytes (payload:21389952 raw_torch:21465881 payload_ratio:3.22x)
+MODEL_INT8_ZLIB_BYTES:15416793
+MODEL_INT8_ZLIB_MB_CEIL:15
+Total submission size int8+zlib: 15427636 bytes
+final_int8_zlib_roundtrip val_loss:2.2432 val_bpb:1.3286 eval_time:1792ms
+final_int8_zlib_roundtrip_exact val_loss:2.24324756 val_bpb:1.32857756
