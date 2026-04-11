@@ -1,0 +1,9 @@
+{
+  "name": "10L + Batched LoRA TTT",
+  "val_loss": 1.1160,
+  "bytes_total": 15749040,
+  "blurb": "10 layers, mixed int5/int6, batched per-doc LoRA TTT. Base 1.148, TTT 1.116 in 8.3 min eval.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-24"
+}
