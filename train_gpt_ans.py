@@ -2361,10 +2361,20 @@ def main() -> None:
         {k: v.to(device) for k, v in unbanked_sd.items() if k in hessian_model.state_dict()},
         strict=False,
     )
-    # Training-data calibration (proven -0.0007 BPP vs AR self-gen)
-    log0(f"gptq:collecting hessians from training data ({args.gptq_calib_batches} batches)...")
-    hessians = collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps, num_batches=args.gptq_calib_batches)
-    log0(f"gptq:collected hessians for {len(hessians)} layers (training data)")
+    # Calibration data source: post-TTT val tokens (matched to adapted weights) or training data
+    _post_ttt_gptq = bool(int(os.environ.get('POST_TTT_GPTQ', '0')))
+    if _post_ttt_gptq and args.ttt_enabled:
+        log0(f"gptq:collecting hessians from VAL data (post-TTT matched calibration, {args.gptq_calib_batches} batches)...")
+        # Use val tokens that TTT adapted to — Hessians match the actual weight distribution
+        val_seqs = val_tokens[:args.gptq_calib_batches * args.train_seq_len + 1].to(device)
+        val_seq_list = [val_seqs[i * args.train_seq_len:(i + 1) * args.train_seq_len + 1] for i in range(args.gptq_calib_batches)]
+        val_token_seqs = torch.stack([s[:-1] for s in val_seq_list])
+        hessians = collect_hessians_from_tokens(hessian_model, val_token_seqs, device)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (post-TTT val data)")
+    else:
+        log0(f"gptq:collecting hessians from training data ({args.gptq_calib_batches} batches)...")
+        hessians = collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps, num_batches=args.gptq_calib_batches)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (training data)")
     del hessian_model
     torch.cuda.empty_cache()
     quant_result, quant_meta = mixed_quantize_int6(
