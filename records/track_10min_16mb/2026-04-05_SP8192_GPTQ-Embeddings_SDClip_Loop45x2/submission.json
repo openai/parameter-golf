@@ -1,0 +1,48 @@
+{
+  "author": "Kevin Clark",
+  "github_id": "clarkkev",
+  "name": "SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SD-Clip + Simplifications",
+  "blurb": "8192-token sentencepiece vocab, GPTQ-quantize embeddings, loop layers 4,5 two times, row-normalized muon, standard-deviation based weight clipping",
+  "date": "2026-04-05",
+  "track": "10min_16mb",
+  "val_loss": 2.80428,
+  "val_bpb": 1.08563,
+  "val_bpb_std": 0.0007,
+  "seeds": [1, 42, 1234, 1337, 2025],
+  "seed_results": {
+    "1": {
+      "val_loss": 2.80405,
+      "val_bpb": 1.08554,
+      "artifact_bytes": 15987547,
+      "steps": 4988
+    },
+    "42": {
+      "val_loss": 2.80691,
+      "val_bpb": 1.08664,
+      "artifact_bytes": 15988983,
+      "steps": 4986
+    },
+    "1234": {
+      "val_loss": 2.80170,
+      "val_bpb": 1.08463,
+      "artifact_bytes": 15983318,
+      "steps": 4989
+    },
+    "1337": {
+      "val_loss": 2.80407,
+      "val_bpb": 1.08554,
+      "artifact_bytes": 15984924,
+      "steps": 4992
+    },
+    "2025": {
+      "val_loss": 2.80467,
+      "val_bpb": 1.08578,
+      "artifact_bytes": 15983617,
+      "steps": 4989
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "bytes_total": 15985678,
+  "bytes_code": 15516
+}
