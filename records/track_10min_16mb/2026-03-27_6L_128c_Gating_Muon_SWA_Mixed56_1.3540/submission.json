@@ -1,0 +1,16 @@
+{
+    "name": "Specialist-128c",
+    "github_id": "weidi",
+    "val_bpb": 1.3540,
+    "model_config": {
+        "num_layers": 6,
+        "model_dim": 800,
+        "num_heads": 10,
+        "num_clusters": 128
+    },
+    "training_config": {
+        "iterations": 10000,
+        "train_batch_tokens": 24576,
+        "optimizer": "Muon + AdamW"
+    }
+}
