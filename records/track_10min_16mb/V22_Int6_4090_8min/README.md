@@ -16,6 +16,7 @@ Lightweight 16MB-constrained language model optimized for fast convergence.
 
 ## Notes
 Designed to reach reasonable performance quickly rather than maximizing final accuracy.
+Updated for clean PR submission
 
 Using device: cuda:0
 🏁 Training start (Target: 1000 steps, ~8-9 mins)
