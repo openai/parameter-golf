@@ -1,0 +1,32 @@
+# Combined experiment log — Knowledge distillation (non-record submission)
+# This file documents multiple runs (baseline, MLX, partial RunPod). It is not a single
+# uninterrupted 8xH100 20k-step training capture. For a strict single-run log, rerun on 8xH100 and
+# paste the script's full stdout/stderr + logs/<RUN_ID>.txt here.
+
+## Baseline (no distillation)
+# Source: stock train_gpt.py, 200 steps
+# val_bpb: 2.3351
+# Student: 9L 512D, ~10.3MB serialized context (as noted by author)
+
+## Distill tiny (smoke)
+# Steps: 10 | Teacher 4L 256D | Student 3L 128D
+# val_bpb: 3.7707 | quantized val_bpb: 3.7715 | ~0.7MB
+
+## Distill medium — MLX / Mac
+# Teacher 6L 384D | Student 4L 256D
+# step:200  val_bpb: 2.5427  quantized: 2.5432  size: ~2.47MB
+# step:500  val_bpb: 2.2717  quantized: 2.2752  size: ~2.57MB
+# step:1000 val_bpb: 2.1348  quantized: 2.1359  size: ~2.64MB
+
+## Distill large teacher — RunPod H100 (partial)
+# Teacher 12L 768D | Student 6L 384D
+# Training interrupted ~step 600 (billing). Validation from script reported:
+step:600/20000 val_bpb:1.7195 train_time:(partial run — see RunPod console)
+# Post-quant roundtrip val_bpb: not captured before stop
+# Estimated student size on disk: ~5MB class (author note)
+
+## Extrapolation (NOT logged — do not treat as official score)
+# Full 20000-step 8xH100: author estimate ~1.20–1.25 val_bpb based on trend — UNVERIFIED
+
+## Reproduce (8xH100)
+# See README.md for full env var command using train_gpt.py in this folder.
