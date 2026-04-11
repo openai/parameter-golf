@@ -1,0 +1,20 @@
+{
+  "author": "LoquiAuris",
+  "github_id": "LoquiAuris",
+  "val_bpb": 1.1508,
+  "val_bpb_mean": 1.15083,
+  "val_bpb_std": 0.00012,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42": 1.15097,
+    "1337": 1.15077,
+    "2024": 1.15074
+  },
+  "artifact_bytes": 15680288,
+  "model_bytes": 15622541,
+  "code_bytes": 57747,
+  "training_time_seconds": 600,
+  "steps_completed": 5999,
+  "hardware": "8xH100 SXM",
+  "n_params": 24730705
+}
