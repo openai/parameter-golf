@@ -1,0 +1,29 @@
+{
+  "author": "Wolfie8935",
+  "github_id": "Wolfie8935",
+  "name": "4090 ablations on ValCalib GPTQ+XSA stack (incomplete matrix)",
+  "blurb": "Non-record submission documenting single RTX 4090 ablations (TRAIN_BATCH_TOKENS=196608) on the 2026-03-25 ValCalib / AR self-gen GPTQ + XSA-all + BigramHash 3072x112 lineage. Includes logs for ctrl, a1, a2, b1 only; c1/c2/d1/d2 not packaged. Best included sliding BPB from train_a1_calib192_seed314.log: final_int6_sliding_window_exact val_bpb ~1.56854187 — not comparable to 8xH100 SOTA. Ctrl log interrupted before sliding eval in captured run.",
+  "date": "2026-04-01",
+  "track": "non-record-16mb",
+  "submission_kind": "non_record",
+  "record_claim": false,
+  "val_loss": null,
+  "val_bpb": 1.56854187,
+  "val_bpb_metric": "final_int6_sliding_window_exact (from train_a1_calib192_seed314.log only)",
+  "val_bpb_note": "4090 single-GPU reduced microbatch; not comparable to 8xH100 leaderboard",
+  "seeds": [314],
+  "hardware": "1x NVIDIA GeForce RTX 4090 24GB",
+  "wallclock_seconds": 600,
+  "train_batch_tokens": 196608,
+  "lineage": "records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072",
+  "included_logs": [
+    "train_ctrl_seed314.log",
+    "train_a1_calib192_seed314.log",
+    "train_a2_calib320_seed314.log",
+    "train_b1_block256_seed314.log"
+  ],
+  "missing_ablations": ["c1_bigram96_seed314", "c2_bigram128_seed314", "d1_warm3500_seed314", "d2_warm4500_seed314"],
+  "known_log_issues": [
+    "train_ctrl_seed314.log: process received SIGTERM before final_int6_sliding_window_exact in captured log"
+  ]
+}
