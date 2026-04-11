@@ -28,7 +28,6 @@ In practice, that is pretty much the only modeling change here versus PR #1523, 
 
 ```bash
 pip install brotli sentencepiece
-pip install ./cutlass_evt_fusion
 MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192
 for SEED in 1337 2024 42; do
     SEED=$SEED TTT_ENABLED=1 HASH_EMBED_ENABLED=1 TTT_LR=0.01
@@ -36,3 +35,5 @@ for SEED in 1337 2024 42; do
     torchrun --standalone --nproc_per_node=8 train_gpt.py
 done
 ```
+
+The `cutlass_evt_fusion/` directory should live alongside `train_gpt.py` in the directory you run from.
