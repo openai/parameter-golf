@@ -1,0 +1,18 @@
+{
+  "author": "RichiiiTV",
+  "github_id": "RichiiiTV",
+  "name": "Podracing II Backoff7gram (1xH100 zlib-fallback sign-of-life)",
+  "blurb": "Non-record 1xH100 submission: compact #753-style legal score-first adaptive 2..7-gram backoff root lane, run with flash-attn present but zstandard unavailable, so export used the int6+zlib fallback instead of the intended int6+zstd path. The dense model only reached 899 steps in 600s on one GPU, but the final legal 7-gram exact metric still reached 0.92092798 with a 7,772,644-byte artifact. Off-spec for leaderboard use due to 1 GPU and ~970s n-gram eval.",
+  "date": "2026-03-25T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.55494421,
+  "val_bpb": 0.92092798,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 899,
+  "wallclock_seconds": 600.302,
+  "bytes_total": 7772644,
+  "bytes_model_int6_zlib": 7698444,
+  "bytes_code": 74200,
+  "gpu": "1xH100 80GB"
+}
