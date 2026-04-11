@@ -1,0 +1,45 @@
+{
+  "author": "JungyupLee",
+  "github_id": "izlley",
+  "name": "LatentMask TTT + Full Hessian GPTQ + Product-Key Bigram + Brotli",
+  "blurb": "11L GPT with U-Net skips, LatentMask TTT (per-channel sigmoid masks, score-first legal), Full Hessian GPTQ (AR self-gen calib, Cholesky error compensation), Product-Key Bigram (zero collision), GatedAttention on even layers, XSA on all layers, Value Embeddings at decoder [5,7,10], Muon optimizer, EMA+SWA, Late QAT, Brotli-11 + uint8 log-scale compression.",
+  "date": "2026-04-05",
+  "track": "10min_16mb",
+  "val_loss": 1.87817944,
+  "val_bpb": 1.11236660,
+  "val_loss_std": 0.00073910,
+  "val_bpb_std": 0.00043774,
+  "seeds": [777, 999, 1337],
+  "seed_results": {
+    "777": {
+      "val_loss": 1.87746873,
+      "val_bpb": 1.11194568,
+      "artifact_bytes": 15985742,
+      "steps": 6555,
+      "step_avg_ms": 91.54
+    },
+    "999": {
+      "val_loss": 1.87787103,
+      "val_bpb": 1.11218395,
+      "artifact_bytes": 15994891,
+      "steps": 6555,
+      "step_avg_ms": 91.54
+    },
+    "1337": {
+      "val_loss": 1.87919855,
+      "val_bpb": 1.11297018,
+      "artifact_bytes": 15988042,
+      "steps": 6556,
+      "step_avg_ms": 91.52
+    }
+  },
+  "artifact_bytes_max": 15994891,
+  "bytes_total": 15994891,
+  "code_bytes": 61917,
+  "model_bytes": 15932974,
+  "train_steps_mean": 6555.3,
+  "step_avg_ms_mean": 91.53,
+  "hardware": "8xH100 80GB SXM (RunPod)",
+  "flash_attn_version": "3.0.0+20260303.cu128torch291cxx11abitrue.ceb109",
+  "technique_summary": "LatentMask TTT + Full Hessian GPTQ (AR self-gen) + Product-Key Bigram + GatedAttn-even + XSA-all + VE-decoder + Muon + Brotli-11"
+}
