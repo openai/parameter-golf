@@ -1,0 +1,8 @@
+{
+    "name": "Nir Mathur",
+    "github_id": "nirmathur",
+    "val_bpb": 1.3151,
+    "summary": "Neuromodulatory depth-recurrent transformer with FiLM conditioning, built on PR #549 SOTA stack. 9 physical blocks, 11 virtual layers via partial weight sharing. Sliding window eval on 1xH100.",
+    "date": "2026-04-04",
+    "track": "non_record_16mb"
+}
