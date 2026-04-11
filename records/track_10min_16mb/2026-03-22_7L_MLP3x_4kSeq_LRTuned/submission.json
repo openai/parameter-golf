@@ -1,0 +1,11 @@
+{
+  "author": "Sonia",
+  "github_id": "sonia",
+  "name": "7L MLP3x 4k Seq LR-Tuned",
+  "blurb": "7-layer 512d transformer with 3x MLP width, 4096 sequence length, tuned LRs (tied_embed_lr=0.01, matrix_lr=0.03), logit_softcap=15, qk_gain_init=1.0, warmdown_iters=3000, extra RMSNorm before projections. Wider MLP + longer context + lower LRs give smoother weight distributions that quantize well (quant gap ~0.001).",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": 2.01477452,
+  "val_bpb": 1.19326296,
+  "bytes_total": 15766111,
+  "bytes_code": 47914
+}
