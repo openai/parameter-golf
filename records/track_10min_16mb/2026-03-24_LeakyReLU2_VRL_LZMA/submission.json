@@ -1,0 +1,14 @@
+{
+    "name": "LeakyReLU2_VRL_LZMA",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": 1.1229,
+    "val_loss": 1.8960,
+    "bytes_total": 15887926,
+    "bytes_code": 59426,
+    "blurb": "11L LeakyReLU(0.5)^2 + VRL + lzma + FA3 Hopper + EMA + XSA4 + PartialRoPE + LNScale + VE128 + GPTQ-lite int6. 3-seed mean 1.1229, std 0.0005."
+}
