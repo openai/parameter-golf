@@ -193,4 +193,15 @@ def build_optimizers(
         )
         optimizers.insert(1, optimizer_head)
 
+    if base_model.mtp_heads is not None:
+        mtp_params = [head.weight for head in base_model.mtp_heads]
+        optimizer_mtp = adam_cls_rest(
+            [{"params": mtp_params, "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            weight_decay=wd_rest,
+            fused=True,
+        )
+        optimizers.append(optimizer_mtp)
+
     return optimizers, optimizer_muon

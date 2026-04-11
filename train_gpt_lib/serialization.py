@@ -233,9 +233,14 @@ def save_and_validate_roundtrip(
     master_process: bool,
     on_model_size: Callable[..., None] | None = None,
 ) -> None:
+    # MTP heads are training-only auxiliary projections; strip them from all saved artifacts.
+    full_state = base_model.state_dict()
+    core_state = {k: v for k, v in full_state.items() if not k.startswith("mtp_heads.")}
+    mtp_state = {k: v for k, v in full_state.items() if k.startswith("mtp_heads.")}
+
     model_bytes = 0
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
+        torch.save(core_state, "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         model_mb_ceil = int(math.ceil(model_bytes / (1024.0 * 1024.0)))
         code_bytes = len(code.encode("utf-8"))
@@ -248,7 +253,7 @@ def save_and_validate_roundtrip(
 
     if args.ternary_enabled:
         # Ternary path
-        quant_blob = serialize_ternary_lzma(base_model.state_dict())
+        quant_blob = serialize_ternary_lzma(core_state)
         if master_process:
             with open("final_model.ternary.ptz", "wb") as f:
                 f.write(quant_blob)
@@ -268,12 +273,14 @@ def save_and_validate_roundtrip(
             dist.barrier()
         with open("final_model.ternary.ptz", "rb") as f:
             quant_blob_disk = f.read()
-        base_model.load_state_dict(deserialize_ternary_lzma(quant_blob_disk), strict=True)
+        q_state = deserialize_ternary_lzma(quant_blob_disk)
+        q_state.update(mtp_state)
+        base_model.load_state_dict(q_state, strict=True)
         mode_str = "ternary_lzma"
     else:
         # IntN path
         quant_obj, quant_stats = quantize_state_dict_int8(
-            base_model.state_dict(),
+            core_state,
             ptq_bits=args.ptq_bits,
             ptq_mlp_bits=args.ptq_mlp_bits,
             int6_layer_start=args.int6_layer_start,
@@ -310,7 +317,9 @@ def save_and_validate_roundtrip(
         with open("final_model.int8.ptz", "rb") as f:
             quant_blob_disk = f.read()
         quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-        base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+        q_state = dequantize_state_dict_int8(quant_state)
+        q_state.update(mtp_state)
+        base_model.load_state_dict(q_state, strict=True)
         mode_str = "int8_zlib"
 
     torch.cuda.synchronize()

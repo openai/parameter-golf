@@ -143,6 +143,8 @@ def main() -> None:
         flash_attn_version=flash_ver,
         mlp_proj_init=args.mlp_proj_init,
         init_scheme=args.init_scheme,
+        mtp_num_heads=args.mtp_num_heads,
+        mtp_loss_weight=args.mtp_loss_weight,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -188,6 +190,7 @@ def main() -> None:
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(f"mhc:enabled={args.use_mhc} type={args.mhc_type if args.use_mhc else 'none'} streams={args.mhc_num_streams}")
+    log0(f"mtp:num_heads={args.mtp_num_heads} loss_weight={args.mtp_loss_weight}")
     val_mode_str = "full_precision_and_int8_quantized_dequantized_roundtrip"
     if args.ternary_enabled:
         val_mode_str = "full_precision_and_ternary_quantized_dequantized_roundtrip"

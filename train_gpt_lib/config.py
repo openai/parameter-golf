@@ -57,6 +57,11 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     mlp_proj_init = os.environ.get("MLP_PROJ_INIT", "zero")  # "zero" or "kaiming_uniform"
+
+    # Multi-Token Prediction (MTP): train with k heads, discard k-1 at inference.
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", "1"))  # 1 = standard NTP
+    mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", "1.0"))
+
     use_mhc = bool(int(os.environ.get("USE_MHC", "0")))
     mhc_type = os.environ.get("MHC_TYPE", "mhc")
     mhc_num_streams = int(os.environ.get("MHC_NUM_STREAMS", 2))

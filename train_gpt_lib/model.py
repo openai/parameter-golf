@@ -242,6 +242,8 @@ class GPT(nn.Module):
         flash_attn_version: int = 0,
         mlp_proj_init: str = "zero",
         init_scheme: str = "default",
+        mtp_num_heads: int = 1,
+        mtp_loss_weight: float = 1.0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -249,6 +251,8 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.mtp_num_heads = mtp_num_heads
+        self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -277,6 +281,15 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        if mtp_num_heads > 1:
+            self.mtp_heads: nn.ModuleList | None = nn.ModuleList([
+                CastedLinear(model_dim, vocab_size, bias=False)
+                for _ in range(mtp_num_heads - 1)
+            ])
+            for head in self.mtp_heads:
+                head._zero_init = True
+        else:
+            self.mtp_heads = None
         self._init_weights()
         apply_initialization(self, init_scheme, num_layers)
 
@@ -305,13 +318,28 @@ class GPT(nn.Module):
         x = self.final_norm(x)
         if self.reduce_stream is not None:
             x = self.reduce_stream(x)
-        x = x.reshape(-1, x.size(-1))
+
+        D = x.size(-1)
+        x_flat = x.reshape(-1, D)
         targets = target_ids.reshape(-1)
         if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
+            logits_proj = F.linear(x_flat, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
+            logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        if self.training and self.mtp_heads is not None:
+            S = x.size(1)
+            mtp_aux_loss = torch.zeros_like(loss)
+            for k, head in enumerate(self.mtp_heads, start=1):
+                h_k = x[:, :S - k, :].reshape(-1, D)
+                t_k = target_ids[:, k:].reshape(-1)
+                logits_k = head(h_k)
+                logits_k = self.logit_softcap * torch.tanh(logits_k / self.logit_softcap)
+                mtp_aux_loss = mtp_aux_loss + F.cross_entropy(logits_k.float(), t_k, reduction="mean")
+            loss = loss + self.mtp_loss_weight * mtp_aux_loss / len(self.mtp_heads)
+
+        return loss

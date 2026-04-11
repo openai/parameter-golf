@@ -1,12 +1,12 @@
 #!/bin/bash
-# Experiment: ptq=int6attn+int5mlp L=20 mlp=5
+# Experiment: ptq=int6attn+int5mlp L=20 mlp=5 MTP k=4
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "${SCRIPT_DIR}/../../.env" ] && source "${SCRIPT_DIR}/../../.env" || { [ -f .env ] && source .env; }
 export COMET_API_KEY="${COMET_API_KEY:-}"
 
-export RUN_ID="ptq_int5mlp_L20_mlp5"
-export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=20 mlp=5"
+export RUN_ID="ptq_int5mlp_L20_mlp5_mtp4"
+export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=20 mlp=5 MTP=4"
 
 # Model architecture
 export NUM_LAYERS=20
@@ -53,9 +53,9 @@ export ADAM_EPS=1e-8
 export ADAMW_WEIGHT_DECAY=0.1
 export GRAD_CLIP_NORM=0.0
 
-# Multi-Token Prediction
-export MTP_NUM_HEADS=1
-export MTP_LOSS_WEIGHT=1.0
+# Multi-Token Prediction (k=4: predict 4 tokens ahead, keep only head 0 at inference)
+export MTP_NUM_HEADS=4
+export MTP_LOSS_WEIGHT=0.3
 
 # MHC
 export USE_MHC=0
