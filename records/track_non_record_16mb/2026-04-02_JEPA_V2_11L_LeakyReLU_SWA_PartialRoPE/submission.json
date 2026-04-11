@@ -1,0 +1,12 @@
+{
+  "author": "Maksimilians Aleksandrovics",
+  "github_id": "Ochakov64",
+  "name": "JEPA V2: EMA Teacher + Attention Predictor + 11L + LeakyReLU2 + SWA + Partial RoPE",
+  "blurb": "Builds on JEPA V1 with four additional improvements from top leaderboard entries: 11 layers (from 10), LeakyReLU(0.5)^2 activation preserving negative gradient flow, student EMA weight averaging (decay=0.997) for better generalization, and Partial RoPE (25% of head dims) allowing position-invariant attention in remaining dimensions. JEPA EMA teacher still discarded before serialization — zero byte cost.",
+  "date": "2026-04-02",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null
+}
