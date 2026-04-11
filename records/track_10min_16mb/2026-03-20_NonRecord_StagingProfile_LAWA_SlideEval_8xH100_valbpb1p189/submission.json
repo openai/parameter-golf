@@ -1,0 +1,18 @@
+{
+  "author": "machdragon",
+  "github_id": "machdragon",
+  "name": "Non-record: staging profile + LAWA + slide eval (8xH100)",
+  "blurb": "Non-record submission. Reproducible validation of the `STAGING_PROFILE=1` merged-staging recipe on 8xH100 with LAWA enabled and sliding-window evaluation. Does not beat current leaderboard SOTA (example: Muon WD + 10 layer at val_bpb=1.1748). Score is the `final_int8_zlib_roundtrip_exact` metric under the 16,000,000-byte cap.",
+  "date": "2026-03-20T09:04:59Z",
+  "val_loss": 2.00802292,
+  "val_bpb": 1.18926428,
+  "pre_quant_val_loss": 2.0573,
+  "pre_quant_val_bpb": 1.21846263,
+  "step_stop": 11436,
+  "wallclock_seconds": 599.955,
+  "eval_time_seconds": 13.727,
+  "bytes_total": 15292665,
+  "bytes_model_int8_zlib": 15227005,
+  "bytes_code": 65660
+}
+
