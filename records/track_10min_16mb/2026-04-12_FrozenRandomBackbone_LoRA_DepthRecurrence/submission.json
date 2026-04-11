@@ -1,0 +1,9 @@
+{
+  "name": "Frozen Random Backbone + LoRA Adapters + Depth Recurrence",
+  "val_bpb": 1.3220,
+  "bytes_total": 13512579,
+  "blurb": "Frozen random backbone (reconstructed from seed, 0 artifact bytes) with rank-304 LoRA adapters. Only adapter weights are serialized. Combined with depth-recurrent virtual layers (loops 3-5, 2x), XSA, partial RoPE, GPTQ int6+brotli. 13.5MB artifact with 2.5MB headroom. Validated on 1xH100 (8xH100 run interrupted by credits).",
+  "author": "dljr-github",
+  "github_id": "dljr-github",
+  "date": "2026-04-12"
+}
