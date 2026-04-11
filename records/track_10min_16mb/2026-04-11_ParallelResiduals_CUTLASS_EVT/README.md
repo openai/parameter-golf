@@ -1,4 +1,4 @@
-# Record: Parallel Residuals
+# Record: Improved Parallel Residuals
 
 **val_bpb: 1.07438392** (3-seed mean, std 0.0003) | **2.77524526 nats** | **~15.96 MB** | 8xH100 SXM, 600s | Legal TTT
 
