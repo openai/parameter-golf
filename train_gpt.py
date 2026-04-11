@@ -872,7 +872,7 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    if base_model.skip_weights.numel() > 0:
+    if hasattr(base_model, 'skip_weights') and base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
