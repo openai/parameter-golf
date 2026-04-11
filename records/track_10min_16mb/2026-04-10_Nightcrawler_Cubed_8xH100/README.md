@@ -1,5 +1,8 @@
 # The Crawler: A 23-Day Architecture Research Campaign
 
+<img width="812" height="522" alt="crawler_2" src="https://github.com/user-attachments/assets/9fd8add0-ba3c-46ab-a2ca-e50eb311d1cc" />
+
+
 This document is a chronological research corpus for rapid iteration on an architecture concept. It is a hybrid flat-plus-crawler transformer with a shared depth-recurrent bottleneck. It is not quite a Universal Transformer, but I ran it for four hours with the assumption that it was close enough.
 
 The tables below are the fast read. I iterated on the concept of a transformer with recursive properties and enjoyed developing an original system.
