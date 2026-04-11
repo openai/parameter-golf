@@ -1,0 +1,7 @@
+# Orchestrated stack: main trainer deps + zstd for int export (see record README).
+# Install from repository root (directory that contains requirements.txt):
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -U pip wheel setuptools
+#   pip install -r requirements-orchestrated-stack.txt
+-r requirements.txt
+zstandard>=0.22
