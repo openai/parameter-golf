@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-24",
+  "name": "Local Objective + Shared Tail + Soft Lexical Gate",
+  "author": "TBD",
+  "seed_results": {},
+  "mean_val_loss": null,
+  "mean_val_bpb": null,
+  "p_value": null,
+  "artifact_bytes": null,
+  "code_bytes": null,
+  "notes": "Scaffold created before the submission run. Fill metrics after train.log is finalized."
+}
