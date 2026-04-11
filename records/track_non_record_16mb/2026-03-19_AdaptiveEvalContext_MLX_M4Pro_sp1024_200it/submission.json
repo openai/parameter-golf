@@ -1,0 +1,16 @@
+{
+  "author": "Taeho JE",
+  "github_id": "stpcoder",
+  "name": "Adaptive Eval Context MLX WIP",
+  "blurb": "Non-record local Apple Silicon MLX submission using adaptive eval-time context on a 9x512 SP-1024 KV4 model. In a 200-step fixed-step proxy on 1 train shard and the first 32,768 validation tokens, the adaptive final roundtrip eval scored 2.40284524 BPB vs 2.41303630 for the same setup with standard final eval.",
+  "date": "2026-03-19T11:20:23Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 4.15029331,
+  "val_bpb": 2.40284524,
+  "pre_quant_val_loss": 4.1575,
+  "pre_quant_val_bpb": 2.4070,
+  "step_stop": 200,
+  "bytes_total": 11297911,
+  "bytes_model_int8_zlib": 11239210,
+  "bytes_code": 58701
+}
