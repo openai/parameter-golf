@@ -1,0 +1,39 @@
+[package]
+name = "aether-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "AETHER Core: Platform-agnostic topology, manifold, and ML primitives"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AETHER Core Library
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# This crate provides the mathematical foundation for AETHER:
+#   - Topology: Betti numbers, shape verification, TDA
+#   - Manifold: Time-delay embedding, sparse attention
+#   - AETHER: Hierarchical blocks, geometric primitives
+#   - ML: Regression, convergence detection
+#
+# Supports both `no_std` (for kernel) and `std` (for CLI) via features.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[features]
+default = ["std"]
+std = ["alloc"]                 # Use standard library
+alloc = []                      # Use alloc crate (no_std with allocator)
+no_std = ["alloc"]              # Bare-metal mode
+
+[dependencies]
+libm = { workspace = true }
+# serde = { workspace = true }
+nalgebra = { workspace = true }
+heapless = { workspace = true }
+
+[dev-dependencies]
+
+[lib]
+name = "aether_core"
+path = "src/lib.rs"
