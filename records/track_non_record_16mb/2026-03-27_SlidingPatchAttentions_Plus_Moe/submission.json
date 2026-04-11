@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-27",
+  "name": "Sliding Patch Attentions + MoE (2-layer compact run)",
+  "author": "GRisk",
+  "github_id": "BurguerJohn",
+  "val_bpb": 1.4893,
+  "val_loss": 2.5146,
+  "bytes_total": 3938328
+}
