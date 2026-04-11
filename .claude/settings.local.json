@@ -33,7 +33,8 @@
       "Read(//tmp/**)",
       "Bash(chmod +x run_romance.sh)",
       "Bash(ls -la logs/exp11_full* logs/exp12_full*)",
-      "Bash(ls -la logs/exp1[12]*)"
+      "Bash(ls -la logs/exp1[12]*)",
+      "Bash(awk 'NR%5==1')"
     ]
   }
 }
