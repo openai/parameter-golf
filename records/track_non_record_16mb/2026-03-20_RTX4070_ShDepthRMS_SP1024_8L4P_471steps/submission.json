@@ -1,0 +1,17 @@
+{
+  "author": "Aaron Beavers",
+  "github_id": "riatzukiza",
+  "name": "Local RTX 4070 shared-depth RMS interface v0",
+  "blurb": "Non-record local consumer-GPU track: 8 logical layers backed by 4 physical blocks, with extra pre-projection RMSNorm and phase-conditioned scales on 1x RTX 4070 Laptop GPU; timed stop at 471 steps and final int8+zlib roundtrip scored 1.65765109 under the 16,000,000-byte cap.",
+  "date": "2026-03-20T21:43:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.79887294,
+  "val_bpb": 1.65765109,
+  "pre_quant_val_loss": 2.7975,
+  "pre_quant_val_bpb": 1.6568,
+  "step_stop": 471,
+  "wallclock_seconds": 900.0,
+  "bytes_total": 5912023,
+  "bytes_model_int8_zlib": 5861528,
+  "bytes_code": 50495
+}
