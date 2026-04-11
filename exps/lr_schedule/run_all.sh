@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export COMET_API_KEY="wKvWIXBmWdm5O9w8buIWrqKEV"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Load COMET_API_KEY from .env
+[ -f "${SCRIPT_DIR}/../../.env" ] && source "${SCRIPT_DIR}/../../.env" || { [ -f .env ] && source .env; }
+export COMET_API_KEY="${COMET_API_KEY:-}"
 
 bash "$SCRIPT_DIR/trapezoid.sh"
 bash "$SCRIPT_DIR/trapezoid_cosine.sh"

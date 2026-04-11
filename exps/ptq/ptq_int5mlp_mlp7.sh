@@ -1,8 +1,9 @@
 #!/bin/bash
 # Experiment: ptq=int6attn+int5mlp L=20 mlp=5
 set -euo pipefail
-export COMET_API_KEY="wKvWIXBmWdm5O9w8buIWrqKEV"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "${SCRIPT_DIR}/../../.env" ] && source "${SCRIPT_DIR}/../../.env" || { [ -f .env ] && source .env; }
+export COMET_API_KEY="${COMET_API_KEY:-}"
 
 export RUN_ID="ptq_int5mlp_L20_mlp5"
 export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=20 mlp=5"
@@ -70,8 +71,8 @@ export COMPILE_DYNAMIC=0
 export USE_FLASHATTENTION2=0
 export USE_FLASHATTENTION3=0
 
-# Comet
-export COMET_ENABLE=1
+# Comet (for submission we turn off comet logging)
+export COMET_ENABLE=0
 export COMET_PROJECT_NAME=parameter-golf
 export COMET_LOG_TRAIN_EVERY=100
 

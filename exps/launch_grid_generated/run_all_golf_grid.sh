@@ -1,7 +1,9 @@
 set -euo pipefail
-export COMET_API_KEY="wKvWIXBmWdm5O9w8buIWrqKEV"
-export PACK_BATCHES=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Load COMET_API_KEY from .env
+[ -f "${SCRIPT_DIR}/../../.env" ] && source "${SCRIPT_DIR}/../../.env" || { [ -f .env ] && source .env; }
+export COMET_API_KEY="${COMET_API_KEY:-}"
+export PACK_BATCHES=1
 
 echo "=== $(date -Iseconds) run_golf_L12_d256_mlp3_h8_kv4.sh ==="
 bash "$SCRIPT_DIR/run_golf_L12_d256_mlp3_h8_kv4.sh"
