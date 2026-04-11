@@ -2257,10 +2257,23 @@ def main() -> None:
         {k: v.to(device) for k, v in unbanked_sd.items() if k in hessian_model.state_dict()},
         strict=False,
     )
-    # Training-data calibration (proven -0.0007 BPP vs AR self-gen)
-    log0(f"gptq:collecting hessians from training data ({args.gptq_calib_batches} batches)...")
-    hessians = collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps, num_batches=args.gptq_calib_batches)
-    log0(f"gptq:collected hessians for {len(hessians)} layers (training data)")
+    gptq_calib_source = os.environ.get("GPTQ_CALIB_SOURCE", "train")
+    if gptq_calib_source == "argen":
+        log0("gptq:generating AR self-gen calibration data (64 seqs x 2048 tokens)...")
+        base_model.load_state_dict(export_sd, strict=False)
+        t_gen = time.perf_counter()
+        ar_tokens = generate_autoregressive_calib(
+            base_model, device, num_seqs=64, seq_len=args.train_seq_len,
+            vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
+        )
+        log0(f"gptq:generated {len(ar_tokens)} seqs in {time.perf_counter()-t_gen:.1f}s")
+        hessians = collect_hessians_from_tokens(hessian_model, ar_tokens, device)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (AR self-gen)")
+        del ar_tokens
+    else:
+        log0(f"gptq:collecting hessians from training data ({args.gptq_calib_batches} batches)...")
+        hessians = collect_hessians(hessian_model, train_loader, args, device, grad_accum_steps, num_batches=args.gptq_calib_batches)
+        log0(f"gptq:collected hessians for {len(hessians)} layers (training data)")
     del hessian_model
     torch.cuda.empty_cache()
     quant_result, quant_meta = mixed_quantize_int6(
