@@ -1451,8 +1451,9 @@ class TernaryMoE(nn.Module):
             # selected_experts: [B*T, top_k].
             expert_counts = torch.bincount(selected_experts_flat, minlength=self.num_experts)
             density = expert_counts.to(probs_mean.dtype) / selected_experts_flat.numel()
-            # Standard MoE loss to prevent expert collapse
-            aux_loss = self.aux_loss_coef * (probs_mean * density).sum() * (self.num_experts ** 2)
+            # Standard Switch-style scaling keeps the uniform-routing optimum O(1)
+            # instead of growing with the expert count.
+            aux_loss = self.aux_loss_coef * (probs_mean * density).sum() * self.num_experts
 
         return final_output.view(B, T, D), aux_loss
 
@@ -1978,7 +1979,10 @@ def causal_wht_blockwise(x, block_size=64, num_stages=None):
 
 def causal_spectral_decay_scan(x_blocks, decay_rates, gate):
     B, num_blocks, block_sz, D = x_blocks.shape
-    decay = torch.clamp(decay_rates, -0.999, 0.999)
+    # Keep decay non-negative inside the spectral scan. Negative float bases raised
+    # to float exponents produce NaNs in PyTorch, and this scan only needs monotone
+    # within-block fade, not oscillatory sign flips.
+    decay = torch.clamp(decay_rates, 0.0, 0.999)
     gated = gate * x_blocks
     
     if num_blocks > 1:
@@ -3179,7 +3183,8 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
 
 def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
                      base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                     stride: int = 64, temperature: float = 1.0, feedback_passes: int | None = None):
+                     stride: int = 64, temperature: float = 1.0, feedback_passes: int | None = None,
+                     logger=None):
     del grad_accum_steps
     seq_len = args.train_seq_len
     batch_size = args.sliding_batch_size
@@ -3197,8 +3202,8 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     use_carry = args.capsule_carry_enabled and (batch_size == 1)
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
-    if args.capsule_carry_enabled and not use_carry:
-        log0("eval_val_sliding: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
+    if args.capsule_carry_enabled and not use_carry and logger is not None:
+        logger("eval_val_sliding: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
 
     base_model.eval()
     carry_capsules = None
@@ -3661,7 +3666,7 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
             turbo_quant_export=args.turbo_quant_export,
             fp16_names=fp16_names,
         )
-        load_roundtrip_state_strict(base_model, deq_sd(q_obj))
+        load_roundtrip_state_strict(base_model, deq_sd(q_obj, target_dtype=torch.float32))
         base_model.eval()
         loss_sum = 0.0
         tok_count = 0
@@ -4792,7 +4797,7 @@ def main() -> None:
             ) from exc
         decompressed_bytes = brotli.decompress(raw_bytes)
     loaded = torch.load(io.BytesIO(decompressed_bytes), map_location="cpu", weights_only=False)
-    load_roundtrip_state_strict(base_model, deq_sd(loaded))
+    load_roundtrip_state_strict(base_model, deq_sd(loaded, target_dtype=torch.float32))
     torch._dynamo.reset()
 
     q_val_loss, q_val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps,
@@ -4827,7 +4832,7 @@ def main() -> None:
         sw_loss, sw_bpb = eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps,
                                            val_tokens, base_bytes_lut, has_leading_space_lut,
                                            is_boundary_token_lut, stride=args.sliding_eval_stride,
-                                           temperature=opt_temp)
+                                           temperature=opt_temp, logger=log0)
         if device.type == "cuda": torch.cuda.synchronize()
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
         log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
