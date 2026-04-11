@@ -84,7 +84,7 @@ class Hyperparameters:
 
     # Random adapter config
     use_random_adapters = bool(int(os.environ.get("USE_RANDOM_ADAPTERS", "0")))
-    adapter_rank = int(os.environ.get("ADAPTER_RANK", 128))
+    adapter_rank = int(os.environ.get("ADAPTER_RANK", 256))
     random_backbone_seed = int(os.environ.get("RANDOM_BACKBONE_SEED", 42))
 
     # Optimizer
@@ -108,7 +108,7 @@ class Hyperparameters:
     embed_wd = float(os.environ.get("EMBED_WD", 0.085))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
     min_lr = float(os.environ.get("MIN_LR", 0.0))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 256))
     sliding_window_enabled = bool(int(os.environ.get("SLIDING_WINDOW_ENABLED", "1")))
 
     # TTT (test-time training)
@@ -1336,9 +1336,15 @@ def train_model(h, device, val_data):
             model.require_backward_grad_sync = True
         train_loader = ShuffledSequenceLoader(h, device)
 
-    # EMA setup
-    ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+    # EMA setup — auto-disable for random adapters (EMA corrupts adapter weights at low step counts)
     ema_decay = h.ema_decay
+    if h.use_random_adapters and ema_decay > 0:
+        log("ema:disabled (random adapters mode)")
+        ema_decay = 0.0
+    if ema_decay > 0:
+        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+    else:
+        ema_state = {}
     training_time_ms = 0.0
     stop_after_step = None
     torch.cuda.synchronize()
@@ -1373,9 +1379,10 @@ def train_model(h, device, val_data):
 
         train_loss = step_fn(step, scale)
 
-        with torch.no_grad():
-            for name, t in base_model.state_dict().items():
-                ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
+        if ema_state:
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
 
         step += 1
         approx_ms = training_time_ms + 1e3 * (time.perf_counter() - t0)
@@ -1395,10 +1402,13 @@ def train_model(h, device, val_data):
 
     log(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB")
-    log("ema:applying EMA weights")
-    current_state = base_model.state_dict()
-    avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-    base_model.load_state_dict(avg_state, strict=True)
+    if ema_state:
+        log("ema:applying EMA weights")
+        current_state = base_model.state_dict()
+        avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
+        base_model.load_state_dict(avg_state, strict=True)
+    else:
+        log("ema:skipped (disabled)")
     return base_model, compiled_model
 
 
