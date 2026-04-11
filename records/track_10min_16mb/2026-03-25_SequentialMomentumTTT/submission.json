@@ -1,0 +1,18 @@
+{
+  "name": "Sequential Momentum TTT",
+  "blurb": "10L GQA + XSA4 + EMA + SmearGate + BigramHash + mixed int5/int6 + LZMA + Sequential Momentum TTT (cross-document LoRA EMA)",
+  "date": "2026-03-25",
+  "author": "Prakash Chaudhary",
+  "github_id": "connectwithprakash",
+  "val_bpb": 1.0116,
+  "val_loss": 1.7094,
+  "bytes_total": 10853748,
+  "bytes_code": 69800,
+  "val_bpb_std": 0.0041,
+  "val_bpb_seeds": {
+    "1337": 1.0147,
+    "42": 1.0069,
+    "2025": 1.0132
+  },
+  "platform": "4x NVIDIA A10G (development); 8xH100 SXM validation pending"
+}
