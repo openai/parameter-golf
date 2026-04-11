@@ -1,4 +1,4 @@
-# Non-Record: KAN, Sparsity (Structured and Hessian-Guided), MoE, KAN Negative Results
+# Non-Record: CAT, Sparsity (Structured and Hessian-Guided), MoE, KAN Negative Results
 
 **Tokenizer:** SP8192  
 **Submission type:** Non-record (negative results & technique exploration)
