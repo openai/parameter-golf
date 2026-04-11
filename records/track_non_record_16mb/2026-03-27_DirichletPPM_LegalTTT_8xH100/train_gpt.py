@@ -2,6 +2,7 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import importlib.util
 import lzma
 import math
 import os
@@ -22,7 +23,6 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from flash_attn_interface import causal_attention, configure_attention_logging, flash_attention_import_summary
 from frontier_checkpoint import atomic_json_dump, atomic_torch_save, capture_rng_state, restore_rng_state
 from frontier_cache import (
     CACHE_OVERRIDE_EXPECTATIONS_ENV,
@@ -42,6 +42,28 @@ from frontier_eval import (
 from research.submission_metrics import canonical_submission_eval
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+def _load_record_local_flash_attn_interface():
+    module_path = Path(__file__).resolve().with_name("flash_attn_interface.py")
+    if not module_path.is_file():
+        raise FileNotFoundError(module_path)
+    spec = importlib.util.spec_from_file_location("_record_flash_attn_interface", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load flash_attn_interface from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+try:
+    _record_flash_attn_interface = _load_record_local_flash_attn_interface()
+except (FileNotFoundError, ImportError):
+    from flash_attn_interface import causal_attention, configure_attention_logging, flash_attention_import_summary
+else:
+    causal_attention = _record_flash_attn_interface.causal_attention
+    configure_attention_logging = _record_flash_attn_interface.configure_attention_logging
+    flash_attention_import_summary = _record_flash_attn_interface.flash_attention_import_summary
 
 
 def resolved_rotary_train_seq_len() -> int:
