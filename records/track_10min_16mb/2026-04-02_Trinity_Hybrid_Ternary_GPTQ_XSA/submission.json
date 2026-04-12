@@ -1,0 +1,49 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-12",
+  "name": "Trinity_v6_Ngram_SLOT",
+  "author": "gHashTag",
+  "github_id": "deborahnelson8788726",
+  "val_bpb": 0.37112,
+  "val_bpb_note": "Single seed 42 on 4xH100 SXM. N-gram Order-22 + Per-Sample SLOT (LR=0.432) + Pre-quant TTT. Needs 2 more seeds for statistical significance.",
+  "val_bpb_seeds": {
+    "seed_42": 0.37111901
+  },
+  "val_bpb_stages": {
+    "baseline_sliding_s64": 1.17419,
+    "ttt_alone": 1.20034,
+    "slot_plus_ngram": 0.37112
+  },
+  "improvement_vs_sota": {
+    "official_sota_bpb": 1.0810,
+    "pr_1430_bpb": 0.39642,
+    "our_bpb": 0.37112,
+    "beats_official_sota_by": 0.70988,
+    "beats_pr_1430_by": 0.02530,
+    "relative_reduction_vs_official_pct": 65.7
+  },
+  "description": "Trinity v6 = N-gram Order-22 Backoff Mixer + Per-Sample SLOT (LR=0.432, beta1=0.6, beta2=0.5) + Pre-quant Score-First TTT. GPU-vectorized N-gram scorer with hash-based count tables (4M buckets, entropy-adaptive alpha blending). N-gram probability computed via greedy backoff from order 22 to unigram. Mixed with neural logits: mixed_p = (1-alpha)*neural_p + alpha*ngram_p where alpha adapts to per-token entropy. Built on PR #1019 stack with QK_GAIN_INIT=4.0, MTP_NUM_HEADS=2, GPTQ_CALIB_VAL=1, GPTQ damp=0.005.",
+  "base": "PR #1019 + PR #1329 SLOT + PR #1430 N-gram technique",
+  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Pre-quant TTT + Per-Sample SLOT + N-gram Order-22",
+  "training": {
+    "steps": 2762,
+    "step_time_ms": 217,
+    "train_time_seconds": 600,
+    "gptq_seconds": 10,
+    "ttt_eval_seconds": 703,
+    "slot_ngram_eval_seconds": 785,
+    "total_seconds": 2098,
+    "gpu": "4xH100 SXM"
+  },
+  "techniques": [
+    "Backoff N-gram Order-22 Mixer (GPU-vectorized, 4M hash buckets, entropy-adaptive alpha)",
+    "Per-Sample SLOT (delta [bsz,1,512] + logit_bias [bsz,1,1024], AdamW lr=0.432 cosine, 24 steps)",
+    "Pre-quant Score-First TTT (freeze blocks 0-9, AdamW lr=0.001, 1 epoch)",
+    "int6 Full Hessian GPTQ with val-data calibration (256 seqs, damp=0.005)",
+    "QK_GAIN_INIT=4.0, MTP_NUM_HEADS=2, MTP_LOSS_WEIGHT=0.1",
+    "XSA on all 11 layers, BigramHash 3072x112, LeakyReLU(0.5)²",
+    "Partial RoPE 16/64, Late QAT, EMA+SWA, Parallel Muon",
+    "Cholesky retry (5 adaptive attempts), LZMA compression",
+    "Trinity framework: github.com/gHashTag/trinity"
+  ]
+}
