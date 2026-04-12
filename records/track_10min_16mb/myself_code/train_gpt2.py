@@ -23,13 +23,14 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+from flash_attn import flash_attn_func as flash_attn_3_func
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 class Hyperparameters:
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    data_path = os.environ.get("DATA_PATH", "../../../data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "../../../data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -40,7 +41,7 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
-    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 4096))
+    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -55,6 +56,7 @@ class Hyperparameters:
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.035))
+    bigram_lr = float(os.environ.get("BIGRAM_LR", -1.0))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
@@ -1126,6 +1128,9 @@ def eval_val_sliding_ttt(
          f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
 
     optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    compiled_ttt_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    x_batch_buf = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
+    y_batch_buf = torch.zeros(batch_seqs, seq_len, dtype=torch.int64, device=device)
     t0 = time.perf_counter()
 
     for ci in range(num_chunks):
@@ -1145,8 +1150,10 @@ def eval_val_sliding_ttt(
             for bi in range(0, len(my_windows), batch_seqs):
                 batch_ws = my_windows[bi:bi + batch_seqs]
                 bsz = len(batch_ws)
-                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
-                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                x_batch = x_batch_buf[:bsz]
+                y_batch = y_batch_buf[:bsz]
+                x_batch.zero_()
+                y_batch.zero_()
                 wlens: list[int] = []
                 for i, ws in enumerate(batch_ws):
                     end = min(ws + seq_len, total_tokens)
@@ -1156,7 +1163,7 @@ def eval_val_sliding_ttt(
                     x_batch[i, :wlen] = chunk_tok[:-1]
                     y_batch[i, :wlen] = chunk_tok[1:]
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits = base_model.forward_logits(x_batch)
+                    logits = compiled_ttt_logits(x_batch)
                 nll = F.cross_entropy(
                     logits.reshape(-1, logits.size(-1)).float(),
                     y_batch.reshape(-1), reduction="none",
@@ -1378,6 +1385,49 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
     return out
 
+
+def average_gradients_bucketed(
+    params: list[Tensor],
+    bucket_size_bytes: int = 16 * 1024 * 1024,
+) -> None:
+    """Average replicated gradients with bucketed all-reduce to reduce many-small collectives."""
+    if not (dist.is_available() and dist.is_initialized()):
+        return
+
+    grads_by_group: dict[tuple[torch.device, torch.dtype], list[Tensor]] = {}
+    for p in params:
+        if p.grad is None:
+            continue
+        g = p.grad
+        grads_by_group.setdefault((g.device, g.dtype), []).append(g)
+
+    for _group_key, grads in grads_by_group.items():
+        bucket: list[Tensor] = []
+        bucket_bytes = 0
+
+        def flush() -> None:
+            nonlocal bucket, bucket_bytes
+            if not bucket:
+                return
+            flat = torch.cat([g.contiguous().view(-1) for g in bucket], dim=0)
+            dist.all_reduce(flat, op=dist.ReduceOp.AVG)
+            offset = 0
+            for g in bucket:
+                n = g.numel()
+                g.copy_(flat[offset: offset + n].view_as(g))
+                offset += n
+            bucket = []
+            bucket_bytes = 0
+
+        for g in grads:
+            g_bytes = g.numel() * g.element_size()
+            if bucket and bucket_bytes + g_bytes > bucket_size_bytes:
+                flush()
+            bucket.append(g)
+            bucket_bytes += g_bytes
+        flush()
+
+
 # --- Training ---
 
 def main() -> None:
@@ -1515,9 +1565,10 @@ def main() -> None:
     if base_model.bigram is not None:
         scalar_params.append(base_model.bigram.scale)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    bigram_lr = args.bigram_lr if args.bigram_lr > 0 else token_lr
     tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
     if base_model.bigram is not None:
-        tok_params.append({"params": [base_model.bigram.embed.weight], "lr": token_lr, "base_lr": token_lr})
+        tok_params.append({"params": [base_model.bigram.embed.weight], "lr": bigram_lr, "base_lr": bigram_lr})
         if base_model.bigram.proj is not None:
             scalar_params.append(base_model.bigram.proj.weight)
     if base_model.ve_shared is not None:
@@ -1579,6 +1630,7 @@ def main() -> None:
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"bigram_lr:{bigram_lr if base_model.bigram is not None else 0.0} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
     )
@@ -1699,9 +1751,7 @@ def main() -> None:
         optimizer_muon.launch_reduce_scatters()
         # Phase 2: All-reduce non-bank grads + step Adam (while bank RS is in-flight)
         if distributed:
-            for p in replicated_params:
-                if p.grad is not None:
-                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+            average_gradients_bucketed(replicated_params)
         optimizer_tok.step()
         optimizer_scalar.step()
         if optimizer_head is not None:
