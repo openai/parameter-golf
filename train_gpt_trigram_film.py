@@ -11,7 +11,6 @@ import sys
 import time
 import uuid
 import zlib
-from contextlib import nullcontext
 from pathlib import Path
 try:
     import zstandard
@@ -35,11 +34,6 @@ except ImportError:
 TRIGRAM_ENABLED = os.environ.get("TRIGRAM_ENABLED", os.environ.get("TRIGRAM", "0")) == "1"
 FILM_ENABLED = os.environ.get("FILM_ENABLED", "0") == "1"
 SCALE_TO_VRAM_ENABLED = os.environ.get("SCALE_TO_VRAM", "0") == "1"
-TOKENIZER_VARIANT = os.environ.get("TOKENIZER_VARIANT", "sp1024").lower()
-if TOKENIZER_VARIANT not in {"sp1024", "sp8192"}:
-    raise ValueError(
-        f"TOKENIZER_VARIANT must be 'sp1024' or 'sp8192', got {TOKENIZER_VARIANT!r}"
-    )
 # TORCHDYNAMO_DISABLE=1 is supported natively by PyTorch and remains available.
 TORCH_COMPILE_ENABLED = os.environ.get("TORCH_COMPILE", "1") != "0"
 
@@ -143,22 +137,10 @@ def maybe_torch_compile(
         return obj
 
 class Hyperparameters:
-    tokenizer_variant = TOKENIZER_VARIANT
-    _default_data_path = (
-        f"./data/datasets/fineweb10B_{tokenizer_variant}"
-        if tokenizer_variant in {"sp1024", "sp8192"}
-        else "./data/datasets/fineweb10B_sp1024"
-    )
-    _default_tokenizer_path = (
-        "./data/tokenizers/fineweb_8192_bpe.model"
-        if tokenizer_variant == "sp8192"
-        else "./data/tokenizers/fineweb_1024_bpe.model"
-    )
-    _default_vocab_size = 8192 if tokenizer_variant == "sp8192" else 1024
-    data_path = os.environ.get("DATA_PATH", _default_data_path)
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", _default_tokenizer_path)
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -166,18 +148,19 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 100))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    lr_decay_steps = int(os.environ.get("LR_DECAY_STEPS", 1500))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     scale_to_vram = SCALE_TO_VRAM_ENABLED
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", "4096" if scale_to_vram else "2048"))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN", os.environ.get("QK_GAIN_INIT", 5.25)))
-    vocab_size = int(os.environ.get("VOCAB_SIZE", _default_vocab_size))
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", "13" if scale_to_vram else "11"))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", "640" if scale_to_vram else "512"))
-    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
+    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", "2" if scale_to_vram else "8"))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -189,10 +172,8 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
-    lr_decay_steps = int(os.environ.get("LR_DECAY_STEPS", 1500))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_eqr = bool(int(os.environ.get("MUON_EQR", "1")))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
@@ -216,7 +197,6 @@ class Hyperparameters:
     trigram_enabled = TRIGRAM_ENABLED
     film_enabled = FILM_ENABLED
     recurrence_enabled = bool(int(os.environ.get("RECURRENCE_ENABLED", "1")))
-    recurrence_depth = int(os.environ.get("RECURRENCE_DEPTH", 1))
     parallel_residuals = bool(int(os.environ.get("PARALLEL_RESIDUALS", "1")))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL layers (our novel contribution)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
@@ -278,11 +258,11 @@ class Muon(torch.optim.Optimizer):
     4. Each all-gather overlaps with next bank's NS5
     """
     def __init__(self, params, lr: float, momentum: float, backend_steps: int,
-                 nesterov: bool = True, weight_decay: float = 0.0, muon_eqr: bool = True):
+                 nesterov: bool = True, weight_decay: float = 0.0):
         super().__init__(
             params,
             dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
-                 nesterov=nesterov, weight_decay=weight_decay, muon_eqr=muon_eqr),
+                 nesterov=nesterov, weight_decay=weight_decay),
         )
         self._built = False
 
@@ -349,7 +329,6 @@ class Muon(torch.optim.Optimizer):
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
             wd = group.get("weight_decay", 0.0)
-            muon_eqr = group.get("muon_eqr", True)
 
             prev_ag_handle = None
             prev_m = None
@@ -380,18 +359,9 @@ class Muon(torch.optim.Optimizer):
                         state["momentum_buffer"] = torch.zeros_like(g)
                     buf = state["momentum_buffer"]
 
-                if muon_eqr:
-                    g32 = g.float()
-                    m32 = buf.float()
-                    dot_gm = (g32 * m32).sum()
-                    dot_mm = (m32 * m32).sum().clamp(min=1e-8)
-                    g_work = (g32 - (dot_gm / dot_mm) * m32).to(dtype=g.dtype)
-                else:
-                    g_work = g
-
-                buf.mul_(momentum).add_(g_work)
+                buf.mul_(momentum).add_(g)
                 if nesterov:
-                    update = g_work.add(buf, alpha=momentum)
+                    update = g.add(buf, alpha=momentum)
                 else:
                     update = buf
 
@@ -721,7 +691,10 @@ def apply_sdclip(module: nn.Module, threshold: float) -> None:
         if grad is None or grad.ndim < 2:
             continue
         rms = grad.float().pow(2).mean().sqrt()
-        scale = (threshold / (rms + 1e-8)).clamp(max=1.0)
+        scale = torch.clamp(
+            torch.tensor(threshold, dtype=rms.dtype, device=rms.device) / (rms + 1e-8),
+            max=1.0,
+        )
         grad.mul_(scale.to(dtype=grad.dtype))
 
 
@@ -1025,7 +998,6 @@ class GPT(nn.Module):
         trigram_enabled: bool = False,
         film_enabled: bool = False,
         recurrence_enabled: bool = False,
-        recurrence_depth: int = 1,
         parallel_residuals: bool = False,
         xsa_last_n: int = 0,
         rope_dims: int = 0,
@@ -1052,7 +1024,6 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.film = FiLMDepthCondition(num_layers, model_dim) if film_enabled else None
         self.recurrence_enabled = recurrence_enabled
-        self.recurrence_depth = max(1, int(recurrence_depth))
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -1173,92 +1144,47 @@ class GPT(nn.Module):
             return x
         gate = self.recurrence_gates[layer_idx].to(dtype=x.dtype)
         return x + gate * h.unsqueeze(1)
-
-    def _run_block(
-        self,
-        block: Block,
-        x: Tensor,
-        x0: Tensor,
-        q_w: Tensor,
-        k_w: Tensor,
-        v_w: Tensor,
-        out_w: Tensor,
-        up_w: Tensor,
-        down_w: Tensor,
-        v_embed: Tensor | None = None,
-        v0: Tensor | None = None,
-    ) -> tuple[Tensor, Tensor | None]:
-        return block(
-            x, x0, q_w, k_w, v_w, out_w, up_w, down_w,
-            v_embed=v_embed, v0=v0
-        )
-
-    def forward(
-        self,
-        input_ids: Tensor,
-        target_ids: Tensor,
-        recurrence_state: Tensor | None = None,
-        return_recurrence_state: bool = False,
-    ) -> Tensor | tuple[Tensor, Tensor | None]:
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         n = self.num_layers
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
-        x = x.to(torch.bfloat16)
+        x0 = x
+        x0 = x0.to(torch.bfloat16)
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
-        if self.recurrence_enabled:
-            if recurrence_state is not None:
-                if recurrence_state.ndim != 2:
-                    raise ValueError(
-                        f"recurrence_state must be rank-2 [B,C], got shape {tuple(recurrence_state.shape)}"
-                    )
-                if recurrence_state.size(0) != x.size(0) or recurrence_state.size(1) != x.size(2):
-                    raise ValueError(
-                        f"recurrence_state shape mismatch: expected ({x.size(0)}, {x.size(2)}), "
-                        f"got {tuple(recurrence_state.shape)}"
-                    )
-                h = recurrence_state.to(dtype=x.dtype, device=x.device)
-            else:
-                h = x.new_zeros(x.size(0), x.size(2))
-        else:
-            h = None
-        for pass_idx in range(self.recurrence_depth):
-            ctx = torch.no_grad() if pass_idx < self.recurrence_depth - 1 else nullcontext()
-            with ctx:
-                x0_pass = x.to(torch.bfloat16)
-                skips.clear()
-                for i in range(self.num_encoder_layers):
-                    if h is not None:
-                        h = self._update_recurrent_state(h, i)
-                        x = self._inject_recurrent_state(x, h, i)
-                    if self.film is not None:
-                        x = self.film.condition(x, i)
-                    ve = self._get_ve(i, input_ids, ve_cache)
-                    x, raw_v = self._run_block(self.blocks[i], x, x0_pass,
-                        self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                        self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                        v_embed=ve, v0=v0)
-                    if v0 is None and raw_v is not None:
-                        v0 = raw_v
-                    skips.append(x)
-                for i in range(self.num_decoder_layers):
-                    bi = self.num_encoder_layers + i
-                    if skips:
-                        x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                    if h is not None:
-                        h = self._update_recurrent_state(h, bi)
-                        x = self._inject_recurrent_state(x, h, bi)
-                    if self.film is not None:
-                        x = self.film.condition(x, bi)
-                    ve = self._get_ve(bi, input_ids, ve_cache)
-                    x, _ = self._run_block(self.blocks[bi], x, x0_pass,
-                        self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                        self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                        v_embed=ve, v0=v0)
+        h = x.new_zeros(x.size(0), x.size(2)) if self.recurrence_enabled else None
+        for i in range(self.num_encoder_layers):
+            if h is not None:
+                h = self._update_recurrent_state(h, i)
+                x = self._inject_recurrent_state(x, h, i)
+            if self.film is not None:
+                x = self.film.condition(x, i)
+            ve = self._get_ve(i, input_ids, ve_cache)
+            x, raw_v = self.blocks[i](x, x0,
+                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
+                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                v_embed=ve, v0=v0)
+            if v0 is None and raw_v is not None:
+                v0 = raw_v
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            if h is not None:
+                h = self._update_recurrent_state(h, bi)
+                x = self._inject_recurrent_state(x, h, bi)
+            if self.film is not None:
+                x = self.film.condition(x, bi)
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            x, _ = self.blocks[bi](x, x0,
+                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                v_embed=ve, v0=v0)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -1286,8 +1212,6 @@ class GPT(nn.Module):
                 mtp_loss_count += 1
             if mtp_loss_count > 0:
                 main_loss = main_loss + self.mtp_loss_weight * (mtp_loss_sum / mtp_loss_count)
-        if return_recurrence_state:
-            return main_loss, h
         return main_loss
     def _forward_hidden_with_optional_slots(
         self,
@@ -1300,7 +1224,6 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
-        x = x.to(torch.bfloat16)
         slot_len = 0
         if slot_prefix is not None:
             if slot_prefix.ndim != 3:
@@ -1315,51 +1238,50 @@ class GPT(nn.Module):
                 )
             slot_len = int(slot_prefix.size(1))
             x = torch.cat([slot_prefix.to(dtype=x.dtype), x], dim=1)
+        x0 = x
+        x0 = x0.to(torch.bfloat16)
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
         h = x.new_zeros(x.size(0), x.size(2)) if self.recurrence_enabled else None
-        for _pass_idx in range(self.recurrence_depth):
-            x0_pass = x.to(torch.bfloat16)
-            skips.clear()
-            for i in range(self.num_encoder_layers):
-                if h is not None:
-                    h = self._update_recurrent_state(h, i)
-                    x = self._inject_recurrent_state(x, h, i)
-                if self.film is not None:
-                    x = self.film.condition(x, i)
-                ve = self._get_ve(i, input_ids, ve_cache)
-                if ve is not None and slot_len > 0:
-                    ve_pad = torch.zeros(
-                        ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
-                    )
-                    ve = torch.cat([ve_pad, ve], dim=1)
-                x, raw_v = self._run_block(self.blocks[i], x, x0_pass,
-                    self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
-                    self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
-                    v_embed=ve, v0=v0)
-                if v0 is None and raw_v is not None:
-                    v0 = raw_v
-                skips.append(x)
-            for i in range(self.num_decoder_layers):
-                bi = self.num_encoder_layers + i
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                if h is not None:
-                    h = self._update_recurrent_state(h, bi)
-                    x = self._inject_recurrent_state(x, h, bi)
-                if self.film is not None:
-                    x = self.film.condition(x, bi)
-                ve = self._get_ve(bi, input_ids, ve_cache)
-                if ve is not None and slot_len > 0:
-                    ve_pad = torch.zeros(
-                        ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
-                    )
-                    ve = torch.cat([ve_pad, ve], dim=1)
-                x, _ = self._run_block(self.blocks[bi], x, x0_pass,
-                    self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
-                    self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
-                    v_embed=ve, v0=v0)
+        for i in range(self.num_encoder_layers):
+            if h is not None:
+                h = self._update_recurrent_state(h, i)
+                x = self._inject_recurrent_state(x, h, i)
+            if self.film is not None:
+                x = self.film.condition(x, i)
+            ve = self._get_ve(i, input_ids, ve_cache)
+            if ve is not None and slot_len > 0:
+                ve_pad = torch.zeros(
+                    ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
+                )
+                ve = torch.cat([ve_pad, ve], dim=1)
+            x, raw_v = self.blocks[i](x, x0,
+                self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
+                self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
+                v_embed=ve, v0=v0)
+            if v0 is None and raw_v is not None:
+                v0 = raw_v
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            if h is not None:
+                h = self._update_recurrent_state(h, bi)
+                x = self._inject_recurrent_state(x, h, bi)
+            if self.film is not None:
+                x = self.film.condition(x, bi)
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            if ve is not None and slot_len > 0:
+                ve_pad = torch.zeros(
+                    ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
+                )
+                ve = torch.cat([ve_pad, ve], dim=1)
+            x, _ = self.blocks[bi](x, x0,
+                self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
+                self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
+                v_embed=ve, v0=v0)
         return self.final_norm(x)
 
     def forward_hidden(self, input_ids: Tensor) -> Tensor:
@@ -1926,7 +1848,7 @@ class _HessianGPT(nn.Module):
     def __init__(self, vocab_size, num_layers, model_dim, num_heads, num_kv_heads,
                  mlp_mult, tie_embeddings, logit_softcap, rope_base, qk_gain_init,
                  bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0,
-                 rope_dims=0, ln_scale=False, recurrence_enabled=False, recurrence_depth=1, parallel_residuals=False,
+                 rope_dims=0, ln_scale=False, recurrence_enabled=False, parallel_residuals=False,
                  ve_enabled=False, ve_dim=128, ve_layers="9,10",
                  trigram_enabled=False, film_enabled=False):
         super().__init__()
@@ -1938,7 +1860,6 @@ class _HessianGPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.film = FiLMDepthCondition(num_layers, model_dim) if film_enabled else None
         self.recurrence_enabled = recurrence_enabled
-        self.recurrence_depth = max(1, int(recurrence_depth))
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -2004,32 +1925,30 @@ class _HessianGPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
+        x0 = x
         skips = []
         ve_cache = {}
         h = x.new_zeros(x.size(0), x.size(2)) if self.recurrence_enabled else None
-        for _pass_idx in range(self.recurrence_depth):
-            x0_pass = x
-            skips.clear()
-            for i in range(self.num_encoder_layers):
-                if h is not None:
-                    h = self._update_recurrent_state(h, i)
-                    x = self._inject_recurrent_state(x, h, i)
-                if self.film is not None:
-                    x = self.film.condition(x, i)
-                ve = self._get_ve(i, input_ids, ve_cache)
-                x = self.blocks[i](x, x0_pass, v_embed=ve)
-                skips.append(x)
-            for i in range(self.num_decoder_layers):
-                bi = self.num_encoder_layers + i
-                if skips:
-                    x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                if h is not None:
-                    h = self._update_recurrent_state(h, bi)
-                    x = self._inject_recurrent_state(x, h, bi)
-                if self.film is not None:
-                    x = self.film.condition(x, bi)
-                ve = self._get_ve(bi, input_ids, ve_cache)
-                x = self.blocks[bi](x, x0_pass, v_embed=ve)
+        for i in range(self.num_encoder_layers):
+            if h is not None:
+                h = self._update_recurrent_state(h, i)
+                x = self._inject_recurrent_state(x, h, i)
+            if self.film is not None:
+                x = self.film.condition(x, i)
+            ve = self._get_ve(i, input_ids, ve_cache)
+            x = self.blocks[i](x, x0, v_embed=ve)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            bi = self.num_encoder_layers + i
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            if h is not None:
+                h = self._update_recurrent_state(h, bi)
+                x = self._inject_recurrent_state(x, h, bi)
+            if self.film is not None:
+                x = self.film.condition(x, bi)
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            x = self.blocks[bi](x, x0, v_embed=ve)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -2142,27 +2061,6 @@ def main() -> None:
     if args.grad_accum_steps <= 0:
         raise ValueError(f"GRAD_ACCUM_STEPS must be positive, got {args.grad_accum_steps}")
     grad_accum_steps = args.grad_accum_steps
-    denom_tokens = world_size * grad_accum_steps
-    if denom_tokens <= 0:
-        raise ValueError(
-            f"Invalid accumulation config: WORLD_SIZE={world_size}, GRAD_ACCUM_STEPS={grad_accum_steps}"
-        )
-    if args.train_batch_tokens % denom_tokens != 0:
-        raise ValueError(
-            f"TRAIN_BATCH_TOKENS={args.train_batch_tokens} must be divisible by "
-            f"(WORLD_SIZE * GRAD_ACCUM_STEPS)={denom_tokens}"
-        )
-    local_tokens = args.train_batch_tokens // denom_tokens
-    if local_tokens <= 0:
-        raise ValueError(
-            f"Computed local tokens must be positive, got {local_tokens} "
-            f"(TRAIN_BATCH_TOKENS={args.train_batch_tokens}, denom={denom_tokens})"
-        )
-    if local_tokens % args.train_seq_len != 0:
-        raise ValueError(
-            f"Per-micro local tokens {local_tokens} must be divisible by TRAIN_SEQ_LEN={args.train_seq_len}"
-        )
-    micro_batch_size = local_tokens // args.train_seq_len
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -2243,7 +2141,6 @@ def main() -> None:
         trigram_enabled=args.trigram_enabled,
         film_enabled=args.film_enabled,
         recurrence_enabled=args.recurrence_enabled,
-        recurrence_depth=args.recurrence_depth,
         parallel_residuals=args.parallel_residuals,
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
@@ -2333,7 +2230,6 @@ def main() -> None:
         momentum=args.muon_momentum,
         backend_steps=args.muon_backend_steps,
         weight_decay=args.muon_wd,
-        muon_eqr=args.muon_eqr,
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
@@ -2380,18 +2276,13 @@ def main() -> None:
     log0(
         f"feature_flags trigram_enabled:{int(args.trigram_enabled)} "
         f"film_enabled:{int(args.film_enabled)} slot_enabled:{int(args.slot_enabled)} "
-        f"recurrence_enabled:{int(args.recurrence_enabled)} recurrence_depth:{args.recurrence_depth} "
-        f"parallel_residuals:{int(args.parallel_residuals)} muon_eqr:{int(args.muon_eqr)} "
-        f"sdclip_enabled:{int(args.sdclip_enabled)} "
-        f"scale_to_vram:{int(args.scale_to_vram)} tokenizer_variant:{args.tokenizer_variant} "
+        f"recurrence_enabled:{int(args.recurrence_enabled)} parallel_residuals:{int(args.parallel_residuals)} "
+        f"sdclip_enabled:{int(args.sdclip_enabled)} scale_to_vram:{int(args.scale_to_vram)} "
         f"torch_compile:{int(TORCH_COMPILE_ENABLED)}"
     )
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
-    log0(
-        f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
-        f"micro_batch_size:{micro_batch_size}"
-    )
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
@@ -2424,19 +2315,10 @@ def main() -> None:
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
-            x_recur = None
             for micro_step in range(grad_accum_steps):
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    if args.recurrence_enabled:
-                        warmup_loss, x_recur = model(
-                            x,
-                            y,
-                            recurrence_state=x_recur,
-                            return_recurrence_state=True,
-                        )
-                    else:
-                        warmup_loss = model(x, y)
+                    warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             # All-reduce all grads for warmup (simple, not optimized)
             if distributed:
@@ -2513,22 +2395,13 @@ def main() -> None:
         profile_clip_ms = 0.0
         profile_optim_ms = 0.0
         train_loss = torch.zeros((), device=device)
-        x_recur = None
         for micro_step in range(grad_accum_steps):
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             if profile_step5:
                 torch.cuda.synchronize()
                 t_phase = time.perf_counter()
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                if args.recurrence_enabled:
-                    loss, x_recur = model(
-                        x,
-                        y,
-                        recurrence_state=x_recur,
-                        return_recurrence_state=True,
-                    )
-                else:
-                    loss = model(x, y)
+                loss = model(x, y)
             if profile_step5:
                 torch.cuda.synchronize()
                 profile_forward_ms += 1000.0 * (time.perf_counter() - t_phase)
@@ -2684,8 +2557,7 @@ def main() -> None:
         rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
-        recurrence_enabled=args.recurrence_enabled, recurrence_depth=args.recurrence_depth,
-        parallel_residuals=args.parallel_residuals,
+        recurrence_enabled=args.recurrence_enabled, parallel_residuals=args.parallel_residuals,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         trigram_enabled=args.trigram_enabled, film_enabled=args.film_enabled,
     ).to(device).bfloat16()
@@ -2735,12 +2607,10 @@ def main() -> None:
                 errors = s.float()[row_idx].pow(2)
                 for fi, err in zip(flat_idx.tolist(), errors.tolist()):
                     ones_info.append((qk, fi, err))
-    base_quant_result = {k: v.clone() for k, v in quant_result.items()}
-    pruned_ones = 0
     if ones_info:
         ones_info.sort(key=lambda x: x[2])
         def _try_prune(n):
-            tmp = {k: v.clone() for k, v in base_quant_result.items()}
+            tmp = {k: v.clone() for k, v in quant_result.items()}
             for i in range(min(n, len(ones_info))):
                 tmp[ones_info[i][0]].view(-1)[ones_info[i][1]] = 0
             buf = io.BytesIO(); torch.save({"w": tmp, "m": quant_meta}, buf)
@@ -2755,8 +2625,7 @@ def main() -> None:
             log0(f"selective_prune: full ±1 prune={full_sz/(1024*1024):.2f}MB")
             if full_sz > target_bytes:
                 log0("selective_prune: even full prune not enough, applying all")
-                pruned_ones = len(ones_info)
-                _, quant_result = _try_prune(pruned_ones)
+                _, quant_result = _try_prune(len(ones_info))
             else:
                 lo, hi = 0, len(ones_info)
                 while lo < hi:
@@ -2765,44 +2634,11 @@ def main() -> None:
                     if sz <= target_bytes: hi = mid
                     else: lo = mid + 1
                 log0(f"selective_prune: pruning {lo}/{len(ones_info)} ±1 values ({100*lo/len(ones_info):.1f}%) to fit {target_mb}MB")
-                pruned_ones = lo
-                _, quant_result = _try_prune(pruned_ones)
+                _, quant_result = _try_prune(lo)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = lzma.compress(quant_raw, preset=9)
-    total_submission_bytes = len(quant_blob) + code_bytes_est
-    over_budget_warn_threshold = 5_240_000
-    guard_target_bytes = 5_200_000
-    if total_submission_bytes > over_budget_warn_threshold:
-        over_by = total_submission_bytes - guard_target_bytes
-        log0(f"WARNING: over_budget by {over_by} bytes")
-        if ones_info:
-            full_guard_sz, _ = _try_prune(len(ones_info))
-            if full_guard_sz > guard_target_bytes:
-                log0("size_guard: full additional prune still above 5,200,000 bytes; applying full prune")
-                pruned_ones = len(ones_info)
-                _, quant_result = _try_prune(pruned_ones)
-            else:
-                lo, hi = pruned_ones, len(ones_info)
-                while lo < hi:
-                    mid = (lo + hi) // 2
-                    sz, _ = _try_prune(mid)
-                    if sz <= guard_target_bytes: hi = mid
-                    else: lo = mid + 1
-                pruned_ones = lo
-                log0(
-                    f"size_guard: additional pruning to {pruned_ones}/{len(ones_info)} ±1 values "
-                    f"to fit <= {guard_target_bytes} bytes"
-                )
-                _, quant_result = _try_prune(pruned_ones)
-            quant_buf = io.BytesIO()
-            torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-            quant_raw = quant_buf.getvalue()
-            quant_blob = lzma.compress(quant_raw, preset=9)
-            total_submission_bytes = len(quant_blob) + code_bytes_est
-        else:
-            log0("size_guard: no ±1 candidates available for additional pruning")
     if master_process:
         with open("final_model.int6.ptz", "wb") as f:
             f.write(quant_blob)
@@ -2829,8 +2665,7 @@ def main() -> None:
         mtp_num_heads=0, mtp_loss_weight=0.0,
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         trigram_enabled=args.trigram_enabled, film_enabled=args.film_enabled,
-        recurrence_enabled=args.recurrence_enabled, recurrence_depth=args.recurrence_depth,
-        parallel_residuals=args.parallel_residuals,
+        recurrence_enabled=args.recurrence_enabled, parallel_residuals=args.parallel_residuals,
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
