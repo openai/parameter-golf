@@ -841,4 +841,4 @@ These runs were recovered from dated session logs, records, and archive inventor
 
 TO WRAP EVERYTHING UP - THANKS FOR READING FELLOW HUMANS!
 
-*Hope: to work on AI research or visualizations with an amazing team. This is 35% of my output in this competition, and I have a very competitive neural line as well. I would love to do this for a living, since my old job of sculpting 3D assets and making games does not really exist like it used to. This research is not "research"; it is an honest and open work journal in the hope that I can continue to work on radical ideas in the AI space.*
+*Hope: to work on AI research or visualizations with an amazing team. 
