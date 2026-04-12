@@ -607,13 +607,15 @@ class GPT(nn.Module):
 # ---------------------------------------------------------------------------
 class LoRAAdapter(nn.Module):
     """Low-rank adapter injected around a frozen linear layer for TTT."""
-    def __init__(self, base_linear, rank, alpha):
+    def __init__(self, base_linear, rank, alpha, device=None):
         super().__init__()
         self.base_linear = base_linear
         in_features = base_linear.weight.shape[1]
         out_features = base_linear.weight.shape[0]
-        self.lora_A = nn.Parameter(torch.randn(rank, in_features) * (1.0 / rank))
-        self.lora_B = nn.Parameter(torch.zeros(out_features, rank))
+        if device is None:
+            device = base_linear.weight.device
+        self.lora_A = nn.Parameter(torch.randn(rank, in_features, device=device) * (1.0 / rank))
+        self.lora_B = nn.Parameter(torch.zeros(out_features, rank, device=device))
         self.scaling = alpha / rank
 
     def forward(self, x):
@@ -629,12 +631,11 @@ def inject_lora_adapters(model, h):
     start_layer = max(0, num_layers - h.ttt_lora_layers)
     for i in range(start_layer, num_layers):
         block = model.blocks[i]
-        # Q projection
-        lora_q = LoRAAdapter(block.attn.c_q, h.ttt_lora_rank, h.ttt_lora_alpha)
+        device = block.attn.c_q.weight.device
+        lora_q = LoRAAdapter(block.attn.c_q, h.ttt_lora_rank, h.ttt_lora_alpha, device=device)
         block.attn.c_q = lora_q
         adapters.append(lora_q)
-        # V projection
-        lora_v = LoRAAdapter(block.attn.c_v, h.ttt_lora_rank, h.ttt_lora_alpha)
+        lora_v = LoRAAdapter(block.attn.c_v, h.ttt_lora_rank, h.ttt_lora_alpha, device=device)
         block.attn.c_v = lora_v
         adapters.append(lora_v)
     lora_params = []
@@ -1346,7 +1347,7 @@ def eval_val_ttt_lora(h, device, val_data, base_model, batch_seqs=32):
         p.requires_grad_(True)
 
     optimizer = torch.optim.Adam(lora_params, lr=h.ttt_lr)
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    logits_fn = base_model.forward_logits  # no torch.compile -- LoRA breaks dynamo tracing
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
@@ -1377,7 +1378,7 @@ def eval_val_ttt_lora(h, device, val_data, base_model, batch_seqs=32):
                     x_batch[i, :wlen] = chunk_tok[:-1]
                     y_batch[i, :wlen] = chunk_tok[1:]
                 with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
-                    logits = compiled_logits(x_batch)
+                    logits = logits_fn(x_batch)
                 nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(),
                                       y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
                 for i, ws in enumerate(batch_ws):
