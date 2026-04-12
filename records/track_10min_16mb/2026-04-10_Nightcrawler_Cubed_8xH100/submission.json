@@ -1,0 +1,35 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Nightcrawler Cubed",
+  "blurb": "7 flat transformer layers + 3 weight-shared crawler layers looped 3x with loop-aware GPTQ quantization and selective pruning",
+  "date": "2026-04-10T00:00:00Z",
+  "seed_444": {
+    "val_bpb": 1.1354,
+    "val_bpb_exact": 1.13541288,
+    "int6_sw_bpb": 1.13541288,
+    "steps": 4023,
+    "train_time_s": 600,
+    "bytes_total": 15902698
+  },
+  "seed_300": {
+    "val_bpb": 1.1385,
+    "val_bpb_exact": 1.13853446,
+    "int6_sw_bpb": 1.13853446,
+    "steps": 4006,
+    "bytes_total": 15851974,
+    "train_time_s": 600
+  },
+  "seed_4": {
+    "val_bpb": 1.1354,
+    "val_bpb_exact": 1.13536063,
+    "int6_sw_bpb": 1.13536063,
+    "steps": 4012,
+    "bytes_total": 15844157,
+    "train_time_s": 600
+  },
+  "val_bpb": 1.1364,
+  "bytes_total": 15902698,
+  "bytes_code": 67089,
+  "hardware": "8xH100 SXM"
+}
