@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Simple MLX masked diffusion language model for Parameter Golf week 2.
+Simple MLX masked diffusion language model for Parameter Golf week 3.
 
-This script keeps the week-1 training objective intact while replacing the
-validation path with a deterministic, challenge-aligned pipeline:
-- proxy_loss: fixed-seed masked-denoising CE for debugging
-- val_elbo_nats / val_bpb: D3PM-style lower-bound estimate for comparison
+This script keeps the week-2 deterministic validation path while adding the
+week-3 ablation surface:
+- richer schedules and timestep sampling
+- optional self-conditioning and loss reweighting
+- x0 and xtminus1 parameterizations
+- machine-readable logs plus best/last checkpoint saving
 """
 from __future__ import annotations
 
+import json
 import math
 import sys
 import time
@@ -24,9 +27,23 @@ import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
 from diffusion_config import Hyperparameters
-from diffusion_eval import evaluate_diffusion_model, format_metrics_for_log, prepare_validation_state
+from diffusion_eval import (
+    deterministic_logits,
+    evaluate_diffusion_model,
+    format_metrics_for_log,
+    load_checkpoint_into_model,
+    metrics_json_line,
+    null_self_condition_inputs,
+    prepare_validation_state,
+)
 from diffusion_model import DiffusionTransformer
-from diffusion_objectives import args_mask_rates, corrupt_batch_np
+from diffusion_objectives import (
+    args_mask_rates,
+    build_loss_weights_np,
+    corrupt_batch_np,
+    sample_train_timesteps,
+    training_loss_from_logits,
+)
 from validation_common import load_data_shard
 
 
@@ -183,6 +200,8 @@ def sample_text(
     args: Hyperparameters,
     sp: spm.SentencePieceProcessor | None,
     mask_token_id: int,
+    *,
+    num_steps: int,
 ) -> str:
     from diffusion_objectives import mask_rate_for_t
 
@@ -194,35 +213,48 @@ def sample_text(
         tokens[0, : prompt_ids.size] = prompt_ids
         fixed[0, : prompt_ids.size] = True
     current = mx.array(tokens, dtype=mx.int32)
-    for step in range(args.sample_steps, 0, -1):
+    empty_sc_ids, empty_sc_scale = null_self_condition_inputs(current)
+    for step in range(num_steps, 0, -1):
         t = mx.array([min(step, args.num_diffusion_steps)], dtype=mx.int32)
-        logits = compiled_logits(current, t).astype(mx.float32) / args.sample_temperature
+        if args.self_conditioning:
+            logits = deterministic_logits(
+                compiled_logits,
+                current,
+                t,
+                self_conditioning=True,
+            )
+        else:
+            logits = compiled_logits(current, t, empty_sc_ids, empty_sc_scale).astype(mx.float32)
+        logits = logits.astype(mx.float32) / args.sample_temperature
         sampled = mx.random.categorical(logits)
         mx.eval(sampled)
         sampled_np = np.asarray(sampled, dtype=np.int32)
         current_np = np.array(current, dtype=np.int32, copy=True)
         current_mask = (current_np == mask_token_id) & ~fixed
-        if step == 1:
-            reveal = current_mask
+        if args.parameterization.lower().strip() == "xtminus1":
+            current_np[current_mask] = sampled_np[current_mask]
         else:
-            p_now = mask_rate_for_t(
-                np.array([step], dtype=np.int32),
-                num_diffusion_steps=args.num_diffusion_steps,
-                mask_schedule=args.mask_schedule,
-                min_mask_rate=args.min_mask_rate,
-                max_mask_rate=args.max_mask_rate,
-            )[0]
-            p_next = mask_rate_for_t(
-                np.array([step - 1], dtype=np.int32),
-                num_diffusion_steps=args.num_diffusion_steps,
-                mask_schedule=args.mask_schedule,
-                min_mask_rate=args.min_mask_rate,
-                max_mask_rate=args.max_mask_rate,
-            )[0]
-            keep_prob = 0.0 if p_now <= 0 else float(np.clip(p_next / p_now, 0.0, 1.0))
-            keep_masked = rng.random(current_mask.shape) < keep_prob
-            reveal = current_mask & ~keep_masked
-        current_np[reveal] = sampled_np[reveal]
+            if step == 1:
+                reveal = current_mask
+            else:
+                p_now = mask_rate_for_t(
+                    np.array([step], dtype=np.int32),
+                    num_diffusion_steps=args.num_diffusion_steps,
+                    mask_schedule=args.mask_schedule,
+                    min_mask_rate=args.min_mask_rate,
+                    max_mask_rate=args.max_mask_rate,
+                )[0]
+                p_next = mask_rate_for_t(
+                    np.array([step - 1], dtype=np.int32),
+                    num_diffusion_steps=args.num_diffusion_steps,
+                    mask_schedule=args.mask_schedule,
+                    min_mask_rate=args.min_mask_rate,
+                    max_mask_rate=args.max_mask_rate,
+                )[0]
+                keep_prob = 0.0 if p_now <= 0 else float(np.clip(p_next / p_now, 0.0, 1.0))
+                keep_masked = rng.random(current_mask.shape) < keep_prob
+                reveal = current_mask & ~keep_masked
+            current_np[reveal] = sampled_np[reveal]
         current = mx.array(current_np, dtype=mx.int32)
     ids = np.asarray(current, dtype=np.int32)[0].tolist()
     if args.synthetic_data:
@@ -239,7 +271,9 @@ def loss_and_grad_chunked(
     mask_token_id: int,
     mask_rates: np.ndarray,
     compiled_loss_and_grad,
-) -> tuple[mx.array, dict, float]:
+    compiled_logits,
+    train_timestep_offset: int,
+) -> tuple[mx.array, dict, float, int]:
     chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
     total_tokens = float(sum(chunk_sizes))
     loss_value = mx.array(0.0, dtype=mx.float32)
@@ -247,25 +281,93 @@ def loss_and_grad_chunked(
     masked_fraction_sum = 0.0
     for chunk_tokens in chunk_sizes:
         clean_np = train_loader.next_batch(chunk_tokens, args.train_seq_len)
+        timesteps_np = sample_train_timesteps(
+            clean_np.shape[0],
+            args,
+            rng,
+            offset=train_timestep_offset,
+        )
+        train_timestep_offset += clean_np.shape[0]
         corrupted_np, timesteps_np, loss_mask_np, masked_fraction = corrupt_batch_np(
             clean_np,
             args,
             rng,
             mask_token_id,
+            timesteps=timesteps_np,
             mask_rates=mask_rates,
+        )
+        loss_weights_np = build_loss_weights_np(
+            loss_mask_np,
+            timesteps_np,
+            mask_rates,
+            args.loss_reweighting,
+            eps=args.loss_reweighting_eps,
         )
         x = mx.array(corrupted_np, dtype=mx.int32)
         y = mx.array(clean_np, dtype=mx.int32)
         t = mx.array(timesteps_np, dtype=mx.int32)
         m = mx.array(loss_mask_np, dtype=mx.float32)
-        loss, grads = compiled_loss_and_grad(x, y, t, m)
+        w = mx.array(loss_weights_np, dtype=mx.float32)
+        sc_ids, sc_scale = build_training_self_condition(args, compiled_logits, x, t, rng)
+        loss, grads = compiled_loss_and_grad(x, y, t, m, w, sc_ids, sc_scale)
         scale = float(y.size) / total_tokens
         loss_value = loss_value + loss.astype(mx.float32) * scale
         grad_accum = accumulate_flat_grads(grad_accum, grads, scale)
         masked_fraction_sum += masked_fraction * scale
         if args.mlx_eager_eval:
             mx.eval(loss_value, grad_accum)
-    return loss_value, tree_unflatten(list(grad_accum.items())), masked_fraction_sum
+    return loss_value, tree_unflatten(list(grad_accum.items())), masked_fraction_sum, train_timestep_offset
+
+
+def build_training_self_condition(
+    args: Hyperparameters,
+    compiled_logits,
+    input_ids: mx.array,
+    timesteps: mx.array,
+    rng: np.random.Generator,
+) -> tuple[mx.array, mx.array]:
+    empty_sc_ids, empty_sc_scale = null_self_condition_inputs(input_ids)
+    if not args.self_conditioning:
+        return empty_sc_ids, empty_sc_scale
+    pre_logits = compiled_logits(input_ids, timesteps, empty_sc_ids, empty_sc_scale).astype(mx.float32)
+    mx.eval(pre_logits)
+    sc_ids = mx.argmax(pre_logits, axis=-1).astype(mx.int32)
+    sc_scale = mx.array(0.0 if rng.random() < 0.5 else 1.0, dtype=mx.float32)
+    return sc_ids, sc_scale
+
+
+def save_model_state(model: DiffusionTransformer, out_path: Path) -> int:
+    flat_state = {k: v for k, v in tree_flatten(model.state)}
+    mx.savez(str(out_path), **flat_state)
+    return out_path.stat().st_size
+
+
+def selected_checkpoint_metric(metrics, metric_name: str) -> float:
+    value = getattr(metrics, metric_name, None)
+    if value is None:
+        raise ValueError(f"BEST_CHECKPOINT_METRIC={metric_name} is unavailable for the current validation settings")
+    return float(value)
+
+
+def write_checkpoint_manifest(
+    manifest_path: Path,
+    *,
+    run_id: str,
+    last_checkpoint: Path,
+    best_checkpoint: Path | None,
+    best_metric_name: str,
+    best_metric_value: float | None,
+    best_step: int | None,
+) -> None:
+    payload = {
+        "run_id": run_id,
+        "last_checkpoint": str(last_checkpoint),
+        "best_checkpoint": str(best_checkpoint) if best_checkpoint is not None else None,
+        "best_metric_name": best_metric_name,
+        "best_metric_value": best_metric_value,
+        "best_step": best_step,
+    }
+    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -291,6 +393,7 @@ def main() -> None:
     mx.random.seed(args.seed)
     np_rng = np.random.default_rng(args.seed)
     mask_rates = args_mask_rates(args)
+    mask_rates_mx = mx.array(mask_rates, dtype=mx.float32)
 
     sp, dataset_name, actual_train_files, expected_train_files, val_tokens, byte_luts, mask_token_id = prepare_validation_state(
         args,
@@ -316,6 +419,12 @@ def main() -> None:
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
     )
+    if args.init_checkpoint:
+        init_checkpoint_path = Path(args.init_checkpoint)
+        if not init_checkpoint_path.is_file():
+            raise FileNotFoundError(f"INIT_CHECKPOINT not found: {init_checkpoint_path}")
+        load_checkpoint_into_model(model, init_checkpoint_path)
+        mx.eval(model.state)
     optimizer = optim.Adam(
         learning_rate=args.learning_rate,
         betas=[args.beta1, args.beta2],
@@ -324,12 +433,24 @@ def main() -> None:
     )
 
     compiled_logits = mx.compile(
-        lambda x, t: model.logits(x, t),
+        lambda x, t, sc_ids, sc_scale: model.logits(x, t, sc_ids, sc_scale),
         inputs=model.state,
         outputs=model.state,
     )
     compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y, t, m: model.loss(x, y, t, m)),
+        nn.value_and_grad(
+            model,
+            lambda x, y, t, m, w, sc_ids, sc_scale: training_loss_from_logits(
+                model.logits(x, t, sc_ids, sc_scale),
+                y,
+                t,
+                m,
+                w,
+                parameterization=args.parameterization,
+                mask_rates=mask_rates_mx,
+                mask_token_id=mask_token_id,
+            ),
+        ),
         inputs=model.state,
         outputs=model.state,
     )
@@ -353,7 +474,10 @@ def main() -> None:
         log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
     log(
         f"mask_token_id:{mask_token_id} mask_schedule:{args.mask_schedule} diffusion_steps:{args.num_diffusion_steps} "
-        f"val_metric:{args.val_metric} val_seed:{args.val_seed}"
+        f"min_mask_rate:{args.min_mask_rate} max_mask_rate:{args.max_mask_rate} "
+        f"val_metric:{args.val_metric} val_seed:{args.val_seed} parameterization:{args.parameterization} "
+        f"train_timestep_sampling:{args.train_timestep_sampling} loss_reweighting:{args.loss_reweighting} "
+        f"self_conditioning:{int(args.self_conditioning)}"
     )
     log(
         f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} dim:{args.model_dim} "
@@ -368,19 +492,61 @@ def main() -> None:
         f"optimizer:adam lr:{args.learning_rate} wd:{args.weight_decay} "
         f"betas:({args.beta1},{args.beta2}) grad_clip_norm:{args.grad_clip_norm}"
     )
+    if args.init_checkpoint:
+        log(f"init_checkpoint:{args.init_checkpoint}")
+    if args.early_stop_patience > 0:
+        log(
+            f"early_stop:enabled metric:{args.early_stop_metric} "
+            f"patience:{args.early_stop_patience} min_delta:{args.early_stop_min_delta}"
+        )
+    else:
+        log("early_stop:disabled")
+    log(
+        "config_json:"
+        + json.dumps(
+            {
+                "run_id": args.run_id,
+                "mask_schedule": args.mask_schedule,
+                "num_diffusion_steps": args.num_diffusion_steps,
+                "min_mask_rate": args.min_mask_rate,
+                "max_mask_rate": args.max_mask_rate,
+                "parameterization": args.parameterization,
+                "train_timestep_sampling": args.train_timestep_sampling,
+                "loss_reweighting": args.loss_reweighting,
+                "self_conditioning": args.self_conditioning,
+                "learning_rate": args.learning_rate,
+                "weight_decay": args.weight_decay,
+                "beta1": args.beta1,
+                "beta2": args.beta2,
+                "grad_clip_norm": args.grad_clip_norm,
+                "warmup_steps": args.warmup_steps,
+                "sample_steps_list": args.sample_steps_list,
+                "save_best_checkpoint": args.save_best_checkpoint,
+                "best_checkpoint_metric": args.best_checkpoint_metric,
+                "init_checkpoint": args.init_checkpoint,
+                "early_stop_patience": args.early_stop_patience,
+                "early_stop_metric": args.early_stop_metric,
+                "early_stop_min_delta": args.early_stop_min_delta,
+            },
+            sort_keys=True,
+        )
+    )
 
+    train_timestep_offset = 0
     if args.warmup_steps > 0:
         for warmup_step in range(args.warmup_steps):
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
             for _ in range(args.grad_accum_steps):
-                loss, grads, _ = loss_and_grad_chunked(
+                loss, grads, _, train_timestep_offset = loss_and_grad_chunked(
                     args,
                     train_loader,
                     np_rng,
                     mask_token_id,
                     mask_rates,
                     compiled_loss_and_grad,
+                    compiled_logits,
+                    train_timestep_offset,
                 )
                 warmup_loss = warmup_loss + loss.astype(mx.float32) / args.grad_accum_steps
                 accum = accumulate_flat_grads(accum, grads, 1.0 / args.grad_accum_steps)
@@ -397,6 +563,15 @@ def main() -> None:
     step = 0
     stop_after_step: int | None = None
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    last_checkpoint_path = out_dir / f"{args.run_id}_diffusion_last_mlx.npz"
+    legacy_final_path = out_dir / f"{args.run_id}_diffusion_mlx.npz"
+    best_checkpoint_path = out_dir / f"{args.run_id}_diffusion_best_mlx.npz"
+    manifest_path = out_dir / f"{args.run_id}_diffusion_manifest.json"
+    best_metric_value: float | None = None
+    best_metric_step: int | None = None
+    saved_best_path: Path | None = None
+    early_stop_best_metric: float | None = None
+    early_stop_misses = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         should_run_val = False
@@ -419,6 +594,53 @@ def main() -> None:
             )
             metric_parts = format_metrics_for_log(metrics).split()
             log(f"step:{step}/{args.iterations} {' '.join(part for part in metric_parts if not part.startswith('tokens:'))}")
+            log(f"metrics_json:{metrics_json_line('periodic_eval', metrics, step=step, run_id=args.run_id)}")
+            if args.save_best_checkpoint:
+                metric_value = selected_checkpoint_metric(metrics, args.best_checkpoint_metric)
+                if best_metric_value is None or metric_value < best_metric_value:
+                    save_model_state(model, best_checkpoint_path)
+                    best_metric_value = metric_value
+                    best_metric_step = step
+                    saved_best_path = best_checkpoint_path
+                    write_checkpoint_manifest(
+                        manifest_path,
+                        run_id=args.run_id,
+                        last_checkpoint=last_checkpoint_path,
+                        best_checkpoint=saved_best_path,
+                        best_metric_name=args.best_checkpoint_metric,
+                        best_metric_value=best_metric_value,
+                        best_step=best_metric_step,
+                    )
+                    log(
+                        f"best_checkpoint_saved:step:{step} metric:{args.best_checkpoint_metric} "
+                        f"value:{metric_value:.4f} path:{best_checkpoint_path}"
+                    )
+            if args.early_stop_patience > 0:
+                early_metric_value = selected_checkpoint_metric(metrics, args.early_stop_metric)
+                improved = (
+                    early_stop_best_metric is None
+                    or early_metric_value < (early_stop_best_metric - args.early_stop_min_delta)
+                )
+                if improved:
+                    early_stop_best_metric = early_metric_value
+                    early_stop_misses = 0
+                    log(
+                        f"early_stop_status:step:{step} metric:{args.early_stop_metric} "
+                        f"value:{early_metric_value:.4f} best:{early_stop_best_metric:.4f} misses:0/{args.early_stop_patience}"
+                    )
+                else:
+                    early_stop_misses += 1
+                    log(
+                        f"early_stop_status:step:{step} metric:{args.early_stop_metric} "
+                        f"value:{early_metric_value:.4f} best:{early_stop_best_metric:.4f} "
+                        f"misses:{early_stop_misses}/{args.early_stop_patience}"
+                    )
+                    if early_stop_misses >= args.early_stop_patience and stop_after_step is None:
+                        stop_after_step = step
+                        log(
+                            f"early_stop_triggered:step:{step} metric:{args.early_stop_metric} "
+                            f"best:{early_stop_best_metric:.4f} misses:{early_stop_misses}"
+                        )
         if last_step:
             break
 
@@ -427,13 +649,15 @@ def main() -> None:
         train_loss = mx.array(0.0, dtype=mx.float32)
         train_masked_fraction = 0.0
         for _ in range(args.grad_accum_steps):
-            loss, grads, masked_fraction = loss_and_grad_chunked(
+            loss, grads, masked_fraction, train_timestep_offset = loss_and_grad_chunked(
                 args,
                 train_loader,
                 np_rng,
                 mask_token_id,
                 mask_rates,
                 compiled_loss_and_grad,
+                compiled_logits,
+                train_timestep_offset,
             )
             train_loss = train_loss + loss.astype(mx.float32) / args.grad_accum_steps
             train_masked_fraction += masked_fraction / args.grad_accum_steps
@@ -459,9 +683,38 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{float(train_loss.item()):.4f} "
                 f"masked_frac:{train_masked_fraction:.4f} tok_s:{tok_s:.0f}"
             )
+            log(
+                "metrics_json:"
+                + json.dumps(
+                    {
+                        "event": "train_step",
+                        "run_id": args.run_id,
+                        "step": step,
+                        "iteration_target": args.iterations,
+                        "train_loss": float(train_loss.item()),
+                        "masked_frac": train_masked_fraction,
+                        "tok_s": tok_s,
+                    },
+                    sort_keys=True,
+                )
+            )
         if args.sample_every > 0 and (step <= 3 or step % args.sample_every == 0):
-            sample = sample_text(model, compiled_logits, args, sp, mask_token_id)
-            log(f"sample_step:{step} text:{sample[:400]}")
+            for num_steps in args.sample_steps_list:
+                sample = sample_text(model, compiled_logits, args, sp, mask_token_id, num_steps=num_steps)
+                log(f"sample_step:{step} denoise_steps:{num_steps} text:{sample[:400]}")
+                log(
+                    "sample_json:"
+                    + json.dumps(
+                        {
+                            "event": "sample",
+                            "run_id": args.run_id,
+                            "step": step,
+                            "denoise_steps": num_steps,
+                            "text": sample[:400],
+                        },
+                        sort_keys=True,
+                    )
+                )
         if max_wallclock_ms is not None and stop_after_step is None:
             elapsed_ms = 1000.0 * (time.perf_counter() - t0)
             if elapsed_ms >= max_wallclock_ms:
@@ -478,11 +731,33 @@ def main() -> None:
         log_fn=log,
     )
     log(f"final_diffusion_eval {format_metrics_for_log(final_metrics)}")
+    log(f"metrics_json:{metrics_json_line('final_diffusion_eval', final_metrics, step=step, run_id=args.run_id)}")
+    if args.save_best_checkpoint:
+        final_metric_value = selected_checkpoint_metric(final_metrics, args.best_checkpoint_metric)
+        if best_metric_value is None or final_metric_value < best_metric_value:
+            save_model_state(model, best_checkpoint_path)
+            best_metric_value = final_metric_value
+            best_metric_step = step
+            saved_best_path = best_checkpoint_path
+            log(
+                f"best_checkpoint_saved:step:{step} metric:{args.best_checkpoint_metric} "
+                f"value:{final_metric_value:.4f} path:{best_checkpoint_path}"
+            )
 
-    out_path = out_dir / f"{args.run_id}_diffusion_mlx.npz"
-    flat_state = {k: v for k, v in tree_flatten(model.state)}
-    mx.savez(str(out_path), **flat_state)
-    log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
+    last_bytes = save_model_state(model, last_checkpoint_path)
+    legacy_bytes = save_model_state(model, legacy_final_path)
+    write_checkpoint_manifest(
+        manifest_path,
+        run_id=args.run_id,
+        last_checkpoint=last_checkpoint_path,
+        best_checkpoint=saved_best_path,
+        best_metric_name=args.best_checkpoint_metric,
+        best_metric_value=best_metric_value,
+        best_step=best_metric_step,
+    )
+    log(f"saved_model:{last_checkpoint_path} bytes:{last_bytes}")
+    log(f"saved_model:{legacy_final_path} bytes:{legacy_bytes}")
+    log(f"saved_manifest:{manifest_path}")
 
 
 if __name__ == "__main__":

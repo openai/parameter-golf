@@ -1,21 +1,30 @@
 from __future__ import annotations
 
+import importlib
 import math
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+import diffusion_config
 import numpy as np
 import sentencepiece as spm
 
 from diffusion_objectives import (
     beta_schedule_from_mask_rates,
+    build_loss_weights_np,
     build_mask_rates,
     corruption_rng,
     corrupt_batch_np,
+    mask_rate_bucket_index,
     posterior_clean_probability,
     posterior_mask_probability,
+    sample_train_timesteps,
     stratified_timesteps,
+    xtminus1_token_kl_np,
 )
 from validation_common import build_sentencepiece_luts, count_batch_bytes
 
@@ -27,6 +36,7 @@ class DiffusionValidationTests(unittest.TestCase):
             mask_schedule="cosine",
             min_mask_rate=0.0,
             max_mask_rate=1.0,
+            train_timestep_sampling="random",
         )
 
     def test_beta_schedule_reconstructs_cumulative_mask_rates(self) -> None:
@@ -47,6 +57,16 @@ class DiffusionValidationTests(unittest.TestCase):
         np.testing.assert_allclose(clean_prob, expected_clean, atol=1e-6, rtol=1e-6)
         np.testing.assert_allclose(mask_prob, expected_mask, atol=1e-6, rtol=1e-6)
         np.testing.assert_allclose(clean_prob + mask_prob, np.ones_like(clean_prob), atol=1e-6, rtol=1e-6)
+
+    def test_uniform_and_loglinear_mask_rates_are_monotone(self) -> None:
+        uniform = build_mask_rates(8, "uniform", 0.0, 1.0)
+        loglinear = build_mask_rates(8, "loglinear", 0.0, 1.0)
+        self.assertEqual(uniform[0], 0.0)
+        self.assertTrue(np.all(uniform[1:] == 1.0))
+        self.assertEqual(loglinear[0], 0.0)
+        self.assertAlmostEqual(float(loglinear[-1]), 1.0, places=6)
+        self.assertTrue(np.all(np.diff(loglinear) >= 0.0))
+        self.assertGreater(float(loglinear[2]), float(np.arange(9, dtype=np.float32)[2] / 8.0))
 
     def test_masked_state_kl_matches_closed_form_weighted_nll(self) -> None:
         mask_rates = np.array([0.0, 0.25, 0.5, 1.0], dtype=np.float64)
@@ -116,6 +136,48 @@ class DiffusionValidationTests(unittest.TestCase):
         self.assertEqual(steps[0], 4)
         self.assertEqual(steps[1], 1)
 
+    def test_cyclic_train_timestep_sampling_matches_stratified_cycle(self) -> None:
+        args = SimpleNamespace(num_diffusion_steps=4, train_timestep_sampling="cyclic")
+        rng = np.random.default_rng(123)
+        sampled = sample_train_timesteps(10, args, rng, offset=3)
+        expected = stratified_timesteps(batch_size=10, num_diffusion_steps=4, offset=3)
+        np.testing.assert_array_equal(sampled, expected)
+
+    def test_inverse_mask_rate_reweighting_preserves_masked_mean(self) -> None:
+        mask_rates = np.array([0.0, 0.2, 0.5, 1.0], dtype=np.float32)
+        timesteps = np.array([1, 3], dtype=np.int32)
+        loss_mask = np.array([[1.0, 0.0, 1.0], [1.0, 1.0, 0.0]], dtype=np.float32)
+        weights = build_loss_weights_np(
+            loss_mask,
+            timesteps,
+            mask_rates,
+            "inverse_mask_rate",
+            eps=1e-3,
+        )
+        masked_weights = weights[loss_mask > 0]
+        self.assertAlmostEqual(float(masked_weights.mean()), 1.0, places=6)
+        self.assertGreater(float(weights[0, 0]), float(weights[1, 0]))
+
+    def test_xtminus1_np_kl_matches_closed_form_two_state_case(self) -> None:
+        mask_rates = np.array([0.0, 0.25, 0.5, 1.0], dtype=np.float32)
+        timesteps = np.array([2], dtype=np.int32)
+        target_ids = np.array([[3]], dtype=np.int32)
+        mask_token_id = 0
+        probs = np.zeros((1, 1, 6), dtype=np.float32)
+        probs[0, 0, 3] = 0.7
+        probs[0, 0, mask_token_id] = 0.3
+        logits = np.log(np.maximum(probs, 1e-12))
+        alpha = float((mask_rates[2] - mask_rates[1]) / mask_rates[2])
+        expected = alpha * math.log(alpha / 0.7) + (1.0 - alpha) * math.log((1.0 - alpha) / 0.3)
+        actual = float(xtminus1_token_kl_np(logits, target_ids, timesteps, mask_rates, mask_token_id)[0, 0])
+        self.assertAlmostEqual(actual, expected, places=6)
+
+    def test_mask_rate_bucket_index_covers_requested_ranges(self) -> None:
+        self.assertEqual(mask_rate_bucket_index(0.10), 0)
+        self.assertEqual(mask_rate_bucket_index(0.20), 1)
+        self.assertEqual(mask_rate_bucket_index(0.50), 2)
+        self.assertEqual(mask_rate_bucket_index(0.95), 3)
+
     def test_byte_count_matches_incremental_decode_growth(self) -> None:
         tokenizer_path = Path("data/tokenizers/fineweb_1024_bpe.model")
         if not tokenizer_path.is_file():
@@ -137,6 +199,85 @@ class DiffusionValidationTests(unittest.TestCase):
             after = sp.decode(ids[: end + 1]).encode("utf-8")
             manual += len(after) - len(before)
         self.assertEqual(calc, float(manual))
+
+    def test_synthetic_smoke_training_with_self_conditioning_and_best_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory(dir=".") as tmpdir:
+            run_id = "week3_smoke"
+            env = os.environ.copy()
+            env.update(
+                {
+                    "RUN_ID": run_id,
+                    "OUT_DIR": tmpdir,
+                    "SYNTHETIC_DATA": "1",
+                    "SYNTHETIC_VOCAB_SIZE": "8",
+                    "SYNTHETIC_PATTERN_LEN": "4",
+                    "SYNTHETIC_TRAIN_TOKENS": "256",
+                    "SYNTHETIC_VAL_TOKENS": "128",
+                    "VOCAB_SIZE": "16",
+                    "ITERATIONS": "1",
+                    "WARMUP_STEPS": "0",
+                    "TRAIN_BATCH_TOKENS": "64",
+                    "VAL_BATCH_TOKENS": "64",
+                    "TRAIN_SEQ_LEN": "8",
+                    "GRAD_ACCUM_STEPS": "1",
+                    "MLX_MAX_MICROBATCH_TOKENS": "64",
+                    "NUM_LAYERS": "2",
+                    "MODEL_DIM": "32",
+                    "NUM_HEADS": "4",
+                    "MLP_MULT": "2",
+                    "NUM_DIFFUSION_STEPS": "4",
+                    "MASK_SCHEDULE": "loglinear",
+                    "TRAIN_TIMESTEP_SAMPLING": "cyclic",
+                    "LOSS_REWEIGHTING": "inverse_mask_rate",
+                    "PARAMETERIZATION": "xtminus1",
+                    "SELF_CONDITIONING": "1",
+                    "VAL_METRIC": "both",
+                    "VAL_LOSS_EVERY": "0",
+                    "VAL_AT_START": "0",
+                    "VAL_AT_END": "1",
+                    "VAL_MAX_TOKENS": "64",
+                    "SAMPLE_EVERY": "0",
+                    "TRAIN_LOG_EVERY": "1",
+                    "SAVE_BEST_CHECKPOINT": "1",
+                    "BEST_CHECKPOINT_METRIC": "val_elbo_nats",
+                }
+            )
+            try:
+                subprocess.run(
+                    ["./.venv/bin/python", "train_diffusion.py"],
+                    cwd=Path(__file__).resolve().parents[1],
+                    env=env,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                if "NSRangeException" in exc.stdout or "Metal" in exc.stdout:
+                    self.skipTest("MLX runtime is unavailable in this environment")
+                raise
+            out_dir = Path(tmpdir)
+            self.assertTrue((out_dir / f"{run_id}_diffusion_last_mlx.npz").is_file())
+            self.assertTrue((out_dir / f"{run_id}_diffusion_best_mlx.npz").is_file())
+            self.assertTrue((out_dir / f"{run_id}_diffusion_manifest.json").is_file())
+            manifest_text = (out_dir / f"{run_id}_diffusion_manifest.json").read_text(encoding="utf-8")
+            self.assertIn('"best_metric_name": "val_elbo_nats"', manifest_text)
+
+
+class DiffusionConfigTests(unittest.TestCase):
+    def test_sample_steps_list_defaults_to_quarter_half_full(self) -> None:
+        old_env = os.environ.copy()
+        try:
+            os.environ["NUM_DIFFUSION_STEPS"] = "32"
+            os.environ.pop("SAMPLE_NUM_STEPS", None)
+            os.environ.pop("SAMPLE_NUM_STEPS_LIST", None)
+            importlib.reload(diffusion_config)
+            args = diffusion_config.Hyperparameters()
+            self.assertEqual(args.sample_steps_list, [8, 16, 32])
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+            importlib.reload(diffusion_config)
 
 
 if __name__ == "__main__":

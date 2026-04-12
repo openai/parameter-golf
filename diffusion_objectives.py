@@ -6,6 +6,14 @@ import numpy as np
 import sentencepiece as spm
 
 
+MASK_RATE_BUCKETS: tuple[tuple[float, float], ...] = (
+    (0.0, 0.15),
+    (0.15, 0.4),
+    (0.4, 0.7),
+    (0.7, 1.0000001),
+)
+
+
 def build_mask_rates(
     num_diffusion_steps: int,
     mask_schedule: str,
@@ -16,10 +24,15 @@ def build_mask_rates(
         raise ValueError("NUM_DIFFUSION_STEPS must be positive")
     timesteps = np.arange(num_diffusion_steps + 1, dtype=np.int32)
     frac = timesteps.astype(np.float32) / float(num_diffusion_steps)
-    if mask_schedule == "linear":
+    if mask_schedule == "uniform":
+        rates = np.zeros_like(frac)
+        rates[1:] = 1.0
+    elif mask_schedule == "linear":
         rates = frac
     elif mask_schedule == "cosine":
         rates = np.sin(0.5 * np.pi * frac) ** 2
+    elif mask_schedule == "loglinear":
+        rates = np.log1p(99.0 * frac) / np.log(100.0)
     else:
         raise ValueError(f"Unknown MASK_SCHEDULE={mask_schedule}")
     rates = np.asarray(rates, dtype=np.float32)
@@ -154,6 +167,21 @@ def corruption_rng(seed: int, batch_idx: int, corruption_idx: int, timestep_samp
     return np.random.default_rng(seed_seq)
 
 
+def sample_train_timesteps(
+    batch_size: int,
+    args: Any,
+    rng: np.random.Generator,
+    *,
+    offset: int,
+) -> np.ndarray:
+    mode = args.train_timestep_sampling.lower().strip()
+    if mode == "random":
+        return rng.integers(1, args.num_diffusion_steps + 1, size=(batch_size,), dtype=np.int32)
+    if mode == "cyclic":
+        return stratified_timesteps(batch_size, args.num_diffusion_steps, offset=offset)
+    raise ValueError(f"Unknown TRAIN_TIMESTEP_SAMPLING={args.train_timestep_sampling}")
+
+
 def corrupt_batch_np(
     clean_ids: np.ndarray,
     args: Any,
@@ -183,6 +211,164 @@ def corrupt_batch_np(
     corrupted = np.asarray(clean_ids, dtype=np.int32).copy()
     corrupted[mask] = mask_token_id
     return corrupted, timesteps, mask.astype(np.float32), float(mask.mean())
+
+
+def build_loss_weights_np(
+    loss_mask: np.ndarray,
+    timesteps: np.ndarray,
+    mask_rates: np.ndarray,
+    mode: str,
+    *,
+    eps: float,
+) -> np.ndarray:
+    weights = np.asarray(loss_mask, dtype=np.float32).copy()
+    normalized_mode = mode.lower().strip()
+    if normalized_mode == "none":
+        return weights
+    if normalized_mode != "inverse_mask_rate":
+        raise ValueError(f"Unknown LOSS_REWEIGHTING={mode}")
+    row_scale = 1.0 / np.maximum(mask_rates[np.asarray(timesteps, dtype=np.int32)], eps)
+    weights *= row_scale[:, None].astype(np.float32)
+    weight_sum = float(np.sum(weights, dtype=np.float64))
+    mask_sum = float(np.sum(loss_mask, dtype=np.float64))
+    if weight_sum > 0.0 and mask_sum > 0.0:
+        weights *= mask_sum / weight_sum
+    return weights.astype(np.float32)
+
+
+def build_loss_weights_mx(
+    loss_mask: Any,
+    timesteps: Any,
+    mask_rates: Any,
+    mode: str,
+    *,
+    eps: float,
+) -> Any:
+    import mlx.core as mx
+
+    weights = loss_mask.astype(mx.float32)
+    normalized_mode = mode.lower().strip()
+    if normalized_mode == "none":
+        return weights
+    if normalized_mode != "inverse_mask_rate":
+        raise ValueError(f"Unknown LOSS_REWEIGHTING={mode}")
+    row_scale = 1.0 / mx.maximum(mask_rates[timesteps], mx.array(eps, dtype=mx.float32))
+    weights = weights * row_scale[:, None]
+    weight_sum = mx.sum(weights)
+    mask_sum = mx.sum(loss_mask.astype(mx.float32))
+    return mx.where(weight_sum > 0, weights * (mask_sum / weight_sum), weights)
+
+
+def xtminus1_clean_probability(mask_rates: np.ndarray, timesteps: np.ndarray) -> np.ndarray:
+    return posterior_clean_probability(mask_rates, timesteps)
+
+
+def xtminus1_clean_probability_mx(mask_rates: Any, timesteps: Any) -> Any:
+    import mlx.core as mx
+
+    m_t = mask_rates[timesteps]
+    m_prev = mask_rates[timesteps - 1]
+    zeros = mx.zeros_like(m_t)
+    return mx.where(m_t > 0, (m_t - m_prev) / m_t, zeros).astype(mx.float32)
+
+
+def x0_token_nll_mx(logits: Any, target_ids: Any) -> Any:
+    import mlx.core as mx
+
+    log_probs = logits.astype(mx.float32) - mx.logsumexp(logits.astype(mx.float32), axis=-1, keepdims=True)
+    target_log_probs = mx.take_along_axis(log_probs, target_ids[..., None], axis=-1).squeeze(-1)
+    return (-target_log_probs).astype(mx.float32)
+
+
+def xtminus1_token_kl_mx(
+    logits: Any,
+    target_ids: Any,
+    timesteps: Any,
+    mask_rates: Any,
+    mask_token_id: int,
+) -> Any:
+    import mlx.core as mx
+
+    log_probs = logits.astype(mx.float32) - mx.logsumexp(logits.astype(mx.float32), axis=-1, keepdims=True)
+    clean_log_probs = mx.take_along_axis(log_probs, target_ids[..., None], axis=-1).squeeze(-1)
+    mask_log_probs = log_probs[..., mask_token_id]
+    alpha = xtminus1_clean_probability_mx(mask_rates, timesteps)[:, None]
+    one_minus_alpha = mx.maximum(1.0 - alpha, mx.array(0.0, dtype=mx.float32))
+    target_entropy = mx.where(alpha > 0, alpha * mx.log(alpha), mx.array(0.0, dtype=mx.float32))
+    target_entropy = target_entropy + mx.where(
+        one_minus_alpha > 0,
+        one_minus_alpha * mx.log(one_minus_alpha),
+        mx.array(0.0, dtype=mx.float32),
+    )
+    cross_entropy = -(alpha * clean_log_probs + one_minus_alpha * mask_log_probs)
+    return (cross_entropy + target_entropy).astype(mx.float32)
+
+
+def training_loss_from_logits(
+    logits: Any,
+    target_ids: Any,
+    timesteps: Any,
+    loss_mask: Any,
+    loss_weights: Any,
+    *,
+    parameterization: str,
+    mask_rates: Any,
+    mask_token_id: int,
+) -> Any:
+    import mlx.core as mx
+
+    normalized = parameterization.lower().strip()
+    if normalized == "x0":
+        token_loss = x0_token_nll_mx(logits, target_ids)
+    elif normalized == "xtminus1":
+        token_loss = xtminus1_token_kl_mx(logits, target_ids, timesteps, mask_rates, mask_token_id)
+    else:
+        raise ValueError(f"Unknown PARAMETERIZATION={parameterization}")
+    weights = loss_mask.astype(mx.float32) * loss_weights.astype(mx.float32)
+    return mx.sum(token_loss * weights) / mx.maximum(mx.sum(weights), mx.array(1.0, dtype=mx.float32))
+
+
+def accumulate_elbo_from_kl(
+    token_kl: np.ndarray,
+    masked_positions: np.ndarray,
+    *,
+    num_diffusion_steps: int,
+    timestep_samples: int,
+    corruption_samples: int,
+) -> float:
+    scale = float(num_diffusion_steps) / float(max(timestep_samples * corruption_samples, 1))
+    return float(np.sum(np.asarray(token_kl, dtype=np.float32) * np.asarray(masked_positions, dtype=np.float32), dtype=np.float64) * scale)
+
+
+def xtminus1_token_kl_np(
+    logits_np: np.ndarray,
+    target_ids: np.ndarray,
+    timesteps: np.ndarray,
+    mask_rates: np.ndarray,
+    mask_token_id: int,
+) -> np.ndarray:
+    masked_logits = np.asarray(logits_np, dtype=np.float32)
+    max_logits = np.max(masked_logits, axis=-1, keepdims=True)
+    logsumexp = max_logits + np.log(np.sum(np.exp(masked_logits - max_logits), axis=-1, keepdims=True))
+    log_probs = masked_logits - logsumexp
+    clean_log_probs = np.take_along_axis(log_probs, target_ids[..., None], axis=-1).squeeze(-1)
+    mask_log_probs = log_probs[..., mask_token_id]
+    alpha = xtminus1_clean_probability(mask_rates, timesteps)[:, None].astype(np.float32)
+    one_minus_alpha = np.maximum(1.0 - alpha, 0.0).astype(np.float32)
+    target_entropy = np.where(alpha > 0, alpha * np.log(alpha), 0.0) + np.where(
+        one_minus_alpha > 0,
+        one_minus_alpha * np.log(one_minus_alpha),
+        0.0,
+    )
+    cross_entropy = -(alpha * clean_log_probs + one_minus_alpha * mask_log_probs)
+    return (cross_entropy + target_entropy).astype(np.float32)
+
+
+def mask_rate_bucket_index(mask_rate: float) -> int:
+    for idx, (lo, hi) in enumerate(MASK_RATE_BUCKETS):
+        if lo <= mask_rate < hi:
+            return idx
+    return len(MASK_RATE_BUCKETS) - 1
 
 
 def accumulate_elbo_from_nll(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 from dataclasses import dataclass
@@ -13,13 +14,17 @@ import sentencepiece as spm
 from diffusion_config import Hyperparameters
 from diffusion_objectives import (
     accumulate_elbo_from_nll,
+    accumulate_elbo_from_kl,
     args_mask_rates,
     choose_mask_token_id,
     corruption_rng,
     corrupt_batch_np,
+    mask_rate_bucket_index,
+    MASK_RATE_BUCKETS,
     stratified_timesteps,
     validate_elbo_mask_rates,
     validate_mask_token_id,
+    xtminus1_token_kl_np,
 )
 from validation_common import (
     build_sentencepiece_luts,
@@ -40,6 +45,20 @@ class DiffusionEvalMetrics:
     byte_count: float
     corruption_samples: int
     timestep_samples: int
+    proxy_bucket_losses: list[float | None]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "proxy_loss": self.proxy_loss,
+            "val_elbo_nats": self.val_elbo_nats,
+            "val_bits_per_token": self.val_bits_per_token,
+            "val_bpb": self.val_bpb,
+            "token_count": self.token_count,
+            "byte_count": self.byte_count,
+            "corruption_samples": self.corruption_samples,
+            "timestep_samples": self.timestep_samples,
+            "proxy_bucket_losses": self.proxy_bucket_losses,
+        }
 
 
 def format_metrics_for_log(metrics: DiffusionEvalMetrics) -> str:
@@ -54,7 +73,17 @@ def format_metrics_for_log(metrics: DiffusionEvalMetrics) -> str:
     parts.append(f"tokens:{metrics.token_count}")
     parts.append(f"corruption_samples:{metrics.corruption_samples}")
     parts.append(f"timestep_samples:{metrics.timestep_samples}")
+    for idx, value in enumerate(metrics.proxy_bucket_losses):
+        if value is not None:
+            lo, hi = MASK_RATE_BUCKETS[idx]
+            hi_label = 1.0 if hi > 1.0 else hi
+            parts.append(f"proxy_bucket_{lo:.2f}_{hi_label:.2f}:{value:.4f}")
     return " ".join(parts)
+
+
+def metrics_json_line(event: str, metrics: DiffusionEvalMetrics, **extra: Any) -> str:
+    payload = {"event": event, **extra, **metrics.to_dict()}
+    return json.dumps(payload, sort_keys=True)
 
 
 def validation_metric_flags(args: Hyperparameters) -> tuple[bool, bool]:
@@ -143,6 +172,33 @@ def clean_token_nll_from_logits(logits_np: np.ndarray, target_ids: np.ndarray, m
     return (logsumexp.squeeze(-1) - target_logits).astype(np.float32)
 
 
+def null_self_condition_inputs(input_ids: Any) -> tuple[Any, Any]:
+    import mlx.core as mx
+
+    return (
+        mx.zeros(input_ids.shape, dtype=mx.int32),
+        mx.array(0.0, dtype=mx.float32),
+    )
+
+
+def deterministic_logits(
+    compiled_logits: Any,
+    input_ids: Any,
+    timesteps: Any,
+    *,
+    self_conditioning: bool,
+):
+    import mlx.core as mx
+
+    empty_sc_ids, empty_sc_scale = null_self_condition_inputs(input_ids)
+    first_pass = compiled_logits(input_ids, timesteps, empty_sc_ids, empty_sc_scale).astype(mx.float32)
+    if not self_conditioning:
+        return first_pass
+    mx.eval(first_pass)
+    sc_ids = mx.argmax(first_pass, axis=-1).astype(mx.int32)
+    return compiled_logits(input_ids, timesteps, sc_ids, mx.array(1.0, dtype=mx.float32)).astype(mx.float32)
+
+
 def evaluate_diffusion_model(
     model: Any,
     compiled_logits: Any,
@@ -166,6 +222,8 @@ def evaluate_diffusion_model(
     proxy_loss_sum = 0.0
     proxy_mask_count = 0.0
     elbo_nats_sum = 0.0
+    bucket_loss_sums = [0.0 for _ in MASK_RATE_BUCKETS]
+    bucket_mask_counts = [0.0 for _ in MASK_RATE_BUCKETS]
 
     timestep_samples = max(args.val_timestep_samples, 1)
     corruption_samples = 1 if eval_phase == "periodic" else max(args.val_corruption_samples, 1)
@@ -204,9 +262,11 @@ def evaluate_diffusion_model(
                     mask_rates=mask_rates,
                     ensure_masked_token=False,
                 )
-                logits = compiled_logits(
+                logits = deterministic_logits(
+                    compiled_logits,
                     mx.array(corrupted, dtype=mx.int32),
                     mx.array(timesteps, dtype=mx.int32),
+                    self_conditioning=args.self_conditioning,
                 ).astype(mx.float32)
                 mx.eval(logits)
                 token_nll = clean_token_nll_from_logits(np.asarray(logits, dtype=np.float32), target_ids, mask_token_id)
@@ -214,16 +274,41 @@ def evaluate_diffusion_model(
                     masked_sum = float(np.sum(loss_mask, dtype=np.float64))
                     proxy_loss_sum += float(np.sum(token_nll * loss_mask, dtype=np.float64))
                     proxy_mask_count += masked_sum
+                    per_row_rates = mask_rates[timesteps]
+                    for row_idx, row_rate in enumerate(per_row_rates.tolist()):
+                        bucket_idx = mask_rate_bucket_index(float(row_rate))
+                        row_mask = loss_mask[row_idx]
+                        row_count = float(np.sum(row_mask, dtype=np.float64))
+                        if row_count <= 0.0:
+                            continue
+                        bucket_loss_sums[bucket_idx] += float(np.sum(token_nll[row_idx] * row_mask, dtype=np.float64))
+                        bucket_mask_counts[bucket_idx] += row_count
                 if elbo_enabled:
-                    elbo_nats_sum += accumulate_elbo_from_nll(
-                        token_nll,
-                        loss_mask,
-                        timesteps,
-                        mask_rates,
-                        num_diffusion_steps=args.num_diffusion_steps,
-                        timestep_samples=timestep_samples,
-                        corruption_samples=corruption_samples,
-                    )
+                    if args.parameterization.lower().strip() == "xtminus1":
+                        token_kl = xtminus1_token_kl_np(
+                            np.asarray(logits, dtype=np.float32),
+                            target_ids,
+                            timesteps,
+                            mask_rates,
+                            mask_token_id,
+                        )
+                        elbo_nats_sum += accumulate_elbo_from_kl(
+                            token_kl,
+                            loss_mask,
+                            num_diffusion_steps=args.num_diffusion_steps,
+                            timestep_samples=timestep_samples,
+                            corruption_samples=corruption_samples,
+                        )
+                    else:
+                        elbo_nats_sum += accumulate_elbo_from_nll(
+                            token_nll,
+                            loss_mask,
+                            timesteps,
+                            mask_rates,
+                            num_diffusion_steps=args.num_diffusion_steps,
+                            timestep_samples=timestep_samples,
+                            corruption_samples=corruption_samples,
+                        )
         if log_fn is not None and total_batches > 1 and (
             batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
         ):
@@ -241,6 +326,10 @@ def evaluate_diffusion_model(
         val_bits_per_token = val_elbo_nats / math.log(2.0)
         if total_bytes > 0:
             val_bpb = val_bits_per_token * (float(total_tokens) / total_bytes)
+    proxy_bucket_losses = [
+        (bucket_loss_sums[idx] / bucket_mask_counts[idx]) if bucket_mask_counts[idx] > 0 else None
+        for idx in range(len(MASK_RATE_BUCKETS))
+    ]
 
     return DiffusionEvalMetrics(
         proxy_loss=proxy_loss,
@@ -251,6 +340,7 @@ def evaluate_diffusion_model(
         byte_count=total_bytes,
         corruption_samples=corruption_samples,
         timestep_samples=timestep_samples,
+        proxy_bucket_losses=proxy_bucket_losses,
     )
 
 
@@ -319,7 +409,11 @@ def standalone_main() -> None:
     )
     model = make_model_from_args(args)
     load_checkpoint_into_model(model, checkpoint_path)
-    compiled_logits = mx.compile(lambda x, t: model.logits(x, t), inputs=model.state, outputs=model.state)
+    compiled_logits = mx.compile(
+        lambda x, t, sc_ids, sc_scale: model.logits(x, t, sc_ids, sc_scale),
+        inputs=model.state,
+        outputs=model.state,
+    )
 
     log(f"checkpoint:{checkpoint_path}")
     log(f"mode:{'synthetic' if args.synthetic_data else 'fineweb'} dataset:{dataset_name}")
@@ -348,6 +442,7 @@ def standalone_main() -> None:
         log_fn=log,
     )
     log(f"final_diffusion_eval {format_metrics_for_log(metrics)}")
+    log(f"metrics_json:{metrics_json_line('final_diffusion_eval', metrics, checkpoint=str(checkpoint_path))}")
 
 
 if __name__ == "__main__":

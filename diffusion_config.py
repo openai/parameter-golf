@@ -50,10 +50,25 @@ class Hyperparameters:
     mask_schedule: str = os.environ.get("MASK_SCHEDULE", "cosine")
     min_mask_rate: float = float(os.environ.get("MIN_MASK_RATE", 0.0))
     max_mask_rate: float = float(os.environ.get("MAX_MASK_RATE", 1.0))
+    train_timestep_sampling: str = os.environ.get("TRAIN_TIMESTEP_SAMPLING", "random")
+    loss_reweighting: str = os.environ.get("LOSS_REWEIGHTING", "none")
+    loss_reweighting_eps: float = float(os.environ.get("LOSS_REWEIGHTING_EPS", 1e-3))
+    parameterization: str = os.environ.get("PARAMETERIZATION", "x0")
+    self_conditioning: bool = bool(int(os.environ.get("SELF_CONDITIONING", "0")))
     mask_token_id: int = int(os.environ.get("MASK_TOKEN_ID", -1))
     sample_temperature: float = float(os.environ.get("SAMPLE_TEMPERATURE", 1.0))
     sample_prompt: str = os.environ.get("SAMPLE_PROMPT", "")
     sample_num_steps: int = int(os.environ.get("SAMPLE_NUM_STEPS", 0))
+    sample_num_steps_list_raw: str = os.environ.get("SAMPLE_NUM_STEPS_LIST", "")
+    save_best_checkpoint: bool = bool(int(os.environ.get("SAVE_BEST_CHECKPOINT", "0")))
+    best_checkpoint_metric: str = os.environ.get("BEST_CHECKPOINT_METRIC", "val_bpb")
+    init_checkpoint: str = os.environ.get("INIT_CHECKPOINT", "").strip()
+    early_stop_patience: int = int(os.environ.get("EARLY_STOP_PATIENCE", "0"))
+    early_stop_metric: str = os.environ.get(
+        "EARLY_STOP_METRIC",
+        os.environ.get("BEST_CHECKPOINT_METRIC", "val_bpb"),
+    )
+    early_stop_min_delta: float = float(os.environ.get("EARLY_STOP_MIN_DELTA", "0.0"))
 
     train_shards: int = int(os.environ.get("TRAIN_SHARDS", 0))
     synthetic_data: bool = bool(int(os.environ.get("SYNTHETIC_DATA", "0")))
@@ -79,3 +94,15 @@ class Hyperparameters:
     @property
     def sample_steps(self) -> int:
         return self.sample_num_steps if self.sample_num_steps > 0 else self.num_diffusion_steps
+
+    @property
+    def sample_steps_list(self) -> list[int]:
+        if self.sample_num_steps_list_raw.strip():
+            values = [int(part.strip()) for part in self.sample_num_steps_list_raw.split(",") if part.strip()]
+        elif self.sample_num_steps > 0:
+            values = [self.sample_num_steps]
+        else:
+            base = self.num_diffusion_steps
+            values = [max(1, base // 4), max(1, base // 2), base]
+        unique = sorted({min(max(1, int(v)), self.num_diffusion_steps) for v in values})
+        return unique

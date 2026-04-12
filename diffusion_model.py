@@ -111,27 +111,33 @@ class DiffusionTransformer(nn.Module):
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
-    def hidden(self, input_ids: mx.array, timesteps: mx.array) -> mx.array:
+    def hidden(
+        self,
+        input_ids: mx.array,
+        timesteps: mx.array,
+        self_condition_ids: mx.array | None = None,
+        self_condition_scale: mx.array | None = None,
+    ) -> mx.array:
         x = self.tok_emb(input_ids).astype(COMPUTE_DTYPE)
         t = self.time_emb(timesteps).astype(COMPUTE_DTYPE)[:, None, :]
+        if self_condition_ids is not None:
+            sc = self.tok_emb(self_condition_ids).astype(COMPUTE_DTYPE)
+            if self_condition_scale is None:
+                self_condition_scale = mx.array(1.0, dtype=COMPUTE_DTYPE)
+            sc = sc * self_condition_scale.astype(COMPUTE_DTYPE)
+            x = x + sc
         x = rms_norm(x + t)
         for block in self.blocks:
             x = block(x)
         return self.final_norm(x)
 
-    def logits(self, input_ids: mx.array, timesteps: mx.array) -> mx.array:
-        h = self.hidden(input_ids, timesteps)
+    def logits(
+        self,
+        input_ids: mx.array,
+        timesteps: mx.array,
+        self_condition_ids: mx.array | None = None,
+        self_condition_scale: mx.array | None = None,
+    ) -> mx.array:
+        h = self.hidden(input_ids, timesteps, self_condition_ids, self_condition_scale)
         logits = h @ self.tok_emb.weight.astype(h.dtype).T
         return self.softcap(logits)
-
-    def loss(
-        self,
-        corrupted_ids: mx.array,
-        target_ids: mx.array,
-        timesteps: mx.array,
-        loss_mask: mx.array,
-    ) -> mx.array:
-        logits = self.logits(corrupted_ids, timesteps).astype(mx.float32)
-        losses = nn.losses.cross_entropy(logits, target_ids, reduction="none").astype(mx.float32)
-        weights = loss_mask.astype(mx.float32)
-        return mx.sum(losses * weights) / mx.maximum(mx.sum(weights), mx.array(1.0, dtype=mx.float32))
