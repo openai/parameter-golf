@@ -36,7 +36,27 @@
       "Read(//workspace/**)",
       "Read(//workspace/baseline_1942step_1.2979bpb/parameter-golf/**)",
       "Read(//workspace/baseline_1942step_1.2979bpb/parameter-golf/data/**)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv)",
+      "Bash(MAX_WALLCLOCK_SECONDS=1800 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp13_ema_fix torchrun --standalone --nproc_per_node=1 train_exp13.py)",
+      "Bash(tee logs/exp13_ema_fix.log)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"train_exp13\")",
+      "Bash(MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp13_ema_fix torchrun --standalone --nproc_per_node=1 train_exp13.py)",
+      "Bash(pkill -f \"torchrun.*train_exp13\")",
+      "Bash(pkill -f \"train_exp13.py\")",
+      "Bash(nvidia-smi --query-gpu=index,utilization.gpu,memory.used --format=csv)",
+      "Bash(nvidia-smi --query-compute-apps=pid,gpu_name,used_memory --format=csv)",
+      "Bash(ps -p 1814078 -o pid,ppid,user,cmd)",
+      "Bash(ps -p 18629 -o pid,ppid,user,cmd)",
+      "Bash(nvidia-smi --query-compute-apps=pid,used_memory --format=csv)",
+      "Bash(MODEL_DIM=688 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp14_d688 torchrun --standalone --nproc_per_node=8 train_exp14.py)",
+      "Bash(tee logs/exp14_d688.log)",
+      "Bash(nvidia-smi --query-gpu=index,utilization.gpu --format=csv)",
+      "Bash(MODEL_DIM=672 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp14_d672 torchrun --standalone --nproc_per_node=8 train_exp14.py)",
+      "Bash(tee logs/exp14_d672.log)",
+      "Bash(MODEL_DIM=640 MAX_WALLCLOCK_SECONDS=600 EVAL_STRIDE=64 VAL_LOSS_EVERY=200 DATA_PATH=./data/datasets/fineweb10B_sp1024/ TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 RUN_ID=exp14_d640 torchrun --standalone --nproc_per_node=8 train_exp14.py)",
+      "Bash(tee logs/exp14_d640.log)"
     ]
   }
 }

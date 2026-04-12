@@ -1239,9 +1239,23 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
     W = t32[:, perm].clone()
     W[:, dead[perm]] = 0
     H = H[perm][:, perm]
-    Hinv = torch.linalg.cholesky(H)
-    Hinv = torch.cholesky_inverse(Hinv)
-    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    # Numerical regularization before Cholesky: even with the percent-of-mean diag damp
+    # above, EMA-corrupted or near-rank-deficient activations can produce H that fails
+    # positive-definiteness. Try increasingly large jitter, then fall back to percentile.
+    eye = torch.eye(cols, device=H.device, dtype=H.dtype)
+    Hinv = None
+    for eps in (1e-6, 1e-5, 1e-4, 1e-3, 1e-2):
+        try:
+            H_reg = H + eps * eye
+            L = torch.linalg.cholesky(H_reg)
+            Hinv = torch.cholesky_inverse(L)
+            Hinv = torch.linalg.cholesky(Hinv, upper=True)
+            break
+        except torch._C._LinAlgError:
+            continue
+    if Hinv is None:
+        # Hessian is too degenerate — fall back to plain percentile quantization.
+        return _quantize_int6_percentile(t32, clip_range)
     best_q = None; best_scale = None; best_err = float('inf')
     for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
         if pct < 1.0:
@@ -1868,8 +1882,13 @@ def main() -> None:
     swa_count = 0
     from collections import deque
     lawa_queue: deque[dict[str, Tensor]] = deque(maxlen=args.lawa_k)
-    ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+    # EMA: track only trainable parameters (buffers like RoPE inv_freq are constant).
+    # Use warmup-corrected decay min(decay, (1+n)/(10+n)) to debias against init when
+    # the run is short — with constant 0.997 and ~400 steps, EMA stays ~30% random-init,
+    # which corrupts the averaged weights.
+    ema_state = {name: p.detach().float().clone() for name, p in base_model.named_parameters()}
     ema_decay = 0.997
+    ema_count = 0
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
@@ -1944,10 +1963,14 @@ def main() -> None:
         # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
         optimizer_muon.step()
         zero_grad_all()
-        # EMA update
+        # EMA update with warmup-corrected decay (debiased for short runs).
+        effective_ema_decay = min(ema_decay, (1.0 + ema_count) / (10.0 + ema_count))
         with torch.no_grad():
-            for name, t in base_model.state_dict().items():
-                ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
+            for name, p in base_model.named_parameters():
+                ema_state[name].mul_(effective_ema_decay).add_(
+                    p.detach().float(), alpha=1.0 - effective_ema_decay
+                )
+        ema_count += 1
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         if args.swa_enabled and scale < 0.2 and step % args.swa_every == 0:
@@ -1994,10 +2017,14 @@ def main() -> None:
             avg_state[name] = avg_state[name].to(dtype=current_state[name].dtype)
         base_model.load_state_dict(avg_state, strict=True)
     else:
-        log0("ema:applying EMA weights")
-        current_state = base_model.state_dict()
-        avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
-        base_model.load_state_dict(avg_state, strict=True)
+        log0(
+            f"ema:applying EMA weights (ema_count={ema_count}, "
+            f"final_effective_decay={min(ema_decay, (1.0 + max(ema_count - 1, 0)) / (10.0 + max(ema_count - 1, 0))):.5f})"
+        )
+        # Copy EMA values into parameters in-place; leave buffers (e.g. RoPE inv_freq) untouched.
+        with torch.no_grad():
+            for name, p in base_model.named_parameters():
+                p.data.copy_(ema_state[name].to(dtype=p.dtype))
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
