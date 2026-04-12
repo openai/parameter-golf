@@ -1,0 +1,211 @@
+W0405 18:09:41.847000 77840 torch/distributed/run.py:803] 
+W0405 18:09:41.847000 77840 torch/distributed/run.py:803] *****************************************
+W0405 18:09:41.847000 77840 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0405 18:09:41.847000 77840 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp4096
+  disable_layer0_attn: False
+  distributed: True
+  ema_decay: 0.997
+  embed_lr: 0.6
+  embed_wd: 0.09
+  embedding_dim: 512
+  etlb_clip: 3.0
+  etlb_enabled: True
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_enabled: True
+  gptq_reserve_seconds: 10.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/ba917f14-ae8a-4608-8b63-f220cff8e486.txt
+  logit_softcap: 30.0
+  matrix_lr: 0.02
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mixed_quant: False
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_wd: 0.09
+  n_int6_layers: 32
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  parallel_residual: False
+  parallel_start_layer: 7
+  parallel_start_layer_is_physical: True
+  pre_quant_ttt_chunk_tokens: 32768
+  pre_quant_ttt_enabled: True
+  pre_quant_ttt_epochs: 1
+  pre_quant_ttt_freeze_blocks: 9
+  pre_quant_ttt_lr: 0.0005
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  recur_layers_str: 4,5
+  recur_start_step: 3000
+  recur_warmup_steps: 20
+  repeat_untie_mlp: none
+  repeat_untie_mlp_layers: 
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: ba917f14-ae8a-4608-8b63-f220cff8e486
+  scalar_lr: 0.02
+  seed: 2025
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_4096_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp4096/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp4096/fineweb_val_*.bin
+  val_loss_every: 4000
+  ve_dim: 128
+  ve_enabled: True
+  ve_layers: 9,10
+  vocab_size: 4096
+  warmdown_frac: 0.667
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 141
+val_tokens: 44795904
+model_params:34401371
+parallel_residual: active=0 start_layer=7 start_mode=physical params=0
+recurrence: layers=[4, 5] start_step=3000 active=0
+repeat_untie_mlp: mode=none layers=[] params=0
+gptq:reserving 10s, effective=590000ms
+[rank4]:[W405 18:10:06.129555800 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank6]:[W405 18:10:06.218534107 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W405 18:10:06.387525229 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W405 18:10:06.417266602 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W405 18:10:06.432731447 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W405 18:10:06.461265793 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W405 18:10:06.526757126 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W405 18:10:06.566648933 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+recurrence:prewarm active=1 virtual_layers:13
+recur_warmup_step: 1/20
+recur_warmup_step: 2/20
+recur_warmup_step: 3/20
+recur_warmup_step: 4/20
+recur_warmup_step: 5/20
+recur_warmup_step: 6/20
+recur_warmup_step: 10/20
+recur_warmup_step: 20/20
+0/20000 val_loss: 8.3178 val_bpb: 3.5659
+1/20000 train_loss: 8.3177 train_time: 0.0m tok/s: 8442568
+2/20000 train_loss: 12.3553 train_time: 0.0m tok/s: 8365411
+3/20000 train_loss: 10.8995 train_time: 0.0m tok/s: 8253380
+4/20000 train_loss: 9.2424 train_time: 0.0m tok/s: 8201253
+5/20000 train_loss: 8.0201 train_time: 0.0m tok/s: 8167046
+500/20000 train_loss: 3.0743 train_time: 0.8m tok/s: 7888616
+1000/20000 train_loss: 2.9320 train_time: 1.7m tok/s: 7874691
+1500/20000 train_loss: 2.8329 train_time: 2.5m tok/s: 7871314
+2000/20000 train_loss: 2.8124 train_time: 3.3m tok/s: 7868735
+2500/20000 train_loss: 2.8084 train_time: 4.2m tok/s: 7867880
+3000/20000 train_loss: 2.8025 train_time: 5.0m tok/s: 7867334
+recurrence:activated step:3000 layers:[4, 5] virtual_layers:13
+3500/20000 train_loss: 2.7427 train_time: 6.0m tok/s: 7693586
+4000/20000 train_loss: 2.6774 train_time: 6.9m tok/s: 7568521
+4000/20000 val_loss: 2.6886 val_bpb: 1.1526
+4500/20000 train_loss: 2.7269 train_time: 7.9m tok/s: 7475151
+5000/20000 train_loss: 2.5932 train_time: 8.9m tok/s: 7401428
+5500/20000 train_loss: 2.5450 train_time: 9.8m tok/s: 7341809
+5508/20000 val_loss: 2.5669 val_bpb: 1.1004
+stopping_early: wallclock_cap train_time: 590071ms step: 5508/20000
+peak memory allocated: 30215 MiB reserved: 30244 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.56421934 val_bpb:1.09929359 eval_time:1983ms
+pre_quant_ttt:start lr=0.0005 epochs=1 freeze=9/11
+pre_quant_ttt:params trainable=5771280 frozen=28630091
+  ttt_epoch:1/1 chunk:50 loss:2.4862 avg:2.5554 time:4.3s
+  ttt_epoch:1/1 chunk:100 loss:2.4957 avg:2.5310 time:8.4s
+  ttt_epoch:1/1 chunk:150 loss:2.4926 avg:2.5409 time:12.5s
+  ttt_epoch:1/1 chunk:200 loss:2.6519 avg:2.5392 time:16.6s
+  ttt_epoch:1/1 chunk:250 loss:2.6479 avg:2.5534 time:20.7s
+  ttt_epoch:1/1 chunk:300 loss:2.6634 avg:2.5623 time:24.8s
+  ttt_epoch:1/1 chunk:350 loss:2.4493 avg:2.5713 time:28.9s
+  ttt_epoch:1/1 chunk:400 loss:2.5847 avg:2.5756 time:33.0s
+  ttt_epoch:1/1 chunk:450 loss:2.4822 avg:2.5750 time:37.2s
+  ttt_epoch:1/1 chunk:500 loss:2.3073 avg:2.5759 time:41.3s
+  ttt_epoch:1/1 chunk:550 loss:2.5171 avg:2.5752 time:45.4s
+  ttt_epoch:1/1 chunk:600 loss:2.4893 avg:2.5724 time:49.5s
+  ttt_epoch:1/1 chunk:650 loss:2.5666 avg:2.5675 time:53.6s
+  ttt_epoch:1/1 chunk:700 loss:2.7132 avg:2.5673 time:57.7s
+  ttt_epoch:1/1 chunk:750 loss:2.6263 avg:2.5721 time:61.8s
+  ttt_epoch:1/1 chunk:800 loss:2.6747 avg:2.5761 time:65.9s
+  ttt_epoch:1/1 chunk:850 loss:2.5941 avg:2.5766 time:70.0s
+  ttt_epoch:1/1 chunk:900 loss:2.4817 avg:2.5788 time:74.1s
+  ttt_epoch:1/1 chunk:950 loss:2.5443 avg:2.5781 time:78.2s
+  ttt_epoch:1/1 chunk:1000 loss:2.7289 avg:2.5782 time:82.4s
+  ttt_epoch:1/1 chunk:1050 loss:2.4926 avg:2.5766 time:86.5s
+  ttt_epoch:1/1 chunk:1100 loss:2.6712 avg:2.5760 time:90.6s
+  ttt_epoch:1/1 chunk:1150 loss:2.6052 avg:2.5775 time:94.7s
+  ttt_epoch:1/1 chunk:1200 loss:2.5242 avg:2.5801 time:98.8s
+  ttt_epoch:1/1 chunk:1250 loss:2.6753 avg:2.5827 time:102.9s
+  ttt_epoch:1/1 chunk:1300 loss:2.6629 avg:2.5831 time:107.0s
+  ttt_epoch:1/1 chunk:1350 loss:2.5615 avg:2.5836 time:111.1s
+  ttt_epoch:1/1 done chunks:1368 avg_loss:2.5831 time:112.6s
+pre_quant_ttt:done epochs=1 total_time=112.6s
+Serialized model: 132405891 bytes
+Code size: 68057 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 9.7s
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+Serialized model int6+brotli: 16019410 bytes
+Total submission size int6+brotli: 16087467 bytes
+final_int6_roundtrip val_loss:2.58463355 val_bpb:1.10804526 eval_time:7330ms
+final_int6_sliding_window val_loss:2.54437747 val_bpb:1.09078728 eval_time:74559ms
+etlb:start windows=87488 lr=0.05 steps=5 clip=3.0
+  etlb:window 5000/87488 bias_norm=2.2588
+  etlb:window 10000/87488 bias_norm=3.2042
+  etlb:window 15000/87488 bias_norm=3.9333
+  etlb:window 20000/87488 bias_norm=4.4328
+  etlb:window 25000/87488 bias_norm=4.9564
+  etlb:window 30000/87488 bias_norm=5.3711
+  etlb:window 35000/87488 bias_norm=5.7371
+  etlb:window 40000/87488 bias_norm=6.0803
+  etlb:window 45000/87488 bias_norm=6.4005
+  etlb:window 50000/87488 bias_norm=6.6637
+  etlb:window 55000/87488 bias_norm=6.9385
+  etlb:window 60000/87488 bias_norm=7.1796
+  etlb:window 65000/87488 bias_norm=7.4431
+  etlb:window 70000/87488 bias_norm=7.6416
+  etlb:window 75000/87488 bias_norm=7.8569
+  etlb:window 80000/87488 bias_norm=7.9928
+  etlb:window 85000/87488 bias_norm=8.1315
+final_int6_sliding_etlb val_loss:2.54043357 val_bpb:1.08909651 eval_time:1166224ms
