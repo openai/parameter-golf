@@ -1,0 +1,24 @@
+{
+  "name": "11L_4xMLP_RecycledCore_ParallelResid_Int5",
+  "author": "Shivang Baveja",
+  "github_id": "sbaveja",
+  "val_bpb": 1.1464,
+  "bytes_total": 15925822,
+  "date": "2026-04-12",
+  "val_loss": 1.9357,
+  "blurb": "11L + 4x MLP + 3-layer recycled-core (14 virtual layers) + parallel residuals (GPT-J last 5) + QK-Gain 5.25 + GPTQ SDClip int5 mlp+attn + 72% warmdown + WD=0.095 + max-autotune compile. Single seed (1337).",
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.1464,
+      "val_loss": 1.9357,
+      "steps": 5449,
+      "ms_per_step": 110.14,
+      "wallclock_seconds": 600,
+      "bytes_total": 15925822,
+      "int5_roundtrip_bpb": 1.1699,
+      "int5_sliding_bpb": 1.1464,
+      "pre_quant_bpb": 1.1329,
+      "post_ema_bpb": 1.1333
+    }
+  }
+}
