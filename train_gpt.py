@@ -39,6 +39,7 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 35000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 7000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 200))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -94,7 +95,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     p for p in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
         "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,"
-        "q_gain,skip_weight,skip_weights,norm_weight,norm_weights",
+        "q_gain,skip_weight,skip_weights,norm.weight",
     ).split(",") if p
 )
 
@@ -210,6 +211,15 @@ def _bpb_from_sums(val_loss_sum: Tensor, val_token_count: Tensor,
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+def _sliding_window_starts(total_tokens: int, seq_len: int, stride: int) -> list[int]:
+    if total_tokens <= seq_len:
+        return [0]
+    starts = list(range(0, total_tokens - seq_len + 1, stride))
+    last_start = total_tokens - seq_len
+    if starts[-1] != last_start:
+        starts.append(last_start)
+    return starts
+
 def eval_val(args: Hyperparameters, base_model: nn.Module, rank: int, world_size: int,
              device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
              has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
@@ -267,7 +277,8 @@ def _eval_sliding(args: Hyperparameters, base_model: nn.Module, rank: int, world
                   has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> tuple[float, float]:
     seq_len, stride = args.train_seq_len, args.sliding_stride
     total_tokens = val_tokens.numel() - 1
-    num_windows = max(1, (total_tokens - seq_len) // stride + 1)
+    window_starts = _sliding_window_starts(total_tokens, seq_len, stride)
+    num_windows = len(window_starts)
     win_start = (num_windows * rank) // world_size
     win_end = (num_windows * (rank + 1)) // world_size
     max_batch = max(1, args.val_batch_size // (seq_len * world_size))
@@ -280,11 +291,8 @@ def _eval_sliding(args: Hyperparameters, base_model: nn.Module, rank: int, world
             batch_size = batch_end - batch_start
             xs, ys = [], []
             for w in range(batch_start, batch_end):
-                token_start = w * stride
+                token_start = window_starts[w]
                 token_end = token_start + seq_len + 1
-                if token_end > val_tokens.numel():
-                    token_end = val_tokens.numel()
-                    token_start = max(0, token_end - seq_len - 1)
                 window = val_tokens[token_start:token_end].to(device=device, dtype=torch.int64)
                 xs.append(window[:-1])
                 ys.append(window[1:])
@@ -296,7 +304,9 @@ def _eval_sliding(args: Hyperparameters, base_model: nn.Module, rank: int, world
             ).reshape(batch_size, seq_len)
             for i in range(batch_size):
                 w_idx = batch_start + i
-                count_start = 0 if w_idx == 0 else seq_len - stride
+                token_start = window_starts[w_idx]
+                prev_window_end = -1 if w_idx == 0 else window_starts[w_idx - 1] + seq_len - 1
+                count_start = max(0, prev_window_end + 1 - token_start)
                 counted_loss = per_token_loss[i, count_start:]
                 counted_y, counted_prev = y[i, count_start:], x[i, count_start:]
                 val_loss_sum += counted_loss.to(torch.float64).sum()
@@ -589,13 +599,13 @@ class DistributedTokenLoader:
         self.rank, self.world_size, self.device = rank, world_size, device
         self.stream = TokenStream(pattern, seed)
 
-    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        raw_local = global_tokens // (self.world_size * grad_accum_steps)
+    def next_batch(self, global_tokens: int, seq_len: int, micro_batches_per_step: int) -> tuple[Tensor, Tensor]:
+        raw_local = global_tokens // (self.world_size * micro_batches_per_step)
         local_tokens = (raw_local // seq_len) * seq_len
         if local_tokens <= 0:
             raise ValueError(
                 f"global_tokens={global_tokens} too small for world_size={self.world_size}, "
-                f"grad_accum_steps={grad_accum_steps}, seq_len={seq_len}"
+                f"micro_batches_per_step={micro_batches_per_step}, seq_len={seq_len}"
             )
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
@@ -897,6 +907,7 @@ class GPT(nn.Module):
 def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
+    code_bytes_len = len(code.encode("utf-8"))
     args = Hyperparameters()
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
@@ -1210,15 +1221,14 @@ def main() -> None:
             log0(f"step:{step + 1}/{args.iterations} train_loss:{train_loss_accum:.4f} "
                  f"ema_loss:{train_loss_ema:.4f} grad_norm:{grad_norm:.4f} "
                  f"lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms")
-            if master_process:
-                log_entry = {
-                    "step": step + 1, "train_loss": train_loss_accum,
-                    "ema_loss": train_loss_ema, "grad_norm": grad_norm,
-                    "lr_mul": mul, "step_time_ms": step_time_ms,
-                    "training_time_ms": training_time_ms + 1000.0 * (time.perf_counter() - t0),
-                }
-                with open(f"logs/{args.run_id}_train.jsonl", "a") as f:
-                    f.write(json.dumps(log_entry) + "\n")
+            log_entry = {
+                "step": step + 1, "train_loss": train_loss_accum,
+                "ema_loss": train_loss_ema, "grad_norm": grad_norm,
+                "lr_mul": mul, "step_time_ms": step_time_ms,
+                "training_time_ms": training_time_ms + 1000.0 * (time.perf_counter() - t0),
+            }
+            with open(f"logs/{args.run_id}_train.jsonl", "a") as f:
+                f.write(json.dumps(log_entry) + "\n")
         step += 1
         if max_wallclock_ms is not None and stop_after_step is None:
             if elapsed_ms >= max_wallclock_ms:
@@ -1265,7 +1275,6 @@ def main() -> None:
         with open(quant_file, "wb") as f:
             f.write(quant_blob)
         quant_file_bytes = os.path.getsize(quant_file)
-        code_bytes_len = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int_payload_bytes"], 1)
         compress_name = "zstd" if HAS_ZSTD else ("brotli" if HAS_BROTLI else "zlib")
         log0(f"Serialized model {args.quant_bits}bit+{compress_name}: "
@@ -1292,7 +1301,6 @@ def main() -> None:
          f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms")
     log0(f"final_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     if master_process:
-        code_bytes_len = len(code.encode("utf-8"))
         quant_file_bytes = os.path.getsize(quant_file)
         submission = {
             "name": os.environ.get("SUBMIT_NAME", "anonymous"),
