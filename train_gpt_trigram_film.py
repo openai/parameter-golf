@@ -159,7 +159,10 @@ class Hyperparameters:
     num_layers = int(os.environ.get("NUM_LAYERS", "13" if scale_to_vram else "11"))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", "640" if scale_to_vram else "512"))
-    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", "2" if scale_to_vram else "8"))
+    micro_batch_size = max(int(os.environ.get("MICRO_BATCH_SIZE", 2)), 1)
+    _default_grad_accum_steps = max(1, 8 // micro_batch_size)
+    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", _default_grad_accum_steps))
+    grad_ckpt = bool(int(os.environ.get("GRAD_CKPT", "1")))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -690,10 +693,7 @@ def apply_sdclip(module: nn.Module, threshold: float) -> None:
         if grad is None or grad.ndim < 2:
             continue
         rms = grad.float().pow(2).mean().sqrt()
-        scale = torch.clamp(
-            torch.tensor(threshold, dtype=rms.dtype, device=rms.device) / (rms + 1e-8),
-            max=1.0,
-        )
+        scale = (threshold / (rms + 1e-8)).clamp(max=1.0)
         grad.mul_(scale.to(dtype=grad.dtype))
 
 
@@ -997,6 +997,7 @@ class GPT(nn.Module):
         trigram_enabled: bool = False,
         film_enabled: bool = False,
         recurrence_enabled: bool = False,
+        grad_ckpt: bool = False,
         parallel_residuals: bool = False,
         xsa_last_n: int = 0,
         rope_dims: int = 0,
@@ -1023,6 +1024,7 @@ class GPT(nn.Module):
         self.smear = SmearGate(model_dim)
         self.film = FiLMDepthCondition(num_layers, model_dim) if film_enabled else None
         self.recurrence_enabled = recurrence_enabled
+        self.grad_ckpt = grad_ckpt
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -1143,6 +1145,43 @@ class GPT(nn.Module):
             return x
         gate = self.recurrence_gates[layer_idx].to(dtype=x.dtype)
         return x + gate * h.unsqueeze(1)
+
+    def _run_block(
+        self,
+        block: Block,
+        x: Tensor,
+        x0: Tensor,
+        q_w: Tensor,
+        k_w: Tensor,
+        v_w: Tensor,
+        out_w: Tensor,
+        up_w: Tensor,
+        down_w: Tensor,
+        v_embed: Tensor | None = None,
+        v0: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor | None]:
+        use_ckpt = (
+            self.grad_ckpt
+            and self.recurrence_enabled
+            and self.training
+        )
+        need_raw_v = self.value_residual and v0 is None
+        if not use_ckpt or need_raw_v:
+            return block(
+                x, x0, q_w, k_w, v_w, out_w, up_w, down_w,
+                v_embed=v_embed, v0=v0
+            )
+
+        def _ckpt_block(x_in: Tensor) -> Tensor:
+            x_out, _ = block(
+                x_in, x0, q_w, k_w, v_w, out_w, up_w, down_w,
+                v_embed=v_embed, v0=v0
+            )
+            return x_out
+
+        x_out = torch.utils.checkpoint.checkpoint(_ckpt_block, x, use_reentrant=False)
+        return x_out, None
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         n = self.num_layers
         x = self.tok_emb(input_ids)
@@ -1150,7 +1189,9 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
+        x = x.to(torch.bfloat16)
         x0 = x
+        x0 = x0.to(torch.bfloat16)
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
@@ -1162,7 +1203,7 @@ class GPT(nn.Module):
             if self.film is not None:
                 x = self.film.condition(x, i)
             ve = self._get_ve(i, input_ids, ve_cache)
-            x, raw_v = self.blocks[i](x, x0,
+            x, raw_v = self._run_block(self.blocks[i], x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
                 v_embed=ve, v0=v0)
@@ -1179,7 +1220,7 @@ class GPT(nn.Module):
             if self.film is not None:
                 x = self.film.condition(x, bi)
             ve = self._get_ve(bi, input_ids, ve_cache)
-            x, _ = self.blocks[bi](x, x0,
+            x, _ = self._run_block(self.blocks[bi], x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
@@ -1222,6 +1263,7 @@ class GPT(nn.Module):
             x = x + self.bigram(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x = self.smear(x)
+        x = x.to(torch.bfloat16)
         slot_len = 0
         if slot_prefix is not None:
             if slot_prefix.ndim != 3:
@@ -1237,6 +1279,7 @@ class GPT(nn.Module):
             slot_len = int(slot_prefix.size(1))
             x = torch.cat([slot_prefix.to(dtype=x.dtype), x], dim=1)
         x0 = x
+        x0 = x0.to(torch.bfloat16)
         v0 = None
         skips: list[Tensor] = []
         ve_cache: dict = {}
@@ -1253,7 +1296,7 @@ class GPT(nn.Module):
                     ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
                 )
                 ve = torch.cat([ve_pad, ve], dim=1)
-            x, raw_v = self.blocks[i](x, x0,
+            x, raw_v = self._run_block(self.blocks[i], x, x0,
                 self.qo_bank[i], self.kv_bank[i], self.kv_bank[n + i],
                 self.qo_bank[n + i], self.mlp_up_bank[i], self.mlp_down_bank[i],
                 v_embed=ve, v0=v0)
@@ -1275,7 +1318,7 @@ class GPT(nn.Module):
                     ve.size(0), slot_len, ve.size(2), dtype=ve.dtype, device=ve.device
                 )
                 ve = torch.cat([ve_pad, ve], dim=1)
-            x, _ = self.blocks[bi](x, x0,
+            x, _ = self._run_block(self.blocks[bi], x, x0,
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
@@ -2138,6 +2181,7 @@ def main() -> None:
         trigram_enabled=args.trigram_enabled,
         film_enabled=args.film_enabled,
         recurrence_enabled=args.recurrence_enabled,
+        grad_ckpt=args.grad_ckpt,
         parallel_residuals=args.parallel_residuals,
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims,
@@ -2274,12 +2318,16 @@ def main() -> None:
         f"feature_flags trigram_enabled:{int(args.trigram_enabled)} "
         f"film_enabled:{int(args.film_enabled)} slot_enabled:{int(args.slot_enabled)} "
         f"recurrence_enabled:{int(args.recurrence_enabled)} parallel_residuals:{int(args.parallel_residuals)} "
-        f"sdclip_enabled:{int(args.sdclip_enabled)} scale_to_vram:{int(args.scale_to_vram)} "
+        f"sdclip_enabled:{int(args.sdclip_enabled)} grad_ckpt:{int(args.grad_ckpt)} "
+        f"scale_to_vram:{int(args.scale_to_vram)} "
         f"torch_compile:{int(TORCH_COMPILE_ENABLED)}"
     )
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
-    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(
+        f"world_size:{world_size} grad_accum_steps:{grad_accum_steps} "
+        f"micro_batch_size:{args.micro_batch_size}"
+    )
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
@@ -2666,6 +2714,7 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         trigram_enabled=args.trigram_enabled, film_enabled=args.film_enabled,
         recurrence_enabled=args.recurrence_enabled, parallel_residuals=args.parallel_residuals,
+        grad_ckpt=args.grad_ckpt,
         xsa_last_n=args.xsa_last_n,
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
