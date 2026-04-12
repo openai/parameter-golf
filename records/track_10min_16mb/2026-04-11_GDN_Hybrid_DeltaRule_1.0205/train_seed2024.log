@@ -1,0 +1,90 @@
+W0411 17:34:30.068000 738543 torch/distributed/run.py:851] 
+W0411 17:34:30.068000 738543 torch/distributed/run.py:851] *****************************************
+W0411 17:34:30.068000 738543 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0411 17:34:30.068000 738543 torch/distributed/run.py:851] *****************************************
+=== Direction-5: GDN Hybrid Training ===
+Arch: D_GDN_Hybrid (ARCH_MODE=D)
+Seed: 2024, Max steps: 9999, Warmdown: 3000
+Train seq_len: 2048, Wallclock budget: 590.0s
+QK_GAIN_INIT: 5.0
+World size: 8, Grad accum: 1
+EMA decay: 0.997, SWA: True (every 50)
+Late QAT threshold: 0.15
+MuonEq-R: enabled
+Validation tokens: 62,021,632
+Model built in 0.2s
+Parameters: {'embedding': 925697, 'recurrent': 13251360, 'attention': 792584, 'mlp': 18880512, 'other': 12800, 'total': 33862953}
+Total params: 33,862,953
+Matrix params: 33,263,616
+Scalar params: 75,049
+Embed params: 524,288
+Generated coprime shard order: stride across 80 shards
+
+================================================================================
+Starting training: max 9999 steps (from step 0)
+Wallclock budget: 590.0s
+================================================================================
+
+step     1/9999 | loss 6.9320 | lr_mul 0.0500 | mom 0.850 | 0.36 steps/s | 3s
+step     2/9999 | loss 6.7120 | lr_mul 0.1000 | mom 0.850 | 0.66 steps/s | 3s
+step     3/9999 | loss 6.1764 | lr_mul 0.1500 | mom 0.851 | 0.91 steps/s | 3s
+step     4/9999 | loss 5.8613 | lr_mul 0.2000 | mom 0.851 | 1.12 steps/s | 4s
+step     5/9999 | loss 5.8159 | lr_mul 0.2500 | mom 0.851 | 1.31 steps/s | 4s
+step     6/9999 | loss 5.7956 | lr_mul 0.3000 | mom 0.851 | 1.47 steps/s | 4s
+step     7/9999 | loss 5.7609 | lr_mul 0.3500 | mom 0.851 | 1.61 steps/s | 4s
+step     8/9999 | loss 5.7081 | lr_mul 0.4000 | mom 0.852 | 1.74 steps/s | 5s
+step     9/9999 | loss 5.6192 | lr_mul 0.4500 | mom 0.852 | 1.85 steps/s | 5s
+step    10/9999 | loss 5.5308 | lr_mul 0.5000 | mom 0.852 | 1.95 steps/s | 5s
+step   100/9999 | loss 3.6523 | lr_mul 1.0000 | mom 0.870 | 3.49 steps/s | 29s
+step   200/9999 | loss 2.7056 | lr_mul 1.0000 | mom 0.890 | 3.62 steps/s | 55s
+step   300/9999 | loss 2.4972 | lr_mul 1.0000 | mom 0.910 | 3.67 steps/s | 82s
+step   400/9999 | loss 2.4008 | lr_mul 1.0000 | mom 0.930 | 3.70 steps/s | 108s
+step   500/9999 | loss 2.3438 | lr_mul 1.0000 | mom 0.950 | 3.73 steps/s | 134s
+step   600/9999 | loss 2.3031 | lr_mul 1.0000 | mom 0.950 | 3.74 steps/s | 160s
+step   700/9999 | loss 2.2505 | lr_mul 1.0000 | mom 0.950 | 3.75 steps/s | 187s
+step   800/9999 | loss 2.2285 | lr_mul 1.0000 | mom 0.950 | 3.76 steps/s | 213s
+step   900/9999 | loss 2.2177 | lr_mul 1.0000 | mom 0.950 | 3.77 steps/s | 239s
+step  1000/9999 | loss 2.1924 | lr_mul 1.0000 | mom 0.950 | 3.77 steps/s | 265s
+step  1100/9999 | loss 2.1775 | lr_mul 1.0000 | mom 0.950 | 3.78 steps/s | 291s
+step  1200/9999 | loss 2.1650 | lr_mul 1.0000 | mom 0.950 | 3.78 steps/s | 318s
+step  1300/9999 | loss 2.1552 | lr_mul 1.0000 | mom 0.950 | 3.78 steps/s | 344s
+step  1400/9999 | loss 2.1446 | lr_mul 1.0000 | mom 0.950 | 3.78 steps/s | 370s
+step  1500/9999 | loss 2.1311 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 396s
+step  1600/9999 | loss 2.1357 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 422s
+step  1700/9999 | loss 2.1499 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 448s
+step  1800/9999 | loss 2.1116 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 475s
+step  1900/9999 | loss 2.1249 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 501s
+step  2000/9999 | loss 2.1299 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 527s
+step  2100/9999 | loss 2.1175 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 554s
+step  2200/9999 | loss 2.1043 | lr_mul 1.0000 | mom 0.950 | 3.79 steps/s | 580s
+Wallclock limit reached (590s), will stop after this step
+Stopping early at step 2241 (wallclock limit)
+
+Training complete in 590s (2241 steps)
+Peak memory: 35748 MiB
+Steps/sec: 3.80
+
+=== Applying EMA weights ===
+EMA BPB (no XSA): 1.008736
+Saved raw EMA model
+
+=== GPTQ: generating autoregressive calibration data ===
+GPTQ: generated 64 sequences, collecting hessians...
+GPTQ: collected hessians for 29 layers
+
+=== Quantizing to int6 + zstd-22 ===
+Artifact: 15,820,201 bytes (15.09 MB)
+
+=== Roundtrip Validation (quantized model) ===
+Quantized BPB (no XSA): 1.017995
+Quantization degradation: +0.009259
+Quantized BPB (XSA-all): 1.023138
+
+================================================================================
+FINAL RESULTS — D_GDN_Hybrid seed=2024
+  Training: 2241 steps, 590s
+  EMA BPB:       1.008736
+  Quantized BPB: 1.017995
+  XSA BPB:       1.023138
+  Artifact:      /root/pg-repo/records/track_10min_16mb/2026-04-11_JM_GDN_Hybrid_DeltaRule/checkpoints/final_model_D_GDN_Hybrid_seed2024.int6.ptz
+================================================================================
