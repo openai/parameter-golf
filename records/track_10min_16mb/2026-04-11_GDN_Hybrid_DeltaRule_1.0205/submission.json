@@ -1,0 +1,43 @@
+{
+  "author": "Joshua Martinez",
+  "github_id": "joshkmartinez",
+  "name": "GDN-Hybrid: Gated DeltaNet + Sliding Window Attention",
+  "blurb": "Joshua-owned SAFE_SUBMISSION reproduction of PR #1545. Pulled TensorPool artifacts for run037-safe017 / j-jvquftkrwd show a 3-seed mean quantized_bpb of 1.02045733 (std 0.00553017) with all artifact sizes under 16,000,000 bytes.",
+  "date": "2026-04-11T17:34:30Z",
+  "baseline_pr": 1545,
+  "lane": "SAFE_SUBMISSION",
+  "evaluation": "quantized_bpb",
+  "val_bpb": 1.016586,
+  "seed": 1337,
+  "three_seed_mean_bpb": 1.02045733,
+  "three_seed_std_bpb": 0.00553017,
+  "artifact_bytes_max": 15830308,
+  "artifact_bytes_mean": 15654831.0,
+  "seed_results": [
+    {
+      "seed": "42",
+      "ema_bpb": 1.017723,
+      "quantized_bpb": 1.026791,
+      "xsa_bpb": 1.031731,
+      "artifact_bytes": 15313984,
+      "steps": 1864
+    },
+    {
+      "seed": "1337",
+      "ema_bpb": 1.007375,
+      "quantized_bpb": 1.016586,
+      "xsa_bpb": 1.020691,
+      "artifact_bytes": 15830308,
+      "steps": 2239
+    },
+    {
+      "seed": "2024",
+      "ema_bpb": 1.008736,
+      "quantized_bpb": 1.017995,
+      "xsa_bpb": 1.023138,
+      "artifact_bytes": 15820201,
+      "steps": 2241
+    }
+  ],
+  "artifact_authority": "state/tp-pulls/run037-safe017/artifacts/train_seed42.log,state/tp-pulls/run037-safe017/artifacts/train_seed1337.log,state/tp-pulls/run037-safe017/artifacts/train_seed2024.log"
+}
