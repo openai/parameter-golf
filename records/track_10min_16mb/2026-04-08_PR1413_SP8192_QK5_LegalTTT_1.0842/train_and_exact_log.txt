@@ -1,0 +1,15 @@
+0/5082 val_loss: 9.0084 val_bpb: 3.4880
+500/5082 val_loss: 3.3296 val_bpb: 1.2892
+1000/5082 val_loss: 3.2057 val_bpb: 1.2412
+1500/5082 val_loss: 3.1566 val_bpb: 1.2222
+2000/5082 val_loss: 3.0934 val_bpb: 1.1978
+2500/5082 val_loss: 3.0524 val_bpb: 1.1819
+3000/5082 val_loss: 3.0263 val_bpb: 1.1718
+3500/5082 val_loss: 2.9653 val_bpb: 1.1482
+4000/5082 val_loss: 2.9197 val_bpb: 1.1305
+4500/5082 val_loss: 2.8676 val_bpb: 1.1104
+5000/5082 val_loss: 2.8188 val_bpb: 1.0914
+stopping_early: wallclock_cap train_time: 4511317ms step: 5004/5082
+pre-quantization post-ema val_loss:2.81650752 val_bpb:1.09054898 eval_time:20297ms
+legal_ttt_exact val_loss:2.80005921 val_bpb:1.08418021 eval_time:1978188ms
+artifact_bytes:15968912
