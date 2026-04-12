@@ -44,7 +44,7 @@ This PR includes the training script snapshot, recurrent runtime files, checkpoi
 | Fractal recurrent hybrid | 11L/512 SP1024, `AAAAAPAAAAA` | mixed int6 default | 1.356221 | 1.376010 | 2.323335 | 10,044,945 | Single middle recurrent slot |
 | Fractal recurrent hybrid | 11L/512 SP1024, `AAAAAPAAAAA` | all-large-int8 | 1.356221 | 1.357619 | 2.292283 | 14,440,584 | Best recurrent export |
 
-These are single-seed matched comparisons (`seed=42`). We do not yet have a PR #1564-style 3-seed confirmation for this exact headline configuration.
+These are single-seed matched comparisons (`seed=42`). We do not yet have a 3-seed confirmation for this exact headline configuration.
 
 The original 10-minute recurrent-primitive source run recorded post-quant BPB 1.376889 at 9,747,772 bytes under its initial export path. The requantization sweep in this folder is the cleaner like-for-like comparison because both the recurrent hybrid and pure attention were re-exported through the same variants.
 
