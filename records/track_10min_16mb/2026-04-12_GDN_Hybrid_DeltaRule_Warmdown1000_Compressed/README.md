@@ -4,13 +4,11 @@ Three-seed confirmation run for the repaired GDN-Hybrid family.
 
 ## Headline result
 
-- **Submission authority:** `quantized_bpb`
 - **3-seed mean:** **1.01671233 BPB**
 - **3-seed std:** **0.00134386 BPB**
 - **Best seed:** **1.015700 BPB** (`seed 1337`)
 - **Worst seed:** `1.018237 BPB` (`seed 2024`)
 - **Artifact size range:** `15,713,422` to `15,903,365` bytes
-- **Legality:** fixed-predictor / no-TTT Track-A; all pulled artifacts stayed below the `16,000,000` byte cap
 
 ## Per-seed authoritative results
 
