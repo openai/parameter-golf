@@ -1,0 +1,18 @@
+{
+  "author": "Joseph Abraham",
+  "github_id": "abbudjoe",
+  "name": "P20 Recurrent Primitive Hybrid (1xH100, SP1024)",
+  "blurb": "Non-record research submission: P20 recurrent primitive inserted as a single middle layer in an 11L/512 SP1024 transformer. A 10-minute 1xH100 run reached 1.3562 pre-quant BPB; checkpoint requant with all-large-int8 reached 1.3576 BPB at 14.44MB. Includes pure-attention quant control showing P20 is close but not yet a record lane.",
+  "date": "2026-04-12T10:10:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 2.2922833208646662,
+  "val_bpb": 1.357619300696428,
+  "pre_quant_val_loss": 2.2899228062501846,
+  "pre_quant_val_bpb": 1.3562212709803687,
+  "step_stop": 988,
+  "wallclock_seconds": 600.491,
+  "bytes_total": 14440584,
+  "bytes_model_int8_zlib": 14208732,
+  "bytes_code": 231852,
+  "gpu": "1xH100 80GB"
+}
