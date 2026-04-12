@@ -1,6 +1,22 @@
 # Non-record: Universal Transformer + Legal Pre-Quant TTT (Training-Slice Variant)
 
-**val_bpb: TBD (pending Spark run)** | DGX Spark GB10 | sp1024 | Legal TTT on held-out training slice
+**val_bpb: 3.4446 (int6 brotli-11 roundtrip)** | **pre-quant val_bpb: 3.2483** | DGX Spark GB10 | sp1024 | 200 train steps
+
+## Quick Results
+
+| Metric | Value |
+|---|---|
+| Model params | 4,546,568 |
+| Pre-quant val_bpb (step 200) | 3.2483 |
+| Post-TTT int6 roundtrip val_bpb | **3.4446** |
+| TTT source | fineweb_train_000079.bin (last training shard tail) |
+| TTT tokens | 131,073 (training data slice, NOT val_tokens) |
+| TTT config | 3 epochs, AdamW lr=0.0005, no frozen blocks |
+| TTT loss curve | 6.15 -> 5.89 -> 5.79 |
+| TTT duration | 13.6 seconds |
+| Artifact size (int6+brotli-11) | 1.35 MB (1,344,763 bytes) |
+| Serialized model | 17.14 MB (uncompressed) |
+| Step time | 1,541 ms/step (single GB10, no torch.compile) |
 
 ## Background
 
