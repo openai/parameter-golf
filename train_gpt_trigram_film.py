@@ -33,6 +33,7 @@ except ImportError:
 
 TRIGRAM_ENABLED = os.environ.get("TRIGRAM_ENABLED", os.environ.get("TRIGRAM", "0")) == "1"
 FILM_ENABLED = os.environ.get("FILM_ENABLED", "0") == "1"
+SCALE_TO_VRAM_ENABLED = os.environ.get("SCALE_TO_VRAM", "0") == "1"
 # TORCHDYNAMO_DISABLE=1 is supported natively by PyTorch and remains available.
 TORCH_COMPILE_ENABLED = os.environ.get("TORCH_COMPILE", "1") != "0"
 
@@ -149,14 +150,16 @@ class Hyperparameters:
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 4000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
+    scale_to_vram = SCALE_TO_VRAM_ENABLED
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", "4096" if scale_to_vram else "2048"))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN", os.environ.get("QK_GAIN_INIT", 4.0)))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_layers = int(os.environ.get("NUM_LAYERS", "13" if scale_to_vram else "11"))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    model_dim = int(os.environ.get("MODEL_DIM", "640" if scale_to_vram else "512"))
+    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", "2" if scale_to_vram else "8"))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = float(os.environ.get("MLP_MULT", 3.0))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -218,7 +221,6 @@ class Hyperparameters:
     recurrence_lr = float(os.environ.get("RECURRENCE_LR", 3e-4))
     sdclip_enabled = bool(int(os.environ.get("SDCLIP_ENABLED", "1")))
     sdclip_threshold = float(os.environ.get("SDCLIP_THRESHOLD", 1.0))
-    sdclip_freq = int(os.environ.get("SDCLIP_FREQ", 10))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -680,29 +682,19 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 
 
 @torch.no_grad()
-def apply_sdclip(module: nn.Module, threshold: float, min_dim: int = 256) -> None:
+def apply_sdclip(module: nn.Module, threshold: float) -> None:
     if threshold <= 0.0:
         return
     for param in module.parameters():
         grad = param.grad
         if grad is None or grad.ndim < 2:
             continue
-        grad_fp32 = grad.float()
-        rows, cols = int(grad_fp32.shape[-2]), int(grad_fp32.shape[-1])
-        if rows < min_dim or cols < min_dim:
-            continue
-        if grad_fp32.ndim == 2:
-            u, s, vh = torch.linalg.svd(grad_fp32, full_matrices=False)
-            s = s.clamp(max=threshold)
-            clipped = (u * s.unsqueeze(0)) @ vh
-            grad.copy_(clipped.to(dtype=grad.dtype))
-            continue
-        flat = grad_fp32.reshape(-1, grad_fp32.shape[-2], grad_fp32.shape[-1])
-        for idx in range(flat.size(0)):
-            u, s, vh = torch.linalg.svd(flat[idx], full_matrices=False)
-            s = s.clamp(max=threshold)
-            flat[idx] = (u * s.unsqueeze(0)) @ vh
-        grad.copy_(flat.reshape_as(grad_fp32).to(dtype=grad.dtype))
+        rms = grad.float().pow(2).mean().sqrt()
+        scale = torch.clamp(
+            torch.tensor(threshold, dtype=rms.dtype, device=rms.device) / (rms + 1e-8),
+            max=1.0,
+        )
+        grad.mul_(scale.to(dtype=grad.dtype))
 
 
 class Rotary(nn.Module):
@@ -2063,9 +2055,9 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    if args.grad_accum_steps <= 0:
+        raise ValueError(f"GRAD_ACCUM_STEPS must be positive, got {args.grad_accum_steps}")
+    grad_accum_steps = args.grad_accum_steps
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -2168,6 +2160,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    if args.scale_to_vram:
+        used_gb = torch.cuda.memory_allocated(device) / (1024.0 ** 3)
+        if used_gb < 60.0:
+            log0(f"vram_underutilized: {used_gb:.2f}GB / 80GB")
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
     compiled_model = maybe_torch_compile(
@@ -2278,7 +2274,7 @@ def main() -> None:
         f"feature_flags trigram_enabled:{int(args.trigram_enabled)} "
         f"film_enabled:{int(args.film_enabled)} slot_enabled:{int(args.slot_enabled)} "
         f"recurrence_enabled:{int(args.recurrence_enabled)} parallel_residuals:{int(args.parallel_residuals)} "
-        f"sdclip_enabled:{int(args.sdclip_enabled)} sdclip_freq:{args.sdclip_freq} "
+        f"sdclip_enabled:{int(args.sdclip_enabled)} scale_to_vram:{int(args.scale_to_vram)} "
         f"torch_compile:{int(TORCH_COMPILE_ENABLED)}"
     )
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
@@ -2393,13 +2389,30 @@ def main() -> None:
             CastedLinear._qat_enabled = True
             log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
         zero_grad_all()
+        profile_step5 = step == 5
+        profile_forward_ms = 0.0
+        profile_backward_ms = 0.0
+        profile_clip_ms = 0.0
+        profile_optim_ms = 0.0
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            if profile_step5:
+                torch.cuda.synchronize()
+                t_phase = time.perf_counter()
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
+            if profile_step5:
+                torch.cuda.synchronize()
+                profile_forward_ms += 1000.0 * (time.perf_counter() - t_phase)
             train_loss += loss.detach()
+            if profile_step5:
+                torch.cuda.synchronize()
+                t_phase = time.perf_counter()
             (loss * grad_scale).backward()
+            if profile_step5:
+                torch.cuda.synchronize()
+                profile_backward_ms += 1000.0 * (time.perf_counter() - t_phase)
         train_loss /= grad_accum_steps
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -2411,10 +2424,18 @@ def main() -> None:
                     group["lr"] = group["base_lr"]
                 else:
                     group["lr"] = group["base_lr"] * scale
+        if profile_step5:
+            torch.cuda.synchronize()
+            t_phase = time.perf_counter()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
-        if args.sdclip_enabled and args.sdclip_freq > 0 and (step % args.sdclip_freq == 0):
-            apply_sdclip(base_model, args.sdclip_threshold, min_dim=256)
+        if args.sdclip_enabled:
+            apply_sdclip(base_model, args.sdclip_threshold)
+        if profile_step5:
+            torch.cuda.synchronize()
+            profile_clip_ms = 1000.0 * (time.perf_counter() - t_phase)
+            torch.cuda.synchronize()
+            t_phase = time.perf_counter()
         # === 3-phase overlapped optimizer step ===
         # Phase 1: Launch async reduce-scatter for banks (biggest first)
         optimizer_muon.launch_reduce_scatters()
@@ -2432,6 +2453,15 @@ def main() -> None:
         # Phase 3: Wait for RS, local NS5, all-gather (banks processed last)
         optimizer_muon.step()
         zero_grad_all()
+        if profile_step5:
+            torch.cuda.synchronize()
+            profile_optim_ms = 1000.0 * (time.perf_counter() - t_phase)
+            log0(
+                f"profile_step5 forward:{profile_forward_ms:.1f}ms "
+                f"backward:{profile_backward_ms:.1f}ms "
+                f"optim:{profile_optim_ms:.1f}ms "
+                f"clip:{profile_clip_ms:.1f}ms"
+            )
         # EMA update
         with torch.no_grad():
             for name, t in base_model.state_dict().items():
