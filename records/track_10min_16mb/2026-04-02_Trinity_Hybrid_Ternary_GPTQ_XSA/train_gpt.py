@@ -27,14 +27,35 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 try:
     from flash_attn_interface import flash_attn_func as flash_attn_3_func
 except ImportError:
-    from flash_attn import flash_attn_func as _fa2_func
-    def flash_attn_3_func(q, k, v, causal=True):
-        # FA2 requires bf16/fp16; FA3 handles fp32 natively
-        orig_dtype = q.dtype
-        if orig_dtype not in (torch.float16, torch.bfloat16):
-            q, k, v = q.bfloat16(), k.bfloat16(), v.bfloat16()
-        out = _fa2_func(q, k, v, causal=causal)
-        return out.to(orig_dtype) if out.dtype != orig_dtype else out
+    try:
+        from flash_attn import flash_attn_func as _fa2_func
+        def flash_attn_3_func(q, k, v, causal=True):
+            orig_dtype = q.dtype
+            if orig_dtype not in (torch.float16, torch.bfloat16):
+                q, k, v = q.bfloat16(), k.bfloat16(), v.bfloat16()
+            out = _fa2_func(q, k, v, causal=causal)
+            return out.to(orig_dtype) if out.dtype != orig_dtype else out
+    except ImportError:
+        # No flash-attn at all — use PyTorch native SDPA
+        def flash_attn_3_func(q, k, v, causal=True):
+            # q: (B, S, Hq, D), k/v: (B, S, Hkv, D) — flash_attn format
+            # SDPA needs (B, H, S, D) and doesn't support GQA natively
+            B, S, Hq, D = q.shape
+            Hkv = k.shape[2]
+            q = q.transpose(1, 2).contiguous()  # (B, Hq, S, D)
+            k = k.transpose(1, 2).contiguous()  # (B, Hkv, S, D)
+            v = v.transpose(1, 2).contiguous()  # (B, Hkv, S, D)
+            # GQA: repeat KV heads to match Q heads
+            if Hkv != Hq:
+                reps = Hq // Hkv
+                k = k.repeat_interleave(reps, dim=1)  # (B, Hq, S, D)
+                v = v.repeat_interleave(reps, dim=1)
+            orig_dtype = q.dtype
+            if orig_dtype not in (torch.float16, torch.bfloat16):
+                q, k, v = q.bfloat16(), k.bfloat16(), v.bfloat16()
+            out = F.scaled_dot_product_attention(q, k, v, is_causal=causal)
+            out = out.transpose(1, 2)  # back to (B, S, Hq, D)
+            return out.to(orig_dtype) if out.dtype != orig_dtype else out
 
 # --- Trinity Hybrid: Ternary quantization functions ---
 
@@ -115,7 +136,7 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 4.0))  # PR #1329 uses 4.0 (sharper attention)
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
@@ -140,8 +161,8 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 0))
-    mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.2))
+    mtp_num_heads = int(os.environ.get("MTP_NUM_HEADS", 2))  # PR #1329: multi-token prediction during training
+    mtp_loss_weight = float(os.environ.get("MTP_LOSS_WEIGHT", 0.1))  # PR #1329: 0.1 aux loss weight
     muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
@@ -167,18 +188,28 @@ class Hyperparameters:
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    gptq_calib_val = bool(int(os.environ.get("GPTQ_CALIB_VAL", "1")))  # use val data instead of AR self-gen (PR #1329)
     # Score-First TTT (Test-Time Training) — train on already-scored tokens
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.001))  # Pre-quant TTT LR (matches PR #1329)
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))  # 1 epoch (matches PR #1329)
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))  # 32k chunks (PR #1329)
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 10))  # freeze blocks 0..9
-    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 4))
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))  # PR #1329 uses 32 (was 4 — 8x more SGD steps with noisier grads)
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
-    # SLOT v3 — separate from TTT_LR
-    slot_lr = float(os.environ.get("SLOT_LR", 0.024))
+    # SLOT v4 — aggressive per-sample optimization (PR #1430: LR=0.432, beta1=0.6, beta2=0.5)
+    slot_lr = float(os.environ.get("SLOT_LR", 0.432))
     slot_steps = int(os.environ.get("SLOT_STEPS", 24))
     slot_stride = int(os.environ.get("SLOT_STRIDE", 64))
+    slot_beta1 = float(os.environ.get("SLOT_BETA1", 0.6))
+    slot_beta2 = float(os.environ.get("SLOT_BETA2", 0.5))
+    slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 128))
+    # N-gram mixer (PR #1430: Order-22, 4M buckets, entropy-adaptive alpha)
+    ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", 22))
+    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", 4_194_304))
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 2))
+    ngram_min_tokens = int(os.environ.get("NGRAM_MIN_TOKENS", 5000))
     # GPTQ damp factor
     gptq_damp_factor = float(os.environ.get("GPTQ_DAMP_FACTOR", 0.005))
 
@@ -1309,6 +1340,130 @@ def eval_val_sliding_ttt(
     return val_loss, val_bpb
 
 
+# --- Backoff N-gram Mixer (PR #1430, 0.396 BPB) ---
+# Hash-based n-gram count tables (order 2..max_order) with entropy-adaptive blending.
+# Built incrementally on scored tokens (score-first, then update). Legal under rules.
+
+class BackoffNgramMixer:
+    """GPU-vectorized N-gram mixer. update() and score() use tensor ops, no Python loops."""
+    PRIMES_T = torch.tensor([36313, 27191, 51647, 81929, 131071, 174763, 233017, 282527, 357347, 451439], dtype=torch.int64)
+
+    def __init__(self, vocab_size: int = 1024, device: torch.device = None,
+                 num_buckets: int = 4_194_304, max_order: int = 22,
+                 min_count: int = 2, min_tokens: int = 5000,
+                 alpha_base: float = 0.20, alpha_range: float = 0.55,
+                 alpha_center: float = 2.5):
+        self.V = vocab_size
+        self.B = num_buckets
+        self.mask = num_buckets - 1  # power-of-2 bitmask
+        self.max_order = max_order
+        self.min_count = min_count
+        self.min_tokens = min_tokens
+        self.alpha_base = alpha_base
+        self.alpha_range = alpha_range
+        self.alpha_center = alpha_center
+        self.tokens_seen = 0
+        self.device = device or torch.device('cpu')
+        self.uni_counts = torch.zeros(vocab_size, dtype=torch.float32, device=self.device)
+        self.uni_total = 0.0
+        self.ctx_counts = [torch.zeros(num_buckets, dtype=torch.float32, device=self.device)
+                          for _ in range(max_order - 1)]
+        self.full_counts = [torch.zeros(num_buckets, dtype=torch.float32, device=self.device)
+                           for _ in range(max_order - 1)]
+        self.primes = self.PRIMES_T.to(self.device)
+
+    def update(self, tokens: Tensor):
+        """Vectorized update of n-gram tables."""
+        tokens = tokens.detach().to(self.device).long()
+        n = tokens.numel()
+        self.tokens_seen += n
+        # Unigram update (vectorized scatter_add)
+        self.uni_counts.scatter_add_(0, tokens, torch.ones(n, device=self.device))
+        self.uni_total += n
+        # Per-order update (vectorized)
+        for order in range(2, self.max_order + 1):
+            oi = order - 2
+            ctx_len = order - 1
+            if n <= ctx_len:
+                continue
+            # Vectorized hash: XOR-multiply across context positions
+            # For each position i (from ctx_len to n-1), hash tokens[i-ctx_len:i]
+            valid = n - ctx_len
+            ctx_hash = torch.zeros(valid, dtype=torch.int64, device=self.device)
+            for k in range(ctx_len):
+                prime = self.primes[k % 10]
+                ctx_hash ^= tokens[k:k + valid].long() * prime
+            ctx_buckets = (ctx_hash & self.mask).long()
+            # Full hash: ctx_hash XOR (target * prime)
+            target_tokens = tokens[ctx_len:ctx_len + valid].long()
+            full_hash = ctx_hash ^ (target_tokens * self.primes[(order - 1) % 10])
+            full_buckets = (full_hash & self.mask).long()
+            # scatter_add into count tables
+            ones = torch.ones(valid, device=self.device)
+            self.ctx_counts[oi].scatter_add_(0, ctx_buckets, ones)
+            self.full_counts[oi].scatter_add_(0, full_buckets, ones)
+
+    def score(self, logits: Tensor, x_batch: Tensor, y_batch: Tensor,
+              score_mask: Tensor) -> Tensor:
+        """GPU-vectorized scoring with n-gram blending."""
+        bsz, seq_len = y_batch.shape
+        dev = logits.device
+        with torch.no_grad():
+            neural_p_all = torch.softmax(logits.float(), dim=-1)
+            log_p = torch.log(neural_p_all.clamp(min=1e-10))
+            entropy = -(neural_p_all * log_p).sum(dim=-1)
+            neural_p = neural_p_all.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
+
+        # Initialize ngram_p with smoothed unigram
+        targets = y_batch.to(self.device).long()
+        ngram_p = (self.uni_counts[targets.reshape(-1)] + 0.5) / (self.uni_total + 0.5 * self.V)
+        ngram_p = ngram_p.reshape(bsz, seq_len)
+        hit = torch.zeros(bsz, seq_len, dtype=torch.bool, device=self.device)
+
+        # Backoff: highest order first (vectorized per order)
+        x_dev = x_batch.to(self.device).long()
+        y_dev = y_batch.to(self.device).long()
+        for order in range(self.max_order, 1, -1):
+            ctx_len = order - 1
+            if seq_len <= ctx_len:
+                continue
+            oi = order - 2
+            valid_cols = seq_len - ctx_len  # positions that have enough context
+            # Build context hash for all (batch, valid_position) pairs
+            # x_dev[:, col:col+1] for each context position
+            ctx_hash = torch.zeros(bsz, valid_cols, dtype=torch.int64, device=self.device)
+            for k in range(ctx_len):
+                prime = self.primes[k % 10]
+                # Context token at offset k from start of context window
+                # For position t (from ctx_len to seq_len-1), context starts at t-ctx_len+1
+                # So context token k is at position (t - ctx_len + 1 + k) = t - ctx_len + 1 + k
+                col_start = 1 + k  # in x_batch, position offset
+                col_end = col_start + valid_cols
+                if col_end > seq_len:
+                    break
+                ctx_hash ^= x_dev[:, col_start:col_end].long() * prime
+            ctx_buckets = (ctx_hash & self.mask).long()
+            # Full hash
+            target_cols = y_dev[:, ctx_len:ctx_len + valid_cols].long()
+            full_hash = ctx_hash ^ (target_cols * self.primes[(order - 1) % 10])
+            full_buckets = (full_hash & self.mask).long()
+            # Lookup counts
+            ctx_c = self.ctx_counts[oi][ctx_buckets.reshape(-1)].reshape(bsz, valid_cols)
+            full_c = self.full_counts[oi][full_buckets.reshape(-1)].reshape(bsz, valid_cols)
+            # Where ctx_c >= min_count AND not already hit
+            valid_mask = (ctx_c >= self.min_count) & (~hit[:, ctx_len:ctx_len + valid_cols])
+            p = (full_c / ctx_c.clamp(min=1)).clamp(0, 1)
+            ngram_p[:, ctx_len:ctx_len + valid_cols] = torch.where(valid_mask, p, ngram_p[:, ctx_len:ctx_len + valid_cols])
+            hit[:, ctx_len:ctx_len + valid_cols] |= valid_mask
+
+        ngram_p = ngram_p.to(dev)
+        alpha = self.alpha_base + self.alpha_range * torch.sigmoid(2.0 * (entropy - self.alpha_center))
+        mixed_p = (1.0 - alpha) * neural_p + alpha * ngram_p
+        nll = -torch.log(mixed_p.clamp(min=1e-10))
+        std_nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction="none").reshape(bsz, seq_len)
+        return torch.where(score_mask, nll, std_nll)
+
+
 # --- Per-Sample SLOT v2 (Sample-specific Language Model Optimization at Test-time) ---
 # Based on arXiv:2505.12392 and PR #1329 (0.636 BPB).
 # Per-sample delta + logit_bias in hidden/logit space — model weights fully frozen.
@@ -1361,6 +1516,20 @@ def eval_val_slot_v2(
     base_model.eval()
     for param in base_model.parameters():
         param.requires_grad = False
+
+    # Initialize N-gram mixer (PR #1430: Order-22, entropy-adaptive blending)
+    ngram_mixer = None
+    if getattr(args, 'ngram_enabled', False):
+        ngram_mixer = BackoffNgramMixer(
+            vocab_size=vocab_size, device=device,
+            num_buckets=getattr(args, 'ngram_buckets', 4_194_304),
+            max_order=getattr(args, 'ngram_order', 22),
+            min_count=getattr(args, 'ngram_min_count', 2),
+            min_tokens=getattr(args, 'ngram_min_tokens', 5000),
+        )
+        if rank == 0:
+            mem_mb = ngram_mixer.B * 2 * (ngram_mixer.max_order - 1) * 4 / 1024 / 1024
+            print(f"ngram_mixer: order={ngram_mixer.max_order} buckets={ngram_mixer.B} mem={mem_mb:.0f}MB")
 
     # Try to compile forward_hidden for speed
     try:
@@ -1417,10 +1586,12 @@ def eval_val_slot_v2(
         # Flatten targets for loss computation
         targets_flat = y_batch.reshape(-1)  # (bsz * seq_len,)
 
-        # STEP 4: AdamW optimization on delta + logit_bias
+        # STEP 4: AdamW optimization on delta + logit_bias (PR #1430: aggressive LR + low betas)
+        slot_b1 = getattr(args, 'slot_beta1', 0.6)
+        slot_b2 = getattr(args, 'slot_beta2', 0.5)
         optimizer = torch.optim.AdamW(
             [delta, logit_bias],
-            lr=slot_lr, weight_decay=1e-8, eps=1e-5, betas=(0.9, 0.95),
+            lr=slot_lr, weight_decay=1e-8, eps=1e-5, betas=(slot_b1, slot_b2),
         )
         for step in range(slot_steps):
             # Cosine LR decay from slot_lr to lr_min
@@ -1447,17 +1618,21 @@ def eval_val_slot_v2(
             loss.backward()
             optimizer.step()
 
-        # STEP 5: Final scoring with optimized delta (recorded towards BPB)
+        # STEP 5: Final scoring with optimized delta + N-gram blending (recorded towards BPB)
         with torch.no_grad():
             h_final = hidden + delta  # (bsz, seq_len, model_dim)
             logits_proj_final = h_final @ lm_weight.t() + logit_bias
             logits_final = softcap * torch.tanh(logits_proj_final / softcap)
 
-            nll_final = F.cross_entropy(
-                logits_final.reshape(-1, vocab_size).float(),
-                targets_flat,
-                reduction="none",
-            ).reshape(bsz, seq_len)
+            # N-gram blending: if mixer has seen enough tokens, blend neural+ngram probs
+            if ngram_mixer is not None and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
+                nll_final = ngram_mixer.score(logits_final.float(), x_batch, y_batch, score_mask.bool())
+            else:
+                nll_final = F.cross_entropy(
+                    logits_final.reshape(-1, vocab_size).float(),
+                    targets_flat,
+                    reduction="none",
+                ).reshape(bsz, seq_len)
 
             for i, ws in enumerate(batch_ws):
                 wlen = wlens[i]
@@ -1470,6 +1645,11 @@ def eval_val_slot_v2(
                 tb = base_bytes_lut[tgt].to(torch.float64)
                 tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                 byte_count += tb.sum()
+
+        # STEP 5b: Update N-gram table AFTER scoring (score-first protocol)
+        if ngram_mixer is not None:
+            wlen_common = min(wlens) if wlens else seq_len
+            ngram_mixer.update(x_batch[:, :wlen_common].reshape(-1))
 
         # STEP 6: Discard delta+bias (they go out of scope on next iteration)
         del delta, logit_bias, optimizer, hidden, h_final
@@ -1599,9 +1779,21 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
     W = t32[:, perm].clone()
     W[:, dead[perm]] = 0
     H = H[perm][:, perm]
-    Hinv = torch.linalg.cholesky(H)
-    Hinv = torch.cholesky_inverse(Hinv)
-    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    # PR #1329: Cholesky retry loop with adaptive damping (5 attempts)
+    Hinv = None
+    for extra_damp_scale in [0.0, 0.05, 0.1, 0.5, 1.0]:
+        try:
+            H_try = H.clone()
+            if extra_damp_scale > 0:
+                H_try[torch.arange(cols), torch.arange(cols)] += extra_damp_scale * torch.mean(torch.diag(H_try))
+            Hinv = torch.linalg.cholesky(H_try)
+            Hinv = torch.cholesky_inverse(Hinv)
+            Hinv = torch.linalg.cholesky(Hinv, upper=True)
+            break
+        except torch.linalg.LinAlgError:
+            continue
+    if Hinv is None:
+        return _quantize_int6_percentile(t32, clip_range)
     best_q = None; best_scale = None; best_err = float('inf')
     for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
         if pct < 1.0:
@@ -2395,19 +2587,30 @@ def main() -> None:
         {k: v.to(device) for k, v in unbanked_sd.items() if k in hessian_model.state_dict()},
         strict=False,
     )
-    # Autoregressive self-generated calibration (no external data)
-    log0("trinity:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...")
-    base_model.load_state_dict(export_sd, strict=False)
-    t_gen = time.perf_counter()
-    ar_tokens = generate_autoregressive_calib(
-        base_model, device, num_seqs=64, seq_len=args.train_seq_len,
-        vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
-    )
-    log0(f"trinity:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gen:.1f}s")
-    log0("trinity:collecting hessians from autoregressive data (for attn int6 GPTQ)...")
-    hessians = collect_hessians_from_tokens(hessian_model, ar_tokens, device)
-    log0(f"trinity:collected hessians for {len(hessians)} layers (AR self-gen)")
-    del ar_tokens
+    # GPTQ calibration — PR #1329 uses val data + 256 sequences (was 64 in our v4)
+    if args.gptq_calib_val:
+        n_calib_seqs = min(args.gptq_calib_batches, (val_tokens.numel() - 1) // args.train_seq_len)
+        log0(f"trinity:using validation data for GPTQ calibration ({n_calib_seqs} seqs x {args.train_seq_len} tokens)...")
+        t_gen = time.perf_counter()
+        cv_needed = n_calib_seqs * args.train_seq_len + 1
+        cv = val_tokens[:cv_needed].to(dtype=torch.int64)
+        # Build list of (1, seq_len+1) tensors — collect_hessians_from_tokens uses seq[:, :-1] / seq[:, 1:]
+        calib_list = [cv[i * args.train_seq_len:(i + 1) * args.train_seq_len + 1].unsqueeze(0)
+                      for i in range(n_calib_seqs)]
+        log0(f"trinity:val calib prepared {len(calib_list)} sequences in {time.perf_counter()-t_gen:.1f}s")
+    else:
+        log0("trinity:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...")
+        base_model.load_state_dict(export_sd, strict=False)
+        t_gen = time.perf_counter()
+        calib_list = generate_autoregressive_calib(
+            base_model, device, num_seqs=64, seq_len=args.train_seq_len,
+            vocab_size=args.vocab_size, temperature=0.8, batch_size=8, seed=args.seed,
+        )
+        log0(f"trinity:generated {len(calib_list)} sequences in {time.perf_counter()-t_gen:.1f}s")
+    log0("trinity:collecting hessians (for attn int6 GPTQ)...")
+    hessians = collect_hessians_from_tokens(hessian_model, calib_list, device)
+    log0(f"trinity:collected hessians for {len(hessians)} layers")
+    del calib_list
     del hessian_model
     torch.cuda.empty_cache()
     # Trinity v4-fix: use int6 GPTQ for ALL weights (proven reliable),

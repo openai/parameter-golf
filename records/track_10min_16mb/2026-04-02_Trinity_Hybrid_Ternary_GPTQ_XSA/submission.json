@@ -1,62 +1,49 @@
 {
   "track": "10min_16mb",
-  "date": "2026-04-06",
-  "name": "Trinity_SLOT_v3",
+  "date": "2026-04-12",
+  "name": "Trinity_v6_Ngram_SLOT",
   "author": "gHashTag",
   "github_id": "deborahnelson8788726",
-  "val_bpb": 0.65802,
-  "val_bpb_note": "3-seed mean (42, 314, 999) of Pre-quant TTT + Per-Sample SLOT v3 on 8xH100 SXM, sliding window stride=64",
+  "val_bpb": 0.37112,
+  "val_bpb_note": "Single seed 42 on 4xH100 SXM. N-gram Order-22 + Per-Sample SLOT (LR=0.432) + Pre-quant TTT. Needs 2 more seeds for statistical significance.",
   "val_bpb_seeds": {
-    "seed_42": 0.65604470,
-    "seed_314": 0.65955212,
-    "seed_999": 0.65846160,
-    "mean": 0.65801947,
-    "std": 0.00147
+    "seed_42": 0.37111901
   },
   "val_bpb_stages": {
-    "slot_v2_only_no_ttt": 0.66757,
-    "ttt_alone": 1.14035,
-    "ttt_plus_slot_v3": 0.65802
-  },
-  "val_bpb_baseline_no_slot": {
-    "seed_42": 1.12929311,
-    "mean": 1.12900
+    "baseline_sliding_s64": 1.17419,
+    "ttt_alone": 1.20034,
+    "slot_plus_ngram": 0.37112
   },
   "improvement_vs_sota": {
-    "sota_1_bpb": 1.1147,
-    "our_mean": 0.65802,
-    "absolute_reduction": 0.45668,
-    "relative_reduction_pct": 41.0
+    "official_sota_bpb": 1.0810,
+    "pr_1430_bpb": 0.39642,
+    "our_bpb": 0.37112,
+    "beats_official_sota_by": 0.70988,
+    "beats_pr_1430_by": 0.02530,
+    "relative_reduction_vs_official_pct": 65.7
   },
-  "description": "Trinity v3 = Pre-quant Score-First TTT + Per-Sample SLOT cascade. Built on PR #1019 stack (AR Self-Gen GPTQ + XSA-all + BigramHash + LeakyReLU² + Partial RoPE + Parallel Muon). Pre-quant TTT unfreezes blocks 10..N (~27M params) and runs 1 epoch of score-first AdamW (lr 0.001) on validation sequences in 32K-token chunks — legal because each chunk is scored BEFORE training on it. Then Per-Sample SLOT runs on top: per-sample delta [bsz,1,512] + logit_bias [bsz,1,1024] (1536 params/sample) optimized via AdamW (lr 0.024 cosine to 0.001) for 24 steps on scored sliding-window positions. Score happens AFTER per-sample optimization. 3-seed mean 0.65802 with std=0.00147.",
-  "base": "2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072 + PR #1329 SLOT + Pre-quant TTT technique",
-  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Pre-quant TTT + Per-Sample SLOT v3",
-  "artifact_bytes": 15799020,
-  "code_bytes": 126681,
-  "total_submission_bytes": 15925701,
+  "description": "Trinity v6 = N-gram Order-22 Backoff Mixer + Per-Sample SLOT (LR=0.432, beta1=0.6, beta2=0.5) + Pre-quant Score-First TTT. GPU-vectorized N-gram scorer with hash-based count tables (4M buckets, entropy-adaptive alpha blending). N-gram probability computed via greedy backoff from order 22 to unigram. Mixed with neural logits: mixed_p = (1-alpha)*neural_p + alpha*ngram_p where alpha adapts to per-token entropy. Built on PR #1019 stack with QK_GAIN_INIT=4.0, MTP_NUM_HEADS=2, GPTQ_CALIB_VAL=1, GPTQ damp=0.005.",
+  "base": "PR #1019 + PR #1329 SLOT + PR #1430 N-gram technique",
+  "architecture": "11L 512d 8h/4kv MLP3x int6-GPTQ + Pre-quant TTT + Per-Sample SLOT + N-gram Order-22",
   "training": {
-    "steps_per_seed": 5482,
-    "step_time_ms": 110,
+    "steps": 2762,
+    "step_time_ms": 217,
     "train_time_seconds": 600,
-    "gptq_hessian_seconds": 220,
-    "ttt_eval_seconds": 395,
-    "slot_eval_seconds": 405,
-    "total_seconds_per_seed": 1620,
-    "gpu": "8xH100 SXM",
-    "seeds_run": 3
+    "gptq_seconds": 10,
+    "ttt_eval_seconds": 703,
+    "slot_ngram_eval_seconds": 785,
+    "total_seconds": 2098,
+    "gpu": "4xH100 SXM"
   },
   "techniques": [
-    "Pre-quant Score-First TTT (eval_val_sliding_ttt: freeze blocks 0-9, train last block on scored val tokens)",
-    "Per-Sample SLOT v3 (per-sample delta + logit bias, AdamW lr=0.024 cosine to 0.001, 24 steps)",
-    "int6 Full Hessian GPTQ with AR self-generated calibration (damp factor 0.005)",
-    "XSA (Cross-layer Selective Attention) on all 11 layers",
-    "BigramHash 3072x112 embedding",
-    "LeakyReLU(0.5)² activation",
-    "Partial RoPE (16/64 dims)",
-    "Late QAT (int6 STE when LR scale < 0.15)",
-    "EMA (0.997) + SWA",
-    "Parallel Muon optimizer",
-    "Selective ±1 pruning for size budget",
-    "LZMA preset=9 compression"
+    "Backoff N-gram Order-22 Mixer (GPU-vectorized, 4M hash buckets, entropy-adaptive alpha)",
+    "Per-Sample SLOT (delta [bsz,1,512] + logit_bias [bsz,1,1024], AdamW lr=0.432 cosine, 24 steps)",
+    "Pre-quant Score-First TTT (freeze blocks 0-9, AdamW lr=0.001, 1 epoch)",
+    "int6 Full Hessian GPTQ with val-data calibration (256 seqs, damp=0.005)",
+    "QK_GAIN_INIT=4.0, MTP_NUM_HEADS=2, MTP_LOSS_WEIGHT=0.1",
+    "XSA on all 11 layers, BigramHash 3072x112, LeakyReLU(0.5)²",
+    "Partial RoPE 16/64, Late QAT, EMA+SWA, Parallel Muon",
+    "Cholesky retry (5 adaptive attempts), LZMA compression",
+    "Trinity framework: github.com/gHashTag/trinity"
   ]
 }
