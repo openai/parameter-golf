@@ -27,7 +27,3 @@
 
 This record uses a fixed int6 model with **no TTT, no SLOT, no RLS, and no eval-time adaptation**. All three serialized artifacts are below the 16 MB cap. XSA telemetry is reported for completeness, but the submission authority remains `quantized_bpb`.
 
-## Provenance
-
-- **Parent repair probe:** compressed-code warmdown1000 single-seed repair on the same family
-- **Upstream source PR:** `openai/parameter-golf#1545`
