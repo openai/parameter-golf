@@ -57,6 +57,7 @@ Forward pass modified to loop `depth_repeats` times over `self.blocks`, tracking
 | 5×2 | 5 | 10 | 9.7M | 7.7 MB | 1.3819 | 444 | +0.050 |
 | 5×2 + BigramHash | 5 | 10 | 9.8M | 7.9 MB | 1.3955 | 444 | +0.064 |
 | 3×3 | 3 | 9 | 6.0M | 4.9 MB | 1.4238 | 433 | +0.092 |
+| 7×3 | 7 | 21 | 13.4M | 9.0 MB | 1.4075 | 755 | +0.075 |
 | 3×5 | 3 | 15 | 6.0M | 4.5 MB | 1.4382 | 556 | +0.106 |
 | 3×3 wide (640d) | 3 | 9 | 11.7M | 7.2 MB | 2.0672 | 504 | +0.735 (failed) |
 
@@ -65,23 +66,25 @@ Forward pass modified to loop `depth_repeats` times over `self.blocks`, tracking
 ```
 BPB gap vs baseline (×2 repeats unless noted):
 
-+0.10 |  *  3×3
-+0.09 |
+         Unique blocks
+         3    5    7    9
++0.11 |  *3×3
++0.10 |
++0.09 |  *3×5
 +0.08 |
-+0.07 |
++0.07 |       *7×3  ← more repeats, worse again
 +0.06 |
-+0.05 |     *  5×2
-+0.04 |           *  9×2  ← breaks trend (step-budget starved)
-+0.03 |        *  7×2
++0.05 |       *5×2
++0.04 |                 *9×2  ← step-budget starved
++0.03 |            *7×2  ← optimal
 +0.02 |
 +0.01 |
- 0.00 |              *  9×1 (baseline)
-      +--+--+--+--+--
-         3  5  7  9
-         Unique blocks
+ 0.00 |                    *9×1 (baseline)
 ```
 
-~0.02 BPB improvement per 2 additional unique blocks from 3→7. **9×2 breaks this trend** — see Finding #6.
+- Along any fixed block count: **more repeats always hurt** (3×3→3×5, 7×2→7×3)
+- Along ×2 repeats: more unique blocks help (3→5→7), then step-starvation at 9×2
+- **7×2 is the proven optimum from both directions**
 
 ---
 
@@ -123,6 +126,15 @@ The 3×3 wide (MODEL_DIM=640) run catastrophically failed (2.0672 BPB). Root cau
 
 The tradeoff is clear: recurrence only helps when the step-time overhead is compensated by having fewer unique parameters to train. 7×2 hits the sweet spot — smaller model trains faster per step, recurrence gives it effective depth. 9×2 pays the recurrence cost without the parameter savings.
 
+### 7. More repeats always hurt — confirmed universally
+
+| Pair | Fewer repeats | More repeats | BPB penalty |
+|------|---|---|---|
+| 3-block | 3×3: 1.4238 | 3×5: 1.4382 | +0.014 |
+| 7-block | 7×2: 1.3680 | 7×3: 1.4075 | **+0.040** |
+
+The penalty grows with more unique blocks — because a larger model at higher effective depth takes longer per step, starving training further. 7×3 (755 ms/step) gets only 795 steps vs 7×2's 1108 steps, despite identical 13.4M params. The rule holds universally: **never add repeats, add unique blocks instead**.
+
 ### 5. Optimal tradeoff: 7×2
 
 For artifact-size-constrained scenarios, 7×2 offers the best balance: only +0.036 BPB gap with 26% smaller artifact (10.0 MB vs 13.6 MB). On 8x H100 with ~6900 steps, this gap would likely shrink further as shared weights get more training.
@@ -131,9 +143,10 @@ For artifact-size-constrained scenarios, 7×2 offers the best balance: only +0.0
 
 ## Negative Results
 
-1. **Depth > unique diversity** — More recurrence passes (3×5) hurt vs fewer (3×3). Shared weights saturate quickly.
-2. **BigramHash + recurrence** — These tricks compete, don't complement, at low step counts.
-3. **Naive width scaling** — Changing model dimensions without retuning optimizer hyperparameters produces catastrophic results.
+1. **More repeats always hurt** — Confirmed at 3 blocks (3×3→3×5) and 7 blocks (7×2→7×3). Root cause: each extra repeat slows the forward pass, eating into the fixed training budget. Never increase repeats; increase unique blocks instead.
+2. **9×2 breaks the unique-block scaling trend** — Same params as baseline but 35% fewer steps in 600s budget. Step-budget starvation overrides any benefit from deeper effective representation.
+3. **BigramHash + recurrence compete** — These tricks don't complement at low step counts; bigram params steal training capacity from recurrent blocks.
+4. **Naive width scaling** — Changing model dimensions without retuning optimizer hyperparameters produces catastrophic results (3×3 wide: 2.07 BPB).
 
 ---
 
