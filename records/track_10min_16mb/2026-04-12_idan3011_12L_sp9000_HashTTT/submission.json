@@ -1,0 +1,10 @@
+{
+  "val_bpb": 1.1036,
+  "train_time_seconds": 600,
+  "eval_time_seconds": 233,
+  "artifact_bytes": 15700910,
+  "num_params": 36098144,
+  "track": "track_10min_16mb",
+  "hardware": "8xH100_SXM_80GB",
+  "seed": 1337
+}

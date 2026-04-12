@@ -308,7 +308,6 @@ def eval_val_ttt(args, base_model, rank, world_size, device, val_tokens,
         my_s = (len(windows) * rank) // world_size
         my_e = (len(windows) * (rank + 1)) // world_size
         my_windows = windows[my_s:my_e]
-        base_model.eval()
         with torch.no_grad():
             for bi in range(0, len(my_windows), score_bs):
                 bw = my_windows[bi:bi + score_bs]
@@ -330,7 +329,6 @@ def eval_val_ttt(args, base_model, rank, world_size, device, val_tokens,
                 for pg in opt.param_groups: pg['lr'] = cos_lr
                 my_seq_s = (chunk_seqs * rank) // world_size
                 my_seq_e = (chunk_seqs * (rank + 1)) // world_size
-                base_model.train()
                 for _ in range(ttt_epochs):
                     for bs in range(my_seq_s, my_seq_e, train_bs):
                         be = min(bs + train_bs, my_seq_e)
