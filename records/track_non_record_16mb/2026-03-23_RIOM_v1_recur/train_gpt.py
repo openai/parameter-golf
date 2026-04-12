@@ -19,18 +19,91 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
-import sentencepiece as spm
+try:
+    import sentencepiece as spm
+    _SENTENCEPIECE_IMPORT_ERROR = None
+except ModuleNotFoundError as exc:
+    spm = None
+    _SENTENCEPIECE_IMPORT_ERROR = exc
 
-import mlx.core as mx
-import mlx.nn as nn
-import mlx.optimizers as optim
-from mlx.utils import tree_flatten, tree_unflatten
+try:
+    import mlx.core as mx
+    import mlx.nn as nn
+    import mlx.optimizers as optim
+    from mlx.utils import tree_flatten, tree_unflatten
+    _MLX_IMPORT_ERROR = None
+except ModuleNotFoundError as exc:
+    _MLX_IMPORT_ERROR = exc
+
+    class _MissingMLXCallable:
+        def __init__(self, *args, **kwargs) -> None:
+            raise ModuleNotFoundError(
+                "This submission requires MLX at runtime. "
+                "Install `mlx` to run it on Apple Silicon."
+            ) from _MLX_IMPORT_ERROR
+
+    class _MissingMLXCore:
+        bfloat16 = "bfloat16"
+        float32 = "float32"
+        float16 = "float16"
+        int32 = "int32"
+
+        def __getattr__(self, name: str):
+            raise ModuleNotFoundError(
+                "This submission requires MLX at runtime. "
+                "Install `mlx` to run it on Apple Silicon."
+            ) from _MLX_IMPORT_ERROR
+
+    class _MissingMLXNN:
+        Module = object
+        Linear = _MissingMLXCallable
+        Embedding = _MissingMLXCallable
+        RoPE = _MissingMLXCallable
+
+        @staticmethod
+        def silu(*args, **kwargs):
+            raise ModuleNotFoundError(
+                "This submission requires MLX at runtime. "
+                "Install `mlx` to run it on Apple Silicon."
+            ) from _MLX_IMPORT_ERROR
+
+    class _MissingMLXOptim:
+        Adam = _MissingMLXCallable
+
+    def tree_flatten(*args, **kwargs):
+        raise ModuleNotFoundError(
+            "This submission requires MLX at runtime. "
+            "Install `mlx` to run it on Apple Silicon."
+        ) from _MLX_IMPORT_ERROR
+
+    def tree_unflatten(*args, **kwargs):
+        raise ModuleNotFoundError(
+            "This submission requires MLX at runtime. "
+            "Install `mlx` to run it on Apple Silicon."
+        ) from _MLX_IMPORT_ERROR
+
+    mx = _MissingMLXCore()
+    nn = _MissingMLXNN()
+    optim = _MissingMLXOptim()
 
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
 
 COMPUTE_DTYPE = mx.bfloat16
+
+
+def require_runtime_deps() -> None:
+    missing: list[str] = []
+    if spm is None:
+        missing.append(f"sentencepiece ({_SENTENCEPIECE_IMPORT_ERROR})")
+    if _MLX_IMPORT_ERROR is not None:
+        missing.append(f"mlx ({_MLX_IMPORT_ERROR})")
+    if missing:
+        raise ModuleNotFoundError(
+            "Missing runtime dependency for this submission: "
+            + ", ".join(missing)
+        )
 
 # ==============================================================================
 # HYPERPARAMETERS
@@ -839,6 +912,7 @@ def main() -> None:
     # ==============================================================================
     # TOKENIZER + VALIDATION METRIC SETUP
     # ==============================================================================
+    require_runtime_deps()
     args = Hyperparameters()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
