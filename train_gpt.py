@@ -126,7 +126,6 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
 
-
 # Names of control tensors that should stay in higher precision during quantization.
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     p for p in os.environ.get(
@@ -135,8 +134,6 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
         "q_gain,skip_weight,skip_weights",
     ).split(",") if p
 )
-
-
 # -----------------------------
 # MUON OPTIMIZER (with optional EqR row normalization)
 # -----------------------------
@@ -152,8 +149,6 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
         B = b * A + c * A @ A
         X = a * X + B @ X
     return X.T if transposed else X
-
-
 class Muon(torch.optim.Optimizer):
     def __init__(self, params, lr: float, momentum: float, backend_steps: int,
                  nesterov: bool = True, row_norm: bool = False):
@@ -162,23 +157,19 @@ class Muon(torch.optim.Optimizer):
             dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
                  nesterov=nesterov, row_norm=row_norm),
         )
-
     @torch.no_grad()
     def step(self, closure=None):
         loss = None
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-
         distributed = dist.is_available() and dist.is_initialized()
         world_size = dist.get_world_size() if distributed else 1
         rank = dist.get_rank() if distributed else 0
-
         for group in self.param_groups:
             params = group["params"]
             if not params:
                 continue
-
             lr = group["lr"]
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
@@ -216,8 +207,6 @@ class Muon(torch.optim.Optimizer):
                 curr += p.numel()
 
         return loss
-
-
 # -----------------------------
 # TOKENIZER-AGNOSTIC EVALUATION SETUP
 # -----------------------------
@@ -242,14 +231,11 @@ def build_sentencepiece_luts(
             has_leading_space_np[token_id] = True
             piece = piece[1:]
         base_bytes_np[token_id] = len(piece.encode("utf-8"))
-
     return (
         torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
         torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
         torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
     )
-
-
 def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
@@ -259,16 +245,12 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
     return tokens[: usable + 1]
-
-
 def _count_bytes(prev_ids: Tensor, tgt_ids: Tensor, base_bytes_lut: Tensor,
                  has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> Tensor:
     """Count bytes for a batch of (prev, target) token pairs."""
     token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
     token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
     return token_bytes.to(torch.float64).sum()
-
-
 def eval_val(
     args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
@@ -286,8 +268,6 @@ def eval_val(
 
     model.train()
     return result
-
-
 def _eval_chunked(
     args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
@@ -301,11 +281,9 @@ def _eval_chunked(
     total_seqs = (val_tokens.numel() - 1) // seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
-
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -325,18 +303,14 @@ def _eval_chunked(
                 x.reshape(-1), y.reshape(-1),
                 base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
             )
-
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
-
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
-
-
 def _eval_sliding(
     args: Hyperparameters, model: nn.Module, rank: int, world_size: int,
     device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
@@ -349,14 +323,11 @@ def _eval_sliding(
     win_start = (num_windows * rank) // world_size
     win_end = (num_windows * (rank + 1)) // world_size
     max_batch = max(1, args.val_batch_size // (seq_len * world_size))
-
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
-
     base_model = model.module if hasattr(model, "module") else model
     raw_model = base_model._orig_mod if hasattr(base_model, "_orig_mod") else base_model
-
     with torch.inference_mode():
         for batch_start in range(win_start, win_end, max_batch):
             batch_end = min(batch_start + max_batch, win_end)
@@ -379,14 +350,12 @@ def _eval_sliding(
             per_token_loss = F.cross_entropy(
                 logits.float().reshape(-1, logits.size(-1)), y.reshape(-1), reduction="none"
             ).reshape(batch_size, seq_len)
-
             for i in range(batch_size):
                 w_idx = batch_start + i
                 if w_idx == 0:
                     count_start = 0
                 else:
                     count_start = seq_len - stride
-
                 counted_loss = per_token_loss[i, count_start:]
                 counted_y = y[i, count_start:]
                 counted_prev = x[i, count_start:]
@@ -397,7 +366,6 @@ def _eval_sliding(
                     counted_prev, counted_y,
                     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
                 )
-
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
@@ -688,7 +656,14 @@ class DistributedTokenLoader:
         self.stream = TokenStream(pattern)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
-        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        # FIX-6: floor-align local_tokens to seq_len to prevent reshape crash
+        raw_local = global_tokens // (self.world_size * grad_accum_steps)
+        local_tokens = (raw_local // seq_len) * seq_len  # must be exact multiple
+        if local_tokens <= 0:
+            raise ValueError(
+                f"global_tokens={global_tokens} too small for world_size={self.world_size}, "
+                f"grad_accum_steps={grad_accum_steps}, seq_len={seq_len}"
+            )
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
@@ -857,9 +832,10 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         if parallel:
+            # FIX-8: parallel GPT-J style: single norm feeds both branches
             normed = self.attn_norm(x)
             attn_out = self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(normed)
-            mlp_out = self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(normed))
+            mlp_out = self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(normed)
             x = x + attn_out + mlp_out
         else:
             attn_out = self.attn(self.attn_norm(x))
@@ -904,9 +880,17 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
-        self.recur_layers = recur_layers or []
         self.parallel_start_layer = parallel_start_layer
         self.recur_active = False
+
+        # FIX-7: validate recur_layers up-front
+        recur_layers = recur_layers or []
+        bad = [i for i in recur_layers if i >= num_layers or i < 0]
+        if bad:
+            raise ValueError(
+                f"recur_layers contains out-of-range indices {bad} for num_layers={num_layers}"
+            )
+        self.recur_layers: list[int] = recur_layers
 
         actual_embed_dim = embed_dim if embed_dim > 0 else model_dim
         self.tok_emb = nn.Embedding(vocab_size, actual_embed_dim)
@@ -942,25 +926,34 @@ class GPT(nn.Module):
 
         self._init_weights()
 
+        # FIX-2: pre-cache recurred pass indices
+        self._recurred_passes_base: set[int] = set()
+        self._recurred_passes_recur: set[int] = self._compute_recurred_passes(self._recur_schedule)
+
+    def _compute_recurred_passes(self, schedule: list[int]) -> set[int]:
+        seen: set[int] = set()
+        recurred: set[int] = set()
+        for pi, li in enumerate(schedule):
+            if li in seen:
+                recurred.add(pi)
+            seen.add(li)
+        return recurred
+
     def _build_recur_schedule(self) -> list[int]:
         if not self.recur_layers:
             return list(range(self.num_layers))
-
         schedule = []
-        recur_set = set(self.recur_layers)
         inserted = False
         for i in range(self.num_layers):
             schedule.append(i)
-            # After the last recur layer, insert the recurrence
             if not inserted and i == max(self.recur_layers):
                 schedule.extend(self.recur_layers)
                 inserted = True
 
         return schedule
-
     def set_recurrence(self, active: bool) -> None:
         self.recur_active = active
-
+        # Cache is pre-computed; no work needed here
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
@@ -969,7 +962,6 @@ class GPT(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
-
     def _get_logits(self, x: Tensor) -> Tensor:
         x = self.final_norm(x)
         if self.tie_embeddings:
@@ -981,39 +973,29 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-
     def _run_block(self, block: Block, x: Tensor, x0: Tensor, parallel: bool) -> Tensor:
         """Wrapper for block forward, used as checkpoint target."""
         return block(x, x0, parallel=parallel)
-
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         if self.emb_up is not None:
             x = self.emb_up(x)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-
-        schedule = self._recur_schedule if self.recur_active else self._base_schedule
+        if self.recur_active:
+            schedule = self._recur_schedule
+            _recurred_passes = self._recurred_passes_recur
+        else:
+            schedule = self._base_schedule
+            _recurred_passes = self._recurred_passes_base  # always empty for base
         n_passes = len(schedule)
         n_enc = n_passes // 2
-        n_dec = n_passes - n_enc
-        n_skip = min(n_enc, n_dec, self.num_skip_weights)
-
-        # Track which layer indices are recurred (appear more than once)
-        _seen: set[int] = set()
-        _recurred_passes: set[int] = set()
-        if self.recur_active:
-            for pi, li in enumerate(schedule):
-                if li in _seen:
-                    _recurred_passes.add(pi)
-                _seen.add(li)
-
+        n_skip = min(n_enc, self.num_skip_weights)
         skips: list[Tensor] = []
         for pass_idx, layer_idx in enumerate(schedule):
             if self.depth_emb is not None and pass_idx < self.depth_emb.weight.size(0):
                 x = x + self.depth_emb.weight[pass_idx][None, None, :]
             is_parallel = layer_idx >= self.parallel_start_layer
-
             # Gradient checkpoint recurred passes to save memory
             if self.training and pass_idx in _recurred_passes:
                 x = torch.utils.checkpoint.checkpoint(
@@ -1022,24 +1004,19 @@ class GPT(nn.Module):
                 )
             else:
                 x = self.blocks[layer_idx](x, x0, parallel=is_parallel)
-
             if pass_idx < n_enc:
                 skips.append(x)
-            elif pass_idx >= n_enc:
+            else:
                 skip_idx = pass_idx - n_enc
                 if skip_idx < n_skip and skips:
                     skip = skips[-(skip_idx + 1)]
                     x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skip
-
         return self._get_logits(x)
-
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         logits = self.forward_logits(input_ids)
         logits = logits.reshape(-1, logits.size(-1))
         targets = target_ids.reshape(-1)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
-
-
 # -----------------------------
 # TRAINING
 # -----------------------------
@@ -1047,34 +1024,26 @@ def main() -> None:
     global zeropower_via_newtonschulz5
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
-
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
     if 8 % world_size != 0:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8")
-
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
-
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
-
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
-
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
 
     master_process = rank == 0
-
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
@@ -1169,7 +1138,8 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
 
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
-    model: nn.Module = (
+    active_compiled = compiled_model
+    active_model: nn.Module = (
         DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
         if distributed else compiled_model
     )
@@ -1181,9 +1151,15 @@ def main() -> None:
                 matrix_params.append(p)
             else:
                 scalar_params.append(p)
-    scalar_params.append(base_model.skip_weights)
+    # skip_weights: shape (num_skip_weights, model_dim) → 2-D matrix → Muon
+    matrix_params.append(base_model.skip_weights)
     if base_model.depth_emb is not None:
         scalar_params.append(base_model.depth_emb.weight)
+
+    if base_model.emb_up is not None:
+        matrix_params.append(base_model.emb_up.weight)
+    if base_model.emb_down is not None:
+        matrix_params.append(base_model.emb_down.weight)
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
 
@@ -1211,17 +1187,6 @@ def main() -> None:
             betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
         )
         optimizers.insert(1, optimizer_head)
-
-    emb_proj_params = []
-    if base_model.emb_up is not None:
-        emb_proj_params.append(base_model.emb_up.weight)
-    if base_model.emb_down is not None:
-        emb_proj_params.append(base_model.emb_down.weight)
-    if emb_proj_params:
-        optimizers.append(torch.optim.Adam(
-            [{"params": emb_proj_params, "lr": token_lr, "base_lr": token_lr}],
-            betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
-        ))
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model:{n_params}p {args.num_layers}L {args.model_dim}d recur:{recur_layers}@{recur_start_step} parallel>={args.parallel_start_layer}")
@@ -1256,25 +1221,33 @@ def main() -> None:
         remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
-    # EMA state
+    _ema_skip: set[str] = set()
+    for buf_name, buf in base_model.named_buffers():
+        _ema_skip.add(buf_name)
+
+    # EMA state — only over trainable float parameters, not buffers
     ema_state: dict[str, Tensor] | None = None
     if args.ema_enabled:
-        ema_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+        ema_state = {
+            k: v.detach().cpu().clone()
+            for k, v in base_model.state_dict().items()
+            if k not in _ema_skip and v.is_floating_point()
+        }
 
     # Warmup
     if args.warmup_steps > 0:
         initial_model_state = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
 
-        model.train()
+        active_model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 if distributed:
-                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                    active_model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    warmup_loss = active_model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1287,11 +1260,15 @@ def main() -> None:
             opt.load_state_dict(state)
         zero_grad_all()
         if distributed:
-            model.require_backward_grad_sync = True
+            active_model.require_backward_grad_sync = True
 
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
         if ema_state is not None:
-            ema_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+            ema_state = {
+                k: v.detach().cpu().clone()
+                for k, v in base_model.state_dict().items()
+                if k not in _ema_skip and v.is_floating_point()
+            }
 
     # GPTQ Hessian collection
     hessian_collector: HessianCollector | None = None
@@ -1323,10 +1300,11 @@ def main() -> None:
             orig_state = None
             if ema_state is not None and step > 0:
                 orig_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
-                base_model.load_state_dict(ema_state, strict=True)
+                # Load only the keys tracked in ema_state; leave buffers untouched
+                base_model.load_state_dict({**orig_state, **ema_state}, strict=True)
 
             val_loss, val_bpb = eval_val(
-                args, model, rank, world_size, device,
+                args, active_model, rank, world_size, device,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             )
             log0(
@@ -1357,15 +1335,16 @@ def main() -> None:
         if recur_layers and step == recur_start_step:
             base_model.set_recurrence(True)
             # Force recompilation with the new forward path
-            compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
-            if distributed:
-                model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
-            else:
-                model = compiled_model
+            # FIX-10: keep active_compiled and active_model in sync
+            active_compiled = torch.compile(base_model, dynamic=False, fullgraph=False)
+            active_model = (
+                DDP(active_compiled, device_ids=[local_rank], broadcast_buffers=False)
+                if distributed else active_compiled
+            )
             log0(f"depth_recurrence_activated at step:{step} layers:{recur_layers}")
 
         # Training step
-        model.train()
+        active_model.train()
         torch.cuda.synchronize()
         step_t0 = time.perf_counter()
 
@@ -1374,10 +1353,10 @@ def main() -> None:
 
         for micro_step in range(grad_accum_steps):
             if distributed:
-                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                active_model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = active_model(x, y)
             (loss * grad_scale).backward()
             train_loss_accum += loss.detach()
 
@@ -1391,13 +1370,6 @@ def main() -> None:
             grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm).item()
         else:
             grad_norm = 0.0
-
-        # Weight decay on matrix params (applied before optimizer step)
-        if args.weight_decay > 0:
-            with torch.no_grad():
-                for p in matrix_params:
-                    current_lr = args.matrix_lr  # will be scaled by lr_mul below
-                    p.mul_(1.0 - current_lr * args.weight_decay)
 
         torch.cuda.synchronize()
         step_time_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1416,13 +1388,23 @@ def main() -> None:
 
         for opt in optimizers:
             opt.step()
+
+        # FIX-1: weight decay after optimizer step, using scheduled LR (mul)
+        if args.weight_decay > 0 and mul > 0:
+            scheduled_lr = args.matrix_lr * mul
+            with torch.no_grad():
+                for p in matrix_params:
+                    p.mul_(1.0 - scheduled_lr * args.weight_decay)
+
         zero_grad_all()
 
-        # EMA update
+        # FIX-4: EMA update only over float parameters (not constant buffers)
         if ema_state is not None:
             with torch.no_grad():
                 decay = args.ema_decay
-                for k, v in base_model.state_dict().items():
+                current_sd = base_model.state_dict()
+                for k in ema_state:
+                    v = current_sd[k]
                     ema_state[k].mul_(decay).add_(v.detach().cpu(), alpha=1.0 - decay)
 
         if master_process and (step + 1) % args.train_log_every == 0:
@@ -1431,25 +1413,23 @@ def main() -> None:
                 f"ema_loss:{train_loss_ema:.4f} grad_norm:{grad_norm:.4f} "
                 f"lr_mul:{mul:.4f} train_time:{step_time_ms:.0f}ms"
             )
-
         step += 1
-
         if max_wallclock_ms is not None and stop_after_step is None:
             if elapsed_ms >= max_wallclock_ms:
                 stop_after_step = step
-
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-
     # Use EMA / best model for quantization
     if ema_state is not None and best_model_state is None:
-        best_model_state = ema_state
+        # Reconstruct full state dict by merging EMA floats back over the last saved state
+        full_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+        full_state.update(ema_state)
+        best_model_state = full_state
     if best_model_state is not None:
         base_model.load_state_dict(best_model_state, strict=True)
         log0(f"restored best model with val_bpb:{best_val_bpb:.4f}")
-
     # Collect GPTQ Hessians via calibration pass
     hessians = None
     if hessian_collector is not None:
@@ -1457,13 +1437,13 @@ def main() -> None:
         calib_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
         base_model.eval()
         with torch.inference_mode():
-            for _ in range(args.gptq_calib_batches):
+            # FIX-3: use named var, not _ (shadowed loop variable)
+            for _calib_step in range(args.gptq_calib_batches):
                 x, y = calib_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    _ = base_model.forward_logits(x)
+                    _logits = base_model.forward_logits(x)
         hessians = hessian_collector.finalize()
         log0(f"GPTQ Hessians collected for {len(hessians)} layers")
-
     # Quantize + compress
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
@@ -1471,13 +1451,11 @@ def main() -> None:
         code_bytes_len = len(code.encode("utf-8"))
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes_len} bytes")
-
     quant_obj, quant_stats = quantize_state_dict(base_model.state_dict(), args, hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = compress_bytes(quant_raw)
-
     if master_process:
         ext = ".brotli.ptz" if HAS_BROTLI else ".zlib.ptz"
         quant_file = f"final_model.{args.quant_bits}bit{ext}"
@@ -1493,8 +1471,7 @@ def main() -> None:
             f"payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size: {quant_file_bytes + code_bytes_len} bytes")
-
-    # Roundtrip validation
+    # Roundtrip validation — use active_compiled (updated on recur recompile)
     if distributed:
         dist.barrier()
     ext = ".brotli.ptz" if HAS_BROTLI else ".zlib.ptz"
@@ -1506,7 +1483,7 @@ def main() -> None:
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
-        args, compiled_model, rank, world_size, device,
+        args, active_compiled, rank, world_size, device,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
@@ -1518,7 +1495,5 @@ def main() -> None:
 
     if distributed:
         dist.destroy_process_group()
-
-
 if __name__ == "__main__":
     main()
