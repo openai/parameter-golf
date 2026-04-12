@@ -15,17 +15,13 @@ The result is not a leaderboard record. The best recurrent-primitive hybrid trai
 
 ## Attribution and Leaderboard Provenance
 
-This experiment was guided by the public leaderboard meta, especially the current #1 record folder `records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT`. This PR does not claim those baseline techniques as original work, and it does not copy that record stack wholesale. The purpose here is narrower: test whether a Fractal recurrent primitive can be inserted into a transformer-derived Parameter Golf stack without destroying the score/size frontier.
+This experiment was guided by the public leaderboard meta, especially the current #1 record. The recurrent primitive is the new variable here; the surrounding stack borrows several proven ingredients from prior public work.
 
-| Technique from the #1 stack | Credit | Status in this PR |
+| Used ingredient | Credit | How it appears here |
 |---|---|---|
-| SP8192 + GPTQ SDClip, int6 matrices, int8 embeddings, zero selective pruning | PR #1394 @clarkkev | Not used in the headline run. The 10-minute result uses SP1024 and all-large-int8/zstd requantization; the 60-minute probe uses vocab 3072 and mixed int6 clipsearch/zstd. |
-| 3-layer depth recurrence over layers 3,4,5 | PR #1331 @dexhunter, PR #1437 @dexhunter | Not used. These runs have no transformer depth recurrence; the recurrent primitive is inserted as physical layer slots. |
-| Parallel residuals in later layers | PR #1412 @Robby955, PR #1204 @msisovic | Not used as the leaderboard mechanism. The comparison keeps the transformer baseline topology fixed except for the recurrent-primitive insertion. |
-| QK-Gain 5.25 | #1 record stack | The training snapshot has learnable QK-gain machinery inherited from the transformer baseline, but this PR does not claim the tuned 5.25 result as part of the recurrent contribution. |
-| Legal score-first TTT | PR #549 @abaybektursun, PR #1413 @dexhunter | Not used in reported metrics; recurrent TTT mode is off. Legal TTT remains a future insertion-contract test. |
-| Tuned hyperparameters: WD=0.095, MLR=0.022, EMA=0.9965, warmdown=0.72 | PR #1445 @X-Abhishek-X | Partially borrowed in spirit. EMA=0.9965 and warmdown-style schedules were used; this run does not claim the exact WD/MLR/warmdown recipe. |
-| LZMA code wrapper | #1 record stack | Not used. This folder includes ordinary source snapshots and zstd-compressed model exports/logs. |
+| Mixed int6/int8 quantization pressure and protected higher-precision export variants | PR #1394 @clarkkev | The source runs use mixed int6 clipsearch + zstd, and the best 10-minute export is an all-large-int8/zstd protection sweep. |
+| Learnable per-head QK gain machinery | #1 record stack | The transformer attention path includes learnable per-head query scaling. |
+| EMA 0.9965 and warmdown-style schedules | PR #1445 @X-Abhishek-X | Both the 10-minute and 60-minute recurrent runs use EMA decay 0.9965; the 60-minute probe also uses a longer warmdown schedule. |
 
 ## What Was Tested
 
