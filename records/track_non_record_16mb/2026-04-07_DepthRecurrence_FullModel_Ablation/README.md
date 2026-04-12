@@ -53,17 +53,17 @@ Forward pass modified to loop `depth_repeats` times over `self.blocks`, tracking
 |--------|--------------|-----------|--------|----------|---------|---------|-----------------|
 | Baseline (9×1) | 9 | 9 | 17.1M | 13.6 MB | **1.3322** | 447 | — |
 | 7×2 | 7 | 14 | 13.4M | 10.0 MB | 1.3680 | 542 | +0.036 |
-| 5×2 | 5 | 10 | 9.7M | 7.7 MB | 1.3819 | 444 | +0.050 |
-| 3×3 | 3 | 9 | 6.0M | 4.9 MB | 1.4238 | 433 | +0.092 |
-| 3×5 | 3 | 15 | 6.0M | 4.5 MB | 1.4382 | 556 | +0.106 |
+| 9×2 | 9 | 18 | 17.1M | 11.8 MB | 1.3758 | 692 | +0.044 |
 | 5×2 | 5 | 10 | 9.7M | 7.7 MB | 1.3819 | 444 | +0.050 |
 | 5×2 + BigramHash | 5 | 10 | 9.8M | 7.9 MB | 1.3955 | 444 | +0.064 |
+| 3×3 | 3 | 9 | 6.0M | 4.9 MB | 1.4238 | 433 | +0.092 |
+| 3×5 | 3 | 15 | 6.0M | 4.5 MB | 1.4382 | 556 | +0.106 |
 | 3×3 wide (640d) | 3 | 9 | 11.7M | 7.2 MB | 2.0672 | 504 | +0.735 (failed) |
 
 ### Scaling Curve
 
 ```
-BPB gap vs baseline:
+BPB gap vs baseline (×2 repeats unless noted):
 
 +0.10 |  *  3×3
 +0.09 |
@@ -71,17 +71,17 @@ BPB gap vs baseline:
 +0.07 |
 +0.06 |
 +0.05 |     *  5×2
-+0.04 |
++0.04 |           *  9×2  ← breaks trend (step-budget starved)
 +0.03 |        *  7×2
 +0.02 |
 +0.01 |
- 0.00 |           *  9×1 (baseline)
+ 0.00 |              *  9×1 (baseline)
       +--+--+--+--+--
          3  5  7  9
          Unique blocks
 ```
 
-~0.02 BPB improvement per 2 additional unique blocks. Consistent, diminishing returns.
+~0.02 BPB improvement per 2 additional unique blocks from 3→7. **9×2 breaks this trend** — see Finding #6.
 
 ---
 
@@ -110,6 +110,18 @@ The 3×3 wide (MODEL_DIM=640) run catastrophically failed (2.0672 BPB). Root cau
 ### 4. BigramHash and recurrence don't complement
 
 5×2 + BigramHash (1.3955) is worse than 5×2 alone (1.3819). At low step counts (~1300 steps on 1x H100), the extra bigram parameters steal training capacity from the recurrent blocks.
+
+### 6. Step-budget interaction: why 9×2 breaks the trend
+
+9×2 has the same 17.1M params as baseline but a 2x forward pass costs 692 ms/step vs 447 ms/step baseline. In the 600s budget that's only **867 steps vs ~1340 steps** — 35% less training for the same size model. It's undertrained relative to baseline.
+
+| Config | ms/step | Steps in 600s | BPB |
+|--------|---------|--------------|-----|
+| Baseline 9×1 | 447 | ~1340 | 1.3322 |
+| 7×2 | 542 | ~1107 | 1.3680 |
+| 9×2 | 692 | ~867 | 1.3758 |
+
+The tradeoff is clear: recurrence only helps when the step-time overhead is compensated by having fewer unique parameters to train. 7×2 hits the sweet spot — smaller model trains faster per step, recurrence gives it effective depth. 9×2 pays the recurrence cost without the parameter savings.
 
 ### 5. Optimal tradeoff: 7×2
 
