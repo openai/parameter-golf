@@ -1,0 +1,9 @@
+{
+  "author": "OE-GOD",
+  "date": "2026-04-09",
+  "description": "ANS weight compression — replaces LZMA with per-layer rANS encoding. Saves 1.6 MB (13.9%) losslessly on int6 quantized weights. Near-optimal: within 11 KB of theoretical entropy minimum.",
+  "type": "compression",
+  "track": "non_record_16mb",
+  "hardware": "Analysis only (Mac M-series). Needs 8xH100 for full training + BPB measurement.",
+  "notes": "Orthogonal to all architecture/training improvements. Can be stacked on any submission."
+}
