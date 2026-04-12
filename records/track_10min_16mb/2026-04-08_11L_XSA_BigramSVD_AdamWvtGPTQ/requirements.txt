@@ -1,5 +1,0 @@
-# RunPod Parameter Golf image ships PyTorch + CUDA; pin helpers used by train_gpt.py.
-# Install in the record directory’s parent repo root before: torchrun --nproc_per_node=8 train_gpt.py
-numpy>=1.24
-sentencepiece>=0.1.99
-zstandard>=0.22
