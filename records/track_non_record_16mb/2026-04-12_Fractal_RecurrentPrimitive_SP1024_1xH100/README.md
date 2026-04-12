@@ -6,6 +6,7 @@
 **Status:** Non-record, research contribution
 **Best recurrent-primitive artifact:** 1.357619 BPB, loss 2.292283, 14,440,584 bytes
 **Source training run:** 10-minute SP1024 80-shard checkpoint, 988 steps, 600.491s
+**Seed coverage:** single matching seed (`seed=42`), not a 3-seed mean
 
 ## Short Version
 
@@ -42,6 +43,8 @@ This PR includes the training script snapshot, recurrent runtime files, checkpoi
 | Pure attention control | 11L/512 SP1024 | all-large-int8 | 1.343710 | 1.344724 | 2.270510 | 14,966,424 | Best control export |
 | Fractal recurrent hybrid | 11L/512 SP1024, `AAAAAPAAAAA` | mixed int6 default | 1.356221 | 1.376010 | 2.323335 | 10,044,945 | Single middle recurrent slot |
 | Fractal recurrent hybrid | 11L/512 SP1024, `AAAAAPAAAAA` | all-large-int8 | 1.356221 | 1.357619 | 2.292283 | 14,440,584 | Best recurrent export |
+
+These are single-seed matched comparisons (`seed=42`). We do not yet have a PR #1564-style 3-seed confirmation for this exact headline configuration.
 
 The original 10-minute recurrent-primitive source run recorded post-quant BPB 1.376889 at 9,747,772 bytes under its initial export path. The requantization sweep in this folder is the cleaner like-for-like comparison because both the recurrent hybrid and pure attention were re-exported through the same variants.
 
