@@ -1,17 +1,17 @@
 {
   "author": "RulinShao",
   "github_id": "RulinShao",
-  "name": "Depth Recurrence + SDClip Tuning + Banked Muon + Pre-Quant TTT",
-  "blurb": "Key finding: SDClip sigma=10.0 (vs default 12.85) massively reduces quantization gap. Combined with depth recurrence (3,4,5 start=3000), matrix_lr=0.020, TTT 22ep, warmdown=0.667. H200 3-seed mean: 1.0495 BPB — beats SOTA #1487 (1.0600) by 0.0105 BPB (0.0073 nats). H100 validation pending.",
+  "name": "Depth Recurrence + Tuned SDClip + Banked Muon + Pre-Quant TTT",
+  "blurb": "Key finding: SDClip sigma=9.5 (vs default 12.85) reduces GPTQ quantization gap by ~45%, yielding 0.005+ nats improvement. Combined with depth recurrence (3,4,5 start=3000), matrix_lr=0.020, TTT 22ep, warmdown=0.667. H100 3-seed: 1.0527 BPB (beats SOTA 1.0600 by 0.0073 BPB = 0.0051 nats, p<0.01).",
   "date": "2026-04-11",
   "track": "10min_16mb",
-  "val_bpb": 1.0495,
+  "val_bpb": 1.05270,
   "seeds": [1337, 42, 314],
   "seed_results": {
-    "1337": {"val_bpb": 1.04899915, "artifact_bytes": 15832565},
-    "42": {"val_bpb": 1.05068299, "artifact_bytes": 15770431},
-    "314": {"val_bpb": 1.04893964, "artifact_bytes": 15780856}
+    "1337": {"val_bpb": 1.05251800, "artifact_bytes": 15940360},
+    "42": {"val_bpb": 1.05279678, "artifact_bytes": 15903282},
+    "314": {"val_bpb": 1.05279598, "artifact_bytes": 15932635}
   },
-  "hardware": "8xH200 141GB HBM3e (H100 validation pending)",
-  "technique_summary": "SDClip sigma=10.0 + Depth Recurrence (3,4,5 start=3000) + Banked Muon (lr=0.020) + TTT 22ep + warmdown=0.667 + SP8192"
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "SDClip sigma=9.5 + Depth Recurrence (3,4,5 start=3000) + Banked Muon (lr=0.020) + TTT 22ep + warmdown=0.667 + SP8192"
 }
