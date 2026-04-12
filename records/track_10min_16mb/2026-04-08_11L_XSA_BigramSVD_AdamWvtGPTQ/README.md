@@ -7,6 +7,18 @@
 > A critical `bytes_per_token` bug and a 10× training-speed gap (no Flash Attention 3) are the
 > limiting factors — not the architecture or the novel GPTQ technique itself.
 
+### Competition submission checklist (OpenAI `README.md` §Submission Process)
+
+| Required | File |
+|----------|------|
+| Yes | `README.md` (this file) |
+| Yes | `submission.json` (`author`, `github_id`, `name`, `val_bpb`, `blurb`, `date`, `track`, seeds + metadata) |
+| Yes | Training logs — **3 seeds** (`train_seed1337.log`, `train_seed42.log`, `train_seed314.log`) |
+| Yes | `train_gpt.py` (runs from repo root with `data/` as in upstream; `python -m py_compile` clean) |
+| Yes | `requirements.txt` (extra deps: `numpy`, `sentencepiece`, `zstandard`; PyTorch from image) |
+
+`model.bin` is **not** part of the GitHub record bundle in other leaderboard entries; the 16 MB zip is for separate evaluation. Logs + script are what this PR adds.
+
 ---
 
 ## Results
