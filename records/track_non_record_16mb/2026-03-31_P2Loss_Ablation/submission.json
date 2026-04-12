@@ -1,0 +1,11 @@
+{
+  "author": "Ryan Estes",
+  "github_id": "estesryan",
+  "name": "P2Loss_Ablation",
+  "blurb": "Across matched runs on the naive baseline, P2-style loss reweighting (γ = 0.5, 1.0, 2.0) consistently underperforms standard cross-entropy under canonical evaluation. The degradation is observed across early, mid, and final training stages, indicating that P2-style reweighting does not improve over uniform CE under parameter-golf constraints.",
+  "date": "2026-03-31T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
