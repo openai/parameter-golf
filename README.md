@@ -11,11 +11,8 @@ The original upstream challenge README has been preserved in `PARAMETER_GOLF_REA
 - Available baseline configs:
   - `configs/diffusion_tiny.env`
   - `configs/diffusion_local.env`
-  - `configs/diffusion_local_smallval.env`
   - `configs/diffusion_scale.env`
-  - `configs/diffusion_week3_local.env`
-  - `configs/diffusion_week3_scale.env`
-  - `configs/diffusion_week3_scale_long.env`
+  - `configs/diffusion_scale_long.env`
 
 ## What Is Implemented
 
@@ -47,6 +44,8 @@ The original upstream challenge README has been preserved in `PARAMETER_GOLF_REA
 - The main comparison metric is now `val_bpb`, derived from a deterministic ELBO-style lower bound.
 - The default local and scale configs now validate on a subset of the validation shard for faster iteration.
 - `VAL_MAX_TOKENS` controls that subset size. Use `VAL_MAX_TOKENS=0` for challenge-aligned full-split numbers.
+- `VAL_BATCH_TOKENS` is mainly an eval throughput and memory knob. We now default the local week-2/week-3 configs to `32768` because it cuts eval batches roughly in half on the same validation set on capable devices.
+- Small caveat: eval corruption RNG is keyed partly by batch index, so changing `VAL_BATCH_TOKENS` can shift exact reported numbers slightly even though it does not change the model or training recipe.
 
 ## Milestone Status
 
@@ -133,14 +132,6 @@ set -a; source configs/diffusion_local.env; set +a
 
 This local config intentionally uses a validation subset. For a full-shard run, override with `VAL_MAX_TOKENS=0`.
 
-## Running The Week-3 Local Config
-
-```bash
-cd parameter-golf
-set -a; source configs/diffusion_week3_local.env; set +a
-./.venv/bin/python train_diffusion.py
-```
-
 ## Running Standalone Validation
 
 ```bash
@@ -149,11 +140,11 @@ set -a; source configs/diffusion_local.env; set +a
 VAL_MAX_TOKENS=0 ./.venv/bin/python diffusion_eval.py --checkpoint logs/your_run_id_diffusion_mlx.npz
 ```
 
-## Running The Week-3 Scale Long Recipe
+## Running The Scale Long Recipe
 
 ```bash
 cd parameter-golf
-set -a; source configs/diffusion_week3_scale_long.env; set +a
+set -a; source configs/diffusion_scale_long.env; set +a
 ./.venv/bin/python train_diffusion.py
 ```
 
@@ -163,7 +154,7 @@ This config is a fresh `10000`-step run of the current best fixed-size scale rec
 
 ```bash
 cd parameter-golf
-bash run_week3_scale_long_full_eval.sh
+bash scripts/experiments/run_week3_scale_long_full_eval.sh
 ```
 
 ## Running The Tiny Synthetic Config

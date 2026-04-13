@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-$ROOT_DIR/.venv/bin/python}"
@@ -95,7 +96,7 @@ STAGE_A_WINNER_TIMESTEP_SAMPLING="${WINNER_INFO[2]}"
 STAGE_A_WINNER_CHECKPOINT="${WINNER_INFO[3]}"
 STAGE_A_WINNER_METRIC="${WINNER_INFO[4]}"
 
-WEEK3_CONFIG="$ROOT_DIR/configs/diffusion_week3_local.env"
+WEEK3_CONFIG="$ROOT_DIR/configs/diffusion_local.env"
 
 run_train() {
   local phase="$1"

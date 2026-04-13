@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-$ROOT_DIR/.venv/bin/python}"
@@ -118,7 +119,7 @@ run_full_eval() {
 FAILED=0
 BASELINE_RUN_ID="week3_lock_baseline_${BATCH_ID}"
 BASELINE_CONFIG="$ROOT_DIR/configs/diffusion_local.env"
-WEEK3_CONFIG="$ROOT_DIR/configs/diffusion_week3_local.env"
+WEEK3_CONFIG="$ROOT_DIR/configs/diffusion_local.env"
 
 log "Batch starting BATCH_ID=$BATCH_ID OUT_DIR=$OUT_DIR"
 

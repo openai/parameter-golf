@@ -116,7 +116,7 @@
 ### Runner Prepared
 
 - Added a Stage-B runner script:
-  - `run_week3_stage_b.sh`
+  - `scripts/experiments/run_week3_stage_b.sh`
 - The runner is intended to:
   - auto-detect the latest completed Stage-A batch
   - full-eval the Stage-A winner
@@ -164,7 +164,7 @@
 - The planned P2 long run did not start.
 - The failure happened in the runner while selecting the best Stage-B recipe for promotion to the longer run.
 - This was an orchestration failure, not a training failure in the completed Stage-B runs.
-- `run_week3_stage_b.sh` has now been patched to make the best-run detection more robust and to retry before failing.
+- `scripts/experiments/run_week3_stage_b.sh` has now been patched to make the best-run detection more robust and to retry before failing.
 
 ### Current Interpretation
 
@@ -196,7 +196,7 @@
     - `SELF_CONDITIONING=0`
     - `LOSS_REWEIGHTING=none`
 - Root cause:
-  - `run_week3_p2.sh` sourced `configs/diffusion_week3_local.env` and then read back the same shell variables, which let the config overwrite the intended P2 overrides before export
+- `scripts/experiments/run_week3_p2.sh` sourced the active local config and then read back the same shell variables, which let the config overwrite the intended P2 overrides before export
   - This also caused the post-train full-eval step to fail because the runner expected `run_id=diffusion_local` while training saved artifacts under `run_id=diffusion_week3_local`
 
 ### Observed P2 Subset Results
@@ -228,7 +228,7 @@
   - `linear + cyclic + x0 + no self-conditioning + no loss reweighting`
 - The completed P2 batch should be treated as an informative accidental probe, not as a promotable result.
 - The next immediate experiment should be:
-  - rerun P2 with the corrected `run_week3_p2.sh`
+  - rerun P2 with the corrected `scripts/experiments/run_week3_p2.sh`
   - verify the intended promoted recipe is actually used
   - complete the full-val eval on that corrected longer run
 
@@ -422,7 +422,7 @@
 
 ### Runner Fix
 
-- `run_week3_p4.sh` has now been patched to:
+- `scripts/experiments/run_week3_p4.sh` has now been patched to:
   - validate ELBO compatibility before launching each mask-bound candidate
   - mark invalid recipes such as `MAX_MASK_RATE=0.95` as skipped/invalid instead of aborting the whole batch
   - preserve the intended screen -> promote -> long-run -> full-eval workflow for valid candidates

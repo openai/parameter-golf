@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-$ROOT_DIR/.venv/bin/python}"
@@ -20,7 +21,7 @@ OUT_DIR="${OUT_DIR:-$ROOT_DIR/logs/week3_stage_d_param_${BATCH_ID}}"
 RUNNER_LOG="$OUT_DIR/runner.log"
 SUMMARY_TSV="$OUT_DIR/summary.tsv"
 
-CONFIG_PATH="${CONFIG_PATH:-$ROOT_DIR/configs/diffusion_week3_local.env}"
+CONFIG_PATH="${CONFIG_PATH:-$ROOT_DIR/configs/diffusion_local.env}"
 SCREEN_ITERATIONS="${SCREEN_ITERATIONS:-1500}"
 LONG_ITERATIONS="${LONG_ITERATIONS:-3000}"
 XTMINUS1_MARGIN="${XTMINUS1_MARGIN:-0.02}"
