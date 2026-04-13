@@ -172,8 +172,8 @@ Model size : large (135MB) : My mistake, I should have verified the layers and m
 # Results of reduced model_dim along with a deleted targer enoder : 
 Our half run estimated a val_bpb of : 1.28 - 1.30 
 
-# Results of reduced num_layers along with a deleted targer enoder : 
-# Val_bpb 
+Results of reduced num_layers along with a deleted targer enoder : 
+Val_bpb 
 Step 0 : 4.1081 
 Step 1000 : 1.4147
 Step 2000 : 1.3619 
@@ -184,19 +184,48 @@ Step 6000 : 1.3114
 Step 7000 : 1.3114
 Higher than the reduced model_dim run wich proves that layers are important.
 
-# Model size
+Model size
 Reduced to a 91MB from 135MB 
 
-# Step Avg with model_dim = 386 and num_layers = 9
+Step Avg with model_dim = 386 and num_layers = 9
 Average of 55ms 
 
-# Step Avg with model_dim = 512 and num_layers = 6
+Step Avg with model_dim = 512 and num_layers = 6
 Average of 40ms (way below baseline) which is obvious but we shouldn't go way below baseline. 
 
 ## To think about next 
 - How might we reducing the model size?
 - Need to utilise each step better 
 - Model_dim and num_layers should stay 512 and 9 respectively. 
+
+## Reduced model size 
+Switched from zlib to LZMA compression
+LZMA (preset=9) is a stronger compression algorithm than zlib.
+On model weights it provides marginally better compression.
+result: minimal gain on random-like weights (~0.4MB)
+lesson: compression algorithms have diminishing returns on weight matrices
+
+Implemented int6 quantization (replacing int8)
+Reduced weight precision from 8 bits to 6 bits per weight.
+Saves 25% of quantized weight size with minimal quality loss.
+estimated result: 73MB × 0.75 = ~55MB
+
+Switched from zlib to LZMA compression**
+LZMA (preset=9) is a stronger compression algorithm than zlib.
+On model weights it provides marginally better compression.
+result: minimal gain on random-like weights (~0.4MB)
+lesson: compression algorithms have diminishing returns on weight matrices
+
+Combined int6 + LZMA**
+Best compression combination based on local simulation:
+  int8 + zlib:  baseline
+  int6 + lzma:  29% smaller
+estimated final size: ~52MB
+
+### Conclusion
+Full JEPA pretraining is fundamentally at odds with 16MB constraints due to the dual encoder architecture. The non-record track is the 
+natural home for JEPA until further size reduction research is done. The contribution here is architectural — proving JEPA works for 
+language model pretraining from scratch, not fitting it in 16MB.
 
 ---
 ## Key insights
