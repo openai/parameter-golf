@@ -1278,6 +1278,8 @@ def collect_hessians_from_tokens(hessian_model, token_seqs, device):
     hessian_model.eval()
     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         for seq in token_seqs:
+            if seq.dim() == 1:
+                seq = seq.unsqueeze(0)
             x = seq[:, :-1].to(device)
             y = seq[:, 1:].to(device)
             hessian_model(x, y)
