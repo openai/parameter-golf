@@ -1,0 +1,18 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Saliency-Guided Local 5090",
+  "blurb": "Single-RTX5090 non-record saliency-guided sweep documenting the original 5B run, a 24-hour continuation, and a 1-hour cosine-schedule probe. Best full-eval post-quant score is 1.22864374 val_bpb at 15,850,915 counted bytes.",
+  "date": "2026-04-08T11:21:09.972987Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.074513482238166,
+  "val_bpb": 1.2286437358795264,
+  "pre_quant_val_loss": 2.0591396984249735,
+  "pre_quant_val_bpb": 1.2195385151419558,
+  "step_stop": 44628,
+  "wallclock_seconds": 86400,
+  "bytes_total": 15850915,
+  "bytes_model_int8_zlib": 15781469,
+  "bytes_code": 69446,
+  "gpu": "1xRTX5090"
+}
