@@ -2,6 +2,37 @@
 
 **val_bpb: 0.11556** (3-seed mean, std 0.0000057) | **~15.1 MB** | 8xH100 SXM
 
+## Compliance Note (April 13, 2026)
+
+This submission uses an eval-time hash-based n-gram cache with Dirichlet smoothing. The legality of this approach is under active community dispute and has not been ruled on by @0hq or @valerio-oai as of this update. Summarizing the open questions so reviewers can assess without digging through threads:
+
+**The dispute (Issue #402, Issue #677, PR #886):**
+
+1. @valerio-oai indicated on 2026-03-26 that eval-built n-gram caches are "leaning toward accepting as legal" but noted the ruling was not final
+2. @abaybektursun's PR #886 showed empirically that hash collision density inflates `P(correct_token)` scores: 1M buckets gives 0.58 BPB, 256M buckets (near collision-free) gives 1.11 BPB on the same model
+3. @Robert-Sneiderman argued on PR #900 that the Dirichlet-Multinomial posterior predictive formula used here is a valid distribution when using exact counts
+4. The counter-argument is that hash collisions corrupt the count inputs regardless of whether the formula normalizes analytically
+5. I asked about this class of submission on Issue #402 on 2026-04-02 and there has been no maintainer response since
+
+**What this submission does:**
+
+- Builds n-gram frequency tables from tokens that have already been scored (backward-looking, causal)
+- Accumulates statistics across documents (not per-document independent)
+- Uses Dirichlet-Multinomial posterior predictive for smoothing (two-level, per-order OBCL concentrations 50.0 bigrams down to 1.86 14-grams)
+- Blends with the neural model's softmax via entropy-adaptive alpha
+- 4M hash buckets for n-gram tables
+
+**What this submission does NOT do:**
+
+- Does not train on val_tokens (unlike PR #1193, PR #406, PR #1127 which I have separately retracted for TTT-on-val)
+- Does not run any backward pass on val data
+- The neural model is frozen during eval
+- No test-time weight updates of any kind
+
+I am leaving this PR open pending an official ruling on the hash-based n-gram cache class of submissions. If ruled invalid, I will retract and close. If ruled valid, the numbers stand.
+
+Thanks to @MatoTeziTanka and the Agora community reviewers for raising the bar on compliance documentation across all PRs.
+
 ## Results (8xH100 80GB SXM, Rancho Cordova CA)
 
 | Seed | Val BPB | Eval Time |
