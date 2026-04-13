@@ -1,0 +1,66 @@
+{
+  "author": "Ammer Ayach",
+  "github_id": "amrayach",
+  "name": "Non-record: SP8192 D/R-Series Evidence Package",
+  "blurb": "Submission-style evidence package for the SP8192 D base and R-series sweep. Anchors the canonical result to the 5-seed RunPod D bundle, packages a checksum-verified canonical train_gpt.py copy, and documents the fixed-Brotli rate-distortion finding plus measured negative results.",
+  "date": "2026-04-13T16:30:20+02:00",
+  "track": "non_record_16mb",
+  "status": "submission_candidate",
+  "description": "SP8192 D/R-series evidence package documenting A/B/C/D/E base construction, R1-R9 eval/export sweep, fixed-Brotli rate-distortion findings, and negative results.",
+  "val_bpb": 1.08128837,
+  "val_bpb_method": "canonical_5_seed_mean_score_first_ttt_bpb",
+  "val_bpb_std": 0.00058943,
+  "canonical_max_artifact_bytes": 15992638,
+  "canonical_max_train_wallclock_seconds": 588.138,
+  "canonical_max_eval_wallclock_seconds": 366.951,
+  "gpu": "8x NVIDIA H100 80GB SXM",
+  "canonical_base": "D",
+  "best_measured_single_seed_followup": {
+    "name": "R1_e_baseline",
+    "val_bpb": 1.08078562,
+    "eval_wallclock_seconds": 605,
+    "status": "over_600s_eval_limit"
+  },
+  "canonical_script_source": "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_gpt.py",
+  "canonical_script_archive_source": "artifacts/runpod_pull/pr1413_archive_20260407_213205/seed0/pr1413_combo_s0/train_gpt.py",
+  "canonical_script_sha256": "4f2ab2ca43105e94ea1b09924a7580a5446c72be47c2ff1d580c9c604fba69dd",
+  "canonical_script_identity_note": "Package-local canonical script is a single-file consolidation of archived seed-0 train_gpt.py plus its archived helper chain, produced to keep counted code inside train_gpt.py.",
+  "canonical_script_derivation_sources": [
+    {
+      "path": "artifacts/runpod_pull/pr1413_archive_20260407_213205/seed0/pr1413_combo_s0/train_gpt.py",
+      "sha256": "db19d2a078354bd861e425965badbdb41ad644a2aec9c1c9a4f6984fca4c7019"
+    },
+    {
+      "path": "artifacts/runpod_pull/pr1413_archive_20260407_213205/seed0/pr1413_combo_s0/ngram_tilt.py",
+      "sha256": "065ced48efcd5ae633f4307d254a0d3e475641878a0dc580f8e677b6e56aa379"
+    },
+    {
+      "path": "artifacts/runpod_pull/pr1413_archive_20260407_213205/seed0/pr1413_combo_s0/fused_expert_kernel.cpp",
+      "sha256": "6b11646609508a84f7c2d9ddd9cdb4c133c2474ec83a50b78313d96664984056"
+    }
+  ],
+  "artifact_map": "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/ARTIFACT_MAP.md",
+  "readme": "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/README.md",
+  "report": "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/REPORT.md",
+  "requirements": "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/requirements.txt",
+  "included_logs": [
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_seed0.log",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_seed42.log",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_seed1234.log",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_seed1337.log",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/train_seed2025.log",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/r1_e_baseline.log"
+  ],
+  "included_tables": [
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/d_submission_summary.tsv",
+    "records/track_non_record_16mb/2026-04-13_sp8192_d_rseries_evidence/r_series_combined_summary.tsv"
+  ],
+  "notes": [
+    "Prepared as a non-record submission package for PR review.",
+    "The canonical evidence base is the 5-seed RunPod D bundle, not Pegasus partials and not R1.",
+    "The mutable working-tree ParallelResid7_TiltPrep script is not the canonical measured artifact.",
+    "Use the archived seed-0 source paths for provenance and the package-local single-file train_gpt.py for submission-shaped review.",
+    "The package-local train_gpt.py inlines the archived ngram helper chain, but reproducing the measured runs still assumes a matching CUDA/Hopper environment with flash_attn_interface available.",
+    "R1_e_baseline is included only as the best measured single-seed follow-up and remains over the 600-second eval limit."
+  ]
+}
