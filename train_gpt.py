@@ -90,6 +90,8 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    total_micro_batches = int(os.environ.get("TOTAL_MICRO_BATCHES", 8))
+    output_dir = os.environ.get("OUTPUT_DIR", ".")
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     p for p in os.environ.get(
@@ -224,6 +226,8 @@ def eval_val(args: Hyperparameters, base_model: nn.Module, rank: int, world_size
              device: torch.device, val_tokens: Tensor, base_bytes_lut: Tensor,
              has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor,
              use_ttt: bool = False) -> tuple[float, float]:
+    if args.val_batch_size % world_size != 0:
+        raise ValueError(f"VAL_BATCH_SIZE={args.val_batch_size} must be divisible by WORLD_SIZE={world_size}")
     base_model.eval()
     if use_ttt and args.ttt_enabled:
         result = _eval_ttt(args, base_model, rank, world_size, device, val_tokens,
@@ -914,11 +918,19 @@ def main() -> None:
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    output_dir = Path(args.output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = output_dir / "logs"
+    train_log_path = logs_dir / f"{args.run_id}_train.jsonl"
+    final_model_path = output_dir / "final_model.pt"
+    submission_path = output_dir / "submission.json"
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8")
-    grad_accum_steps = 8 // world_size
+    if args.total_micro_batches <= 0:
+        raise ValueError(f"TOTAL_MICRO_BATCHES must be positive, got {args.total_micro_batches}")
+    if args.total_micro_batches % world_size != 0:
+        raise ValueError(f"TOTAL_MICRO_BATCHES={args.total_micro_batches} must be divisible by WORLD_SIZE={world_size}")
+    grad_accum_steps = args.total_micro_batches // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -937,8 +949,8 @@ def main() -> None:
     enable_math_sdp(False)
     logfile = None
     if master_process:
-        os.makedirs("logs", exist_ok=True)
-        logfile = f"logs/{args.run_id}.txt"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        logfile = str(logs_dir / f"{args.run_id}.txt")
 
     def log0(msg: str, console: bool = True) -> None:
         if not master_process:
@@ -1042,7 +1054,7 @@ def main() -> None:
     log0(f"ws:{world_size} ga:{grad_accum_steps} heads:{args.num_heads}/{args.num_kv_heads} qk:{args.qk_gain_init}")
     log0(f"lr: tok={token_lr} mat={args.matrix_lr} scl={args.scalar_lr} head={args.head_lr if base_model.lm_head is not None else 0.0}")
     log0(f"batch:{args.train_batch_tokens} seq:{args.train_seq_len} iter:{args.iterations} warmdown:{args.warmdown_iters} seed:{args.seed}")
-    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed)
+    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed + rank)
 
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1107,7 +1119,7 @@ def main() -> None:
         zero_grad_all()
         if distributed:
             active_model.require_backward_grad_sync = True
-        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed)
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed + rank)
         if ema_params is not None:
             ema_params = {
                 name: param.data.clone()
@@ -1158,12 +1170,18 @@ def main() -> None:
             break
         # Activate depth recurrence at the configured step
         if recur_layers and step == recur_start_step:
+            zero_grad_all()
+            if distributed:
+                dist.barrier()
             base_model.set_recurrence(True)
             active_compiled = torch.compile(base_model, dynamic=False, fullgraph=False)
             active_model = (
                 DDP(active_compiled, device_ids=[local_rank], broadcast_buffers=False)
                 if distributed else active_compiled
             )
+            zero_grad_all()
+            if distributed:
+                dist.barrier()
             log0(f"depth_recurrence_activated at step:{step} layers:{recur_layers}")
         # Training step
         active_model.train()
@@ -1227,7 +1245,7 @@ def main() -> None:
                 "lr_mul": mul, "step_time_ms": step_time_ms,
                 "training_time_ms": training_time_ms + 1000.0 * (time.perf_counter() - t0),
             }
-            with open(f"logs/{args.run_id}_train.jsonl", "a") as f:
+            with open(train_log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")
         step += 1
         if max_wallclock_ms is not None and stop_after_step is None:
@@ -1251,7 +1269,7 @@ def main() -> None:
         hessian_collector = HessianCollector()
         hessian_collector.register(base_model)
         log0("Running GPTQ calibration pass...")
-        calib_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed)
+        calib_loader = DistributedTokenLoader(args.train_files, rank, world_size, device, args.seed + rank)
         base_model.eval()
         with torch.inference_mode():
             for _calib_step in range(args.gptq_calib_batches):
@@ -1262,19 +1280,19 @@ def main() -> None:
         log0(f"GPTQ Hessians collected for {len(hessians)} layers")
     # Quantize + compress
     if master_process:
-        torch.save(base_model.state_dict(), "final_model.pt")
-        log0(f"Serialized model: {os.path.getsize('final_model.pt')} bytes")
+        torch.save(base_model.state_dict(), final_model_path)
+        log0(f"Serialized model: {final_model_path.stat().st_size} bytes")
     quant_obj, quant_stats = quantize_state_dict(base_model.state_dict(), args, hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = compress_bytes(quant_raw)
     ext = ".zstd.ptz" if HAS_ZSTD else (".brotli.ptz" if HAS_BROTLI else ".zlib.ptz")
-    quant_file = f"final_model.{args.quant_bits}bit{ext}"
+    quant_file_path = output_dir / f"final_model.{args.quant_bits}bit{ext}"
     if master_process:
-        with open(quant_file, "wb") as f:
+        with open(quant_file_path, "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize(quant_file)
+        quant_file_bytes = quant_file_path.stat().st_size
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int_payload_bytes"], 1)
         compress_name = "zstd" if HAS_ZSTD else ("brotli" if HAS_BROTLI else "zlib")
         log0(f"Serialized model {args.quant_bits}bit+{compress_name}: "
@@ -1285,7 +1303,7 @@ def main() -> None:
     # Roundtrip validation — use TTT for final eval
     if distributed:
         dist.barrier()
-    with open(quant_file, "rb") as f:
+    with open(quant_file_path, "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(decompress_bytes(quant_blob_disk)), map_location="cpu", weights_only=False)
     base_model.load_state_dict(dequantize_state_dict(quant_state), strict=True)
@@ -1301,7 +1319,7 @@ def main() -> None:
          f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms")
     log0(f"final_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
     if master_process:
-        quant_file_bytes = os.path.getsize(quant_file)
+        quant_file_bytes = quant_file_path.stat().st_size
         submission = {
             "name": os.environ.get("SUBMIT_NAME", "anonymous"),
             "github_id": os.environ.get("SUBMIT_GITHUB", ""),
@@ -1313,9 +1331,9 @@ def main() -> None:
             "iterations": step, "training_time_ms": round(training_time_ms, 0),
             "ttt_enabled": args.ttt_enabled, "vocab_size": args.vocab_size,
         }
-        with open("submission.json", "w") as f:
+        with open(submission_path, "w") as f:
             json.dump(submission, f, indent=2)
-        log0(f"submission.json written with val_bpb={q_val_bpb:.4f}")
+        log0(f"submission.json written to {submission_path} with val_bpb={q_val_bpb:.4f}")
     if distributed:
         dist.destroy_process_group()
 
