@@ -1,0 +1,212 @@
+W0412 22:06:23.293000 91256 torch/distributed/run.py:803] 
+W0412 22:06:23.293000 91256 torch/distributed/run.py:803] *****************************************
+W0412 22:06:23.293000 91256 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0412 22:06:23.293000 91256 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_casefold_v2
+  distributed: True
+  ema_decay: 0.997
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 13.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/7bdddbcb-a308-466a-bdb0-2b89284b66e7.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_freeze_lane0: False
+  parallel_residual: True
+  parallel_residual_start: 8
+  parallel_start_layer: 8
+  parallel_start_layer_is_physical: True
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 7bdddbcb-a308-466a-bdb0-2b89284b66e7
+  scalar_lr: 0.02
+  seed: 2024
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe_casefold_refined_v2.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192_casefold_v2/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192_casefold_v2/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+lut_byte_validation: lut=151,080,261 header=151,082,429 diff=-2,168 (0.0014%)
+train_shards: 114
+val_tokens: 36286464
+model_params:35944602
+parallel_residual:active=1 start_layer=8 start_mode=physical final_lane=mean freeze_lane0=0
+gptq:reserving 13s, effective=587000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0151 val_bpb: 3.1238
+1/20000 train_loss: 9.0157 train_time: 0.0m tok/s: 8018605
+2/20000 train_loss: 12.4878 train_time: 0.0m tok/s: 7901358
+3/20000 train_loss: 11.7650 train_time: 0.0m tok/s: 7797455
+4/20000 train_loss: 10.1743 train_time: 0.0m tok/s: 7741508
+5/20000 train_loss: 9.1344 train_time: 0.0m tok/s: 7714460
+500/20000 train_loss: 3.6905 train_time: 0.9m tok/s: 7495020
+1000/20000 train_loss: 3.5610 train_time: 1.7m tok/s: 7492331
+1500/20000 train_loss: 3.4714 train_time: 2.6m tok/s: 7497169
+layer_loop:enabled step:1959 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2000/20000 train_loss: 3.4457 train_time: 3.5m tok/s: 7429092
+2500/20000 train_loss: 3.2795 train_time: 4.8m tok/s: 6813567
+3000/20000 train_loss: 3.3896 train_time: 6.1m tok/s: 6456920
+3500/20000 train_loss: 3.1312 train_time: 7.4m tok/s: 6232129
+4000/20000 train_loss: 3.2298 train_time: 8.6m tok/s: 6073042
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6] Traceback (most recent call last):
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6]     yield pickle.loads(content), content
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:16:09.399000 91330 torch/_inductor/codecache.py:1021] [0/6] EOFError: Ran out of input
+Exception ignored in: <function CompiledFxGraph.__del__ at 0x76e17f702160>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 582, in __del__
+    if self.compiled_fn_runner is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CompiledFxGraph' object has no attribute 'compiled_fn_runner'
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6] Traceback (most recent call last):
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6]     yield pickle.loads(content), content
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:16:09.404000 91330 torch/_inductor/codecache.py:1021] [0/6] _pickle.UnpicklingError: pickle data was truncated
+4000/20000 val_loss: 3.1583 val_bpb: 1.0944
+4446/20000 val_loss: 3.0998 val_bpb: 1.0741
+stopping_early: wallclock_cap train_time: 587116ms step: 4446/20000
+peak memory allocated: 39816 MiB reserved: 39930 MiB
+ema:applying EMA weights
+parallel_residual:converged active=1 start_layer=8 start_mode=physical final_lane=mean freeze_lane0=0 used_layers=3
+parallel_residual layer:14 physical:8 attn_resid:1.2138 attn_to_attn:1.7113 attn_to_mlp:-0.1078 mlp_resid:1.2978 mlp_to_attn:0.6370 mlp_to_mlp:2.7608
+parallel_residual layer:15 physical:9 attn_resid:0.5042 attn_to_attn:0.1450 attn_to_mlp:1.2917 mlp_resid:0.6716 mlp_to_attn:-0.0584 mlp_to_mlp:1.6232
+parallel_residual layer:16 physical:10 attn_resid:0.2437 attn_to_attn:0.4799 attn_to_mlp:0.4799 mlp_resid:0.3013 mlp_to_attn:0.3708 mlp_to_mlp:0.3708
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1] Traceback (most recent call last):
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1]     yield pickle.loads(content), content
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:17:26.998000 91330 torch/_inductor/codecache.py:1021] [0/1] EOFError: Ran out of input
+Exception ignored in: <function CompiledFxGraph.__del__ at 0x76e17f702160>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 582, in __del__
+    if self.compiled_fn_runner is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CompiledFxGraph' object has no attribute 'compiled_fn_runner'
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1] Traceback (most recent call last):
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1]     yield pickle.loads(content), content
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:17:27.004000 91330 torch/_inductor/codecache.py:1021] [0/1] _pickle.UnpicklingError: pickle data was truncated
+pre-quantization post-ema val_loss:3.10027640 val_bpb:1.07426611 eval_time:6349ms
+Serialized model: 135431869 bytes
+Code size: 19041 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 13.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+Serialized model quantized+brotli: 15973873 bytes
+Total submission size quantized+brotli: 15992914 bytes
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4] Traceback (most recent call last):
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4]     yield pickle.loads(content), content
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:19:10.969000 91330 torch/_inductor/codecache.py:1021] [0/4] EOFError: Ran out of input
+Exception ignored in: <function CompiledFxGraph.__del__ at 0x76e17f702160>
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 582, in __del__
+    if self.compiled_fn_runner is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CompiledFxGraph' object has no attribute 'compiled_fn_runner'
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4] fx graph cache unable to load compiled graph
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4] Traceback (most recent call last):
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4]   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 1019, in iterate_over_candidates
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4]     yield pickle.loads(content), content
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4]           ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:W0412 22:19:10.973000 91330 torch/_inductor/codecache.py:1021] [0/4] _pickle.UnpicklingError: pickle data was truncated
+quantized val_loss:3.12972863 val_bpb:1.08447150 eval_time:9116ms
+quantized_sliding_window val_loss:3.08666685 val_bpb:1.06955031 eval_time:83716ms
+ttt:start chunks=1108 ttt_lr=0.005 ttt_epochs=3
+quantized_ttt val_loss:3.08259413 val_bpb:1.06813909 eval_time:304749ms
