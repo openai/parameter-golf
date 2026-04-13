@@ -1,0 +1,63 @@
+{
+  "author": "Benjamin Hadad",
+  "github_id": "codemath3000",
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT + Systems Optimization",
+  "date": "2026-04-13",
+  "track": "10min_16mb",
+  "val_loss": 2.78992846,
+  "val_bpb": 1.08006825,
+  "val_bpb_std": 0.00014482,
+  "seeds": [0, 3141, 42],
+  "seed_results": {
+    "0": {
+      "steps": 4607,
+      "step_avg_ms": 127.4,
+      "val_loss": 2.78951654,
+      "val_bpb": 1.07990878,
+      "post_ema_val_bpb": 1.08663068,
+      "sliding_val_bpb": 1.08150228,
+      "artifact_bytes": 15993737
+    },
+    "3141": {
+      "steps": 4622,
+      "step_avg_ms": 127.0,
+      "val_loss": 2.79002185,
+      "val_bpb": 1.08010440,
+      "post_ema_val_bpb": 1.08681115,
+      "sliding_val_bpb": 1.08166940,
+      "artifact_bytes": 15995437
+    },
+    "42": {
+      "steps": 4619,
+      "step_avg_ms": 127.1,
+      "val_loss": 2.79024700,
+      "val_bpb": 1.08019157,
+      "post_ema_val_bpb": 1.08686427,
+      "sliding_val_bpb": 1.08152039,
+      "artifact_bytes": 15993201
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1493 stack (SP8192 + 3-layer recurrence + parallel residuals + legal TTT) + systems optimization (fused Muon, EMA foreach, superchunk eval, rank-0 serialize). Identical ML; faster throughput yields extra training steps.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)",
+    "systems_optimization": "@codemath3000 (fused Muon, EMA foreach, superchunk eval, loader prealloc)"
+  }
+}
