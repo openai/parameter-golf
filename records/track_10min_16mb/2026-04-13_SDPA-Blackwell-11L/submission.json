@@ -1,0 +1,24 @@
+{
+  "author": "vikrant-akavaram",
+  "github_id": "vikrant-akavaram",
+  "name": "SDPA-Compatible 11L Record Fork — Blackwell GPU Training",
+  "blurb": "Adapted the 1.1147 BPB record entry to run on non-Hopper GPUs via SDPA fallback. Validated on NVIDIA Blackwell GB10 (sm_121a): val_bpb=1.4362 at 7000 steps with 16K batch on single GPU. Includes hyperparameter ablation (QK-Gain sweep, WD tuning) and negative results (SSM hybrid, MoE, self-distillation). On 8xH100 with FA3, expected to match ~1.11 BPB.",
+  "date": "2026-04-13",
+  "track": "10min_16mb",
+  "val_bpb": 1.43622123,
+  "val_loss": 2.42499938,
+  "artifact_bytes": 13847230,
+  "train_steps": 7000,
+  "step_avg_ms": 639.33,
+  "hardware_dev": "1xNVIDIA GB10 128GB (DGX Spark, sm_121a Blackwell)",
+  "hardware_target": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "attention_backend": "F.scaled_dot_product_attention (SDPA fallback, FA3 unavailable on sm_121a)",
+  "calibration": "AR self-generated (64 seqs x 2048 tokens, temp=0.8, no external data)",
+  "technique_summary": "SDPA fallback for non-Hopper GPUs + 11L XSA-all BigramHash3072 GPTQ-int6 LZMA9 stack",
+  "novel_contributions": [
+    "SDPA fallback enabling Blackwell/non-Hopper GPU training",
+    "Hyperparameter ablation on single GPU (QK-Gain, WD)",
+    "Negative results: SSM hybrid, MoE, self-distillation"
+  ]
+}
