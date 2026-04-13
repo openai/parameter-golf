@@ -11,7 +11,7 @@
 | 2024 | 5977 | 1.1222 | 1.1746 | **1.1368** | 15,075,112 B |
 | **Mean** | | **1.1230** | **1.1739** | **1.1372 (std 0.0004)** | |
 
-Note: Trained on 1x RTX 6000 Ada for 5hr per seed (~6000 steps). Equivalent step count verified on 8xH100 cluster (5374 steps in 600s, SWA 1.1086).
+Note: Trained on 1x RTX 6000 Ada for 5hr per seed (~6000 steps). Equivalent step count verified on 8xH100 cluster (6374 steps in 600s, SWA 1.1200).
 
 ### Changes from PR #927
 
