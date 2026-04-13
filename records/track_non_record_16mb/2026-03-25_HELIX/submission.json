@@ -1,0 +1,17 @@
+{
+  "author": "helix-team",
+  "github_id": "helix-team",
+  "name": "HELIX (D-TPA + MoR + Peri-LN)",
+  "blurb": "Non-record 8xH100 run of HELIX with D-TPA attention and MoR-style virtual depth. Hit 1.2781 BPB on post-EMA validation at the 600s wallclock cap, with a 9,973,239-byte int6+lzma submission artifact.",
+  "date": "2026-03-25T19:20:35Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.1580,
+  "val_bpb": 1.2781,
+  "pre_quant_val_loss": 2.1515,
+  "pre_quant_val_bpb": 1.2742,
+  "step_stop": 2298,
+  "wallclock_seconds": 600.131,
+  "bytes_total": 9973239,
+  "bytes_model_int8_zlib": 9884088,
+  "bytes_code": 89151
+}
