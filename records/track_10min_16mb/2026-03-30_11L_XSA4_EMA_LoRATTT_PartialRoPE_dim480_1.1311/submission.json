@@ -1,38 +1,19 @@
 {
   "track": "10min_16mb",
   "date": "2026-03-30",
-  "name": "11L XSA4 + EMA + LoRA TTT + Partial RoPE + GPTQ-lite (dim480)",
+  "name": "11L XSA4 + EMA + LoRA TTT + Partial RoPE + GPTQ-lite (dim480) - RETRACTED",
   "author": "Nathan Maine",
   "github_id": "NathanMaine",
-  "blurb": "PR #462 architecture compressed to ~15.5MB: MODEL_DIM=480, NUM_KV_HEADS=4, MLP_HIDDEN=1536, 11L. EMA (decay 0.9985), Partial RoPE (16/64 dims), Late QAT int6 STE (threshold 0.15), single-pass LoRA TTT (rank 8, lr 0.01, 1 epoch), XSA on deepest 4 layers, BigramHash (8192 buckets, dim 128), SmearGate, int6+zstd-22 compression (3.83x ratio). ~7,900 steps in 600s on 8xH100 SXM Iceland. NVIDIA Inception member.",
-  "val_loss": 1.90718,
-  "val_bpb": 1.13112447,
-  "seed_results": {
-    "1337": {
-      "val_loss": 1.90869,
-      "val_bpb": 1.13041826,
-      "steps": 7847,
-      "ms_per_step": 76.47,
-      "bytes_total": 15489698
-    },
-    "42": {
-      "val_loss": 1.90791,
-      "val_bpb": 1.13161931,
-      "steps": 7958,
-      "ms_per_step": 75.40,
-      "bytes_total": 15462345
-    },
-    "7": {
-      "val_loss": 1.90493,
-      "val_bpb": 1.13133583,
-      "steps": 7935,
-      "ms_per_step": 75.62,
-      "bytes_total": 15436056
-    }
+  "status": "retracted",
+  "blurb": "RETRACTED 2026-04-13. Originally reported val_bpb 1.13112 was computed with LoRA TTT running on val_tokens for 1 epoch without score-first discipline. Same illegal pattern that closed PR #1376 and was flagged on PR #1193 and PR #406 by @MatoTeziTanka. train_gpt.py default changed to TTT_ENABLED=0 for legality. No pre-TTT diagnostic numbers were preserved, so no clean substitute BPB is available.",
+  "val_bpb": null,
+  "val_bpb_retracted": 1.13112447,
+  "legality_note": "LoRA TTT trained on val_tokens before final eval. Violates score-first discipline per Issue #402 and Issue #677.",
+  "original_seed_results_retracted": {
+    "1337": {"val_bpb": 1.13041826, "steps": 7847, "ms_per_step": 76.47, "bytes_total": 15489698},
+    "42": {"val_bpb": 1.13161931, "steps": 7958, "ms_per_step": 75.40, "bytes_total": 15462345},
+    "7": {"val_bpb": 1.13133583, "steps": 7935, "ms_per_step": 75.62, "bytes_total": 15436056}
   },
-  "mean_val_loss": 1.90718,
-  "mean_val_bpb": 1.13112447,
   "bytes_total": 15462699,
-  "bytes_model_int6_zstd": 15398603,
   "bytes_code": 64073
 }

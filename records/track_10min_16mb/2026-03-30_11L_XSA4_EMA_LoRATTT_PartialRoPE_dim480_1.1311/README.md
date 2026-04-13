@@ -1,6 +1,20 @@
 # 11L XSA4 + EMA + LoRA TTT + Partial RoPE + GPTQ-lite (dim480)
 
-**val_bpb: 1.13112** (3-seed mean, std 0.00051) | **~15.5 MB** | 8×H100 SXM Iceland
+## Update (April 13, 2026) - Compliance flag, BPB retracted
+
+This submission used a LoRA TTT function that trained on val_tokens for 1 epoch before the final eval, without score-first discipline. Same illegal pattern that was flagged on PR #1193 and PR #406 by @MatoTeziTanka in his April 11-12 compliance review, and the same pattern that closed PR #1376 and the rest of the Pre-Quant TTT cluster per Issue #402 and Issue #677.
+
+**Retracting the reported 1.13112 BPB** as not legal under current rulings.
+
+The `train_gpt.py` in this folder has been updated so `ttt_enabled` defaults to `"0"`, which makes running the committed script as-is produce legal results. Unlike PR #406 (where the train logs still contained the clean pre-SDTTT DIAGNOSTIC post_swa numbers), this submission does not have pre-TTT diagnostic numbers preserved in the submission folder, so there is no clean number to substitute in.
+
+If a legal no-TTT rerun becomes available in the future, I will update this submission. Otherwise, treat this PR as withdrawn for the record track.
+
+Thanks to @MatoTeziTanka for the systematic compliance review.
+
+## Original Submission (no longer valid)
+
+**~~val_bpb: 1.13112~~** (3-seed mean, std 0.00051) - **RETRACTED: computed with illegal LoRA TTT on val_tokens**
 
 ## Architecture
 

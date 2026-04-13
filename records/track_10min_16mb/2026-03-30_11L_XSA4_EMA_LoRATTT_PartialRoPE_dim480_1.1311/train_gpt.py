@@ -108,8 +108,14 @@ class Hyperparameters:
     late_qat = bool(int(os.environ.get("LATE_QAT", "1")))
     qat_threshold = float(os.environ.get("QAT_THRESHOLD", "0.15"))
 
-    # TTT: SGD fine-tune on val data after training
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    # TTT DISABLED by default (was training on val_tokens without score-first
+    # discipline, same illegal pattern that closed PR #1376 and was flagged on
+    # PR #1193 and PR #406 by @MatoTeziTanka on 2026-04-11/12). The reported
+    # 1.13112 BPB was computed with TTT_ENABLED=1 which ran LoRA adapter updates
+    # on val_tokens before the final eval. Default is now 0 so running this
+    # script as-is produces legal results. No clean post-TTT BPB is available
+    # from the original runs since the logs were not preserved.
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", "0.0005"))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", "10"))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
