@@ -633,13 +633,15 @@ class MLP(nn.Module):
 class LatentPredictor(nn.Module):
     def __init__(self, dim: int, bottleneck: int):
         super().__init__()
+        self.norm = RMSNorm()
         self.down = CastedLinear(dim, bottleneck, bias=False)
         self.up = CastedLinear(bottleneck, dim, bias=False)
         nn.init.zeros_(self.up.weight)
 
     def forward(self, x: Tensor) -> Tensor:
-        h = F.leaky_relu(self.down(x[:, :-1]), negative_slope=0.5).square()
-        return self.up(h) + x[:, :-1]
+        x_in = x[:, :-1]
+        h = F.leaky_relu(self.down(self.norm(x_in)), negative_slope=0.5).square()
+        return self.up(h) + x_in
 
 
 class Block(nn.Module):
