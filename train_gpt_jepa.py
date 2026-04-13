@@ -124,6 +124,16 @@ class Hyperparameters:
     # all anchor layers and shapes the entire encoder stack.
     jepa_num_anchors = int(os.environ.get("JEPA_NUM_ANCHORS", "1"))
 
+    # SLOT (Sample-specific Language model Optimization at Test-time).
+    # Eval-time-only: a learnable delta vector at the final hidden layer is
+    # optimized via SGD on already-scored val tokens (chunk-causal, legal under
+    # the score-first pattern). Zero artifact cost. SLOT_LR > 0 enables it.
+    slot_lr = float(os.environ.get("SLOT_LR", "0.0"))
+    slot_steps = int(os.environ.get("SLOT_STEPS", "5"))
+    slot_momentum = float(os.environ.get("SLOT_MOMENTUM", "0.9"))
+    slot_chunk_tokens = int(os.environ.get("SLOT_CHUNK_TOKENS", "32768"))
+    slot_reset_per_chunk = bool(int(os.environ.get("SLOT_RESET_PER_CHUNK", "0")))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -315,6 +325,97 @@ def eval_val(
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_slot(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    slot_lr: float,
+    slot_steps: int,
+    slot_momentum: float,
+    slot_chunk_seqs: int,
+    slot_reset_per_chunk: bool,
+) -> tuple[float, float]:
+    # SLOT eval: for each chunk of validation sequences, compute the BPB-counted
+    # CE loss with the current delta (the score), then update delta via SGD on
+    # the same chunk's CE loss (the training step). Score-first ordering ensures
+    # we never grade tokens with delta values trained on themselves. Delta
+    # persists across chunks (or resets if SLOT_RESET_PER_CHUNK=1) so later
+    # chunks benefit from earlier optimization.
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model_dim = base_model.tok_emb.weight.size(1)
+    delta = torch.zeros(model_dim, device=device, dtype=torch.float32, requires_grad=True)
+    optimizer = torch.optim.SGD([delta], lr=slot_lr, momentum=slot_momentum)
+
+    base_model.eval()
+    chunk_seqs = max(1, slot_chunk_seqs)
+
+    for chunk_start in range(seq_start, seq_end, chunk_seqs):
+        chunk_end = min(chunk_start + chunk_seqs, seq_end)
+        raw_start = chunk_start * args.train_seq_len
+        raw_end = chunk_end * args.train_seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        x = local[:-1].reshape(-1, args.train_seq_len)
+        y = local[1:].reshape(-1, args.train_seq_len)
+        y_flat = y.reshape(-1)
+
+        if slot_reset_per_chunk:
+            with torch.no_grad():
+                delta.zero_()
+            optimizer.state.clear()
+
+        # Cache the encoder-decoder hidden state once per chunk.
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            hidden = base_model.encode(x).detach()
+
+        # Score the chunk under the current delta (this is the BPB-counted pass).
+        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+            logits = base_model.head(hidden + delta.to(hidden.dtype)[None, None, :])
+            score_loss = F.cross_entropy(logits.float(), y_flat, reduction="mean")
+
+        batch_token_count = float(y_flat.numel())
+        val_loss_sum += score_loss.detach().to(torch.float64) * batch_token_count
+        val_token_count += batch_token_count
+        prev_ids = x.reshape(-1)
+        token_bytes = base_bytes_lut[y_flat].to(dtype=torch.int16)
+        token_bytes += (has_leading_space_lut[y_flat] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+        val_byte_count += token_bytes.to(torch.float64).sum()
+
+        # Now update delta via SGD on the same chunk (legal: already scored).
+        # This adapts delta to the local distribution before the next chunk.
+        for _ in range(slot_steps):
+            optimizer.zero_grad()
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = base_model.head(hidden + delta.to(hidden.dtype)[None, None, :])
+                loss = F.cross_entropy(logits.float(), y_flat)
+            loss.backward()
+            optimizer.step()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -911,6 +1012,35 @@ class GPT(nn.Module):
 
         return ce_loss, jepa_loss
 
+    def encode(self, input_ids: Tensor) -> Tensor:
+        """Run the full encoder-decoder stack and return the pre-LM-head hidden
+        state. Used by SLOT (eval-time delta optimization) which only needs the
+        final hidden representation, not the loss.
+        """
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        return self.final_norm(x)
+
+    def head(self, hidden: Tensor) -> Tensor:
+        """Map a hidden state to logits via the (tied) LM head, with softcap."""
+        flat = hidden.reshape(-1, hidden.size(-1))
+        if self.tie_embeddings:
+            logits_proj = F.linear(flat, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(flat)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
 
 # -----------------------------
 # TRAINING
@@ -1326,6 +1456,38 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    if args.slot_lr > 0:
+        log0(
+            f"slot:enabled lr={args.slot_lr} steps={args.slot_steps} "
+            f"momentum={args.slot_momentum} chunk_tokens={args.slot_chunk_tokens} "
+            f"reset_per_chunk={args.slot_reset_per_chunk}"
+        )
+        torch.cuda.synchronize()
+        t_slot = time.perf_counter()
+        slot_chunk_seqs = max(1, args.slot_chunk_tokens // args.train_seq_len)
+        slot_loss, slot_bpb = eval_val_slot(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            args.slot_lr,
+            args.slot_steps,
+            args.slot_momentum,
+            slot_chunk_seqs,
+            args.slot_reset_per_chunk,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_slot val_loss:{slot_loss:.4f} val_bpb:{slot_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_slot):.0f}ms"
+        )
+        log0(f"final_slot_exact val_loss:{slot_loss:.8f} val_bpb:{slot_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
