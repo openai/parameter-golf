@@ -1,0 +1,28 @@
+{
+    "name": "aiejvn",
+    "github_id": "139830381",
+    "val_bpb": 1.2321,
+    "val_bpb_note": "Pre-quantization. Span-masked JEPA v3, ~20hr on AWS A10G.",
+    "track": "non_record_unlimited_compute",
+    "description": "JEPA v3: fixes representation collapse via I-JEPA-style span masking + VICReg (V-JEPA) loss terms. Context encoder sees target spans replaced with learned mask embedding; target encoder sees full unmasked sequence. VICReg variance hinge and covariance penalty applied to predictor representations prevent dimensional collapse.",
+    "hardware": "AWS A10G",
+    "date": "2026-04-12",
+    "status": "research_non_record",
+    "base_architecture": "11L 512-dim U-Net Transformer, mlp_mult=3, GQA 8q/4kv",
+    "techniques": {
+        "jepa_style": "span_masked_i_jepa",
+        "jepa_num_spans": 4,
+        "jepa_span_len_mean": 16,
+        "jepa_lambda": 0.12,
+        "jepa_ema_momentum": "0.9→0.999",
+        "jepa_pred_dim": 256,
+        "vicreg_var_weight": 0.15,
+        "vicreg_cov_weight": 0.02,
+        "vicreg_var_gamma": 1.0,
+        "bigram_vocab_size": 2048,
+        "artifact_ema_decay": 0.9999,
+        "quantization": "int6",
+        "compression": "lzma",
+        "activation": "leaky_relu_0.5_squared"
+    }
+}
