@@ -118,6 +118,11 @@ class Hyperparameters:
     jepa_loss_weight = float(os.environ.get("JEPA_LOSS_WEIGHT", "0.5"))
     jepa_bottleneck = int(os.environ.get("JEPA_BOTTLENECK", "128"))
     jepa_horizons = int(os.environ.get("JEPA_HORIZONS", "3"))
+    # Hierarchical JEPA: number of deepest encoder layers to apply latent
+    # prediction at. 1 = encoder-decoder boundary only (original behavior).
+    # >1 = multi-layer prediction. The same tiny predictor is shared across
+    # all anchor layers and shapes the entire encoder stack.
+    jepa_num_anchors = int(os.environ.get("JEPA_NUM_ANCHORS", "1"))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -347,6 +352,19 @@ if QUANT_BITS not in (4, 6, 8):
 QUANT_MAX = (1 << (QUANT_BITS - 1)) - 1
 QUANT_MIN = -QUANT_MAX
 
+# Tensors matching these patterns are kept at int8 even when QUANT_BITS < 8.
+# Tied embeddings affect both input embedding and output logits, so they are
+# disproportionately sensitive to quantization noise. Top submissions either
+# keep them at fp16 or use higher-precision quantization here.
+QUANT_KEEP_INT8_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "QUANT_KEEP_INT8_PATTERNS",
+        "tok_emb,lm_head",
+    ).split(",")
+    if pattern
+)
+
 
 def _pack_low_bits(values_int8: Tensor, bits: int) -> tuple[Tensor, int]:
     """Pack low-bit signed values (stored in int8) into a uint8 byte stream.
@@ -475,10 +493,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], bits: int = 8):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t, bits=bits)
+        # Quality-sensitive tensors stay at int8 even when QUANT_BITS < 8.
+        tensor_bits = 8 if any(p in name for p in QUANT_KEEP_INT8_PATTERNS) else bits
+        q, s = quantize_float_tensor(t, bits=tensor_bits)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
-        packed, count = _pack_low_bits(q, bits)
+        if tensor_bits != bits:
+            qmeta.setdefault(name, {})["bits"] = tensor_bits
+        packed, count = _pack_low_bits(q, tensor_bits)
         quantized[name] = packed
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -512,10 +534,12 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     for name, packed in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
-        if bits < 8:
+        # Per-tensor bit overrides (e.g., tied embedding kept at int8).
+        tensor_bits = int(qmeta.get(name, {}).get("bits", bits))
+        if tensor_bits < 8:
             shape = shapes[name]
             count = counts[name]
-            q = _unpack_low_bits(packed, count, bits).reshape(shape)
+            q = _unpack_low_bits(packed, count, tensor_bits).reshape(shape)
         else:
             q = packed
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
@@ -788,6 +812,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         jepa_bottleneck: int = 128,
         jepa_horizons: int = 3,
+        jepa_num_anchors: int = 1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -819,6 +844,7 @@ class GPT(nn.Module):
             self.lm_head._zero_init = True
         self.latent_predictor = LatentPredictor(model_dim, jepa_bottleneck)
         self.num_horizons = jepa_horizons
+        self.num_jepa_anchors = max(1, min(jepa_num_anchors, num_layers // 2))
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -834,34 +860,38 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
+        # Capture activations at the deepest N encoder layers as JEPA anchors.
+        # Each anchor receives multi-horizon latent prediction loss, sculpting
+        # the entire encoder stack rather than just the encoder-decoder boundary.
+        anchor_start = self.num_encoder_layers - self.num_jepa_anchors
+        jepa_anchors: list[Tensor] = []
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
             skips.append(x)
+            if i >= anchor_start:
+                jepa_anchors.append(x)
 
         encoder_out = x
 
-        # Multi-horizon latent rollout: apply predictor recursively like a
-        # learned dynamics model, predicting t+1, t+2, ... t+K in latent space.
-        horizon_preds: list[Tensor] = []
-        h = encoder_out
-        for _ in range(self.num_horizons):
-            h = self.latent_predictor(h)
-            horizon_preds.append(h)
-
-        # Multi-horizon JEPA loss: the predictor learns a dynamics model in
-        # latent space. The auxiliary loss shapes encoder representations to be
-        # temporally predictable, improving parameter efficiency. Layer norm on
-        # both sides matches the data2vec approach and is numerically stable.
+        # Hierarchical multi-horizon JEPA: at each anchor layer, recursively
+        # apply the shared tiny predictor to predict t+1 ... t+K future
+        # representations. Loss sums (anchor, horizon) terms with horizon-decayed
+        # weights, then averages over anchors so JEPA_LOSS_WEIGHT semantics stay
+        # comparable across JEPA_NUM_ANCHORS settings. Layer norm matches data2vec.
         jepa_loss = torch.zeros((), device=x.device, dtype=torch.float32)
         feat_dim = encoder_out.size(-1)
-        w = 1.0
-        for k, pred in enumerate(horizon_preds):
-            offset = k + 1
-            tgt = encoder_out[:, offset:, :].detach()
-            pred_n = F.layer_norm(pred.float(), (feat_dim,))
-            tgt_n = F.layer_norm(tgt.float(), (feat_dim,))
-            jepa_loss = jepa_loss + w * F.smooth_l1_loss(pred_n, tgt_n)
-            w = w * 0.5
+        for anchor in jepa_anchors:
+            h = anchor
+            w = 1.0
+            for k in range(self.num_horizons):
+                h = self.latent_predictor(h)
+                offset = k + 1
+                tgt = anchor[:, offset:, :].detach()
+                pred_n = F.layer_norm(h.float(), (feat_dim,))
+                tgt_n = F.layer_norm(tgt.float(), (feat_dim,))
+                jepa_loss = jepa_loss + w * F.smooth_l1_loss(pred_n, tgt_n)
+                w = w * 0.5
+        jepa_loss = jepa_loss / float(self.num_jepa_anchors)
 
         for i in range(self.num_decoder_layers):
             if skips:
@@ -995,6 +1025,7 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         jepa_bottleneck=args.jepa_bottleneck,
         jepa_horizons=args.jepa_horizons,
+        jepa_num_anchors=args.jepa_num_anchors,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1060,7 +1091,10 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     n_predictor = sum(p.numel() for p in base_model.latent_predictor.parameters())
     log0(f"model_params:{n_params} (jepa_predictor:{n_predictor})")
-    log0(f"jepa: weight={args.jepa_loss_weight} bottleneck={args.jepa_bottleneck} horizons={args.jepa_horizons}")
+    log0(
+        f"jepa: weight={args.jepa_loss_weight} bottleneck={args.jepa_bottleneck} "
+        f"horizons={args.jepa_horizons} num_anchors={args.jepa_num_anchors}"
+    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
