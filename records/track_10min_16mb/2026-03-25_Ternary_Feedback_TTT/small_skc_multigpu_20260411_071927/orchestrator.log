@@ -1,0 +1,109 @@
+[07:19:27] ========================================================
+[07:19:27] Cheap Multi-GPU Small SKC Orchestrator
+[07:19:27] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260411_071927
+[07:19:27] GPU count: 1
+[07:19:27] Min mem  : 70GB
+[07:19:27] Data     : 24 train shards
+[07:19:27] ========================================================
+[07:19:28] GC: terminating stale live pod paramgolf-small-20260411-071900 (dtn43vx45e1t3t, uptime=0s)
+[07:19:28] Terminating pod dtn43vx45e1t3t...
+{
+  "podTerminate": null
+}
+1.19	NVIDIA A100 80GB PCIe	Low	80	A100 PCIe
+1.39	NVIDIA A100-SXM4-80GB	Low	80	A100 SXM
+2.59	NVIDIA H100 NVL	Low	94	H100 NVL
+1.49	NVIDIA A100-SXM4-80GB	Medium	80	A100 SXM
+2.99	NVIDIA H100 80GB HBM3	High	80	H100 SXM
+3.07	NVIDIA H100 NVL	Low	94	H100 NVL
+3.39	NVIDIA H200 NVL	Low	143	NVIDIA H200 NVL
+3.59	NVIDIA H200	Low	141	H200 SXM
+[07:19:31] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  1x  mem=80GB  stock=Medium  price=$1.49/hr
+[07:19:31] Trying 1xNVIDIA A100-SXM4-80GB on SECURE...
+[07:19:33]   success: pod=cbtk10ta9y4pbq cost=$1.49/hr
+[07:19:33] Waiting for pod SSH readiness...
+[07:20:10] Pod SSH preliminary success. Waiting 15s for stability...
+[07:20:29] Pod ready and stable: root@154.54.102.28:11099
+[07:20:29] Verifying GPU and runtime...
+0, NVIDIA A100-SXM4-80GB, 81920 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 1
+[07:20:44] Installing tmux and preparing logs...
+[07:20:56] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[07:21:30] Preparing data (Fast Assets: Tokenizer + Val Shard)...
+wrote:/workspace/data_setup_fast.sh
+[07:21:43] Uploading code...
+[07:21:57] Jump-starting Parallel Setup: Shard Download (Background) + Compilation (Foreground)...
+wrote:/workspace/data_setup_full.sh
+[07:22:07] Starting GPU watchdog...
+[07:22:07] GPU watchdog: started (10m grace period for compilation)
+[07:22:07] Starting Eager Smoke test (Fat-Script) in foreground...
+wrote:/workspace/launch_eager.sh
+==========================================================================
+  SKC COMPETITION PROXY — 2×GPU
+  RUN_ID    : skc_competition_proxy_20260411_122219
+  TOKENIZER : SP8192
+  MODEL     : skc_competition  L=8  D=640  H=8
+              parallel_residual=1  recurrence=depth2@0.35
+  TTT       : scope=skc_safe  epochs=3  lr=0.003
+  EXPORT    : competition_gptq
+  BUDGET    : 599s
+==========================================================================
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 5130, in <module>
+    main()
+  File "/workspace/train_gpt.py", line 4084, in main
+    torch.cuda.set_device(device)
+  File "/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py", line 420, in set_device
+    torch._C._cuda_setDevice(device)
+RuntimeError: CUDA error: invalid device ordinal
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0411 12:22:23.503000 133175074447360 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 912 closing signal SIGTERM
+E0411 12:22:23.617000 133175074447360 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 913) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-11_12:22:23
+  host      : 669c82333874
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 913)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+=== SMOKE DONE ===
+[07:22:23] Waiting for background shard downloads to complete...
+[07:22:41] Launching 10-minute eager training run (Fat-Script)...
+[07:33:11] GPU watchdog: 0% util detected after warmup (streak 1/3)
+[07:34:15] GPU watchdog: 0% util detected after warmup (streak 2/3)
+[07:35:20] GPU watchdog: 0% util detected after warmup (streak 3/3)
+[07:35:20] FATAL: GPU usage stuck at 0% for too long. Terminating pod.
+[07:35:20] Terminating pod cbtk10ta9y4pbq...
+{
+  "podTerminate": null
+}
+[08:29:21] FATAL: Full run did not complete in time

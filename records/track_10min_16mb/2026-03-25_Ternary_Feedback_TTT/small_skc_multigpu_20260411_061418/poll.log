@@ -1,0 +1,81 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+fineweb_train_000000.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc0-65f4d0205b8488630bf582f5;a358f4b0-30ea-4792-b487-0f8721417586)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000000.bin.)
+fineweb_train_000002.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc0-6ede84242cd2e59f600da940;13ba6f27-3794-42fa-ab9b-b488b7b7011c)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000002.bin.)
+fineweb_train_000001.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc0-2d62c5b37f28d8857e2ca5cd;bb7bba6d-1e03-4f0f-9282-c584002f2adc)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000001.bin.)
+fineweb_train_000003.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc0-1e67c14423466c403fc1d34e;e754decd-8ebb-4741-a5a5-13d32193c8ea)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000003.bin.)
+4/24 train shards ready (4 failed)
+fineweb_train_000004.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc3-009b1c022f171e9a60baaf4b;7e8b5167-9145-4ec9-8991-fb08834b4039)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000004.bin.)
+fineweb_train_000005.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc3-66ce7e786e2929732896fbee;c365ed07-6ac5-48c8-ab7c-98df2c8f8c43)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000005.bin.)
+fineweb_train_000006.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc3-56e5e7cc1f62c4ee0a4448ed;76987b76-dfea-4efd-b3fe-ff24c6693258)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000006.bin.)
+fineweb_train_000007.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc3-49dd1c4323410f443f8b848e;75ec7216-ae79-429e-a462-924276372d87)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000007.bin.)
+8/24 train shards ready (8 failed)
+fineweb_train_000008.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc6-3b04d6d40d11124a7fc5a0ac;e609e8b8-3eb6-405a-a433-65dfea0af5ff)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000008.bin.)
+fineweb_train_000009.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc6-2966f62d6e5087614d84fc23;8e76f12a-dcb4-4edf-9f85-3844de2279e1)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000009.bin.)
+fineweb_train_000010.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc6-764996e772109d1d0b770dcd;1cd544e3-5467-4d4b-9fa6-5283fa42c137)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000010.bin.)
+fineweb_train_000011.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc6-5e4df6ae43ebb05b05dc3260;7201c58e-3dbd-46f1-87dc-8e2cca94d1f3)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000011.bin.)
+12/24 train shards ready (12 failed)
+fineweb_train_000012.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc9-091a8f5c2b7cb99d66c226ca;a93c761f-92c2-4c87-b496-6dd5cce5dd8d)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000012.bin.)
+fineweb_train_000013.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc9-4b791df402af2a91123c2890;5319c1aa-104c-472b-bded-c92020099775)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000013.bin.)
+fineweb_train_000014.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc9-384459c13c8dc3d20282f251;7de215c8-ea33-43a4-b92a-d65bd40efe97)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000014.bin.)
+fineweb_train_000015.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dc9-77fd8b927316cd4012fdaa18;2abb32cc-045f-49ea-8598-64c0e49d1f24)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000015.bin.)
+16/24 train shards ready (16 failed)
+fineweb_train_000016.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcc-121c90581d4380be64118140;ce8288f4-f222-4e47-b447-86fb7c856576)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000016.bin.)
+fineweb_train_000017.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcc-4dbf62165e87c13d739f26b6;0bfd3a7a-0a61-4590-8439-699a83322a44)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000017.bin.)
+fineweb_train_000018.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcc-06f97acc66d079377df743fe;6dd94270-f53f-4608-abf3-cab58559a142)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000018.bin.)
+fineweb_train_000019.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcc-1788c88360ec5fff1d65571f;a1f9e56e-3d80-44f7-9ca9-2cd700ebc3a5)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000019.bin.)
+20/24 train shards ready (20 failed)
+fineweb_train_000020.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcf-3bfff7b0232deb7c7686e4dd;f89cc512-7252-4532-a89c-6ab922bf7bca)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000020.bin.)
+fineweb_train_000021.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dcf-2b3423fd61477c170792fc95;41d33c2d-0e4c-438a-812b-59c416d75ed0)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000021.bin.)
+fineweb_train_000022.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dd0-29fd4d9919b005e5457bd7a8;f6332f16-5abd-4a05-9200-ebbd9fba7fed)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000022.bin.)
+fineweb_train_000023.bin: FAILED (404 Client Error. (Request ID: Root=1-69da2dd0-5651f9ee4bfd24f6719da282;40c4031c-bcc4-4f6e-a692-18cbcd11d5ef)
+
+Entry Not Found for url: https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/fineweb10B_sp8192/fineweb_train_000023.bin.)
+24/24 train shards ready (24 failed)
+train_shards=0
+=== DATA DONE ===

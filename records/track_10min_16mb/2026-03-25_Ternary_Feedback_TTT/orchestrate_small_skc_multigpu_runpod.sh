@@ -16,14 +16,15 @@ LOCAL_SSH_PUB="${LOCAL_SSH_KEY}.pub"
 POD_IMAGE="runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 POD_NAME="paramgolf-small-$(date +%Y%m%d-%H%M%S)"
 RUNPOD_API="https://api.runpod.io/graphql"
-GPU_COUNT="${GPU_COUNT:-2}"
-MIN_GPU_MEMORY_GB="${MIN_GPU_MEMORY_GB:-24}"
+GPU_COUNT="${GPU_COUNT:-1}"
+MIN_GPU_MEMORY_GB="${MIN_GPU_MEMORY_GB:-70}"
 VOLUME_GB="${VOLUME_GB:-20}"
 DISK_GB="${DISK_GB:-20}"
 MIN_VCPU_COUNT="${MIN_VCPU_COUNT:-1}"
 MIN_SYSTEM_MEMORY_GB="${MIN_SYSTEM_MEMORY_GB:-8}"
-DATA_SHARDS="${DATA_SHARDS:-12}"
-HF_REPO="willdepueoai/parameter-golf"
+DATA_SHARDS="${DATA_SHARDS:-24}"
+HF_REPO="kevclark/parameter-golf"
+COMPILE_MODE="max-autotune"
 BALANCE_FLOOR="10"
 BALANCE_CHECK_SECONDS="${BALANCE_CHECK_SECONDS:-30}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-600}"
@@ -152,6 +153,9 @@ REMOTE_ENV_KEYS=(
     EXPORT_PROXY_EVERY
     EXPORT_PROXY_NUM_SEQS
     COMPILE_MODE
+    TORCHINDUCTOR_CACHE_DIR
+    TORCHINDUCTOR_FX_GRAPH_CACHE
+    TORCHINDUCTOR_COMPILE_THREADS
 )
 
 build_remote_env_prefix() {
@@ -414,15 +418,27 @@ SSH_BASE=(
 
 r()   { ssh "${SSH_BASE[@]}" -p "$POD_PORT" "root@${POD_HOST}" "$@"; }
 ul()  { scp "${SSH_BASE[@]}" -P "$POD_PORT" "$@" "root@${POD_HOST}:/workspace/"; }
+retry() {
+    local max=$1; shift
+    local count=1
+    while [[ $count -le $max ]]; do
+        "$@" && return 0
+        ((count++))
+        sleep 2
+    done
+    return 1
+}
+
 
 r_retry() {
     local attempt
-    for (( attempt = 1; attempt <= 3; attempt++ )); do
+    for (( attempt = 1; attempt <= 10; attempt++ )); do
         refresh_pod_endpoint >/dev/null 2>&1 || true
         if r "$@"; then
             return 0
         fi
-        sleep 5
+        log "  ... SSH attempt ${attempt}/10 failed, retrying in 15s..."
+        sleep 15
     done
     return 1
 }
@@ -472,8 +488,14 @@ wait_for_pod() {
         waited=$(( waited + 10 ))
         refresh_pod_endpoint || continue
         if ssh "${SSH_BASE[@]}" -p "$POD_PORT" "root@${POD_HOST}" "echo SSH_OK" 2>/dev/null | grep -q "SSH_OK"; then
-            log "Pod ready: root@${POD_HOST}:${POD_PORT}"
-            return 0
+            log "Pod SSH preliminary success. Waiting 15s for stability..."
+            sleep 15
+            if ssh "${SSH_BASE[@]}" -p "$POD_PORT" "root@${POD_HOST}" "echo SSH_OK" 2>/dev/null | grep -q "SSH_OK"; then
+                log "Pod ready and stable: root@${POD_HOST}:${POD_PORT}"
+                return 0
+            else
+                 log "Pod unstable, continuing to wait..."
+            fi
         fi
     done
     die "Pod not SSH-ready after 600s"
@@ -567,7 +589,7 @@ require_cmd python3
 [[ -f "$LOCAL_SSH_KEY" ]] || die "SSH private key not found: $LOCAL_SSH_KEY"
 [[ -f "$LOCAL_SSH_PUB" ]] || die "SSH public key not found: $LOCAL_SSH_PUB"
 [[ -f "${PROJECT_ROOT}/train_gpt.py" ]] || die "train_gpt.py not found in $PROJECT_ROOT"
-[[ -f "${SCRIPT_DIR}/run_small_skc_2gpu.sh" ]] || die "run_small_skc_2gpu.sh not found in $SCRIPT_DIR"
+[[ -f "${SCRIPT_DIR}/run_skc_competition_2gpu_proxy.sh" ]] || die "run_skc_competition_2gpu_proxy.sh not found in $SCRIPT_DIR"
 
 gc_stale_pods "$POD_NAME"
 balance=$(get_client_balance)
@@ -608,36 +630,75 @@ launch_remote_job "small_setup_install" "/workspace/install_setup.sh" "/workspac
 wait_for_log_token "/workspace/logs/install_setup.log" "=== INSTALL DONE ===" 1800 || die "Install job did not complete in time"
 download_from_pod "/workspace/logs/install_setup.log" "${LOCAL_ARTIFACTS_DIR}/install_setup.log" 0 1 || true
 
-log "Preparing data..."
-DATA_SETUP_SCRIPT_CONTENT=$(cat <<EOF
+log "Preparing data (Fast Assets: Tokenizer + Val Shard)..."
+DATA_SETUP_FAST_CONTENT=$(cat <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p /workspace/data/datasets/fineweb10B_sp1024 /workspace/data/tokenizers /workspace/logs
+mkdir -p /workspace/data/datasets/fineweb10B_sp8192 /workspace/data/tokenizers /workspace/logs
+python3 - <<'PYEOF'
+from huggingface_hub import hf_hub_download
+import os, pathlib, shutil, sys
+
+repo = '${HF_REPO}'
+data_dir = '/workspace/data/datasets/fineweb10B_sp8192'
+tok_dir = '/workspace/data/tokenizers'
+os.makedirs(data_dir, exist_ok=True)
+os.makedirs(tok_dir, exist_ok=True)
+
+def fetch_robust(repo_id, filename, subfolders, dest_path):
+    if os.path.exists(dest_path):
+        return
+    for subfolder in subfolders:
+        try:
+            print(f"Trying {repo_id}/{subfolder}/{filename}...", flush=True)
+            p = hf_hub_download(repo_id=repo_id, filename=filename, subfolder=subfolder, repo_type='dataset')
+            src = pathlib.Path(p).resolve()
+            try: os.link(src, dest_path)
+            except Exception: shutil.copy2(src, dest_path)
+            print(f"Success: {dest_path}", flush=True)
+            return
+        except Exception as e:
+            print(f"Failed {subfolder}: {e}", flush=True)
+    raise Exception(f"Could not find {filename} in any of {subfolders}")
+
+print("Fetching tokenizer triple assets...", flush=True)
+# URLs provided by user for kevclark/parameter-golf
+assets = [
+    ('fineweb_8192_bpe.model', 'https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/tokenizers/fineweb_8192_bpe.model?download=true'),
+    ('fineweb_8192_bpe.vocab', 'https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/tokenizers/fineweb_8192_bpe.vocab?download=true'),
+    ('tokenizer_specs_8192.json', 'https://huggingface.co/datasets/kevclark/parameter-golf/resolve/main/datasets/tokenizers/tokenizer_specs_8192.json?download=true')
+]
+for fname, url in assets:
+    print(f"  » {fname}", flush=True)
+    os.system(f"curl -L -s -o {os.path.join(tok_dir, fname)} '{url}'")
+
+print("Fetching val shard and first train shard...", flush=True)
+# Confirmed path: datasets/datasets/fineweb10B_sp8192
+fetch_robust(repo, 'fineweb_val_000000.bin', ['datasets/datasets/fineweb10B_sp8192', 'datasets/fineweb10B_sp8192'], os.path.join(data_dir, 'fineweb_val_000000.bin'))
+# Critical: fetch first shard so trainer can start immediately in eager mode
+fetch_robust(repo, 'fineweb_train_000000.bin', ['datasets/datasets/fineweb10B_sp8192', 'datasets/fineweb10B_sp8192'], os.path.join(data_dir, 'fineweb_train_000000.bin'))
+PYEOF
+echo "=== FAST DATA DONE ==="
+EOF
+)
+write_remote_file "/workspace/data_setup_fast.sh" "$DATA_SETUP_FAST_CONTENT" | tee -a "$ORCH_LOG" || die "Failed to write data setup fast script"
+r_retry "bash /workspace/data_setup_fast.sh" || die "Fast data setup failed"
+
+log "Uploading code..."
+ul_retry "${PROJECT_ROOT}/train_gpt.py" "${SCRIPT_DIR}/run_skc_competition_2gpu_proxy.sh" || die "Upload failed"
+
+log "Jump-starting Parallel Setup: Shard Download (Background) + Compilation (Foreground)..."
+DATA_SETUP_FULL_CONTENT=$(cat <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p /workspace/data/datasets/fineweb10B_sp8192 /workspace/logs
 python3 - <<'PYEOF'
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from huggingface_hub import hf_hub_download
 import os, pathlib, shutil, sys, time
 
 repo = '${HF_REPO}'
-data_dir = '/workspace/data/datasets/fineweb10B_sp1024'
-tok_dir = '/workspace/data/tokenizers'
-os.makedirs(data_dir, exist_ok=True)
-os.makedirs(tok_dir, exist_ok=True)
-
-def fetch(subfolder, fname, dest):
-    if os.path.exists(dest):
-        return
-    p = hf_hub_download(repo_id=repo, filename=fname, subfolder=subfolder, repo_type='dataset')
-    src = pathlib.Path(p).resolve()
-    try:
-        os.link(src, dest)
-    except Exception:
-        shutil.copy2(src, dest)
-
-fetch('datasets/tokenizers', 'fineweb_1024_bpe.model', os.path.join(tok_dir, 'fineweb_1024_bpe.model'))
-fetch('datasets/datasets/fineweb10B_sp1024', 'fineweb_val_000000.bin', os.path.join(data_dir, 'fineweb_val_000000.bin'))
-
-shards = [f'fineweb_train_{i:06d}.bin' for i in range(${DATA_SHARDS})]
+data_dir = '/workspace/data/datasets/fineweb10B_sp8192'
 
 def fetch_shard(fname):
     dest = os.path.join(data_dir, fname)
@@ -645,13 +706,18 @@ def fetch_shard(fname):
         return f'{fname}: cached'
     for attempt in range(3):
         try:
-            fetch('datasets/datasets/fineweb10B_sp1024', fname, dest)
+            # Consistent with val shard path on kevclark repo: datasets/datasets/fineweb10B_sp8192
+            p = hf_hub_download(repo_id=repo, filename=fname, subfolder='datasets/datasets/fineweb10B_sp8192', repo_type='dataset')
+            src = pathlib.Path(p).resolve()
+            try: os.link(src, dest)
+            except: shutil.copy2(src, dest)
             return f'{fname}: done'
         except Exception as e:
             if attempt == 2:
                 return f'{fname}: FAILED ({e})'
             time.sleep(2 ** attempt)
 
+shards = [f'fineweb_train_{i:06d}.bin' for i in range(${DATA_SHARDS})]
 failed = 0
 with ThreadPoolExecutor(max_workers=4) as ex:
     futs = {ex.submit(fetch_shard, shard): shard for shard in shards}
@@ -665,40 +731,52 @@ with ThreadPoolExecutor(max_workers=4) as ex:
 
 actual = len([f for f in os.listdir(data_dir) if f.startswith('fineweb_train_')])
 print(f'train_shards={actual}')
-if actual < min(${DATA_SHARDS}, 6):
-    sys.exit(1)
 PYEOF
 echo "=== DATA DONE ==="
 EOF
 )
-write_remote_file "/workspace/data_setup.sh" "$DATA_SETUP_SCRIPT_CONTENT" | tee -a "$ORCH_LOG" || die "Failed to write data setup script"
-launch_remote_job "small_setup_data" "/workspace/data_setup.sh" "/workspace/logs/data_setup.log" || die "Failed to launch data setup job"
-wait_for_log_token "/workspace/logs/data_setup.log" "=== DATA DONE ===" 3600 || die "Data preparation failed"
-download_from_pod "/workspace/logs/data_setup.log" "${LOCAL_ARTIFACTS_DIR}/data_setup.log" 0 1 || true
+write_remote_file "/workspace/data_setup_full.sh" "$DATA_SETUP_FULL_CONTENT" | tee -a "$ORCH_LOG" || die "Failed to write data setup full script"
+launch_remote_job "data_setup_full" "/workspace/data_setup_full.sh" "/workspace/logs/data_setup_full.log"
 
-log "Uploading code..."
-ul_retry "${PROJECT_ROOT}/train_gpt.py" "${SCRIPT_DIR}/run_small_skc_2gpu.sh" || die "Upload failed"
-
-if [[ -n "${LATENT_CHECKPOINT_LOCAL_PATH}" ]]; then
-    [[ -f "${LATENT_CHECKPOINT_LOCAL_PATH}" ]] || die "LATENT_CHECKPOINT_LOCAL_PATH not found: ${LATENT_CHECKPOINT_LOCAL_PATH}"
-    log "Uploading latent checkpoint..."
-    ul_retry "${LATENT_CHECKPOINT_LOCAL_PATH}" || die "Checkpoint upload failed"
-    export LATENT_CHECKPOINT_PATH="/workspace/$(basename "${LATENT_CHECKPOINT_LOCAL_PATH}")"
-fi
-
-REMOTE_ENV_PREFIX="$(build_remote_env_prefix)"
-log "Remote env overrides: ${REMOTE_ENV_PREFIX:-<none>}"
+REMOTE_ENV_PREFIX="$(build_remote_env_prefix) TORCHINDUCTOR_CACHE_DIR=/workspace/.inductor_cache TORCHINDUCTOR_FX_GRAPH_CACHE=1 TORCHINDUCTOR_COMPILE_THREADS=1 "
 log "Starting GPU watchdog..."
 watch_gpu_utilization &
 GPU_WATCH_PID=$!
-log "NOTICE: Entering Graph Capture / Compilation phase. GPU util will be 0% for up to 10 minutes."
-log "Smoke test..."
-r_retry "cd /workspace && timeout ${SMOKE_TIMEOUT_SECONDS}s env ${REMOTE_ENV_PREFIX}FAST_SMOKE=1 NPROC_PER_NODE=${GPU_COUNT} GRAD_ACCUM_STEPS=1 bash run_small_skc_2gpu.sh 2>&1 | tee /workspace/logs/smoke.log" | tee -a "$ORCH_LOG" || die "Smoke failed"
-download_from_pod "/workspace/logs/smoke.log" "${LOCAL_ARTIFACTS_DIR}/smoke.log" 0 1 || true
 
-log "Launching 10-minute run..."
+log "Starting Eager Smoke test (Fat-Script) in foreground..."
+LAUNCH_SCRIPT_CONTENT=$(cat <<EOF
+#!/usr/bin/env bash
+set -ex
+cd /workspace
+export PROJECT_ROOT=/workspace
+export TRAINER_PATH=train_gpt.py
+export COMPILE_MODE=none
+export DATA_PATH=/workspace/data/datasets/fineweb10B_sp8192
+export TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_8192_bpe.model
+eval "export ${REMOTE_ENV_PREFIX}"
+# Verification
+[[ -f "\${PROJECT_ROOT}/\${TRAINER_PATH}" ]] || { echo "FATAL: trainer not found"; exit 1; }
+# Launch
+if [[ "\${FAST_SMOKE:-0}" == "1" ]]; then
+    timeout 60s bash run_skc_competition_2gpu_proxy.sh 2>&1 | tee /workspace/logs/smoke.log
+else
+    # Full run
+    bash run_skc_competition_2gpu_proxy.sh 2>&1 | tee /workspace/logs/full_run.log
+fi
+EOF
+)
+write_remote_file "/workspace/launch_eager.sh" "$LAUNCH_SCRIPT_CONTENT" | tee -a "$ORCH_LOG" || die "Failed to write launch script"
+r_retry "chmod +x /workspace/*.sh /workspace/*.py" || true
+
+r_retry "FAST_SMOKE=1 bash /workspace/launch_eager.sh" | tee -a "$ORCH_LOG" || die "Smoke failed"
+echo "=== SMOKE DONE ===" >> "${ORCH_LOG}"
+
+log "Waiting for background shard downloads to complete..."
+wait_for_log_token "/workspace/logs/data_setup_full.log" "=== DATA DONE ===" 3600 || die "Data preparation failed"
+
+log "Launching 10-minute eager training run (Fat-Script)..."
 r_retry "tmux kill-session -t small_skc 2>/dev/null || true; cd /workspace && tmux new-session -d -s small_skc \
-    \"env ${REMOTE_ENV_PREFIX}SEED=${SEED:-42} NPROC_PER_NODE=${GPU_COUNT} GRAD_ACCUM_STEPS=1 bash run_small_skc_2gpu.sh 2>&1 | tee /workspace/logs/full_run.log\""
+    \"SEED=${SEED:-42} bash /workspace/launch_eager.sh\""
 
 wait_for_log_token "/workspace/logs/full_run.log" "=== DONE ===" 1800 || die "Full run did not complete in time"
 download_from_pod "/workspace/logs/full_run.log" "${LOCAL_ARTIFACTS_DIR}/full_run.log" 0 1 || true

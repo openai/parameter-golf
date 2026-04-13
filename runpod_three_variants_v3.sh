@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /workspace/parameter-golf
+mkdir -p logs/variants_v3
+
+COMMON_ENV=(
+  DATA_PATH=./data/datasets/fineweb10B_sp8192
+  TOKENIZER_PATH=./data/tokenizers/fineweb_8192_bpe.model
+  VOCAB_SIZE=8192
+  ARCHITECTURE=competition
+  SHARED_BLOCKS=0
+  NUM_HEADS=8
+  NUM_KV_HEADS=4
+  MLP_MULT=4
+  PARTIAL_ROPE_DIMS=16
+  LOGIT_SOFTCAP=30.0
+  ACTIVATION=lrelu2
+  LEAKY_RELU_SLOPE=0.5
+  QK_GAIN_INIT=4.5
+  SKC_RECURRENT_CORE=1
+  SKC_UPPER_BRANCH=0
+  SKC_CONV_KERNEL=4
+  SKC_BLOCK_SIZE=64
+  SKC_AUX_ENTROPY_FRACTION=0.20
+  TRAINING_DEPTH_RECURRENCE=3
+  EVAL_DEPTH_RECURRENCE=3
+  RECURRENCE_DEPTH=3
+  RECURRENCE_LAYERS=3,4,5
+  RECURRENCE_START_FRACTION=0.20
+  MOE_ENABLED=0
+  FEEDBACK_ENABLED=0
+  CAPSULE_ENABLED=0
+  BIGRAM_HASH_ENABLED=0
+  NGRAM_CACHE_ENABLED=0
+  KOOPMAN_ENABLED=0
+  KOOPMAN_SPECULATOR_ENABLED=0
+  ADAPTIVE_HALT_ENABLED=0
+  VRL_ENABLED=0
+  GPTQ_LITE_ENABLED=0
+  TRAIN_BATCH_TOKENS=131072
+  TRAIN_SEQ_LEN=1024
+  CURRICULUM_ENABLED=0
+  SEQ_LEN_START=0
+  BATCH_TOKENS_START=0
+  SEQ_SCHEDULE_FRACTION=0
+  BATCH_SCHEDULE_FRACTION=0
+  MATRIX_OPTIMIZER=muon
+  SCALAR_LR=0.001
+  TIED_EMBED_LR=0.0035
+  MUON_WD=0.06
+  MUON_BACKEND_STEPS=4
+  GRAD_CLIP_NORM=0.85
+  EMA_ENABLED=1
+  EMA_EVAL_APPLY=1
+  EMA_DECAY=0.9965
+  EMA_START_FRACTION=0.35
+  WARMDOWN_FRACTION=0.68
+  COMPILE_MODE=max-autotune
+  COMPILER_WARMUP_STEPS=1
+  SYNTHETIC_WARMUP=1
+  TORCHINDUCTOR_FX_GRAPH_CACHE=1
+  TORCHINDUCTOR_COMPILE_THREADS=8
+  COMPILE_SHAPE_PADDING=1
+  COMPILE_TRITON_CUDAGRAPHS=0
+  EXPORT_MODE=ternary_lzma
+  BITNET_GROUP_SIZE=64
+  TURBO_QUANT_TRAIN=1
+  TURBO_QUANT_EXPORT=1
+  TERNARY_THRESHOLD_SEARCH=1
+  TERNARY_SCALE_SEARCH=1
+  EXPORT_ALIGNED_TRAIN=1
+  EXPORT_ALIGNED_TRAIN_START_FRACTION=0.75
+  EXPORT_PROXY_EVAL=1
+  EXPORT_PROXY_EVERY=250
+  EXPORT_PROXY_NUM_SEQS=16
+  LZMA_PRESET=4
+  MAX_WALLCLOCK_SECONDS=599
+)
+
+run_variant () {
+  local name="$1"; shift
+  local -a SPEC=("$@")
+  local prelog="logs/variants_v3/${name}_precompile.log"
+  local runlog="logs/variants_v3/${name}_train.log"
+
+  echo "=== ${name}: precompile start ===" | tee -a "$prelog"
+  env "${COMMON_ENV[@]}" "${SPEC[@]}" PRECOMPILE_ONLY=1 ITERATIONS=1 python3 build_submission.py >/dev/null
+  if ! env "${COMMON_ENV[@]}" "${SPEC[@]}" PRECOMPILE_ONLY=1 ITERATIONS=1 torchrun --standalone --nproc_per_node=2 train_gpt.py >>"$prelog" 2>&1; then
+    echo "${name} PRECOMPILE_FAIL" | tee -a "$prelog"
+    return 11
+  fi
+  echo "=== ${name}: train start ===" | tee -a "$runlog"
+  if ! env "${COMMON_ENV[@]}" "${SPEC[@]}" PRECOMPILE_ONLY=0 torchrun --standalone --nproc_per_node=2 train_gpt.py >>"$runlog" 2>&1; then
+    echo "${name} TRAIN_FAIL" | tee -a "$runlog"
+    return 12
+  fi
+  echo "${name} OK" | tee -a "$runlog"
+}
+
+status=0
+run_variant A MODEL_DIM=576 NUM_LAYERS=12 EMBED_DIM=320 SKC_NUM_CAPSULES=16 SKC_CAPSULE_DIM=96 MATRIX_LR=0.014 || status=$?
+run_variant B MODEL_DIM=640 NUM_LAYERS=12 EMBED_DIM=320 SKC_NUM_CAPSULES=24 SKC_CAPSULE_DIM=96 MATRIX_LR=0.014 || status=$?
+run_variant C MODEL_DIM=704 NUM_LAYERS=12 EMBED_DIM=320 SKC_NUM_CAPSULES=24 SKC_CAPSULE_DIM=112 MATRIX_LR=0.014 || status=$?
+
+echo "FINAL_STATUS=${status}" | tee -a logs/variants_v3/summary.txt
+exit ${status}

@@ -45,7 +45,9 @@
 # ============================================================================
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-[[ -f "${PROJECT_ROOT}/train_gpt.py" ]] || { echo "ERROR: ${PROJECT_ROOT}/train_gpt.py not found" >&2; exit 1; }
+DIR="$(cd "$(dirname "$0")" && pwd)"
+TRAINER_PATH="train_gpt.py"
+[[ -f "${PROJECT_ROOT}/${TRAINER_PATH}" ]] || { echo "ERROR: ${PROJECT_ROOT}/${TRAINER_PATH} not found" >&2; exit 1; }
 
 # ── Data & Tokenizer Migration ───────────────────────────────────────────────
 export DATA_PATH="${DATA_PATH:-/workspace/data/datasets/fineweb10B_sp8192}"
@@ -81,7 +83,7 @@ export SKC_CAPSULE_DIM=64
 export SKC_CONV_KERNEL=4
 
 # ── Training budget ───────────────────────────────────────────────────────────
-export MAX_WALLCLOCK_SECONDS=${MAX_WALLCLOCK_SECONDS:-599}
+export MAX_WALLCLOCK_SECONDS=${MAX_WALLCLOCK_SECONDS:-570}
 export ITERATIONS=500000
 export WARMUP_STEPS=20            # In-budget linear LR ramp (0 → base over first 20 steps)
 export COMPILER_WARMUP_STEPS=20   # Pre-budget graph capture — state reset after, outside 599s

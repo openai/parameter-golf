@@ -26,8 +26,8 @@
 # ============================================================================
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "${DIR}/../../.." && pwd)"
-TRAINER_PATH="train_gpt.py"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${DIR}/../../.." && pwd)}"
+TRAINER_PATH="${TRAINER_PATH:-train_gpt.py}"
 [[ -f "${PROJECT_ROOT}/${TRAINER_PATH}" ]] || { echo "ERROR: ${PROJECT_ROOT}/${TRAINER_PATH} not found" >&2; exit 1; }
 
 # ── Tokenizer regime: SP8192 ──────────────────────────────────────────────────

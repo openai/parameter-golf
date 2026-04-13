@@ -1,0 +1,70 @@
+==========================================================================
+  SKC COMPETITION PROXY — 2×GPU
+  RUN_ID    : skc_competition_proxy_20260411_114131
+  TOKENIZER : SP8192
+  MODEL     : skc_competition  L=8  D=640  H=8
+              parallel_residual=1  recurrence=depth2@0.35
+  TTT       : scope=skc_safe  epochs=3  lr=0.003
+  EXPORT    : competition_gptq
+  BUDGET    : 599s
+==========================================================================
+logs/cuda/skc_competition_proxy_20260411_114131.txt
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt.py", line 5127, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt.py", line 4126, in main
+[rank1]:     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+[rank1]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/train_gpt.py", line 862, in __init__
+[rank1]:     self.stream = TokenStream(pattern)
+[rank1]:                   ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/train_gpt.py", line 835, in __init__
+[rank1]:     raise FileNotFoundError(f"No files found for pattern: {pattern}")
+[rank1]: FileNotFoundError: No files found for pattern: /workspace/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt.py", line 5127, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt.py", line 4126, in main
+[rank0]:     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+[rank0]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 862, in __init__
+[rank0]:     self.stream = TokenStream(pattern)
+[rank0]:                   ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/train_gpt.py", line 835, in __init__
+[rank0]:     raise FileNotFoundError(f"No files found for pattern: {pattern}")
+[rank0]: FileNotFoundError: No files found for pattern: /workspace/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+[rank0]:[W411 11:41:35.437767855 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+W0411 11:41:36.495000 138596629230208 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 940 closing signal SIGTERM
+E0411 11:41:36.559000 138596629230208 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 941) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-11_11:41:36
+  host      : 6385e07b0225
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 941)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

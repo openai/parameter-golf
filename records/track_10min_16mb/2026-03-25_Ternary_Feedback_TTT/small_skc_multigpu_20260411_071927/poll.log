@@ -1,0 +1,56 @@
+==========================================================================
+  SKC COMPETITION PROXY — 2×GPU
+  RUN_ID    : skc_competition_proxy_20260411_122248
+  TOKENIZER : SP8192
+  MODEL     : skc_competition  L=8  D=640  H=8
+              parallel_residual=1  recurrence=depth2@0.35
+  TTT       : scope=skc_safe  epochs=3  lr=0.003
+  EXPORT    : competition_gptq
+  BUDGET    : 599s
+==========================================================================
+Traceback (most recent call last):
+  File "/workspace/train_gpt.py", line 5130, in <module>
+    main()
+  File "/workspace/train_gpt.py", line 4084, in main
+    torch.cuda.set_device(device)
+  File "/usr/local/lib/python3.11/dist-packages/torch/cuda/__init__.py", line 420, in set_device
+    torch._C._cuda_setDevice(device)
+RuntimeError: CUDA error: invalid device ordinal
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+W0411 12:22:52.525000 125572989673472 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 959 closing signal SIGTERM
+E0411 12:22:52.639000 125572989673472 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 960) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-11_12:22:52
+  host      : 669c82333874
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 960)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
