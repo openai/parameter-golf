@@ -1,0 +1,9 @@
+{
+  "name": "3x MLP + Quantization-Aware Training (STE) + Int6-Aware Clip",
+  "author": "seekerPrice",
+  "github_id": "seekerPrice",
+  "val_bpb": 2.2240,
+  "date": "2026-04-13",
+  "track": "non_record_16mb",
+  "notes": "MLX local results (300 steps, SP1024, 1 shard). H100 validation pending. QAT uses straight-through estimator to train int6-friendly weights."
+}
