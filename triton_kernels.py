@@ -596,8 +596,9 @@ def run_all_tests(device="cuda"):
     if HAS_TRITON:
         results["fwht"] = test_fwht_parity(device)
         results["scan"] = test_scan_parity(device)
+        results["engram"] = test_engram_hash_gather_parity(device)
     else:
-        print("[SKIP] Triton not available — skipping FWHT and Scan tests")
+        print("[SKIP] Triton not available — skipping FWHT, Scan, and Engram tests")
     results["feedback"] = test_feedback_parity(device)
     print("=" * 60)
     all_pass = all(results.values())
@@ -605,8 +606,143 @@ def run_all_tests(device="cuda"):
     return all_pass
 
 
+# ============================================================================
+# 7. ENGRAM FUSED HASH-GATHER KERNEL
+# ============================================================================
+# Eliminates intermediate index tensor materialization by computing n-gram
+# hashes and gathering from embedding tables in a single kernel launch.
+# Handles the 2×2 config (2 bigram heads + 2 trigram heads = 4 total).
+# ============================================================================
+
+if HAS_TRITON:
+    @triton.jit
+    def _engram_hash_gather_kernel(
+        IDS_ptr, OUT_ptr,
+        TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr,
+        P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr,
+        B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr,
+        stride_ib, stride_it,
+        stride_ob, stride_ot, stride_od,
+    ):
+        """Fused bigram(2 heads) + trigram(2 heads) hash-and-gather.
+        One program per (batch, time) position. Eliminates intermediate index tensors.
+        """
+        pid = tl.program_id(0)
+        b_idx = pid // T_dim
+        t_idx = pid % T_dim
+        if b_idx >= B_dim:
+            return
+        hd_offs = tl.arange(0, HD)
+        out_base = b_idx * stride_ob + t_idx * stride_ot
+        curr = tl.load(IDS_ptr + b_idx * stride_ib + t_idx * stride_it).to(tl.int64)
+        # Bigram heads
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
+            h0 = (prev * P0 + curr) % BUCKETS
+            h1 = (prev * P1 + curr) % BUCKETS
+            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs)
+            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs)
+        else:
+            e0 = tl.zeros((HD,), dtype=tl.bfloat16)
+            e1 = tl.zeros((HD,), dtype=tl.bfloat16)
+        # Trigram heads
+        if t_idx >= 2:
+            pp = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 2) * stride_it).to(tl.int64)
+            prev2 = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
+            h2 = (pp * (P2 * P2) + prev2 * P2 + curr) % BUCKETS
+            h3 = (pp * (P3 * P3) + prev2 * P3 + curr) % BUCKETS
+            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs)
+            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs)
+        else:
+            e2 = tl.zeros((HD,), dtype=tl.bfloat16)
+            e3 = tl.zeros((HD,), dtype=tl.bfloat16)
+        tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
+        tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
+        tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
+        tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
+
+
+def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor,
+                               num_orders: int, num_heads: int, head_dim: int,
+                               buckets: int) -> Tensor | None:
+    """Fused hash-and-gather for Engram 2×2 config. Returns None if not applicable."""
+    if not HAS_TRITON or not input_ids.is_cuda or num_orders != 2 or num_heads != 2:
+        return None
+    B, T = input_ids.shape
+    hash_dim = head_dim * num_orders * num_heads
+    out = torch.empty(B, T, hash_dim, dtype=torch.bfloat16, device=input_ids.device)
+    p = primes[:4].tolist()
+    _engram_hash_gather_kernel[(B * T,)](
+        input_ids, out,
+        tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight,
+        p[0], p[1], p[2], p[3],
+        B, T, buckets, head_dim,
+        input_ids.stride(0), input_ids.stride(1),
+        out.stride(0), out.stride(1), out.stride(2),
+        num_warps=2, num_stages=1,
+    )
+    return out
+
+
+def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor,
+                                     alpha: float = 0.05, entropy_thr: float = 2.0) -> Tensor:
+    """Apply Engram logit correction only when model entropy exceeds threshold.
+    Cheap, deterministic, no gradients. For eval-time only."""
+    with torch.no_grad():
+        probs = torch.softmax(logits.float(), dim=-1)
+        log_probs = torch.log(probs.clamp(min=1e-10))
+        entropy = -(probs * log_probs).sum(dim=-1, keepdim=True)
+        mask = (entropy > entropy_thr).to(logits.dtype)
+        return logits + alpha * mask * engram_logits
+
+
+def test_engram_hash_gather_parity(device="cuda", tol=1e-5):
+    """Verify Triton hash-gather matches PyTorch reference for 2×2 Engram config."""
+    B, T, BUCKETS, HD = 4, 128, 2048, 8
+    PRIMES = [92821, 131071, 174763, 216091]
+    torch.manual_seed(42)
+
+    # Create 4 embedding tables
+    tables = [torch.nn.Embedding(BUCKETS, HD).to(device=device, dtype=torch.bfloat16)
+              for _ in range(4)]
+    primes = torch.tensor(PRIMES, dtype=torch.long, device=device)
+    input_ids = torch.randint(0, 8192, (B, T), device=device, dtype=torch.long)
+
+    # PyTorch reference
+    p = primes[:4]
+    ref = torch.zeros(B, T, 4 * HD, dtype=torch.bfloat16, device=device)
+    for b in range(B):
+        for t in range(T):
+            curr = input_ids[b, t]
+            if t >= 1:
+                prev = input_ids[b, t - 1]
+                h0 = int((prev * p[0] + curr) % BUCKETS)
+                h1 = int((prev * p[1] + curr) % BUCKETS)
+                ref[b, t, :HD] = tables[0].weight[h0]
+                ref[b, t, HD:2*HD] = tables[1].weight[h1]
+            if t >= 2:
+                pp = input_ids[b, t - 2]
+                prev = input_ids[b, t - 1]
+                h2 = int((pp * p[2] * p[2] + prev * p[2] + curr) % BUCKETS)
+                h3 = int((pp * p[3] * p[3] + prev * p[3] + curr) % BUCKETS)
+                ref[b, t, 2*HD:3*HD] = tables[2].weight[h2]
+                ref[b, t, 3*HD:] = tables[3].weight[h3]
+
+    # Triton path
+    tri = triton_engram_hash_gather(input_ids, tables, primes, 2, 2, HD, BUCKETS)
+    if tri is None:
+        print("[Engram] SKIP — Triton not available or config mismatch")
+        return True
+
+    ok = torch.allclose(tri.float(), ref.float(), atol=tol, rtol=tol)
+    max_err = (tri.float() - ref.float()).abs().max().item()
+    print(f"[Engram] Hash-gather parity: {'PASS' if ok else 'FAIL'} (max_err={max_err:.8f})")
+    return ok
+
+
 if __name__ == "__main__":
     if torch.cuda.is_available():
         run_all_tests("cuda")
     else:
         print("CUDA not available — cannot run Triton kernel tests")
+

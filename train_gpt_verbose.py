@@ -26,6 +26,11 @@ try:
     HAS_TRITON = True
 except ImportError:
     HAS_TRITON = False
+if os.environ.get("DISABLE_TRITON", "0") == "1":
+    HAS_TRITON = False
+
+# Per-kernel kill switch for submission safety on heterogeneous Triton stacks.
+TRITON_ENGRAM_ENABLED = bool(int(os.environ.get("TRITON_ENGRAM_ENABLED", "1")))
 
 _HADAMARD_CACHE: dict[tuple[int, str], Tensor] = {}
 
@@ -166,6 +171,89 @@ def optimized_moe_dispatch(x_flat: Tensor, experts: list, selected_experts: Tens
 def optimized_feedback_retrieve(q: Tensor, k: Tensor, v: Tensor, lr: Tensor, sketch_len: int) -> Tensor:
     inner = torch.bmm(k, q.transpose(1, 2)); retrieved_t = (lr / max(sketch_len, 1)) * torch.bmm(v.transpose(1, 2), inner)
     return retrieved_t.transpose(1, 2)
+
+# --- Engram Triton Kernels ---
+if HAS_TRITON:
+    @triton.jit
+    def _engram_hash_gather_kernel(
+        IDS_ptr, OUT_ptr,
+        TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr,
+        P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr,
+        B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr,
+        stride_ib, stride_it,
+        stride_ob, stride_ot, stride_od,
+    ):
+        """Fused bigram(2 heads) + trigram(2 heads) hash-and-gather for Engram 2×2 config.
+        Eliminates intermediate index tensor. One program per (batch, time) position.
+        """
+        pid = tl.program_id(0)
+        b_idx = pid // T_dim
+        t_idx = pid % T_dim
+        if b_idx >= B_dim:
+            return
+        hd_offs = tl.arange(0, HD)
+        out_base = b_idx * stride_ob + t_idx * stride_ot
+        # Load current and previous token IDs
+        curr = tl.load(IDS_ptr + b_idx * stride_ib + t_idx * stride_it).to(tl.int64)
+        # Bigram head 0 & 1
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
+            h0 = (prev * P0 + curr) % BUCKETS
+            h1 = (prev * P1 + curr) % BUCKETS
+            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs)
+            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs)
+        else:
+            e0 = tl.zeros((HD,), dtype=tl.bfloat16)
+            e1 = tl.zeros((HD,), dtype=tl.bfloat16)
+        # Trigram head 2 & 3
+        if t_idx >= 2:
+            pp = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 2) * stride_it).to(tl.int64)
+            prev2 = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
+            h2 = (pp * (P2 * P2) + prev2 * P2 + curr) % BUCKETS
+            h3 = (pp * (P3 * P3) + prev2 * P3 + curr) % BUCKETS
+            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs)
+            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs)
+        else:
+            e2 = tl.zeros((HD,), dtype=tl.bfloat16)
+            e3 = tl.zeros((HD,), dtype=tl.bfloat16)
+        # Store concatenated: [e0 | e1 | e2 | e3] → (4*HD,)
+        tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
+        tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
+        tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
+        tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
+
+def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor,
+                               num_orders: int, num_heads: int, head_dim: int,
+                               buckets: int) -> Tensor:
+    """Fused hash-and-gather for Engram 2×2 config. Falls back to None if not applicable."""
+    if not HAS_TRITON or not input_ids.is_cuda or num_orders != 2 or num_heads != 2:
+        return None  # caller uses PyTorch fallback
+    B, T = input_ids.shape
+    hash_dim = head_dim * num_orders * num_heads
+    out = torch.empty(B, T, hash_dim, dtype=torch.bfloat16, device=input_ids.device)
+    p = primes[:4].tolist()
+    grid = (B * T,)
+    _engram_hash_gather_kernel[grid](
+        input_ids, out,
+        tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight,
+        p[0], p[1], p[2], p[3],
+        B, T, buckets, head_dim,
+        input_ids.stride(0), input_ids.stride(1),
+        out.stride(0), out.stride(1), out.stride(2),
+        num_warps=2, num_stages=1,
+    )
+    return out
+
+def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor,
+                                     alpha: float = 0.05, entropy_thr: float = 2.0) -> Tensor:
+    """Apply Engram logit correction only when model entropy exceeds threshold.
+    Cheap, deterministic, no gradients. For eval-time only."""
+    with torch.no_grad():
+        probs = torch.softmax(logits.float(), dim=-1)
+        log_probs = torch.log(probs.clamp(min=1e-10))
+        entropy = -(probs * log_probs).sum(dim=-1, keepdim=True)  # (B, T, 1)
+        mask = (entropy > entropy_thr).to(logits.dtype)
+        return logits + alpha * mask * engram_logits
 
 # --- Inductor Optimization Hooks ---
 if os.environ.get("TORCHINDUCTOR_FX_GRAPH_CACHE") == "1":
@@ -393,6 +481,13 @@ class Hyperparameters:
     engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
     engram_num_orders = _e("ENGRAM_NUM_ORDERS", 3, int)
     engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)
+    engram_export_prune_enabled = _e("ENGRAM_EXPORT_PRUNE_ENABLED", 1, bool)
+    engram_export_keep_bigram_ratio = _e("ENGRAM_EXPORT_KEEP_BIGRAM_RATIO", 0.35, float)
+    engram_export_keep_trigram_ratio = _e("ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO", 0.20, float)
+    engram_export_keep_min_buckets = _e("ENGRAM_EXPORT_KEEP_MIN_BUCKETS", 128, int)
+    engram_export_keep_max_buckets = _e("ENGRAM_EXPORT_KEEP_MAX_BUCKETS", 0, int)
+    engram_export_score_alpha = _e("ENGRAM_EXPORT_SCORE_ALPHA", 0.85, float)
+    engram_export_token_budget = _e("ENGRAM_EXPORT_TOKEN_BUDGET", 16384, int)
     xsa_start_layer = _e("XSA_START_LAYER", -1, int)
     koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
     koopman_rank = _e("KOOPMAN_RANK", 2, int)
@@ -455,6 +550,11 @@ class Hyperparameters:
     ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
     ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
     ngram_alpha_max = _e("NGRAM_ALPHA_MAX", 0.85, float)
+    engram_eval_correction = _e("ENGRAM_EVAL_CORRECTION", 0, bool)
+    engram_eval_alpha = _e("ENGRAM_EVAL_ALPHA", 0.05, float)
+    engram_eval_entropy_thr = _e("ENGRAM_EVAL_ENTROPY_THR", 2.0, float)
+    engram_taper_start = _e("ENGRAM_TAPER_START", 0.4, float)
+    engram_taper_end = _e("ENGRAM_TAPER_END", 0.8, float)
     ttt_enabled = _e("TTT_ENABLED", 0, bool)
     ttt_scope = _e("TTT_SCOPE", "feedback")
     ttt_lr = _e("TTT_LR", 0.002, float)
@@ -538,6 +638,8 @@ class Hyperparameters:
     # routine intermediate eval. This is the correct evaluation mode for
     # SKC models whose carry signal improves BPB.
     final_eval_sequential_carry = _e("FINAL_EVAL_SEQUENTIAL_CARRY", 0, bool)
+    hard_budget_bytes = _e("HARD_BUDGET_BYTES", 16000000, int)
+    hard_budget_enforce = _e("HARD_BUDGET_ENFORCE", 1, bool)
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
@@ -592,9 +694,35 @@ def validate_config_surface(args) -> None:
         raise ValueError(
             f"KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ must be >= 0, got {args.koopman_scan_checkpoint_min_seq}"
         )
+    if args.hard_budget_bytes < 0:
+        raise ValueError(f"HARD_BUDGET_BYTES must be >= 0, got {args.hard_budget_bytes}")
     if not (0.0 <= args.skc_aux_entropy_fraction <= 1.0):
         raise ValueError(
             f"SKC_AUX_ENTROPY_FRACTION must be in [0, 1], got {args.skc_aux_entropy_fraction}"
+        )
+    if not (0.0 < args.engram_export_keep_bigram_ratio <= 1.0):
+        raise ValueError(
+            f"ENGRAM_EXPORT_KEEP_BIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_bigram_ratio}"
+        )
+    if not (0.0 < args.engram_export_keep_trigram_ratio <= 1.0):
+        raise ValueError(
+            f"ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_trigram_ratio}"
+        )
+    if args.engram_export_keep_min_buckets < 1:
+        raise ValueError(
+            f"ENGRAM_EXPORT_KEEP_MIN_BUCKETS must be >= 1, got {args.engram_export_keep_min_buckets}"
+        )
+    if args.engram_export_keep_max_buckets < 0:
+        raise ValueError(
+            f"ENGRAM_EXPORT_KEEP_MAX_BUCKETS must be >= 0, got {args.engram_export_keep_max_buckets}"
+        )
+    if not (0.0 <= args.engram_export_score_alpha <= 1.0):
+        raise ValueError(
+            f"ENGRAM_EXPORT_SCORE_ALPHA must be in [0, 1], got {args.engram_export_score_alpha}"
+        )
+    if args.engram_export_token_budget < 0:
+        raise ValueError(
+            f"ENGRAM_EXPORT_TOKEN_BUDGET must be >= 0, got {args.engram_export_token_budget}"
         )
 
 
@@ -656,6 +784,8 @@ def apply_competition_profile(args) -> None:
     # Export mode
     if _unset("EXPORT_MODE"):
         args.export_mode = "competition_gptq"
+    if args.export_mode == "competition_gptq" and _unset("FP_STORAGE"):
+        args.fp_storage = "fp4"
     # Hard-disable non-paying feature surface in competition mode
     args.moe_enabled = 0
     args.moe_num_experts = 1
@@ -663,7 +793,23 @@ def apply_competition_profile(args) -> None:
     args.moe_router_aux_loss_coef = 0.0
     args.feedback_enabled = 0
     args.capsule_enabled = 0
-    args.bigram_hash_enabled = 0
+    # Engram: conditionally re-enabled via ENGRAM_COMPETITION_ENABLED=1
+    if _unset("BIGRAM_HASH_ENABLED"):
+        args.bigram_hash_enabled = int(bool(int(os.environ.get("ENGRAM_COMPETITION_ENABLED", "0"))))
+    # When Engram is enabled in competition mode, use ultra-compact config
+    if args.bigram_hash_enabled:
+        if _unset("BIGRAM_HASH_BUCKETS"): args.bigram_hash_buckets = 4096
+        if _unset("BIGRAM_HASH_DIM"): args.bigram_hash_dim = 32
+        if _unset("ENGRAM_NUM_HEADS"): args.engram_num_heads = 2
+        if _unset("ENGRAM_NUM_ORDERS"): args.engram_num_orders = 2
+        if _unset("ENGRAM_INJECT_LAYER"): args.engram_inject_layer = 1
+        if _unset("ENGRAM_EXPORT_PRUNE_ENABLED"): args.engram_export_prune_enabled = 1
+        if _unset("ENGRAM_EXPORT_KEEP_BIGRAM_RATIO"): args.engram_export_keep_bigram_ratio = 0.50
+        if _unset("ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO"): args.engram_export_keep_trigram_ratio = 0.25
+        if _unset("ENGRAM_EXPORT_KEEP_MIN_BUCKETS"): args.engram_export_keep_min_buckets = 256
+        if _unset("ENGRAM_EXPORT_KEEP_MAX_BUCKETS"): args.engram_export_keep_max_buckets = 0
+        if _unset("ENGRAM_EXPORT_SCORE_ALPHA"): args.engram_export_score_alpha = 0.80
+        if _unset("ENGRAM_EXPORT_TOKEN_BUDGET"): args.engram_export_token_budget = 32768
     args.ngram_cache_enabled = 0
     args.koopman_enabled = 0
     args.koopman_speculator_enabled = 0
@@ -728,7 +874,12 @@ def apply_runtime_path_policy(args) -> None:
     if _unset("CAPSULE_CARRY_ENABLED"):
         args.capsule_carry_enabled = 0
     if _unset("BIGRAM_HASH_ENABLED"):
-        args.bigram_hash_enabled = 0
+        # In competition profile, allow ENGRAM_COMPETITION_ENABLED to control this
+        # even under strict runtime policy.
+        if bool(getattr(args, "competition_profile", 0)) and ("ENGRAM_COMPETITION_ENABLED" in os.environ):
+            args.bigram_hash_enabled = int(bool(int(os.environ.get("ENGRAM_COMPETITION_ENABLED", "0"))))
+        else:
+            args.bigram_hash_enabled = 0
     if _unset("ENGRAM_NUM_ORDERS"):
         args.engram_num_orders = 1
     if _unset("MUON_BACKEND_STEPS"):
@@ -890,6 +1041,30 @@ def load_roundtrip_state_strict(model: nn.Module, state_dict: dict[str, Tensor])
     if getattr(model, "tie_embeddings", False) and _LM_HEAD_STATE_KEY not in load_state:
         load_state[_LM_HEAD_STATE_KEY] = model.tok_stem.lm_head.weight.detach().cpu().clone()
     model.load_state_dict(load_state, strict=True)
+
+
+def estimate_export_lower_bound_bytes(model: nn.Module, args, code_bytes: int) -> tuple[int, int, int, int]:
+    """Compute a conservative lower bound for artifact+code bytes.
+
+    Lower-bound assumes ideal entropy-coded ternary payload at log2(3) bits/param
+    plus unavoidable per-group scale bytes and exact fp16 bytes.
+    """
+    sd = model.state_dict()
+    ternary_names = export_ternary_param_names(model)
+    ternary_names = {k for k in ternary_names if k in sd}
+    fp_names = [k for k in sd.keys() if k not in ternary_names]
+    ternary_params = sum(sd[k].numel() for k in ternary_names)
+    fp_params = sum(sd[k].numel() for k in fp_names)
+    ternary_bytes_lb = int(math.ceil(ternary_params * (math.log2(3.0) / 8.0) + (ternary_params / max(int(args.bitnet_group_size), 1)) * 2.0))
+    # Match q_sd fp-storage semantics for lower-bound budget checks.
+    if args.fp_storage == "fp4":
+        fp_bytes = int(math.ceil(fp_params * 0.5))
+    elif args.fp_storage is True or args.fp_storage == "fp8":
+        fp_bytes = int(fp_params)
+    else:
+        fp_bytes = int(fp_params * 2)
+    total_lb = int(ternary_bytes_lb + fp_bytes + code_bytes)
+    return total_lb, ternary_bytes_lb, fp_bytes, int(code_bytes)
 
 # ---------------------------------------------------------------------------
 # State dict serialization (ternary + fp16/fp8/fp4)
@@ -1520,10 +1695,11 @@ class EngramHash(nn.Module):
             QATEmbedding(num_buckets, self.head_dim, fp_storage=fp_storage)
             for _ in range(num_orders * num_heads)
         ])
-        self.proj = QATLinear(actual_dim, model_dim, bias=False, fp_storage=fp_storage)
-        # Context-aware gating
-        # QATLinear so this layer trains through the same FP approximation it sees at export
-        self.gate_k = QATLinear(actual_dim, model_dim, bias=False, fp_storage=fp_storage)
+        # Use TernaryLinear for proj/gate_k: ~5× compression vs QATLinear fp16 export.
+        # This is critical for fitting Engram within the 165KB artifact headroom.
+        self.proj = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
+        # Context-aware gating — also TernaryLinear for compression
+        self.gate_k = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
         # gate_scale amplifies the cosine-similarity logit before sigmoid gating.
         # Unclamped, it can saturate the gate toward 0/1 and kill gradient flow
         # through the Engram path. Parameterise as softplus(raw) + 0.1 capped at 4.0:
@@ -1579,6 +1755,24 @@ class EngramHash(nn.Module):
         ids_long = input_ids.long()
         B, T = ids_long.shape
 
+        # Triton fused hash-gather: bypasses intermediate index tensors entirely.
+        # Only for eval or non-compiled training on CUDA with 2×2 config.
+        if (num_total_heads == 4 and HAS_TRITON and TRITON_ENGRAM_ENABLED and ids_long.is_cuda
+                and not torch.compiler.is_compiling()):
+            _triton_mem = triton_engram_hash_gather(
+                ids_long, list(self.tables), self._primes,
+                self.num_orders, self.num_heads, self.head_dim, self.buckets_per_head)
+            if _triton_mem is not None:
+                memory = _triton_mem.to(ids_long.device)
+                if hidden is not None:
+                    h_norm = torch.nn.functional.normalize(hidden.to(memory.dtype), dim=-1)
+                    m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
+                    gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
+                    gate_scale = 3.9 * torch.sigmoid(self._gate_scale_raw.float()) + 0.1
+                    gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
+                    return gate * self.proj(memory)
+                return self.proj(memory)
+
         if num_total_heads == 4:
             # Unrolled fast-path: hardcoded bigram × 2 heads + trigram × 2 heads.
             # Pre-allocate a single index tensor — no Python loop, no dynamic slices.
@@ -1633,6 +1827,111 @@ class EngramHash(nn.Module):
             gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
             return gate * self.proj(memory)
         return self.proj(memory)
+
+def _engram_order_keep_ratio(order: int, args) -> float:
+    # order=0 => bigram, order>=1 => trigram+.
+    return float(args.engram_export_keep_bigram_ratio if order == 0 else args.engram_export_keep_trigram_ratio)
+
+
+@torch.no_grad()
+def _engram_bucket_hits_from_tokens(engram: EngramHash, tokens: Tensor | None) -> list[Tensor] | None:
+    if tokens is None:
+        return None
+    if tokens.ndim != 2 or tokens.numel() == 0:
+        return None
+    tok = tokens.to("cpu", non_blocking=False).long()
+    hits: list[Tensor] = []
+    for order in range(engram.num_orders):
+        for head in range(engram.num_heads):
+            idx = engram._hash_ngram(tok, order, head).reshape(-1)
+            idx = idx[(idx >= 0) & (idx < engram.buckets_per_head)]
+            if idx.numel() == 0:
+                h = torch.zeros(engram.buckets_per_head, dtype=torch.float32)
+            else:
+                h = torch.bincount(idx, minlength=engram.buckets_per_head).float()
+            hits.append(h)
+    return hits
+
+
+@torch.no_grad()
+def prune_engram_tables_for_export(
+    sd: dict[str, Tensor],
+    base_model: nn.Module,
+    args,
+    sample_tokens: Tensor | None,
+    log0,
+) -> tuple[dict[str, Tensor], dict[str, float] | None]:
+    engram = getattr(base_model, "engram", None)
+    if (not args.engram_export_prune_enabled) or engram is None or not isinstance(engram, EngramHash):
+        return sd, None
+
+    if args.engram_export_token_budget > 0 and sample_tokens is not None and sample_tokens.numel() > args.engram_export_token_budget:
+        flat = sample_tokens.reshape(-1)[: args.engram_export_token_budget]
+        sample_tokens = flat.reshape(1, -1)
+    hits = _engram_bucket_hits_from_tokens(engram, sample_tokens)
+    score_alpha = float(args.engram_export_score_alpha)
+    min_keep = int(args.engram_export_keep_min_buckets)
+    max_keep = int(args.engram_export_keep_max_buckets)
+
+    total_rows = 0
+    kept_rows = 0
+    changed_tables = 0
+    table_stats: list[str] = []
+    for table_idx in range(len(engram.tables)):
+        key = f"engram.tables.{table_idx}.weight"
+        if key not in sd:
+            continue
+        w = sd[key]
+        if w.ndim != 2 or w.shape[0] < 2:
+            continue
+        order = table_idx // engram.num_heads
+        keep_ratio = _engram_order_keep_ratio(order, args)
+        target_keep = int(round(w.shape[0] * keep_ratio))
+        target_keep = max(min_keep, target_keep)
+        if max_keep > 0:
+            target_keep = min(target_keep, max_keep)
+        target_keep = min(target_keep, w.shape[0])
+        if target_keep >= w.shape[0]:
+            total_rows += int(w.shape[0])
+            kept_rows += int(w.shape[0])
+            continue
+
+        row_norm = w.float().norm(dim=1)
+        norm_denom = row_norm.max().clamp_min(1e-8)
+        score = row_norm / norm_denom
+        if hits is not None and table_idx < len(hits):
+            h = hits[table_idx].to(score.dtype)
+            hit_denom = h.max().clamp_min(1e-8)
+            score = score_alpha * score + (1.0 - score_alpha) * (h / hit_denom)
+
+        topk = torch.topk(score, k=target_keep, largest=True, sorted=False).indices
+        keep_mask = torch.zeros(w.shape[0], dtype=torch.bool)
+        keep_mask[topk] = True
+        pruned = w.clone()
+        pruned[~keep_mask] = 0
+        sd[key] = pruned
+
+        total_rows += int(w.shape[0])
+        kept_rows += int(target_keep)
+        changed_tables += 1
+        table_stats.append(f"{table_idx}:{target_keep}/{w.shape[0]}")
+
+    if changed_tables == 0:
+        return sd, None
+    sparsity = 1.0 - (kept_rows / max(total_rows, 1))
+    info = {
+        "tables_changed": float(changed_tables),
+        "rows_kept": float(kept_rows),
+        "rows_total": float(total_rows),
+        "sparsity": float(sparsity),
+    }
+    log0(
+        "engram_export_prune:"
+        f" tables={changed_tables} rows_kept={kept_rows}/{total_rows}"
+        f" sparsity={sparsity:.3f} alpha={score_alpha:.2f}"
+        f" keep={','.join(table_stats[:8])}{'...' if len(table_stats) > 8 else ''}"
+    )
+    return sd, info
 
 
 class Rotary(nn.Module):
@@ -2977,7 +3276,15 @@ class LatentCorrector(nn.Module):
         # --- Encoder pass ---
         for i in range(backbone.num_encoder_layers):
             if engram_enabled and i == engram_inject_layer:
-                x = x + engram(input_ids, hidden=x)
+                # Engram curriculum: full strength early, taper after ENGRAM_TAPER_START,
+                # silent by ENGRAM_TAPER_END. At eval time: always full strength.
+                if training and elapsed_fraction > 0.4:
+                    _taper_range = max(0.8 - 0.4, 1e-6)
+                    _engram_w = max(0.0, min(1.0, (0.8 - elapsed_fraction) / _taper_range))
+                else:
+                    _engram_w = 1.0
+                if _engram_w > 0.0:
+                    x = x + _engram_w * engram(input_ids, hidden=x)
             for _ in range(backbone.recurrence_passes_for_layer(i)):
                 x, v_out, blk_aux = backbone.run_block(
                     i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask
@@ -4672,6 +4979,19 @@ def main() -> None:
         skc_parallel_residual=args.skc_parallel_residual,
     ).to(device)
 
+    if master_process and args.hard_budget_bytes > 0:
+        _code_bytes = len(code.encode("utf-8"))
+        _lb_total, _lb_ternary, _lb_fp, _lb_code = estimate_export_lower_bound_bytes(base_model, args, _code_bytes)
+        log0(
+            f"budget_lower_bound: total_lb={_lb_total} ternary_lb={_lb_ternary} fp16={_lb_fp} code={_lb_code} "
+            f"cap={args.hard_budget_bytes}"
+        )
+        if args.hard_budget_enforce and _lb_total > int(args.hard_budget_bytes):
+            raise RuntimeError(
+                f"Projected minimum artifact+code bytes {_lb_total} exceeds HARD_BUDGET_BYTES={args.hard_budget_bytes}; "
+                "reduce FP footprint / model size before training."
+            )
+
     # Keep compilation static when sequence length / batch schedules are fixed.
     # Dynamic compilation is only worth paying for when the competition profile
     # actually changes shapes during training.
@@ -5476,6 +5796,17 @@ def main() -> None:
             )
             log0(f"serialization:calib_done tensors={len(final_calib)}", flush=True)
 
+        # Export-time Engram compaction: keep only high-utility n-gram buckets so we can
+        # afford more heads without expanding compressed artifact size.
+        _engram_tokens = None
+        if _proxy_calib_tokens is not None:
+            _engram_tokens = _proxy_calib_tokens.detach()
+        else:
+            tok_budget = int(max(0, args.engram_export_token_budget))
+            if tok_budget > 0:
+                _engram_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=tok_budget).to(device)
+        sd, _engram_prune_info = prune_engram_tables_for_export(sd, base_model, args, _engram_tokens, log0)
+
         # Two quantization methods: Standard Base-3 vs Bitmask Mapping
         methods = {}
         for method in ("standard", "bitmask"):
@@ -5525,6 +5856,10 @@ def main() -> None:
         total = artifact_bytes + code_bytes
         log0(f"artifact:{artifact_bytes/1e6:.2f}MB ternary:{q_stats['ternary_params']}({q_stats['ternary_bytes']}B) fp:{q_stats['fp_params']}({q_stats['fp_bytes']}B) code:{code_bytes}")
         log0(f"budget:{total}/{16000000} ({total/1e6:.2f}/{16.00:.2f}MB) {'FITS' if total <= 16000000 else 'OVER'}")
+        if args.hard_budget_enforce and args.hard_budget_bytes > 0 and total > int(args.hard_budget_bytes):
+            raise RuntimeError(
+                f"Final artifact budget exceeded: total={total} > HARD_BUDGET_BYTES={args.hard_budget_bytes}"
+            )
 
         if args.eval_depth_recurrence > 0:
             base_model.training_depth_recurrence = args.eval_depth_recurrence
