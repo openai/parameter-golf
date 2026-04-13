@@ -1,0 +1,20 @@
+{
+  "author": "nhatnamtran",
+  "github_id": "nnm2602",
+  "name": "30 Experiments: MLA + Pause Tokens + Eigenweight + 9 Novel Architectures",
+  "blurb": "Systematic exploration of 30 experiments across 9 unorthodox architectures (eigenweight SVD, depth recurrence, SIREN weight generation, seed models, Hopfield attractors, NCA, hypernetworks, tensor networks, communicating agents) plus architecture research ideas (MLA, pause tokens, basis sharing, universal transformer + ACT). MLA latent=128 achieves 1.3223 BPB on 1xH100, nearly matching baseline with 4x KV compression.",
+  "date": "2026-04-13",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.2327,
+  "val_bpb": 1.3223,
+  "pre_quant_val_loss": 2.2327,
+  "pre_quant_val_bpb": 1.3223,
+  "step_stop": 1735,
+  "wallclock_seconds": 600,
+  "bytes_total": 14600000,
+  "bytes_model_int8_zlib": 14531079,
+  "bytes_code": 37654,
+  "hardware": "1x NVIDIA H100 80GB HBM3",
+  "total_experiments": 30,
+  "best_result_experiment": "MLA latent=128"
+}
