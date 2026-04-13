@@ -13,3 +13,4 @@ tiktoken
 sentencepiece
 zstandard
 brotli
+python-minifier
