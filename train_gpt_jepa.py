@@ -341,6 +341,68 @@ INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 
+QUANT_BITS = int(os.environ.get("QUANT_BITS", "8"))
+if QUANT_BITS not in (4, 6, 8):
+    raise ValueError(f"QUANT_BITS must be 4, 6, or 8, got {QUANT_BITS}")
+QUANT_MAX = (1 << (QUANT_BITS - 1)) - 1
+QUANT_MIN = -QUANT_MAX
+
+
+def _pack_low_bits(values_int8: Tensor, bits: int) -> tuple[Tensor, int]:
+    """Pack low-bit signed values (stored in int8) into a uint8 byte stream.
+    Used for sub-8-bit quantization. Returns (packed_bytes, original_count).
+    """
+    if bits == 8:
+        return values_int8.contiguous(), int(values_int8.numel())
+    arr = values_int8.cpu().numpy().flatten().astype(np.int16)
+    n = arr.size
+    offset = 1 << (bits - 1)
+    arr = (arr + offset).astype(np.uint64)  # to unsigned [0, 2^bits - 1]
+    if bits == 6:
+        # Pack 4 uint6 values into 3 bytes.
+        pad = (4 - n % 4) % 4
+        if pad > 0:
+            arr = np.concatenate([arr, np.zeros(pad, dtype=np.uint64)])
+        arr = arr.reshape(-1, 4)
+        b0 = (arr[:, 0] | ((arr[:, 1] & 0x03) << 6)).astype(np.uint8)
+        b1 = ((arr[:, 1] >> 2) | ((arr[:, 2] & 0x0F) << 4)).astype(np.uint8)
+        b2 = ((arr[:, 2] >> 4) | (arr[:, 3] << 2)).astype(np.uint8)
+        packed = np.stack([b0, b1, b2], axis=1).flatten()
+    elif bits == 4:
+        # Pack 2 uint4 values into 1 byte.
+        pad = n % 2
+        if pad > 0:
+            arr = np.concatenate([arr, np.zeros(1, dtype=np.uint64)])
+        arr = arr.reshape(-1, 2)
+        packed = (arr[:, 0] | (arr[:, 1] << 4)).astype(np.uint8)
+    else:
+        raise ValueError(f"Unsupported bits: {bits}")
+    return torch.from_numpy(packed.copy()), n
+
+
+def _unpack_low_bits(packed: Tensor, n_original: int, bits: int) -> Tensor:
+    """Reverse of _pack_low_bits. Returns int8 tensor of shape (n_original,)."""
+    if bits == 8:
+        return packed.to(torch.int8).contiguous()
+    p = packed.cpu().numpy().flatten().astype(np.uint64)
+    if bits == 6:
+        p = p.reshape(-1, 3)
+        v0 = (p[:, 0] & 0x3F).astype(np.uint8)
+        v1 = (((p[:, 0] >> 6) & 0x03) | ((p[:, 1] & 0x0F) << 2)).astype(np.uint8)
+        v2 = (((p[:, 1] >> 4) & 0x0F) | ((p[:, 2] & 0x03) << 4)).astype(np.uint8)
+        v3 = ((p[:, 2] >> 2) & 0x3F).astype(np.uint8)
+        u = np.stack([v0, v1, v2, v3], axis=1).flatten()
+    elif bits == 4:
+        v0 = (p & 0x0F).astype(np.uint8)
+        v1 = ((p >> 4) & 0x0F).astype(np.uint8)
+        u = np.stack([v0, v1], axis=1).flatten()
+    else:
+        raise ValueError(f"Unsupported bits: {bits}")
+    u = u[:n_original]
+    offset = 1 << (bits - 1)
+    s = u.astype(np.int16) - offset
+    return torch.from_numpy(s.astype(np.int8).copy())
+
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
@@ -352,7 +414,9 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
+    qmax = (1 << (bits - 1)) - 1
+    qmin = -qmax
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -363,25 +427,25 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        scale = (clip_abs / float(qmax)).clamp_min(1.0 / float(qmax))
+        q = torch.clamp(torch.round(clipped / scale[:, None]), qmin, qmax).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    scale = torch.tensor(clip_abs / float(qmax) if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), qmin, qmax).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
-    # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
-    # - per-tensor int8 for other float tensors
-    # - exact passthrough for non-floats
-    # - passthrough for small float tensors, stored as fp16 to save bytes
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], bits: int = 8):
+    # Per-row low-bit quantization for 2D float tensors (large weights),
+    # per-tensor for other float tensors, exact passthrough for non-floats,
+    # and small float tensors kept as fp16.
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
+    shapes: dict[str, tuple[int, ...]] = {}
+    counts: dict[str, int] = {}
     passthrough: dict[str, Tensor] = {}
     passthrough_orig_dtypes: dict[str, str] = {}
     qmeta: dict[str, dict[str, object]] = {}
@@ -411,16 +475,22 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_float_tensor(t, bits=bits)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
-        quantized[name] = q
+        packed, count = _pack_low_bits(q, bits)
+        quantized[name] = packed
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
-        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+        shapes[name] = tuple(q.shape)
+        counts[name] = count
+        stats["int8_payload_bytes"] += tensor_nbytes(packed) + tensor_nbytes(s)
 
     obj: dict[str, object] = {
-        "__quant_format__": "int8_clean_per_row_v1",
+        "__quant_format__": f"int{bits}_clean_per_row_v1",
+        "bits": bits,
+        "shapes": shapes,
+        "counts": counts,
         "quantized": quantized,
         "scales": scales,
         "dtypes": dtypes,
@@ -436,9 +506,18 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
-    for name, q in obj["quantized"].items():
+    bits = int(obj.get("bits", 8))
+    shapes = obj.get("shapes", {})
+    counts = obj.get("counts", {})
+    for name, packed in obj["quantized"].items():
         dtype = getattr(torch, obj["dtypes"][name])
         s = obj["scales"][name]
+        if bits < 8:
+            shape = shapes[name]
+            count = counts[name]
+            q = _unpack_low_bits(packed, count, bits).reshape(shape)
+        else:
+            q = packed
         if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
             s = s.to(dtype=torch.float32)
             # Broadcast the saved row scale back across trailing dimensions.
@@ -1168,7 +1247,7 @@ def main() -> None:
         k: v for k, v in base_model.state_dict().items()
         if not k.startswith("latent_predictor.")
     }
-    quant_obj, quant_stats = quantize_state_dict_int8(state_dict_for_export)
+    quant_obj, quant_stats = quantize_state_dict_int8(state_dict_for_export, bits=QUANT_BITS)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
@@ -1182,10 +1261,10 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+{compression_kind}: {quant_file_bytes} bytes "
+            f"Serialized model int{QUANT_BITS}+{compression_kind}: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+{compression_kind}: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int{QUANT_BITS}+{compression_kind}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
