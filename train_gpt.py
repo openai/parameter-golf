@@ -1,7 +1,7 @@
 """
 train_gpt.py — Parameter Golf (targeting competitive val_bpb). Hard stop: ≤1500 lines.
 SP8192 vocab, depth recurrence, parallel residuals, LeakyReLU², partial RoPE,
-int6 SD-clip + zstd, sliding-window eval, MuonEq-R, EMA (GPU), weight decay,
+int8 SD-clip + zstd, sliding-window eval, MuonEq-R, EMA (GPU), weight decay,
 legal score-first TTT, RMSNorm with learned weight, separate parallel norms.
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 4))
+    mlp_mult = int(os.environ.get("MLP_MULT", 5))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -66,7 +66,7 @@ class Hyperparameters:
     ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "1")))
     weight_decay = float(os.environ.get("WEIGHT_DECAY", 0.09))
     muon_row_norm = bool(int(os.environ.get("MUON_ROW_NORM", "1")))
-    quant_bits = int(os.environ.get("QUANT_BITS", 6))
+    quant_bits = int(os.environ.get("QUANT_BITS", 8))
     quant_clip_sigmas = float(os.environ.get("QUANT_CLIP_SIGMAS", 4.0))
     embed_quant_bits = int(os.environ.get("EMBED_QUANT_BITS", 8))
     embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 4.0))
@@ -77,6 +77,8 @@ class Hyperparameters:
     ttt_lr = float(os.environ.get("TTT_LR", 3e-5))
     ttt_steps = int(os.environ.get("TTT_STEPS", 2))
     ttt_chunk_seqs = int(os.environ.get("TTT_CHUNK_SEQS", 8))
+    recur_ramp_steps = int(os.environ.get("RECUR_RAMP_STEPS", 2000))
+    aux_loss_weight = float(os.environ.get("AUX_LOSS_WEIGHT", 0.15))
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.07))
@@ -373,8 +375,8 @@ def _eval_ttt(args: Hyperparameters, base_model: nn.Module, rank: int, world_siz
                     param.copy_(ttt_param_snapshot[name])
     return _bpb_from_sums(val_loss_sum, val_token_count, val_byte_count)
 
-# POST-TRAINING QUANTIZATION (int6 SD-clip + optional GPTQ)
-INT6_MAX, INT8_MAX = 31, 127
+# POST-TRAINING QUANTIZATION (int8 SD-clip + optional GPTQ)
+INT8_MAX = 127
 KEEP_FLOAT_MAX_NUMEL = 65_536
 KEEP_FLOAT_STORE_DTYPE = torch.float16
 SCALE_DTYPE = torch.float16
@@ -755,9 +757,12 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.full((dim,), 4.59511985013459, dtype=torch.float32))
 
-    def forward(self, x: Tensor, x0: Tensor, parallel: bool = False) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, parallel: bool = False,
+                 mix_alpha: Tensor | float = 1.0) -> Tensor:
         mix = torch.sigmoid(self.resid_mix.to(dtype=x.dtype))
-        x = mix[None, None, :] * x + (1.0 - mix)[None, None, :] * x0
+        mix_alpha = torch.as_tensor(mix_alpha, device=x.device, dtype=x.dtype)
+        skip_mix = mix_alpha * (1.0 - mix)
+        x = (1.0 - skip_mix)[None, None, :] * x + skip_mix[None, None, :] * x0
         if parallel:
             attn_out = self.attn_scale.to(dtype=x.dtype)[None, None, :] * self.attn(self.attn_norm(x))
             mlp_out = self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
@@ -780,6 +785,7 @@ class GPT(nn.Module):
                  qk_gain_init: float, depth_emb: bool = True,
                  activation: str = "leaky_relu_sq", leaky_slope: float = 0.5,
                  rope_dims: int = 0, recur_layers: list[int] | None = None,
+                 recur_ramp_steps: int = 2000, aux_loss_weight: float = 0.15,
                  parallel_start_layer: int = 7):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -798,6 +804,8 @@ class GPT(nn.Module):
             raise ValueError(f"recur_layers contains duplicates: {recur_layers}")
         self.recur_layers: list[int] = recur_layers
         self.base_skip_passes = num_layers // 2
+        self.recur_ramp_steps = max(1, recur_ramp_steps)
+        self.aux_loss_weight = aux_loss_weight
         actual_embed_dim = embed_dim if embed_dim > 0 else model_dim
         self.tok_emb = nn.Embedding(vocab_size, actual_embed_dim)
         if actual_embed_dim != model_dim:
@@ -824,6 +832,7 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        self.register_buffer("recur_mix_alpha", torch.tensor(1.0, dtype=torch.float32), persistent=False)
         self._init_weights()
         self._recurred_passes_base: set[int] = set()
         self._recurred_passes_recur: set[int] = self._compute_recurred_passes(self._recur_schedule)
@@ -852,6 +861,9 @@ class GPT(nn.Module):
     def set_recurrence(self, active: bool) -> None:
         self.recur_active = active
 
+    def set_recurrence_alpha(self, alpha: float) -> None:
+        self.recur_mix_alpha.fill_(float(max(0.0, min(1.0, alpha))))
+
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
@@ -873,10 +885,12 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-    def _run_block(self, block: Block, x: Tensor, x0: Tensor, parallel: bool) -> Tensor:
-        return block(x, x0, parallel=parallel)
+    def _run_block(self, block: Block, x: Tensor, x0: Tensor, parallel: bool,
+                   mix_alpha: Tensor | float) -> Tensor:
+        return block(x, x0, parallel=parallel, mix_alpha=mix_alpha)
 
-    def forward_logits(self, input_ids: Tensor) -> Tensor:
+    def _forward_features(self, input_ids: Tensor, target_flat: Tensor | None = None,
+                          collect_aux: bool = False) -> tuple[Tensor, Tensor]:
         x = self.tok_emb(input_ids)
         if self.emb_up is not None:
             x = self.emb_up(x)
@@ -888,21 +902,24 @@ class GPT(nn.Module):
         else:
             schedule = self._base_schedule
             _recurred_passes = self._recurred_passes_base
-        n_passes = len(schedule)
         n_enc = self.base_skip_passes
         n_skip = min(n_enc, self.num_skip_weights)
+        aux_loss_accum = torch.zeros((), device=x.device, dtype=torch.float32)
+        if collect_aux and target_flat is None:
+            raise ValueError("target_flat is required when collect_aux=True")
         skips: list[Tensor] = []
         for pass_idx, layer_idx in enumerate(schedule):
             if self.depth_emb is not None and pass_idx < self.depth_emb.weight.size(0):
                 x = x + self.depth_emb.weight[pass_idx][None, None, :]
             is_parallel = layer_idx >= self.parallel_start_layer
+            mix_alpha = self.recur_mix_alpha if (self.recur_active and pass_idx in _recurred_passes) else 1.0
             if self.training and pass_idx in _recurred_passes:
                 x = torch.utils.checkpoint.checkpoint(
-                    self._run_block, self.blocks[layer_idx], x, x0, is_parallel,
+                    self._run_block, self.blocks[layer_idx], x, x0, is_parallel, mix_alpha,
                     use_reentrant=False,
                 )
             else:
-                x = self.blocks[layer_idx](x, x0, parallel=is_parallel)
+                x = self.blocks[layer_idx](x, x0, parallel=is_parallel, mix_alpha=mix_alpha)
             if pass_idx < n_enc:
                 skips.append(x)
             else:
@@ -910,12 +927,27 @@ class GPT(nn.Module):
                 if skip_idx < n_skip and skips:
                     skip = skips[-(skip_idx + 1)]
                     x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skip
+            if collect_aux and self.training and self.recur_active and pass_idx in _recurred_passes:
+                aux_loss_accum = aux_loss_accum + F.cross_entropy(
+                    self._get_logits(x).reshape(-1, self.tok_emb.num_embeddings).float(),
+                    target_flat, reduction="mean",
+                )
+        return x, aux_loss_accum
+
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x, _ = self._forward_features(input_ids, collect_aux=False)
         return self._get_logits(x)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        logits = self.forward_logits(input_ids)
-        return F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(),
-                               target_ids.reshape(-1), reduction="mean")
+        collect_aux = self.training and self.recur_active and self.aux_loss_weight > 0.0
+        target_flat = target_ids.reshape(-1)
+        x, aux_loss_accum = self._forward_features(input_ids, target_flat=target_flat, collect_aux=collect_aux)
+        logits = self._get_logits(x)
+        main_loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(),
+                                    target_flat, reduction="mean")
+        if collect_aux:
+            return main_loss + self.aux_loss_weight * aux_loss_accum
+        return main_loss
 
 
 def clamp_stability_controls(model: nn.Module) -> None:
@@ -1019,6 +1051,7 @@ def main() -> None:
         rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, depth_emb=args.depth_emb,
         activation=args.activation, leaky_slope=args.leaky_relu_slope,
         rope_dims=args.rope_dims, recur_layers=recur_layers,
+        recur_ramp_steps=args.recur_ramp_steps, aux_loss_weight=args.aux_loss_weight,
         parallel_start_layer=args.parallel_start_layer,
     ).to(device).bfloat16()
     for module in base_model.modules():
@@ -1026,6 +1059,7 @@ def main() -> None:
             module.float()
         if isinstance(module, Rotary):
             module.inv_freq.data = module.inv_freq.data.float()
+    base_model.recur_mix_alpha.data = base_model.recur_mix_alpha.data.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     active_compiled = compiled_model
@@ -1070,7 +1104,7 @@ def main() -> None:
         )
         optimizers.insert(1, optimizer_head)
     n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model:{n_params}p {args.num_layers}L {args.model_dim}d recur:{recur_layers}@{recur_start_step} parallel>={args.parallel_start_layer}")
+    log0(f"model:{n_params}p {args.num_layers}L {args.model_dim}d mlp:{args.mlp_mult} recur:{recur_layers}@{recur_start_step} ramp:{args.recur_ramp_steps} aux:{args.aux_loss_weight} parallel>={args.parallel_start_layer}")
     log0(f"act:{args.activation} rope_dims:{args.rope_dims} muon_eqr:{args.muon_row_norm} ema:{args.ema_enabled}({args.ema_decay}) wd:{args.weight_decay}")
     log0(f"quant:{args.quant_bits}bit clip_s:{args.quant_clip_sigmas} compress:{'zstd' if HAS_ZSTD else ('brotli' if HAS_BROTLI else 'zlib')} ttt:{args.ttt_enabled}")
     log0(f"ws:{world_size} ga:{grad_accum_steps} heads:{args.num_heads}/{args.num_kv_heads} qk:{args.qk_gain_init}")
@@ -1081,6 +1115,12 @@ def main() -> None:
     def zero_grad_all() -> None:
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
+
+    def recurrence_alpha_for_step(step: int) -> float:
+        if not recur_layers or step < recur_start_step:
+            return 1.0
+        ramp_steps = max(args.recur_ramp_steps, 1)
+        return min(1.0, max(step - recur_start_step, 0) / ramp_steps)
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
@@ -1154,11 +1194,13 @@ def main() -> None:
     stop_after_step: int | None = None
     best_val_bpb = float("inf")
     best_model_state: dict[str, Tensor] | None = None
+    best_recur_mix_alpha: float | None = None
     train_loss_ema = 0.0
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
     while True:
+        base_model.set_recurrence_alpha(recurrence_alpha_for_step(step))
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
         if should_validate:
@@ -1180,6 +1222,7 @@ def main() -> None:
             if val_bpb < best_val_bpb:
                 best_val_bpb = val_bpb
                 best_model_state = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+                best_recur_mix_alpha = float(base_model.recur_mix_alpha.item())
                 log0(f"new_best val_bpb:{val_bpb:.4f} at step:{step}")
             if orig_param_data is not None:
                 for name, param in base_model.named_parameters():
@@ -1196,6 +1239,7 @@ def main() -> None:
             if distributed:
                 dist.barrier()
             base_model.set_recurrence(True)
+            base_model.set_recurrence_alpha(recurrence_alpha_for_step(step))
             active_compiled = torch.compile(base_model, dynamic=False, fullgraph=False)
             active_model = (
                 DDP(active_compiled, device_ids=[local_rank], broadcast_buffers=False)
@@ -1284,9 +1328,11 @@ def main() -> None:
             if name in ema_params:
                 full_state[name] = ema_params[name].cpu().clone()
         best_model_state = full_state
+        best_recur_mix_alpha = float(base_model.recur_mix_alpha.item())
     if best_model_state is not None:
         base_model.load_state_dict(best_model_state, strict=True)
         log0(f"restored best model with val_bpb:{best_val_bpb:.4f}")
+    base_model.set_recurrence_alpha(best_recur_mix_alpha if best_recur_mix_alpha is not None else recurrence_alpha_for_step(step))
     # Collect GPTQ Hessians via calibration pass
     hessians = None
     if args.gptq_enabled:
