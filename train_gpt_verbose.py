@@ -533,6 +533,11 @@ class Hyperparameters:
     # - P1 late-train only: fidelity convergence knobs
     # - P2 eval/export only: cache/TTT/search/calibration extras
     runtime_path_policy = _e("RUNTIME_PATH_POLICY", "strict", str)
+    # When True, final scoring uses batch_size=1 sequential eval to preserve
+    # SKC capsule carry state. Only used for final score measurement, not
+    # routine intermediate eval. This is the correct evaluation mode for
+    # SKC models whose carry signal improves BPB.
+    final_eval_sequential_carry = _e("FINAL_EVAL_SEQUENTIAL_CARRY", 0, bool)
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
@@ -632,14 +637,22 @@ def apply_competition_profile(args) -> None:
     args.grad_clip_norm = 1.0
     # Attention scaling
     args.qk_gain_init = 5.25
-    # Legal score-first TTT defaults
-    args.ttt_enabled = 1
-    args.ttt_scope = "skc_safe"
-    args.ttt_lr = 0.005
-    args.ttt_epochs = 3
-    args.ttt_chunk_tokens = 32768
-    args.ttt_momentum = 0.9
-    args.ttt_grad_clip = 1.0
+    # TTT defaults (opt-in only — strict runtime path policy suppresses these).
+    # SKC-first: TTT is eval-time only by default; set TTT_ENABLED=1 to activate.
+    if _unset("TTT_ENABLED"):
+        args.ttt_enabled = 0
+    if _unset("TTT_SCOPE"):
+        args.ttt_scope = "skc_safe"
+    if _unset("TTT_LR"):
+        args.ttt_lr = 0.005
+    if _unset("TTT_EPOCHS"):
+        args.ttt_epochs = 3
+    if _unset("TTT_CHUNK_TOKENS"):
+        args.ttt_chunk_tokens = 32768
+    if _unset("TTT_MOMENTUM"):
+        args.ttt_momentum = 0.9
+    if _unset("TTT_GRAD_CLIP"):
+        args.ttt_grad_clip = 1.0
     # Export mode
     if _unset("EXPORT_MODE"):
         args.export_mode = "competition_gptq"
@@ -672,12 +685,16 @@ def apply_competition_profile(args) -> None:
             args.ternary_threshold_search = 0
         if _unset("TERNARY_SCALE_SEARCH"):
             args.ternary_scale_search = 0
-        if _unset("EXPORT_ALIGNED_TRAIN"):
-            args.export_aligned_train = 0
-        if _unset("TURBO_QUANT_TRAIN"):
-            args.turbo_quant_train = 0
-        if _unset("TURBO_QUANT_EXPORT"):
-            args.turbo_quant_export = 0
+    # SKC competition recipe: export-aligned training with late start.
+    # Raw convergence is cheap; the frontier is surviving serialization.
+    if _unset("EXPORT_ALIGNED_TRAIN"):
+        args.export_aligned_train = 1
+    if _unset("EXPORT_ALIGNED_TRAIN_START_FRACTION"):
+        args.export_aligned_train_start_fraction = 0.85
+    if _unset("TURBO_QUANT_TRAIN"):
+        args.turbo_quant_train = 0  # cheap surrogate early, align late
+    if _unset("TURBO_QUANT_EXPORT"):
+        args.turbo_quant_export = 1  # must be on for final export fidelity
 
 
 def apply_runtime_path_policy(args) -> None:
@@ -721,7 +738,7 @@ def apply_runtime_path_policy(args) -> None:
     if _unset("EXPORT_ALIGNED_TRAIN"):
         args.export_aligned_train = 1
     if _unset("EXPORT_ALIGNED_TRAIN_START_FRACTION"):
-        args.export_aligned_train_start_fraction = 0.85
+        args.export_aligned_train_start_fraction = 0.86
     if int(args.recurrence_depth) > 0 and _unset("RECURRENCE_START_FRACTION"):
         args.recurrence_start_fraction = max(float(args.recurrence_start_fraction), 0.65)
     if _unset("TURBO_QUANT_TRAIN"):
@@ -741,6 +758,11 @@ def apply_runtime_path_policy(args) -> None:
         args.export_proxy_eval = 0
     if _unset("GPTQ_LITE_ENABLED"):
         args.gptq_lite_enabled = 0
+    # SKC carry evaluation: force sequential eval for final scoring when
+    # capsule carry is enabled. This prevents the batched sliding evaluator
+    # from suppressing SKC's structural advantage.
+    if _unset("FINAL_EVAL_SEQUENTIAL_CARRY"):
+        args.final_eval_sequential_carry = 1
 
 
 def resolve_eval_feedback_passes(args, feedback_passes: int | None = None) -> int:
@@ -5287,6 +5309,28 @@ def main() -> None:
                 log0(f"final_sliding_retry: OOM at SLIDING_BATCH_SIZE={sb}, retrying smaller", flush=True)
         raise RuntimeError("final_sliding evaluation failed after OOM retries")
 
+    def _eval_val_sliding_sequential_carry(temperature: float) -> tuple[float, float]:
+        """Carry-preserving sequential eval for SKC final scoring.
+
+        Forces batch_size=1 so capsule carry state is maintained across
+        sliding windows. This is slower than batched eval but produces
+        the correct BPB measurement for SKC models whose carry signal
+        improves prediction quality across temporal context.
+        """
+        log0("final_sliding_sequential_carry:starting batch_size=1 carry-preserving eval", flush=True)
+        saved_batch_size = int(args.sliding_batch_size)
+        try:
+            args.sliding_batch_size = 1
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+            return eval_val_sliding(
+                args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
+                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.sliding_eval_stride, temperature=temperature, logger=log0
+            )
+        finally:
+            args.sliding_batch_size = saved_batch_size
+
     def _eval_val_sliding_ttt_safe(temperature: float) -> tuple[float, float]:
         tb0 = int(args.ttt_batch_seqs)
         for tb in (tb0, max(tb0 // 2, 8), 8, 4, 2, 1):
@@ -5556,19 +5600,32 @@ def main() -> None:
     if args.sliding_eval:
         if device.type == "cuda": torch.cuda.synchronize()
         t_sliding = time.perf_counter()
-        try:
-            sw_loss, sw_bpb = _eval_val_sliding_safe(opt_temp)
-        except Exception as e:
-            if _is_oom(e):
-                log0("final_sliding:disabled_after_oom", flush=True)
-                args.sliding_eval = 0
-                sw_loss, sw_bpb = augmented_val_loss, augmented_val_bpb
-            else:
-                raise
+        # Carry-preserving sequential path for SKC final scoring
+        if args.final_eval_sequential_carry and args.capsule_carry_enabled:
+            try:
+                sw_loss, sw_bpb = _eval_val_sliding_sequential_carry(opt_temp)
+            except Exception as e:
+                if _is_oom(e):
+                    log0("final_sliding_sequential_carry:oom_fallback_to_batched", flush=True)
+                    sw_loss, sw_bpb = _eval_val_sliding_safe(opt_temp)
+                else:
+                    raise
+        else:
+            try:
+                sw_loss, sw_bpb = _eval_val_sliding_safe(opt_temp)
+            except Exception as e:
+                if _is_oom(e):
+                    log0("final_sliding:disabled_after_oom", flush=True)
+                    args.sliding_eval = 0
+                    sw_loss, sw_bpb = augmented_val_loss, augmented_val_bpb
+                else:
+                    raise
         if device.type == "cuda": torch.cuda.synchronize()
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
         log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
-             f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}) eval_time:{sliding_time_ms:.0f}ms")
+             f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}, "
+             f"sequential_carry={args.final_eval_sequential_carry and args.capsule_carry_enabled}) "
+             f"eval_time:{sliding_time_ms:.0f}ms")
         # Accumulates into augmented slot ONLY — roundtrip_val_bpb stays unchanged
         augmented_val_loss, augmented_val_bpb = sw_loss, sw_bpb
 
