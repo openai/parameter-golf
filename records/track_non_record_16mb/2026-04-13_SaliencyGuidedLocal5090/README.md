@@ -13,7 +13,7 @@ The folder is intentionally normalized to the standard record layout:
 - `submission.json` for the best full-eval run metadata
 - `train_gpt.py` for the experiment-local code snapshot
 
-`results.tsv` is transcribed from the local W&B run directories under [wandb](/e:/parameter%20golf/parameter-golf/wandb), not from ad hoc notes.
+`results.tsv` is transcribed from the local `wandb/` run directories, not from ad hoc notes.
 
 ## Best Result
 
@@ -27,7 +27,7 @@ The best full-eval run in this sweep is the 24-hour continuation:
 - stop step: `44,628`
 - GPU: `1xRTX5090`
 
-This is the run described in [submission.json](/e:/parameter%20golf/parameter-golf/records/track_non_record_16mb/2026-04-13_SaliencyGuidedLocal5090/submission.json).
+This is the run described in `submission.json`.
 
 ## Sweep Summary
 
@@ -58,19 +58,19 @@ The changes across the sweep were:
 
 ## Results Source
 
-The values in [results.tsv](/e:/parameter%20golf/parameter-golf/records/track_non_record_16mb/2026-04-13_SaliencyGuidedLocal5090/results.tsv) were read from these local W&B run folders:
+The values in `results.tsv` were read from these local W&B run folders:
 
-- [run-20260326_180143-wzspgrg0](/e:/parameter%20golf/parameter-golf/wandb/run-20260326_180143-wzspgrg0)
-- [run-20260408_202109-vajvzlaj](/e:/parameter%20golf/parameter-golf/wandb/run-20260408_202109-vajvzlaj)
-- [run-20260409_232646-hgygstyg](/e:/parameter%20golf/parameter-golf/wandb/run-20260409_232646-hgygstyg)
+- `wandb/run-20260326_180143-wzspgrg0`
+- `wandb/run-20260408_202109-vajvzlaj`
+- `wandb/run-20260409_232646-hgygstyg`
 
 The recorded numbers come from `wandb-summary.json`, `config.yaml`, and `output.log` in those directories.
 
 ## Included Files
 
-- [train_gpt.py](/e:/parameter%20golf/parameter-golf/records/track_non_record_16mb/2026-04-13_SaliencyGuidedLocal5090/train_gpt.py): experiment-local trainer snapshot kept with this record
-- [results.tsv](/e:/parameter%20golf/parameter-golf/records/track_non_record_16mb/2026-04-13_SaliencyGuidedLocal5090/results.tsv): normalized run table from the local W&B artifacts
-- [submission.json](/e:/parameter%20golf/parameter-golf/records/track_non_record_16mb/2026-04-13_SaliencyGuidedLocal5090/submission.json): metadata for the best full-eval run
+- `train_gpt.py`: experiment-local trainer snapshot kept with this record
+- `results.tsv`: normalized run table from the local W&B artifacts
+- `submission.json`: metadata for the best full-eval run
 
 ## Notes
 
