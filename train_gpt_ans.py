@@ -1280,6 +1280,7 @@ def collect_hessians_from_tokens(hessian_model, token_seqs, device):
         for seq in token_seqs:
             if seq.dim() == 1:
                 seq = seq.unsqueeze(0)
+            seq = seq.long()
             x = seq[:, :-1].to(device)
             y = seq[:, 1:].to(device)
             hessian_model(x, y)
@@ -2398,7 +2399,7 @@ def main() -> None:
     if _post_ttt_gptq and args.ttt_enabled:
         log0(f"gptq:collecting hessians from VAL data (post-TTT matched calibration, {args.gptq_calib_batches} batches)...")
         # Use val tokens that TTT adapted to — Hessians match the actual weight distribution
-        val_seqs = val_tokens[:args.gptq_calib_batches * args.train_seq_len + 1].to(device)
+        val_seqs = val_tokens[:args.gptq_calib_batches * args.train_seq_len + 1].to(device).long()
         val_seq_list = [val_seqs[i * args.train_seq_len:(i + 1) * args.train_seq_len + 1] for i in range(args.gptq_calib_batches)]
         val_token_seqs = torch.stack([s[:-1] for s in val_seq_list])
         hessians = collect_hessians_from_tokens(hessian_model, val_token_seqs, device)
