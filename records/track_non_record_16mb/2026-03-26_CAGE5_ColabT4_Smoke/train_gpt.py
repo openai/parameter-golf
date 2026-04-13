@@ -348,7 +348,7 @@ def eval_val(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
     model.eval()
-    with torch.inference_mode():
+    with torch.no_grad():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * seq_len
@@ -1128,7 +1128,7 @@ def eval_val_sliding(
     alpha = float(args.ngram_eval_alpha)
     base_model.eval()
     compiled_logits = maybe_compile(base_model.forward_logits, dynamic=False, fullgraph=True)
-    with torch.inference_mode():
+    with torch.no_grad():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
             bsz = len(batch_ws)
@@ -1214,6 +1214,18 @@ def eval_val_sliding_ttt(
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    use_ngram = bool(args.ngram_eval_enabled)
+    cache = (
+        HashedNGramCache(
+            order=args.ngram_eval_order,
+            vocab_size=args.vocab_size,
+            min_count=args.ngram_eval_min_count,
+            backoff=args.ngram_eval_backoff,
+            smoothing=args.ngram_eval_smoothing,
+        )
+        if use_ngram else None
+    )
+    alpha = float(args.ngram_eval_alpha)
 
     # Freeze first N blocks
     frozen_block_ids = set(range(min(args.ttt_freeze_blocks, len(base_model.blocks))))
@@ -1249,7 +1261,7 @@ def eval_val_sliding_ttt(
         my_windows = windows[my_s:my_e]
 
         base_model.eval()
-        with torch.inference_mode():
+        with torch.no_grad():
             for bi in range(0, len(my_windows), batch_seqs):
                 batch_ws = my_windows[bi:bi + batch_seqs]
                 bsz = len(batch_ws)
@@ -1272,10 +1284,26 @@ def eval_val_sliding_ttt(
                 for i, ws in enumerate(batch_ws):
                     wlen = wlens[i]
                     s = 0 if ws == 0 else max(wlen - stride, 0)
-                    scored_nll = nll[i, s:wlen].to(torch.float64)
-                    loss_sum += scored_nll.sum()
+                    scored_targets = y_batch[i, s:wlen]
+                    scored_prev = x_batch[i, s:wlen]
+
+                    if not use_ngram:
+                        scored_nll = nll[i, s:wlen].to(torch.float64)
+                        loss_sum += scored_nll.sum()
+                    else:
+                        assert cache is not None
+                        scored_lp = -nll[i, s:wlen]
+                        for j in range(wlen - s):
+                            target = int(scored_targets[j].item())
+                            lm_logp = float(scored_lp[j].item())
+                            p_lm = math.exp(max(lm_logp, -60.0))
+                            p_cache = cache.prob(target)
+                            p_mix = (1.0 - alpha) * p_lm + alpha * p_cache
+                            loss_sum += -math.log(max(p_mix, 1e-12))
+                            cache.update(target)
+
                     token_count += float(wlen - s)
-                    tgt, prev = y_batch[i, s:wlen], x_batch[i, s:wlen]
+                    tgt, prev = scored_targets, scored_prev
                     tb = base_bytes_lut[tgt].to(torch.float64)
                     tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
                     byte_count += tb.sum()
