@@ -1,0 +1,37 @@
+{
+  "author": "Khoa Phan",
+  "github_id": "Tonyy1977",
+  "name": "Crawler Transformer 3f+2cx2 + SP8192 + SDClip + Post-Quant TTT",
+  "blurb": "Novel crawler transformer architecture (3 flat + 2 crawler blocks x2 loops), SP8192, SDClip GPTQ int6 + Brotli, post-quant sliding TTT on GPTQ artifact",
+  "date": "2026-04-12",
+  "track": "10min_16mb",
+  "val_loss": 2.9370,
+  "val_bpb": 1.1372,
+  "val_bpb_std": 0.0004,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.9370,
+      "val_bpb": 1.1372,
+      "artifact_bytes": 15025540,
+      "steps": 6042
+    },
+    "42": {
+      "val_loss": 2.9380,
+      "val_bpb": 1.1376,
+      "artifact_bytes": 15021049,
+      "steps": 6012
+    },
+    "2024": {
+      "val_loss": 2.9361,
+      "val_bpb": 1.1368,
+      "artifact_bytes": 15075112,
+      "steps": 5977
+    }
+  },
+  "hardware": "1x RTX 6000 Ada 48GB 18000s (equivalent to 8xH100 600s, verified)",
+  "pytorch_version": "2.7.0+cu126",
+  "bytes_total": 15025540,
+  "bytes_code": 90756,
+  "non_record": true
+}
