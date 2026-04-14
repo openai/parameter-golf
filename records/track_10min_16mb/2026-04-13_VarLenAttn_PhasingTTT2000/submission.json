@@ -5,28 +5,28 @@
   "date": "2026-04-13",
   "track": "10min_16mb",
   "base_pr": 1530,
-  "val_bpb": 1.07290809,
-  "val_loss": 2.77143303,
-  "val_bpb_std": 0.00059831,
+  "val_bpb": 1.07280628,
+  "val_loss": 2.77117005,
+  "val_bpb_std": 0.00046433,
   "seeds": [0, 1, 2],
   "seed_results": {
     "0": {
-      "val_bpb": 1.07207921,
-      "val_loss": 2.76929195,
-      "eval_time_ms": 501007,
-      "artifact_bytes": 15996784
+      "val_bpb": 1.07216564,
+      "val_loss": 2.76951521,
+      "eval_time_ms": 500104,
+      "artifact_bytes": 15996697
     },
     "1": {
-      "val_bpb": 1.07317530,
-      "val_loss": 2.77212326,
-      "eval_time_ms": 508826,
-      "artifact_bytes": 15995454
+      "val_bpb": 1.07300174,
+      "val_loss": 2.77167493,
+      "eval_time_ms": 515324,
+      "artifact_bytes": 15995985
     },
     "2": {
-      "val_bpb": 1.07346976,
-      "val_loss": 2.77288388,
-      "eval_time_ms": 500488,
-      "artifact_bytes": 15987328
+      "val_bpb": 1.07325147,
+      "val_loss": 2.77232000,
+      "eval_time_ms": 504949,
+      "artifact_bytes": 15988805
     }
   },
   "compliance": {

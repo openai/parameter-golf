@@ -1,648 +1,489 @@
-1776132620.203 W0414 02:10:20.202000 71952 torch/distributed/run.py:803] 
-1776132620.203 W0414 02:10:20.202000 71952 torch/distributed/run.py:803] *****************************************
-1776132620.203 W0414 02:10:20.202000 71952 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-1776132620.203 W0414 02:10:20.202000 71952 torch/distributed/run.py:803] *****************************************
-1776132632.641 Hyperparameters:
-1776132632.641   adam_eps: 1e-08
-1776132632.641   adam_wd: 0.02
-1776132632.641   artifact_dir: /workspace/runs/varlen2
-1776132632.641   beta1: 0.9
-1776132632.641   beta2: 0.95
-1776132632.641   compressor: brotli
-1776132632.641   data_dir: /workspace/parameter-golf/data
-1776132632.642   datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
-1776132632.642   distributed: True
-1776132632.642   ema_decay: 0.9965
-1776132632.642   embed_bits: 8
-1776132632.642   embed_clip_sigmas: 20.0
-1776132632.642   embed_lr: 0.6
-1776132632.642   embed_wd: 0.085
-1776132632.642   embedding_dim: 512
-1776132632.642   enable_looping_at: 0.35
-1776132632.642   eval_only_path: 
-1776132632.642   eval_seq_len: 2048
-1776132632.642   eval_stride: 64
-1776132632.642   gptq_calibration_batches: 64
-1776132632.642   gptq_reserve_seconds: 13.0
-1776132632.642   grad_accum_steps: 1
-1776132632.642   grad_clip_norm: 0.3
-1776132632.642   head_lr: 0.008
-1776132632.642   is_main_process: True
-1776132632.642   iterations: 20000
-1776132632.642   ln_scale: True
-1776132632.643   local_rank: 0
-1776132632.643   logfile: /workspace/runs/varlen2/pr1530_seed2_train.txt
-1776132632.643   logit_softcap: 30.0
-1776132632.643   loop_end: 5
-1776132632.643   loop_start: 3
-1776132632.643   matrix_bits: 6
-1776132632.643   matrix_clip_sigmas: 12.85
-1776132632.643   matrix_lr: 0.022
-1776132632.643   max_wallclock_seconds: 600.0
-1776132632.643   min_lr: 0.0
-1776132632.643   mlp_mult: 4.0
-1776132632.643   model_dim: 512
-1776132632.643   model_path: /workspace/runs/varlen2/final_model.pt
-1776132632.643   muon_backend_steps: 5
-1776132632.643   muon_beta2: 0.95
-1776132632.643   muon_momentum: 0.97
-1776132632.643   muon_momentum_warmup_start: 0.92
-1776132632.643   muon_momentum_warmup_steps: 1500
-1776132632.643   muon_row_normalize: True
-1776132632.643   muon_wd: 0.095
-1776132632.644   num_heads: 8
-1776132632.644   num_kv_heads: 4
-1776132632.644   num_layers: 11
-1776132632.644   num_loops: 2
-1776132632.644   parallel_final_lane: mean
-1776132632.644   parallel_start_layer: 8
-1776132632.644   qk_gain_init: 5.0
-1776132632.644   quantized_model_path: /workspace/runs/varlen2/final_model.int6.ptz
-1776132632.644   rank: 0
-1776132632.644   rope_base: 10000.0
-1776132632.644   rope_dims: 16
-1776132632.644   rope_train_seq_len: 2048
-1776132632.644   rope_yarn: False
-1776132632.644   run_id: pr1530_seed2_train
-1776132632.644   scalar_lr: 0.02
-1776132632.644   seed: 2
-1776132632.644   skip_gates_enabled: True
-1776132632.644   sliding_window_enabled: False
-1776132632.644   tie_embeddings: True
-1776132632.644   tied_embed_init_std: 0.005
-1776132632.644   tied_embed_lr: 0.03
-1776132632.644   tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
-1776132632.644   train_batch_tokens: 786432
-1776132632.645   train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
-1776132632.645   train_log_every: 500
-1776132632.645   train_seq_len: 2048
-1776132632.645   ttt_batch_size: 64
-1776132632.645   ttt_beta1: 0.0
-1776132632.645   ttt_beta2: 0.999
-1776132632.645   ttt_chunk_size: 32
-1776132632.645   ttt_enabled: False
-1776132632.645   ttt_eval_batches: 
-1776132632.645   ttt_eval_seq_len: 2048
-1776132632.645   ttt_grad_steps: 1
-1776132632.645   ttt_k_lora: True
-1776132632.645   ttt_lora_lr: 0.0001
-1776132632.645   ttt_lora_rank: 96
-1776132632.645   ttt_mlp_lora: True
-1776132632.645   ttt_o_lora: True
-1776132632.645   ttt_optimizer: adam
-1776132632.645   ttt_output_dir: 
-1776132632.645   ttt_weight_decay: 0.5
-1776132632.645   val_batch_tokens: 524288
-1776132632.645   val_doc_fraction: 1.0
-1776132632.645   val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
-1776132632.645   val_loss_every: 4000
-1776132632.646   vocab_size: 8192
-1776132632.646   warmdown_frac: 0.72
-1776132632.646   warmup_steps: 20
-1776132632.646   world_size: 8
-1776132632.646   xsa_last_n: 11
-1776132633.673 train_shards: 128
-1776132633.673 val_tokens: 40540160
-1776132634.552 model_params:35944602
-1776132635.000 gptq:reserving 13s, effective=587000ms
-1776132635.135 warmup_cu_buckets:64,128,192,256 iters_each:3
-1776132752.384 warmup_step: 1/20
-1776132752.406 warmup_step: 2/20
-1776132752.494 warmup_step: 3/20
-1776132752.583 warmup_step: 4/20
-1776132752.673 warmup_step: 5/20
-1776132752.764 warmup_step: 6/20
-1776132753.129 warmup_step: 10/20
-1776132754.057 warmup_step: 20/20
-1776132754.057 loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
-1776132754.195 loop_warmup_step: 1/20
-1776132754.333 loop_warmup_step: 2/20
-1776132754.471 loop_warmup_step: 3/20
-1776132754.609 loop_warmup_step: 4/20
-1776132754.746 loop_warmup_step: 5/20
-1776132754.883 loop_warmup_step: 6/20
-1776132755.433 loop_warmup_step: 10/20
-1776132756.804 loop_warmup_step: 20/20
-1776132762.133 0/20000 val_loss: 9.0048 val_bpb: 3.4859
-1776132762.225 1/20000 train_loss: 9.0044 train_time: 0.0m tok/s: 16690192
-1776132762.316 2/20000 train_loss: 12.2155 train_time: 0.0m tok/s: 12891652
-1776132762.408 3/20000 train_loss: 11.2443 train_time: 0.0m tok/s: 11072865
-1776132762.499 4/20000 train_loss: 9.6817 train_time: 0.0m tok/s: 10295769
-1776132762.591 5/20000 train_loss: 8.2706 train_time: 0.0m tok/s: 9899672
-1776132810.258 500/20000 train_loss: 3.2615 train_time: 0.8m tok/s: 8181449
-1776132858.793 1000/20000 train_loss: 3.0168 train_time: 1.6m tok/s: 8141340
-1776132907.175 1500/20000 train_loss: 3.0219 train_time: 2.4m tok/s: 8136315
-1776132955.439 2000/20000 train_loss: 2.9789 train_time: 3.2m tok/s: 8139048
-1776132967.617 layer_loop:enabled step:2125 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
-1776133020.525 2500/20000 train_loss: 3.0647 train_time: 4.3m tok/s: 7610822
-1776133091.044 3000/20000 train_loss: 2.9016 train_time: 5.5m tok/s: 7174330
-1776133164.507 3500/20000 train_loss: 2.9686 train_time: 6.7m tok/s: 6841700
-1776133235.918 4000/20000 train_loss: 2.8985 train_time: 7.9m tok/s: 6640388
-1776133242.581 4000/20000 val_loss: 2.8714 val_bpb: 1.1116
-1776133313.009 4500/20000 train_loss: 2.8479 train_time: 9.1m tok/s: 6503569
-1776133358.533 4806/20000 val_loss: 2.7740 val_bpb: 1.0739
-1776133358.533 stopping_early: wallclock_cap train_time: 587187ms step: 4806/20000
-1776133358.534 peak memory allocated: 40019 MiB reserved: 44090 MiB
-1776133358.534 ema:applying EMA weights
-1776133364.916 diagnostic pre-quantization post-ema val_loss:2.77284655 val_bpb:1.07342072 eval_time:6361ms
-1776133365.095 Serialized model: 135409136 bytes
-1776133365.095 Code size (uncompressed): 116810 bytes
-1776133365.095 Code size (compressed): 29445 bytes
-1776133365.152 GPTQ:collecting Hessians from calibration data...
-1776133377.787 GPTQ:collected 67 Hessians in 12.6s
-1776133387.214 Quantized weights:
-1776133387.214   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
-1776133387.214   gptq (int8): tok_emb.weight
-1776133387.214   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
-1776133454.027 Serialized model quantized+brotli: 15958719 bytes
-1776133454.027 Total submission size quantized+brotli: 15988164 bytes
-1776133511.501 diagnostic quantized val_loss:2.80323656 val_bpb:1.08518525 eval_time:56251ms
-
-===== phased_eval_seed2 =====
-1776133519.316 W0414 02:25:19.315000 96194 torch/distributed/run.py:803] 
-1776133519.316 W0414 02:25:19.315000 96194 torch/distributed/run.py:803] *****************************************
-1776133519.316 W0414 02:25:19.315000 96194 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-1776133519.316 W0414 02:25:19.315000 96194 torch/distributed/run.py:803] *****************************************
-1776133531.724 Hyperparameters:
-1776133531.724   adam_eps: 1e-08
-1776133531.724   adam_wd: 0.02
-1776133531.725   artifact_dir: /workspace
-1776133531.725   beta1: 0.9
-1776133531.725   beta2: 0.95
-1776133531.725   compressor: brotli
-1776133531.725   data_dir: /workspace/parameter-golf/data
-1776133531.725   datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
-1776133531.725   distributed: True
-1776133531.725   ema_decay: 0.9965
-1776133531.725   embed_bits: 8
-1776133531.725   embed_clip_sigmas: 20.0
-1776133531.725   embed_lr: 0.6
-1776133531.725   embed_wd: 0.085
-1776133531.725   embedding_dim: 512
-1776133531.725   enable_looping_at: 0.35
-1776133531.725   eval_only_path: /workspace/runs/varlen2/final_model.pt
-1776133531.725   eval_only_quantized_path: 
-1776133531.725   eval_seq_len: 2048
-1776133531.725   eval_stride: 64
-1776133531.725   global_sgd_ttt_enabled: False
-1776133531.725   global_ttt_batch_seqs: 32
-1776133531.725   global_ttt_chunk_tokens: 32768
-1776133531.725   global_ttt_doc_limit: 0
-1776133531.726   global_ttt_epochs: 3
-1776133531.726   global_ttt_grad_clip: 1.0
-1776133531.726   global_ttt_lr: 0.005
-1776133531.726   global_ttt_momentum: 0.9
-1776133531.726   global_ttt_respect_doc_boundaries: True
-1776133531.726   global_ttt_warmup_chunks: 0
-1776133531.726   global_ttt_warmup_start_lr: 0.0
-1776133531.726   gptq_calibration_batches: 64
-1776133531.726   gptq_reserve_seconds: 13.0
-1776133531.726   grad_accum_steps: 1
-1776133531.726   grad_clip_norm: 0.3
-1776133531.726   head_lr: 0.008
-1776133531.726   hybrid_global_ttt_decoupled: False
-1776133531.726   hybrid_global_ttt_doc_warmup: 0
-1776133531.726   hybrid_global_ttt_enabled: False
-1776133531.726   hybrid_global_ttt_epochs: 1
-1776133531.726   hybrid_global_ttt_grad_clip: 1.0
-1776133531.726   hybrid_global_ttt_lr: 0.005
-1776133531.726   hybrid_global_ttt_momentum: 0.9
-1776133531.726   hybrid_global_ttt_ordered: False
-1776133531.726   is_main_process: True
-1776133531.726   iterations: 20000
-1776133531.727   ln_scale: True
-1776133531.727   local_rank: 0
-1776133531.727   logfile: /workspace/pr1530_seed2_phased.txt
-1776133531.727   logit_softcap: 30.0
-1776133531.727   loop_end: 5
-1776133531.727   loop_start: 3
-1776133531.727   matrix_bits: 6
-1776133531.727   matrix_clip_sigmas: 12.85
-1776133531.727   matrix_lr: 0.022
-1776133531.727   max_wallclock_seconds: 600.0
-1776133531.727   min_lr: 0.0
-1776133531.727   mlp_mult: 4.0
-1776133531.727   model_dim: 512
-1776133531.727   model_path: /workspace/final_model.pt
-1776133531.727   muon_backend_steps: 5
-1776133531.727   muon_beta2: 0.95
-1776133531.727   muon_momentum: 0.97
-1776133531.727   muon_momentum_warmup_start: 0.92
-1776133531.727   muon_momentum_warmup_steps: 1500
-1776133531.727   muon_row_normalize: True
-1776133531.727   muon_wd: 0.095
-1776133531.727   num_heads: 8
-1776133531.727   num_kv_heads: 4
-1776133531.728   num_layers: 11
-1776133531.728   num_loops: 2
-1776133531.728   parallel_final_lane: mean
-1776133531.728   parallel_start_layer: 8
-1776133531.728   phased_ttt_enabled: True
-1776133531.728   phased_ttt_prefix_docs: 2000
-1776133531.728   qk_gain_init: 5.0
-1776133531.728   quantized_model_path: /workspace/final_model.int6.ptz
-1776133531.728   rank: 0
-1776133531.728   rope_base: 10000.0
-1776133531.728   rope_dims: 16
-1776133531.728   rope_train_seq_len: 2048
-1776133531.728   rope_yarn: False
-1776133531.728   run_id: pr1530_seed2_phased
-1776133531.728   scalar_lr: 0.02
-1776133531.728   seed: 2
-1776133531.728   skip_gates_enabled: True
-1776133531.728   sliding_window_enabled: False
-1776133531.728   tie_embeddings: True
-1776133531.728   tied_embed_init_std: 0.005
-1776133531.728   tied_embed_lr: 0.03
-1776133531.728   tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
-1776133531.728   train_batch_tokens: 786432
-1776133531.729   train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
-1776133531.729   train_log_every: 500
-1776133531.729   train_seq_len: 2048
-1776133531.729   ttt_batch_size: 64
-1776133531.729   ttt_beta1: 0.0
-1776133531.729   ttt_beta2: 0.999
-1776133531.729   ttt_chunk_size: 32
-1776133531.729   ttt_doc_limit: 0
-1776133531.729   ttt_enabled: True
-1776133531.729   ttt_eval_batches: 
-1776133531.729   ttt_eval_seq_len: 2048
-1776133531.729   ttt_grad_steps: 1
-1776133531.729   ttt_heartbeat_seconds: 15.0
-1776133531.729   ttt_k_lora: True
-1776133531.729   ttt_lora_lr: 0.0001
-1776133531.729   ttt_lora_rank: 96
-1776133531.729   ttt_mlp_lora: True
-1776133531.729   ttt_o_lora: True
-1776133531.729   ttt_optimizer: adam
-1776133531.729   ttt_output_dir: /workspace/pr1530_seed2_phased2000
-1776133531.729   ttt_weight_decay: 0.5
-1776133531.729   val_batch_tokens: 524288
-1776133531.729   val_doc_fraction: 1.0
-1776133531.729   val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
-1776133531.730   val_loss_every: 4000
-1776133531.730   vocab_size: 8192
-1776133531.730   warmdown_frac: 0.72
-1776133531.730   warmup_steps: 20
-1776133531.730   world_size: 8
-1776133531.730   xsa_last_n: 11
-1776133532.667 eval_only:loading checkpoint from /workspace/runs/varlen2/final_model.pt
-1776133543.421 diagnostic pre-quantization post-ema val_loss:2.77284969 val_bpb:1.07342193 eval_time:9790ms
-1776133543.421 eval_only: skipping serialize (already have quantized model)
-1776133543.421 eval_only: no quantized model found, running serialize anyway
-1776133543.613 Serialized model: 135409136 bytes
-1776133543.613 Code size (uncompressed): 189273 bytes
-1776133543.613 Code size (compressed): 36455 bytes
-1776133543.676 GPTQ:collecting Hessians from calibration data...
-1776133556.348 GPTQ:collected 67 Hessians in 12.7s
-1776133565.811 Quantized weights:
-1776133565.811   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
-1776133565.811   gptq (int8): tok_emb.weight
-1776133565.811   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
-1776133632.604 Serialized model quantized+brotli: 15958719 bytes
-1776133632.604 Total submission size quantized+brotli: 15995174 bytes
-1776133636.400 diagnostic quantized val_loss:2.80323656 val_bpb:1.08518525 eval_time:2563ms
-1776133637.676 ttt_lora:warming up compile
-1776133783.678 ttt_lora:compile warmup done (145.9s)
-1776133783.678 
-1776133783.678 beginning TTT eval timer
-1776133783.878 ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000
-1776133786.080 ttt_phased_trace: claimed batch 779/782 bsz:64 doc_len:9037-11049
-1776133786.082 ttt_phased_trace: entering chunk loop batch 779/782 max_nc:346
-1776133786.083 ttt_phased_trace: prepared indices batch 779/782 context_size:32
-1776133786.083 ttt_phased_trace: entering forward batch 779/782
-1776133875.176 ttt_phased_trace: finished forward batch 779/782
-1776133875.394 ttt_phased_trace: finished chunk 1 batch 779/782
-1776133875.394 ttt_phased_progress_heartbeat: batch 779/782 chunk 2/346 doc_len:9037-11049 elapsed:91.4s global_done:0
-1776133890.571 ttt_phased_progress_heartbeat: batch 779/782 chunk 105/346 doc_len:9037-11049 elapsed:106.6s global_done:0
-1776133905.613 ttt_phased_progress_heartbeat: batch 779/782 chunk 180/346 doc_len:9037-11049 elapsed:121.6s global_done:0
-1776133920.703 ttt_phased_progress_heartbeat: batch 779/782 chunk 255/346 doc_len:9037-11049 elapsed:136.7s global_done:0
-1776133935.875 ttt_phased_progress_heartbeat: batch 779/782 chunk 331/346 doc_len:9037-11049 elapsed:151.9s global_done:0
-1776133938.983 ttt_phased_progress: batch 779/782 batch_loss:2.6489 batch_bpb:1.0789 running_loss:2.6489 running_bpb:1.0789 doc_len:9037-11049 global_done:0
-1776133950.927 ttt_phased_progress_heartbeat: batch 769/782 chunk 90/140 doc_len:4307-4479 elapsed:166.9s global_done:0
-1776133961.182 ttt_phased_progress: batch 769/782 batch_loss:2.7712 batch_bpb:1.0967 running_loss:2.6865 running_bpb:1.0845 doc_len:4307-4479 global_done:0
-1776133966.030 ttt_phased_progress_heartbeat: batch 764/782 chunk 54/117 doc_len:3639-3742 elapsed:182.0s global_done:0
-1776133978.745 ttt_phased_progress: batch 764/782 batch_loss:2.7697 batch_bpb:1.1005 running_loss:2.7035 running_bpb:1.0878 doc_len:3639-3742 global_done:0
-1776133981.050 ttt_phased_progress_heartbeat: batch 758/782 chunk 36/100 doc_len:3108-3187 elapsed:197.0s global_done:0
-1776133992.853 ttt_phased_progress: batch 758/782 batch_loss:2.8797 batch_bpb:1.0866 running_loss:2.7297 running_bpb:1.0876 doc_len:3108-3187 global_done:0
-1776133996.161 ttt_phased_progress_heartbeat: batch 750/782 chunk 44/84 doc_len:2638-2688 elapsed:212.2s global_done:0
-1776134003.733 ttt_phased_progress: batch 750/782 batch_loss:2.8291 batch_bpb:1.0673 running_loss:2.7408 running_bpb:1.0852 doc_len:2638-2688 global_done:0
-1776134011.218 ttt_phased_progress_heartbeat: batch 747/782 chunk 68/80 doc_len:2501-2538 elapsed:227.2s global_done:0
-1776134013.806 ttt_phased_progress: batch 747/782 batch_loss:2.7860 batch_bpb:1.0596 running_loss:2.7452 running_bpb:1.0827 doc_len:2501-2538 global_done:0
-1776134032.979 ttt_phased_pause: prefix_docs_scored:2448  gathered_docs:2000 elapsed:249.0s
-1776134034.859 ttt_global_train_progress: chunk 1/213 lr:0.005000 elapsed:1.9s
-1776134035.065 ttt_global_train_progress: chunk 2/213 lr:0.005000 elapsed:2.1s
-1776134035.277 ttt_global_train_progress: chunk 3/213 lr:0.004999 elapsed:2.3s
-1776134035.495 ttt_global_train_progress: chunk 4/213 lr:0.004998 elapsed:2.5s
-1776134035.709 ttt_global_train_progress: chunk 5/213 lr:0.004996 elapsed:2.7s
-1776134035.922 ttt_global_train_progress: chunk 6/213 lr:0.004993 elapsed:2.9s
-1776134036.136 ttt_global_train_progress: chunk 7/213 lr:0.004990 elapsed:3.2s
-1776134036.351 ttt_global_train_progress: chunk 8/213 lr:0.004987 elapsed:3.4s
-1776134036.570 ttt_global_train_progress: chunk 9/213 lr:0.004982 elapsed:3.6s
-1776134036.785 ttt_global_train_progress: chunk 10/213 lr:0.004978 elapsed:3.8s
-1776134037.007 ttt_global_train_progress: chunk 11/213 lr:0.004973 elapsed:4.0s
-1776134037.229 ttt_global_train_progress: chunk 12/213 lr:0.004967 elapsed:4.2s
-1776134037.448 ttt_global_train_progress: chunk 13/213 lr:0.004961 elapsed:4.5s
-1776134037.661 ttt_global_train_progress: chunk 14/213 lr:0.004954 elapsed:4.7s
-1776134037.872 ttt_global_train_progress: chunk 15/213 lr:0.004946 elapsed:4.9s
-1776134038.083 ttt_global_train_progress: chunk 16/213 lr:0.004938 elapsed:5.1s
-1776134038.297 ttt_global_train_progress: chunk 17/213 lr:0.004930 elapsed:5.3s
-1776134038.516 ttt_global_train_progress: chunk 18/213 lr:0.004921 elapsed:5.5s
-1776134038.734 ttt_global_train_progress: chunk 19/213 lr:0.004912 elapsed:5.8s
-1776134038.958 ttt_global_train_progress: chunk 20/213 lr:0.004902 elapsed:6.0s
-1776134039.172 ttt_global_train_progress: chunk 21/213 lr:0.004891 elapsed:6.2s
-1776134039.391 ttt_global_train_progress: chunk 22/213 lr:0.004880 elapsed:6.4s
-1776134039.606 ttt_global_train_progress: chunk 23/213 lr:0.004868 elapsed:6.6s
-1776134039.822 ttt_global_train_progress: chunk 24/213 lr:0.004856 elapsed:6.8s
-1776134040.037 ttt_global_train_progress: chunk 25/213 lr:0.004844 elapsed:7.1s
-1776134040.251 ttt_global_train_progress: chunk 26/213 lr:0.004830 elapsed:7.3s
-1776134040.462 ttt_global_train_progress: chunk 27/213 lr:0.004817 elapsed:7.5s
-1776134040.676 ttt_global_train_progress: chunk 28/213 lr:0.004803 elapsed:7.7s
-1776134040.891 ttt_global_train_progress: chunk 29/213 lr:0.004788 elapsed:7.9s
-1776134041.106 ttt_global_train_progress: chunk 30/213 lr:0.004773 elapsed:8.1s
-1776134041.325 ttt_global_train_progress: chunk 31/213 lr:0.004757 elapsed:8.3s
-1776134041.548 ttt_global_train_progress: chunk 32/213 lr:0.004741 elapsed:8.6s
-1776134041.762 ttt_global_train_progress: chunk 33/213 lr:0.004724 elapsed:8.8s
-1776134041.984 ttt_global_train_progress: chunk 34/213 lr:0.004707 elapsed:9.0s
-1776134042.197 ttt_global_train_progress: chunk 35/213 lr:0.004689 elapsed:9.2s
-1776134042.409 ttt_global_train_progress: chunk 36/213 lr:0.004671 elapsed:9.4s
-1776134042.621 ttt_global_train_progress: chunk 37/213 lr:0.004653 elapsed:9.6s
-1776134042.834 ttt_global_train_progress: chunk 38/213 lr:0.004634 elapsed:9.9s
-1776134043.051 ttt_global_train_progress: chunk 39/213 lr:0.004614 elapsed:10.1s
-1776134043.273 ttt_global_train_progress: chunk 40/213 lr:0.004594 elapsed:10.3s
-1776134043.496 ttt_global_train_progress: chunk 41/213 lr:0.004574 elapsed:10.5s
-1776134043.716 ttt_global_train_progress: chunk 42/213 lr:0.004553 elapsed:10.7s
-1776134043.927 ttt_global_train_progress: chunk 43/213 lr:0.004531 elapsed:10.9s
-1776134044.141 ttt_global_train_progress: chunk 44/213 lr:0.004509 elapsed:11.2s
-1776134044.353 ttt_global_train_progress: chunk 45/213 lr:0.004487 elapsed:11.4s
-1776134044.565 ttt_global_train_progress: chunk 46/213 lr:0.004464 elapsed:11.6s
-1776134044.778 ttt_global_train_progress: chunk 47/213 lr:0.004441 elapsed:11.8s
-1776134044.998 ttt_global_train_progress: chunk 48/213 lr:0.004418 elapsed:12.0s
-1776134045.218 ttt_global_train_progress: chunk 49/213 lr:0.004394 elapsed:12.2s
-1776134045.433 ttt_global_train_progress: chunk 50/213 lr:0.004369 elapsed:12.5s
-1776134045.645 ttt_global_train_progress: chunk 51/213 lr:0.004345 elapsed:12.7s
-1776134045.856 ttt_global_train_progress: chunk 52/213 lr:0.004319 elapsed:12.9s
-1776134046.069 ttt_global_train_progress: chunk 53/213 lr:0.004294 elapsed:13.1s
-1776134046.281 ttt_global_train_progress: chunk 54/213 lr:0.004268 elapsed:13.3s
-1776134046.494 ttt_global_train_progress: chunk 55/213 lr:0.004241 elapsed:13.5s
-1776134046.717 ttt_global_train_progress: chunk 56/213 lr:0.004215 elapsed:13.7s
-1776134046.939 ttt_global_train_progress: chunk 57/213 lr:0.004187 elapsed:14.0s
-1776134047.152 ttt_global_train_progress: chunk 58/213 lr:0.004160 elapsed:14.2s
-1776134047.366 ttt_global_train_progress: chunk 59/213 lr:0.004132 elapsed:14.4s
-1776134047.581 ttt_global_train_progress: chunk 60/213 lr:0.004104 elapsed:14.6s
-1776134047.795 ttt_global_train_progress: chunk 61/213 lr:0.004075 elapsed:14.8s
-1776134048.011 ttt_global_train_progress: chunk 62/213 lr:0.004046 elapsed:15.0s
-1776134048.235 ttt_global_train_progress: chunk 63/213 lr:0.004017 elapsed:15.3s
-1776134048.456 ttt_global_train_progress: chunk 64/213 lr:0.003987 elapsed:15.5s
-1776134048.668 ttt_global_train_progress: chunk 65/213 lr:0.003957 elapsed:15.7s
-1776134048.879 ttt_global_train_progress: chunk 66/213 lr:0.003927 elapsed:15.9s
-1776134049.093 ttt_global_train_progress: chunk 67/213 lr:0.003897 elapsed:16.1s
-1776134049.306 ttt_global_train_progress: chunk 68/213 lr:0.003866 elapsed:16.3s
-1776134049.518 ttt_global_train_progress: chunk 69/213 lr:0.003835 elapsed:16.5s
-1776134049.732 ttt_global_train_progress: chunk 70/213 lr:0.003803 elapsed:16.8s
-1776134049.953 ttt_global_train_progress: chunk 71/213 lr:0.003771 elapsed:17.0s
-1776134050.171 ttt_global_train_progress: chunk 72/213 lr:0.003739 elapsed:17.2s
-1776134050.387 ttt_global_train_progress: chunk 73/213 lr:0.003707 elapsed:17.4s
-1776134050.612 ttt_global_train_progress: chunk 74/213 lr:0.003674 elapsed:17.6s
-1776134050.823 ttt_global_train_progress: chunk 75/213 lr:0.003642 elapsed:17.8s
-1776134051.041 ttt_global_train_progress: chunk 76/213 lr:0.003608 elapsed:18.1s
-1776134051.255 ttt_global_train_progress: chunk 77/213 lr:0.003575 elapsed:18.3s
-1776134051.473 ttt_global_train_progress: chunk 78/213 lr:0.003542 elapsed:18.5s
-1776134051.689 ttt_global_train_progress: chunk 79/213 lr:0.003508 elapsed:18.7s
-1776134051.904 ttt_global_train_progress: chunk 80/213 lr:0.003474 elapsed:18.9s
-1776134052.121 ttt_global_train_progress: chunk 81/213 lr:0.003440 elapsed:19.1s
-1776134052.341 ttt_global_train_progress: chunk 82/213 lr:0.003405 elapsed:19.4s
-1776134052.556 ttt_global_train_progress: chunk 83/213 lr:0.003371 elapsed:19.6s
-1776134052.774 ttt_global_train_progress: chunk 84/213 lr:0.003336 elapsed:19.8s
-1776134052.990 ttt_global_train_progress: chunk 85/213 lr:0.003301 elapsed:20.0s
-1776134053.210 ttt_global_train_progress: chunk 86/213 lr:0.003265 elapsed:20.2s
-1776134053.427 ttt_global_train_progress: chunk 87/213 lr:0.003230 elapsed:20.4s
-1776134053.642 ttt_global_train_progress: chunk 88/213 lr:0.003195 elapsed:20.7s
-1776134053.859 ttt_global_train_progress: chunk 89/213 lr:0.003159 elapsed:20.9s
-1776134054.074 ttt_global_train_progress: chunk 90/213 lr:0.003123 elapsed:21.1s
-1776134054.287 ttt_global_train_progress: chunk 91/213 lr:0.003087 elapsed:21.3s
-1776134054.501 ttt_global_train_progress: chunk 92/213 lr:0.003051 elapsed:21.5s
-1776134054.725 ttt_global_train_progress: chunk 93/213 lr:0.003015 elapsed:21.7s
-1776134054.945 ttt_global_train_progress: chunk 94/213 lr:0.002979 elapsed:22.0s
-1776134055.155 ttt_global_train_progress: chunk 95/213 lr:0.002942 elapsed:22.2s
-1776134055.366 ttt_global_train_progress: chunk 96/213 lr:0.002906 elapsed:22.4s
-1776134055.580 ttt_global_train_progress: chunk 97/213 lr:0.002869 elapsed:22.6s
-1776134055.799 ttt_global_train_progress: chunk 98/213 lr:0.002832 elapsed:22.8s
-1776134056.015 ttt_global_train_progress: chunk 99/213 lr:0.002796 elapsed:23.0s
-1776134056.236 ttt_global_train_progress: chunk 100/213 lr:0.002759 elapsed:23.3s
-1776134056.459 ttt_global_train_progress: chunk 101/213 lr:0.002722 elapsed:23.5s
-1776134056.666 ttt_global_train_progress: chunk 102/213 lr:0.002685 elapsed:23.7s
-1776134056.877 ttt_global_train_progress: chunk 103/213 lr:0.002648 elapsed:23.9s
-1776134057.093 ttt_global_train_progress: chunk 104/213 lr:0.002611 elapsed:24.1s
-1776134057.311 ttt_global_train_progress: chunk 105/213 lr:0.002574 elapsed:24.3s
-1776134057.527 ttt_global_train_progress: chunk 106/213 lr:0.002537 elapsed:24.5s
-1776134057.751 ttt_global_train_progress: chunk 107/213 lr:0.002500 elapsed:24.8s
-1776134057.961 ttt_global_train_progress: chunk 108/213 lr:0.002463 elapsed:25.0s
-1776134058.173 ttt_global_train_progress: chunk 109/213 lr:0.002426 elapsed:25.2s
-1776134058.385 ttt_global_train_progress: chunk 110/213 lr:0.002389 elapsed:25.4s
-1776134058.600 ttt_global_train_progress: chunk 111/213 lr:0.002352 elapsed:25.6s
-1776134058.812 ttt_global_train_progress: chunk 112/213 lr:0.002315 elapsed:25.8s
-1776134059.029 ttt_global_train_progress: chunk 113/213 lr:0.002278 elapsed:26.1s
-1776134059.245 ttt_global_train_progress: chunk 114/213 lr:0.002241 elapsed:26.3s
-1776134059.460 ttt_global_train_progress: chunk 115/213 lr:0.002204 elapsed:26.5s
-1776134059.686 ttt_global_train_progress: chunk 116/213 lr:0.002168 elapsed:26.7s
-1776134059.895 ttt_global_train_progress: chunk 117/213 lr:0.002131 elapsed:26.9s
-1776134060.110 ttt_global_train_progress: chunk 118/213 lr:0.002094 elapsed:27.1s
-1776134060.324 ttt_global_train_progress: chunk 119/213 lr:0.002058 elapsed:27.3s
-1776134060.540 ttt_global_train_progress: chunk 120/213 lr:0.002021 elapsed:27.6s
-1776134060.755 ttt_global_train_progress: chunk 121/213 lr:0.001985 elapsed:27.8s
-1776134060.970 ttt_global_train_progress: chunk 122/213 lr:0.001949 elapsed:28.0s
-1776134061.187 ttt_global_train_progress: chunk 123/213 lr:0.001913 elapsed:28.2s
-1776134061.402 ttt_global_train_progress: chunk 124/213 lr:0.001877 elapsed:28.4s
-1776134061.617 ttt_global_train_progress: chunk 125/213 lr:0.001841 elapsed:28.6s
-1776134061.833 ttt_global_train_progress: chunk 126/213 lr:0.001805 elapsed:28.9s
-1776134062.048 ttt_global_train_progress: chunk 127/213 lr:0.001770 elapsed:29.1s
-1776134062.266 ttt_global_train_progress: chunk 128/213 lr:0.001735 elapsed:29.3s
-1776134062.484 ttt_global_train_progress: chunk 129/213 lr:0.001699 elapsed:29.5s
-1776134062.703 ttt_global_train_progress: chunk 130/213 lr:0.001664 elapsed:29.7s
-1776134062.917 ttt_global_train_progress: chunk 131/213 lr:0.001629 elapsed:29.9s
-1776134063.141 ttt_global_train_progress: chunk 132/213 lr:0.001595 elapsed:30.2s
-1776134063.352 ttt_global_train_progress: chunk 133/213 lr:0.001560 elapsed:30.4s
-1776134063.563 ttt_global_train_progress: chunk 134/213 lr:0.001526 elapsed:30.6s
-1776134063.777 ttt_global_train_progress: chunk 135/213 lr:0.001492 elapsed:30.8s
-1776134063.990 ttt_global_train_progress: chunk 136/213 lr:0.001458 elapsed:31.0s
-1776134064.204 ttt_global_train_progress: chunk 137/213 lr:0.001425 elapsed:31.2s
-1776134064.424 ttt_global_train_progress: chunk 138/213 lr:0.001392 elapsed:31.4s
-1776134064.639 ttt_global_train_progress: chunk 139/213 lr:0.001358 elapsed:31.7s
-1776134064.866 ttt_global_train_progress: chunk 140/213 lr:0.001326 elapsed:31.9s
-1776134065.078 ttt_global_train_progress: chunk 141/213 lr:0.001293 elapsed:32.1s
-1776134065.300 ttt_global_train_progress: chunk 142/213 lr:0.001261 elapsed:32.3s
-1776134065.509 ttt_global_train_progress: chunk 143/213 lr:0.001229 elapsed:32.5s
-1776134065.722 ttt_global_train_progress: chunk 144/213 lr:0.001197 elapsed:32.7s
-1776134065.935 ttt_global_train_progress: chunk 145/213 lr:0.001165 elapsed:33.0s
-1776134066.150 ttt_global_train_progress: chunk 146/213 lr:0.001134 elapsed:33.2s
-1776134066.366 ttt_global_train_progress: chunk 147/213 lr:0.001103 elapsed:33.4s
-1776134066.583 ttt_global_train_progress: chunk 148/213 lr:0.001073 elapsed:33.6s
-1776134066.798 ttt_global_train_progress: chunk 149/213 lr:0.001043 elapsed:33.8s
-1776134067.018 ttt_global_train_progress: chunk 150/213 lr:0.001013 elapsed:34.0s
-1776134067.239 ttt_global_train_progress: chunk 151/213 lr:0.000983 elapsed:34.3s
-1776134067.451 ttt_global_train_progress: chunk 152/213 lr:0.000954 elapsed:34.5s
-1776134067.665 ttt_global_train_progress: chunk 153/213 lr:0.000925 elapsed:34.7s
-1776134067.881 ttt_global_train_progress: chunk 154/213 lr:0.000896 elapsed:34.9s
-1776134068.098 ttt_global_train_progress: chunk 155/213 lr:0.000868 elapsed:35.1s
-1776134068.314 ttt_global_train_progress: chunk 156/213 lr:0.000840 elapsed:35.3s
-1776134068.529 ttt_global_train_progress: chunk 157/213 lr:0.000813 elapsed:35.6s
-1776134068.752 ttt_global_train_progress: chunk 158/213 lr:0.000785 elapsed:35.8s
-1776134068.966 ttt_global_train_progress: chunk 159/213 lr:0.000759 elapsed:36.0s
-1776134069.188 ttt_global_train_progress: chunk 160/213 lr:0.000732 elapsed:36.2s
-1776134069.408 ttt_global_train_progress: chunk 161/213 lr:0.000706 elapsed:36.4s
-1776134069.624 ttt_global_train_progress: chunk 162/213 lr:0.000681 elapsed:36.6s
-1776134069.839 ttt_global_train_progress: chunk 163/213 lr:0.000655 elapsed:36.9s
-1776134070.057 ttt_global_train_progress: chunk 164/213 lr:0.000631 elapsed:37.1s
-1776134070.274 ttt_global_train_progress: chunk 165/213 lr:0.000606 elapsed:37.3s
-1776134070.499 ttt_global_train_progress: chunk 166/213 lr:0.000582 elapsed:37.5s
-1776134070.724 ttt_global_train_progress: chunk 167/213 lr:0.000559 elapsed:37.7s
-1776134070.940 ttt_global_train_progress: chunk 168/213 lr:0.000536 elapsed:38.0s
-1776134071.153 ttt_global_train_progress: chunk 169/213 lr:0.000513 elapsed:38.2s
-1776134071.367 ttt_global_train_progress: chunk 170/213 lr:0.000491 elapsed:38.4s
-1776134071.583 ttt_global_train_progress: chunk 171/213 lr:0.000469 elapsed:38.6s
-1776134071.802 ttt_global_train_progress: chunk 172/213 lr:0.000447 elapsed:38.8s
-1776134072.022 ttt_global_train_progress: chunk 173/213 lr:0.000426 elapsed:39.0s
-1776134072.239 ttt_global_train_progress: chunk 174/213 lr:0.000406 elapsed:39.3s
-1776134072.454 ttt_global_train_progress: chunk 175/213 lr:0.000386 elapsed:39.5s
-1776134072.673 ttt_global_train_progress: chunk 176/213 lr:0.000366 elapsed:39.7s
-1776134072.890 ttt_global_train_progress: chunk 177/213 lr:0.000347 elapsed:39.9s
-1776134073.106 ttt_global_train_progress: chunk 178/213 lr:0.000329 elapsed:40.1s
-1776134073.324 ttt_global_train_progress: chunk 179/213 lr:0.000311 elapsed:40.3s
-1776134073.546 ttt_global_train_progress: chunk 180/213 lr:0.000293 elapsed:40.6s
-1776134073.764 ttt_global_train_progress: chunk 181/213 lr:0.000276 elapsed:40.8s
-1776134073.980 ttt_global_train_progress: chunk 182/213 lr:0.000259 elapsed:41.0s
-1776134074.206 ttt_global_train_progress: chunk 183/213 lr:0.000243 elapsed:41.2s
-1776134074.414 ttt_global_train_progress: chunk 184/213 lr:0.000227 elapsed:41.4s
-1776134074.630 ttt_global_train_progress: chunk 185/213 lr:0.000212 elapsed:41.7s
-1776134074.849 ttt_global_train_progress: chunk 186/213 lr:0.000197 elapsed:41.9s
-1776134075.064 ttt_global_train_progress: chunk 187/213 lr:0.000183 elapsed:42.1s
-1776134075.274 ttt_global_train_progress: chunk 188/213 lr:0.000170 elapsed:42.3s
-1776134075.486 ttt_global_train_progress: chunk 189/213 lr:0.000156 elapsed:42.5s
-1776134075.701 ttt_global_train_progress: chunk 190/213 lr:0.000144 elapsed:42.7s
-1776134075.917 ttt_global_train_progress: chunk 191/213 lr:0.000132 elapsed:42.9s
-1776134076.133 ttt_global_train_progress: chunk 192/213 lr:0.000120 elapsed:43.2s
-1776134076.351 ttt_global_train_progress: chunk 193/213 lr:0.000109 elapsed:43.4s
-1776134076.565 ttt_global_train_progress: chunk 194/213 lr:0.000098 elapsed:43.6s
-1776134076.780 ttt_global_train_progress: chunk 195/213 lr:0.000088 elapsed:43.8s
-1776134077.006 ttt_global_train_progress: chunk 196/213 lr:0.000079 elapsed:44.0s
-1776134077.217 ttt_global_train_progress: chunk 197/213 lr:0.000070 elapsed:44.2s
-1776134077.431 ttt_global_train_progress: chunk 198/213 lr:0.000062 elapsed:44.5s
-1776134077.647 ttt_global_train_progress: chunk 199/213 lr:0.000054 elapsed:44.7s
-1776134077.864 ttt_global_train_progress: chunk 200/213 lr:0.000046 elapsed:44.9s
-1776134078.080 ttt_global_train_progress: chunk 201/213 lr:0.000039 elapsed:45.1s
-1776134078.296 ttt_global_train_progress: chunk 202/213 lr:0.000033 elapsed:45.3s
-1776134078.518 ttt_global_train_progress: chunk 203/213 lr:0.000027 elapsed:45.5s
-1776134078.731 ttt_global_train_progress: chunk 204/213 lr:0.000022 elapsed:45.8s
-1776134078.948 ttt_global_train_progress: chunk 205/213 lr:0.000018 elapsed:46.0s
-1776134079.166 ttt_global_train_progress: chunk 206/213 lr:0.000013 elapsed:46.2s
-1776134079.380 ttt_global_train_progress: chunk 207/213 lr:0.000010 elapsed:46.4s
-1776134079.596 ttt_global_train_progress: chunk 208/213 lr:0.000007 elapsed:46.6s
-1776134079.812 ttt_global_train_progress: chunk 209/213 lr:0.000004 elapsed:46.8s
-1776134080.027 ttt_global_train_progress: chunk 210/213 lr:0.000002 elapsed:47.0s
-1776134080.248 ttt_global_train_progress: chunk 211/213 lr:0.000001 elapsed:47.3s
-1776134080.459 ttt_global_train_progress: chunk 212/213 lr:0.000000 elapsed:47.5s
-1776134082.550 ttt_phased_resume: elapsed:298.5s
-1776134174.080 ttt_phased_progress_heartbeat: batch 742/782 chunk 2/74 doc_len:2319-2353 elapsed:390.1s global_done:1
-1776134182.878 ttt_phased_progress: batch 742/782 batch_loss:2.7834 batch_bpb:1.0661 running_loss:2.7483 running_bpb:1.0813 doc_len:2319-2353 global_done:1
-1776134189.143 ttt_phased_progress_heartbeat: batch 729/782 chunk 62/63 doc_len:1978-1994 elapsed:405.1s global_done:1
-1776134189.499 ttt_phased_progress: batch 729/782 batch_loss:2.7222 batch_bpb:1.0374 running_loss:2.7466 running_bpb:1.0784 doc_len:1978-1994 global_done:1
-1776134195.164 ttt_phased_progress: batch 720/782 batch_loss:2.8228 batch_bpb:1.0782 running_loss:2.7509 running_bpb:1.0784 doc_len:1816-1832 global_done:1
-1776134199.962 ttt_phased_progress: batch 712/782 batch_loss:2.8313 batch_bpb:1.0779 running_loss:2.7548 running_bpb:1.0783 doc_len:1684-1697 global_done:1
-1776134204.157 ttt_phased_progress_heartbeat: batch 708/782 chunk 50/52 doc_len:1639-1649 elapsed:420.1s global_done:1
-1776134204.609 ttt_phased_progress: batch 708/782 batch_loss:2.7223 batch_bpb:1.0462 running_loss:2.7533 running_bpb:1.0768 doc_len:1639-1649 global_done:1
-1776134208.767 ttt_phased_progress: batch 700/782 batch_loss:2.6742 batch_bpb:1.0437 running_loss:2.7501 running_bpb:1.0755 doc_len:1552-1562 global_done:1
-1776134212.479 ttt_phased_progress: batch 690/782 batch_loss:2.8338 batch_bpb:1.0619 running_loss:2.7532 running_bpb:1.0749 doc_len:1458-1467 global_done:1
-1776134216.048 ttt_phased_progress: batch 684/782 batch_loss:2.7935 batch_bpb:1.0739 running_loss:2.7546 running_bpb:1.0749 doc_len:1407-1414 global_done:1
-1776134219.201 ttt_phased_progress: batch 674/782 batch_loss:2.7854 batch_bpb:1.0569 running_loss:2.7556 running_bpb:1.0743 doc_len:1334-1341 global_done:1
-1776134219.205 ttt_phased_progress_heartbeat: batch 670/782 chunk 1/42 doc_len:1308-1315 elapsed:435.2s global_done:1
-1776134222.356 ttt_phased_progress: batch 670/782 batch_loss:2.8243 batch_bpb:1.0560 running_loss:2.7577 running_bpb:1.0737 doc_len:1308-1315 global_done:1
-1776134225.132 ttt_phased_progress: batch 659/782 batch_loss:2.7123 batch_bpb:1.0213 running_loss:2.7564 running_bpb:1.0722 doc_len:1239-1245 global_done:1
-1776134227.774 ttt_phased_progress: batch 654/782 batch_loss:2.7316 batch_bpb:1.0369 running_loss:2.7558 running_bpb:1.0712 doc_len:1209-1215 global_done:1
-1776134230.294 ttt_phased_progress: batch 647/782 batch_loss:2.7513 batch_bpb:1.0474 running_loss:2.7556 running_bpb:1.0706 doc_len:1171-1177 global_done:1
-1776134232.698 ttt_phased_progress: batch 639/782 batch_loss:2.8533 batch_bpb:1.0808 running_loss:2.7580 running_bpb:1.0709 doc_len:1129-1134 global_done:1
-1776134234.275 ttt_phased_progress_heartbeat: batch 629/782 chunk 29/34 doc_len:1082-1086 elapsed:450.3s global_done:1
-1776134234.873 ttt_phased_progress: batch 629/782 batch_loss:2.7249 batch_bpb:1.0440 running_loss:2.7572 running_bpb:1.0703 doc_len:1082-1086 global_done:1
-1776134237.054 ttt_phased_progress: batch 623/782 batch_loss:2.7866 batch_bpb:1.0726 running_loss:2.7579 running_bpb:1.0703 doc_len:1055-1060 global_done:1
-1776134239.013 ttt_phased_progress: batch 609/782 batch_loss:2.7890 batch_bpb:1.0587 running_loss:2.7585 running_bpb:1.0701 doc_len:994-999 global_done:1
-1776134240.869 ttt_phased_progress: batch 602/782 batch_loss:2.7805 batch_bpb:1.0400 running_loss:2.7589 running_bpb:1.0695 doc_len:966-971 global_done:1
-1776134242.624 ttt_phased_progress: batch 595/782 batch_loss:2.7282 batch_bpb:1.0548 running_loss:2.7583 running_bpb:1.0692 doc_len:940-943 global_done:1
-1776134244.281 ttt_phased_progress: batch 588/782 batch_loss:2.7384 batch_bpb:1.0447 running_loss:2.7580 running_bpb:1.0688 doc_len:917-921 global_done:1
-1776134245.937 ttt_phased_progress: batch 582/782 batch_loss:2.8574 batch_bpb:1.0899 running_loss:2.7596 running_bpb:1.0692 doc_len:897-901 global_done:1
-1776134247.407 ttt_phased_progress: batch 569/782 batch_loss:2.7602 batch_bpb:1.0546 running_loss:2.7596 running_bpb:1.0689 doc_len:855-858 global_done:1
-1776134248.876 ttt_phased_progress: batch 565/782 batch_loss:2.7718 batch_bpb:1.0621 running_loss:2.7598 running_bpb:1.0688 doc_len:843-846 global_done:1
-1776134249.300 ttt_phased_progress_heartbeat: batch 557/782 chunk 13/26 doc_len:818-821 elapsed:465.3s global_done:1
-1776134250.256 ttt_phased_progress: batch 557/782 batch_loss:2.7941 batch_bpb:1.0418 running_loss:2.7603 running_bpb:1.0684 doc_len:818-821 global_done:1
-1776134251.548 ttt_phased_progress: batch 550/782 batch_loss:2.8076 batch_bpb:1.0772 running_loss:2.7610 running_bpb:1.0685 doc_len:798-801 global_done:1
-1776134252.841 ttt_phased_progress: batch 543/782 batch_loss:2.7849 batch_bpb:1.0455 running_loss:2.7613 running_bpb:1.0682 doc_len:779-782 global_done:1
-1776134254.050 ttt_phased_progress: batch 535/782 batch_loss:2.7866 batch_bpb:1.0565 running_loss:2.7616 running_bpb:1.0681 doc_len:759-762 global_done:1
-1776134255.266 ttt_phased_progress: batch 527/782 batch_loss:2.7326 batch_bpb:1.0384 running_loss:2.7613 running_bpb:1.0677 doc_len:739-742 global_done:1
-1776134256.395 ttt_phased_progress: batch 516/782 batch_loss:2.8602 batch_bpb:1.0768 running_loss:2.7624 running_bpb:1.0678 doc_len:713-715 global_done:1
-1776134257.446 ttt_phased_progress: batch 509/782 batch_loss:2.7518 batch_bpb:1.0709 running_loss:2.7623 running_bpb:1.0678 doc_len:695-698 global_done:1
-1776134258.499 ttt_phased_progress: batch 501/782 batch_loss:2.7847 batch_bpb:1.0374 running_loss:2.7625 running_bpb:1.0675 doc_len:677-680 global_done:1
-1776134259.474 ttt_phased_progress: batch 491/782 batch_loss:2.7419 batch_bpb:1.0331 running_loss:2.7623 running_bpb:1.0671 doc_len:655-657 global_done:1
-1776134260.448 ttt_phased_progress: batch 485/782 batch_loss:2.7921 batch_bpb:1.0508 running_loss:2.7626 running_bpb:1.0670 doc_len:643-645 global_done:1
-1776134261.350 ttt_phased_progress: batch 474/782 batch_loss:2.7646 batch_bpb:1.0541 running_loss:2.7626 running_bpb:1.0668 doc_len:620-622 global_done:1
-1776134262.182 ttt_phased_progress: batch 466/782 batch_loss:2.8056 batch_bpb:1.0666 running_loss:2.7630 running_bpb:1.0668 doc_len:604-606 global_done:1
-1776134263.014 ttt_phased_progress: batch 463/782 batch_loss:2.8001 batch_bpb:1.0749 running_loss:2.7634 running_bpb:1.0669 doc_len:599-600 global_done:1
-1776134263.846 ttt_phased_progress: batch 455/782 batch_loss:2.7918 batch_bpb:1.0706 running_loss:2.7636 running_bpb:1.0669 doc_len:584-586 global_done:1
-1776134264.321 ttt_phased_progress_heartbeat: batch 446/782 chunk 14/18 doc_len:568-569 elapsed:480.3s global_done:1
-1776134264.611 ttt_phased_progress: batch 446/782 batch_loss:2.8169 batch_bpb:1.0873 running_loss:2.7641 running_bpb:1.0671 doc_len:568-569 global_done:1
-1776134265.381 ttt_phased_progress: batch 438/782 batch_loss:2.7230 batch_bpb:1.0594 running_loss:2.7638 running_bpb:1.0671 doc_len:553-555 global_done:1
-1776134267.641 ttt_phased_progress: batch 431/782 batch_loss:2.7523 batch_bpb:1.0624 running_loss:2.7637 running_bpb:1.0670 doc_len:540-542 global_done:1
-1776134268.281 ttt_phased_progress: batch 410/782 batch_loss:2.7781 batch_bpb:1.0549 running_loss:2.7638 running_bpb:1.0669 doc_len:505-507 global_done:1
-1776134268.919 ttt_phased_progress: batch 403/782 batch_loss:2.8109 batch_bpb:1.0504 running_loss:2.7641 running_bpb:1.0668 doc_len:493-495 global_done:1
-1776134269.557 ttt_phased_progress: batch 396/782 batch_loss:2.7556 batch_bpb:1.0545 running_loss:2.7640 running_bpb:1.0667 doc_len:482-484 global_done:1
-1776134270.136 ttt_phased_progress: batch 387/782 batch_loss:2.8361 batch_bpb:1.0736 running_loss:2.7645 running_bpb:1.0668 doc_len:468-470 global_done:1
-1776134270.715 ttt_phased_progress: batch 379/782 batch_loss:2.7651 batch_bpb:1.0588 running_loss:2.7645 running_bpb:1.0667 doc_len:457-459 global_done:1
-1776134271.238 ttt_phased_progress: batch 371/782 batch_loss:2.8054 batch_bpb:1.0723 running_loss:2.7648 running_bpb:1.0667 doc_len:446-447 global_done:1
-1776134271.761 ttt_phased_progress: batch 364/782 batch_loss:2.7357 batch_bpb:1.0671 running_loss:2.7646 running_bpb:1.0667 doc_len:436-437 global_done:1
-1776134272.288 ttt_phased_progress: batch 356/782 batch_loss:2.6946 batch_bpb:1.0470 running_loss:2.7642 running_bpb:1.0666 doc_len:424-426 global_done:1
-1776134272.765 ttt_phased_progress: batch 348/782 batch_loss:2.8106 batch_bpb:1.0681 running_loss:2.7645 running_bpb:1.0666 doc_len:414-415 global_done:1
-1776134273.233 ttt_phased_progress: batch 343/782 batch_loss:2.7985 batch_bpb:1.0678 running_loss:2.7647 running_bpb:1.0666 doc_len:407-408 global_done:1
-1776134273.701 ttt_phased_progress: batch 335/782 batch_loss:2.7157 batch_bpb:1.0884 running_loss:2.7644 running_bpb:1.0668 doc_len:396-398 global_done:1
-1776134274.180 ttt_phased_progress: batch 327/782 batch_loss:2.7745 batch_bpb:1.0771 running_loss:2.7644 running_bpb:1.0668 doc_len:387-388 global_done:1
-1776134274.612 ttt_phased_progress: batch 317/782 batch_loss:2.8775 batch_bpb:1.1124 running_loss:2.7650 running_bpb:1.0670 doc_len:373-374 global_done:1
-1776134275.036 ttt_phased_progress: batch 309/782 batch_loss:2.8358 batch_bpb:1.1064 running_loss:2.7654 running_bpb:1.0672 doc_len:363-364 global_done:1
-1776134275.459 ttt_phased_progress: batch 303/782 batch_loss:2.8029 batch_bpb:1.0859 running_loss:2.7655 running_bpb:1.0673 doc_len:355-357 global_done:1
-1776134275.830 ttt_phased_progress: batch 293/782 batch_loss:2.7616 batch_bpb:1.0669 running_loss:2.7655 running_bpb:1.0673 doc_len:343-345 global_done:1
-1776134276.201 ttt_phased_progress: batch 287/782 batch_loss:2.8588 batch_bpb:1.1152 running_loss:2.7659 running_bpb:1.0675 doc_len:336-337 global_done:1
-1776134276.576 ttt_phased_progress: batch 280/782 batch_loss:2.8232 batch_bpb:1.0957 running_loss:2.7662 running_bpb:1.0677 doc_len:329-329 global_done:1
-1776134276.905 ttt_phased_progress: batch 271/782 batch_loss:2.7750 batch_bpb:1.0694 running_loss:2.7662 running_bpb:1.0677 doc_len:319-320 global_done:1
-1776134277.233 ttt_phased_progress: batch 265/782 batch_loss:2.8240 batch_bpb:1.0870 running_loss:2.7665 running_bpb:1.0677 doc_len:312-313 global_done:1
-1776134277.566 ttt_phased_progress: batch 258/782 batch_loss:2.9481 batch_bpb:1.1625 running_loss:2.7672 running_bpb:1.0681 doc_len:304-305 global_done:1
-1776134277.899 ttt_phased_progress: batch 251/782 batch_loss:2.8748 batch_bpb:1.1088 running_loss:2.7676 running_bpb:1.0683 doc_len:296-297 global_done:1
-1776134278.229 ttt_phased_progress: batch 244/782 batch_loss:2.9393 batch_bpb:1.1528 running_loss:2.7683 running_bpb:1.0686 doc_len:289-290 global_done:1
-1776134278.521 ttt_phased_progress: batch 235/782 batch_loss:2.9290 batch_bpb:1.1133 running_loss:2.7689 running_bpb:1.0688 doc_len:280-281 global_done:1
-1776134278.821 ttt_phased_progress: batch 227/782 batch_loss:2.8125 batch_bpb:1.0907 running_loss:2.7690 running_bpb:1.0688 doc_len:272-273 global_done:1
-1776134279.121 ttt_phased_progress: batch 220/782 batch_loss:2.8573 batch_bpb:1.1058 running_loss:2.7693 running_bpb:1.0690 doc_len:265-266 global_done:1
-1776134279.324 ttt_phased_progress_heartbeat: batch 212/782 chunk 7/9 doc_len:257-258 elapsed:495.3s global_done:1
-1776134279.419 ttt_phased_progress: batch 212/782 batch_loss:2.9347 batch_bpb:1.1486 running_loss:2.7699 running_bpb:1.0692 doc_len:257-258 global_done:1
-1776134279.681 ttt_phased_progress: batch 201/782 batch_loss:2.8703 batch_bpb:1.1188 running_loss:2.7702 running_bpb:1.0694 doc_len:247-248 global_done:1
-1776134279.941 ttt_phased_progress: batch 193/782 batch_loss:2.8800 batch_bpb:1.1604 running_loss:2.7705 running_bpb:1.0696 doc_len:240-241 global_done:1
-1776134280.200 ttt_phased_progress: batch 185/782 batch_loss:2.8746 batch_bpb:1.1283 running_loss:2.7708 running_bpb:1.0698 doc_len:233-234 global_done:1
-1776134280.464 ttt_phased_progress: batch 177/782 batch_loss:2.9208 batch_bpb:1.1461 running_loss:2.7713 running_bpb:1.0700 doc_len:226-227 global_done:1
-1776134280.686 ttt_phased_progress: batch 169/782 batch_loss:2.9112 batch_bpb:1.1632 running_loss:2.7716 running_bpb:1.0703 doc_len:219-220 global_done:1
-1776134280.908 ttt_phased_progress: batch 163/782 batch_loss:2.8963 batch_bpb:1.1368 running_loss:2.7720 running_bpb:1.0705 doc_len:214-215 global_done:1
-1776134281.131 ttt_phased_progress: batch 155/782 batch_loss:2.8779 batch_bpb:1.1311 running_loss:2.7723 running_bpb:1.0706 doc_len:207-208 global_done:1
-1776134281.359 ttt_phased_progress: batch 148/782 batch_loss:2.9718 batch_bpb:1.1550 running_loss:2.7728 running_bpb:1.0708 doc_len:202-203 global_done:1
-1776134281.581 ttt_phased_progress: batch 140/782 batch_loss:2.9720 batch_bpb:1.1735 running_loss:2.7733 running_bpb:1.0711 doc_len:195-196 global_done:1
-1776134281.769 ttt_phased_progress: batch 131/782 batch_loss:3.0397 batch_bpb:1.2081 running_loss:2.7739 running_bpb:1.0714 doc_len:188-189 global_done:1
-1776134281.956 ttt_phased_progress: batch 124/782 batch_loss:2.8824 batch_bpb:1.1530 running_loss:2.7741 running_bpb:1.0716 doc_len:183-184 global_done:1
-1776134282.143 ttt_phased_progress: batch 117/782 batch_loss:2.8559 batch_bpb:1.1447 running_loss:2.7743 running_bpb:1.0717 doc_len:178-178 global_done:1
-1776134282.329 ttt_phased_progress: batch 108/782 batch_loss:2.8662 batch_bpb:1.1008 running_loss:2.7745 running_bpb:1.0718 doc_len:171-172 global_done:1
-1776134282.517 ttt_phased_progress: batch 100/782 batch_loss:2.9508 batch_bpb:1.1584 running_loss:2.7749 running_bpb:1.0720 doc_len:165-166 global_done:1
-1776134282.670 ttt_phased_progress: batch 93/782 batch_loss:2.9547 batch_bpb:1.1853 running_loss:2.7752 running_bpb:1.0722 doc_len:160-160 global_done:1
-1776134282.833 ttt_phased_progress: batch 84/782 batch_loss:3.0206 batch_bpb:1.2170 running_loss:2.7757 running_bpb:1.0724 doc_len:153-154 global_done:1
-1776134282.991 ttt_phased_progress: batch 76/782 batch_loss:3.0663 batch_bpb:1.2302 running_loss:2.7762 running_bpb:1.0727 doc_len:147-148 global_done:1
-1776134283.147 ttt_phased_progress: batch 68/782 batch_loss:3.1078 batch_bpb:1.2074 running_loss:2.7768 running_bpb:1.0729 doc_len:141-142 global_done:1
-1776134283.311 ttt_phased_progress: batch 62/782 batch_loss:2.9887 batch_bpb:1.2090 running_loss:2.7771 running_bpb:1.0732 doc_len:136-137 global_done:1
-1776134283.466 ttt_phased_progress: batch 54/782 batch_loss:3.1044 batch_bpb:1.2712 running_loss:2.7777 running_bpb:1.0735 doc_len:130-130 global_done:1
-1776134283.586 ttt_phased_progress: batch 43/782 batch_loss:3.0192 batch_bpb:1.2007 running_loss:2.7780 running_bpb:1.0736 doc_len:121-122 global_done:1
-1776134283.707 ttt_phased_progress: batch 36/782 batch_loss:3.0058 batch_bpb:1.2292 running_loss:2.7783 running_bpb:1.0738 doc_len:115-116 global_done:1
-1776134283.827 ttt_phased_progress: batch 28/782 batch_loss:3.0410 batch_bpb:1.2245 running_loss:2.7787 running_bpb:1.0740 doc_len:108-109 global_done:1
-1776134283.947 ttt_phased_progress: batch 20/782 batch_loss:3.1449 batch_bpb:1.2719 running_loss:2.7791 running_bpb:1.0743 doc_len:101-102 global_done:1
-1776134284.033 ttt_phased_progress: batch 13/782 batch_loss:3.1490 batch_bpb:1.2674 running_loss:2.7795 running_bpb:1.0745 doc_len:93-94 global_done:1
-1776134284.121 ttt_phased_progress: batch 5/782 batch_loss:3.3319 batch_bpb:1.2996 running_loss:2.7801 running_bpb:1.0747 doc_len:80-82 global_done:1
-1776134284.167 quantized_ttt_phased val_loss:2.77288388 val_bpb:1.07346976 eval_time:500488ms
-1776134284.167 total_eval_time:500.5s
+1776142348.094 W0414 04:52:28.093000 1224 torch/distributed/run.py:803] 
+1776142348.094 W0414 04:52:28.093000 1224 torch/distributed/run.py:803] *****************************************
+1776142348.094 W0414 04:52:28.093000 1224 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+1776142348.094 W0414 04:52:28.093000 1224 torch/distributed/run.py:803] *****************************************
+1776142360.710 Hyperparameters:
+1776142360.710   adam_eps: 1e-08
+1776142360.710   adam_wd: 0.02
+1776142360.710   artifact_dir: /workspace/record_seed2_phased2000/artifact
+1776142360.710   beta1: 0.9
+1776142360.711   beta2: 0.95
+1776142360.711   compressor: brotli
+1776142360.711   data_dir: /workspace/parameter-golf/data
+1776142360.711   datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
+1776142360.711   distributed: True
+1776142360.711   ema_decay: 0.9965
+1776142360.711   embed_bits: 8
+1776142360.711   embed_clip_sigmas: 20.0
+1776142360.711   embed_lr: 0.6
+1776142360.711   embed_wd: 0.085
+1776142360.711   embedding_dim: 512
+1776142360.711   enable_looping_at: 0.35
+1776142360.711   eval_only_path: 
+1776142360.711   eval_only_quantized_path: 
+1776142360.711   eval_seq_len: 2048
+1776142360.711   eval_stride: 64
+1776142360.711   global_ttt_batch_seqs: 32
+1776142360.711   global_ttt_chunk_tokens: 32768
+1776142360.711   global_ttt_doc_limit: 0
+1776142360.712   global_ttt_epochs: 3
+1776142360.712   global_ttt_grad_clip: 1.0
+1776142360.712   global_ttt_lr: 0.005
+1776142360.712   global_ttt_momentum: 0.9
+1776142360.712   global_ttt_respect_doc_boundaries: True
+1776142360.712   global_ttt_warmup_chunks: 0
+1776142360.712   global_ttt_warmup_start_lr: 0.0
+1776142360.712   gptq_calibration_batches: 64
+1776142360.712   gptq_reserve_seconds: 13.0
+1776142360.712   grad_accum_steps: 1
+1776142360.712   grad_clip_norm: 0.3
+1776142360.712   head_lr: 0.008
+1776142360.712   is_main_process: True
+1776142360.712   iterations: 20000
+1776142360.712   ln_scale: True
+1776142360.712   local_rank: 0
+1776142360.712   logfile: /workspace/record_seed2_phased2000/artifact/train2.txt
+1776142360.712   logit_softcap: 30.0
+1776142360.712   loop_end: 5
+1776142360.712   loop_start: 3
+1776142360.712   matrix_bits: 6
+1776142360.712   matrix_clip_sigmas: 12.85
+1776142360.713   matrix_lr: 0.022
+1776142360.713   max_wallclock_seconds: 600.0
+1776142360.713   min_lr: 0.0
+1776142360.713   mlp_mult: 4.0
+1776142360.713   model_dim: 512
+1776142360.713   model_path: /workspace/record_seed2_phased2000/artifact/final_model.pt
+1776142360.713   muon_backend_steps: 5
+1776142360.713   muon_beta2: 0.95
+1776142360.713   muon_momentum: 0.97
+1776142360.713   muon_momentum_warmup_start: 0.92
+1776142360.713   muon_momentum_warmup_steps: 1500
+1776142360.713   muon_row_normalize: True
+1776142360.713   muon_wd: 0.095
+1776142360.713   num_heads: 8
+1776142360.713   num_kv_heads: 4
+1776142360.713   num_layers: 11
+1776142360.713   num_loops: 2
+1776142360.713   parallel_final_lane: mean
+1776142360.713   parallel_start_layer: 8
+1776142360.713   phased_ttt_enabled: True
+1776142360.714   phased_ttt_prefix_docs: 2000
+1776142360.714   qk_gain_init: 5.0
+1776142360.714   quantized_model_path: /workspace/record_seed2_phased2000/artifact/final_model.int6.ptz
+1776142360.714   rank: 0
+1776142360.714   rope_base: 10000.0
+1776142360.714   rope_dims: 16
+1776142360.714   rope_train_seq_len: 2048
+1776142360.714   rope_yarn: False
+1776142360.714   run_id: train2
+1776142360.714   scalar_lr: 0.02
+1776142360.714   seed: 2
+1776142360.714   skip_gates_enabled: True
+1776142360.714   sliding_window_enabled: False
+1776142360.714   tie_embeddings: True
+1776142360.714   tied_embed_init_std: 0.005
+1776142360.714   tied_embed_lr: 0.03
+1776142360.714   tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+1776142360.714   train_batch_tokens: 786432
+1776142360.714   train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+1776142360.714   train_log_every: 500
+1776142360.714   train_seq_len: 2048
+1776142360.714   ttt_batch_size: 64
+1776142360.714   ttt_beta1: 0.0
+1776142360.715   ttt_beta2: 0.999
+1776142360.715   ttt_chunk_size: 32
+1776142360.715   ttt_doc_limit: 0
+1776142360.715   ttt_enabled: True
+1776142360.715   ttt_eval_batches: 
+1776142360.715   ttt_eval_seq_len: 2048
+1776142360.715   ttt_grad_steps: 1
+1776142360.715   ttt_heartbeat_seconds: 15.0
+1776142360.715   ttt_k_lora: True
+1776142360.715   ttt_lora_lr: 0.0001
+1776142360.715   ttt_lora_rank: 96
+1776142360.715   ttt_mlp_lora: True
+1776142360.715   ttt_o_lora: True
+1776142360.715   ttt_optimizer: adam
+1776142360.715   ttt_output_dir: 
+1776142360.715   ttt_weight_decay: 0.5
+1776142360.715   val_batch_tokens: 524288
+1776142360.715   val_doc_fraction: 1.0
+1776142360.715   val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+1776142360.715   val_loss_every: 4000
+1776142360.715   vocab_size: 8192
+1776142360.715   warmdown_frac: 0.72
+1776142360.715   warmup_steps: 20
+1776142360.716   world_size: 8
+1776142360.716   xsa_last_n: 11
+1776142361.633 train_shards: 128
+1776142361.633 val_tokens: 40540160
+1776142362.509 model_params:35944602
+1776142362.957 gptq:reserving 13s, effective=587000ms
+1776142363.093 warmup_cu_buckets:64,128,192,256 iters_each:3
+1776142688.353 warmup_step: 1/20
+1776142688.378 warmup_step: 2/20
+1776142688.463 warmup_step: 3/20
+1776142688.553 warmup_step: 4/20
+1776142688.643 warmup_step: 5/20
+1776142688.734 warmup_step: 6/20
+1776142689.097 warmup_step: 10/20
+1776142690.017 warmup_step: 20/20
+1776142690.017 loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1776142690.154 loop_warmup_step: 1/20
+1776142690.294 loop_warmup_step: 2/20
+1776142690.431 loop_warmup_step: 3/20
+1776142690.567 loop_warmup_step: 4/20
+1776142690.701 loop_warmup_step: 5/20
+1776142690.839 loop_warmup_step: 6/20
+1776142691.382 loop_warmup_step: 10/20
+1776142692.743 loop_warmup_step: 20/20
+1776142723.115 0/20000 val_loss: 9.0048 val_bpb: 3.4859
+1776142723.207 1/20000 train_loss: 9.0044 train_time: 0.0m tok/s: 14894024
+1776142723.298 2/20000 train_loss: 12.2161 train_time: 0.0m tok/s: 12137422
+1776142723.390 3/20000 train_loss: 11.2452 train_time: 0.0m tok/s: 10627202
+1776142723.483 4/20000 train_loss: 9.6829 train_time: 0.0m tok/s: 9895818
+1776142723.575 5/20000 train_loss: 8.2718 train_time: 0.0m tok/s: 9625427
+1776142770.824 500/20000 train_loss: 3.2592 train_time: 0.8m tok/s: 8251409
+1776142819.168 1000/20000 train_loss: 3.0174 train_time: 1.6m tok/s: 8192270
+1776142867.396 1500/20000 train_loss: 3.0241 train_time: 2.4m tok/s: 8179230
+1776142915.510 2000/20000 train_loss: 2.9827 train_time: 3.2m tok/s: 8177538
+1776142928.651 layer_loop:enabled step:2137 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1776142979.634 2500/20000 train_loss: 3.0643 train_time: 4.3m tok/s: 7666345
+1776143049.738 3000/20000 train_loss: 2.9028 train_time: 5.4m tok/s: 7224588
+1776143119.776 3500/20000 train_loss: 2.9687 train_time: 6.6m tok/s: 6940197
+1776143189.827 4000/20000 train_loss: 2.9035 train_time: 7.8m tok/s: 6741013
+1776143230.663 4000/20000 val_loss: 2.8763 val_bpb: 1.1135
+1776143300.588 4500/20000 train_loss: 2.8481 train_time: 8.9m tok/s: 6595377
+1776143353.675 4860/20000 val_loss: 2.7724 val_bpb: 1.0733
+1776143353.675 stopping_early: wallclock_cap train_time: 587175ms step: 4860/20000
+1776143353.675 peak memory allocated: 40029 MiB reserved: 44036 MiB
+1776143353.675 ema:applying EMA weights
+1776143360.163 diagnostic pre-quantization post-ema val_loss:2.77124802 val_bpb:1.07280189 eval_time:6448ms
+1776143361.245 Serialized model: 135409136 bytes
+1776143361.245 Code size (uncompressed): 139831 bytes
+1776143361.245 Code size (compressed): 28599 bytes
+1776143361.302 GPTQ:collecting Hessians from calibration data...
+1776143373.944 GPTQ:collected 67 Hessians in 12.6s
+1776143383.414 Quantized weights:
+1776143383.414   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+1776143383.414   gptq (int8): tok_emb.weight
+1776143383.414   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+1776143448.905 Serialized model quantized+brotli: 15960206 bytes
+1776143448.905 Total submission size quantized+brotli: 15988805 bytes
+1776143508.229 diagnostic quantized val_loss:2.80433049 val_bpb:1.08560874 eval_time:56835ms
+1776143509.872 ttt_lora:warming up compile
+1776143658.370 ttt_lora:compile warmup done (148.4s)
+1776143658.371 
+1776143658.371 beginning TTT eval timer
+1776143658.633 ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000
+1776143914.261 ttp: b781/782 bl:2.5670 bb:1.0597 rl:2.5670 rb:1.0597 dl:14510-25988 gd:0
+1776143914.280 ttpp: pd:2448 gd:2000 t:248.3s
+1776143916.377 tttg: c1/213 lr:0.005000 t:2.1s
+1776143916.624 tttg: c2/213 lr:0.005000 t:2.3s
+1776143916.843 tttg: c3/213 lr:0.004999 t:2.6s
+1776143917.052 tttg: c4/213 lr:0.004998 t:2.8s
+1776143917.280 tttg: c5/213 lr:0.004996 t:3.0s
+1776143917.486 tttg: c6/213 lr:0.004993 t:3.2s
+1776143917.715 tttg: c7/213 lr:0.004990 t:3.4s
+1776143917.920 tttg: c8/213 lr:0.004987 t:3.6s
+1776143918.135 tttg: c9/213 lr:0.004982 t:3.9s
+1776143918.351 tttg: c10/213 lr:0.004978 t:4.1s
+1776143918.557 tttg: c11/213 lr:0.004973 t:4.3s
+1776143918.779 tttg: c12/213 lr:0.004967 t:4.5s
+1776143918.987 tttg: c13/213 lr:0.004961 t:4.7s
+1776143919.194 tttg: c14/213 lr:0.004954 t:4.9s
+1776143919.403 tttg: c15/213 lr:0.004946 t:5.1s
+1776143919.621 tttg: c16/213 lr:0.004938 t:5.3s
+1776143919.840 tttg: c17/213 lr:0.004930 t:5.6s
+1776143920.078 tttg: c18/213 lr:0.004921 t:5.8s
+1776143920.296 tttg: c19/213 lr:0.004912 t:6.0s
+1776143920.514 tttg: c20/213 lr:0.004902 t:6.2s
+1776143920.729 tttg: c21/213 lr:0.004891 t:6.4s
+1776143920.936 tttg: c22/213 lr:0.004880 t:6.7s
+1776143921.144 tttg: c23/213 lr:0.004868 t:6.9s
+1776143921.363 tttg: c24/213 lr:0.004856 t:7.1s
+1776143921.582 tttg: c25/213 lr:0.004844 t:7.3s
+1776143921.811 tttg: c26/213 lr:0.004830 t:7.5s
+1776143922.038 tttg: c27/213 lr:0.004817 t:7.8s
+1776143922.244 tttg: c28/213 lr:0.004803 t:8.0s
+1776143922.450 tttg: c29/213 lr:0.004788 t:8.2s
+1776143922.669 tttg: c30/213 lr:0.004773 t:8.4s
+1776143922.905 tttg: c31/213 lr:0.004757 t:8.6s
+1776143923.112 tttg: c32/213 lr:0.004741 t:8.8s
+1776143923.346 tttg: c33/213 lr:0.004724 t:9.1s
+1776143923.558 tttg: c34/213 lr:0.004707 t:9.3s
+1776143923.764 tttg: c35/213 lr:0.004689 t:9.5s
+1776143923.971 tttg: c36/213 lr:0.004671 t:9.7s
+1776143924.184 tttg: c37/213 lr:0.004653 t:9.9s
+1776143924.405 tttg: c38/213 lr:0.004634 t:10.1s
+1776143924.612 tttg: c39/213 lr:0.004614 t:10.3s
+1776143924.826 tttg: c40/213 lr:0.004594 t:10.5s
+1776143925.046 tttg: c41/213 lr:0.004574 t:10.8s
+1776143925.264 tttg: c42/213 lr:0.004553 t:11.0s
+1776143925.494 tttg: c43/213 lr:0.004531 t:11.2s
+1776143925.713 tttg: c44/213 lr:0.004509 t:11.4s
+1776143925.931 tttg: c45/213 lr:0.004487 t:11.7s
+1776143926.151 tttg: c46/213 lr:0.004464 t:11.9s
+1776143926.374 tttg: c47/213 lr:0.004441 t:12.1s
+1776143926.580 tttg: c48/213 lr:0.004418 t:12.3s
+1776143926.802 tttg: c49/213 lr:0.004394 t:12.5s
+1776143927.018 tttg: c50/213 lr:0.004369 t:12.7s
+1776143927.234 tttg: c51/213 lr:0.004345 t:13.0s
+1776143927.462 tttg: c52/213 lr:0.004319 t:13.2s
+1776143927.677 tttg: c53/213 lr:0.004294 t:13.4s
+1776143927.884 tttg: c54/213 lr:0.004268 t:13.6s
+1776143928.092 tttg: c55/213 lr:0.004241 t:13.8s
+1776143928.311 tttg: c56/213 lr:0.004215 t:14.0s
+1776143928.533 tttg: c57/213 lr:0.004187 t:14.3s
+1776143928.762 tttg: c58/213 lr:0.004160 t:14.5s
+1776143928.969 tttg: c59/213 lr:0.004132 t:14.7s
+1776143929.177 tttg: c60/213 lr:0.004104 t:14.9s
+1776143929.398 tttg: c61/213 lr:0.004075 t:15.1s
+1776143929.605 tttg: c62/213 lr:0.004046 t:15.3s
+1776143929.814 tttg: c63/213 lr:0.004017 t:15.5s
+1776143930.030 tttg: c64/213 lr:0.003987 t:15.7s
+1776143930.251 tttg: c65/213 lr:0.003957 t:16.0s
+1776143930.480 tttg: c66/213 lr:0.003927 t:16.2s
+1776143930.708 tttg: c67/213 lr:0.003897 t:16.4s
+1776143930.913 tttg: c68/213 lr:0.003866 t:16.6s
+1776143931.139 tttg: c69/213 lr:0.003835 t:16.9s
+1776143931.347 tttg: c70/213 lr:0.003803 t:17.1s
+1776143931.557 tttg: c71/213 lr:0.003771 t:17.3s
+1776143931.775 tttg: c72/213 lr:0.003739 t:17.5s
+1776143932.003 tttg: c73/213 lr:0.003707 t:17.7s
+1776143932.220 tttg: c74/213 lr:0.003674 t:17.9s
+1776143932.431 tttg: c75/213 lr:0.003642 t:18.2s
+1776143932.651 tttg: c76/213 lr:0.003608 t:18.4s
+1776143932.873 tttg: c77/213 lr:0.003575 t:18.6s
+1776143933.087 tttg: c78/213 lr:0.003542 t:18.8s
+1776143933.313 tttg: c79/213 lr:0.003508 t:19.0s
+1776143933.516 tttg: c80/213 lr:0.003474 t:19.2s
+1776143933.734 tttg: c81/213 lr:0.003440 t:19.5s
+1776143933.963 tttg: c82/213 lr:0.003405 t:19.7s
+1776143934.180 tttg: c83/213 lr:0.003371 t:19.9s
+1776143934.386 tttg: c84/213 lr:0.003336 t:20.1s
+1776143934.601 tttg: c85/213 lr:0.003301 t:20.3s
+1776143934.820 tttg: c86/213 lr:0.003265 t:20.5s
+1776143935.028 tttg: c87/213 lr:0.003230 t:20.7s
+1776143935.240 tttg: c88/213 lr:0.003195 t:21.0s
+1776143935.447 tttg: c89/213 lr:0.003159 t:21.2s
+1776143935.670 tttg: c90/213 lr:0.003123 t:21.4s
+1776143935.877 tttg: c91/213 lr:0.003087 t:21.6s
+1776143936.100 tttg: c92/213 lr:0.003051 t:21.8s
+1776143936.317 tttg: c93/213 lr:0.003015 t:22.0s
+1776143936.524 tttg: c94/213 lr:0.002979 t:22.2s
+1776143936.732 tttg: c95/213 lr:0.002942 t:22.5s
+1776143936.949 tttg: c96/213 lr:0.002906 t:22.7s
+1776143937.167 tttg: c97/213 lr:0.002869 t:22.9s
+1776143937.387 tttg: c98/213 lr:0.002832 t:23.1s
+1776143937.607 tttg: c99/213 lr:0.002796 t:23.3s
+1776143937.822 tttg: c100/213 lr:0.002759 t:23.5s
+1776143938.025 tttg: c101/213 lr:0.002722 t:23.7s
+1776143938.241 tttg: c102/213 lr:0.002685 t:24.0s
+1776143938.448 tttg: c103/213 lr:0.002648 t:24.2s
+1776143938.671 tttg: c104/213 lr:0.002611 t:24.4s
+1776143938.877 tttg: c105/213 lr:0.002574 t:24.6s
+1776143939.100 tttg: c106/213 lr:0.002537 t:24.8s
+1776143939.320 tttg: c107/213 lr:0.002500 t:25.0s
+1776143939.535 tttg: c108/213 lr:0.002463 t:25.3s
+1776143939.741 tttg: c109/213 lr:0.002426 t:25.5s
+1776143939.959 tttg: c110/213 lr:0.002389 t:25.7s
+1776143940.182 tttg: c111/213 lr:0.002352 t:25.9s
+1776143940.388 tttg: c112/213 lr:0.002315 t:26.1s
+1776143940.597 tttg: c113/213 lr:0.002278 t:26.3s
+1776143940.824 tttg: c114/213 lr:0.002241 t:26.5s
+1776143941.043 tttg: c115/213 lr:0.002204 t:26.8s
+1776143941.262 tttg: c116/213 lr:0.002168 t:27.0s
+1776143941.481 tttg: c117/213 lr:0.002131 t:27.2s
+1776143941.700 tttg: c118/213 lr:0.002094 t:27.4s
+1776143941.932 tttg: c119/213 lr:0.002058 t:27.7s
+1776143942.144 tttg: c120/213 lr:0.002021 t:27.9s
+1776143942.351 tttg: c121/213 lr:0.001985 t:28.1s
+1776143942.569 tttg: c122/213 lr:0.001949 t:28.3s
+1776143942.774 tttg: c123/213 lr:0.001913 t:28.5s
+1776143942.990 tttg: c124/213 lr:0.001877 t:28.7s
+1776143943.199 tttg: c125/213 lr:0.001841 t:28.9s
+1776143943.406 tttg: c126/213 lr:0.001805 t:29.1s
+1776143943.623 tttg: c127/213 lr:0.001770 t:29.3s
+1776143943.831 tttg: c128/213 lr:0.001735 t:29.5s
+1776143944.038 tttg: c129/213 lr:0.001699 t:29.8s
+1776143944.258 tttg: c130/213 lr:0.001664 t:30.0s
+1776143944.475 tttg: c131/213 lr:0.001629 t:30.2s
+1776143944.682 tttg: c132/213 lr:0.001595 t:30.4s
+1776143944.901 tttg: c133/213 lr:0.001560 t:30.6s
+1776143945.107 tttg: c134/213 lr:0.001526 t:30.8s
+1776143945.315 tttg: c135/213 lr:0.001492 t:31.0s
+1776143945.533 tttg: c136/213 lr:0.001458 t:31.3s
+1776143945.753 tttg: c137/213 lr:0.001425 t:31.5s
+1776143945.989 tttg: c138/213 lr:0.001392 t:31.7s
+1776143946.207 tttg: c139/213 lr:0.001358 t:31.9s
+1776143946.413 tttg: c140/213 lr:0.001326 t:32.1s
+1776143946.643 tttg: c141/213 lr:0.001293 t:32.4s
+1776143946.850 tttg: c142/213 lr:0.001261 t:32.6s
+1776143947.056 tttg: c143/213 lr:0.001229 t:32.8s
+1776143947.269 tttg: c144/213 lr:0.001197 t:33.0s
+1776143947.483 tttg: c145/213 lr:0.001165 t:33.2s
+1776143947.704 tttg: c146/213 lr:0.001134 t:33.4s
+1776143947.928 tttg: c147/213 lr:0.001103 t:33.6s
+1776143948.134 tttg: c148/213 lr:0.001073 t:33.9s
+1776143948.344 tttg: c149/213 lr:0.001043 t:34.1s
+1776143948.557 tttg: c150/213 lr:0.001013 t:34.3s
+1776143948.778 tttg: c151/213 lr:0.000983 t:34.5s
+1776143948.984 tttg: c152/213 lr:0.000954 t:34.7s
+1776143949.202 tttg: c153/213 lr:0.000925 t:34.9s
+1776143949.418 tttg: c154/213 lr:0.000896 t:35.1s
+1776143949.625 tttg: c155/213 lr:0.000868 t:35.3s
+1776143949.850 tttg: c156/213 lr:0.000840 t:35.6s
+1776143950.056 tttg: c157/213 lr:0.000813 t:35.8s
+1776143950.281 tttg: c158/213 lr:0.000785 t:36.0s
+1776143950.488 tttg: c159/213 lr:0.000759 t:36.2s
+1776143950.694 tttg: c160/213 lr:0.000732 t:36.4s
+1776143950.915 tttg: c161/213 lr:0.000706 t:36.6s
+1776143951.132 tttg: c162/213 lr:0.000681 t:36.9s
+1776143951.363 tttg: c163/213 lr:0.000655 t:37.1s
+1776143951.569 tttg: c164/213 lr:0.000631 t:37.3s
+1776143951.783 tttg: c165/213 lr:0.000606 t:37.5s
+1776143951.991 tttg: c166/213 lr:0.000582 t:37.7s
+1776143952.215 tttg: c167/213 lr:0.000559 t:37.9s
+1776143952.425 tttg: c168/213 lr:0.000536 t:38.1s
+1776143952.643 tttg: c169/213 lr:0.000513 t:38.4s
+1776143952.862 tttg: c170/213 lr:0.000491 t:38.6s
+1776143953.091 tttg: c171/213 lr:0.000469 t:38.8s
+1776143953.316 tttg: c172/213 lr:0.000447 t:39.0s
+1776143953.534 tttg: c173/213 lr:0.000426 t:39.3s
+1776143953.752 tttg: c174/213 lr:0.000406 t:39.5s
+1776143953.958 tttg: c175/213 lr:0.000386 t:39.7s
+1776143954.175 tttg: c176/213 lr:0.000366 t:39.9s
+1776143954.399 tttg: c177/213 lr:0.000347 t:40.1s
+1776143954.605 tttg: c178/213 lr:0.000329 t:40.3s
+1776143954.820 tttg: c179/213 lr:0.000311 t:40.5s
+1776143955.043 tttg: c180/213 lr:0.000293 t:40.8s
+1776143955.265 tttg: c181/213 lr:0.000276 t:41.0s
+1776143955.488 tttg: c182/213 lr:0.000259 t:41.2s
+1776143955.696 tttg: c183/213 lr:0.000243 t:41.4s
+1776143955.926 tttg: c184/213 lr:0.000227 t:41.6s
+1776143956.130 tttg: c185/213 lr:0.000212 t:41.8s
+1776143956.336 tttg: c186/213 lr:0.000197 t:42.1s
+1776143956.560 tttg: c187/213 lr:0.000183 t:42.3s
+1776143956.766 tttg: c188/213 lr:0.000170 t:42.5s
+1776143956.974 tttg: c189/213 lr:0.000156 t:42.7s
+1776143957.192 tttg: c190/213 lr:0.000144 t:42.9s
+1776143957.413 tttg: c191/213 lr:0.000132 t:43.1s
+1776143957.620 tttg: c192/213 lr:0.000120 t:43.3s
+1776143957.840 tttg: c193/213 lr:0.000109 t:43.6s
+1776143958.058 tttg: c194/213 lr:0.000098 t:43.8s
+1776143958.292 tttg: c195/213 lr:0.000088 t:44.0s
+1776143958.499 tttg: c196/213 lr:0.000079 t:44.2s
+1776143958.723 tttg: c197/213 lr:0.000070 t:44.4s
+1776143958.935 tttg: c198/213 lr:0.000062 t:44.7s
+1776143959.153 tttg: c199/213 lr:0.000054 t:44.9s
+1776143959.371 tttg: c200/213 lr:0.000046 t:45.1s
+1776143959.589 tttg: c201/213 lr:0.000039 t:45.3s
+1776143959.808 tttg: c202/213 lr:0.000033 t:45.5s
+1776143960.022 tttg: c203/213 lr:0.000027 t:45.7s
+1776143960.230 tttg: c204/213 lr:0.000022 t:45.9s
+1776143960.440 tttg: c205/213 lr:0.000018 t:46.2s
+1776143960.663 tttg: c206/213 lr:0.000013 t:46.4s
+1776143960.872 tttg: c207/213 lr:0.000010 t:46.6s
+1776143961.086 tttg: c208/213 lr:0.000007 t:46.8s
+1776143961.294 tttg: c209/213 lr:0.000004 t:47.0s
+1776143961.500 tttg: c210/213 lr:0.000002 t:47.2s
+1776143961.710 tttg: c211/213 lr:0.000001 t:47.4s
+1776143961.935 tttg: c212/213 lr:0.000000 t:47.7s
+1776143964.057 ttpr: t:298.0s
+1776144063.659 ttp: b741/782 bl:2.8026 bb:1.1033 rl:2.5928 rb:1.0647 dl:2286-2319 gd:1
+1776144070.311 ttp: b729/782 bl:2.7209 bb:1.0369 rl:2.6038 rb:1.0621 dl:1978-1994 gd:1
+1776144076.003 ttp: b721/782 bl:2.7488 bb:1.0260 rl:2.6145 rb:1.0592 dl:1832-1846 gd:1
+1776144080.981 ttp: b713/782 bl:2.8357 bb:1.0462 rl:2.6287 rb:1.0583 dl:1697-1711 gd:1
+1776144085.469 ttp: b705/782 bl:2.7809 bb:1.0712 rl:2.6374 rb:1.0591 dl:1606-1617 gd:1
+1776144089.495 ttp: b697/782 bl:2.7577 bb:1.0390 rl:2.6435 rb:1.0580 dl:1522-1534 gd:1
+1776144093.217 ttp: b689/782 bl:2.7818 bb:1.0643 rl:2.6500 rb:1.0583 dl:1450-1458 gd:1
+1776144096.651 ttp: b681/782 bl:2.8154 bb:1.0689 rl:2.6570 rb:1.0588 dl:1383-1393 gd:1
+1776144099.810 ttp: b673/782 bl:2.8127 bb:1.0562 rl:2.6631 rb:1.0587 dl:1327-1334 gd:1
+1776144102.835 ttp: b665/782 bl:2.7380 bb:1.0318 rl:2.6658 rb:1.0576 dl:1275-1282 gd:1
+1776144105.608 ttp: b657/782 bl:2.7818 bb:1.0447 rl:2.6697 rb:1.0572 dl:1227-1234 gd:1
+1776144108.253 ttp: b649/782 bl:2.8005 bb:1.0562 rl:2.6739 rb:1.0572 dl:1183-1188 gd:1
+1776144110.661 ttp: b641/782 bl:2.7639 bb:1.0406 rl:2.6765 rb:1.0566 dl:1140-1144 gd:1
+1776144113.078 ttp: b638/782 bl:2.8384 bb:1.0469 rl:2.6811 rb:1.0563 dl:1123-1129 gd:1
+1776144115.258 ttp: b626/782 bl:2.8057 bb:1.0425 rl:2.6843 rb:1.0560 dl:1068-1073 gd:1
+1776144117.327 ttp: b621/782 bl:2.8354 bb:1.0860 rl:2.6881 rb:1.0567 dl:1046-1050 gd:1
+1776144119.290 ttp: b614/782 bl:2.7857 bb:1.0655 rl:2.6904 rb:1.0569 dl:1016-1020 gd:1
+1776144121.151 ttp: b607/782 bl:2.6916 bb:1.0374 rl:2.6904 rb:1.0565 dl:986-990 gd:1
+1776144122.910 ttp: b599/782 bl:2.7420 bb:1.0531 rl:2.6915 rb:1.0564 dl:954-958 gd:1
+1776144124.669 ttp: b591/782 bl:2.6693 bb:1.0086 rl:2.6911 rb:1.0554 dl:927-930 gd:1
+1776144126.243 ttp: b579/782 bl:2.6381 bb:1.0054 rl:2.6901 rb:1.0544 dl:888-891 gd:1
+1776144127.721 ttp: b571/782 bl:2.7050 bb:1.0318 rl:2.6904 rb:1.0540 dl:862-865 gd:1
+1776144129.194 ttp: b567/782 bl:2.6758 bb:1.0306 rl:2.6901 rb:1.0536 dl:849-852 gd:1
+1776144130.577 ttp: b559/782 bl:2.7512 bb:1.0456 rl:2.6911 rb:1.0535 dl:824-827 gd:1
+1776144131.960 ttp: b551/782 bl:2.8288 bb:1.0663 rl:2.6933 rb:1.0537 dl:801-804 gd:1
+1776144133.266 ttp: b540/782 bl:2.6902 bb:1.0149 rl:2.6933 rb:1.0531 dl:771-774 gd:1
+1776144134.487 ttp: b531/782 bl:2.7724 bb:1.0515 rl:2.6944 rb:1.0531 dl:750-752 gd:1
+1776144135.619 ttp: b523/782 bl:2.8102 bb:1.0553 rl:2.6960 rb:1.0531 dl:730-732 gd:1
+1776144136.751 ttp: b517/782 bl:2.7674 bb:1.0475 rl:2.6970 rb:1.0530 dl:715-717 gd:1
+1776144137.805 ttp: b509/782 bl:2.7487 bb:1.0697 rl:2.6977 rb:1.0532 dl:695-698 gd:1
+1776144138.859 ttp: b502/782 bl:2.8306 bb:1.0629 rl:2.6993 rb:1.0533 dl:680-682 gd:1
+1776144139.836 ttp: b494/782 bl:2.7876 bb:1.0509 rl:2.7004 rb:1.0533 dl:661-664 gd:1
+1776144140.817 ttp: b486/782 bl:2.7976 bb:1.0618 rl:2.7015 rb:1.0534 dl:645-646 gd:1
+1776144141.722 ttp: b475/782 bl:2.7350 bb:1.0254 rl:2.7019 rb:1.0531 dl:622-623 gd:1
+1776144142.557 ttp: b467/782 bl:2.7956 bb:1.0561 rl:2.7029 rb:1.0531 dl:606-608 gd:1
+1776144143.392 ttp: b463/782 bl:2.7951 bb:1.0730 rl:2.7038 rb:1.0533 dl:599-600 gd:1
+1776144144.240 ttp: b455/782 bl:2.7966 bb:1.0724 rl:2.7048 rb:1.0535 dl:584-586 gd:1
+1776144145.007 ttp: b447/782 bl:2.8185 bb:1.0838 rl:2.7059 rb:1.0538 dl:569-571 gd:1
+1776144145.774 ttp: b438/782 bl:2.7180 bb:1.0575 rl:2.7060 rb:1.0539 dl:553-555 gd:1
+1776144146.475 ttp: b429/782 bl:2.7478 bb:1.0783 rl:2.7064 rb:1.0541 dl:537-539 gd:1
+1776144147.198 ttp: b421/782 bl:2.7889 bb:1.0520 rl:2.7071 rb:1.0541 dl:523-524 gd:1
+1776144147.839 ttp: b412/782 bl:2.7088 bb:1.0520 rl:2.7071 rb:1.0540 dl:508-510 gd:1
+1776144148.487 ttp: b406/782 bl:2.8253 bb:1.1000 rl:2.7080 rb:1.0544 dl:498-500 gd:1
+1776144149.128 ttp: b398/782 bl:2.8797 bb:1.0937 rl:2.7094 rb:1.0547 dl:486-487 gd:1
+1776144149.709 ttp: b389/782 bl:2.7890 bb:1.0623 rl:2.7100 rb:1.0548 dl:471-473 gd:1
+1776144150.290 ttp: b381/782 bl:2.8939 bb:1.0867 rl:2.7113 rb:1.0550 dl:460-461 gd:1
+1776144150.872 ttp: b374/782 bl:2.7522 bb:1.0694 rl:2.7116 rb:1.0551 dl:450-452 gd:1
+1776144151.397 ttp: b362/782 bl:2.8088 bb:1.0620 rl:2.7123 rb:1.0552 dl:433-434 gd:1
+1776144151.922 ttp: b354/782 bl:2.7909 bb:1.0828 rl:2.7128 rb:1.0554 dl:422-423 gd:1
+1776144152.406 ttp: b346/782 bl:2.8504 bb:1.0878 rl:2.7137 rb:1.0556 dl:412-413 gd:1
+1776144152.876 ttp: b340/782 bl:2.8213 bb:1.0913 rl:2.7144 rb:1.0558 dl:403-404 gd:1
+1776144153.347 ttp: b332/782 bl:2.8218 bb:1.0957 rl:2.7150 rb:1.0560 dl:393-394 gd:1
+1776144153.767 ttp: b324/782 bl:2.7752 bb:1.0585 rl:2.7154 rb:1.0561 dl:382-384 gd:1
+1776144154.186 ttp: b318/782 bl:2.8126 bb:1.0668 rl:2.7159 rb:1.0561 dl:374-376 gd:1
+1776144154.606 ttp: b311/782 bl:2.8518 bb:1.0925 rl:2.7167 rb:1.0563 dl:365-367 gd:1
+1776144155.026 ttp: b303/782 bl:2.8142 bb:1.0902 rl:2.7172 rb:1.0565 dl:355-357 gd:1
+1776144155.409 ttp: b294/782 bl:2.8462 bb:1.1007 rl:2.7178 rb:1.0567 dl:345-345 gd:1
+1776144155.793 ttp: b283/782 bl:2.7988 bb:1.0736 rl:2.7182 rb:1.0568 dl:332-333 gd:1
+1776144156.165 ttp: b275/782 bl:2.7620 bb:1.0682 rl:2.7184 rb:1.0569 dl:323-324 gd:1
+1776144156.490 ttp: b267/782 bl:2.8623 bb:1.0975 rl:2.7191 rb:1.0571 dl:314-315 gd:1
+1776144156.816 ttp: b259/782 bl:2.8595 bb:1.1403 rl:2.7197 rb:1.0574 dl:305-306 gd:1
+1776144157.149 ttp: b252/782 bl:2.8959 bb:1.1284 rl:2.7205 rb:1.0577 dl:297-298 gd:1
+1776144157.500 ttp: b244/782 bl:2.9389 bb:1.1527 rl:2.7214 rb:1.0581 dl:289-290 gd:1
+1776144157.783 ttp: b234/782 bl:2.9210 bb:1.1579 rl:2.7222 rb:1.0585 dl:279-280 gd:1
+1776144158.065 ttp: b226/782 bl:2.9381 bb:1.1430 rl:2.7230 rb:1.0588 dl:271-272 gd:1
+1776144158.348 ttp: b218/782 bl:2.7434 bb:1.1032 rl:2.7231 rb:1.0590 dl:263-264 gd:1
+1776144158.601 ttp: b210/782 bl:2.8552 bb:1.1237 rl:2.7236 rb:1.0592 dl:255-256 gd:1
+1776144158.856 ttp: b205/782 bl:2.8408 bb:1.1084 rl:2.7240 rb:1.0594 dl:251-252 gd:1
+1776144159.117 ttp: b197/782 bl:2.8514 bb:1.1244 rl:2.7245 rb:1.0596 dl:244-245 gd:1
+1776144159.373 ttp: b189/782 bl:2.9671 bb:1.2042 rl:2.7253 rb:1.0601 dl:237-237 gd:1
+1776144159.638 ttp: b180/782 bl:2.9075 bb:1.1338 rl:2.7259 rb:1.0603 dl:229-230 gd:1
+1776144159.844 ttp: b174/782 bl:2.9740 bb:1.1546 rl:2.7266 rb:1.0606 dl:224-224 gd:1
+1776144160.051 ttp: b167/782 bl:2.9627 bb:1.1843 rl:2.7273 rb:1.0610 dl:218-218 gd:1
+1776144160.266 ttp: b158/782 bl:2.8875 bb:1.1431 rl:2.7278 rb:1.0612 dl:210-211 gd:1
+1776144160.482 ttp: b149/782 bl:2.9692 bb:1.1706 rl:2.7285 rb:1.0615 dl:203-204 gd:1
+1776144160.732 ttp: b142/782 bl:2.9639 bb:1.1620 rl:2.7291 rb:1.0618 dl:197-198 gd:1
+1776144160.902 ttp: b133/782 bl:3.0289 bb:1.1965 rl:2.7299 rb:1.0622 dl:189-190 gd:1
+1776144161.077 ttp: b126/782 bl:2.9272 bb:1.1893 rl:2.7304 rb:1.0625 dl:185-185 gd:1
+1776144161.257 ttp: b118/782 bl:2.9498 bb:1.1525 rl:2.7310 rb:1.0627 dl:178-179 gd:1
+1776144161.441 ttp: b109/782 bl:3.0792 bb:1.2134 rl:2.7318 rb:1.0630 dl:172-173 gd:1
+1776144161.628 ttp: b102/782 bl:2.7972 bb:1.1264 rl:2.7319 rb:1.0632 dl:167-168 gd:1
+1776144161.780 ttp: b94/782 bl:2.9914 bb:1.1798 rl:2.7325 rb:1.0634 dl:160-161 gd:1
+1776144161.940 ttp: b87/782 bl:3.0187 bb:1.2065 rl:2.7331 rb:1.0637 dl:155-156 gd:1
+1776144162.078 ttp: b78/782 bl:2.9239 bb:1.1344 rl:2.7335 rb:1.0639 dl:148-149 gd:1
+1776144162.216 ttp: b72/782 bl:2.9288 bb:1.1902 rl:2.7339 rb:1.0641 dl:144-144 gd:1
+1776144162.361 ttp: b64/782 bl:3.0153 bb:1.2498 rl:2.7344 rb:1.0644 dl:138-139 gd:1
+1776144162.511 ttp: b57/782 bl:3.0479 bb:1.2286 rl:2.7350 rb:1.0647 dl:132-133 gd:1
+1776144162.629 ttp: b49/782 bl:2.9810 bb:1.1761 rl:2.7354 rb:1.0649 dl:126-126 gd:1
+1776144162.749 ttp: b39/782 bl:3.1400 bb:1.2409 rl:2.7360 rb:1.0652 dl:118-119 gd:1
+1776144162.871 ttp: b32/782 bl:3.0389 bb:1.2148 rl:2.7365 rb:1.0654 dl:112-113 gd:1
+1776144162.995 ttp: b24/782 bl:3.0788 bb:1.2181 rl:2.7369 rb:1.0656 dl:105-106 gd:1
+1776144163.117 ttp: b16/782 bl:3.0670 bb:1.2229 rl:2.7374 rb:1.0658 dl:97-98 gd:1
+1776144163.204 ttp: b5/782 bl:3.3421 bb:1.3036 rl:2.7380 rb:1.0661 dl:80-82 gd:1
+1776144163.319 quantized_ttt_phased val_loss:2.77232000 val_bpb:1.07325147 eval_time:504949ms
+1776144163.320 total_eval_time:504.9s
