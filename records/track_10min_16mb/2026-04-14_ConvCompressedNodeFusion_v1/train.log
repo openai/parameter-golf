@@ -1,0 +1,190 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+params=8,317,532 est_fp16_artifact=15.86MB
+Validation split='validation' unavailable (Bad split: validation. Available splits: ['train']); falling back to train split.
+training window: start_g=0 target_g=100000000 run_update_budget=12500000
+u=1 g=8 loss=5.5472 train_bpb=8.0028 lr=2e-06 tok/step=8192
+u=10 g=80 loss=5.5397 train_bpb=7.9920 lr=2e-05 tok/step=8192
+u=20 g=160 loss=5.5007 train_bpb=7.9358 lr=4e-05 tok/step=8192
+u=30 g=240 loss=5.4512 train_bpb=7.8644 lr=6e-05 tok/step=8192
+u=40 g=320 loss=5.4109 train_bpb=7.8060 lr=8e-05 tok/step=8192
+eval u=40 val_bpb=7.7829 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.7829)
+u=50 g=400 loss=5.3845 train_bpb=7.7680 lr=0.0001 tok/step=8192
+u=60 g=480 loss=5.3504 train_bpb=7.7190 lr=0.00012 tok/step=8192
+u=70 g=560 loss=5.3131 train_bpb=7.6654 lr=0.00014 tok/step=8192
+u=80 g=640 loss=5.2694 train_bpb=7.6022 lr=0.00016 tok/step=8192
+eval u=80 val_bpb=7.5712 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.5712)
+u=90 g=720 loss=5.2211 train_bpb=7.5323 lr=0.00018 tok/step=8192
+u=100 g=800 loss=5.1675 train_bpb=7.4546 lr=0.0002 tok/step=8192
+u=110 g=880 loss=5.1021 train_bpb=7.3607 lr=0.00022 tok/step=8192
+u=120 g=960 loss=5.0288 train_bpb=7.2548 lr=0.00024 tok/step=8192
+eval u=120 val_bpb=7.2079 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.2079)
+u=130 g=1040 loss=4.9494 train_bpb=7.1402 lr=0.00026 tok/step=8192
+u=140 g=1120 loss=4.8985 train_bpb=7.0666 lr=0.00028 tok/step=8192
+u=150 g=1200 loss=4.7987 train_bpb=6.9227 lr=0.0003 tok/step=8192
+u=160 g=1280 loss=4.7079 train_bpb=6.7916 lr=0.0003 tok/step=8192
+eval u=160 val_bpb=6.7428 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=6.7428)
+u=170 g=1360 loss=4.6397 train_bpb=6.6932 lr=0.0003 tok/step=8192
+u=180 g=1440 loss=4.5642 train_bpb=6.5848 lr=0.0003 tok/step=8192
+u=190 g=1520 loss=4.4493 train_bpb=6.4186 lr=0.0003 tok/step=8192
+u=200 g=1600 loss=4.3782 train_bpb=6.3154 lr=0.0003 tok/step=8192
+eval u=200 val_bpb=6.3098 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=6.3098)
+u=210 g=1680 loss=4.2948 train_bpb=6.1951 lr=0.0003 tok/step=8192
+u=220 g=1760 loss=4.2067 train_bpb=6.0685 lr=0.0003 tok/step=8192
+u=230 g=1840 loss=4.1668 train_bpb=6.0107 lr=0.0003 tok/step=8192
+u=240 g=1920 loss=4.0873 train_bpb=5.8954 lr=0.0003 tok/step=8192
+eval u=240 val_bpb=5.8357 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.8357)
+u=250 g=2000 loss=4.0264 train_bpb=5.8081 lr=0.0003 tok/step=8192
+u=260 g=2080 loss=3.9314 train_bpb=5.6707 lr=0.0003 tok/step=8192
+u=270 g=2160 loss=3.9148 train_bpb=5.6472 lr=0.0003 tok/step=8192
+u=280 g=2240 loss=3.8612 train_bpb=5.5692 lr=0.0003 tok/step=8192
+eval u=280 val_bpb=5.4986 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.4986)
+u=290 g=2320 loss=3.7760 train_bpb=5.4464 lr=0.0003 tok/step=8192
+u=300 g=2400 loss=3.7359 train_bpb=5.3892 lr=0.0003 tok/step=8192
+u=310 g=2480 loss=3.7136 train_bpb=5.3567 lr=0.0003 tok/step=8192
+u=320 g=2560 loss=3.5781 train_bpb=5.1614 lr=0.0003 tok/step=8192
+eval u=320 val_bpb=5.2672 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.2672)
+u=330 g=2640 loss=3.6266 train_bpb=5.2308 lr=0.0003 tok/step=8192
+u=340 g=2720 loss=3.5727 train_bpb=5.1528 lr=0.0003 tok/step=8192
+u=350 g=2800 loss=3.5160 train_bpb=5.0711 lr=0.0003 tok/step=8192
+u=360 g=2880 loss=3.4787 train_bpb=5.0179 lr=0.0003 tok/step=8192
+eval u=360 val_bpb=4.9914 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.9914)
+u=370 g=2960 loss=3.4175 train_bpb=4.9294 lr=0.0003 tok/step=8192
+u=380 g=3040 loss=3.4163 train_bpb=4.9279 lr=0.0003 tok/step=8192
+u=390 g=3120 loss=3.4108 train_bpb=4.9192 lr=0.0003 tok/step=8192
+u=400 g=3200 loss=3.3896 train_bpb=4.8887 lr=0.0003 tok/step=8192
+eval u=400 val_bpb=4.8602 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.8602)
+u=410 g=3280 loss=3.3734 train_bpb=4.8660 lr=0.0003 tok/step=8192
+u=420 g=3360 loss=3.3207 train_bpb=4.7886 lr=0.0003 tok/step=8192
+u=430 g=3440 loss=3.3227 train_bpb=4.7922 lr=0.0003 tok/step=8192
+u=440 g=3520 loss=3.3041 train_bpb=4.7652 lr=0.0003 tok/step=8192
+eval u=440 val_bpb=4.7758 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.7758)
+u=450 g=3600 loss=3.2306 train_bpb=4.6592 lr=0.0003 tok/step=8192
+u=460 g=3680 loss=3.2173 train_bpb=4.6405 lr=0.0003 tok/step=8192
+u=470 g=3760 loss=3.1624 train_bpb=4.5608 lr=0.0003 tok/step=8192
+u=480 g=3840 loss=3.1181 train_bpb=4.4975 lr=0.0003 tok/step=8192
+eval u=480 val_bpb=4.4456 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.4456)
+u=490 g=3920 loss=3.0825 train_bpb=4.4458 lr=0.0003 tok/step=8192
+u=500 g=4000 loss=3.0542 train_bpb=4.4051 lr=0.0003 tok/step=8192
+u=510 g=4080 loss=2.9940 train_bpb=4.3188 lr=0.0003 tok/step=8192
+u=520 g=4160 loss=3.0024 train_bpb=4.3302 lr=0.0003 tok/step=8192
+eval u=520 val_bpb=4.2294 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.2294)
+u=530 g=4240 loss=2.9791 train_bpb=4.2972 lr=0.0003 tok/step=8192
+u=540 g=4320 loss=2.9523 train_bpb=4.2581 lr=0.0003 tok/step=8192
+u=550 g=4400 loss=2.8556 train_bpb=4.1190 lr=0.0003 tok/step=8192
+u=560 g=4480 loss=2.8008 train_bpb=4.0397 lr=0.0003 tok/step=8192
+eval u=560 val_bpb=4.0467 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.0467)
+u=570 g=4560 loss=2.7771 train_bpb=4.0050 lr=0.0003 tok/step=8192
+u=580 g=4640 loss=2.7545 train_bpb=3.9731 lr=0.0003 tok/step=8192
+u=590 g=4720 loss=2.7025 train_bpb=3.8972 lr=0.0003 tok/step=8192
+u=600 g=4800 loss=2.6323 train_bpb=3.7961 lr=0.0003 tok/step=8192
+eval u=600 val_bpb=3.7638 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.7638)
+u=610 g=4880 loss=2.6030 train_bpb=3.7537 lr=0.0003 tok/step=8192
+u=620 g=4960 loss=2.5718 train_bpb=3.7089 lr=0.0003 tok/step=8192
+u=630 g=5040 loss=2.5035 train_bpb=3.6106 lr=0.0003 tok/step=8192
+u=640 g=5120 loss=2.4932 train_bpb=3.5954 lr=0.0003 tok/step=8192
+eval u=640 val_bpb=3.5600 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.5600)
+u=650 g=5200 loss=2.4602 train_bpb=3.5477 lr=0.0003 tok/step=8192
+u=660 g=5280 loss=2.3810 train_bpb=3.4338 lr=0.0003 tok/step=8192
+u=670 g=5360 loss=2.3608 train_bpb=3.4044 lr=0.0003 tok/step=8192
+u=680 g=5440 loss=2.3064 train_bpb=3.3259 lr=0.0003 tok/step=8192
+eval u=680 val_bpb=3.2877 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.2877)
+u=690 g=5520 loss=2.3357 train_bpb=3.3681 lr=0.0003 tok/step=8192
+u=700 g=5600 loss=2.2417 train_bpb=3.2321 lr=0.0003 tok/step=8192
+u=710 g=5680 loss=2.1748 train_bpb=3.1363 lr=0.0003 tok/step=8192
+u=720 g=5760 loss=2.2811 train_bpb=3.2894 lr=0.0003 tok/step=8192
+eval u=720 val_bpb=3.1043 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.1043)
+u=730 g=5840 loss=2.1146 train_bpb=3.0502 lr=0.0003 tok/step=8192
+u=740 g=5920 loss=2.0599 train_bpb=2.9709 lr=0.0003 tok/step=8192
+u=750 g=6000 loss=2.0630 train_bpb=2.9751 lr=0.0003 tok/step=8192
+u=760 g=6080 loss=1.9713 train_bpb=2.8429 lr=0.0003 tok/step=8192
+eval u=760 val_bpb=2.8775 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.8775)
+u=770 g=6160 loss=1.9488 train_bpb=2.8103 lr=0.0003 tok/step=8192
+u=780 g=6240 loss=1.9384 train_bpb=2.7946 lr=0.0003 tok/step=8192
+u=790 g=6320 loss=1.8620 train_bpb=2.6848 lr=0.0003 tok/step=8192
+u=800 g=6400 loss=1.8339 train_bpb=2.6442 lr=0.0003 tok/step=8192
+eval u=800 val_bpb=2.6227 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.6227)
+u=810 g=6480 loss=1.7721 train_bpb=2.5546 lr=0.0003 tok/step=8192
+u=820 g=6560 loss=1.7185 train_bpb=2.4779 lr=0.0003 tok/step=8192
+u=830 g=6640 loss=1.6835 train_bpb=2.4271 lr=0.0003 tok/step=8192
+u=840 g=6720 loss=1.6918 train_bpb=2.4389 lr=0.0003 tok/step=8192
+eval u=840 val_bpb=2.3597 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.3597)
+u=850 g=6800 loss=1.6077 train_bpb=2.3181 lr=0.0003 tok/step=8192
+u=860 g=6880 loss=1.5965 train_bpb=2.3015 lr=0.0003 tok/step=8192
+u=870 g=6960 loss=1.5473 train_bpb=2.2299 lr=0.0003 tok/step=8192
+u=880 g=7040 loss=1.5028 train_bpb=2.1661 lr=0.0003 tok/step=8192
+eval u=880 val_bpb=2.1131 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.1131)
+u=890 g=7120 loss=1.4705 train_bpb=2.1196 lr=0.0003 tok/step=8192
+u=900 g=7200 loss=1.4179 train_bpb=2.0443 lr=0.0003 tok/step=8192
+u=910 g=7280 loss=1.3872 train_bpb=2.0003 lr=0.0003 tok/step=8192
+u=920 g=7360 loss=1.3920 train_bpb=2.0062 lr=0.0003 tok/step=8192
+eval u=920 val_bpb=1.9525 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.9525)
+u=930 g=7440 loss=1.3489 train_bpb=1.9443 lr=0.0003 tok/step=8192
+u=940 g=7520 loss=1.3107 train_bpb=1.8896 lr=0.0003 tok/step=8192
+u=950 g=7600 loss=1.2325 train_bpb=1.7761 lr=0.0003 tok/step=8192
+u=960 g=7680 loss=1.1865 train_bpb=1.7101 lr=0.0003 tok/step=8192
+eval u=960 val_bpb=1.8233 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.8233)
+u=970 g=7760 loss=1.1590 train_bpb=1.6702 lr=0.0003 tok/step=8192
+u=980 g=7840 loss=1.1271 train_bpb=1.6243 lr=0.0003 tok/step=8192
+u=990 g=7920 loss=1.1146 train_bpb=1.6058 lr=0.0003 tok/step=8192
+u=1000 g=8000 loss=1.0511 train_bpb=1.5149 lr=0.0003 tok/step=8192
+eval u=1000 val_bpb=1.5069 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.5069)
+u=1010 g=8080 loss=1.1528 train_bpb=1.6625 lr=0.0003 tok/step=8192
+u=1020 g=8160 loss=1.0731 train_bpb=1.5470 lr=0.0003 tok/step=8192
+u=1030 g=8240 loss=0.9897 train_bpb=1.4260 lr=0.0003 tok/step=8192
+u=1040 g=8320 loss=0.9994 train_bpb=1.4399 lr=0.0003 tok/step=8192
+eval u=1040 val_bpb=1.3915 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.3915)
+u=1050 g=8400 loss=0.8647 train_bpb=1.2467 lr=0.0003 tok/step=8192
+u=1060 g=8480 loss=0.9526 train_bpb=1.3726 lr=0.0003 tok/step=8192
+u=1070 g=8560 loss=0.9343 train_bpb=1.3457 lr=0.0003 tok/step=8192
+u=1080 g=8640 loss=0.8462 train_bpb=1.2198 lr=0.0003 tok/step=8192
+eval u=1080 val_bpb=1.2945 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.2945)
+u=1090 g=8720 loss=0.8037 train_bpb=1.1578 lr=0.0003 tok/step=8192
+u=1100 g=8800 loss=0.8125 train_bpb=1.1699 lr=0.0003 tok/step=8192
+u=1110 g=8880 loss=0.7427 train_bpb=1.0705 lr=0.0003 tok/step=8192
+u=1120 g=8960 loss=0.7622 train_bpb=1.0979 lr=0.0003 tok/step=8192
+eval u=1120 val_bpb=1.0888 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.0888)
+u=1130 g=9040 loss=0.7098 train_bpb=1.0228 lr=0.0003 tok/step=8192
+u=1140 g=9120 loss=0.7640 train_bpb=1.1012 lr=0.0003 tok/step=8192
+u=1150 g=9200 loss=0.6456 train_bpb=0.9296 lr=0.0003 tok/step=8192
+u=1160 g=9280 loss=0.6520 train_bpb=0.9390 lr=0.0003 tok/step=8192
+eval u=1160 val_bpb=0.9397 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=0.9397)
+u=1170 g=9360 loss=0.6166 train_bpb=0.8878 lr=0.0003 tok/step=8192
+u=1180 g=9440 loss=0.5927 train_bpb=0.8530 lr=0.0003 tok/step=8192
+u=1190 g=9520 loss=0.6767 train_bpb=0.9748 lr=0.0003 tok/step=8192
+u=1200 g=9600 loss=0.5732 train_bpb=0.8255 lr=0.0003 tok/step=8192
+eval u=1200 val_bpb=0.8187 batches=100
+saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=0.8187)
+u=1210 g=9680 loss=0.5339 train_bpb=0.7685 lr=0.0003 tok/step=8192
+u=1220 g=9760 loss=0.5442 train_bpb=0.7827 lr=0.0003 tok/step=8192
+Stopping due to time limit at micro_step=9776, update_step=1222
+Saved checkpoint: /root/runs/cap16_fresh.pt (15.91 MB)
+Wrote metadata: /root/runs/cap16_fresh.pt.meta.json

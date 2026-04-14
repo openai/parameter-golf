@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "track": "track_10min_16mb",
+  "submission_date": "2026-04-14",
+  "team_name": "YOUR_TEAM_NAME",
+  "team_or_author": "YOUR_NAME",
+  "contact": "YOUR_EMAIL",
+  "github_username": "YOUR_GITHUB_USERNAME",
+  "model_name": "ConvCompressedNodeFusion_v1",
+  "summary": "Conv-compressed residual node-fusion LM with direct FineWeb training and recurrent block passes.",
+  "primary_metric": "val_bpb",
+  "val_bpb": 0.8194,
+  "artifact_size_mb_reported": 15.91,
+  "artifact_file": "submission.tar.gz",
+  "train_script": "train_gpt.py",
+  "train_log": "train.log",
+  "hardware": "8x H100 SXM",
+  "wallclock_minutes": 10.0,
+  "notes": "Replace placeholders and ensure values match official eval outputs."
+}
