@@ -53,11 +53,11 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.2))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -92,10 +92,10 @@ class Hyperparameters:
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
-@torch.compile(mode="max-autotune", fullgraph=True, dynamic=True)
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
-    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
-    # Muon uses this to normalize matrix-shaped gradients before applying them.
+@torch.compile
+def zeropower_via_newtonschulz5(G, steps=5, eps=1e-7):
+    if torch.isnan(G).any() or torch.isinf(G).any():
+         return torch.zeros_like(G)
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
     X /= X.norm() + eps
@@ -504,82 +504,6 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
-def _is_fp8_supported():
-    if not torch.cuda.is_available():
-        return False
-    cc = torch.cuda.get_device_capability()
-    # FP8 is supported on compute capability 8.9 (Ada) and 9.0+ (Hopper)
-    return cc[0] >= 9 or (cc[0] == 8 and cc[1] >= 9)
-
-FP8_SUPPORTED = _is_fp8_supported()
-
-def _fp8_matmul(x: Tensor, weight: Tensor) -> Tensor:
-    x_2d = x.reshape(-1, x.size(-1))
-    x_scale = (x_2d.abs().max().clamp(min=1e-12) / 448.0).float()
-    w_scale = (weight.abs().max().clamp(min=1e-12) / 448.0).float()
-    x_fp8 = (x_2d / x_scale).to(torch.float8_e4m3fn)
-    w_fp8 = (weight / w_scale).to(torch.float8_e4m3fn)
-    # weight is (Out, In), so w_fp8.t() is (In, Out) and is column-major
-    out = torch._scaled_mm(x_fp8, w_fp8.t(), scale_a=x_scale, scale_b=w_scale, out_dtype=x.dtype)
-    return out.reshape(*x.shape[:-1], weight.size(0))
-
-class FP8LinearFunction(torch.autograd.Function):
-    @staticmethod
-    @torch.amp.custom_fwd(device_type="cuda")
-    def forward(ctx, x, weight):
-        ctx.x_shape = x.shape
-        ctx.dtype = x.dtype
-        ctx.weight_dtype = weight.dtype
-        
-        x_2d = x.reshape(-1, x.size(-1))
-        x_scale = (x_2d.abs().max().clamp(min=1e-12) / 448.0).float()
-        w_scale = (weight.abs().max().clamp(min=1e-12) / 448.0).float()
-        
-        x_fp8 = (x_2d / x_scale).to(torch.float8_e4m3fn)
-        w_fp8 = (weight / w_scale).to(torch.float8_e4m3fn)
-        
-        ctx.save_for_backward(x_fp8, w_fp8, x_scale, w_scale)
-        
-        # mat2 must be col-major: w_fp8.t() is col-major because w_fp8 is row-major
-        out = torch._scaled_mm(x_fp8, w_fp8.t(), scale_a=x_scale, scale_b=w_scale, out_dtype=ctx.dtype)
-        return out.reshape(*ctx.x_shape[:-1], weight.size(0))
-
-    @staticmethod
-    @torch.amp.custom_bwd(device_type="cuda")
-    def backward(ctx, grad_output):
-        x_fp8, w_fp8, x_scale, w_scale = ctx.saved_tensors
-        grad_output_2d = grad_output.reshape(-1, grad_output.size(-1))
-        
-        go_scale = (grad_output_2d.abs().max().clamp(min=1e-12) / 448.0).float()
-        go_fp8 = (grad_output_2d / go_scale).to(torch.float8_e4m3fn)
-        
-        # 1. Grad_x = Grad_output @ Weight
-        # To make Weight (mat2) col-major, we transpose it, make it contiguous, and transpose back.
-        # This creates a tensor with the same shape but (1, Rows) strides.
-        w_fp8_col_major = w_fp8.t().contiguous().t()
-        grad_x = torch._scaled_mm(go_fp8, w_fp8_col_major, scale_a=go_scale, scale_b=w_scale, out_dtype=ctx.dtype)
-        
-        # 2. Grad_weight = Grad_output^T @ x
-        # mat1 must be row-major, mat2 must be col-major.
-        go_fp8_t = go_fp8.t().contiguous()
-        x_fp8_col_major = x_fp8.t().contiguous().t()
-        grad_weight = torch._scaled_mm(go_fp8_t, x_fp8_col_major, scale_a=go_scale, scale_b=x_scale, out_dtype=ctx.weight_dtype)
-        
-        return grad_x.reshape(*ctx.x_shape), grad_weight
-
-class FP8Linear(nn.Linear):
-    def forward(self, x: Tensor) -> Tensor:
-        if not FP8_SUPPORTED:
-            return super().forward(x)
-        if not torch.is_grad_enabled():
-            out = _fp8_matmul(x, self.weight)
-        else:
-            out = FP8LinearFunction.apply(x, self.weight)
-        if self.bias is not None:
-            out = out + self.bias
-        return out
-
-
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -627,9 +551,10 @@ class CausalSelfAttention(nn.Module):
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         self.kv_dim = self.num_kv_heads * self.head_dim
-        self.c_qk = FP8Linear(dim, dim + self.kv_dim, bias=False)
-        self.c_v = FP8Linear(dim, self.kv_dim, bias=False)
-        self.proj = FP8Linear(dim, dim, bias=False)
+        self.c_qk = nn.Linear(dim, dim + self.kv_dim, bias=False)
+        self.c_v = nn.Linear(dim, self.kv_dim, bias=False)
+        self.v_mix = nn.Parameter(torch.zeros(dim))
+        self.proj = nn.Linear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, p=rope_proportion, base=rope_base)
@@ -639,7 +564,10 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         qk = self.c_qk(x)
         q, k = qk.split([dim, self.kv_dim], dim=-1)
-        v = self.c_v(emb)
+
+        mix = self.v_mix[None, None, :]
+        v_input = (mix * x) + ((1.0-mix) * emb)
+        v = self.c_v(v_input)
 
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -671,8 +599,8 @@ class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
         self.hidden = calculate_hidden(mlp_mult, dim)
-        self.fused_fc = FP8Linear(dim, 2 * self.hidden, bias=False)
-        self.proj = FP8Linear(self.hidden, dim, bias=False)
+        self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
+        self.proj = nn.Linear(self.hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
@@ -733,6 +661,13 @@ def get_rope_p_smooth(i: int, num_layers: int, p_min=0.25, p_max=0.75) -> float:
     scale = math.sin(progress * math.pi)
     return p_min + (p_max - p_min) * scale
 
+def get_linear_progression_mlp_mult(layer_idx: int, total_layers: int, base_mult: int) -> float:
+    # If base_mult is 2, this progresses from 1.0 (Layer 0) to 3.0 (Final Layer)
+    min_mult = float(base_mult) * 0.5
+    max_mult = float(base_mult) * 1.5
+    fraction = layer_idx / max(1, total_layers - 1)
+    return min_mult + (max_mult - min_mult) * fraction
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -758,7 +693,7 @@ class GPT(nn.Module):
                 model_dim,
                 num_heads,
                 get_linear_progression_kv_heads(i, num_layers, num_kv_heads),
-                mlp_mult,
+                get_linear_progression_mlp_mult(i, num_layers, mlp_mult),
                 rope_base,
                 qk_gain_init,
                 seq_len=seq_len,
@@ -794,8 +729,9 @@ class GPT(nn.Module):
             logits = F.linear(x, self.tok_emb.weight)
         else:
             logits = self.lm_head(x)
-
-        return F.cross_entropy(logits.float(), targets)
+            
+        logits = 30.0 * torch.tanh(logits.float() / 30.0)
+        return F.cross_entropy(logits, targets)
 
 
 # -----------------------------
