@@ -134,6 +134,22 @@ class Hyperparameters:
     slot_chunk_tokens = int(os.environ.get("SLOT_CHUNK_TOKENS", "32768"))
     slot_reset_per_chunk = bool(int(os.environ.get("SLOT_RESET_PER_CHUNK", "0")))
 
+    # N-gram cache mixing for eval. Builds a streaming bigram cache from
+    # already-scored val tokens, mixes its predictions with the neural
+    # log-probs via fixed lambda. Zero artifact cost (cache built fresh each
+    # eval). NGRAM_LAMBDA > 0 enables it.
+    ngram_lambda = float(os.environ.get("NGRAM_LAMBDA", "0.0"))
+    ngram_chunk_tokens = int(os.environ.get("NGRAM_CHUNK_TOKENS", "32768"))
+    ngram_smoothing = float(os.environ.get("NGRAM_SMOOTHING", "0.1"))
+
+    # Imagination-Refined Prediction. Unique to JEPA models: at eval, decode the
+    # latent predictor's forward prediction through the LM head to get an
+    # "imagined" distribution, then mix with the standard neural distribution.
+    # Like Dreamer's latent rollout but for autoregressive text scoring. Uses
+    # the JEPA predictor trained on the same model. IMAGINE_LAMBDA > 0 enables.
+    imagine_lambda = float(os.environ.get("IMAGINE_LAMBDA", "0.0"))
+    imagine_horizons = int(os.environ.get("IMAGINE_HORIZONS", "1"))
+
 # -----------------------------
 # MUON OPTIMIZER 
 # -----------------------------
@@ -404,6 +420,217 @@ def eval_val_slot(
                 loss = F.cross_entropy(logits.float(), y_flat)
             loss.backward()
             optimizer.step()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+class NGramCache:
+    """Streaming bigram cache for eval-time mixing.
+
+    Maintains a [V, V] count table updated from val tokens that have already
+    been scored. Lookup returns smoothed bigram log-probs for use as a side
+    signal mixed into neural log-probs. All ops are GPU tensor ops so eval
+    stays fast.
+    """
+
+    def __init__(self, vocab_size: int, device: torch.device, smoothing: float = 0.1):
+        self.V = vocab_size
+        self.device = device
+        self.smoothing = smoothing
+        self.bigram = torch.zeros(vocab_size, vocab_size, dtype=torch.float32, device=device)
+
+    def lookup_logprobs(self, prev_tokens: Tensor) -> Tensor:
+        # prev_tokens: [N] -> [N, V] log-probs
+        counts = self.bigram[prev_tokens.long()]
+        total = counts.sum(dim=-1, keepdim=True)
+        smoothed = (counts + self.smoothing) / (total + self.smoothing * self.V)
+        return smoothed.log()
+
+    def update(self, tokens: Tensor) -> None:
+        # tokens: 1D tensor of token ids
+        if tokens.numel() < 2:
+            return
+        prev = tokens[:-1].long()
+        curr = tokens[1:].long()
+        flat_idx = prev * self.V + curr
+        ones = torch.ones_like(flat_idx, dtype=torch.float32)
+        self.bigram.view(-1).scatter_add_(0, flat_idx, ones)
+
+
+def eval_val_ngram(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    ngram_lambda: float,
+    ngram_chunk_seqs: int,
+    ngram_smoothing: float,
+) -> tuple[float, float]:
+    # N-gram cache eval: for each chunk, score with mixed neural+bigram
+    # log-probs, then update the cache with the chunk's tokens. Mixing is in
+    # log space via logaddexp for numerical stability. Cache is built fresh per
+    # eval and discarded; no artifact cost.
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    cache = NGramCache(args.vocab_size, device, smoothing=ngram_smoothing)
+    log_one_minus_lambda = math.log(max(1.0 - ngram_lambda, 1e-10))
+    log_lambda = math.log(max(ngram_lambda, 1e-10))
+
+    base_model.eval()
+    chunk_seqs = max(1, ngram_chunk_seqs)
+
+    with torch.no_grad():
+        for chunk_start in range(seq_start, seq_end, chunk_seqs):
+            chunk_end = min(chunk_start + chunk_seqs, seq_end)
+            raw_start = chunk_start * args.train_seq_len
+            raw_end = chunk_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, args.train_seq_len)
+            y = local[1:].reshape(-1, args.train_seq_len)
+            x_flat = x.reshape(-1)
+            y_flat = y.reshape(-1)
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                hidden = base_model.encode(x)
+                logits = base_model.head(hidden)
+            neural_logprobs = F.log_softmax(logits.float(), dim=-1)
+
+            ngram_logprobs = cache.lookup_logprobs(x_flat)
+            mixed_logprobs = torch.logaddexp(
+                neural_logprobs + log_one_minus_lambda,
+                ngram_logprobs + log_lambda,
+            )
+            score_loss = F.nll_loss(mixed_logprobs, y_flat, reduction="mean")
+
+            batch_token_count = float(y_flat.numel())
+            val_loss_sum += score_loss.detach().to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            token_bytes = base_bytes_lut[y_flat].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[y_flat] & ~is_boundary_token_lut[x_flat]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+            # Update the cache with this chunk's tokens (after scoring).
+            cache.update(local)
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_imagination(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    imagine_lambda: float,
+    imagine_horizons: int,
+) -> tuple[float, float]:
+    # Imagination-Refined Prediction: at each eval position t, compute both the
+    # standard logits head(hidden[t]) and the imagined logits obtained by
+    # running the JEPA predictor on hidden[t-1] and decoding through the same
+    # head. Mix in probability space via logaddexp. This is a form of learned
+    # self-consistency only possible for JEPA-style models that carry a
+    # trained latent-dynamics predictor. No extra training; the predictor
+    # already exists from training.
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    local_batch_seqs = local_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    log_one_minus_lambda = math.log(max(1.0 - imagine_lambda, 1e-10))
+    log_lambda = math.log(max(imagine_lambda, 1e-10))
+
+    base_model.eval()
+    with torch.no_grad():
+        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, args.train_seq_len)
+            y = local[1:].reshape(-1, args.train_seq_len)
+            bsz, seqlen = x.shape
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                hidden = base_model.encode(x)
+            standard_logits = base_model.head(hidden).reshape(bsz, seqlen, -1).float()
+            standard_logprobs = F.log_softmax(standard_logits, dim=-1)
+
+            # Multi-horizon imagination: apply predictor H times, each time
+            # decoding the prediction back to logits. Horizon h predicts
+            # positions h+1..T-1 using positions 0..T-2-h as seeds.
+            mixed_logprobs = standard_logprobs.clone()
+            h = hidden
+            for horizon in range(imagine_horizons):
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    h = base_model.latent_predictor(h)
+                offset = horizon + 1
+                # h has shape [B, T - offset, D]; it predicts positions
+                # offset..T-1. Decode to logits.
+                imagined_logits = base_model.head(h).reshape(bsz, seqlen - offset, -1).float()
+                imagined_logprobs = F.log_softmax(imagined_logits, dim=-1)
+                # Horizon weight decays so nearer horizons dominate.
+                horizon_w = 1.0 / (2 ** horizon)
+                horizon_lambda = imagine_lambda * horizon_w
+                h_log_one_minus = math.log(max(1.0 - horizon_lambda, 1e-10))
+                h_log_lambda = math.log(max(horizon_lambda, 1e-10))
+                # Mix only the positions this horizon can predict.
+                target_slice = mixed_logprobs[:, offset:, :]
+                mixed_logprobs[:, offset:, :] = torch.logaddexp(
+                    target_slice + h_log_one_minus,
+                    imagined_logprobs + h_log_lambda,
+                )
+
+            y_flat = y.reshape(-1)
+            x_flat = x.reshape(-1)
+            score_loss = F.nll_loss(
+                mixed_logprobs.reshape(-1, mixed_logprobs.size(-1)), y_flat, reduction="mean"
+            )
+
+            batch_token_count = float(y_flat.numel())
+            val_loss_sum += score_loss.detach().to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            token_bytes = base_bytes_lut[y_flat].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[y_flat] & ~is_boundary_token_lut[x_flat]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -1407,9 +1634,12 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
+    # When imagination eval is enabled, we need the predictor weights at
+    # inference time, so keep them in the artifact. Otherwise strip them.
+    include_predictor = args.imagine_lambda > 0
     state_dict_for_export = {
         k: v for k, v in base_model.state_dict().items()
-        if not k.startswith("latent_predictor.")
+        if include_predictor or not k.startswith("latent_predictor.")
     }
     quant_obj, quant_stats = quantize_state_dict_int8(state_dict_for_export, bits=QUANT_BITS)
     quant_buf = io.BytesIO()
@@ -1456,6 +1686,62 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    if args.imagine_lambda > 0:
+        log0(
+            f"imagine:enabled lambda={args.imagine_lambda} horizons={args.imagine_horizons}"
+        )
+        torch.cuda.synchronize()
+        t_img = time.perf_counter()
+        img_loss, img_bpb = eval_val_imagination(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            args.imagine_lambda,
+            args.imagine_horizons,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_imagine val_loss:{img_loss:.4f} val_bpb:{img_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_img):.0f}ms"
+        )
+        log0(f"final_imagine_exact val_loss:{img_loss:.8f} val_bpb:{img_bpb:.8f}")
+
+    if args.ngram_lambda > 0:
+        log0(
+            f"ngram:enabled lambda={args.ngram_lambda} chunk_tokens={args.ngram_chunk_tokens} "
+            f"smoothing={args.ngram_smoothing}"
+        )
+        torch.cuda.synchronize()
+        t_ngram = time.perf_counter()
+        ngram_chunk_seqs = max(1, args.ngram_chunk_tokens // args.train_seq_len)
+        ngram_loss, ngram_bpb = eval_val_ngram(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            args.ngram_lambda,
+            ngram_chunk_seqs,
+            args.ngram_smoothing,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_ngram val_loss:{ngram_loss:.4f} val_bpb:{ngram_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_ngram):.0f}ms"
+        )
+        log0(f"final_ngram_exact val_loss:{ngram_loss:.8f} val_bpb:{ngram_bpb:.8f}")
 
     if args.slot_lr > 0:
         log0(
