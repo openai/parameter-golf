@@ -33,6 +33,7 @@ class Hyperparameters:
     # Quantization and Ternary
     ternary_enabled = bool(int(os.environ.get("TERNARY_ENABLED", "0")))
     qat_bits = int(os.environ.get("QAT_BITS", "0"))
+    qat_mlp_bits = int(os.environ.get("QAT_MLP_BITS", "0"))
     ptq_bits = int(os.environ.get("PTQ_BITS", "8"))
     ptq_mlp_bits = int(os.environ.get("PTQ_MLP_BITS", "8"))
     int6_layer_start = int(os.environ.get("INT6_LAYER_START", "0"))

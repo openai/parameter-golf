@@ -185,7 +185,7 @@ def cosine_warmup_10pct(
         return step / warmup
     speed = 3
     t = min(((step - warmup) / max(total_steps - warmup, 1)) * speed, 1.0)
-    return 0.5 * (1.0 + math.cos(math.pi * 4*t))
+    return 0.5 * (1.0 + math.cos(math.pi * 2 * t))
 
 
 # ---------------------------------------------------------------------------

@@ -53,12 +53,22 @@ class CometTracker:
             self.enabled = False
             self.experiment = None
 
-    def log_train(self, step: int, train_loss: float, lr_scale: float = 1.0, grad_norm: float = 0.0) -> None:
+    def log_train(
+        self,
+        step: int,
+        train_loss: float,
+        lr_scale: float = 1.0,
+        grad_norm: float = 0.0,
+        extra_metrics: dict[str, float] | None = None,
+    ) -> None:
         if not self.enabled or self.experiment is None:
             return
         self.experiment.log_metric("train_loss", train_loss, step=step)
         self.experiment.log_metric("lr_scale", lr_scale, step=step)
         self.experiment.log_metric("grad_norm", grad_norm, step=step)
+        if extra_metrics:
+            for name, value in extra_metrics.items():
+                self.experiment.log_metric(name, value, step=step)
 
     def log_val(
         self,

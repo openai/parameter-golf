@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sys
+import weakref
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -12,6 +13,20 @@ from .config import CONTROL_TENSOR_NAME_PATTERNS
 from .flash_attention import get_flash_attn_fn
 from .ternary import ternary_ste
 from .initialization import apply_initialization
+
+def _activation_frobenius_norm(t: torch.Tensor) -> float:
+    """L2 norm of flattened activations (same for (B,H,S,D) vs (B,S,H,D) up to reshape)."""
+    with torch.no_grad():
+        return float(torch.linalg.vector_norm(t.detach().float().reshape(-1), ord=2))
+
+
+def _maybe_log_activation(gpt: Any, layer_idx: int, suffix: str, t: torch.Tensor) -> None:
+    if not getattr(gpt, "_activation_norm_collect", False):
+        return
+    buf = getattr(gpt, "_activation_norms", None)
+    if buf is None:
+        return
+    buf[f"activations/layer{layer_idx}/{suffix}"] = _activation_frobenius_norm(t)
 
 
 class RMSNorm(nn.Module):
@@ -114,6 +129,23 @@ class CausalSelfAttention(nn.Module):
         self.flash_attn_version = flash_attn_version
         self._flash_fn = get_flash_attn_fn(flash_attn_version) if flash_attn_version in (2, 3) else None
 
+    def _act_norm_ctx(self) -> tuple[Any, int] | tuple[None, None]:
+        wr = getattr(self, "_norm_sink_block", None)
+        if wr is None:
+            return None, None
+        block = wr()
+        if block is None:
+            return None, None
+        gpt = getattr(block, "_gpt_parent", None)
+        if gpt is None:
+            return None, None
+        return gpt, int(block.layer_idx)
+
+    def _log_act(self, suffix: str, t: Tensor) -> None:
+        gpt, layer_idx = self._act_norm_ctx()
+        if gpt is not None:
+            _maybe_log_activation(gpt, layer_idx, suffix, t)
+
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
 
@@ -133,8 +165,12 @@ class CausalSelfAttention(nn.Module):
             k = apply_rotary_emb(k, cos, sin)
             # q_gain: (num_heads,) → (1, 1, H, 1)
             q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-            y = self._flash_fn(q, k, v, causal=True)           # (B, S, H, D)
+            self._log_act("q", q)
+            self._log_act("k", k)
+            self._log_act("v", v)
+            y = self._flash_fn(q, k, v, causal=True)  # (B, S, H, D)
             y = y.reshape(bsz, seqlen, dim)
+            self._log_act("attn_post_mha", y)
         else:
             # Standard PyTorch SDPA path: (B, H, S, D) layout.
             q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -146,6 +182,9 @@ class CausalSelfAttention(nn.Module):
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
             q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+            self._log_act("q", q)
+            self._log_act("k", k)
+            self._log_act("v", v)
             y = F.scaled_dot_product_attention(
                 q, k, v,
                 attn_mask=None,
@@ -153,8 +192,11 @@ class CausalSelfAttention(nn.Module):
                 enable_gqa=(self.num_kv_heads != self.num_heads),
             )
             y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+            self._log_act("attn_post_mha", y)
 
-        return self.proj(y)
+        y = self.proj(y)
+        self._log_act("attn_out", y)
+        return y
 
 
 class MLP(nn.Module):
@@ -189,6 +231,7 @@ def _maybe_hyper_conn_init(
 class Block(nn.Module):
     def __init__(
         self,
+        layer_idx: int,
         dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -200,9 +243,11 @@ class Block(nn.Module):
         mlp_proj_init: str = "zero",
     ):
         super().__init__()
+        self.layer_idx = layer_idx
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, flash_attn_version)
+        self.attn._norm_sink_block = weakref.ref(self)
         self.mlp = MLP(dim, mlp_mult, proj_init=mlp_proj_init)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -219,7 +264,15 @@ class Block(nn.Module):
         else:
             attn_out = self.attn(self.attn_norm(x))
             x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+            gpt = getattr(self, "_gpt_parent", None)
+            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+                _maybe_log_activation(gpt, self.layer_idx, "x_post_attn_residual", x)
+            mlp_out = self.mlp(self.mlp_norm(x))
+            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+                _maybe_log_activation(gpt, self.layer_idx, "mlp_out", mlp_out)
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+                _maybe_log_activation(gpt, self.layer_idx, "x_post_mlp_residual", x)
         return x
 
 
@@ -264,6 +317,7 @@ class GPT(nn.Module):
         self.blocks = nn.ModuleList(
             [
                 Block(
+                    layer_idx,
                     model_dim,
                     num_heads,
                     num_kv_heads,
@@ -274,9 +328,13 @@ class GPT(nn.Module):
                     flash_attn_version,
                     mlp_proj_init=mlp_proj_init,
                 )
-                for _ in range(num_layers)
+                for layer_idx in range(num_layers)
             ]
         )
+        # Must not use plain assignment: nn.Module would register GPT as a child of Block
+        # (cycle: GPT → blocks → Block → _gpt_parent → GPT), breaking .to() / named_children().
+        for block in self.blocks:
+            object.__setattr__(block, "_gpt_parent", self)
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
@@ -301,6 +359,8 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        if getattr(self, "_activation_norm_collect", False):
+            self._activation_norms = {}
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.expand_stream is not None:

@@ -17,6 +17,19 @@ from .serialization import dequantize_state_dict_int8, quantize_state_dict_int8
 from .ternary import serialize_ternary_lzma, deserialize_ternary_lzma
 
 
+def _optimizer_lr_abs_metrics(optimizers: list[torch.optim.Optimizer]) -> dict[str, float]:
+    """Current |lr| per param group (after scheduler scale), plus max/min for dashboards."""
+    out: dict[str, float] = {}
+    for oi, opt in enumerate(optimizers):
+        for gi, group in enumerate(opt.param_groups):
+            out[f"lr_abs_opt{oi}_g{gi}"] = abs(float(group["lr"]))
+    if out:
+        vals = list(out.values())
+        out["lr_abs_max"] = max(vals)
+        out["lr_abs_min"] = min(vals)
+    return out
+
+
 def run_training(
     *,
     args: Hyperparameters,
@@ -35,7 +48,7 @@ def run_training(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
     log0: Callable[[str, bool], None],
-    on_train_log: Callable[[int, float, float, float], None] | None = None,
+    on_train_log: Callable[[int, float, float, float, dict[str, float] | None], None] | None = None,
     on_val_log: Callable[[int, float, float, float, float], None] | None = None,
 ) -> float:
     grad_scale = 1.0 / grad_accum_steps
@@ -170,16 +183,27 @@ def run_training(
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+        comet_every = max(args.comet_log_train_every, 1)
+        will_collect_act_norms = (
+            on_train_log is not None
+            and args.comet_enable
+            and rank == 0
+            and (step + 1) % comet_every == 0
+        )
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            base_model._activation_norm_collect = bool(
+                will_collect_act_norms and micro_step == grad_accum_steps - 1
+            )
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
+        base_model._activation_norm_collect = False
         train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
@@ -211,8 +235,13 @@ def run_training(
                 f"grad_norm:{grad_norm.item():.4f} lr_scale:{scale:.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
-        if on_train_log is not None and step % max(args.comet_log_train_every, 1) == 0:
-            on_train_log(step, float(train_loss.item()), scale, float(grad_norm.item()))
+        if on_train_log is not None and step % comet_every == 0:
+            extra_metrics: dict[str, float] = dict(_optimizer_lr_abs_metrics(optimizers))
+            if will_collect_act_norms:
+                act_norms = getattr(base_model, "_activation_norms", None)
+                if act_norms:
+                    extra_metrics.update(act_norms)
+            on_train_log(step, float(train_loss.item()), scale, float(grad_norm.item()), extra_metrics)
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         if distributed and max_wallclock_ms is not None:
