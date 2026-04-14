@@ -1,0 +1,255 @@
+==========================================================================
+  SKC FINAL STABILIZED — 2×GPU
+  MODEL  : L=12 D=600 (sKC-600)
+  BUDGET : 16MB Compliance (Tied, FP4, 2560 buckets)
+==========================================================================
+logs/cuda/skc_final_stabilized_20260413_171735.txt
+budget_lower_bound: total_lb=7667299 ternary_lb=1489207 fp16=5931376 code=246716 cap=16000000
+params:9407632 L:12 d:600 h:8 kv:2 ws:2 ga:1 s:42
+competition_config: SP8192 arch=hybrid parallel_residual=False recurrence_depth=0 start_frac=0.65 layers=all export_mode=ternary_lzma ttt=off
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt_verbose.py", line 4292, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt_verbose.py", line 3680, in main
+[rank0]:     loss = model(x, y, elapsed_fraction=0.0, feedback_passes=args.feedback_passes)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1636, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1454, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 433, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1110, in __call__
+[rank0]:     return hijacked_callback(
+[rank0]:            ^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 948, in __call__
+[rank0]:     result = self._inner_convert(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 472, in __call__
+[rank0]:     return _compile(
+[rank0]:            ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 84, in wrapper_function
+[rank0]:     return StrobelightCompileTimeProfiler.profile_compile_time(
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_strobelight/compile_time_profiler.py", line 129, in profile_compile_time
+[rank0]:     return func(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/lib/python3.11/contextlib.py", line 81, in inner
+[rank0]:     return func(*args, **kwds)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 817, in _compile
+[rank0]:     guarded_code = compile_inner(code, one_graph, hooks, transform)
+[rank0]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 231, in time_wrapper
+[rank0]:     r = func(*args, **kwargs)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 636, in compile_inner
+[rank0]:     out_code = transform_code_object(code, transform)
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1185, in transform_code_object
+[rank0]:     transformations(instructions, code_options)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 178, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 582, in transform
+[rank0]:     tracer.run()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2451, in run
+[rank0]:     super().run()
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 893, in run
+[rank0]:     while self.step():
+[rank0]:           ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 805, in step
+[rank0]:     self.dispatch_table[inst.opcode](self, inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2642, in RETURN_VALUE
+[rank0]:     self._return(inst)
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2627, in _return
+[rank0]:     self.output.compile_subgraph(
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1123, in compile_subgraph
+[rank0]:     self.compile_and_call_fx_graph(tx, pass2.graph_output_vars(), root)
+[rank0]:   File "/usr/lib/python3.11/contextlib.py", line 81, in inner
+[rank0]:     return func(*args, **kwds)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1318, in compile_and_call_fx_graph
+[rank0]:     compiled_fn = self.call_user_compiler(gm)
+[rank0]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 231, in time_wrapper
+[rank0]:     r = func(*args, **kwargs)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1409, in call_user_compiler
+[rank0]:     raise BackendCompilerFailed(self.compiler_fn, e).with_traceback(
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1390, in call_user_compiler
+[rank0]:     compiled_fn = compiler_fn(gm, self.example_inputs())
+[rank0]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 490, in compile_fn
+[rank0]:     raise NotImplementedError(
+[rank0]: torch._dynamo.exc.BackendCompilerFailed: backend='compile_fn' raised:
+[rank0]: NotImplementedError: DDPOptimizer backend: Found a higher order op in the graph. This is not supported. Please turn off DDP optimizer using torch._dynamo.config.optimize_ddp=False. Note that this can cause performance degradation because there will be one bucket for the entire Dynamo graph. Please refer to this issue - https://github.com/pytorch/pytorch/issues/104674.
+
+[rank0]: Set TORCH_LOGS="+dynamo" and TORCHDYNAMO_VERBOSE=1 for more information
+
+
+[rank0]: You can suppress this exception and fall back to eager by setting:
+[rank0]:     import torch._dynamo
+[rank0]:     torch._dynamo.config.suppress_errors = True
+
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/train_gpt_verbose.py", line 4292, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/train_gpt_verbose.py", line 3680, in main
+[rank1]:     loss = model(x, y, elapsed_fraction=0.0, feedback_passes=args.feedback_passes)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1636, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1454, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 433, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 1110, in __call__
+[rank1]:     return hijacked_callback(
+[rank1]:            ^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 948, in __call__
+[rank1]:     result = self._inner_convert(
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 472, in __call__
+[rank1]:     return _compile(
+[rank1]:            ^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_utils_internal.py", line 84, in wrapper_function
+[rank1]:     return StrobelightCompileTimeProfiler.profile_compile_time(
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_strobelight/compile_time_profiler.py", line 129, in profile_compile_time
+[rank1]:     return func(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/lib/python3.11/contextlib.py", line 81, in inner
+[rank1]:     return func(*args, **kwds)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 817, in _compile
+[rank1]:     guarded_code = compile_inner(code, one_graph, hooks, transform)
+[rank1]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 231, in time_wrapper
+[rank1]:     r = func(*args, **kwargs)
+[rank1]:         ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 636, in compile_inner
+[rank1]:     out_code = transform_code_object(code, transform)
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1185, in transform_code_object
+[rank1]:     transformations(instructions, code_options)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 178, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/convert_frame.py", line 582, in transform
+[rank1]:     tracer.run()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2451, in run
+[rank1]:     super().run()
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 893, in run
+[rank1]:     while self.step():
+[rank1]:           ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 805, in step
+[rank1]:     self.dispatch_table[inst.opcode](self, inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2642, in RETURN_VALUE
+[rank1]:     self._return(inst)
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/symbolic_convert.py", line 2627, in _return
+[rank1]:     self.output.compile_subgraph(
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1123, in compile_subgraph
+[rank1]:     self.compile_and_call_fx_graph(tx, pass2.graph_output_vars(), root)
+[rank1]:   File "/usr/lib/python3.11/contextlib.py", line 81, in inner
+[rank1]:     return func(*args, **kwds)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1318, in compile_and_call_fx_graph
+[rank1]:     compiled_fn = self.call_user_compiler(gm)
+[rank1]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/utils.py", line 231, in time_wrapper
+[rank1]:     r = func(*args, **kwargs)
+[rank1]:         ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1409, in call_user_compiler
+[rank1]:     raise BackendCompilerFailed(self.compiler_fn, e).with_traceback(
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/output_graph.py", line 1390, in call_user_compiler
+[rank1]:     compiled_fn = compiler_fn(gm, self.example_inputs())
+[rank1]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 490, in compile_fn
+[rank1]:     raise NotImplementedError(
+[rank1]: torch._dynamo.exc.BackendCompilerFailed: backend='compile_fn' raised:
+[rank1]: NotImplementedError: DDPOptimizer backend: Found a higher order op in the graph. This is not supported. Please turn off DDP optimizer using torch._dynamo.config.optimize_ddp=False. Note that this can cause performance degradation because there will be one bucket for the entire Dynamo graph. Please refer to this issue - https://github.com/pytorch/pytorch/issues/104674.
+
+[rank1]: Set TORCH_LOGS="+dynamo" and TORCHDYNAMO_VERBOSE=1 for more information
+
+
+[rank1]: You can suppress this exception and fall back to eager by setting:
+[rank1]:     import torch._dynamo
+[rank1]:     torch._dynamo.config.suppress_errors = True
+
+W0413 17:17:44.932000 132080281124864 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 956 closing signal SIGTERM
+E0413 17:17:45.046000 132080281124864 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 957) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/train_gpt_verbose.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-13_17:17:44
+  host      : cd93ee1e67c1
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 957)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

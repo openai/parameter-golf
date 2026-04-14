@@ -144,13 +144,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lzma-preset", type=int, default=9, choices=range(10), help="LZMA preset (0-9)")
     p.add_argument("--codec", choices=["auto", "raw", "b64", "b85"], default="auto")
     p.add_argument("--no-minify", action="store_true", help="Disable AST/token minification")
+    p.add_argument("--dce", action="store_true", help="Apply dead code elimination before minification")
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    source = Path(args.source)
+    if args.dce:
+        from extract_competition import extract_competition
+        raw_src = source.read_text(encoding="utf-8")
+        extracted = extract_competition(raw_src, verbose=False)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+            f.write(extracted)
+            source = Path(f.name)
+        print(f"DCE: {len(raw_src.encode('utf-8'))} -> {len(extracted.encode('utf-8'))} bytes")
     stats = build_submission(
-        source=Path(args.source),
+        source=source,
         output=Path(args.output),
         lzma_preset=args.lzma_preset,
         minify=not args.no_minify,

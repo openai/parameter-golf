@@ -201,9 +201,11 @@ if HAS_TRITON:
         B_ptr, D_ptr, H_ptr,
         B_dim, T_dim, S_dim,
         stride_b, stride_t, stride_s,
+        stride_hb, stride_ht, stride_hs,
         BLOCK_S: tl.constexpr,
     ):
-        """Forward scan: h[t] = D[t]*h[t-1] + B_vals[t], h[-1]=0."""
+        """Forward scan: h[t] = D[t]*h[t-1] + B_vals[t], h[-1]=0.
+        Stores h in fp32 for gradient precision in backward."""
         pid = tl.program_id(0)
         batch_idx = pid // tl.cdiv(S_dim, BLOCK_S)
         s_block = pid % tl.cdiv(S_dim, BLOCK_S)
@@ -211,22 +213,24 @@ if HAS_TRITON:
         s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S)
         s_mask = s_offs < S_dim
 
-        # Running state in fp32 registers — never touches HBM until store
         h = tl.zeros((BLOCK_S,), dtype=tl.float32)
 
         for t in range(T_dim):
             base = batch_idx * stride_b + t * stride_t
+            h_base = batch_idx * stride_hb + t * stride_ht
             b_val = tl.load(B_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
             d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
             h = d_val * h + b_val
-            tl.store(H_ptr + base + s_offs * stride_s, h.to(tl.bfloat16), mask=s_mask)
+            # Store in fp32 for backward precision
+            tl.store(H_ptr + h_base + s_offs * stride_hs, h, mask=s_mask)
 
     @triton.jit
     def _scan_bwd_kernel(
-        DH_ptr, D_ptr, H_ptr,  # inputs: upstream grad, decay, fwd output
-        DB_ptr, DD_ptr,          # outputs: grad w.r.t. B_vals, D
+        DH_ptr, D_ptr, H_ptr,
+        DB_ptr, DD_ptr,
         B_dim, T_dim, S_dim,
         stride_b, stride_t, stride_s,
+        stride_hb, stride_ht, stride_hs,
         BLOCK_S: tl.constexpr,
     ):
         """Backward scan: δ[t] = dh[t] + D[t+1]*δ[t+1], running right-to-left."""
@@ -246,21 +250,19 @@ if HAS_TRITON:
             dh_val = tl.load(DH_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
             d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
 
-            # δ[t] = dh_out[t] + D[t+1]*δ[t+1]
             delta = dh_val + delta
 
             # dB[t] = δ[t]
             tl.store(DB_ptr + base + s_offs * stride_s, delta.to(tl.bfloat16), mask=s_mask)
 
-            # dD[t] = δ[t] * h[t-1]
+            # dD[t] = δ[t] * h[t-1], now reading fp32 h_prev
             h_prev = tl.zeros((BLOCK_S,), dtype=tl.float32)
             if t > 0:
-                prev_base = batch_idx * stride_b + (t - 1) * stride_t
-                h_prev = tl.load(H_ptr + prev_base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+                prev_h_base = batch_idx * stride_hb + (t - 1) * stride_ht
+                h_prev = tl.load(H_ptr + prev_h_base + s_offs * stride_hs, mask=s_mask, other=0.0).to(tl.float32)
             dd_val = delta * h_prev
             tl.store(DD_ptr + base + s_offs * stride_s, dd_val.to(tl.bfloat16), mask=s_mask)
 
-            # Propagate backward: delta_for_t-1 = D[t] * δ[t]
             delta = d_val * delta
 
 
@@ -269,7 +271,7 @@ class TritonScanFn(torch.autograd.Function):
 
     Forward:  h[t] = D[t] * h[t-1] + B_vals[t],  h[-1] = 0
     Inputs:   B_vals (B,T,S), D (B,T,S)
-    Output:   h (B,T,S)
+    Output:   h (B,T,S) — stored in fp32 for backward, returned in input dtype
     """
 
     @staticmethod
@@ -277,24 +279,26 @@ class TritonScanFn(torch.autograd.Function):
         B_dim, T_dim, S_dim = B_vals.shape
         B_vals_c = B_vals.contiguous()
         D_c = D.contiguous()
-        h = torch.empty_like(B_vals_c, dtype=torch.bfloat16)
+        # Store h in fp32 for backward gradient precision
+        h_fp32 = torch.empty(B_dim, T_dim, S_dim, dtype=torch.float32, device=B_vals.device)
 
         BLOCK_S = 32
         num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
         _scan_fwd_kernel[(num_programs,)](
-            B_vals_c, D_c, h,
+            B_vals_c, D_c, h_fp32,
             B_dim, T_dim, S_dim,
             B_vals_c.stride(0), B_vals_c.stride(1), B_vals_c.stride(2),
+            h_fp32.stride(0), h_fp32.stride(1), h_fp32.stride(2),
             BLOCK_S=BLOCK_S, num_warps=2, num_stages=1,
         )
-        h = h.to(B_vals.dtype)
-        ctx.save_for_backward(D_c, h)
+        h_out = h_fp32.to(B_vals.dtype)
+        ctx.save_for_backward(D_c, h_fp32)
         ctx.shape = (B_dim, T_dim, S_dim)
-        return h
+        return h_out
 
     @staticmethod
     def backward(ctx, dh: Tensor) -> tuple[Tensor, Tensor]:
-        D, h = ctx.saved_tensors
+        D, h_fp32 = ctx.saved_tensors
         B_dim, T_dim, S_dim = ctx.shape
         dh_c = dh.contiguous()
 
@@ -304,10 +308,11 @@ class TritonScanFn(torch.autograd.Function):
         BLOCK_S = 32
         num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
         _scan_bwd_kernel[(num_programs,)](
-            dh_c, D, h,
+            dh_c, D, h_fp32,
             dB, dD,
             B_dim, T_dim, S_dim,
             dh_c.stride(0), dh_c.stride(1), dh_c.stride(2),
+            h_fp32.stride(0), h_fp32.stride(1), h_fp32.stride(2),
             BLOCK_S=BLOCK_S, num_warps=2, num_stages=1,
         )
         return dB.to(dh.dtype), dD.to(dh.dtype)
@@ -426,6 +431,68 @@ def triton_ternary_dequant(
         num_warps=4, num_stages=2,
     )
     return out
+
+
+# ============================================================================
+# 3b. FUSED RMS NORM KERNEL
+# ============================================================================
+# Replaces F.rms_norm used before every TernaryLinear and in NormedTernaryLinear.
+# Fuses the variance computation + reciprocal sqrt + scale into a single pass,
+# eliminating one HBM read-write cycle.
+# ============================================================================
+
+if HAS_TRITON:
+    @triton.jit
+    def _rms_norm_fwd_kernel(
+        X_ptr, OUT_ptr,
+        N_dim: tl.constexpr,
+        stride_xr, stride_xc,
+        stride_or, stride_oc,
+        eps: tl.constexpr,
+        BLOCK_N: tl.constexpr,
+    ):
+        """One program per row. Computes RMS norm in a single pass over columns."""
+        row = tl.program_id(0)
+        col_offs = tl.arange(0, BLOCK_N)
+        mask = col_offs < N_dim
+
+        x = tl.load(X_ptr + row * stride_xr + col_offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
+
+        # Compute RMS
+        sq_sum = tl.sum(x * x, axis=0)
+        rms = tl.sqrt(sq_sum / N_dim + eps)
+        out = x / rms
+
+        tl.store(OUT_ptr + row * stride_or + col_offs * stride_oc, out.to(tl.bfloat16), mask=mask)
+
+
+def triton_rms_norm(x: Tensor, eps: float = 1e-6) -> Tensor:
+    """Fused RMS norm. Input: (..., D), Output: (..., D) in bf16."""
+    if not HAS_TRITON or not x.is_cuda or torch.compiler.is_compiling():
+        return F.rms_norm(x, (x.size(-1),))
+
+    orig_shape = x.shape
+    D = x.size(-1)
+    x_2d = x.reshape(-1, D).contiguous()
+    num_rows = x_2d.shape[0]
+
+    out = torch.empty_like(x_2d, dtype=torch.bfloat16)
+    BLOCK_N = triton.next_power_of_2(D)
+    if BLOCK_N > 8192:
+        # Fall back for very large dimensions
+        return F.rms_norm(x, (x.size(-1),))
+
+    _rms_norm_fwd_kernel[(num_rows,)](
+        x_2d, out,
+        D,
+        x_2d.stride(0), x_2d.stride(1),
+        out.stride(0), out.stride(1),
+        eps=eps,
+        BLOCK_N=BLOCK_N,
+        num_warps=min(8, max(1, BLOCK_N // 256)),
+        num_stages=1,
+    )
+    return out.reshape(orig_shape).to(x.dtype)
 
 
 # ============================================================================
@@ -607,7 +674,148 @@ def run_all_tests(device="cuda"):
 
 
 # ============================================================================
-# 7. ENGRAM FUSED HASH-GATHER KERNEL
+# 7. FUSED SPECTRAL DECAY SCAN KERNEL
+# ============================================================================
+# Replaces the O(blocks^2) decay matrix construction + einsum in
+# causal_spectral_decay_scan() with a sequential prefix scan.
+#
+# Math:  prefix[0] = 0
+#        prefix[b] = decay * prefix[b-1] + gate[b-1,-1,:] * x[b-1,-1,:]
+#        output[b,t,:] = x[b,t,:] + prefix[b] * decay^(t+1)
+#
+# One program per (batch, dim_block). Sequential over blocks, parallel over D.
+# ============================================================================
+
+if HAS_TRITON:
+    @triton.jit
+    def _spectral_decay_scan_fwd_kernel(
+        X_ptr, GATE_ptr, DECAY_ptr, OUT_ptr,
+        B_dim, NUM_BLOCKS, BLOCK_SZ: tl.constexpr, D_dim,
+        stride_xb, stride_xn, stride_xt, stride_xd,
+        stride_gb, stride_gn, stride_gt, stride_gd,
+        stride_ob, stride_on, stride_ot, stride_od,
+        BLOCK_D: tl.constexpr,
+    ):
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(D_dim, BLOCK_D)
+        d_block = pid % tl.cdiv(D_dim, BLOCK_D)
+        if batch_idx >= B_dim:
+            return
+
+        d_offs = d_block * BLOCK_D + tl.arange(0, BLOCK_D)
+        d_mask = d_offs < D_dim
+
+        # Load decay rates (clamped) for this dim block
+        decay = tl.load(DECAY_ptr + d_offs, mask=d_mask, other=0.0).to(tl.float32)
+        decay = tl.minimum(tl.maximum(decay, 0.0), 0.999)
+
+        # Precompute time_decay[t] = decay^(t+1) for t in [0, BLOCK_SZ)
+        # We store these in registers
+        prefix = tl.zeros((BLOCK_D,), dtype=tl.float32)
+
+        for block_idx in range(NUM_BLOCKS):
+            x_base = batch_idx * stride_xb + block_idx * stride_xn
+            g_base = batch_idx * stride_gb + block_idx * stride_gn
+            o_base = batch_idx * stride_ob + block_idx * stride_on
+
+            # Process each timestep in this block
+            for t in range(BLOCK_SZ):
+                x_val = tl.load(X_ptr + x_base + t * stride_xt + d_offs * stride_xd,
+                                mask=d_mask, other=0.0).to(tl.float32)
+
+                # Apply prefix state with time decay: decay^(t+1)
+                # We compute decay_power incrementally
+                time_power = decay  # This will be decay^(t+1)
+                for _tp in range(t):
+                    time_power = time_power * decay
+
+                out_val = x_val + prefix * time_power
+                tl.store(OUT_ptr + o_base + t * stride_ot + d_offs * stride_od,
+                         out_val.to(tl.bfloat16), mask=d_mask)
+
+            # After processing this block, update prefix for next block
+            # gated_final = gate[block, -1, :] * x[block, -1, :]
+            last_t = BLOCK_SZ - 1
+            x_last = tl.load(X_ptr + x_base + last_t * stride_xt + d_offs * stride_xd,
+                             mask=d_mask, other=0.0).to(tl.float32)
+            g_last = tl.load(GATE_ptr + g_base + last_t * stride_gt + d_offs * stride_gd,
+                             mask=d_mask, other=0.0).to(tl.float32)
+            gated_final = g_last * x_last
+            prefix = decay * prefix + gated_final
+
+
+class TritonSpectralDecayScanFn(torch.autograd.Function):
+    """Autograd wrapper for the fused spectral decay scan.
+
+    Forward:  prefix[0]=0, prefix[b] = decay * prefix[b-1] + gate[b-1,-1,:]*x[b-1,-1,:]
+              out[b,t,:] = x[b,t,:] + prefix[b] * decay^(t+1)
+    """
+
+    @staticmethod
+    def forward(ctx, x_blocks: Tensor, decay_rates: Tensor, gate: Tensor) -> Tensor:
+        B, num_blocks, block_sz, D = x_blocks.shape
+        x_c = x_blocks.contiguous()
+        gate_c = gate.contiguous()
+        decay_c = decay_rates.contiguous()
+        out = torch.empty_like(x_c, dtype=torch.bfloat16)
+
+        BLOCK_D = min(D, 64)
+        num_programs = B * triton.cdiv(D, BLOCK_D)
+        _spectral_decay_scan_fwd_kernel[(num_programs,)](
+            x_c, gate_c, decay_c, out,
+            B, num_blocks, block_sz, D,
+            x_c.stride(0), x_c.stride(1), x_c.stride(2), x_c.stride(3),
+            gate_c.stride(0), gate_c.stride(1), gate_c.stride(2), gate_c.stride(3),
+            out.stride(0), out.stride(1), out.stride(2), out.stride(3),
+            BLOCK_D=BLOCK_D, num_warps=2, num_stages=1,
+        )
+        out = out.to(x_blocks.dtype)
+        ctx.save_for_backward(x_c, gate_c, decay_c, out)
+        ctx.shape = (B, num_blocks, block_sz, D)
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_output: Tensor):
+        x_c, gate_c, decay_c, out = ctx.saved_tensors
+        # Fall back to PyTorch for backward (autograd-safe)
+        # Re-run forward in PyTorch for clean backward graph
+        B, num_blocks, block_sz, D = ctx.shape
+        decay = torch.clamp(decay_c, 0.0, 0.999)
+        gated = gate_c * x_c
+        if num_blocks > 1:
+            block_finals = gated[:, :, -1, :]
+            idx = torch.arange(num_blocks, device=decay.device)
+            diff = idx[:, None] - idx[None, :]
+            mask = diff >= 0
+            diff_clamped = torch.max(diff, torch.zeros_like(diff))
+            M = decay[None, None, :] ** diff_clamped[:, :, None].to(decay.dtype)
+            M = torch.where(mask[:, :, None], M, torch.zeros_like(M))
+            states = torch.einsum('ijd,bjd->bid', M, block_finals)
+            prefix_states = torch.cat([torch.zeros_like(states[:, :1, :]), states[:, :-1, :]], dim=1)
+            t = torch.arange(1, block_sz + 1, device=decay.device, dtype=decay.dtype)
+            time_decay = decay[None, :] ** t[:, None]
+            result = x_c + prefix_states[:, :, None, :] * time_decay[None, None, :, :]
+        else:
+            result = x_c.clone()
+        result.requires_grad_(True)
+        with torch.enable_grad():
+            # This is a clean re-derive; we just need gradients
+            result.backward(grad_output)
+        return result.grad, None, None
+
+
+def triton_spectral_decay_scan(x_blocks: Tensor, decay_rates: Tensor, gate: Tensor) -> Tensor:
+    """Fused spectral decay scan. Drop-in replacement for causal_spectral_decay_scan."""
+    if not HAS_TRITON or not x_blocks.is_cuda or torch.compiler.is_compiling():
+        return None
+    B, num_blocks, block_sz, D = x_blocks.shape
+    if num_blocks <= 1:
+        return x_blocks
+    return TritonSpectralDecayScanFn.apply(x_blocks, decay_rates, gate)
+
+
+# ============================================================================
+# 8. ENGRAM FUSED HASH-GATHER KERNEL
 # ============================================================================
 # Eliminates intermediate index tensor materialization by computing n-gram
 # hashes and gathering from embedding tables in a single kernel launch.
@@ -616,7 +824,7 @@ def run_all_tests(device="cuda"):
 
 if HAS_TRITON:
     @triton.jit
-    def _engram_hash_gather_kernel(
+    def _engram_hash_gather_kernel_2x2(
         IDS_ptr, OUT_ptr,
         TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr,
         P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr,
@@ -624,9 +832,7 @@ if HAS_TRITON:
         stride_ib, stride_it,
         stride_ob, stride_ot, stride_od,
     ):
-        """Fused bigram(2 heads) + trigram(2 heads) hash-and-gather.
-        One program per (batch, time) position. Eliminates intermediate index tensors.
-        """
+        """Fused bigram(2 heads) + trigram(2 heads) hash-and-gather."""
         pid = tl.program_id(0)
         b_idx = pid // T_dim
         t_idx = pid % T_dim
@@ -635,53 +841,144 @@ if HAS_TRITON:
         hd_offs = tl.arange(0, HD)
         out_base = b_idx * stride_ob + t_idx * stride_ot
         curr = tl.load(IDS_ptr + b_idx * stride_ib + t_idx * stride_it).to(tl.int64)
-        # Bigram heads
         if t_idx >= 1:
             prev = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
             h0 = (prev * P0 + curr) % BUCKETS
             h1 = (prev * P1 + curr) % BUCKETS
-            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs)
-            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs)
+            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs).to(tl.float32)
+            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs).to(tl.float32)
         else:
-            e0 = tl.zeros((HD,), dtype=tl.bfloat16)
-            e1 = tl.zeros((HD,), dtype=tl.bfloat16)
-        # Trigram heads
+            e0 = tl.zeros((HD,), dtype=tl.float32)
+            e1 = tl.zeros((HD,), dtype=tl.float32)
         if t_idx >= 2:
             pp = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 2) * stride_it).to(tl.int64)
             prev2 = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
             h2 = (pp * (P2 * P2) + prev2 * P2 + curr) % BUCKETS
             h3 = (pp * (P3 * P3) + prev2 * P3 + curr) % BUCKETS
-            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs)
-            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs)
+            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs).to(tl.float32)
+            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs).to(tl.float32)
         else:
-            e2 = tl.zeros((HD,), dtype=tl.bfloat16)
-            e3 = tl.zeros((HD,), dtype=tl.bfloat16)
+            e2 = tl.zeros((HD,), dtype=tl.float32)
+            e3 = tl.zeros((HD,), dtype=tl.float32)
         tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
         tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
         tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
         tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
 
+    @triton.jit
+    def _engram_hash_gather_kernel_3x3(
+        IDS_ptr, OUT_ptr,
+        TBL0_ptr, TBL1_ptr, TBL2_ptr,
+        TBL3_ptr, TBL4_ptr, TBL5_ptr,
+        TBL6_ptr, TBL7_ptr, TBL8_ptr,
+        P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr,
+        P3: tl.constexpr, P4: tl.constexpr, P5: tl.constexpr,
+        P6: tl.constexpr, P7: tl.constexpr, P8: tl.constexpr,
+        B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr,
+        stride_ib, stride_it,
+        stride_ob, stride_ot, stride_od,
+    ):
+        """Fused bigram(3) + trigram(3) + 4gram(3) hash-and-gather.
+        One program per (batch, time). Overflow-safe 4-gram via nested modular reduction.
+        """
+        pid = tl.program_id(0)
+        b_idx = pid // T_dim
+        t_idx = pid % T_dim
+        if b_idx >= B_dim:
+            return
+        hd_offs = tl.arange(0, HD)
+        out_base = b_idx * stride_ob + t_idx * stride_ot
+        ids_base = b_idx * stride_ib
+        curr = tl.load(IDS_ptr + ids_base + t_idx * stride_it).to(tl.int64)
+        # --- Bigram heads (order=0, 3 heads) ---
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            h0 = (prev * P0 + curr) % BUCKETS
+            h1 = (prev * P1 + curr) % BUCKETS
+            h2 = (prev * P2 + curr) % BUCKETS
+            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs).to(tl.float32)
+            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs).to(tl.float32)
+            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs).to(tl.float32)
+        else:
+            e0 = tl.zeros((HD,), dtype=tl.float32)
+            e1 = tl.zeros((HD,), dtype=tl.float32)
+            e2 = tl.zeros((HD,), dtype=tl.float32)
+        # --- Trigram heads (order=1, 3 heads) ---
+        if t_idx >= 2:
+            pp = tl.load(IDS_ptr + ids_base + (t_idx - 2) * stride_it).to(tl.int64)
+            prev_t = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            h3 = (pp * (P3 * P3) + prev_t * P3 + curr) % BUCKETS
+            h4 = (pp * (P4 * P4) + prev_t * P4 + curr) % BUCKETS
+            h5 = (pp * (P5 * P5) + prev_t * P5 + curr) % BUCKETS
+            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs).to(tl.float32)
+            e4 = tl.load(TBL4_ptr + h4 * HD + hd_offs).to(tl.float32)
+            e5 = tl.load(TBL5_ptr + h5 * HD + hd_offs).to(tl.float32)
+        else:
+            e3 = tl.zeros((HD,), dtype=tl.float32)
+            e4 = tl.zeros((HD,), dtype=tl.float32)
+            e5 = tl.zeros((HD,), dtype=tl.float32)
+        # --- 4-gram heads (order=2, 3 heads) with overflow-safe nested mod ---
+        if t_idx >= 3:
+            ppp = tl.load(IDS_ptr + ids_base + (t_idx - 3) * stride_it).to(tl.int64)
+            pp_4 = tl.load(IDS_ptr + ids_base + (t_idx - 2) * stride_it).to(tl.int64)
+            prev_4 = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            h6 = ((((ppp * P6 + pp_4) % BUCKETS) * P6 + prev_4) % BUCKETS * P6 + curr) % BUCKETS
+            h7 = ((((ppp * P7 + pp_4) % BUCKETS) * P7 + prev_4) % BUCKETS * P7 + curr) % BUCKETS
+            h8 = ((((ppp * P8 + pp_4) % BUCKETS) * P8 + prev_4) % BUCKETS * P8 + curr) % BUCKETS
+            e6 = tl.load(TBL6_ptr + h6 * HD + hd_offs).to(tl.float32)
+            e7 = tl.load(TBL7_ptr + h7 * HD + hd_offs).to(tl.float32)
+            e8 = tl.load(TBL8_ptr + h8 * HD + hd_offs).to(tl.float32)
+        else:
+            e6 = tl.zeros((HD,), dtype=tl.float32)
+            e7 = tl.zeros((HD,), dtype=tl.float32)
+            e8 = tl.zeros((HD,), dtype=tl.float32)
+        # Store all 9 head embeddings contiguously
+        tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
+        tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
+        tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
+        tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
+        tl.store(OUT_ptr + out_base + (4 * HD + hd_offs) * stride_od, e4)
+        tl.store(OUT_ptr + out_base + (5 * HD + hd_offs) * stride_od, e5)
+        tl.store(OUT_ptr + out_base + (6 * HD + hd_offs) * stride_od, e6)
+        tl.store(OUT_ptr + out_base + (7 * HD + hd_offs) * stride_od, e7)
+        tl.store(OUT_ptr + out_base + (8 * HD + hd_offs) * stride_od, e8)
+
 
 def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor,
                                num_orders: int, num_heads: int, head_dim: int,
                                buckets: int) -> Tensor | None:
-    """Fused hash-and-gather for Engram 2×2 config. Returns None if not applicable."""
-    if not HAS_TRITON or not input_ids.is_cuda or num_orders != 2 or num_heads != 2:
+    """Fused hash-and-gather for Engram. Supports 2x2 and 3x3 configs."""
+    if not HAS_TRITON or not input_ids.is_cuda:
         return None
     B, T = input_ids.shape
     hash_dim = head_dim * num_orders * num_heads
     out = torch.empty(B, T, hash_dim, dtype=torch.bfloat16, device=input_ids.device)
-    p = primes[:4].tolist()
-    _engram_hash_gather_kernel[(B * T,)](
-        input_ids, out,
-        tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight,
-        p[0], p[1], p[2], p[3],
-        B, T, buckets, head_dim,
-        input_ids.stride(0), input_ids.stride(1),
-        out.stride(0), out.stride(1), out.stride(2),
-        num_warps=2, num_stages=1,
-    )
-    return out
+    p = primes[:num_orders * num_heads].tolist()
+    if num_orders == 2 and num_heads == 2:
+        _engram_hash_gather_kernel_2x2[(B * T,)](
+            input_ids, out,
+            tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight,
+            p[0], p[1], p[2], p[3],
+            B, T, buckets, head_dim,
+            input_ids.stride(0), input_ids.stride(1),
+            out.stride(0), out.stride(1), out.stride(2),
+            num_warps=2, num_stages=1,
+        )
+        return out
+    elif num_orders == 3 and num_heads == 3:
+        _engram_hash_gather_kernel_3x3[(B * T,)](
+            input_ids, out,
+            tables[0].weight, tables[1].weight, tables[2].weight,
+            tables[3].weight, tables[4].weight, tables[5].weight,
+            tables[6].weight, tables[7].weight, tables[8].weight,
+            p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
+            B, T, buckets, head_dim,
+            input_ids.stride(0), input_ids.stride(1),
+            out.stride(0), out.stride(1), out.stride(2),
+            num_warps=4, num_stages=1,
+        )
+        return out
+    return None
 
 
 def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor,

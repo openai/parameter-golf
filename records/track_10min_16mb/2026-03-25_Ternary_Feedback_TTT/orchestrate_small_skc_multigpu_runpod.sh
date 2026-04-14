@@ -37,13 +37,13 @@ GPU_WATCH_PID=""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Auto-discover trainer path (local or project root)
-if [[ -f "${SCRIPT_DIR:-.}/train_gpt.py" ]]; then
-    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt.py"
-elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt.py" ]]; then
-    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt.py"
+if [[ -f "${SCRIPT_DIR:-.}/train_gpt_verbose.py" ]]; then
+    TRAINER_PATH="${SCRIPT_DIR:-.}/train_gpt_verbose.py"
+elif [[ -f "$(cd "${SCRIPT_DIR:-.}/../../.." 2>/dev/null && pwd)/train_gpt_verbose.py" ]]; then
+    TRAINER_PATH="$(cd "${SCRIPT_DIR:-.}/../../.." && pwd)/train_gpt_verbose.py"
 else
-    # Fallback for scripts that don't define SCRIPT_DIR
-    TRAINER_PATH="./train_gpt.py"
+    # Fallback
+    TRAINER_PATH="./train_gpt_verbose.py"
 fi
 LOCAL_ARTIFACTS_DIR="${LOCAL_ARTIFACTS_DIR:-${SCRIPT_DIR}/small_skc_multigpu_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$LOCAL_ARTIFACTS_DIR"
@@ -289,7 +289,7 @@ pick_gpu_candidates() {
         .data.gpuTypes[]?
         | select(.lowestPrice.uninterruptablePrice != null)
         | select((.memoryInGb // 0) >= $min_mem)
-        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060"; "i")) | not)
+        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060|H100|A100|H200|L40|Ada"; "i")) | not)
         | [.lowestPrice.uninterruptablePrice, .id, .lowestPrice.stockStatus, (.memoryInGb | tostring), .displayName]
         | @tsv
     ' | sort -n
@@ -310,7 +310,7 @@ pick_secure_gpu_candidates() {
         .data.gpuTypes[]?
         | select(.lowestPrice.uninterruptablePrice != null)
         | select((.memoryInGb // 0) >= $min_mem)
-        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060"; "i")) | not)
+        | select(((.displayName + " " + .id) | test("V100|P100|T4|K80|M60|A2|A16|MI|Radeon|Instinct|Blackwell|PRO 6000|5090|5080|5070|5060|H100|A100|H200|L40|Ada"; "i")) | not)
         | [.lowestPrice.uninterruptablePrice, .id, .lowestPrice.stockStatus, (.memoryInGb | tostring), .displayName]
         | @tsv
     ' | sort -n
@@ -372,9 +372,12 @@ create_pod() {
     candidates=$(pick_gpu_candidates)
     [[ -n "$candidates" ]] || die "No viable ${GPU_COUNT}-GPU community candidates found"
     printf "%s\n" "$candidates" | tee -a "$ORCH_LOG" > "${LOCAL_ARTIFACTS_DIR}/gpu_candidates.tsv"
-    secure_candidates=$(pick_secure_gpu_candidates)
-    [[ -n "$secure_candidates" ]] || die "No viable ${GPU_COUNT}-GPU secure candidates found"
-    printf "%s\n" "$secure_candidates" | tee -a "$ORCH_LOG" > "${LOCAL_ARTIFACTS_DIR}/gpu_secure_candidates.tsv"
+    secure_candidates=$(pick_secure_gpu_candidates) || true
+    if [[ -n "${secure_candidates:-}" ]]; then
+        printf "%s\n" "$secure_candidates" | tee -a "$ORCH_LOG" > "${LOCAL_ARTIFACTS_DIR}/gpu_secure_candidates.tsv"
+    else
+        log "Note: No viable secure candidates found; relying on community pool."
+    fi
 
     local phase cloud pool key
     local tried=$'\n'
@@ -588,7 +591,7 @@ require_cmd scp
 require_cmd python3
 [[ -f "$LOCAL_SSH_KEY" ]] || die "SSH private key not found: $LOCAL_SSH_KEY"
 [[ -f "$LOCAL_SSH_PUB" ]] || die "SSH public key not found: $LOCAL_SSH_PUB"
-[[ -f "${PROJECT_ROOT}/train_gpt.py" ]] || die "train_gpt.py not found in $PROJECT_ROOT"
+[[ -f "${PROJECT_ROOT}/train_gpt_verbose.py" ]] || die "train_gpt_verbose.py not found in $PROJECT_ROOT"
 [[ -f "${SCRIPT_DIR}/run_skc_competition_2gpu_proxy.sh" ]] || die "run_skc_competition_2gpu_proxy.sh not found in $SCRIPT_DIR"
 
 gc_stale_pods "$POD_NAME"
@@ -685,7 +688,7 @@ write_remote_file "/workspace/data_setup_fast.sh" "$DATA_SETUP_FAST_CONTENT" | t
 r_retry "bash /workspace/data_setup_fast.sh" || die "Fast data setup failed"
 
 log "Uploading code..."
-ul_retry "${PROJECT_ROOT}/train_gpt.py" "${SCRIPT_DIR}/run_skc_competition_2gpu_proxy.sh" || die "Upload failed"
+ul_retry "${PROJECT_ROOT}/train_gpt_verbose.py" "${SCRIPT_DIR}/run_skc_competition_2gpu_proxy.sh" || die "Upload failed"
 
 log "Jump-starting Parallel Setup: Shard Download (Background) + Compilation (Foreground)..."
 DATA_SETUP_FULL_CONTENT=$(cat <<EOF
@@ -749,7 +752,7 @@ LAUNCH_SCRIPT_CONTENT=$(cat <<EOF
 set -ex
 cd /workspace
 export PROJECT_ROOT=/workspace
-export TRAINER_PATH=train_gpt.py
+export TRAINER_PATH=train_gpt_verbose.py
 export COMPILE_MODE=none
 export DATA_PATH=/workspace/data/datasets/fineweb10B_sp8192
 export TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_8192_bpe.model

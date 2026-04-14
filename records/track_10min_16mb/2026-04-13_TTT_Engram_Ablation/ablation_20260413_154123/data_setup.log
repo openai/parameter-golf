@@ -1,0 +1,12 @@
+tokenizer: fineweb_8192_bpe.model
+tokenizer: fineweb_8192_bpe.vocab
+tokenizer: tokenizer_specs_8192.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+4/25: fineweb_train_000004.bin: done
+8/25: fineweb_train_000008.bin: done
+12/25: fineweb_train_000010.bin: done
+16/25: fineweb_train_000015.bin: done
+20/25: fineweb_train_000016.bin: done
+24/25: fineweb_train_000020.bin: done
+25/25: fineweb_train_000023.bin: done
+=== DATA DONE ===

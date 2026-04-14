@@ -1,0 +1,16 @@
++ cd /workspace
++ export PROJECT_ROOT=/workspace
++ PROJECT_ROOT=/workspace
++ export TRAINER_PATH=train_gpt_verbose.py
++ TRAINER_PATH=train_gpt_verbose.py
++ export DATA_PATH=/workspace/data/datasets/fineweb10B_sp8192
++ DATA_PATH=/workspace/data/datasets/fineweb10B_sp8192
++ export TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_8192_bpe.model
++ TOKENIZER_PATH=/workspace/data/tokenizers/fineweb_8192_bpe.model
++ bash run_ttt_engram_ablation_2gpu.sh
+==========================================================================
+  TTT + ENGRAM ABLATION — 2×GPU
+  ENGRAM: buckets=8192 dim=96 heads=2 orders=2
+  TTT: scope=skc_safe lr=0.005 epochs=3
+  ABLATION_EVAL=1 (4-case eval)
+==========================================================================

@@ -1,0 +1,13 @@
+[11:56:15] ========================================================
+[11:56:15] Cheap Multi-GPU Small SKC Orchestrator
+[11:56:15] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260413_115615
+[11:56:15] GPU count: 1
+[11:56:15] Min mem  : 70GB
+[11:56:15] Data     : 24 train shards
+[11:56:15] ========================================================
+[11:56:16] GC: terminating stale live pod paramgolf-small-20260413-114952 (vj7p5ntyyngyhr, uptime=320s)
+[11:56:16] Terminating pod vj7p5ntyyngyhr...
+{
+  "podTerminate": null
+}
+[11:56:18] FATAL: No viable 1-GPU community candidates found

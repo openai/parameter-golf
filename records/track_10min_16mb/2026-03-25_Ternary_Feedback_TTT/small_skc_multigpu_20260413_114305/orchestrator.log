@@ -1,0 +1,96 @@
+[11:43:05] ========================================================
+[11:43:05] Cheap Multi-GPU Small SKC Orchestrator
+[11:43:05] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260413_114305
+[11:43:05] GPU count: 2
+[11:43:05] Min mem  : 20GB
+[11:43:05] Data     : 24 train shards
+[11:43:05] ========================================================
+0.38	NVIDIA RTX A4500	Low	20	RTX A4500
+0.44	NVIDIA GeForce RTX 3090	High	24	RTX 3090
+0.54	NVIDIA GeForce RTX 3090 Ti	Low	24	RTX 3090 Ti
+0.68	NVIDIA GeForce RTX 4090	Medium	24	RTX 4090
+[11:43:09] Note: No viable secure candidates found; relying on community pool.
+[11:43:09] Candidate: RTX 3090 (NVIDIA GeForce RTX 3090)  2x  mem=24GB  stock=High  price=$0.44/hr
+[11:43:09] Trying 2xNVIDIA GeForce RTX 3090 on COMMUNITY...
+[11:43:10]   success: pod=47ffdnpvh3msxr cost=$0.44/hr
+[11:43:10] Waiting for pod SSH readiness...
+[11:43:25] Pod SSH preliminary success. Waiting 15s for stability...
+[11:43:44] Pod ready and stable: root@142.169.249.42:23069
+[11:43:44] Verifying GPU and runtime...
+0, NVIDIA GeForce RTX 3090, 24576 MiB
+1, NVIDIA GeForce RTX 3090, 24576 MiB
+torch 2.4.1+cu124 cuda 12.4 gpus 2
+[11:44:03] Installing tmux and preparing logs...
+[11:44:15] Installing dependencies...
+wrote:/workspace/install_setup.sh
+[11:44:53] Preparing data (Fast Assets: Tokenizer + Val Shard)...
+wrote:/workspace/data_setup_fast.sh
+[11:45:08] Uploading code...
+[11:45:20] Jump-starting Parallel Setup: Shard Download (Background) + Compilation (Foreground)...
+wrote:/workspace/data_setup_full.sh
+[11:45:32] Starting GPU watchdog...
+[11:45:32] GPU watchdog: started (10m grace period for compilation)
+[11:45:32] Starting Eager Smoke test (Fat-Script) in foreground...
+wrote:/workspace/launch_eager.sh
+==========================================================================
+  SKC COMPETITION PROXY — 2×GPU
+  RUN_ID    : skc_competition_proxy_20260413_164552
+  TOKENIZER : SP8192
+  MODEL     : skc_competition  L=8  D=640  H=8
+              parallel_residual=1  recurrence=depth2@0.35
+  TTT       : scope=skc_safe  epochs=3  lr=0.003
+  EXPORT    : competition_gptq
+  BUDGET    : 600s
+==========================================================================
+logs/cuda/skc_competition_proxy_20260413_164552.txt
+budget_lower_bound: total_lb=17402446 ternary_lb=10046372 fp16=7046706 code=309368 cap=16000000
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/train_gpt_verbose.py", line 6110, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/train_gpt_verbose.py", line 4990, in main
+[rank0]:     raise RuntimeError(
+[rank0]: RuntimeError: Projected minimum artifact+code bytes 17402446 exceeds HARD_BUDGET_BYTES=16000000; reduce FP footprint / model size before training.
+[rank0]:[W413 16:45:56.427500758 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+W0413 16:45:57.624000 128116631535616 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 903 closing signal SIGTERM
+E0413 16:45:57.938000 128116631535616 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 902) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/train_gpt_verbose.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-13_16:45:57
+  host      : fa73a05811ae
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 902)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+=== SMOKE DONE ===
+[11:45:58] Waiting for background shard downloads to complete...
+[11:46:16] Launching 10-minute eager training run (Fat-Script)...
+[12:04:10] Balance floor reached: clientBalance=9.9812206041 <= 10
+[12:04:11] Balance guard: terminating live pod paramgolf-small-20260413-115639 (n47nvoy9uk5c8n, uptime=415s)
+[12:04:11] Terminating pod n47nvoy9uk5c8n...
+{
+  "podTerminate": null
+}

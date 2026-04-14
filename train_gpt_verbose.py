@@ -18,39 +18,37 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
-
-# --- Triton Kernel Integration (Inlined) ---
 try:
     import triton
     import triton.language as tl
     HAS_TRITON = True
 except ImportError:
     HAS_TRITON = False
-if os.environ.get("DISABLE_TRITON", "0") == "1":
+if os.environ.get('DISABLE_TRITON', '0') == '1':
     HAS_TRITON = False
-
-# Per-kernel kill switch for submission safety on heterogeneous Triton stacks.
-TRITON_ENGRAM_ENABLED = bool(int(os.environ.get("TRITON_ENGRAM_ENABLED", "1")))
-
+TRITON_ENGRAM_ENABLED = bool(int(os.environ.get('TRITON_ENGRAM_ENABLED', '1')))
 _HADAMARD_CACHE: dict[tuple[int, str], Tensor] = {}
 
 def _get_hadamard(n: int, device) -> Tensor:
     key = (n, str(device))
     if key not in _HADAMARD_CACHE:
-        assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
-        H = torch.ones(1, 1, dtype=torch.float32, device="cpu")
+        assert n > 0 and n & n - 1 == 0, f'n must be power of 2, got {n}'
+        H = torch.ones(1, 1, dtype=torch.float32, device='cpu')
         for _ in range(int(math.log2(n))):
             H = torch.cat([torch.cat([H, H], 1), torch.cat([H, -H], 1)], 0)
         H = (H / math.sqrt(n)).to(device).contiguous()
         _HADAMARD_CACHE[key] = H
     return _HADAMARD_CACHE[key]
-
 if HAS_TRITON:
+
     @triton.jit
     def _fwht_kernel(X_ptr, H_ptr, Out_ptr, total_blocks, D: tl.constexpr, stride_xb, stride_xt, stride_xd, BLOCK_SIZE: tl.constexpr, BLOCK_D: tl.constexpr):
-        pid_b = tl.program_id(0); pid_d = tl.program_id(1)
-        if pid_b >= total_blocks: return
-        d_offs = pid_d * BLOCK_D + tl.arange(0, BLOCK_D); d_mask = d_offs < D
+        pid_b = tl.program_id(0)
+        pid_d = tl.program_id(1)
+        if pid_b >= total_blocks:
+            return
+        d_offs = pid_d * BLOCK_D + tl.arange(0, BLOCK_D)
+        d_mask = d_offs < D
         H = tl.load(H_ptr + tl.arange(0, BLOCK_SIZE)[:, None] * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)[None, :])
         t_offs = tl.arange(0, BLOCK_SIZE)
         x_ptrs = X_ptr + pid_b * stride_xb + t_offs[:, None] * stride_xt + d_offs[None, :] * stride_xd
@@ -60,132 +58,187 @@ if HAS_TRITON:
         tl.store(out_ptrs, result.to(data.dtype), mask=d_mask[None, :])
 
     class TritonFWHTFn(torch.autograd.Function):
+
         @staticmethod
         def forward(ctx, x_blocks: Tensor, H: Tensor) -> Tensor:
-            total_blocks, block_size, D = x_blocks.shape; out = torch.empty_like(x_blocks); BLOCK_D = min(D, 128)
+            (total_blocks, block_size, D) = x_blocks.shape
+            out = torch.empty_like(x_blocks)
+            BLOCK_D = min(D, 128)
             grid = (total_blocks, triton.cdiv(D, BLOCK_D))
             _fwht_kernel[grid](x_blocks, H, out, total_blocks, D, x_blocks.stride(0), x_blocks.stride(1), x_blocks.stride(2), BLOCK_SIZE=block_size, BLOCK_D=BLOCK_D, num_warps=4, num_stages=3)
-            ctx.save_for_backward(H); return out
+            ctx.save_for_backward(H)
+            return out
+
         @staticmethod
         def backward(ctx, dy: Tensor) -> tuple[Tensor, None]:
-            (H,) = ctx.saved_tensors; total_blocks, block_size, D = dy.shape; dx = torch.empty_like(dy); BLOCK_D = min(D, 128)
+            (H,) = ctx.saved_tensors
+            (total_blocks, block_size, D) = dy.shape
+            dx = torch.empty_like(dy)
+            BLOCK_D = min(D, 128)
             grid = (total_blocks, triton.cdiv(D, BLOCK_D))
             _fwht_kernel[grid](dy, H, dx, total_blocks, D, dy.stride(0), dy.stride(1), dy.stride(2), BLOCK_SIZE=block_size, BLOCK_D=BLOCK_D, num_warps=4, num_stages=3)
-            return dx, None
+            return (dx, None)
 
-def triton_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None = None) -> Tensor:
+def triton_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None=None) -> Tensor:
     max_stages = int(math.log2(block_size))
-    if num_stages is not None and int(num_stages) != max_stages: return _pytorch_fwht_blockwise(x, block_size, num_stages)
-    B, T, D = x.shape; pad_len = (block_size - T % block_size) % block_size
-    if pad_len > 0: x = F.pad(x, (0, 0, 0, pad_len))
-    T_padded = x.shape[1]; num_blocks = T_padded // block_size; x_blocks = x.reshape(B * num_blocks, block_size, D).contiguous()
+    if num_stages is not None and int(num_stages) != max_stages:
+        return _pytorch_fwht_blockwise(x, block_size, num_stages)
+    (B, T, D) = x.shape
+    pad_len = (block_size - T % block_size) % block_size
+    if pad_len > 0:
+        x = F.pad(x, (0, 0, 0, pad_len))
+    T_padded = x.shape[1]
+    num_blocks = T_padded // block_size
+    x_blocks = x.reshape(B * num_blocks, block_size, D).contiguous()
     H = _get_hadamard(block_size, x.device).to(torch.float32)
-    y_blocks = TritonFWHTFn.apply(x_blocks, H); y = y_blocks.reshape(B, T_padded, D)
+    y_blocks = TritonFWHTFn.apply(x_blocks, H)
+    y = y_blocks.reshape(B, T_padded, D)
     return y[:, :T, :]
 
-def _pytorch_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None = None) -> Tensor:
-    B, T, D = x.shape; pad_len = (block_size - T % block_size) % block_size
-    if pad_len > 0: x = F.pad(x, (0, 0, 0, pad_len))
-    T_padded = x.shape[1]; num_blocks = T_padded // block_size; x_blocks = x.view(B, num_blocks, block_size, D)
-    h = int(math.log2(block_size)) if num_stages is None else int(num_stages); result = x_blocks
+def _pytorch_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None=None) -> Tensor:
+    (B, T, D) = x.shape
+    pad_len = (block_size - T % block_size) % block_size
+    if pad_len > 0:
+        x = F.pad(x, (0, 0, 0, pad_len))
+    T_padded = x.shape[1]
+    num_blocks = T_padded // block_size
+    x_blocks = x.view(B, num_blocks, block_size, D)
+    h = int(math.log2(block_size)) if num_stages is None else int(num_stages)
+    result = x_blocks
     for stage in range(h):
-        stride = 1 << stage; result = result.view(B, num_blocks, block_size // (2 * stride), 2 * stride, D)
-        even = result[:, :, :, :stride, :]; odd = result[:, :, :, stride:, :]
-        result = torch.cat([even + odd, even - odd], dim=3); result = result.view(B, num_blocks, block_size, D)
+        stride = 1 << stage
+        result = result.view(B, num_blocks, block_size // (2 * stride), 2 * stride, D)
+        even = result[:, :, :, :stride, :]
+        odd = result[:, :, :, stride:, :]
+        result = torch.cat([even + odd, even - odd], dim=3)
+        result = result.view(B, num_blocks, block_size, D)
     return result.view(B, T_padded, D)[:, :T, :] * (1.0 / math.sqrt(block_size))
-
 if HAS_TRITON:
+
     @triton.jit
     def _scan_fwd_kernel(B_ptr, D_ptr, H_ptr, B_dim, T_dim, S_dim, stride_b, stride_t, stride_s, BLOCK_S: tl.constexpr):
-        pid = tl.program_id(0); batch_idx = pid // tl.cdiv(S_dim, BLOCK_S); s_block = pid % tl.cdiv(S_dim, BLOCK_S)
-        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S); s_mask = s_offs < S_dim; h = tl.zeros((BLOCK_S,), dtype=tl.float32)
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(S_dim, BLOCK_S)
+        s_block = pid % tl.cdiv(S_dim, BLOCK_S)
+        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S)
+        s_mask = s_offs < S_dim
+        h = tl.zeros((BLOCK_S,), dtype=tl.float32)
         for t in range(T_dim):
             base = batch_idx * stride_b + t * stride_t
             b_val = tl.load(B_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
             d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
-            h = d_val * h + b_val; tl.store(H_ptr + base + s_offs * stride_s, h.to(tl.bfloat16), mask=s_mask)
+            h = d_val * h + b_val
+            tl.store(H_ptr + base + s_offs * stride_s, h.to(tl.bfloat16), mask=s_mask)
 
     @triton.jit
     def _scan_bwd_kernel(DH_ptr, D_ptr, H_ptr, DB_ptr, DD_ptr, B_dim, T_dim, S_dim, stride_b, stride_t, stride_s, BLOCK_S: tl.constexpr):
-        pid = tl.program_id(0); batch_idx = pid // tl.cdiv(S_dim, BLOCK_S); s_block = pid % tl.cdiv(S_dim, BLOCK_S)
-        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S); s_mask = s_offs < S_dim; delta = tl.zeros((BLOCK_S,), dtype=tl.float32)
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(S_dim, BLOCK_S)
+        s_block = pid % tl.cdiv(S_dim, BLOCK_S)
+        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S)
+        s_mask = s_offs < S_dim
+        delta = tl.zeros((BLOCK_S,), dtype=tl.float32)
         for t_rev in range(T_dim):
-            t = T_dim - 1 - t_rev; base = batch_idx * stride_b + t * stride_t
+            t = T_dim - 1 - t_rev
+            base = batch_idx * stride_b + t * stride_t
             dh_val = tl.load(DH_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
             d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
-            delta = dh_val + delta; tl.store(DB_ptr + base + s_offs * stride_s, delta.to(tl.bfloat16), mask=s_mask)
+            delta = dh_val + delta
+            tl.store(DB_ptr + base + s_offs * stride_s, delta.to(tl.bfloat16), mask=s_mask)
             h_prev = tl.zeros((BLOCK_S,), dtype=tl.float32)
-            if t > 0: h_prev = tl.load(H_ptr + (batch_idx * stride_b + (t - 1) * stride_t) + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
-            tl.store(DD_ptr + base + s_offs * stride_s, (delta * h_prev).to(tl.bfloat16), mask=s_mask); delta = d_val * delta
+            if t > 0:
+                h_prev = tl.load(H_ptr + (batch_idx * stride_b + (t - 1) * stride_t) + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            tl.store(DD_ptr + base + s_offs * stride_s, (delta * h_prev).to(tl.bfloat16), mask=s_mask)
+            delta = d_val * delta
 
     class TritonScanFn(torch.autograd.Function):
+
         @staticmethod
         def forward(ctx, B_vals: Tensor, D: Tensor) -> Tensor:
-            B_dim, T_dim, S_dim = B_vals.shape; B_vals_c = B_vals.contiguous(); D_c = D.contiguous(); h = torch.empty_like(B_vals_c, dtype=torch.bfloat16)
-            BLOCK_S = 32; num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
-            _scan_fwd_kernel[(num_programs,)](B_vals_c, D_c, h, B_dim, T_dim, S_dim, B_vals_c.stride(0), B_vals_c.stride(1), B_vals_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
-            h = h.to(B_vals.dtype); ctx.save_for_backward(D_c, h); ctx.shape = (B_dim, T_dim, S_dim); return h
+            (B_dim, T_dim, S_dim) = B_vals.shape
+            B_vals_c = B_vals.contiguous()
+            D_c = D.contiguous()
+            h = torch.empty_like(B_vals_c, dtype=torch.bfloat16)
+            BLOCK_S = 32
+            num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
+            _scan_fwd_kernel[num_programs,](B_vals_c, D_c, h, B_dim, T_dim, S_dim, B_vals_c.stride(0), B_vals_c.stride(1), B_vals_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
+            h = h.to(B_vals.dtype)
+            ctx.save_for_backward(D_c, h)
+            ctx.shape = (B_dim, T_dim, S_dim)
+            return h
+
         @staticmethod
         def backward(ctx, dh: Tensor) -> tuple[Tensor, Tensor]:
-            D, h = ctx.saved_tensors; B_dim, T_dim, S_dim = ctx.shape; dh_c = dh.contiguous(); dB = torch.empty_like(dh_c, dtype=torch.bfloat16); dD = torch.empty_like(dh_c, dtype=torch.bfloat16)
-            BLOCK_S = 32; num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
-            _scan_bwd_kernel[(num_programs,)](dh_c, D, h, dB, dD, B_dim, T_dim, S_dim, dh_c.stride(0), dh_c.stride(1), dh_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
-            return dB.to(dh.dtype), dD.to(dh.dtype)
+            (D, h) = ctx.saved_tensors
+            (B_dim, T_dim, S_dim) = ctx.shape
+            dh_c = dh.contiguous()
+            dB = torch.empty_like(dh_c, dtype=torch.bfloat16)
+            dD = torch.empty_like(dh_c, dtype=torch.bfloat16)
+            BLOCK_S = 32
+            num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
+            _scan_bwd_kernel[num_programs,](dh_c, D, h, dB, dD, B_dim, T_dim, S_dim, dh_c.stride(0), dh_c.stride(1), dh_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
+            return (dB.to(dh.dtype), dD.to(dh.dtype))
 
 def triton_parallel_scan(B_vals: Tensor, D: Tensor) -> Tensor:
     return TritonScanFn.apply(B_vals, D)
-
 if HAS_TRITON:
+
     @triton.jit
     def _ternary_dequant_kernel(W_ptr, Out_ptr, H_ptr, Thr_ptr, ScaleMult_ptr, nrows, ncols, ncols_padded, GROUP_SIZE: tl.constexpr, BLOCK_G: tl.constexpr, HAS_TURBO: tl.constexpr):
-        pid = tl.program_id(0); groups_per_row = ncols_padded // GROUP_SIZE; total_groups = nrows * groups_per_row
-        g_start = pid * BLOCK_G; g_ids = g_start + tl.arange(0, BLOCK_G); g_mask = g_ids < total_groups
-        rows = g_ids // groups_per_row; col_starts = (g_ids % groups_per_row) * GROUP_SIZE; g_offs = tl.arange(0, GROUP_SIZE)
-        thr = tl.load(Thr_ptr).to(tl.float32); scale_mult = tl.load(ScaleMult_ptr).to(tl.float32)
-        w_groups = tl.load(W_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :], mask=g_mask[:, None] & ((col_starts[:, None] + g_offs[None, :]) < ncols), other=0.0)
+        pid = tl.program_id(0)
+        groups_per_row = ncols_padded // GROUP_SIZE
+        total_groups = nrows * groups_per_row
+        g_start = pid * BLOCK_G
+        g_ids = g_start + tl.arange(0, BLOCK_G)
+        g_mask = g_ids < total_groups
+        rows = g_ids // groups_per_row
+        col_starts = g_ids % groups_per_row * GROUP_SIZE
+        g_offs = tl.arange(0, GROUP_SIZE)
+        thr = tl.load(Thr_ptr).to(tl.float32)
+        scale_mult = tl.load(ScaleMult_ptr).to(tl.float32)
+        w_groups = tl.load(W_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :], mask=g_mask[:, None] & (col_starts[:, None] + g_offs[None, :] < ncols), other=0.0)
         if HAS_TURBO:
             H = tl.load(H_ptr + tl.arange(0, GROUP_SIZE)[:, None] * GROUP_SIZE + tl.arange(0, GROUP_SIZE)[None, :])
             w_groups = tl.dot(w_groups.to(tl.bfloat16), H.to(tl.bfloat16))
-        scale = tl.maximum(tl.sum(tl.abs(w_groups), axis=1) / GROUP_SIZE, 5.96e-8); z = w_groups / scale[:, None]; abs_z = tl.abs(z)
-        q = tl.where(z >= 0, (abs_z + 0.5).to(tl.int32).to(tl.float32), -((abs_z + 0.5).to(tl.int32).to(tl.float32)))
-        q = tl.minimum(tl.maximum(q, -1.0), 1.0); q = tl.where((thr > 0.0) & (tl.abs(z) < thr), 0.0, q)
+        scale = tl.maximum(tl.sum(tl.abs(w_groups), axis=1) / GROUP_SIZE, 5.96e-08)
+        z = w_groups / scale[:, None]
+        abs_z = tl.abs(z)
+        q = tl.where(z >= 0, (abs_z + 0.5).to(tl.int32).to(tl.float32), -(abs_z + 0.5).to(tl.int32).to(tl.float32))
+        q = tl.minimum(tl.maximum(q, -1.0), 1.0)
+        q = tl.where((thr > 0.0) & (tl.abs(z) < thr), 0.0, q)
         dequant = q * (scale[:, None] * scale_mult)
-        if HAS_TURBO: dequant = tl.dot(dequant.to(tl.bfloat16), H.to(tl.bfloat16))
-        tl.store(Out_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :], dequant.to(w_groups.dtype), mask=g_mask[:, None] & ((col_starts[:, None] + g_offs[None, :]) < ncols))
+        if HAS_TURBO:
+            dequant = tl.dot(dequant.to(tl.bfloat16), H.to(tl.bfloat16))
+        tl.store(Out_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :], dequant.to(w_groups.dtype), mask=g_mask[:, None] & (col_starts[:, None] + g_offs[None, :] < ncols))
 
 def triton_ternary_dequant(w: Tensor, group_size: int, H_fixed: Tensor | None, calib_thr: Tensor, calib_scale_mult: Tensor, turbo: bool) -> Tensor:
-    nrows, ncols = w.shape[0], w.shape[-1]; pad = (group_size - ncols % group_size) % group_size; ncols_padded = ncols + pad
-    out = torch.empty(nrows, ncols, dtype=w.dtype, device=w.device); grid = (triton.cdiv(nrows * (ncols_padded // group_size), 16),)
-    _ternary_dequant_kernel[grid](w, out, H_fixed if (turbo and H_fixed is not None) else torch.zeros(1, device=w.device), calib_thr, calib_scale_mult, nrows, ncols, ncols_padded, GROUP_SIZE=group_size, BLOCK_G=16, HAS_TURBO=(turbo and H_fixed is not None), num_warps=4, num_stages=2)
+    (nrows, ncols) = (w.shape[0], w.shape[-1])
+    pad = (group_size - ncols % group_size) % group_size
+    ncols_padded = ncols + pad
+    out = torch.empty(nrows, ncols, dtype=w.dtype, device=w.device)
+    grid = (triton.cdiv(nrows * (ncols_padded // group_size), 16),)
+    _ternary_dequant_kernel[grid](w, out, H_fixed if turbo and H_fixed is not None else torch.zeros(1, device=w.device), calib_thr, calib_scale_mult, nrows, ncols, ncols_padded, GROUP_SIZE=group_size, BLOCK_G=16, HAS_TURBO=turbo and H_fixed is not None, num_warps=4, num_stages=2)
     return out
 
 def optimized_moe_dispatch(x_flat: Tensor, experts: list, selected_experts: Tensor, routing_weights: Tensor, effective_top_k: int, num_experts: int) -> Tensor:
     final_output = torch.zeros_like(x_flat)
     for k_idx in range(effective_top_k):
-        expert_ids = selected_experts[:, k_idx]; weights_k = routing_weights[:, k_idx:k_idx+1]
-        for i, expert in enumerate(experts):
+        expert_ids = selected_experts[:, k_idx]
+        weights_k = routing_weights[:, k_idx:k_idx + 1]
+        for (i, expert) in enumerate(experts):
             token_indices = (expert_ids == i).nonzero(as_tuple=True)[0]
-            if token_indices.numel() > 0: final_output.index_add_(0, token_indices, expert(x_flat[token_indices]) * weights_k[token_indices])
+            if token_indices.numel() > 0:
+                final_output.index_add_(0, token_indices, expert(x_flat[token_indices]) * weights_k[token_indices])
     return final_output
 
 def optimized_feedback_retrieve(q: Tensor, k: Tensor, v: Tensor, lr: Tensor, sketch_len: int) -> Tensor:
-    inner = torch.bmm(k, q.transpose(1, 2)); retrieved_t = (lr / max(sketch_len, 1)) * torch.bmm(v.transpose(1, 2), inner)
+    inner = torch.bmm(k, q.transpose(1, 2))
+    retrieved_t = lr / max(sketch_len, 1) * torch.bmm(v.transpose(1, 2), inner)
     return retrieved_t.transpose(1, 2)
-
-# --- Engram Triton Kernels ---
 if HAS_TRITON:
+
     @triton.jit
-    def _engram_hash_gather_kernel(
-        IDS_ptr, OUT_ptr,
-        TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr,
-        P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr,
-        B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr,
-        stride_ib, stride_it,
-        stride_ob, stride_ot, stride_od,
-    ):
-        """Fused bigram(2 heads) + trigram(2 heads) hash-and-gather for Engram 2×2 config.
-        Eliminates intermediate index tensor. One program per (batch, time) position.
-        """
+    def _engram_hash_gather_kernel_2x2(IDS_ptr, OUT_ptr, TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr, P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr, B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr, stride_ib, stride_it, stride_ob, stride_ot, stride_od):
         pid = tl.program_id(0)
         b_idx = pid // T_dim
         t_idx = pid % T_dim
@@ -193,124 +246,221 @@ if HAS_TRITON:
             return
         hd_offs = tl.arange(0, HD)
         out_base = b_idx * stride_ob + t_idx * stride_ot
-        # Load current and previous token IDs
         curr = tl.load(IDS_ptr + b_idx * stride_ib + t_idx * stride_it).to(tl.int64)
-        # Bigram head 0 & 1
         if t_idx >= 1:
             prev = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
             h0 = (prev * P0 + curr) % BUCKETS
             h1 = (prev * P1 + curr) % BUCKETS
-            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs)
-            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs)
+            e0 = tl.load(TBL0_ptr + h0 * HD + hd_offs).to(tl.float32)
+            e1 = tl.load(TBL1_ptr + h1 * HD + hd_offs).to(tl.float32)
         else:
-            e0 = tl.zeros((HD,), dtype=tl.bfloat16)
-            e1 = tl.zeros((HD,), dtype=tl.bfloat16)
-        # Trigram head 2 & 3
+            e0 = tl.zeros((HD,), dtype=tl.float32)
+            e1 = tl.zeros((HD,), dtype=tl.float32)
         if t_idx >= 2:
             pp = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 2) * stride_it).to(tl.int64)
             prev2 = tl.load(IDS_ptr + b_idx * stride_ib + (t_idx - 1) * stride_it).to(tl.int64)
             h2 = (pp * (P2 * P2) + prev2 * P2 + curr) % BUCKETS
             h3 = (pp * (P3 * P3) + prev2 * P3 + curr) % BUCKETS
-            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs)
-            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs)
+            e2 = tl.load(TBL2_ptr + h2 * HD + hd_offs).to(tl.float32)
+            e3 = tl.load(TBL3_ptr + h3 * HD + hd_offs).to(tl.float32)
         else:
-            e2 = tl.zeros((HD,), dtype=tl.bfloat16)
-            e3 = tl.zeros((HD,), dtype=tl.bfloat16)
-        # Store concatenated: [e0 | e1 | e2 | e3] → (4*HD,)
+            e2 = tl.zeros((HD,), dtype=tl.float32)
+            e3 = tl.zeros((HD,), dtype=tl.float32)
         tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
         tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
         tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
         tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
 
-def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor,
-                               num_orders: int, num_heads: int, head_dim: int,
-                               buckets: int) -> Tensor:
-    """Fused hash-and-gather for Engram 2×2 config. Falls back to None if not applicable."""
-    if not HAS_TRITON or not input_ids.is_cuda or num_orders != 2 or num_heads != 2:
-        return None  # caller uses PyTorch fallback
-    B, T = input_ids.shape
+    @triton.jit
+    def _engram_hash_gather_kernel_3x3(IDS_ptr, OUT_ptr, TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr, TBL4_ptr, TBL5_ptr, TBL6_ptr, TBL7_ptr, TBL8_ptr, P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr, P4: tl.constexpr, P5: tl.constexpr, P6: tl.constexpr, P7: tl.constexpr, P8: tl.constexpr, B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr, stride_ib, stride_it, stride_ob, stride_ot, stride_od):
+        pid = tl.program_id(0)
+        b_idx = pid // T_dim
+        t_idx = pid % T_dim
+        if b_idx >= B_dim:
+            return
+        hd_offs = tl.arange(0, HD)
+        out_base = b_idx * stride_ob + t_idx * stride_ot
+        ids_base = b_idx * stride_ib
+        curr = tl.load(IDS_ptr + ids_base + t_idx * stride_it).to(tl.int64)
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            e0 = tl.load(TBL0_ptr + ((prev * P0 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e1 = tl.load(TBL1_ptr + ((prev * P1 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e2 = tl.load(TBL2_ptr + ((prev * P2 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+        else:
+            e0 = tl.zeros((HD,), dtype=tl.float32)
+            e1 = tl.zeros((HD,), dtype=tl.float32)
+            e2 = tl.zeros((HD,), dtype=tl.float32)
+        if t_idx >= 2:
+            pp = tl.load(IDS_ptr + ids_base + (t_idx - 2) * stride_it).to(tl.int64)
+            prev_t = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            e3 = tl.load(TBL3_ptr + ((pp * (P3 * P3) + prev_t * P3 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e4 = tl.load(TBL4_ptr + ((pp * (P4 * P4) + prev_t * P4 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e5 = tl.load(TBL5_ptr + ((pp * (P5 * P5) + prev_t * P5 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+        else:
+            e3 = tl.zeros((HD,), dtype=tl.float32)
+            e4 = tl.zeros((HD,), dtype=tl.float32)
+            e5 = tl.zeros((HD,), dtype=tl.float32)
+        if t_idx >= 3:
+            ppp = tl.load(IDS_ptr + ids_base + (t_idx - 3) * stride_it).to(tl.int64)
+            pp4 = tl.load(IDS_ptr + ids_base + (t_idx - 2) * stride_it).to(tl.int64)
+            prev4 = tl.load(IDS_ptr + ids_base + (t_idx - 1) * stride_it).to(tl.int64)
+            e6 = tl.load(TBL6_ptr + (((((ppp * P6 + pp4) % BUCKETS) * P6 + prev4) % BUCKETS * P6 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e7 = tl.load(TBL7_ptr + (((((ppp * P7 + pp4) % BUCKETS) * P7 + prev4) % BUCKETS * P7 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+            e8 = tl.load(TBL8_ptr + (((((ppp * P8 + pp4) % BUCKETS) * P8 + prev4) % BUCKETS * P8 + curr) % BUCKETS) * HD + hd_offs).to(tl.float32)
+        else:
+            e6 = tl.zeros((HD,), dtype=tl.float32)
+            e7 = tl.zeros((HD,), dtype=tl.float32)
+            e8 = tl.zeros((HD,), dtype=tl.float32)
+        tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0)
+        tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1)
+        tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2)
+        tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3)
+        tl.store(OUT_ptr + out_base + (4 * HD + hd_offs) * stride_od, e4)
+        tl.store(OUT_ptr + out_base + (5 * HD + hd_offs) * stride_od, e5)
+        tl.store(OUT_ptr + out_base + (6 * HD + hd_offs) * stride_od, e6)
+        tl.store(OUT_ptr + out_base + (7 * HD + hd_offs) * stride_od, e7)
+        tl.store(OUT_ptr + out_base + (8 * HD + hd_offs) * stride_od, e8)
+
+    @triton.jit
+    def _spectral_decay_scan_fwd_kernel(X_ptr, GATE_ptr, DECAY_ptr, OUT_ptr, B_dim, NUM_BLOCKS, BLOCK_SZ: tl.constexpr, D_dim, stride_xb, stride_xn, stride_xt, stride_xd, stride_gb, stride_gn, stride_gt, stride_gd, stride_ob, stride_on, stride_ot, stride_od, BLOCK_D: tl.constexpr):
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(D_dim, BLOCK_D)
+        d_block = pid % tl.cdiv(D_dim, BLOCK_D)
+        if batch_idx >= B_dim:
+            return
+        d_offs = d_block * BLOCK_D + tl.arange(0, BLOCK_D)
+        d_mask = d_offs < D_dim
+        decay = tl.load(DECAY_ptr + d_offs, mask=d_mask, other=0.0).to(tl.float32)
+        decay = tl.minimum(tl.maximum(decay, 0.0), 0.999)
+        prefix = tl.zeros((BLOCK_D,), dtype=tl.float32)
+        for block_idx in range(NUM_BLOCKS):
+            x_base = batch_idx * stride_xb + block_idx * stride_xn
+            g_base = batch_idx * stride_gb + block_idx * stride_gn
+            o_base = batch_idx * stride_ob + block_idx * stride_on
+            for t in range(BLOCK_SZ):
+                x_val = tl.load(X_ptr + x_base + t * stride_xt + d_offs * stride_xd, mask=d_mask, other=0.0).to(tl.float32)
+                time_power = decay
+                for _tp in range(t):
+                    time_power = time_power * decay
+                out_val = x_val + prefix * time_power
+                tl.store(OUT_ptr + o_base + t * stride_ot + d_offs * stride_od, out_val.to(tl.bfloat16), mask=d_mask)
+            last_t = BLOCK_SZ - 1
+            x_last = tl.load(X_ptr + x_base + last_t * stride_xt + d_offs * stride_xd, mask=d_mask, other=0.0).to(tl.float32)
+            g_last = tl.load(GATE_ptr + g_base + last_t * stride_gt + d_offs * stride_gd, mask=d_mask, other=0.0).to(tl.float32)
+            prefix = decay * prefix + g_last * x_last
+
+def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor, num_orders: int, num_heads: int, head_dim: int, buckets: int) -> Tensor:
+    if not HAS_TRITON or not input_ids.is_cuda:
+        return None
+    (B, T) = input_ids.shape
     hash_dim = head_dim * num_orders * num_heads
     out = torch.empty(B, T, hash_dim, dtype=torch.bfloat16, device=input_ids.device)
-    p = primes[:4].tolist()
-    grid = (B * T,)
-    _engram_hash_gather_kernel[grid](
-        input_ids, out,
-        tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight,
-        p[0], p[1], p[2], p[3],
-        B, T, buckets, head_dim,
-        input_ids.stride(0), input_ids.stride(1),
-        out.stride(0), out.stride(1), out.stride(2),
-        num_warps=2, num_stages=1,
-    )
-    return out
+    p = primes[:num_orders * num_heads].tolist()
+    if num_orders == 2 and num_heads == 2:
+        _engram_hash_gather_kernel_2x2[(B * T,)](input_ids, out, tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight, p[0], p[1], p[2], p[3], B, T, buckets, head_dim, input_ids.stride(0), input_ids.stride(1), out.stride(0), out.stride(1), out.stride(2), num_warps=2, num_stages=1)
+        return out
+    elif num_orders == 3 and num_heads == 3:
+        _engram_hash_gather_kernel_3x3[(B * T,)](input_ids, out, tables[0].weight, tables[1].weight, tables[2].weight, tables[3].weight, tables[4].weight, tables[5].weight, tables[6].weight, tables[7].weight, tables[8].weight, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], B, T, buckets, head_dim, input_ids.stride(0), input_ids.stride(1), out.stride(0), out.stride(1), out.stride(2), num_warps=4, num_stages=1)
+        return out
+    return None
 
-def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor,
-                                     alpha: float = 0.05, entropy_thr: float = 2.0) -> Tensor:
-    """Apply Engram logit correction only when model entropy exceeds threshold.
-    Cheap, deterministic, no gradients. For eval-time only."""
+def triton_spectral_decay_scan(x_blocks: Tensor, decay_rates: Tensor, gate: Tensor) -> Tensor:
+    if not HAS_TRITON or not x_blocks.is_cuda or torch.compiler.is_compiling():
+        return None
+    (B, num_blocks, block_sz, D) = x_blocks.shape
+    if num_blocks <= 1:
+        return x_blocks
+    x_c = x_blocks.contiguous()
+    gate_c = gate.contiguous()
+    decay_c = decay_rates.contiguous()
+    out = torch.empty_like(x_c, dtype=torch.bfloat16)
+    BLOCK_D = min(D, 64)
+    num_programs = B * triton.cdiv(D, BLOCK_D)
+    _spectral_decay_scan_fwd_kernel[(num_programs,)](x_c, gate_c, decay_c, out, B, num_blocks, block_sz, D, x_c.stride(0), x_c.stride(1), x_c.stride(2), x_c.stride(3), gate_c.stride(0), gate_c.stride(1), gate_c.stride(2), gate_c.stride(3), out.stride(0), out.stride(1), out.stride(2), out.stride(3), BLOCK_D=BLOCK_D, num_warps=2, num_stages=1)
+    return out.to(x_blocks.dtype)
+
+if HAS_TRITON:
+
+    @triton.jit
+    def _rms_norm_fwd_kernel(X_ptr, OUT_ptr, N_dim: tl.constexpr, stride_xr, stride_xc, stride_or, stride_oc, eps: tl.constexpr, BLOCK_N: tl.constexpr):
+        row = tl.program_id(0)
+        col_offs = tl.arange(0, BLOCK_N)
+        mask = col_offs < N_dim
+        x = tl.load(X_ptr + row * stride_xr + col_offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
+        sq_sum = tl.sum(x * x, axis=0)
+        rms = tl.sqrt(sq_sum / N_dim + eps)
+        out = x / rms
+        tl.store(OUT_ptr + row * stride_or + col_offs * stride_oc, out.to(tl.bfloat16), mask=mask)
+
+def triton_rms_norm(x: Tensor, eps: float=1e-6) -> Tensor:
+    if not HAS_TRITON or not x.is_cuda or torch.compiler.is_compiling():
+        return F.rms_norm(x, (x.size(-1),))
+    orig_shape = x.shape
+    D = x.size(-1)
+    x_2d = x.reshape(-1, D).contiguous()
+    num_rows = x_2d.shape[0]
+    BLOCK_N = 1
+    while BLOCK_N < D:
+        BLOCK_N *= 2
+    if BLOCK_N > 8192:
+        return F.rms_norm(x, (x.size(-1),))
+    out = torch.empty_like(x_2d, dtype=torch.bfloat16)
+    _rms_norm_fwd_kernel[(num_rows,)](x_2d, out, D, x_2d.stride(0), x_2d.stride(1), out.stride(0), out.stride(1), eps=eps, BLOCK_N=BLOCK_N, num_warps=min(8, max(1, BLOCK_N // 256)), num_stages=1)
+    return out.reshape(orig_shape).to(x.dtype)
+
+def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor, alpha: float=0.05, entropy_thr: float=2.0) -> Tensor:
     with torch.no_grad():
         probs = torch.softmax(logits.float(), dim=-1)
         log_probs = torch.log(probs.clamp(min=1e-10))
-        entropy = -(probs * log_probs).sum(dim=-1, keepdim=True)  # (B, T, 1)
+        entropy = -(probs * log_probs).sum(dim=-1, keepdim=True)
         mask = (entropy > entropy_thr).to(logits.dtype)
         return logits + alpha * mask * engram_logits
-
-# --- Inductor Optimization Hooks ---
-if os.environ.get("TORCHINDUCTOR_FX_GRAPH_CACHE") == "1":
+if os.environ.get('TORCHINDUCTOR_FX_GRAPH_CACHE') == '1':
     try:
         import torch._inductor.config
         torch._inductor.config.fx_graph_cache = True
     except (ImportError, AttributeError):
         pass
-if os.environ.get("TORCHINDUCTOR_COMPILE_THREADS"):
+if os.environ.get('TORCHINDUCTOR_COMPILE_THREADS'):
     try:
         import torch._inductor.config
-        torch._inductor.config.compile_threads = int(os.environ["TORCHINDUCTOR_COMPILE_THREADS"])
+        torch._inductor.config.compile_threads = int(os.environ['TORCHINDUCTOR_COMPILE_THREADS'])
     except (ImportError, AttributeError, ValueError):
         pass
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.checkpoint import checkpoint
 try:
     from flash_attn_interface import flash_attn_func as _fa3_func
+
     def flash_attn_func(q, k, v, causal=False, **kwargs):
         return _fa3_func(q, k, v, causal=causal)
 except ImportError:
     try:
         from flash_attn import flash_attn_func as _fa2_func
+
         def flash_attn_func(q, k, v, causal=False, **kwargs):
-            # flash_attn v2: expects (B, T, H, D), returns (B, T, H, D)
             if q.size(2) != k.size(2):
                 if k.size(2) <= 0 or q.size(2) % k.size(2) != 0:
-                    raise ValueError(
-                        f"GQA head mismatch: q_heads={q.size(2)} must be divisible by kv_heads={k.size(2)}"
-                    )
+                    raise ValueError(f'GQA head mismatch: q_heads={q.size(2)} must be divisible by kv_heads={k.size(2)}')
                 r = q.size(2) // k.size(2)
                 k = k.repeat_interleave(r, dim=2)
                 v = v.repeat_interleave(r, dim=2)
             return _fa2_func(q, k, v, causal=causal)
     except ImportError:
+
         def flash_attn_func(q, k, v, causal=False, **kwargs):
-            q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            (q, k, v) = (q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2))
             if q.size(1) != k.size(1):
-                # Use unsqueeze and expand for virtual memory broadcast instead of physical copy
-                B, H_q, T, D = q.shape
-                _, H_kv, _, _ = k.shape
+                (B, H_q, T, D) = q.shape
+                (_, H_kv, _, _) = k.shape
                 if H_kv <= 0 or H_q % H_kv != 0:
-                    raise ValueError(
-                        f"GQA head mismatch: q_heads={H_q} must be divisible by kv_heads={H_kv}"
-                    )
+                    raise ValueError(f'GQA head mismatch: q_heads={H_q} must be divisible by kv_heads={H_kv}')
                 groups = H_q // H_kv
                 k = k[:, :, None, :, :].expand(B, H_kv, groups, T, D).reshape(B, H_q, T, D)
                 v = v[:, :, None, :, :].expand(B, H_kv, groups, T, D).reshape(B, H_q, T, D)
             return F.scaled_dot_product_attention(q, k, v, is_causal=causal).transpose(1, 2)
-
-# ---------------------------------------------------------------------------
-# Hardware Optimization Setup
-# ---------------------------------------------------------------------------
 if torch.cuda.is_available():
-    # Capability >= 8: bfloat16 (H100/A100/RTX 40xx)
-    # Capability >= 7: float16 (V100/RTX 20xx/30xx)
-    # Others: fallback to float32 (GTX 1650 Ti etc.)
     cap = torch.cuda.get_device_capability()
     if cap[0] >= 8:
         ptdtype = torch.bfloat16
@@ -321,421 +471,355 @@ if torch.cuda.is_available():
 else:
     ptdtype = torch.float32
 
-
 def autocast_context(device: torch.device):
-    if device.type == "cuda" and ptdtype != torch.float32:
-        return torch.autocast(device_type="cuda", dtype=ptdtype)
+    if device.type == 'cuda' and ptdtype != torch.float32:
+        return torch.autocast(device_type='cuda', dtype=ptdtype)
     return nullcontext()
 
-# ---------------------------------------------------------------------------
-# Hyperparameters (all configurable via environment variables)
-# ---------------------------------------------------------------------------
 def _e(k, d, t=str):
     v = os.environ.get(k, str(d))
     if t == bool:
         s = str(v).strip().lower()
-        if s in {"1", "true", "yes", "on"}:
+        if s in {'1', 'true', 'yes', 'on'}:
             return True
-        if s in {"0", "false", "no", "off"}:
+        if s in {'0', 'false', 'no', 'off'}:
             return False
-        raise ValueError(f"{k} must be a boolean value, got {v!r}")
+        raise ValueError(f'{k} must be a boolean value, got {v!r}')
     return t(v)
-
 
 def _e_fp_storage(k, d=0):
     v = os.environ.get(k, str(d)).strip().lower()
-    if v in {"0", "false", "off", "none", ""}:
+    if v in {'0', 'false', 'off', 'none', ''}:
         return False
-    if v in {"1", "true", "fp8"}:
-        return "fp8"
-    if v == "fp4":
-        return "fp4"
-    raise ValueError(f"{k} must be one of 0/1/fp4/fp8/false/true, got {v!r}")
+    if v in {'1', 'true', 'fp8'}:
+        return 'fp8'
+    if v == 'fp4':
+        return 'fp4'
+    raise ValueError(f'{k} must be one of 0/1/fp4/fp8/false/true, got {v!r}')
 
-
-def _e_int_tuple(k, d=""):
+def _e_int_tuple(k, d=''):
     v = os.environ.get(k, d)
     if v is None:
         return tuple()
-    parts = [p.strip() for p in str(v).split(",")]
+    parts = [p.strip() for p in str(v).split(',')]
     vals = [int(p) for p in parts if p]
     return tuple(vals)
-
 
 def _residual_scale_init(dim: int, init: float) -> nn.Parameter:
     return nn.Parameter(torch.full((dim,), float(init), dtype=torch.float32))
 
-
 def _resid_mix_init(dim: int, x0_fraction: float) -> nn.Parameter:
     x0_fraction = float(min(max(x0_fraction, 0.0), 1.0))
-    return nn.Parameter(
-        torch.stack((
-            torch.full((dim,), 1.0 - x0_fraction, dtype=torch.float32),
-            torch.full((dim,), x0_fraction, dtype=torch.float32),
-        ))
-    )
-
+    return nn.Parameter(torch.stack((torch.full((dim,), 1.0 - x0_fraction, dtype=torch.float32), torch.full((dim,), x0_fraction, dtype=torch.float32))))
 
 def _resid_mix_scalar_init(x0_fraction: float) -> nn.Parameter:
     x0_fraction = float(min(max(x0_fraction, 0.0), 1.0))
     return nn.Parameter(torch.tensor([1.0 - x0_fraction, x0_fraction], dtype=torch.float32))
 
-
 def _squared_lrelu_weight_std(fan_in: int, negative_slope: float) -> float:
     slope_sq = float(negative_slope) ** 2
     out_var = 1.5 * (1.0 + slope_sq * slope_sq) - 0.25 * (1.0 + slope_sq) ** 2
-    out_var = max(out_var, 1e-6)
+    out_var = max(out_var, 1e-06)
     return (1.0 / (max(fan_in, 1) * math.sqrt(out_var))) ** 0.5
-
-
 _FP16_TINY = float(torch.finfo(torch.float16).tiny)
-
 
 def _ternary_group_scale(x: Tensor) -> Tensor:
     return x.abs().mean(dim=-1, keepdim=True).half().float().clamp(min=_FP16_TINY)
 
 class Hyperparameters:
-    competition_profile = _e("COMPETITION_PROFILE", 0, bool)
-    data_path = _e("DATA_PATH", "./data/datasets/fineweb10B_sp1024", str)
-    tokenizer_path = _e("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model", str)
-    num_layers = _e("NUM_LAYERS", 8, int)
-    model_dim = _e("MODEL_DIM", 768, int)
-    vocab_size = _e("VOCAB_SIZE", 1024, int)
+    competition_profile = _e('COMPETITION_PROFILE', 0, bool)
+    data_path = _e('DATA_PATH', './data/datasets/fineweb10B_sp1024', str)
+    tokenizer_path = _e('TOKENIZER_PATH', './data/tokenizers/fineweb_1024_bpe.model', str)
+    num_layers = _e('NUM_LAYERS', 8, int)
+    model_dim = _e('MODEL_DIM', 768, int)
+    vocab_size = _e('VOCAB_SIZE', 1024, int)
 
     @property
-    def train_files(self): return os.path.join(self.data_path, "fineweb_train_*.bin")
+    def train_files(self):
+        return os.path.join(self.data_path, 'fineweb_train_*.bin')
+
     @property
-    def val_files(self): return os.path.join(self.data_path, "fineweb_val_*.bin")
-    run_id = os.environ.get("RUN_ID", f"run_{int(time.time())}")
-    seed = _e("SEED", 42, int)
-    compile_mode = _e("COMPILE_MODE", "default", str)
-    # val_batch_size, val_loss_every, and train_log_every are defined below near
-    # their related TTT/eval knobs — removed the duplicate early definitions that
-    # were silently overwritten and misled anyone reading the top of the config block.
-    iterations = _e("ITERATIONS", 10000, int)
-    warmdown_fraction = _e("WARMDOWN_FRACTION", 0.35, float)
-    warmup_steps = _e("WARMUP_STEPS", 5, int)
-    warmup_fraction = _e("WARMUP_FRACTION", 0.01, float)
-    compiler_warmup_steps = _e("COMPILER_WARMUP_STEPS", 1, int)  # separate pre-budget compile warmup
-    synthetic_warmup = _e("SYNTHETIC_WARMUP", 0, bool)
-    precompile_only = _e("PRECOMPILE_ONLY", 0, bool)
-    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 262144, int)
-    train_seq_len = _e("TRAIN_SEQ_LEN", 2048, int)
-    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 599.0, float)
-    num_kv_heads = _e("NUM_KV_HEADS", 4, int)
-    num_heads = _e("NUM_HEADS", 8, int)
-    mlp_mult = _e("MLP_MULT", 4, int)
-    tie_embeddings = _e("TIE_EMBEDDINGS", 1, int)
-    rope_base = _e("ROPE_BASE", 5000.0, float)
-    rope_type = _e("ROPE_TYPE", "yarn")
-    yarn_max_len = _e("YARN_MAX_LEN", 4096, int)
-    logit_softcap = _e("LOGIT_SOFTCAP", 30.0, float)
-    softcap_type = _e("SOFTCAP_TYPE", "poly")
-    tied_embed_init_std = _e("TIED_EMBED_INIT_STD", 0.005, float)
-    qk_gain_init = _e("QK_GAIN_INIT", 1.0, float)
-    activation_type = _e("ACTIVATION", "lrelu2")
-    leaky_relu_slope = _e("LEAKY_RELU_SLOPE", 0.5, float)
-    residual_scale_init = _e("RESIDUAL_SCALE_INIT", 0.05, float)
-    resid_mix_x0_init = _e("RESID_MIX_X0_INIT", 0.05, float)
-    residual_proj_init_std = _e("RESIDUAL_PROJ_INIT_STD", 0.002, float)
-    embed_dim = _e("EMBED_DIM", 254, int)
-    training_depth_recurrence = _e("TRAINING_DEPTH_RECURRENCE", 0, int)
-    recurrence_layers = _e_int_tuple("RECURRENCE_LAYERS", "")
-    feedback_enabled = _e("FEEDBACK_ENABLED", 0, bool)
-    feedback_dim = _e("FEEDBACK_DIM", 32, int)
-    feedback_sketch_tokens = _e("FEEDBACK_SKETCH_TOKENS", 2, int)
-    feedback_replay = _e("FEEDBACK_REPLAY", "decoder")
-    feedback_target = _e("FEEDBACK_TARGET", "decoder")
-    feedback_passes = _e("FEEDBACK_PASSES", 1, int)
-    eval_feedback_passes = _e("EVAL_FEEDBACK_PASSES", 2, int)
-    feedback_fp_storage = _e_fp_storage("FEEDBACK_FP_STORAGE", 0)
-    feedback_every = _e("FEEDBACK_EVERY", 2, int)
-    feedback_every_fraction = _e("FEEDBACK_EVERY_FRACTION", 0.0, float)
-    feedback_gate_init = _e("FEEDBACK_GATE_INIT", 0.05, float)
-    untie_at_fraction = _e("UNTIE_AT_FRACTION", 0.0, float)
-    moe_enabled = _e("MOE_ENABLED", 1, bool)
-    moe_num_experts = _e("MOE_NUM_EXPERTS", 3, int)
-    moe_top_k = _e("MOE_TOP_K", 1, int)
-    moe_router_aux_loss_coef = _e("MOE_ROUTER_AUX_LOSS_COEF", 0.001, float)
-    moe_start_fraction = _e("MOE_START_FRACTION", 0.65, float) # router warmup ends here; sparse MoE is active before that
-    moe_layer_frac = _e("MOE_LAYER_FRAC", 0.67, float)  # MoE only in top (1-frac) of layers
-    vrl_enabled = _e("VRL_ENABLED", 0, bool)
-    vrl_start_layer = _e("VRL_START_LAYER", 10, int)
-    adam_wd = _e("ADAM_WD", 0.04, float)
+    def val_files(self):
+        return os.path.join(self.data_path, 'fineweb_val_*.bin')
+    run_id = os.environ.get('RUN_ID', f'run_{int(time.time())}')
+    seed = _e('SEED', 42, int)
+    compile_mode = _e('COMPILE_MODE', 'default', str)
+    iterations = _e('ITERATIONS', 10000, int)
+    warmdown_fraction = _e('WARMDOWN_FRACTION', 0.35, float)
+    warmup_steps = _e('WARMUP_STEPS', 5, int)
+    warmup_fraction = _e('WARMUP_FRACTION', 0.01, float)
+    compiler_warmup_steps = _e('COMPILER_WARMUP_STEPS', 1, int)
+    synthetic_warmup = _e('SYNTHETIC_WARMUP', 0, bool)
+    precompile_only = _e('PRECOMPILE_ONLY', 0, bool)
+    train_batch_tokens = _e('TRAIN_BATCH_TOKENS', 262144, int)
+    train_seq_len = _e('TRAIN_SEQ_LEN', 2048, int)
+    max_wallclock_seconds = _e('MAX_WALLCLOCK_SECONDS', 599.0, float)
+    num_kv_heads = _e('NUM_KV_HEADS', 4, int)
+    num_heads = _e('NUM_HEADS', 8, int)
+    mlp_mult = _e('MLP_MULT', 4, int)
+    tie_embeddings = _e('TIE_EMBEDDINGS', 1, int)
+    rope_base = _e('ROPE_BASE', 5000.0, float)
+    rope_type = _e('ROPE_TYPE', 'yarn')
+    yarn_max_len = _e('YARN_MAX_LEN', 4096, int)
+    logit_softcap = _e('LOGIT_SOFTCAP', 30.0, float)
+    softcap_type = _e('SOFTCAP_TYPE', 'poly')
+    tied_embed_init_std = _e('TIED_EMBED_INIT_STD', 0.005, float)
+    qk_gain_init = _e('QK_GAIN_INIT', 1.0, float)
+    activation_type = _e('ACTIVATION', 'lrelu2')
+    leaky_relu_slope = _e('LEAKY_RELU_SLOPE', 0.5, float)
+    residual_scale_init = _e('RESIDUAL_SCALE_INIT', 0.05, float)
+    resid_mix_x0_init = _e('RESID_MIX_X0_INIT', 0.05, float)
+    residual_proj_init_std = _e('RESIDUAL_PROJ_INIT_STD', 0.002, float)
+    embed_dim = _e('EMBED_DIM', 254, int)
+    training_depth_recurrence = _e('TRAINING_DEPTH_RECURRENCE', 0, int)
+    recurrence_layers = _e_int_tuple('RECURRENCE_LAYERS', '')
+    feedback_enabled = _e('FEEDBACK_ENABLED', 0, bool)
+    feedback_dim = _e('FEEDBACK_DIM', 32, int)
+    feedback_sketch_tokens = _e('FEEDBACK_SKETCH_TOKENS', 2, int)
+    feedback_replay = _e('FEEDBACK_REPLAY', 'decoder')
+    feedback_target = _e('FEEDBACK_TARGET', 'decoder')
+    feedback_passes = _e('FEEDBACK_PASSES', 1, int)
+    eval_feedback_passes = _e('EVAL_FEEDBACK_PASSES', 2, int)
+    feedback_fp_storage = _e_fp_storage('FEEDBACK_FP_STORAGE', 0)
+    feedback_every = _e('FEEDBACK_EVERY', 2, int)
+    feedback_every_fraction = _e('FEEDBACK_EVERY_FRACTION', 0.0, float)
+    feedback_gate_init = _e('FEEDBACK_GATE_INIT', 0.05, float)
+    untie_at_fraction = _e('UNTIE_AT_FRACTION', 0.0, float)
+    moe_enabled = _e('MOE_ENABLED', 1, bool)
+    moe_num_experts = _e('MOE_NUM_EXPERTS', 3, int)
+    moe_top_k = _e('MOE_TOP_K', 1, int)
+    moe_router_aux_loss_coef = _e('MOE_ROUTER_AUX_LOSS_COEF', 0.001, float)
+    moe_start_fraction = _e('MOE_START_FRACTION', 0.65, float)
+    moe_layer_frac = _e('MOE_LAYER_FRAC', 0.67, float)
+    vrl_enabled = _e('VRL_ENABLED', 0, bool)
+    vrl_start_layer = _e('VRL_START_LAYER', 10, int)
+    adam_wd = _e('ADAM_WD', 0.04, float)
     beta1 = 0.9
     beta2 = 0.95
-    adam_eps = 1e-8
-    grad_clip_norm = _e("GRAD_CLIP_NORM", 0.3, float)
-    bitnet_group_size = _e("BITNET_GROUP_SIZE", 128, int)
-    shared_blocks = _e("SHARED_BLOCKS", 2, int)
-    capsule_enabled = _e("CAPSULE_ENABLED", 1, bool)
-    capsule_num = _e("CAPSULE_NUM", 16, int)
-    capsule_dim = _e("CAPSULE_DIM", 64, int)
-    capsule_carry_decay = _e("CAPSULE_CARRY_DECAY", 0.8, float)
-    capsule_carry_enabled = _e("CAPSULE_CARRY_ENABLED", 1, bool)
-    partial_rope_dims = _e("PARTIAL_ROPE_DIMS", 16, int)
-    ln_scale_damping = _e("LN_SCALE_DAMPING", 1, bool)
-    bigram_hash_enabled = _e("BIGRAM_HASH_ENABLED", 1, bool)  # C1: was hardcoded False in main()
-    bigram_hash_buckets = _e("BIGRAM_HASH_BUCKETS", 3072, int)  # was 4096; 3072 balances coverage vs artifact budget
-    bigram_hash_dim = _e("BIGRAM_HASH_DIM", 112, int)  # was 64; 112 = 4×28, divisible by 4 heads
-    engram_num_heads = _e("ENGRAM_NUM_HEADS", 4, int)
-    engram_num_orders = _e("ENGRAM_NUM_ORDERS", 3, int)
-    engram_inject_layer = _e("ENGRAM_INJECT_LAYER", 1, int)
-    engram_export_prune_enabled = _e("ENGRAM_EXPORT_PRUNE_ENABLED", 1, bool)
-    engram_export_keep_bigram_ratio = _e("ENGRAM_EXPORT_KEEP_BIGRAM_RATIO", 0.35, float)
-    engram_export_keep_trigram_ratio = _e("ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO", 0.20, float)
-    engram_export_keep_min_buckets = _e("ENGRAM_EXPORT_KEEP_MIN_BUCKETS", 128, int)
-    engram_export_keep_max_buckets = _e("ENGRAM_EXPORT_KEEP_MAX_BUCKETS", 0, int)
-    engram_export_score_alpha = _e("ENGRAM_EXPORT_SCORE_ALPHA", 0.85, float)
-    engram_export_token_budget = _e("ENGRAM_EXPORT_TOKEN_BUDGET", 16384, int)
-    xsa_start_layer = _e("XSA_START_LAYER", -1, int)
-    koopman_enabled = _e("KOOPMAN_ENABLED", 1, bool)
-    koopman_rank = _e("KOOPMAN_RANK", 2, int)
-    koopman_diag_init = _e("KOOPMAN_DIAG_INIT", 0.9, float)
-    koopman_consistency_weight = _e("KOOPMAN_CONSISTENCY_WEIGHT", 0.005, float)
-    koopman_speculator_enabled = _e("KOOPMAN_SPECULATOR_ENABLED", 1, bool)
-    koopman_speculator_steps = _e("KOOPMAN_SPECULATOR_STEPS", 3, int)
-    koopman_speculator_weight = _e("KOOPMAN_SPECULATOR_WEIGHT", 0.01, float)
-    adaptive_halt_enabled = _e("ADAPTIVE_HALT_ENABLED", 1, bool)
-    adaptive_halt_threshold = _e("ADAPTIVE_HALT_THRESHOLD", 0.05, float)
-    max_eval_passes = _e("MAX_EVAL_PASSES", 3, int)
-    architecture = _e("ARCHITECTURE", "hybrid")
-    # Koopman SSM hyperparameters (for SSM and hybrid modes)
-    koopman_state_dim = _e("KOOPMAN_STATE_DIM", 128, int)
-    koopman_mixer_rank = _e("KOOPMAN_MIXER_RANK", 4, int)
-    koopman_conv_kernel = _e("KOOPMAN_CONV_KERNEL", 4, int)
-    koopman_decay_window = _e("KOOPMAN_DECAY_WINDOW", 32, int)
-    koopman_scan_checkpoint = _e("KOOPMAN_SCAN_CHECKPOINT", 1, bool)
-    koopman_scan_checkpoint_min_seq = _e("KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ", 1024, int)
-
-    skc_num_capsules = _e("SKC_NUM_CAPSULES", 32, int)
-    skc_capsule_dim = _e("SKC_CAPSULE_DIM", 128, int)
-    skc_conv_kernel = _e("SKC_CONV_KERNEL", 4, int)
-    skc_block_size = _e("SKC_BLOCK_SIZE", 64, int)
-    skc_aux_entropy_fraction = _e("SKC_AUX_ENTROPY_FRACTION", 0.8, float)
-    fp_storage = _e_fp_storage("FP_STORAGE", 0)
-    ema_enabled = _e("EMA_ENABLED", 1, bool)
-    ema_eval_apply = _e("EMA_EVAL_APPLY", 1, bool)
-    ema_decay = _e("EMA_DECAY", 0.997, float)
-    ema_start_fraction = _e("EMA_START_FRACTION", 0.40, float)
-    # Matrix-parameter optimizer backend
-    matrix_optimizer = _e("MATRIX_OPTIMIZER", "muon")
-    # Optimizer LRs: tuned-down from the original 0.035 defaults which were too aggressive
-    # for a hybrid ternary architecture with Muon. Scale back up if loss curves are stable.
-    matrix_lr = _e("MATRIX_LR", 0.006, float)
-    scalar_lr = _e("SCALAR_LR", 0.001, float)
-    tied_embed_lr = _e("TIED_EMBED_LR", 0.004, float)
-    muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
-    muon_momentum_warmup_start = _e("MUON_MOMENTUM_WARMUP_START", 0.85, float)
-    muon_momentum_warmup_steps = _e("MUON_MOMENTUM_WARMUP_STEPS", 500, int)
-    muon_momentum_warmup_fraction = _e("MUON_MOMENTUM_WARMUP_FRACTION", 0.10, float)
-    muon_wd = _e("MUON_WD", 0.04, float)
-    muon_backend_steps = _e("MUON_BACKEND_STEPS", 5, int)
-    muon_active_grad_eps = _e("MUON_ACTIVE_GRAD_EPS", 1e-9, float)
-    # Eval features
-    sliding_eval = _e("SLIDING_EVAL", 1, bool)
-    sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 64, int)
-    sliding_batch_size = _e("SLIDING_BATCH_SIZE", 256, int)
-    temp_scaling = _e("TEMP_SCALING", 1, bool)
-    # Export
-    turbo_quant_export = _e("TURBO_QUANT_EXPORT", 1, bool)
-    # Must match turbo_quant_export. When export applies Hadamard rotation before
-    # quantization but training does not, the round-trip produces
-    # Quantize(W×H)×H ≠ Quantize(W) — a corrupted weight space. Both must agree.
-    turbo_quant_train = _e("TURBO_QUANT_TRAIN", 1, bool)
-    # Eval-time features
-    ngram_cache_enabled = _e("NGRAM_CACHE_ENABLED", 1, bool)
-    ngram_max_order = _e("NGRAM_MAX_ORDER", 5, int)
-    ngram_alpha_base = _e("NGRAM_ALPHA_BASE", 0.05, float)
-    ngram_alpha_scale = _e("NGRAM_ALPHA_SCALE", 0.55, float)
-    ngram_entropy_center = _e("NGRAM_ENTROPY_CENTER", 4.0, float)
-    ngram_alpha_max = _e("NGRAM_ALPHA_MAX", 0.85, float)
-    engram_eval_correction = _e("ENGRAM_EVAL_CORRECTION", 0, bool)
-    engram_eval_alpha = _e("ENGRAM_EVAL_ALPHA", 0.05, float)
-    engram_eval_entropy_thr = _e("ENGRAM_EVAL_ENTROPY_THR", 2.0, float)
-    engram_taper_start = _e("ENGRAM_TAPER_START", 0.4, float)
-    engram_taper_end = _e("ENGRAM_TAPER_END", 0.8, float)
-    ttt_enabled = _e("TTT_ENABLED", 0, bool)
-    ttt_scope = _e("TTT_SCOPE", "feedback")
-    ttt_lr = _e("TTT_LR", 0.002, float)
-    ttt_epochs = _e("TTT_EPOCHS", 3, int)
-    ttt_chunk_tokens = _e("TTT_CHUNK_TOKENS", 32768, int)
-    ttt_momentum = _e("TTT_MOMENTUM", 0.9, float)
-    ttt_batch_seqs = _e("TTT_BATCH_SEQS", 32, int)
-    ttt_grad_clip = _e("TTT_GRAD_CLIP", 1.0, float)
-    val_batch_size = _e("VAL_BATCH_SIZE", 32768, int)
-    val_loss_every = _e("VAL_LOSS_EVERY", 400, int)
-    val_loss_every_fraction = _e("VAL_LOSS_EVERY_FRACTION", 0.50, float)
-    train_log_every = _e("TRAIN_LOG_EVERY", 20, int)
-    train_log_every_fraction = _e("TRAIN_LOG_EVERY_FRACTION", 0.05, float)
-    churn_log_every = _e("CHURN_LOG_EVERY", 0, int)
-    churn_log_every_fraction = _e("CHURN_LOG_EVERY_FRACTION", 0.0, float)
-    batch_tokens_start = _e("BATCH_TOKENS_START", 0, int)
-    batch_schedule_fraction = _e("BATCH_SCHEDULE_FRACTION", 0.0, float)
-    seq_len_start = _e("SEQ_LEN_START", 0, int)
-    seq_schedule_fraction = _e("SEQ_SCHEDULE_FRACTION", 0.0, float)
-    curr_enabled = _e("CURRICULUM_ENABLED", 0, bool)
-    curr_p1_f = _e("CURRICULUM_PHASE1_FRAC", 0.05, float)
-    curr_p2_f = _e("CURRICULUM_PHASE2_FRAC", 0.10, float)
-    curr_p3_f = _e("CURRICULUM_PHASE3_FRAC", 0.17, float)
-    curr_p4_f = _e("CURRICULUM_PHASE4_FRAC", 0.25, float)
-    curr_p5_f = _e("CURRICULUM_PHASE5_FRAC", 0.35, float)
-    curr_p1_s = _e("CURRICULUM_PHASE1_SEQ", 64, int)
-    curr_p2_s = _e("CURRICULUM_PHASE2_SEQ", 128, int)
-    curr_p3_s = _e("CURRICULUM_PHASE3_SEQ", 256, int)
-    curr_p4_s = _e("CURRICULUM_PHASE4_SEQ", 512, int)
-    curr_p5_s = _e("CURRICULUM_PHASE5_SEQ", 1024, int)
-    eval_depth_recurrence = _e("EVAL_DEPTH_RECURRENCE", 0, int)
-    gptq_lite_enabled = _e("GPTQ_LITE_ENABLED", 0, bool)
-    gptq_lite_percentiles = _e("GPTQ_LITE_PERCENTILES", 5, int)
-    lzma_preset = _e("LZMA_PRESET", 4, int)
-    head_lr = _e("HEAD_LR", 0.002, float)
-    # Export fidelity: per-tensor threshold + scale calibration
-    ternary_threshold_search = _e("TERNARY_THRESHOLD_SEARCH", 0, bool)
-    ternary_threshold_low = _e("TERNARY_THRESHOLD_LOW", 0.02, float)
-    ternary_threshold_high = _e("TERNARY_THRESHOLD_HIGH", 0.15, float)
-    ternary_threshold_steps = _e("TERNARY_THRESHOLD_STEPS", 4, int)
-    ternary_scale_search = _e("TERNARY_SCALE_SEARCH", 0, bool)
-    ternary_scale_mult_low = _e("TERNARY_SCALE_MULT_LOW", 0.9, float)
-    ternary_scale_mult_high = _e("TERNARY_SCALE_MULT_HIGH", 1.1, float)
-    ternary_scale_mult_steps = _e("TERNARY_SCALE_MULT_STEPS", 3, int)
-    ternary_calib_top_n = _e("TERNARY_CALIB_TOP_N", 4, int)
-    calib_prefilter_mult = _e("CALIB_PREFILTER_MULT", 2, int)
-    calib_max_candidates = _e("CALIB_MAX_CANDIDATES", 12, int)
-    calib_max_evals = _e("CALIB_MAX_EVALS", 32, int)
-    calib_max_seconds = _e("CALIB_MAX_SECONDS", 30.0, float)
-    calib_second_pass = _e("CALIB_SECOND_PASS", 0, bool)
-    calib_proxy_max_tok = _e("CALIB_PROXY_MAX_TOK", 4096, int)
-    # Export proxy eval during training (select checkpoint by round-trip BPB)
-    export_proxy_eval = _e("EXPORT_PROXY_EVAL", 0, bool)
-    export_proxy_every = _e("EXPORT_PROXY_EVERY", 300, int)
-    export_proxy_every_fraction = _e("EXPORT_PROXY_EVERY_FRACTION", 0.25, float)
-    export_proxy_num_seqs = _e("EXPORT_PROXY_NUM_SEQS", 16, int)
-    export_proxy_use_best = _e("EXPORT_PROXY_USE_BEST", 1, bool)
-    # Export-aligned training: use calibrated quantizer in final phase
-    export_aligned_train = _e("EXPORT_ALIGNED_TRAIN", 0, bool)
-    export_aligned_train_start_fraction = _e("EXPORT_ALIGNED_TRAIN_START_FRACTION", 0.80, float)
-    reset_ssm_on_eos = _e("RESET_SSM_ON_EOS", 1, bool)
-    # Competition mode controls
-    export_mode = _e("EXPORT_MODE", "ternary_lzma", str)  # "ternary_lzma" | "competition_ternary" | "competition_gptq"
-    recurrence_start_fraction = _e("RECURRENCE_START_FRACTION", 0.0, float)  # 0 = always on (if depth>0), >0 = activate at fraction
-    recurrence_depth = _e("RECURRENCE_DEPTH", 2, int)   # effective depth multiplier when recurrence is active
-    skc_parallel_residual = _e("SKC_PARALLEL_RESIDUAL", 0, bool)  # use ParallelSKCBlock instead of SKCLayer
-    skc_recurrent_core = _e("SKC_RECURRENT_CORE", 0, bool)
-    skc_upper_branch = _e("SKC_UPPER_BRANCH", 0, bool)
-    ternary_clip_mode = _e("TERNARY_CLIP_MODE", "percentile", str)  # percentile | row_std | none
-    ternary_clip_rows_k = _e("TERNARY_CLIP_ROWS_K", 12.85, float)
-    ternary_embed_clip_rows_k = _e("TERNARY_EMBED_CLIP_ROWS_K", 20.0, float)
-    ternary_compress_brotli = _e("TERNARY_COMPRESS_BROTLI", 1, bool)
-    # Runtime path partitioning: legacy | strict.
-    # strict enforces P0/P1/P2 separation:
-    # - P0 always-on hot path: minimal compile-stable train core
-    # - P1 late-train only: fidelity convergence knobs
-    # - P2 eval/export only: cache/TTT/search/calibration extras
-    runtime_path_policy = _e("RUNTIME_PATH_POLICY", "strict", str)
-    # When True, final scoring uses batch_size=1 sequential eval to preserve
-    # SKC capsule carry state. Only used for final score measurement, not
-    # routine intermediate eval. This is the correct evaluation mode for
-    # SKC models whose carry signal improves BPB.
-    final_eval_sequential_carry = _e("FINAL_EVAL_SEQUENTIAL_CARRY", 0, bool)
-    hard_budget_bytes = _e("HARD_BUDGET_BYTES", 16000000, int)
-    hard_budget_enforce = _e("HARD_BUDGET_ENFORCE", 1, bool)
+    adam_eps = 1e-08
+    grad_clip_norm = _e('GRAD_CLIP_NORM', 0.3, float)
+    bitnet_group_size = _e('BITNET_GROUP_SIZE', 128, int)
+    shared_blocks = _e('SHARED_BLOCKS', 2, int)
+    capsule_enabled = _e('CAPSULE_ENABLED', 1, bool)
+    capsule_num = _e('CAPSULE_NUM', 16, int)
+    capsule_dim = _e('CAPSULE_DIM', 64, int)
+    capsule_carry_decay = _e('CAPSULE_CARRY_DECAY', 0.8, float)
+    capsule_carry_enabled = _e('CAPSULE_CARRY_ENABLED', 1, bool)
+    partial_rope_dims = _e('PARTIAL_ROPE_DIMS', 16, int)
+    ln_scale_damping = _e('LN_SCALE_DAMPING', 1, bool)
+    bigram_hash_enabled = _e('BIGRAM_HASH_ENABLED', 1, bool)
+    bigram_hash_buckets = _e('BIGRAM_HASH_BUCKETS', 3072, int)
+    bigram_hash_dim = _e('BIGRAM_HASH_DIM', 112, int)
+    engram_num_heads = _e('ENGRAM_NUM_HEADS', 4, int)
+    engram_num_orders = _e('ENGRAM_NUM_ORDERS', 3, int)
+    engram_inject_layer = _e('ENGRAM_INJECT_LAYER', 1, int)
+    engram_export_prune_enabled = _e('ENGRAM_EXPORT_PRUNE_ENABLED', 1, bool)
+    engram_export_keep_bigram_ratio = _e('ENGRAM_EXPORT_KEEP_BIGRAM_RATIO', 0.35, float)
+    engram_export_keep_trigram_ratio = _e('ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO', 0.2, float)
+    engram_export_keep_4gram_ratio = _e('ENGRAM_EXPORT_KEEP_4GRAM_RATIO', 0.15, float)
+    engram_export_keep_min_buckets = _e('ENGRAM_EXPORT_KEEP_MIN_BUCKETS', 128, int)
+    engram_export_keep_max_buckets = _e('ENGRAM_EXPORT_KEEP_MAX_BUCKETS', 0, int)
+    engram_export_score_alpha = _e('ENGRAM_EXPORT_SCORE_ALPHA', 0.85, float)
+    engram_export_token_budget = _e('ENGRAM_EXPORT_TOKEN_BUDGET', 16384, int)
+    eval_engram_enabled = _e('EVAL_ENGRAM_ENABLED', 0, bool)
+    eval_engram_buckets = _e('EVAL_ENGRAM_BUCKETS', 16384, int)
+    eval_engram_head_dim = _e('EVAL_ENGRAM_HEAD_DIM', 128, int)
+    eval_engram_num_heads = _e('EVAL_ENGRAM_NUM_HEADS', 3, int)
+    eval_engram_num_orders = _e('EVAL_ENGRAM_NUM_ORDERS', 3, int)
+    eval_engram_alpha = _e('EVAL_ENGRAM_ALPHA', 0.05, float)
+    eval_engram_entropy_thr = _e('EVAL_ENGRAM_ENTROPY_THR', 2.0, float)
+    eval_engram_laplace = _e('EVAL_ENGRAM_LAPLACE', 1.0, float)
+    freeze_packed_engram = _e('FREEZE_PACKED_ENGRAM', 1, bool)
+    freeze_check_strict = _e('FREEZE_CHECK_STRICT', 0, bool)
+    xsa_start_layer = _e('XSA_START_LAYER', -1, int)
+    koopman_enabled = _e('KOOPMAN_ENABLED', 1, bool)
+    koopman_rank = _e('KOOPMAN_RANK', 2, int)
+    koopman_diag_init = _e('KOOPMAN_DIAG_INIT', 0.9, float)
+    koopman_consistency_weight = _e('KOOPMAN_CONSISTENCY_WEIGHT', 0.005, float)
+    koopman_speculator_enabled = _e('KOOPMAN_SPECULATOR_ENABLED', 1, bool)
+    koopman_speculator_steps = _e('KOOPMAN_SPECULATOR_STEPS', 3, int)
+    koopman_speculator_weight = _e('KOOPMAN_SPECULATOR_WEIGHT', 0.01, float)
+    adaptive_halt_enabled = _e('ADAPTIVE_HALT_ENABLED', 1, bool)
+    adaptive_halt_threshold = _e('ADAPTIVE_HALT_THRESHOLD', 0.05, float)
+    max_eval_passes = _e('MAX_EVAL_PASSES', 3, int)
+    architecture = _e('ARCHITECTURE', 'hybrid')
+    koopman_state_dim = _e('KOOPMAN_STATE_DIM', 128, int)
+    koopman_mixer_rank = _e('KOOPMAN_MIXER_RANK', 4, int)
+    koopman_conv_kernel = _e('KOOPMAN_CONV_KERNEL', 4, int)
+    koopman_decay_window = _e('KOOPMAN_DECAY_WINDOW', 32, int)
+    koopman_scan_checkpoint = _e('KOOPMAN_SCAN_CHECKPOINT', 1, bool)
+    koopman_scan_checkpoint_min_seq = _e('KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ', 1024, int)
+    skc_num_capsules = _e('SKC_NUM_CAPSULES', 32, int)
+    skc_capsule_dim = _e('SKC_CAPSULE_DIM', 128, int)
+    skc_conv_kernel = _e('SKC_CONV_KERNEL', 4, int)
+    skc_block_size = _e('SKC_BLOCK_SIZE', 64, int)
+    skc_aux_entropy_fraction = _e('SKC_AUX_ENTROPY_FRACTION', 0.8, float)
+    fp_storage = _e_fp_storage('FP_STORAGE', 0)
+    ema_enabled = _e('EMA_ENABLED', 1, bool)
+    ema_eval_apply = _e('EMA_EVAL_APPLY', 1, bool)
+    ema_decay = _e('EMA_DECAY', 0.997, float)
+    ema_start_fraction = _e('EMA_START_FRACTION', 0.4, float)
+    matrix_optimizer = _e('MATRIX_OPTIMIZER', 'muon')
+    matrix_lr = _e('MATRIX_LR', 0.006, float)
+    scalar_lr = _e('SCALAR_LR', 0.001, float)
+    tied_embed_lr = _e('TIED_EMBED_LR', 0.004, float)
+    engram_lr = _e('ENGRAM_LR', 0.015, float)
+    muon_momentum = _e('MUON_MOMENTUM', 0.95, float)
+    muon_momentum_warmup_start = _e('MUON_MOMENTUM_WARMUP_START', 0.85, float)
+    muon_momentum_warmup_steps = _e('MUON_MOMENTUM_WARMUP_STEPS', 500, int)
+    muon_momentum_warmup_fraction = _e('MUON_MOMENTUM_WARMUP_FRACTION', 0.1, float)
+    muon_wd = _e('MUON_WD', 0.04, float)
+    muon_backend_steps = _e('MUON_BACKEND_STEPS', 5, int)
+    muon_active_grad_eps = _e('MUON_ACTIVE_GRAD_EPS', 1e-09, float)
+    sliding_eval = _e('SLIDING_EVAL', 1, bool)
+    sliding_eval_stride = _e('SLIDING_EVAL_STRIDE', 64, int)
+    sliding_batch_size = _e('SLIDING_BATCH_SIZE', 256, int)
+    temp_scaling = _e('TEMP_SCALING', 1, bool)
+    turbo_quant_export = _e('TURBO_QUANT_EXPORT', 1, bool)
+    turbo_quant_train = _e('TURBO_QUANT_TRAIN', 1, bool)
+    ngram_cache_enabled = _e('NGRAM_CACHE_ENABLED', 1, bool)
+    ngram_max_order = _e('NGRAM_MAX_ORDER', 5, int)
+    ngram_alpha_base = _e('NGRAM_ALPHA_BASE', 0.05, float)
+    ngram_alpha_scale = _e('NGRAM_ALPHA_SCALE', 0.55, float)
+    ngram_entropy_center = _e('NGRAM_ENTROPY_CENTER', 4.0, float)
+    ngram_alpha_max = _e('NGRAM_ALPHA_MAX', 0.85, float)
+    engram_eval_correction = _e('ENGRAM_EVAL_CORRECTION', 0, bool)
+    engram_eval_alpha = _e('ENGRAM_EVAL_ALPHA', 0.05, float)
+    engram_eval_entropy_thr = _e('ENGRAM_EVAL_ENTROPY_THR', 2.0, float)
+    engram_taper_start = _e('ENGRAM_TAPER_START', 0.4, float)
+    engram_taper_end = _e('ENGRAM_TAPER_END', 0.8, float)
+    ttt_enabled = _e('TTT_ENABLED', 0, bool)
+    ttt_scope = _e('TTT_SCOPE', 'feedback')
+    ttt_lr = _e('TTT_LR', 0.002, float)
+    ttt_epochs = _e('TTT_EPOCHS', 3, int)
+    ttt_chunk_tokens = _e('TTT_CHUNK_TOKENS', 32768, int)
+    ttt_momentum = _e('TTT_MOMENTUM', 0.9, float)
+    ttt_batch_seqs = _e('TTT_BATCH_SEQS', 32, int)
+    ttt_grad_clip = _e('TTT_GRAD_CLIP', 1.0, float)
+    val_batch_size = _e('VAL_BATCH_SIZE', 32768, int)
+    val_loss_every = _e('VAL_LOSS_EVERY', 400, int)
+    val_loss_every_fraction = _e('VAL_LOSS_EVERY_FRACTION', 0.5, float)
+    train_log_every = _e('TRAIN_LOG_EVERY', 20, int)
+    train_log_every_fraction = _e('TRAIN_LOG_EVERY_FRACTION', 0.05, float)
+    churn_log_every = _e('CHURN_LOG_EVERY', 0, int)
+    churn_log_every_fraction = _e('CHURN_LOG_EVERY_FRACTION', 0.0, float)
+    batch_tokens_start = _e('BATCH_TOKENS_START', 0, int)
+    batch_schedule_fraction = _e('BATCH_SCHEDULE_FRACTION', 0.0, float)
+    seq_len_start = _e('SEQ_LEN_START', 0, int)
+    seq_schedule_fraction = _e('SEQ_SCHEDULE_FRACTION', 0.0, float)
+    curr_enabled = _e('CURRICULUM_ENABLED', 0, bool)
+    curr_p1_f = _e('CURRICULUM_PHASE1_FRAC', 0.05, float)
+    curr_p2_f = _e('CURRICULUM_PHASE2_FRAC', 0.1, float)
+    curr_p3_f = _e('CURRICULUM_PHASE3_FRAC', 0.17, float)
+    curr_p4_f = _e('CURRICULUM_PHASE4_FRAC', 0.25, float)
+    curr_p5_f = _e('CURRICULUM_PHASE5_FRAC', 0.35, float)
+    curr_p1_s = _e('CURRICULUM_PHASE1_SEQ', 64, int)
+    curr_p2_s = _e('CURRICULUM_PHASE2_SEQ', 128, int)
+    curr_p3_s = _e('CURRICULUM_PHASE3_SEQ', 256, int)
+    curr_p4_s = _e('CURRICULUM_PHASE4_SEQ', 512, int)
+    curr_p5_s = _e('CURRICULUM_PHASE5_SEQ', 1024, int)
+    eval_depth_recurrence = _e('EVAL_DEPTH_RECURRENCE', 0, int)
+    gptq_lite_enabled = _e('GPTQ_LITE_ENABLED', 0, bool)
+    gptq_lite_percentiles = _e('GPTQ_LITE_PERCENTILES', 5, int)
+    lzma_preset = _e('LZMA_PRESET', 4, int)
+    head_lr = _e('HEAD_LR', 0.002, float)
+    ternary_threshold_search = _e('TERNARY_THRESHOLD_SEARCH', 0, bool)
+    ternary_threshold_low = _e('TERNARY_THRESHOLD_LOW', 0.02, float)
+    ternary_threshold_high = _e('TERNARY_THRESHOLD_HIGH', 0.15, float)
+    ternary_threshold_steps = _e('TERNARY_THRESHOLD_STEPS', 4, int)
+    ternary_scale_search = _e('TERNARY_SCALE_SEARCH', 0, bool)
+    ternary_scale_mult_low = _e('TERNARY_SCALE_MULT_LOW', 0.9, float)
+    ternary_scale_mult_high = _e('TERNARY_SCALE_MULT_HIGH', 1.1, float)
+    ternary_scale_mult_steps = _e('TERNARY_SCALE_MULT_STEPS', 3, int)
+    ternary_calib_top_n = _e('TERNARY_CALIB_TOP_N', 4, int)
+    calib_prefilter_mult = _e('CALIB_PREFILTER_MULT', 2, int)
+    calib_max_candidates = _e('CALIB_MAX_CANDIDATES', 12, int)
+    calib_max_evals = _e('CALIB_MAX_EVALS', 32, int)
+    calib_max_seconds = _e('CALIB_MAX_SECONDS', 30.0, float)
+    calib_second_pass = _e('CALIB_SECOND_PASS', 0, bool)
+    calib_proxy_max_tok = _e('CALIB_PROXY_MAX_TOK', 4096, int)
+    export_proxy_eval = _e('EXPORT_PROXY_EVAL', 0, bool)
+    export_proxy_every = _e('EXPORT_PROXY_EVERY', 300, int)
+    export_proxy_every_fraction = _e('EXPORT_PROXY_EVERY_FRACTION', 0.25, float)
+    export_proxy_num_seqs = _e('EXPORT_PROXY_NUM_SEQS', 16, int)
+    export_proxy_use_best = _e('EXPORT_PROXY_USE_BEST', 1, bool)
+    export_aligned_train = _e('EXPORT_ALIGNED_TRAIN', 0, bool)
+    export_aligned_train_start_fraction = _e('EXPORT_ALIGNED_TRAIN_START_FRACTION', 0.8, float)
+    reset_ssm_on_eos = _e('RESET_SSM_ON_EOS', 1, bool)
+    export_mode = _e('EXPORT_MODE', 'ternary_lzma', str)
+    recurrence_start_fraction = _e('RECURRENCE_START_FRACTION', 0.0, float)
+    recurrence_depth = _e('RECURRENCE_DEPTH', 2, int)
+    skc_parallel_residual = _e('SKC_PARALLEL_RESIDUAL', 0, bool)
+    skc_recurrent_core = _e('SKC_RECURRENT_CORE', 0, bool)
+    skc_upper_branch = _e('SKC_UPPER_BRANCH', 0, bool)
+    ternary_clip_mode = _e('TERNARY_CLIP_MODE', 'percentile', str)
+    ternary_clip_rows_k = _e('TERNARY_CLIP_ROWS_K', 12.85, float)
+    ternary_embed_clip_rows_k = _e('TERNARY_EMBED_CLIP_ROWS_K', 20.0, float)
+    ternary_compress_brotli = _e('TERNARY_COMPRESS_BROTLI', 1, bool)
+    runtime_path_policy = _e('RUNTIME_PATH_POLICY', 'strict', str)
+    final_eval_sequential_carry = _e('FINAL_EVAL_SEQUENTIAL_CARRY', 0, bool)
+    hard_budget_bytes = _e('HARD_BUDGET_BYTES', 16000000, int)
+    hard_budget_enforce = _e('HARD_BUDGET_ENFORCE', 1, bool)
 
 def validate_config_surface(args) -> None:
     args.softcap_type = args.softcap_type.lower()
     args.matrix_optimizer = args.matrix_optimizer.lower()
     args.export_mode = args.export_mode.lower()
     args.ternary_clip_mode = args.ternary_clip_mode.lower()
-    if args.softcap_type not in {"poly", "tanh"}:
-        raise ValueError(f"SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}")
-    if args.matrix_optimizer not in {"muon", "adamw", "adam"}:
-        raise ValueError(f"MATRIX_OPTIMIZER must be one of muon/adamw/adam, got {args.matrix_optimizer!r}")
-    if args.export_mode not in {"ternary_lzma", "competition_ternary", "competition_gptq"}:
-        raise ValueError(f"EXPORT_MODE must be one of ternary_lzma/competition_ternary/competition_gptq, got {args.export_mode!r}")
-    if args.ternary_clip_mode not in {"percentile", "row_std", "none"}:
-        raise ValueError(f"TERNARY_CLIP_MODE must be one of percentile/row_std/none, got {args.ternary_clip_mode!r}")
-    for frac_name in (
-        "warmup_fraction",
-        "muon_momentum_warmup_fraction",
-        "warmdown_fraction",
-        "ema_start_fraction",
-        "feedback_every_fraction",
-        "untie_at_fraction",
-        "seq_schedule_fraction",
-        "batch_schedule_fraction",
-        "curr_p1_f",
-        "curr_p2_f",
-        "curr_p3_f",
-        "curr_p4_f",
-        "curr_p5_f",
-        "val_loss_every_fraction",
-        "train_log_every_fraction",
-        "churn_log_every_fraction",
-        "export_proxy_every_fraction",
-        "export_aligned_train_start_fraction",
-        "moe_start_fraction",
-    ):
+    if args.softcap_type not in {'poly', 'tanh'}:
+        raise ValueError(f'SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}')
+    if args.matrix_optimizer not in {'muon', 'adamw', 'adam'}:
+        raise ValueError(f'MATRIX_OPTIMIZER must be one of muon/adamw/adam, got {args.matrix_optimizer!r}')
+    if args.export_mode not in {'ternary_lzma', 'competition_ternary', 'competition_gptq'}:
+        raise ValueError(f'EXPORT_MODE must be one of ternary_lzma/competition_ternary/competition_gptq, got {args.export_mode!r}')
+    if args.ternary_clip_mode not in {'percentile', 'row_std', 'none'}:
+        raise ValueError(f'TERNARY_CLIP_MODE must be one of percentile/row_std/none, got {args.ternary_clip_mode!r}')
+    for frac_name in ('warmup_fraction', 'muon_momentum_warmup_fraction', 'warmdown_fraction', 'ema_start_fraction', 'feedback_every_fraction', 'untie_at_fraction', 'seq_schedule_fraction', 'batch_schedule_fraction', 'curr_p1_f', 'curr_p2_f', 'curr_p3_f', 'curr_p4_f', 'curr_p5_f', 'val_loss_every_fraction', 'train_log_every_fraction', 'churn_log_every_fraction', 'export_proxy_every_fraction', 'export_aligned_train_start_fraction', 'moe_start_fraction'):
         frac_val = getattr(args, frac_name)
-        if not (0.0 <= frac_val <= 1.0):
-            raise ValueError(f"{frac_name.upper()} must be in [0, 1], got {frac_val}")
+        if not 0.0 <= frac_val <= 1.0:
+            raise ValueError(f'{frac_name.upper()} must be in [0, 1], got {frac_val}')
     if args.muon_active_grad_eps < 0.0:
-        raise ValueError(f"MUON_ACTIVE_GRAD_EPS must be >= 0, got {args.muon_active_grad_eps}")
-    if not (0.0 <= args.ngram_alpha_max < 1.0):
-        raise ValueError(f"NGRAM_ALPHA_MAX must be in [0, 1), got {args.ngram_alpha_max}")
+        raise ValueError(f'MUON_ACTIVE_GRAD_EPS must be >= 0, got {args.muon_active_grad_eps}')
+    if not 0.0 <= args.ngram_alpha_max < 1.0:
+        raise ValueError(f'NGRAM_ALPHA_MAX must be in [0, 1), got {args.ngram_alpha_max}')
     if args.residual_scale_init < 0.0:
-        raise ValueError(f"RESIDUAL_SCALE_INIT must be >= 0, got {args.residual_scale_init}")
-    if not (0.0 <= args.resid_mix_x0_init <= 1.0):
-        raise ValueError(f"RESID_MIX_X0_INIT must be in [0, 1], got {args.resid_mix_x0_init}")
+        raise ValueError(f'RESIDUAL_SCALE_INIT must be >= 0, got {args.residual_scale_init}')
+    if not 0.0 <= args.resid_mix_x0_init <= 1.0:
+        raise ValueError(f'RESID_MIX_X0_INIT must be in [0, 1], got {args.resid_mix_x0_init}')
     if args.residual_proj_init_std < 0.0:
-        raise ValueError(f"RESIDUAL_PROJ_INIT_STD must be >= 0, got {args.residual_proj_init_std}")
+        raise ValueError(f'RESIDUAL_PROJ_INIT_STD must be >= 0, got {args.residual_proj_init_std}')
     if args.feedback_gate_init < 0.0:
-        raise ValueError(f"FEEDBACK_GATE_INIT must be >= 0, got {args.feedback_gate_init}")
+        raise ValueError(f'FEEDBACK_GATE_INIT must be >= 0, got {args.feedback_gate_init}')
     if args.koopman_scan_checkpoint_min_seq < 0:
-        raise ValueError(
-            f"KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ must be >= 0, got {args.koopman_scan_checkpoint_min_seq}"
-        )
+        raise ValueError(f'KOOPMAN_SCAN_CHECKPOINT_MIN_SEQ must be >= 0, got {args.koopman_scan_checkpoint_min_seq}')
     if args.hard_budget_bytes < 0:
-        raise ValueError(f"HARD_BUDGET_BYTES must be >= 0, got {args.hard_budget_bytes}")
-    if not (0.0 <= args.skc_aux_entropy_fraction <= 1.0):
-        raise ValueError(
-            f"SKC_AUX_ENTROPY_FRACTION must be in [0, 1], got {args.skc_aux_entropy_fraction}"
-        )
-    if not (0.0 < args.engram_export_keep_bigram_ratio <= 1.0):
-        raise ValueError(
-            f"ENGRAM_EXPORT_KEEP_BIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_bigram_ratio}"
-        )
-    if not (0.0 < args.engram_export_keep_trigram_ratio <= 1.0):
-        raise ValueError(
-            f"ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_trigram_ratio}"
-        )
+        raise ValueError(f'HARD_BUDGET_BYTES must be >= 0, got {args.hard_budget_bytes}')
+    if not 0.0 <= args.skc_aux_entropy_fraction <= 1.0:
+        raise ValueError(f'SKC_AUX_ENTROPY_FRACTION must be in [0, 1], got {args.skc_aux_entropy_fraction}')
+    if not 0.0 < args.engram_export_keep_bigram_ratio <= 1.0:
+        raise ValueError(f'ENGRAM_EXPORT_KEEP_BIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_bigram_ratio}')
+    if not 0.0 < args.engram_export_keep_trigram_ratio <= 1.0:
+        raise ValueError(f'ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO must be in (0, 1], got {args.engram_export_keep_trigram_ratio}')
+    if not 0.0 < args.engram_export_keep_4gram_ratio <= 1.0:
+        raise ValueError(f'ENGRAM_EXPORT_KEEP_4GRAM_RATIO must be in (0, 1], got {args.engram_export_keep_4gram_ratio}')
     if args.engram_export_keep_min_buckets < 1:
-        raise ValueError(
-            f"ENGRAM_EXPORT_KEEP_MIN_BUCKETS must be >= 1, got {args.engram_export_keep_min_buckets}"
-        )
+        raise ValueError(f'ENGRAM_EXPORT_KEEP_MIN_BUCKETS must be >= 1, got {args.engram_export_keep_min_buckets}')
     if args.engram_export_keep_max_buckets < 0:
-        raise ValueError(
-            f"ENGRAM_EXPORT_KEEP_MAX_BUCKETS must be >= 0, got {args.engram_export_keep_max_buckets}"
-        )
-    if not (0.0 <= args.engram_export_score_alpha <= 1.0):
-        raise ValueError(
-            f"ENGRAM_EXPORT_SCORE_ALPHA must be in [0, 1], got {args.engram_export_score_alpha}"
-        )
+        raise ValueError(f'ENGRAM_EXPORT_KEEP_MAX_BUCKETS must be >= 0, got {args.engram_export_keep_max_buckets}')
+    if not 0.0 <= args.engram_export_score_alpha <= 1.0:
+        raise ValueError(f'ENGRAM_EXPORT_SCORE_ALPHA must be in [0, 1], got {args.engram_export_score_alpha}')
     if args.engram_export_token_budget < 0:
-        raise ValueError(
-            f"ENGRAM_EXPORT_TOKEN_BUDGET must be >= 0, got {args.engram_export_token_budget}"
-        )
-
+        raise ValueError(f'ENGRAM_EXPORT_TOKEN_BUDGET must be >= 0, got {args.engram_export_token_budget}')
 
 def apply_competition_profile(args) -> None:
     if not bool(args.competition_profile):
         return
+
     def _unset(name: str) -> bool:
         return name not in os.environ
-    # Tokenizer/data regime
-    args.data_path = "./data/datasets/fineweb10B_sp8192"
-    args.tokenizer_path = "./data/tokenizers/fineweb_8192_bpe.model"
+    args.data_path = './data/datasets/fineweb10B_sp8192'
+    args.tokenizer_path = './data/tokenizers/fineweb_8192_bpe.model'
     args.vocab_size = 8192
-    # Base geometry
     args.num_layers = 11
     args.model_dim = 512
     args.num_heads = 8
@@ -743,233 +827,210 @@ def apply_competition_profile(args) -> None:
     args.mlp_mult = 4
     args.partial_rope_dims = 16
     args.logit_softcap = 30.0
-    args.activation_type = "lrelu2"
+    args.activation_type = 'lrelu2'
     args.leaky_relu_slope = 0.5
-    # Recurrence and topology
     args.training_depth_recurrence = 3
     args.eval_depth_recurrence = 3
     args.recurrence_depth = 3
     args.recurrence_layers = (3, 4, 5)
     args.recurrence_start_fraction = 0.35
-    args.architecture = "competition"
+    args.architecture = 'competition'
     args.shared_blocks = 0
-    # Optimizer regime
     args.matrix_lr = 0.022
     args.scalar_lr = 0.001
     args.tied_embed_lr = 0.004
     args.muon_wd = 0.095
     args.ema_decay = 0.9965
-    args.ema_start_fraction = 0.40
+    args.ema_start_fraction = 0.4
     args.warmdown_fraction = 0.72
     args.muon_backend_steps = 5
     args.grad_clip_norm = 1.0
-    # Attention scaling
     args.qk_gain_init = 5.25
-    # TTT defaults (opt-in only — strict runtime path policy suppresses these).
-    # SKC-first: TTT is eval-time only by default; set TTT_ENABLED=1 to activate.
-    if _unset("TTT_ENABLED"):
-        args.ttt_enabled = 0
-    if _unset("TTT_SCOPE"):
-        args.ttt_scope = "skc_safe"
-    if _unset("TTT_LR"):
+    if _unset('TTT_ENABLED'):
+        args.ttt_enabled = 1
+    if _unset('TTT_SCOPE'):
+        args.ttt_scope = 'skc_safe'
+    if _unset('TTT_LR'):
         args.ttt_lr = 0.005
-    if _unset("TTT_EPOCHS"):
+    if _unset('TTT_EPOCHS'):
         args.ttt_epochs = 3
-    if _unset("TTT_CHUNK_TOKENS"):
+    if _unset('TTT_CHUNK_TOKENS'):
         args.ttt_chunk_tokens = 32768
-    if _unset("TTT_MOMENTUM"):
+    if _unset('TTT_MOMENTUM'):
         args.ttt_momentum = 0.9
-    if _unset("TTT_GRAD_CLIP"):
+    if _unset('TTT_GRAD_CLIP'):
         args.ttt_grad_clip = 1.0
-    # Export mode
-    if _unset("EXPORT_MODE"):
-        args.export_mode = "competition_gptq"
-    if args.export_mode == "competition_gptq" and _unset("FP_STORAGE"):
-        args.fp_storage = "fp4"
-    # Hard-disable non-paying feature surface in competition mode
+    if _unset('EXPORT_MODE'):
+        args.export_mode = 'competition_gptq'
+    if args.export_mode == 'competition_gptq' and _unset('FP_STORAGE'):
+        args.fp_storage = 'fp4'
     args.moe_enabled = 0
     args.moe_num_experts = 1
     args.moe_top_k = 1
     args.moe_router_aux_loss_coef = 0.0
     args.feedback_enabled = 0
     args.capsule_enabled = 0
-    # Engram: conditionally re-enabled via ENGRAM_COMPETITION_ENABLED=1
-    if _unset("BIGRAM_HASH_ENABLED"):
-        args.bigram_hash_enabled = int(bool(int(os.environ.get("ENGRAM_COMPETITION_ENABLED", "0"))))
-    # When Engram is enabled in competition mode, use ultra-compact config
+    if _unset('BIGRAM_HASH_ENABLED'):
+        args.bigram_hash_enabled = int(bool(int(os.environ.get('ENGRAM_COMPETITION_ENABLED', '1'))))
     if args.bigram_hash_enabled:
-        if _unset("BIGRAM_HASH_BUCKETS"): args.bigram_hash_buckets = 4096
-        if _unset("BIGRAM_HASH_DIM"): args.bigram_hash_dim = 32
-        if _unset("ENGRAM_NUM_HEADS"): args.engram_num_heads = 2
-        if _unset("ENGRAM_NUM_ORDERS"): args.engram_num_orders = 2
-        if _unset("ENGRAM_INJECT_LAYER"): args.engram_inject_layer = 1
-        if _unset("ENGRAM_EXPORT_PRUNE_ENABLED"): args.engram_export_prune_enabled = 1
-        if _unset("ENGRAM_EXPORT_KEEP_BIGRAM_RATIO"): args.engram_export_keep_bigram_ratio = 0.50
-        if _unset("ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO"): args.engram_export_keep_trigram_ratio = 0.25
-        if _unset("ENGRAM_EXPORT_KEEP_MIN_BUCKETS"): args.engram_export_keep_min_buckets = 256
-        if _unset("ENGRAM_EXPORT_KEEP_MAX_BUCKETS"): args.engram_export_keep_max_buckets = 0
-        if _unset("ENGRAM_EXPORT_SCORE_ALPHA"): args.engram_export_score_alpha = 0.80
-        if _unset("ENGRAM_EXPORT_TOKEN_BUDGET"): args.engram_export_token_budget = 32768
+        if _unset('BIGRAM_HASH_BUCKETS'):
+            args.bigram_hash_buckets = 32768
+        if _unset('BIGRAM_HASH_DIM'):
+            args.bigram_hash_dim = 192
+        if _unset('ENGRAM_NUM_HEADS'):
+            args.engram_num_heads = 3
+        if _unset('ENGRAM_NUM_ORDERS'):
+            args.engram_num_orders = 3
+        if _unset('ENGRAM_INJECT_LAYER'):
+            args.engram_inject_layer = 1
+        if _unset('ENGRAM_EXPORT_PRUNE_ENABLED'):
+            args.engram_export_prune_enabled = 1
+        if _unset('ENGRAM_EXPORT_KEEP_BIGRAM_RATIO'):
+            args.engram_export_keep_bigram_ratio = 0.5
+        if _unset('ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO'):
+            args.engram_export_keep_trigram_ratio = 0.25
+        if _unset('ENGRAM_EXPORT_KEEP_4GRAM_RATIO'):
+            args.engram_export_keep_4gram_ratio = 0.15
+        if _unset('ENGRAM_EXPORT_KEEP_MIN_BUCKETS'):
+            args.engram_export_keep_min_buckets = 256
+        if _unset('ENGRAM_EXPORT_KEEP_MAX_BUCKETS'):
+            args.engram_export_keep_max_buckets = 0
+        if _unset('ENGRAM_EXPORT_SCORE_ALPHA'):
+            args.engram_export_score_alpha = 0.8
+        if _unset('ENGRAM_EXPORT_TOKEN_BUDGET'):
+            args.engram_export_token_budget = 65536
     args.ngram_cache_enabled = 0
     args.koopman_enabled = 0
     args.koopman_speculator_enabled = 0
     args.adaptive_halt_enabled = 0
     args.vrl_enabled = 0
     args.gptq_lite_enabled = 0
-    # Competition-lean SKC defaults; enabled only via explicit SKC_* switches.
     args.skc_num_capsules = 16
     args.skc_capsule_dim = 64
     args.skc_conv_kernel = 4
     args.skc_block_size = 64
     args.skc_aux_entropy_fraction = 0.3
-    # Keep run surface stable for benchmark parity.
     args.curr_enabled = 0
     args.batch_tokens_start = 0
     args.seq_len_start = 0
-    if args.export_mode == "competition_gptq":
-        if _unset("TERNARY_THRESHOLD_SEARCH"):
+    if args.export_mode == 'competition_gptq':
+        if _unset('TERNARY_THRESHOLD_SEARCH'):
             args.ternary_threshold_search = 0
-        if _unset("TERNARY_SCALE_SEARCH"):
+        if _unset('TERNARY_SCALE_SEARCH'):
             args.ternary_scale_search = 0
-    # SKC competition recipe: export-aligned training with late start.
-    # Raw convergence is cheap; the frontier is surviving serialization.
-    if _unset("EXPORT_ALIGNED_TRAIN"):
+    if _unset('EXPORT_ALIGNED_TRAIN'):
         args.export_aligned_train = 1
-    if _unset("EXPORT_ALIGNED_TRAIN_START_FRACTION"):
+    if _unset('EXPORT_ALIGNED_TRAIN_START_FRACTION'):
         args.export_aligned_train_start_fraction = 0.85
-    if _unset("TURBO_QUANT_TRAIN"):
-        args.turbo_quant_train = 0  # cheap surrogate early, align late
-    if _unset("TURBO_QUANT_EXPORT"):
-        args.turbo_quant_export = 1  # must be on for final export fidelity
-
+    if _unset('TURBO_QUANT_TRAIN'):
+        args.turbo_quant_train = 0
+    if _unset('TURBO_QUANT_EXPORT'):
+        args.turbo_quant_export = 1
 
 def apply_runtime_path_policy(args) -> None:
-    policy = str(getattr(args, "runtime_path_policy", "legacy")).strip().lower()
+    policy = str(getattr(args, 'runtime_path_policy', 'legacy')).strip().lower()
     args.runtime_path_policy = policy
-    if policy in {"legacy", "off", "none"}:
+    if policy in {'legacy', 'off', 'none'}:
         return
-
-    if policy != "strict":
-        raise ValueError(f"RUNTIME_PATH_POLICY must be one of legacy/strict, got {policy!r}")
+    if policy != 'strict':
+        raise ValueError(f'RUNTIME_PATH_POLICY must be one of legacy/strict, got {policy!r}')
 
     def _unset(name: str) -> bool:
         return name not in os.environ
-
-    # P0: sacred hot path defaults (compile-stable + low serial tax).
-    if _unset("MOE_ENABLED"):
+    if _unset('MOE_ENABLED'):
         args.moe_enabled = 0
         args.moe_num_experts = 1
         args.moe_top_k = 1
         args.moe_router_aux_loss_coef = 0.0
-    if _unset("FEEDBACK_ENABLED"):
+    if _unset('FEEDBACK_ENABLED'):
         args.feedback_enabled = 0
-    if _unset("FEEDBACK_PASSES"):
+    if _unset('FEEDBACK_PASSES'):
         args.feedback_passes = 0
-    if _unset("KOOPMAN_SPECULATOR_ENABLED"):
+    if _unset('KOOPMAN_SPECULATOR_ENABLED'):
         args.koopman_speculator_enabled = 0
-    if _unset("ADAPTIVE_HALT_ENABLED"):
+    if _unset('ADAPTIVE_HALT_ENABLED'):
         args.adaptive_halt_enabled = 0
-    if _unset("CAPSULE_ENABLED"):
+    if _unset('CAPSULE_ENABLED'):
         args.capsule_enabled = 0
-    if _unset("CAPSULE_CARRY_ENABLED"):
+    if _unset('CAPSULE_CARRY_ENABLED'):
         args.capsule_carry_enabled = 0
-    if _unset("BIGRAM_HASH_ENABLED"):
-        # In competition profile, allow ENGRAM_COMPETITION_ENABLED to control this
-        # even under strict runtime policy.
-        if bool(getattr(args, "competition_profile", 0)) and ("ENGRAM_COMPETITION_ENABLED" in os.environ):
-            args.bigram_hash_enabled = int(bool(int(os.environ.get("ENGRAM_COMPETITION_ENABLED", "0"))))
+    if _unset('BIGRAM_HASH_ENABLED'):
+        if bool(getattr(args, 'competition_profile', 0)) and 'ENGRAM_COMPETITION_ENABLED' in os.environ:
+            args.bigram_hash_enabled = int(bool(int(os.environ.get('ENGRAM_COMPETITION_ENABLED', '0'))))
         else:
             args.bigram_hash_enabled = 0
-    if _unset("ENGRAM_NUM_ORDERS"):
+    if _unset('ENGRAM_NUM_ORDERS'):
         args.engram_num_orders = 1
-    if _unset("MUON_BACKEND_STEPS"):
+    if _unset('MUON_BACKEND_STEPS'):
         args.muon_backend_steps = min(int(args.muon_backend_steps), 3)
-
-    # P1: late-train convergence knobs.
-    if _unset("EXPORT_ALIGNED_TRAIN"):
+    if _unset('EXPORT_ALIGNED_TRAIN'):
         args.export_aligned_train = 1
-    if _unset("EXPORT_ALIGNED_TRAIN_START_FRACTION"):
+    if _unset('EXPORT_ALIGNED_TRAIN_START_FRACTION'):
         args.export_aligned_train_start_fraction = 0.86
-    if int(args.recurrence_depth) > 0 and _unset("RECURRENCE_START_FRACTION"):
+    if int(args.recurrence_depth) > 0 and _unset('RECURRENCE_START_FRACTION'):
         args.recurrence_start_fraction = max(float(args.recurrence_start_fraction), 0.65)
-    if _unset("TURBO_QUANT_TRAIN"):
-        # Keep cheap surrogate path early; align late via export_aligned_train.
+    if _unset('TURBO_QUANT_TRAIN'):
         args.turbo_quant_train = 0
-
-    # P2/P3: keep eval/export/ablation extras off train hot path by default.
-    if _unset("TTT_ENABLED"):
-        args.ttt_enabled = 0
-    if _unset("NGRAM_CACHE_ENABLED"):
+    if _unset('TTT_ENABLED'):
+        args.ttt_enabled = 1
+    if _unset('NGRAM_CACHE_ENABLED'):
         args.ngram_cache_enabled = 0
-    if _unset("TERNARY_THRESHOLD_SEARCH"):
+    if _unset('TERNARY_THRESHOLD_SEARCH'):
         args.ternary_threshold_search = 0
-    if _unset("TERNARY_SCALE_SEARCH"):
+    if _unset('TERNARY_SCALE_SEARCH'):
         args.ternary_scale_search = 0
-    if _unset("EXPORT_PROXY_EVAL"):
+    if _unset('EXPORT_PROXY_EVAL'):
         args.export_proxy_eval = 0
-    if _unset("GPTQ_LITE_ENABLED"):
+    if _unset('GPTQ_LITE_ENABLED'):
         args.gptq_lite_enabled = 0
-    # SKC carry evaluation: force sequential eval for final scoring when
-    # capsule carry is enabled. This prevents the batched sliding evaluator
-    # from suppressing SKC's structural advantage.
-    if _unset("FINAL_EVAL_SEQUENTIAL_CARRY"):
+    if _unset('FINAL_EVAL_SEQUENTIAL_CARRY'):
         args.final_eval_sequential_carry = 1
 
-
-def resolve_eval_feedback_passes(args, feedback_passes: int | None = None) -> int:
+def resolve_eval_feedback_passes(args, feedback_passes: int | None=None) -> int:
     if feedback_passes is not None:
         return int(feedback_passes)
     if args.eval_feedback_passes > 0:
         return int(args.eval_feedback_passes)
     return int(args.feedback_passes)
+CTP = ('attn_scale', 'attn_scales', 'mlp_scale', 'mlp_scales', 'resid_mix', 'resid_mixes', 'q_gain', 'skip_weight', 'skip_weights', 'vocab_bias', 'add_gate', 'mul_gate', 'recurrent_gate', 'vrl_alpha', 'koopman', 'mixer_diag', 'mixer_lowrank', 'mixer_conv', 'mixer_scale')
 
-
-CTP = (
-    "attn_scale", "attn_scales", "mlp_scale", "mlp_scales", "resid_mix", "resid_mixes",
-    "q_gain", "skip_weight", "skip_weights", "vocab_bias", "add_gate", "mul_gate",
-    "recurrent_gate", "vrl_alpha",
-    "koopman",  # Koopman dynamics params go to scalar Adam for stability
-    "mixer_diag", "mixer_lowrank", "mixer_conv", "mixer_scale",  # Koopman SSM mixer scalars
-)
-
-# ---------------------------------------------------------------------------
-# Ternary packing — base-3 encoding (5 trits/byte)
-# ---------------------------------------------------------------------------
 def pack_ternary(q: Tensor):
     f = (q.reshape(-1).to(torch.int8) + 1).numpy()
     n = len(f)
     p = (5 - n % 5) % 5
-    if p: f = np.concatenate([f, np.zeros(p, dtype=np.int8)])
+    if p:
+        f = np.concatenate([f, np.zeros(p, dtype=np.int8)])
     g = f.reshape(-1, 5).astype(np.uint8)
-    return (g[:,0] + g[:,1]*3 + g[:,2]*9 + g[:,3]*27 + g[:,4]*81).tobytes(), n
+    return ((g[:, 0] + g[:, 1] * 3 + g[:, 2] * 9 + g[:, 3] * 27 + g[:, 4] * 81).tobytes(), n)
 
 def unpack_ternary(data: bytes, n: int) -> Tensor:
     v = np.frombuffer(data, dtype=np.uint8).astype(np.int16)
     t = np.zeros((len(v), 5), dtype=np.int8)
-    for i in range(5): t[:,i] = v % 3; v //= 3
+    for i in range(5):
+        t[:, i] = v % 3
+        v //= 3
     return torch.from_numpy(t.reshape(-1)[:n].astype(np.int8) - 1)
 
 def pack_ternary_bitmask(q: Tensor):
-    f = q.reshape(-1).to(torch.int8).numpy(); n = len(f)
-    nz = (f != 0)
-    return np.packbits(nz).tobytes() + np.packbits(f[nz] > 0).tobytes(), n
+    f = q.reshape(-1).to(torch.int8).numpy()
+    n = len(f)
+    nz = f != 0
+    return (np.packbits(nz).tobytes() + np.packbits(f[nz] > 0).tobytes(), n)
 
 def unpack_ternary_bitmask(data: bytes, n: int) -> Tensor:
     ms = (n + 7) // 8
     nz = np.unpackbits(np.frombuffer(data[:ms], dtype=np.uint8))[:n].astype(bool)
     s = np.unpackbits(np.frombuffer(data[ms:], dtype=np.uint8))[:int(nz.sum())].astype(bool)
-    w = np.zeros(n, dtype=np.int8); w[nz] = np.where(s, 1, -1)
+    w = np.zeros(n, dtype=np.int8)
+    w[nz] = np.where(s, 1, -1)
     return torch.from_numpy(w)
 
-# ---------------------------------------------------------------------------
-# FP4 quantization (per-row absmax, 2 values packed per byte)
-# ---------------------------------------------------------------------------
 def quantize_to_int4(t: Tensor) -> tuple[Tensor, Tensor, list]:
     t32 = t.float()
     orig_shape = t32.shape
     if t32.ndim < 2:
         t32 = t32.unsqueeze(0)
-    absmax = t32.abs().amax(dim=-1, keepdim=True).clamp(min=1e-8)
+    absmax = t32.abs().amax(dim=-1, keepdim=True).clamp(min=1e-08)
     scale = absmax / 7.0
     q = torch.clamp(torch.round(t32 / scale), -7, 7).to(torch.int8)
     flat = q.reshape(-1)
@@ -977,11 +1038,11 @@ def quantize_to_int4(t: Tensor) -> tuple[Tensor, Tensor, list]:
         flat = F.pad(flat, (0, 1))
     low = (flat[0::2] + 8).to(torch.uint8)
     high = (flat[1::2] + 8).to(torch.uint8)
-    return low | (high << 4), scale.half().squeeze(-1), list(orig_shape)
+    return (low | high << 4, scale.half().squeeze(-1), list(orig_shape))
 
 def dequantize_from_int4(packed: Tensor, scale: Tensor, shape: list) -> Tensor:
-    low = (packed & 0x0F).to(torch.int8) - 8
-    high = ((packed >> 4) & 0x0F).to(torch.int8) - 8
+    low = (packed & 15).to(torch.int8) - 8
+    high = (packed >> 4 & 15).to(torch.int8) - 8
     flat = torch.zeros(packed.numel() * 2, dtype=torch.int8)
     flat[0::2] = low
     flat[1::2] = high
@@ -993,90 +1054,56 @@ def dequantize_from_int4(packed: Tensor, scale: Tensor, shape: list) -> Tensor:
         return (flat * scale.float().squeeze()).reshape(shape)
     return (flat.reshape(-1, shape[-1]) * scale.float().unsqueeze(-1)).reshape(shape)
 
-
 def export_ternary_param_names(model: nn.Module) -> set[str]:
-    """Return the exact parameter names that train through the ternary path."""
     names: set[str] = set()
-    for module_name, module in model.named_modules():
+    for (module_name, module) in model.named_modules():
         if isinstance(module, TernaryLinear):
-            names.add(f"{module_name}.weight" if module_name else "weight")
+            names.add(f'{module_name}.weight' if module_name else 'weight')
     return names
-
-_LM_HEAD_STATE_KEY = "tok_stem.lm_head.weight"
-
+_LM_HEAD_STATE_KEY = 'tok_stem.lm_head.weight'
 
 def export_fp16_param_names(model: nn.Module) -> set[str]:
-    """Return parameter names that must bypass fp_storage quantisation at export.
-
-    q_sd() will FP4/FP8-quantise any 2D tensor not in this set when fp_storage is
-    enabled.  Layers that were NOT initialised as QATLinear (i.e. trained without
-    STE exposure) must land here, otherwise the round-trip applies post-training
-    compression they never saw during training — a direct train↔export mismatch
-    that degrades roundtrip BPB.
-
-    Conservative policy: force FP16 for any plain nn.Linear / projection that was
-    not wrapped in QATLinear at construction time.
-    """
     names: set[str] = set()
-    if not getattr(model, "tie_embeddings", False):
+    if not getattr(model, 'tie_embeddings', False):
         names.add(_LM_HEAD_STATE_KEY)
-    # Walk all named parameters and mark plain nn.Linear weights that are not
-    # inside a QATLinear (identified by presence of fp_storage attribute).
-    for full_name, module in model.named_modules():
-        if isinstance(module, nn.Linear) and not hasattr(module, "fp_storage"):
-            weight_name = full_name + ".weight"
+    for (full_name, module) in model.named_modules():
+        if isinstance(module, nn.Linear) and (not hasattr(module, 'fp_storage')):
+            weight_name = full_name + '.weight'
             names.add(weight_name)
-        if isinstance(module, nn.Embedding) and not hasattr(module, "fp_storage"):
-            weight_name = full_name + ".weight"
+        if isinstance(module, nn.Embedding) and (not hasattr(module, 'fp_storage')):
+            weight_name = full_name + '.weight'
             names.add(weight_name)
     return names
 
-
 def load_roundtrip_state_strict(model: nn.Module, state_dict: dict[str, Tensor]) -> None:
-    """Strictly load a round-trip state dict, allowing only the tied lm_head omission."""
     load_state = dict(state_dict)
-    # Backward compatibility for older artifacts that saved the bare key.
-    if "lm_head.weight" in load_state and _LM_HEAD_STATE_KEY not in load_state:
-        load_state[_LM_HEAD_STATE_KEY] = load_state.pop("lm_head.weight")
-    if getattr(model, "tie_embeddings", False) and _LM_HEAD_STATE_KEY not in load_state:
+    if 'lm_head.weight' in load_state and _LM_HEAD_STATE_KEY not in load_state:
+        load_state[_LM_HEAD_STATE_KEY] = load_state.pop('lm_head.weight')
+    if getattr(model, 'tie_embeddings', False) and _LM_HEAD_STATE_KEY not in load_state:
         load_state[_LM_HEAD_STATE_KEY] = model.tok_stem.lm_head.weight.detach().cpu().clone()
     model.load_state_dict(load_state, strict=True)
 
-
 def estimate_export_lower_bound_bytes(model: nn.Module, args, code_bytes: int) -> tuple[int, int, int, int]:
-    """Compute a conservative lower bound for artifact+code bytes.
-
-    Lower-bound assumes ideal entropy-coded ternary payload at log2(3) bits/param
-    plus unavoidable per-group scale bytes and exact fp16 bytes.
-    """
     sd = model.state_dict()
     ternary_names = export_ternary_param_names(model)
     ternary_names = {k for k in ternary_names if k in sd}
     fp_names = [k for k in sd.keys() if k not in ternary_names]
-    ternary_params = sum(sd[k].numel() for k in ternary_names)
-    fp_params = sum(sd[k].numel() for k in fp_names)
-    ternary_bytes_lb = int(math.ceil(ternary_params * (math.log2(3.0) / 8.0) + (ternary_params / max(int(args.bitnet_group_size), 1)) * 2.0))
-    # Match q_sd fp-storage semantics for lower-bound budget checks.
-    if args.fp_storage == "fp4":
+    ternary_params = sum((sd[k].numel() for k in ternary_names))
+    fp_params = sum((sd[k].numel() for k in fp_names))
+    ternary_bytes_lb = int(math.ceil(ternary_params * (math.log2(3.0) / 8.0) + ternary_params / max(int(args.bitnet_group_size), 1) * 2.0))
+    if args.fp_storage == 'fp4':
         fp_bytes = int(math.ceil(fp_params * 0.5))
-    elif args.fp_storage is True or args.fp_storage == "fp8":
+    elif args.fp_storage is True or args.fp_storage == 'fp8':
         fp_bytes = int(fp_params)
     else:
         fp_bytes = int(fp_params * 2)
     total_lb = int(ternary_bytes_lb + fp_bytes + code_bytes)
-    return total_lb, ternary_bytes_lb, fp_bytes, int(code_bytes)
+    return (total_lb, ternary_bytes_lb, fp_bytes, int(code_bytes))
 
-# ---------------------------------------------------------------------------
-# State dict serialization (ternary + fp16/fp8/fp4)
-# ---------------------------------------------------------------------------
-def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_method="standard",
-         ternary_override_names: set | None = None, calib: dict | None = None,
-         ternary_names: set[str] | None = None, turbo_quant_export: bool = True,
-         fp16_names: set[str] | None = None) -> tuple[dict, dict]:
-    "Ternary for large 2D weight matrices, fp16/fp8/fp4 for everything else."
+def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method='standard', ternary_override_names: set | None=None, calib: dict | None=None, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, fp16_names: set[str] | None=None) -> tuple[dict, dict]:
     quantized = {}
-    stats = {"ternary_params": 0, "ternary_bytes": 0, "fp_params": 0, "fp_bytes": 0}
-    for name, tensor in state_dict.items():
+    stats = {'ternary_params': 0, 'ternary_bytes': 0, 'fp_params': 0, 'fp_bytes': 0}
+    for (name, tensor) in state_dict.items():
         t = tensor.detach().cpu().float().contiguous()
         t_orig_shape = list(t.shape)
         if t.ndim == 3:
@@ -1085,27 +1112,20 @@ def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_metho
         if ternary_names is not None:
             is_ternary_candidate = name in ternary_names
         else:
-            is_ternary_candidate = (
-                t.ndim == 2 and t.numel() > 16_384
-                and "tok_emb" not in name and "lm_head" not in name and "embed_proj" not in name
-            ) or (ternary_override_names is not None and name in ternary_override_names) \
-              or ("prototypes" in name)
+            is_ternary_candidate = t.ndim == 2 and t.numel() > 16384 and ('tok_emb' not in name) and ('lm_head' not in name) and ('embed_proj' not in name) or (ternary_override_names is not None and name in ternary_override_names) or 'prototypes' in name
         if is_ternary_candidate:
             pad = (group_size - t.shape[1] % group_size) % group_size
             t_padded = F.pad(t, (0, pad)) if pad > 0 else t
             t_grouped = t_padded.reshape(-1, group_size)
-
-            # TurboQuant: Hadamard rotation before quantization for lower MSE
             turbo_used = False
-            if turbo_quant_export and (group_size & (group_size - 1)) == 0:
+            if turbo_quant_export and group_size & group_size - 1 == 0:
                 H = _build_hadamard_pt(group_size, t_grouped.device)
                 t_grouped = t_grouped @ H
                 turbo_used = True
-
             scale = _ternary_group_scale(t_grouped)
             tensor_calib = (calib or {}).get(name, {})
-            thr = tensor_calib.get("thr", 0.0)
-            scale_mult = tensor_calib.get("scale_mult", 1.0)
+            thr = tensor_calib.get('thr', 0.0)
+            scale_mult = tensor_calib.get('scale_mult', 1.0)
             z = t_grouped / scale
             if thr > 0.0:
                 q = torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1)).to(torch.int8)
@@ -1113,113 +1133,90 @@ def q_sd(state_dict: dict, group_size: int = 64, fp_storage=False, ternary_metho
                 q = z.round().clamp(-1, 1).to(torch.int8)
             if scale_mult != 1.0:
                 scale = scale * scale_mult
-
-            if ternary_method == "standard":
-                packed_bytes, n_trits = pack_ternary(q)
-                entry_type = "ternary"
+            if ternary_method == 'standard':
+                (packed_bytes, n_trits) = pack_ternary(q)
+                entry_type = 'ternary'
             else:
-                packed_bytes, n_trits = pack_ternary_bitmask(q)
-                entry_type = "ternary_bitmask"
-
-            entry = {
-                "type": entry_type, "packed": packed_bytes,
-                "scale": scale.half().squeeze(-1),
-                "shape": list(t.shape), "padded_cols": t_padded.shape[1],
-                "group_size": group_size, "n_trits": n_trits,
-                "orig_shape": t_orig_shape,
-            }
+                (packed_bytes, n_trits) = pack_ternary_bitmask(q)
+                entry_type = 'ternary_bitmask'
+            entry = {'type': entry_type, 'packed': packed_bytes, 'scale': scale.half().squeeze(-1), 'shape': list(t.shape), 'padded_cols': t_padded.shape[1], 'group_size': group_size, 'n_trits': n_trits, 'orig_shape': t_orig_shape}
             if turbo_used:
-                entry["turbo"] = True  # load path must inverse-Hadamard after dequant
+                entry['turbo'] = True
             quantized[name] = entry
-            stats["ternary_params"] += t.numel()
-            stats["ternary_bytes"] += len(packed_bytes) + scale.numel() * 2
-        elif not force_fp16 and fp_storage == "fp4" and t.ndim == 2:
-            packed, scale, orig_shape = quantize_to_int4(t)
-            quantized[name] = {"type": "fp4", "packed": packed, "scale": scale, "shape": orig_shape}
-            stats["fp_params"] += t.numel()
-            stats["fp_bytes"] += packed.numel() + scale.numel() * 2
-        elif not force_fp16 and fp_storage and t.ndim == 2:
-            quantized[name] = {"type": "fp8", "data": t.to(torch.float8_e4m3fn)}
-            stats["fp_params"] += t.numel()
-            stats["fp_bytes"] += t.numel()
+            stats['ternary_params'] += t.numel()
+            stats['ternary_bytes'] += len(packed_bytes) + scale.numel() * 2
+        elif not force_fp16 and fp_storage == 'fp4' and (t.ndim == 2):
+            (packed, scale, orig_shape) = quantize_to_int4(t)
+            quantized[name] = {'type': 'fp4', 'packed': packed, 'scale': scale, 'shape': orig_shape}
+            stats['fp_params'] += t.numel()
+            stats['fp_bytes'] += packed.numel() + scale.numel() * 2
+        elif not force_fp16 and fp_storage and (t.ndim == 2):
+            quantized[name] = {'type': 'fp8', 'data': t.to(torch.float8_e4m3fn)}
+            stats['fp_params'] += t.numel()
+            stats['fp_bytes'] += t.numel()
         else:
-            quantized[name] = {"type": "fp16", "data": t.half()}
-            stats["fp_params"] += t.numel()
-            stats["fp_bytes"] += t.numel() * 2
-    return quantized, stats
+            quantized[name] = {'type': 'fp16', 'data': t.half()}
+            stats['fp_params'] += t.numel()
+            stats['fp_bytes'] += t.numel() * 2
+    return (quantized, stats)
 
 def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
-    """Reconstruct full-precision state dict from quantized representation.
-
-    IMPORTANT: reconstruction must use `t = q * scale` (identical to training-time STE
-    in TernaryLinear.forward). Do NOT divide by q_absmean — that introduces a systematic
-    weight amplification that causes round-trip BPB drift.
-    """
     out = {}
-    for name, entry in quantized.items():
-        if entry["type"] in ("ternary", "ternary_bitmask"):
-            if entry["type"] == "ternary":
-                q = unpack_ternary(entry["packed"], entry["n_trits"])
+    for (name, entry) in quantized.items():
+        if entry['type'] in ('ternary', 'ternary_bitmask'):
+            if entry['type'] == 'ternary':
+                q = unpack_ternary(entry['packed'], entry['n_trits'])
             else:
-                q = unpack_ternary_bitmask(entry["packed"], entry["n_trits"])
-
-            gs = entry["group_size"]
+                q = unpack_ternary_bitmask(entry['packed'], entry['n_trits'])
+            gs = entry['group_size']
             q = q.float().reshape(-1, gs)
-            scale = entry["scale"].float().unsqueeze(-1)
-            # Must match TernaryLinear.forward(): dequant = q * scale
+            scale = entry['scale'].float().unsqueeze(-1)
             t = q * scale
-            # TurboQuant: inverse-Hadamard rotation to recover original-space weights
-            if entry.get("turbo") and (gs & (gs - 1)) == 0:
+            if entry.get('turbo') and gs & gs - 1 == 0:
                 H = _build_hadamard_pt(gs, t.device)
-                t = t @ H  # H is self-inverse
-            t = t.reshape(-1, entry["padded_cols"])
-            shape = entry["shape"]
+                t = t @ H
+            t = t.reshape(-1, entry['padded_cols'])
+            shape = entry['shape']
             result = t[:shape[0], :shape[1]].to(target_dtype)
-            orig = entry.get("orig_shape")
+            orig = entry.get('orig_shape')
             out[name] = result.reshape(orig).contiguous() if orig and orig != shape else result.contiguous()
-        elif entry["type"] == "fp8":
-            out[name] = entry["data"].to(torch.float32).to(target_dtype).contiguous()
-        elif entry["type"] == "fp4":
-            out[name] = dequantize_from_int4(entry["packed"], entry["scale"], entry["shape"]).to(target_dtype).contiguous()
+        elif entry['type'] == 'fp8':
+            out[name] = entry['data'].to(torch.float32).to(target_dtype).contiguous()
+        elif entry['type'] == 'fp4':
+            out[name] = dequantize_from_int4(entry['packed'], entry['scale'], entry['shape']).to(target_dtype).contiguous()
         else:
-            out[name] = entry["data"].to(target_dtype).contiguous()
+            out[name] = entry['data'].to(target_dtype).contiguous()
     return out
 
-# ---------------------------------------------------------------------------
-# Ternary diagnostics (logged during training)
-# ---------------------------------------------------------------------------
 def _row_padded_ternary_q(w: torch.Tensor, group_size: int) -> torch.Tensor:
-    """Quantize w using the exact same row-padded layout as q_sd export.
-    Returns quantized tensor shaped (nrows, ncols) — padding is stripped back off."""
     g = group_size
     if w.ndim == 3:
         w = w.reshape(w.shape[0], -1)
-    nrows, ncols = w.shape
+    (nrows, ncols) = w.shape
     pad = (g - ncols % g) % g
     w_p = F.pad(w, (0, pad)) if pad > 0 else w
     w_g = w_p.reshape(-1, g)
     scale = _ternary_group_scale(w_g)
     q = (w_g / scale).round().clamp(-1, 1)
-    return q.reshape(nrows, ncols + pad)[:, :ncols]  # strip padding
+    return q.reshape(nrows, ncols + pad)[:, :ncols]
 
-def tern_stats(model: nn.Module, group_size: int = 64):
+def tern_stats(model: nn.Module, group_size: int=64):
     total = zeros = 0
     with torch.no_grad():
-        for name, p in model.named_parameters():
-            if p.ndim >= 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
+        for (name, p) in model.named_parameters():
+            if p.ndim >= 2 and ('weight' in name or 'prototypes' in name) and (p.shape[0] > 1):
                 q = _row_padded_ternary_q(p.detach().float(), group_size)
                 zeros += int((q == 0).sum().item())
                 total += int(q.numel())
-    return {"zero_frac": zeros / max(total, 1), "total_weights": total}
-
+    return {'zero_frac': zeros / max(total, 1), 'total_weights': total}
 _prev_committed: dict = {}
 
-def churn_fn(model: nn.Module, group_size: int = 64):
+def churn_fn(model: nn.Module, group_size: int=64):
     global _prev_committed
     total = flipped = 0
     with torch.no_grad():
-        for name, p in model.named_parameters():
-            if p.ndim >= 2 and ("weight" in name or "prototypes" in name) and p.shape[0] > 1:
+        for (name, p) in model.named_parameters():
+            if p.ndim >= 2 and ('weight' in name or 'prototypes' in name) and (p.shape[0] > 1):
                 q = _row_padded_ternary_q(p.detach().float(), group_size).cpu().numpy()
                 if name in _prev_committed:
                     flipped += int(np.sum(q != _prev_committed[name]))
@@ -1227,53 +1224,35 @@ def churn_fn(model: nn.Module, group_size: int = 64):
                 _prev_committed[name] = q
     return flipped / max(total, 1)
 
-# ---------------------------------------------------------------------------
-# Muon optimizer (Newton-Schulz orthogonalized momentum)
-# ---------------------------------------------------------------------------
-def ns_orth(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
-    """Newton-Schulz orthogonalization with MuonEq-R row-normalization.
-
-    MuonEq-R: per-row L2 normalization before global normalization. This clamps
-    row-wise variance produced by KoopmanTokenMixer and SKCLayer spectral ops,
-    preventing a few high-norm rows from dominating the orthogonalization and
-    allowing the model to sustain higher matrix learning rates without diverging.
-    The clamp(min=eps) also handles dormant MoE expert rows with zero gradient.
-    """
-    a, b, c = (3.4445, -4.7750, 2.0315)
+def ns_orth(G: Tensor, steps: int=10, eps: float=1e-07) -> Tensor:
+    (a, b, c) = (3.4445, -4.775, 2.0315)
     X_full = G.bfloat16()
     out = torch.zeros_like(X_full)
-
-    # Skip dormant zero rows for NS iteration stability; keep them zero in output.
     row_norms = X_full.norm(p=2, dim=-1, keepdim=True)
-    active = (row_norms.squeeze(-1) > eps)
+    active = row_norms.squeeze(-1) > eps
     if not torch.any(active):
         return out
-
     X = X_full[active] / row_norms[active].clamp(min=eps)
     norm = X.norm()
     if norm < eps:
         out[active] = X
         return out
     X /= norm
-
     transposed = X.size(0) > X.size(1)
     if transposed:
         X = X.T
-
     for _ in range(steps):
         A = X @ X.T
         B = b * A + c * A @ A
         X = a * X + B @ X
-
     X = X.T if transposed else X
     out[active] = X
     return out
 
 class Muon(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
-                 nesterov: bool = True, wd: float = 0.0, active_grad_eps: float = 1e-9):
-        defaults = dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
-                        nesterov=nesterov, wd=wd, active_grad_eps=active_grad_eps)
+
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool=True, wd: float=0.0, active_grad_eps: float=1e-09):
+        defaults = dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, wd=wd, active_grad_eps=active_grad_eps)
         super().__init__(params, defaults)
 
     @torch.no_grad()
@@ -1282,55 +1261,41 @@ class Muon(torch.optim.Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-        
         for group in self.param_groups:
-            params = group["params"]
+            params = group['params']
             if not params:
                 continue
-            lr, momentum = group["lr"], group["momentum"]
-            backend_steps, nesterov = group["backend_steps"], group["nesterov"]
-            wd = group.get("wd", 0.0)
-            grad_eps = group.get("active_grad_eps", 1e-9)
-            
+            (lr, momentum) = (group['lr'], group['momentum'])
+            (backend_steps, nesterov) = (group['backend_steps'], group['nesterov'])
+            wd = group.get('wd', 0.0)
+            grad_eps = group.get('active_grad_eps', 1e-09)
             for p in params:
                 if p.grad is None:
                     continue
-                    
                 g = p.grad
                 state = self.state[p]
-                if "momentum_buffer" not in state:
-                    state["momentum_buffer"] = torch.zeros_like(g)
-                
-                buf = state["momentum_buffer"]
+                if 'momentum_buffer' not in state:
+                    state['momentum_buffer'] = torch.zeros_like(g)
+                buf = state['momentum_buffer']
                 buf.mul_(momentum).add_(g)
-                
                 if nesterov:
                     g_nes = g.add(buf, alpha=momentum)
                 else:
                     g_nes = buf
-
-                # 3D parameter support (Experts): orthogonalize and update per-expert.
-                # If an expert matrix is dormant (norm < grad_eps), weight decay and
-                # updates are skipped for that expert slice only.
                 if p.ndim == 3:
-                    # Expert-wise gradient norms
                     expert_norms = g.norm(p=2, dim=(1, 2), keepdim=True)
                     active = (expert_norms > grad_eps).to(p.dtype)
-                    
-                    # Compute g_orth per expert
                     g_orth = torch.zeros_like(g_nes)
                     for i in range(p.shape[0]):
                         if expert_norms[i] > grad_eps:
                             g_orth[i] = ns_orth(g_nes[i], steps=backend_steps)
                             g_orth[i] *= max(1, g_orth[i].size(0) / g_orth[i].size(1)) ** 0.5
-                    
                     if wd > 0:
                         p.data.mul_(1 - lr * wd * active)
                     p.data.add_(g_orth, alpha=-lr)
                 else:
                     g_orth = ns_orth(g_nes, steps=backend_steps)
                     g_orth *= max(1, g_orth.size(0) / g_orth.size(1)) ** 0.5
-                    
                     p_norm = g.norm()
                     if p_norm > grad_eps:
                         if wd > 0:
@@ -1338,25 +1303,23 @@ class Muon(torch.optim.Optimizer):
                         p.data.add_(g_orth, alpha=-lr)
         return loss
 
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
 def ld_shard(file: Path) -> Tensor:
-    header_bytes = 256 * np.dtype("<i4").itemsize
-    header = np.memmap(file, dtype="<i4", mode="r", shape=(256,))
+    header_bytes = 256 * np.dtype('<i4').itemsize
+    header = np.memmap(file, dtype='<i4', mode='r', shape=(256,))
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
-        raise ValueError(f"Unexpected shard header for {file}")
+        raise ValueError(f'Unexpected shard header for {file}')
     num_tokens = int(header[2])
-    tokens_np = np.memmap(file, dtype="<u2", mode="r", offset=header_bytes, shape=(num_tokens,))
+    tokens_np = np.memmap(file, dtype='<u2', mode='r', offset=header_bytes, shape=(num_tokens,))
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="The given NumPy array is not writable")
+        warnings.filterwarnings('ignore', message='The given NumPy array is not writable')
         return torch.from_numpy(tokens_np)
 
 class TokenStream:
+
     def __init__(self, pattern: str):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
-            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+            raise FileNotFoundError(f'No files found for pattern: {pattern}')
         self.file_idx = 0
         self.tokens = ld_shard(self.files[0])
         self.pos = 0
@@ -1381,42 +1344,33 @@ class TokenStream:
         return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
 
 class DistributedTokenLoader:
+
     def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
-        self.rank, self.world_size, self.device = rank, world_size, device
+        (self.rank, self.world_size, self.device) = (rank, world_size, device)
         self.stream = TokenStream(pattern)
-        self._copy_stream = torch.cuda.Stream(device) if device.type == "cuda" else None
+        self._copy_stream = torch.cuda.Stream(device) if device.type == 'cuda' else None
         self._prefetch: tuple[Tensor, Tensor] | None = None
-        # Double-buffer for pinned staging memory.
-        # A single pinned buffer is unsafe: wait_stream() synchronises the GPU but not
-        # the CPU. After wait_stream(), the CPU immediately calls _load_raw() for the
-        # next prefetch and copy_() would overwrite the same physical pages that the
-        # DMA engine may still be reading for the *previous* transfer. Using two buffers
-        # (A and B) means the CPU always writes to the buffer that the GPU is not
-        # currently reading from, eliminating the race.
         self._pinned_buffers: list[Tensor | None] = [None, None]
-        self._pinned_buf_idx: int = 0  # index of the buffer to write into NEXT
+        self._pinned_buf_idx: int = 0
 
     def _get_pinned_buf(self, size: int) -> Tensor:
-        """Return the next double-buffer slot, (re)allocating if too small."""
         if self._copy_stream is None:
-            raise RuntimeError("Pinned CPU staging is only available for CUDA loaders")
+            raise RuntimeError('Pinned CPU staging is only available for CUDA loaders')
         idx = self._pinned_buf_idx
-        self._pinned_buf_idx = 1 - idx  # toggle for next call
-        if self._pinned_buffers[idx] is None or self._pinned_buffers[idx].numel() < size:  # type: ignore[union-attr]
+        self._pinned_buf_idx = 1 - idx
+        if self._pinned_buffers[idx] is None or self._pinned_buffers[idx].numel() < size:
             self._pinned_buffers[idx] = torch.empty(size, dtype=torch.int64, pin_memory=True)
-        return self._pinned_buffers[idx][:size]  # type: ignore[index]
+        return self._pinned_buffers[idx][:size]
 
     def _load_raw(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
         if local_tokens < seq_len:
             local_tokens = seq_len
         else:
-            local_tokens = (local_tokens // seq_len) * seq_len
+            local_tokens = local_tokens // seq_len * seq_len
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
-        # Cast to int64 on CPU before pinning — avoids a second GPU kernel launch.
-        # Do NOT silently clamp tokens — bad IDs should surface as a hard error.
         local_cpu = chunk[start:start + per_rank_span].to(torch.int64)
         if self._copy_stream is not None:
             pinned = self._get_pinned_buf(per_rank_span)
@@ -1427,52 +1381,46 @@ class DistributedTokenLoader:
             local = local_cpu.to(self.device)
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
-        return x, y
+        return (x, y)
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         if self._prefetch is not None and self._copy_stream is not None:
-            # GPU waits for the background copy to land before consuming x, y.
             torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
-            x, y = self._prefetch
+            (x, y) = self._prefetch
         else:
-            # First call: no prefetch queued yet. Load synchronously then wait.
-            x, y = self._load_raw(global_tokens, seq_len, grad_accum_steps)
+            (x, y) = self._load_raw(global_tokens, seq_len, grad_accum_steps)
             if self._copy_stream is not None:
                 torch.cuda.current_stream(self.device).wait_stream(self._copy_stream)
-        # Kick off next prefetch into the OTHER pinned buffer (double-buffer toggle
-        # happens inside _get_pinned_buf so this write never races the GPU read above).
         if self._copy_stream is not None:
             self._prefetch = self._load_raw(global_tokens, seq_len, grad_accum_steps)
-        return x, y
+        return (x, y)
 
-# ---------------------------------------------------------------------------
-# Model
-# ---------------------------------------------------------------------------
 class RMSNorm(nn.Module):
-    def __init__(self, eps: float | None = 1e-6):
+
+    def __init__(self, eps: float | None=1e-06):
         super().__init__()
-        self.eps = 1e-6 if eps is None else float(eps)
+        self.eps = 1e-06 if eps is None else float(eps)
 
     def forward(self, x: Tensor) -> Tensor:
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
 
 def apply_qat_ste(w: Tensor, fp_storage: str | bool) -> Tensor:
-    """Applies Straight-Through Estimator (STE) for FP4 or FP8 simulated quantization."""
     if not fp_storage:
         return w
-    if fp_storage == "fp4":
-        absmax = w.abs().amax(dim=-1, keepdim=True).clamp(min=1e-8)
+    if fp_storage == 'fp4':
+        absmax = w.abs().amax(dim=-1, keepdim=True).clamp(min=1e-08)
         scale = absmax / 7.0
         q = torch.clamp(torch.round(w / scale), -7.0, 7.0)
         w_sim = q * scale
         return (w_sim - w).detach() + w
-    elif fp_storage is True or fp_storage == "fp8":
+    elif fp_storage is True or fp_storage == 'fp8':
         w_sim = w.to(torch.float8_e4m3fn).to(w.dtype)
         return (w_sim - w).detach() + w
     return w
 
 class QATLinear(nn.Linear):
-    def __init__(self, in_features: int, out_features: int, bias: bool = False, fp_storage: str | bool = False):
+
+    def __init__(self, in_features: int, out_features: int, bias: bool=False, fp_storage: str | bool=False):
         super().__init__(in_features, out_features, bias=bias)
         self.fp_storage = fp_storage
 
@@ -1481,18 +1429,17 @@ class QATLinear(nn.Linear):
         return F.linear(x, w_qat.to(x.dtype), self.bias.to(x.dtype) if self.bias is not None else None)
 
 class QATEmbedding(nn.Embedding):
-    def __init__(self, num_embeddings: int, embedding_dim: int, fp_storage: str | bool = False):
+
+    def __init__(self, num_embeddings: int, embedding_dim: int, fp_storage: str | bool=False):
         super().__init__(num_embeddings, embedding_dim)
         self.fp_storage = fp_storage
 
     def forward(self, input: Tensor) -> Tensor:
         w_qat = apply_qat_ste(self.weight, self.fp_storage)
-        return F.embedding(input, w_qat, self.padding_idx, self.max_norm,
-                           self.norm_type, self.scale_grad_by_freq, self.sparse)
-
-_TURBO_QUANT_TRAIN = False  # Set by main() from args.turbo_quant_train
+        return F.embedding(input, w_qat, self.padding_idx, self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
+_TURBO_QUANT_TRAIN = False
 _TURBO_QUANT_KV = False
-_EXPORT_CALIB: dict = {}   # {param_name: {"thr": float, "scale_mult": float}} — set during aligned training phase
+_EXPORT_CALIB: dict = {}
 _HADAMARD_CACHE_PT: dict[int, Tensor] = {}
 
 def _build_hadamard_pt_unnormalized(n, device):
@@ -1505,233 +1452,152 @@ def _build_hadamard_pt_unnormalized(n, device):
         return torch.cat([top, bot], dim=0)
 
 def _build_hadamard_pt(n, device):
-    """Build normalized orthogonal Hadamard matrix in PyTorch. H @ H.T = I."""
     key = (n, str(device))
     if key in _HADAMARD_CACHE_PT:
         return _HADAMARD_CACHE_PT[key]
-    assert n > 0 and (n & (n - 1)) == 0, f"n must be power of 2, got {n}"
-    
-    # Only divide by sqrt(n) once at the end!
-    h = _build_hadamard_pt_unnormalized(n, device) / (n ** 0.5)
+    assert n > 0 and n & n - 1 == 0, f'n must be power of 2, got {n}'
+    h = _build_hadamard_pt_unnormalized(n, device) / n ** 0.5
     _HADAMARD_CACHE_PT[key] = h
     return h
 
-def quantize_kv_ste_pt(x: Tensor, turbo: bool = True, H_fixed: Tensor = None) -> Tensor:
-    """Ternary STE quantization specifically for KV cache vectors with TurboQuant rotation.
-    Combines:
-    1. Fast Johnson-Lindenstrauss Transform (Pseudo-random sign flip + Hadamard)
-    2. Exact L2 Norm De-biasing (preserves attention temperature and inner products)
-    """
+def quantize_kv_ste_pt(x: Tensor, turbo: bool=True, H_fixed: Tensor=None) -> Tensor:
     head_dim = x.size(-1)
     H_rot = None
     if turbo and H_fixed is not None:
         H_rot = H_fixed.to(x.dtype)
-    elif turbo and (head_dim & (head_dim - 1)) == 0:
+    elif turbo and head_dim & head_dim - 1 == 0:
         H_rot = _build_hadamard_pt(head_dim, x.device).to(x.dtype)
-    
     if H_rot is None:
-        scale = x.abs().mean(dim=-1, keepdim=True).clamp(min=1e-8)
+        scale = x.abs().mean(dim=-1, keepdim=True).clamp(min=1e-08)
         q = (x / scale).round().clamp(-1, 1)
         dequant = q * scale
         return x + (dequant - x).detach()
-
-    # 1. Pseudo-random sign flip to induce Beta distribution
     inds = torch.arange(head_dim, device=x.device, dtype=x.dtype)
     signs = torch.where(torch.sin(inds) > 0, 1.0, -1.0)
     x_scrambled = x * signs
-    
-    # 2. Hadamard Rotation
     x_rot = x_scrambled @ H_rot
-
-    # 3. Quantize
-    scale = x_rot.abs().mean(dim=-1, keepdim=True).clamp(min=1e-8)
+    scale = x_rot.abs().mean(dim=-1, keepdim=True).clamp(min=1e-08)
     q = (x_rot / scale).round().clamp(-1, 1)
     dequant = q * scale
-
-    # 4. De-bias (Match expected L2 norm to preserve inner product)
-    energy_in = torch.sqrt(torch.sum(torch.square(x_rot), dim=-1, keepdim=True) + 1e-6)
-    energy_out = torch.sqrt(torch.sum(torch.square(dequant), dim=-1, keepdim=True) + 1e-6)
+    energy_in = torch.sqrt(torch.sum(torch.square(x_rot), dim=-1, keepdim=True) + 1e-06)
+    energy_out = torch.sqrt(torch.sum(torch.square(dequant), dim=-1, keepdim=True) + 1e-06)
     dequant = dequant * (energy_in / energy_out)
-
-    # 5. Inverse FJLT
-    dequant = (dequant @ H_rot) * signs
-
-    # STE: forward uses quantized, backward uses original
+    dequant = dequant @ H_rot * signs
     return x + (dequant - x).detach()
 
-
-def rotate_heads_pt(x: Tensor, H_fixed: Tensor | None = None) -> Tensor:
-    """Apply the same FJLT front-end used by KV TurboQuant (sign flip + Hadamard)."""
+def rotate_heads_pt(x: Tensor, H_fixed: Tensor | None=None) -> Tensor:
     head_dim = x.size(-1)
     H_rot = H_fixed.to(x.dtype) if H_fixed is not None else None
-    if H_rot is None and (head_dim & (head_dim - 1)) == 0:
+    if H_rot is None and head_dim & head_dim - 1 == 0:
         H_rot = _build_hadamard_pt(head_dim, x.device).to(x.dtype)
     if H_rot is None:
         return x
     inds = torch.arange(head_dim, device=x.device, dtype=x.dtype)
     signs = torch.where(torch.sin(inds) > 0, 1.0, -1.0)
-    return (x * signs) @ H_rot
-
-
-
+    return x * signs @ H_rot
 
 class TernaryLinear(nn.Linear):
+
     def __init__(self, in_features, out_features, bias=False, group_size=64):
         super().__init__(in_features, out_features, bias=bias)
         self.group_size = group_size
-        self._calib_name: str | None = None  # used by apply_export_calib_to_model
-        # Calibration values as PyTorch buffers so torch.compile reads them dynamically.
-        # Global dict (_EXPORT_CALIB) is baked into the graph at trace time and is blind
-        # to mid-training updates; buffer tensors are tracked by Dynamo across updates.
-        self.register_buffer("calib_thr", torch.tensor(0.0), persistent=False)
-        self.register_buffer("calib_scale_mult", torch.tensor(1.0), persistent=False)
-        # Cache Hadamard matrix as a persistent buffer to avoid redundant allocations on GPU
-        self.is_p2 = (group_size & (group_size - 1)) == 0
+        self._calib_name: str | None = None
+        self.register_buffer('calib_thr', torch.tensor(0.0), persistent=False)
+        self.register_buffer('calib_scale_mult', torch.tensor(1.0), persistent=False)
+        self.is_p2 = group_size & group_size - 1 == 0
         if self.is_p2:
-            h_mat = _build_hadamard_pt(group_size, "cpu")
-            self.register_buffer("H_fixed", h_mat, persistent=True)
+            h_mat = _build_hadamard_pt(group_size, 'cpu')
+            self.register_buffer('H_fixed', h_mat, persistent=True)
         else:
-            self.register_buffer("H_fixed", None, persistent=False)
+            self.register_buffer('H_fixed', None, persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.float()
         g = self.group_size
-
-        # Row-padded grouping — exactly matches q_sd export layout:
-        #   pad each row to next multiple of g, reshape to (-1, g), quantize, unpad.
-        # A flat w.reshape(-1, g) gives a different grouping when ncols % g != 0.
         orig_shape = w.shape
         if w.ndim == 3:
-            w = w.reshape(w.shape[0], -1)  # merge trailing dims like q_sd does
-        nrows, ncols = w.shape
+            w = w.reshape(w.shape[0], -1)
+        (nrows, ncols) = w.shape
         pad = (g - ncols % g) % g
-
-        # --- Triton fused dequant path: group scale + quantize + dequant in one kernel ---
-        if HAS_TRITON and w.is_cuda and not torch.compiler.is_compiling():
+        if HAS_TRITON and w.is_cuda and (not torch.compiler.is_compiling()):
             turbo = _TURBO_QUANT_TRAIN and self.is_p2
             with torch.no_grad():
-                dequant_unpadded = triton_ternary_dequant(
-                    w, g, self.H_fixed if turbo else None,
-                    self.calib_thr, self.calib_scale_mult, turbo,
-                ).reshape(orig_shape)
+                dequant_unpadded = triton_ternary_dequant(w, g, self.H_fixed if turbo else None, self.calib_thr, self.calib_scale_mult, turbo).reshape(orig_shape)
         else:
-            # --- Original PyTorch dequant path ---
-            w_padded = F.pad(w, (0, pad)) if pad > 0 else w   # (nrows, ncols+pad)
-            w_g = w_padded.reshape(-1, g)                      # (nrows*(ncols+pad)//g, g)
+            w_padded = F.pad(w, (0, pad)) if pad > 0 else w
+            w_g = w_padded.reshape(-1, g)
             if _TURBO_QUANT_TRAIN and self.is_p2:
-                # Use cached buffer to avoid repeated allocations per training step.
                 H = self.H_fixed.to(w.dtype)
                 w_g = w_g @ H
-            # Match q_sd export exactly: the per-group scale is bottlenecked through fp16
-            # before reconstruction, so the STE path must see the same truncation.
             scale = _ternary_group_scale(w_g)
-
-            # Read calibration from buffer tensors (Dynamo-safe) as tensors
             thr = self.calib_thr
             scale_mult = self.calib_scale_mult
             z = w_g / scale
-            
-            # Binary selection via torch.where ensures no graph breaks from .item()
-            q = torch.where(thr > 0.0,
-                            torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1)),
-                            z.round().clamp(-1, 1))
+            q = torch.where(thr > 0.0, torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1)), z.round().clamp(-1, 1))
             dequant = q * (scale * scale_mult)
-
             if _TURBO_QUANT_TRAIN and self.is_p2:
-                dequant = dequant @ H  # Self-inverse
-            # Unpad and restore original shape for the straight-through estimator.
-            # Use explicit view_as and reshapres that are robust to torch.compile flattening.
+                dequant = dequant @ H
             dequant_unpadded = dequant.reshape(nrows, ncols + pad)[:, :ncols].reshape(orig_shape)
-
         w_ternary = w.view(orig_shape) + (dequant_unpadded - w.view(orig_shape)).detach()
-        return F.linear(x, w_ternary.to(x.dtype),
-                        self.bias.to(x.dtype) if self.bias is not None else None)
-
+        return F.linear(x, w_ternary.to(x.dtype), self.bias.to(x.dtype) if self.bias is not None else None)
 
 class NormedTernaryLinear(TernaryLinear):
-    "Ternary linear with RMSNorm on input — for output projections receiving un-normalized activations."
+
     def forward(self, x: Tensor) -> Tensor:
-        return super().forward(F.rms_norm(x, (x.size(-1),)))
+        return super().forward(triton_rms_norm(x) if HAS_TRITON and x.is_cuda and (not torch.compiler.is_compiling()) else F.rms_norm(x, (x.size(-1),)))
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     with torch.no_grad():
-        for name, param in module.named_parameters():
-            if (param.ndim < 2 or any(p in name for p in CTP)) and param.dtype != torch.float32:
+        for (name, param) in module.named_parameters():
+            if (param.ndim < 2 or any((p in name for p in CTP))) and param.dtype != torch.float32:
                 param.data = param.data.float()
 
-
 class EngramHash(nn.Module):
-    """Engram-inspired multi-head, multi-order n-gram memory with context gating.
+    _PRIMES = [92821, 131071, 174763, 216091, 262147, 314159, 393241, 462841, 524287, 611953, 700001, 786433, 873781, 967229, 1048573, 1153381]
 
-    Key ideas from DeepSeek Engram paper:
-    1. Multi-head hashing: K heads per n-gram order reduce collision rate
-    2. Context-aware gating: sigmoid gate from hidden state suppresses noisy lookups
-    3. Multi-order: bigrams + trigrams capture different context scales
-    4. Injection at internal layers (not just input) for richer context gating
-    """
-    _PRIMES = [92821, 131071, 174763, 216091, 262147, 314159, 393241, 462841,
-               524287, 611953, 700001, 786433, 873781, 967229, 1048573, 1153381]
-
-    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int,
-                 fp_storage: str | bool, num_heads: int = 4, num_orders: int = 2):
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int, fp_storage: str | bool, num_heads: int=4, num_orders: int=2):
         super().__init__()
         num_total_heads = num_orders * num_heads
         if num_total_heads > len(self._PRIMES):
-            raise ValueError(
-                f"EngramHash requires {num_total_heads} prime constants, "
-                f"but only {len(self._PRIMES)} are defined"
-            )
+            raise ValueError(f'EngramHash requires {num_total_heads} prime constants, but only {len(self._PRIMES)} are defined')
         self.num_heads = num_heads
         self.num_orders = num_orders
         self.head_dim = hash_dim // (num_orders * num_heads)
-        assert self.head_dim > 0, f"hash_dim={hash_dim} too small for {num_orders}x{num_heads} heads"
+        assert self.head_dim > 0, f'hash_dim={hash_dim} too small for {num_orders}x{num_heads} heads'
         self.buckets_per_head = num_buckets
         actual_dim = self.head_dim * num_orders * num_heads
-        # Helper constant for hashing only; keep it off state_dict so q_sd/deq_sd
-        # checkpoints do not quantize an integer lookup table as fp16.
-        self.register_buffer("_primes", torch.tensor(self._PRIMES, dtype=torch.long), persistent=False)
-        # Embedding tables: one per (order, head)
-        self.tables = nn.ModuleList([
-            QATEmbedding(num_buckets, self.head_dim, fp_storage=fp_storage)
-            for _ in range(num_orders * num_heads)
-        ])
-        # Use TernaryLinear for proj/gate_k: ~5× compression vs QATLinear fp16 export.
-        # This is critical for fitting Engram within the 165KB artifact headroom.
+        self.register_buffer('_primes', torch.tensor(self._PRIMES, dtype=torch.long), persistent=False)
+        self.tables = nn.ModuleList([QATEmbedding(num_buckets, self.head_dim, fp_storage=fp_storage) for _ in range(num_orders * num_heads)])
         self.proj = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
-        # Context-aware gating — also TernaryLinear for compression
         self.gate_k = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
-        # gate_scale amplifies the cosine-similarity logit before sigmoid gating.
-        # Unclamped, it can saturate the gate toward 0/1 and kill gradient flow
-        # through the Engram path. Parameterise as softplus(raw) + 0.1 capped at 4.0:
-        # this keeps the effective scale in (0.1, 4.0] and ensures gradients always
-        # flow regardless of where the optimiser drives the raw parameter.
-        self._gate_scale_raw = nn.Parameter(torch.tensor(0.541, dtype=torch.float32))  # softplus(0.541)+0.1 ≈ 1.0
+        self._gate_scale_raw = nn.Parameter(torch.tensor(0.541, dtype=torch.float32))
 
     def _hash_ngram(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
-        B, T = input_ids.shape
+        (B, T) = input_ids.shape
         if T <= order + 1:
             return input_ids.new_zeros((B, T), dtype=torch.int32)
         p = self._primes[order * self.num_heads + head_idx]
-        if order == 0:  # bigram
+        if order == 0:
             prev = input_ids[:, :-1].long()
             curr = input_ids[:, 1:].long()
             h = (prev * p + curr) % self.buckets_per_head
             h = F.pad(h, (1, 0), value=0)
-        elif order == 1:  # trigram
+        elif order == 1:
             pp = input_ids[:, :-2].long()
             prev = input_ids[:, 1:-1].long()
             curr = input_ids[:, 2:].long()
             h = (pp * (p * p) + prev * p + curr) % self.buckets_per_head
             h = F.pad(h, (2, 0), value=0)
-        elif order == 2:  # four-gram
+        elif order == 2:
             ppp = input_ids[:, :-3].long()
             pp = input_ids[:, 1:-2].long()
             prev = input_ids[:, 2:-1].long()
             curr = input_ids[:, 3:].long()
-            h = (ppp * (p * p * p) + pp * (p * p) + prev * p + curr) % self.buckets_per_head
+            nb = self.buckets_per_head
+            h = ((((ppp * p + pp) % nb) * p + prev) % nb * p + curr) % nb
             h = F.pad(h, (3, 0), value=0)
         else:
-            raise ValueError(f"Unsupported n-gram order {order+2}")
+            raise ValueError(f'Unsupported n-gram order {order + 2}')
         return h.int()
 
     def retrieve(self, input_ids: Tensor) -> Tensor:
@@ -1743,25 +1609,12 @@ class EngramHash(nn.Module):
                 parts.append(self.tables[table_idx](idx))
         return torch.cat(parts, dim=-1)
 
-    def forward(self, input_ids: Tensor, hidden: Tensor | None = None) -> Tensor:
-        """Fully vectorized n-gram retrieval.
-
-        Fast-path for num_orders=2, num_heads=2 (4 total heads): all writes are
-        statically-sized and use no Python loops, eliminating potential graph-break
-        sources for the torch.compile Inductor backend. Falls back to the general
-        loop for other configurations.
-        """
+    def forward(self, input_ids: Tensor, hidden: Tensor | None=None) -> Tensor:
         num_total_heads = self.num_orders * self.num_heads
         ids_long = input_ids.long()
-        B, T = ids_long.shape
-
-        # Triton fused hash-gather: bypasses intermediate index tensors entirely.
-        # Only for eval or non-compiled training on CUDA with 2×2 config.
-        if (num_total_heads == 4 and HAS_TRITON and TRITON_ENGRAM_ENABLED and ids_long.is_cuda
-                and not torch.compiler.is_compiling()):
-            _triton_mem = triton_engram_hash_gather(
-                ids_long, list(self.tables), self._primes,
-                self.num_orders, self.num_heads, self.head_dim, self.buckets_per_head)
+        (B, T) = ids_long.shape
+        if num_total_heads in (4, 9) and HAS_TRITON and TRITON_ENGRAM_ENABLED and ids_long.is_cuda and (not torch.compiler.is_compiling()):
+            _triton_mem = triton_engram_hash_gather(ids_long, list(self.tables), self._primes, self.num_orders, self.num_heads, self.head_dim, self.buckets_per_head)
             if _triton_mem is not None:
                 memory = _triton_mem.to(ids_long.device)
                 if hidden is not None:
@@ -1772,39 +1625,31 @@ class EngramHash(nn.Module):
                     gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
                     return gate * self.proj(memory)
                 return self.proj(memory)
-
         if num_total_heads == 4:
-            # Unrolled fast-path: hardcoded bigram × 2 heads + trigram × 2 heads.
-            # Pre-allocate a single index tensor — no Python loop, no dynamic slices.
             p = self._primes[:4]
             h_indices = ids_long.new_zeros((B, T, 4))
             if T > 1:
-                # Bigram heads 0 & 1: hash(prev, curr) for each of the 2 bigram primes
-                bg = (ids_long[:, :-1].unsqueeze(-1) * p[:2]
-                      + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
+                bg = (ids_long[:, :-1].unsqueeze(-1) * p[:2] + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
                 h_indices[:, 1:, :2] = bg
             if T > 2:
-                # Trigram heads 2 & 3: hash(pp, prev, curr) for each of the 2 trigram primes
-                tg = (ids_long[:, :-2].unsqueeze(-1) * (p[2:] * p[2:])
-                      + ids_long[:, 1:-1].unsqueeze(-1) * p[2:]
-                      + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
+                tg = (ids_long[:, :-2].unsqueeze(-1) * (p[2:] * p[2:]) + ids_long[:, 1:-1].unsqueeze(-1) * p[2:] + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
                 h_indices[:, 2:, 2:] = tg
-            head_outputs = [table(h_indices[:, :, i]) for i, table in enumerate(self.tables)]
+            head_outputs = [table(h_indices[:, :, i]) for (i, table) in enumerate(self.tables)]
             memory = torch.cat(head_outputs, dim=-1)
         else:
-            # General path for other head/order counts
             primes = self._primes[:num_total_heads]
             parts = []
             for order in range(self.num_orders):
-                p = primes[order*self.num_heads : (order+1)*self.num_heads]
+                p = primes[order * self.num_heads:(order + 1) * self.num_heads]
                 h = ids_long.new_zeros((B, T, self.num_heads))
                 if T > order + 1:
                     if order == 0:
                         h_val = (ids_long[:, :-1].unsqueeze(-1) * p + ids_long[:, 1:].unsqueeze(-1)) % self.buckets_per_head
                     elif order == 1:
-                        h_val = (ids_long[:, :-2].unsqueeze(-1) * (p*p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
+                        h_val = (ids_long[:, :-2].unsqueeze(-1) * (p * p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
                     elif order == 2:
-                        h_val = (ids_long[:, :-3].unsqueeze(-1) * (p**3) + ids_long[:, 1:-2].unsqueeze(-1) * (p**2) + ids_long[:, 2:-1].unsqueeze(-1) * p + ids_long[:, 3:].unsqueeze(-1)) % self.buckets_per_head
+                        nb = self.buckets_per_head
+                        h_val = ((((ids_long[:, :-3].unsqueeze(-1) * p + ids_long[:, 1:-2].unsqueeze(-1)) % nb) * p + ids_long[:, 2:-1].unsqueeze(-1)) % nb * p + ids_long[:, 3:].unsqueeze(-1)) % nb
                     else:
                         h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
                         h_val = torch.cat(h_ls, dim=-1)
@@ -1812,26 +1657,138 @@ class EngramHash(nn.Module):
                         h[:, T - h_val.size(1):, :] = h_val
                 parts.append(h)
             all_indices = torch.cat(parts, dim=-1)
-            head_outputs = [table(all_indices[:, :, i]) for i, table in enumerate(self.tables)]
+            head_outputs = [table(all_indices[:, :, i]) for (i, table) in enumerate(self.tables)]
             memory = torch.cat(head_outputs, dim=-1)
-
         if hidden is not None:
-            # Normalize in the computation dtype (bf16/fp16) — cosine similarity is
-            # scale-invariant so fp32 precision is not needed here. Single cast to
-            # match dtypes, reused for both operands to avoid redundant casts.
             h_norm = torch.nn.functional.normalize(hidden.to(memory.dtype), dim=-1)
             m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
             gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
-            # Replace clamp with a smooth Sigmoid bound to preserve non-zero gradients
             gate_scale = 3.9 * torch.sigmoid(self._gate_scale_raw.float()) + 0.1
             gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
             return gate * self.proj(memory)
         return self.proj(memory)
 
-def _engram_order_keep_ratio(order: int, args) -> float:
-    # order=0 => bigram, order>=1 => trigram+.
-    return float(args.engram_export_keep_bigram_ratio if order == 0 else args.engram_export_keep_trigram_ratio)
+class EvalEngram(nn.Module):
+    """VRAM-resident, val-stream-populated complementary engram for eval-time use.
 
+    Complements the packed EngramHash: adds an entropy-gated logit correction
+    accumulated online from val-stream teacher-forced (context, next-token) pairs.
+    Designed to stack additively with Legal TTT: this module never mutates model
+    weights, and Legal TTT never touches EvalEngram counts (they live outside the
+    optimizer's param_groups). Populate BEFORE consuming a position's logits, so
+    there is no causal leak (at position t we emit a correction using context
+    hashed from ids[:t+1], then AFTER scoring we absorb the true target for
+    future same-hash contexts).
+
+    Storage (one-table-per-(order,head)):
+      logit_sum: (NUM_ORDERS, NUM_HEADS, BUCKETS, VOCAB)  fp32
+      count:     (NUM_ORDERS, NUM_HEADS, BUCKETS)          int32
+    Prior = Laplace(alpha=eval_engram_laplace).
+    """
+
+    _PRIMES = EngramHash._PRIMES
+
+    def __init__(self, num_buckets: int, num_orders: int, num_heads: int, head_dim: int, vocab_size: int, laplace: float = 1.0, device=None, dtype=torch.float32):
+        super().__init__()
+        self.num_buckets = int(num_buckets)
+        self.num_orders = int(num_orders)
+        self.num_heads = int(num_heads)
+        self.head_dim = int(head_dim)  # kept for parity / future embedding mode
+        self.vocab_size = int(vocab_size)
+        self.laplace = float(laplace)
+        total = self.num_orders * self.num_heads
+        if total > len(self._PRIMES):
+            raise ValueError(f'EvalEngram needs {total} primes, have {len(self._PRIMES)}')
+        self.register_buffer('_primes', torch.tensor(self._PRIMES[:total], dtype=torch.long, device=device), persistent=False)
+        self.register_buffer('logit_sum', torch.zeros(self.num_orders, self.num_heads, self.num_buckets, self.vocab_size, dtype=dtype, device=device), persistent=False)
+        self.register_buffer('count', torch.zeros(self.num_orders, self.num_heads, self.num_buckets, dtype=torch.int32, device=device), persistent=False)
+
+    def _hash(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
+        B, T = input_ids.shape
+        if T <= order + 1:
+            return input_ids.new_zeros((B, T), dtype=torch.long)
+        p = int(self._primes[order * self.num_heads + head_idx].item())
+        nb = self.num_buckets
+        ids = input_ids.long()
+        if order == 0:
+            h = (ids[:, :-1] * p + ids[:, 1:]) % nb
+            h = F.pad(h, (1, 0), value=0)
+        elif order == 1:
+            h = (ids[:, :-2] * (p * p) + ids[:, 1:-1] * p + ids[:, 2:]) % nb
+            h = F.pad(h, (2, 0), value=0)
+        elif order == 2:
+            h = ((((ids[:, :-3] * p + ids[:, 1:-2]) % nb) * p + ids[:, 2:-1]) % nb * p + ids[:, 3:]) % nb
+            h = F.pad(h, (3, 0), value=0)
+        else:
+            raise ValueError(f'order {order} unsupported')
+        return h.long()
+
+    @torch.no_grad()
+    def absorb(self, input_ids: Tensor, target_ids: Tensor) -> None:
+        """Accumulate one-hot target contributions into hashed buckets.
+        input_ids: (B, T) context; target_ids: (B, T) teacher-forced next tokens.
+        Skips positions where hash is left-padded (order+1 boundary)."""
+        if input_ids.numel() == 0:
+            return
+        B, T = input_ids.shape
+        V = self.vocab_size
+        tgt_flat = target_ids.reshape(-1).long().clamp_(0, V - 1)
+        for order in range(self.num_orders):
+            pad = order + 1
+            if T <= pad:
+                continue
+            for head in range(self.num_heads):
+                hh = self._hash(input_ids, order, head)  # (B, T)
+                # positions [:pad] are left-pad, skip them
+                h_flat = hh[:, pad:].reshape(-1)
+                t_flat = target_ids[:, pad:].reshape(-1).long().clamp_(0, V - 1)
+                flat_bt = h_flat * V + t_flat
+                # scatter-add into flattened view of logit_sum[o,h]
+                view = self.logit_sum[order, head].view(-1)
+                ones = torch.ones_like(flat_bt, dtype=view.dtype)
+                view.scatter_add_(0, flat_bt, ones)
+                cnt_view = self.count[order, head]
+                cnt_view.scatter_add_(0, h_flat, torch.ones_like(h_flat, dtype=cnt_view.dtype))
+
+    @torch.no_grad()
+    def logits(self, input_ids: Tensor) -> Tensor:
+        """Return averaged (logit_sum/count) summed across (order,head), shape (B,T,V).
+        Buckets with count==0 contribute the Laplace prior (uniform)."""
+        B, T = input_ids.shape
+        out = input_ids.new_zeros((B, T, self.vocab_size), dtype=self.logit_sum.dtype)
+        lap = self.laplace
+        V = self.vocab_size
+        for order in range(self.num_orders):
+            pad = order + 1
+            if T <= pad:
+                continue
+            for head in range(self.num_heads):
+                hh = self._hash(input_ids, order, head)  # (B, T) long
+                tbl = self.logit_sum[order, head]        # (buckets, V)
+                cnt = self.count[order, head]            # (buckets,)
+                # Gather
+                flat_h = hh.reshape(-1)
+                gathered_sum = tbl.index_select(0, flat_h).view(B, T, V)
+                gathered_cnt = cnt.index_select(0, flat_h).view(B, T, 1).to(gathered_sum.dtype)
+                denom = gathered_cnt + (lap * V)
+                probs = (gathered_sum + lap) / denom.clamp_min(1.0)
+                # Convert to log-domain additive correction; mask positions inside left-pad
+                mask = (torch.arange(T, device=input_ids.device).view(1, T, 1) >= pad).to(probs.dtype)
+                log_probs = torch.log(probs.clamp_min(1e-8)) * mask
+                out = out + log_probs
+        return out
+
+    def reset(self) -> None:
+        self.logit_sum.zero_()
+        self.count.zero_()
+
+def _engram_order_keep_ratio(order: int, args) -> float:
+    if order == 0:
+        return float(args.engram_export_keep_bigram_ratio)
+    elif order == 1:
+        return float(args.engram_export_keep_trigram_ratio)
+    else:
+        return float(getattr(args, 'engram_export_keep_4gram_ratio', 0.15))
 
 @torch.no_grad()
 def _engram_bucket_hits_from_tokens(engram: EngramHash, tokens: Tensor | None) -> list[Tensor] | None:
@@ -1839,7 +1796,10 @@ def _engram_bucket_hits_from_tokens(engram: EngramHash, tokens: Tensor | None) -
         return None
     if tokens.ndim != 2 or tokens.numel() == 0:
         return None
-    tok = tokens.to("cpu", non_blocking=False).long()
+    tok = tokens.to('cpu', non_blocking=False).long()
+    # Move engram primes to CPU for hashing
+    orig_device = engram._primes.device
+    engram._primes = engram._primes.cpu()
     hits: list[Tensor] = []
     for order in range(engram.num_orders):
         for head in range(engram.num_heads):
@@ -1852,33 +1812,24 @@ def _engram_bucket_hits_from_tokens(engram: EngramHash, tokens: Tensor | None) -
             hits.append(h)
     return hits
 
-
 @torch.no_grad()
-def prune_engram_tables_for_export(
-    sd: dict[str, Tensor],
-    base_model: nn.Module,
-    args,
-    sample_tokens: Tensor | None,
-    log0,
-) -> tuple[dict[str, Tensor], dict[str, float] | None]:
-    engram = getattr(base_model, "engram", None)
-    if (not args.engram_export_prune_enabled) or engram is None or not isinstance(engram, EngramHash):
-        return sd, None
-
-    if args.engram_export_token_budget > 0 and sample_tokens is not None and sample_tokens.numel() > args.engram_export_token_budget:
-        flat = sample_tokens.reshape(-1)[: args.engram_export_token_budget]
+def prune_engram_tables_for_export(sd: dict[str, Tensor], base_model: nn.Module, args, sample_tokens: Tensor | None, log0) -> tuple[dict[str, Tensor], dict[str, float] | None]:
+    engram = getattr(base_model, 'engram', None)
+    if not args.engram_export_prune_enabled or engram is None or (not isinstance(engram, EngramHash)):
+        return (sd, None)
+    if args.engram_export_token_budget > 0 and sample_tokens is not None and (sample_tokens.numel() > args.engram_export_token_budget):
+        flat = sample_tokens.reshape(-1)[:args.engram_export_token_budget]
         sample_tokens = flat.reshape(1, -1)
     hits = _engram_bucket_hits_from_tokens(engram, sample_tokens)
     score_alpha = float(args.engram_export_score_alpha)
     min_keep = int(args.engram_export_keep_min_buckets)
     max_keep = int(args.engram_export_keep_max_buckets)
-
     total_rows = 0
     kept_rows = 0
     changed_tables = 0
     table_stats: list[str] = []
     for table_idx in range(len(engram.tables)):
-        key = f"engram.tables.{table_idx}.weight"
+        key = f'engram.tables.{table_idx}.weight'
         if key not in sd:
             continue
         w = sd[key]
@@ -1895,57 +1846,42 @@ def prune_engram_tables_for_export(
             total_rows += int(w.shape[0])
             kept_rows += int(w.shape[0])
             continue
-
         row_norm = w.float().norm(dim=1)
-        norm_denom = row_norm.max().clamp_min(1e-8)
+        norm_denom = row_norm.max().clamp_min(1e-08)
         score = row_norm / norm_denom
         if hits is not None and table_idx < len(hits):
-            h = hits[table_idx].to(score.dtype)
-            hit_denom = h.max().clamp_min(1e-8)
+            h = hits[table_idx].to(device=score.device, dtype=score.dtype)
+            hit_denom = h.max().clamp_min(1e-08)
             score = score_alpha * score + (1.0 - score_alpha) * (h / hit_denom)
-
         topk = torch.topk(score, k=target_keep, largest=True, sorted=False).indices
         keep_mask = torch.zeros(w.shape[0], dtype=torch.bool)
         keep_mask[topk] = True
         pruned = w.clone()
         pruned[~keep_mask] = 0
         sd[key] = pruned
-
         total_rows += int(w.shape[0])
         kept_rows += int(target_keep)
         changed_tables += 1
-        table_stats.append(f"{table_idx}:{target_keep}/{w.shape[0]}")
-
+        table_stats.append(f'{table_idx}:{target_keep}/{w.shape[0]}')
     if changed_tables == 0:
-        return sd, None
-    sparsity = 1.0 - (kept_rows / max(total_rows, 1))
-    info = {
-        "tables_changed": float(changed_tables),
-        "rows_kept": float(kept_rows),
-        "rows_total": float(total_rows),
-        "sparsity": float(sparsity),
-    }
-    log0(
-        "engram_export_prune:"
-        f" tables={changed_tables} rows_kept={kept_rows}/{total_rows}"
-        f" sparsity={sparsity:.3f} alpha={score_alpha:.2f}"
-        f" keep={','.join(table_stats[:8])}{'...' if len(table_stats) > 8 else ''}"
-    )
-    return sd, info
-
+        return (sd, None)
+    sparsity = 1.0 - kept_rows / max(total_rows, 1)
+    info = {'tables_changed': float(changed_tables), 'rows_kept': float(kept_rows), 'rows_total': float(total_rows), 'sparsity': float(sparsity)}
+    log0(f"engram_export_prune: tables={changed_tables} rows_kept={kept_rows}/{total_rows} sparsity={sparsity:.3f} alpha={score_alpha:.2f} keep={','.join(table_stats[:8])}{('...' if len(table_stats) > 8 else '')}")
+    return (sd, info)
 
 class Rotary(nn.Module):
-    def __init__(self, dim: int, base: float = 10000.0, no_cache: bool = False,
-                 rope_type: str = "rope", yarn_max_len: int = 4096, train_seq_len: int = 1024):
+
+    def __init__(self, dim: int, base: float=10000.0, no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024):
         super().__init__()
         self.no_cache = no_cache
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
-        if rope_type == "yarn":
+        inv_freq = 1.0 / base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim)
+        if rope_type == 'yarn':
             scale = train_seq_len / yarn_max_len
             freq_idx = torch.arange(0, dim, 2, dtype=torch.float32)
             ramp = torch.clamp((freq_idx / dim - 0.25) / 0.75, 0.0, 1.0)
             inv_freq = inv_freq / (ramp * (1.0 / scale - 1.0) + 1.0)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.register_buffer('inv_freq', inv_freq, persistent=False)
         self._seq_len_cached = 0
         self._cos_cached: Tensor | None = None
         self._sin_cached: Tensor | None = None
@@ -1954,336 +1890,219 @@ class Rotary(nn.Module):
         if self.no_cache:
             t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device))
-            return freqs.cos()[None, :, None, :].to(dtype=dtype), freqs.sin()[None, :, None, :].to(dtype=dtype)
-        if (
-            self._cos_cached is None
-            or self._sin_cached is None
-            or self._seq_len_cached != seq_len
-            or self._cos_cached.device != device
-        ):
+            return (freqs.cos()[None, :, None, :].to(dtype=dtype), freqs.sin()[None, :, None, :].to(dtype=dtype))
+        if self._cos_cached is None or self._sin_cached is None or self._seq_len_cached != seq_len or (self._cos_cached.device != device):
             t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device))
             self._cos_cached = freqs.cos()[None, :, None, :]
             self._sin_cached = freqs.sin()[None, :, None, :]
             self._seq_len_cached = seq_len
-        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
+        return (self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype))
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     half = x.size(-1) // 2
-    x1, x2 = x[..., :half], x[..., half:]
-    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+    (x1, x2) = (x[..., :half], x[..., half:])
+    return torch.cat((x1 * cos + x2 * sin, x1 * -sin + x2 * cos), dim=-1)
 
 class CausalSelfAttention(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        rope_base: float,
-        qk_gain_init: float,
-        group_size: int = 64,
-        no_cache: bool = False,
-        rope_type: str = "rope",
-        yarn_max_len: int = 4096,
-        train_seq_len: int = 1024,
-        partial_rope_dims: int = 0,
-        vrl_enabled: bool = False,
-        xsa: bool = False,
-    ):
+
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, rope_base: float, qk_gain_init: float, group_size: int=64, no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024, partial_rope_dims: int=0, vrl_enabled: bool=False, xsa: bool=False):
         super().__init__()
         if num_heads <= 0:
-            raise ValueError(f"num_heads must be > 0, got {num_heads}")
+            raise ValueError(f'num_heads must be > 0, got {num_heads}')
         if num_kv_heads <= 0:
-            raise ValueError(f"num_kv_heads must be > 0, got {num_kv_heads}")
+            raise ValueError(f'num_kv_heads must be > 0, got {num_kv_heads}')
         if dim % num_heads != 0:
-            raise ValueError(f"dim={dim} must be divisible by num_heads={num_heads}")
+            raise ValueError(f'dim={dim} must be divisible by num_heads={num_heads}')
         if num_heads % num_kv_heads != 0:
-            raise ValueError(f"num_heads={num_heads} must be divisible by num_kv_heads={num_kv_heads}")
+            raise ValueError(f'num_heads={num_heads} must be divisible by num_kv_heads={num_kv_heads}')
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         self.q_size = self.num_heads * self.head_dim
         self.kv_size = self.num_kv_heads * self.head_dim
-        # Partial RoPE: only rotate first N dims per head, rest attend without position
         self.rope_dims = partial_rope_dims if partial_rope_dims > 0 else self.head_dim
         if self.rope_dims > self.head_dim:
-            raise ValueError(f"rope_dims={self.rope_dims} must be <= head_dim={self.head_dim}")
+            raise ValueError(f'rope_dims={self.rope_dims} must be <= head_dim={self.head_dim}')
         if self.rope_dims % 2 != 0:
-            raise ValueError(f"rope_dims={self.rope_dims} must be even for rotary embedding")
+            raise ValueError(f'rope_dims={self.rope_dims} must be even for rotary embedding')
         self.vrl_enabled = vrl_enabled
         self.xsa = xsa
         self.c_qkv = TernaryLinear(dim, self.q_size + 2 * self.kv_size, bias=False, group_size=group_size)
         self.proj = NormedTernaryLinear(dim, dim, bias=False, group_size=group_size)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(
-            self.rope_dims,
-            base=rope_base,
-            no_cache=no_cache,
-            rope_type=rope_type,
-            yarn_max_len=yarn_max_len,
-            train_seq_len=train_seq_len,
-        )
-        # VRL: learnable mixing weight for value residual
+        self.rotary = Rotary(self.rope_dims, base=rope_base, no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len, train_seq_len=train_seq_len)
         if vrl_enabled:
-            # sigmoid(4.0) ≈ 0.982: nearly all V from current sequence at init.
-            # sigmoid(0.5) ≈ 0.622 would forcibly blend in 38% V0 from step 0,
-            # shocking early momentum buffers before the model can organically learn
-            # when to open the shortcut.
             self.vrl_alpha = nn.Parameter(torch.tensor(4.0, dtype=torch.float32))
-
-        # Hadamard cache for KV quantizer
-        if (self.head_dim & (self.head_dim - 1)) == 0:
-            h_mat = _build_hadamard_pt(self.head_dim, torch.device("cpu"))
-            self.register_buffer("_H_kv", h_mat, persistent=True)
+        if self.head_dim & self.head_dim - 1 == 0:
+            h_mat = _build_hadamard_pt(self.head_dim, torch.device('cpu'))
+            self.register_buffer('_H_kv', h_mat, persistent=True)
         else:
-            self.register_buffer("_H_kv", None, persistent=False)
+            self.register_buffer('_H_kv', None, persistent=False)
 
-    def forward(self, x: Tensor, v0: Tensor | None = None) -> Tensor:
-        bsz, seqlen, dim = x.shape
+    def forward(self, x: Tensor, v0: Tensor | None=None) -> Tensor:
+        (bsz, seqlen, dim) = x.shape
         qkv_out = self.c_qkv(x)
-        q_out, k_out, v_out = qkv_out.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        (q_out, k_out, v_out) = qkv_out.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
         q = q_out.reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = k_out.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = v_out.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
-        # Partial RoPE: only rotate first rope_dims dims
         if self.rope_dims < self.head_dim:
-            cos, sin = self.rotary(seqlen, x.device, q.dtype)
-            q_rot, q_pass = q[..., :self.rope_dims], q[..., self.rope_dims:]
-            k_rot, k_pass = k[..., :self.rope_dims], k[..., self.rope_dims:]
+            (cos, sin) = self.rotary(seqlen, x.device, q.dtype)
+            (q_rot, q_pass) = (q[..., :self.rope_dims], q[..., self.rope_dims:])
+            (k_rot, k_pass) = (k[..., :self.rope_dims], k[..., self.rope_dims:])
             q = torch.cat((apply_rotary_emb(q_rot, cos, sin), q_pass), dim=-1)
             k = torch.cat((apply_rotary_emb(k_rot, cos, sin), k_pass), dim=-1)
         else:
-            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            (cos, sin) = self.rotary(seqlen, x.device, q.dtype)
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        # VRL: blend current values with first-layer values
         if self.vrl_enabled and v0 is not None:
             alpha = torch.sigmoid(self.vrl_alpha).to(dtype=v.dtype)
             v = alpha * v + (1 - alpha) * v0
-            
         if _TURBO_QUANT_KV:
-            h_mat = getattr(self, "_H_kv", None)
+            h_mat = getattr(self, '_H_kv', None)
             q = rotate_heads_pt(q, h_mat) if h_mat is not None else q
             k = quantize_kv_ste_pt(k, turbo=True, H_fixed=h_mat)
             v = quantize_kv_ste_pt(v, turbo=True, H_fixed=h_mat)
-            
         y = flash_attn_func(q.contiguous(), k.contiguous(), v.contiguous(), causal=True)
-        # XSA: subtract self-value to force reliance on context, not self-attending
         if self.xsa:
-            # Expand KV heads to match query heads for subtraction
             kv_rep = self.num_heads // self.num_kv_heads
             v_expanded = v.repeat_interleave(kv_rep, dim=2) if kv_rep > 1 else v
             y = y - v_expanded
-        return self.proj(y.reshape(bsz, seqlen, dim)), v
+        return (self.proj(y.reshape(bsz, seqlen, dim)), v)
 
 class TernaryMoE(nn.Module):
-    """Sparse Ternary Mixture of Experts.
-    Scales parameter count dramatically while keeping FLOPs constant via top-k routing.
-    """
-    def __init__(
-        self,
-        dim: int,
-        mlp_mult: int,
-        num_experts: int,
-        top_k: int,
-        group_size: int = 64,
-        activation: str = "relu2",
-        leaky_relu_slope: float = 0.5,
-        moe_start_fraction: float = 0.65,
-        aux_loss_coef: float = 0.001,
-    ):
+
+    def __init__(self, dim: int, mlp_mult: int, num_experts: int, top_k: int, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5, moe_start_fraction: float=0.65, aux_loss_coef: float=0.001):
         super().__init__()
         self.num_experts = num_experts
         self.top_k = top_k
         self.moe_start_fraction = moe_start_fraction
         self.aux_loss_coef = aux_loss_coef
-        # Router is a lightweight dense fp16/32 layer
         self.router = nn.Linear(dim, num_experts, bias=False)
-        self.experts = nn.ModuleList([
-            MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
-            for _ in range(num_experts)
-        ])
+        self.experts = nn.ModuleList([MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope) for _ in range(num_experts)])
 
     def _router_warmup_progress(self, elapsed_fraction: float) -> float:
         if not self.training or self.moe_start_fraction <= 0.0:
             return 1.0
         return max(0.0, min(elapsed_fraction / self.moe_start_fraction, 1.0))
 
-    def _pytorch_dispatch(
-        self, x_flat: torch.Tensor, selected_experts: torch.Tensor,
-        routing_weights: torch.Tensor, effective_top_k: int,
-    ) -> torch.Tensor:
-        """Original dispatch using repeat_interleave (PyTorch fallback)."""
+    def _pytorch_dispatch(self, x_flat: torch.Tensor, selected_experts: torch.Tensor, routing_weights: torch.Tensor, effective_top_k: int) -> torch.Tensor:
         final_output = torch.zeros_like(x_flat)
         selected_experts_flat = selected_experts.reshape(-1)
         routing_weights_flat = routing_weights.reshape(-1)
         x_flat_rep = x_flat.repeat_interleave(effective_top_k, dim=0)
-        for i, expert in enumerate(self.experts):
-            expert_mask = (selected_experts_flat == i)
+        for (i, expert) in enumerate(self.experts):
+            expert_mask = selected_experts_flat == i
             token_indices = expert_mask.nonzero(as_tuple=True)[0]
             if token_indices.size(0) > 0:
                 tokens_for_expert = x_flat_rep[token_indices]
                 expert_out = expert(tokens_for_expert)
-                final_output.index_add_(0, token_indices // effective_top_k,
-                                        expert_out * routing_weights_flat[token_indices].unsqueeze(-1))
+                final_output.index_add_(0, token_indices // effective_top_k, expert_out * routing_weights_flat[token_indices].unsqueeze(-1))
         return final_output
 
-    def forward(self, x: torch.Tensor, elapsed_fraction: float = 1.0) -> tuple[torch.Tensor, torch.Tensor | None]:
-        B, T, D = x.shape
+    def forward(self, x: torch.Tensor, elapsed_fraction: float=1.0) -> tuple[torch.Tensor, torch.Tensor | None]:
+        (B, T, D) = x.shape
         x_flat = x.reshape(-1, D)
         route_alpha = self._router_warmup_progress(elapsed_fraction)
-        # Warm up the sparse router instead of doing an expensive dense all-expert mean.
-        # Early in training we:
-        # 1. soften the router distribution with temperature, and
-        # 2. keep one extra expert alive with annealed mass.
-        # By moe_start_fraction the path has converged to the true top-k router.
-        extra_experts = 1 if (self.training and route_alpha < 1.0 and self.top_k < self.num_experts) else 0
+        extra_experts = 1 if self.training and route_alpha < 1.0 and (self.top_k < self.num_experts) else 0
         effective_top_k = min(self.num_experts, self.top_k + extra_experts)
         temp_scale = max(self.num_experts / max(effective_top_k, 1) - 1.0, 0.0)
         router_temp = 1.0 + (1.0 - route_alpha) * temp_scale
         router_logits = self.router(x_flat)
         router_probs = F.softmax(router_logits / router_temp, dim=1, dtype=torch.float32)
-        routing_weights, selected_experts = torch.topk(router_probs, effective_top_k, dim=-1)
-
+        (routing_weights, selected_experts) = torch.topk(router_probs, effective_top_k, dim=-1)
         if effective_top_k > 1:
-            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+            routing_weights = routing_weights / routing_weights.sum(dim=-1, keepdim=True).clamp(min=1e-08)
         if effective_top_k > self.top_k:
             primary = routing_weights[:, :self.top_k]
             extras = routing_weights[:, self.top_k:]
             primary_mass = route_alpha + (1.0 - route_alpha) * (self.top_k / effective_top_k)
             extra_mass = max(0.0, 1.0 - primary_mass)
-            primary = primary / primary.sum(dim=-1, keepdim=True).clamp(min=1e-8)
-            extras = extras / extras.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+            primary = primary / primary.sum(dim=-1, keepdim=True).clamp(min=1e-08)
+            extras = extras / extras.sum(dim=-1, keepdim=True).clamp(min=1e-08)
             routing_weights = torch.cat((primary * primary_mass, extras * extra_mass), dim=-1)
         routing_weights = routing_weights.to(x.dtype)
-        
-        # --- Optimized MoE dispatch: no repeat_interleave ---
-        # Iterates over top-k slots and gathers per-expert directly.
-        # Memory: O(N/num_experts) per expert instead of O(N*K).
-        final_output = optimized_moe_dispatch(
-            x_flat, list(self.experts), selected_experts, routing_weights,
-            effective_top_k, self.num_experts,
-        ) if HAS_TRITON else self._pytorch_dispatch(
-            x_flat, selected_experts, routing_weights, effective_top_k,
-        )
-        # Keep bincount on the flattened view for aux loss below
+        final_output = optimized_moe_dispatch(x_flat, list(self.experts), selected_experts, routing_weights, effective_top_k, self.num_experts) if HAS_TRITON else self._pytorch_dispatch(x_flat, selected_experts, routing_weights, effective_top_k)
         selected_experts_flat = selected_experts.reshape(-1)
-
-        # Auxiliary load balancing loss (standard MoE entropy loss)
         aux_loss = None
         if self.training:
-            # probs: [B*T, num_experts]. mean across tokens.
             probs_mean = router_probs.mean(dim=0)
-            # density: fraction of tokens assigned to each expert.
-            # selected_experts: [B*T, top_k].
             expert_counts = torch.bincount(selected_experts_flat, minlength=self.num_experts)
             density = expert_counts.to(probs_mean.dtype) / selected_experts_flat.numel()
-            # Standard Switch-style scaling keeps the uniform-routing optimum O(1)
-            # instead of growing with the expert count.
             aux_loss = self.aux_loss_coef * (probs_mean * density).sum() * self.num_experts
-
-        return final_output.view(B, T, D), aux_loss
-
+        return (final_output.view(B, T, D), aux_loss)
 
 class MLP(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        mlp_mult: int,
-        group_size: int = 64,
-        activation: str = "relu2",
-        leaky_relu_slope: float = 0.5,
-    ):
+
+    def __init__(self, dim: int, mlp_mult: int, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5):
         super().__init__()
         hidden = mlp_mult * dim
         self.activation = activation
         self.leaky_relu_slope = leaky_relu_slope
-        if activation == "swiglu":
+        if activation == 'swiglu':
             self.gate_up = TernaryLinear(dim, hidden * 2, bias=False, group_size=group_size)
         else:
             self.fc = TernaryLinear(dim, hidden, bias=False, group_size=group_size)
-            if activation == "lrelu2":
+            if activation == 'lrelu2':
                 self.fc._init_std = _squared_lrelu_weight_std(dim, leaky_relu_slope)
         self.proj = NormedTernaryLinear(hidden, dim, bias=False, group_size=group_size)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.activation == "swiglu":
-            gate, up = self.gate_up(x).chunk(2, dim=-1)
+        if self.activation == 'swiglu':
+            (gate, up) = self.gate_up(x).chunk(2, dim=-1)
             hidden = F.silu(gate) * up
-        elif self.activation == "relu":
+        elif self.activation == 'relu':
             hidden = torch.relu(self.fc(x))
-        elif self.activation == "lrelu2":
+        elif self.activation == 'lrelu2':
             hidden = F.leaky_relu(self.fc(x), negative_slope=self.leaky_relu_slope).square()
         else:
             hidden = torch.relu(self.fc(x)).square()
         return self.proj(hidden)
 
-
 class KoopmanTokenMixer(nn.Module):
-    """Causal token mixing via Koopman-inspired linear recurrence (PyTorch).
 
-    Replaces Self-Attention with O(T) linear dynamics:
-      1. Project input to state space
-      2. Short causal convolution for local context
-      3. Input-dependent gating
-      4. Causal linear scan via exponentially decaying convolution
-      5. Low-rank cross-dimension mixing
-      6. Project back to model dim
-    """
-    def __init__(self, dim: int, state_dim: int, rank: int = 4, conv_kernel: int = 4,
-                 decay_window: int = 32, group_size: int = 64,
-                 scan_checkpoint: bool = True, scan_checkpoint_min_seq: int = 1024):
+    def __init__(self, dim: int, state_dim: int, rank: int=4, conv_kernel: int=4, decay_window: int=32, group_size: int=64, scan_checkpoint: bool=True, scan_checkpoint_min_seq: int=1024):
         super().__init__()
         self.state_dim = state_dim
         self.conv_kernel = conv_kernel
         self.decay_window = decay_window
         self.scan_checkpoint = bool(scan_checkpoint)
         self.scan_checkpoint_min_seq = int(scan_checkpoint_min_seq)
-
         self.proj_in = TernaryLinear(dim, state_dim, bias=False, group_size=group_size)
         self.proj_out = NormedTernaryLinear(state_dim, dim, bias=False, group_size=group_size)
         self.proj_out._zero_init = True
-        
-        # Gates for controlling inputs and decay
         self.g_proj = TernaryLinear(dim, state_dim, bias=False, group_size=group_size)
         self.dt_proj = TernaryLinear(dim, state_dim, bias=False, group_size=group_size)
-
-        # Short causal conv (depthwise, per-channel)
         self.mixer_conv = nn.Parameter(torch.ones(conv_kernel, state_dim) / conv_kernel)
-        # We leave mixer_diag initialized just in case static fallback is called by older checkpoints
         self.mixer_diag = nn.Parameter(torch.full((state_dim,), 0.8))
         self.mixer_lowrank_U = nn.Parameter(torch.randn(state_dim, rank) * 0.001)
         self.mixer_lowrank_V = nn.Parameter(torch.randn(state_dim, rank) * 0.001)
         self.mixer_scale = nn.Parameter(torch.ones(dim))
-
-        self._use_hadamard = (state_dim & (state_dim - 1)) == 0 and state_dim >= 2
+        self._use_hadamard = state_dim & state_dim - 1 == 0 and state_dim >= 2
         if self._use_hadamard:
-            H = _build_hadamard_pt(state_dim, torch.device("cpu"))
-            self.register_buffer("_H", H, persistent=False)
+            H = _build_hadamard_pt(state_dim, torch.device('cpu'))
+            self.register_buffer('_H', H, persistent=False)
 
     def _short_causal_conv(self, x: Tensor) -> Tensor:
         K = self.conv_kernel
-        B, T, S = x.shape
+        (B, T, S) = x.shape
         weight = self.mixer_conv.flip([0]).T.unsqueeze(1).to(x.dtype)
         x_padded = F.pad(x.transpose(1, 2), (K - 1, 0))
         h_t = F.conv1d(x_padded, weight, groups=S)
         return h_t.transpose(1, 2).contiguous()
 
-    def _causal_decay_scan(self, x: Tensor, gate: Tensor, override_window: int | None = None,
-                           dt_gate: Tensor | None = None, reset_mask: Tensor | None = None) -> Tensor:
-        """High-Performance Parallel Chunked Scan (CV-Scan) for CUDA.
-        Hierarchical scan (O(log T) depth) for sub-500ms step times.
-        """
-        B, T, S = x.shape
-        W = 32 # Chunk size
-        # Pad T to next multiple of W so reshape is always valid
+    def _causal_decay_scan(self, x: Tensor, gate: Tensor, override_window: int | None=None, dt_gate: Tensor | None=None, reset_mask: Tensor | None=None) -> Tensor:
+        (B, T, S) = x.shape
+        W = 32
         T_orig = T
-        T_pad = ((T + W - 1) // W) * W
+        T_pad = (T + W - 1) // W * W
         if T_pad > T:
             pad = T_pad - T
             x = F.pad(x, (0, 0, 0, pad))
@@ -2294,11 +2113,8 @@ class KoopmanTokenMixer(nn.Module):
                 reset_mask = torch.cat((reset_mask, reset_mask.new_zeros((B, pad))), dim=1)
             T = T_pad
         num_chunks = T // W
-        
         if self._use_hadamard:
             x = x @ self._H.to(dtype=x.dtype, device=x.device)
-
-        # 1. Inputs and Decays
         if dt_gate is not None:
             logD = -F.softplus(dt_gate.float())
             D = torch.exp(logD).to(x.dtype)
@@ -2306,19 +2122,14 @@ class KoopmanTokenMixer(nn.Module):
             D_static = torch.clamp(self.mixer_diag, -0.999, 0.999).to(x.dtype)
             D = D_static.view(1, 1, S).expand(B, T, S)
         if reset_mask is not None:
-            # Reset the recurrent carry on EOS positions so the next document sees
-            # only the boundary token, not the full state from the previous document.
             D = torch.where(reset_mask.unsqueeze(-1), torch.zeros_like(D), D)
         if dt_gate is not None:
             B_vals = (gate * x * (1.0 - D)).to(x.dtype)
         else:
             B_vals = (gate * x * (1.0 - D.abs())).to(x.dtype)
-
-        # --- Triton fused scan: single kernel, no intermediate tensors ---
-        if HAS_TRITON and B_vals.is_cuda and not torch.compiler.is_compiling():
+        if HAS_TRITON and B_vals.is_cuda and (not torch.compiler.is_compiling()):
             h = triton_parallel_scan(B_vals.contiguous(), D.contiguous())
         else:
-            # --- Original chunked parallel scan (PyTorch fallback) ---
             D_c = D.reshape(B, num_chunks, W, S)
             B_c = B_vals.reshape(B, num_chunks, W, S)
             h_local = torch.empty_like(B_c)
@@ -2332,8 +2143,8 @@ class KoopmanTokenMixer(nn.Module):
                 d_prev = D_c[:, :, t] * d_prev
                 h_local[:, :, t] = h_prev
                 d_local[:, :, t] = d_prev
-            chunk_finals_h = h_local[:, :, -1] 
-            chunk_finals_d = d_local[:, :, -1] 
+            chunk_finals_h = h_local[:, :, -1]
+            chunk_finals_d = d_local[:, :, -1]
             chunk_prefixes = torch.empty(B, num_chunks, 1, S, dtype=chunk_finals_h.dtype, device=chunk_finals_h.device)
             prefix_prev = torch.zeros_like(chunk_finals_h[:, 0])
             chunk_prefixes[:, 0, 0] = prefix_prev
@@ -2342,242 +2153,137 @@ class KoopmanTokenMixer(nn.Module):
                 chunk_prefixes[:, i, 0] = prefix_prev
             h = h_local + d_local * chunk_prefixes
             h = h.reshape(B, T, S)
-
-        # Strip padding if we padded earlier
         if T_orig < T:
             h = h[:, :T_orig]
-
-        # 6. Low-rank coupling
         U = self.mixer_lowrank_U.to(x.dtype)
         V = self.mixer_lowrank_V.to(x.dtype)
-        h = h + (h @ V) @ U.T
-
+        h = h + h @ V @ U.T
         if self._use_hadamard:
             h = h @ self._H.to(dtype=x.dtype, device=x.device)
         return h
 
     def _should_checkpoint_scan(self, x: Tensor) -> bool:
-        return (
-            self.scan_checkpoint
-            and self.training
-            and torch.is_grad_enabled()
-            and x.size(1) >= self.scan_checkpoint_min_seq
-        )
+        return self.scan_checkpoint and self.training and torch.is_grad_enabled() and (x.size(1) >= self.scan_checkpoint_min_seq)
 
-    def forward(self, x: Tensor, reset_mask: Tensor | None = None) -> Tensor:
-        # KoopmanBlock already applies RMSNorm and depth-wise ln_scale_factor before
-        # calling the mixer. Re-normalizing here would erase that depth-aware scaling.
+    def forward(self, x: Tensor, reset_mask: Tensor | None=None) -> Tensor:
         s = self.proj_in(x)
         g = torch.sigmoid(self.g_proj(x))
         dt_gate = self.dt_proj(x)
         s = self._short_causal_conv(s)
         if self._should_checkpoint_scan(s):
-            h = checkpoint(
-                lambda s_, g_, dt_: self._causal_decay_scan(s_, g_, dt_gate=dt_, reset_mask=reset_mask),
-                s, g, dt_gate,
-                use_reentrant=False,
-            )
+            h = checkpoint(lambda s_, g_, dt_: self._causal_decay_scan(s_, g_, dt_gate=dt_, reset_mask=reset_mask), s, g, dt_gate, use_reentrant=False)
         else:
             h = self._causal_decay_scan(s, g, dt_gate=dt_gate, reset_mask=reset_mask)
         return self.proj_out(h)
 
-
 class KoopmanBlock(nn.Module):
-    """A single layer using Koopman SSM for token mixing (replaces attention)."""
-    def __init__(self, dim: int, state_dim: int, mlp_mult: int, mixer_rank: int = 4,
-                 conv_kernel: int = 4, decay_window: int = 32, group_size: int = 64,
-                 activation: str = "lrelu2", leaky_relu_slope: float = 0.5,
-                 ln_scale_factor: float = 1.0, moe_enabled: bool = False,
-                 moe_num_experts: int = 8, moe_top_k: int = 2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
-                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
-                 scan_checkpoint: bool = True, scan_checkpoint_min_seq: int = 1024,
-                 aux_min_entropy_fraction: float = 0.8):
+
+    def __init__(self, dim: int, state_dim: int, mlp_mult: int, mixer_rank: int=4, conv_kernel: int=4, decay_window: int=32, group_size: int=64, activation: str='lrelu2', leaky_relu_slope: float=0.5, ln_scale_factor: float=1.0, moe_enabled: bool=False, moe_num_experts: int=8, moe_top_k: int=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, scan_checkpoint: bool=True, scan_checkpoint_min_seq: int=1024, aux_min_entropy_fraction: float=0.8):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.mixer = KoopmanTokenMixer(dim, state_dim, rank=mixer_rank, conv_kernel=conv_kernel,
-                                        decay_window=decay_window, group_size=group_size,
-                                        scan_checkpoint=scan_checkpoint,
-                                        scan_checkpoint_min_seq=scan_checkpoint_min_seq)
+        self.mixer = KoopmanTokenMixer(dim, state_dim, rank=mixer_rank, conv_kernel=conv_kernel, decay_window=decay_window, group_size=group_size, scan_checkpoint=scan_checkpoint, scan_checkpoint_min_seq=scan_checkpoint_min_seq)
         if moe_enabled:
-            self.mlp = TernaryMoE(
-                dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
-                group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
-                aux_loss_coef=moe_aux_coef,
-            )
+            self.mlp = TernaryMoE(dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction, aux_loss_coef=moe_aux_coef)
         else:
-            self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
-                           leaky_relu_slope=leaky_relu_slope)
-        # Small non-zero residual seeds preserve SkipInit-style stability without
-        # forcing the branch internals to wait for multiple gates to wake up.
+            self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
         self.attn_scale = _residual_scale_init(dim, residual_scale_init)
         self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
         self.resid_mix = _resid_mix_init(dim, resid_mix_x0_init)
 
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                elapsed_fraction: float = 1.0,
-                reset_mask: Tensor | None = None) -> tuple[Tensor, None, Tensor | None]:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, reset_mask: Tensor | None=None) -> tuple[Tensor, None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-
         mixer_out = self.mixer(self.attn_norm(x) * self.ln_scale_factor, reset_mask=reset_mask)
         x = x + self.attn_scale.to(dtype=x.dtype) * mixer_out
-
-        _mlp_raw = (self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction)
-                    if isinstance(self.mlp, TernaryMoE)
-                    else self.mlp(self.mlp_norm(x) * self.ln_scale_factor))
+        _mlp_raw = self.mlp(self.mlp_norm(x) * self.ln_scale_factor, elapsed_fraction=elapsed_fraction) if isinstance(self.mlp, TernaryMoE) else self.mlp(self.mlp_norm(x) * self.ln_scale_factor)
         if isinstance(_mlp_raw, tuple):
-            mlp_out, moe_loss = _mlp_raw
+            (mlp_out, moe_loss) = _mlp_raw
         else:
-            mlp_out, moe_loss = _mlp_raw, None
-
+            (mlp_out, moe_loss) = (_mlp_raw, None)
         x = x + self.mlp_scale.to(dtype=x.dtype) * mlp_out
-        return x, None, moe_loss
-
+        return (x, None, moe_loss)
 
 class FeedbackPooler(nn.Module):
+
     def __init__(self, model_dim: int, feedback_dim: int, num_tokens: int, fp_storage: str | bool):
         super().__init__()
         self.num_tokens = max(1, num_tokens)
         self.proj = QATLinear(model_dim, feedback_dim, bias=False, fp_storage=fp_storage)
 
-    def forward(self, x: Tensor, valid_len: int | None = None) -> Tensor:
-        # Truncate to valid_len before pooling so zero-padded positions (added by the
-        # sliding-window eval batcher for the final partial chunk) do not get averaged
-        # into the sketch. Pooling zeros into the dense representation contaminates all
-        # token predictions for the valid prefix via the FeedbackAdapter broadcast.
+    def forward(self, x: Tensor, valid_len: int | None=None) -> Tensor:
         if valid_len is not None and valid_len < x.size(1):
             x = x[:, :valid_len, :]
         pooled = F.adaptive_avg_pool1d(x.transpose(1, 2), self.num_tokens).transpose(1, 2)
-        # Ensure contiguity before RMSNorm to avoid implicit memory copies in the kernel
         return self.proj(F.rms_norm(pooled.contiguous(), (pooled.size(-1),)))
 
-
 class FeedbackAdapter(nn.Module):
-    """Fast-Weight Delta Rule Memory Adapter.
-    
-    Replaces static gating and backward-pass TTT with a continuous forward-pass 
-    associative memory. The 'sketch' (compressed semantic summary from later layers)
-    is loaded into a fast-weight matrix $W$, which is queried by the current decoder 
-    features $X$ to retrieve temporally contextualized facts without gradient descent.
-    """
-    def __init__(self, model_dim: int, feedback_dim: int, fp_storage: str | bool, gate_init: float = 0.05):
+
+    def __init__(self, model_dim: int, feedback_dim: int, fp_storage: str | bool, gate_init: float=0.05):
         super().__init__()
-        # Initializing fast weight learning rate to ~0.11 via sigmoid(-2)
         self.fast_weight_lr = nn.Parameter(torch.tensor(-2.0, dtype=torch.float32))
-        
-        # K, V generated from the dense semantic 'sketch'
         self.k_proj = nn.Linear(feedback_dim, model_dim, bias=False)
         self.v_proj = nn.Linear(feedback_dim, model_dim, bias=False)
-        
-        # Query generated from the local decoder token state
         self.q_proj = nn.Linear(model_dim, model_dim, bias=False)
-        
-        # Gate to inject retrieved memory
         self.out_gate = nn.Parameter(torch.full((model_dim,), float(gate_init), dtype=torch.float32))
 
     def forward(self, x: Tensor, sketch: Tensor | None) -> Tensor:
         if sketch is None:
             return x
-            
-        B, T, D = x.shape
-        # sketch shape is [B, S, feedback_dim]
-        # Generate keys and values
-        k = F.rms_norm(self.k_proj(sketch), (D,))  # [B, S, D]
-        v = F.rms_norm(self.v_proj(sketch), (D,))  # [B, S, D]
-
-        # Fast-weight memory resets every forward call, so the delta-rule update from
-        # zero collapses to a single outer product. Skip the zero-state BMMs entirely.
+        (B, T, D) = x.shape
+        k = F.rms_norm(self.k_proj(sketch), (D,))
+        v = F.rms_norm(self.v_proj(sketch), (D,))
         lr = torch.sigmoid(self.fast_weight_lr)
         sketch_len = max(int(sketch.size(1)), 1)
-        q = F.rms_norm(self.q_proj(x), (D,)) # [B, T, D]
-
-        # --- Optimized retrieval: avoids D×D memory_matrix materialization ---
-        # Original:  M = V^T @ K (D×D), retrieved = M @ Q^T
-        # Optimized: inner = K @ Q^T (S×T), retrieved = V^T @ inner (D×T)
-        # S is typically 2, so S×T << D×D.
+        q = F.rms_norm(self.q_proj(x), (D,))
         retrieved = optimized_feedback_retrieve(q, k, v, lr, sketch_len)
-        
-        # Hadamard-gated injection
         gate = torch.tanh(self.out_gate).to(dtype=x.dtype)
         x_out = x + gate * retrieved.to(dtype=x.dtype)
-        
         return x_out
 
-
 class KoopmanDynamics(nn.Module):
-    """Diagonal + low-rank stable linear dynamics in capsule space.
 
-    Predicts next-pass capsule state from current state:
-        c_pred = D ⊙ c + U(V^T c)
-        c_new  = α ⊙ c_observed + (1-α) ⊙ c_pred
-
-    First-principles design:
-        - D initialized at 0.9 (critical damping, ρ(D)=0.9 < 1)
-        - UV initialized small (spectral perturbation << 1-ρ(D))
-        - α at sigmoid(0)=0.5 (maximum-entropy prior)
-        - Stability guaranteed at init: ρ(D + UV^T) ≤ 0.9 + ε
-    """
-    def __init__(self, capsule_dim: int, rank: int = 4, diag_init: float = 0.9):
+    def __init__(self, capsule_dim: int, rank: int=4, diag_init: float=0.9):
         super().__init__()
         self.capsule_dim = capsule_dim
         self.diag = nn.Parameter(torch.full((capsule_dim,), diag_init, dtype=torch.float32))
         init_scale = 0.01 / max(rank ** 0.5, 1.0)
         self.U = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
         self.V = nn.Parameter(torch.randn(capsule_dim, rank) * init_scale)
-        self.alpha = nn.Parameter(torch.full((capsule_dim,), -5.0, dtype=torch.float32))  # sigmoid(-5)≈0.007: capsules start OFF
-        # Precompute Hadamard for capsule dim (must be power of 2)
-        self._use_hadamard = (capsule_dim & (capsule_dim - 1)) == 0 and capsule_dim >= 2
+        self.alpha = nn.Parameter(torch.full((capsule_dim,), -5.0, dtype=torch.float32))
+        self._use_hadamard = capsule_dim & capsule_dim - 1 == 0 and capsule_dim >= 2
         if self._use_hadamard:
             H = _build_hadamard_pt(capsule_dim, torch.device('cpu'))
             self.register_buffer('_H', H)
 
     def _rotate(self, c: Tensor) -> Tensor:
-        """Hadamard rotate: spreads capsule info uniformly across dims."""
         if self._use_hadamard:
             return c @ self._H.to(dtype=c.dtype, device=c.device)
         return c
 
     def predict(self, c: Tensor) -> Tensor:
-        """Predict next-pass capsule state. c: (B, N, capsule_dim)
-        Hadamard-rotate → diagonal+low-rank evolve → rotate back."""
         c_rot = self._rotate(c)
-        # Clamp diagonal for multi-step spectral stability: |d_i| < 1 prevents
-        # exponential blowup when composing predict() K times in speculate().
         d_clamped = torch.clamp(self.diag, -0.999, 0.999).to(dtype=c_rot.dtype)
         c_diag = d_clamped * c_rot
-        c_lowrank = (c_rot @ self.V.to(dtype=c_rot.dtype)) @ self.U.to(dtype=c_rot.dtype).T
+        c_lowrank = c_rot @ self.V.to(dtype=c_rot.dtype) @ self.U.to(dtype=c_rot.dtype).T
         c_evolved = c_diag + c_lowrank
-        return self._rotate(c_evolved)  # H is self-inverse
+        return self._rotate(c_evolved)
 
     def speculate(self, c: Tensor, steps: int) -> Tensor:
-        """Recursively apply Koopman operator to fast-forward presentation.
-        Acts as 1-step diffusion jump in latent space."""
         curr = c
         for _ in range(steps):
             curr = self.predict(curr)
         return curr
 
     def blend(self, c_observed: Tensor, c_prev: Tensor) -> tuple[Tensor, Tensor]:
-        """Blend observed capsules with predicted evolution. Returns (blended, c_pred)."""
         c_pred = self.predict(c_prev)
         alpha = torch.sigmoid(self.alpha).to(dtype=c_observed.dtype)
-        return alpha * c_observed + (1.0 - alpha) * c_pred, c_pred
-
+        return (alpha * c_observed + (1.0 - alpha) * c_pred, c_pred)
 
 class CapsuleBank(nn.Module):
-    """Structured semantic state carriers with Koopman-driven recurrent dynamics.
 
-    Upgrade from simple gated blending to predictive latent dynamics:
-    - Koopman module predicts where capsule state should evolve
-    - Blend prediction with fresh observation from current pass
-    - Returns c_pred for consistency loss (auxiliary training signal)
-    """
-    def __init__(self, model_dim: int, capsule_num: int, capsule_dim: int, fp_storage: str | bool,
-                 koopman_enabled: bool = True, koopman_rank: int = 4, koopman_diag_init: float = 0.9):
+    def __init__(self, model_dim: int, capsule_num: int, capsule_dim: int, fp_storage: str | bool, koopman_enabled: bool=True, koopman_rank: int=4, koopman_diag_init: float=0.9):
         super().__init__()
         self.capsule_num = capsule_num
         self.capsule_dim = capsule_dim
@@ -2586,24 +2292,21 @@ class CapsuleBank(nn.Module):
         self.write_proj = nn.Linear(capsule_dim, model_dim, bias=False)
         self.recurrent_gate = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
         self.gate = nn.Parameter(torch.zeros(model_dim, dtype=torch.float32))
-        # Koopman dynamics
         self.koopman = None
         if koopman_enabled:
             self.koopman = KoopmanDynamics(capsule_dim, rank=koopman_rank, diag_init=koopman_diag_init)
 
-    def forward(self, x: Tensor, prev_capsules: Tensor | None = None, speculate_steps: int = 0) -> tuple[Tensor, Tensor, Tensor | None, Tensor | None]:
-        """Returns (corrected_x, capsule_state, c_pred_for_loss, c_spec)."""
-        bsz, seqlen, dim = x.shape
+    def forward(self, x: Tensor, prev_capsules: Tensor | None=None, speculate_steps: int=0) -> tuple[Tensor, Tensor, Tensor | None, Tensor | None]:
+        (bsz, seqlen, dim) = x.shape
         x_proj = self.read_proj(F.rms_norm(x, (dim,)))
-        scores = torch.einsum("btd,nd->btn", x_proj, self.prototypes.to(x_proj.dtype))
-        attn = torch.softmax(scores / (self.capsule_dim ** 0.5), dim=1)
-        capsules = torch.einsum("btn,btd->bnd", attn, x_proj)
-
+        scores = torch.einsum('btd,nd->btn', x_proj, self.prototypes.to(x_proj.dtype))
+        attn = torch.softmax(scores / self.capsule_dim ** 0.5, dim=1)
+        capsules = torch.einsum('btn,btd->bnd', attn, x_proj)
         c_pred = None
         c_spec = None
         if prev_capsules is not None:
             if self.koopman is not None:
-                capsules, c_pred = self.koopman.blend(capsules, prev_capsules)
+                (capsules, c_pred) = self.koopman.blend(capsules, prev_capsules)
                 if speculate_steps > 0:
                     c_spec = self.koopman.speculate(capsules, speculate_steps)
                     if not self.training:
@@ -2611,137 +2314,67 @@ class CapsuleBank(nn.Module):
             else:
                 rg = torch.sigmoid(self.recurrent_gate).to(dtype=capsules.dtype)
                 capsules = rg * capsules + (1 - rg) * prev_capsules
-
-        readout = torch.einsum("btn,bnd->btd", attn, capsules)
+        readout = torch.einsum('btn,bnd->btd', attn, capsules)
         correction = self.write_proj(readout)
         g = torch.tanh(self.gate).to(dtype=x.dtype)
-        return x + g * correction, capsules, c_pred, c_spec
-
+        return (x + g * correction, capsules, c_pred, c_spec)
 
 class Block(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-        group_size: int = 64,
-        activation: str = "relu2",
-        leaky_relu_slope: float = 0.5,
-        no_cache: bool = False,
-        rope_type: str = "rope",
-        yarn_max_len: int = 4096,
-        train_seq_len: int = 1024,
-        partial_rope_dims: int = 0,
-        vrl_enabled: bool = False,
-        ln_scale_factor: float = 1.0,
-        xsa: bool = False,
-        moe_enabled: bool = False,
-        moe_num_experts: int = 8,
-        moe_top_k: int = 2,
-        moe_start_fraction: float = 0.65,
-        moe_aux_coef: float = 0.001,
-        residual_scale_init: float = 0.05,
-        resid_mix_x0_init: float = 0.05,
-        scan_checkpoint: bool = True,
-        scan_checkpoint_min_seq: int = 1024,
-    ):
+
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5, no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024, partial_rope_dims: int=0, vrl_enabled: bool=False, ln_scale_factor: float=1.0, xsa: bool=False, moe_enabled: bool=False, moe_num_experts: int=8, moe_top_k: int=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, scan_checkpoint: bool=True, scan_checkpoint_min_seq: int=1024):
         super().__init__()
         self.ln_scale_factor = ln_scale_factor
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(
-            dim,
-            num_heads,
-            num_kv_heads,
-            rope_base,
-            qk_gain_init,
-            group_size=group_size,
-            no_cache=no_cache,
-            rope_type=rope_type,
-            yarn_max_len=yarn_max_len,
-            train_seq_len=train_seq_len,
-            partial_rope_dims=partial_rope_dims,
-            vrl_enabled=vrl_enabled,
-            xsa=xsa,
-        )
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, group_size=group_size, no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len, train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims, vrl_enabled=vrl_enabled, xsa=xsa)
         if moe_enabled:
-            self.mlp = TernaryMoE(
-                dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
-                group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
-                aux_loss_coef=moe_aux_coef,
-            )
+            self.mlp = TernaryMoE(dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction, aux_loss_coef=moe_aux_coef)
         else:
-            self.mlp = MLP(
-                dim,
-                mlp_mult,
-                group_size=group_size,
-                activation=activation,
-                leaky_relu_slope=leaky_relu_slope,
-            )
+            self.mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
         self.attn_scale = _residual_scale_init(dim, residual_scale_init)
         self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
         self.resid_mix = _resid_mix_init(dim, resid_mix_x0_init)
 
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-        attn_out, v_out = self.attn(self.attn_norm(x) * self.ln_scale_factor, v0=v0)
+        (attn_out, v_out) = self.attn(self.attn_norm(x) * self.ln_scale_factor, v0=v0)
         x = x + self.attn_scale.to(dtype=x.dtype) * attn_out
         _mlp_in = self.mlp_norm(x) * self.ln_scale_factor
-        _mlp_raw = (self.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
-                    if isinstance(self.mlp, TernaryMoE) else self.mlp(_mlp_in))
+        _mlp_raw = self.mlp(_mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(self.mlp, TernaryMoE) else self.mlp(_mlp_in)
         if isinstance(_mlp_raw, tuple):
-            _mlp_out, moe_loss = _mlp_raw
+            (_mlp_out, moe_loss) = _mlp_raw
         else:
-            _mlp_out, moe_loss = _mlp_raw, None
+            (_mlp_out, moe_loss) = (_mlp_raw, None)
         x = x + self.mlp_scale.to(dtype=x.dtype) * _mlp_out
-        return x, v_out, moe_loss
-
+        return (x, v_out, moe_loss)
 
 class ParallelResidualBlock(Block):
-    """Attention and MLP read the same pre-residual normalized input."""
-    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                elapsed_fraction: float = 1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
+
+    def forward(self, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0] * x + mix[1] * x0
         h = self.attn_norm(x_in) * self.ln_scale_factor
-        attn_out, v_out = self.attn(h, v0=v0)
-        _mlp_raw = (self.mlp(h, elapsed_fraction=elapsed_fraction)
-                    if isinstance(self.mlp, TernaryMoE) else self.mlp(h))
+        (attn_out, v_out) = self.attn(h, v0=v0)
+        _mlp_raw = self.mlp(h, elapsed_fraction=elapsed_fraction) if isinstance(self.mlp, TernaryMoE) else self.mlp(h)
         if isinstance(_mlp_raw, tuple):
-            _mlp_out, moe_loss = _mlp_raw
+            (_mlp_out, moe_loss) = _mlp_raw
         else:
-            _mlp_out, moe_loss = _mlp_raw, None
+            (_mlp_out, moe_loss) = (_mlp_raw, None)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype) * attn_out + self.mlp_scale.to(dtype=x_in.dtype) * _mlp_out
-        return x_out, v_out, moe_loss
-
-
-
-# Note: Assumes TernaryLinear, NormedTernaryLinear, and rms_norm are already imported or available.
-# This code will be injected right before the Architecture Selection logic in train_gpt.py
+        return (x_out, v_out, moe_loss)
 
 def causal_wht_blockwise(x, block_size=64, num_stages=None):
-    if block_size <= 0 or (block_size & (block_size - 1)) != 0:
-        raise ValueError(f"block_size must be a positive power of two, got {block_size}")
-
-    # --- Triton FWHT: all butterfly stages in SRAM via H matmul ---
-    if HAS_TRITON and x.is_cuda and not torch.compiler.is_compiling():
+    if block_size <= 0 or block_size & block_size - 1 != 0:
+        raise ValueError(f'block_size must be a positive power of two, got {block_size}')
+    if HAS_TRITON and x.is_cuda and (not torch.compiler.is_compiling()):
         return triton_fwht_blockwise(x, block_size, num_stages)
-
-    # --- PyTorch fallback: O(log N) HBM round-trips per block ---
-    B, T, D = x.shape
+    (B, T, D) = x.shape
     pad_len = (block_size - T % block_size) % block_size
     if pad_len > 0:
-        # F.pad format: (left_D, right_D, left_T, right_T)
         x = F.pad(x, (0, 0, 0, pad_len))
     T_padded = x.shape[1]
     num_blocks = T_padded // block_size
-
     x_blocks = x.view(B, num_blocks, block_size, D)
     max_stages = int(math.log2(block_size))
     if num_stages is None:
@@ -2749,7 +2382,7 @@ def causal_wht_blockwise(x, block_size=64, num_stages=None):
     else:
         h = int(num_stages)
         if h < 0 or h > max_stages:
-            raise ValueError(f"num_stages must be in [0, {max_stages}] for block_size={block_size}, got {num_stages}")
+            raise ValueError(f'num_stages must be in [0, {max_stages}] for block_size={block_size}, got {num_stages}')
     result = x_blocks
     for stage in range(h):
         stride = 1 << stage
@@ -2758,62 +2391,50 @@ def causal_wht_blockwise(x, block_size=64, num_stages=None):
         odd = result[:, :, :, stride:, :]
         result = torch.cat([even + odd, even - odd], dim=3)
         result = result.view(B, num_blocks, block_size, D)
-
     result = result * (1.0 / math.sqrt(block_size))
     result = result.view(B, T_padded, D)
     return result[:, :T, :]
 
 def causal_spectral_decay_scan(x_blocks, decay_rates, gate):
-    B, num_blocks, block_sz, D = x_blocks.shape
-    # Keep decay non-negative inside the spectral scan. Negative float bases raised
-    # to float exponents produce NaNs in PyTorch, and this scan only needs monotone
-    # within-block fade, not oscillatory sign flips.
+    (B, num_blocks, block_sz, D) = x_blocks.shape
+    if HAS_TRITON and x_blocks.is_cuda and (not torch.compiler.is_compiling()) and num_blocks > 1:
+        _triton_result = triton_spectral_decay_scan(x_blocks, decay_rates, gate)
+        if _triton_result is not None:
+            return _triton_result
     decay = torch.clamp(decay_rates, 0.0, 0.999)
     gated = gate * x_blocks
-    
     if num_blocks > 1:
         block_finals = gated[:, :, -1, :]
         idx = torch.arange(num_blocks, device=decay.device)
         diff = idx[:, None] - idx[None, :]
         mask = diff >= 0
         diff_clamped = torch.max(diff, torch.zeros_like(diff))
-        
         M = decay[None, None, :] ** diff_clamped[:, :, None].to(decay.dtype)
         M = torch.where(mask[:, :, None], M, torch.zeros_like(M))
-        
         states = torch.einsum('ijd,bjd->bid', M, block_finals)
         prefix_states = torch.cat([torch.zeros_like(states[:, :1, :]), states[:, :-1, :]], dim=1)
-        # Apply exponential per-step decay within each block so the prefix state
-        # fades across time steps: token t within the block sees prefix * decay^(t+1).
-        # Without this, prefix_states broadcasts as a flat bias — every token in the
-        # block receives the same prefix * decay regardless of its offset, which is
-        # a step function rather than a proper linear-RNN/SSM causal scan.
         t = torch.arange(1, block_sz + 1, device=decay.device, dtype=decay.dtype)
-        # time_decay: (block_sz, D) — decay raised to successive powers
-        time_decay = decay[None, :] ** t[:, None]   # (block_sz, D)
+        time_decay = decay[None, :] ** t[:, None]
         return x_blocks + prefix_states[:, :, None, :] * time_decay[None, None, :, :]
     return x_blocks
 
 class SpectralTernaryAuxLoss(nn.Module):
-    def __init__(self, weight=0.01, min_entropy_fraction: float = 0.8):
+
+    def __init__(self, weight=0.01, min_entropy_fraction: float=0.8):
         super().__init__()
         self.weight = weight
         self.min_entropy_fraction = float(min_entropy_fraction)
 
     def forward(self, x_spec):
-        # Average over (Batch, Time) — dim=(0,1) — leaving a distribution over the
-        # Capsule dimension. This enforces spectral uniformity across capsules to
-        # prevent representation collapse (all routing concentrating on a few capsules).
-        # The wrong choice dim=(0,2) averaged over Batch+Capsule, yielding a constraint
-        # over Time, where energy fluctuations are natural and should not be penalised.
-        energy = torch.mean(x_spec * x_spec, dim=(0, 1)) + 1e-8
+        energy = torch.mean(x_spec * x_spec, dim=(0, 1)) + 1e-08
         p = energy / torch.sum(energy)
         entropy = -torch.sum(p * torch.log(p + 1e-10))
-        max_entropy = math.log(max(x_spec.shape[2], 1))  # shape[2] = num capsules
+        max_entropy = math.log(max(x_spec.shape[2], 1))
         min_entropy = self.min_entropy_fraction * max_entropy
         return self.weight * torch.relu(min_entropy - entropy)
 
 class FrequencyBandRouter(nn.Module):
+
     def __init__(self, num_capsules, capsule_dim, block_size):
         super().__init__()
         self.num_capsules = num_capsules
@@ -2822,10 +2443,7 @@ class FrequencyBandRouter(nn.Module):
         centers = np.linspace(0, 1, num_capsules, dtype=np.float32)
         self.band_centers = nn.Parameter(torch.from_numpy(centers))
         self.band_log_widths = nn.Parameter(torch.full((num_capsules,), -1.0, dtype=torch.float32))
-        # C6: content-conditioned routing residual.
-        # content_scale starts at -2.0 => sigmoid(-2) ≈ 0.12, so positional prior
-        # dominates early and routing goes content-adaptive as training progresses.
-        self.content_router = nn.Linear(capsule_dim, num_capsules, bias=False)
+        self.content_router = TernaryLinear(capsule_dim, num_capsules, bias=False, group_size=min(64, capsule_dim))
         self.content_scale = nn.Parameter(torch.tensor(-2.0))
 
     def forward(self, x_spec, T):
@@ -2833,30 +2451,25 @@ class FrequencyBandRouter(nn.Module):
         idx = torch.arange(T, device=x_spec.device, dtype=torch.float32)
         block_id = torch.floor(idx / float(self.block_size))
         pos_in_block = torch.remainder(idx, float(self.block_size))
-        remaining = T - (block_id * float(self.block_size))
-        block_len = torch.minimum(
-            torch.full_like(remaining, float(self.block_size)),
-            remaining,
-        )
+        remaining = T - block_id * float(self.block_size)
+        block_len = torch.minimum(torch.full_like(remaining, float(self.block_size)), remaining)
         seq_pos = pos_in_block / torch.clamp(block_len - 1.0, min=1.0)
         widths = torch.exp(self.band_log_widths)
         diff = seq_pos[:, None] - self.band_centers[None, :]
-        pos_logits = -0.5 * (diff * diff) / (widths[None, :] ** 2 + 1e-6)
+        pos_logits = -0.5 * (diff * diff) / (widths[None, :] ** 2 + 1e-06)
         pos_logits = pos_logits[None, :, :].expand(B, T, self.num_capsules)
-        # Content term: rms-normed projection, blended in with a learned scale
         content_logits = self.content_router(F.rms_norm(x_spec, (x_spec.size(-1),))).float()
         alpha = torch.sigmoid(self.content_scale)
         routing_weights = torch.softmax(pos_logits + alpha * content_logits, dim=-1)
-        capsules = torch.einsum("btn,btd->bnd", routing_weights, x_spec)
-        return routing_weights, capsules
+        capsules = torch.einsum('btn,btd->bnd', routing_weights, x_spec)
+        return (routing_weights, capsules)
 
 class KoopmanSpectralEvolution(nn.Module):
+
     def __init__(self, capsule_dim, num_capsules, rank=8):
         super().__init__()
         self.capsule_dim = capsule_dim
         self.num_capsules = num_capsules
-        # C7: init at 0.0 → sigmoid(0) = 0.5 (50/50 blend of old/new state at start).
-        # Old init of 2.0 → sigmoid(2.0)=0.88 was too sticky and slowed early learning.
         self.eigenvalues = nn.Parameter(torch.zeros(num_capsules, capsule_dim, dtype=torch.float32))
         self.coupling_U = nn.Parameter(torch.randn(num_capsules, rank, dtype=torch.float32) * 0.01)
         self.coupling_V = nn.Parameter(torch.randn(rank, num_capsules, dtype=torch.float32) * 0.01)
@@ -2869,21 +2482,17 @@ class KoopmanSpectralEvolution(nn.Module):
         else:
             evolved = capsules
         coupling = torch.matmul(self.coupling_U, self.coupling_V)
-        coup_norm = torch.sqrt(torch.sum(coupling * coupling) + 1e-8)
+        coup_norm = torch.sqrt(torch.sum(coupling * coupling) + 1e-08)
         coupling = coupling / torch.clamp_min(coup_norm, 1.0)
-        cross_info = torch.einsum("nm,bmc->bnc", coupling, evolved)
+        cross_info = torch.einsum('nm,bmc->bnc', coupling, evolved)
         evolved = evolved + cross_info
         nl_gate = torch.sigmoid(self.nonlinear_gate)
         evolved = (1.0 - nl_gate[None, :, :]) * evolved + nl_gate[None, :, :] * torch.tanh(evolved)
         return evolved
 
 class SKCLayer(nn.Module):
-    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
-                 mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
-                 ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
-                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
-                 aux_min_entropy_fraction: float = 0.8):
+
+    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64, mlp_mult=4, group_size=128, activation='lrelu2', leaky_relu_slope=0.5, ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, aux_min_entropy_fraction: float=0.8):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -2892,135 +2501,75 @@ class SKCLayer(nn.Module):
         self.ln_scale_factor = ln_scale_factor
         self.block_size = block_size
         self.wht_stages = int(math.log2(block_size))
-
         self.spec_proj_in = TernaryLinear(dim, capsule_dim, group_size=group_size)
-        
         self.decay_rates = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
         self.gate_proj = TernaryLinear(dim, capsule_dim, group_size=group_size)
-        
         self.router = FrequencyBandRouter(capsule_num, capsule_dim, block_size)
         self.koopman = KoopmanSpectralEvolution(capsule_dim, capsule_num)
-        
         self.spec_proj_out = NormedTernaryLinear(capsule_dim, dim, group_size=group_size)
         self.spec_proj_out._zero_init = True
-        
         self.mixer_conv = nn.Parameter(torch.ones(capsule_dim, conv_kernel, dtype=torch.float32) / conv_kernel)
         if moe_enabled:
-            self.local_mlp = TernaryMoE(
-                dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
-                group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
-                aux_loss_coef=moe_aux_coef,
-            )
+            self.local_mlp = TernaryMoE(dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction, aux_loss_coef=moe_aux_coef)
         else:
             self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
-        
         self.skc_scale = _residual_scale_init(dim, residual_scale_init)
         self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
         self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
 
     def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
-        B, T, D = x.shape
+        (B, T, D) = x.shape
         if T == 0:
-            return x, None, None
+            return (x, None, None)
         mix = self.resid_mix.to(x.dtype)
         x = mix[0] * x + mix[1] * x0
         normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
-        
-        B, T, D = normed.shape
+        (B, T, D) = normed.shape
         pad_len = (self.block_size - T % self.block_size) % self.block_size
         T_pad = T + pad_len
-        
         s = self.spec_proj_in(normed)
         g = torch.sigmoid(self.gate_proj(normed))
-        
         s_pad = F.pad(s, (0, 0, 0, pad_len))
         g_pad = F.pad(g, (0, 0, 0, pad_len))
-        
         num_blocks = T_pad // self.block_size
         s_blocks = s_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
         g_blocks = g_pad.view(B, num_blocks, self.block_size, self.capsule_dim)
-        
         s_wht = causal_wht_blockwise(s_blocks.view(B, T_pad, self.capsule_dim), self.block_size, self.wht_stages)
         s_wht_blocks = s_wht.view(B, num_blocks, self.block_size, self.capsule_dim)
-        
         s_decay = causal_spectral_decay_scan(s_wht_blocks, self.decay_rates, g_blocks)
         s_spec = s_decay.view(B, T_pad, self.capsule_dim)[:, :T, :]
-        
-        routing_weights, capsules = self.router(s_spec, T)
-        # Do NOT carry state across batches: training batches are randomized independent
-        # documents, so cross-batch carry injects semantically unrelated noise.  Worse,
-        # carry was only active during training (self.training), so the model trained on
-        # noisy carry but eval ran with carry=None — a guaranteed train/eval mismatch.
-        # Use prev_capsules (intra-sequence, passed explicitly) but never cross-batch state.
+        (routing_weights, capsules) = self.router(s_spec, T)
         evolved_caps = self.koopman(capsules, prev_capsules)
-        
-        synth_spec = torch.einsum("btn,bnc->btc", routing_weights, evolved_caps)
-        
+        synth_spec = torch.einsum('btn,bnc->btc', routing_weights, evolved_caps)
         synth_pad = F.pad(synth_spec, (0, 0, 0, pad_len))
         synth_wht = causal_wht_blockwise(synth_pad, self.block_size, self.wht_stages)[:, :T, :]
-        
         s_conv_in = synth_wht.transpose(1, 2)
         s_conv_pad = F.pad(s_conv_in, (self.conv_kernel - 1, 0))
         weight = self.mixer_conv.view(self.capsule_dim, 1, self.conv_kernel)
         s_conv = F.conv1d(s_conv_pad, weight.to(s_conv_in.dtype), groups=self.capsule_dim)
         s_conv = s_conv.transpose(1, 2)
-        
         skc_out = self.spec_proj_out(s_conv)
-        # Use per-layer external scale when provided (shared-block mode) so each
-        # reuse of this block at a different depth has its own independent SkipInit scale.
         _scale = external_skc_scale if external_skc_scale is not None else self.skc_scale.to(x.dtype)
         x = x + _scale[None, None, :] * skc_out
-
-        # Spectral aux loss returned functionally — never stored as module state to
-        # avoid Dynamo side-effect traps (m.spectral_aux_loss = None inside compiled graph).
         spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
-
         mlp_in = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
-        _mlp_raw = (self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction)
-                    if isinstance(self.local_mlp, TernaryMoE)
-                    else self.local_mlp(mlp_in))
+        _mlp_raw = self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(self.local_mlp, TernaryMoE) else self.local_mlp(mlp_in)
         if isinstance(_mlp_raw, tuple):
-            mlp_out, moe_loss = _mlp_raw
+            (mlp_out, moe_loss) = _mlp_raw
         else:
-            mlp_out, moe_loss = _mlp_raw, None
-        # Use per-layer external MLP scale when provided (shared-block mode) so each
-        # reuse of this block at a different depth has its own independent SkipInit scale.
+            (mlp_out, moe_loss) = (_mlp_raw, None)
         _m_scale = external_mlp_scale if external_mlp_scale is not None else self.mlp_scale.to(x.dtype)
         x = x + _m_scale[None, None, :] * mlp_out
-        # Combine spectral and MoE aux losses into a single return value
         if spec_aux is not None and moe_loss is not None:
             combined_aux: Tensor | None = spec_aux + moe_loss
         else:
             combined_aux = spec_aux if spec_aux is not None else moe_loss
-        return x, None, combined_aux
-
+        return (x, None, combined_aux)
 
 class ParallelSKCBlock(nn.Module):
-    """SKC block with parallel residual structure.
 
-    Two sub-paths read the *same* RMSNorm-ed input in parallel and merge
-    before the residual add, instead of serializing spectral + MLP:
-
-        normed = RMSNorm(x)
-        skc_out  = SKC spectral path(normed)
-        mlp_out  = MLP/MoE path(normed)
-        merged   = merge_scale_skc * skc_out + merge_scale_mlp * mlp_out
-        x        = x + merged
-
-    This lets the two paths specialise independently (spectral vs dense),
-    removes the MLP's dependence on the SKC-updated hidden state, and is
-    faster per unit capacity because the paths run on the same activation.
-    Merge scalars are learned from zero (SkipInit-style).
-    """
-
-    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64,
-                 mlp_mult=4, group_size=128, activation="lrelu2", leaky_relu_slope=0.5,
-                 ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2,
-                 moe_start_fraction: float = 0.65, moe_aux_coef: float = 0.001,
-                 residual_scale_init: float = 0.05, resid_mix_x0_init: float = 0.05,
-                 aux_min_entropy_fraction: float = 0.8):
+    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64, mlp_mult=4, group_size=128, activation='lrelu2', leaky_relu_slope=0.5, ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, aux_min_entropy_fraction: float=0.8):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -3029,8 +2578,6 @@ class ParallelSKCBlock(nn.Module):
         self.ln_scale_factor = ln_scale_factor
         self.block_size = block_size
         self.wht_stages = int(math.log2(block_size))
-
-        # SKC spectral path — same as SKCLayer but without the MLP stage
         self.spec_proj_in = TernaryLinear(dim, capsule_dim, group_size=group_size)
         self.decay_rates = nn.Parameter(torch.zeros(capsule_dim, dtype=torch.float32))
         self.gate_proj = TernaryLinear(dim, capsule_dim, group_size=group_size)
@@ -3040,33 +2587,20 @@ class ParallelSKCBlock(nn.Module):
         self.spec_proj_out._zero_init = True
         self.mixer_conv = nn.Parameter(torch.ones(capsule_dim, conv_kernel, dtype=torch.float32) / conv_kernel)
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
-
-        # MLP/MoE path (reads same normed input as SKC path)
         if moe_enabled:
-            self.local_mlp = TernaryMoE(
-                dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k,
-                group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction,
-                aux_loss_coef=moe_aux_coef,
-            )
+            self.local_mlp = TernaryMoE(dim, mlp_mult, num_experts=moe_num_experts, top_k=moe_top_k, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, moe_start_fraction=moe_start_fraction, aux_loss_coef=moe_aux_coef)
         else:
-            self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation,
-                                 leaky_relu_slope=leaky_relu_slope)
-
+            self.local_mlp = MLP(dim, mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope)
         self.skc_scale = _residual_scale_init(dim, residual_scale_init)
         self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
         self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
 
-    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0,
-                external_skc_scale=None, external_mlp_scale=None):
-        B, T, D = x.shape
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
+        (B, T, D) = x.shape
         if T == 0:
-            return x, None, None
+            return (x, None, None)
         mix = self.resid_mix.to(x.dtype)
         x = mix[0] * x + mix[1] * x0
-
-        # --- Serial residual path for higher fidelity ---
-        # 1. SKC Spectral Path
         normed = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
         pad_len = (self.block_size - T % self.block_size) % self.block_size
         T_pad = T + pad_len
@@ -3081,9 +2615,9 @@ class ParallelSKCBlock(nn.Module):
         s_wht_blocks = s_wht.view(B, num_blocks, self.block_size, self.capsule_dim)
         s_decay = causal_spectral_decay_scan(s_wht_blocks, self.decay_rates, g_blocks)
         s_spec = s_decay.view(B, T_pad, self.capsule_dim)[:, :T, :]
-        routing_weights, capsules = self.router(s_spec, T)
+        (routing_weights, capsules) = self.router(s_spec, T)
         evolved_caps = self.koopman(capsules, prev_capsules)
-        synth_spec = torch.einsum("btn,bnc->btc", routing_weights, evolved_caps)
+        synth_spec = torch.einsum('btn,bnc->btc', routing_weights, evolved_caps)
         synth_pad = F.pad(synth_spec, (0, 0, 0, pad_len))
         synth_wht = causal_wht_blockwise(synth_pad, self.block_size, self.wht_stages)[:, :T, :]
         s_conv_in = synth_wht.transpose(1, 2)
@@ -3092,47 +2626,30 @@ class ParallelSKCBlock(nn.Module):
         s_conv = F.conv1d(s_conv_pad, weight.to(s_conv_in.dtype), groups=self.capsule_dim).transpose(1, 2)
         skc_out = self.spec_proj_out(s_conv)
         spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
-
         _skc_s = (external_skc_scale if external_skc_scale is not None else self.skc_scale).to(x.dtype)
         x = x + _skc_s[None, None, :] * skc_out
-
-        # 2. MLP/MoE Path (acting on SKC-updated state)
         mlp_in = F.rms_norm(x, (x.size(-1),)) * self.ln_scale_factor
-        _mlp_raw = (self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction)
-                    if isinstance(self.local_mlp, TernaryMoE)
-                    else self.local_mlp(mlp_in))
+        _mlp_raw = self.local_mlp(mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(self.local_mlp, TernaryMoE) else self.local_mlp(mlp_in)
         if isinstance(_mlp_raw, tuple):
-            mlp_out, moe_loss = _mlp_raw
+            (mlp_out, moe_loss) = _mlp_raw
         else:
-            mlp_out, moe_loss = _mlp_raw, None
-
+            (mlp_out, moe_loss) = (_mlp_raw, None)
         _mlp_s = (external_mlp_scale if external_mlp_scale is not None else self.mlp_scale).to(x.dtype)
         x = x + _mlp_s[None, None, :] * mlp_out
-
-        # Combine spectral and MoE aux losses
         if spec_aux is not None and moe_loss is not None:
             combined_aux = spec_aux + moe_loss
         else:
             combined_aux = spec_aux if spec_aux is not None else moe_loss
-        return x, None, combined_aux
-
-
-# --- ARCHITECTURAL SURFACES ---
+        return (x, None, combined_aux)
 
 class TokenStem(nn.Module):
-    """Handles embeddings, output projection, and logit softcapping."""
-    def __init__(self, vocab_size, embed_dim, model_dim, tied=True, fp_storage: str | bool = False):
+
+    def __init__(self, vocab_size, embed_dim, model_dim, tied=True, fp_storage: str | bool=False):
         super().__init__()
         self.tied = tied
         self.tok_emb = QATEmbedding(vocab_size, embed_dim, fp_storage=fp_storage)
-        self.embed_proj = (
-            QATLinear(embed_dim, model_dim, bias=False, fp_storage=fp_storage)
-            if embed_dim != model_dim else None
-        )
-        self.embed_proj_rev = (
-            QATLinear(model_dim, embed_dim, bias=False, fp_storage=fp_storage)
-            if embed_dim != model_dim else None
-        )
+        self.embed_proj = QATLinear(embed_dim, model_dim, bias=False, fp_storage=fp_storage) if embed_dim != model_dim else None
+        self.embed_proj_rev = QATLinear(model_dim, embed_dim, bias=False, fp_storage=fp_storage) if embed_dim != model_dim else None
         self.lm_head = QATLinear(model_dim, vocab_size, bias=False, fp_storage=fp_storage)
         if tied:
             self.lm_head.weight = self.tok_emb.weight
@@ -3152,14 +2669,8 @@ class TokenStem(nn.Module):
         return logits
 
 class Backbone(nn.Module):
-    """Handles the block stack and skip-connection topology."""
-    def __init__(self, blocks, shared_block_bank, block_map, 
-                 per_layer_attn_scales, per_layer_mlp_scales, 
-                 per_layer_skc_scales, per_layer_resid_mixes,
-                 layer_types, skip_weights, num_encoder_layers,
-                 num_decoder_layers, num_skip_weights,
-                 training_depth_recurrence,
-                 recurrence_layers: tuple[int, ...] = ()):
+
+    def __init__(self, blocks, shared_block_bank, block_map, per_layer_attn_scales, per_layer_mlp_scales, per_layer_skc_scales, per_layer_resid_mixes, layer_types, skip_weights, num_encoder_layers, num_decoder_layers, num_skip_weights, training_depth_recurrence, recurrence_layers: tuple[int, ...]=()):
         super().__init__()
         self.blocks = blocks
         self.shared_block_bank = shared_block_bank
@@ -3174,7 +2685,7 @@ class Backbone(nn.Module):
         self.num_decoder_layers = num_decoder_layers
         self.num_skip_weights = num_skip_weights
         self.training_depth_recurrence = training_depth_recurrence
-        self.recurrence_layers = frozenset(int(i) for i in recurrence_layers)
+        self.recurrence_layers = frozenset((int(i) for i in recurrence_layers))
 
     def recurrence_passes_for_layer(self, layer_idx: int) -> int:
         if self.training_depth_recurrence <= 1:
@@ -3183,10 +2694,7 @@ class Backbone(nn.Module):
             return 1
         return self.training_depth_recurrence
 
-    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None,
-                   reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
-        """Run one effective layer. Returns (x, v_out, aux_loss)."""
+    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None) -> tuple[Tensor, Tensor | None, Tensor | None]:
         if self.blocks is not None:
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
@@ -3194,49 +2702,37 @@ class Backbone(nn.Module):
             if isinstance(blk, KoopmanBlock):
                 return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=reset_mask)
             return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
-
-        # Shared block mode
         block = self.shared_block_bank[self.block_map[layer_idx]]
         mix = self.per_layer_resid_mixes[layer_idx].to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-
         layer_type = self.layer_types[layer_idx]
-        if layer_type == "ssm":
+        if layer_type == 'ssm':
             mixer_out = block.mixer(block.attn_norm(x) * block.ln_scale_factor, reset_mask=reset_mask)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
-        elif layer_type == "skc":
+        elif layer_type == 'skc':
             _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
             _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
-            x, v_out, aux_loss = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
-                                       external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
-            return x, v_out, aux_loss
-        elif layer_type == "par_attn":
+            (x, v_out, aux_loss) = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction, external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
+            return (x, v_out, aux_loss)
+        elif layer_type == 'par_attn':
             h = block.attn_norm(x) * block.ln_scale_factor
-            attn_out, v_out = block.attn(h, v0=v0)
-            _mlp_raw = (block.mlp(h, elapsed_fraction=elapsed_fraction)
-                        if isinstance(block.mlp, TernaryMoE)
-                        else block.mlp(h))
-            _mlp_out, moe_loss = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
+            (attn_out, v_out) = block.attn(h, v0=v0)
+            _mlp_raw = block.mlp(h, elapsed_fraction=elapsed_fraction) if isinstance(block.mlp, TernaryMoE) else block.mlp(h)
+            (_mlp_out, moe_loss) = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
             x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
-            return x, v_out, moe_loss
+            return (x, v_out, moe_loss)
         else:
-            attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
+            (attn_out, v_out) = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
-
         _mlp_in = block.mlp_norm(x) * block.ln_scale_factor
-        _mlp_raw = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
-                    if isinstance(block.mlp, TernaryMoE)
-                    else block.mlp(_mlp_in))
-        _mlp_out, moe_loss = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
+        _mlp_raw = block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(block.mlp, TernaryMoE) else block.mlp(_mlp_in)
+        (_mlp_out, moe_loss) = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
         x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
-        return x, v_out, moe_loss
+        return (x, v_out, moe_loss)
 
-    def decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
-                      v0: Tensor | None, elapsed_fraction: float, prev_capsules: Tensor | None,
-                      reset_mask: Tensor | None,
-                      feedback_adapters: nn.ModuleList | None) -> tuple[Tensor, Tensor | None, int]:
+    def decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None, elapsed_fraction: float, prev_capsules: Tensor | None, reset_mask: Tensor | None, feedback_adapters: nn.ModuleList | None) -> tuple[Tensor, Tensor | None, int]:
         dec_aux: Tensor | None = None
         dec_aux_terms = 0
         for i in range(self.num_decoder_layers):
@@ -3244,17 +2740,16 @@ class Backbone(nn.Module):
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(self.recurrence_passes_for_layer(bi)):
-                x, _, blk_aux = self.run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                                prev_capsules=prev_capsules, reset_mask=reset_mask)
+                (x, _, blk_aux) = self.run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
                     dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
                     dec_aux_terms += 1
             if feedback_adapters is not None and sketch is not None:
                 x = feedback_adapters[i](x, sketch)
-        return x, dec_aux, dec_aux_terms
+        return (x, dec_aux, dec_aux_terms)
 
 class LatentCorrector(nn.Module):
-    """Handles capsule memory, feedback passes, and adaptive halting."""
+
     def __init__(self, capsule_bank, feedback_pooler, feedback_adapter, threshold):
         super().__init__()
         self.capsule_bank = capsule_bank
@@ -3262,195 +2757,84 @@ class LatentCorrector(nn.Module):
         self.feedback_adapter = feedback_adapter
         self.adaptive_halt_threshold = threshold
 
-    def forward(self, x, x0, input_ids, backbone, engram, engram_inject_layer,
-                num_passes, elapsed_fraction, carry_capsules, feedback_valid_len,
-                ssm_reset_mask,
-                training, engram_enabled, feedback_enabled, final_norm,
-                koopman_speculator_steps, koopman_speculator_enabled, 
-                adaptive_halt_enabled):
+    def forward(self, x, x0, input_ids, backbone, engram, engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training, engram_enabled, feedback_enabled, final_norm, koopman_speculator_steps, koopman_speculator_enabled, adaptive_halt_enabled):
         skips: list[Tensor] = []
         v0 = None
         enc_aux: Tensor | None = None
         enc_aux_terms = 0
-
-        # --- Encoder pass ---
         for i in range(backbone.num_encoder_layers):
             if engram_enabled and i == engram_inject_layer:
-                # Engram curriculum: full strength early, taper after ENGRAM_TAPER_START,
-                # silent by ENGRAM_TAPER_END. At eval time: always full strength.
-                if training and elapsed_fraction > 0.4:
-                    _taper_range = max(0.8 - 0.4, 1e-6)
-                    _engram_w = max(0.0, min(1.0, (0.8 - elapsed_fraction) / _taper_range))
+                if training and elapsed_fraction > 0.6:
+                    _taper_range = max(0.95 - 0.6, 1e-06)
+                    _engram_w = max(0.25, min(1.0, (0.95 - elapsed_fraction) / _taper_range))
                 else:
                     _engram_w = 1.0
                 if _engram_w > 0.0:
                     x = x + _engram_w * engram(input_ids, hidden=x)
             for _ in range(backbone.recurrence_passes_for_layer(i)):
-                x, v_out, blk_aux = backbone.run_block(
-                    i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask
-                )
+                (x, v_out, blk_aux) = backbone.run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask)
                 if blk_aux is not None:
                     enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
                     enc_aux_terms += 1
                 if v0 is None and v_out is not None:
                     v0 = v_out
             skips.append(x)
-
-        # Capsule initialization
         capsule_state = None
         if carry_capsules is not None:
             B_curr = x.shape[0]
             carry_avg = carry_capsules.mean(dim=0, keepdim=True).expand(B_curr, -1, -1)
             capsule_state = carry_avg
         if self.capsule_bank is not None:
-            x, capsule_state, _, _ = self.capsule_bank(x, prev_capsules=capsule_state)
+            (x, capsule_state, _, _) = self.capsule_bank(x, prev_capsules=capsule_state)
         grounded_capsule_state = capsule_state
         encoded = x
-
-        # Iterative correction
         sketch = None
         consistency_losses = []
         speculative_losses = []
         prev_capsule_state = None
         fast_forwarded = False
-
         for correction_pass in range(num_passes + 1):
-            if correction_pass > 0 and feedback_enabled and self.feedback_pooler is not None:
+            if correction_pass > 0 and feedback_enabled and (self.feedback_pooler is not None):
                 sketch = self.feedback_pooler(final_norm(x), valid_len=feedback_valid_len)
             else:
                 sketch = None
-
             if self.capsule_bank is not None and correction_pass > 0:
                 prev_capsule_state = grounded_capsule_state
-                spec_steps = koopman_speculator_steps if (koopman_speculator_enabled and correction_pass == 1) else 0
-                encoded, capsule_state, c_pred, c_spec = self.capsule_bank(
-                    encoded, prev_capsules=grounded_capsule_state, speculate_steps=spec_steps
-                )
+                spec_steps = koopman_speculator_steps if koopman_speculator_enabled and correction_pass == 1 else 0
+                (encoded, capsule_state, c_pred, c_spec) = self.capsule_bank(encoded, prev_capsules=grounded_capsule_state, speculate_steps=spec_steps)
                 grounded_capsule_state = capsule_state
                 if c_pred is not None:
                     consistency_losses.append((c_pred, grounded_capsule_state.detach()))
                 if c_spec is not None:
                     speculative_losses.append(c_spec)
-
-                if (not training and koopman_speculator_enabled and c_spec is not None and not fast_forwarded):
+                if not training and koopman_speculator_enabled and (c_spec is not None) and (not fast_forwarded):
                     capsule_state = c_spec
                     fast_forwarded = True
-
-                if (not training and adaptive_halt_enabled and prev_capsule_state is not None 
-                        and correction_pass >= 1 and not fast_forwarded):
+                if not training and adaptive_halt_enabled and (prev_capsule_state is not None) and (correction_pass >= 1) and (not fast_forwarded):
                     delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2))
-                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-8
-                    if ((delta / norm) < self.adaptive_halt_threshold).any():
+                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-08
+                    if (delta / norm < self.adaptive_halt_threshold).any():
                         grounded_capsule_state = prev_capsule_state
                         break
-
-            x, dec_aux, dec_aux_terms = backbone.decoder_pass(
-                encoded, x0, skips, sketch=sketch, v0=v0,
-                elapsed_fraction=elapsed_fraction, prev_capsules=None,
-                reset_mask=ssm_reset_mask,
-                feedback_adapters=self.feedback_adapter,
-            )
+            (x, dec_aux, dec_aux_terms) = backbone.decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0, elapsed_fraction=elapsed_fraction, prev_capsules=None, reset_mask=ssm_reset_mask, feedback_adapters=self.feedback_adapter)
             if dec_aux is not None:
                 enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
                 enc_aux_terms += dec_aux_terms
-            if fast_forwarded: break
-
+            if fast_forwarded:
+                break
         c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
         jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
         if enc_aux is not None and enc_aux_terms > 0:
             enc_aux = enc_aux / enc_aux_terms
-        return final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux
-
+        return (final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux)
 
 class GPT(nn.Module):
-    def __init__(
-        self,
-        vocab_size: int,
-        num_layers: int,
-        model_dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        tie_embeddings: bool,
-        tied_embed_init_std: float,
-        logit_softcap: float,
-        rope_base: float,
-        qk_gain_init: float,
-        group_size: int = 64,
-        activation: str = "relu2",
-        leaky_relu_slope: float = 0.5,
-        residual_scale_init: float = 0.05,
-        resid_mix_x0_init: float = 0.05,
-        residual_proj_init_std: float = 0.002,
-        embed_dim: int = 0,
-        training_depth_recurrence: int = 0,
-        recurrence_layers: tuple[int, ...] = (),
-        fp_storage: str | bool = False,
-        softcap_type: str = "poly",
-        no_cache: bool = False,
-        rope_type: str = "rope",
-        yarn_max_len: int = 4096,
-        train_seq_len: int = 1024,
-        feedback_enabled: bool = True,
-        feedback_dim: int = 64,
-        feedback_sketch_tokens: int = 4,
-        feedback_replay: str = "decoder",
-        feedback_target: str = "decoder",
-        feedback_fp_storage: str | bool = True,
-        feedback_gate_init: float = 0.05,
-        feedback_passes: int = 1,
-        shared_blocks: int = 0,
-        capsule_enabled: bool = False,
-        capsule_num: int = 16,
-        capsule_dim: int = 64,
-        partial_rope_dims: int = 0,
-        vrl_enabled: bool = False,
-        vrl_start_layer: int = 8,
-        ln_scale_damping: bool = False,
-        bigram_hash_enabled: bool = False,
-        bigram_hash_buckets: int = 4096,
-        bigram_hash_dim: int = 128,
-        engram_num_heads: int = 4,
-        engram_num_orders: int = 2,
-        engram_inject_layer: int = 1,
-        xsa_start_layer: int = -1,
-        moe_enabled: bool = False,
-        moe_num_experts: int = 8,
-        moe_top_k: int = 2,
-        architecture: str = "hybrid",
-        koopman_enabled: bool = True,
-        koopman_rank: int = 2,
-        koopman_diag_init: float = 0.9,
-        koopman_consistency_weight: float = 0.005,
-        koopman_speculator_enabled: bool = True,
-        koopman_speculator_steps: int = 3,
-        koopman_speculator_weight: float = 0.01,
-        adaptive_halt_enabled: bool = True,
-        adaptive_halt_threshold: float = 0.05,
-        koopman_state_dim: int = 128,
-        koopman_mixer_rank: int = 4,
-        koopman_conv_kernel: int = 4,
-        koopman_decay_window: int = 32,
-        koopman_scan_checkpoint: bool = True,
-        koopman_scan_checkpoint_min_seq: int = 1024,
-        skc_num_capsules: int = 32,
-        skc_capsule_dim: int = 128,
-        skc_conv_kernel: int = 4,
-        skc_block_size: int = 64,
-        skc_aux_entropy_fraction: float = 0.8,
-        skc_recurrent_core: bool = False,
-        skc_upper_branch: bool = False,
-        moe_layer_frac: float = 0.67,
-        moe_start_fraction: float = 0.65,
-        moe_router_aux_loss_coef: float = 0.001,
-        eos_token_id: int = -1,
-        reset_ssm_on_eos: bool = True,
-        skc_parallel_residual: bool = False,
-    ):
+
+    def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float, rope_base: float, qk_gain_init: float, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, residual_proj_init_std: float=0.002, embed_dim: int=0, training_depth_recurrence: int=0, recurrence_layers: tuple[int, ...]=(), fp_storage: str | bool=False, softcap_type: str='poly', no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024, feedback_enabled: bool=True, feedback_dim: int=64, feedback_sketch_tokens: int=4, feedback_replay: str='decoder', feedback_target: str='decoder', feedback_fp_storage: str | bool=True, feedback_gate_init: float=0.05, feedback_passes: int=1, shared_blocks: int=0, capsule_enabled: bool=False, capsule_num: int=16, capsule_dim: int=64, partial_rope_dims: int=0, vrl_enabled: bool=False, vrl_start_layer: int=8, ln_scale_damping: bool=False, bigram_hash_enabled: bool=False, bigram_hash_buckets: int=4096, bigram_hash_dim: int=128, engram_num_heads: int=4, engram_num_orders: int=2, engram_inject_layer: int=1, xsa_start_layer: int=-1, moe_enabled: bool=False, moe_num_experts: int=8, moe_top_k: int=2, architecture: str='hybrid', koopman_enabled: bool=True, koopman_rank: int=2, koopman_diag_init: float=0.9, koopman_consistency_weight: float=0.005, koopman_speculator_enabled: bool=True, koopman_speculator_steps: int=3, koopman_speculator_weight: float=0.01, adaptive_halt_enabled: bool=True, adaptive_halt_threshold: float=0.05, koopman_state_dim: int=128, koopman_mixer_rank: int=4, koopman_conv_kernel: int=4, koopman_decay_window: int=32, koopman_scan_checkpoint: bool=True, koopman_scan_checkpoint_min_seq: int=1024, skc_num_capsules: int=32, skc_capsule_dim: int=128, skc_conv_kernel: int=4, skc_block_size: int=64, skc_aux_entropy_fraction: float=0.8, skc_recurrent_core: bool=False, skc_upper_branch: bool=False, moe_layer_frac: float=0.67, moe_start_fraction: float=0.65, moe_router_aux_loss_coef: float=0.001, eos_token_id: int=-1, reset_ssm_on_eos: bool=True, skc_parallel_residual: bool=False):
         super().__init__()
         self.skc_parallel_residual = skc_parallel_residual
         self.training_depth_recurrence = training_depth_recurrence
-        self.recurrence_layers = tuple(int(i) for i in recurrence_layers)
+        self.recurrence_layers = tuple((int(i) for i in recurrence_layers))
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
         self.softcap_type = softcap_type
@@ -3496,143 +2880,72 @@ class GPT(nn.Module):
         self.moe_router_aux_loss_coef = moe_router_aux_loss_coef
         self.eos_token_id = int(eos_token_id)
         self.reset_ssm_on_eos = bool(reset_ssm_on_eos)
-
-        # Determine per-layer block types
-        if self.architecture == "hybrid":
-            self._layer_types = ["attn" if i % 2 == 0 else "ssm" for i in range(num_layers)]
-        elif self.architecture == "koopman_ssm":
-            self._layer_types = ["ssm"] * num_layers
-        elif self.architecture in ("skc", "skc_competition"):
-            self._layer_types = ["skc"] * num_layers
-        elif self.architecture == "competition":
-            self._layer_types = ["attn"] * num_layers
+        if self.architecture == 'hybrid':
+            self._layer_types = ['attn' if i % 2 == 0 else 'ssm' for i in range(num_layers)]
+        elif self.architecture == 'koopman_ssm':
+            self._layer_types = ['ssm'] * num_layers
+        elif self.architecture in ('skc', 'skc_competition'):
+            self._layer_types = ['skc'] * num_layers
+        elif self.architecture == 'competition':
+            self._layer_types = ['attn'] * num_layers
             for i in (3, 4, 5):
                 if i < num_layers and self.skc_recurrent_core:
-                    self._layer_types[i] = "skc"
+                    self._layer_types[i] = 'skc'
             for i in range(7, num_layers):
-                self._layer_types[i] = "par_attn"
+                self._layer_types[i] = 'par_attn'
                 if self.skc_upper_branch:
-                    self._layer_types[i] = "skc"
+                    self._layer_types[i] = 'skc'
         else:
-            self._layer_types = ["attn"] * num_layers
-        if self.feedback_replay not in {"decoder", "none", "off"}:
-            raise ValueError(f"Unsupported FEEDBACK_REPLAY={feedback_replay}")
-        if self.feedback_target not in {"decoder"}:
-            raise ValueError(f"Unsupported FEEDBACK_TARGET={feedback_target}")
-        
+            self._layer_types = ['attn'] * num_layers
+        if self.feedback_replay not in {'decoder', 'none', 'off'}:
+            raise ValueError(f'Unsupported FEEDBACK_REPLAY={feedback_replay}')
+        if self.feedback_target not in {'decoder'}:
+            raise ValueError(f'Unsupported FEEDBACK_TARGET={feedback_target}')
         self.tok_stem = TokenStem(vocab_size, embed_dim, model_dim, tied=tie_embeddings, fp_storage=fp_storage)
-        
-        # Metadata / Infrastructure
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        
         if shared_blocks > 0:
-            self._block_map = [i % shared_blocks for i in range(num_layers)] # Default map
+            self._block_map = [i % shared_blocks for i in range(num_layers)]
         else:
             self._block_map = list(range(num_layers))
-
-        # Secondary Components
         self.engram = None
         if bigram_hash_enabled:
-            self.engram = EngramHash(
-                num_buckets=bigram_hash_buckets,
-                hash_dim=bigram_hash_dim,
-                model_dim=model_dim,
-                fp_storage=False,
-                num_heads=engram_num_heads,
-                num_orders=engram_num_orders,
-            )
+            self.engram = EngramHash(num_buckets=bigram_hash_buckets, hash_dim=bigram_hash_dim, model_dim=model_dim, fp_storage=False, num_heads=engram_num_heads, num_orders=engram_num_orders)
+        self.eval_engram = None  # lazily constructed at eval time if enabled
+        self._packed_engram_snapshot = None  # populated on enable_freeze_check()
         self.engram_inject_layer = engram_inject_layer
-
         self.capsule_bank = None
         if capsule_enabled:
-            self.capsule_bank = CapsuleBank(
-                model_dim=model_dim, 
-                capsule_num=capsule_num, 
-                capsule_dim=capsule_dim, 
-                fp_storage=fp_storage,
-                koopman_enabled=koopman_enabled,
-                koopman_rank=koopman_rank,
-                koopman_diag_init=koopman_diag_init
-            )
-
+            self.capsule_bank = CapsuleBank(model_dim=model_dim, capsule_num=capsule_num, capsule_dim=capsule_dim, fp_storage=fp_storage, koopman_enabled=koopman_enabled, koopman_rank=koopman_rank, koopman_diag_init=koopman_diag_init)
         self.feedback_pooler = None
         if feedback_enabled:
-            self.feedback_pooler = FeedbackPooler(
-                model_dim=model_dim, 
-                feedback_dim=feedback_dim, 
-                num_tokens=feedback_sketch_tokens, 
-                fp_storage=feedback_fp_storage
-            )
-
+            self.feedback_pooler = FeedbackPooler(model_dim=model_dim, feedback_dim=feedback_dim, num_tokens=feedback_sketch_tokens, fp_storage=feedback_fp_storage)
         self.feedback_adapters = None
         if feedback_enabled:
-            self.feedback_adapters = nn.ModuleList([
-                FeedbackAdapter(model_dim, feedback_dim, feedback_fp_storage, gate_init=feedback_gate_init)
-                for _ in range(self.num_decoder_layers)
-            ])
-
-        # Block Factory logic (consolidated)
+            self.feedback_adapters = nn.ModuleList([FeedbackAdapter(model_dim, feedback_dim, feedback_fp_storage, gate_init=feedback_gate_init) for _ in range(self.num_decoder_layers)])
         moe_layer_threshold = int(math.ceil(num_layers * self.moe_layer_frac))
-        
+
         def _make_attn_block(layer_idx):
             layer_vrl = vrl_enabled and layer_idx >= vrl_start_layer
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             layer_xsa = xsa_start_layer >= 0 and layer_idx >= xsa_start_layer
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            return Block(
-                dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads,
-                mlp_mult=mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init,
-                group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope,
-                no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len,
-                train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims,
-                vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa,
-                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
-                moe_start_fraction=self.moe_start_fraction,
-                moe_aux_coef=moe_router_aux_loss_coef,
-                residual_scale_init=self.residual_scale_init,
-                resid_mix_x0_init=self.resid_mix_x0_init,
-                scan_checkpoint=self.koopman_scan_checkpoint,
-                scan_checkpoint_min_seq=self.koopman_scan_checkpoint_min_seq,
-            )
+            return Block(dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads, mlp_mult=mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len, train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims, vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init, scan_checkpoint=self.koopman_scan_checkpoint, scan_checkpoint_min_seq=self.koopman_scan_checkpoint_min_seq)
 
         def _make_ssm_block(layer_idx):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             d_win = self.koopman_decay_window
             if num_layers > 1:
-                d_win = min(16 * (2 ** layer_idx), 256)
+                d_win = min(16 * 2 ** layer_idx, 256)
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            return KoopmanBlock(
-                dim=model_dim, state_dim=self.koopman_state_dim,
-                mlp_mult=mlp_mult, mixer_rank=self.koopman_mixer_rank,
-                conv_kernel=self.koopman_conv_kernel, decay_window=d_win,
-                group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf,
-                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
-                moe_start_fraction=self.moe_start_fraction,
-                moe_aux_coef=moe_router_aux_loss_coef,
-                residual_scale_init=self.residual_scale_init,
-                resid_mix_x0_init=self.resid_mix_x0_init,
-                aux_min_entropy_fraction=self.skc_aux_entropy_fraction,
-            )
+            return KoopmanBlock(dim=model_dim, state_dim=self.koopman_state_dim, mlp_mult=mlp_mult, mixer_rank=self.koopman_mixer_rank, conv_kernel=self.koopman_conv_kernel, decay_window=d_win, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init, aux_min_entropy_fraction=self.skc_aux_entropy_fraction)
 
         def _make_skc_block(layer_idx):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            _skc_kwargs = dict(
-                dim=model_dim, capsule_num=self.skc_num_capsules,
-                capsule_dim=self.skc_capsule_dim,
-                conv_kernel=self.skc_conv_kernel, block_size=self.skc_block_size,
-                mlp_mult=mlp_mult, group_size=group_size, activation=activation,
-                leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf,
-                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
-                moe_start_fraction=self.moe_start_fraction,
-                moe_aux_coef=moe_router_aux_loss_coef,
-                residual_scale_init=self.residual_scale_init,
-                resid_mix_x0_init=self.resid_mix_x0_init,
-            )
+            _skc_kwargs = dict(dim=model_dim, capsule_num=self.skc_num_capsules, capsule_dim=self.skc_capsule_dim, conv_kernel=self.skc_conv_kernel, block_size=self.skc_block_size, mlp_mult=mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init)
             if self.skc_parallel_residual:
                 return ParallelSKCBlock(**_skc_kwargs)
             return SKCLayer(**_skc_kwargs)
@@ -3642,112 +2955,55 @@ class GPT(nn.Module):
             layer_vrl = vrl_enabled and layer_idx >= vrl_start_layer
             layer_xsa = xsa_start_layer >= 0 and layer_idx >= xsa_start_layer
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            return ParallelResidualBlock(
-                dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads,
-                mlp_mult=mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init,
-                group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope,
-                no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len,
-                train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims,
-                vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa,
-                moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k,
-                moe_start_fraction=self.moe_start_fraction,
-                moe_aux_coef=moe_router_aux_loss_coef,
-                residual_scale_init=self.residual_scale_init,
-                resid_mix_x0_init=self.resid_mix_x0_init,
-            )
+            return ParallelResidualBlock(dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads, mlp_mult=mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, no_cache=no_cache, rope_type=rope_type, yarn_max_len=yarn_max_len, train_seq_len=train_seq_len, partial_rope_dims=partial_rope_dims, vrl_enabled=layer_vrl, ln_scale_factor=ln_sf, xsa=layer_xsa, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init)
 
         def _make_block(layer_idx):
             lt = self._layer_types[layer_idx]
-            if lt == "ssm": return _make_ssm_block(layer_idx)
-            if lt == "skc": return _make_skc_block(layer_idx)
-            if lt == "par_attn": return _make_par_attn_block(layer_idx)
+            if lt == 'ssm':
+                return _make_ssm_block(layer_idx)
+            if lt == 'skc':
+                return _make_skc_block(layer_idx)
+            if lt == 'par_attn':
+                return _make_par_attn_block(layer_idx)
             return _make_attn_block(layer_idx)
-
-        # Final Infrastructure Construction
         self.per_layer_attn_scales = None
         self.per_layer_mlp_scales = None
         self.per_layer_skc_scales = None
         self.per_layer_resid_mixes = None
         self.shared_block_bank = None
-        
         if shared_blocks > 0:
-            if self.architecture == "hybrid":
+            if self.architecture == 'hybrid':
                 base_attn = _make_attn_block(0)
                 base_attn.attn.vrl_enabled = False
                 base_ssm = _make_ssm_block(1)
                 self.shared_block_bank = nn.ModuleList([base_attn, base_ssm])
-                self._block_map = [0 if self._layer_types[i] == "attn" else 1 for i in range(num_layers)]
+                self._block_map = [0 if self._layer_types[i] == 'attn' else 1 for i in range(num_layers)]
             else:
-                # Use depth-spread representative layer indices for shared blocks so
-                # layer-conditioned behaviors (e.g. MoE enabling by depth) are preserved.
                 if shared_blocks == 1:
                     rep_layer_idxs = [0]
                 else:
-                    rep_layer_idxs = [
-                        int(round(i * (num_layers - 1) / (shared_blocks - 1)))
-                        for i in range(shared_blocks)
-                    ]
-                self.shared_block_bank = nn.ModuleList([
-                    _make_block(rep_idx) for rep_idx in rep_layer_idxs
-                ])
-                # Map layers to shared blocks in contiguous depth buckets to keep
-                # late layers aligned with late representative blocks.
-                self._block_map = [
-                    min((i * shared_blocks) // max(num_layers, 1), shared_blocks - 1)
-                    for i in range(num_layers)
-                ]
-            
-            self.per_layer_attn_scales = nn.ParameterList([
-                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
-            ])
-            self.per_layer_mlp_scales = nn.ParameterList([
-                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
-            ])
-            self.per_layer_skc_scales = nn.ParameterList([
-                _residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)
-            ])
-            self.per_layer_resid_mixes = nn.ParameterList([
-                _resid_mix_init(model_dim, self.resid_mix_x0_init)
-                for _ in range(num_layers)])
-
-        self.backbone = Backbone(
-            blocks=nn.ModuleList([_make_block(i) for i in range(num_layers)]) if shared_blocks <= 0 else None,
-            shared_block_bank=self.shared_block_bank,
-            block_map=self._block_map,
-            per_layer_attn_scales=self.per_layer_attn_scales,
-            per_layer_mlp_scales=self.per_layer_mlp_scales,
-            per_layer_skc_scales=self.per_layer_skc_scales,
-            per_layer_resid_mixes=self.per_layer_resid_mixes,
-            layer_types=self._layer_types,
-            skip_weights=self.skip_weights,
-            num_encoder_layers=self.num_encoder_layers,
-            num_decoder_layers=self.num_decoder_layers,
-            num_skip_weights=self.num_skip_weights,
-            training_depth_recurrence=training_depth_recurrence,
-            recurrence_layers=recurrence_layers,
-        )
-
+                    rep_layer_idxs = [int(round(i * (num_layers - 1) / (shared_blocks - 1))) for i in range(shared_blocks)]
+                self.shared_block_bank = nn.ModuleList([_make_block(rep_idx) for rep_idx in rep_layer_idxs])
+                self._block_map = [min(i * shared_blocks // max(num_layers, 1), shared_blocks - 1) for i in range(num_layers)]
+            self.per_layer_attn_scales = nn.ParameterList([_residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)])
+            self.per_layer_mlp_scales = nn.ParameterList([_residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)])
+            self.per_layer_skc_scales = nn.ParameterList([_residual_scale_init(model_dim, self.residual_scale_init) for _ in range(num_layers)])
+            self.per_layer_resid_mixes = nn.ParameterList([_resid_mix_init(model_dim, self.resid_mix_x0_init) for _ in range(num_layers)])
+        self.backbone = Backbone(blocks=nn.ModuleList([_make_block(i) for i in range(num_layers)]) if shared_blocks <= 0 else None, shared_block_bank=self.shared_block_bank, block_map=self._block_map, per_layer_attn_scales=self.per_layer_attn_scales, per_layer_mlp_scales=self.per_layer_mlp_scales, per_layer_skc_scales=self.per_layer_skc_scales, per_layer_resid_mixes=self.per_layer_resid_mixes, layer_types=self._layer_types, skip_weights=self.skip_weights, num_encoder_layers=self.num_encoder_layers, num_decoder_layers=self.num_decoder_layers, num_skip_weights=self.num_skip_weights, training_depth_recurrence=training_depth_recurrence, recurrence_layers=recurrence_layers)
         self.final_norm = RMSNorm()
-        self.latent_corrector = LatentCorrector(
-            capsule_bank=self.capsule_bank,
-            feedback_pooler=self.feedback_pooler,
-            feedback_adapter=self.feedback_adapters,
-            threshold=adaptive_halt_threshold
-        )
+        self.latent_corrector = LatentCorrector(capsule_bank=self.capsule_bank, feedback_pooler=self.feedback_pooler, feedback_adapter=self.feedback_adapters, threshold=adaptive_halt_threshold)
         self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
         self._init_weights(tied_embed_init_std)
 
     def _init_weights(self, tied_embed_init_std: float) -> None:
         if self.tie_embeddings:
-            # Standardize: tok_stem.tok_emb is the ground truth
             nn.init.normal_(self.tok_stem.tok_emb.weight, mean=0.0, std=tied_embed_init_std)
-        for name, module in self.named_modules():
+        for (name, module) in self.named_modules():
             if isinstance(module, nn.Linear):
-                # GPT-level tie check: if name matches lm_head and tie is enabled, skip!
-                if self.tie_embeddings and "tok_stem.lm_head" in name:
+                if self.tie_embeddings and 'tok_stem.lm_head' in name:
                     continue
-                init_std = getattr(module, "_init_std", None)
-                if getattr(module, "_zero_init", False):
+                init_std = getattr(module, '_init_std', None)
+                if getattr(module, '_zero_init', False):
                     init_std = self.residual_proj_init_std
                 if init_std is None:
                     init_std = 0.02
@@ -3760,244 +3016,223 @@ class GPT(nn.Module):
         if self.engram is not None and self.engram_inject_layer < 0:
             x = x + self.engram(input_ids, hidden=None)
         x = F.rms_norm(x, (x.size(-1),))
-        return x, x
+        return (x, x)
 
     def _build_ssm_reset_mask(self, input_ids: Tensor) -> Tensor | None:
         if not self.reset_ssm_on_eos or self.eos_token_id < 0:
             return None
         return input_ids.eq(self.eos_token_id)
 
-    def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None = None,
-                   elapsed_fraction: float = 1.0, prev_capsules: Tensor | None = None,
-                   reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None, Tensor | None]:
-        """Run one effective layer. Returns (x, v_out, aux_loss). In shared mode, uses shared weights + per-layer scales."""
+    def _run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None) -> tuple[Tensor, Tensor | None, Tensor | None]:
         if self.blocks is not None:
-            # Standard unique-block mode — all block types now return (x, v_out, aux_loss)
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
                 return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
             if isinstance(blk, KoopmanBlock):
                 return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=reset_mask)
             return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
-
-        # Shared block mode: use shared weights but per-layer scale/mix params
         block = self.shared_block_bank[self._block_map[layer_idx]]
         mix = self.per_layer_resid_mixes[layer_idx].to(dtype=x.dtype)
         x = mix[0] * x + mix[1] * x0
-
         layer_type = self._layer_types[layer_idx]
-        if layer_type == "ssm":
-            # Koopman SSM block
+        if layer_type == 'ssm':
             mixer_out = block.mixer(block.attn_norm(x) * block.ln_scale_factor, reset_mask=reset_mask)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
-        elif layer_type == "skc":
+        elif layer_type == 'skc':
             _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
             _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
-            x, v_out, aux_loss = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction,
-                                       external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
-            return x, v_out, aux_loss
-        elif layer_type == "par_attn":
+            (x, v_out, aux_loss) = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction, external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
+            return (x, v_out, aux_loss)
+        elif layer_type == 'par_attn':
             h = block.attn_norm(x) * block.ln_scale_factor
-            attn_out, v_out = block.attn(h, v0=v0)
-            _mlp_raw = (block.mlp(h, elapsed_fraction=elapsed_fraction)
-                        if isinstance(block.mlp, TernaryMoE)
-                        else block.mlp(h))
-            _mlp_out, moe_loss = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
+            (attn_out, v_out) = block.attn(h, v0=v0)
+            _mlp_raw = block.mlp(h, elapsed_fraction=elapsed_fraction) if isinstance(block.mlp, TernaryMoE) else block.mlp(h)
+            (_mlp_out, moe_loss) = _mlp_raw if isinstance(_mlp_raw, tuple) else (_mlp_raw, None)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
             x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
-            return x, v_out, moe_loss
+            return (x, v_out, moe_loss)
         else:
-            # Attention block
-            attn_out, v_out = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
+            (attn_out, v_out) = block.attn(block.attn_norm(x) * block.ln_scale_factor, v0=v0)
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * attn_out
-
-        # Only TernaryMoE accepts elapsed_fraction; plain MLP.forward only takes x.
         _mlp_in = block.mlp_norm(x) * block.ln_scale_factor
-        _mlp_raw = (block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction)
-                    if isinstance(block.mlp, TernaryMoE)
-                    else block.mlp(_mlp_in))
+        _mlp_raw = block.mlp(_mlp_in, elapsed_fraction=elapsed_fraction) if isinstance(block.mlp, TernaryMoE) else block.mlp(_mlp_in)
         if isinstance(_mlp_raw, tuple):
-            _mlp_out, moe_loss = _mlp_raw
+            (_mlp_out, moe_loss) = _mlp_raw
         else:
-            _mlp_out, moe_loss = _mlp_raw, None
+            (_mlp_out, moe_loss) = (_mlp_raw, None)
         x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * _mlp_out
-        return x, v_out, moe_loss
+        return (x, v_out, moe_loss)
 
-    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None,
-                      v0: Tensor | None = None, elapsed_fraction: float = 1.0,
-                      prev_capsules: Tensor | None = None,
-                      reset_mask: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
+    def _decoder_pass(self, x: Tensor, x0: Tensor, skips: list[Tensor], sketch: Tensor | None, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None) -> tuple[Tensor, Tensor | None]:
         dec_aux: Tensor | None = None
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
             if i < self.num_skip_weights:
                 x = x + self.skip_weights[i].to(dtype=x.dtype) * skips[-(i + 1)]
             for _ in range(self.backbone.recurrence_passes_for_layer(bi)):
-                x, _, blk_aux = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction,
-                                                prev_capsules=prev_capsules, reset_mask=reset_mask)
+                (x, _, blk_aux) = self._run_block(bi, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, prev_capsules=prev_capsules, reset_mask=reset_mask)
                 if blk_aux is not None:
                     dec_aux = blk_aux if dec_aux is None else dec_aux + blk_aux
             if self.feedback_adapters is not None and sketch is not None:
                 x = self.feedback_adapters[i](x, sketch)
-        return x, dec_aux
+        return (x, dec_aux)
 
-    def _resolve_feedback_passes(self, feedback_passes: int | None = None) -> int:
+    def _resolve_feedback_passes(self, feedback_passes: int | None=None) -> int:
         num_passes = self.default_feedback_passes if feedback_passes is None else int(feedback_passes)
         if num_passes < 0:
-            raise ValueError(f"feedback_passes must be >= 0, got {num_passes}")
+            raise ValueError(f'feedback_passes must be >= 0, got {num_passes}')
         return num_passes
 
-    def _compute_hidden(self, input_ids: Tensor, elapsed_fraction: float = 1.0,
-                        carry_capsules: Tensor | None = None, feedback_valid_len: int | None = None,
-                        feedback_passes: int | None = None) -> tuple[Tensor, list, Tensor | None, list, Tensor | None]:
-        """Orchestrates the forward pass via modular surfaces."""
-        x, x0 = self._apply_embedding(input_ids)
+    def _compute_hidden(self, input_ids: Tensor, elapsed_fraction: float=1.0, carry_capsules: Tensor | None=None, feedback_valid_len: int | None=None, feedback_passes: int | None=None) -> tuple[Tensor, list, Tensor | None, list, Tensor | None]:
+        (x, x0) = self._apply_embedding(input_ids)
         num_passes = self._resolve_feedback_passes(feedback_passes)
         ssm_reset_mask = self._build_ssm_reset_mask(input_ids)
-        
-        return self.latent_corrector(
-            x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer,
-            num_passes, elapsed_fraction, carry_capsules, feedback_valid_len,
-            ssm_reset_mask,
-            training=self.training,
-            engram_enabled=(self.engram is not None),
-            feedback_enabled=self.feedback_enabled,
-            final_norm=self.final_norm,
-            koopman_speculator_steps=self.koopman_speculator_steps,
-            koopman_speculator_enabled=self.koopman_speculator_enabled,
-            adaptive_halt_enabled=self.adaptive_halt_enabled
-        )
+        return self.latent_corrector(x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training=self.training, engram_enabled=self.engram is not None, feedback_enabled=self.feedback_enabled, final_norm=self.final_norm, koopman_speculator_steps=self.koopman_speculator_steps, koopman_speculator_enabled=self.koopman_speculator_enabled, adaptive_halt_enabled=self.adaptive_halt_enabled)
 
     def _compute_logits(self, hidden: torch.Tensor) -> torch.Tensor:
-        # Standardize: TokenStem handles head-projection and internal softcapping
         return self.tok_stem.compute_logits(hidden, softcap=self._softcap)
 
     def _softcap(self, logits: Tensor) -> Tensor:
-        """Bound logits to (-c, c) without hard clipping gradients."""
         c = float(self.logit_softcap)
         if c <= 0:
             return logits
-        if self.softcap_type == "tanh":
+        if self.softcap_type == 'tanh':
             return c * torch.tanh(logits / c)
-        if self.softcap_type == "poly":
+        if self.softcap_type == 'poly':
             scaled = logits / c
             return c * scaled * torch.rsqrt(1.0 + scaled * scaled)
-        raise ValueError(f"Unsupported softcap_type={self.softcap_type!r}")
+        raise ValueError(f'Unsupported softcap_type={self.softcap_type!r}')
 
     def register_ternary_calib_names(self):
-        """Set _calib_name on each TernaryLinear so apply_export_calib_to_model can look up values."""
-        for name, module in self.named_modules():
+        for (name, module) in self.named_modules():
             if isinstance(module, TernaryLinear):
-                module._calib_name = name + ".weight"
+                module._calib_name = name + '.weight'
 
     def apply_export_calib(self, calib_dict: dict) -> None:
-        """Write calibration values into TernaryLinear buffer tensors in-place.
-        Dynamo reads these buffers dynamically — unlike a global Python dict which is
-        baked into the compiled graph at trace time and blind to mid-training updates.
-        """
         for module in self.modules():
             if isinstance(module, TernaryLinear) and module._calib_name:
                 entry = calib_dict.get(module._calib_name, {})
-                module.calib_thr.fill_(entry.get("thr", 0.0))
-                module.calib_scale_mult.fill_(entry.get("scale_mult", 1.0))
+                module.calib_thr.fill_(entry.get('thr', 0.0))
+                module.calib_scale_mult.fill_(entry.get('scale_mult', 1.0))
 
     def step_capsule_carry(self):
-        """Call after each training step to advance SKC layer carry state."""
         for m in self.modules():
             if isinstance(m, SKCLayer) and hasattr(m, '_last_capsules'):
                 m._carry_capsules = m._last_capsules
 
     def reset_capsule_carry(self):
-        """Reset all SKC layer carry state (call on curriculum jumps / shard boundaries)."""
         for m in self.modules():
             if isinstance(m, SKCLayer):
                 m._carry_capsules = None
                 if hasattr(m, '_last_capsules'):
                     del m._last_capsules
 
-    def forward_logits(self, input_ids: Tensor, temperature: float = 1.0,
-                       feedback_valid_len: int | None = None,
-                       feedback_passes: int | None = None) -> Tensor:
-        hidden, _, _, _, _ = self._compute_hidden(
-            input_ids,
-            feedback_valid_len=feedback_valid_len,
-            feedback_passes=feedback_passes,
+    def maybe_build_eval_engram(self, args, device) -> None:
+        """Construct EvalEngram if enabled and not already built. Idempotent."""
+        if not getattr(args, 'eval_engram_enabled', False):
+            return
+        if self.eval_engram is not None:
+            return
+        vocab_size = self.vocab_bias.numel()
+        self.eval_engram = EvalEngram(
+            num_buckets=int(args.eval_engram_buckets),
+            num_orders=int(args.eval_engram_num_orders),
+            num_heads=int(args.eval_engram_num_heads),
+            head_dim=int(args.eval_engram_head_dim),
+            vocab_size=int(vocab_size),
+            laplace=float(args.eval_engram_laplace),
+            device=device,
         )
-        # Standardize: TokenStem.compute_logits already applications softcap if self._softcap was set.
+
+    @torch.no_grad()
+    def snapshot_packed_engram(self) -> None:
+        """Snapshot packed EngramHash tables so eval-time TTT cannot drift them."""
+        if self.engram is None:
+            return
+        self._packed_engram_snapshot = [t.weight.detach().clone() for t in self.engram.tables]
+
+    @torch.no_grad()
+    def restore_packed_engram(self, strict: bool = False) -> bool:
+        """Restore packed tables from snapshot. Returns True if any drift was found."""
+        if self.engram is None or self._packed_engram_snapshot is None:
+            return False
+        drifted = False
+        for t, snap in zip(self.engram.tables, self._packed_engram_snapshot):
+            if not torch.equal(t.weight.detach(), snap):
+                drifted = True
+                if strict:
+                    raise RuntimeError('FREEZE_CHECK_STRICT: packed engram drifted during eval')
+                t.weight.data.copy_(snap)
+        return drifted
+
+    @torch.no_grad()
+    def _engram_entropy_correct(self, logits: Tensor, input_ids: Tensor) -> Tensor:
+        if self.training:
+            return logits
+        out = logits
+        if self.engram is not None:
+            (B, T, V) = out.shape
+            mem = self.engram.retrieve(input_ids)
+            engram_logits = self.engram.proj(mem)
+            engram_logits = self.tok_stem.compute_logits(engram_logits.reshape(-1, engram_logits.size(-1)), softcap=None)
+            engram_logits = engram_logits.reshape(B, T, -1)
+            out = engram_entropy_gated_correction(out, engram_logits, alpha=0.05, entropy_thr=2.0)
+        if self.eval_engram is not None:
+            ee_logits = self.eval_engram.logits(input_ids)
+            alpha = float(getattr(self, '_eval_engram_alpha', 0.05))
+            thr = float(getattr(self, '_eval_engram_entropy_thr', 2.0))
+            out = engram_entropy_gated_correction(out, ee_logits, alpha=alpha, entropy_thr=thr)
+        return out
+
+    def forward_logits(self, input_ids: Tensor, temperature: float=1.0, feedback_valid_len: int | None=None, feedback_passes: int | None=None) -> Tensor:
+        (hidden, _, _, _, _) = self._compute_hidden(input_ids, feedback_valid_len=feedback_valid_len, feedback_passes=feedback_passes)
         logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
-        return logits.reshape(input_ids.size(0), input_ids.size(1), -1)
+        logits = logits.reshape(input_ids.size(0), input_ids.size(1), -1)
+        if not self.training:
+            logits = self._engram_entropy_correct(logits, input_ids)
+        return logits
 
-    def forward_logits_with_carry(self, input_ids: Tensor, carry_capsules: Tensor | None = None,
-                                   temperature: float = 1.0,
-                                   feedback_valid_len: int | None = None,
-                                   feedback_passes: int | None = None) -> tuple[Tensor, Tensor | None]:
-        """Forward pass that accepts and returns capsule state for cross-window carry."""
-        hidden, _, capsule_state, _, _ = self._compute_hidden(
-            input_ids,
-            carry_capsules=carry_capsules,
-            feedback_valid_len=feedback_valid_len,
-            feedback_passes=feedback_passes,
-        )
+    def forward_logits_with_carry(self, input_ids: Tensor, carry_capsules: Tensor | None=None, temperature: float=1.0, feedback_valid_len: int | None=None, feedback_passes: int | None=None) -> tuple[Tensor, Tensor | None]:
+        (hidden, _, capsule_state, _, _) = self._compute_hidden(input_ids, carry_capsules=carry_capsules, feedback_valid_len=feedback_valid_len, feedback_passes=feedback_passes)
         logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
-        return logits.reshape(input_ids.size(0), input_ids.size(1), -1), capsule_state
+        logits = logits.reshape(input_ids.size(0), input_ids.size(1), -1)
+        if not self.training:
+            logits = self._engram_entropy_correct(logits, input_ids)
+        return (logits, capsule_state)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str = "mean",
-                temperature: float = 1.0, elapsed_fraction: float = 1.0,
-                carry_capsules: Tensor | None = None, feedback_passes: int | None = None) -> Tensor:
-        hidden, consistency_losses, _, jepa_loss, block_aux = self._compute_hidden(
-            input_ids,
-            elapsed_fraction=elapsed_fraction,
-            carry_capsules=carry_capsules,
-            feedback_passes=feedback_passes,
-        )
+    def forward(self, input_ids: Tensor, target_ids: Tensor, reduction: str='mean', temperature: float=1.0, elapsed_fraction: float=1.0, carry_capsules: Tensor | None=None, feedback_passes: int | None=None) -> Tensor:
+        (hidden, consistency_losses, _, jepa_loss, block_aux) = self._compute_hidden(input_ids, elapsed_fraction=elapsed_fraction, carry_capsules=carry_capsules, feedback_passes=feedback_passes)
         logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1)))
         if temperature != 1.0:
             logits = logits / temperature
         logits = logits.reshape(-1, self.vocab_bias.numel())
         targets = target_ids.reshape(-1)
-        if reduction == "none":
-            return F.cross_entropy(logits.float(), targets, reduction="none").reshape(input_ids.shape)
+        if reduction == 'none':
+            return F.cross_entropy(logits.float(), targets, reduction='none').reshape(input_ids.shape)
         logits_f = logits.float()
-        # Use F.cross_entropy directly — it fails fast on out-of-range targets rather than
-        # silently clamping them (which poisons gradients with wrong-label supervision).
         ce_loss = F.cross_entropy(logits_f, targets)
-        
-        if self.training and consistency_losses and self.koopman_consistency_weight > 0:
+        if self.training and consistency_losses and (self.koopman_consistency_weight > 0):
             consist_sum = torch.tensor(0.0, device=input_ids.device)
-            for c_pred, c_actual in consistency_losses:
+            for (c_pred, c_actual) in consistency_losses:
                 consist_sum = consist_sum + F.mse_loss(c_pred, c_actual)
             ce_loss = ce_loss + self.koopman_consistency_weight * consist_sum / len(consistency_losses)
-
-        if self.training and jepa_loss and self.koopman_speculator_weight > 0:
+        if self.training and jepa_loss and (self.koopman_speculator_weight > 0):
             spec_sum = torch.tensor(0.0, device=input_ids.device)
-            for c_spec, c_final in jepa_loss:
+            for (c_spec, c_final) in jepa_loss:
                 spec_sum = spec_sum + F.mse_loss(c_spec, c_final)
             spec_loss = spec_sum / len(jepa_loss)
             ce_loss = ce_loss + self.koopman_speculator_weight * spec_loss
-
-        # Block aux losses (MoE load-balancing + SKC spectral entropy) are returned
-        # functionally from _compute_hidden — no module state mutation, no Dynamo traps.
-        # LatentCorrector averages them across contributing blocks/passes so their
-        # effective strength does not scale with architecture depth or feedback count.
         if self.training and block_aux is not None:
             ce_loss = ce_loss + block_aux
-
         return ce_loss
-
-
-
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
 
 def build_luts(sp, vocab_size: int, device: torch.device):
     sp_vocab_size = int(sp.vocab_size()) if sp is not None else 0
-    # Force table_size to at least 50257 to cover GPT-2 vocab range reliably
     table_size = max(sp_vocab_size, vocab_size, 50257)
     base_bytes_np = np.zeros((table_size,), dtype=np.int16)
     has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
@@ -4010,93 +3245,66 @@ def build_luts(sp, vocab_size: int, device: torch.device):
             base_bytes_np[token_id] = 1
             continue
         piece = sp.id_to_piece(token_id)
-        if piece.startswith("\u2581"):
+        if piece.startswith('▁'):
             has_leading_space_np[token_id] = True
             piece = piece[1:]
-        base_bytes_np[token_id] = len(piece.encode("utf-8"))
-    return (
-        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
-        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
-        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
-    )
+        base_bytes_np[token_id] = len(piece.encode('utf-8'))
+    return (torch.tensor(base_bytes_np, dtype=torch.int16, device=device), torch.tensor(has_leading_space_np, dtype=torch.bool, device=device), torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device))
 
-def token_byte_count(prev_ids: Tensor, tgt_ids: Tensor,
-                     base_bytes_lut: Tensor,
-                     has_leading_space_lut: Tensor,
-                     is_boundary_token_lut: Tensor) -> Tensor:
-    """Return byte count for target tokens using the same boundary rules as validation."""
+def token_byte_count(prev_ids: Tensor, tgt_ids: Tensor, base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> Tensor:
     if prev_ids.numel() == 0 or tgt_ids.numel() == 0:
         return torch.zeros((), device=base_bytes_lut.device, dtype=torch.float64)
-    # 9. Removed max_token_id item() check to prevent host-device sync in loop.
-    # Validation of LUT size vs vocab_size is now done once at startup.
     tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
     tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
     return tok_bytes.to(torch.float64).sum()
 
-def ld_val(pattern, seq_len, max_tok=int(os.environ.get("VAL_MAX_TOKENS", 500000))):
+def ld_val(pattern, seq_len, max_tok=int(os.environ.get('VAL_MAX_TOKENS', 500000))):
     files = sorted(glob.glob(pattern))
-    assert files, f"No files: {pattern}"
+    assert files, f'No files: {pattern}'
     tok = torch.cat([ld_shard(Path(p)) for p in files]).contiguous()
-    if max_tok > 0: tok = tok[:max_tok + 1]
-    u = ((tok.numel() - 1) // seq_len) * seq_len
+    if max_tok > 0:
+        tok = tok[:max_tok + 1]
+    u = (tok.numel() - 1) // seq_len * seq_len
     return tok[:u + 1]
 
-def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens,
-             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-             temperature: float = 1.0, feedback_passes: int | None = None):
-    # Eval batch size is independent of training gradient accumulation steps —
-    # grad_accum_steps is a training microbatching concern, not an eval concern.
-    # Dividing by it silently shrinks eval throughput as accumulation increases,
-    # making validation slower and noisier with no quality benefit.
-    # local_batch_tokens ceiling is set to 131072. On large GPUs (H100/A100),
-    # setting VAL_BATCH_SIZE above this limit will not increase eval throughput.
+def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, temperature: float=1.0, feedback_passes: int | None=None):
     local_batch_tokens = min(args.val_batch_size, 131072) // world_size
     local_batch_seqs = max(1, local_batch_tokens // args.train_seq_len)
     total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
-    seq_start = (total_seqs * rank) // world_size
-    seq_end = (total_seqs * (rank + 1)) // world_size
+    seq_start = total_seqs * rank // world_size
+    seq_end = total_seqs * (rank + 1) // world_size
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
     model.eval()
-    eval_smoke = int(os.environ.get("FAST_SMOKE", "0")) == 1
-    smoke_batch_limit = int(os.environ.get("FAST_SMOKE_BATCHES", "128"))
+    eval_smoke = int(os.environ.get('FAST_SMOKE', '0')) == 1
+    smoke_batch_limit = int(os.environ.get('FAST_SMOKE_BATCHES', '128'))
     with torch.no_grad():
-        for i, batch_start in enumerate(range(seq_start, seq_end, local_batch_seqs)):
-            # Safety cap for smoke tests — use deterministic batch limit only.
-            # Wall-clock time is unsynchronized across ranks and causes NCCL deadlock
-            # when one rank breaks out while others are still inside the forward pass.
+        for (i, batch_start) in enumerate(range(seq_start, seq_end, local_batch_seqs)):
             if eval_smoke and i >= smoke_batch_limit:
                 break
             batch_end = min(batch_start + local_batch_seqs, seq_end)
             raw_start = batch_start * args.train_seq_len
             raw_end = batch_end * args.train_seq_len + 1
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-            x, y = local[:-1].reshape(-1, args.train_seq_len), local[1:].reshape(-1, args.train_seq_len)
-            
+            (x, y) = (local[:-1].reshape(-1, args.train_seq_len), local[1:].reshape(-1, args.train_seq_len))
             with autocast_context(device):
                 batch_loss = model(x, y, temperature=temperature, feedback_passes=eval_feedback_passes).detach()
             n = float(y.numel())
             loss_sum += batch_loss.to(torch.float64) * n
             token_count += n
-            prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
-            byte_count += token_byte_count(
-                prev_ids, tgt_ids,
-                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            )
+            (prev_ids, tgt_ids) = (x.reshape(-1), y.reshape(-1))
+            byte_count += token_byte_count(prev_ids, tgt_ids, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
     val_loss = (loss_sum / token_count.clamp_min(1.0)).item()
     bpb = val_loss / math.log(2.0) * (token_count.item() / max(byte_count.item(), 1.0))
     model.train()
-    return float(val_loss), float(bpb)
+    return (float(val_loss), float(bpb))
 
-def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
-                     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                     stride: int = 64, temperature: float = 1.0, feedback_passes: int | None = None,
-                     logger=None):
+def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride: int=64, temperature: float=1.0, feedback_passes: int | None=None, logger=None):
     del grad_accum_steps
     seq_len = args.train_seq_len
     batch_size = args.sliding_batch_size
@@ -4105,21 +3313,14 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     all_starts = list(range(0, total_tokens, stride))
-    my_starts = [s for idx, s in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
-
-    # Carry is only meaningful for a single sequential stream (batch_size=1).
-    # When batch_size > 1 the batch dimension contains windows at different temporal
-    # offsets; mean(dim=0) of capsule state smears unrelated contexts, corrupting the
-    # carry signal. Honor capsule_carry_enabled only when we are running sequentially.
-    use_carry = args.capsule_carry_enabled and (batch_size == 1)
+    my_starts = [s for (idx, s) in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
+    use_carry = args.capsule_carry_enabled and batch_size == 1
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
-    if args.capsule_carry_enabled and not use_carry and logger is not None:
-        logger("eval_val_sliding: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
-
+    if args.capsule_carry_enabled and (not use_carry) and (logger is not None):
+        logger('eval_val_sliding: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval')
     base_model.eval()
     carry_capsules = None
-
     with torch.no_grad():
         for i in range(0, len(my_starts), batch_size):
             batch_starts = my_starts[i:i + batch_size]
@@ -4127,7 +3328,7 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
             x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
             y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
             wlens: list[int] = []
-            for j, start in enumerate(batch_starts):
+            for (j, start) in enumerate(batch_starts):
                 end = min(start + seq_len, total_tokens)
                 wlen = end - start
                 wlens.append(wlen)
@@ -4135,16 +3336,10 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 x_batch[j, :wlen] = chunk[:-1]
                 y_batch[j, :wlen] = chunk[1:]
             mixed_valid_lengths = min(wlens) != max(wlens)
-            needs_unbatched_feedback = (
-                mixed_valid_lengths
-                and base_model.feedback_enabled
-                and base_model.feedback_pooler is not None
-            )
+            needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None)
             if use_carry:
                 _fvl = wlens[0] if wlens[0] < seq_len else None
-                logits, capsule_state = base_model.forward_logits_with_carry(
-                    x_batch, carry_capsules=carry_capsules, temperature=temperature,
-                    feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
+                (logits, capsule_state) = base_model.forward_logits_with_carry(x_batch, carry_capsules=carry_capsules, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
                 if capsule_state is not None:
                     cs_avg = capsule_state.mean(dim=0, keepdim=True).detach()
                     if carry_capsules is not None:
@@ -4152,26 +3347,12 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                     else:
                         carry_capsules = cs_avg.detach()
             elif needs_unbatched_feedback:
-                logits = torch.cat([
-                    base_model.forward_logits(
-                        x_batch[j:j+1],
-                        temperature=temperature,
-                        feedback_valid_len=(wlens[j] if wlens[j] < seq_len else None),
-                        feedback_passes=eval_feedback_passes,
-                    )
-                    for j in range(bsz)
-                ], dim=0)
+                logits = torch.cat([base_model.forward_logits(x_batch[j:j + 1], temperature=temperature, feedback_valid_len=wlens[j] if wlens[j] < seq_len else None, feedback_passes=eval_feedback_passes) for j in range(bsz)], dim=0)
             else:
                 _fvl = min(wlens) if min(wlens) < seq_len else None
-                logits = base_model.forward_logits(x_batch, temperature=temperature,
-                                                   feedback_valid_len=_fvl,
-                                                   feedback_passes=eval_feedback_passes)
-            nll = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)).float(),
-                y_batch.reshape(-1),
-                reduction="none",
-            ).reshape(bsz, seq_len)
-            for j, start in enumerate(batch_starts):
+                logits = base_model.forward_logits(x_batch, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
+            nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
+            for (j, start) in enumerate(batch_starts):
                 wlen = wlens[j]
                 score_from = 0 if start == 0 else max(wlen - stride, 0)
                 scored = nll[j, score_from:wlen]
@@ -4179,109 +3360,61 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 sy = y_batch[j, score_from:wlen]
                 loss_sum += scored.to(torch.float64).sum()
                 token_count += float(wlen - score_from)
-                byte_count += token_byte_count(
-                    sx, sy,
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                )
-
+                byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
-
     val_loss = (loss_sum / token_count.clamp_min(1.0)).item()
     bpb = val_loss / math.log(2.0) * (token_count.item() / max(byte_count.item(), 1.0))
     base_model.train()
-    return float(val_loss), float(bpb)
-
+    return (float(val_loss), float(bpb))
 
 def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, bool], list[Tensor]]:
-    """Collect and unfreeze the parameters used during TTT.
-
-    Scopes:
-    - "feedback": feedback pooler, adapters, skip weights, capsule bank, decoder scales
-    - "capsule_bank": ONLY the capsule bank parameters. Most restrictive scope —
-                      safe even at SP8192 because it touches no weight matrices and
-                      cannot OOM through embedding-table backward passes.
-    - "skc_safe": all of feedback scope PLUS per-block SKC scale parameters, decay rates,
-                  and residual mix weights. This is the competition-grade TTT scope:
-                  it covers more of the SKC block's adaptive surface while staying
-                  safe for export (no weight matrices mutated, just scale/decay leafs).
-    """
-    if scope not in ("feedback", "capsule_bank", "skc_safe"):
+    if scope not in ('feedback', 'capsule_bank', 'skc_safe'):
         raise ValueError(f"Unsupported TTT_SCOPE={scope!r}. Valid: 'feedback', 'capsule_bank', 'skc_safe'")
     original: dict[str, bool] = {}
     params: list[Tensor] = []
-    for name, p in base_model.named_parameters():
+    for (name, p) in base_model.named_parameters():
         original[name] = p.requires_grad
-        if scope == "capsule_bank":
-            # Most restrictive: only capsule bank — no matrices, no embeddings, no OOM risk
-            allow = name.startswith("capsule_bank.")
+        if scope == 'capsule_bank':
+            allow = name.startswith('capsule_bank.')
         else:
-            allow = (name.startswith("feedback_pooler.") or name.startswith("feedback_adapters.")
-                    or name == "skip_weights" or name.startswith("capsule_bank."))
-        if scope != "capsule_bank" and name.startswith("blocks."):
-            parts = name.split(".")
+            allow = name.startswith('feedback_pooler.') or name.startswith('feedback_adapters.') or name == 'skip_weights' or name.startswith('capsule_bank.')
+        if scope != 'capsule_bank' and name.startswith('blocks.'):
+            parts = name.split('.')
             if len(parts) >= 3:
                 block_idx = int(parts[1])
                 leaf = parts[2]
-                if block_idx >= base_model.num_encoder_layers and leaf in {"attn_scale", "mlp_scale", "skc_scale"}:
+                if block_idx >= base_model.num_encoder_layers and leaf in {'attn_scale', 'mlp_scale', 'skc_scale'}:
                     allow = True
-                # skc_safe: additionally allow decay rates, residual mix, and mixer conv in all layers
-                if scope == "skc_safe" and leaf in {"decay_rates", "resid_mix", "mixer_conv"}:
+                if scope == 'skc_safe' and leaf in {'decay_rates', 'resid_mix', 'mixer_conv'}:
                     allow = True
-        # Per-layer scales in shared block mode — allow decoder-half scales for TTT
-        if scope != "capsule_bank" and (
-            name.startswith("per_layer_attn_scales.") or name.startswith("per_layer_mlp_scales.")
-        ):
-            idx = int(name.split(".")[1])
+        if scope != 'capsule_bank' and (name.startswith('per_layer_attn_scales.') or name.startswith('per_layer_mlp_scales.')):
+            idx = int(name.split('.')[1])
             if idx >= base_model.num_encoder_layers:
                 allow = True
-        # skc_safe: per-layer SKC scales across all layers (these are tiny scale vectors)
-        if scope == "skc_safe" and name.startswith("per_layer_skc_scales."):
+        if scope == 'skc_safe' and name.startswith('per_layer_skc_scales.'):
             allow = True
         p.requires_grad_(allow)
         if allow:
             params.append(p)
-    return original, params
-
+    return (original, params)
 
 def restore_requires_grad(base_model: nn.Module, original: dict[str, bool]) -> None:
-    for name, p in base_model.named_parameters():
+    for (name, p) in base_model.named_parameters():
         p.requires_grad_(original.get(name, True))
-
 
 def _reset_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
     optimizer.zero_grad(set_to_none=True)
     optimizer.state.clear()
 
-
-def eval_val_sliding_ttt(
-    args,
-    base_model,
-    rank,
-    world_size,
-    device,
-    val_tokens,
-    base_bytes_lut,
-    has_leading_space_lut,
-    is_boundary_token_lut,
-    stride: int,
-    batch_seqs: int = 32,
-    temperature: float = 1.0,
-    feedback_passes: int | None = None,
-    log0=print,
-):
+def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride: int, batch_seqs: int=32, temperature: float=1.0, feedback_passes: int | None=None, log0=print):
     seq_len = args.train_seq_len
     batch_size = batch_seqs
-    # Contiguous rank-segment partitioning: each rank owns a temporally-contiguous
-    # slice of the validation tokens. This preserves the Markov chain so Koopman
-    # carry state remains coherent within each rank's segment. Round-robin chunk
-    # interleaving (ci % world_size) would skip alternate chunks, breaking carry.
     full_tokens = val_tokens.numel() - 1
-    rank_start = (full_tokens * rank) // world_size
-    rank_end   = (full_tokens * (rank + 1)) // world_size
-    # val_tokens index: rank_start .. rank_end+1 (need +1 for the y-label token)
-    val_tokens = val_tokens[rank_start : rank_end + 1]
+    rank_start = full_tokens * rank // world_size
+    rank_end = full_tokens * (rank + 1) // world_size
+    val_tokens = val_tokens[rank_start:rank_end + 1]
     total_tokens = val_tokens.numel() - 1
     ttt_chunk = args.ttt_chunk_tokens
     window_starts = [ws for ws in range(0, total_tokens, stride) if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0]
@@ -4293,48 +3426,32 @@ def eval_val_sliding_ttt(
         score_from = 0 if ws == 0 else max(wlen - stride, 0)
         chunk_idx = min((ws + score_from) // ttt_chunk, num_chunks - 1)
         chunk_windows[chunk_idx].append(ws)
-
-    log0(
-        f"ttt_sliding:start rank={rank}/{world_size} chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} "
-        f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}"
-    )
-    # Carry is only meaningful for a single sequential stream (batch_size=1).
-    # When batch_size > 1 the batch dimension contains windows at different temporal
-    # offsets; mean(dim=0) of capsule state smears unrelated contexts, corrupting the
-    # carry signal. Honor capsule_carry_enabled only when we are running sequentially.
-    use_carry = args.capsule_carry_enabled and (batch_size == 1)
+    log0(f'ttt_sliding:start rank={rank}/{world_size} chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}')
+    use_carry = args.capsule_carry_enabled and batch_size == 1
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
-    if args.capsule_carry_enabled and not use_carry:
-        log0("eval_val_sliding_ttt: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval")
+    if args.capsule_carry_enabled and (not use_carry):
+        log0('eval_val_sliding_ttt: capsule_carry_enabled=True but batch_size>1 — carry disabled for batched sliding eval')
     carry_capsules = None
     was_training = base_model.training
-    original_grad, ttt_params = collect_ttt_params(base_model, args.ttt_scope)
+    (original_grad, ttt_params) = collect_ttt_params(base_model, args.ttt_scope)
     original_ttt_weights = [p.detach().cpu().clone() for p in ttt_params]
-    log0(f"ttt_sliding:params unfrozen={sum(p.numel() for p in ttt_params)}")
+    log0(f'ttt_sliding:params unfrozen={sum((p.numel() for p in ttt_params))}')
     if not ttt_params:
-        raise RuntimeError("TTT enabled but no parameters matched TTT_SCOPE")
+        raise RuntimeError('TTT enabled but no parameters matched TTT_SCOPE')
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     t0 = time.perf_counter()
-    # Hoist SGD outside the chunk loop so momentum buffers persist across chunks.
-    # Recreating the optimizer per chunk silently resets momentum state, which
-    # discards accumulated gradient curvature and hurts TTT convergence.
     ttt_optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
-
     try:
         for ci in range(num_chunks):
             windows = chunk_windows[ci]
             if not windows:
                 continue
-            # Each rank processes all chunks within its contiguous token segment.
-            # Contiguous partitioning (rank_start/rank_end above) ensures temporal
-            # continuity for carry state; no chunk-skipping needed here.
             chunk_start = ci * ttt_chunk
             chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
             my_windows = windows
-
             base_model.eval()
             with torch.no_grad():
                 for bi in range(0, len(my_windows), batch_seqs):
@@ -4343,7 +3460,7 @@ def eval_val_sliding_ttt(
                     x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
                     y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
                     wlens: list[int] = []
-                    for i, ws in enumerate(batch_ws):
+                    for (i, ws) in enumerate(batch_ws):
                         end = min(ws + seq_len, total_tokens)
                         wlen = end - ws
                         wlens.append(wlen)
@@ -4351,16 +3468,10 @@ def eval_val_sliding_ttt(
                         x_batch[i, :wlen] = chunk[:-1]
                         y_batch[i, :wlen] = chunk[1:]
                     mixed_valid_lengths = min(wlens) != max(wlens)
-                    needs_unbatched_feedback = (
-                        mixed_valid_lengths
-                        and base_model.feedback_enabled
-                        and base_model.feedback_pooler is not None
-                    )
+                    needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None)
                     if use_carry:
                         _fvl = wlens[0] if wlens[0] < seq_len else None
-                        logits, capsule_state = base_model.forward_logits_with_carry(
-                            x_batch, carry_capsules=carry_capsules, temperature=temperature,
-                            feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
+                        (logits, capsule_state) = base_model.forward_logits_with_carry(x_batch, carry_capsules=carry_capsules, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
                         if capsule_state is not None:
                             cs_avg = capsule_state.mean(dim=0, keepdim=True)
                             if carry_capsules is not None:
@@ -4368,29 +3479,12 @@ def eval_val_sliding_ttt(
                             else:
                                 carry_capsules = cs_avg.detach()
                     elif needs_unbatched_feedback:
-                        logits = torch.cat([
-                            base_model.forward_logits(
-                                x_batch[j:j+1],
-                                temperature=temperature,
-                                feedback_valid_len=(wlens[j] if wlens[j] < seq_len else None),
-                                feedback_passes=eval_feedback_passes,
-                            )
-                            for j in range(bsz)
-                        ], dim=0)
+                        logits = torch.cat([base_model.forward_logits(x_batch[j:j + 1], temperature=temperature, feedback_valid_len=wlens[j] if wlens[j] < seq_len else None, feedback_passes=eval_feedback_passes) for j in range(bsz)], dim=0)
                     else:
                         _fvl = min(wlens) if min(wlens) < seq_len else None
-                        logits = base_model.forward_logits(
-                            x_batch,
-                            temperature=temperature,
-                            feedback_valid_len=_fvl,
-                            feedback_passes=eval_feedback_passes,
-                        )
-                    nll = F.cross_entropy(
-                        logits.reshape(-1, logits.size(-1)).float(),
-                        y_batch.reshape(-1),
-                        reduction="none",
-                    ).reshape(bsz, seq_len)
-                    for i, ws in enumerate(batch_ws):
+                        logits = base_model.forward_logits(x_batch, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
+                    nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
+                    for (i, ws) in enumerate(batch_ws):
                         wlen = wlens[i]
                         score_from = 0 if ws == 0 else max(wlen - stride, 0)
                         scored = nll[i, score_from:wlen].to(torch.float64)
@@ -4398,26 +3492,16 @@ def eval_val_sliding_ttt(
                         token_count += float(wlen - score_from)
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
-                        byte_count += token_byte_count(
-                            sx, sy,
-                            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                        )
-
+                        byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
             if ci == num_chunks - 1 or args.ttt_epochs <= 0:
                 continue
-
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs <= 0:
                 continue
-            # ttt_optimizer is hoisted outside this loop — momentum buffers persist
-            # across chunks for better convergence (see instantiation above).
             optimizer = ttt_optimizer
             for group in optimizer.param_groups:
-                group["lr"] = args.ttt_lr
-            # This rank owns the full chunk — train on all sequences within it.
-            # No temporal split across ranks; document-level parallelism already
-            # ensures ranks never share any chunk, so no grad all_reduce is needed.
+                group['lr'] = args.ttt_lr
             my_seq_s = 0
             my_chunk_seqs = chunk_seqs
             chunk_carry_start = carry_capsules
@@ -4431,103 +3515,66 @@ def eval_val_sliding_ttt(
                     if end_tok > val_tokens.numel():
                         continue
                     local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
-                    reset_ttt_state = (
-                        base_model.eos_token_id >= 0
-                        and bool(local[:-1].eq(base_model.eos_token_id).any().item())
-                    )
+                    reset_ttt_state = base_model.eos_token_id >= 0 and bool(local[:-1].eq(base_model.eos_token_id).any().item())
                     x = local[:-1].reshape(-1, seq_len)
                     y = local[1:].reshape(-1, seq_len)
                     optimizer.zero_grad(set_to_none=True)
                     if use_carry:
-                        # Use forward_logits_with_carry so carry_capsules is updated
-                        # sequentially within the sub-batch loop. Without this, every
-                        # sub-batch receives the same static carry from the previous
-                        # chunk end — the Koopman state acts as a frozen anchor rather
-                        # than a flowing temporal state, breaking BPTT continuity.
-                        logits_ttt, _cs = base_model.forward_logits_with_carry(
-                            x, carry_capsules=epoch_carry_capsules, temperature=temperature,
-                            feedback_passes=eval_feedback_passes)
+                        (logits_ttt, _cs) = base_model.forward_logits_with_carry(x, carry_capsules=epoch_carry_capsules, temperature=temperature, feedback_passes=eval_feedback_passes)
                         loss = F.cross_entropy(logits_ttt.reshape(-1, logits_ttt.size(-1)).float(), y.reshape(-1))
                         if _cs is not None:
-                            epoch_carry_capsules = (_cs.mean(dim=0, keepdim=True) * (1 - decay) +
-                                                    (epoch_carry_capsules if epoch_carry_capsules is not None else 0) * decay).detach()
+                            epoch_carry_capsules = (_cs.mean(dim=0, keepdim=True) * (1 - decay) + (epoch_carry_capsules if epoch_carry_capsules is not None else 0) * decay).detach()
                     else:
                         loss = base_model(x, y, temperature=temperature, feedback_passes=eval_feedback_passes)
                     loss.backward()
-                    # No grad all_reduce: document-level parallelism means each rank
-                    # trains on its own disjoint chunks. Averaging gradients across
-                    # ranks would mix future-chunk gradients into past-chunk updates,
-                    # re-introducing the temporal leakage we are fixing here.
                     torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
                     optimizer.step()
                     if reset_ttt_state:
-                        # Keep TTT document-local: if this batch crossed an EOS
-                        # boundary, drop optimizer momentum and carry before the next
-                        # update so gradients from the previous document cannot shape
-                        # the adaptation state of the next one.
                         _reset_optimizer_state(optimizer)
                         epoch_carry_capsules = None
                 if epoch_idx == args.ttt_epochs - 1:
                     carry_capsules = epoch_carry_capsules
-
             if rank == 0 and (ci % 10 == 0 or ci == num_chunks - 1):
                 elapsed = time.perf_counter() - t0
                 running_loss = loss_sum.item() / max(token_count.item(), 1)
                 running_bpb = running_loss / math.log(2.0) * (token_count.item() / max(byte_count.item(), 1)) if token_count.item() > 0 else 0.0
-                log0(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={running_bpb:.6f} time={elapsed:.1f}s")
-
+                log0(f'  ttt_chunk [{ci + 1}/{num_chunks}] bpb={running_bpb:.6f} time={elapsed:.1f}s')
         if dist.is_available() and dist.is_initialized():
             for t in (loss_sum, token_count, byte_count):
                 dist.all_reduce(t, op=dist.ReduceOp.SUM)
         val_loss = (loss_sum / token_count.clamp_min(1.0)).item()
         val_bpb = val_loss / math.log(2.0) * (token_count.item() / max(byte_count.item(), 1.0))
-        log0(f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} elapsed={time.perf_counter() - t0:.1f}s")
-        return val_loss, val_bpb
+        log0(f'ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} elapsed={time.perf_counter() - t0:.1f}s')
+        return (val_loss, val_bpb)
     finally:
         base_model.zero_grad(set_to_none=True)
         with torch.no_grad():
-            for p, saved in zip(ttt_params, original_ttt_weights):
+            for (p, saved) in zip(ttt_params, original_ttt_weights):
                 p.copy_(saved.to(device=p.device, dtype=p.dtype))
         restore_requires_grad(base_model, original_grad)
         base_model.train(was_training)
 
-# ---------------------------------------------------------------------------
-# Temperature scaling
-# ---------------------------------------------------------------------------
-def find_temp(args, base_model, rank, world_size, device, grad_accum_steps,
-                              calibration_tokens, base_bytes_lut, has_leading_space_lut,
-                              is_boundary_token_lut):
-    best_t, best_loss = 1.0, float("inf")
-    for t in [0.90, 0.95, 1.00, 1.05, 1.10]:
-        loss, _ = eval_val(args, base_model, rank, world_size, device, grad_accum_steps,
-                           calibration_tokens, base_bytes_lut, has_leading_space_lut,
-                           is_boundary_token_lut, temperature=t)
+def find_temp(args, base_model, rank, world_size, device, grad_accum_steps, calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut):
+    (best_t, best_loss) = (1.0, float('inf'))
+    for t in [0.9, 0.95, 1.0, 1.05, 1.1]:
+        (loss, _) = eval_val(args, base_model, rank, world_size, device, grad_accum_steps, calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, temperature=t)
         if loss < best_loss:
             best_loss = loss
             best_t = t
     return best_t
 
-
-# ---------------------------------------------------------------------------
-# N-gram evaluation cache with entropy-adaptive mixing
-# ---------------------------------------------------------------------------
 class NgramCache:
-    """Dynamic n-gram cache built from already-scored tokens. Zero artifact cost.
-    Uses entropy-adaptive alpha to blend n-gram empirical probabilities with neural logits."""
-    def __init__(self, max_order: int = 5, alpha_base: float = 0.05,
-                 alpha_scale: float = 0.55, entropy_center: float = 4.0,
-                 alpha_max: float = 0.85):
+
+    def __init__(self, max_order: int=5, alpha_base: float=0.05, alpha_scale: float=0.55, entropy_center: float=4.0, alpha_max: float=0.85):
         self.max_order = max_order
         self.alpha_base = alpha_base
         self.alpha_scale = alpha_scale
         self.entropy_center = entropy_center
         self.alpha_max = alpha_max
-        # counts[order] maps tuple(context) -> {next_token: count}
         self.counts: list[dict] = [{} for _ in range(max_order + 1)]
         self.total_counts: list[dict] = [{} for _ in range(max_order + 1)]
 
     def update(self, tokens: list[int]) -> None:
-        """Add scored tokens to the cache."""
         for order in range(2, self.max_order + 1):
             for i in range(len(tokens) - order + 1):
                 ctx = tuple(tokens[i:i + order - 1])
@@ -4539,7 +3586,6 @@ class NgramCache:
                 self.total_counts[order][ctx] += 1
 
     def predict(self, context: list[int], vocab_size: int) -> Tensor | None:
-        """Return n-gram log-probability distribution via backoff, or None if no match."""
         for order in range(self.max_order, 1, -1):
             if len(context) < order - 1:
                 continue
@@ -4547,240 +3593,165 @@ class NgramCache:
             if ctx in self.counts[order]:
                 total = self.total_counts[order][ctx]
                 probs = torch.zeros(vocab_size)
-                for tok, count in self.counts[order][ctx].items():
+                for (tok, count) in self.counts[order][ctx].items():
                     if tok < vocab_size:
                         probs[tok] = count / total
                 if probs.sum() > 0:
-                    # Laplace smoothing
-                    probs = (probs + 1e-8) / (probs.sum() + 1e-8 * vocab_size)
+                    probs = (probs + 1e-08) / (probs.sum() + 1e-08 * vocab_size)
                     return probs.log()
         return None
 
     def entropy_alpha(self, neural_logprobs: Tensor) -> float:
-        """Compute entropy-adaptive mixing weight."""
         probs = neural_logprobs.exp()
         H = -(probs * neural_logprobs).sum().item()
-        # Sigmoid schedule: higher entropy → more trust in cache
         alpha = self.alpha_base + self.alpha_scale * (1.0 / (1.0 + math.exp(-2.0 * (H - self.entropy_center))))
         return max(0.0, min(self.alpha_max, alpha))
 
-
-# ---------------------------------------------------------------------------
-# Export calibration: per-tensor threshold + scale_mult search
-# ---------------------------------------------------------------------------
-def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int,
-                          proxy_tokens: torch.Tensor, args, device,
-                          base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
-                          is_boundary_token_lut: Tensor) -> float:
-    """Export sd with calib, reload into base_model, score true byte-weighted proxy BPB."""
-    # The proxy path is only meant to exercise q_sd -> deq_sd fidelity. Serializing
-    # q_obj through torch.save/load on every proxy eval burns CPU time without changing
-    # the dequantized weights, so reconstruct directly from the quantized object.
+def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int, proxy_tokens: torch.Tensor, args, device, base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> float:
     was_training = base_model.training
     ternary_names = export_ternary_param_names(base_model)
     fp16_names = export_fp16_param_names(base_model)
     sd_for_export = dict(sd)
-    if getattr(base_model, "tie_embeddings", False):
+    if getattr(base_model, 'tie_embeddings', False):
         sd_for_export.pop(_LM_HEAD_STATE_KEY, None)
-        sd_for_export.pop("lm_head.weight", None)
+        sd_for_export.pop('lm_head.weight', None)
     eval_feedback_passes = resolve_eval_feedback_passes(args)
     try:
-        q_obj, _ = q_sd(
-            sd_for_export,
-            group_size=group_size,
-            fp_storage=args.fp_storage,
-            calib=calib,
-            ternary_names=ternary_names,
-            turbo_quant_export=args.turbo_quant_export,
-            fp16_names=fp16_names,
-        )
+        (q_obj, _) = q_sd(sd_for_export, group_size=group_size, fp_storage=args.fp_storage, calib=calib, ternary_names=ternary_names, turbo_quant_export=args.turbo_quant_export, fp16_names=fp16_names)
         load_roundtrip_state_strict(base_model, deq_sd(q_obj, target_dtype=torch.float32))
         base_model.eval()
         loss_sum = 0.0
         tok_count = 0
         byte_count = 0.0
         seq_len = min(args.train_seq_len, 512)
-        # Use no_grad instead of inference_mode: inference_mode caches tensors that
-        # cannot be saved for backward, causing errors when the model returns to training.
         with torch.no_grad():
             for i in range(0, min(proxy_tokens.numel() - 1, 32768), seq_len):
                 chunk = proxy_tokens[i:i + seq_len + 1].to(device)
                 chunk = chunk.to(torch.int64)
                 if chunk.numel() < 2:
                     break
-                x, y = chunk[:-1].unsqueeze(0), chunk[1:].unsqueeze(0)
+                (x, y) = (chunk[:-1].unsqueeze(0), chunk[1:].unsqueeze(0))
                 with autocast_context(device):
                     loss = base_model(x, y, feedback_passes=eval_feedback_passes).item()
                 loss_sum += loss * y.numel()
                 tok_count += y.numel()
-                byte_count += token_byte_count(
-                    x.reshape(-1), y.reshape(-1),
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                ).item()
+                byte_count += token_byte_count(x.reshape(-1), y.reshape(-1), base_bytes_lut, has_leading_space_lut, is_boundary_token_lut).item()
         val_loss = loss_sum / max(tok_count, 1)
-        return (val_loss / math.log(2.0)) * (tok_count / max(byte_count, 1.0))
+        return val_loss / math.log(2.0) * (tok_count / max(byte_count, 1.0))
     finally:
         base_model.load_state_dict(sd)
         base_model.train(was_training)
 
-
-def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device,
-                      base_bytes_lut: Tensor, has_leading_space_lut: Tensor,
-                      is_boundary_token_lut: Tensor) -> dict:
-    """Search per-tensor (thr, scale_mult) to minimize round-trip proxy BPB.
-    Budget-capped: respects CALIB_MAX_EVALS and CALIB_MAX_SECONDS limits.
-    Returns calib dict."""
+def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device, base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> dict:
     import time as _time
     t_start = _time.perf_counter()
-    evals = [0]  # mutable counter
-
+    evals = [0]
     group_size = args.bitnet_group_size
     top_n = args.ternary_calib_top_n
     max_evals = args.calib_max_evals
     max_seconds = args.calib_max_seconds
     proxy_max_tok = args.calib_proxy_max_tok
-
-    # Trim proxy tokens to budget-friendly size
     proxy_tokens = proxy_tokens[:proxy_max_tok] if proxy_tokens.numel() > proxy_max_tok else proxy_tokens
-
-    sd = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
+    sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
     ternary_names = export_ternary_param_names(base_model)
 
     def _budget_ok():
-        return evals[0] < max_evals and (_time.perf_counter() - t_start) < max_seconds
+        return evals[0] < max_evals and _time.perf_counter() - t_start < max_seconds
 
     def _eval(calib_override):
         if not _budget_ok():
-            return float("inf")
+            return float('inf')
         evals[0] += 1
-        return _proxy_roundtrip_bpb(
-            sd, base_model, calib_override, group_size, proxy_tokens, args, device,
-            base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-        )
-
-    # Build search grids
+        return _proxy_roundtrip_bpb(sd, base_model, calib_override, group_size, proxy_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     thr_vals = [0.0]
     if args.ternary_threshold_search and args.ternary_threshold_steps > 0:
-        lo, hi, n = args.ternary_threshold_low, args.ternary_threshold_high, args.ternary_threshold_steps
+        (lo, hi, n) = (args.ternary_threshold_low, args.ternary_threshold_high, args.ternary_threshold_steps)
         thr_vals += [lo + (hi - lo) * i / max(n - 1, 1) for i in range(n)]
     scale_vals = [1.0]
     if args.ternary_scale_search and args.ternary_scale_mult_steps > 0:
-        lo, hi, n = args.ternary_scale_mult_low, args.ternary_scale_mult_high, args.ternary_scale_mult_steps
+        (lo, hi, n) = (args.ternary_scale_mult_low, args.ternary_scale_mult_high, args.ternary_scale_mult_steps)
         scale_vals += [lo + (hi - lo) * i / max(n - 1, 1) for i in range(n)]
-
-    # Pre-filter: top candidates by size (cheap, no proxy evals)
-    all_eligible = [
-        name for name in ternary_names
-        if name in sd and sd[name].ndim == 2 and sd[name].numel() > 16384
-    ]
+    all_eligible = [name for name in ternary_names if name in sd and sd[name].ndim == 2 and (sd[name].numel() > 16384)]
     prefilter_k = min(max(top_n * args.calib_prefilter_mult, top_n), args.calib_max_candidates)
     size_sorted = sorted(all_eligible, key=lambda n: sd[n].numel(), reverse=True)
     rank_pool = size_sorted[:prefilter_k]
-
-    # Baseline BPB
     calib: dict = {}
     baseline_bpb = _eval(calib)
-    if baseline_bpb == float("inf"):
-        return calib  # budget already exhausted
-
-    # Sensitivity ranking over rank_pool (not all tensors)
-    probe_thr = thr_vals[len(thr_vals)//2] if len(thr_vals) > 1 else 0.05
-    probe_sm = scale_vals[len(scale_vals)//2] if len(scale_vals) > 1 else 1.0
+    if baseline_bpb == float('inf'):
+        return calib
+    probe_thr = thr_vals[len(thr_vals) // 2] if len(thr_vals) > 1 else 0.05
+    probe_sm = scale_vals[len(scale_vals) // 2] if len(scale_vals) > 1 else 1.0
     sensitivities: list[tuple[float, str]] = []
     for name in rank_pool:
         if not _budget_ok():
-            # Budget hit: fall back to size ordering for remaining candidates
             remaining = [n for n in rank_pool if n not in {s[1] for s in sensitivities}]
             sensitivities += [(0.0, n) for n in remaining]
             break
-        probe = {name: {"thr": probe_thr, "scale_mult": probe_sm}}
+        probe = {name: {'thr': probe_thr, 'scale_mult': probe_sm}}
         delta = abs(_eval(probe) - baseline_bpb)
         sensitivities.append((delta, name))
     sensitivities.sort(reverse=True)
-    candidates = [name for _, name in sensitivities[:top_n]]
+    candidates = [name for (_, name) in sensitivities[:top_n]]
 
     def _search_one(name: str, current_calib: dict, ref_bpb: float):
         best_bpb = ref_bpb
-        best_thr = current_calib.get(name, {}).get("thr", 0.0)
-        best_sm = current_calib.get(name, {}).get("scale_mult", 1.0)
+        best_thr = current_calib.get(name, {}).get('thr', 0.0)
+        best_sm = current_calib.get(name, {}).get('scale_mult', 1.0)
         for thr in thr_vals:
             for sm in scale_vals:
                 if thr == best_thr and sm == best_sm:
                     continue
                 if not _budget_ok():
-                    return best_thr, best_sm, best_bpb
+                    return (best_thr, best_sm, best_bpb)
                 test_calib = dict(current_calib)
-                test_calib[name] = {"thr": thr, "scale_mult": sm}
+                test_calib[name] = {'thr': thr, 'scale_mult': sm}
                 bpb = _eval(test_calib)
                 if bpb < best_bpb:
                     best_bpb = bpb
-                    best_thr, best_sm = thr, sm
-        return best_thr, best_sm, best_bpb
-
-    # Pass 1: greedy forward search over sensitivity-ranked candidates
+                    (best_thr, best_sm) = (thr, sm)
+        return (best_thr, best_sm, best_bpb)
     for name in candidates:
         if not _budget_ok():
             break
-        best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
+        (best_thr, best_sm, best_bpb) = _search_one(name, calib, baseline_bpb)
         if best_thr != 0.0 or best_sm != 1.0:
-            calib[name] = {"thr": best_thr, "scale_mult": best_sm}
+            calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
             baseline_bpb = best_bpb
-
-    # Pass 2 (optional): re-optimize selected tensors with full context
     if args.calib_second_pass:
         for name in list(calib.keys()):
             if not _budget_ok():
                 break
-            best_thr, best_sm, best_bpb = _search_one(name, calib, baseline_bpb)
-            calib[name] = {"thr": best_thr, "scale_mult": best_sm}
+            (best_thr, best_sm, best_bpb) = _search_one(name, calib, baseline_bpb)
+            calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
             baseline_bpb = best_bpb
-
     elapsed = _time.perf_counter() - t_start
-    print(f"calib:budget evals={evals[0]}/{max_evals} time={elapsed:.1f}s/{max_seconds}s", flush=True)
+    print(f'calib:budget evals={evals[0]}/{max_evals} time={elapsed:.1f}s/{max_seconds}s', flush=True)
     return calib
 
-
-# ---------------------------------------------------------------------------
-# GPTQ-lite: per-row clip percentile search for ternary quantization
-# ---------------------------------------------------------------------------
-def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int = 5,
-                        ternary_names: set[str] | None = None,
-                        turbo_quant_export: bool = True,
-                        clip_mode: str = "percentile",
-                        row_std_k: float = 12.85,
-                        embed_row_std_k: float = 20.0) -> dict:
-    """Apply ternary-native clipping before quantization.
-
-    `percentile` searches global clip percentiles and picks the lowest-MSE result.
-    `row_std` clips each row to k * std(row), with a larger k for token embeddings.
-    `none` is a no-op.
-    """
-    if clip_mode == "none":
+def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int=5, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, clip_mode: str='percentile', row_std_k: float=12.85, embed_row_std_k: float=20.0) -> dict:
+    if clip_mode == 'none':
         return state_dict
     percentiles = [0.995 + 0.001 * i for i in range(num_percentiles)]
-    turbo_quant = turbo_quant_export and (group_size & (group_size - 1)) == 0
-    H = _build_hadamard_pt(group_size, torch.device("cpu")) if turbo_quant else None
+    turbo_quant = turbo_quant_export and group_size & group_size - 1 == 0
+    H = _build_hadamard_pt(group_size, torch.device('cpu')) if turbo_quant else None
     improved = {}
-    for name, tensor in state_dict.items():
+    for (name, tensor) in state_dict.items():
         t = tensor.detach().cpu().float()
-        is_target = name in ternary_names if ternary_names is not None else (
-            t.ndim == 2 and t.numel() > 65536 and "tok_emb" not in name and "lm_head" not in name and "embed_proj" not in name
-        )
+        is_target = name in ternary_names if ternary_names is not None else t.ndim == 2 and t.numel() > 65536 and ('tok_emb' not in name) and ('lm_head' not in name) and ('embed_proj' not in name)
         if not is_target:
             improved[name] = tensor
             continue
-        if clip_mode == "row_std":
-            k = embed_row_std_k if ("tok_emb" in name or "embed" in name) else row_std_k
+        if clip_mode == 'row_std':
+            k = embed_row_std_k if 'tok_emb' in name or 'embed' in name else row_std_k
             if t.ndim == 2:
-                row_std = t.std(dim=-1, keepdim=True).clamp(min=1e-8)
+                row_std = t.std(dim=-1, keepdim=True).clamp(min=1e-08)
                 clip = k * row_std
                 improved[name] = t.clamp(-clip, clip).to(tensor.dtype).to(tensor.device)
             else:
                 improved[name] = tensor
             continue
         best_t = t.clone()
-        best_mse = float("inf")
-        # Pad columns to be divisible by group_size (same as q_sd does)
+        best_mse = float('inf')
         pad = (group_size - t.shape[1] % group_size) % group_size
         for pct in percentiles:
             clip_val = torch.quantile(t.abs().flatten(), pct)
@@ -4795,30 +3766,25 @@ def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int 
             if H is not None:
                 recon_g = recon_g @ H
             recon = recon_g.reshape(t_padded.shape)[:t.shape[0], :t.shape[1]]
-            mse = (t - recon).pow(2).mean().item()  # measure vs original, not clipped
+            mse = (t - recon).pow(2).mean().item()
             if mse < best_mse:
                 best_mse = mse
                 best_t = t_clipped
         improved[name] = best_t.to(tensor.dtype).to(tensor.device)
     return improved
 
-
-# ---------------------------------------------------------------------------
-# EMA helper
-# ---------------------------------------------------------------------------
 class EMAHelper:
-    """Exponential Moving Average for model weights. Maintains shadow copy.
-    Applied to latent FP32 weights; ternary quantization happens at export."""
-    def __init__(self, model: nn.Module, decay: float = 0.997):
+
+    def __init__(self, model: nn.Module, decay: float=0.997):
         self.decay = decay
         self.shadow: dict[str, torch.Tensor] = {}
-        for name, p in model.named_parameters():
+        for (name, p) in model.named_parameters():
             if p.requires_grad:
                 self.shadow[name] = p.data.clone()
 
     @torch.no_grad()
     def update(self, model: nn.Module) -> None:
-        for name, p in model.named_parameters():
+        for (name, p) in model.named_parameters():
             if name in self.shadow:
                 self.shadow[name].mul_(self.decay).add_(p.data, alpha=1 - self.decay)
 
@@ -4826,10 +3792,9 @@ class EMAHelper:
         if name not in self.shadow:
             self.shadow[name] = param.data.clone()
 
-    def apply_shadow(self, model: nn.Module, move_to_cpu: bool = False) -> dict[str, torch.Tensor]:
-        """Replace model weights with EMA shadow. Returns original weights for restore."""
+    def apply_shadow(self, model: nn.Module, move_to_cpu: bool=False) -> dict[str, torch.Tensor]:
         original = {}
-        for name, p in model.named_parameters():
+        for (name, p) in model.named_parameters():
             if name in self.shadow:
                 original[name] = p.data.cpu() if move_to_cpu else p.data.clone()
                 p.data.copy_(self.shadow[name].to(p.device))
@@ -4837,304 +3802,144 @@ class EMAHelper:
 
     @staticmethod
     def restore(model: nn.Module, original: dict[str, torch.Tensor]) -> None:
-        for name, p in model.named_parameters():
+        for (name, p) in model.named_parameters():
             if name in original:
                 p.data.copy_(original[name].to(p.device))
 
-
-
-
-
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
 def main() -> None:
     args = Hyperparameters()
     apply_competition_profile(args)
     apply_runtime_path_policy(args)
     validate_config_surface(args)
-    code = Path(__file__).read_text(encoding="utf-8")
-
-    # Declare all module-level globals mutated inside main() in one place.
-    # Python requires a global declaration to appear before the first assignment
-    # in a function scope; a second declaration for the same name later in the
-    # function is a SyntaxError and prevents the module from loading at all.
+    code = Path(__file__).read_text(encoding='utf-8')
     global _TURBO_QUANT_TRAIN, _TURBO_QUANT_KV, _EXPORT_CALIB
     _TURBO_QUANT_TRAIN = args.turbo_quant_train
-    _TURBO_QUANT_KV = bool(int(os.environ.get("TURBO_QUANT_KV", "0")))
-
-    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
-    rank = int(os.environ.get("RANK", "0"))
-    world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    grad_accum_steps = int(os.environ.get("GRAD_ACCUM_STEPS", "1"))
+    _TURBO_QUANT_KV = bool(int(os.environ.get('TURBO_QUANT_KV', '0')))
+    distributed = 'RANK' in os.environ and 'WORLD_SIZE' in os.environ
+    rank = int(os.environ.get('RANK', '0'))
+    world_size = int(os.environ.get('WORLD_SIZE', '1'))
+    local_rank = int(os.environ.get('LOCAL_RANK', '0'))
+    grad_accum_steps = int(os.environ.get('GRAD_ACCUM_STEPS', '1'))
     grad_scale = 1.0 / grad_accum_steps
-
     if torch.cuda.is_available():
-        device = torch.device("cuda", local_rank)
+        device = torch.device('cuda', local_rank)
         torch.cuda.set_device(device)
     elif torch.backends.mps.is_available():
-        device = torch.device("mps")
+        device = torch.device('mps')
     else:
-        device = torch.device("cpu")
+        device = torch.device('cpu')
     if distributed:
-        dist_backend = "nccl" if device.type == "cuda" else "gloo"
+        dist_backend = 'nccl' if device.type == 'cuda' else 'gloo'
         from datetime import timedelta
-        _nccl_timeout_sec = int(os.environ.get("TORCH_NCCL_TIMEOUT_SEC", "7200"))
-        dist.init_process_group(backend=dist_backend, device_id=device if device.type == "cuda" else None,
-                                timeout=timedelta(seconds=_nccl_timeout_sec))
-
+        _nccl_timeout_sec = int(os.environ.get('TORCH_NCCL_TIMEOUT_SEC', '7200'))
+        dist.init_process_group(backend=dist_backend, device_id=device if device.type == 'cuda' else None, timeout=timedelta(seconds=_nccl_timeout_sec))
         dist.barrier()
     master_process = rank == 0
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-
-    os.makedirs("logs/cuda/", exist_ok=True)
-    logfile = f"logs/cuda/{args.run_id}.txt" if master_process else None
+    os.makedirs('logs/cuda/', exist_ok=True)
+    logfile = f'logs/cuda/{args.run_id}.txt' if master_process else None
     if master_process:
         print(logfile)
 
-    def log0(msg: str, console: bool = True, flush: bool = True) -> None:
+    def log0(msg: str, console: bool=True, flush: bool=True) -> None:
         if not master_process:
             return
         if console:
             print(msg, flush=flush)
         if logfile:
-            with open(logfile, "a", encoding="utf-8") as f:
+            with open(logfile, 'a', encoding='utf-8') as f:
                 print(msg, file=f, flush=flush)
-
     log0(code, console=False)
-    log0("=" * 100, console=False)
-
-    log0(f"Python {sys.version}", console=False)
-    log0(f"PyTorch {torch.__version__}", console=False)
-
+    log0('=' * 100, console=False)
+    log0(f'Python {sys.version}', console=False)
+    log0(f'PyTorch {torch.__version__}', console=False)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
-
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
     args.vocab_size = int(sp.vocab_size())
-    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_luts(
-        sp, args.vocab_size, device)
-
-    # --- Model ---
-    base_model = GPT(
-        vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
-        num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
-        tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
-        logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
-        group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope,
-        residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init,
-        residual_proj_init_std=args.residual_proj_init_std,
-        embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage,
-        softcap_type=args.softcap_type, no_cache=(args.compile_mode == "reduce-overhead"),
-        rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len,
-        feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim,
-        feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay,
-        feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage,
-        feedback_gate_init=args.feedback_gate_init,
-        feedback_passes=args.feedback_passes,
-        shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled,
-        capsule_num=args.capsule_num, capsule_dim=args.capsule_dim,
-        partial_rope_dims=args.partial_rope_dims, vrl_enabled=args.vrl_enabled,
-        vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping,
-        bigram_hash_enabled=args.bigram_hash_enabled,
-        bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim,
-        engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders,
-        engram_inject_layer=args.engram_inject_layer,
-        xsa_start_layer=args.xsa_start_layer,
-        moe_enabled=args.moe_enabled,
-        moe_num_experts=args.moe_num_experts,
-        moe_top_k=args.moe_top_k,
-        architecture=args.architecture,
-        koopman_enabled=args.koopman_enabled,
-        koopman_rank=args.koopman_rank,
-        koopman_diag_init=args.koopman_diag_init,
-        koopman_consistency_weight=args.koopman_consistency_weight,
-        koopman_speculator_enabled=args.koopman_speculator_enabled,
-        koopman_speculator_steps=args.koopman_speculator_steps,
-        koopman_speculator_weight=args.koopman_speculator_weight,
-        adaptive_halt_enabled=args.adaptive_halt_enabled,
-        adaptive_halt_threshold=args.adaptive_halt_threshold,
-        koopman_state_dim=args.koopman_state_dim,
-        koopman_mixer_rank=args.koopman_mixer_rank,
-        koopman_conv_kernel=args.koopman_conv_kernel,
-        koopman_decay_window=args.koopman_decay_window,
-        koopman_scan_checkpoint=args.koopman_scan_checkpoint,
-        koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq,
-        skc_num_capsules=args.skc_num_capsules,
-        skc_capsule_dim=args.skc_capsule_dim,
-        skc_conv_kernel=args.skc_conv_kernel,
-        skc_block_size=args.skc_block_size,
-        skc_aux_entropy_fraction=args.skc_aux_entropy_fraction,
-        skc_recurrent_core=args.skc_recurrent_core,
-        skc_upper_branch=args.skc_upper_branch,
-        moe_layer_frac=args.moe_layer_frac,
-        moe_start_fraction=args.moe_start_fraction,
-        moe_router_aux_loss_coef=args.moe_router_aux_loss_coef,
-        eos_token_id=int(sp.eos_id()),
-        reset_ssm_on_eos=args.reset_ssm_on_eos,
-        skc_parallel_residual=args.skc_parallel_residual,
-    ).to(device)
-
+    (base_bytes_lut, has_leading_space_lut, is_boundary_token_lut) = build_luts(sp, args.vocab_size, device)
+    base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope, residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init, residual_proj_init_std=args.residual_proj_init_std, embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage, softcap_type=args.softcap_type, no_cache=args.compile_mode == 'reduce-overhead', rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len, feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim, feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay, feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage, feedback_gate_init=args.feedback_gate_init, feedback_passes=args.feedback_passes, shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled, capsule_num=args.capsule_num, capsule_dim=args.capsule_dim, partial_rope_dims=args.partial_rope_dims, vrl_enabled=args.vrl_enabled, vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping, bigram_hash_enabled=args.bigram_hash_enabled, bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim, engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders, engram_inject_layer=args.engram_inject_layer, xsa_start_layer=args.xsa_start_layer, moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k, architecture=args.architecture, koopman_enabled=args.koopman_enabled, koopman_rank=args.koopman_rank, koopman_diag_init=args.koopman_diag_init, koopman_consistency_weight=args.koopman_consistency_weight, koopman_speculator_enabled=args.koopman_speculator_enabled, koopman_speculator_steps=args.koopman_speculator_steps, koopman_speculator_weight=args.koopman_speculator_weight, adaptive_halt_enabled=args.adaptive_halt_enabled, adaptive_halt_threshold=args.adaptive_halt_threshold, koopman_state_dim=args.koopman_state_dim, koopman_mixer_rank=args.koopman_mixer_rank, koopman_conv_kernel=args.koopman_conv_kernel, koopman_decay_window=args.koopman_decay_window, koopman_scan_checkpoint=args.koopman_scan_checkpoint, koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq, skc_num_capsules=args.skc_num_capsules, skc_capsule_dim=args.skc_capsule_dim, skc_conv_kernel=args.skc_conv_kernel, skc_block_size=args.skc_block_size, skc_aux_entropy_fraction=args.skc_aux_entropy_fraction, skc_recurrent_core=args.skc_recurrent_core, skc_upper_branch=args.skc_upper_branch, moe_layer_frac=args.moe_layer_frac, moe_start_fraction=args.moe_start_fraction, moe_router_aux_loss_coef=args.moe_router_aux_loss_coef, eos_token_id=int(sp.eos_id()), reset_ssm_on_eos=args.reset_ssm_on_eos, skc_parallel_residual=args.skc_parallel_residual).to(device)
     if master_process and args.hard_budget_bytes > 0:
-        _code_bytes = len(code.encode("utf-8"))
-        _lb_total, _lb_ternary, _lb_fp, _lb_code = estimate_export_lower_bound_bytes(base_model, args, _code_bytes)
-        log0(
-            f"budget_lower_bound: total_lb={_lb_total} ternary_lb={_lb_ternary} fp16={_lb_fp} code={_lb_code} "
-            f"cap={args.hard_budget_bytes}"
-        )
+        _code_bytes = len(code.encode('utf-8'))
+        (_lb_total, _lb_ternary, _lb_fp, _lb_code) = estimate_export_lower_bound_bytes(base_model, args, _code_bytes)
+        log0(f'budget_lower_bound: total_lb={_lb_total} ternary_lb={_lb_ternary} fp16={_lb_fp} code={_lb_code} cap={args.hard_budget_bytes}')
         if args.hard_budget_enforce and _lb_total > int(args.hard_budget_bytes):
-            raise RuntimeError(
-                f"Projected minimum artifact+code bytes {_lb_total} exceeds HARD_BUDGET_BYTES={args.hard_budget_bytes}; "
-                "reduce FP footprint / model size before training."
-            )
-
-    # Keep compilation static when sequence length / batch schedules are fixed.
-    # Dynamic compilation is only worth paying for when the competition profile
-    # actually changes shapes during training.
-    compile_dynamic = bool(
-        args.curr_enabled
-        or args.seq_len_start > 0
-        or args.batch_tokens_start > 0
-    )
+            raise RuntimeError(f'Projected minimum artifact+code bytes {_lb_total} exceeds HARD_BUDGET_BYTES={args.hard_budget_bytes}; reduce FP footprint / model size before training.')
+    compile_dynamic = bool(args.curr_enabled or args.seq_len_start > 0 or args.batch_tokens_start > 0)
     compile_options = None
-    if args.compile_mode == "max-autotune":
-        compile_options = {
-            "max_autotune": True,
-            "shape_padding": bool(int(os.environ.get("COMPILE_SHAPE_PADDING", "1"))),
-            "triton.cudagraphs": bool(int(os.environ.get("COMPILE_TRITON_CUDAGRAPHS", "0"))),
-        }
-    if args.compile_mode != "none":
+    if args.compile_mode == 'max-autotune':
+        compile_options = {'max_autotune': True, 'shape_padding': bool(int(os.environ.get('COMPILE_SHAPE_PADDING', '1'))), 'triton.cudagraphs': bool(int(os.environ.get('COMPILE_TRITON_CUDAGRAPHS', '0')))}
+    if args.compile_mode != 'none':
         if compile_options is not None:
             try:
-                compiled_model = torch.compile(
-                    base_model,
-                    mode=args.compile_mode,
-                    dynamic=compile_dynamic,
-                    options=compile_options,
-                )
+                compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic, options=compile_options)
             except RuntimeError as e:
-                if "Either mode or options can be specified" not in str(e):
+                if 'Either mode or options can be specified' not in str(e):
                     raise
-                # PyTorch 2.4 compatibility: mode+options together is rejected.
-                compiled_model = torch.compile(
-                    base_model,
-                    dynamic=compile_dynamic,
-                    options=compile_options,
-                )
+                compiled_model = torch.compile(base_model, dynamic=compile_dynamic, options=compile_options)
         else:
             compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic)
     else:
         compiled_model = base_model
-    
-    # MoE top-k routing and feedback interleaving can leave real submodules unused on
-    # some iterations. Shared blocks are reused weights, not unused weights.
-    feedback_interleaving = (
-        args.feedback_enabled
-        and args.feedback_passes > 0
-        and max(args.feedback_every, 1) > 1
-    )
+    feedback_interleaving = args.feedback_enabled and args.feedback_passes > 0 and (max(args.feedback_every, 1) > 1)
     sparse_moe = args.moe_enabled and args.moe_top_k < args.moe_num_experts
-    force_find_unused = bool(int(os.environ.get("DDP_FIND_UNUSED_PARAMETERS", "0")))
-    use_find_unused = force_find_unused or (args.untie_at_fraction > 0 or not args.tie_embeddings
-                                            or sparse_moe or feedback_interleaving)
-
+    force_find_unused = bool(int(os.environ.get('DDP_FIND_UNUSED_PARAMETERS', '0')))
+    use_find_unused = force_find_unused or (args.untie_at_fraction > 0 or not args.tie_embeddings or sparse_moe or feedback_interleaving)
     if distributed:
         model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
     else:
         model = compiled_model
+    _SKC_STRUCTURAL = ('decay_rates', 'band_centers', 'band_log_widths', 'eigenvalues', 'coupling_U', 'coupling_V', 'nonlinear_gate', 'mixer_conv', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix', 'skip_weights', 'vocab_bias', 'content_router', 'content_scale', 'gate_proj', 'decay_rates', 'router')
 
-    # C8: SKC-aware 3-tier optimizer grouping.
-    # Structural/dynamical params (band_centers, eigenvalues, coupling_U/V, skc_scale, etc.)
-    # are routed to AdamW — NOT to Muon. Muon is reserved for genuine ternary projection matrices.
-    _SKC_STRUCTURAL = (
-        "decay_rates", "band_centers", "band_log_widths",
-        "eigenvalues", "coupling_U", "coupling_V", "nonlinear_gate",
-        "mixer_conv", "skc_scale", "mlp_scale", "attn_scale", "resid_mix",
-        "skip_weights", "vocab_bias", "content_router", "content_scale",
-        "gate_proj", "decay_rates",
-        # MoE router must go to AdamW — Muon orthogonalizes weight matrices which
-        # destroys top-k expert clustering and causes expert collapse.
-        "router",
-    )
     def _is_skc_structural(name: str) -> bool:
-        return any(k in name for k in _SKC_STRUCTURAL)
-
+        return any((k in name for k in _SKC_STRUCTURAL))
     muon_params = []
     adam_params = []
     head_params = []
-
-    for name, p in base_model.named_parameters():
+    engram_params = []
+    for (name, p) in base_model.named_parameters():
         if not p.requires_grad:
             continue
-        if "tok_emb" in name or "lm_head" in name or "embed_proj" in name:
+        if 'engram.tables' in name:
+            engram_params.append(p)
+        elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name:
             head_params.append(p)
         elif _is_skc_structural(name) or p.ndim < 2:
-            # Structural/scalar params → AdamW for stability
             adam_params.append(p)
         else:
-            # Genuine weight matrices (ternary projections) → Muon
             muon_params.append(p)
-            
-    if args.matrix_optimizer == "muon":
-        opt_matrix = Muon(
-            muon_params,
-            lr=args.matrix_lr,
-            momentum=args.muon_momentum,
-            backend_steps=args.muon_backend_steps,
-            wd=args.muon_wd,
-            active_grad_eps=args.muon_active_grad_eps,
-        )
-    elif args.matrix_optimizer == "adamw":
-        opt_matrix = torch.optim.AdamW(
-            muon_params,
-            lr=args.matrix_lr,
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            weight_decay=args.muon_wd,
-        )
+    if args.matrix_optimizer == 'muon':
+        opt_matrix = Muon(muon_params, lr=args.matrix_lr, momentum=args.muon_momentum, backend_steps=args.muon_backend_steps, wd=args.muon_wd, active_grad_eps=args.muon_active_grad_eps)
+    elif args.matrix_optimizer == 'adamw':
+        opt_matrix = torch.optim.AdamW(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
     else:
-        opt_matrix = torch.optim.Adam(
-            muon_params,
-            lr=args.matrix_lr,
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            weight_decay=args.muon_wd,
-        )
+        opt_matrix = torch.optim.Adam(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
     opt_adam = torch.optim.AdamW(adam_params, lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
     opt_head = torch.optim.AdamW(head_params, lr=args.tied_embed_lr if args.tie_embeddings else args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
-    
-    for opt in [opt_matrix, opt_adam, opt_head]:
+    all_opts = [opt_matrix, opt_adam, opt_head]
+    if engram_params:
+        opt_engram = torch.optim.AdamW(engram_params, lr=args.engram_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=0.0)
+        all_opts.append(opt_engram)
+    for opt in all_opts:
         for g in opt.param_groups:
-             g["base_lr"] = g["lr"]
-             
-    optimizers = [opt_matrix, opt_adam, opt_head]
-
-    # --- EMA ---
+            g['base_lr'] = g['lr']
+    optimizers = all_opts
     ema = None
-
-    # Register param names on TernaryLinear modules for aligned training
     base_model.register_ternary_calib_names()
-
-    # --- Log all hyperparameters ---
-    log0("--- Hyperparameters ---", console=False)
-    log0(" ".join(f"{a}={getattr(args,a)}" for a in sorted(dir(args)) if not a.startswith("_") and a not in ("train_files","val_files") and not callable(getattr(args,a))), console=False)
-    n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"params:{n_params} L:{args.num_layers} d:{args.model_dim} h:{args.num_heads} kv:{args.num_kv_heads} ws:{world_size} ga:{grad_accum_steps} s:{args.seed}")
-    _tokenizer_regime = f"SP{args.vocab_size}"
-    _recurrence_layers = ",".join(str(i) for i in args.recurrence_layers) if args.recurrence_layers else "all"
-    _recurrence_info = (
-        f"recurrence_depth={args.training_depth_recurrence} start_frac={args.recurrence_start_fraction} layers={_recurrence_layers}"
-        if args.recurrence_depth > 0 else "recurrence=off"
-    )
-    _export_info = f"export_mode={args.export_mode}"
-    _arch_info = f"arch={args.architecture} parallel_residual={args.skc_parallel_residual}"
-    _ttt_info = f"ttt={args.ttt_enabled} scope={args.ttt_scope}" if args.ttt_enabled else "ttt=off"
-    log0(f"competition_config: {_tokenizer_regime} {_arch_info} {_recurrence_info} {_export_info} {_ttt_info}")
-
+    log0('--- Hyperparameters ---', console=False)
+    log0(' '.join((f'{a}={getattr(args, a)}' for a in sorted(dir(args)) if not a.startswith('_') and a not in ('train_files', 'val_files') and (not callable(getattr(args, a))))), console=False)
+    n_params = sum((p.numel() for p in base_model.parameters()))
+    log0(f'params:{n_params} L:{args.num_layers} d:{args.model_dim} h:{args.num_heads} kv:{args.num_kv_heads} ws:{world_size} ga:{grad_accum_steps} s:{args.seed}')
+    _tokenizer_regime = f'SP{args.vocab_size}'
+    _recurrence_layers = ','.join((str(i) for i in args.recurrence_layers)) if args.recurrence_layers else 'all'
+    _recurrence_info = f'recurrence_depth={args.training_depth_recurrence} start_frac={args.recurrence_start_fraction} layers={_recurrence_layers}' if args.recurrence_depth > 0 else 'recurrence=off'
+    _export_info = f'export_mode={args.export_mode}'
+    _arch_info = f'arch={args.architecture} parallel_residual={args.skc_parallel_residual}'
+    _ttt_info = f'ttt={args.ttt_enabled} scope={args.ttt_scope}' if args.ttt_enabled else 'ttt=off'
+    log0(f'competition_config: {_tokenizer_regime} {_arch_info} {_recurrence_info} {_export_info} {_ttt_info}')
     train_loader: DistributedTokenLoader | None = None
     val_tokens: torch.Tensor | None = None
 
@@ -5156,12 +3961,11 @@ def main() -> None:
         batch_rows = max(local_tokens // seq_len, 1)
         x = torch.randint(0, args.vocab_size, (batch_rows, seq_len), device=device, dtype=torch.long)
         y = torch.randint(0, args.vocab_size, (batch_rows, seq_len), device=device, dtype=torch.long)
-        return x, y
+        return (x, y)
 
     def zero_grad_all():
         for opt in optimizers:
             opt.zero_grad(set_to_none=True)
-
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def step_fraction(step: int) -> float:
@@ -5180,66 +3984,53 @@ def main() -> None:
         return next_step
 
     def lr_mul(step: int):
-        # LR warmup and warmdown are now entirely step-based for DDP safety.
         if args.warmup_fraction > 0:
             warmup_steps = int(args.iterations * args.warmup_fraction)
             if step < warmup_steps:
-                return max(min((step + 1) / max(warmup_steps, 1), 1.0), 1e-3)
+                return max(min((step + 1) / max(warmup_steps, 1), 1.0), 0.001)
         elif args.warmup_steps > 0 and step < args.warmup_steps:
             return (step + 1) / args.warmup_steps
-
         if args.warmdown_fraction <= 0:
             return 1.0
-            
         warmdown_start = int(args.iterations * (1.0 - args.warmdown_fraction))
         if step >= warmdown_start:
             return max((args.iterations - step) / max(args.iterations * args.warmdown_fraction, 1), 0.0)
         return 1.0
-
-    _orig_ema_weights = None  # Global scope for export path stability
-    
+    _orig_ema_weights = None
     _seq_switched = False
     _batch_switched = False
     active_seq_len = args.seq_len_start if args.seq_len_start > 0 else args.train_seq_len
     active_batch_tokens = args.batch_tokens_start if args.batch_tokens_start > 0 else args.train_batch_tokens
-
-    # ---------------------------------------------------------------------------
-    # Training Loop
-    # ---------------------------------------------------------------------------
-
-    # --- Compiler warmup ---
-    # COMPILER_WARMUP_STEPS controls compile graph-capture warmup independently of LR warmup.
-    # If 0, no compiler warmup runs. If > 0, runs that many steps to trigger torch.compile
-    # graph capture before the real training budget begins; model/optimizer state is fully
-    # restored afterward so no gradient steps are charged against the training budget.
-    # WARMUP_STEPS is purely for LR/optimizer warmup and is never used here as a fallback.
     _compile_warmup_n = args.compiler_warmup_steps
     if _compile_warmup_n > 0:
         _py_rng = random.getstate()
         _np_rng = np.random.get_state()
         _torch_rng = torch.get_rng_state()
         _torch_cuda_rng = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
-        _ms = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
+        _ms = {n: t.detach().cpu().clone() for (n, t) in base_model.state_dict().items()}
         _os = [copy.deepcopy(o.state_dict()) for o in optimizers]
         model.train()
         for ws in range(_compile_warmup_n):
             zero_grad_all()
             for mi in range(grad_accum_steps):
-                if distributed: model.require_backward_grad_sync = mi == grad_accum_steps - 1
+                if distributed:
+                    model.require_backward_grad_sync = mi == grad_accum_steps - 1
                 if args.synthetic_warmup:
-                    x, y = synthetic_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
+                    (x, y) = synthetic_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
                 else:
-                    x, y = ensure_train_loader().next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
+                    (x, y) = ensure_train_loader().next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
                 with autocast_context(device):
                     loss = model(x, y, elapsed_fraction=0.0, feedback_passes=args.feedback_passes)
                 (loss * grad_scale).backward()
-            for o in optimizers: o.step()
+            for o in optimizers:
+                o.step()
             zero_grad_all()
-            log0(f"warmup:{ws+1}/{_compile_warmup_n}")
-        log0("probe:restoring_pre_warmup_state", flush=True)
+            log0(f'warmup:{ws + 1}/{_compile_warmup_n}')
+        log0('probe:restoring_pre_warmup_state', flush=True)
         base_model.load_state_dict(_ms, strict=True)
-        log0("probe:restoring_optimizers", flush=True)
-        for o, s in zip(optimizers, _os): o.load_state_dict(s)
+        log0('probe:restoring_optimizers', flush=True)
+        for (o, s) in zip(optimizers, _os):
+            o.load_state_dict(s)
         random.setstate(_py_rng)
         np.random.set_state(_np_rng)
         torch.set_rng_state(_torch_rng)
@@ -5247,159 +4038,121 @@ def main() -> None:
             torch.cuda.set_rng_state_all(_torch_cuda_rng)
         zero_grad_all()
         if not args.synthetic_warmup:
-            log0("probe:reinitializing_dataloader", flush=True)
+            log0('probe:reinitializing_dataloader', flush=True)
             train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-
     if args.precompile_only:
-        if device.type == "cuda":
+        if device.type == 'cuda':
             torch.cuda.synchronize()
         if distributed:
             dist.barrier()
-        log0("precompile_only:done")
+        log0('precompile_only:done')
         if distributed:
             dist.destroy_process_group()
         return
-
-    # --- Data loader ---
     train_loader = ensure_train_loader()
     val_tokens = ensure_val_tokens()
-    
-    log0("probe:ema_init_start", flush=True)
-    # --- EMA init (after warmup so shadow starts from clean weights) ---
+    log0('probe:ema_init_start', flush=True)
     if args.ema_enabled:
         ema = EMAHelper(base_model, decay=args.ema_decay)
-        log0(f"ema:enabled decay={args.ema_decay} start_fraction={args.ema_start_fraction}")
-
-    # --- Main training loop ---
+        log0(f'ema:enabled decay={args.ema_decay} start_fraction={args.ema_start_fraction}')
     training_time_ms = 0.0
     stop_after_step: int | None = None
     _untied = False
     _aligned_phase_started = False
     _export_calib: dict = {}
-    _best_proxy_bpb: float = float("inf")
+    _best_proxy_bpb: float = float('inf')
     _best_proxy_sd: dict | None = None
     _proxy_calib_tokens: torch.Tensor | None = None
-    _feedback_interval_steps = (
-        interval_steps_from_fraction(args.feedback_every_fraction)
-        if args.feedback_enabled and args.feedback_passes > 0 and args.feedback_every_fraction > 0
-        else None
-    )
+    _feedback_interval_steps = interval_steps_from_fraction(args.feedback_every_fraction) if args.feedback_enabled and args.feedback_passes > 0 and (args.feedback_every_fraction > 0) else None
     _next_feedback_step = _feedback_interval_steps
-    _val_interval_steps = interval_steps_from_fraction(args.val_loss_every_fraction) if args.val_loss_every_fraction > 0 else (args.val_loss_every if args.val_loss_every > 0 else None)
+    _val_interval_steps = interval_steps_from_fraction(args.val_loss_every_fraction) if args.val_loss_every_fraction > 0 else args.val_loss_every if args.val_loss_every > 0 else None
     _next_val_step = _val_interval_steps
-    _proxy_interval_steps = interval_steps_from_fraction(args.export_proxy_every_fraction) if args.export_proxy_every_fraction > 0 else (args.export_proxy_every if args.export_proxy_every > 0 else None)
+    _proxy_interval_steps = interval_steps_from_fraction(args.export_proxy_every_fraction) if args.export_proxy_every_fraction > 0 else args.export_proxy_every if args.export_proxy_every > 0 else None
     _next_proxy_step = _proxy_interval_steps
-    _train_log_interval_steps = interval_steps_from_fraction(args.train_log_every_fraction) if args.train_log_every_fraction > 0 else (args.train_log_every if args.train_log_every > 0 else None)
+    _train_log_interval_steps = interval_steps_from_fraction(args.train_log_every_fraction) if args.train_log_every_fraction > 0 else args.train_log_every if args.train_log_every > 0 else None
     _next_train_log_step = _train_log_interval_steps
-    _churn_log_interval_steps = interval_steps_from_fraction(args.churn_log_every_fraction) if args.churn_log_every_fraction > 0 else (args.churn_log_every if args.churn_log_every > 0 else None)
+    _churn_log_interval_steps = interval_steps_from_fraction(args.churn_log_every_fraction) if args.churn_log_every_fraction > 0 else args.churn_log_every if args.churn_log_every > 0 else None
     _next_churn_log_step = _churn_log_interval_steps
     train_loss = torch.zeros((), device=device)
-    if device.type == "cuda": torch.cuda.synchronize()
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
     train_wall_start = time.perf_counter()
     t0 = train_wall_start
     step = 0
-
     for step in range(args.iterations):
-        # Calculate wallclock progress for safe logging and hard-stop sync.
-        # Control flow triggers are now step-based, but logs still use time.
         now = time.perf_counter()
         approx_ms = 1000.0 * (now - train_wall_start)
-        elapsed_ms = approx_ms # Keep alias for legacy checks
-        if step > 0 and (
-            (_next_val_step is not None and step >= _next_val_step)
-            or (_next_val_step is None and args.val_loss_every > 0 and step % args.val_loss_every == 0)
-        ):
-            if device.type == "cuda": torch.cuda.synchronize()
+        elapsed_ms = approx_ms
+        if step > 0 and (_next_val_step is not None and step >= _next_val_step or (_next_val_step is None and args.val_loss_every > 0 and (step % args.val_loss_every == 0))):
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            
-            if args.ema_enabled and args.ema_eval_apply and ema is not None:
+            if args.ema_enabled and args.ema_eval_apply and (ema is not None):
                 _orig_ema_weights = ema.apply_shadow(base_model)
-                
-            val_loss, val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps,
-                                         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
-            log0(f"step:{step} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}", flush=True)
-            
+            (val_loss, val_bpb) = eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            log0(f'step:{step} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}', flush=True)
             if _orig_ema_weights is not None:
                 ema.restore(base_model, _orig_ema_weights)
                 _orig_ema_weights = None
-            
             _next_val_step = advance_interval_steps(_next_val_step, _val_interval_steps, step)
-            if device.type == "cuda": torch.cuda.synchronize()
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
             t0 = time.perf_counter()
-
-        # Curriculum scheduling (sync across ranks)
         if args.curr_enabled:
             prog = step_fraction(step)
             target_seq_len = args.train_seq_len
-            if prog < args.curr_p1_f: target_seq_len = args.curr_p1_s
-            elif prog < args.curr_p2_f: target_seq_len = args.curr_p2_s
-            elif prog < args.curr_p3_f: target_seq_len = args.curr_p3_s
-            elif prog < args.curr_p4_f: target_seq_len = args.curr_p4_s
-            elif prog < args.curr_p5_f: target_seq_len = args.curr_p5_s
-            
+            if prog < args.curr_p1_f:
+                target_seq_len = args.curr_p1_s
+            elif prog < args.curr_p2_f:
+                target_seq_len = args.curr_p2_s
+            elif prog < args.curr_p3_f:
+                target_seq_len = args.curr_p3_s
+            elif prog < args.curr_p4_f:
+                target_seq_len = args.curr_p4_s
+            elif prog < args.curr_p5_f:
+                target_seq_len = args.curr_p5_s
             if active_seq_len != target_seq_len:
                 active_seq_len = target_seq_len
                 base_model.reset_capsule_carry()
                 train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-                log0(f"step:{step} curr_seq_len_jump:{active_seq_len}")
-        elif args.seq_len_start > 0 and not _seq_switched:
+                log0(f'step:{step} curr_seq_len_jump:{active_seq_len}')
+        elif args.seq_len_start > 0 and (not _seq_switched):
             if step >= int(args.iterations * args.seq_schedule_fraction):
                 active_seq_len = args.train_seq_len
                 _seq_switched = True
                 train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
-                log0(f"step:{step} seq_len_switch:{args.seq_len_start}->{active_seq_len}")
-            
-        if args.batch_tokens_start > 0 and not _batch_switched:
+                log0(f'step:{step} seq_len_switch:{args.seq_len_start}->{active_seq_len}')
+        if args.batch_tokens_start > 0 and (not _batch_switched):
             if step >= int(args.iterations * args.batch_schedule_fraction):
                 active_batch_tokens = args.train_batch_tokens
                 _batch_switched = True
-                log0(f"step:{step} batch_switch:{args.batch_tokens_start}->{active_batch_tokens}")
-
+                log0(f'step:{step} batch_switch:{args.batch_tokens_start}->{active_batch_tokens}')
         zero_grad_all()
         train_loss.zero_()
-
-        # Feedback interleaving (strictly step-based)
-        use_feedback = (
-            args.feedback_enabled
-            and args.feedback_passes > 0
-            and (
-                (_next_feedback_step is not None and step >= _next_feedback_step)
-                or (_next_feedback_step is None and max(args.feedback_every, 1) > 0 and step % max(args.feedback_every, 1) == 0)
-            )
-        )
+        use_feedback = args.feedback_enabled and args.feedback_passes > 0 and (_next_feedback_step is not None and step >= _next_feedback_step or (_next_feedback_step is None and max(args.feedback_every, 1) > 0 and (step % max(args.feedback_every, 1) == 0)))
         if use_feedback and _next_feedback_step is not None:
             _next_feedback_step = advance_interval_steps(_next_feedback_step, _feedback_interval_steps, step)
         feedback_passes = args.feedback_passes if use_feedback else 0
-
         for micro in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro == grad_accum_steps - 1
-            x, y = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
-            
-            # Use step_fraction instead of wallclock for internal scheduling
+            (x, y) = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
             prog_frac = step_fraction(step)
             with autocast_context(device):
                 loss = model(x, y, elapsed_fraction=prog_frac, feedback_passes=feedback_passes)
-            
-            # Fail-fast: catch non-finite loss before poising the run
             if not torch.isfinite(loss):
-                raise RuntimeError(f"Non-finite loss {loss.item()} at step {step}")
-                
+                raise RuntimeError(f'Non-finite loss {loss.item()} at step {step}')
             train_loss.add_(loss.detach())
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
-
-
-        # Gradient clipping & stability guards
         if args.grad_clip_norm > 0:
             grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
             if not torch.isfinite(grad_norm):
-                log0(f"WARNING: Non-finite grad_norm detected at step {step}: {grad_norm.item()}")
-
-        # Untie lm_head at configured fraction (synchronized)
-        if args.untie_at_fraction > 0 and not _untied:
+                log0(f'WARNING: Non-finite grad_norm detected at step {step}: {grad_norm.item()}')
+        if args.untie_at_fraction > 0 and (not _untied):
             if step >= int(args.iterations * args.untie_at_fraction):
-                if distributed: dist.barrier()
+                if distributed:
+                    dist.barrier()
                 if base_model.tie_embeddings:
                     with torch.no_grad():
                         untied_head = nn.Parameter(base_model.tok_stem.lm_head.weight.detach().clone())
@@ -5407,170 +4160,115 @@ def main() -> None:
                     base_model.tok_stem.tied = False
                     base_model.tie_embeddings = False
                     base_model.tok_stem.lm_head.weight.requires_grad_(True)
-                    
-                    # Reconstruction for DDP safety: when the parameter set mutates, 
-                    # we must re-wrap DDP and re-init optimizers.
                     head_params.append(base_model.tok_stem.lm_head.weight)
                     opt_head = torch.optim.AdamW(head_params, lr=args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
-                    for g in opt_head.param_groups: g["base_lr"] = g["lr"]
+                    for g in opt_head.param_groups:
+                        g['base_lr'] = g['lr']
                     optimizers = [opt_matrix, opt_adam, opt_head]
-                    
                     if ema is not None:
                         ema.add_parameter(_LM_HEAD_STATE_KEY, base_model.tok_stem.lm_head.weight)
-                    
                     torch._dynamo.reset()
                     if distributed:
-                        log0(f"step:{step} untying lm_head: reconstructing DDP wrapper")
+                        log0(f'step:{step} untying lm_head: reconstructing DDP wrapper')
                         model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
-                    
-                    log0(f"step:{step} untied lm_head (head_lr={args.head_lr})")
+                    log0(f'step:{step} untied lm_head (head_lr={args.head_lr})')
                     _untied = True
-                if distributed: dist.barrier()
-
-        # Dynamic recurrence scheduling (step-based)
+                if distributed:
+                    dist.barrier()
         if args.recurrence_depth > 0 and args.recurrence_start_fraction > 0:
-            _want_recur = args.recurrence_depth if (
-                step >= int(args.iterations * args.recurrence_start_fraction)
-            ) else 0
+            _want_recur = args.recurrence_depth if step >= int(args.iterations * args.recurrence_start_fraction) else 0
             if hasattr(base_model, 'backbone') and base_model.backbone.training_depth_recurrence != _want_recur:
                 base_model.backbone.training_depth_recurrence = _want_recur
                 base_model.training_depth_recurrence = _want_recur
-                log0(f"step:{step} recurrence_depth:{_want_recur} (frac={step_fraction(step):.3f})")
-
-        # Muon scheduler: increase backend_steps for final 10% of training
-        if args.matrix_optimizer == "muon" and step == int(args.iterations * 0.9):
+                log0(f'step:{step} recurrence_depth:{_want_recur} (frac={step_fraction(step):.3f})')
+        if args.matrix_optimizer == 'muon' and step == int(args.iterations * 0.9):
             for g in opt_matrix.param_groups:
                 g['backend_steps'] = 12
-            log0(f"step:{step} muon_backend_steps_jump: 5 -> 12")
-
-        # Muon momentum warmup (step-based)
-        if args.matrix_optimizer == "muon":
+            log0(f'step:{step} muon_backend_steps_jump: 5 -> 12')
+        if args.matrix_optimizer == 'muon':
             frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
             for g in opt_matrix.param_groups:
-                g["momentum"] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
-
-        # LR scheduling (step-based)
+                g['momentum'] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
         scale = lr_mul(step)
         for opt in optimizers:
             for g in opt.param_groups:
-                g["lr"] = g["base_lr"] * scale
+                g['lr'] = g['base_lr'] * scale
             opt.step()
         zero_grad_all()
-
-        # Stability constraint: clamp Koopman diagonal
-        if (hasattr(base_model, 'capsule_bank') and base_model.capsule_bank is not None
-                and base_model.capsule_bank.koopman is not None):
+        if hasattr(base_model, 'capsule_bank') and base_model.capsule_bank is not None and (base_model.capsule_bank.koopman is not None):
             with torch.no_grad():
                 base_model.capsule_bank.koopman.diag.clamp_(-0.999, 0.999)
-
-        # EMA update (step-based trigger)
         if ema is not None:
             if step_fraction(step) >= args.ema_start_fraction:
                 ema.update(base_model)
-
-        # Export proxy eval (synchronous across all ranks)
-        if (args.export_proxy_eval and step > 0
-                and _next_proxy_step is not None and step >= _next_proxy_step):
+        if args.export_proxy_eval and step > 0 and (_next_proxy_step is not None) and (step >= _next_proxy_step):
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
-            # Mandatory sync: all ranks wait while master evaluates or everyone participates
-            if distributed: dist.barrier()
-            
+            if distributed:
+                dist.barrier()
             if master_process:
-                # Temporarily apply EMA so proxy eval and snapshot capture smoothed weights
                 _proxy_ema_orig = None
                 if ema is not None:
                     _proxy_ema_orig = ema.apply_shadow(base_model)
-                _proxy_sd = {k: v.detach().cpu().clone() for k, v in base_model.state_dict().items()}
-                proxy_bpb = _proxy_roundtrip_bpb(
-                    _proxy_sd, base_model, _export_calib,
-                    args.bitnet_group_size, _proxy_calib_tokens, args, device,
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                )
+                _proxy_sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
+                proxy_bpb = _proxy_roundtrip_bpb(_proxy_sd, base_model, _export_calib, args.bitnet_group_size, _proxy_calib_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
                 if proxy_bpb < _best_proxy_bpb and args.export_proxy_use_best:
                     _best_proxy_bpb = proxy_bpb
                     _best_proxy_sd = _proxy_sd
-                    log0(f"step:{step} export_proxy:new_best {proxy_bpb:.4f}", flush=True)
-                # Restore live weights
+                    log0(f'step:{step} export_proxy:new_best {proxy_bpb:.4f}', flush=True)
                 if ema is not None and _proxy_ema_orig is not None:
                     ema.restore(base_model, _proxy_ema_orig)
-                log0(f"step:{step} export_proxy_bpb:{proxy_bpb:.4f} best:{_best_proxy_bpb:.4f}", flush=True)
-            
-            if distributed: dist.barrier()
+                log0(f'step:{step} export_proxy_bpb:{proxy_bpb:.4f} best:{_best_proxy_bpb:.4f}', flush=True)
+            if distributed:
+                dist.barrier()
             _next_proxy_step = advance_interval_steps(_next_proxy_step, _proxy_interval_steps, step)
-
         approx_ms = 1000.0 * (time.perf_counter() - train_wall_start)
-
-        if ((_next_train_log_step is not None and step >= _next_train_log_step)
-                or (_next_train_log_step is None and args.train_log_every > 0 and (step + 1) % args.train_log_every == 0)):
-            log0(f"step:{step+1}/{args.iterations} loss:{train_loss.item():.4f} t:{approx_ms:.0f}ms avg:{approx_ms/(step+1):.1f}ms")
+        if _next_train_log_step is not None and step >= _next_train_log_step or (_next_train_log_step is None and args.train_log_every > 0 and ((step + 1) % args.train_log_every == 0)):
+            log0(f'step:{step + 1}/{args.iterations} loss:{train_loss.item():.4f} t:{approx_ms:.0f}ms avg:{approx_ms / (step + 1):.1f}ms')
             _next_train_log_step = advance_interval_steps(_next_train_log_step, _train_log_interval_steps, step)
-        if ((_next_churn_log_step is not None and step >= _next_churn_log_step)
-                or (_next_churn_log_step is None and args.churn_log_every > 0 and step % args.churn_log_every == 0)):
+        if _next_churn_log_step is not None and step >= _next_churn_log_step or (_next_churn_log_step is None and args.churn_log_every > 0 and (step % args.churn_log_every == 0)):
             log0(f"step:{step} churn:{churn_fn(base_model, args.bitnet_group_size):.4f} zero:{tern_stats(base_model, args.bitnet_group_size)['zero_frac']:.3f}")
             _next_churn_log_step = advance_interval_steps(_next_churn_log_step, _churn_log_interval_steps, step)
-
         if stop_after_step is not None and step >= stop_after_step:
-            log0(f"stopping_early: wallclock_cap wall:{approx_ms:.0f}ms train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
+            log0(f'stopping_early: wallclock_cap wall:{approx_ms:.0f}ms train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}')
             break
-
-        # Mid-training calibration: populate _EXPORT_CALIB so model trains through quantization thresholds.
-        # CRITICAL: _EXPORT_CALIB is a Python global read by TernaryLinear.forward on every rank.
-        # Calibration only runs on rank 0 (needs model access), but the result must be broadcast to
-        # every rank before training resumes, otherwise ranks diverge: rank 0 trains with calibrated
-        # thresholds while all other ranks use empty thresholds — making all-reduced gradients
-        # mathematically inconsistent.
-        if (args.export_aligned_train
-                and not _aligned_phase_started
-                and (args.ternary_threshold_search or args.ternary_scale_search)
-                and ((max_wallclock_ms is not None and elapsed_ms >= args.export_aligned_train_start_fraction * max_wallclock_ms)
-                     or (max_wallclock_ms is None and step >= int(args.iterations * args.export_aligned_train_start_fraction)))):
-            if device.type == "cuda": torch.cuda.synchronize()
+        if args.export_aligned_train and (not _aligned_phase_started) and (args.ternary_threshold_search or args.ternary_scale_search) and (max_wallclock_ms is not None and elapsed_ms >= args.export_aligned_train_start_fraction * max_wallclock_ms or (max_wallclock_ms is None and step >= int(args.iterations * args.export_aligned_train_start_fraction))):
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             if distributed:
-                dist.barrier()  # ensure all ranks finish current step before calibration
+                dist.barrier()
             if master_process:
                 if _proxy_calib_tokens is None:
                     _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
-                log0(f"export_aligned_train:calibrating at step:{step}", flush=True)
+                log0(f'export_aligned_train:calibrating at step:{step}', flush=True)
                 _mid_ema_orig = None
                 if ema is not None:
                     _mid_ema_orig = ema.apply_shadow(base_model)
-                # Run calibration inline. Daemon-thread timeout cannot stop CUDA kernels and can
-                # leave a zombie worker consuming VRAM in the background.
                 _shadow_model = copy.deepcopy(base_model)
-                _mid_calib = calibrate_ternary(
-                    _shadow_model, _proxy_calib_tokens, args, device,
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                )
+                _mid_calib = calibrate_ternary(_shadow_model, _proxy_calib_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
                 del _shadow_model
-                if device.type == "cuda":
+                if device.type == 'cuda':
                     torch.cuda.empty_cache()
                 if ema is not None and _mid_ema_orig is not None:
                     ema.restore(base_model, _mid_ema_orig)
-                log0(f"export_aligned_train:calibrated tensors={len(_mid_calib)} — broadcasting to all ranks", flush=True)
+                log0(f'export_aligned_train:calibrated tensors={len(_mid_calib)} — broadcasting to all ranks', flush=True)
             else:
                 _mid_calib = {}
-            # Broadcast calibration dict from rank 0 → all ranks so every rank trains
-            # through the same quantization thresholds. broadcast_object_list handles
-            # arbitrary Python objects and is safe for dicts with string/float values.
             if distributed:
                 _calib_list = [_mid_calib]
                 dist.broadcast_object_list(_calib_list, src=0)
                 _mid_calib = _calib_list[0]
-            # Write calibration into TernaryLinear buffers (Dynamo-safe) — global dict
-            # assignment is baked into compiled graphs at trace time and stays stale.
             base_model.apply_export_calib(_mid_calib)
-            _EXPORT_CALIB = _mid_calib  # keep for export pipeline lookups (non-compiled path)
-            _aligned_phase_started = True  # prevents redundant final calibration at export time
-            log0(f"export_aligned_train:calib_synced rank={rank} tensors={len(_mid_calib)}", flush=True)
+            _EXPORT_CALIB = _mid_calib
+            _aligned_phase_started = True
+            log0(f'export_aligned_train:calib_synced rank={rank} tensors={len(_mid_calib)}', flush=True)
             if distributed:
-                dist.barrier()  # all ranks confirm receipt before resuming
-            if device.type == "cuda": torch.cuda.synchronize()
+                dist.barrier()
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
             t0 = time.perf_counter()
-
-        # Wallclock cap sync
-        if stop_after_step is None and max_wallclock_ms is not None and step % 10 == 0:
+        if stop_after_step is None and max_wallclock_ms is not None and (step % 10 == 0):
             approx_ms = 1000.0 * (time.perf_counter() - train_wall_start)
             reached_cap = approx_ms >= max_wallclock_ms
             if distributed:
@@ -5579,75 +4277,54 @@ def main() -> None:
                 reached_cap = bool(cap_t.item())
             if reached_cap:
                 stop_after_step = step
-
-    # --- Post-Training Final Evaluation and crystallization ---
-    if device.type == "cuda": torch.cuda.synchronize()
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
     training_time_ms += 1000.0 * (time.perf_counter() - t0)
-    
-    # Final eval WITH EMA weights applied
     _final_eval_ema_orig = None
-    if args.ema_enabled and args.ema_eval_apply and ema is not None:
+    if args.ema_enabled and args.ema_eval_apply and (ema is not None):
         _final_eval_ema_orig = ema.apply_shadow(base_model)
 
     def _is_oom(exc: BaseException) -> bool:
         if isinstance(exc, torch.OutOfMemoryError):
             return True
-        return "out of memory" in str(exc).lower()
+        return 'out of memory' in str(exc).lower()
 
     def _eval_val_safe() -> tuple[float, float]:
         vb0 = int(args.val_batch_size)
         for vb in (vb0, max(vb0 // 2, 4096), 4096, 2048, 1024):
             try:
                 args.val_batch_size = int(vb)
-                if device.type == "cuda":
+                if device.type == 'cuda':
                     torch.cuda.empty_cache()
-                return eval_val(
-                    args, model, rank, world_size, device, grad_accum_steps, val_tokens,
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
-                )
+                return eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
             except Exception as e:
                 if not _is_oom(e):
                     raise
-                log0(f"final_eval_retry: OOM at VAL_BATCH_SIZE={vb}, retrying smaller", flush=True)
-        raise RuntimeError("final_evaluation failed after OOM retries")
+                log0(f'final_eval_retry: OOM at VAL_BATCH_SIZE={vb}, retrying smaller', flush=True)
+        raise RuntimeError('final_evaluation failed after OOM retries')
 
     def _eval_val_sliding_safe(temperature: float) -> tuple[float, float]:
         sb0 = int(args.sliding_batch_size)
-        for sb in (sb0, max(sb0 // 2, 64), 64, 32, 16):
+        for sb in (sb0, max(sb0 // 2, 1), 32, 16, 8):
             try:
                 args.sliding_batch_size = int(sb)
-                if device.type == "cuda":
+                if device.type == 'cuda':
                     torch.cuda.empty_cache()
-                return eval_val_sliding(
-                    args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
-                    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                    stride=args.sliding_eval_stride, temperature=temperature, logger=log0
-                )
+                return eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, temperature=temperature, logger=log0)
             except Exception as e:
                 if not _is_oom(e):
                     raise
-                log0(f"final_sliding_retry: OOM at SLIDING_BATCH_SIZE={sb}, retrying smaller", flush=True)
-        raise RuntimeError("final_sliding evaluation failed after OOM retries")
+                log0(f'final_sliding_retry: OOM at SLIDING_BATCH_SIZE={sb}, retrying smaller', flush=True)
+        raise RuntimeError('final_sliding evaluation failed after OOM retries')
 
     def _eval_val_sliding_sequential_carry(temperature: float) -> tuple[float, float]:
-        """Carry-preserving sequential eval for SKC final scoring.
-
-        Forces batch_size=1 so capsule carry state is maintained across
-        sliding windows. This is slower than batched eval but produces
-        the correct BPB measurement for SKC models whose carry signal
-        improves prediction quality across temporal context.
-        """
-        log0("final_sliding_sequential_carry:starting batch_size=1 carry-preserving eval", flush=True)
+        log0('final_sliding_sequential_carry:starting batch_size=1 carry-preserving eval', flush=True)
         saved_batch_size = int(args.sliding_batch_size)
         try:
             args.sliding_batch_size = 1
-            if device.type == "cuda":
+            if device.type == 'cuda':
                 torch.cuda.empty_cache()
-            return eval_val_sliding(
-                args, base_model, rank, world_size, device, grad_accum_steps, val_tokens,
-                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-                stride=args.sliding_eval_stride, temperature=temperature, logger=log0
-            )
+            return eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, temperature=temperature, logger=log0)
         finally:
             args.sliding_batch_size = saved_batch_size
 
@@ -5656,148 +4333,83 @@ def main() -> None:
         for tb in (tb0, max(tb0 // 2, 8), 8, 4, 2, 1):
             try:
                 args.ttt_batch_seqs = int(tb)
-                if device.type == "cuda":
+                if device.type == 'cuda':
                     torch.cuda.empty_cache()
-                return eval_val_sliding_ttt(
-                    args, base_model, rank, world_size, device, val_tokens, base_bytes_lut,
-                    has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride,
-                    batch_seqs=args.ttt_batch_seqs, temperature=temperature, log0=log0,
-                )
+                return eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, batch_seqs=args.ttt_batch_seqs, temperature=temperature, log0=log0)
             except Exception as e:
                 if not _is_oom(e):
                     raise
-                log0(f"legal_ttt_retry: OOM at TTT_BATCH_SEQS={tb}, retrying smaller", flush=True)
-        raise RuntimeError("legal_ttt evaluation failed after OOM retries")
-
-    log0(f"final_evaluation:starting step:{step+1}/{args.iterations}")
-    val_loss, val_bpb = _eval_val_safe()
-
-    final_loss, final_bpb = val_loss, val_bpb
-    log0(f"final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}")
-
-    # Restore original weights so the export path starts from a clean state and
-    # applies EMA shadow once below. Without this restore, the export apply_shadow
-    # would be called on already-shadowed weights, corrupting _ema_original.
+                log0(f'legal_ttt_retry: OOM at TTT_BATCH_SEQS={tb}, retrying smaller', flush=True)
+        raise RuntimeError('legal_ttt evaluation failed after OOM retries')
+    log0(f'final_evaluation:starting step:{step + 1}/{args.iterations}')
+    (val_loss, val_bpb) = _eval_val_safe()
+    (final_loss, final_bpb) = (val_loss, val_bpb)
+    log0(f'final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}')
     if _final_eval_ema_orig is not None:
         ema.restore(base_model, _final_eval_ema_orig)
-
-    # --- Rank Synchronization before Export ---
     if distributed:
         torch.distributed.barrier()
-        log0("ema:ranks synchronized for export", flush=True)
-
-    # --- Post-training calibration refinement ---
-    # Mid-training calibration (at export_aligned_train_start_fraction) already populated
-    # _EXPORT_CALIB and the model trained through those thresholds. This pass re-runs
-    # calibration on the final (EMA-smoothed) weights to capture any drift in the last
-    # training phase. Runs only on master after all ranks exit the training loop.
+        log0('ema:ranks synchronized for export', flush=True)
     if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
         if _proxy_calib_tokens is None:
             _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
-        log0(f"export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}", flush=True)
+        log0(f'export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}', flush=True)
         if ema is not None and _orig_ema_weights is None:
             _ema_orig_c = ema.apply_shadow(base_model)
-            _export_calib = calibrate_ternary(
-                base_model, _proxy_calib_tokens, args, device,
-                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            )
+            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
             ema.restore(base_model, _ema_orig_c)
         else:
-            _export_calib = calibrate_ternary(
-                base_model, _proxy_calib_tokens, args, device,
-                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            )
+            _export_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
         base_model.apply_export_calib(_export_calib)
-        _EXPORT_CALIB = _export_calib  # keep for export pipeline lookups (non-compiled path)
-        log0(f"export_calib:done calibrated={len(_export_calib)} tensors", flush=True)
-
+        _EXPORT_CALIB = _export_calib
+        log0(f'export_calib:done calibrated={len(_export_calib)} tensors', flush=True)
     if distributed:
-        torch.distributed.barrier()  # wait for rank 0 to finish calibration
-
-    # --- Select export weights: best proxy snapshot (already EMA-smoothed) or final EMA ---
-    # _best_proxy_sd is captured via ema.apply_shadow during proxy eval, so it already
-    # contains smoothed weights. If we have it, load it directly and skip EMA apply.
-    # If not, apply EMA shadow now to get the smoothed final weights.
+        torch.distributed.barrier()
     _ema_original = None
     using_best_proxy_sd = master_process and _best_proxy_sd is not None and args.export_proxy_use_best
     if using_best_proxy_sd:
-        log0(f"serialization:using best_proxy_sd (EMA-smoothed, proxy_bpb={_best_proxy_bpb:.4f})", flush=True)
+        log0(f'serialization:using best_proxy_sd (EMA-smoothed, proxy_bpb={_best_proxy_bpb:.4f})', flush=True)
         base_model.load_state_dict(_best_proxy_sd)
-        # No EMA apply needed — proxy_sd already contains the smoothed weights
     elif ema is not None:
-        log0("ema:applying shadow weights...", flush=True)
+        log0('ema:applying shadow weights...', flush=True)
         _ema_original = ema.apply_shadow(base_model, move_to_cpu=True)
-        log0("ema:applied shadow weights and offloaded originals to CPU", flush=True)
-
-    # --- Serialization ---
+        log0('ema:applied shadow weights and offloaded originals to CPU', flush=True)
     if master_process:
-        log0("serialization:started", flush=True)
+        log0('serialization:started', flush=True)
         export_ternary_names = export_ternary_param_names(base_model)
         export_fp16_names = export_fp16_param_names(base_model)
-        # Verification printout: param budget accounting
         _sd_check = base_model.state_dict()
-        _ternary_names = sorted(k for k in export_ternary_names if k in _sd_check)
+        _ternary_names = sorted((k for k in export_ternary_names if k in _sd_check))
         _fp_names = [k for k in _sd_check if k not in _ternary_names]
-        _ternary_params = sum(_sd_check[k].numel() for k in _ternary_names)
-        _fp_params = sum(_sd_check[k].numel() for k in _fp_names)
-        _est_ternary_bytes = _ternary_params * 1.585 / 8 + (_ternary_params / args.bitnet_group_size) * 2
-        _est_fp_bytes = _fp_params * 2  # bf16
-        _est_total_mb = (_est_ternary_bytes + _est_fp_bytes + 170000) / 1e6
-        log0(f"param_audit: total={_ternary_params+_fp_params:,} ternary_candidates={_ternary_params:,}({len(_ternary_names)}) fp={_fp_params:,}({len(_fp_names)}) est_raw={(_est_ternary_bytes+_est_fp_bytes)/1e6:.2f}MB est_compressed≈{_est_total_mb:.2f}MB")
+        _ternary_params = sum((_sd_check[k].numel() for k in _ternary_names))
+        _fp_params = sum((_sd_check[k].numel() for k in _fp_names))
+        _est_ternary_bytes = _ternary_params * 1.585 / 8 + _ternary_params / args.bitnet_group_size * 2
+        _est_fp_bytes = _fp_params * 2
+        _est_total_mb = (_est_ternary_bytes + _est_fp_bytes + 170000) / 1000000.0
+        log0(f'param_audit: total={_ternary_params + _fp_params:,} ternary_candidates={_ternary_params:,}({len(_ternary_names)}) fp={_fp_params:,}({len(_fp_names)}) est_raw={(_est_ternary_bytes + _est_fp_bytes) / 1000000.0:.2f}MB est_compressed≈{_est_total_mb:.2f}MB')
         sd = base_model.state_dict()
-
-        # Ternary-native clipping before quantization. Keep GPTQ-lite as the legacy
-        # gate, but make the clipping strategy explicit and ternary-focused.
-        if args.gptq_lite_enabled or args.ternary_clip_mode != "none":
-            log0(
-                f"ternary_clip:mode={args.ternary_clip_mode} percentiles={args.gptq_lite_percentiles} "
-                f"row_std_k={args.ternary_clip_rows_k} embed_row_std_k={args.ternary_embed_clip_rows_k}",
-                flush=True,
-            )
-            sd = ternary_clip_search(
-                sd,
-                group_size=args.bitnet_group_size,
-                num_percentiles=args.gptq_lite_percentiles,
-                ternary_names=export_ternary_names,
-                turbo_quant_export=args.turbo_quant_export,
-                clip_mode=args.ternary_clip_mode,
-                row_std_k=args.ternary_clip_rows_k,
-                embed_row_std_k=args.ternary_embed_clip_rows_k,
-            )
-            log0("ternary_clip:done", flush=True)
-            # Reload clipped weights into base_model so calibration runs on the same
-            # distribution that will actually be quantized. Must happen BEFORE popping
-            # lm_head.weight so the tied embedding isn't left unclipped in base_model.
+        if args.gptq_lite_enabled or args.ternary_clip_mode != 'none':
+            log0(f'ternary_clip:mode={args.ternary_clip_mode} percentiles={args.gptq_lite_percentiles} row_std_k={args.ternary_clip_rows_k} embed_row_std_k={args.ternary_embed_clip_rows_k}', flush=True)
+            sd = ternary_clip_search(sd, group_size=args.bitnet_group_size, num_percentiles=args.gptq_lite_percentiles, ternary_names=export_ternary_names, turbo_quant_export=args.turbo_quant_export, clip_mode=args.ternary_clip_mode, row_std_k=args.ternary_clip_rows_k, embed_row_std_k=args.ternary_embed_clip_rows_k)
+            log0('ternary_clip:done', flush=True)
             _dev = next(base_model.parameters()).device
-            base_model.load_state_dict({k: v.to(_dev) for k, v in sd.items()}, strict=True)
-
-        # Pop tied lm_head AFTER any base_model reload so the saved sd and base_model
-        # stay consistent (tied weight is always accessible via tok_emb at eval time).
+            base_model.load_state_dict({k: v.to(_dev) for (k, v) in sd.items()}, strict=True)
         if base_model.tie_embeddings:
             sd.pop(_LM_HEAD_STATE_KEY, None)
-            sd.pop("lm_head.weight", None)
-
-        # Final calibration pass at export time (if not already done during training)
+            sd.pop('lm_head.weight', None)
         final_calib = _export_calib
-        needs_final_calib = ((args.ternary_threshold_search or args.ternary_scale_search)
-                             and (using_best_proxy_sd or not _aligned_phase_started or args.gptq_lite_enabled))
+        needs_final_calib = (args.ternary_threshold_search or args.ternary_scale_search) and (using_best_proxy_sd or not _aligned_phase_started or args.gptq_lite_enabled)
         if needs_final_calib:
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
             if using_best_proxy_sd:
-                log0("serialization:recalibrating_selected_proxy_weights", flush=True)
-            elif args.gptq_lite_enabled or args.ternary_clip_mode != "none":
-                log0("serialization:recalibrating_post_ternary_clip_weights", flush=True)
+                log0('serialization:recalibrating_selected_proxy_weights', flush=True)
+            elif args.gptq_lite_enabled or args.ternary_clip_mode != 'none':
+                log0('serialization:recalibrating_post_ternary_clip_weights', flush=True)
             else:
-                log0("serialization:running_final_calib_search", flush=True)
-            final_calib = calibrate_ternary(
-                base_model, _proxy_calib_tokens, args, device,
-                base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            )
-            log0(f"serialization:calib_done tensors={len(final_calib)}", flush=True)
-
-        # Export-time Engram compaction: keep only high-utility n-gram buckets so we can
-        # afford more heads without expanding compressed artifact size.
+                log0('serialization:running_final_calib_search', flush=True)
+            final_calib = calibrate_ternary(base_model, _proxy_calib_tokens, args, device, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            log0(f'serialization:calib_done tensors={len(final_calib)}', flush=True)
         _engram_tokens = None
         if _proxy_calib_tokens is not None:
             _engram_tokens = _proxy_calib_tokens.detach()
@@ -5805,28 +4417,16 @@ def main() -> None:
             tok_budget = int(max(0, args.engram_export_token_budget))
             if tok_budget > 0:
                 _engram_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=tok_budget).to(device)
-        sd, _engram_prune_info = prune_engram_tables_for_export(sd, base_model, args, _engram_tokens, log0)
-
-        # Two quantization methods: Standard Base-3 vs Bitmask Mapping
+        (sd, _engram_prune_info) = prune_engram_tables_for_export(sd, base_model, args, _engram_tokens, log0)
         methods = {}
-        for method in ("standard", "bitmask"):
-            q_obj, stats = q_sd(
-                sd,
-                group_size=args.bitnet_group_size,
-                fp_storage=args.fp_storage,
-                ternary_method=method,
-                calib=final_calib,
-                ternary_names=export_ternary_names,
-                turbo_quant_export=args.turbo_quant_export,
-                fp16_names=export_fp16_names,
-            )
+        for method in ('standard', 'bitmask'):
+            (q_obj, stats) = q_sd(sd, group_size=args.bitnet_group_size, fp_storage=args.fp_storage, ternary_method=method, calib=final_calib, ternary_names=export_ternary_names, turbo_quant_export=args.turbo_quant_export, fp16_names=export_fp16_names)
             buf = io.BytesIO()
             torch.save(q_obj, buf)
             raw = buf.getvalue()
-            # Compression: compare LZMA vs Brotli for competition ternary modes.
             lzma_blob = lzma.compress(raw, preset=args.lzma_preset)
             _brotli_blob = None
-            if args.ternary_compress_brotli and args.export_mode in {"competition_ternary", "competition_gptq"}:
+            if args.ternary_compress_brotli and args.export_mode in {'competition_ternary', 'competition_gptq'}:
                 try:
                     import brotli as _brotli_mod
                     _brotli_blob = _brotli_mod.compress(raw, quality=11)
@@ -5834,183 +4434,186 @@ def main() -> None:
                     pass
             if _brotli_blob is not None and len(_brotli_blob) < len(lzma_blob):
                 best_blob = _brotli_blob
-                best_codec = "brotli"
+                best_codec = 'brotli'
             else:
                 best_blob = lzma_blob
-                best_codec = "lzma"
-            methods[method] = {"blob": best_blob, "stats": stats, "codec": best_codec}
-        best = min(methods, key=lambda m: len(methods[m]["blob"]))
-        final_blob, q_stats = methods[best]["blob"], methods[best]["stats"]
-        final_codec = methods[best]["codec"]
-        with open("final_model.ternary.ptz", "wb") as f:
+                best_codec = 'lzma'
+            methods[method] = {'blob': best_blob, 'stats': stats, 'codec': best_codec}
+        best = min(methods, key=lambda m: len(methods[m]['blob']))
+        (final_blob, q_stats) = (methods[best]['blob'], methods[best]['stats'])
+        final_codec = methods[best]['codec']
+        with open('final_model.ternary.ptz', 'wb') as f:
             f.write(final_blob)
-        # Competition mode: also write a clearly-named competition artifact
-        if args.export_mode in {"competition_ternary", "competition_gptq"}:
-            with open("final_model.competition.ptz", "wb") as f:
+        if args.export_mode in {'competition_ternary', 'competition_gptq'}:
+            with open('final_model.competition.ptz', 'wb') as f:
                 f.write(final_blob)
-            log0(f"competition_export: codec={final_codec} method={best} size={len(final_blob)/1e6:.2f}MB")
-
+            log0(f'competition_export: codec={final_codec} method={best} size={len(final_blob) / 1000000.0:.2f}MB')
         artifact_bytes = len(final_blob)
-        code_bytes = len(code.encode("utf-8"))
-
+        code_bytes = len(code.encode('utf-8'))
         total = artifact_bytes + code_bytes
-        log0(f"artifact:{artifact_bytes/1e6:.2f}MB ternary:{q_stats['ternary_params']}({q_stats['ternary_bytes']}B) fp:{q_stats['fp_params']}({q_stats['fp_bytes']}B) code:{code_bytes}")
-        log0(f"budget:{total}/{16000000} ({total/1e6:.2f}/{16.00:.2f}MB) {'FITS' if total <= 16000000 else 'OVER'}")
-        if args.hard_budget_enforce and args.hard_budget_bytes > 0 and total > int(args.hard_budget_bytes):
-            raise RuntimeError(
-                f"Final artifact budget exceeded: total={total} > HARD_BUDGET_BYTES={args.hard_budget_bytes}"
-            )
-
+        log0(f"artifact:{artifact_bytes / 1000000.0:.2f}MB ternary:{q_stats['ternary_params']}({q_stats['ternary_bytes']}B) fp:{q_stats['fp_params']}({q_stats['fp_bytes']}B) code:{code_bytes}")
+        log0(f"budget:{total}/{16000000} ({total / 1000000.0:.2f}/{16.0:.2f}MB) {('FITS' if total <= 16000000 else 'OVER')}")
+        if args.hard_budget_enforce and args.hard_budget_bytes > 0 and (total > int(args.hard_budget_bytes)):
+            raise RuntimeError(f'Final artifact budget exceeded: total={total} > HARD_BUDGET_BYTES={args.hard_budget_bytes}')
         if args.eval_depth_recurrence > 0:
             base_model.training_depth_recurrence = args.eval_depth_recurrence
-            if hasattr(base_model, "backbone"):
+            if hasattr(base_model, 'backbone'):
                 base_model.backbone.training_depth_recurrence = args.eval_depth_recurrence
-            log0(f"eval_depth_recurrence:{args.eval_depth_recurrence}")
+            log0(f'eval_depth_recurrence:{args.eval_depth_recurrence}')
         if args.eval_feedback_passes > 0:
-            log0(f"eval_feedback_passes:{args.eval_feedback_passes}")
-
-    # --- All ranks load roundtrip weights and evaluate ---
+            log0(f'eval_feedback_passes:{args.eval_feedback_passes}')
     if distributed:
         dist.barrier()
-
     if master_process:
-        with open("final_model.ternary.ptz", "rb") as f:
+        with open('final_model.ternary.ptz', 'rb') as f:
             raw_bytes = f.read()
     else:
         raw_bytes = None
-        
-    # 6 & 10. Robust artifact broadcast for non-shared filesystems.
-    # We use a ByteTensor and dist.broadcast to avoid NCCL pickle limits on large payloads.
     if distributed:
         if master_process:
             obj_size = torch.tensor([len(raw_bytes)], device=device, dtype=torch.long)
         else:
             obj_size = torch.tensor([0], device=device, dtype=torch.long)
         dist.broadcast(obj_size, src=0)
-        
         if not master_process:
             raw_bytes_t = torch.empty((obj_size.item(),), device=device, dtype=torch.uint8)
         else:
             raw_bytes_t = torch.ByteTensor(list(raw_bytes)).to(device)
-            
         dist.broadcast(raw_bytes_t, src=0)
         if not master_process:
             raw_bytes = bytes(raw_bytes_t.cpu().tolist())
-
     try:
         decompressed_bytes = lzma.decompress(raw_bytes)
-        loaded = torch.load(io.BytesIO(decompressed_bytes), map_location="cpu", weights_only=False)
+        loaded = torch.load(io.BytesIO(decompressed_bytes), map_location='cpu', weights_only=False)
     except Exception as e:
-        log0(f"Final roundtrip decompression/load failed: {e}")
-        # In case of corruption, we fail-fast to avoid reporting incorrect metrics
+        log0(f'Final roundtrip decompression/load failed: {e}')
         raise
     load_roundtrip_state_strict(base_model, deq_sd(loaded, target_dtype=torch.float32))
     torch._dynamo.reset()
-
-    q_val_loss, q_val_bpb = _eval_val_safe()
-    log0(f"final_ternary_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}")
-
-    # Three separate scoreboard slots — do NOT mix them.
-    # Slot 1: raw FP/EMA model (computed above in final_loss/final_bpb)
-    # Slot 2: post-quantization round-trip (this is the canonical submission metric)
-    # Slot 3: inference-time augmented (informational only — accumulates below)
+    (q_val_loss, q_val_bpb) = _eval_val_safe()
+    log0(f'final_ternary_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}')
     roundtrip_val_loss = q_val_loss
     roundtrip_val_bpb = q_val_bpb
     augmented_val_loss = q_val_loss
     augmented_val_bpb = q_val_bpb
-
     opt_temp = 1.0
     if args.temp_scaling:
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t_temp = time.perf_counter()
-        # Use a validation slice for calibration — do NOT use train_loader (no .stream, and it's leakage)
         calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=65536).to(device)
-        opt_temp = find_temp(args, base_model, rank, world_size, device, grad_accum_steps,
-                             calib_tokens, base_bytes_lut, has_leading_space_lut,
-                             is_boundary_token_lut)
-        if device.type == "cuda": torch.cuda.synchronize()
+        opt_temp = find_temp(args, base_model, rank, world_size, device, grad_accum_steps, calib_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         temp_time_ms = 1000.0 * (time.perf_counter() - t_temp)
-        log0(f"temp_scaling optimal_T:{opt_temp:.2f} eval_time:{temp_time_ms:.0f}ms")
-
+        log0(f'temp_scaling optimal_T:{opt_temp:.2f} eval_time:{temp_time_ms:.0f}ms')
     if args.sliding_eval:
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t_sliding = time.perf_counter()
-        # Carry-preserving sequential path for SKC final scoring
         if args.final_eval_sequential_carry and args.capsule_carry_enabled:
             try:
-                sw_loss, sw_bpb = _eval_val_sliding_sequential_carry(opt_temp)
+                (sw_loss, sw_bpb) = _eval_val_sliding_sequential_carry(opt_temp)
             except Exception as e:
                 if _is_oom(e):
-                    log0("final_sliding_sequential_carry:oom_fallback_to_batched", flush=True)
-                    sw_loss, sw_bpb = _eval_val_sliding_safe(opt_temp)
+                    log0('final_sliding_sequential_carry:oom_fallback_to_batched', flush=True)
+                    (sw_loss, sw_bpb) = _eval_val_sliding_safe(opt_temp)
                 else:
                     raise
         else:
             try:
-                sw_loss, sw_bpb = _eval_val_sliding_safe(opt_temp)
+                (sw_loss, sw_bpb) = _eval_val_sliding_safe(opt_temp)
             except Exception as e:
                 if _is_oom(e):
-                    log0("final_sliding:disabled_after_oom", flush=True)
+                    log0('final_sliding:disabled_after_oom', flush=True)
                     args.sliding_eval = 0
-                    sw_loss, sw_bpb = augmented_val_loss, augmented_val_bpb
+                    (sw_loss, sw_bpb) = (augmented_val_loss, augmented_val_bpb)
                 else:
                     raise
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
-        log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
-             f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}, "
-             f"sequential_carry={args.final_eval_sequential_carry and args.capsule_carry_enabled}) "
-             f"eval_time:{sliding_time_ms:.0f}ms")
-        # Accumulates into augmented slot ONLY — roundtrip_val_bpb stays unchanged
-        augmented_val_loss, augmented_val_bpb = sw_loss, sw_bpb
-
+        log0(f'final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} (stride={args.sliding_eval_stride}, T={opt_temp:.2f}, sequential_carry={args.final_eval_sequential_carry and args.capsule_carry_enabled}) eval_time:{sliding_time_ms:.0f}ms')
+        (augmented_val_loss, augmented_val_bpb) = (sw_loss, sw_bpb)
     if args.ttt_enabled:
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         try:
-            ttt_loss, ttt_bpb = _eval_val_sliding_ttt_safe(opt_temp)
+            (ttt_loss, ttt_bpb) = _eval_val_sliding_ttt_safe(opt_temp)
         except Exception as e:
             if _is_oom(e):
-                log0("legal_ttt:disabled_after_oom", flush=True)
+                log0('legal_ttt:disabled_after_oom', flush=True)
                 args.ttt_enabled = 0
-                ttt_loss, ttt_bpb = augmented_val_loss, augmented_val_bpb
+                (ttt_loss, ttt_bpb) = (augmented_val_loss, augmented_val_bpb)
             else:
                 raise
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         ttt_time_ms = 1000.0 * (time.perf_counter() - t_ttt)
-        log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms")
-        log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
-        # Accumulates into augmented slot ONLY — roundtrip_val_bpb stays unchanged
-        augmented_val_loss, augmented_val_bpb = ttt_loss, ttt_bpb
-
-    # --- N-gram cache evaluation (single-rank, sequential) ---
+        log0(f'legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms')
+        log0(f'legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}')
+        (augmented_val_loss, augmented_val_bpb) = (ttt_loss, ttt_bpb)
+    # ---- 4-case ablation: baseline / engram-only / ttt-only / ttt+engram ----
+    if int(os.environ.get('ABLATION_EVAL', '0')) and args.sliding_eval and master_process:
+        log0('ablation_eval:start — running 4-case ablation (baseline, engram, ttt, ttt+engram)')
+        _saved_engram = base_model.engram
+        _saved_ttt = int(args.ttt_enabled)
+        ablation_results: dict[str, tuple[float, float]] = {}
+        for _abl_name, _abl_engram, _abl_ttt in [
+            ('baseline',     False, False),
+            ('engram_only',  True,  False),
+            ('ttt_only',     False, True),
+            ('ttt_engram',   True,  True),
+        ]:
+            # Toggle engram correction: set model.engram = None to disable
+            if not _abl_engram:
+                base_model.engram = None
+            else:
+                base_model.engram = _saved_engram
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+            t_abl = time.perf_counter()
+            try:
+                if _abl_ttt:
+                    args.ttt_enabled = 1
+                    (_abl_loss, _abl_bpb) = _eval_val_sliding_ttt_safe(opt_temp)
+                else:
+                    args.ttt_enabled = 0
+                    (_abl_loss, _abl_bpb) = _eval_val_sliding_safe(opt_temp)
+            except Exception as _abl_e:
+                log0(f'ablation_eval:{_abl_name} FAILED: {_abl_e}')
+                (_abl_loss, _abl_bpb) = (float('nan'), float('nan'))
+            _abl_ms = 1000.0 * (time.perf_counter() - t_abl)
+            ablation_results[_abl_name] = (_abl_loss, _abl_bpb)
+            log0(f'ablation_eval:{_abl_name} val_loss:{_abl_loss:.6f} val_bpb:{_abl_bpb:.6f} time:{_abl_ms:.0f}ms')
+        # Restore original state
+        base_model.engram = _saved_engram
+        args.ttt_enabled = _saved_ttt
+        log0('ablation_eval:summary')
+        for _abl_name, (_abl_loss, _abl_bpb) in ablation_results.items():
+            log0(f'  {_abl_name:15s}  loss={_abl_loss:.6f}  bpb={_abl_bpb:.6f}')
+        # Pick the best ablation as final result
+        _best_abl = min(ablation_results, key=lambda k: ablation_results[k][1] if not math.isnan(ablation_results[k][1]) else float('inf'))
+        log0(f'ablation_eval:best={_best_abl} bpb={ablation_results[_best_abl][1]:.6f}')
+        (augmented_val_loss, augmented_val_bpb) = ablation_results[_best_abl]
     if args.ngram_cache_enabled and master_process:
-        if device.type == "cuda": torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t_ngram = time.perf_counter()
-        ngram_cache = NgramCache(
-            max_order=args.ngram_max_order,
-            alpha_base=args.ngram_alpha_base,
-            alpha_scale=args.ngram_alpha_scale,
-            entropy_center=args.ngram_entropy_center,
-            alpha_max=args.ngram_alpha_max,
-        )
+        ngram_cache = NgramCache(max_order=args.ngram_max_order, alpha_base=args.ngram_alpha_base, alpha_scale=args.ngram_alpha_scale, entropy_center=args.ngram_entropy_center, alpha_max=args.ngram_alpha_max)
         seq_len = args.train_seq_len
         total_tokens_ng = val_tokens.numel() - 1
         ngram_loss_sum = 0.0
         ngram_byte_sum = 0.0
         ngram_tok_count = 0
         scored_tokens: list[int] = []
-        # Tail of the previous chunk used to bridge n-gram context across chunk boundaries.
-        # Without this, the cache never sees the (N-1)-token context that spans the seam
-        # between consecutive chunks, so transition probabilities at every boundary are
-        # estimated from an empty context — dragging down augmented BPB at every window edge.
         _ngram_boundary_ctx: list[int] = []
         base_model.eval()
         use_carry = args.capsule_carry_enabled and args.capsule_enabled
         decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
         eval_feedback_passes = resolve_eval_feedback_passes(args)
         carry_capsules = None
-        # Process validation sequentially, building cache as we go
         with torch.no_grad():
             for pos in range(0, total_tokens_ng, seq_len):
                 end = min(pos + seq_len, total_tokens_ng)
@@ -6020,9 +4623,7 @@ def main() -> None:
                 y_ng = chunk[1:].unsqueeze(0)
                 with autocast_context(device):
                     if use_carry:
-                        logits_ng, capsule_state = base_model.forward_logits_with_carry(
-                            x_ng, carry_capsules=carry_capsules, temperature=opt_temp,
-                            feedback_passes=eval_feedback_passes)
+                        (logits_ng, capsule_state) = base_model.forward_logits_with_carry(x_ng, carry_capsules=carry_capsules, temperature=opt_temp, feedback_passes=eval_feedback_passes)
                         if capsule_state is not None:
                             cs_avg = capsule_state.mean(dim=0, keepdim=True)
                             if carry_capsules is not None:
@@ -6030,81 +4631,48 @@ def main() -> None:
                             else:
                                 carry_capsules = cs_avg.detach()
                     else:
-                        logits_ng = base_model.forward_logits(
-                            x_ng,
-                            temperature=opt_temp,
-                            feedback_passes=eval_feedback_passes,
-                        )
+                        logits_ng = base_model.forward_logits(x_ng, temperature=opt_temp, feedback_passes=eval_feedback_passes)
                 log_probs_ng = F.log_softmax(logits_ng.squeeze(0).float(), dim=-1)
                 for t_idx in range(wlen):
                     target_tok = y_ng[0, t_idx].item()
                     neural_lp = log_probs_ng[t_idx]
-                    # Try n-gram cache prediction
                     ngram_lp = ngram_cache.predict(scored_tokens[-(args.ngram_max_order - 1):], args.vocab_size)
                     if ngram_lp is not None:
                         ngram_lp = ngram_lp.to(device)
                         alpha = ngram_cache.entropy_alpha(neural_lp)
-                        # Mix in log space: log((1-a)*exp(neural) + a*exp(ngram))
-                        mixed = torch.logaddexp(
-                            neural_lp + math.log(1 - alpha + 1e-10),
-                            ngram_lp + math.log(alpha + 1e-10),
-                        )
+                        mixed = torch.logaddexp(neural_lp + math.log(1 - alpha + 1e-10), ngram_lp + math.log(alpha + 1e-10))
                         token_nll = -mixed[target_tok].item()
                     else:
                         token_nll = -neural_lp[target_tok].item()
                     ngram_loss_sum += token_nll
-                    # BPB accounting — use actual prev token (from input sequence)
                     tok_b = base_bytes_lut[target_tok].item()
                     prev_tok = x_ng[0, t_idx].item()
-                    if has_leading_space_lut[target_tok].item() and not is_boundary_token_lut[prev_tok].item():
+                    if has_leading_space_lut[target_tok].item() and (not is_boundary_token_lut[prev_tok].item()):
                         tok_b += 1
                     ngram_byte_sum += tok_b
                     ngram_tok_count += 1
                     scored_tokens.append(target_tok)
-                # Update cache. Prepend the tail of the previous chunk so the cache
-                # learns the n-gram context that spans the chunk boundary — otherwise
-                # every boundary token is scored from an empty context.
                 chunk_toks = chunk[1:].tolist()
                 ngram_cache.update(_ngram_boundary_ctx + chunk_toks)
                 _ngram_boundary_ctx = chunk_toks[-(args.ngram_max_order - 1):]
         ngram_val_loss = ngram_loss_sum / max(ngram_tok_count, 1)
-        ngram_bpb = (ngram_val_loss / math.log(2.0)) * (ngram_tok_count / max(ngram_byte_sum, 1))
+        ngram_bpb = ngram_val_loss / math.log(2.0) * (ngram_tok_count / max(ngram_byte_sum, 1))
         ngram_time_ms = 1000.0 * (time.perf_counter() - t_ngram)
-        log0(f"ngram_cache val_loss:{ngram_val_loss:.4f} val_bpb:{ngram_bpb:.4f} "
-             f"(order={args.ngram_max_order}) eval_time:{ngram_time_ms:.0f}ms")
-        # Accumulates into augmented slot ONLY — roundtrip_val_bpb stays unchanged
-        augmented_val_loss, augmented_val_bpb = ngram_val_loss, ngram_bpb
-
+        log0(f'ngram_cache val_loss:{ngram_val_loss:.4f} val_bpb:{ngram_bpb:.4f} (order={args.ngram_max_order}) eval_time:{ngram_time_ms:.0f}ms')
+        (augmented_val_loss, augmented_val_bpb) = (ngram_val_loss, ngram_bpb)
     if master_process:
         import json
-        artifact_bytes = os.path.getsize("final_model.ternary.ptz") if os.path.exists("final_model.ternary.ptz") else 0
-        c_code_bytes = len(code.encode("utf-8")) if 'code' in locals() else 0
+        artifact_bytes = os.path.getsize('final_model.ternary.ptz') if os.path.exists('final_model.ternary.ptz') else 0
+        c_code_bytes = len(code.encode('utf-8')) if 'code' in locals() else 0
         total_bytes = artifact_bytes + c_code_bytes
-
-        # Log all three scoreboard slots for full transparency
-        log0(f"scoreboard: raw_bpb={final_bpb:.4f} roundtrip_bpb={roundtrip_val_bpb:.4f} augmented_bpb={augmented_val_bpb:.4f}")
-
-        # Scoreboard log omitted for brevity in diff; submission.json write continues here.
-        with open("submission.json", "w") as f:
-            json.dump({
-                "author": "Aki Gogikar (OneNewAI)",
-                "github_id": "akhileshgogikar",
-                "name": "KoopCaps-HRM Ternary Reasoner",
-                "blurb": "KoopCaps-HRM: 20M ternary SKC MoE with EMA, GPTQ-lite, and deterministic export.",
-                "date": "2026-03-27T00:00:00Z",
-                "val_loss": round(roundtrip_val_loss, 4),
-                "val_bpb": round(roundtrip_val_bpb, 4),
-                "augmented_val_bpb": round(augmented_val_bpb, 4),
-                "bytes_total": total_bytes,
-                "bytes_code": c_code_bytes
-            }, f, indent=2)
-
+        log0(f'scoreboard: raw_bpb={final_bpb:.4f} roundtrip_bpb={roundtrip_val_bpb:.4f} augmented_bpb={augmented_val_bpb:.4f}')
+        with open('submission.json', 'w') as f:
+            json.dump({'author': 'Aki Gogikar (OneNewAI)', 'github_id': 'akhileshgogikar', 'name': 'KoopCaps-HRM Ternary Reasoner', 'blurb': 'KoopCaps-HRM: 20M ternary SKC MoE with EMA, GPTQ-lite, and deterministic export.', 'date': '2026-03-27T00:00:00Z', 'val_loss': round(roundtrip_val_loss, 4), 'val_bpb': round(roundtrip_val_bpb, 4), 'augmented_val_bpb': round(augmented_val_bpb, 4), 'bytes_total': total_bytes, 'bytes_code': c_code_bytes}, f, indent=2)
     if distributed:
         try:
             torch.distributed.barrier()
             dist.destroy_process_group()
         except:
             pass
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
