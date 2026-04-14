@@ -58,10 +58,10 @@ except ImportError:
 # ===========================================================================
 
 class Hyperparameters:
-    data_path       = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp8192")
+    data_path       = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files     = os.path.join(data_path, "fineweb_train_*.bin")
     val_files       = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path  = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_8192_bpe.model")
+    tokenizer_path  = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id          = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed            = int(os.environ.get("SEED", 1337))
 
@@ -77,7 +77,7 @@ class Hyperparameters:
     warmdown_frac   = float(os.environ.get("WARMDOWN_FRAC", 0.75))
 
     # Model
-    vocab_size      = int(os.environ.get("VOCAB_SIZE", 8192))
+    vocab_size      = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers      = int(os.environ.get("NUM_LAYERS", 11))
     model_dim       = int(os.environ.get("MODEL_DIM", 512))
     num_heads       = int(os.environ.get("NUM_HEADS", 8))
@@ -1676,8 +1676,9 @@ def main():
     torch.manual_seed(args.seed); torch.cuda.manual_seed_all(args.seed)
 
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-    if int(sp.vocab_size()) != args.vocab_size:
-        raise ValueError(f"Vocab mismatch: {args.vocab_size} vs {int(sp.vocab_size())}")
+    sp_vocab = int(sp.vocab_size())
+    if sp_vocab != args.vocab_size:
+        raise ValueError(f"Vocab mismatch: expected {args.vocab_size}, got {sp_vocab} from {args.tokenizer_path}")
 
     effective_eval_seq_len = args.eval_seq_len if args.eval_seq_len > 0 else args.train_seq_len
     val_seq_len = max(args.train_seq_len, effective_eval_seq_len)

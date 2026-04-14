@@ -1,9 +1,9 @@
 {
   "track": "10min_16mb",
-  "tokenizer": "sp8192",
+  "tokenizer": "sp1024",
   "architecture": "11L-512d-8H4KV-GQA-MLP3x-UNet-BigramHash3072-XSA11-VE128-DepthRecur-ParResid-DocTTT",
   "features": [
-    "SP8192 tokenizer (8192 vocab BPE)",
+    "SP1024 tokenizer (1024 vocab BPE)",
     "Depth recurrence on layers 3-5 (2 passes, gated blend)",
     "Parallel residuals GPT-J style on layers 7+",
     "QK-Gain 5.25",
