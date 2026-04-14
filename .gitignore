@@ -11,4 +11,3 @@ data/docs_selected.jsonl
 logs/
 *.pt
 *.ptz
-experiments/*/weights/

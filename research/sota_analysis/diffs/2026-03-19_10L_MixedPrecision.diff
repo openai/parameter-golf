@@ -1,0 +1,37 @@
+--- baseline.py
++++ 2026-03-19_10L_MixedPrecision.py
+@@ -41,6 +41,9 @@
+     train_seq_len = int(os.environ.get('TRAIN_SEQ_LEN', 1024))
+     max_wallclock_seconds = float(os.environ.get('MAX_WALLCLOCK_SECONDS', 600.0))
+     qk_gain_init = float(os.environ.get('QK_GAIN_INIT', 1.5))
++    prune_ratio = float(os.environ.get('PRUNE_RATIO', 0.0))
++    int4_layers = os.environ.get('INT4_LAYERS', '')
++    int4_step = int(os.environ.get('INT4_STEP', 16))
+     vocab_size = int(os.environ.get('VOCAB_SIZE', 1024))
+     num_layers = int(os.environ.get('NUM_LAYERS', 9))
+     num_kv_heads = int(os.environ.get('NUM_KV_HEADS', 4))
+@@ -717,6 +720,24 @@
+         log0(f'Code size: {code_bytes} bytes')
+         log0(f'Total submission size: {model_bytes + code_bytes} bytes')
+     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
++    if args.prune_ratio > 0:
++        threshold = int(127 * args.prune_ratio)
++        for name in list(quant_obj.get('quantized', {}).keys()):
++            t = quant_obj['quantized'][name]
++            t[t.abs() <= threshold] = 0
++    if args.int4_layers:
++        int4_set = set((int(x) for x in args.int4_layers.split(',') if x.strip()))
++        for name in list(quant_obj.get('quantized', {}).keys()):
++            layer_num = -1
++            if 'blocks.' in name:
++                try:
++                    layer_num = int(name.split('blocks.')[1].split('.')[0])
++                except (ValueError, IndexError):
++                    pass
++            if layer_num in int4_set:
++                t = quant_obj['quantized'][name]
++                step = args.int4_step
++                quant_obj['quantized'][name] = ((t.float() / step).round() * step).clamp(-127, 127).to(torch.int8)
+     quant_buf = io.BytesIO()
+     torch.save(quant_obj, quant_buf)
+     quant_raw = quant_buf.getvalue()

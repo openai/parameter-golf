@@ -1,0 +1,19 @@
+{
+  "author": "Chris McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "11L VE128 PartialRoPE LNScale Legal TTT",
+  "blurb": "11-layer depth-recurrence GPT with Value Embeddings (128d on layers 9-10), Partial RoPE (16/64), Layer-Norm Scale, XSA last 4, BigramHash(2048), legal score-first TTT (3-epoch SGD momentum=0.9), int6+zstd quantization, SWA, and Late QAT. Key techniques integrated from PR #455 and #442. Trained on 4xA100.",
+  "date": "2026-03-22",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.93257718,
+  "val_bpb": 1.14458409,
+  "pre_ttt_val_loss": 1.9605,
+  "pre_ttt_val_bpb": 1.1611,
+  "step_stop": 5200,
+  "wallclock_seconds": 2472,
+  "eval_time_seconds": 1046,
+  "bytes_total": 14789419,
+  "bytes_model_int6_zstd": 14717713,
+  "bytes_code": 71706,
+  "gpu": "4xA100-40GB"
+}

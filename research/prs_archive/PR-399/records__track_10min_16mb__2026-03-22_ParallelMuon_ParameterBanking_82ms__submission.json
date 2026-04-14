@@ -1,0 +1,9 @@
+{
+  "name": "Parallel Muon + Parameter Banking (81.87ms/step)",
+  "val_loss": 1.1247,
+  "bytes_total": 15830960,
+  "blurb": "Systems optimization: 3.4% faster training (81.87ms vs 84.76ms, mean of 3 seeds) via Parameter Banking and Parallel Muon (no DDP, post-backward reduce-scatter + local batched NS + async all-gather). 7,330 steps vs 7,079 in 600s. Mean int6 sliding window val_bpb 1.1247 (std 0.0006). All artifacts under 16MB.",
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "date": "2026-03-22"
+}

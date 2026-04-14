@@ -1,0 +1,452 @@
+{
+  "_meta": {
+    "description": "Parameter Golf competition submission DAG. Nodes are PRs/submissions, edges show derivation (builds_on). Techniques are tagged.",
+    "generated": "2026-04-06",
+    "total_prs_cataloged": "~900+",
+    "score_metric": "val_bpb (lower = better)"
+  },
+
+  "nodes": {
+    "baseline": {
+      "title": "Naive Baseline",
+      "author": "openai",
+      "score": 1.2244,
+      "date": "2026-03-18",
+      "state": "merged",
+      "techniques": ["9L", "512d", "SP1024", "int8_zlib", "ReLU2", "Muon", "GQA_8H4KV", "MLP2x", "tied_embeddings"],
+      "lineage": "root"
+    },
+
+    "PR45": {"title": "Modal 8xH100 LowerLR FP16Embed 960", "author": "kiankyars", "score": 1.2240, "state": "closed", "techniques": ["lower_LR", "FP16_embed"], "builds_on": ["baseline"]},
+    "PR48": {"title": "Warmdown Scheduling", "author": "MajdiZamim", "score": 1.2430, "state": "closed", "techniques": ["warmdown_3000"], "builds_on": ["baseline"]},
+    "PR50": {"title": "Sliding Window Eval stride=64", "author": "mattqlf", "score": 1.1925, "state": "closed", "techniques": ["sliding_window_eval_64"], "builds_on": ["baseline"]},
+
+    "PR65": {
+      "title": "SmearGate + OrthoInit + MuonWD + Int6 STE QAT + MLP3x",
+      "author": "aquariouseworkman",
+      "score": 1.1556,
+      "date": "2026-03-19",
+      "state": "merged",
+      "techniques": ["SmearGate", "BigramHash_4096", "int6_STE_QAT", "MLP3x", "OrthoInit", "UNet_skips", "Muon_WD_0.01", "Muon_momentum_0.99", "zstd_22", "sliding_window_eval_64", "FP16_embed"],
+      "builds_on": ["baseline"],
+      "note": "Foundational PR — SmearGate+BigramHash adopted by all subsequent records"
+    },
+
+    "PR156": {"title": "Int6 STE + NorMuon + SWA + Sliding Window", "author": "dexhunter", "score": 1.1602, "state": "open", "techniques": ["int6_STE_QAT", "NorMuon", "SWA"], "builds_on": ["PR65"]},
+    "PR160": {"title": "MLP3x + LZMA + Sliding Window", "author": "ChaseWNorton", "score": 1.1623, "state": "open", "techniques": ["MLP3x", "LZMA"], "builds_on": ["PR65"]},
+
+    "PR162": {
+      "title": "Int6 MLP3x + SmearGate + BigramHash + MuonWD + SWA",
+      "author": "raahilshah",
+      "score": 1.1458,
+      "date": "2026-03-20",
+      "state": "merged",
+      "techniques": ["SWA_every_50", "Muon_WD_0.04", "BigramHash_4096", "SmearGate", "int6_perrow", "MLP3x", "seq2048", "zstd_22"],
+      "builds_on": ["PR65"],
+      "note": "Tuned WD to 0.04. SWA introduced. raahilshah also later built Full GPTQ (PR535)."
+    },
+
+    "PR167": {"title": "Depth Recurrence via Layer Sharing (3 shared blocks)", "author": "SkywardSyntax", "score": null, "state": "open", "techniques": ["depth_recurrence"], "builds_on": ["baseline"], "note": "Early depth recurrence exploration"},
+    "PR168": {"title": "Paid Prefix (val_bpb=1.0238)", "author": "spokane-way", "score": 1.0238, "state": "open", "techniques": ["paid_prefix"], "builds_on": ["baseline"], "note": "Ruled out-of-scope by organizers"},
+
+    "PR180": {
+      "title": "10L Int5-MLP + BigramHash(10240) + SWA",
+      "author": "thwu1",
+      "score": 1.1428,
+      "date": "2026-03-20",
+      "state": "merged",
+      "techniques": ["10L", "int5_MLP", "int6_attn", "BigramHash_10240", "SWA_frac_0.4", "Muon_WD_0.04"],
+      "builds_on": ["PR162"]
+    },
+
+    "PR198": {
+      "title": "11L Efficient Partial XSA + FA3 + SWA",
+      "author": "unnir",
+      "score": 1.1307,
+      "date": "2026-03-20",
+      "state": "merged",
+      "techniques": ["11L", "XSA_partial_3", "FA3", "SWA_120", "UNet_skips", "NTK_RoPE"],
+      "builds_on": ["PR162"],
+      "note": "Introduced XSA with efficient GQA-aware implementation"
+    },
+
+    "PR200": {"title": "SP4096 + Int6 QAT + NorMuon", "author": "khasinski", "score": 1.2012, "state": "open", "techniques": ["SP4096", "int6_QAT", "NorMuon"], "builds_on": ["baseline"], "note": "Early SP4096 exploration"},
+    "PR220": {"title": "SSM LRU Baseline", "author": "timothywangdev", "score": null, "state": "open", "techniques": ["SSM", "LRU"], "builds_on": ["baseline"], "note": "First state space model submission (WIP)"},
+
+    "PR262": {"title": "8L Paid Prefix + SmearGate + Int6", "author": "ibarrajo", "score": 1.0539, "state": "closed", "techniques": ["paid_prefix", "SmearGate", "int6"], "builds_on": ["PR65"], "note": "Ruled out-of-scope"},
+
+    "PR265": {
+      "title": "11L + Efficient Partial XSA",
+      "author": "unnir",
+      "score": 1.1307,
+      "state": "merged",
+      "techniques": ["11L", "XSA_partial_3", "FA3"],
+      "builds_on": ["PR198"],
+      "note": "Same as PR198 record entry"
+    },
+
+    "PR287": {
+      "title": "11L XSA4 + EMA + Int6 MLP3x",
+      "author": "jfprincz",
+      "score": 1.1271,
+      "date": "2026-03-21",
+      "state": "merged",
+      "techniques": ["XSA_partial_4", "EMA_0.997"],
+      "builds_on": ["PR198"],
+      "note": "EMA replaces SWA. XSA extended to last 4 layers."
+    },
+
+    "PR315": {
+      "title": "11L Partial RoPE + LN Scale + EMA + XSA4",
+      "author": "jfprincz",
+      "score": 1.1248,
+      "date": "2026-03-21",
+      "state": "merged",
+      "techniques": ["partial_RoPE_16_64", "LN_scale"],
+      "builds_on": ["PR287"],
+      "note": "Two zero-param tricks. Late QAT was dead code (torch.compile bug)."
+    },
+
+    "PR352": {"title": "Memory Tokens + Mixed Quantization", "author": "sp00mm", "score": 1.1659, "state": "open", "techniques": ["memory_tokens_64", "mixed_quant"], "builds_on": ["PR180"], "note": "64 learnable vectors as global context. -0.014 BPB."},
+
+    "PR363": {
+      "title": "Depth Recurrence in Parameter-Constrained Transformers",
+      "author": "evangelinehelsinki",
+      "score": null,
+      "state": "merged",
+      "techniques": ["depth_recurrence", "noisy_QAT"],
+      "builds_on": ["PR198"],
+      "note": "NON-RECORD. Key finding: SmearGate HURTS looped architectures. Quantization error propagates through loops."
+    },
+
+    "PR374": {
+      "title": "11L + Tight SWA + VE128 + Partial RoPE + LN Scale + XSA4",
+      "author": "unnir",
+      "score": 1.1246,
+      "date": "2026-03-21",
+      "state": "open",
+      "techniques": ["tight_SWA", "VE128", "partial_RoPE_16_64", "LN_scale", "XSA_partial_4"],
+      "builds_on": ["PR315", "PR198"],
+      "note": "Introduced VE128 (shared value embeddings) and Tight SWA (only last ~600 steps)."
+    },
+
+    "PR399": {
+      "title": "Parallel Muon + Parameter Banking",
+      "author": "abaybektursun",
+      "score": 1.1247,
+      "state": "open",
+      "techniques": ["parallel_muon", "parameter_banking"],
+      "builds_on": ["PR374"],
+      "note": "Newton-Schulz 19.7ms→1.3ms (15x faster). +190 steps/600s. DDP incompatible — custom comm scheduling."
+    },
+
+    "PR414": {
+      "title": "11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15",
+      "author": "signalrush",
+      "score": 1.1228,
+      "date": "2026-03-22",
+      "state": "merged",
+      "techniques": ["GPTQ_lite", "EMA_0.997", "tight_SWA", "warmdown_3500", "late_QAT_0.15"],
+      "builds_on": ["PR374"],
+      "note": "GPTQ-lite: 5 clip percentiles per row. -0.0006 BPB. Key quantization paper."
+    },
+
+    "PR461": {
+      "title": "11L Depth Recurrence + High-Yield Legal TTT",
+      "author": "Christopher-Lee-McClendon",
+      "score": 1.1446,
+      "state": "open",
+      "techniques": ["depth_recurrence", "legal_TTT_score_first", "SGD_momentum_0.9", "freeze_2"],
+      "builds_on": ["PR374"],
+      "note": "NON-RECORD. Introduced the legal TTT recipe (score-first, SGD not AdamW, 3 epochs). TTT gain: -0.0165 BPB."
+    },
+
+    "PR478": {
+      "title": "11L XSA-all(11) + GPTQ-lite + EMA + Late QAT",
+      "author": "gowtham0992",
+      "score": 1.1268,
+      "state": "open",
+      "techniques": ["XSA_all_11"],
+      "builds_on": ["PR374", "PR414"],
+      "note": "Extended XSA to all 11 layers. -0.006 BPB total vs XSA-4."
+    },
+
+    "PR487": {"title": "Value Residual + Gated Attention on 11L", "author": "anantdgoel", "score": null, "state": "open", "techniques": ["value_residual_learning", "gated_attention"], "builds_on": ["PR198"], "note": "VRL: -0.015 BPB. Gated Attention: -0.003 BPB."},
+
+    "PR493": {
+      "title": "11L EMA + Int6 + XSA + LeakyReLU²",
+      "author": "parinzee",
+      "score": 1.1309,
+      "state": "open",
+      "techniques": ["LeakyReLU_0.5_sq"],
+      "builds_on": ["PR180"],
+      "note": "NON-RECORD. Introduced LeakyReLU(0.5)² activation. -0.003 BPB. One-line change."
+    },
+
+    "PR535": {
+      "title": "11L LeakyReLU² + Full GPTQ + QAT Alignment",
+      "author": "raahilshah",
+      "score": 1.1204,
+      "state": "closed",
+      "techniques": ["full_hessian_GPTQ"],
+      "builds_on": ["PR414", "PR493"],
+      "note": "Introduced Full Hessian GPTQ. Calibrated on training data — later ruled must be within 600s budget."
+    },
+
+    "PR549": {
+      "title": "LeakyReLU² + Legal Score-First TTT + Parallel Muon",
+      "author": "abaybektursun",
+      "score": 1.1194,
+      "date": "2026-03-23",
+      "state": "merged",
+      "techniques": ["LeakyReLU_0.5_sq", "legal_TTT_score_first", "parallel_muon", "parameter_banking", "BigramHash_1536"],
+      "builds_on": ["PR414", "PR493", "PR461", "PR399"],
+      "note": "Integration of 4 PRs. TTT: -0.015 BPB. LeakyReLU²: -0.003 BPB. 25+ TTT variants tested."
+    },
+
+    "PR557": {"title": "Batched LoRA TTT", "author": "hypery11", "score": 1.1160, "state": "open", "techniques": ["LoRA_TTT_batched", "rank8_LoRA"], "builds_on": ["PR198"], "note": "Rank-8 LoRA on Q,V,LM head. 64 docs parallel. -0.0316 BPB. 8.3min eval."},
+
+    "PR609": {
+      "title": "11L XSA-all + Full GPTQ + Selective Pruning",
+      "author": "saml212",
+      "score": 1.1154,
+      "state": "open",
+      "techniques": ["XSA_all_11", "full_hessian_GPTQ", "selective_pruning"],
+      "builds_on": ["PR535", "PR478"],
+      "note": "NON-RECORD. Reclassified due to GPTQ calibration timing. 15 documented dead ends."
+    },
+
+    "PR640": {
+      "title": "73.7M Ternary U-Net",
+      "author": "CiprianFlorin-Ifrim",
+      "score": 1.1570,
+      "date": "2026-03-24",
+      "state": "merged",
+      "techniques": ["ternary_bitnet_1.58", "768d", "10L", "SP8192", "4x_MLP", "NeoMuon", "YaRN", "FP8_QAT", "factored_embedding", "poly5_softcap", "base3_LZMA", "stride_16_eval", "temp_scaling_0.90"],
+      "builds_on": ["baseline"],
+      "lineage": "independent",
+      "note": "Completely independent architecture. 250+ experiments. Ternary beats binary at 10min; binary wins with more compute."
+    },
+
+    "PR641": {"title": "106M Binary U-Net (non-record, 2hr)", "author": "CiprianFlorin-Ifrim", "score": 1.1239, "state": "merged", "techniques": ["binary_1bit", "15L", "asymmetric"], "builds_on": ["PR640"]},
+
+    "PR660": {"title": "Soft MoE", "author": "HugoOchoaLP", "score": 1.1826, "state": "open", "techniques": ["soft_MoE"], "builds_on": ["PR198"], "note": "Sparse MoE collapsed (98/2 split). Soft MoE fixes via dense gating. Over budget at 17.3MB."},
+
+    "PR770": {"title": "Multi-Order N-gram Backoff (orders 2-7)", "author": "minh-stakc", "score": 0.6672, "state": "open", "techniques": ["ngram_backoff_2_7", "entropy_adaptive_alpha"], "builds_on": ["PR198"], "note": "Legitimate non-oracle technique. alpha = 0.05 + 0.55*sigmoid(2*(H-4.0))."},
+    "PR876": {"title": "Two-Pass Order-11 N-gram Backoff", "author": "Bortlesboat", "score": 0.5863, "state": "open", "techniques": ["ngram_backoff_order_11"], "builds_on": ["PR770"]},
+
+    "PR875": {
+      "title": "Gated DeltaNet (GDN)",
+      "author": "shalyhinpavel",
+      "score": null,
+      "state": "open",
+      "techniques": ["GDN", "DeltaNet_attention"],
+      "builds_on": ["baseline"],
+      "note": "INVALID. 5 confirmed bugs. Claimed 1.0226 BPB is meaningless."
+    },
+
+    "PR989": {"title": "QAT x SWA Ablation", "author": "alexanderaperry-arch", "score": null, "state": "open", "techniques": [], "builds_on": ["PR414"], "note": "KEY FINDING: SWA sabotages QAT (-3.64 mBPB). Don't combine them."},
+    "PR992": {"title": "First H-Net with Dynamic Sequence Chunking", "author": "TimS-ml", "score": 1.4129, "state": "open", "techniques": ["H_Net", "dynamic_chunking"], "builds_on": ["baseline"], "note": "First H-Net submission from README wishlist."},
+
+    "PR1019": {
+      "title": "AR Self-Gen GPTQ + XSA-all + BigramHash 3072×112",
+      "author": "abaybektursun",
+      "score": 1.1147,
+      "date": "2026-03-25",
+      "state": "merged",
+      "techniques": ["AR_selfgen_GPTQ", "XSA_all_11", "BigramHash_3072x112", "warmdown_4000", "LZMA_9", "selective_pruning", "LeakyReLU_0.5_sq", "parallel_muon"],
+      "builds_on": ["PR549", "PR478", "PR609", "PR535", "PR160"],
+      "note": "CURRENT MERGED SOTA. AR self-gen closes 84% of val-vs-random gap. TTT dropped after 25+ failed attempts on this stack."
+    },
+
+    "PR1083": {"title": "ClownCar Crawler + 9-gram Cache", "author": "newjordan", "score": 0.4961, "state": "closed", "techniques": ["9gram_oracle", "cubric_warmstart", "Frugendorff_arch"], "builds_on": ["PR990"], "note": "Bandit track. Self-closed by author."},
+
+    "PR1176": {"title": "SLOT implementation", "author": "bigbag", "score": null, "state": "open", "techniques": ["SLOT"], "builds_on": ["PR1019"], "note": "Introduced SLOT (Sample-specific Learned Output Token-bias). Contested legality."},
+
+    "PR1204": {"title": "Layer Looping / Depth Recurrence concept", "author": "msisovic", "score": null, "state": "open", "techniques": ["depth_recurrence_2x"], "builds_on": ["PR1019"], "note": "Key source for depth recurrence in the frontier."},
+    "PR1217": {"title": "MuonEq-R (row-normalized Muon)", "author": "bigbag", "score": null, "state": "open", "techniques": ["MuonEq_R"], "builds_on": ["PR1019"], "note": "Key optimizer improvement adopted by frontier."},
+    "PR1218": {"title": "SP4096 base + MLP4x + WD 0.090", "author": "clarkkev", "score": null, "state": "open", "techniques": ["SP4096", "MLP4x", "WD_0.090"], "builds_on": ["PR1019"], "note": "clarkkev's base architecture for the frontier."},
+
+    "PR1260": {
+      "title": "MuonEq-R + Depth Recurrence + Mixed Int5/Int6 GPTQ",
+      "author": "dexhunter",
+      "score": 1.0929,
+      "state": "open",
+      "techniques": ["MuonEq_R", "depth_recurrence_2x", "mixed_int5_int6_GPTQ"],
+      "builds_on": ["PR1204", "PR1217", "PR1019"]
+    },
+
+    "PR1268": {"title": "Mamba3 Hybrid + GPTQ Long Context", "author": "samquiring", "score": 1.1875, "state": "open", "techniques": ["Mamba3", "hybrid_SSM_attention", "GPTQ"], "builds_on": ["baseline"], "note": "SSM hybrid. Non-record."},
+    "PR1270": {"title": "Unified Attention + FA3 + 1hr", "author": "VirajDeshwal", "score": 1.1088, "state": "open", "techniques": ["unified_attention", "FA3"], "builds_on": ["PR1019"], "note": "Non-record, 1hr compute."},
+    "PR1271": {"title": "Scylla Byte Accounting Audit — Sub-1.0 Was a Measurement Error", "author": "andrewbaggio1", "score": null, "state": "open", "techniques": [], "note": "KEY FINDING: invalidated sub-1.0 Scylla claims."},
+    "PR1272": {"title": "Comprehensive Negative Results — What Doesn't Work on Strong Models", "author": "andrewbaggio1", "score": null, "state": "open", "techniques": [], "note": "Valuable negative result compilation."},
+    "PR1273": {"title": "Annealed Muon 1.58-bit Ternary", "author": "DushyantChetiwal", "score": 1.2196, "state": "open", "techniques": ["ternary", "annealed_muon"], "builds_on": ["PR640"]},
+    "PR1277": {"title": "JEPA EMA teacher + attention predictor + MLP3x", "author": "Ochakov64", "score": null, "state": "open", "techniques": ["JEPA", "EMA_teacher"], "builds_on": ["baseline"], "note": "First JEPA submission from README wishlist."},
+
+    "PR1281": {"title": "MatrixGPT — O(n) Matrix-State Recurrent LM", "author": "rlphlrnrys", "score": null, "state": "open", "techniques": ["matrix_state_recurrent"], "builds_on": ["baseline"], "note": "1.33MB artifact. Novel O(n) recurrent."},
+
+    "PR1285": {
+      "title": "MuonEq-R + Depth Recurrence + WD=0.090 + All-Int6 GPTQ",
+      "author": "dexhunter",
+      "score": 1.0912,
+      "state": "open",
+      "techniques": ["MuonEq_R", "depth_recurrence_2x", "WD_0.090", "all_int6_GPTQ"],
+      "builds_on": ["PR1260", "PR1218"]
+    },
+
+    "PR1289": {"title": "PROTEUS v1.6 — Scylla + Parallel Residuals", "author": "MatoTeziTanka", "score": null, "state": "open", "techniques": ["Scylla_tokenizer", "parallel_residuals"], "builds_on": ["PR1019"]},
+
+    "PR1291": {
+      "title": "Vocab4096 + MLP4.0x + SLOT",
+      "author": "dentity007",
+      "score": 1.0925,
+      "state": "open",
+      "techniques": ["SP4096", "MLP4x", "SLOT"],
+      "builds_on": ["PR1218", "PR1176"],
+      "note": "SLOT: -0.007 BPB. Contested legality."
+    },
+
+    "PR1293": {"title": "Universal Transformer + ACT", "author": "5en5e1", "score": 1.2409, "state": "open", "techniques": ["universal_transformer", "ACT", "shared_layers_2x"], "builds_on": ["baseline"], "note": "Works at small scale but compute overhead hurts at competition scale."},
+
+    "PR1296": {
+      "title": "SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R + QK-Gain 5.0",
+      "author": "aryanbhosale",
+      "score": 1.0897,
+      "state": "open",
+      "techniques": ["SP4096", "depth_recurrence_2x", "parallel_residuals", "MuonEq_R", "QK_Gain_5.0", "XSA_all", "LeakyReLU_0.5_sq", "MLP4x", "WD_0.090", "full_GPTQ_int6", "Brotli_LZMA"],
+      "builds_on": ["PR1218", "PR1285", "PR1204", "PR1260", "PR1289", "PR1217"],
+      "note": "Clean 3-seed. No contested techniques. Excellent commit-by-commit ablation."
+    },
+
+    "PR1302": {"title": "Split-LR + N-gram Agreement + Full GPTQ", "author": "vlivashkin", "score": 1.1079, "state": "open", "techniques": ["split_LR", "ngram_agreement_loss", "full_GPTQ"], "builds_on": ["PR1019"], "note": "Novel: n-gram agreement loss during training."},
+
+    "PR1305": {"title": "Scaled Byte-level H-Net matches 4-hour subword baseline", "author": "DariusFeher", "score": null, "state": "open", "techniques": ["H_Net", "byte_level"], "builds_on": ["baseline"], "note": "H-Net from README wishlist. Matches 4hr subword at byte level."},
+    "PR1312": {"title": "JEPA-LM Latent Predictive World Model", "author": "adi-suresh01", "score": null, "state": "open", "techniques": ["JEPA", "latent_prediction"], "builds_on": ["baseline"], "note": "First explicit JEPA-LM."},
+    "PR1316": {"title": "Full-Depth MLP Megakernel + Fused Attention", "author": "AR6420", "score": null, "state": "open", "techniques": ["MLP_megakernel", "fused_attention"], "builds_on": ["PR1019"], "note": "Megakernel from README wishlist."},
+
+    "PR1318": {
+      "title": "TTT-AdamW + SLOT L-BFGS25 LogitDelta + GPTQ DAMP=0.005",
+      "author": "renqianluo",
+      "score": 1.0096,
+      "state": "open",
+      "techniques": ["TTT_AdamW", "SLOT_LBFGS_25", "logit_delta", "GPTQ_DAMP"],
+      "builds_on": ["PR1176", "PR1019"],
+      "note": "L-BFGS SLOT variant. Very aggressive SLOT optimization."
+    },
+
+    "PR1327": {"title": "BESE Tokenizer 287 vocab", "author": "mrbese", "score": 1.1276, "state": "open", "techniques": ["BESE_tokenizer", "vocab_287"], "builds_on": ["baseline"], "note": "Novel structured tokenizer with only 287 tokens."},
+
+    "PR1329": {"title": "Per-Sample SLOT + TTT + LR=0.024 + Stride=96", "author": "renqianluo", "score": 0.6361, "state": "open", "techniques": ["per_sample_SLOT", "TTT", "stride_96"], "builds_on": ["PR1318"], "note": "Most aggressive SLOT variant. Sub-0.7 BPB but legality heavily contested."},
+
+    "PR1331": {"title": "MuonEq-R + 3-Layer Recurrence + WD=0.095", "author": "dexhunter", "score": 1.0900, "state": "open", "techniques": ["MuonEq_R", "depth_recurrence_3x", "WD_0.095"], "builds_on": ["PR1285"]},
+
+    "PR1333": {"title": "SP4096 + Depth Recurrence + Parallel Residuals + Causal SLOT-16", "author": "aryanbhosale", "score": 1.0766, "state": "open", "techniques": ["SP4096", "depth_recurrence_2x", "parallel_residuals", "causal_SLOT_16"], "builds_on": ["PR1296"], "note": "Causal SLOT variant. If SLOT is ruled legal, this is strong."},
+
+    "PR1339": {"title": "SP2048 + 3-Layer Recurrence + SWA + BigramHash + Legal TTT", "author": "bigbag", "score": 1.0955, "state": "open", "techniques": ["SP2048", "depth_recurrence_3x", "SWA", "BigramHash", "legal_TTT"], "builds_on": ["PR1019"]},
+
+    "PR1340": {"title": "12L/768D Int6/LZMA + BigramHash", "author": "Rugved1817", "score": null, "state": "open", "techniques": ["12L", "768d", "int6", "LZMA"], "builds_on": ["PR1019"], "note": "12-layer 768-dim model. Unusual width."},
+
+    "PR1341": {"title": "TTT and GPTQ Are Fundamentally Incompatible", "author": "himanshudongre", "score": null, "state": "open", "techniques": [], "note": "KEY NEGATIVE RESULT. Validates abaybektursun's finding."},
+
+    "PR1342": {"title": "Mamba SSM byte260", "author": "nicholasbailey87", "score": null, "state": "open", "techniques": ["Mamba_SSM", "byte260_vocab"], "builds_on": ["baseline"], "note": "Mamba SSM exploration."},
+
+    "PR1344": {
+      "title": "SP4096 + Polar Express + MuonEq-R + Depth Recurrence",
+      "author": "Omrigotlieb",
+      "score": 1.0923,
+      "state": "open",
+      "techniques": ["SP4096", "Polar_Express_NS", "MuonEq_R", "depth_recurrence_3x"],
+      "builds_on": ["PR1285", "PR1218"],
+      "note": "Introduced Polar Express Newton-Schulz (4 minimax-optimal steps)."
+    },
+
+    "PR1354": {"title": "varlen + fused mlp + TTT", "author": "samacqua", "score": 1.1093, "state": "open", "techniques": ["variable_length", "fused_MLP", "TTT"], "builds_on": ["PR1019"]},
+    "PR1355": {"title": "Mamba-3 Hybrid + Full Hessian GPTQ + Late QAT", "author": "mradassaad", "score": null, "state": "open", "techniques": ["Mamba3", "full_GPTQ", "late_QAT"], "builds_on": ["PR1019"], "note": "SSM hybrid with GPTQ."},
+
+    "PR1364": {"title": "Pre-quant AdamW TTT + QK-Gain 4.0", "author": "stukenov", "score": 1.1025, "state": "open", "techniques": ["pre_quant_TTT_AdamW", "QK_Gain_4.0"], "builds_on": ["PR1019"]},
+    "PR1365": {"title": "HybridMamba-11 — First SSM with Parallel Associative Scan", "author": "PersusUS", "score": null, "state": "open", "techniques": ["Mamba", "parallel_associative_scan"], "builds_on": ["baseline"]},
+
+    "PR1370": {
+      "title": "PureGDN — 10L Gated DeltaNet",
+      "author": "Christopher-Lee-McClendon",
+      "score": 1.003,
+      "state": "open",
+      "techniques": ["GDN", "pure_SSM"],
+      "builds_on": ["baseline"],
+      "note": "From the TTT recipe author (more credible than PR875). Non-record. val_bpb 1.003028."
+    },
+
+    "PR1371": {"title": "Olmo Hybrid (GDN + Attention)", "author": "aarjunsrinivasan", "score": null, "state": "open", "techniques": ["GDN", "hybrid_GDN_attention"], "builds_on": ["PR1370"]},
+
+    "PR1394": {
+      "title": "SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SDClip",
+      "author": "clarkkev",
+      "score": 1.0856,
+      "date": "2026-04",
+      "state": "open",
+      "techniques": ["SP8192", "GPTQ_embeddings", "depth_recurrence_2x", "MuonEq_R", "SDClip", "full_GPTQ_int6"],
+      "builds_on": ["PR1218", "PR1204", "PR1217"],
+      "note": "FRONTIER LEADER. 5-seed. No contested techniques. Novel SDClip (entropy-based clip)."
+    },
+
+    "PR1395": {
+      "title": "SP4096 + Linear LR Warmdown + Depth Recurrence",
+      "author": "dttdrv",
+      "score": 1.0924,
+      "state": "open",
+      "techniques": ["SP4096", "linear_LR_warmdown", "depth_recurrence_2x", "parallel_residuals", "MuonEq_R"],
+      "builds_on": ["PR1019"],
+      "note": "Key finding: Linear LR warmdown reduces quant gap by 61%."
+    },
+
+    "PR1399": {
+      "title": "Pre-Quant TTT + ETLB",
+      "author": "AnubhavBharadwaaj",
+      "score": 1.0898,
+      "state": "open",
+      "techniques": ["pre_quant_TTT", "ETLB", "depth_recurrence_2x", "MuonEq_R", "Brotli_LZMA"],
+      "builds_on": ["PR1285", "PR549"],
+      "note": "DISPUTED: artifact size may exceed 16MB cap. ETLB legality contested."
+    },
+
+    "PR1400": {"title": "Hadamard-Rotated GPTQ + dTTT + Recur2", "author": "tmancino", "score": 1.1035, "state": "open", "techniques": ["Hadamard_rotation_GPTQ", "dynamic_TTT", "depth_recurrence_2x"], "builds_on": ["PR1019"]},
+    "PR1403": {"title": "MDLM Masked Diffusion", "author": "Rhoahndur", "score": 1.3485, "state": "open", "techniques": ["masked_diffusion", "MDLM"], "builds_on": ["baseline"], "note": "First text diffusion submission from README wishlist."},
+    "PR1404": {"title": "S4D-style SSM hybrid + attention anchors", "author": "greqone", "score": null, "state": "open", "techniques": ["S4D_SSM", "attention_anchors"], "builds_on": ["baseline"]},
+    "PR1405": {"title": "Scylla + GPTQ + BigramHash 3072", "author": "anthony-maio", "score": 1.0856, "state": "open", "techniques": ["Scylla_tokenizer", "full_GPTQ", "BigramHash_3072"], "builds_on": ["PR1019"]},
+    "PR1406": {"title": "11L Depth Recurrence + Discriminative Pre-Quant TTT", "author": "aamodbhatt", "score": 1.0887, "state": "open", "techniques": ["depth_recurrence", "discriminative_TTT", "pre_quant_TTT"], "builds_on": ["PR1019"]}
+  },
+
+  "technique_catalog": {
+    "quantization": ["int8_zlib", "int6_STE_QAT", "int5_MLP", "mixed_int5_int6", "GPTQ_lite", "full_hessian_GPTQ", "AR_selfgen_GPTQ", "GPTQ_embeddings", "SDClip", "ternary_bitnet_1.58", "binary_1bit", "FP8_QAT", "Hadamard_rotation_GPTQ", "late_QAT"],
+    "architecture": ["MLP3x", "MLP4x", "UNet_skips", "SmearGate", "BigramHash", "XSA_partial", "XSA_all", "VE128", "partial_RoPE", "LN_scale", "depth_recurrence", "parallel_residuals", "memory_tokens", "GDN", "soft_MoE", "universal_transformer", "factored_embedding", "Scylla_tokenizer"],
+    "activation": ["ReLU2", "LeakyReLU_0.5_sq", "SwiGLU"],
+    "training": ["Muon", "MuonEq_R", "NeoMuon", "parallel_muon", "parameter_banking", "Muon_WD", "EMA", "SWA", "tight_SWA", "OrthoInit", "warmdown", "linear_LR_warmdown", "Polar_Express_NS", "ngram_agreement_loss", "adaptive_markov_curriculum"],
+    "eval": ["sliding_window_eval", "legal_TTT_score_first", "LoRA_TTT_batched", "SLOT", "causal_SLOT", "per_sample_SLOT", "ETLB", "pre_quant_TTT", "discriminative_TTT", "ngram_backoff", "temp_scaling"],
+    "tokenization": ["SP1024", "SP2048", "SP4096", "SP8192", "BESE_tokenizer", "byte260"],
+    "compression": ["zlib", "zstd_22", "LZMA", "Brotli", "base3_LZMA", "selective_pruning"],
+    "novel_architectures": ["Mamba_SSM", "H_Net", "JEPA", "masked_diffusion", "matrix_state_recurrent", "S4D_SSM", "MLP_megakernel"]
+  },
+
+  "key_negative_results": [
+    {"pr": "PR363", "finding": "SmearGate hurts looped/depth-recurrent architectures"},
+    {"pr": "PR989", "finding": "SWA sabotages QAT (-3.64 mBPB)"},
+    {"pr": "PR1341", "finding": "TTT and GPTQ are fundamentally incompatible"},
+    {"pr": "PR1271", "finding": "Sub-1.0 Scylla claims were measurement errors"},
+    {"pr": "PR875", "finding": "GDN 1.0226 claim invalid (5 bugs)"},
+    {"pr": "PR212", "finding": "Codebook quantization, magnitude pruning, multi-token prediction, embedding factorization — all negative"},
+    {"pr": "PR609", "finding": "TrigramHash improves raw BPB but hurts compression (net negative)"},
+    {"pr": "PR609", "finding": "Extended context eval catastrophically fails (RoPE breaks past training length)"},
+    {"pr": "PR609", "finding": "Value Residual Learning conflicts with VE128"},
+    {"pr": "FP16 embed", "finding": "SwiGLU: 45% slower per step, net negative in 10 min budget"},
+    {"pr": "PR1396", "finding": "Combining PRs naively can regress (3-layer recurrence + parallel residuals conflicted)"}
+  ],
+
+  "frontier_ranking": [
+    {"pr": "PR1394", "author": "clarkkev", "score": 1.0856, "seeds": 5, "clean": true},
+    {"pr": "PR1296", "author": "aryanbhosale", "score": 1.0897, "seeds": 3, "clean": true},
+    {"pr": "PR1399", "author": "AnubhavBharadwaaj", "score": 1.0898, "seeds": 3, "clean": false, "issue": "ETLB disputed + artifact oversized"},
+    {"pr": "PR1395", "author": "dttdrv", "score": 1.0924, "seeds": 3, "clean": true},
+    {"pr": "PR1291", "author": "dentity007", "score": 1.0925, "seeds": 3, "clean": false, "issue": "SLOT disputed"},
+    {"pr": "PR1019", "author": "abaybektursun", "score": 1.1147, "seeds": 3, "clean": true, "note": "MERGED SOTA"}
+  ]
+}

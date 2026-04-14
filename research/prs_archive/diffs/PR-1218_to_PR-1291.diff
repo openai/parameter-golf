@@ -1,0 +1,161 @@
+--- PR-1218/records__track_10min_16mb__2026-04-01_Vocab4096_MLPMult4_WD085__train_gpt.py	2026-04-11 20:10:13
++++ PR-1291/records__track_10min_16mb__2026-04-03_Vocab4096_MLPMult4_SLOT_1.0925__train_gpt.py	2026-04-11 20:10:20
+@@ -46,6 +46,11 @@
+     val_loss_every = int(os.environ.get('VAL_LOSS_EVERY', 4000))
+     sliding_window_enabled = bool(int(os.environ.get('SLIDING_WINDOW_ENABLED', '1')))
+ 
++    # SLOT (per-batch delta optimization at last hidden layer)
++    slot_enabled = bool(int(os.environ.get("SLOT_ENABLED", "0")))
++    slot_lr = float(os.environ.get("SLOT_LR", 0.005))
++    slot_steps = int(os.environ.get("SLOT_STEPS", 8))
++
+     # Model architecture
+     vocab_size = int(os.environ.get('VOCAB_SIZE', 4096))
+     num_layers = int(os.environ.get('NUM_LAYERS', 11))
+@@ -638,7 +643,8 @@
+         ve_idx = self.ve_layer_indices.index(layer_idx)
+         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+ 
+-    def forward_logits(self, input_ids: Tensor) -> Tensor:
++    def forward_hidden(self, input_ids: Tensor) -> Tensor:
++        """Return final hidden states before lm_head projection."""
+         x = self.tok_emb(input_ids)
+         x = F.rms_norm(x, (x.size(-1),))
+         if self.embed_proj is not None:
+@@ -662,13 +668,20 @@
+             ve = self._get_ve(bi, input_ids, ve_cache)
+             x = self.blocks[bi](x, x0, v_embed=ve)
+         x = self.final_norm(x)
++        return x
++
++    def compute_logits(self, hidden_states: Tensor) -> Tensor:
++        """Project hidden states to logits with softcap."""
+         if self.head_proj is not None:
+-            x = self.head_proj(x)
++            hidden_states = self.head_proj(hidden_states)
+         if self.tie_embeddings:
+-            logits_proj = F.linear(x, self.tok_emb.weight)
++            logits_proj = F.linear(hidden_states, self.tok_emb.weight)
+         else:
+-            logits_proj = self.lm_head(x)
++            logits_proj = self.lm_head(hidden_states)
+         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
++
++    def forward_logits(self, input_ids: Tensor) -> Tensor:
++        return self.compute_logits(self.forward_hidden(input_ids))
+ 
+     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+         logits = self.forward_logits(input_ids)
+@@ -1376,8 +1389,103 @@
+     elapsed_ms = 1000.0 * (time.perf_counter() - t0)
+     log(f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms")
+     return val_loss, val_bpb
++
++
++def eval_val_slot(
++    h: Hyperparameters,
++    device: torch.device,
++    val_data: ValidationData,
++    eval_model: nn.Module,
++    batch_seqs: int = 32
++) -> tuple[float, float]:
++    """SLOT: per-batch delta optimization at last hidden layer.
++
++    For each batch of sliding windows:
++    1. Compute hidden states with no_grad (frozen transformer)
++    2. Optimize a small delta vector through compute_logits only
++    3. Score with the optimized delta
++
++    The delta is re-initialized to zeros for each new batch.
++    Only already-scored tokens contribute to the loss.
++    Full normalized softmax distributions throughout.
++    """
++    eval_model.eval()
++    log(f"slot:starting lr={h.slot_lr} steps={h.slot_steps}")
++
++    seq_len = h.eval_seq_len
++    stride = h.eval_stride
++    context_size = seq_len - stride
++    total_tokens = val_data.val_tokens.numel() - 1
++
++    ws_list = [ws for ws in range(0, total_tokens, stride)
++               if ws + context_size < total_tokens]
++
++    my_s = (len(ws_list) * h.rank) // h.world_size
++    my_e = (len(ws_list) * (h.rank + 1)) // h.world_size
++    my_ws = ws_list[my_s:my_e]
++
++    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
++    token_count = torch.zeros((), device=device, dtype=torch.float64)
++    byte_count = torch.zeros((), device=device, dtype=torch.float64)
++
++    for bi in range(0, len(my_ws), batch_seqs):
++        batch_ws = my_ws[bi:bi + batch_seqs]
++        bsz = len(batch_ws)
++
++        xb = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
++        yb = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
++        wlens: list[int] = []
++
++        for i, ws in enumerate(batch_ws):
++            end = min(ws + seq_len, total_tokens)
++            wl = end - ws
++            wlens.append(wl)
++            chunk = val_data.val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
++            xb[i, :wl] = chunk[:-1]
++            yb[i, :wl] = chunk[1:]
++
++        # Step 1: Compute hidden states (frozen, no grad)
++        with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
++            H = eval_model.forward_hidden(xb)
++        H = H.detach().float()
++
++        # Step 2: Optimize delta through compute_logits only
++        delta = torch.zeros(1, 1, H.shape[-1], device=device, dtype=H.dtype, requires_grad=True)
++        sopt = torch.optim.AdamW([delta], lr=h.slot_lr, weight_decay=1e-8, eps=1e-5)
++        for _ in range(h.slot_steps):
++            sopt.zero_grad()
++            lg = eval_model.compute_logits((H + delta).to(torch.bfloat16)).float()
++            loss_s = F.cross_entropy(lg.reshape(-1, lg.size(-1)), yb.reshape(-1), reduction="mean")
++            loss_s.backward()
++            sopt.step()
++
++        # Step 3: Score with optimized delta
++        with torch.no_grad():
++            lg = eval_model.compute_logits((H + delta.detach()).to(torch.bfloat16)).float()
++        nll = F.cross_entropy(
++            lg.reshape(-1, lg.size(-1)), yb.reshape(-1), reduction="none"
++        ).reshape(bsz, seq_len)
++
++        for i, ws in enumerate(batch_ws):
++            wl = wlens[i]
++            s = 0 if ws == 0 else context_size
++            loss_sum += nll[i, s:wl].to(torch.float64).sum()
++            token_count += float(wl - s)
++            tgt = yb[i, s:wl]
++            prev = xb[i, s:wl]
++            tb = val_data.base_bytes_lut[tgt].to(torch.float64)
++            tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
++            byte_count += tb.sum()
+ 
++    if dist.is_available() and dist.is_initialized():
++        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
++        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
++        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+ 
++    eval_model.train()
++    return _loss_bpb(loss_sum, token_count, byte_count)
++
++
+ def run_evals(
+     h: Hyperparameters,
+     device: torch.device,
+@@ -1388,6 +1496,8 @@
+     timed_eval("final_int6_roundtrip", eval_val, h, device, val_data, compiled_model)
+     if h.sliding_window_enabled:
+         timed_eval("final_int6_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
++    if h.slot_enabled:
++        timed_eval("final_slot", eval_val_slot, h, device, val_data, eval_model)
+ 
+ # -----------------------------
+ # Training

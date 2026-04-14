@@ -1,0 +1,9 @@
+{
+  "name": "Lucas Ercolano",
+  "github_id": "LucasErcolano",
+  "val_bpb": 0.416182,
+  "best_val_bpb": 0.415507,
+  "hardware": "8xH100 SXM",
+  "time_seconds": 600,
+  "artifact_size_bytes": 15623718
+}

@@ -1,0 +1,73 @@
+--- baseline.py
++++ 2026-03-18_FP16Embed_WD3600.py
+@@ -47,6 +47,7 @@
+     model_dim = int(os.environ.get('MODEL_DIM', 512))
+     num_heads = int(os.environ.get('NUM_HEADS', 8))
+     mlp_mult = int(os.environ.get('MLP_MULT', 2))
++    mlp_hidden = int(os.environ.get('MLP_HIDDEN', 0))
+     tie_embeddings = bool(int(os.environ.get('TIE_EMBEDDINGS', '1')))
+     rope_base = float(os.environ.get('ROPE_BASE', 10000.0))
+     logit_softcap = float(os.environ.get('LOGIT_SOFTCAP', 30.0))
+@@ -245,7 +246,7 @@
+             passthrough[name] = t
+             stats['int8_payload_bytes'] += tensor_nbytes(t)
+             continue
+-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
++        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL or name == 'tok_emb.weight':
+             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+             passthrough[name] = kept
+             stats['int8_payload_bytes'] += tensor_nbytes(kept)
+@@ -432,9 +433,9 @@
+ 
+ class MLP(nn.Module):
+ 
+-    def __init__(self, dim: int, mlp_mult: int):
++    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int=0):
+         super().__init__()
+-        hidden = mlp_mult * dim
++        hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
+         self.fc = CastedLinear(dim, hidden, bias=False)
+         self.proj = CastedLinear(hidden, dim, bias=False)
+         self.proj._zero_init = True
+@@ -445,12 +446,12 @@
+ 
+ class Block(nn.Module):
+ 
+-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float):
++    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, rope_base: float, qk_gain_init: float, mlp_hidden: int=0):
+         super().__init__()
+         self.attn_norm = RMSNorm()
+         self.mlp_norm = RMSNorm()
+         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+-        self.mlp = MLP(dim, mlp_mult)
++        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden)
+         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+@@ -465,7 +466,7 @@
+ 
+ class GPT(nn.Module):
+ 
+-    def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float, rope_base: float, qk_gain_init: float):
++    def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float, rope_base: float, qk_gain_init: float, mlp_hidden: int=0):
+         super().__init__()
+         if logit_softcap <= 0.0:
+             raise ValueError(f'logit_softcap must be positive, got {logit_softcap}')
+@@ -477,7 +478,7 @@
+         self.num_decoder_layers = num_layers - self.num_encoder_layers
+         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+-        self.blocks = nn.ModuleList([Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init) for i in range(num_layers)])
++        self.blocks = nn.ModuleList([Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, mlp_hidden=mlp_hidden) for i in range(num_layers)])
+         self.final_norm = RMSNorm()
+         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+         if self.lm_head is not None:
+@@ -580,7 +581,7 @@
+     log0(f'val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}')
+     log0(f'train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}')
+     log0(f'val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}')
+-    base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init).to(device).bfloat16()
++    base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, mlp_hidden=args.mlp_hidden).to(device).bfloat16()
+     for module in base_model.modules():
+         if isinstance(module, CastedLinear):
+             module.float()

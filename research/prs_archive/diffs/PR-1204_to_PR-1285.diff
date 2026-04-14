@@ -1,0 +1,1092 @@
+--- PR-1204/records__track_10min_16mb__2026-03-31_ParallelResiduals_MiniDepthRecurrence__train_gpt.py	2026-04-11 20:10:16
++++ PR-1285/records__track_10min_16mb__2026-04-03_MuonEqR_DepthRecurrence_WD090_AllInt6__train_gpt.py	2026-04-11 20:10:20
+@@ -1,880 +1,209 @@
+-from __future__ import annotations
+-_i='passthrough_ctrl'
+-_h='passthrough_orig_dtypes'
+-_g='dtypes'
+-_f='scales'
+-_e='quantized'
+-_d='per_row'
+-_c='scheme'
+-_b='torch.'
+-_a='momentum'
+-_Z='shard_mom'
+-_Y='padded_grad'
+-_X='fineweb_train_*.bin'
+-_W='little'
+-_V='.scale'
+-_U='mlp_down_bank'
+-_T='mlp_up_bank'
+-_S='kv_bank'
+-_R='qo_bank'
+-_Q='<u2'
+-_P='cpu'
+-_O='shard'
+-_N='_save_gptq'
+-_M='<i4'
+-_L='passthrough'
+-_K='scale'
+-_J='full_update'
+-_I='utf-8'
+-_H='lr'
+-_G='params'
+-_F='cuda'
+-_E=.0
+-_D=1.
+-_C=False
+-_B=True
+-_A=None
+-import copy,glob,io,brotli,math,os,random,subprocess,sys,time,uuid
+-from pathlib import Path
+-import numpy as np,sentencepiece as spm,torch,torch.distributed as dist,torch.nn.functional as F
+-from torch import Tensor,nn
+-from torch.nn.parallel import DistributedDataParallel as DDP
+-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+-def _byte_shuffle(data,stride=2):
+-	n=len(data);arr=bytearray(n);dst=0
+-	for s in range(stride):
+-		for i in range(s,n,stride):arr[dst]=data[i];dst+=1
+-	return b'BSHF'+stride.to_bytes(2,_W)+bytes(arr)
+-def _byte_unshuffle(data):
+-	if data[:4]!=b'BSHF':return data
+-	stride=int.from_bytes(data[4:6],_W);payload=data[6:];n=len(payload);arr=bytearray(n);src=0
+-	for s in range(stride):
+-		for i in range(s,n,stride):arr[i]=payload[src];src+=1
+-	return bytes(arr)
+-class Hyperparameters:data_path=os.environ.get('DATA_PATH','./data/datasets/fineweb10B_sp1024');train_files=os.path.join(data_path,_X);val_files=os.path.join(data_path,'fineweb_val_*.bin');tokenizer_path=os.environ.get('TOKENIZER_PATH','./data/tokenizers/fineweb_1024_bpe.model');run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));seed=int(os.environ.get('SEED',1337));val_batch_size=int(os.environ.get('VAL_BATCH_SIZE',524288));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_iters=int(os.environ.get('WARMDOWN_ITERS',3500));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',1.5));vocab_size=int(os.environ.get('VOCAB_SIZE',1024));num_layers=int(os.environ.get('NUM_LAYERS',11));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));model_dim=int(os.environ.get('MODEL_DIM',512));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',3.));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));rope_base=float(os.environ.get('ROPE_BASE',1e4));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.035));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.03));matrix_lr_early=float(os.environ.get('MATRIX_LR_EARLY',.025));matrix_lr_late=float(os.environ.get('MATRIX_LR_LATE',.03));bank_split=int(os.environ.get('BANK_SPLIT',5));scalar_lr=float(os.environ.get('SCALAR_LR',.025));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));swa_enabled=bool(int(os.environ.get('SWA_ENABLED','1')));swa_every=int(os.environ.get('SWA_EVERY',50));muon_wd=float(os.environ.get('MUON_WD',.04));adam_wd=float(os.environ.get('ADAM_WD',.04));bigram_vocab_size=int(os.environ.get('BIGRAM_VOCAB_SIZE',2816));bigram_dim=int(os.environ.get('BIGRAM_DIM',112));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));rope_dims=int(os.environ.get('ROPE_DIMS',16));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));ve_enabled=bool(int(os.environ.get('VE_ENABLED','1')));ve_dim=int(os.environ.get('VE_DIM',128));ve_layers=os.environ.get('VE_LAYERS','9,10');canon_ac_layers=os.environ.get('CANON_AC_LAYERS','').strip();parallel_residual=bool(int(os.environ.get('PARALLEL_RESIDUAL','0')));parallel_start_layer=int(os.environ.get('PARALLEL_START_LAYER','7'));parallel_start_layer_is_physical=bool(int(os.environ.get('PARALLEL_START_LAYER_IS_PHYSICAL','1')));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.002));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));ttt_freeze_blocks=int(os.environ.get('TTT_FREEZE_BLOCKS',2));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_batch_seqs=int(os.environ.get('TTT_BATCH_SEQS',32));ttt_grad_clip=float(os.environ.get('TTT_GRAD_CLIP',_D));negative_slope=float(os.environ.get('NEGATIVE_SLOPE',.5));use_gptq=bool(int(os.environ.get('USE_GPTQ','1')));post_gptq_eval_only=bool(int(os.environ.get('POST_GPTQ_EVAL_ONLY','0')));gptq_ar_selfgen=bool(int(os.environ.get('GPTQ_AR_SELFGEN','1')));gptq_temperature=float(os.environ.get('GPTQ_TEMPERATURE','.8'));gptq_batch_size=int(os.environ.get('GPTQ_BATCH_SIZE','8'));gptq_calib_samples=int(os.environ.get('GPTQ_CALIB_SAMPLES','64'));gptq_reserve_ms=float(os.environ.get('GPTQ_RESERVE_MS','0'));late_qat_threshold=float(os.environ.get('LATE_QAT_THRESHOLD',.15));quant_clip_range=int(os.environ.get('QUANT_CLIP_RANGE',31));mixed_quant=bool(int(os.environ.get('MIXED_QUANT','1')));n_int6_layers=int(os.environ.get('N_INT6_LAYERS','10'));disable_layer0_attn=bool(int(os.environ.get('DISABLE_LAYER0_ATTN','0')));recur_layers_str=os.environ.get('RECUR_LAYERS','').strip();recur_start_step=int(os.environ.get('RECUR_START_STEP',3000));repeat_untie_mlp=os.environ.get('REPEAT_UNTIE_MLP','none').strip().lower();repeat_untie_mlp_layers=os.environ.get('REPEAT_UNTIE_MLP_LAYERS','').strip();slot_enabled=bool(int(os.environ.get('SLOT_ENABLED','0')));slot_lr=float(os.environ.get('SLOT_LR',.003));slot_steps=int(os.environ.get('SLOT_STEPS',5))
+-def zeropower_via_newtonschulz5(G,steps=5,eps=1e-07):
+-	a,b,c=3.4445,-4.775,2.0315;was_2d=G.ndim==2
+-	if was_2d:G=G.unsqueeze(0)
+-	X=G.bfloat16();transposed=X.size(-2)>X.size(-1)
+-	if transposed:X=X.mT
+-	X=X/(X.norm(dim=(-2,-1),keepdim=_B)+eps)
+-	for _ in range(steps):A=X@X.mT;B=b*A+c*(A@A);X=a*X+B@X
+-	if transposed:X=X.mT
+-	if was_2d:X=X.squeeze(0)
+-	return X
+-class Muon(torch.optim.Optimizer):
+-	def __init__(self,params,lr,momentum,backend_steps,nesterov=_B,weight_decay=_E):super().__init__(params,dict(lr=lr,momentum=momentum,backend_steps=backend_steps,nesterov=nesterov,weight_decay=weight_decay));self._built=_C
+-	def _build(self):
+-		self._distributed=dist.is_available()and dist.is_initialized();self._world_size=dist.get_world_size()if self._distributed else 1;self._rank=dist.get_rank()if self._distributed else 0;ws=self._world_size;self._bank_meta=[]
+-		for group in self.param_groups:
+-			for p in group[_G]:B=p.shape[0];padded_B=(B+ws-1)//ws*ws;shard_B=padded_B//ws;tail=p.shape[1:];dev=p.device;self._bank_meta.append({'p':p,'B':B,_Y:torch.zeros(padded_B,*tail,device=dev,dtype=torch.bfloat16),_O:torch.zeros(shard_B,*tail,device=dev,dtype=torch.bfloat16),_Z:torch.zeros(shard_B,*tail,device=dev,dtype=torch.bfloat16),_J:torch.zeros(padded_B,*tail,device=dev,dtype=torch.bfloat16),_K:max(1,p.shape[-2]/p.shape[-1])**.5})
+-		self._bank_meta.sort(key=lambda m:-m['p'].numel());self._built=_B
+-	def launch_reduce_scatters(self):
+-		if not self._built:self._build()
+-		if not self._distributed:return
+-		self._rs_futures=[]
+-		for m in self._bank_meta:
+-			p=m['p']
+-			if p.grad is _A:self._rs_futures.append(_A);continue
+-			pg=m[_Y];pg[:m['B']].copy_(p.grad.bfloat16())
+-			if pg.shape[0]>m['B']:pg[m['B']:].zero_()
+-			fut=dist.reduce_scatter_tensor(m[_O],pg,op=dist.ReduceOp.AVG,async_op=_B);self._rs_futures.append(fut)
+-	@torch.no_grad()
+-	def step(self,closure=_A):
+-		B='_rs_futures';A='momentum_buffer';loss=_A
+-		if closure is not _A:
+-			with torch.enable_grad():loss=closure()
+-		if not self._built:self._build()
+-		for group in self.param_groups:
+-			lr=group[_H];momentum=group[_a];backend_steps=group['backend_steps'];nesterov=group['nesterov'];wd=group.get('weight_decay',_E);prev_ag_handle=_A;prev_m=_A;sharded=self._distributed and hasattr(self,B)
+-			for(i,m)in enumerate(self._bank_meta):
+-				p=m['p']
+-				if p.grad is _A:continue
+-				if prev_ag_handle is not _A:
+-					prev_ag_handle.wait();pp=prev_m['p'];upd=prev_m[_J][:prev_m['B']]
+-					if wd>_E:pp.data.mul_(_D-lr*wd)
+-					pp.add_(upd.to(dtype=pp.dtype),alpha=-lr*prev_m[_K])
+-				if sharded and self._rs_futures[i]is not _A:self._rs_futures[i].wait();g=m[_O];buf=m[_Z]
+-				else:
+-					g=p.grad.bfloat16();state=self.state[p]
+-					if A not in state:state[A]=torch.zeros_like(g)
+-					buf=state[A]
+-				buf.mul_(momentum).add_(g)
+-				if nesterov:update=g.add(buf,alpha=momentum)
+-				else:update=buf
+-				update=zeropower_via_newtonschulz5(update,steps=backend_steps)
+-				if sharded:prev_ag_handle=dist.all_gather_into_tensor(m[_J],update,async_op=_B);prev_m=m
+-				else:
+-					if wd>_E:p.data.mul_(_D-lr*wd)
+-					p.add_(update.to(dtype=p.dtype),alpha=-lr*m[_K])
+-			if prev_ag_handle is not _A:
+-				prev_ag_handle.wait();pp=prev_m['p'];upd=prev_m[_J][:prev_m['B']]
+-				if wd>_E:pp.data.mul_(_D-lr*wd)
+-				pp.add_(upd.to(dtype=pp.dtype),alpha=-lr*prev_m[_K])
+-			if hasattr(self,B):del self._rs_futures
+-		return loss
+-def build_sentencepiece_luts(sp,vocab_size,device):
+-	sp_vocab_size=int(sp.vocab_size());table_size=max(sp_vocab_size,vocab_size);base_bytes_np=np.zeros((table_size,),dtype=np.int16);has_leading_space_np=np.zeros((table_size,),dtype=np.bool_);is_boundary_token_np=np.ones((table_size,),dtype=np.bool_)
+-	for token_id in range(sp_vocab_size):
+-		if sp.is_control(token_id)or sp.is_unknown(token_id)or sp.is_unused(token_id):continue
+-		is_boundary_token_np[token_id]=_C
+-		if sp.is_byte(token_id):base_bytes_np[token_id]=1;continue
+-		piece=sp.id_to_piece(token_id)
+-		if piece.startswith('▁'):has_leading_space_np[token_id]=_B;piece=piece[1:]
+-		base_bytes_np[token_id]=len(piece.encode(_I))
+-	return torch.tensor(base_bytes_np,dtype=torch.int16,device=device),torch.tensor(has_leading_space_np,dtype=torch.bool,device=device),torch.tensor(is_boundary_token_np,dtype=torch.bool,device=device)
+-def load_validation_tokens(pattern,seq_len):
+-	files=[Path(p)for p in sorted(glob.glob(pattern))]
+-	if not files:raise FileNotFoundError(f"No files found for pattern: {pattern}")
+-	tokens=torch.cat([load_data_shard(file)for file in files]).contiguous();usable=(tokens.numel()-1)//seq_len*seq_len
+-	if usable<=0:raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
+-	return tokens[:usable+1]
+-def eval_val(args,model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,eval_seq_len=_A):
+-	seq_len=eval_seq_len or args.train_seq_len;local_batch_tokens=args.val_batch_size//(world_size*grad_accum_steps)
+-	if local_batch_tokens<seq_len:raise ValueError(f"VAL_BATCH_SIZE must provide at least one sequence per rank; got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, GRAD_ACCUM_STEPS={grad_accum_steps}, seq_len={seq_len}")
+-	local_batch_seqs=local_batch_tokens//seq_len;total_seqs=(val_tokens.numel()-1)//seq_len;seq_start=total_seqs*rank//world_size;seq_end=total_seqs*(rank+1)//world_size;val_loss_sum=torch.zeros((),device=device,dtype=torch.float64);val_token_count=torch.zeros((),device=device,dtype=torch.float64);val_byte_count=torch.zeros((),device=device,dtype=torch.float64);model.eval()
+-	with torch.inference_mode():
+-		for batch_seq_start in range(seq_start,seq_end,local_batch_seqs):
+-			batch_seq_end=min(batch_seq_start+local_batch_seqs,seq_end);raw_start=batch_seq_start*seq_len;raw_end=batch_seq_end*seq_len+1;local=val_tokens[raw_start:raw_end].to(device=device,dtype=torch.int64,non_blocking=_B);x=local[:-1].reshape(-1,seq_len);y=local[1:].reshape(-1,seq_len)
+-			with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):batch_loss=model(x,y).detach()
+-			batch_token_count=float(y.numel());val_loss_sum+=batch_loss.to(torch.float64)*batch_token_count;val_token_count+=batch_token_count;prev_ids=x.reshape(-1);tgt_ids=y.reshape(-1);token_bytes=base_bytes_lut[tgt_ids].to(dtype=torch.int16);token_bytes+=(has_leading_space_lut[tgt_ids]&~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16);val_byte_count+=token_bytes.to(torch.float64).sum()
+-	if dist.is_available()and dist.is_initialized():dist.all_reduce(val_loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(val_token_count,op=dist.ReduceOp.SUM);dist.all_reduce(val_byte_count,op=dist.ReduceOp.SUM)
+-	val_loss=val_loss_sum/val_token_count;bits_per_token=val_loss.item()/math.log(2.);tokens_per_byte=val_token_count.item()/val_byte_count.item();model.train();return float(val_loss.item()),float(bits_per_token*tokens_per_byte)
+-CONTROL_TENSOR_NAME_PATTERNS=tuple(pattern for pattern in os.environ.get('CONTROL_TENSOR_NAME_PATTERNS','attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,smear,dtg_gate,ve_layer_scales,ve_shared.scale,attn_gate,vr_lambda,parallel_post_lambdas,parallel_resid_lambdas').split(',')if pattern)
+-INT8_KEEP_FLOAT_FP32_NAME_PATTERNS=tuple(pattern for pattern in os.environ.get('INT8_KEEP_FLOAT_FP32_NAME_PATTERNS',','.join(CONTROL_TENSOR_NAME_PATTERNS)).split(',')if pattern)
+-INT8_KEEP_FLOAT_MAX_NUMEL=65536
+-INT8_KEEP_FLOAT_STORE_DTYPE=torch.float16
+-INT8_PER_ROW_SCALE_DTYPE=torch.float16
+-INT8_CLIP_PERCENTILE=99.99984
+-INT8_CLIP_Q=INT8_CLIP_PERCENTILE/1e2
+-def tensor_nbytes(t):return int(t.numel())*int(t.element_size())
+-def keep_float_tensor(name,t,passthrough_orig_dtypes):
+-	if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):return t.float().contiguous()
+-	if t.dtype in{torch.float32,torch.bfloat16}:passthrough_orig_dtypes[name]=str(t.dtype).removeprefix(_b);return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+-	return t
+-def quantize_float_tensor(t):
+-	t32=t.float()
+-	if t32.ndim==2:clip_abs=torch.quantile(t32.abs(),INT8_CLIP_Q,dim=1)if t32.numel()else torch.empty((t32.shape[0],),dtype=torch.float32);clipped=torch.maximum(torch.minimum(t32,clip_abs[:,_A]),-clip_abs[:,_A]);scale=(clip_abs/127.).clamp_min(_D/127.);q=torch.clamp(torch.round(clipped/scale[:,_A]),-127,127).to(torch.int8).contiguous();return q,scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+-	clip_abs=float(torch.quantile(t32.abs().flatten(),INT8_CLIP_Q).item())if t32.numel()else _E;scale=torch.tensor(clip_abs/127. if clip_abs>0 else _D,dtype=torch.float32);q=torch.clamp(torch.round(torch.clamp(t32,-clip_abs,clip_abs)/scale),-127,127).to(torch.int8).contiguous();return q,scale
+-def quantize_state_dict_int8(state_dict):
+-	F='baseline_tensor_bytes';E='num_nonfloat_tensors';D='num_float_tensors';C='num_tensors';B='param_count';A='int8_payload_bytes';quantized={};scales={};dtypes={};passthrough={};passthrough_orig_dtypes={};qmeta={};stats=dict.fromkeys((B,C,D,E,F,A),0)
+-	for(name,tensor)in state_dict.items():
+-		t=tensor.detach().to(_P).contiguous();stats[B]+=int(t.numel());stats[C]+=1;stats[F]+=tensor_nbytes(t)
+-		if not t.is_floating_point():stats[E]+=1;passthrough[name]=t;stats[A]+=tensor_nbytes(t);continue
+-		if t.numel()<=INT8_KEEP_FLOAT_MAX_NUMEL:kept=keep_float_tensor(name,t,passthrough_orig_dtypes);passthrough[name]=kept;stats[A]+=tensor_nbytes(kept);continue
+-		stats[D]+=1;q,s=quantize_float_tensor(t)
+-		if s.ndim>0:qmeta[name]={_c:_d,'axis':0}
+-		quantized[name]=q;scales[name]=s;dtypes[name]=str(t.dtype).removeprefix(_b);stats[A]+=tensor_nbytes(q)+tensor_nbytes(s)
+-	obj={'__quant_format__':'int8_clean_per_row_v1',_e:quantized,_f:scales,_g:dtypes,_L:passthrough}
+-	if qmeta:obj['qmeta']=qmeta
+-	if passthrough_orig_dtypes:obj[_h]=passthrough_orig_dtypes
+-	return obj,stats
+-def dequantize_state_dict_int8(obj):
+-	out={};qmeta=obj.get('qmeta',{});passthrough_orig_dtypes=obj.get(_h,{})
+-	for(name,q)in obj[_e].items():
+-		dtype=getattr(torch,obj[_g][name]);s=obj[_f][name]
+-		if qmeta.get(name,{}).get(_c)==_d or s.ndim>0:s=s.to(dtype=torch.float32);out[name]=(q.float()*s.view(q.shape[0],*[1]*(q.ndim-1))).to(dtype=dtype).contiguous()
+-		else:scale=float(s.item());out[name]=(q.float()*scale).to(dtype=dtype).contiguous()
+-	for(name,t)in obj[_L].items():
+-		out_t=t.detach().to(_P).contiguous();orig_dtype=passthrough_orig_dtypes.get(name)
+-		if isinstance(orig_dtype,str):out_t=out_t.to(dtype=getattr(torch,orig_dtype)).contiguous()
+-		out[name]=out_t
+-	return out
+-def load_data_shard(file):
+-	header_bytes=256*np.dtype(_M).itemsize;token_bytes=np.dtype(_Q).itemsize;header=np.fromfile(file,dtype=_M,count=256)
+-	if header.size!=256 or int(header[0])!=20240520 or int(header[1])!=1:raise ValueError(f"Unexpected shard header for {file}")
+-	num_tokens=int(header[2]);expected_size=header_bytes+num_tokens*token_bytes
+-	if file.stat().st_size!=expected_size:raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+-	tokens_np=np.fromfile(file,dtype=_Q,count=num_tokens,offset=header_bytes)
+-	if tokens_np.size!=num_tokens:raise ValueError(f"Short read for {file}")
+-	return torch.from_numpy(tokens_np.astype(np.uint16,copy=_C))
+-_SHARD_HEADER_BYTES=256*np.dtype(_M).itemsize
+-_SHARD_NTOKENS_CACHE={}
+-_MMAP_CACHE={}
+-def _read_num_tokens(file):
+-	key=str(file);cached=_SHARD_NTOKENS_CACHE.get(key)
+-	if cached is not _A:return cached
+-	header=np.fromfile(file,dtype=_M,count=256)
+-	if header.size!=256 or int(header[0])!=20240520 or int(header[1])!=1:raise ValueError(f"Unexpected shard header for {file}")
+-	n=int(header[2]);_SHARD_NTOKENS_CACHE[key]=n;return n
+-def _get_shard_memmap(file):
+-	key=str(file);mm=_MMAP_CACHE.get(key)
+-	if mm is not _A:return mm
+-	n=_read_num_tokens(file);mm=np.memmap(file,mode='r',dtype=_Q,offset=_SHARD_HEADER_BYTES,shape=(n,));_MMAP_CACHE[key]=mm;return mm
+-class DistributedTokenLoader:
+-	def __init__(self,pattern,rank,world_size,device):
+-		self.rank=rank;self.world_size=world_size;self.device=device;self.files=[Path(p)for p in sorted(glob.glob(pattern))]
+-		if not self.files:raise FileNotFoundError(f"No files found for pattern: {pattern}")
+-		self._num_tokens=np.array([_read_num_tokens(f)for f in self.files],dtype=np.int64);seed=0
+-		for f in self.files:
+-			for b in str(f).encode():seed=(seed^b)*1099511628211&0xffffffffffffffff
+-		self._rng=np.random.Generator(np.random.PCG64(seed));self._cfg=_A;self._eligible_shards=_A;self._base_block_counts=_A;n=len(self.files);self._cursor_phase=np.zeros(n,dtype=np.int64);self._cursor_block_count=np.zeros(n,dtype=np.int64);self._cursor_next=np.zeros(n,dtype=np.int64);self._cursor_start=np.zeros(n,dtype=np.int64);self._cursor_stride=np.ones(n,dtype=np.int64);self._cursor_init=np.zeros(n,dtype=np.bool_);self._batches_built=0
+-	def _pick_coprime_stride(self,n):
+-		if n<=1:return 1
+-		while _B:
+-			s=int(self._rng.integers(1,n))
+-			if math.gcd(s,n)==1:return s
+-	def _reset_cursor(self,si,seq_len):nt=int(self._num_tokens[si]);max_phase=min(seq_len-1,max(0,nt-seq_len-1));phase=int(self._rng.integers(max_phase+1))if max_phase>0 else 0;bc=(nt-1-phase)//seq_len;self._cursor_phase[si]=phase;self._cursor_block_count[si]=bc;self._cursor_next[si]=0;self._cursor_start[si]=int(self._rng.integers(bc))if bc>1 else 0;self._cursor_stride[si]=self._pick_coprime_stride(bc);self._cursor_init[si]=_B
+-	def _ensure_cursor(self,si,seq_len):
+-		if not self._cursor_init[si]or self._cursor_next[si]>=self._cursor_block_count[si]:self._reset_cursor(si,seq_len)
+-	def _take_from_shard(self,si,seq_len,count,out):
+-		rem=count
+-		while rem>0:
+-			self._ensure_cursor(si,seq_len);bc=int(self._cursor_block_count[si]);ni=int(self._cursor_next[si]);take=min(rem,bc-ni);phase=int(self._cursor_phase[si]);start=int(self._cursor_start[si]);stride=int(self._cursor_stride[si])
+-			for j in range(take):bi=(start+(ni+j)*stride)%bc;out.append((si,phase+bi*seq_len))
+-			self._cursor_next[si]=ni+take;rem-=take
+-	def _init_pipeline(self,global_tokens,seq_len,grad_accum_steps):local_tokens=global_tokens//(self.world_size*grad_accum_steps);num_seqs=local_tokens//seq_len;global_num_seqs=num_seqs*self.world_size;self._cfg=local_tokens,seq_len,num_seqs,global_num_seqs;bbc=(self._num_tokens-1)//seq_len;eligible=bbc>0;self._eligible_shards=np.nonzero(eligible)[0].astype(np.int64);self._base_block_counts=bbc[self._eligible_shards].astype(np.int64)
+-	def _sample_global_windows(self):
+-		_,seq_len,_,gns=self._cfg;ec=int(self._eligible_shards.size);progress=min(self._batches_built/18e2,_D);remaining=np.empty(ec,dtype=np.float64)
+-		for(i,si)in enumerate(self._eligible_shards.tolist()):
+-			if self._cursor_init[si]:r=int(self._cursor_block_count[si])-int(self._cursor_next[si]);remaining[i]=float(max(r,1))
+-			else:remaining[i]=float(self._base_block_counts[i])
+-		alpha=.9-.4*progress;weights=np.power(remaining,alpha);ws=float(weights.sum())
+-		if not np.isfinite(ws)or ws<=_E:weights=np.ones(ec,dtype=np.float64);ws=float(weights.sum())
+-		probs=weights/ws;low=min(max(8,self.world_size),ec,gns);high=min(max(32,self.world_size*8),ec,gns);mix=max(1,min(int(round(low+progress*(high-low))),ec,gns));cp=self._rng.choice(ec,size=mix,replace=_C,p=probs);cs=self._eligible_shards[cp];cpr=probs[cp].copy();cpr/=cpr.sum();counts=np.ones(mix,dtype=np.int64);extra=gns-mix
+-		if extra>0:counts+=self._rng.multinomial(extra,cpr).astype(np.int64)
+-		perm=self._rng.permutation(mix);cs,counts=cs[perm],counts[perm];buckets=[]
+-		for(si,cnt)in zip(cs.tolist(),counts.tolist()):
+-			b=[];self._take_from_shard(int(si),seq_len,int(cnt),b)
+-			if b:
+-				if len(b)>1:bp=self._rng.permutation(len(b));b=[b[int(k)]for k in bp.tolist()]
+-				buckets.append(b)
+-		windows=[];active=[i for(i,bk)in enumerate(buckets)if bk]
+-		while active:
+-			order=self._rng.permutation(len(active));new_active=[]
+-			for oi in order.tolist():
+-				bi=active[oi]
+-				if buckets[bi]:windows.append(buckets[bi].pop())
+-				if buckets[bi]:new_active.append(bi)
+-			active=new_active
+-		return windows
+-	def next_batch(self,global_tokens,seq_len,grad_accum_steps):
+-		if self._cfg is _A:self._init_pipeline(global_tokens,seq_len,grad_accum_steps)
+-		_,_,num_seqs,gns=self._cfg;gw=self._sample_global_windows();local_w=gw[self.rank::self.world_size];x=torch.empty((num_seqs,seq_len),dtype=torch.int64);y=torch.empty((num_seqs,seq_len),dtype=torch.int64)
+-		for(slot,(si,pos))in enumerate(local_w):mm=_get_shard_memmap(self.files[si]);window=torch.as_tensor(np.array(mm[pos:pos+seq_len+1],dtype=np.int64));x[slot]=window[:-1];y[slot]=window[1:]
+-		self._batches_built+=1;return x.to(self.device,non_blocking=_B),y.to(self.device,non_blocking=_B)
+-class RMSNorm(nn.Module):
+-	def __init__(self,eps=_A):super().__init__();self.eps=eps
+-	def forward(self,x):return F.rms_norm(x,(x.size(-1),),eps=self.eps)
+-def apply_canon_residual(x,w):
+-	w=w.to(dtype=x.dtype);y=x*w[0][_A,_A,:]
+-	y=y+F.pad(x[:,:-1],(0,0,1,0))*w[1][_A,_A,:]
+-	y=y+F.pad(x[:,:-2],(0,0,2,0))*w[2][_A,_A,:]
+-	y=y+F.pad(x[:,:-3],(0,0,3,0))*w[3][_A,_A,:]
+-	return x+y
+-class CastedLinear(nn.Linear):
+-	_qat_enabled=_C;_qat_alpha=_D
+-	def forward(self,x):
+-		w=self.weight.to(x.dtype)
+-		if CastedLinear._qat_enabled and self.training and w.ndim==2:w32=self.weight.float();row_max=w32.abs().amax(dim=1);s=(row_max/31.).clamp_min(_D/31.);scaled=w32/s[:,_A];alpha=CastedLinear._qat_alpha;frac=scaled-scaled.floor();soft_rounded=scaled.floor()+torch.sigmoid(alpha*(frac-.5));w_q=(torch.clamp(soft_rounded,-31,31)*s[:,_A]).to(x.dtype);w=w_q
+-		bias=self.bias.to(x.dtype)if self.bias is not _A else _A;return F.linear(x,w,bias)
+-def restore_low_dim_params_to_fp32(module):
+-	with torch.no_grad():
+-		for(name,param)in module.named_parameters():
+-			if(param.ndim<2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS))and param.dtype!=torch.float32:param.data=param.data.float()
+-class Rotary(nn.Module):
+-	def __init__(self,dim,base=1e4,train_seq_len=1024,rope_dims=0):super().__init__();self.dim=dim;self.base=base;self.train_seq_len=train_seq_len;self.rope_dims=rope_dims if rope_dims>0 else dim;inv_freq=_D/base**(torch.arange(0,self.rope_dims,2,dtype=torch.float32)/self.rope_dims);self.register_buffer('inv_freq',inv_freq,persistent=_C);self._seq_len_cached=0;self._cos_cached=_A;self._sin_cached=_A
+-	def forward(self,seq_len,device,dtype):
+-		if self._cos_cached is _A or self._sin_cached is _A or self._seq_len_cached!=seq_len or self._cos_cached.device!=device:
+-			rd=self.rope_dims
+-			if seq_len>self.train_seq_len:scale=seq_len/self.train_seq_len;new_base=self.base*scale**(rd/(rd-2));inv_freq=_D/new_base**(torch.arange(0,rd,2,dtype=torch.float32,device=device)/rd)
+-			else:inv_freq=self.inv_freq.to(device)
+-			t=torch.arange(seq_len,device=device,dtype=inv_freq.dtype);freqs=torch.outer(t,inv_freq);self._cos_cached=freqs.cos()[_A,:,_A,:];self._sin_cached=freqs.sin()[_A,:,_A,:];self._seq_len_cached=seq_len
+-		return self._cos_cached.to(dtype=dtype),self._sin_cached.to(dtype=dtype)
+-def apply_rotary_emb(x,cos,sin,rope_dims=0):
+-	if rope_dims>0 and rope_dims<x.size(-1):x_rope,x_pass=x[...,:rope_dims],x[...,rope_dims:];half=rope_dims//2;x1,x2=x_rope[...,:half],x_rope[...,half:];x_rope=torch.cat((x1*cos+x2*sin,x1*-sin+x2*cos),dim=-1);return torch.cat((x_rope,x_pass),dim=-1)
+-	half=x.size(-1)//2;x1,x2=x[...,:half],x[...,half:];return torch.cat((x1*cos+x2*sin,x1*-sin+x2*cos),dim=-1)
+-class CausalSelfAttention(nn.Module):
+-	def __init__(self,dim,num_heads,num_kv_heads,rope_base,qk_gain_init):
+-		super().__init__()
+-		if dim%num_heads!=0:raise ValueError('model_dim must be divisible by num_heads')
+-		if num_heads%num_kv_heads!=0:raise ValueError('num_heads must be divisible by num_kv_heads')
+-		self.num_heads=num_heads;self.num_kv_heads=num_kv_heads;self.head_dim=dim//num_heads
+-		if self.head_dim%2!=0:raise ValueError('head_dim must be even for RoPE')
+-		self.q_gain=nn.Parameter(torch.full((num_heads,),qk_gain_init,dtype=torch.float32));self.rope_dims=0;self.rotary=Rotary(self.head_dim,base=rope_base,train_seq_len=1024);self.use_xsa=_C
+-	def _xsa_efficient(self,y,v):B,T,H,D=y.shape;Hkv=v.size(-2);group=H//Hkv;y_g=y.reshape(B,T,Hkv,group,D);vn=F.normalize(v,dim=-1).unsqueeze(-2);proj=(y_g*vn).sum(dim=-1,keepdim=_B)*vn;return(y_g-proj).reshape(B,T,H,D)
+-	def forward(self,x,q_w,k_w,v_w,out_w,v_embed=_A):
+-		if getattr(self,_N,_C):self._gptq_qkv_in=x.detach()
+-		bsz,seqlen,dim=x.shape;q=F.linear(x,q_w.to(x.dtype)).reshape(bsz,seqlen,self.num_heads,self.head_dim);k=F.linear(x,k_w.to(x.dtype)).reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);v=F.linear(x,v_w.to(x.dtype))
+-		if v_embed is not _A:v=v+v_embed
+-		v=v.reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);q=F.rms_norm(q,(q.size(-1),));k=F.rms_norm(k,(k.size(-1),));cos,sin=self.rotary(seqlen,x.device,q.dtype);q=apply_rotary_emb(q,cos,sin,self.rope_dims);k=apply_rotary_emb(k,cos,sin,self.rope_dims);q=q*self.q_gain.to(dtype=q.dtype)[_A,_A,:,_A];y=flash_attn_3_func(q,k,v,causal=_B)
+-		if self.use_xsa:y=self._xsa_efficient(y,v)
+-		y=y.reshape(bsz,seqlen,dim)
+-		if getattr(self,_N,_C):self._gptq_o_in=y.detach()
+-		return F.linear(y,out_w.to(x.dtype))
+-class SmearGate(nn.Module):
+-	def __init__(self,dim):super().__init__();self.gate=nn.Parameter(torch.zeros(dim,dtype=torch.float32))
+-	def forward(self,x):g=torch.sigmoid(self.gate.to(dtype=x.dtype))[_A,_A,:];x_prev=F.pad(x[:,:-1],(0,0,1,0));return(1-g)*x+g*x_prev
+-class BigramHashEmbedding(nn.Module):
+-	def __init__(self,bigram_vocab_size,bigram_dim,model_dim):
+-		super().__init__();self.bigram_vocab_size=bigram_vocab_size;self.embed=nn.Embedding(bigram_vocab_size,bigram_dim);nn.init.zeros_(self.embed.weight);self.proj=CastedLinear(bigram_dim,model_dim,bias=_C)if bigram_dim!=model_dim else _A
+-		if self.proj is not _A:nn.init.zeros_(self.proj.weight)
+-		self.scale=nn.Parameter(torch.tensor(.05,dtype=torch.float32))
+-	def bigram_hash(self,tokens):t=tokens.to(torch.int32);mod=self.bigram_vocab_size-1;out=torch.empty_like(t);out[...,0]=mod;out[...,1:]=torch.bitwise_xor(36313*t[...,1:],27191*t[...,:-1])%mod;return out.long()
+-	def forward(self,token_ids):
+-		h=self.embed(self.bigram_hash(token_ids))
+-		if self.proj is not _A:h=self.proj(h)
+-		return h*self.scale.to(dtype=h.dtype)
+-class ValueEmbedding(nn.Module):
+-	def __init__(self,vocab_size,ve_dim,model_dim):
+-		super().__init__();self.embed=nn.Embedding(vocab_size,ve_dim);nn.init.normal_(self.embed.weight,std=.01);self.proj=CastedLinear(ve_dim,model_dim,bias=_C)if ve_dim!=model_dim else _A
+-		if self.proj is not _A:nn.init.zeros_(self.proj.weight)
+-		self.scale=nn.Parameter(torch.tensor(.1,dtype=torch.float32))
+-	def forward(self,token_ids):
+-		h=self.embed(token_ids)
+-		if self.proj is not _A:h=self.proj(h)
+-		return h*self.scale.to(dtype=h.dtype)
+-class MLP(nn.Module):
+-	def __init__(self,dim,mlp_mult,neg_slope=.5):super().__init__();self.neg_slope=neg_slope
+-	def forward(self,x,up_w,down_w):
+-		if getattr(self,_N,_C):self._gptq_up_in=x.detach()
+-		x=F.leaky_relu(F.linear(x,up_w.to(x.dtype)),negative_slope=self.neg_slope);x2=x.square()
+-		if getattr(self,_N,_C):self._gptq_down_in=x2.detach()
+-		return F.linear(x2,down_w.to(x.dtype))
+-class RepeatMLPWeights(nn.Module):
+-	def __init__(self,dim,mlp_mult,mode):
+-		super().__init__();mlp_dim=int(mlp_mult*dim);self.fc=CastedLinear(dim,mlp_dim,bias=_C)if mode=='full'else _A;self.proj=CastedLinear(mlp_dim,dim,bias=_C)if mode in('full','down')else _A
+-class Block(nn.Module):
+-	def __init__(self,dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,layer_idx=0,ln_scale=_C,neg_slope=.5,disable_attn=_C):super().__init__();self.layer_idx=layer_idx;self.attn_norm=RMSNorm();self.mlp_norm=RMSNorm();self.attn=CausalSelfAttention(dim,num_heads,num_kv_heads,rope_base,qk_gain_init);self.mlp=MLP(dim,mlp_mult,neg_slope=neg_slope);self.attn_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.mlp_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.resid_mix=nn.Parameter(torch.stack((torch.ones(dim),torch.zeros(dim))).float());self.ln_scale_factor=_D/math.sqrt(layer_idx+1)if ln_scale else _D;self.disable_attn=disable_attn
+-	def forward(self,x,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=_A,canon_a_w=_A,canon_c_w=_A):
+-		mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][_A,_A,:]*x+mix[1][_A,_A,:]*x0;x_out=x_in
+-		if not self.disable_attn:
+-			attn_in=self.attn_norm(x_in)*self.ln_scale_factor
+-			if canon_a_w is not _A:attn_in=apply_canon_residual(attn_in,canon_a_w)
+-			attn_out=self.attn(attn_in,q_w,k_w,v_w,out_w,v_embed=v_embed);x_out=x_out+self.attn_scale.to(dtype=x_in.dtype)[_A,_A,:]*attn_out
+-		mlp_in=self.mlp_norm(x_out)*self.ln_scale_factor
+-		if canon_c_w is not _A:mlp_in=apply_canon_residual(mlp_in,canon_c_w)
+-		mlp_out=self.mlp_scale.to(dtype=x_out.dtype)[_A,_A,:]*self.mlp(mlp_in,up_w,down_w);return x_out+mlp_out
+-class GPT(nn.Module):
+-	def __init__(self,vocab_size,num_layers,model_dim,num_heads,num_kv_heads,mlp_mult,tie_embeddings,tied_embed_init_std,logit_softcap,rope_base,qk_gain_init,bigram_vocab_size=0,bigram_dim=128,xsa_last_n=0,rope_dims=0,ln_scale=_C,ve_enabled=_C,ve_dim=128,ve_layers='9,10',canon_ac_layers=_A,parallel_residual=_C,parallel_start_layer=7,parallel_start_layer_is_physical=_B,neg_slope=.5,disable_layer0_attn=_C,recur_layers=_A,recurrence_active=_C,repeat_untie_mlp='none',repeat_untie_mlp_layers=_A):
+-		super().__init__();self._ve_target_dim=num_kv_heads*(model_dim//num_heads)
+-		if logit_softcap<=_E:raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+-		self.tie_embeddings=tie_embeddings;self.tied_embed_init_std=tied_embed_init_std;self.logit_softcap=logit_softcap;self.tok_emb=nn.Embedding(vocab_size,model_dim);self.bigram=BigramHashEmbedding(bigram_vocab_size,bigram_dim,model_dim)if bigram_vocab_size>0 else _A;self.smear=SmearGate(model_dim);self.recur_layers=sorted(set(recur_layers or[]));self.repeat_untie_mlp=repeat_untie_mlp
+-		self.canon_ac_layers=sorted(set(canon_ac_layers or[]));self._canon_ac_layer_set=set(self.canon_ac_layers)
+-		for cl in self.canon_ac_layers:
+-			if not 0<=cl<num_layers:raise ValueError(f"canon layer {cl} out of range [0, {num_layers})")
+-		if self.repeat_untie_mlp not in{'none','down','full'}:raise ValueError(f"repeat untie mlp mode must be one of none/down/full, got {self.repeat_untie_mlp}")
+-		requested_repeat_untie_layers=sorted(set(repeat_untie_mlp_layers or[]))
+-		for rl in self.recur_layers:
+-			if not 0<=rl<num_layers:raise ValueError(f"recur layer {rl} out of range [0, {num_layers})")
+-		invalid_repeat_untie_layers=[rl for rl in requested_repeat_untie_layers if rl not in self.recur_layers]
+-		if invalid_repeat_untie_layers:raise ValueError(f"repeat untie mlp layers must be a subset of recur_layers, got {invalid_repeat_untie_layers}")
+-		if self.repeat_untie_mlp=='none':self.repeat_untie_mlp_layers=[]
+-		elif requested_repeat_untie_layers:self.repeat_untie_mlp_layers=requested_repeat_untie_layers
+-		else:self.repeat_untie_mlp_layers=list(self.recur_layers)
+-		if self.recur_layers:cutoff=max(self.recur_layers)+1;self._v2p_recur=list(range(cutoff))+self.recur_layers+list(range(cutoff,num_layers))
+-		else:self._v2p_recur=list(range(num_layers))
+-		self._v2p_no_recur=list(range(num_layers));self.virtual_num_layers=len(self._v2p_recur);self._enc_no_recur=num_layers//2;self._dec_no_recur=num_layers-self._enc_no_recur;self._enc_recur=self.virtual_num_layers//2;self._dec_recur=self.virtual_num_layers-self._enc_recur;self._recurrence_active=_C;self.v2p=self._v2p_no_recur;self.num_encoder_layers=self._enc_no_recur;self.num_decoder_layers=self._dec_no_recur;self.num_skip_weights=min(self._enc_recur,self._dec_recur);self.skip_weights=nn.Parameter(torch.ones(self.num_skip_weights,model_dim,dtype=torch.float32));self.skip_gates=nn.Parameter(torch.zeros(self.num_skip_weights,model_dim,dtype=torch.float32));head_dim=model_dim//num_heads;kv_dim=num_kv_heads*head_dim;mlp_dim=int(mlp_mult*model_dim);self.num_layers=num_layers;self.parallel_residual=bool(parallel_residual);self.parallel_start_layer=max(0,int(parallel_start_layer));self.parallel_start_layer_is_physical=bool(parallel_start_layer_is_physical);self.qo_bank=nn.Parameter(torch.empty(2*num_layers,model_dim,model_dim));self.kv_bank=nn.Parameter(torch.empty(2*num_layers,kv_dim,model_dim));self.mlp_up_bank=nn.Parameter(torch.empty(num_layers,mlp_dim,model_dim));self.mlp_down_bank=nn.Parameter(torch.empty(num_layers,model_dim,mlp_dim));self.canon_a=nn.Parameter(torch.zeros(num_layers,4,model_dim,dtype=torch.float32))if self.canon_ac_layers else _A;self.canon_c=nn.Parameter(torch.zeros(num_layers,4,model_dim,dtype=torch.float32))if self.canon_ac_layers else _A;self.parallel_post_lambdas=nn.Parameter(torch.ones(num_layers,2,2,dtype=torch.float32))if self.parallel_residual else _A;self.parallel_resid_lambdas=nn.Parameter(torch.full((num_layers,2),1.1**.5,dtype=torch.float32))if self.parallel_residual else _A;self.repeat_mlp=nn.ModuleList()
+-		if self.repeat_untie_mlp!='none'and self.recur_layers:
+-			for physical_idx in self.recur_layers:mode=self.repeat_untie_mlp if physical_idx in self.repeat_untie_mlp_layers else'none';self.repeat_mlp.append(RepeatMLPWeights(model_dim,mlp_mult,mode))
+-		self.blocks=nn.ModuleList([Block(model_dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,layer_idx=i,ln_scale=ln_scale,neg_slope=neg_slope,disable_attn=disable_layer0_attn and i==0)for i in range(self.virtual_num_layers)])
+-		if rope_dims>0:
+-			head_dim=model_dim//num_heads
+-			for block in self.blocks:block.attn.rope_dims=rope_dims;block.attn.rotary=Rotary(head_dim,base=rope_base,train_seq_len=1024,rope_dims=rope_dims)
+-		self.ve_layer_indices=[int(x)for x in ve_layers.split(',')if x.strip()]if ve_enabled else[];kv_dim_ve=self._ve_target_dim
+-		if self.ve_layer_indices:self.ve_shared=ValueEmbedding(vocab_size,ve_dim,kv_dim_ve);self.ve_layer_scales=nn.ParameterList([nn.Parameter(torch.ones(1,dtype=torch.float32))for _ in self.ve_layer_indices])
+-		else:self.ve_shared=_A;self.ve_layer_scales=nn.ParameterList()
+-		self.value_embeds=nn.ModuleList();self.final_norm=RMSNorm();self.lm_head=_A if tie_embeddings else CastedLinear(model_dim,vocab_size,bias=_C)
+-		if self.lm_head is not _A:self.lm_head._zero_init=_B
+-		if xsa_last_n>0:
+-			for i in range(max(0,self.virtual_num_layers-xsa_last_n),self.virtual_num_layers):self.blocks[i].attn.use_xsa=_B
+-		self.set_recurrence_active(recurrence_active);self._init_weights()
+-	def _init_weights(self):
+-		if self.tie_embeddings:nn.init.normal_(self.tok_emb.weight,mean=_E,std=self.tied_embed_init_std)
+-		n=self.num_layers;proj_scale=_D/math.sqrt(2*n)
+-		for i in range(n):nn.init.orthogonal_(self.qo_bank.data[i],gain=_D);nn.init.zeros_(self.qo_bank.data[n+i]);nn.init.orthogonal_(self.kv_bank.data[i],gain=_D);nn.init.orthogonal_(self.kv_bank.data[n+i],gain=_D);nn.init.orthogonal_(self.mlp_up_bank.data[i],gain=_D);nn.init.zeros_(self.mlp_down_bank.data[i]);self.qo_bank.data[n+i].mul_(proj_scale);self.mlp_down_bank.data[i].mul_(proj_scale)
+-		for repeat_mlp in self.repeat_mlp:
+-			if repeat_mlp.fc is not _A:nn.init.zeros_(repeat_mlp.fc.weight)
+-			if repeat_mlp.proj is not _A:nn.init.zeros_(repeat_mlp.proj.weight)
+-		for(name,module)in self.named_modules():
+-			if isinstance(module,nn.Linear):
+-				if getattr(module,'_zero_init',_C):nn.init.zeros_(module.weight)
+-				elif module.weight.ndim==2 and module.weight.shape[0]>=64 and module.weight.shape[1]>=64:nn.init.orthogonal_(module.weight,gain=_D)
+-	def _get_ve(self,layer_idx,input_ids,ve_cache=_A):
+-		A='ve'
+-		if self.ve_shared is _A or layer_idx not in self.ve_layer_indices:return
+-		if ve_cache is not _A and A not in ve_cache:ve_cache[A]=self.ve_shared(input_ids)
+-		ve_base=ve_cache[A]if ve_cache is not _A else self.ve_shared(input_ids);ve_idx=self.ve_layer_indices.index(layer_idx);return ve_base*self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+-	def set_recurrence_active(self,active):
+-		was_active=getattr(self,'_recurrence_active',_C);self._recurrence_active=bool(active)and bool(self.recur_layers)
+-		if self._recurrence_active:self.v2p=self._v2p_recur;self.num_encoder_layers=self._enc_recur;self.num_decoder_layers=self._dec_recur
+-		else:self.v2p=self._v2p_no_recur;self.num_encoder_layers=self._enc_no_recur;self.num_decoder_layers=self._dec_no_recur
+-		if self._recurrence_active and not was_active and self.repeat_mlp:self._sync_repeat_mlp_from_base()
+-	def _sync_repeat_mlp_from_base(self):
+-		with torch.no_grad():
+-			for(repeat_idx,physical_idx)in enumerate(self.recur_layers):
+-				repeat_mlp=self.repeat_mlp[repeat_idx]
+-				if repeat_mlp.fc is not _A:repeat_mlp.fc.weight.copy_(self.mlp_up_bank[physical_idx])
+-				if repeat_mlp.proj is not _A:repeat_mlp.proj.weight.copy_(self.mlp_down_bank[physical_idx])
+-	def _is_repeated_virtual_index(self,virtual_idx):return self._recurrence_active and bool(self.recur_layers) and self._enc_recur<=virtual_idx<self._enc_recur+len(self.recur_layers)
+-	def _parallel_active_for_layer(self,virtual_idx):
+-		if self.parallel_post_lambdas is _A:return _C
+-		if self.parallel_start_layer_is_physical:return self.v2p[virtual_idx]>=self.parallel_start_layer
+-		return virtual_idx>=self.parallel_start_layer
+-	def _mix_with_x0(self,lane,x0,resid_mix):
+-		mix=resid_mix.to(dtype=lane.dtype);return mix[0][_A,_A,:]*lane+mix[1][_A,_A,:]*x0
+-	def _apply_skip_single(self,x,skip,i):
+-		if isinstance(skip,tuple):skip=skip[1]
+-		g=torch.sigmoid(self.skip_gates[i].to(dtype=x.dtype))[_A,_A,:];scaled_skip=self.skip_weights[i].to(dtype=x.dtype)[_A,_A,:]*skip;return torch.lerp(scaled_skip,x,g)
+-	def _apply_skip_parallel(self,lane0,lane1,skip,i):
+-		if isinstance(skip,tuple):skip0,skip1=skip
+-		else:skip0=skip1=skip
+-		g=torch.sigmoid(self.skip_gates[i].to(dtype=lane0.dtype))[_A,_A,:];w=self.skip_weights[i].to(dtype=lane0.dtype)[_A,_A,:]
+-		return torch.lerp(w*skip0,lane0,g),torch.lerp(w*skip1,lane1,g)
+-	def _final_parallel_hidden(self,lane0,lane1):
+-		# The branch starts as a clone, so average the summed lanes to keep the output scale close to the single-lane path.
+-		return (lane0+lane1)*.5
+-	def _parallel_block(self,virtual_idx,lane0,lane1,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=_A,canon_a_w=_A,canon_c_w=_A):
+-		block=self.blocks[virtual_idx];physical_idx=self.v2p[virtual_idx]
+-		if not block.disable_attn:
+-			attn_read=self._mix_with_x0(lane0,x0,block.resid_mix);attn_in=block.attn_norm(attn_read)*block.ln_scale_factor
+-			if canon_a_w is not _A:attn_in=apply_canon_residual(attn_in,canon_a_w)
+-			attn_out=block.attn(attn_in,q_w,k_w,v_w,out_w,v_embed=v_embed);attn_out=block.attn_scale.to(dtype=attn_out.dtype)[_A,_A,:]*attn_out;resid=self.parallel_resid_lambdas[physical_idx,0].to(dtype=lane0.dtype);post=self.parallel_post_lambdas[physical_idx,0].to(dtype=lane0.dtype)
+-			lane0=resid*lane0+post[0]*attn_out;lane1=resid*lane1+post[1]*attn_out
+-		mlp_read=self._mix_with_x0(lane1,x0,block.resid_mix);mlp_in=block.mlp_norm(mlp_read)*block.ln_scale_factor
+-		if canon_c_w is not _A:mlp_in=apply_canon_residual(mlp_in,canon_c_w)
+-		mlp_out=block.mlp_scale.to(dtype=lane1.dtype)[_A,_A,:]*block.mlp(mlp_in,up_w,down_w);resid=self.parallel_resid_lambdas[physical_idx,1].to(dtype=lane0.dtype);post=self.parallel_post_lambdas[physical_idx,1].to(dtype=lane0.dtype)
+-		lane0=resid*lane0+post[0]*mlp_out;lane1=resid*lane1+post[1]*mlp_out;return lane0,lane1
+-	def _get_block_weights(self,virtual_idx):
+-		n=self.num_layers;physical_idx=self.v2p[virtual_idx];q_w=self.qo_bank[physical_idx];k_w=self.kv_bank[physical_idx];v_w=self.kv_bank[n+physical_idx];out_w=self.qo_bank[n+physical_idx];up_w=self.mlp_up_bank[physical_idx];down_w=self.mlp_down_bank[physical_idx];canon_a_w=self.canon_a[physical_idx]if self.canon_a is not _A and physical_idx in self._canon_ac_layer_set else _A;canon_c_w=self.canon_c[physical_idx]if self.canon_c is not _A and physical_idx in self._canon_ac_layer_set else _A
+-		if self._is_repeated_virtual_index(virtual_idx):
+-			repeated_idx=virtual_idx-self._enc_recur
+-			if self.repeat_mlp:
+-				repeat_mlp=self.repeat_mlp[repeated_idx]
+-				if repeat_mlp.fc is not _A:up_w=repeat_mlp.fc.weight
+-				if repeat_mlp.proj is not _A:down_w=repeat_mlp.proj.weight
+-		return q_w,k_w,v_w,out_w,up_w,down_w,canon_a_w,canon_c_w
+-	def _backbone(self,input_ids):
+-		x=self.tok_emb(input_ids)
+-		if self.bigram is not _A:x=x+self.bigram(input_ids)
+-		x=F.rms_norm(x,(x.size(-1),));x=self.smear(x);x0=x;skips=[];ve_cache={};lane0=lane1=_A
+-		for i in range(self.num_encoder_layers):
+-			q_w,k_w,v_w,out_w,up_w,down_w,canon_a_w,canon_c_w=self._get_block_weights(i);ve=self._get_ve(i,input_ids,ve_cache)
+-			if self._parallel_active_for_layer(i):
+-				if lane0 is _A:lane0=lane1=x
+-				lane0,lane1=self._parallel_block(i,lane0,lane1,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=ve,canon_a_w=canon_a_w,canon_c_w=canon_c_w);skips.append((lane0,lane1))
+-			else:x=self.blocks[i](x,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=ve,canon_a_w=canon_a_w,canon_c_w=canon_c_w);skips.append(x)
+-		for i in range(self.num_decoder_layers):
+-			bi=self.num_encoder_layers+i
+-			q_w,k_w,v_w,out_w,up_w,down_w,canon_a_w,canon_c_w=self._get_block_weights(bi);ve=self._get_ve(bi,input_ids,ve_cache)
+-			if self._parallel_active_for_layer(bi):
+-				if lane0 is _A:lane0=lane1=x
+-				if skips:lane0,lane1=self._apply_skip_parallel(lane0,lane1,skips.pop(),i)
+-				lane0,lane1=self._parallel_block(bi,lane0,lane1,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=ve,canon_a_w=canon_a_w,canon_c_w=canon_c_w)
+-			else:
+-				if skips:x=self._apply_skip_single(x,skips.pop(),i)
+-				x=self.blocks[bi](x,x0,q_w,k_w,v_w,out_w,up_w,down_w,v_embed=ve,canon_a_w=canon_a_w,canon_c_w=canon_c_w)
+-		return self.final_norm(self._final_parallel_hidden(lane0,lane1) if lane1 is not _A else x)
+-	def forward(self,input_ids,target_ids):
+-		x=self._backbone(input_ids);x_flat=x.reshape(-1,x.size(-1));targets=target_ids.reshape(-1)
+-		if self.tie_embeddings:logits_proj=F.linear(x_flat,self.tok_emb.weight)
+-		else:
+-			if self.lm_head is _A:raise RuntimeError('lm_head is required when tie_embeddings=False')
+-			logits_proj=self.lm_head(x_flat)
+-		logits=self.logit_softcap*torch.tanh(logits_proj/self.logit_softcap);return F.cross_entropy(logits.float(),targets,reduction='mean')
+-	def forward_hidden(self,input_ids):return self._backbone(input_ids)
+-	def compute_logits(self,hidden):
+-		if self.tie_embeddings:logits_proj=F.linear(hidden,self.tok_emb.weight)
+-		else:logits_proj=self.lm_head(hidden)
+-		return self.logit_softcap*torch.tanh(logits_proj/self.logit_softcap)
+-	def forward_logits(self,input_ids):return self.compute_logits(self.forward_hidden(input_ids))
+-def eval_val_sliding(args,base_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride,batch_seqs=32,eval_seq_len=_A):
+-	seq_len=eval_seq_len or args.train_seq_len;total_tokens=val_tokens.numel()-1;window_starts=[ws for ws in range(0,total_tokens,stride)if min(ws+seq_len,total_tokens)-ws>=1];total_windows=len(window_starts);my_s=total_windows*rank//world_size;my_e=total_windows*(rank+1)//world_size;my_windows=window_starts[my_s:my_e];loss_sum=torch.zeros((),device=device,dtype=torch.float64);token_count=torch.zeros((),device=device,dtype=torch.float64);byte_count=torch.zeros((),device=device,dtype=torch.float64);base_model.eval();use_slot=getattr(args,'slot_enabled',_C);compiled_logits=torch.compile(base_model.forward_logits,dynamic=_C,fullgraph=_B);compiled_hidden=torch.compile(base_model.forward_hidden,dynamic=_C,fullgraph=_B)if use_slot else _A
+-	for bi in range(0,len(my_windows),batch_seqs):
+-		batch_ws=my_windows[bi:bi+batch_seqs];bsz=len(batch_ws);x_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);y_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);wlens=[]
+-		for(i,ws)in enumerate(batch_ws):end=min(ws+seq_len,total_tokens);wlen=end-ws;wlens.append(wlen);chunk=val_tokens[ws:end+1].to(dtype=torch.int64,device=device);x_batch[i,:wlen]=chunk[:-1];y_batch[i,:wlen]=chunk[1:]
+-		if use_slot:
+-			with torch.no_grad(),torch.autocast(device_type=_F,dtype=torch.bfloat16):H=compiled_hidden(x_batch)
+-			H=H.detach().float();delta=torch.zeros(1,1,H.shape[-1],device=device,dtype=H.dtype,requires_grad=_B);slot_opt=torch.optim.AdamW([delta],lr=args.slot_lr,weight_decay=1e-08,eps=1e-05)
+-			for _ in range(args.slot_steps):slot_opt.zero_grad();adapted=base_model.compute_logits((H+delta).to(torch.bfloat16)).float();slot_loss=F.cross_entropy(adapted[:,:-1].reshape(-1,adapted.size(-1)),y_batch[:,:seq_len-1].reshape(-1),reduction='mean');slot_loss.backward();slot_opt.step()
+-			with torch.no_grad():logits=base_model.compute_logits((H+delta.detach()).to(torch.bfloat16))
+-		else:
+-			with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):logits=compiled_logits(x_batch)
+-		with torch.no_grad():
+-			nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y_batch.reshape(-1),reduction='none').reshape(bsz,seq_len)
+-			for(i,ws)in enumerate(batch_ws):wlen=wlens[i];s=0 if ws==0 else max(wlen-stride,0);scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt=y_batch[i,s:wlen];prev=x_batch[i,s:wlen];tb=base_bytes_lut[tgt].to(torch.float64);tb+=(has_leading_space_lut[tgt]&~is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()
+-	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
+-	val_loss=(loss_sum/token_count).item();bits_per_token=val_loss/math.log(2.);tokens_per_byte=token_count.item()/byte_count.item();base_model.train();return val_loss,bits_per_token*tokens_per_byte
+-def eval_val_sliding_ttt(args,base_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride,batch_seqs=32,log0=print):
+-	seq_len=args.train_seq_len;total_tokens=val_tokens.numel()-1;ttt_chunk=args.ttt_chunk_tokens;window_starts=[ws for ws in range(0,total_tokens,stride)if min(ws+seq_len,total_tokens)-ws>=stride or ws==0];num_chunks=(total_tokens+ttt_chunk-1)//ttt_chunk;chunk_windows=[[]for _ in range(num_chunks)]
+-	for ws in window_starts:end=min(ws+seq_len,total_tokens);wlen=end-ws;s=0 if ws==0 else max(wlen-stride,0);scored_start=ws+s;ci=min(scored_start//ttt_chunk,num_chunks-1);chunk_windows[ci].append(ws)
+-	log0(f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} total_windows={len(window_starts)} stride={stride} ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} freeze_blocks={args.ttt_freeze_blocks}");loss_sum=torch.zeros((),device=device,dtype=torch.float64);token_count=torch.zeros((),device=device,dtype=torch.float64);byte_count=torch.zeros((),device=device,dtype=torch.float64);frozen_block_ids=set(range(min(args.ttt_freeze_blocks,len(base_model.blocks))));ttt_params=[]
+-	for(name,p)in base_model.named_parameters():
+-		freeze=_C
+-		for bi in frozen_block_ids:
+-			if f"blocks.{bi}."in name:freeze=_B;break
+-		if freeze:p.requires_grad_(_C)
+-		else:p.requires_grad_(_B);ttt_params.append(p)
+-	log0(f"ttt_sliding:params unfrozen={sum(p.numel()for p in ttt_params)} frozen={sum(p.numel()for p in base_model.parameters()if not p.requires_grad)}");optimizer=torch.optim.SGD(ttt_params,lr=args.ttt_lr,momentum=args.ttt_momentum);t0=time.perf_counter()
+-	for ci in range(num_chunks):
+-		windows=chunk_windows[ci]
+-		if not windows:continue
+-		chunk_start=ci*ttt_chunk;chunk_end=min((ci+1)*ttt_chunk,total_tokens);my_s=len(windows)*rank//world_size;my_e=len(windows)*(rank+1)//world_size;my_windows=windows[my_s:my_e];base_model.eval()
+-		with torch.inference_mode():
+-			for bi in range(0,len(my_windows),batch_seqs):
+-				batch_ws=my_windows[bi:bi+batch_seqs];bsz=len(batch_ws);x_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);y_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);wlens=[]
+-				for(i,ws)in enumerate(batch_ws):end=min(ws+seq_len,total_tokens);wlen=end-ws;wlens.append(wlen);chunk_tok=val_tokens[ws:end+1].to(dtype=torch.int64,device=device);x_batch[i,:wlen]=chunk_tok[:-1];y_batch[i,:wlen]=chunk_tok[1:]
+-				with torch.autocast(device_type=_F,dtype=torch.bfloat16):logits=base_model.forward_logits(x_batch)
+-				nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y_batch.reshape(-1),reduction='none').reshape(bsz,seq_len)
+-				for(i,ws)in enumerate(batch_ws):wlen=wlens[i];s=0 if ws==0 else max(wlen-stride,0);scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt,prev=y_batch[i,s:wlen],x_batch[i,s:wlen];tb=base_bytes_lut[tgt].to(torch.float64);tb+=(has_leading_space_lut[tgt]&~is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()
+-		is_last_chunk=ci==num_chunks-1
+-		if not is_last_chunk and args.ttt_epochs>0:
+-			base_model.train();chunk_seqs=(chunk_end-chunk_start)//seq_len
+-			if chunk_seqs>0:
+-				cos_lr=args.ttt_lr*.5*(_D+math.cos(math.pi*ci/max(num_chunks-1,1)))
+-				for pg in optimizer.param_groups:pg[_H]=cos_lr
+-				my_seq_s=chunk_seqs*rank//world_size;my_seq_e=chunk_seqs*(rank+1)//world_size;my_chunk_seqs=my_seq_e-my_seq_s
+-				for _ep in range(args.ttt_epochs):
+-					for bs in range(0,my_chunk_seqs,args.ttt_batch_seqs):
+-						be=min(bs+args.ttt_batch_seqs,my_chunk_seqs);actual_bs=my_seq_s+bs;start_tok=chunk_start+actual_bs*seq_len;end_tok=chunk_start+(my_seq_s+be)*seq_len+1
+-						if end_tok>val_tokens.numel():continue
+-						local=val_tokens[start_tok:end_tok].to(device=device,dtype=torch.int64);x=local[:-1].reshape(-1,seq_len);y=local[1:].reshape(-1,seq_len);optimizer.zero_grad(set_to_none=_B)
+-						with torch.autocast(device_type=_F,dtype=torch.bfloat16):loss=base_model(x,y)
+-						loss.backward()
+-						if world_size>1:
+-							for p in ttt_params:
+-								if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+-						torch.nn.utils.clip_grad_norm_(ttt_params,args.ttt_grad_clip);optimizer.step()
+-		if rank==0 and(ci%10==0 or ci==num_chunks-1):elapsed=time.perf_counter()-t0;rl=loss_sum.item()/max(token_count.item(),1);rbpb=rl/math.log(2.)*(token_count.item()/max(byte_count.item(),1))if token_count.item()>0 else _E;log0(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={rbpb:.6f} time={elapsed:.1f}s")
+-	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
+-	val_loss=(loss_sum/token_count).item();val_bpb=val_loss/math.log(2.)*(token_count.item()/byte_count.item())
+-	for p in base_model.parameters():p.requires_grad_(_B)
+-	base_model.eval();log0(f"ttt_sliding:done val_loss={val_loss:.6f}{ val_bpb=:.6f} elapsed={time.perf_counter()-t0:.1f}s");return val_loss,val_bpb
+-def generate_autoregressive_calib(model,device,num_seqs=64,seq_len=2048,vocab_size=1024,temperature=.8,batch_size=8,seed=42):
+-	was_training=model.training;model.eval();rng=torch.Generator(device=device);rng.manual_seed(seed);all_tokens=[]
+-	with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):
+-		for batch_start in range(0,num_seqs,batch_size):
+-			bs=min(batch_size,num_seqs-batch_start);tokens=torch.randint(0,vocab_size,(bs,1),device=device,generator=rng)
+-			for _ in range(seq_len-1):
+-				logits=model.forward_logits(tokens);next_logit=logits[:,-1,:];probs=torch.softmax(next_logit/max(temperature,1e-4),dim=-1);next_tok=torch.multinomial(probs,1,generator=rng);tokens=torch.cat([tokens,next_tok],dim=1)
+-			for i in range(bs):all_tokens.append(tokens[i:i+1].detach().clone())
+-	model.train(was_training);return all_tokens
+-def gptq_collect_hessians_from_tokens(base_model,token_seqs,device):
+-	dim=base_model.tok_emb.weight.shape[1];mlp_dim=base_model.mlp_up_bank.shape[1];hessians=_init_hessians(base_model,dim,mlp_dim,device)
+-	for block in base_model.blocks:block.attn._save_gptq=_B;block.mlp._save_gptq=_B
+-	was_training=base_model.training;base_model.eval()
+-	with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):
+-		for seq in token_seqs:x=seq[:,:-1].to(device=device,dtype=torch.int64);y=seq[:,1:].to(device=device,dtype=torch.int64);base_model(x,y);_accum_hessians(hessians,base_model,dim,mlp_dim)
+-	for block in base_model.blocks:block.attn._save_gptq=_C;block.mlp._save_gptq=_C
+-	_finalize_hessians(hessians,max(len(token_seqs),1));base_model.train(was_training);return hessians
+-def _classify_param(name):
+-	A='.mlp.'
+-	if'tok_emb'in name or'lm_head'in name:return'embed'
+-	if name.startswith('canon_a'):return'attn'
+-	if name.startswith('canon_c'):return'mlp'
+-	if A in name or name.startswith('repeat_mlp.'):return'mlp'
+-	if'.attn.'in name or'.proj.'in name and A not in name:return'attn'
+-	return'other'
+-def _parse_layer_list(layers_str):
+-	return[int(x)for x in layers_str.split(',')if x.strip()]
+-def _get_block_idx_from_name(name):
+-	parts=name.split('.')
+-	if len(parts)>2 and parts[0]=='blocks'and parts[1].isdigit():return int(parts[1])
+-	return _A
+-def _get_physical_layer_idx_from_name(name,recur_layers):
+-	parts=name.split('.')
+-	if len(parts)>2 and parts[0]=='blocks'and parts[1].isdigit():return int(parts[1])
+-	if len(parts)>2 and parts[0]=='repeat_mlp'and parts[1].isdigit():
+-		repeat_idx=int(parts[1])
+-		if 0<=repeat_idx<len(recur_layers):return recur_layers[repeat_idx]
+-	return _A
+-def log_parallel_residual_converged(log0,model):
+-	if getattr(model,'parallel_post_lambdas',_A)is _A:return
+-	used_layers=[vi for vi in range(len(model.v2p))if model._parallel_active_for_layer(vi)];post=model.parallel_post_lambdas.detach().cpu();resid=model.parallel_resid_lambdas.detach().cpu();mode='physical'if getattr(model,'parallel_start_layer_is_physical',_C)else'virtual';log0(f"parallel_residual:converged active=1 start_layer={model.parallel_start_layer} start_mode={mode} final_lane=mlp used_layers={len(used_layers)}")
+-	for vi in used_layers:
+-		pi=int(model.v2p[vi])
+-		if not(0<=pi<post.shape[0]and 0<=pi<resid.shape[0]):
+-			log0(f"parallel_residual layer:{vi} physical:{pi} skipped=out_of_range")
+-			continue
+-		log0(f"parallel_residual layer:{vi} physical:{pi} attn_resid:{resid[pi,0]:.4f} attn_to_attn:{post[pi,0,0]:.4f} attn_to_mlp:{post[pi,0,1]:.4f} mlp_resid:{resid[pi,1]:.4f} mlp_to_attn:{post[pi,1,0]:.4f} mlp_to_mlp:{post[pi,1,1]:.4f}")
+-def quantize_int6_per_row(t,clip_range=31):
+-	t32=t.float()
+-	if t32.ndim==2:
+-		best_q,best_s,best_err=_A,_A,float('inf')
+-		for pct in[.999,.9995,.9999,.99999,_D]:
+-			if pct<_D:row_clip=torch.quantile(t32.abs(),pct,dim=1)
+-			else:row_clip=t32.abs().amax(dim=1)
+-			s=(row_clip/clip_range).clamp_min(_D/clip_range).to(torch.float16);q=torch.clamp(torch.round(t32/s.float()[:,_A]),-clip_range,clip_range).to(torch.int8);recon=q.float()*s.float()[:,_A];err=(t32-recon).pow(2).mean().item()
+-			if err<best_err:best_q,best_s,best_err=q,s,err
+-		return best_q,best_s
+-	amax=t32.abs().max().item();scale=torch.tensor(amax/clip_range if amax>0 else _D,dtype=torch.float16);q=torch.clamp(torch.round(t32/scale.float()),-clip_range,clip_range).to(torch.int8);return q,scale
+-def _unbank_state_dict(sd,num_layers):
+-	out={};n=num_layers
+-	for(name,tensor)in sd.items():
+-		if name==_R:
+-			for i in range(n):out[f"blocks.{i}.attn.c_q.weight"]=tensor[i];out[f"blocks.{i}.attn.proj.weight"]=tensor[n+i]
+-		elif name==_S:
+-			for i in range(n):out[f"blocks.{i}.attn.c_k.weight"]=tensor[i];out[f"blocks.{i}.attn.c_v.weight"]=tensor[n+i]
+-		elif name==_T:
+-			for i in range(n):out[f"blocks.{i}.mlp.fc.weight"]=tensor[i]
+-		elif name==_U:
+-			for i in range(n):out[f"blocks.{i}.mlp.proj.weight"]=tensor[i]
+-		else:out[name]=tensor
+-	return out
+-def _rebank_state_dict(sd,num_layers,template_sd):
+-	out={};n=num_layers;qo_slices=[template_sd[_R][i]for i in range(2*n)];kv_slices=[template_sd[_S][i]for i in range(2*n)];up_slices=[template_sd[_T][i]for i in range(n)];down_slices=[template_sd[_U][i]for i in range(n)];consumed=set()
+-	for i in range(n):
+-		qk=f"blocks.{i}.attn.c_q.weight"
+-		if qk in sd:qo_slices[i]=sd[qk];consumed.add(qk)
+-		ok=f"blocks.{i}.attn.proj.weight"
+-		if ok in sd:qo_slices[n+i]=sd[ok];consumed.add(ok)
+-		kk=f"blocks.{i}.attn.c_k.weight"
+-		if kk in sd:kv_slices[i]=sd[kk];consumed.add(kk)
+-		vk=f"blocks.{i}.attn.c_v.weight"
+-		if vk in sd:kv_slices[n+i]=sd[vk];consumed.add(vk)
+-		fk=f"blocks.{i}.mlp.fc.weight"
+-		if fk in sd:up_slices[i]=sd[fk];consumed.add(fk)
+-		dk=f"blocks.{i}.mlp.proj.weight"
+-		if dk in sd:down_slices[i]=sd[dk];consumed.add(dk)
+-	out[_R]=torch.stack(qo_slices).to(dtype=template_sd[_R].dtype);out[_S]=torch.stack(kv_slices).to(dtype=template_sd[_S].dtype);out[_T]=torch.stack(up_slices).to(dtype=template_sd[_T].dtype);out[_U]=torch.stack(down_slices).to(dtype=template_sd[_U].dtype)
+-	for(name,tensor)in sd.items():
+-		if name not in consumed:out[name]=tensor
+-	return out
+-def _drop_disabled_layer0_attn_unbanked(sd,disable_layer0_attn):
+-	if not disable_layer0_attn:return sd
+-	disabled_keys={'blocks.0.attn.c_q.weight','blocks.0.attn.c_k.weight','blocks.0.attn.c_v.weight','blocks.0.attn.proj.weight'}
+-	return{k:v for(k,v)in sd.items()if k not in disabled_keys}
+-def mixed_quantize_int6(state_dict,int6_cats,clip_range=31,hessians=_A,clip_ranges=_A):
+-	A='type';num_layers_total=max((int(k.split('.')[1])for k in state_dict if k.startswith('blocks.')),default=0)+1;late_k_layers=set(range(num_layers_total-2,num_layers_total));result={};meta={};gptq_count,naive_count=0,0
+-	for(name,tensor)in state_dict.items():
+-		t=tensor.detach().cpu().contiguous();cat=_classify_param(name)
+-		if not t.is_floating_point()or t.numel()<=65536:result[name]=t.to(torch.float16)if t.is_floating_point()else t;meta[name]=_L;continue
+-		if any(p in name for p in CONTROL_TENSOR_NAME_PATTERNS):result[name]=t.float();meta[name]=_i;continue
+-		if cat in int6_cats and t.ndim>=1:
+-			H=hessians.get(name)if hessians else _A;cr=clip_ranges.get(name,clip_range)if isinstance(clip_ranges,dict)else clip_range
+-			if H is not _A and t.ndim==2:q,s=gptq_quantize_weight(t,H.cpu(),clip_range=cr);gptq_count+=1
+-			else:q,s=quantize_int6_per_row(t,clip_range=cr);naive_count+=1
+-			result[name+'.q']=q;result[name+_V]=s;meta[name]={A:'int6'if cr>=31 else 'int5'}
+-		else:q,s=quantize_float_tensor(t);result[name+'.q']=q;result[name+_V]=s;meta[name]={A:'int8'}
+-	if hessians:print(f"gptq_quantize: {gptq_count} GPTQ layers, {naive_count} naive layers",flush=_B)
+-	return result,meta
+-def dequantize_mixed_int6(result,meta,template_sd):
+-	out={}
+-	for(name,orig)in template_sd.items():
+-		info=meta.get(name)
+-		if info is _A:continue
+-		orig_dtype=orig.dtype
+-		if info in(_L,_i,'passthrough_fp16'):
+-			t=result[name]
+-			if t.dtype==torch.float16 and orig_dtype in(torch.float32,torch.bfloat16):t=t.to(orig_dtype)
+-			out[name]=t;continue
+-		q,s=result[name+'.q'],result[name+_V]
+-		if s.ndim>0:out[name]=(q.float()*s.float().view(q.shape[0],*[1]*(q.ndim-1))).to(orig_dtype)
+-		else:out[name]=(q.float()*float(s.item())).to(orig_dtype)
+-	return out
+-def gptq_quantize_weight(W,H,clip_range=31,block_size=128,percdamp=.01):
+-	W_orig=W.float().clone();rows,cols=W_orig.shape;H=H.float().clone();dead=torch.diag(H)==0;H[dead,dead]=1;damp=percdamp*H.diag().mean();H.diagonal().add_(damp);perm=torch.argsort(H.diag(),descending=_B);invperm=torch.argsort(perm);W_perm=W_orig[:,perm].clone();W_perm[:,dead[perm]]=0;H=H[perm][:,perm]
+-	try:Hinv=torch.cholesky_inverse(torch.linalg.cholesky(H));Hinv=torch.linalg.cholesky(Hinv,upper=_B)
+-	except torch.linalg.LinAlgError:return quantize_int6_per_row(W_orig,clip_range)
+-	best_q,best_scale,best_err=_A,_A,float('inf')
+-	for pct in[.999,.9995,.9999,.99999,_D]:
+-		if pct<_D:row_clip=torch.quantile(W_orig.abs(),pct,dim=1)
+-		else:row_clip=W_orig.abs().amax(dim=1)
+-		s=(row_clip/clip_range).clamp_min(_D/clip_range).to(torch.float16);sf=s.float();Q=torch.zeros(rows,cols,dtype=torch.int8);W_work=W_perm.clone()
+-		for i1 in range(0,cols,block_size):
+-			i2=min(i1+block_size,cols);W_block=W_work[:,i1:i2].clone();Hinv_block=Hinv[i1:i2,i1:i2];Err=torch.zeros(rows,i2-i1)
+-			for j in range(i2-i1):w_col=W_block[:,j];d=Hinv_block[j,j];q_col=torch.clamp(torch.round(w_col/sf),-clip_range,clip_range);Q[:,i1+j]=q_col.to(torch.int8);err=(w_col-q_col.float()*sf)/d;Err[:,j]=err;W_block[:,j:]-=err.unsqueeze(1)*Hinv_block[j,j:].unsqueeze(0)
+-			if i2<cols:W_work[:,i2:]-=Err@Hinv[i1:i2,i2:]
+-		recon=Q.float()*sf[:,_A];mse=(W_perm-recon).pow(2).mean().item()
+-		if mse<best_err:best_q,best_scale,best_err=Q,s,mse
+-	best_q=best_q[:,invperm];return best_q,best_scale
+-def _init_hessians(base_model,dim,mlp_dim,device):
+-	nl=base_model.num_layers
+-	h={}
+-	for i in range(nl):
+-		for k in['c_q','c_k','c_v']:h[f"blocks.{i}.attn.{k}.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device)
+-		h[f"blocks.{i}.attn.proj.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device);h[f"blocks.{i}.mlp.fc.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device);h[f"blocks.{i}.mlp.proj.weight"]=torch.zeros(mlp_dim,mlp_dim,dtype=torch.float32,device=device)
+-	for(repeat_idx,repeat_mlp)in enumerate(base_model.repeat_mlp):
+-		if repeat_mlp.fc is not _A:h[f"repeat_mlp.{repeat_idx}.fc.weight"]=torch.zeros(dim,dim,dtype=torch.float32,device=device)
+-		if repeat_mlp.proj is not _A:h[f"repeat_mlp.{repeat_idx}.proj.weight"]=torch.zeros(mlp_dim,mlp_dim,dtype=torch.float32,device=device)
+-	return h
+-def _accum_hessians(hessians,base_model,dim,mlp_dim):
+-	for(i,block)in enumerate(base_model.blocks):
+-		physical_idx=base_model.v2p[i]
+-		if not getattr(block,'disable_attn',_C) and hasattr(block.attn,'_gptq_qkv_in') and hasattr(block.attn,'_gptq_o_in'):
+-			qkv_in=block.attn._gptq_qkv_in.float().reshape(-1,dim);h_qkv=qkv_in.t()@qkv_in;hessians[f"blocks.{physical_idx}.attn.c_q.weight"]+=h_qkv;hessians[f"blocks.{physical_idx}.attn.c_k.weight"]+=h_qkv;hessians[f"blocks.{physical_idx}.attn.c_v.weight"]+=h_qkv;o_in=block.attn._gptq_o_in.float().reshape(-1,dim);hessians[f"blocks.{physical_idx}.attn.proj.weight"]+=o_in.t()@o_in
+-		if hasattr(block.mlp,'_gptq_up_in') and hasattr(block.mlp,'_gptq_down_in'):
+-			up_name=f"blocks.{physical_idx}.mlp.fc.weight";down_name=f"blocks.{physical_idx}.mlp.proj.weight"
+-			if base_model._is_repeated_virtual_index(i)and base_model.repeat_mlp:
+-				repeat_idx=i-base_model._enc_recur;repeat_mlp=base_model.repeat_mlp[repeat_idx]
+-				if repeat_mlp.fc is not _A:up_name=f"repeat_mlp.{repeat_idx}.fc.weight"
+-				if repeat_mlp.proj is not _A:down_name=f"repeat_mlp.{repeat_idx}.proj.weight"
+-			up_in=block.mlp._gptq_up_in.float().reshape(-1,dim);hessians[up_name]+=up_in.t()@up_in;down_in=block.mlp._gptq_down_in.float().reshape(-1,mlp_dim);hessians[down_name]+=down_in.t()@down_in
+-def _finalize_hessians(hessians,num_batches):
+-	for name in hessians:hessians[name]=hessians[name].cpu()/num_batches;damp=.01*torch.diag(hessians[name]).mean().clamp_min(1e-06);hessians[name]+=damp*torch.eye(hessians[name].shape[0])
+-def gptq_collect_hessians(base_model,train_loader,device,num_batches,batch_tokens,seq_len,grad_accum_steps):
+-	dim=base_model.tok_emb.weight.shape[1];mlp_dim=base_model.mlp_up_bank.shape[1];hessians=_init_hessians(base_model,dim,mlp_dim,device)
+-	for block in base_model.blocks:block.attn._save_gptq=_B;block.mlp._save_gptq=_B
+-	base_model.eval()
+-	with torch.inference_mode(),torch.autocast(device_type=_F,dtype=torch.bfloat16):
+-		for _ in range(num_batches):x,y=train_loader.next_batch(batch_tokens,seq_len,grad_accum_steps);base_model(x,y);_accum_hessians(hessians,base_model,dim,mlp_dim)
+-	for block in base_model.blocks:block.attn._save_gptq=_C;block.mlp._save_gptq=_C
+-	_finalize_hessians(hessians,num_batches);base_model.train();return hessians
+-def main():
+-	F='final_model.int6.ptz';E='final_model.pt';D='WORLD_SIZE';C='RANK';B='__wrapper_size__';A='base_lr';code=Path(__file__).read_text(encoding=_I)
+-	if B in dir()or B in globals():code='x'*globals().get(B,len(code))
+-	args=Hyperparameters();distributed=C in os.environ and D in os.environ;rank=int(os.environ.get(C,'0'));world_size=int(os.environ.get(D,'1'));local_rank=int(os.environ.get('LOCAL_RANK','0'))
+-	if world_size<=0:raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+-	if 8%world_size!=0:raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+-	grad_accum_steps=8//world_size;grad_scale=_D/grad_accum_steps
+-	if not torch.cuda.is_available():raise RuntimeError('CUDA is required')
+-	device=torch.device(_F,local_rank);torch.cuda.set_device(device)
+-	if distributed:dist.init_process_group(backend='nccl',device_id=device);dist.barrier()
+-	master_process=rank==0;torch.backends.cuda.matmul.allow_tf32=_B;torch.backends.cudnn.allow_tf32=_B;from torch.backends.cuda import enable_cudnn_sdp,enable_flash_sdp,enable_math_sdp,enable_mem_efficient_sdp;enable_cudnn_sdp(_C);enable_flash_sdp(_B);enable_mem_efficient_sdp(_C);enable_math_sdp(_C);logfile=_A
+-	if master_process:os.makedirs('logs',exist_ok=_B);logfile=f"logs/{args.run_id}.txt";print(logfile)
+-	def log0(msg,console=_B):
+-		if not master_process:return
+-		if console:print(msg)
+-		if logfile is not _A:
+-			with open(logfile,'a',encoding=_I)as f:print(msg,file=f)
+-	log0(code,console=_C);log0('='*100,console=_C);log0(f"Running Python {sys.version}",console=_C);log0(f"Running PyTorch {torch.__version__}",console=_C);log0(subprocess.run(['nvidia-smi'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=_B,check=_C).stdout,console=_C);log0('='*100,console=_C);random.seed(args.seed);np.random.seed(args.seed);torch.manual_seed(args.seed);torch.cuda.manual_seed_all(args.seed)
+-	if not args.tokenizer_path.endswith('.model'):raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+-	sp=spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+-	if int(sp.vocab_size())!=args.vocab_size:raise ValueError(f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}")
+-	dataset_dir=Path(args.data_path).resolve();actual_train_files=len(list(dataset_dir.glob(_X)));effective_eval_seq_len=args.eval_seq_len if args.eval_seq_len>0 else args.train_seq_len;val_seq_len=max(args.train_seq_len,effective_eval_seq_len);val_tokens=load_validation_tokens(args.val_files,val_seq_len);base_bytes_lut,has_leading_space_lut,is_boundary_token_lut=build_sentencepiece_luts(sp,args.vocab_size,device);log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}");log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}");log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel()-1}");recur_layers=_parse_layer_list(args.recur_layers_str);repeat_untie_mlp_layers=_parse_layer_list(args.repeat_untie_mlp_layers);canon_ac_layers=_parse_layer_list(args.canon_ac_layers)
+-	if args.post_gptq_eval_only:
+-		eval_model=GPT(vocab_size=args.vocab_size,num_layers=args.num_layers,model_dim=args.model_dim,num_heads=args.num_heads,num_kv_heads=args.num_kv_heads,mlp_mult=args.mlp_mult,tie_embeddings=args.tie_embeddings,tied_embed_init_std=args.tied_embed_init_std,logit_softcap=args.logit_softcap,rope_base=args.rope_base,qk_gain_init=args.qk_gain_init,bigram_vocab_size=args.bigram_vocab_size,bigram_dim=args.bigram_dim,xsa_last_n=args.xsa_last_n,rope_dims=args.rope_dims,ln_scale=args.ln_scale,ve_enabled=args.ve_enabled,ve_dim=args.ve_dim,ve_layers=args.ve_layers,canon_ac_layers=canon_ac_layers,parallel_residual=args.parallel_residual,parallel_start_layer=args.parallel_start_layer,parallel_start_layer_is_physical=args.parallel_start_layer_is_physical,neg_slope=args.negative_slope,disable_layer0_attn=args.disable_layer0_attn,recur_layers=recur_layers,recurrence_active=bool(recur_layers),repeat_untie_mlp=args.repeat_untie_mlp,repeat_untie_mlp_layers=repeat_untie_mlp_layers).to(device).bfloat16();eval_model.qo_bank.data=eval_model.qo_bank.data.float();eval_model.kv_bank.data=eval_model.kv_bank.data.float();eval_model.mlp_up_bank.data=eval_model.mlp_up_bank.data.float();eval_model.mlp_down_bank.data=eval_model.mlp_down_bank.data.float()
+-		for m in eval_model.modules():
+-			if isinstance(m,CastedLinear):m.float()
+-		restore_low_dim_params_to_fp32(eval_model)
+-		with open(F,'rb')as f:quant_blob_disk=f.read()
+-		quant_state=torch.load(io.BytesIO(_byte_unshuffle(brotli.decompress(quant_blob_disk))),map_location=_P);template_sd={k:v.detach().cpu()for(k,v)in eval_model.state_dict().items()};template_unbanked=_drop_disabled_layer0_attn_unbanked(_unbank_state_dict(template_sd,args.num_layers),args.disable_layer0_attn);deq_unbanked=dequantize_mixed_int6(quant_state['w'],quant_state['m'],template_unbanked);eval_model.load_state_dict(_rebank_state_dict(deq_unbanked,args.num_layers,template_sd),strict=_B);q_val_loss,q_val_bpb=eval_val(args,eval_model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,eval_seq_len=effective_eval_seq_len);log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}");sw_seq_len=effective_eval_seq_len
+-		if args.eval_stride>0 and args.eval_stride<sw_seq_len:sw_val_loss,sw_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=args.eval_stride,eval_seq_len=sw_seq_len);log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+-		if args.eval_stride!=64 and 64<sw_seq_len:sw64_val_loss,sw64_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=64,eval_seq_len=sw_seq_len);log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+-		if distributed:dist.destroy_process_group()
+-		return
+-	base_model=GPT(vocab_size=args.vocab_size,num_layers=args.num_layers,model_dim=args.model_dim,num_heads=args.num_heads,num_kv_heads=args.num_kv_heads,mlp_mult=args.mlp_mult,tie_embeddings=args.tie_embeddings,tied_embed_init_std=args.tied_embed_init_std,logit_softcap=args.logit_softcap,rope_base=args.rope_base,qk_gain_init=args.qk_gain_init,bigram_vocab_size=args.bigram_vocab_size,bigram_dim=args.bigram_dim,xsa_last_n=args.xsa_last_n,rope_dims=args.rope_dims,ln_scale=args.ln_scale,ve_enabled=args.ve_enabled,ve_dim=args.ve_dim,ve_layers=args.ve_layers,canon_ac_layers=canon_ac_layers,parallel_residual=args.parallel_residual,parallel_start_layer=args.parallel_start_layer,parallel_start_layer_is_physical=args.parallel_start_layer_is_physical,neg_slope=args.negative_slope,disable_layer0_attn=args.disable_layer0_attn,recur_layers=recur_layers,recurrence_active=_C,repeat_untie_mlp=args.repeat_untie_mlp,repeat_untie_mlp_layers=repeat_untie_mlp_layers).to(device).bfloat16();base_model.qo_bank.data=base_model.qo_bank.data.float();base_model.kv_bank.data=base_model.kv_bank.data.float();base_model.mlp_up_bank.data=base_model.mlp_up_bank.data.float();base_model.mlp_down_bank.data=base_model.mlp_down_bank.data.float()
+-	for module in base_model.modules():
+-		if isinstance(module,CastedLinear):module.float()
+-	restore_low_dim_params_to_fp32(base_model);compiled_model=torch.compile(base_model,dynamic=_C,fullgraph=_B);model=compiled_model;matrix_params=[base_model.qo_bank,base_model.kv_bank,base_model.mlp_up_bank,base_model.mlp_down_bank];matrix_params.extend(list(base_model.repeat_mlp.parameters()));block_named_params=list(base_model.blocks.named_parameters());scalar_params=[p for(name,p)in block_named_params if p.ndim<2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)]
+-	if base_model.canon_a is not _A:scalar_params.append(base_model.canon_a);scalar_params.append(base_model.canon_c)
+-	if base_model.parallel_post_lambdas is not _A:scalar_params.append(base_model.parallel_post_lambdas);scalar_params.append(base_model.parallel_resid_lambdas)
+-	if base_model.skip_weights.numel()>0:scalar_params.append(base_model.skip_weights);scalar_params.append(base_model.skip_gates)
+-	scalar_params.append(base_model.smear.gate)
+-	if base_model.bigram is not _A:scalar_params.append(base_model.bigram.scale)
+-	token_lr=args.tied_embed_lr if args.tie_embeddings else args.embed_lr;tok_params=[{_G:[base_model.tok_emb.weight],_H:token_lr,A:token_lr}]
+-	if base_model.bigram is not _A:
+-		tok_params.append({_G:[base_model.bigram.embed.weight],_H:token_lr,A:token_lr})
+-		if base_model.bigram.proj is not _A:scalar_params.append(base_model.bigram.proj.weight)
+-	if base_model.ve_shared is not _A:
+-		tok_params.append({_G:[base_model.ve_shared.embed.weight],_H:token_lr,A:token_lr})
+-		if base_model.ve_shared.proj is not _A:scalar_params.append(base_model.ve_shared.proj.weight)
+-		scalar_params.append(base_model.ve_shared.scale)
+-		for s in base_model.ve_layer_scales:scalar_params.append(s)
+-	optimizer_tok=torch.optim.AdamW(tok_params,betas=(args.beta1,args.beta2),eps=args.adam_eps,weight_decay=args.adam_wd,fused=_B);optimizer_muon=Muon(matrix_params,lr=args.matrix_lr,momentum=args.muon_momentum,backend_steps=args.muon_backend_steps,weight_decay=args.muon_wd)
+-	for group in optimizer_muon.param_groups:group[A]=args.matrix_lr
+-	optimizer_scalar=torch.optim.AdamW([{_G:scalar_params,_H:args.scalar_lr,A:args.scalar_lr}],betas=(args.beta1,args.beta2),eps=args.adam_eps,weight_decay=args.adam_wd,fused=_B);replicated_params=list(optimizer_tok.param_groups[0][_G])
+-	for pg in optimizer_tok.param_groups[1:]:replicated_params.extend(pg[_G])
+-	replicated_params.extend(scalar_params);optimizer_head=_A
+-	if base_model.lm_head is not _A:optimizer_head=torch.optim.Adam([{_G:[base_model.lm_head.weight],_H:args.head_lr,A:args.head_lr}],betas=(args.beta1,args.beta2),eps=args.adam_eps,fused=_B);replicated_params.append(base_model.lm_head.weight)
+-	optimizers=[optimizer_tok,optimizer_muon,optimizer_scalar]
+-	if optimizer_head is not _A:optimizers.append(optimizer_head)
+-	log0(f"model_params:{sum(p.numel()for p in base_model.parameters())}");xsa_layers=[i for(i,b)in enumerate(base_model.blocks)if b.attn.use_xsa];log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}");log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}");log0('sdp_backends:cudnn=False flash=True mem_efficient=False math=False');log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}");log0(f"recurrence:layers={recur_layers} start_step={args.recur_start_step} active={int(base_model._recurrence_active)}");log0(f"canon_ac:layers={canon_ac_layers} params={0 if base_model.canon_a is _A else base_model.canon_a.numel()+base_model.canon_c.numel()} physical_only=1");log0(f"parallel_residual:active={int(base_model.parallel_post_lambdas is not _A)} start_layer={base_model.parallel_start_layer} start_mode={'physical'if base_model.parallel_start_layer_is_physical else 'virtual'} params={0 if base_model.parallel_post_lambdas is _A else base_model.parallel_post_lambdas.numel()+base_model.parallel_resid_lambdas.numel()} final_lane=mlp");log0(f"repeat_untie_mlp:mode={args.repeat_untie_mlp} layers={repeat_untie_mlp_layers if repeat_untie_mlp_layers else recur_layers if args.repeat_untie_mlp!='none' else []} params={sum(p.numel()for p in base_model.repeat_mlp.parameters())}");log0(f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} head_lr:{args.head_lr if base_model.lm_head is not _A else _E} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}");log0(f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} iterations:{args.iterations} warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}");log0(f"seed:{args.seed}");train_loader=DistributedTokenLoader(args.train_files,rank,world_size,device)
+-	def zero_grad_all():
+-		for opt in optimizers:opt.zero_grad(set_to_none=_B)
+-	max_wallclock_ms=1e3*args.max_wallclock_seconds if args.max_wallclock_seconds>0 else _A
+-	if args.use_gptq and max_wallclock_ms is not _A:max_wallclock_ms-=args.gptq_reserve_ms;log0(f"gptq:reserving {args.gptq_reserve_ms:.0f}ms from training budget, effective={max_wallclock_ms:.0f}ms")
+-	def lr_mul(step,elapsed_ms):
+-		if args.warmdown_iters<=0:return _D
+-		if max_wallclock_ms is _A:warmdown_start=max(args.iterations-args.warmdown_iters,0);return max((args.iterations-step)/max(args.warmdown_iters,1),_E)if warmdown_start<=step<args.iterations else _D
+-		step_ms=elapsed_ms/max(step,1);warmdown_ms=args.warmdown_iters*step_ms;remaining_ms=max(max_wallclock_ms-elapsed_ms,_E);return remaining_ms/max(warmdown_ms,1e-09)if remaining_ms<=warmdown_ms else _D
+-	def run_warmup_steps(num_steps,label):
+-		for warmup_step in range(num_steps):
+-			zero_grad_all()
+-			for micro_step in range(grad_accum_steps):
+-				x,y=train_loader.next_batch(args.train_batch_tokens,args.train_seq_len,grad_accum_steps)
+-				with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):warmup_loss=model(x,y)
+-				(warmup_loss*grad_scale).backward()
+-			if distributed:
+-				for p in base_model.parameters():
+-					if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+-			for opt in optimizers:opt.step()
+-			zero_grad_all()
+-			if num_steps<=20 or(warmup_step+1)%10==0 or warmup_step+1==num_steps:log0(f"{label}_warmup_step:{warmup_step+1}/{num_steps}")
+-	if args.warmup_steps>0:
+-		initial_model_state={name:tensor.detach().cpu().clone()for(name,tensor)in base_model.state_dict().items()};initial_optimizer_states=[copy.deepcopy(opt.state_dict())for opt in optimizers];model.train();run_warmup_steps(args.warmup_steps,'base')
+-		if recur_layers:base_model.set_recurrence_active(_B);log0(f"recurrence:prewarm active={int(base_model._recurrence_active)} virtual_layers:{base_model.virtual_num_layers}");run_warmup_steps(args.warmup_steps,'recur');base_model.set_recurrence_active(_C)
+-		base_model.load_state_dict(initial_model_state,strict=_B)
+-		for(opt,state)in zip(optimizers,initial_optimizer_states,strict=_B):opt.load_state_dict(state)
+-		zero_grad_all();base_model.set_recurrence_active(_C);train_loader=DistributedTokenLoader(args.train_files,rank,world_size,device)
+-	swa_state=_A;swa_count=0;ema_state={name:t.detach().float().clone()for(name,t)in base_model.state_dict().items()};ema_decay=.997;training_time_ms=_E;stop_after_step=_A;torch.cuda.synchronize();timed_wallclock_t0=time.perf_counter();t0=timed_wallclock_t0;step=0
+-	while _B:
+-		if recur_layers and not base_model._recurrence_active and step>=args.recur_start_step:base_model.set_recurrence_active(_B);log0(f"recurrence:activated step:{step} layers={recur_layers} virtual_layers:{base_model.virtual_num_layers}")
+-		last_step=step==args.iterations or stop_after_step is not _A and step>=stop_after_step;should_validate=last_step or args.val_loss_every>0 and step%args.val_loss_every==0
+-		if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(args,model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut);log0(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms/max(step,1):.2f}ms");torch.cuda.synchronize();t0=time.perf_counter()
+-		if last_step:
+-			if stop_after_step is not _A and step<args.iterations:log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}")
+-			break
+-		elapsed_ms=training_time_ms+1e3*(time.perf_counter()-t0);scale=lr_mul(step,elapsed_ms);zero_grad_all();train_loss=torch.zeros((),device=device)
+-		for micro_step in range(grad_accum_steps):
+-			x,y=train_loader.next_batch(args.train_batch_tokens,args.train_seq_len,grad_accum_steps)
+-			with torch.autocast(device_type=_F,dtype=torch.bfloat16,enabled=_B):loss=model(x,y)
+-			train_loss+=loss.detach();(loss*grad_scale).backward()
+-		train_loss/=grad_accum_steps;frac=min(step/args.muon_momentum_warmup_steps,_D)if args.muon_momentum_warmup_steps>0 else _D;muon_momentum=(1-frac)*args.muon_momentum_warmup_start+frac*args.muon_momentum
+-		for group in optimizer_muon.param_groups:group[_a]=muon_momentum
+-		for opt in optimizers:
+-			for group in opt.param_groups:group[_H]=group[A]*scale
+-		if args.grad_clip_norm>0:torch.nn.utils.clip_grad_norm_(base_model.parameters(),args.grad_clip_norm)
+-		if args.matrix_lr_early!=args.matrix_lr or args.matrix_lr_late!=args.matrix_lr:
+-			s=args.bank_split;n=args.num_layers;es=args.matrix_lr_early/args.matrix_lr;ls=args.matrix_lr_late/args.matrix_lr
+-			with torch.no_grad():
+-				for bank in[base_model.qo_bank,base_model.kv_bank]:
+-					if bank.grad is not _A:bank.grad[:s].mul_(es);bank.grad[s:n].mul_(ls);bank.grad[n:n+s].mul_(es);bank.grad[n+s:].mul_(ls)
+-				for bank in[base_model.mlp_up_bank,base_model.mlp_down_bank]:
+-					if bank.grad is not _A:bank.grad[:s].mul_(es);bank.grad[s:].mul_(ls)
+-		optimizer_muon.launch_reduce_scatters()
+-		if distributed:
+-			for p in replicated_params:
+-				if p.grad is not _A:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+-		optimizer_tok.step();optimizer_scalar.step()
+-		if optimizer_head is not _A:optimizer_head.step()
+-		optimizer_muon.step();zero_grad_all()
+-		with torch.no_grad():
+-			for(name,t)in base_model.state_dict().items():ema_state[name].mul_(ema_decay).add_(t.detach().float(),alpha=_D-ema_decay)
+-		step+=1;approx_training_time_ms=training_time_ms+1e3*(time.perf_counter()-t0)
+-		if args.late_qat_threshold>0 and scale<args.late_qat_threshold and step>=2000:
+-			if not CastedLinear._qat_enabled:CastedLinear._qat_enabled=_B;CastedLinear._qat_start_step=step;log0(f"late_qat:enabled step:{step} scale:{scale:.4f}")
+-			qat_progress=min((step-CastedLinear._qat_start_step)/max(500,1),_D);CastedLinear._qat_alpha=_D+15.*qat_progress
+-		if args.swa_enabled and scale<.2 and step%args.swa_every==0:
+-			if swa_state is _A:swa_state={name:t.detach().cpu().clone()for(name,t)in base_model.state_dict().items()};swa_count=1;log0(f"swa:start step:{step}")
+-			else:
+-				for(name,t)in base_model.state_dict().items():swa_state[name]+=t.detach().cpu()
+-				swa_count+=1
+-		should_log_train=args.train_log_every>0 and(step<=10 or step%args.train_log_every==0 or stop_after_step is not _A)
+-		if should_log_train:log0(f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms/step:.2f}ms")
+-		reached_cap=max_wallclock_ms is not _A and approx_training_time_ms>=max_wallclock_ms
+-		if distributed and max_wallclock_ms is not _A:reached_cap_tensor=torch.tensor(int(reached_cap),device=device);dist.all_reduce(reached_cap_tensor,op=dist.ReduceOp.MAX);reached_cap=bool(reached_cap_tensor.item())
+-		if stop_after_step is _A and reached_cap:stop_after_step=step
+-	log0(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log0('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=_B);log_parallel_residual_converged(log0,base_model);torch.cuda.synchronize();t_diag=time.perf_counter();diag_val_loss,diag_val_bpb=eval_val(args,compiled_model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut);torch.cuda.synchronize();log0(f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_diag):.0f}ms");export_sd=base_model.state_dict()
+-	if master_process:torch.save(export_sd,E);model_bytes=os.path.getsize(E);code_bytes=len(code.encode(_I));log0(f"Serialized model: {model_bytes} bytes");log0(f"Code size: {code_bytes} bytes")
+-	sd_cpu={k:v.detach().cpu()for(k,v)in export_sd.items()};unbanked_sd=_drop_disabled_layer0_attn_unbanked(_unbank_state_dict(sd_cpu,args.num_layers),args.disable_layer0_attn);gptq_hessians=_A
+-	if args.use_gptq:
+-		t_gptq=time.perf_counter();recur_was_active=base_model._recurrence_active;base_model.set_recurrence_active(recur_was_active);log0(f"gptq:calibration recurrence_active={int(base_model._recurrence_active)} repeat_mlp={len(base_model.repeat_mlp)} parallel_residual={int(base_model.parallel_post_lambdas is not _A)} ar_selfgen={int(args.gptq_ar_selfgen)}")
+-		if args.gptq_ar_selfgen:
+-			log0(f"gptq:generating autoregressive calibration data ({args.gptq_calib_samples} seqs x {args.train_seq_len} tokens, temp={args.gptq_temperature:.2f})...");t_gen=time.perf_counter();ar_tokens=generate_autoregressive_calib(base_model,device,num_seqs=args.gptq_calib_samples,seq_len=args.train_seq_len,vocab_size=args.vocab_size,temperature=args.gptq_temperature,batch_size=args.gptq_batch_size,seed=args.seed);log0(f"gptq:generated {len(ar_tokens)} sequences in {time.perf_counter()-t_gen:.1f}s");log0("gptq:collecting hessians from autoregressive data...");gptq_hessians=gptq_collect_hessians_from_tokens(base_model,ar_tokens,device);del ar_tokens;log0(f"gptq:collected hessians for {len(gptq_hessians)} layers (AR self-gen)")
+-		else:
+-			log0(f"gptq:calibrating with {args.gptq_calib_samples} batches (training data)...");calib_loader=DistributedTokenLoader(args.train_files,rank,world_size,device);gptq_hessians=gptq_collect_hessians(base_model,calib_loader,device,num_batches=args.gptq_calib_samples,batch_tokens=args.train_batch_tokens,seq_len=args.train_seq_len,grad_accum_steps=grad_accum_steps);del calib_loader;log0(f"gptq:calibrated {len(gptq_hessians)} layers from training data")
+-		base_model.set_recurrence_active(recur_was_active);gptq_elapsed=time.perf_counter()-t_gptq;total_wallclock_elapsed=time.perf_counter()-timed_wallclock_t0;log0(f"gptq:done in {gptq_elapsed:.1f}s");log0(f"wallclock:post_gptq total_elapsed:{total_wallclock_elapsed:.1f}s train_budget:{args.max_wallclock_seconds:.1f}s");torch.cuda.empty_cache()
+-	clip_ranges=_A
+-	if args.mixed_quant and gptq_hessians is not _A:
+-		quant_names=[n for n in unbanked_sd if _classify_param(n)in{'mlp','attn'}and unbanked_sd[n].ndim>=1 and unbanked_sd[n].numel()>65536];sens={n:gptq_hessians[n].diag().sum().item()if n in gptq_hessians else 0.0 for n in quant_names};ranked=sorted(sens.items(),key=lambda x:-x[1]);clip_ranges={n:15 for n in quant_names};recur_layer_set=set(recur_layers);recur_quant_names=[name for name in quant_names if _get_physical_layer_idx_from_name(name,recur_layers)in recur_layer_set];recur_ranked=sorted(recur_quant_names,key=lambda name:-sens[name]);forced_int6=min(args.n_int6_layers,len(recur_ranked));selected_int6_names=recur_ranked[:forced_int6];selected_int6_set=set(selected_int6_names)
+-		for(name,_)in ranked:
+-			if len(selected_int6_names)>=args.n_int6_layers:break
+-			if name in selected_int6_set:continue
+-			selected_int6_names.append(name);selected_int6_set.add(name)
+-		[clip_ranges.__setitem__(name,31) for name in selected_int6_names];int6_names=[n for n,cr in clip_ranges.items()if cr==31];int5_names=[n for n,cr in clip_ranges.items()if cr==15];log0(f"mixed_quant: {len(int6_names)} int6, {len(int5_names)} int5");log0(f"mixed_quant: forced_recur_int6={forced_int6}/{len(recur_ranked)} recur_layers={recur_layers}");log0(f"mixed_quant: int6 layers: {int6_names[:5]}...")
+-	quant_result,quant_meta=mixed_quantize_int6(unbanked_sd,{'mlp','attn'},clip_range=args.quant_clip_range,hessians=gptq_hessians,clip_ranges=clip_ranges);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=brotli.compress(_byte_shuffle(quant_raw),quality=11)
+-	if master_process:
+-		with open(F,'wb')as f:f.write(quant_blob)
+-		quant_file_bytes=len(quant_blob);code_bytes=len(code.encode(_I));log0(f"Serialized model int6+brotli: {quant_file_bytes} bytes");log0(f"Total submission size int6+brotli: {quant_file_bytes+code_bytes} bytes")
+-	if distributed:dist.barrier()
+-	with open(F,'rb')as f:quant_blob_disk=f.read()
+-	quant_state=torch.load(io.BytesIO(_byte_unshuffle(brotli.decompress(quant_blob_disk))),map_location=_P);deq_unbanked=dequantize_mixed_int6(quant_state['w'],quant_state['m'],unbanked_sd);deq_state=_rebank_state_dict(deq_unbanked,args.num_layers,sd_cpu);eval_model=GPT(vocab_size=args.vocab_size,num_layers=args.num_layers,model_dim=args.model_dim,num_heads=args.num_heads,num_kv_heads=args.num_kv_heads,mlp_mult=args.mlp_mult,tie_embeddings=args.tie_embeddings,tied_embed_init_std=args.tied_embed_init_std,logit_softcap=args.logit_softcap,rope_base=args.rope_base,qk_gain_init=args.qk_gain_init,bigram_vocab_size=args.bigram_vocab_size,bigram_dim=args.bigram_dim,xsa_last_n=args.xsa_last_n,rope_dims=args.rope_dims,ln_scale=args.ln_scale,ve_enabled=args.ve_enabled,ve_dim=args.ve_dim,ve_layers=args.ve_layers,canon_ac_layers=canon_ac_layers,parallel_residual=args.parallel_residual,parallel_start_layer=args.parallel_start_layer,parallel_start_layer_is_physical=args.parallel_start_layer_is_physical,neg_slope=args.negative_slope,disable_layer0_attn=args.disable_layer0_attn,recur_layers=recur_layers,recurrence_active=base_model._recurrence_active,repeat_untie_mlp=args.repeat_untie_mlp,repeat_untie_mlp_layers=repeat_untie_mlp_layers).to(device).bfloat16();eval_model.qo_bank.data=eval_model.qo_bank.data.float();eval_model.kv_bank.data=eval_model.kv_bank.data.float();eval_model.mlp_up_bank.data=eval_model.mlp_up_bank.data.float();eval_model.mlp_down_bank.data=eval_model.mlp_down_bank.data.float()
+-	for m in eval_model.modules():
+-		if isinstance(m,CastedLinear):m.float()
+-	restore_low_dim_params_to_fp32(eval_model);eval_model.load_state_dict(deq_state,strict=_B);torch.cuda.synchronize();t_qeval=time.perf_counter();q_val_loss,q_val_bpb=eval_val(args,eval_model,rank,world_size,device,grad_accum_steps,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,eval_seq_len=effective_eval_seq_len);torch.cuda.synchronize();log0(f"final_int6_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_qeval):.0f}ms");log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}");sw_seq_len=effective_eval_seq_len
+-	if args.eval_stride>0 and args.eval_stride<sw_seq_len:torch.cuda.synchronize();t_slide=time.perf_counter();sw_val_loss,sw_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=args.eval_stride,eval_seq_len=sw_seq_len);torch.cuda.synchronize();log0(f"final_int6_sliding_window val_loss:{sw_val_loss:.4f} val_bpb:{sw_val_bpb:.4f} stride:{args.eval_stride} eval_time:{1e3*(time.perf_counter()-t_slide):.0f}ms");log0(f"final_int6_sliding_window_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw_val_loss:.8f} val_bpb:{sw_val_bpb:.8f}")
+-	if args.eval_stride!=64 and 64<sw_seq_len:torch.cuda.synchronize();t_slide64=time.perf_counter();sw64_val_loss,sw64_val_bpb=eval_val_sliding(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=64,eval_seq_len=sw_seq_len);torch.cuda.synchronize();log0(f"final_int6_sliding_window_s64 val_loss:{sw64_val_loss:.4f} val_bpb:{sw64_val_bpb:.4f} stride:64 eval_time:{1e3*(time.perf_counter()-t_slide64):.0f}ms");log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}");log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+-	if args.ttt_enabled:torch.cuda.synchronize();t_ttt=time.perf_counter();ttt_loss,ttt_bpb=eval_val_sliding_ttt(args,eval_model,rank,world_size,device,val_tokens,base_bytes_lut,has_leading_space_lut,is_boundary_token_lut,stride=args.eval_stride,log0=log0);torch.cuda.synchronize();log0(f"legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{1e3*(time.perf_counter()-t_ttt):.0f}ms");log0(f"legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}")
+-	if distributed:dist.destroy_process_group()
+-if __name__=='__main__':main()
++import lzma as L,base64 as B
++__wrapper_size__=21392
++exec(L.decompress(B.b85decode(";O_K5c3l83nZu%UrccSf2s5HR(X=5oFNAOTCuxCrogOEQMJ5H^qbwTDyUd%1xi3}vD%`<wNE>XtQYMO3O;X5#G6g*B;Rn%i>bZ3N"
++"Zj4D4jJny8zZfKU1H((!&C8|b#-hK%c`7s;1&*iCVdO;~^copz2v4&;f;Zzi4T-IWqp9GimXaHPA7@2siqG~fJ&sY6GKL%=6%W?c"
++"Dzk(#$Gv|L*h;#@DHOp|8@`$XiVm}OLBFp{8><<{&rn(asrG;vUo$w!YEi>-Zml;bkDSR0*aoXbn)<hOx(<E5h@qG-Nog&n`PC7C"
++"K<L-|;aL?Vej?E7@<=1R{+8j#Lr|ci#v1&&iZiT?m?ejB2{RXbpMrMm-)Tup`4#A!ke8Suso*7V>wqw%Uu8Vsuzl}|<Xt=G-)c6n"
++"QFu*A!bFRmn+Z^wv>mqsa!Xn%aqRjf>03f#@_{GX#>QoN+9W0>R3)MhA39b|;FjGA?+?t_&es0c#T(|nSiT0aBI!=n2eFr*50Z+V"
++"b?}-|bab}Em}MbZY$-5t(5NfQ4;Y$QG+>vs8^hSP=xLb{5W+{EIO;03T>L-~2T}DCm3>4c&zc9eUg}6o>6rZ#LL&?ZIdFdth=$&a"
++"&g8;2>k0x;aT$2|-0QWq?nbZ?4w?v`kLpLhnWku}ux`=u4|5QDwLEFcOPP-f4Zc9~f8#BHk(;82q=w|`-B;p!stpvgpW5s@i>tV2"
++"zqP}g@4g4rDL`#{Vx|Xo-^00G%aF1;nt8V43v8Mu>J`+G`d_B4!qfS3;o3JYRBfzMEohTK&Lc9#7=AKIm2E*(Ib>W@#lxe~=~NDW"
++"w^yy<oK?Iq+GhaB@Ut0X9X0LJb@UVY@}6NJC+LUSo-$o)4a>TJJ{=lIc<hV;NNt=ig23FQL`tmySCw#jNPl9z?R5P5bb=a7Zaw{e"
++"og-N%ky=WIanVl!_7E(2GDpeZd1j<$Vl6baOcu>7&!8kt735U)piPAB>AbhM$zcS=wgv8BKw%0WfssV`HdS>KOHOx!FE6okMLZJN"
++"U(5Z)R#^`5&)AmP;5^Ss*;-&X1_A9u5^P1!Q0I*r2(ilBWegMMTS7L|sht>XJjM`MvQXD$&Sxo%55O9c<9s^lAbtp|Saxx9;Qa<5"
++"sN6zET?iqn33pUwmAZ+=1=+4vssevys7A`qG_z_uOcq!<G~yE;wfgKI7pkq`HTBq)W{<*&s(<2jpS~Mx{<tw~hN#kT)+_K)XlcRC"
++"+2|0oXn}^pWjo)_ZAlqgh`r5oktB4@+?g;pla88p0-|Whm$qCdORlHJ2w>kU`@qD^rRvMY%Y@<8=0I+!mjC1<#r+ctxxA`$+NupC"
++"qb+F*kKKKqlyPY|!36<2(I0e&dXSF4)yO*8y1Yz0I|)vd9An;>k%9=8$M+9tU@gz0tI@AlwbLkD>l1dh3-WSy^mlQiq}7q|Gl!r~"
++"lx0iF$k2mxJeks<rhh!uGj3pNR9t#xV#KLGtA>7~C^mt<%miLMp{c4x5RFWw(Z1DClZ-d19}y(;aDe=#IrT^MY`w5}BbOL_D~KbQ"
++"CqLEH%+=ITVz?y&_i?-<D+oO$8}9Lb;27<#CSwkRm)9j%%A_qh(|J5mGUteZ2J|Nw3{BK?hgIiS^7Z{MknavsNt*Ok0K&=S{S)|s"
++"h(w!QEcB64?uz7P`B0;a*V?y|Y@hMM0#;W6o%?$vqN^EC0INoSK`L|rT<*)j{ufkV566Qfy%>W=jK(&z4*=#y6M0@yIYb<kb<W2D"
++"{c1@;6x;K~3#pN&M{X%@;mFaptq4gumRtrxLNG$kk6&QFaK`@(EO*1y-5?~C<Is1>fQwFT;QBe#Skul5AXjK>xMOlNps?u<1^I7R"
++"voLs&i?i!&f4m~lbo3;Od(bef_P4-RBYEvrH8~~pyC31fY1fxsqIX2WD72J#{4Vxb`C7F8xcu1-Rpk+l<2oG=mA)YA;2(E<-#1kM"
++"HCLr@;hp_ahwCA<Lw<SrX8w}WA4eFDnYp7Z97y~+VPmPbC4IM4#j$MP+Mc<kynKdG<Fna_|32DN$NkDpJA-$mHkD8dJb!O%wQ}*U"
++"MRea5ClV}A%Qz@gzaW$s6v%Oj7VMz*E|SeWAGhQpn0p`o5myHxByaB#!p__cAyVX0`AvZ}#1WhPZdXft{?;Rc=3HB7f}4m0@-JVx"
++")%6&%_H~&wT3Zw*o>r>X(oV&xswZ#uVb~WdP?c2I7D1*Iv!ov-l+42Dy%R|~1;zT|reeW<Zm-M75uJg{)ug&W4BQI0h#He`0+q^_"
++"(C8}?-JV9Ly?n00c<?2KzT2-su5N8S;)j=|nDVLP#2mEmQx48W@`;gkK~{aB#WO#<S(la)N%}l&den#BZRlQLGA&;7JjTp{=Y)I3"
++"WZIKgxVK89+mqpc<GcLX8u#(@x$y!w*F46-qU=l8IR1=Z=zV-72QHqUFWsG=&_j%BiVm%)i0vZpa;5DfY`X5uAuSh`D3MGZfV7}<"
++"UAc14I_*2!qx~A606~A8`k;i#ZI3_Uip-nMzolusLG^u6@ns<`K4jSBE_s=SWWi?aUp%@n2@J};a=u>PzX>TTy}hsPEH3Fy!BPb$"
++"6<o;jj9ih5@H?$%=dVqE;i(Pmn4J7J8-)ml)|=I~wcuO0*#`<`03-<4U*76dxW~tID-)D687?e@67)gvF*0C`mB6LX7AeaGxz8_S"
++"M@YRto;|^uz7<+lmkH|lrc8Am`Hl5hfPMJ3$r}C$>Q4H9gR?O~gNiVe|L!%q7)ur5M46Z%XBiP73Zns?GjQBiM3wwjIV$bF+A9$B"
++"qn3%Cl{+SGR`re4)!_n@31WhHQa})0X@w5zP-l6ggE7yXX_M;jg<_&loHIxy+*V?Os~>>geHqVz_Oj%`r_a9CP_HODa=Gy&g<O(I"
++"8hMx8BAa$`vNQ@t3vAV@x6q6cr=RVySb-$A$Lz*xzq4FSdE45*Jyy|NLQQ&GvX(N&kqjJc(FE;$^>TY8v8T;B+Ry-6aP9R?d<PA*"
++"_J4s?34I-S1Zf^BZ>mAZBS7Iry1Kkb%r(tl@B~|t9Tl1)ov)eS!ZUuZcC*Cc=TDM{6Bzf!IHM?6!E;aRUPPl*=$6@o`!?q}VhnCZ"
++"S50?e9(h;kMk~wEV98zafwm~igTj02h+?SGzuG^%46h3K`qAS(UD4W&FGBjC2~B19Ir0WCPD$_I^k+P=Kv1F09gfL;ha+vaA&s12"
++"O|Aps(VzU&HWjdcGr7_NUZ?J6M3A_js09lgG0|EsobZ&ZC(C(t2}<Oq;*CF&2^#iDh9L`kkbJ`mL)7Z6Di<86)r)r-vU<6Nj0**3"
++">M05(ngAbJqr;`%F}v1LTig=%^AK@~-@=zHWP8%i#5&gZ3YiVJ_4h01r<Elrgq-3f{8ZbIUx8-oJ2S0WvJT0~1{@pfFF8De9m9(>"
++"pALFQ)6zzYBCpqW`5QLRu8gW|^HJ)(Bf-`8zR7U-UW-xf9$jDK@i-CA3lm&b2=T>Z!@2$lwT~FT7F31S)4k4+s(@CQoj{e=x{Os|"
++"i54|lBjOt;VHqh(Z$4)9c`eifAodmTOTVJQYGRhvUws7>uK|rLolpPQ&?`kALQYmg>^J)J(Qwh_<!i4@GRnRS#2nF48XC`K69Ji+"
++"Mr!WHUO?oB<?unmBMfYdAkKG$Kg8SWBV~24t^H3gv<F`s3jyHxjNLR}>g-yeZFRMd0?4GF9c;wFf%j_zT&g>DPKjan)gKMLeir7V"
++"I!<rCr2KomXKAeIo)F%||HAf0DGL92$Gre<CbzyZcJ*%09DbzX&RN4ecL7T}x<#v}#y-=^a9JzLjRr~JlR)a&G1taJ3ud!XIe<zM"
++"`KVH$06t7>)^>}JvNEP+bV-`um2<Ki_{Zg0&|JKu*Lgw@Q4_MyJAtNm1IKqV$&M#SX}O1YhTz1hGF-1=GY_&D_Cm8VVLflf^qlKF"
++"zwNa|=jQoo=@Oo9Or)^XZ~kQ60E-Akmm+NPk3j@#>}V`UZLo7VPU!wpN3`YP@v_60h}&!y)0vb{80eJk$UH)Oh&FQ{%|e39fDS5|"
++"xvvj;w95Z&fePuC30dQm-Qb;3P)n51q(G=IH5by3nQSFm|10(MgV^EpBm|mhu(*&^@me`R=ggf~-?3L=k+Z!NW_1pCVjG(}Z~tdv"
++"Io#;!d(jYL9V5|hKO}_{hhlsE>`z>Y4a&SWAUrT<J>)L_1Og!Y-46Wbp@45O`ttK8ijLmq)4D5UqnXTrZhtO?nfA&|tcU=`c9m$K"
++"4xIRy$!?s05|;^$zJ-L6VxmLBke1JFjueA#yOcinrT4FQ<buwu`%A;VFq0b+_tR@qyBF0KtO7>KlCAS6mS-A!LEAvuCOAstXjvzL"
++"_UZ`Kx&5o99kyYf$sK%EMSUU*?k+Kv3sI5v`?V{Hj{*qtWLiOGIuNs__EdUjBO;g_9Fm3N1;K~PG`ieUR#5I>-O4vfBpJe8X)bA$"
++"QVem6AZ|)uImgF0W4_M+6~I_B7BZg!Dg;>@FuBQ=?%z?;iO7OO8S~%P#hG;^xA5l7Augs5R>t#o0<D(V_d&uM`r>)0gwOA{?U@bh"
++"6*_;fg9YEG^q`;1ZdLWku>j!n{=;vDe`(OV&1{&DGr9GQ4KC{I_HiM2_3d-U+JGB#*yo*yP>`0`W%*2#L*;fT&m+<14w7AUN%C*<"
++"E%Y&S>ms@<h{twK@*BV<Os<)WRZl5c^dO5KC^3EP)wn)qnr%N)_(F++xUp!ClUHL^TlFz8=}NW(&bN*b4LYT+m|~FzD*!{LT+!75"
++"dHPfI8Oj@JOVurB)5}lNOT<!Hx~iX%03R~3=9PNweY<IS_Ej+42|I$!gU`jR`Cc(&c635ihgS@+P?m7n(BsTD<c>oJAl>qTx<Si*"
++"J1X1+kBXH|v=XT51;(=_I4;XxY1AQ{Ecz#;j=Ts$D}K(HH5!}RJ&NRN4IT=7Z%`bwNRTECOwqDEz=zhFpfCLJ$n>LtLW4_A>TJ|&"
++"MwmrhAjaYK>U0MXHZ$Mis4fNU!l>)^;9{86Q*5`%!YFYmLpSBU$|>9>tNs$8`C5{Mbt@F+p>d>4jhXRrI~^U)9@!#ElZ7-ewY#5T"
++"=yHGY=J2d(W6D%74>QYg-o(HMOC|>}d)3nk_2o?s@Ub`FL!YfzF;6b<iQ(X<0_<F+<Gka<>y16+onMu}(CR>V9JZ%NB^D{mz|v(h"
++"YuqQZ+qz73f9EV3xggqQsXznXRK)qOwEC4HXuSfKg%}sf`@Vvk4yc9|-HgujmQM>pm4@NRcJIi$hUbUX{HNaIbb!|r=%X`Aw%dSb"
++"=3|&hA6ZP~3M}6s?J@R^^@o1y;YSB-YiYooEQj@eTp?iyRub{qHkXeLfDi!dkhGn1+BU)37A&38{UpznqvWm#C&7V#1BudPOg66s"
++"@Y!Noe~HVU#tM$9x~TPY5F{zPxx{idOAw!K<?h{*NB38qzPHx;ljn%iy4h_zR9R^#xhl}O6hE7Rz2uHEc#knPl;R3lZm7-md^|g7"
++"8HFbn7I*4!s3Cqoo8E21B!j)NW;MsEtTlhG3iD!ca1EsF*K(m{JbmAJtsOxpfy=EP;hU8~eu-7bplk%z6%3v{<@zgDDx0k<lIB#B"
++"!v4C&et*=hDFh2EB5Na3*N0)4(<8<>Ar4AY0gkWM{ar0q>S+SIJ~J*kzUjsM-o<(6Vu9B5;2Fj~nit-@s6c~n1&zK<b2?VZkGB^4"
++"tY;tlFWp13*CpR)#r!?(^Kc?@fhu3{zKLh)1_Xh;y1blFD{wGJq%Nw{&d?($CFQsahpo(Jj(}f6gZR6|7|P<a#<jP6ew)u2$ko+P"
++"$8J&KWVY2iuA5^ZTzWyp{Tv`}6fdD~20+Id7%nd<9U#}<d3lju>8wj$D`YK;s*tJgp$~shVmXE94~Ys&0!6RzDqvyzxvq-@&I)LB"
++")I%d2-pWbQuS^AMt{-L0iLb}z`9-d$5T8^c#O+2Q`pn_RiZ!cpkf3D|y`5U!>B}q2#d9!m5Y{z#r=S>pY=(!$k#CzE^Q4VC1NsFK"
++"YL=_RuNQ=Fxh9Ti4)<7RYEI+y3r_6t!zGyW2Tk1<T)tV;I;t_Kh`ibZ>II#SqMi`w*>xQ!$>l~Ph<P3d4aF;o`eaU2@pCY<scZnr"
++"8`#7*C@%u#Qpk5H9iAIIcPxPInu}FVKNy*K9y@{PL4h@E@r_YOj)`HOuEwe!q`N+{J3V$@ujda!k$y%~;VUtZWytV1g%YurtjwlW"
++"52aK<-fVl^iR)X5GIJbT{?W_iWKC3}B_!g9kL8Yf=;v@kfPlsNhR50k_F4Vfm)|;sbV?$bk$}K<3EG<*>-a#d2m+B+zWDrPJo>Nz"
++"aPa}lZg84nGhf4#_P0C2lX}ZU2m4J2lZGxoWVhXC@DM%Jg~bbiCbE33BzY}nzEo9mA*CI>DefN+dmBd!V{8~JLcpfxKlXNhs31Tn"
++"kl<CRq6L{ON3tF+V}*|^9y~VaQ-7Hv&I8-xq}BxYP{LnO_*OL`H-f6ORn*{bdIeSaSoide{eS_CRbcXwP|MR&0G5K!{cJ9Vi9DXU"
++"m(#NGEg+BJCU{D;6*BZd(7{lxmi-Qq8ETT-4!y}kNi8$NG-6=weLPR)QuxP6mo7W~-{0gIo5H2BT#VK{D16!Emhl)<wGtc_VZ@yD"
++"#QpWSw0@?O;#z(<PlGle8Ic_hon77I!mk(AamC#7-4Mn5I^$FuqNBwCTyW)*zc1$hx(iqY*XIN4B6#e~gC-Np?A3q%Hyf`ME>p?F"
++"F)@tyW8{Yg-z*K4YE1VV7Vii3nQyKKvALBQ*+!$hk33^Z0^{)cspbL8l@I}dTccN(0#?IW-*_H51)(f<!;sE)5ZW(9JvQOxo;{Cx"
++"XaM9{T%y@r=^MQD`JuxZ@DFXPzTS74OAroVtv%j@UGatiek>=%uDfDB-~Au@;og<WUOQEQyT1zft3Ck3g&ngUUD`^UKJLybuNNb("
++"&1r;>Y0;l{>`6jAyuq-t5{jYL#FHoj8DKTG75}B5^mGi`AB~Ti=WVybtFa$|yw_f@qGZgK5lm|=E)OS2nSQ_-_y&sqFiER_2F5Md"
++"V*5MRg;m)utZk}KPt9VHHE_oj%4ZTVqb(#Hpx@eRwM~_$`;<f;BvT(Z+$_U{qQ!7(PAm+TS}<Rt!c`^u2S@0MmzBjz(B*#Cve907"
++"(T=DuiYe7pP|ZX!l`%Xj?aStZSJk(im|?Mbs)n@spoO)+{dy%<jh9~TyEtbNPJy{r1^eocsUMnBJ&md?o8s91cqkV`b{U&h{?s(e"
++"`2kw^N;OqLb>M^zG@at$)w=9Ms4PkJD1x2n9#!L1_Y&6FVwxw8T$r{SD^77pf02YDk90Be`5i=EIbXS#M$=LR<6<er3&$jbQKw#q"
++"Ht^d#ReE7Ufn<cX?yjs7M8(YLKj{#D2;R+U@ZbL-pSMZBenSLwwWC!9bz8};Ji69zAN7<J*EV+m7OY)cZSXCR4_+y9rr)A+Y22dv"
++"TKwJAe$NL=6gl)&ZiI!R<Lw^P!KcBxO|BezSvxjq&pjFv{UMZgZ1ypBj=;SV$zVt6bbOLltz`OF5DK+JLDF%X6Zat*WezxAv|GYB"
++"<6iVz&MZzMM?-~4TM(C!UmE(Xn`If+<kQlZZM5H+xMx`zM1O@TyKLas$M_QDn~)j%{BiPSLgnD60c&g&Vi^7i=+jkHk2MapPzZwp"
++"1T_$SkKE-*)U$T+GPPWyIz9xt<*i?sg!7BlM(O3>LqA?&`rwU@seCwEuYDS)iC#bDOTjZBUV;?#lm+}+@|Cj`2nZp~45(SD!^n5n"
++"-(#gizu`=~Ii@0oO!fOM{)E^qUvpVwQDLNU9{%bkMSwTRUQZJdK)F?U_)<7mOtdl8tniCN4It}_uNW<RBa=_!vS9>I+Aj$+Ob~9T"
++"OSnU4+4KqhAM=H_7Ci5Y$I=xgNW*VZev#0m*tHFPx36Grg%*6iAy66Or-pXcSfMELdMC6HAu}!MfzuSNQ&Vu^(YKv<T%2J|k+kdg"
++"VD$jx$tSC=K%clt3heyPos~mOvVEg`!j-82@gg(S1e8*$%~_P-uAs$^*+{h4^M~<r+g~#FJ#gXZhf3xO!asfq^ef^+DcLl9_lh~l"
++"=bx;zQV-i%JW=sX-$MD*gUp-tjEvk33okDFc`L-ir<}|hvtqC2ZyEXR7B{kg4?25?btY~MhZUNwu1#SLauvWW40rJ2RDzwT4U<O8"
++"k(vUzaoq??LEdPP8`N@G(yA+-m*)C;D=x^G83VV&!r^_{#Gwmd^DhUaj`$2OC0=J-3Kcs!?s-wcP`0Z^oMZb_?_OU8*b1I%@fRnz"
++"y{%E6!%ELo&Ip1<PFQJgzD`EZ-(*&4F`-O_3BhilPWC8GLK@<GW+APUUq^7)SBB}qE!c&<YwPIEt5z^abK@y12R(my$U`T^az<hT"
++"E6Mk|ViG1AK19<(F*In#hYOyu)5_h%weIH(XV{s_qayd$G{>OsfwaHF*xpFRd3(yaw!P*bSP~bh+ZmBiL5mLbwgQjM44D0mBheBO"
++"n#S`TFT%PgDHba1mf36sj92rDqPPgK)HDCJAj&4zKq?#k$>NjthxK<(?3wM2!fj-!`K|!bD@mZ?qTu{{>!`dytXJf&@{<&3%P64P"
++"?4s#pnTExxZ~N;Zj(C;zDG0@wl-Da)$;Ada58(LBI-GDjAUSR0TOD6>T_rch@_NBw<?Dm0NJ1Qxxf)YJlq);)({Mg3^d9TTQZBo>"
++"`j<e*wAsJ|f^b8I&xiCOJp2<LU5G}mR}q<u8C&LhuK%!IfJIsRxM|v49o{}97`|(q1tNPHSY5ebf<JK1z8mYtO4bS&&sUJZZOpk>"
++";oLWQsx+d=MZ#Fi89BU}dy*oOpP7x6O>l5hgwTi6Bk|ux56_xZqb=_js;nd>*k}H%Vr#T6@{w}*%tQkfeKyPg&GeJrW(5L!sbkH{"
++"xTaX=k-3G~8s#G$D$NqFJV&zOxCyM%FG@ogMBNE{S8)%XRSZY94E@0P{6uO$Sb<!nNE=wJ)q(h;%|mx4-Ly2-e?WOwH(m;PjW_Mg"
++"R-T)k#YjCqCU3~xn$d6~5QEG`T!FgALSIWV=>q&wlE!Lz3xM4pb}5J*f&IwU4Ngdir8io7zGCnySzP7zr>vj8+I=bQ?V>)EN*u<Q"
++">~%<>Fg^g+k_~}Y2u1Dt>&v!H#Vq)hQ@5|p&4!A))sBrFX<r~ZVch^j{YBs68RPG69u10)*n|*|QZ4lrEXenQ7WEzS08_gUkk>5;"
++";8ETQCggpFsnHl()c$JWsLAHQTG%u^LQl0I^4P)5bx7K|kyb^z98_$<ip(;czF4iCp~UD%FBlG+VZf8){I#Hm%Y^w>deq-SXvRKy"
++"s~CTlI=Jy@u@-`!dcG{xCWu1=%YdwN2rk_^efPJ*<CNv|x*5F?aV;0%kjm}!TRLX-h#g{**Zb-^=U`R1y<kM}cglYn#++C3xu0`I"
++"h<Lvl4?B?z-@hVFt!Q}Na&44Ehb8f}A$*AXz>U4bQ9zSbI^<~Qg(T5W9j@?``(!E#N%J)@VS47BLQ7Iw?@X~*)kQ=`k{z(3gV(Y#"
++"B*rt3%B(0~ztLEDI(mFSRrKn+xhD)jyduMUnCuP=QyOfj_SEe-le854p7|3Jyt?3g_DJ_X8GV0(Ur-wI`?nTAyVjk2&<`KH$GfzG"
++"b|YbHRFxBsz=To$k+y8k{gH{jg#Bj}D#QhlPWiU*m{6Xj*q_L(YPt0D5fuX7;beS&hST`P)6Igxa<@=x*_{HoPc*oq^g7kEde`tA"
++"dkP+q@_vD%xfzypr4OJmW@|P~WLHdy>&DLQKI$fB7`eV7$`>8iFJ$Y<z5a80d+LPUVE@hah?9K5eqN>rrMnBQem~FG(5)MkSHfEM"
++"EGrFOmJZi+@{nMNPmww)njDk^s3^$}=aD|@U|Dvhf3E+zj6^umeAP!6_nQ@ONmSX#fC2>apgd^VyHTCoHghd^9D-$#Zm^#rz85it"
++"B(Vye`%_GUHxZ_aI7AEy8}q}@1@?<lB}MO5JzSS7p6o2-qJ~vg-=v(o?P^_lO9stst5%f`zg`}&z1GkXEbBF9dJYDbH@tR<xVR}#"
++"5mKQBA0QrpXm@;2oB)2x`5UE;+nmvbq|(Tv0-$eST~fTkO>gfu=RFknJb`!nGC^SsAY)Zv70Tgk_LY?TX<)N+0>UhFHU$b#Np&H$"
++"Tk@+uA)K<G<Ndmy*R>1rio6=<GR+1b>N9GF6w|e#x<fF}&+h>JV4<xFS&!JRkIz66$6gepX5tYFU<x5h-$g2QA@NfE^jxm;)72vG"
++"hX54;tiWMYB#e0IYO4PG>2j98vE$+bz5&0QOVWS;KI%w8Z>E1DkLRs!>{|zlS~O~3#MU#zfh##5gtxi3N(G_RTewU=#A;-53#o;#"
++"Aw5Ac0lk(j(IRx?g!yT^dGe=q*5>4p6sD2nwQTei)2T>53I&lvz6#oc86FG0aaiZVOLsbhy{;IbTLS2!nY*`ImNfIU^_LNsKP;u$"
++"sP`}ntrL<Ucqb8q2$?M`ZO6()s1q1(TK;ATKSoR|eY}-r%2lJ#WogUSe&Usbd&i7%8j+Lg4WIukGF<A>_VL#}5BjqeK8R*Sv?f2I"
++">#H(Mgn(Ft&UK_a_te-*rF69uXa%?|O}BJsczSp(nKDY5KcWq~9xna+npByh7yo`6t+7`!pWZB0i|>T=JVL*MrydDDQzT-nhV;iV"
++"p;lJ~6J>#0Z5*-jee^nJ!*2fubmE*}Hr8Kep3V1+#`~YCv2(ET4f>`l$$rXSE@jP+k_a>Wm0uR)O%dkn+$7Q%?LzJ2Rq1n(+OK0R"
++"_fq;3pYLB)prs7Ntc6QBAFk_KC2f#2acmg_AlR$Mi+l_u!>+&!H(X1w!n3~G4(wg^EG+MUp@#ma)Wz=|J~iky)!qTaJUs=R4oodg"
++"3-$)6V!lLz%<Ss|E&jv<PKAv5=bT(lxWYzKP}vR3BFD+8M}s+^6@sm6w+!q>Zeq?e?#>$SvwaOjd}uMY^2omT+pS@LRn3Vn$Kcc="
++"{^?L{epLa5TbRsDK_z9N<YW96N9(-Pr^`Vr1i2P<YbO-^3yR;GX!B^&^^rH?YqXfCczu)vVXpO1c52p0vv~TF16ohSDn)keJqsHG"
++"g}61EgDg*xvwGFpBIjgAh?3DBsZ(&*KNH+@d>SM{uw%%+gurmEq(SSw=1&JagZ!=Y;-QTFzlTE*Dth|NoAIxuPGm6^^%Z~(v@axl"
++"Te*2`bzLCa80*79X$yWVL*E_el!Nl1NUjDXLBhb4^UJ6X4JV-1f3mAZVpDWhjPKik_eP}CYHhp+;gCnW@?s8MzwKqB@ufP`VhmFo"
++"rZp*i*z}C=KEs!ytl~aBj;)VG@<KA7Sv4JRra{3d=DC#s$Mx#uOHwWF*BGH8W9V^YD#A!(or7xZXw`Qd2G>Gg6a29qM|~qzu_O|Z"
++"hpDm!Z+5^WJ|>*OTrLxwS34g#rQc7!5OJvKqMO*GLn(++tzEQ6;}d`&sBk%?SjNGvHjJS7;#NJ?M_1(|YS1ZC(DJU(kD1?eXiw_~"
++"tl#}no7QM2m<$Ug5q{F!k^!nWe(%DTE0HMYZ!IvM0RYy01mtefhX}bU6*5uAT0Siebs|&oVj=1@mQy6VLB{#Nq%1le5=<z&D_;yT"
++"na>-}%rQ4;WcO>y%i%U=e|RF&U%_N^!wT?ka{+!)GFT~~u-M0IaW^JNvJ}IUh4*%*gG$VDoF5_D+o#o?&X0|P|ESDS=xmMJFlC_W"
++"nFaFE^<>~VokFQY8Df0`9gkkIj5W$>0R7MG5V@*}{hRT{Yup37c?wWB85XpIADNtNK}rv<FkG3u!&KxIC;LYCcd3cjTEAo27<igp"
++"@bB*)Kn7SeH*)kESD}jwi2Jdn*2;}mdw_)boqExlt04JKUJWlK82ycAGcB$c*h|dABve)}%K9p{Ieorg=Y}=vNFm`Umytq73noV7"
++"QKmZRX3nh0aFW;mZ2~hUO8P~^CzANKSd+6DpJk=F$Yuvm!NZS6G12aiC*KOcH}e))`o3K$rU#xp`<clSCd>F~*S6Gk$9@u9J9`K-"
++"pzEK2$S{D<1!El8z?DD=(Hwls?%(x0u5oRQn-;o(Uf%F!JaFQU!#?oCa<&aB;-lj9@5T$|*lNI3G@Y3igNO(X1=GXo4tPVRPZ(x&"
++"F5~x@WW+nBH$m#lg($UmEz;<;=xyTT5Y`HHw&x4#CS-F|re5Gs#x6`H0qEax67!t=dF~E`k)H)Py&2v1JM&^>AQ@&+$b6*j(6AEA"
++"3SW(f)j7I(F;-!L{cE>;9vIrZjTMI-IR6_DhGP7K)Si<>Y=IFd{5H4&7$nsVc-eUZ-fx?YIT81$41PBaM4vB83MyX#@szmx4RUJt"
++"1Z8HJ+b~x*9n>SVYCe_I2~I2yVP6fcI4wJ7n{ky%{rXo9_AV4u76V`NW8S!#;#y8>5FP8SK9zUh#QD7E2G>ecd+N-y2rr<&Dcv!Z"
++"eEegEYtz+nSF4!xvp?zlA0!o){okn3KT-1sfN^^wxp1tJMtB>Q)0cIF`(&G;H^&7kjp6~9aCb$;=FwK^5AuGU_%!`H<qpr4z*3&F"
++"mfmPEAfau-kxh?%#G@fr^MQA@=k7WZXm|Rd8>1>z*Gzd<s0^A7dzTYt!Qi;?b1^Z)P8b!UP@Vdd^+2LHMAgF(^UI{vh7Ib`4XZAa"
++"(?o9MAH3OlthZ@QzXkqk2p`oNO+f&iVB2a}4NM;u)thU<115XsQl6mkNb^&0O$=0#H}=ux1v(bg^d_`rm{Jbv4>LaMuo2|U{+4*@"
++"!~KsHu@aH9;K2D9?14G+iOT$?p*I%!!l9WCzgf&R;%Ml2cy5oI=7sM<r6Q-92DDbkgA%ir7VRze=+iq+`)|d#EZ+=fkuga{>%2Ju"
++"mHj|ZJUT**eR~=Am42u=g{tbrpdK2KY6J`+ZSP~A9fgYS;ZMid`9NXaf|HuO^r`24YQdU3+w#HZchy<>w>J7N%n0X0$t35HU&PBR"
++"TjUQ&pu#c!J9(S$T5L{;fH-M1{`Q{j2mlQ>hy?=S8DsU=AJI=kHrgCe8}Ma=E113BP>V&ZR)>x-1tF^Wj3h~7n<n*p!6GUo(tt*T"
++"3Lh<XLd}ZfS4qgCPUOS0&qCET(MjN);t8+P%n;-AcZ~K!N6-m%%T8fgDh!y;?e|O0Z>1vK<OG_;2=R4{mpvLZM3yqJg31%kPy>KD"
++"gvtyb*Cj$=k!hO9e7Liy_KuEY&@$bd8szW~s4tnSAke|&R4|2583hPS7N3+f$4N5UngsyaE3ofF>mi@rCbI4nE6fP*Khfx(PQ37b"
++"Z76Tg)PtnX2-sz;WFDSB|Hw2i0o+;WPDH{e#^T*SDoslTLJEEV=c3XX=0H0F9<fo1Zsrtovutto8Ow6Ev3&n-J9aYzRC<ZAVVaVr"
++"lKWMZB@?x+Nvlu84I0WY;!_ZKxkz-Fia}u7fUb?7o719sNM6jD^cKJ3l{>!pimH@$=0WJ7l|zC*8eZYSJeJRSc_EdB`$wX$ez6>2"
++"3;Nc*`Lhk)L7S0O(ajiMip@gh0K!Iq6||{Wngo$Hr*Aj%`Ls*jz=>;n809GSTvC-FS>L;S5&A0zg`2G3Z*hY?oy1Nli@P^{%b9J;"
++"fI;M*=((z}O-@G4tmTVr9GA==7B`n;z15Kr|M&C=2|a;gPK(RFWTIcb-bEl=KOuL^9vL>*IRh?B>}f2@X!7k0IWUGD0gx)oi`Ch!"
++"U0))P$~G4tLOSy<A(#5S*6YpMUzmmT;@(ld`=SiMAmmnjbsICQq@}GRvOL#2r~Gjs`tM#6M%CBpet-h3Yj!Tp65!j>`b)Ncc(Y#Z"
++"Ps8IAS!?D1l*hN&K2@17vFAPEuv0A867K85l}~Gr6qDDNL+f>8Hv*%TB>d;(y$ik_mX2pBP)-dL>I-1>&$e^xv_Q(Ao62zRmTQyd"
++"foU!*a=jaZZn<h$oVR46Vj^tcLwh1x9hc`2mMxKt9tfQet43mltO@b@h`Hbjl1rnC*5ec{CD!AwG(wEkA32WsMfzb5Zfn^^M~#(U"
++"n{v5%SbNM_ZwpE~R9z}KDpU2O^kg0~t1W5fkFZ$iRnho2Ykg0ZcGNl>J**z)Jw6z@1<l>iG2_?%dylTkfA2zB4-YcuCYhty!mt4`"
++"COB=@^ZgI;0LKf-Y{L!=$|~d}Ld9}a)qdimA0fFr?(J*iyusv{ubxlMNR<&sBR!t-B^f>0iKoyvyTXu4^meZSUeD#H<v-h*BPq!`"
++"xKY9<`)MrS{k<jfyh$E|Yc*Q+(oV%YH4+iXE%Vclez2WeS2@b2DmQ`Wi_ds0S`8skDhKfm?_O*k4O5iexsgJXf;Xf6{a^AQG9h+E"
++"2LCM}Bzb`0(4weK#8`G7Tz;i_3XxM|QuW+iQNe!=@(yJHU%KoL5(o^C^1qk2lu(<^kq_MXHoT3VBb~U-Eo7B2xB{y}y=%r5`d3h2"
++"1#Y{u+fGa9iaC66Bbe&D(q*d3x?F9KIaZd@a$C3cnQ;;_m@p8|MR?ABY+EcDxX4U66UMYBmfTcNK35hu$75r`Ma4n=G!r==rAto{"
++"#k#gefCF>C;M!y5`*{O8z|5cccBrvol9eErrA(wwgY(2MDFl=mK<{k|{uvE81hx_)bcKJOODM;vK*q007y9lx!>k{`<6s<DVyL6-"
++"NQk$rXJlCx?}{j+3y-ciVvW?qA<JhBlWX8ryxQJj_Os-frGIzw?(!jhBaGcn_Mp6c3r2k1eg0#a7c)vUV7~&)WkFwIci@^AqF=sg"
++"qv`fH?Y3s7DS*QW!bL5##eb><tad<<A9YGk^Wbth9WF%jiGk<vFem^KzTV3WI|`6-5}xw&BTw};tBZ5M{PxfJYUE8R13K;xv}t46"
++"TwzK+DX~@j$KL#J(;`B;ZVjWUZ-M>(4*;*;YVuTZ1s@<cb%3<7P~TI2>cdD%39pUrat4*A<!*lr$Sq7?Lh@^H-<AJQdU?MSBV+}L"
++"+0=#N_`Yn94Q8+6%rA&#YUyNC-h4hNpm8Iv8BngD|0Qs`|9xnLT1ID%P(jvo#(ypLV>P)W6GH=ZN^)LD|4s~Jx<0wk<&FU4q*Mz$"
++"GbwNByOb+>tWjHK=n3`1fCfbc31a0_VC7Tm4<V}r9sY%ss8{^3GxZ{yYclZt@)4LG%KCKIu;*ZZlNNXPxdt%kB*2x78RXd1Po6B6"
++";Bj>7L2!4Sy^NGPS-shE;NctP=K4sE56KOjE|EmnIaUZkGJL!BC8J;|B<k+~sG7<SXKa#n9L~ALGSncG)SX~CsTMkA5MXDXh*^G("
++"dlfC4vQ3(*syrr2vqBC)Ylt*w`IK`#GRhtI(2T2PK#F0NO+ra#n&dPSsjPpcvKc}bchT9y7<6<T?BK3=>g{&3Y>5){iCMCzYd6Gp"
++"c`*G5LL;9V|1|!-1oq}Sr*fc3#6l^{9mUxi81>}r=qhS{cdcIGDu_m1<I*7{S>3Q0Szc&Rp68lil*5pDpg=3jw@v)COlqeZx$R#C"
++")nWc2E0Lb4j1ujWI68R0_eU7n?qN)&bu_eF@a`ulQY3K*;#el1NOMI~4sX-4ds-_v{Ds44&>pk)l46rqsnj{J*#m!ZD3LBsPot(~"
++"RdlE&+G&g{@vXuRp>26fJj}Px<FV1jqMw03dx1B}Yj&eL%E&|2JFYOrqJJO|tn`#7FV8bWd0@AiiI%w%-XKTVONMU3(;+hEB@Iw("
++";15b9JT}nc&_wyb2=wB(8C5<Ifb&q}ub0Ca=*{^bv%u;21tNAeL6vry6kesO14Y+B18;R&xdwd}3~?2Jj^#?@fO?5Xm+C|^jp;=*"
++"KivK<SQGHc-85k4uYs@(83JWgQjpJU-_%HqCk4ns!a4$xQ>q1^zQf*uO2=WHr~&@ZT7!G1`TYejJ6R9jIeEESm?Djogau|huZtvo"
++"Gg2WAAHt7KOrtV@(AserN`ZrH@pn3%%e)cPLaVOl6rYW-fnt3q;5U!g>zWyNM%})JqTwVh4!A@7<?HSYXd+nst+`N|1my(S0h}ps"
++"xo8^=kBXUs6J$@fR=2>4o2sWLemPTcNaysR;P-IKxCA$5phU;R=r#=|`BjR^mK5xOk&6lh&LT+Y$6ArC%0r?QE@Ndws|tlP##_67"
++"%bVcW`0jUd)a%He8KcXQ?LpJ${|be$(5r@&TzXfGfOM#LtN4n4bwf(DL5#RYm$Xewc0KJ`eZQFNSXw*2ZCbg)#$04(4~J@11A;lU"
++"$0t>8{_%hprNpL0pdD2Z)&-vR8J_UPbY9spG`*^d4e2w5-E28jG3Sf)vx2nzMNBL_lLqN$vHg8QO&T0G4uAl$HCXt9Ql=7C!$%fD"
++"tZcbNX1l?%g6w2l=U93Ja@=I!%7;<7E^WrJsqS0}(0j3!`0z$efKmC5z1yVWaPRbEXQ2NBB7Vo}W~TBD?BfrSXZ%y5y{(p@?*L?X"
++"MjW+2A6zcs+l_14hU<ZyHUHO+#OM#+3Rfye&PB`p6X4b;-lcq?t#T<!M|-trA&qxtFa3q?B>aK3k}lxf_2xlga=yv1!{}3tNvTLD"
++"?((N@AUSKUm|N}1J0kwyB}p^P8fKK39bfvpMSVCYSJO+6IZlS_WuD1f3PJWA7>_)TWON*NoB>5>j<?DqHQ22bl-t_i3T~WyofFUg"
++"&(VoZZ%bOLVqilCmIq_zs_s=xR9=caR5iY%y!M=KzSr#!9VD;l&pz|@1%s4m%}$_FZk9vV0eCB{<Y{Nbv%|K#5f~zO{Qza;9+Pfo"
++"=rzK)U}sxr=_3F!W>u$ru%GpgQ3prKml8ubh8X(`^_~R(+Qv|u?Bd4FjCQCo#3y4n+meMC{{EOT>g+rJeI@|)TUFLoX+;geD<-$X"
++"!wl;V*DEtQ_aws&rY(cxh=H>JUmK-Qh=&8Cji6Oo+xb5L!~TVmCk|)rV1EQRUW7O`%UJ3gOCKU<PBd3yyz3HGcww{(Pto2`Sind+"
++"ETcdi8FmK?3?v#6h66!au3rV~LbWaOLaMQml8NWwKo>EJpV#5U<cT`ga3;EnZwn?90fCyp_xTrB{jQ@w7yQvr-)^g6kbT4s=^f>H"
++"e5_4RwU3QPp2e_s`1LdGlyc!+)`ig4t95j_6Iw$4Mp-Blb3o4u00P32r;EkT4U~N_x^m%}tV~W%!BGGJVg6IXYEHjM7~kr>cqwtE"
++"I$_Tu$TU*-LD3e`Egi_H9}A|!$1Uj9i1dl36*ZRAJ`I0mnOOeli7}0;N4dW1ZnOX*++E6zte_JaG4*l%pknp~Lo4Kyf>+<^77l6j"
++"f6MKiq+99y3mEN8RFXoeQopXkDBicXbS)n{ufyb$<e<R`z<&i-^ym+G|M<59^*Qrdy;d~sofa%*R<E(N7;1TdC7ADgv9{`Qves*="
++"pgY_++$3CPad4H8E@0s{hOLuk;m^hQa><Tek$PaR*mQpvJ8(SnsEH>$#hx=32>02jyDM<)261wgV-NN`Q8Kz{<Cvi(@3gc0nz9}G"
++"X}c_Ldme+<$!LhRA&)7t!gu1TgTqX4cYA*ry-VVro`q?SC@<|+RSwpOJtE>r#j8><ydpe<yHobk<F70g)T*&2KFkp?3$w!MhJF*u"
++"%7a!c4r0Y-4{7M3YaR##y}?jG;CpejOd)z1dfs&c2r-6(;XFdP#0Jms3Sa2NOXf72tJNJ|m-yps!1I}2n9F7zmlmjr(NEXNCp9xN"
++"el>YGJ0#7KgrRm?LX>LHcC9D#_WQO$(9jPj1-Oi&xXke2ylqKo2I8XFEG^OolexNCE<a4w6iw-yYgK*!a?()Mi0@xSa~d6@cQj+d"
++"A9?#iW<l6kVV!!-X!%eO&Syeuns93a@)P?;(d27j-^yo#lzSn2k?YkK_HGYzdds>^WC-ss>){Wn*6m_>v!`p9^;&19ZYyGa(zHH2"
++"MqNiWMy$9^wn&}Yj<g$Day_sOKNZJ6Pey5xZm)jrs<N`P^^bOQGxXqi^6Qzm+3?ZWU??0B*9w2`hRHp1kvM`XWckjay_eD>n)UOm"
++"`k*URuw8HkT1QuGAw{uM6z9>gE8LGD#6S%4k*#js0|!`I|I0t^v<)V3;)_xG@=NwfXuX(+KpNm5-ub1;qUp!oO<ynqKDKKK6l;>K"
++"-JnRK_lgl@!Mawf>4BdA&Sv{WORlSSkC@>Sv6S87AtI-rAqKa|v!4{}@tBdOT-<th2(Rf!vBEn64?VX#4z_~6TA4@;w|5i`$+j2`"
++"zaQ1i(WdKWZG$QC9vNEAZo7e(1&}i;1spa4hYxTP0UUgG|Df0<WP?RUy}<Lg{i2)uw>5X5Cq~Dqe6r`|#Co_ArX7!a!FbVP>6{gv"
++"!y)d&X8cc{U@59s%!l#0C;|-GX?;nIu%qV}*Iv(tuD2L?0*RDjS{!>chFupSP02nDLs7$+br+SGE?k-FWtf`B;NE6pOnZoP3`)wG"
++"v_w2uC(q9cy!Qie$oDCiomgG@d(IfN!QC<S*Q8;i&As^(Wb$J>c0QEjW2-rvDz2)cYmJGs?))C=O!`aGEl<M5V0b6x8T`p<uEy9}"
++"CT$dR#6!K8!Ibr}+T@u8pTNoOf_}<?BCoTya<`r{t~EpJsnmP|)h}p^t4+C!HWzCVP3__39lyh5TI$`0v=F|)1iLaJm@acH|EIXf"
++"uMSS|cldv3cUW@$_Qw8?{-=HORK$4MYSUmsKTS#q?0-AE>=f~@RM8_?3t8Raezoba<ObMP&>t~J$rs%WQIIA4m|3NlgtAxVbE@G9"
++"jDNr0f{RiN`bN#D8wx`uq^tF!(a!tN5aG54>9{gPXqL#>zWUGkau`5s_WgMysup+EJwO;lnr@t))%PjvPHbgm&n+#yi7XBk5lAxM"
++"bupU)S&j)%x3Qs+VyFthr2+_suX92#wt`|2N@mr5=kcM&+MpATAlM5W)YMus4GM6&(Ocv2ysL6>><@jw{or@^FP20CFy2!9-&51N"
++"Nd#k247{j>QOtiAI7m#{t`OG0I=uOgJ!B9D|4;F+W|XD$Y;jA)j-u{RJI;FYEg=$m&<cSH?hb2Pi&nlhET3&ldv#GbfH<1@Bo~yv"
++"2RA|fU__&?Fi6;X)kR$iMl=psc;G5OviXhEsB!zQPs<LrLQ0MVEK+2+ZEVXaJXE4pLh{b~-Fp{|;`CFu_uZf=_9e9%&fay7D>xvc"
++"VFy!MmZ+@}+`zHUc%2Rvo+&`<NH5omel8Z@Jy}9Sy<o`xzv<&}i2Z(J8Q6^_D_CaH+5)cuovSWV)mUS#p5?%{JCmIYonma0yGk1G"
++"EwT#0DK$R5Hc)xH4&m^?42VsR3JXTeD~}O4#H`0-Nr{olw?^MTw`~g>&4MIQ4Sdi%sn14NsO?~9YZ2C820%Q=g&#ZpSWVmIn!hXE"
++"VviJ@QX1=)hoyJyNTRV^J97gzF`m6LLV->l!D>~W7=20#fC1U<JlVlU>|WWQm$cMUkU8LxScK#szXJ|+o_0AqUgdrNRAu}^032M1"
++"2DKd^Cv|=6mKpSlkKnQi4eokEW{k^Y80PN;>hy|dL{^tO=h0<=!!(LcbnG2kPU$#(BTH=DJ!d?|cI)TTfhV$dFM%;Uq085NwQI@W"
++"gLVsN@m^fq66+6>UweRUn(K!B9X*H<Z-%aN5Aty;?rM@@eXb8wqzz?pN=<SoUPtkbo&MvZ+yw6N!<~Xs{2|B_PGf;TLUi<*yUCBr"
++"6{R_Mn~bM*$9YBOV|<(&Kg5%$=%1tAtSw{YT;!bG)tQ~cM?TF?0iFjW>_6WYRhTd3nwHuR5-MsD?Qvsq8!H#iLrz;4=%V5bh$jrT"
++"JO7aR$7Hy=HqA)Gr9K+a?hkSXuP@FH+d6sLHKrf=fL@T2K@``3)5c*4$1Kj0&iVyLuzzH#lF|b9fMh6I{Zu8gJXSosh6%{q$~s1e"
++"*8_&ZQPpWG<F(ZmZ`kg#25`c{Q*}9<)#b@4=N;BtF`+>c2`^juu^7xk#G&3*<s6hK@}%Z`Z8UM6s~dbnF8ID_w?8&cuquveUc78i"
++"c#IloirYJ)ihoj2IExFTH+CXyu=NuV9}c}nJ!#Sq0_iZ-0jQY810UqdyiZBW!ap0CiAFM_#=V;6p!lhVX{XTq2PF@%QJ$hp6<I8x"
++"w;Ynie)6VKG=<anf770KBIaoB;}<E;Qh*UZ^6|8yyJxgq#G(62f$h4BxbV^qcB`}-{=yv2!7~Ly8ntgzjeGi5f#EP5M$o7F%h7N$"
++"6>4)CcoTQgX$^bQQQ$vogowx~cHy=yD158S2DbdfmeDK5>H6AS@Y=_Hnq+MA{}$nUp%Om58|GyQ_wzGldRUn?CsetdwUO5U1`(?v"
++"4sOMjh||)CL#_y*1z0HK1}fxmduon{ERl$#>~f26xJ?2?%+XK^{pW?Yg{c-zF3iPs)XzT09c4SND=bIQsq<4-(9(@HZSTx=ZwW-Q"
++"pMSTvHPe<^$fBnL8>a~ida&5HI~PdxV;EnY&C>xxZ=`9Jj^jf#5>{rweQigs+ukieTI!+kNK(Tu`@gbWUH$?y)~*9PkE?|hEo!B_"
++"^8EARH_K<<PjiWzSOAQ!Yj^c0R6pw)i)K79%X4F@i1zKqOs7$1P-)CWRyo5d?cVfx*8a>ll)>faeCU|)H1#Q#&rt-GL?ar$1o%_x"
++"4^L*I@43l^M82r5l8w50>ng~rm$Fj^4F(aF*R($YoXA(`h_H;4!k33qGGHPYfr|8;o8K_D!9P0VJzpyupu9ygLBOeEhsvcdMciRT"
++"Zyha?_vdBLoK^X^9}Y#B(K62a^(hM{fAcBFGr6qr<TKeV99MalcHoc)h=7OwH&XJD=gl$)4TzrH&GXTo9q4DZ5|f#-jLnUTy4!jG"
++"0r%n$=wXKX3CK_DiKM=!#%E+=ejG;}<wSLNC_qON6}cLryi~*pCBAh@5LAMph#y9yOE6cSr2(8$w^no%T-Kn-cV2Wg*IW%S$jE|V"
++"dPJA^?X{ycAqR-i5mE}gx5?sDRM}FeNUGe*zRtJYmvr4p>xMsi+rZ}}c3W-Y2h>X;o~y&FfJ}$fsMiSiVB6n|?dUC+l7u>IxYf}<"
++"(SR|jOd8d9@Y^<Jl{+b;xPpW-QBV*dZdVf^q<x#}3uu2$R+3x^hj87%K9`3%L6Y;1xEivHZJBfPxubPk_Jsg9sB-+mgNBZ4q_CKr"
++"op3S@I9Nq}{tXx8z{%B`-}<-j5{p$~XF6<CpnuO^-ouNU?P9xP1k2Dx&2nHHN}_ErmbjJ&D-_TDch?c@<^{{1eSSbP=1DedKQe3z"
++">-g@Fg8rMM0=nq3)rVcEu(C=h<xx}~J417t3Ad)U2by0cD(NJ7(edvPxN9My<|E(j)0k{+g01$Lx8{Dfrx5k;{|Wz|u?M)-OM>p="
++"VW(=m`dm$Tffr#jG^keMtF13orb&lu;$AU4Urt`pWn+hEhsbGGe9YGgJBHi)buZ`RJ~=F|9iFW4+J+JmHMF4$VcndZ!*4d^E)AfO"
++"-A(WoAlUx-Jau^K?wFFEN+0S=^Mf-4;yk_}*8l"),format=L.FORMAT_RAW,filters=[{"id":L.FILTER_LZMA2}]))

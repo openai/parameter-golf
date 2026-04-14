@@ -1,0 +1,48 @@
+{
+  "title": "Pre-Quant TTT + ETLB (Eval-Time Logit Bias)",
+  "author": "AnubhavBharadwaaj",
+  "track": "10min_16mb",
+  "hardware": "8xH100_SXM",
+  "base_pr": 1285,
+  "techniques": [
+    "MuonEq-R optimizer",
+    "Depth recurrence (layers 4,5)",
+    "All-Int6 GPTQ quantization",
+    "Pre-Quantization Test-Time Training (novel)",
+    "Eval-Time Logit Bias / ETLB (novel)"
+  ],
+  "results": {
+    "seed_1337": {
+      "sliding_bpb": 1.0897,
+      "artifact_bytes": 16084685,
+      "steps": 5505,
+      "tok_per_sec": 7863
+    },
+    "seed_42": {
+      "sliding_bpb": 1.0906,
+      "artifact_bytes": 16092287,
+      "steps": 5508,
+      "tok_per_sec": 7868
+    },
+    "seed_2025": {
+      "sliding_bpb": 1.0891,
+      "artifact_bytes": 16087467,
+      "steps": 5508,
+      "tok_per_sec": 7867
+    },
+    "mean_bpb": 1.0898,
+    "std_bpb": 0.0008
+  },
+  "hyperparameters": {
+    "muon_wd": 0.090,
+    "embed_wd": 0.090,
+    "qk_gain_init": 5.0,
+    "pre_quant_ttt_lr": 0.0005,
+    "pre_quant_ttt_epochs": 1,
+    "pre_quant_ttt_freeze_blocks": 9,
+    "pre_quant_ttt_chunk_tokens": 32768,
+    "etlb_lr": 0.05,
+    "etlb_steps": 5,
+    "etlb_clip": 3.0
+  }
+}

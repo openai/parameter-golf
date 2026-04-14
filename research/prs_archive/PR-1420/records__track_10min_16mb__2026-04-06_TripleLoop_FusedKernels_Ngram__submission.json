@@ -1,0 +1,50 @@
+{
+  "author": "Abay Bektursun",
+  "github_id": "abaybektursun",
+  "name": "Triple Loop + Fused Kernels + Parallel Residuals + N-gram Tilt",
+  "blurb": "Triple depth recurrence (17 virtual layers from 11 physical), Triton TMA + CUTLASS EVT fused MLP kernels, earlier loop activation (0.35), GPT-J parallel residuals (layers 7+), eval-time causal n-gram tilt. PyTorch 2.9.1.",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "val_loss": 2.79772,
+  "val_bpb": 1.08014,
+  "val_bpb_std": 0.0004,
+  "seeds": [1, 42, 1234, 1337, 2025],
+  "seed_results": {
+    "1": {
+      "val_loss": 2.79767,
+      "val_bpb": 1.08016,
+      "artifact_bytes": 15978345,
+      "steps": 4754
+    },
+    "42": {
+      "val_loss": 2.79952,
+      "val_bpb": 1.08077,
+      "artifact_bytes": 15975585,
+      "steps": 4758
+    },
+    "1234": {
+      "val_loss": 2.79661,
+      "val_bpb": 1.07971,
+      "artifact_bytes": 15973639,
+      "steps": 4748
+    },
+    "1337": {
+      "val_loss": 2.79757,
+      "val_bpb": 1.08015,
+      "artifact_bytes": 15974187,
+      "steps": 4756
+    },
+    "2025": {
+      "val_loss": 2.79722,
+      "val_bpb": 1.07992,
+      "artifact_bytes": 15970317,
+      "steps": 4755
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "bytes_total": 15989931,
+  "bytes_code": 19811,
+  "bytes_code_note": "submission.py (143 bytes) + all code LZMA-compressed (19,668 bytes). Includes minified train_gpt.py + CUTLASS EVT source + n-gram C++ source. Unminified train_gpt.py (64KB) included in PR for readability.",
+  "note": "val_loss is from quantized sliding window eval (nats). val_bpb includes eval-time n-gram tilt (bits per byte). Seed 1234 n-gram BPB was evaluated in terminal."
+}
