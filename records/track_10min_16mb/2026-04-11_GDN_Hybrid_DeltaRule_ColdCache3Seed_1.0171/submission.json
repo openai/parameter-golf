@@ -1,0 +1,43 @@
+{
+  "author": "Joshua Martinez",
+  "github_id": "joshkmartinez",
+  "name": "GDN-Hybrid: Gated DeltaNet + Sliding Window Attention (cold-cache confirmation)",
+  "blurb": "Joshua-owned SAFE_SUBMISSION cold-cache confirmation of the GDN-Hybrid family. Pulled TensorPool artifacts for run039-safe019 / j-xpv7d0b38j show a 3-seed mean quantized_bpb of 1.01710033 (std 0.00133490) with all artifact sizes under 16,000,000 bytes.",
+  "date": "2026-04-11T21:42:10Z",
+  "baseline_pr": 1545,
+  "lane": "SAFE_SUBMISSION",
+  "evaluation": "quantized_bpb",
+  "val_bpb": 1.016192,
+  "seed": 777,
+  "three_seed_mean_bpb": 1.01710033,
+  "three_seed_std_bpb": 0.0013349,
+  "artifact_bytes_max": 15981262,
+  "artifact_bytes_mean": 15772544.333333334,
+  "seed_results": [
+    {
+      "seed": "314",
+      "ema_bpb": 1.00767,
+      "quantized_bpb": 1.016476,
+      "xsa_bpb": 1.02095,
+      "artifact_bytes": 15522111,
+      "steps": 2223
+    },
+    {
+      "seed": "777",
+      "ema_bpb": 1.007192,
+      "quantized_bpb": 1.016192,
+      "xsa_bpb": 1.020919,
+      "artifact_bytes": 15814260,
+      "steps": 2239
+    },
+    {
+      "seed": "2718",
+      "ema_bpb": 1.009535,
+      "quantized_bpb": 1.018633,
+      "xsa_bpb": 1.023874,
+      "artifact_bytes": 15981262,
+      "steps": 2240
+    }
+  ],
+  "artifact_authority": "state/tp-pulls/run039-safe019/artifacts/train_seed314.log,state/tp-pulls/run039-safe019/artifacts/train_seed777.log,state/tp-pulls/run039-safe019/artifacts/train_seed2718.log"
+}
