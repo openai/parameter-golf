@@ -1,0 +1,11 @@
+{
+  "author": "Lim Shiaw Yong",
+  "github_id": "shiawyonglim",
+  "name": "SOTA 12MB Squeeze (QAT6 + SwiGLU)",
+  "blurb": "Symmetrical Modulo Routing (12 logical over 6 physical), Parallel Residuals, Hash-Collision Embeddings, QAT (6 bits), and SwiGLU (mlp_mult=1) downscaled to fit perfectly in 12MB.",
+  "date": "2026-04-14T00:00:00Z",
+  "val_loss": 2.81041093,
+  "val_bpb": 1.66448365,
+  "bytes_total": 11739164,
+  "bytes_code": 53381
+}
