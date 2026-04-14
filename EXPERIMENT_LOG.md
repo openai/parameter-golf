@@ -790,3 +790,123 @@
 - The best confirmed full-val baseline still remains `G` until `H` gets its own standalone full eval.
 - The strongest achieved local-device quality result is now `H`.
 - The right next baseline-setting run is a fresh `10000`-step training run on the same fixed-size scale recipe, without warm-starting from `H`.
+
+## 2026-04-13 - P8 Fresh 10000-Step Scale Run Confirmed The New Clean Champion
+
+- Completed the fresh long fixed-size scale batch in:
+  - `logs/week3_stage_i_scale_long_20260413_134901/`
+- This run kept the same promoted fixed-size scale recipe as `P6/H`:
+  - `NUM_LAYERS=6`
+  - `MODEL_DIM=256`
+  - `TRAIN_SHARDS=2`
+  - `TRAIN_SEQ_LEN=512`
+  - `TRAIN_BATCH_TOKENS=32768`
+  - `GRAD_ACCUM_STEPS=4`
+  - `MASK_SCHEDULE=linear`
+  - `TRAIN_TIMESTEP_SAMPLING=cyclic`
+  - `PARAMETERIZATION=x0`
+  - `SELF_CONDITIONING=0`
+  - `LOSS_REWEIGHTING=none`
+  - `NUM_DIFFUSION_STEPS=32`
+  - `MIN_MASK_RATE=0.0`
+  - `MAX_MASK_RATE=1.0`
+  - `LEARNING_RATE=0.0012`
+  - `WEIGHT_DECAY=0.0`
+  - `BETA2=0.95`
+  - `GRAD_CLIP_NORM=0.2`
+  - `WARMUP_STEPS=20`
+  - `ITERATIONS=10000`
+- The batch runner originally marked the run failed because the config re-sourced `RUN_ID=diffusion_scale_long` and the verification step looked for the synthetic `week3_p8_...` train-log path.
+- Training itself completed cleanly, and the standalone full eval later completed on:
+  - checkpoint: `logs/week3_stage_i_scale_long_20260413_134901/diffusion_scale_long_diffusion_best_mlx.npz`
+  - full eval: `logs/week3_stage_i_scale_long_20260413_134901/diffusion_scale_long_diffusion_best_mlx_full_eval.txt`
+
+### P8 Results
+
+- Best periodic subset checkpoint:
+  - step `10000`
+  - `val_bpb=2.1097`
+- Final subset eval:
+  - `final_diffusion_eval proxy_loss:4.3279 val_elbo_nats:3.5761 val_bits_per_token:5.1593 val_bpb:2.1177`
+- Full validation on the best checkpoint:
+  - `final_diffusion_eval proxy_loss:4.3322 val_elbo_nats:3.5923 val_bits_per_token:5.1826 val_bpb:2.1276`
+
+### What We Learned
+
+- The strong `H` continuation result was not a continuation-only artifact.
+  - `P8` reproduced essentially the same quality in a fresh run
+  - `H` subset best: `2.1093`
+  - `P8` subset best: `2.1097`
+- The long fixed-size scale branch is a clear promotion over the previous clean full-val champion.
+  - previous promoted full val (`G`): `2.3249`
+  - fresh `10000`-step full val (`P8`): `2.1276`
+  - improvement: about `-0.1973 val_bpb`
+- The best checkpoint again arrived at the very end of training.
+  - this branch still looked productive through `10000` steps
+- The original `P8` failure was orchestration-only.
+  - it does not invalidate the checkpoint or the full-val result
+
+### Current Interpretation
+
+- The promoted clean week-3 baseline is now the fresh `P8` scale-long run.
+- This becomes the new control for follow-up scale-context experiments.
+- The next highest-value probe is data exposure on the same branch:
+  - first try `TRAIN_SHARDS=4`
+  - keep the rest of the recipe unchanged so the comparison stays clean
+
+## 2026-04-14 - P9 4-Shard Data-Exposure Probe Completed, But Did Not Beat P8
+
+- Completed the first 4-shard follow-up batch in:
+  - `logs/week3_stage_j_scale_long_4shards_20260414_013602/`
+- This run kept the promoted `P8` fixed-size scale recipe and changed:
+  - `TRAIN_SHARDS=2 -> 4`
+- Everything else stayed fixed:
+  - `NUM_LAYERS=6`
+  - `MODEL_DIM=256`
+  - `TRAIN_SEQ_LEN=512`
+  - `TRAIN_BATCH_TOKENS=32768`
+  - `GRAD_ACCUM_STEPS=4`
+  - `MASK_SCHEDULE=linear`
+  - `TRAIN_TIMESTEP_SAMPLING=cyclic`
+  - `PARAMETERIZATION=x0`
+  - `SELF_CONDITIONING=0`
+  - `LOSS_REWEIGHTING=none`
+  - `NUM_DIFFUSION_STEPS=32`
+  - `MIN_MASK_RATE=0.0`
+  - `MAX_MASK_RATE=1.0`
+  - `LEARNING_RATE=0.0012`
+  - `WEIGHT_DECAY=0.0`
+  - `BETA2=0.95`
+  - `GRAD_CLIP_NORM=0.2`
+  - `WARMUP_STEPS=20`
+  - `ITERATIONS=10000`
+
+### P9 Results
+
+- Best periodic subset checkpoint:
+  - step `9800`
+  - `val_bpb=2.1112`
+- Final subset eval:
+  - `final_diffusion_eval proxy_loss:4.3274 val_elbo_nats:3.5761 val_bits_per_token:5.1592 val_bpb:2.1177`
+- Full validation on the best checkpoint:
+  - `final_diffusion_eval proxy_loss:4.3328 val_elbo_nats:3.5925 val_bits_per_token:5.1829 val_bpb:2.1277`
+
+### What We Learned
+
+- Increasing `TRAIN_SHARDS` from `2` to `4` did not produce a meaningful gain at fixed `10000` steps.
+  - `P8` full val: `2.1276`
+  - `P9` full val: `2.1277`
+  - difference: about `+0.0001 val_bpb`
+- The two runs are effectively tied on the local subset too.
+  - `P8` subset best: `2.1097`
+  - `P9` subset best: `2.1112`
+- Extra data exposure by itself is therefore not enough to promote at the current training budget.
+
+### Current Interpretation
+
+- Keep `P8` as the promoted clean full-val champion.
+- Do not promote the 4-shard variant.
+- If we revisit higher data exposure, we should change another budget dimension too:
+  - longer training
+  - or a larger token budget
+  - rather than only increasing shard count
