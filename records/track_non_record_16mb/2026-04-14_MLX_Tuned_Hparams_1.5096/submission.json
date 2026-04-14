@@ -1,0 +1,40 @@
+{
+  "author": "seekerPrice",
+  "github_id": "seekerPrice",
+  "name": "MLX Tuned Hyperparameters (Local-only, H100 Pending)",
+  "date": "2026-04-14",
+  "track": "non_record_16mb",
+  "local_val_bpb": 1.5096,
+  "local_val_loss": 3.0670,
+  "baseline_val_bpb": 1.5596,
+  "improvement_bpb": -0.05,
+  "hardware": "Apple M5 MacBook Pro (MLX)",
+  "note": "Local MLX result only at 40M training tokens (5000 steps × 8K batch). NOT a competition submission - documenting hyperparameter ablation results. H100 validation pending compute credit approval.",
+  "technique_summary": "Depth recurrence L3,4,5 + parallel residuals L7+ + TUNED hyperparameters (Muon 0.95, QK-Gain 4.0, Matrix LR 0.02). Shows -0.05 BPB improvement over SOTA-default hyperparameters at same model/training config.",
+  "experiment_pair": {
+    "EXP-042_sota_defaults": {
+      "val_bpb": 1.5596,
+      "matrix_lr": 0.022,
+      "muon_momentum": 0.99,
+      "qk_gain_init": 5.25
+    },
+    "EXP-048_tuned": {
+      "val_bpb": 1.5096,
+      "matrix_lr": 0.02,
+      "muon_momentum": 0.95,
+      "qk_gain_init": 4.0,
+      "muon_momentum_warmup_start": 0.90
+    }
+  },
+  "compliance": {
+    "train_under_600s": "LOCAL: 3852s on M5 MacBook (not H100)",
+    "artifact_under_16mb": "not yet quantized to 16MB",
+    "eval_under_600s": "LOCAL: ~400s eval on M5",
+    "three_seeds": false,
+    "is_record_submission": false
+  },
+  "attribution": {
+    "sota_baseline_hparams": "PRs #1394, #1437, #1412, #1445 (SP8192 stack)",
+    "methodology": "A/B comparison at 5000-step MLX scale to isolate hyperparameter effect"
+  }
+}
