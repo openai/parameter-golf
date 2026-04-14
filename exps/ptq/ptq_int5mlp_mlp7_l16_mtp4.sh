@@ -1,5 +1,5 @@
 #!/bin/bash
-# Experiment: ptq=int6attn+int5mlp L=20 mlp=5
+# Experiment: ptq=int6attn+int5mlp L=20 mlp=5 MTP k=4
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Load COMET_API_KEY from .env
@@ -8,16 +8,15 @@ if [ -f "${SCRIPT_DIR}/../../.env" ]; then
 elif [ -f .env ]; then
   source .env
 fi
-# export COMET_API_KEY="${COMET_API_KEY:-}"
 export COMET_API_KEY="wKvWIXBmWdm5O9w8buIWrqKEV"
 
-export RUN_ID="ptq_int5mlp_L20_mlp5"
-export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=20 mlp=5"
+export RUN_ID="ptq_int5mlp_L16_mlp7_mtp4"
+export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=16 mlp=7 MTP=4"
 
 # Model architecture
-export NUM_LAYERS=20
+export NUM_LAYERS=16
 export MODEL_DIM=256
-export MLP_MULT=5
+export MLP_MULT=7
 export NUM_HEADS=8
 export NUM_KV_HEADS=4
 export VOCAB_SIZE=1024
@@ -35,14 +34,14 @@ export PTQ_MLP_BITS=5
 # Training
 export TRAIN_BATCH_TOKENS=524288
 export TRAIN_SEQ_LEN=1024
-export ITERATIONS=4500
+export ITERATIONS=5600
 export MAX_WALLCLOCK_SECONDS=600
 export WARMUP_STEPS=20
 export WARMDOWN_ITERS=1200
 export SEED=1337
 
 export OPTIMIZER=muon_adam
-export LR_SCHEDULE=trapezoid
+export LR_SCHEDULE=cosine_warmup_10pct
 export EMBED_LR=0.6
 export HEAD_LR=0.008
 export TIED_EMBED_LR=0.05
@@ -59,9 +58,9 @@ export ADAM_EPS=1e-8
 export ADAMW_WEIGHT_DECAY=0.1
 export GRAD_CLIP_NORM=0.0
 
-# Multi-Token Prediction
-export MTP_NUM_HEADS=1
-export MTP_LOSS_WEIGHT=1.0
+# Multi-Token Prediction (k=4: predict 4 tokens ahead, keep only head 0 at inference)
+export MTP_NUM_HEADS=4
+export MTP_LOSS_WEIGHT=0.1
 
 # MHC
 export USE_MHC=0

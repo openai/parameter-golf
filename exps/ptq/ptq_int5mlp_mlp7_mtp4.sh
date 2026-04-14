@@ -2,8 +2,13 @@
 # Experiment: ptq=int6attn+int5mlp L=20 mlp=5 MTP k=4
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "${SCRIPT_DIR}/../../.env" ] && source "${SCRIPT_DIR}/../../.env" || { [ -f .env ] && source .env; }
-export COMET_API_KEY="${COMET_API_KEY:-}"
+# Load COMET_API_KEY from .env
+if [ -f "${SCRIPT_DIR}/../../.env" ]; then
+  source "${SCRIPT_DIR}/../../.env"
+elif [ -f .env ]; then
+  source .env
+fi
+export COMET_API_KEY="wKvWIXBmWdm5O9w8buIWrqKEV"
 
 export RUN_ID="ptq_int5mlp_L20_mlp5_mtp4"
 export EXPERIMENT_NAME="ptq=int6attn+int5mlp L=20 mlp=5 MTP=4"
@@ -29,14 +34,14 @@ export PTQ_MLP_BITS=5
 # Training
 export TRAIN_BATCH_TOKENS=524288
 export TRAIN_SEQ_LEN=1024
-export ITERATIONS=4500
+export ITERATIONS=5600
 export MAX_WALLCLOCK_SECONDS=600
 export WARMUP_STEPS=20
 export WARMDOWN_ITERS=1200
 export SEED=1337
 
 export OPTIMIZER=muon_adam
-export LR_SCHEDULE=trapezoid
+export LR_SCHEDULE=cosine_warmup_10pct
 export EMBED_LR=0.6
 export HEAD_LR=0.008
 export TIED_EMBED_LR=0.05
@@ -76,7 +81,7 @@ export USE_FLASHATTENTION2=0
 export USE_FLASHATTENTION3=0
 
 # Comet (for submission we turn off comet logging)
-export COMET_ENABLE=0
+export COMET_ENABLE=1
 export COMET_PROJECT_NAME=parameter-golf
 export COMET_LOG_TRAIN_EVERY=100
 

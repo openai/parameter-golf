@@ -165,6 +165,29 @@ def rsqrt_warmup(
     return math.sqrt(warmup) / math.sqrt(step)
 
 
+def cosine_warmup_10pct(
+    step: int, total_steps: int, warmdown_iters: int, elapsed_ms: float, max_wallclock_ms: "float | None"
+) -> float:
+    """Linear warmup for 10 % of training, then cosine decay 1 → 0.
+
+    Cosine phase begins immediately after warmup ends.
+    Wallclock-aware when ``max_wallclock_ms`` is set.
+    """
+    if max_wallclock_ms is not None and max_wallclock_ms > 0:
+        warmup_ms = 0.1 * max_wallclock_ms
+        if elapsed_ms < warmup_ms:
+            return elapsed_ms / max(warmup_ms, 1e-9)
+        decay_ms = max_wallclock_ms - warmup_ms
+        t = min((elapsed_ms - warmup_ms) / max(decay_ms, 1e-9), 1.0)
+        return 0.5 * (1.0 + math.cos(math.pi * t))
+    warmup = max(total_steps // 10, 1)
+    if step < warmup:
+        return step / warmup
+    speed = 3
+    t = min(((step - warmup) / max(total_steps - warmup, 1)) * speed, 1.0)
+    return 0.5 * (1.0 + math.cos(math.pi * 4*t))
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -180,6 +203,7 @@ REGISTRY: dict[str, LrSchedulerFn] = {
     "rsqrt":                  rsqrt,
     "rsqrt_warmup":           rsqrt_warmup,
     "cosine_warmup":          cosine_warmup,
+    "cosine_warmup_10pct":    cosine_warmup_10pct,
 }
 
 
