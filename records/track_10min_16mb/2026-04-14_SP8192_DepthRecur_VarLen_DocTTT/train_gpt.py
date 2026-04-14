@@ -1029,6 +1029,9 @@ def eval_val_doc_ttt(args, base_model, rank, world_size, device,
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     base_model.eval()
+    # Freeze all base model params so backward() in TTT adapt only flows through LoRA
+    for p in base_model.parameters():
+        p.requires_grad_(False)
 
     # Cache the original output projection weights for targeted layers
     n = args.num_layers
@@ -1092,14 +1095,11 @@ def eval_val_doc_ttt(args, base_model, rank, world_size, device,
 
             # === PHASE 2: ADAPT LoRA on the already-scored chunk ===
             if actual_chunk >= 2:  # Need at least 2 tokens for meaningful gradient
-                # Use the scored chunk for adaptation
-                for li, adapter in lora_adapters.items():
-                    adapter.A.requires_grad_(True)
-                    adapter.B.requires_grad_(True)
+                # Analytical LoRA gradient: we re-run forward with requires_grad
+                # only on LoRA parameters, NOT on base model weights.
+                # Enable grad for qo_bank temporarily (only for output proj gradient)
+                base_model.qo_bank.requires_grad_(True)
 
-                # Forward with LoRA (differentiable)
-                # We apply LoRA by modifying the output projection temporarily
-                # and running a small forward pass just for the gradient
                 for li, adapter in lora_adapters.items():
                     delta = adapter.B @ adapter.A
                     base_model.qo_bank.data[n + li] = orig_out_weights[li] + delta.to(orig_out_weights[li].dtype)
@@ -1111,32 +1111,28 @@ def eval_val_doc_ttt(args, base_model, rank, world_size, device,
                     adapt_logits[0, score_start:].float(),
                     y_chunk[0, score_start:],
                     reduction="mean")
-                adapt_loss.backward()
 
-                # Extract gradients via the bank and update LoRA
-                for li, adapter in lora_adapters.items():
-                    # The gradient flows through qo_bank to B@A
-                    # We need to compute grad_A and grad_B from the chain rule
-                    bank_grad = base_model.qo_bank.grad
-                    if bank_grad is not None:
-                        out_grad = bank_grad[n + li].float()
-                        # delta_W = B @ A, so d_loss/dB = out_grad @ A^T, d_loss/dA = B^T @ out_grad
-                        grad_B = out_grad @ adapter.A.float().T
-                        grad_A = adapter.B.float().T @ out_grad
-                        adapter.adamw_step(
-                            grad_A.to(adapter.A.dtype),
-                            grad_B.to(adapter.B.dtype),
-                            lr=ttt_lr,
-                            beta1=args.ttt_beta1,
-                            beta2=args.ttt_beta2,
-                        )
+                # Only compute gradient w.r.t. qo_bank (not full model)
+                qo_grad = torch.autograd.grad(adapt_loss, base_model.qo_bank, retain_graph=False)[0]
 
-                # Zero grads
+                # Disable grad for qo_bank again
+                base_model.qo_bank.requires_grad_(False)
                 if base_model.qo_bank.grad is not None:
                     base_model.qo_bank.grad = None
-                for p in base_model.parameters():
-                    if p.grad is not None:
-                        p.grad = None
+
+                # Extract per-layer gradients and update LoRA via AdamW
+                for li, adapter in lora_adapters.items():
+                    out_grad = qo_grad[n + li].float()
+                    # delta_W = B @ A, so d_loss/dB = out_grad @ A^T, d_loss/dA = B^T @ out_grad
+                    grad_B = out_grad @ adapter.A.float().T
+                    grad_A = adapter.B.float().T @ out_grad
+                    adapter.adamw_step(
+                        grad_A.to(adapter.A.dtype),
+                        grad_B.to(adapter.B.dtype),
+                        lr=ttt_lr,
+                        beta1=args.ttt_beta1,
+                        beta2=args.ttt_beta2,
+                    )
 
                 for li, adapter in lora_adapters.items():
                     adapter.A = adapter.A.detach()
@@ -1157,6 +1153,9 @@ def eval_val_doc_ttt(args, base_model, rank, world_size, device,
     val_loss = (loss_sum / token_count).item()
     bpt = val_loss / math.log(2.0)
     tpb = token_count.item() / byte_count.item()
+    # Re-enable gradients for base model params
+    for p in base_model.parameters():
+        p.requires_grad_(True)
     base_model.train()
     return val_loss, bpt * tpb
 
