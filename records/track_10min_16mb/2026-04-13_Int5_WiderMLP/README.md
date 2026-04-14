@@ -46,7 +46,8 @@ Priority order for sweeps (if first run shows promise):
 ## How to run
 
 ```bash
-# Download data
+# Download data (delete stale manifest first — default repo doesn't have sp8192)
+rm -f data/datasets/manifest.json data/manifest.json
 MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192
 
 # Single seed run
