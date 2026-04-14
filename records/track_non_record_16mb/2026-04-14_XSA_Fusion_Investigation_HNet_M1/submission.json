@@ -1,0 +1,36 @@
+{
+  "author": "diaslmb",
+  "github_id": "diaslmb",
+  "name": "Systems-Fusion Ceiling Investigation + H-Net Milestone 1 Pilot",
+  "date": "2026-04-14",
+  "track": "non_record_16mb",
+  "kind": "investigation + pilot",
+  "headline_results": {
+    "part1_xsa_triton_and_fused_qkv_on_PR_1493": {
+      "baseline_step_avg_ms": 1020,
+      "qkv_fusion_step_avg_ms": 1020,
+      "qkv_fusion_plus_triton_xsa_step_avg_ms": 1080,
+      "verdict": "Neither intervention helps: Inductor already at the D=512 fusion ceiling; autograd.Function graph break costs more than the XSA kernel saves"
+    },
+    "part2_hnet_m1_pilots_1xH100": {
+      "no_skip_300_steps":  {"tokens": 10000000,  "val_bpb": 4.49},
+      "no_skip_1500_steps": {"tokens": 49000000,  "val_bpb": 4.40},
+      "with_skip_1500_steps": {"tokens": 49000000, "val_bpb": 3.15},
+      "with_skip_4500_steps": {"tokens": 147000000, "val_bpb": 2.51},
+      "params_total": 33907824,
+      "params_main_network": 31742040,
+      "byte_skip_delta_bpb": -1.25,
+      "data_scaling_delta_bpb": -0.64
+    }
+  },
+  "hardware": "1xH100 80GB SXM (RunPod)",
+  "pytorch_version": "2.8.0+cu128",
+  "technique_summary": "Part 1: Triton XSA fwd+bwd kernel + fused-QKV patch on bigbag PR #1493, training-pilot negative result documenting Inductor ceiling. Part 2: H-Net Milestone 1 (hierarchical byte-level stack with fixed stride-4 chunker and byte-encoder->byte-decoder skip connection) showing clean signs of life. M2-M4 proposed for OpenAI dev grant.",
+  "attribution": {
+    "systems_baseline": "@bigbag (PR #1493) - SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT",
+    "hnet_paper": "Hwang et al., Dynamic Chunking for End-to-End Hierarchical Sequence Modeling, arXiv:2507.07955",
+    "fa3_wheel": "windreamer.github.io/flash-attention3-wheels (cu128_torch280)",
+    "scaling_laws_context": "Kaplan et al., arXiv:2001.08361"
+  },
+  "notes": "Non-record investigation + pilot PR. Part 1 is a documented negative result; Part 2 is signs-of-life for the H-net tokenization entry on the repo's Requests-for-PRs list. No leaderboard val_bpb claim (M1 pilot at 33.9M params is over the 16MB int6 budget; fitting the budget is M3's job)."
+}
