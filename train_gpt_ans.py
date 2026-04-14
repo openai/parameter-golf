@@ -922,6 +922,7 @@ class GPT(nn.Module):
                 self.blocks[i].attn.use_xsa = True
         self.recur_layers = [int(x) for x in recur_layers.split(",") if x.strip()] if isinstance(recur_layers, str) and recur_layers.strip() else []
         self._recurrence_active = False
+        self._word_start_mask = None  # Set by main() after tokenizer loads
         self._init_weights()
     def set_recurrence_active(self, active: bool) -> None:
         self._recurrence_active = active
@@ -1033,7 +1034,14 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x_flat)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        # Word-start loss weighting: upweight tokens that start words (▁ prefix)
+        ws_weight = float(os.environ.get('WORD_START_WEIGHT', '1.0'))
+        if ws_weight != 1.0 and hasattr(self, '_word_start_mask') and self._word_start_mask is not None:
+            per_token_loss = F.cross_entropy(logits.float(), targets, reduction="none")
+            weights = torch.where(self._word_start_mask[targets], ws_weight, 1.0)
+            main_loss = (per_token_loss * weights).mean()
+        else:
+            main_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
         if self.training and self.mtp_num_heads > 0 and self.mtp_loss_weight > 0.0:
             _, seqlen, dim = x.shape
             mtp_loss_sum = x.new_zeros(())
@@ -1978,6 +1986,17 @@ def main() -> None:
         skip_gates_enabled=args.skip_gates_enabled,
         recur_layers=args.recur_layers,
     ).to(device).bfloat16()
+    # Build word-start mask for loss weighting
+    _ws_weight = float(os.environ.get('WORD_START_WEIGHT', '1.0'))
+    if _ws_weight != 1.0:
+        _ws_mask = torch.zeros(args.vocab_size, dtype=torch.bool, device=device)
+        for i in range(sp.get_piece_size()):
+            piece = sp.id_to_piece(i)
+            if piece.startswith('\u2581'):  # SentencePiece word boundary
+                _ws_mask[i] = True
+        base_model._word_start_mask = _ws_mask
+        _n_ws = _ws_mask.sum().item()
+        log0(f"word_start_weight:{_ws_weight} word_start_tokens:{_n_ws}/{args.vocab_size}")
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
     base_model.kv_bank.data = base_model.kv_bank.data.float()
