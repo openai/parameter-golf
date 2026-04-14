@@ -552,6 +552,11 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+# Check PyTorch version for enable_gqa support (added in 2.5.0)
+_TORCH_VERSION = tuple(int(x) for x in torch.__version__.split(".")[:2])
+_SDPA_SUPPORTS_GQA = _TORCH_VERSION >= (2, 5)
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -591,14 +596,20 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        use_gqa = (self.num_kv_heads != self.num_heads)
+        if use_gqa and not _SDPA_SUPPORTS_GQA:
+            # PyTorch < 2.5: manually expand K/V to match Q heads
+            groups = self.num_heads // self.num_kv_heads
+            k = k.repeat_interleave(groups, dim=1)
+            v = v.repeat_interleave(groups, dim=1)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+        else:
+            y = F.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=None,
+                is_causal=True,
+                **({"enable_gqa": use_gqa} if _SDPA_SUPPORTS_GQA else {}),
+            )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
