@@ -1,7 +1,7 @@
 {
-  "name": "VarLenAttn + phased global SGD TTT prefix",
-  "author": "romeerpillay",
-  "github_id": "romeerpillay",
+  "name": "VarLenAttn + PhasingTTT",
+  "author": "romeerp",
+  "github_id": "romeerp",
   "date": "2026-04-13",
   "track": "10min_16mb",
   "base_pr": 1530,
