@@ -103,3 +103,20 @@ Selected train-loss checkpoints from the log:
 - roundtrip eval time: `12736ms`
 - sliding-window exact: `val_loss=2.11022315`, `val_bpb=1.24979460`
 - sliding-window eval time: `657418ms`
+
+
+after applying fa3 
+
+step:1800/35000 train_loss:2.1630 train_time:582753ms step_avg:323.75ms
+step:1854/35000 val_loss:2.1321 val_bpb:1.2628 train_time:600232ms step_avg:323.75ms
+stopping_early: wallclock_cap train_time:600232ms step:1854/35000
+peak memory allocated: 10184 MiB reserved: 10472 MiB
+Serialized model: 76650381 bytes
+Code size: 59186 bytes
+Total submission size: 76709567 bytes
+Serialized model mixed-quant+zlib: 15228074 bytes (payload:19476680 raw_torch:19529207 payload_ratio:3.93x)
+Total submission size mixed-quant+zlib: 15287260 bytes
+final_mixed_quant_zlib_roundtrip val_loss:2.1334 val_bpb:1.2635 eval_time:11168ms
+final_mixed_quant_zlib_roundtrip_exact val_loss:2.13340352 val_bpb:1.26352173
+final_mixed_quant_zlib_sliding_window val_loss:2.0942 val_bpb:1.2403 stride:128 eval_time:493146ms
+final_mixed_quant_zlib_sliding_window_exact val_loss:2.09421752 val_bpb:1.24031515
