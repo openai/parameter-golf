@@ -1,0 +1,233 @@
+
+========================================================================
+  BESE v5 Pipeline
+========================================================================
+  Start time: 2026-04-14 20:11:35
+  Working directory: /workspace/bese
+  Log file: /workspace/run_v5.log
+  Detected 8 GPUs
+
+  --skip-prep: Skipping Phase 0 (data preparation)
+  Found tokenizer: /workspace/bese/tokenizers/bese_bpe_248_v5.json
+  Found 44 training shards in /workspace/bese_shards_v5
+  Removed existing n-gram table (rebuilding with max-n=3)
+
+========================================================================
+  Build n-gram frequency table (max-n=3)
+========================================================================
+  [ngram table] Running: /usr/local/bin/python /workspace/bese/scripts/build_ngram_table.py --shard /workspace/bese_shards_v5/fineweb_train_000000.bin --output /workspace/bese/artifacts/ngram_table_v5.bin --max-n 3 --top-k 1
+Loaded 100,000,000 tokens from /workspace/bese_shards_v5/fineweb_train_000000.bin
+Using 224 workers
+Merging 224 partial tables...
+  n=2: 273 prefixes
+  n=3: 51,169 prefixes
+Wrote 298,802 bytes (0.28 MB) to /workspace/bese/artifacts/ngram_table_v5.bin
+  Completed in 20.2s (0.3 min)
+  N-gram table size: 298,802 bytes (0.28 MB)
+
+========================================================================
+  PHASE 1: TRAINING (600s wallclock, 8 GPUs)
+========================================================================
+  Shards: 44 train, 1 val
+  Training env:
+    ADAM_WD=0.095
+    BESE_TOKENIZER_ROOT=/workspace/bese/tokenizer
+    DATA_PATH=/workspace/bese_shards_v5
+    DEPTH_RECURRENCE_ACTIVATION_FRAC=0.35
+    DEPTH_RECURRENCE_END=5
+    DEPTH_RECURRENCE_LOOPS=3
+    DEPTH_RECURRENCE_START=3
+    EMA_DECAY=0.9965
+    EVAL_STRIDE=64
+    MATRIX_LR=0.022
+    MAX_WALLCLOCK_SECONDS=600
+    MLP_MULT=3
+    MODEL_DIM=512
+    MUON_WD=0.095
+    NGRAM_PRIOR_PATH=/workspace/bese/artifacts/ngram_table_v5.bin
+    NGRAM_TILT_ENABLED=1
+    NGRAM_TILT_MAX_N=3
+    NUM_HEADS=8
+    NUM_KV_HEADS=4
+    NUM_LAYERS=11
+    PARALLEL_RESIDUAL_START=7
+    QK_GAIN_INIT=5.0
+    RUN_ID=bese_v5
+    TOKENIZER_PATH=/workspace/bese/tokenizers/bese_bpe_248_v5.json
+    TRAIN_LOG_EVERY=100
+    VAL_LOSS_EVERY=500
+    VOCAB_SIZE=288
+    WARMDOWN_ITERS=5000
+  [torchrun] Running: torchrun --standalone --nproc_per_node=8 /workspace/bese/integration/train_gpt_bese.py
+W0414 20:11:57.405000 76149 torch/distributed/run.py:803] 
+W0414 20:11:57.405000 76149 torch/distributed/run.py:803] *****************************************
+W0414 20:11:57.405000 76149 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0414 20:11:57.405000 76149 torch/distributed/run.py:803] *****************************************
+logs/bese_v5.txt
+val_bpb:enabled tokenizer_kind=bese_bpe tokenizer_path=/workspace/bese/tokenizers/bese_bpe_248_v5.json vocab_size=288
+train_loader:dataset:bese_shards_v5 train_shards:44
+val_loader:shards pattern=/workspace/bese_shards_v5/fineweb_val_*.bin tokens:74582016
+model_params:26522716
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.022 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:5.6790 val_bpb:4.1578 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:5.6102 train_time:158ms step_avg:158.20ms
+step:2/20000 train_loss:8.9503 train_time:185ms step_avg:92.66ms
+step:3/20000 train_loss:7.5486 train_time:262ms step_avg:87.32ms
+step:4/20000 train_loss:6.8405 train_time:344ms step_avg:86.11ms
+step:5/20000 train_loss:6.6503 train_time:426ms step_avg:85.18ms
+step:6/20000 train_loss:6.3502 train_time:506ms step_avg:84.36ms
+step:7/20000 train_loss:6.1328 train_time:587ms step_avg:83.84ms
+step:8/20000 train_loss:6.1117 train_time:668ms step_avg:83.47ms
+step:9/20000 train_loss:5.9121 train_time:749ms step_avg:83.27ms
+step:10/20000 train_loss:5.5748 train_time:829ms step_avg:82.90ms
+step:100/20000 train_loss:2.9211 train_time:8159ms step_avg:81.59ms
+step:200/20000 train_loss:2.2072 train_time:16361ms step_avg:81.81ms
+step:300/20000 train_loss:2.0374 train_time:24568ms step_avg:81.89ms
+step:400/20000 train_loss:1.9077 train_time:32785ms step_avg:81.96ms
+step:500/20000 train_loss:1.8959 train_time:40941ms step_avg:81.88ms
+step:500/20000 val_loss:2.0212 val_bpb:1.4798 train_time:40991ms step_avg:81.98ms
+step:600/20000 train_loss:1.8999 train_time:49173ms step_avg:81.95ms
+step:700/20000 train_loss:1.8570 train_time:57396ms step_avg:81.99ms
+step:800/20000 train_loss:1.8379 train_time:65631ms step_avg:82.04ms
+step:900/20000 train_loss:1.8323 train_time:73852ms step_avg:82.06ms
+step:1000/20000 train_loss:1.8835 train_time:82024ms step_avg:82.02ms
+step:1000/20000 val_loss:1.8873 val_bpb:1.3818 train_time:82074ms step_avg:82.07ms
+step:1100/20000 train_loss:1.8097 train_time:90256ms step_avg:82.05ms
+step:1200/20000 train_loss:1.8298 train_time:98498ms step_avg:82.08ms
+step:1300/20000 train_loss:1.8510 train_time:106731ms step_avg:82.10ms
+step:1400/20000 train_loss:1.7318 train_time:114959ms step_avg:82.11ms
+step:1500/20000 train_loss:1.6908 train_time:123130ms step_avg:82.09ms
+step:1500/20000 val_loss:1.8319 val_bpb:1.3412 train_time:123178ms step_avg:82.12ms
+step:1600/20000 train_loss:1.7951 train_time:131362ms step_avg:82.10ms
+step:1700/20000 train_loss:1.7900 train_time:139593ms step_avg:82.11ms
+step:1800/20000 train_loss:1.7025 train_time:147826ms step_avg:82.13ms
+step:1900/20000 train_loss:1.7160 train_time:155994ms step_avg:82.10ms
+step:2000/20000 train_loss:1.8658 train_time:164227ms step_avg:82.11ms
+step:2000/20000 val_loss:1.7832 val_bpb:1.3055 train_time:164276ms step_avg:82.14ms
+step:2100/20000 train_loss:1.7569 train_time:172464ms step_avg:82.13ms
+step:2200/20000 train_loss:1.7911 train_time:180689ms step_avg:82.13ms
+step:2300/20000 train_loss:1.6633 train_time:188909ms step_avg:82.13ms
+step:2400/20000 train_loss:1.6678 train_time:197084ms step_avg:82.12ms
+step:2500/20000 train_loss:1.6854 train_time:205307ms step_avg:82.12ms
+step:2500/20000 val_loss:1.7568 val_bpb:1.2863 train_time:205355ms step_avg:82.14ms
+depth_recurrence:activated step:2557 progress:0.350 loops:3
+step:2600/20000 train_loss:1.6665 train_time:228331ms step_avg:87.82ms
+step:2700/20000 train_loss:1.7911 train_time:240532ms step_avg:89.09ms
+step:2800/20000 train_loss:1.7063 train_time:252748ms step_avg:90.27ms
+step:2900/20000 train_loss:1.6706 train_time:264914ms step_avg:91.35ms
+step:3000/20000 train_loss:1.6982 train_time:277146ms step_avg:92.38ms
+step:3000/20000 val_loss:1.7111 val_bpb:1.2528 train_time:277218ms step_avg:92.41ms
+step:3100/20000 train_loss:1.7306 train_time:289371ms step_avg:93.35ms
+step:3200/20000 train_loss:1.5912 train_time:301602ms step_avg:94.25ms
+step:3300/20000 train_loss:1.5822 train_time:313789ms step_avg:95.09ms
+step:3400/20000 train_loss:1.6344 train_time:326041ms step_avg:95.89ms
+step:3500/20000 train_loss:1.6162 train_time:338298ms step_avg:96.66ms
+step:3500/20000 val_loss:1.6797 val_bpb:1.2298 train_time:338372ms step_avg:96.68ms
+step:3600/20000 train_loss:1.6708 train_time:350552ms step_avg:97.38ms
+step:3700/20000 train_loss:1.6091 train_time:362809ms step_avg:98.06ms
+step:3800/20000 train_loss:1.6485 train_time:374995ms step_avg:98.68ms
+step:3900/20000 train_loss:1.5645 train_time:387234ms step_avg:99.29ms
+step:4000/20000 train_loss:1.5838 train_time:399489ms step_avg:99.87ms
+step:4000/20000 val_loss:1.6539 val_bpb:1.2109 train_time:399561ms step_avg:99.89ms
+step:4100/20000 train_loss:1.5638 train_time:411733ms step_avg:100.42ms
+step:4200/20000 train_loss:1.5259 train_time:424033ms step_avg:100.96ms
+step:4300/20000 train_loss:1.5957 train_time:436211ms step_avg:101.44ms
+step:4400/20000 train_loss:1.5934 train_time:448431ms step_avg:101.92ms
+step:4500/20000 train_loss:1.6077 train_time:460657ms step_avg:102.37ms
+step:4500/20000 val_loss:1.6281 val_bpb:1.1920 train_time:460733ms step_avg:102.39ms
+step:4600/20000 train_loss:1.6973 train_time:472887ms step_avg:102.80ms
+step:4700/20000 train_loss:1.6014 train_time:485051ms step_avg:103.20ms
+swa:start step:4800
+step:4800/20000 train_loss:1.5607 train_time:497262ms step_avg:103.60ms
+step:4900/20000 train_loss:1.5313 train_time:509653ms step_avg:104.01ms
+late_qat:enabled step:4997 scale:0.1500
+step:5000/20000 train_loss:1.5537 train_time:522008ms step_avg:104.40ms
+step:5000/20000 val_loss:1.5996 val_bpb:1.1711 train_time:522151ms step_avg:104.43ms
+step:5100/20000 train_loss:1.5822 train_time:534366ms step_avg:104.78ms
+step:5200/20000 train_loss:1.5567 train_time:546638ms step_avg:105.12ms
+step:5300/20000 train_loss:1.5083 train_time:558989ms step_avg:105.47ms
+step:5400/20000 train_loss:1.5327 train_time:571344ms step_avg:105.80ms
+step:5500/20000 train_loss:1.4810 train_time:583682ms step_avg:106.12ms
+step:5500/20000 val_loss:1.5696 val_bpb:1.1491 train_time:583822ms step_avg:106.15ms
+step:5600/20000 train_loss:1.5313 train_time:596024ms step_avg:106.43ms
+step:5633/20000 val_loss:1.5706 val_bpb:1.1499 train_time:600171ms step_avg:106.55ms
+stopping_early: wallclock_cap train_time:600171ms step:5633/20000
+peak memory allocated: 32253 MiB reserved: 33298 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.5642 val_bpb:1.1452 eval_time:3546ms
+Serialized model: 105216438 bytes
+Code size: 88802 bytes
+Bundled n-gram prior: 298,802 bytes from /workspace/bese/artifacts/ngram_table_v5.bin
+Serialized model int6+lzma: 12727756 bytes
+Total submission size int6+lzma: 12816558 bytes
+Extracted bundled n-gram prior: 298,802 bytes → /tmp/tmp3sktwqw1.bin
+final_int6_roundtrip val_loss:1.6070 val_bpb:1.1765 eval_time:9550ms
+final_int6_roundtrip_exact val_loss:1.60699653 val_bpb:1.17654311
+ngram_tilt: loaded prior for sliding window eval from /tmp/tmp3sktwqw1.bin
+final_int6_sliding_window val_loss:1.5706 val_bpb:1.1499 stride:64 eval_time:135761ms
+final_int6_sliding_window_exact val_loss:1.57060137 val_bpb:1.14989686
+final_int6_lzma_roundtrip_exact val_loss:1.57060137 val_bpb:1.14989686
+  Completed in 871.2s (14.5 min)
+
+========================================================================
+  PHASE 2: EVALUATION (n-gram tilt)
+========================================================================
+  Extracted metrics from training output:
+    best_bpb: 1.14989686
+    int6_bpb: 1.17654311
+    model_bytes: 12727756
+    size_bytes: 12816558
+    sliding_bpb: 1.14989686
+    sliding_loss: 1.57060137
+
+========================================================================
+  PHASE 3: ARTIFACT ASSEMBLY
+========================================================================
+  Artifact size: 12,816,558 bytes (12.82 MB)
+  Size check: PASS (limit: 16 MB)
+  N-gram table: 298,802 bytes (291.8 KB)
+
+========================================================================
+  RUN SUMMARY
+========================================================================
+  best_bpb:    1.14989686
+  sliding_bpb: 1.14989686
+  int6_bpb:    1.17654311
+  model_size:  12.73 MB
+  total_size:  12.82 MB
+  under 16 MB: YES
+
+  Total wall time: 891.6s (14.9 min)
+  Log file: /workspace/run_v5.log
+
+  v5 config:
+    vocab_size=288  layers=11  dim=512  mlp_mult=3
+    depth_recurrence: layers 3-5 x3 loops (active after 35% of training)
+    parallel_residual: start=7
