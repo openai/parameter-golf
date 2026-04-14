@@ -124,6 +124,15 @@ class Hyperparameters:
     # all anchor layers and shapes the entire encoder stack.
     jepa_num_anchors = int(os.environ.get("JEPA_NUM_ANCHORS", "1"))
 
+    # Imagination co-training: during training, also decode the predictor's
+    # output through the decoder + head, and apply CE loss against shifted
+    # targets. Teaches the predictor to produce encoder-out representations
+    # that are not only temporally predictable (JEPA) but also decodable to
+    # sensible tokens. Enables Imagination-Refined Prediction to actually help
+    # at eval time. IMAGINE_TRAIN_WEIGHT > 0 enables co-training.
+    imagine_train_weight = float(os.environ.get("IMAGINE_TRAIN_WEIGHT", "0.0"))
+    imagine_train_horizons = int(os.environ.get("IMAGINE_TRAIN_HORIZONS", "1"))
+
     # SLOT (Sample-specific Language model Optimization at Test-time).
     # Eval-time-only: a learnable delta vector at the final hidden layer is
     # optimized via SGD on already-scored val tokens (chunk-causal, legal under
@@ -320,7 +329,7 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss, _ = model(x, y)
+                batch_loss, _, _ = model(x, y)
                 batch_loss = batch_loss.detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
@@ -1145,6 +1154,7 @@ class GPT(nn.Module):
         jepa_bottleneck: int = 128,
         jepa_horizons: int = 3,
         jepa_num_anchors: int = 1,
+        imagine_train_horizons: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1177,6 +1187,7 @@ class GPT(nn.Module):
         self.latent_predictor = LatentPredictor(model_dim, jepa_bottleneck)
         self.num_horizons = jepa_horizons
         self.num_jepa_anchors = max(1, min(jepa_num_anchors, num_layers // 2))
+        self.imagine_train_horizons = min(imagine_train_horizons, jepa_horizons)
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -1186,7 +1197,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -1212,11 +1223,16 @@ class GPT(nn.Module):
         # comparable across JEPA_NUM_ANCHORS settings. Layer norm matches data2vec.
         jepa_loss = torch.zeros((), device=x.device, dtype=torch.float32)
         feat_dim = encoder_out.size(-1)
-        for anchor in jepa_anchors:
+        # Remember recursive predictor outputs applied to the encoder_out anchor
+        # so we can reuse them for the imagination co-training pass below.
+        encoder_anchor_preds: list[Tensor] = []
+        for anchor_idx, anchor in enumerate(jepa_anchors):
             h = anchor
             w = 1.0
             for k in range(self.num_horizons):
                 h = self.latent_predictor(h)
+                if anchor_idx == len(jepa_anchors) - 1:
+                    encoder_anchor_preds.append(h)
                 offset = k + 1
                 tgt = anchor[:, offset:, :].detach()
                 pred_n = F.layer_norm(h.float(), (feat_dim,))
@@ -1224,6 +1240,10 @@ class GPT(nn.Module):
                 jepa_loss = jepa_loss + w * F.smooth_l1_loss(pred_n, tgt_n)
                 w = w * 0.5
         jepa_loss = jepa_loss / float(self.num_jepa_anchors)
+
+        # Snapshot encoder skip activations so the imagination co-training pass
+        # can reuse them (main decoder below consumes skips in-place).
+        skips_snapshot: list[Tensor] = list(skips) if self.imagine_train_horizons > 0 else []
 
         for i in range(self.num_decoder_layers):
             if skips:
@@ -1241,7 +1261,42 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
 
-        return ce_loss, jepa_loss
+        # Imagination co-training loss. Decode each horizon's predicted
+        # encoder_out through the decoder + head and compute CE against the
+        # shifted target tokens. This trains the predictor (and the decoder)
+        # to handle imagined latent states, making eval-time imagination mix
+        # actually useful. Runs only when IMAGINE_TRAIN_WEIGHT > 0 enables it
+        # via the training loop weight; here we always build the graph so the
+        # compile path stays stable and the loss is 0 when weight is 0.
+        imagine_loss = torch.zeros((), device=input_ids.device, dtype=torch.float32)
+        if self.imagine_train_horizons > 0 and encoder_anchor_preds:
+            im_w = 1.0
+            for k, pred_encoder in enumerate(encoder_anchor_preds[: self.imagine_train_horizons]):
+                offset = k + 1
+                skips_sliced = [s[:, offset:, :] for s in skips_snapshot]
+                x0_sliced = x0[:, offset:, :]
+                im_hidden = self._decode_from_internal(pred_encoder, skips_sliced, x0_sliced)
+                im_flat = im_hidden.reshape(-1, im_hidden.size(-1))
+                if self.tie_embeddings:
+                    im_logits_proj = F.linear(im_flat, self.tok_emb.weight)
+                else:
+                    im_logits_proj = self.lm_head(im_flat)
+                im_logits = self.logit_softcap * torch.tanh(im_logits_proj / self.logit_softcap)
+                im_targets = target_ids[:, offset:].reshape(-1)
+                imagine_loss = imagine_loss + im_w * F.cross_entropy(im_logits.float(), im_targets)
+                im_w = im_w * 0.5
+
+        return ce_loss, jepa_loss, imagine_loss
+
+    def _decode_from_internal(self, encoder_out: Tensor, skips: list[Tensor], x0: Tensor) -> Tensor:
+        """Compile-graph-friendly decoder pass. Does not mutate caller's skips."""
+        x = encoder_out
+        skips_local = list(skips)
+        for i in range(self.num_decoder_layers):
+            if skips_local:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips_local.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        return self.final_norm(x)
 
     def encode(self, input_ids: Tensor) -> Tensor:
         """Run the full encoder-decoder stack and return the pre-LM-head hidden
@@ -1413,6 +1468,7 @@ def main() -> None:
         jepa_bottleneck=args.jepa_bottleneck,
         jepa_horizons=args.jepa_horizons,
         jepa_num_anchors=args.jepa_num_anchors,
+        imagine_train_horizons=(args.imagine_train_horizons if args.imagine_train_weight > 0 else 0),
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1533,8 +1589,12 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_ce, warmup_jepa = model(x, y)
-                    warmup_loss = warmup_ce + args.jepa_loss_weight * warmup_jepa
+                    warmup_ce, warmup_jepa, warmup_imagine = model(x, y)
+                    warmup_loss = (
+                        warmup_ce
+                        + args.jepa_loss_weight * warmup_jepa
+                        + args.imagine_train_weight * warmup_imagine
+                    )
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1596,6 +1656,7 @@ def main() -> None:
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
         jepa_weight = args.jepa_loss_weight * scale
+        imagine_weight = args.imagine_train_weight * scale
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1603,8 +1664,8 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                ce_loss, jepa_loss = model(x, y)
-            loss = ce_loss + jepa_weight * jepa_loss
+                ce_loss, jepa_loss, imagine_loss = model(x, y)
+            loss = ce_loss + jepa_weight * jepa_loss + imagine_weight * imagine_loss
             train_loss += ce_loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
