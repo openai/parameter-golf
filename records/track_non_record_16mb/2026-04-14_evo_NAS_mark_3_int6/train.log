@@ -1,0 +1,3097 @@
+#!/usr/bin/env python3
+"""train_gpt_mlx: starter MLX trainer; keep competitive configs in /records. Max 1500 lines (project rule)."""
+from __future__ import annotations
+
+import gc
+import glob
+import json
+import math
+import os
+import pickle
+import platform
+import random
+import sys
+import time
+import uuid
+import zlib
+from collections.abc import Callable
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+
+import mlx.core as mx
+import mlx.nn as nn
+import mlx.optimizers as optim
+from mlx.utils import tree_flatten, tree_unflatten
+
+from train_gpt_timing import fmt_wall_duration, wall_elapsed_etr_suffix
+
+# ==============================================================================
+# SHARD FORMAT + COMPUTE DTYPE
+# ==============================================================================
+
+COMPUTE_DTYPE = mx.bfloat16
+
+# Set in main() from env; CastedLinear reads for fake-QAT (straight-through).
+_QAT_CTX: dict = {}
+
+
+def set_qat_context(
+    bits: int,
+    scheme: str,
+    slope: float,
+    num_heads: int,
+    head_dim: int,
+) -> None:
+    global _QAT_CTX
+    _QAT_CTX = {
+        "bits": int(bits),
+        "scheme": scheme,
+        "slope": float(slope),
+        "num_heads": int(num_heads),
+        "head_dim": int(head_dim),
+    }
+
+
+def apply_fake_quant_weight(w: mx.array, linear_kind: str) -> mx.array:
+    """Symmetric STE fake-quant on weight; gradients flow through identity on w."""
+    bits = int(_QAT_CTX.get("bits", 0))
+    if bits <= 0:
+        return w
+    scheme = _QAT_CTX.get("scheme", "per_tensor")
+    slope = float(_QAT_CTX.get("slope", 1.0))
+    num_heads = int(_QAT_CTX.get("num_heads", 0))
+    head_dim = int(_QAT_CTX.get("head_dim", 0))
+    max_q = float(2 ** (bits - 1) - 1)
+    wf = w.astype(mx.float32)
+    eps = 1e-8
+
+    if scheme == "per_tensor":
+        scale = mx.maximum(mx.max(mx.abs(wf)) / max_q, eps)
+        q = mx.clip(mx.round(wf / scale), -max_q, max_q)
+        dq = q * scale
+    elif scheme == "per_channel":
+        scale = mx.maximum(mx.max(mx.abs(wf), axis=1, keepdims=True) / max_q, eps)
+        q = mx.clip(mx.round(wf / scale), -max_q, max_q)
+        dq = q * scale
+    elif scheme == "per_head" and linear_kind == "attn" and num_heads > 0 and wf.shape[0] % num_heads == 0:
+        out_d, in_d = wf.shape
+        hd = out_d // num_heads
+        w2 = wf.reshape(num_heads, hd, in_d)
+        scale = mx.maximum(mx.max(mx.abs(w2), axis=(1, 2), keepdims=True) / max_q, eps)
+        q = mx.clip(mx.round(w2 / scale), -max_q, max_q)
+        dq = (q * scale).reshape(out_d, in_d)
+    else:
+        scale = mx.maximum(mx.max(mx.abs(wf), axis=1, keepdims=True) / max_q, eps)
+        q = mx.clip(mx.round(wf / scale), -max_q, max_q)
+        dq = q * scale
+
+    ste = wf + mx.stop_gradient(slope * (dq.astype(mx.float32) - wf))
+    return ste.astype(w.dtype)
+
+# ==============================================================================
+# M1 MAX / APPLE SILICON DEFAULTS
+# ==============================================================================
+# On arm64 (M1/M2/M3), use smaller batches to avoid OOM on 24–32GB unified memory.
+def _m1_default(env_key: str, cuda_val: int, m1_val: int) -> int:
+    v = os.environ.get(env_key)
+    if v is not None:
+        return int(v)
+    return m1_val if platform.machine() == "arm64" else cuda_val
+
+
+# ==============================================================================
+# HYPERPARAMETERS
+# ==============================================================================
+# Default Simple Baseline run:
+# - 9 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - vocab size 1024, sequence length 1024, tied embeddings
+# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
+class Hyperparameters:
+    # Data / tokenizer.
+    data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    seed: int = int(os.environ.get("SEED", 1337))
+
+    # Training loop. M1 Max uses smaller batch/microbatch to fit in 24–32GB.
+    iterations: int = int(os.environ.get("ITERATIONS", 20_000))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    val_batch_size: int = _m1_default("VAL_BATCH_SIZE", 524_288, 65_536)
+    train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    train_batch_tokens: int = _m1_default("TRAIN_BATCH_TOKENS", 524_288, 131_072)
+    grad_accum_steps: int = _m1_default("GRAD_ACCUM_STEPS", 8, 4)
+    train_seq_len: int = int(
+        os.environ.get("TRAIN_SEQ_LEN") or os.environ.get("TRAIN_MAX_SEQ_LEN", "1024")
+    )
+    mlx_max_microbatch_tokens: int = _m1_default("MLX_MAX_MICROBATCH_TOKENS", 8_192, 4_096)
+    warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
+    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+
+    # Model (defaults match the current baseline setup).
+    vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
+    model_dim: int = int(os.environ.get("MODEL_DIM", 512))
+    num_heads: int = int(os.environ.get("NUM_HEADS", 8))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
+    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
+    tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
+    logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
+    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
+    qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    recurrence_percent: float = float(os.environ.get("RECURRENCE_PERCENT", 0.0))
+    recurrence_factor: int = int(os.environ.get("RECURRENCE_FACTOR", 1))
+    recurrence_location: str = os.environ.get("RECURRENCE_LOCATION", "early")
+    state_carryover: str = os.environ.get("STATE_CARRYOVER", "none")
+    global_weight_sharing: str = os.environ.get("GLOBAL_WEIGHT_SHARING", "none")
+    layer_traversal_mode: str = os.environ.get("LAYER_TRAVERSAL_MODE", "forward")
+    bigram_buckets: int = int(os.environ.get("BIGRAM_BUCKETS", 0))
+    bigram_injection: str = os.environ.get("BIGRAM_INJECTION", "embedding")
+    smear_gate: str = os.environ.get("SMEAR_GATE", "none")
+    quant_bits: int = int(os.environ.get("QUANT_BITS", 0))
+    quant_scheme: str = os.environ.get("QUANT_SCHEME", "per_tensor")
+    quant_ste_slope: float = float(os.environ.get("QUANT_STE_SLOPE", 1.0))
+    mixed_precision_layers: float = float(os.environ.get("MIXED_PRECISION_LAYERS", 0.0))
+    weight_decay: float = float(os.environ.get("WEIGHT_DECAY", 0.0))
+    weight_init_scale: float = float(os.environ.get("WEIGHT_INIT_SCALE", 1.0))
+
+    # Optimizer. We keep the same per-group defaults as train_gpt.py.
+    beta1: float = float(os.environ.get("BETA1", 0.9))
+    beta2: float = float(os.environ.get("BETA2", 0.95))
+    adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
+    tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
+    scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
+    muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
+    muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+
+    out_dir: str = os.environ.get("OUT_DIR", "logs")
+
+    @property
+    def train_files(self) -> str:
+        return f"{self.data_path}/fineweb_train_*.bin"
+
+    @property
+    def val_files(self) -> str:
+        return f"{self.data_path}/fineweb_val_*.bin"
+
+    @property
+    def microbatch_tokens(self) -> int:
+        return self.train_batch_tokens // self.grad_accum_steps
+
+    def lr_mul(self, step: int, elapsed_ms: float) -> float:
+        if self.warmdown_iters <= 0:
+            return 1.0
+        if self.max_wallclock_seconds <= 0:
+            # Full LR for runs shorter than warmdown window (proxy evals); otherwise cosine tail.
+            if self.iterations < self.warmdown_iters:
+                return 1.0
+            warmdown_start = self.iterations - self.warmdown_iters
+            return (
+                max((self.iterations - step) / max(self.warmdown_iters, 1), 0.0)
+                if warmdown_start <= step < self.iterations
+                else 1.0
+            )
+        step_ms = elapsed_ms / max(step, 1)
+        warmdown_ms = self.warmdown_iters * step_ms
+        remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+
+CONTROL_TENSOR_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "CONTROL_TENSOR_NAME_PATTERNS",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+    ).split(",")
+    if pattern
+)
+INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
+        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
+    ).split(",")
+    if pattern
+)
+
+
+def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
+    usable_total = (total_tokens // seq_len) * seq_len
+    if usable_total <= 0:
+        raise ValueError(f"token budget too small for seq_len={seq_len}")
+    usable_chunk = max((max_chunk_tokens // seq_len) * seq_len, seq_len)
+    chunks: list[int] = []
+    remaining = usable_total
+    while remaining > 0:
+        chunk = min(remaining, usable_chunk)
+        chunks.append(chunk)
+        remaining -= chunk
+    return chunks
+
+
+def accumulate_flat_grads(
+    accum: dict[str, mx.array] | None,
+    grads_tree: dict,
+    scale: float,
+) -> dict[str, mx.array]:
+    flat = dict(tree_flatten(grads_tree))
+    if accum is None:
+        return {k: g * scale for k, g in flat.items()}
+    for k, g in flat.items():
+        accum[k] = accum[k] + g * scale
+    return accum
+
+
+# ==============================================================================
+# MATH HELPERS
+# ==============================================================================
+
+def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
+    return (x * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + eps)).astype(x.dtype)
+
+
+def zeropower_newtonschulz5(g: mx.array, steps: int, eps: float = 1e-7) -> mx.array:
+    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
+    # Muon uses this to normalize matrix-shaped gradients before applying them.
+    # Background on Muon: https://kellerjordan.github.io/posts/muon/
+    a, b, c = 3.4445, -4.7750, 2.0315
+    x = g.astype(mx.float32)
+    x = x / (mx.sqrt(mx.sum(x * x)) + eps)
+    transposed = x.shape[0] > x.shape[1]
+    if transposed:
+        x = x.T
+    for _ in range(steps):
+        a_mat = x @ x.T
+        b_mat = b * a_mat + c * (a_mat @ a_mat)
+        x = a * x + b_mat @ x
+        # Materialize each NS step: fusing the full loop can exceed Metal kernel arg buffers / malloc limits.
+        mx.eval(x)
+    if transposed:
+        x = x.T
+    return x.astype(g.dtype)
+
+
+def _layer_order_indices(n: int, mode: str) -> list[int]:
+    """Return block indices in traversal order. n = number of layers in this half (encoder or decoder)."""
+    if mode == "forward":
+        return list(range(n))
+    if mode == "reverse":
+        return list(range(n - 1, -1, -1))
+    if mode == "pingpong":
+        out = list(range(n))
+        if n >= 2:
+            out += list(range(n - 2, 0, -1))  # bounce back: n-2, n-3, ..., 1
+        return out
+    if mode == "odds_then_evens":
+        odds = [i for i in range(n) if i % 2 == 1]
+        evens = [i for i in range(n) if i % 2 == 0]
+        return odds + evens
+    return list(range(n))
+
+
+def _recurrent_layer_indices(
+    num_layers: int,
+    recurrence_percent: float,
+    recurrence_location: str,
+    seed: int,
+) -> frozenset[int]:
+    """Compute which layer indices are recurrent. Returns empty set if recurrence disabled."""
+    if recurrence_percent <= 0:
+        return frozenset()
+    num_recurrent = max(1, round(num_layers * recurrence_percent))
+    num_recurrent = min(num_recurrent, num_layers)
+    loc = recurrence_location
+    rng = random.Random(seed)
+    if loc == "early":
+        return frozenset(range(num_recurrent))
+    if loc == "late":
+        return frozenset(range(num_layers - num_recurrent, num_layers))
+    if loc == "middle":
+        start = (num_layers - num_recurrent) // 2
+        return frozenset(range(start, start + num_recurrent))
+    if loc == "random_uniform":
+        return frozenset(rng.sample(range(num_layers), num_recurrent))
+    return frozenset()
+
+
+def load_data_shard(path: Path) -> np.ndarray:
+    header_bytes = 256 * np.dtype("<i4").itemsize
+    token_bytes = np.dtype("<u2").itemsize
+    header = np.fromfile(path, dtype="<i4", count=256)
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+        raise ValueError(f"Unexpected shard header for {path}")
+    num_tokens = int(header[2])
+    if path.stat().st_size != header_bytes + num_tokens * token_bytes:
+        raise ValueError(f"Shard size mismatch for {path}")
+    tokens = np.fromfile(path, dtype="<u2", count=num_tokens, offset=header_bytes)
+    if tokens.size != num_tokens:
+        raise ValueError(f"Short read for {path}")
+    return tokens.astype(np.int32, copy=False)
+
+
+# ==============================================================================
+# TOKEN STREAMING / BATCHING
+# ==============================================================================
+
+
+class TokenStream:
+    def __init__(
+        self,
+        pattern: str,
+        log_fn: Callable[[str], None] | None = None,
+        dataset_name: str = "",
+    ):
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.epoch = 1
+        self.file_idx = 0
+        self.log_fn = log_fn
+        self.dataset_name = dataset_name
+        self.tokens = load_data_shard(self.files[0])
+        self.pos = 0
+
+    def next_file(self) -> None:
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        if self.file_idx == 0:
+            self.epoch += 1
+            if self.log_fn is not None:
+                self.log_fn(
+                    f"WARNING: starting epoch:{self.epoch} "
+                    f"dataset:{self.dataset_name} train_shards:{len(self.files)}"
+                )
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = 0
+
+    def take(self, n: int) -> np.ndarray:
+        chunks: list[np.ndarray] = []
+        left = n
+        while left > 0:
+            if self.pos >= self.tokens.size:
+                self.next_file()
+            k = min(left, int(self.tokens.size - self.pos))
+            chunks.append(self.tokens[self.pos : self.pos + k])
+            self.pos += k
+            left -= k
+        return chunks[0] if len(chunks) == 1 else np.concatenate(chunks, axis=0)
+
+
+class TokenLoader:
+    def __init__(
+        self,
+        pattern: str,
+        log_fn: Callable[[str], None] | None = None,
+        dataset_name: str = "",
+    ):
+        self.stream = TokenStream(pattern, log_fn=log_fn, dataset_name=dataset_name)
+
+    def next_batch(self, batch_tokens: int, seq_len: int) -> tuple[mx.array, mx.array]:
+        usable = (batch_tokens // seq_len) * seq_len
+        if usable <= 0:
+            raise ValueError(f"token budget too small for seq_len={seq_len}")
+        chunk = self.stream.take(usable + 1)
+        x = chunk[:-1].reshape(-1, seq_len)
+        y = chunk[1:].reshape(-1, seq_len)
+        return mx.array(x, dtype=mx.int32), mx.array(y, dtype=mx.int32)
+
+
+# ==============================================================================
+# MODEL BLOCKS
+# ==============================================================================
+
+class CastedLinear(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, *, linear_kind: str = "mlp"):
+        super().__init__()
+        self.linear_kind = linear_kind  # "mlp" | "attn"
+        self.weight = nn.Linear(in_dim, out_dim, bias=False).weight.astype(mx.float32)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        w = apply_fake_quant_weight(self.weight, self.linear_kind)
+        return x @ w.astype(x.dtype).T
+
+
+class BigramHashEmbedding(nn.Module):
+    """Hash (prev_token, curr_token) pairs into a fixed bucket table. Used by top Parameter Golf submissions."""
+
+    def __init__(self, num_buckets: int, dim: int, seed: int = 1337):
+        super().__init__()
+        if num_buckets <= 0:
+            raise ValueError("num_buckets must be positive")
+        self.num_buckets = num_buckets
+        rng = np.random.default_rng(seed)
+        self.weight = mx.array(
+            rng.standard_normal((num_buckets, dim), dtype=np.float32) * 0.02
+        ).astype(mx.float32)
+        self._m0, self._m1 = 4099, 257  # primes for hash spreading
+
+    def __call__(self, input_ids: mx.array) -> mx.array:
+        # Must stay pure MLX: np.array(input_ids) forces mx.eval inside compiled value_and_grad.
+        batch, seq_len = input_ids.shape
+        prev = mx.concatenate(
+            [mx.zeros((batch, 1), dtype=input_ids.dtype), input_ids[:, :-1]],
+            axis=1,
+        )
+        curr = input_ids
+        m0, m1, nb = self._m0, self._m1, self.num_buckets
+        h = (prev.astype(mx.int32) * m0 + curr.astype(mx.int32) * m1) % nb
+        indices = h.reshape(-1)
+        out = mx.take(self.weight, indices, axis=0).reshape(batch, seq_len, -1)
+        return out.astype(COMPUTE_DTYPE)
+
+
+def _smear_gate(x: mx.array, gate_param: mx.array) -> mx.array:
+    """Blend each token with the previous token. gate_param shape (dim,), sigmoid -> [0,1]."""
+    batch, seq, dim = x.shape
+    prev = mx.concatenate([mx.zeros((batch, 1, dim), dtype=x.dtype), x[:, :-1, :]], axis=1)
+    gate = mx.sigmoid(gate_param.astype(x.dtype))[None, None, :]
+    return gate * x + (1.0 - gate) * prev
+
+
+class RMSNormNoWeight(nn.Module):
+    # MLX module wrapper around the functional RMSNorm helper so it composes nicely in blocks.
+    def __call__(self, x: mx.array) -> mx.array:
+        return rms_norm(x)
+
+
+class CausalSelfAttention(nn.Module):
+    # - separate q/k/v projections
+    # - RMSNorm on q and k before attention
+    # - RoPE on q and k
+    # - causal masked SDPA
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError("model_dim must be divisible by num_heads")
+        if num_heads % num_kv_heads != 0:
+            raise ValueError("num_heads must be divisible by num_kv_heads")
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = dim // num_heads
+        if self.head_dim % 2 != 0:
+            raise ValueError("head_dim must be even for RoPE")
+        kv_dim = self.num_kv_heads * self.head_dim
+        self.c_q = CastedLinear(dim, dim, linear_kind="attn")
+        self.c_k = CastedLinear(dim, kv_dim, linear_kind="attn")
+        self.c_v = CastedLinear(dim, kv_dim, linear_kind="attn")
+        self.proj = CastedLinear(dim, dim, linear_kind="attn")
+        self.q_gain = mx.ones((num_heads,), dtype=mx.float32) * qk_gain_init
+        self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
+        self.scale = self.head_dim ** -0.5
+
+    def __call__(self, x: mx.array) -> mx.array:
+        bsz, seqlen, dim = x.shape
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+
+        q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
+        k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
+        q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
+        y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
+        y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
+        return self.proj(y)
+
+
+class MLP(nn.Module):
+    # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
+    def __init__(self, dim: int, mlp_mult: int):
+        super().__init__()
+        hidden = dim * mlp_mult
+        self.fc = CastedLinear(dim, hidden, linear_kind="mlp")
+        self.proj = CastedLinear(hidden, dim, linear_kind="mlp")
+
+    def __call__(self, x: mx.array) -> mx.array:
+        x = nn.relu(self.fc(x))
+        return self.proj(x * x)
+
+
+class Block(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        self.attn_norm = RMSNormNoWeight()
+        self.mlp_norm = RMSNormNoWeight()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.mlp = MLP(dim, mlp_mult)
+        self.attn_scale = mx.ones((dim,), dtype=mx.float32)
+        self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
+        self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
+
+    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+        mix = self.resid_mix.astype(x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out = self.attn(self.attn_norm(x))
+        x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        return x
+
+
+def _build_blocks_with_sharing(
+    num_layers: int,
+    recurrent_layer_indices: frozenset[int],
+    global_weight_sharing: str,
+    dim: int,
+    num_heads: int,
+    num_kv_heads: int,
+    mlp_mult: int,
+    rope_base: float,
+    qk_gain_init: float,
+) -> list:
+    """Build block list with optional weight sharing. Returns list of Block instances (references)."""
+    def make_block():
+        return Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+
+    if global_weight_sharing == "all":
+        shared = make_block()
+        return [shared] * num_layers
+    if global_weight_sharing == "block" and recurrent_layer_indices:
+        shared_recurrent = make_block()
+        blocks = []
+        for i in range(num_layers):
+            if i in recurrent_layer_indices:
+                blocks.append(shared_recurrent)
+            else:
+                blocks.append(make_block())
+        return blocks
+    return [make_block() for _ in range(num_layers)]
+
+
+class GPT(nn.Module):
+    # - token embedding + RMSNorm
+    # - encoder half accumulates skip tensors
+    # - decoder half consumes reversed skips with learned skip_weights
+    # - tied embeddings for the LM head (the baseline default setup)
+    # - optional recurrence: selected layers run multiple times (recurrence_factor)
+    # - state_carryover: residual/gated mix across recurrence steps
+    # - global_weight_sharing: none, block (recurrent group), all
+    def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                 logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
+                 qk_gain_init: float,
+                 recurrence_percent: float = 0.0, recurrence_factor: int = 1, recurrence_location: str = "early",
+                 state_carryover: str = "none", global_weight_sharing: str = "none",
+                 layer_traversal_mode: str = "forward",
+                 bigram_buckets: int = 0, bigram_injection: str = "embedding",
+                 smear_gate: str = "none",
+                 mixed_precision_layers: float = 0.0,
+                 weight_init_scale: float = 1.0,
+                 seed: int = 1337):
+        super().__init__()
+        if logit_softcap <= 0.0:
+            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        self.logit_chunk_tokens = logit_chunk_tokens
+        self.logit_softcap = logit_softcap
+        self.recurrence_factor = recurrence_factor if recurrence_percent > 0 else 1
+        self.recurrent_layer_indices = _recurrent_layer_indices(
+            num_layers, recurrence_percent, recurrence_location, seed
+        )
+        self.state_carryover = state_carryover if self.recurrent_layer_indices and self.recurrence_factor > 1 else "none"
+        self.layer_traversal_mode = layer_traversal_mode
+        self.encoder_order = _layer_order_indices(num_layers // 2, layer_traversal_mode)
+        self.decoder_order = _layer_order_indices(num_layers - num_layers // 2, layer_traversal_mode)
+        self.bigram_buckets = bigram_buckets
+        self.bigram_injection = bigram_injection if bigram_buckets > 0 else "embedding"
+
+        self.tok_emb = nn.Embedding(vocab_size, dim)
+        if bigram_buckets > 0:
+            self.bigram_hash = BigramHashEmbedding(bigram_buckets, dim, seed=seed)
+        else:
+            self.bigram_hash = None
+        self.smear_gate = smear_gate
+        if smear_gate != "none":
+            self.smear_gate_param = mx.zeros((dim,), dtype=mx.float32)
+        else:
+            self.smear_gate_param = None
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        self.blocks = _build_blocks_with_sharing(
+            num_layers, self.recurrent_layer_indices, global_weight_sharing,
+            dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init
+        )
+
+        if self.state_carryover == "residual":
+            self.recurrence_carryover_alpha_param = mx.zeros((num_layers,), dtype=mx.float32)
+            self.recurrence_carryover_gate_param = None
+        elif self.state_carryover == "gated":
+            self.recurrence_carryover_gate_param = mx.zeros((num_layers,), dtype=mx.float32)
+            self.recurrence_carryover_alpha_param = None
+        else:
+            self.recurrence_carryover_alpha_param = None
+            self.recurrence_carryover_gate_param = None
+
+        self.final_norm = RMSNormNoWeight()
+        fp16_n = min(num_layers, max(0, int(round(mixed_precision_layers * num_layers))))
+        self._fp16_block_indices = frozenset(range(fp16_n))
+
+        seen: set[int] = set()
+        unique_blocks = [b for b in self.blocks if id(b) not in seen and not seen.add(id(b))]
+        for b in unique_blocks:
+            b.attn.proj.weight = mx.zeros_like(b.attn.proj.weight)
+            b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)
+        init_std = tied_embed_init_std * weight_init_scale
+        self.tok_emb.weight = (
+            mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * init_std
+        ).astype(COMPUTE_DTYPE)
+
+    def softcap(self, logits: mx.array) -> mx.array:
+        c = self.logit_softcap
+        return c * mx.tanh(logits / c)
+
+    def _recurrence_step(self, block_idx: int, x: mx.array, x0: mx.array, n_passes: int) -> mx.array:
+        """Run block with optional recurrence and state carryover."""
+        block = self.blocks[block_idx]
+        act_dt = mx.float16 if block_idx in self._fp16_block_indices else COMPUTE_DTYPE
+        x = x.astype(act_dt)
+        x0_in = x0.astype(act_dt)
+        x = block(x, x0_in)
+        if n_passes <= 1:
+            return x
+        carry = self.state_carryover
+        if carry == "none":
+            for _ in range(n_passes - 1):
+                x = block(x, x0_in)
+            return x
+        if carry == "residual" and self.recurrence_carryover_alpha_param is not None:
+            alpha = mx.sigmoid(self.recurrence_carryover_alpha_param[block_idx]).astype(x.dtype)
+            for _ in range(n_passes - 1):
+                new_x = block(x, x0_in)
+                x = alpha * x + (1.0 - alpha) * new_x
+            return x
+        if carry == "gated" and self.recurrence_carryover_gate_param is not None:
+            gate = mx.sigmoid(self.recurrence_carryover_gate_param[block_idx]).astype(x.dtype)
+            for _ in range(n_passes - 1):
+                new_x = block(x, x0_in)
+                x = gate * x + (1.0 - gate) * new_x
+            return x
+        for _ in range(n_passes - 1):
+            x = block(x, x0_in)
+        return x
+
+    def __call__(self, input_ids: mx.array) -> mx.array:
+        x = self.tok_emb(input_ids).astype(COMPUTE_DTYPE)
+        if self.bigram_hash is not None:
+            bigram_emb = self.bigram_hash(input_ids)
+            if self.bigram_injection == "embedding":
+                x = x + bigram_emb
+        if self.smear_gate_param is not None and self.smear_gate == "embedding":
+            x = _smear_gate(x, self.smear_gate_param)
+        x = rms_norm(x)
+        x0 = x
+        bigram_emb = self.bigram_hash(input_ids) if (self.bigram_hash is not None and self.bigram_injection == "per_layer") else None
+        skips: list[mx.array] = []
+        enc_pushed: set[int] = set()
+
+        for i in self.encoder_order:
+            if bigram_emb is not None:
+                x = x + bigram_emb
+            if self.smear_gate_param is not None and self.smear_gate == "per_layer":
+                x = _smear_gate(x, self.smear_gate_param)
+            n_passes = self.recurrence_factor if i in self.recurrent_layer_indices else 1
+            x = self._recurrence_step(i, x, x0, n_passes)
+            if i not in enc_pushed:
+                enc_pushed.add(i)
+                skips.append(x)
+
+        dec_popped: set[int] = set()
+        skip_j = 0
+        for i in self.decoder_order:
+            if i not in dec_popped and skips and skip_j < self.num_skip_weights:
+                x = x + self.skip_weights[skip_j].astype(x.dtype)[None, None, :] * skips.pop()
+                skip_j += 1
+                dec_popped.add(i)
+            if bigram_emb is not None:
+                x = x + bigram_emb
+            if self.smear_gate_param is not None and self.smear_gate == "per_layer":
+                x = _smear_gate(x, self.smear_gate_param)
+            block_idx = self.num_encoder_layers + i
+            n_passes = self.recurrence_factor if block_idx in self.recurrent_layer_indices else 1
+            x = self._recurrence_step(block_idx, x, x0, n_passes)
+        return self.final_norm(x)
+
+    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+        # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
+        # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
+        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        y = target_ids.reshape(-1)
+        if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
+            logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
+            logits = self.softcap(logits_proj)
+            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+
+        loss_sum = mx.array(0.0, dtype=mx.float32)
+        n = int(x.shape[0])
+        for s in range(0, n, self.logit_chunk_tokens):
+            e = min(s + self.logit_chunk_tokens, n)
+            logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
+            logits = self.softcap(logits_proj)
+            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
+        return loss_sum / float(n)
+
+# ==============================================================================
+# OPTIMIZERS (MUON + ADAM SPLIT)
+# ==============================================================================
+class Muon:
+    # Muon applies SGD-momentum to matrix gradients, then orthogonalizes the result before the
+    # parameter update.
+    def __init__(self, keys: list[str], params: dict[str, mx.array], args: Hyperparameters):
+        self.keys = keys
+        self.args = args
+        self.buffers = {k: mx.zeros_like(params[k]) for k in keys}
+
+    def step(self, params: dict[str, mx.array], grads: dict[str, mx.array], step: int, lr_mul: float) -> dict[str, mx.array]:
+        if self.args.muon_momentum_warmup_steps:
+            t = min(step / self.args.muon_momentum_warmup_steps, 1.0)
+            momentum = (1.0 - t) * self.args.muon_momentum_warmup_start + t * self.args.muon_momentum
+        else:
+            momentum = self.args.muon_momentum
+        lr = self.args.matrix_lr * lr_mul
+        out: dict[str, mx.array] = {}
+        for k in self.keys:
+            p = params[k]
+            g = grads[k]
+            buf = momentum * self.buffers[k] + g
+            self.buffers[k] = buf
+            g_eff = g + momentum * buf
+            g_ortho = zeropower_newtonschulz5(g_eff, self.args.muon_backend_steps)
+            scale = math.sqrt(max(1.0, float(p.shape[0]) / float(p.shape[1])))
+            upd = p - lr * (g_ortho * scale).astype(p.dtype)
+            wd = self.args.weight_decay
+            if wd > 0.0:
+                upd = upd - lr * wd * p
+            out[k] = upd
+            # One matrix at a time: avoid holding one lazy graph for every Muon weight.
+            mx.eval(self.buffers[k], out[k])
+        return out
+
+
+class SplitOptimizers:
+    # - embeddings: Adam with the tied-embedding LR
+    # - block matrices (2D): Muon
+    # - block scalars + skip weights: Adam
+    # This preserves the high-level optimization behavior even though MLX internals differ.
+    def __init__(self, model: GPT, args: Hyperparameters):
+        self.args = args
+        params = dict(tree_flatten(model.parameters()))
+        self.embed_key = "tok_emb.weight"
+        self.matrix_keys = [
+            k
+            for k, p in params.items()
+            if (k.startswith("blocks.") or k == "bigram_hash.weight")
+            and p.ndim == 2
+            and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
+        recurrence_carryover_keys = [k for k in ("recurrence_carryover_alpha_param", "recurrence_carryover_gate_param") if k in params]
+        smear_gate_key = [k for k in ("smear_gate_param",) if k in params]
+        self.scalar_keys = [
+            k
+            for k, p in params.items()
+            if k == "skip_weights"
+            or k in recurrence_carryover_keys
+            or k in smear_gate_key
+            or (k.startswith("blocks.") and (p.ndim < 2 or any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)))
+        ]
+
+        self.muon = Muon(self.matrix_keys, params, args)
+        self.adam_embed = optim.Adam(
+            learning_rate=args.tied_embed_lr,
+            betas=[args.beta1, args.beta2],
+            eps=args.adam_eps,
+            bias_correction=True,
+        )
+        self.adam_scalar = optim.Adam(
+            learning_rate=args.scalar_lr,
+            betas=[args.beta1, args.beta2],
+            eps=args.adam_eps,
+            bias_correction=True,
+        )
+
+    def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
+        params = dict(tree_flatten(model.parameters()))
+        grads = dict(tree_flatten(grads_tree))
+        updated = dict(params)
+
+        updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
+
+        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        eg = grads[self.embed_key]
+        ep = params[self.embed_key]
+        wd = self.args.weight_decay
+        if wd > 0.0:
+            eg = eg + wd * ep
+        updated.update(
+            self.adam_embed.apply_gradients(
+                {self.embed_key: eg},
+                {self.embed_key: ep},
+            )
+        )
+
+        self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
+        scalar_grads = {k: grads[k] for k in self.scalar_keys}
+        scalar_params = {k: params[k] for k in self.scalar_keys}
+        if wd > 0.0:
+            scalar_grads = {k: scalar_grads[k] + wd * scalar_params[k] for k in scalar_grads}
+        updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
+
+        model.update(tree_unflatten(list(updated.items())))
+
+# ==============================================================================
+# QUANTIZATION (INT8 + ZLIB)
+# ==============================================================================
+# - per-row int8 for 2D float tensors
+# - per-tensor int8 for other float tensors
+# - fp16 passthrough for small float tensors
+# - exact passthrough for non-floats
+
+MX_DTYPE_FROM_NAME = {
+    "float32": mx.float32,
+    "float16": mx.float16,
+    "bfloat16": mx.bfloat16,
+}
+
+INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FLOAT_STORE_DTYPE = np.float16
+INT8_PER_ROW_SCALE_DTYPE = np.float16
+INT8_CLIP_PERCENTILE = 99.99984
+INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+
+def _np_float32(arr: mx.array) -> np.ndarray:
+    return np.array(arr.astype(mx.float32), dtype=np.float32, copy=False)
+
+
+def keep_float_array(name: str, arr: mx.array, passthrough_orig_dtypes: dict[str, str]) -> np.ndarray:
+    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
+        return np.ascontiguousarray(_np_float32(arr))
+    if arr.dtype in {mx.float32, mx.bfloat16}:
+        passthrough_orig_dtypes[name] = str(arr.dtype).split(".")[-1]
+        return np.ascontiguousarray(np.array(arr.astype(mx.float16), dtype=INT8_KEEP_FLOAT_STORE_DTYPE, copy=False))
+    return np.ascontiguousarray(np.array(arr, copy=True))
+
+
+def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
+    f32 = _np_float32(arr)
+    if f32.ndim == 2:
+        # Matrices get one scale per row, which usually tracks output-channel
+        # ranges much better than a single tensor-wide scale.
+        clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
+        clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
+        scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
+        q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
+        return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
+
+    # Vectors / scalars use a simpler per-tensor scale.
+    clip_abs = float(np.quantile(np.abs(f32).reshape(-1), INT8_CLIP_Q)) if f32.size else 0.0
+    scale = np.array(clip_abs / 127.0 if clip_abs > 0.0 else 1.0, dtype=np.float32)
+    q = np.clip(np.round(np.clip(f32, -clip_abs, clip_abs) / scale), -127, 127).astype(np.int8, copy=False)
+    return np.ascontiguousarray(q), scale
+
+
+def quantize_state_dict_int8(flat_state: dict[str, mx.array]) -> tuple[dict[str, object], dict[str, int]]:
+    quantized: dict[str, np.ndarray] = {}
+    scales: dict[str, np.ndarray] = {}
+    dtypes: dict[str, str] = {}
+    passthrough: dict[str, np.ndarray] = {}
+    passthrough_orig_dtypes: dict[str, str] = {}
+    qmeta: dict[str, dict[str, object]] = {}
+    stats = dict.fromkeys(
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        0,
+    )
+    for name, arr in flat_state.items():
+        stats["param_count"] += int(arr.size)
+        stats["num_tensors"] += 1
+        stats["baseline_tensor_bytes"] += int(arr.nbytes)
+        if not mx.issubdtype(arr.dtype, mx.floating):
+            stats["num_nonfloat_tensors"] += 1
+            passthrough[name] = np.ascontiguousarray(np.array(arr))
+            stats["int8_payload_bytes"] += int(passthrough[name].nbytes)
+            continue
+
+        # Small float tensors are cheap enough to keep directly. We still downcast
+        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
+        if int(arr.size) <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            kept = keep_float_array(name, arr, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += int(kept.nbytes)
+            continue
+
+        stats["num_float_tensors"] += 1
+        q, s = quantize_float_array(arr)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        quantized[name] = q
+        scales[name] = s
+        dtypes[name] = str(arr.dtype).split(".")[-1]
+        stats["int8_payload_bytes"] += int(q.nbytes + s.nbytes)
+    obj: dict[str, object] = {
+        "__quant_format__": "int8_clean_per_row_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": dtypes,
+        "passthrough": passthrough,
+    }
+    if qmeta:
+        obj["qmeta"] = qmeta
+    if passthrough_orig_dtypes:
+        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+    return obj, stats
+
+
+def dequantize_state_dict_int8(quant_obj: dict[str, object]) -> dict[str, mx.array]:
+    out: dict[str, mx.array] = {}
+    qmeta = quant_obj.get("qmeta", {})
+    passthrough_orig_dtypes = quant_obj.get("passthrough_orig_dtypes", {})
+    for name, q in quant_obj["quantized"].items():
+        q_np = np.asarray(q, dtype=np.int8)
+        dtype_name = quant_obj["dtypes"][name]
+        scale = np.asarray(quant_obj["scales"][name], dtype=np.float32)
+        if qmeta.get(name, {}).get("scheme") == "per_row" or scale.ndim > 0:
+            # Broadcast the saved row scale back across trailing dimensions.
+            out_arr = q_np.astype(np.float32) * scale.reshape((q_np.shape[0],) + (1,) * (q_np.ndim - 1))
+        else:
+            out_arr = q_np.astype(np.float32) * float(scale)
+        out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[dtype_name])
+    for name, arr in quant_obj["passthrough"].items():
+        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
+        out_arr = np.array(arr, copy=True)
+        orig_dtype = passthrough_orig_dtypes.get(name)
+        if isinstance(orig_dtype, str):
+            out[name] = mx.array(out_arr, dtype=MX_DTYPE_FROM_NAME[orig_dtype])
+        else:
+            out[name] = mx.array(out_arr)
+    return out
+
+
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_lut = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_lut = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_lut = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_lut[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_lut[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_lut[token_id] = True
+            piece = piece[1:]
+        base_bytes_lut[token_id] = len(piece.encode("utf-8"))
+    return base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
+
+
+def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tuple[str, int, int | None]:
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # decode bytes with the exact tokenizer that produced the shards. The manifest
+    # lets the training script fail fast on accidental dataset/tokenizer mismatches.
+    dataset_dir = Path(data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    if len(dataset_dir.parents) < 2:
+        return dataset_dir.name, actual_train_files, None
+    manifest_path = dataset_dir.parents[1] / "manifest.json"
+    if not manifest_path.is_file():
+        return dataset_dir.name, actual_train_files, None
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir.name), None)
+    if dataset_entry is None:
+        return dataset_dir.name, actual_train_files, None
+
+    tokenizer_name = dataset_entry.get("tokenizer_name")
+    tokenizer_entry = (
+        next((x for x in manifest.get("tokenizers", []) if x.get("name") == tokenizer_name), None)
+        if tokenizer_name
+        else None
+    )
+    expected_name = Path((tokenizer_entry or {}).get("model_path") or (tokenizer_entry or {}).get("path") or "").name
+    if expected_name and Path(tokenizer_path).name != expected_name:
+        raise ValueError(f"{dataset_dir.name} expects tokenizer {expected_name}, got {Path(tokenizer_path).name}")
+    expected_train_files = (dataset_entry.get("stats") or {}).get("files_train")
+    if expected_train_files is not None:
+        expected_train_files = int(expected_train_files)
+        if actual_train_files > expected_train_files:
+            raise ValueError(
+                f"{dataset_dir.name} has more train shards than expected: found {actual_train_files}, "
+                f"manifest says {expected_train_files}"
+            )
+    return dataset_dir.name, actual_train_files, expected_train_files
+
+
+def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if not files:
+        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+    # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
+    tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
+    usable = ((tokens.size - 1) // seq_len) * seq_len
+    if usable <= 0:
+        raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
+    return tokens[: usable + 1]
+
+
+def loss_and_grad_chunked(
+    args: Hyperparameters,
+    train_loader: TokenLoader,
+    compiled_loss_and_grad,
+) -> tuple[mx.array, dict]:
+    chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
+    total_tokens = float(sum(chunk_sizes))
+    loss_value = mx.array(0.0, dtype=mx.float32)
+    grad_accum: dict[str, mx.array] | None = None
+    for chunk_tokens in chunk_sizes:
+        x, y = train_loader.next_batch(chunk_tokens, args.train_seq_len)
+        loss, grads = compiled_loss_and_grad(x, y)
+        scale = float(y.size) / total_tokens
+        loss_value = loss_value + loss.astype(mx.float32) * scale
+        grad_accum = accumulate_flat_grads(grad_accum, grads, scale)
+        # Materialize each microchunk so Metal does not fuse one giant backward (can exceed kernel arg buffers).
+        assert grad_accum is not None
+        mx.eval(loss_value, *grad_accum.values())
+    return loss_value, tree_unflatten(list(grad_accum.items()))
+
+
+def eval_val(
+    args: Hyperparameters,
+    compiled_loss,
+    val_tokens: np.ndarray,
+    base_bytes_lut: np.ndarray,
+    has_leading_space_lut: np.ndarray,
+    is_boundary_token_lut: np.ndarray,
+    log_fn: Callable[[str], None] | None = None,
+) -> tuple[float, float]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    val_batch_tokens = args.val_batch_size // args.grad_accum_steps
+    if val_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
+            f"TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    val_batch_seqs = val_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.size - 1) // args.train_seq_len
+    total_batches = (total_seqs + val_batch_seqs - 1) // val_batch_seqs
+    if log_fn is not None and total_batches > 20:
+        log_fn(f"eval_val: starting {total_batches} batches over {total_seqs} seqs")
+    total_loss_sum = 0.0
+    total_tokens = 0.0
+    total_bytes = 0.0
+    batch_idx = 0
+    for batch_seq_start in range(0, total_seqs, val_batch_seqs):
+        batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
+        raw_start = batch_seq_start * args.train_seq_len
+        raw_end = batch_seq_end * args.train_seq_len + 1
+        chunk = val_tokens[raw_start:raw_end]
+        x_np = chunk[:-1].reshape(-1, args.train_seq_len)
+        y_np = chunk[1:].reshape(-1, args.train_seq_len)
+        x = mx.array(x_np, dtype=mx.int32)
+        y = mx.array(y_np, dtype=mx.int32)
+        chunk_token_count = float(y.size)
+        batch_loss = compiled_loss(x, y).astype(mx.float32) * chunk_token_count
+        mx.eval(batch_loss)  # Force eval each batch to avoid huge lazy graph (OOM)
+        total_loss_sum += float(batch_loss.item())
+        prev_ids = x_np.reshape(-1)
+        tgt_ids = y_np.reshape(-1)
+        bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+        bytes_np += (
+            has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+        ).astype(np.int16, copy=False)
+        total_tokens += chunk_token_count
+        total_bytes += float(bytes_np.astype(np.float64).sum())
+        batch_idx += 1
+        if log_fn is not None and total_batches > 20 and (batch_idx % max(1, total_batches // 10) == 0 or batch_idx == total_batches):
+            pct = 100.0 * batch_idx / total_batches
+            log_fn(f"eval_val: {batch_idx}/{total_batches} batches ({pct:.0f}%)")
+    val_loss = total_loss_sum / total_tokens
+    bits_per_token = val_loss / math.log(2.0)
+    val_bpb = bits_per_token * (total_tokens / total_bytes)
+    return val_loss, val_bpb
+
+# -----------------------------
+# TRAINING
+# -----------------------------
+
+def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
+    if max_norm <= 0:
+        return grads_tree
+    flat = dict(tree_flatten(grads_tree))
+    total_sq = 0.0
+    for grad in flat.values():
+        total_sq += float(np.sum(np.square(_np_float32(grad)), dtype=np.float64))
+    if total_sq <= 0.0:
+        return grads_tree
+    total_norm = math.sqrt(total_sq)
+    if total_norm <= max_norm:
+        return grads_tree
+    scale = max_norm / (total_norm + 1e-12)
+    return tree_unflatten([(k, g * scale) for k, g in flat.items()])
+
+
+def main() -> None:
+    # ==============================================================================
+    # TOKENIZER + VALIDATION METRIC SETUP
+    # ==============================================================================
+    args = Hyperparameters()
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logfile = out_dir / f"{args.run_id}.txt"
+    print(logfile)
+
+    def log(msg: str, console: bool = True) -> None:
+        if console:
+            print(msg)
+        with logfile.open("a", encoding="utf-8") as f:
+            print(msg, file=f)
+
+    code = Path(__file__).read_text(encoding="utf-8")
+    log(code, console=False)
+    log("=" * 100, console=False)
+    log(f"Running Python {sys.version}", console=False)
+    log(f"Running MLX {mx.__version__}", console=False)
+    log("=" * 100, console=False)
+
+    if not args.tie_embeddings:
+        raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_name, actual_train_files, expected_train_files = validate_dataset_tokenizer_pair(
+        args.data_path,
+        args.tokenizer_path,
+    )
+    val_tokens_full = load_validation_tokens(args.val_files, args.train_seq_len)
+    val_tokens_for_eval = val_tokens_full
+    frac_ev = os.environ.get("EVOLVE_VAL_FRACTION")
+    if frac_ev:
+        f = float(frac_ev)
+        if 0 <= f < 1:
+            max_tokens = int((val_tokens_full.size - 1) * f)
+            usable = (max_tokens // args.train_seq_len) * args.train_seq_len
+            if usable >= args.train_seq_len:
+                val_tokens_for_eval = val_tokens_full[: usable + 1]
+                log(f"val_eval:subset fraction={f:.2f} tokens={val_tokens_for_eval.size - 1} (full={val_tokens_full.size - 1})", console=False)
+
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size
+    )
+
+    # ==============================================================================
+    # TRAINING SETUP
+    # ==============================================================================
+    mx.random.seed(args.seed)
+
+    train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
+
+    # ==============================================================================
+    # MODEL + OPTIMIZER SETUP
+    # ==============================================================================
+    head_dim = args.model_dim // args.num_heads
+    set_qat_context(
+        args.quant_bits,
+        args.quant_scheme,
+        args.quant_ste_slope,
+        args.num_heads,
+        head_dim,
+    )
+
+    model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        logit_chunk_tokens=args.logit_chunk_tokens,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        tied_embed_init_std=args.tied_embed_init_std,
+        qk_gain_init=args.qk_gain_init,
+        recurrence_percent=args.recurrence_percent,
+        recurrence_factor=args.recurrence_factor,
+        recurrence_location=args.recurrence_location,
+        state_carryover=args.state_carryover,
+        global_weight_sharing=args.global_weight_sharing,
+        layer_traversal_mode=args.layer_traversal_mode,
+        bigram_buckets=args.bigram_buckets,
+        bigram_injection=args.bigram_injection,
+        smear_gate=args.smear_gate,
+        mixed_precision_layers=args.mixed_precision_layers,
+        weight_init_scale=args.weight_init_scale,
+        seed=args.seed,
+    )
+    opt = SplitOptimizers(model, args)
+
+    # ==============================================================================
+    # COMPILED TRAIN / EVAL FUNCTIONS (MLX)
+    # ==============================================================================
+    # The crucial MLX detail is capture scope: this model contains non-trainable arrays too (for example
+    # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
+    # Compiling the model-bound functions and capturing the full model state fixes that while still
+    # returning gradients only for trainable parameters via nn.value_and_grad(...).
+    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_loss_and_grad = mx.compile(
+        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        inputs=model.state,
+        outputs=model.state,
+    )
+
+    # Print config once so logs are self-describing.
+    n_params = sum(int(np.prod(p.shape)) for _, p in tree_flatten(model.parameters()))
+    if platform.machine() == "arm64":
+        log("platform:arm64 M1_Max_defaults:enabled (smaller batch/microbatch for unified memory)")
+    log(f"run_id:{args.run_id}")
+    log(f"mlx_version:{mx.__version__}")
+    log(f"train_loader:shards pattern={args.train_files}")
+    log(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens_full.size - 1}")
+    if expected_train_files is None:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}")
+    elif actual_train_files < expected_train_files:
+        log(
+            f"WARNING: train_loader:subset dataset:{dataset_name} "
+            f"train_shards:{actual_train_files}/{expected_train_files} "
+            f"new epochs will arrive sooner than the full dataset"
+        )
+    else:
+        log(f"train_loader:dataset:{dataset_name} train_shards:{actual_train_files}/{expected_train_files}")
+    log(f"tokenizer_path:{args.tokenizer_path}")
+    log(
+        f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
+        f"dim:{args.model_dim} heads:{args.num_heads} kv_heads:{args.num_kv_heads} "
+        f"seq_len:{args.train_seq_len} tie_embeddings:{args.tie_embeddings}"
+    )
+    log(
+        f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
+        f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
+        f"val_batch_size:{args.val_batch_size} "
+        f"warmup_steps:{args.warmup_steps} warmdown_iters:{args.warmdown_iters} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log(
+        f"qat:bits={args.quant_bits} scheme={args.quant_scheme} ste_slope={args.quant_ste_slope} "
+        f"mixed_precision_layers={args.mixed_precision_layers} weight_decay={args.weight_decay} "
+        f"weight_init_scale={args.weight_init_scale}"
+    )
+    log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
+    log(
+        f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
+        f"embed_lr:{args.tied_embed_lr} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
+    )
+    log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
+    log(
+        f"dtypes tok_emb:{model.tok_emb.weight.dtype} "
+        f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
+        f"skip_weights:{model.skip_weights.dtype}"
+    )
+
+    # ==============================================================================
+    # TRAINING LOOP
+    # ==============================================================================
+    if args.warmup_steps > 0:
+        # Warmup should only prime MLX compile/allocation paths. Updating parameters here forces us
+        # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
+        # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
+        # the loader so measured training still starts from the true init and token window.
+        for warmup_step in range(args.warmup_steps):
+            accum: dict[str, mx.array] | None = None
+            warmup_loss = mx.array(0.0, dtype=mx.float32)
+            grad_scale = 1.0 / args.grad_accum_steps
+            for _ in range(args.grad_accum_steps):
+                warmup_loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+                accum = accumulate_flat_grads(accum, grads, grad_scale)
+            assert accum is not None
+            mx.eval(warmup_loss, *accum.values())
+            mx.synchronize()
+            if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
+                log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+
+        # Prime the standalone eval graph once too. It is compiled separately from value_and_grad.
+        val_batch_tokens = args.val_batch_size // args.grad_accum_steps
+        if val_batch_tokens < args.train_seq_len:
+            raise ValueError(
+                "VAL_BATCH_SIZE must provide at least one sequence; "
+                f"got VAL_BATCH_SIZE={args.val_batch_size}, GRAD_ACCUM_STEPS={args.grad_accum_steps}, "
+                f"TRAIN_SEQ_LEN={args.train_seq_len}"
+            )
+        warm_val_seqs = min(val_batch_tokens // args.train_seq_len, (val_tokens_for_eval.size - 1) // args.train_seq_len)
+        warm_chunk = val_tokens_for_eval[: warm_val_seqs * args.train_seq_len + 1]
+        x_val = mx.array(warm_chunk[:-1].reshape(-1, args.train_seq_len), dtype=mx.int32)
+        y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
+        warm_val_loss = compiled_loss(x_val, y_val)
+        mx.eval(warm_val_loss)
+        mx.synchronize()
+
+        train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
+
+    train_time_ms = 0.0
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    stop_after_step: int | None = None
+    t0 = time.perf_counter()
+    train_loop_wall_t0 = time.perf_counter()
+    eta_min_steps = max(1, int(os.environ.get("TRAIN_ETA_MIN_STEPS", "100")))
+    step = 0
+    while True:
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+        if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            use_full = bool(
+                last_step and frac_ev and os.environ.get("VAL_FINAL_FULL", "1") not in ("0", "false", "")
+            )
+            val_loss, val_bpb = eval_val(
+                args,
+                compiled_loss,
+                val_tokens_full if use_full else val_tokens_for_eval,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+                log_fn=log,
+            )
+            train_time_ms += 1000.0 * (time.perf_counter() - t0)
+            wall_sec = time.perf_counter() - train_loop_wall_t0
+            eta = wall_elapsed_etr_suffix(step, args.iterations, wall_sec, eta_min_steps)
+            log(
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms / max(step, 1):.2f}ms"
+                f"{' FULL_VAL' if use_full else ''} {eta}"
+            )
+            if frac_ev:
+                log(f"evolve_val_checkpoint step:{step} val_bpb:{val_bpb:.6f}", console=False)
+            t0 = time.perf_counter()
+        if last_step:
+            if stop_after_step is not None and step < args.iterations:
+                log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
+            break
+
+        lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
+        step_t0 = time.perf_counter()
+
+        accum: dict[str, mx.array] | None = None
+        train_loss = mx.array(0.0, dtype=mx.float32)
+        grad_scale = 1.0 / args.grad_accum_steps
+        for _ in range(args.grad_accum_steps):
+            loss, grads = loss_and_grad_chunked(args, train_loader, compiled_loss_and_grad)
+            accum = accumulate_flat_grads(accum, grads, grad_scale)
+            train_loss = train_loss + loss.astype(mx.float32) * grad_scale
+
+        grads = tree_unflatten(list(accum.items()))
+        grads = clip_grad_tree(grads, args.grad_clip_norm)
+        train_loss_value = float(train_loss.item())
+        opt.step(model, grads, step=step, lr_mul=lr_mul)
+        mx.synchronize()
+
+        step_ms = 1000.0 * (time.perf_counter() - step_t0)
+        approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
+        tok_s = args.train_batch_tokens / (step_ms / 1000.0)
+        step += 1
+        if args.train_log_every > 0 and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None):
+            wall_sec = time.perf_counter() - train_loop_wall_t0
+            eta = wall_elapsed_etr_suffix(step, args.iterations, wall_sec, eta_min_steps)
+            log(
+                f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
+                f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f} {eta}"
+            )
+        if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
+            stop_after_step = step
+
+    log(
+        f"training_loop_finished steps:{step}/{args.iterations} "
+        f"wall_elapsed:{fmt_wall_duration(time.perf_counter() - train_loop_wall_t0)}"
+    )
+
+    # ==============================================================================
+    # FINAL SERIALIZATION + QUANTIZED ROUNDTRIP EVAL
+    # ==============================================================================
+    # Free optimizer (Muon momentum ~2x model size) before serialization to reduce peak RAM
+    del opt
+    gc.collect()
+    mx.synchronize()
+
+    # We always write a raw artifact and a quantized artifact, then validate the
+    # quantized roundtrip directly by loading the dequantized tensors back into the
+    # model and running one final validation pass.
+    out_path = out_dir / f"{args.run_id}_mlx_model.npz"
+    flat_state = {
+        k: v
+        for k, v in tree_flatten(model.state)
+        if v is not None and hasattr(v, "shape") and hasattr(v, "nbytes")
+    }
+    mx.savez(str(out_path), **flat_state)
+    log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
+    quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
+    quant_serialized_bytes = len(quant_raw)
+    del quant_obj
+    gc.collect()
+    zlib_level = 6 if os.environ.get("EVOLVE_FAST") else 9  # level 6 much faster, ~same size
+    quant_blob = zlib.compress(quant_raw, level=zlib_level)
+    del quant_raw
+    quant_path = out_dir / f"{args.run_id}_mlx_model.int8.ptz"
+    with quant_path.open("wb") as f:
+        f.write(quant_blob)
+    quant_file_bytes = quant_path.stat().st_size
+    ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+    log(
+        f"serialized_model_int8_zlib:{quant_file_bytes} bytes "
+        f"(payload:{quant_stats['int8_payload_bytes']} raw_pickle:{quant_serialized_bytes} payload_ratio:{ratio:.2f}x)"
+    )
+
+    with quant_path.open("rb") as f:
+        quant_blob_disk = f.read()
+    quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    del quant_blob_disk
+    gc.collect()
+    model.update(tree_unflatten(list(quant_flat.items())))
+    del quant_flat
+    q_t0 = time.perf_counter()
+    q_val_loss, q_val_bpb = eval_val(
+        args,
+        compiled_loss,
+        val_tokens_full,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+        log_fn=log,
+    )
+    q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
+    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.13 | packaged by conda-forge | (main, Mar  5 2026, 17:06:14) [Clang 19.1.7 ]
+Running MLX 0.31.1
+====================================================================================================
+val_eval:subset fraction=0.05 tokens=3100672 (full=62021632)
+platform:arm64 M1_Max_defaults:enabled (smaller batch/microbatch for unified memory)
+run_id:from_json_20260409_103134_it10000
+mlx_version:0.31.1
+train_loader:shards pattern=/Users/mike/Desktop/cursor-project/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/mike/Desktop/cursor-project/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/mike/Desktop/cursor-project/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:20746275 vocab_size:1024 layers:7 dim:640 heads:4 kv_heads:2 seq_len:1024 tie_embeddings:True
+iterations:10000 train_batch_tokens:131072 grad_accum_steps:8 microbatch_tokens:16384 microbatch_batch_size:16 val_batch_size:65536 warmup_steps:250 warmdown_iters:2000 max_wallclock_seconds:0.000
+qat:bits=4 scheme=per_channel ste_slope=1.25 mixed_precision_layers=0.0 weight_decay=0.0 weight_init_scale=0.75
+mlx_max_microbatch_tokens:4096
+optimizer:muon+adam muon_matrix_params:42 scalar_params:31 embed_lr:0.02 matrix_lr:0.06 scalar_lr:0.03 muon_momentum:0.93 muon_steps:10
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/mike/Desktop/cursor-project/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+warmup_step:10/250
+warmup_step:20/250
+warmup_step:30/250
+warmup_step:40/250
+warmup_step:50/250
+warmup_step:60/250
+warmup_step:70/250
+warmup_step:80/250
+warmup_step:90/250
+warmup_step:100/250
+warmup_step:110/250
+warmup_step:120/250
+warmup_step:130/250
+warmup_step:140/250
+warmup_step:150/250
+warmup_step:160/250
+warmup_step:170/250
+warmup_step:180/250
+warmup_step:190/250
+warmup_step:200/250
+warmup_step:210/250
+warmup_step:220/250
+warmup_step:230/250
+warmup_step:240/250
+warmup_step:250/250
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:0/10000 val_loss:6.9063 val_bpb:4.1477 train_time:77779ms step_avg:77779.29ms wall_elapsed:78s etr:n/a
+evolve_val_checkpoint step:0 val_bpb:4.147736
+step:1/10000 train_loss:6.9124 train_time:88704ms step_avg:88703.50ms tok_s:11998 wall_elapsed:89s etr:n/a (until 100 steps)
+step:2/10000 train_loss:6.9525 train_time:99635ms step_avg:49817.34ms tok_s:11991 wall_elapsed:1m39s etr:n/a (until 100 steps)
+step:3/10000 train_loss:7.1297 train_time:110559ms step_avg:36853.11ms tok_s:11998 wall_elapsed:1m50s etr:n/a (until 100 steps)
+step:4/10000 train_loss:6.7772 train_time:121506ms step_avg:30376.54ms tok_s:11974 wall_elapsed:2m1s etr:n/a (until 100 steps)
+step:5/10000 train_loss:6.2478 train_time:132446ms step_avg:26489.19ms tok_s:11982 wall_elapsed:2m12s etr:n/a (until 100 steps)
+step:6/10000 train_loss:6.1294 train_time:143402ms step_avg:23900.31ms tok_s:11964 wall_elapsed:2m23s etr:n/a (until 100 steps)
+step:7/10000 train_loss:6.0164 train_time:154330ms step_avg:22047.17ms tok_s:11994 wall_elapsed:2m34s etr:n/a (until 100 steps)
+step:8/10000 train_loss:6.0440 train_time:165261ms step_avg:20657.58ms tok_s:11992 wall_elapsed:2m45s etr:n/a (until 100 steps)
+step:9/10000 train_loss:5.9775 train_time:176179ms step_avg:19575.50ms tok_s:12005 wall_elapsed:2m56s etr:n/a (until 100 steps)
+step:10/10000 train_loss:5.9502 train_time:187136ms step_avg:18713.62ms tok_s:11963 wall_elapsed:3m7s etr:n/a (until 100 steps)
+step:100/10000 train_loss:3.6613 train_time:1170634ms step_avg:11706.34ms tok_s:11996 wall_elapsed:19m30s etr:32h11m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:100/10000 val_loss:3.4574 val_bpb:2.0764 train_time:1248439ms step_avg:12484.39ms wall_elapsed:20m48s etr:34h19m
+evolve_val_checkpoint step:100 val_bpb:2.076412
+step:200/10000 train_loss:2.9044 train_time:2340973ms step_avg:11704.87ms tok_s:12010 wall_elapsed:39m0s etr:31h51m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:200/10000 val_loss:2.9258 val_bpb:1.7571 train_time:2418691ms step_avg:12093.45ms wall_elapsed:40m18s etr:32h55m
+evolve_val_checkpoint step:200 val_bpb:1.757145
+step:300/10000 train_loss:2.8072 train_time:3511602ms step_avg:11705.34ms tok_s:11987 wall_elapsed:58m31s etr:31h32m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:300/10000 val_loss:2.7757 val_bpb:1.6670 train_time:3589434ms step_avg:11964.78ms wall_elapsed:59m49s etr:32h14m
+evolve_val_checkpoint step:300 val_bpb:1.667026
+step:400/10000 train_loss:2.7672 train_time:4683207ms step_avg:11708.02ms tok_s:12013 wall_elapsed:1h18m etr:31h13m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:400/10000 val_loss:2.7057 val_bpb:1.6250 train_time:4761061ms step_avg:11902.65ms wall_elapsed:1h19m etr:31h44m
+evolve_val_checkpoint step:400 val_bpb:1.624983
+step:500/10000 train_loss:2.7227 train_time:5854087ms step_avg:11708.17ms tok_s:11993 wall_elapsed:1h37m etr:30h53m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:500/10000 val_loss:2.6520 val_bpb:1.5927 train_time:5931910ms step_avg:11863.82ms wall_elapsed:1h38m etr:31h18m
+evolve_val_checkpoint step:500 val_bpb:1.592720
+step:600/10000 train_loss:2.6430 train_time:7024839ms step_avg:11708.07ms tok_s:12004 wall_elapsed:1h57m etr:30h34m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:600/10000 val_loss:2.6111 val_bpb:1.5681 train_time:7102648ms step_avg:11837.75ms wall_elapsed:1h58m etr:30h54m
+evolve_val_checkpoint step:600 val_bpb:1.568146
+step:700/10000 train_loss:2.4432 train_time:8195657ms step_avg:11708.08ms tok_s:12005 wall_elapsed:2h16m etr:30h14m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:700/10000 val_loss:2.5688 val_bpb:1.5427 train_time:8294120ms step_avg:11848.74ms wall_elapsed:2h18m etr:30h36m
+evolve_val_checkpoint step:700 val_bpb:1.542744
+WARNING: starting epoch:2 dataset:fineweb10B_sp1024 train_shards:1
+step:800/10000 train_loss:2.5118 train_time:9645229ms step_avg:12056.54ms tok_s:9705 wall_elapsed:2h40m etr:30h48m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:800/10000 val_loss:2.5372 val_bpb:1.5238 train_time:9746772ms step_avg:12183.46ms wall_elapsed:2h42m etr:31h8m
+evolve_val_checkpoint step:800 val_bpb:1.523761
+step:900/10000 train_loss:2.5172 train_time:11051331ms step_avg:12279.26ms tok_s:10260 wall_elapsed:3h4m etr:31h2m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:900/10000 val_loss:2.5135 val_bpb:1.5095 train_time:11146232ms step_avg:12384.70ms wall_elapsed:3h5m etr:31h18m
+evolve_val_checkpoint step:900 val_bpb:1.509518
+step:1000/10000 train_loss:2.4719 train_time:12430223ms step_avg:12430.22ms tok_s:9699 wall_elapsed:3h27m etr:31h4m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1000/10000 val_loss:2.4974 val_bpb:1.4999 train_time:12535991ms step_avg:12535.99ms wall_elapsed:3h28m etr:31h20m
+evolve_val_checkpoint step:1000 val_bpb:1.499892
+step:1100/10000 train_loss:2.4315 train_time:13922818ms step_avg:12657.11ms tok_s:9909 wall_elapsed:3h52m etr:31h17m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1100/10000 val_loss:2.4749 val_bpb:1.4864 train_time:14021653ms step_avg:12746.96ms wall_elapsed:3h53m etr:31h30m
+evolve_val_checkpoint step:1100 val_bpb:1.486355
+step:1200/10000 train_loss:2.5257 train_time:15290259ms step_avg:12741.88ms tok_s:9300 wall_elapsed:4h14m etr:31h8m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1200/10000 val_loss:2.4642 val_bpb:1.4799 train_time:15391236ms step_avg:12826.03ms wall_elapsed:4h16m etr:31h21m
+evolve_val_checkpoint step:1200 val_bpb:1.479943
+step:1300/10000 train_loss:2.4063 train_time:16736071ms step_avg:12873.90ms tok_s:9785 wall_elapsed:4h38m etr:31h6m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1300/10000 val_loss:2.4493 val_bpb:1.4710 train_time:16836629ms step_avg:12951.25ms wall_elapsed:4h40m etr:31h17m
+evolve_val_checkpoint step:1300 val_bpb:1.470984
+step:1400/10000 train_loss:2.4174 train_time:18167221ms step_avg:12976.59ms tok_s:10093 wall_elapsed:5h2m etr:30h59m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1400/10000 val_loss:2.4348 val_bpb:1.4623 train_time:18264182ms step_avg:13045.84ms wall_elapsed:5h4m etr:31h9m
+evolve_val_checkpoint step:1400 val_bpb:1.462273
+step:1500/10000 train_loss:2.4535 train_time:19560313ms step_avg:13040.21ms tok_s:10184 wall_elapsed:5h26m etr:30h47m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1500/10000 val_loss:2.4164 val_bpb:1.4512 train_time:19657370ms step_avg:13104.91ms wall_elapsed:5h27m etr:30h56m
+evolve_val_checkpoint step:1500 val_bpb:1.451208
+WARNING: starting epoch:3 dataset:fineweb10B_sp1024 train_shards:1
+step:1600/10000 train_loss:2.4485 train_time:20968660ms step_avg:13105.41ms tok_s:9881 wall_elapsed:5h49m etr:30h34m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1600/10000 val_loss:2.4141 val_bpb:1.4498 train_time:21068143ms step_avg:13167.59ms wall_elapsed:5h51m etr:30h43m
+evolve_val_checkpoint step:1600 val_bpb:1.449838
+step:1700/10000 train_loss:2.4322 train_time:22402072ms step_avg:13177.69ms tok_s:9784 wall_elapsed:6h13m etr:30h22m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1700/10000 val_loss:2.4005 val_bpb:1.4416 train_time:22501913ms step_avg:13236.42ms wall_elapsed:6h15m etr:30h31m
+evolve_val_checkpoint step:1700 val_bpb:1.441649
+step:1800/10000 train_loss:2.5027 train_time:23827972ms step_avg:13237.76ms tok_s:9996 wall_elapsed:6h37m etr:30h9m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1800/10000 val_loss:2.3964 val_bpb:1.4392 train_time:23926480ms step_avg:13292.49ms wall_elapsed:6h38m etr:30h16m
+evolve_val_checkpoint step:1800 val_bpb:1.439190
+step:1900/10000 train_loss:2.4300 train_time:25231053ms step_avg:13279.50ms tok_s:10006 wall_elapsed:7h0m etr:29h52m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:1900/10000 val_loss:2.3906 val_bpb:1.4357 train_time:25328529ms step_avg:13330.80ms wall_elapsed:7h2m etr:29h59m
+evolve_val_checkpoint step:1900 val_bpb:1.435718
+step:2000/10000 train_loss:2.4310 train_time:26630239ms step_avg:13315.12ms tok_s:10111 wall_elapsed:7h23m etr:29h35m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2000/10000 val_loss:2.3861 val_bpb:1.4331 train_time:26726951ms step_avg:13363.48ms wall_elapsed:7h25m etr:29h41m
+evolve_val_checkpoint step:2000 val_bpb:1.433054
+step:2100/10000 train_loss:2.2617 train_time:28023534ms step_avg:13344.54ms tok_s:10095 wall_elapsed:7h47m etr:29h17m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2100/10000 val_loss:2.3782 val_bpb:1.4283 train_time:28121081ms step_avg:13390.99ms wall_elapsed:7h48m etr:29h23m
+evolve_val_checkpoint step:2100 val_bpb:1.428270
+step:2200/10000 train_loss:2.3652 train_time:29442676ms step_avg:13383.03ms tok_s:9918 wall_elapsed:8h10m etr:28h59m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2200/10000 val_loss:2.3710 val_bpb:1.4240 train_time:29541390ms step_avg:13427.90ms wall_elapsed:8h12m etr:29h5m
+evolve_val_checkpoint step:2200 val_bpb:1.423974
+WARNING: starting epoch:4 dataset:fineweb10B_sp1024 train_shards:1
+step:2300/10000 train_loss:2.4087 train_time:30861780ms step_avg:13418.17ms tok_s:9934 wall_elapsed:8h34m etr:28h41m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2300/10000 val_loss:2.3614 val_bpb:1.4182 train_time:30960348ms step_avg:13461.02ms wall_elapsed:8h36m etr:28h47m
+evolve_val_checkpoint step:2300 val_bpb:1.418210
+step:2400/10000 train_loss:2.3730 train_time:32281527ms step_avg:13450.64ms tok_s:9882 wall_elapsed:8h58m etr:28h23m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2400/10000 val_loss:2.3566 val_bpb:1.4153 train_time:32380230ms step_avg:13491.76ms wall_elapsed:8h59m etr:28h28m
+evolve_val_checkpoint step:2400 val_bpb:1.415338
+step:2500/10000 train_loss:2.3122 train_time:33700384ms step_avg:13480.15ms tok_s:10008 wall_elapsed:9h21m etr:28h5m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2500/10000 val_loss:2.3563 val_bpb:1.4151 train_time:33799057ms step_avg:13519.62ms wall_elapsed:9h23m etr:28h9m
+evolve_val_checkpoint step:2500 val_bpb:1.415141
+step:2600/10000 train_loss:2.3907 train_time:35118106ms step_avg:13506.96ms tok_s:10085 wall_elapsed:9h45m etr:27h45m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2600/10000 val_loss:2.3508 val_bpb:1.4118 train_time:35215854ms step_avg:13544.56ms wall_elapsed:9h46m etr:27h50m
+evolve_val_checkpoint step:2600 val_bpb:1.411799
+step:2700/10000 train_loss:2.3219 train_time:36526841ms step_avg:13528.46ms tok_s:9946 wall_elapsed:10h8m etr:27h25m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2700/10000 val_loss:2.3500 val_bpb:1.4114 train_time:36625966ms step_avg:13565.17ms wall_elapsed:10h10m etr:27h30m
+evolve_val_checkpoint step:2700 val_bpb:1.411360
+step:2800/10000 train_loss:2.3896 train_time:37935751ms step_avg:13548.48ms tok_s:9938 wall_elapsed:10h32m etr:27h5m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2800/10000 val_loss:2.3439 val_bpb:1.4077 train_time:38033741ms step_avg:13583.48ms wall_elapsed:10h33m etr:27h10m
+evolve_val_checkpoint step:2800 val_bpb:1.407693
+step:2900/10000 train_loss:2.3473 train_time:39345994ms step_avg:13567.58ms tok_s:10013 wall_elapsed:10h55m etr:26h45m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:2900/10000 val_loss:2.3414 val_bpb:1.4062 train_time:39444139ms step_avg:13601.43ms wall_elapsed:10h57m etr:26h49m
+evolve_val_checkpoint step:2900 val_bpb:1.406203
+step:3000/10000 train_loss:2.2561 train_time:40756913ms step_avg:13585.64ms tok_s:10006 wall_elapsed:11h19m etr:26h24m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3000/10000 val_loss:2.3340 val_bpb:1.4017 train_time:40855103ms step_avg:13618.37ms wall_elapsed:11h20m etr:26h28m
+evolve_val_checkpoint step:3000 val_bpb:1.401715
+WARNING: starting epoch:5 dataset:fineweb10B_sp1024 train_shards:1
+step:3100/10000 train_loss:2.3578 train_time:42169344ms step_avg:13603.01ms tok_s:10057 wall_elapsed:11h42m etr:26h4m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3100/10000 val_loss:2.3383 val_bpb:1.4043 train_time:42267757ms step_avg:13634.76ms wall_elapsed:11h44m etr:26h7m
+evolve_val_checkpoint step:3100 val_bpb:1.404321
+step:3200/10000 train_loss:2.2921 train_time:43582229ms step_avg:13619.45ms tok_s:10005 wall_elapsed:12h6m etr:25h43m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3200/10000 val_loss:2.3320 val_bpb:1.4006 train_time:43680527ms step_avg:13650.16ms wall_elapsed:12h8m etr:25h47m
+evolve_val_checkpoint step:3200 val_bpb:1.400560
+step:3300/10000 train_loss:2.3102 train_time:44993533ms step_avg:13634.40ms tok_s:10022 wall_elapsed:12h29m etr:25h22m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3300/10000 val_loss:2.3385 val_bpb:1.4044 train_time:45091880ms step_avg:13664.21ms wall_elapsed:12h31m etr:25h25m
+evolve_val_checkpoint step:3300 val_bpb:1.404425
+step:3400/10000 train_loss:2.2047 train_time:46419984ms step_avg:13652.94ms tok_s:9776 wall_elapsed:12h53m etr:25h1m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3400/10000 val_loss:2.3329 val_bpb:1.4011 train_time:46519551ms step_avg:13682.22ms wall_elapsed:12h55m etr:25h5m
+evolve_val_checkpoint step:3400 val_bpb:1.401076
+step:3500/10000 train_loss:2.2396 train_time:47852804ms step_avg:13672.23ms tok_s:9848 wall_elapsed:13h17m etr:24h41m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3500/10000 val_loss:2.3343 val_bpb:1.4019 train_time:47952241ms step_avg:13700.64ms wall_elapsed:13h19m etr:24h44m
+evolve_val_checkpoint step:3500 val_bpb:1.401910
+step:3600/10000 train_loss:2.3480 train_time:49286030ms step_avg:13690.56ms tok_s:9889 wall_elapsed:13h41m etr:24h20m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3600/10000 val_loss:2.3280 val_bpb:1.3981 train_time:49385710ms step_avg:13718.25ms wall_elapsed:13h43m etr:24h23m
+evolve_val_checkpoint step:3600 val_bpb:1.398120
+step:3700/10000 train_loss:2.2485 train_time:50706912ms step_avg:13704.57ms tok_s:9980 wall_elapsed:14h5m etr:23h58m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3700/10000 val_loss:2.3261 val_bpb:1.3970 train_time:50804922ms step_avg:13731.06ms wall_elapsed:14h6m etr:24h1m
+evolve_val_checkpoint step:3700 val_bpb:1.396974
+step:3800/10000 train_loss:2.3051 train_time:52141314ms step_avg:13721.40ms tok_s:9960 wall_elapsed:14h29m etr:23h37m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3800/10000 val_loss:2.3166 val_bpb:1.3913 train_time:52239460ms step_avg:13747.23ms wall_elapsed:14h30m etr:23h40m
+evolve_val_checkpoint step:3800 val_bpb:1.391271
+WARNING: starting epoch:6 dataset:fineweb10B_sp1024 train_shards:1
+step:3900/10000 train_loss:2.2472 train_time:53553541ms step_avg:13731.68ms tok_s:10069 wall_elapsed:14h52m etr:23h16m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:3900/10000 val_loss:2.3191 val_bpb:1.3928 train_time:53651852ms step_avg:13756.89ms wall_elapsed:14h54m etr:23h18m
+evolve_val_checkpoint step:3900 val_bpb:1.392765
+step:4000/10000 train_loss:2.3005 train_time:54966263ms step_avg:13741.57ms tok_s:9978 wall_elapsed:15h16m etr:22h54m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4000/10000 val_loss:2.3127 val_bpb:1.3889 train_time:55064612ms step_avg:13766.15ms wall_elapsed:15h17m etr:22h56m
+evolve_val_checkpoint step:4000 val_bpb:1.388943
+step:4100/10000 train_loss:2.3186 train_time:56395177ms step_avg:13754.92ms tok_s:9663 wall_elapsed:15h39m etr:22h32m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4100/10000 val_loss:2.3154 val_bpb:1.3905 train_time:56495843ms step_avg:13779.47ms wall_elapsed:15h41m etr:22h34m
+evolve_val_checkpoint step:4100 val_bpb:1.390548
+step:4200/10000 train_loss:2.2401 train_time:57843869ms step_avg:13772.35ms tok_s:9610 wall_elapsed:16h4m etr:22h11m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4200/10000 val_loss:2.3163 val_bpb:1.3911 train_time:57944703ms step_avg:13796.36ms wall_elapsed:16h5m etr:22h13m
+evolve_val_checkpoint step:4200 val_bpb:1.391111
+step:4300/10000 train_loss:2.3158 train_time:59285138ms step_avg:13787.24ms tok_s:9938 wall_elapsed:16h28m etr:21h49m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4300/10000 val_loss:2.3086 val_bpb:1.3865 train_time:59383786ms step_avg:13810.18ms wall_elapsed:16h29m etr:21h51m
+evolve_val_checkpoint step:4300 val_bpb:1.386513
+step:4400/10000 train_loss:2.2518 train_time:60706344ms step_avg:13796.90ms tok_s:10004 wall_elapsed:16h51m etr:21h27m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4400/10000 val_loss:2.3126 val_bpb:1.3889 train_time:60805079ms step_avg:13819.34ms wall_elapsed:16h53m etr:21h29m
+evolve_val_checkpoint step:4400 val_bpb:1.388858
+step:4500/10000 train_loss:2.3801 train_time:62126801ms step_avg:13805.96ms tok_s:9903 wall_elapsed:17h15m etr:21h5m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4500/10000 val_loss:2.3046 val_bpb:1.3841 train_time:62225912ms step_avg:13827.98ms wall_elapsed:17h17m etr:21h7m
+evolve_val_checkpoint step:4500 val_bpb:1.384064
+WARNING: starting epoch:7 dataset:fineweb10B_sp1024 train_shards:1
+step:4600/10000 train_loss:2.2613 train_time:63547866ms step_avg:13814.75ms tok_s:9837 wall_elapsed:17h39m etr:20h43m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4600/10000 val_loss:2.3070 val_bpb:1.3855 train_time:63648207ms step_avg:13836.57ms wall_elapsed:17h40m etr:20h45m
+evolve_val_checkpoint step:4600 val_bpb:1.385517
+step:4700/10000 train_loss:2.3021 train_time:64983884ms step_avg:13826.36ms tok_s:9743 wall_elapsed:18h3m etr:20h21m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4700/10000 val_loss:2.3038 val_bpb:1.3836 train_time:65084099ms step_avg:13847.68ms wall_elapsed:18h4m etr:20h23m
+evolve_val_checkpoint step:4700 val_bpb:1.383601
+step:4800/10000 train_loss:2.2720 train_time:66426490ms step_avg:13838.85ms tok_s:9711 wall_elapsed:18h27m etr:19h59m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4800/10000 val_loss:2.3029 val_bpb:1.3830 train_time:66526826ms step_avg:13859.76ms wall_elapsed:18h28m etr:20h1m
+evolve_val_checkpoint step:4800 val_bpb:1.383048
+step:4900/10000 train_loss:2.2927 train_time:67873382ms step_avg:13851.71ms tok_s:9768 wall_elapsed:18h51m etr:19h37m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:4900/10000 val_loss:2.3061 val_bpb:1.3850 train_time:67973542ms step_avg:13872.15ms wall_elapsed:18h52m etr:19h39m
+evolve_val_checkpoint step:4900 val_bpb:1.384958
+step:5000/10000 train_loss:2.2376 train_time:69319100ms step_avg:13863.82ms tok_s:9738 wall_elapsed:19h15m etr:19h15m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5000/10000 val_loss:2.3067 val_bpb:1.3854 train_time:69419666ms step_avg:13883.93ms wall_elapsed:19h16m etr:19h16m
+evolve_val_checkpoint step:5000 val_bpb:1.385354
+step:5100/10000 train_loss:2.3665 train_time:70765546ms step_avg:13875.60ms tok_s:9770 wall_elapsed:19h39m etr:18h53m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5100/10000 val_loss:2.3002 val_bpb:1.3814 train_time:70868213ms step_avg:13895.73ms wall_elapsed:19h41m etr:18h54m
+evolve_val_checkpoint step:5100 val_bpb:1.381429
+step:5200/10000 train_loss:2.2257 train_time:72213056ms step_avg:13887.13ms tok_s:9828 wall_elapsed:20h3m etr:18h30m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5200/10000 val_loss:2.2987 val_bpb:1.3806 train_time:72312986ms step_avg:13906.34ms wall_elapsed:20h5m etr:18h32m
+evolve_val_checkpoint step:5200 val_bpb:1.380561
+step:5300/10000 train_loss:2.2324 train_time:73648300ms step_avg:13895.91ms tok_s:9795 wall_elapsed:20h27m etr:18h8m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5300/10000 val_loss:2.2926 val_bpb:1.3769 train_time:73748089ms step_avg:13914.73ms wall_elapsed:20h29m etr:18h9m
+evolve_val_checkpoint step:5300 val_bpb:1.376898
+WARNING: starting epoch:8 dataset:fineweb10B_sp1024 train_shards:1
+step:5400/10000 train_loss:2.2230 train_time:75085010ms step_avg:13904.63ms tok_s:9862 wall_elapsed:20h51m etr:17h46m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5400/10000 val_loss:2.2995 val_bpb:1.3810 train_time:75185110ms step_avg:13923.17ms wall_elapsed:20h53m etr:17h47m
+evolve_val_checkpoint step:5400 val_bpb:1.381010
+step:5500/10000 train_loss:2.1646 train_time:76522180ms step_avg:13913.12ms tok_s:9825 wall_elapsed:21h15m etr:17h23m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5500/10000 val_loss:2.2968 val_bpb:1.3794 train_time:76625016ms step_avg:13931.82ms wall_elapsed:21h17m etr:17h24m
+evolve_val_checkpoint step:5500 val_bpb:1.379390
+step:5600/10000 train_loss:2.1446 train_time:77960712ms step_avg:13921.56ms tok_s:9755 wall_elapsed:21h39m etr:17h0m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5600/10000 val_loss:2.3017 val_bpb:1.3823 train_time:78062103ms step_avg:13939.66ms wall_elapsed:21h41m etr:17h2m
+evolve_val_checkpoint step:5600 val_bpb:1.382337
+step:5700/10000 train_loss:2.3065 train_time:79396690ms step_avg:13929.24ms tok_s:9763 wall_elapsed:22h3m etr:16h38m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5700/10000 val_loss:2.2998 val_bpb:1.3812 train_time:79498244ms step_avg:13947.06ms wall_elapsed:22h4m etr:16h39m
+evolve_val_checkpoint step:5700 val_bpb:1.381192
+step:5800/10000 train_loss:2.1848 train_time:80847262ms step_avg:13939.18ms tok_s:9764 wall_elapsed:22h27m etr:16h15m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5800/10000 val_loss:2.2974 val_bpb:1.3798 train_time:80948109ms step_avg:13956.57ms wall_elapsed:22h29m etr:16h16m
+evolve_val_checkpoint step:5800 val_bpb:1.379772
+step:5900/10000 train_loss:2.2097 train_time:82317392ms step_avg:13952.10ms tok_s:9731 wall_elapsed:22h51m etr:15h53m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:5900/10000 val_loss:2.2968 val_bpb:1.3794 train_time:82418311ms step_avg:13969.21ms wall_elapsed:22h53m etr:15h54m
+evolve_val_checkpoint step:5900 val_bpb:1.379386
+step:6000/10000 train_loss:2.2260 train_time:83770237ms step_avg:13961.71ms tok_s:9715 wall_elapsed:23h16m etr:15h30m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6000/10000 val_loss:2.3010 val_bpb:1.3819 train_time:83870857ms step_avg:13978.48ms wall_elapsed:23h17m etr:15h31m
+evolve_val_checkpoint step:6000 val_bpb:1.381910
+step:6100/10000 train_loss:2.3179 train_time:85215570ms step_avg:13969.77ms tok_s:9712 wall_elapsed:23h40m etr:15h8m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6100/10000 val_loss:2.2887 val_bpb:1.3745 train_time:85317436ms step_avg:13986.46ms wall_elapsed:23h41m etr:15h9m
+evolve_val_checkpoint step:6100 val_bpb:1.374505
+WARNING: starting epoch:9 dataset:fineweb10B_sp1024 train_shards:1
+step:6200/10000 train_loss:2.4023 train_time:86662812ms step_avg:13977.87ms tok_s:9793 wall_elapsed:24h4m etr:14h45m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6200/10000 val_loss:2.2854 val_bpb:1.3726 train_time:86763442ms step_avg:13994.10ms wall_elapsed:24h6m etr:14h46m
+evolve_val_checkpoint step:6200 val_bpb:1.372580
+step:6300/10000 train_loss:2.2825 train_time:88252809ms step_avg:14008.38ms tok_s:8773 wall_elapsed:24h30m etr:14h23m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6300/10000 val_loss:2.2848 val_bpb:1.3722 train_time:88369036ms step_avg:14026.83ms wall_elapsed:24h32m etr:14h24m
+evolve_val_checkpoint step:6300 val_bpb:1.372184
+step:6400/10000 train_loss:2.2962 train_time:89849792ms step_avg:14039.03ms tok_s:10647 wall_elapsed:24h57m etr:14h2m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6400/10000 val_loss:2.2839 val_bpb:1.3716 train_time:89959232ms step_avg:14056.13ms wall_elapsed:24h59m etr:14h3m
+evolve_val_checkpoint step:6400 val_bpb:1.371630
+step:6500/10000 train_loss:2.1451 train_time:91355326ms step_avg:14054.67ms tok_s:9388 wall_elapsed:25h22m etr:13h39m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6500/10000 val_loss:2.2877 val_bpb:1.3739 train_time:91461052ms step_avg:14070.93ms wall_elapsed:25h24m etr:13h40m
+evolve_val_checkpoint step:6500 val_bpb:1.373946
+step:6600/10000 train_loss:2.2734 train_time:92858045ms step_avg:14069.40ms tok_s:9407 wall_elapsed:25h47m etr:13h17m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6600/10000 val_loss:2.2841 val_bpb:1.3718 train_time:92964334ms step_avg:14085.51ms wall_elapsed:25h49m etr:13h18m
+evolve_val_checkpoint step:6600 val_bpb:1.371790
+step:6700/10000 train_loss:2.2760 train_time:94336817ms step_avg:14080.12ms tok_s:9769 wall_elapsed:26h12m etr:12h54m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6700/10000 val_loss:2.2871 val_bpb:1.3736 train_time:94437801ms step_avg:14095.19ms wall_elapsed:26h13m etr:12h55m
+evolve_val_checkpoint step:6700 val_bpb:1.373587
+step:6800/10000 train_loss:2.1820 train_time:95780604ms step_avg:14085.38ms tok_s:9833 wall_elapsed:26h36m etr:12h31m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6800/10000 val_loss:2.2821 val_bpb:1.3706 train_time:95881476ms step_avg:14100.22ms wall_elapsed:26h38m etr:12h32m
+evolve_val_checkpoint step:6800 val_bpb:1.370557
+WARNING: starting epoch:10 dataset:fineweb10B_sp1024 train_shards:1
+step:6900/10000 train_loss:2.2091 train_time:97222035ms step_avg:14090.15ms tok_s:9821 wall_elapsed:27h0m etr:12h7m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:6900/10000 val_loss:2.2835 val_bpb:1.3714 train_time:97322462ms step_avg:14104.70ms wall_elapsed:27h2m etr:12h8m
+evolve_val_checkpoint step:6900 val_bpb:1.371422
+step:7000/10000 train_loss:2.3167 train_time:98659582ms step_avg:14094.23ms tok_s:9796 wall_elapsed:27h24m etr:11h44m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7000/10000 val_loss:2.2820 val_bpb:1.3705 train_time:98758861ms step_avg:14108.41ms wall_elapsed:27h25m etr:11h45m
+evolve_val_checkpoint step:7000 val_bpb:1.370517
+step:7100/10000 train_loss:2.1508 train_time:100097768ms step_avg:14098.28ms tok_s:9812 wall_elapsed:27h48m etr:11h21m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7100/10000 val_loss:2.2868 val_bpb:1.3734 train_time:100198362ms step_avg:14112.45ms wall_elapsed:27h49m etr:11h22m
+evolve_val_checkpoint step:7100 val_bpb:1.373401
+step:7200/10000 train_loss:2.2159 train_time:101538438ms step_avg:14102.56ms tok_s:9802 wall_elapsed:28h12m etr:10h58m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7200/10000 val_loss:2.2838 val_bpb:1.3716 train_time:101638795ms step_avg:14116.50ms wall_elapsed:28h13m etr:10h58m
+evolve_val_checkpoint step:7200 val_bpb:1.371618
+step:7300/10000 train_loss:2.1856 train_time:102981621ms step_avg:14107.07ms tok_s:9771 wall_elapsed:28h36m etr:10h34m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7300/10000 val_loss:2.2848 val_bpb:1.3722 train_time:103082278ms step_avg:14120.86ms wall_elapsed:28h38m etr:10h35m
+evolve_val_checkpoint step:7300 val_bpb:1.372165
+step:7400/10000 train_loss:2.2282 train_time:104427347ms step_avg:14111.80ms tok_s:9799 wall_elapsed:29h0m etr:10h11m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7400/10000 val_loss:2.2830 val_bpb:1.3711 train_time:104527900ms step_avg:14125.39ms wall_elapsed:29h2m etr:10h12m
+evolve_val_checkpoint step:7400 val_bpb:1.371084
+step:7500/10000 train_loss:2.2118 train_time:105912026ms step_avg:14121.60ms tok_s:9687 wall_elapsed:29h25m etr:9h48m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7500/10000 val_loss:2.2797 val_bpb:1.3692 train_time:106013656ms step_avg:14135.15ms wall_elapsed:29h26m etr:9h48m
+evolve_val_checkpoint step:7500 val_bpb:1.369150
+step:7600/10000 train_loss:2.2323 train_time:107352954ms step_avg:14125.39ms tok_s:9769 wall_elapsed:29h49m etr:9h25m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7600/10000 val_loss:2.2753 val_bpb:1.3665 train_time:107453594ms step_avg:14138.63ms wall_elapsed:29h50m etr:9h25m
+evolve_val_checkpoint step:7600 val_bpb:1.366460
+WARNING: starting epoch:11 dataset:fineweb10B_sp1024 train_shards:1
+step:7700/10000 train_loss:2.2359 train_time:108791051ms step_avg:14128.71ms tok_s:9875 wall_elapsed:30h13m etr:9h1m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7700/10000 val_loss:2.2821 val_bpb:1.3706 train_time:108891353ms step_avg:14141.73ms wall_elapsed:30h14m etr:9h2m
+evolve_val_checkpoint step:7700 val_bpb:1.370561
+step:7800/10000 train_loss:2.2737 train_time:110227739ms step_avg:14131.76ms tok_s:9798 wall_elapsed:30h37m etr:8h38m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7800/10000 val_loss:2.2790 val_bpb:1.3687 train_time:110328189ms step_avg:14144.64ms wall_elapsed:30h38m etr:8h38m
+evolve_val_checkpoint step:7800 val_bpb:1.368718
+step:7900/10000 train_loss:2.1925 train_time:111720797ms step_avg:14141.87ms tok_s:9773 wall_elapsed:31h2m etr:8h14m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:7900/10000 val_loss:2.2784 val_bpb:1.3683 train_time:111821763ms step_avg:14154.65ms wall_elapsed:31h3m etr:8h15m
+evolve_val_checkpoint step:7900 val_bpb:1.368325
+step:8000/10000 train_loss:2.1711 train_time:113165549ms step_avg:14145.69ms tok_s:9817 wall_elapsed:31h26m etr:7h51m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8000/10000 val_loss:2.2791 val_bpb:1.3688 train_time:113266465ms step_avg:14158.31ms wall_elapsed:31h27m etr:7h51m
+evolve_val_checkpoint step:8000 val_bpb:1.368784
+step:8100/10000 train_loss:2.1939 train_time:114614251ms step_avg:14149.91ms tok_s:9694 wall_elapsed:31h50m etr:7h28m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8100/10000 val_loss:2.2796 val_bpb:1.3690 train_time:114715929ms step_avg:14162.46ms wall_elapsed:31h51m etr:7h28m
+evolve_val_checkpoint step:8100 val_bpb:1.369047
+step:8200/10000 train_loss:2.2211 train_time:116066905ms step_avg:14154.50ms tok_s:9767 wall_elapsed:32h14m etr:7h4m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8200/10000 val_loss:2.2730 val_bpb:1.3651 train_time:116168371ms step_avg:14166.87ms wall_elapsed:32h16m etr:7h5m
+evolve_val_checkpoint step:8200 val_bpb:1.365125
+step:8300/10000 train_loss:2.1011 train_time:117517626ms step_avg:14158.75ms tok_s:9771 wall_elapsed:32h38m etr:6h41m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8300/10000 val_loss:2.2706 val_bpb:1.3637 train_time:117619241ms step_avg:14170.99ms wall_elapsed:32h40m etr:6h41m
+evolve_val_checkpoint step:8300 val_bpb:1.363681
+WARNING: starting epoch:12 dataset:fineweb10B_sp1024 train_shards:1
+step:8400/10000 train_loss:2.2853 train_time:118983367ms step_avg:14164.69ms tok_s:9560 wall_elapsed:33h3m etr:6h17m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8400/10000 val_loss:2.2613 val_bpb:1.3581 train_time:119086600ms step_avg:14176.98ms wall_elapsed:33h4m etr:6h18m
+evolve_val_checkpoint step:8400 val_bpb:1.358080
+step:8500/10000 train_loss:2.2593 train_time:120452858ms step_avg:14170.92ms tok_s:9634 wall_elapsed:33h27m etr:5h54m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8500/10000 val_loss:2.2592 val_bpb:1.3568 train_time:120556023ms step_avg:14183.06ms wall_elapsed:33h29m etr:5h54m
+evolve_val_checkpoint step:8500 val_bpb:1.356837
+step:8600/10000 train_loss:2.2093 train_time:121925522ms step_avg:14177.39ms tok_s:9588 wall_elapsed:33h52m etr:5h30m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8600/10000 val_loss:2.2585 val_bpb:1.3564 train_time:122029016ms step_avg:14189.42ms wall_elapsed:33h53m etr:5h31m
+evolve_val_checkpoint step:8600 val_bpb:1.356380
+step:8700/10000 train_loss:2.1870 train_time:123388401ms step_avg:14182.57ms tok_s:9696 wall_elapsed:34h16m etr:5h7m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8700/10000 val_loss:2.2554 val_bpb:1.3545 train_time:123489869ms step_avg:14194.24ms wall_elapsed:34h18m etr:5h7m
+evolve_val_checkpoint step:8700 val_bpb:1.354529
+step:8800/10000 train_loss:2.1995 train_time:124839304ms step_avg:14186.28ms tok_s:9746 wall_elapsed:34h40m etr:4h43m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8800/10000 val_loss:2.2513 val_bpb:1.3521 train_time:124941924ms step_avg:14197.95ms wall_elapsed:34h42m etr:4h43m
+evolve_val_checkpoint step:8800 val_bpb:1.352054
+step:8900/10000 train_loss:2.2041 train_time:126294543ms step_avg:14190.40ms tok_s:9747 wall_elapsed:35h4m etr:4h20m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:8900/10000 val_loss:2.2487 val_bpb:1.3505 train_time:126396365ms step_avg:14201.84ms wall_elapsed:35h6m etr:4h20m
+evolve_val_checkpoint step:8900 val_bpb:1.350494
+step:9000/10000 train_loss:2.1639 train_time:127747648ms step_avg:14194.18ms tok_s:9737 wall_elapsed:35h29m etr:3h56m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9000/10000 val_loss:2.2453 val_bpb:1.3484 train_time:127849411ms step_avg:14205.49ms wall_elapsed:35h30m etr:3h56m
+evolve_val_checkpoint step:9000 val_bpb:1.348442
+step:9100/10000 train_loss:2.2382 train_time:129204100ms step_avg:14198.25ms tok_s:9659 wall_elapsed:35h53m etr:3h32m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9100/10000 val_loss:2.2396 val_bpb:1.3451 train_time:129305904ms step_avg:14209.44ms wall_elapsed:35h55m etr:3h33m
+evolve_val_checkpoint step:9100 val_bpb:1.345074
+WARNING: starting epoch:13 dataset:fineweb10B_sp1024 train_shards:1
+step:9200/10000 train_loss:2.2051 train_time:130659623ms step_avg:14202.13ms tok_s:9649 wall_elapsed:36h17m etr:3h9m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9200/10000 val_loss:2.2386 val_bpb:1.3444 train_time:130762709ms step_avg:14213.34ms wall_elapsed:36h19m etr:3h9m
+evolve_val_checkpoint step:9200 val_bpb:1.344416
+step:9300/10000 train_loss:2.0669 train_time:132128461ms step_avg:14207.36ms tok_s:9581 wall_elapsed:36h42m etr:2h45m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9300/10000 val_loss:2.2358 val_bpb:1.3428 train_time:132233662ms step_avg:14218.67ms wall_elapsed:36h43m etr:2h45m
+evolve_val_checkpoint step:9300 val_bpb:1.342760
+step:9400/10000 train_loss:2.1079 train_time:133600513ms step_avg:14212.82ms tok_s:9680 wall_elapsed:37h6m etr:2h22m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9400/10000 val_loss:2.2358 val_bpb:1.3428 train_time:133703911ms step_avg:14223.82ms wall_elapsed:37h8m etr:2h22m
+evolve_val_checkpoint step:9400 val_bpb:1.342786
+step:9500/10000 train_loss:2.2055 train_time:135070243ms step_avg:14217.92ms tok_s:9500 wall_elapsed:37h31m etr:1h58m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9500/10000 val_loss:2.2271 val_bpb:1.3375 train_time:135173448ms step_avg:14228.78ms wall_elapsed:37h32m etr:1h58m
+evolve_val_checkpoint step:9500 val_bpb:1.337522
+step:9600/10000 train_loss:2.1878 train_time:136542614ms step_avg:14223.19ms tok_s:9523 wall_elapsed:37h55m etr:1h34m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9600/10000 val_loss:2.2240 val_bpb:1.3357 train_time:136646045ms step_avg:14233.96ms wall_elapsed:37h57m etr:1h34m
+evolve_val_checkpoint step:9600 val_bpb:1.335695
+step:9700/10000 train_loss:2.1218 train_time:138014765ms step_avg:14228.33ms tok_s:9513 wall_elapsed:38h20m etr:1h11m
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9700/10000 val_loss:2.2191 val_bpb:1.3327 train_time:138118253ms step_avg:14239.00ms wall_elapsed:38h21m etr:1h11m
+evolve_val_checkpoint step:9700 val_bpb:1.332746
+step:9800/10000 train_loss:2.0641 train_time:139489255ms step_avg:14233.60ms tok_s:9572 wall_elapsed:38h44m etr:47m26s
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9800/10000 val_loss:2.2123 val_bpb:1.3287 train_time:139592868ms step_avg:14244.17ms wall_elapsed:38h46m etr:47m28s
+evolve_val_checkpoint step:9800 val_bpb:1.328665
+step:9900/10000 train_loss:2.1010 train_time:140962369ms step_avg:14238.62ms tok_s:9621 wall_elapsed:39h9m etr:23m43s
+eval_val: starting 379 batches over 3028 seqs
+eval_val: 37/379 batches (10%)
+eval_val: 74/379 batches (20%)
+eval_val: 111/379 batches (29%)
+eval_val: 148/379 batches (39%)
+eval_val: 185/379 batches (49%)
+eval_val: 222/379 batches (59%)
+eval_val: 259/379 batches (68%)
+eval_val: 296/379 batches (78%)
+eval_val: 333/379 batches (88%)
+eval_val: 370/379 batches (98%)
+eval_val: 379/379 batches (100%)
+step:9900/10000 val_loss:2.2028 val_bpb:1.3229 train_time:141066021ms step_avg:14249.09ms wall_elapsed:39h11m etr:23m44s
+evolve_val_checkpoint step:9900 val_bpb:1.322927
+WARNING: starting epoch:14 dataset:fineweb10B_sp1024 train_shards:1
+step:10000/10000 train_loss:2.3070 train_time:142436527ms step_avg:14243.65ms tok_s:9582 wall_elapsed:39h33m etr:0s
+eval_val: starting 7571 batches over 60568 seqs
+eval_val: 757/7571 batches (10%)
+eval_val: 1514/7571 batches (20%)
+eval_val: 2271/7571 batches (30%)
+eval_val: 3028/7571 batches (40%)
+eval_val: 3785/7571 batches (50%)
+eval_val: 4542/7571 batches (60%)
+eval_val: 5299/7571 batches (70%)
+eval_val: 6056/7571 batches (80%)
+eval_val: 6813/7571 batches (90%)
+eval_val: 7570/7571 batches (100%)
+eval_val: 7571/7571 batches (100%)
+step:10000/10000 val_loss:2.2139 val_bpb:1.3112 train_time:144519868ms step_avg:14451.99ms FULL_VAL wall_elapsed:40h8m etr:0s
+evolve_val_checkpoint step:10000 val_bpb:1.311193
+training_loop_finished steps:10000/10000 wall_elapsed:40h8m
+saved_model:/Users/mike/Desktop/cursor-project/parameter-golf/night3_top_train_10k/from_json_20260409_103134_it10000_mlx_model.npz bytes:81691350
+serialized_model_int8_zlib:18612195 bytes (payload:20862334 raw_pickle:20869777 payload_ratio:3.91x)
+eval_val: starting 7571 batches over 60568 seqs
+eval_val: 757/7571 batches (10%)
+eval_val: 1514/7571 batches (20%)
+eval_val: 2271/7571 batches (30%)
+eval_val: 3028/7571 batches (40%)
+eval_val: 3785/7571 batches (50%)
+eval_val: 4542/7571 batches (60%)
+eval_val: 5299/7571 batches (70%)
+eval_val: 6056/7571 batches (80%)
+eval_val: 6813/7571 batches (90%)
+eval_val: 7570/7571 batches (100%)
+eval_val: 7571/7571 batches (100%)
+final_int8_zlib_roundtrip val_loss:2.2814 val_bpb:1.3512 eval_time:2076722ms
+final_int8_zlib_roundtrip_exact val_loss:2.28141063 val_bpb:1.35117988
