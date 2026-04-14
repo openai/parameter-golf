@@ -1,7 +1,7 @@
 """
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 lines.
 """
 
 from __future__ import annotations
@@ -47,15 +47,15 @@ class Hyperparameters:
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 20000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 800))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -1124,3 +1124,123 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Aug 14 2025, 17:47:21) [GCC 13.3.0]
+Running PyTorch 2.8.0+cu128
+Thu Mar 19 04:28:27 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   25C    P0            115W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:2A:00.0 Off |                    0 |
+| N/A   25C    P0            114W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3A:00.0 Off |                    0 |
+| N/A   27C    P0            121W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   24C    P0            114W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9A:00.0 Off |                    0 |
+| N/A   24C    P0            112W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:AB:00.0 Off |                    0 |
+| N/A   26C    P0            120W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BA:00.0 Off |                    0 |
+| N/A   25C    P0            116W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   23C    P0            117W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A          187171      C   /usr/local/bin/python                  1510MiB |
+|    1   N/A  N/A          187172      C   /usr/local/bin/python                  1510MiB |
+|    2   N/A  N/A          187173      C   /usr/local/bin/python                  1510MiB |
+|    3   N/A  N/A          187174      C   /usr/local/bin/python                  1510MiB |
+|    4   N/A  N/A          187175      C   /usr/local/bin/python                  1510MiB |
+|    5   N/A  N/A          187176      C   /usr/local/bin/python                  1510MiB |
+|    6   N/A  N/A          187177      C   /usr/local/bin/python                  1510MiB |
+|    7   N/A  N/A          187178      C   /usr/local/bin/python                  1510MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:393216 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9376 train_time:34ms step_avg:33.93ms
+step:2/20000 train_loss:12.1429 train_time:102ms step_avg:50.88ms
+step:3/20000 train_loss:7.4535 train_time:177ms step_avg:59.05ms
+step:4/20000 train_loss:6.3258 train_time:239ms step_avg:59.81ms
+step:5/20000 train_loss:6.9181 train_time:303ms step_avg:60.56ms
+step:6/20000 train_loss:6.9134 train_time:386ms step_avg:64.37ms
+step:7/20000 train_loss:6.7000 train_time:450ms step_avg:64.32ms
+step:8/20000 train_loss:6.6610 train_time:515ms step_avg:64.35ms
+step:9/20000 train_loss:6.3090 train_time:606ms step_avg:67.28ms
+step:10/20000 train_loss:6.2067 train_time:671ms step_avg:67.11ms
+step:2000/20000 train_loss:2.3125 train_time:128919ms step_avg:64.46ms
+step:2000/20000 val_loss:2.2111 val_bpb:1.3095 train_time:128959ms step_avg:64.48ms
+step:4000/20000 train_loss:1.9264 train_time:277104ms step_avg:69.28ms
+step:4000/20000 val_loss:2.1202 val_bpb:1.2557 train_time:277140ms step_avg:69.28ms
+step:6000/20000 train_loss:1.9978 train_time:428170ms step_avg:71.36ms
+step:6000/20000 val_loss:2.0783 val_bpb:1.2309 train_time:428206ms step_avg:71.37ms
+step:8000/20000 train_loss:2.0986 train_time:570391ms step_avg:71.30ms
+step:8000/20000 val_loss:2.0286 val_bpb:1.2015 train_time:570423ms step_avg:71.30ms
+step:8394/20000 val_loss:2.0227 val_bpb:1.1980 train_time:599921ms step_avg:71.47ms
+stopping_early: wallclock_cap train_time:599921ms step:8394/20000
+peak memory allocated: 7748 MiB reserved: 8070 MiB
+Serialized model: 67224983 bytes
+Code size: 47642 bytes
+Total submission size: 67272625 bytes
+Serialized model int8+zlib: 15820684 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 15868326 bytes
+final_int8_zlib_roundtrip val_loss:2.0286 val_bpb:1.2014 eval_time:2107ms
+final_int8_zlib_roundtrip_exact val_loss:2.02857127 val_bpb:1.20143417
