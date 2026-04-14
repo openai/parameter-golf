@@ -3437,6 +3437,13 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     (original_grad, ttt_params) = collect_ttt_params(base_model, args.ttt_scope)
     original_ttt_weights = [p.detach().cpu().clone() for p in ttt_params]
     log0(f'ttt_sliding:params unfrozen={sum((p.numel() for p in ttt_params))}')
+    # Legal-TTT-aligned EvalEngram: build lazily, snapshot packed tables so TTT
+    # SGD cannot drift them. Absorb happens strictly AFTER each chunk's SCORE
+    # phase (see below), mirroring Legal TTT's "score-first, then adapt" rule.
+    base_model.maybe_build_eval_engram(args, device)
+    if getattr(args, 'freeze_packed_engram', False):
+        base_model.snapshot_packed_engram()
+    _ee = getattr(base_model, 'eval_engram', None)
     if not ttt_params:
         raise RuntimeError('TTT enabled but no parameters matched TTT_SCOPE')
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -3493,6 +3500,15 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
                         byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            # LEGAL EvalEngram absorb: chunk ci has been fully SCORED above under
+            # torch.no_grad(). Only now do we absorb its tokens into EvalEngram so
+            # that subsequent chunks benefit. Skip on last chunk (no consumer).
+            if _ee is not None and ci < num_chunks - 1 and chunk_end > chunk_start + 1:
+                _span = val_tokens[chunk_start:chunk_end + 1].to(device=device, dtype=torch.int64)
+                if _span.numel() > 1:
+                    _x_ee = _span[:-1].reshape(1, -1)
+                    _y_ee = _span[1:].reshape(1, -1)
+                    _ee.absorb(_x_ee, _y_ee)
             if ci == num_chunks - 1 or args.ttt_epochs <= 0:
                 continue
             base_model.train()
@@ -3552,6 +3568,13 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
             for (p, saved) in zip(ttt_params, original_ttt_weights):
                 p.copy_(saved.to(device=p.device, dtype=p.dtype))
         restore_requires_grad(base_model, original_grad)
+        # Verify packed EngramHash tables were not drifted by TTT SGD. In
+        # strict mode (FREEZE_CHECK_STRICT=1) this raises on drift; otherwise
+        # it silently restores from snapshot and logs a warning.
+        if getattr(args, 'freeze_packed_engram', False):
+            _drifted = base_model.restore_packed_engram(strict=bool(getattr(args, 'freeze_check_strict', False)))
+            if _drifted:
+                log0('ttt_sliding:WARN packed engram drifted during eval — restored from snapshot')
         base_model.train(was_training)
 
 def find_temp(args, base_model, rank, world_size, device, grad_accum_steps, calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut):
