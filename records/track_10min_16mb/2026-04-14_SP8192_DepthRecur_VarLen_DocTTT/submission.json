@@ -1,0 +1,27 @@
+{
+  "track": "10min_16mb",
+  "tokenizer": "sp8192",
+  "architecture": "11L-512d-8H4KV-GQA-MLP3x-UNet-BigramHash3072-XSA11-VE128-DepthRecur-ParResid-DocTTT",
+  "features": [
+    "SP8192 tokenizer (8192 vocab BPE)",
+    "Depth recurrence on layers 3-5 (2 passes, gated blend)",
+    "Parallel residuals GPT-J style on layers 7+",
+    "QK-Gain 5.25",
+    "BigramHash 3072x112 with XOR hash",
+    "XSA on all 11 layers",
+    "SmearGate temporal smoothing",
+    "Value Embedding VE128 on layers 9-10",
+    "Partial RoPE 16/64 dims",
+    "U-Net encoder-decoder skip connections",
+    "Tied embeddings (std=0.005)",
+    "Muon optimizer (momentum=0.97, WD=0.095)",
+    "EMA decay=0.997 + Tight SWA every 50 steps",
+    "Late QAT at LR<15%",
+    "Warmdown fraction=0.75",
+    "Full Hessian GPTQ int6 (AR calib 64x2048, block=128)",
+    "Selective ±1 pruning + LZMA-9",
+    "Score-first AdamW Doc-LoRA TTT (chunk=64, rank=8, all layers)"
+  ],
+  "val_bpb": null,
+  "notes": "All code written from scratch. AdamW TTT is novel — nobody else uses AdamW for test-time LoRA adaptation."
+}
