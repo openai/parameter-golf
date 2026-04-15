@@ -47,7 +47,7 @@ class Hyperparameters:
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 3))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 4096))
-    num_layers = int(os.environ.get("NUM_LAYERS", 8))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -328,15 +328,7 @@ INT6_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "INT6_NAME_PATTERNS",
-        "attn.",
-    ).split(",")
-    if pattern
-)
-INT8_QAT_NAME_PATTERNS = tuple(
-    pattern
-    for pattern in os.environ.get(
-        "INT8_QAT_NAME_PATTERNS",
-        "attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight,mlp.fc.weight,mlp.proj.weight",
+        "attn.,mlp.",
     ).split(",")
     if pattern
 )
@@ -932,8 +924,6 @@ def main() -> None:
             param_name = f"{name}.weight"
             if any(pattern in param_name for pattern in INT6_NAME_PATTERNS):
                 module._qat_bits = 6
-            elif any(pattern in param_name for pattern in INT8_QAT_NAME_PATTERNS):
-                module._qat_bits = 8
     restore_low_dim_params_to_fp32(base_model)
     CastedLinear._qat_enabled = False
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
@@ -1011,7 +1001,6 @@ def main() -> None:
     log0(f"mlp_mult:{args.mlp_mult} rope_dims:{args.rope_dims}")
     log0(f"warmdown_iters:{args.warmdown_iters} warmdown_last_frac:{args.warmdown_last_frac:.3f}")
     log0(f"late_qat_last_frac:{args.qat_last_frac:.3f}")
-    log0(f"late_qat_int8_patterns:{','.join(INT8_QAT_NAME_PATTERNS)}")
     log0(f"seed:{args.seed}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
