@@ -2,21 +2,12 @@
   "author": "Mohamed Diomande",
   "github_id": "Diomandeee",
   "name": "Anticipatory Transformer V2: MoE Trajectory Routing + Entropy-Weighted Loss",
-  "blurb": "Builds on SOTA stack (10L, Int5-MLP/Int6-Attn, BigramHash 10240, SmearGate, OrthoInit, MuonWD, SWA, sliding window eval, zstd-22) with three innovations from anticipation geometry: (1) MoE trajectory routing with 10 specialist experts, each mapping 7 hidden-state-derived scalars to per-head attention modulation. Routing via learned centroids, zero-parameter at routing time. (2) Entropy-weighted training loss (alpha=0.15) focusing gradient on high-uncertainty tokens. (3) 7-scalar trajectory extraction (commitment, uncertainty, transition_pressure, recovery_margin, phase_stiffness, novelty, stability) from hidden state dynamics. Total MoE overhead: ~6.9K params, ~5% compute. torch.compile(fullgraph=True) verified stable.",
+  "blurb": "Builds on SOTA stack (10L, Int5-MLP/Int6-Attn, BigramHash 10240, SmearGate, OrthoInit, MuonWD, SWA, sliding window eval, zstd-22) with three innovations from anticipation geometry: (1) MoE trajectory routing with 10 specialist experts mapping 7 hidden-state-derived scalars to per-head attention modulation via learned centroids. (2) Entropy-weighted training loss (alpha=0.15). (3) 7-scalar trajectory extraction from hidden state dynamics. Total MoE overhead: ~6.9K params. torch.compile(fullgraph=True) verified stable across all 3 seeds.",
   "date": "2026-04-15T00:00:00Z",
-  "val_loss": 1.93697614,
-  "val_bpb": 1.14718941,
+  "val_loss": 1.93720870,
+  "val_bpb": 1.14732715,
   "seeds": [1337, 42, 7],
   "seed_results": {
-    "smoke_test": {
-      "seed": 1337,
-      "iterations": 2000,
-      "val_loss": 3.41333324,
-      "val_bpb": 2.02157356,
-      "hardware": "RTX 4090 24GB",
-      "data_variant": "sp1024",
-      "note": "2000-step smoke test — validates training stability only, not competition score"
-    },
     "1337": {
       "seed": 1337,
       "val_loss": 1.93697614,
@@ -27,8 +18,32 @@
       "hardware": "8x H100 80GB HBM3 SXM",
       "data_variant": "sp1024",
       "bytes_total": 16558338
+    },
+    "42": {
+      "seed": 42,
+      "val_loss": 1.93584215,
+      "val_bpb": 1.14651780,
+      "step_stop": 6338,
+      "wallclock_seconds": 600.0,
+      "eval_time_seconds": 221.0,
+      "hardware": "8x H100 80GB HBM3 SXM",
+      "data_variant": "sp1024",
+      "bytes_total": 16558338
+    },
+    "7": {
+      "seed": 7,
+      "val_loss": 1.93880781,
+      "val_bpb": 1.14827423,
+      "step_stop": 6338,
+      "wallclock_seconds": 600.0,
+      "eval_time_seconds": 221.282,
+      "hardware": "8x H100 80GB HBM3 SXM",
+      "data_variant": "sp1024",
+      "bytes_total": 16558338
     }
   },
+  "mean_val_bpb": 1.14732715,
+  "std_val_bpb": 0.00088,
   "bytes_total": 16558338,
-  "notes": "Validated on 8x H100 80GB HBM3 (Nebraska, Vast.ai instance 34969344). Seed 1337 complete: val_bpb=1.14718941 (final_int8_zlib_roundtrip_exact). Seeds 42 and 7 running. Step count: 6338 steps in 600s (94.67ms/step, MoE overhead). SWA: 24 checkpoints averaged. Submission size: 16,558,338 bytes (model 16,537,330 + code 21,008). torch.compile(fullgraph=True) stable — no crashes, no NaN across 6338 steps. All innovations toggleable: MOE_TRAJECTORY_ENABLED, ENTROPY_LOSS_ENABLED, TRAJECTORY_ATTN_ENABLED. Code compressed LZMA-9+base64: 63.7KB -> 20.5KB (67.8% reduction)."
+  "notes": "3-seed validated on 8x H100 80GB HBM3 SXM. Mean val_bpb=1.14733 (std=0.00088). MoE trajectory routing adds ~14% per-step overhead (94.67ms vs ~81ms baseline), reducing total steps from ~7379 to ~6338 in 600s. The trajectory innovations do not overcome the step-count deficit in this budget. All innovations independently toggleable via env vars. Code LZMA-9+base64 compressed: 63.7KB -> 20.5KB."
 }
