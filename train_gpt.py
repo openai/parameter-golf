@@ -46,7 +46,7 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 32768))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
@@ -54,14 +54,15 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 30000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 32768))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_recurr = int(os.environ.get("NUM_RECURR", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 6))
+    num_recurr = int(os.environ.get("NUM_RECURR", 3))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 1024))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -689,16 +690,19 @@ class GPT(nn.Module):
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
         self.num_layers = num_layers
+        self.num_recurr = num_recurr
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_recurr // 2
-        self.num_decoder_layers = num_recurr - self.num_encoder_layers
-        self.timesteps = generate_sinusoidal(num_recurr, model_dim)
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.register_buffer('timesteps', generate_sinusoidal(num_recurr * num_layers, model_dim))
+        self.num_skip_weights = self.num_decoder_layers * num_recurr
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         # Share weights -> we can up depth of attention mechanism
-        self.block = Block(
+        self.blocks = nn.ModuleList(
+            [
+                Block(
                     model_dim,
                     num_heads,
                     num_kv_heads,
@@ -706,6 +710,9 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                 )
+                for i in range(num_layers)
+            ]
+        )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         self.device = device
@@ -730,14 +737,38 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
 
         for i in range(self.num_encoder_layers):
-            x = x + self.timesteps[:, i, :].to(self.device)
-            x = self.block(x, x0)
+            # First pass
+            x = x + self.timesteps[:, i*3, :].unsqueeze(1)
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+            
+            # Second pass
+            x = x + self.timesteps[:, i*3+1, :].unsqueeze(1)
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+
+            # Third pass
+            x = x + self.timesteps[:, i*3+2, :].unsqueeze(1)
+            x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
-            x = x + self.timesteps[:, self.num_encoder_layers + i, :].to(self.device)
+            # First pass
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.block(x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+            # Second pass
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+            # Third pass
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -847,6 +878,7 @@ def main() -> None:
 
     base_model = GPT(
         vocab_size=args.vocab_size,
+        num_layers = args.num_layers,
         num_recurr=args.num_recurr,
         model_dim=args.model_dim,
         num_heads=args.num_heads,
