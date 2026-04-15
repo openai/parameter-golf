@@ -52,30 +52,30 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 256))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 128))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.2))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.1))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    mlp_mult = float(os.environ.get("MLP_MULT", 1.5))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 2048.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.4))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.15))
     head_lr = float(os.environ.get("HEAD_LR", 0.01))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.0075))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.035))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.9))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -83,7 +83,7 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -107,6 +107,47 @@ def zeropower_via_newtonschulz5(G, steps=5, eps=1e-7):
         B = b * A + c * A @ A
         X = a * X + B @ X
     return X.T if transposed else X
+
+@torch.no_grad()
+def get_hadamard_matrix(n, device):
+    """Generates a deterministic, orthonormal Hadamard matrix."""
+    p2 = 2**math.ceil(math.log2(n))
+    H = torch.tensor([[1.0]], device=device)
+    while H.shape[0] < p2:
+        H = torch.cat([torch.cat([H, H], dim=1), torch.cat([H, -H], dim=1)], dim=0)
+    return H[:n, :n] / math.sqrt(p2)
+
+@torch.no_grad()
+def apply_zero_init(model, std=0.02):
+    """
+    Unified ZerO Init: 
+    - Embeddings: Hadamard
+    - Linear Layers: Last in any sub-module is 0 (Exit), others are Hadamard (Internal).
+    """
+    for m in model.modules():
+        # 1. Handle Embeddings (Identity-like initialization)
+        if isinstance(m, nn.Embedding):
+            d_out, d_in = m.weight.shape
+            H = get_hadamard_matrix(max(d_out, d_in), m.weight.device)
+            m.weight.copy_(H[:d_out, :d_in]*std)
+
+        # 2. Handle Linear Layers by inspecting the module's direct children
+        # We look for direct Linear children to identify "Branches"
+        linears = [sub for sub in m.children() if isinstance(sub, nn.Linear)]
+        if linears:
+            for i, l in enumerate(linears):
+                d_out, d_in = l.weight.shape
+                
+                # The 'Exit' layer is the last Linear in this specific module
+                if i == len(linears) - 1:
+                    nn.init.zeros_(l.weight)
+                # 'Internal' layers get Hadamard symmetry breaking
+                else:
+                    H = get_hadamard_matrix(max(d_out, d_in), l.weight.device)
+                    l.weight.copy_(H[:d_out, :d_in])
+                
+                if l.bias is not None:
+                    nn.init.zeros_(l.bias)
 
 class Muon(torch.optim.Optimizer):
     def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
@@ -589,24 +630,22 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-def calculate_hidden(mlp_mult: int, dim: int):
+def calculate_hidden(mlp_mult: float, dim: int):
     raw_hidden = int(mlp_mult * dim // 1.5)
     multiplier = raw_hidden / 64
     return 64 if multiplier == 0 else (2**round(math.log2(multiplier))) * 64
 
 class MLP(nn.Module):
-    # Using SwiGLU as introduced in Shazeer (2020)
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: float):
         super().__init__()
-        self.hidden = calculate_hidden(mlp_mult, dim)
-        self.fused_fc = nn.Linear(dim, 2 * self.hidden, bias=False)
-        self.proj = nn.Linear(self.hidden, dim, bias=False)
-        self.proj._zero_init = True
+        self.fused_down = nn.Linear(dim, 2 * calculate_hidden(mlp_mult, dim), bias=False)
+        self.w_u = nn.Linear(calculate_hidden(mlp_mult, dim), dim, bias=False)
+        self.w_u._zero_init = True # For ZerO Init
 
     def forward(self, x: Tensor) -> Tensor:
-        fused_out = self.fused_fc(x)
-        x1, x2 = fused_out.chunk(2, dim=-1)
-        return self.proj(F.silu(x1) * x2)
+        gate, val = self.fused_down(x).chunk(2, dim=-1)
+        hidden = F.silu(gate) * val
+        return self.w_u(hidden)
 
 
 class Block(nn.Module):
@@ -615,7 +654,7 @@ class Block(nn.Module):
         dim: int,
         num_heads: int,
         num_kv_heads: int,
-        mlp_mult: int,
+        mlp_mult: float,
         rope_base: float,
         qk_gain_init: float,
         seq_len: int=1024,
@@ -676,7 +715,7 @@ class GPT(nn.Module):
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
-        mlp_mult: int,
+        mlp_mult: float,
         tie_embeddings: bool,
         tied_embed_init_std: float,
         rope_base: float,
@@ -706,14 +745,7 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
-        self._init_weights()
-
-    def _init_weights(self) -> None:
-        if self.tie_embeddings:
-            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
-                nn.init.zeros_(module.weight)
+        apply_zero_init(self)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         emb = self.tok_emb(input_ids)
@@ -1136,7 +1168,6 @@ def main() -> None:
 
     if distributed:
         dist.destroy_process_group()
-
 
 if __name__ == "__main__":
     main()
