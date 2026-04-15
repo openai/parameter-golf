@@ -1,0 +1,4 @@
+Eval-only mode: loading quantized model
+ttt_adaptive=True ttt_max_epochs=5 ttt_min_epochs=1
+val_tokens: 40540160
+quantized val_loss:2.84485591 val_bpb:1.10133238 eval_time:53817ms
