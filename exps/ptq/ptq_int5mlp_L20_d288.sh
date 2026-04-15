@@ -1,6 +1,6 @@
 #!/bin/bash
 # PTQ int6 attn + int5 MLP, L=20, model_dim=288. User-specified hparams + remainder from ptq_int5mlp_mlp7.sh.
-# Note: ptq_layer_{start,end} below map to INT6_LAYER_{START,END} (serialization int6 range override).
+# Note: ptq_layer_{start,end} below map to INT6_LAYER_{START,END} (serialization int6 layer-range override).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/../../.env" ]; then
@@ -18,6 +18,8 @@ export INT6_LAYER_END=-1
 export PTQ_MLP_BITS=5
 export QAT_BITS=0
 export QAT_MLP_BITS=0
+# Comet activation Frobenius norms (1=on, 0=off; cadence ACTIVATION_NORM_LOG_EVERY).
+export LOG_ACTIVATION_NORMS=0
 export QK_GAIN_INIT=1.5
 export SCALAR_LR=0.04
 export SEED=1337

@@ -229,6 +229,10 @@ def main() -> None:
         on_val_log=tracker.log_val,
     )
 
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module._qat_bits = 0
+
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"

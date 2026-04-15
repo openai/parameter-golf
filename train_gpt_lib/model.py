@@ -15,14 +15,12 @@ from .ternary import ternary_ste
 from .initialization import apply_initialization
 
 def _activation_frobenius_norm(t: torch.Tensor) -> float:
-    """L2 norm of flattened activations (same for (B,H,S,D) vs (B,S,H,D) up to reshape)."""
+    """Frobenius / L2 norm without a full float32 copy of the activation tensor."""
     with torch.no_grad():
-        return float(torch.linalg.vector_norm(t.detach().float().reshape(-1), ord=2))
+        return float(torch.linalg.vector_norm(t.detach().reshape(-1), ord=2))
 
 
 def _maybe_log_activation(gpt: Any, layer_idx: int, suffix: str, t: torch.Tensor) -> None:
-    if not getattr(gpt, "_activation_norm_collect", False):
-        return
     buf = getattr(gpt, "_activation_norms", None)
     if buf is None:
         return
@@ -129,22 +127,17 @@ class CausalSelfAttention(nn.Module):
         self.flash_attn_version = flash_attn_version
         self._flash_fn = get_flash_attn_fn(flash_attn_version) if flash_attn_version in (2, 3) else None
 
-    def _act_norm_ctx(self) -> tuple[Any, int] | tuple[None, None]:
+    def _log_act(self, suffix: str, t: Tensor) -> None:
         wr = getattr(self, "_norm_sink_block", None)
         if wr is None:
-            return None, None
+            return
         block = wr()
-        if block is None:
-            return None, None
-        gpt = getattr(block, "_gpt_parent", None)
+        if block is None or not getattr(block, "_act_norm_active", False):
+            return
+        gpt = block._gpt_parent
         if gpt is None:
-            return None, None
-        return gpt, int(block.layer_idx)
-
-    def _log_act(self, suffix: str, t: Tensor) -> None:
-        gpt, layer_idx = self._act_norm_ctx()
-        if gpt is not None:
-            _maybe_log_activation(gpt, layer_idx, suffix, t)
+            return
+        _maybe_log_activation(gpt, int(block.layer_idx), suffix, t)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -258,20 +251,21 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        gpt = getattr(self, "_gpt_parent", None)
+        self._act_norm_active = bool(gpt is not None and getattr(gpt, "_activation_norm_collect", False))
         if self.hc_attn is not None and self.hc_mlp is not None:
             x = self.hc_attn(x)
             x = self.hc_mlp(x)
         else:
             attn_out = self.attn(self.attn_norm(x))
             x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-            gpt = getattr(self, "_gpt_parent", None)
-            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+            if self._act_norm_active:
                 _maybe_log_activation(gpt, self.layer_idx, "x_post_attn_residual", x)
             mlp_out = self.mlp(self.mlp_norm(x))
-            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+            if self._act_norm_active:
                 _maybe_log_activation(gpt, self.layer_idx, "mlp_out", mlp_out)
             x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
-            if gpt is not None and getattr(gpt, "_activation_norm_collect", False):
+            if self._act_norm_active:
                 _maybe_log_activation(gpt, self.layer_idx, "x_post_mlp_residual", x)
         return x
 
@@ -361,6 +355,8 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         if getattr(self, "_activation_norm_collect", False):
             self._activation_norms = {}
+        elif hasattr(self, "_activation_norms"):
+            self._activation_norms.clear()
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.expand_stream is not None:

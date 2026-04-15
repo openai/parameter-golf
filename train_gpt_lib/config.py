@@ -20,6 +20,10 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 50))
+    # Activation Frobenius norms for Comet: cadence independent of COMET_LOG_TRAIN_EVERY (0 → default 200).
+    _act_norm_every = int(os.environ.get("ACTIVATION_NORM_LOG_EVERY", "0"))
+    activation_norm_log_every = _act_norm_every if _act_norm_every > 0 else 200
+    log_activation_norms = bool(int(os.environ.get("LOG_ACTIVATION_NORMS", "0")))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))

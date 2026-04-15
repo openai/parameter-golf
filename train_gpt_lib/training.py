@@ -184,11 +184,13 @@ def run_training(
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
         comet_every = max(args.comet_log_train_every, 1)
+        act_norm_every = max(args.activation_norm_log_every, 1)
         will_collect_act_norms = (
-            on_train_log is not None
+            args.log_activation_norms
+            and on_train_log is not None
             and args.comet_enable
             and rank == 0
-            and (step + 1) % comet_every == 0
+            and (step + 1) % act_norm_every == 0
         )
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
@@ -215,10 +217,10 @@ def run_training(
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * scale
 
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-            base_model.parameters(),
-            args.grad_clip_norm if args.grad_clip_norm > 0 else float("inf"),
-        )
+        if args.grad_clip_norm > 0:
+            grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+        else:
+            grad_norm = torch.zeros((), device=device)
         for opt in optimizers:
             opt.step()
         zero_grad_all()
