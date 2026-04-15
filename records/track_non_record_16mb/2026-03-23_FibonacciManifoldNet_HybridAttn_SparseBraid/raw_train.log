@@ -1,0 +1,1940 @@
+"""
+Fibonacci Manifold Network (FMN) v11b — Hybrid FMN+XSA Architecture
+
+Core: shared W0 matrix constrained to the Fibonacci manifold (W0² = W0 + I),
+with eigenvalues {φ, ψ} = {1.618, -0.618}.
+
+Two parallel streams run through every layer:
+  Φ-stream  M_0 → M_1 → ... → M_L      (advances via W0 at each depth)
+  Ψ-stream  Σ|ψ|^k · M_ψ_k  k=1..L    (structural residuals, depth-weighted)
+
+Each FMNLayer is one depth step. Layers are split into two regimes by index:
+
+Lower layers (0 .. braid_start_layer-1) — pure FMN:
+  1. FibonacciMixer  — causal depthwise conv with φ-decay init
+  2. Forward step    — x @ W0.T → M_k
+  3. φ-projector     — M_φ = (x + φ·M_k) / (1 + φ²)
+  4. PsiNet          — small MLP on structural residual M_ψ = x - M_φ
+  5. Residual        — M_out = M_seq + M_φ + psi_net(M_ψ)
+
+Top layers (braid_start_layer .. n_layer-1) — FMN + XSA + Braid:
+  1. FibonacciMixer  — same as lower layers
+  2. TinyCausalSelfAttention (XSA) — 4-head causal attention; handles global token binding
+  3. Forward step    — x @ W0.T → M_k
+  4. φ-projector     — M_φ = (x + φ·M_k) / (1 + φ²)
+  5. PsiNet          — same as lower layers
+  6. Residual        — M_out = M_seq + M_φ + psi_net(M_ψ)
+  7. SparseBraidRegister — K-slot entity memory with local window (braid_window=64)
+
+Final: LN(M_L + psi_proj(Ψ-stream)) → LM head / √d
+
+W0 is shared across all layers (one matrix, all depths) — key parameter efficiency win.
+W0 is optimized with FMNRiemannianAdam — geodesic steps on the Fibonacci manifold.
+
+SparseBraidRegister (full nanoFMN version, sparse TopK write, top-3 layers only):
+  - Pre-norm on write inputs (ln_write)
+  - TopK sparse pair selection via W0 bilinear salience (grad-safe: no_grad + W0.detach)
+  - slot_key_bias std=2.0 — strong per-slot symmetry breaking from step 0
+  - Birth mechanism — recycles low-usage slots toward global sequence mean (prevents collapse)
+  - Strand mixer — K×K self-attention lets co-active slots share context before read-back
+  - Local window (window=64) — salience search is local, attention handles global binding
+  - Aux losses: L_persist (anti-churn) + L_div (anti-collapse), added to main loss
+"""
+
+from __future__ import annotations
+
+import copy
+import glob
+import io
+import math
+import os
+import random
+import subprocess
+import sys
+import time
+import uuid
+import zlib
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+# -----------------------------------------------------------------------------
+# HYPERPARAMETERS
+# -----------------------------------------------------------------------------
+
+class Hyperparameters:
+    # Data paths
+    data_path       = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    train_files     = os.path.join(data_path, "fineweb_train_*.bin")
+    val_files       = os.path.join(data_path, "fineweb_val_*.bin")
+    tokenizer_path  = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    run_id          = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    seed            = int(os.environ.get("SEED", 1337))
+
+    # Validation
+    val_batch_size  = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every  = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+
+    # Training length
+    iterations              = int(os.environ.get("ITERATIONS", 10000))
+    warmdown_iters          = int(os.environ.get("WARMDOWN_ITERS", 0))
+    warmup_steps            = int(os.environ.get("WARMUP_STEPS", 20))
+    train_batch_tokens      = int(os.environ.get("TRAIN_BATCH_TOKENS", 262_144))
+    train_seq_len           = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    max_wallclock_seconds   = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 0))
+
+    # Model shape — FMN
+    vocab_size      = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers      = int(os.environ.get("NUM_LAYERS", 12))
+    model_dim       = int(os.environ.get("MODEL_DIM", 512))
+    mixer_kernel    = int(os.environ.get("MIXER_KERNEL", 256))
+    psi_ratio       = float(os.environ.get("PSI_RATIO", 0.5))
+    w0_init         = os.environ.get("W0_INIT", "random_Q")
+
+    # Sparse Braid Register
+    braid_K          = int(os.environ.get("BRAID_K", 7))
+    braid_d_b        = int(os.environ.get("BRAID_D_B", 128))      # d/8 for 512d — trimmed from 128 to fit 16MB
+    braid_topk_pairs = int(os.environ.get("BRAID_TOPK", 16))
+    braid_lr_scale   = float(os.environ.get("BRAID_LR_SCALE", 0.1))  # safe for large models
+    # Braid aux loss weights
+    braid_persist_w  = float(os.environ.get("BRAID_PERSIST_W", 0.0))   # anti-churn
+    braid_div_w      = float(os.environ.get("BRAID_DIV_W",     0.01))  # anti-collapse
+
+    # Optimizer
+    embed_lr                    = float(os.environ.get("EMBED_LR", 0.05))
+    matrix_lr                   = float(os.environ.get("MATRIX_LR", 0.010))
+    scalar_lr                   = float(os.environ.get("SCALAR_LR", 0.01))
+    muon_momentum               = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_backend_steps          = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_momentum_warmup_start  = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
+    muon_momentum_warmup_steps  = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    beta1                       = float(os.environ.get("BETA1", 0.9))
+    beta2                       = float(os.environ.get("BETA2", 0.95))
+    adam_eps                    = float(os.environ.get("ADAM_EPS", 1e-8))
+    grad_clip_norm              = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+
+# -----------------------------------------------------------------------------
+# MUON OPTIMIZER
+# -----------------------------------------------------------------------------
+
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    a, b, c = (3.4445, -4.7750,  2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X
+
+
+class Muon(torch.optim.Optimizer):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+        super().__init__(
+            params,
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+        )
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+            lr = group["lr"]
+            momentum = group["momentum"]
+            backend_steps = group["backend_steps"]
+            nesterov = group["nesterov"]
+
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+
+            curr = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank and p.grad is not None:
+                    g = p.grad
+                    state = self.state[p]
+                    if "momentum_buffer" not in state:
+                        state["momentum_buffer"] = torch.zeros_like(g)
+                    buf = state["momentum_buffer"]
+                    buf.mul_(momentum).add_(g)
+                    if nesterov:
+                        g = g.add(buf, alpha=momentum)
+                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                    updates_flat[curr : curr + p.numel()] = g.reshape(-1)
+                curr += p.numel()
+
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+
+            curr = 0
+            for p in params:
+                g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                p.add_(g, alpha=-lr)
+                curr += p.numel()
+
+        return loss
+
+# -----------------------------------------------------------------------------
+# FIBONACCI MANIFOLD + RIEMANNIAN ADAM FOR W0
+# -----------------------------------------------------------------------------
+
+# Fibonacci eigenvalue constants
+_phi  = (1.0 + math.sqrt(5.0)) / 2.0
+_psi  = (1.0 - math.sqrt(5.0)) / 2.0
+_phi2 = _phi * _phi
+_abs_psi = abs(_psi)
+
+
+class FibonacciManifold:
+    """Self-contained Fibonacci manifold ops (no geoopt).
+
+    Points: symmetric matrices with eigenvalues in {φ, ψ}.
+    Tangent space at W: cross-block entries only (φ↔ψ off-diagonal in eigenbasis).
+    """
+
+    def _eigen_decompose(self, W: Tensor):
+        W_sym = (W + W.mT) / 2.0
+        eigenvalues, Q = torch.linalg.eigh(W_sym.double())
+        phi_mask = (eigenvalues - _phi).abs() < (eigenvalues - _psi).abs()
+        return eigenvalues, Q, phi_mask
+
+    def _project_tangent(self, Q, phi_mask, G):
+        orig_dtype = G.dtype
+        cross_mask = (phi_mask.unsqueeze(-1) != phi_mask.unsqueeze(-2)).float()
+        G64 = G.double()
+        S = Q.mT @ ((G64 + G64.mT) / 2.0) @ Q
+        return (Q @ (S * cross_mask) @ Q.mT).to(orig_dtype)
+
+    def projx(self, W, _decomp=None):
+        orig_dtype = W.dtype
+        eigenvalues, Q, phi_mask = _decomp if _decomp is not None else self._eigen_decompose(W)
+        snapped = torch.where(
+            phi_mask,
+            torch.full_like(eigenvalues, _phi),
+            torch.full_like(eigenvalues, _psi),
+        )
+        return (Q @ torch.diag_embed(snapped) @ Q.mT).to(orig_dtype)
+
+
+class FMNRiemannianAdam(torch.optim.Optimizer):
+    """Riemannian Adam for W0 on the Fibonacci manifold.
+
+    Unlike Muon + post-hoc projx_w0, this optimizer accumulates momentum
+    entirely within the tangent space of the manifold — no gradient energy
+    is wasted on directions that would be projected away. Each step is a
+    geodesic retraction, not a Euclidean step followed by a snap.
+
+    Adapted from fmn_optim.py (nanoFMN project).
+    """
+
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8):
+        defaults = dict(lr=lr, betas=betas, eps=eps)
+        super().__init__(params, defaults)
+        self._manifold = FibonacciManifold()
+
+    def _prepare_state(self, point):
+        """Robust state init/migration — handles checkpoint resume, device moves, shape changes."""
+        state = self.state[point]
+        # Coerce step to int (may be a tensor after load_state_dict)
+        step = state.get("step", 0)
+        if torch.is_tensor(step):
+            step = int(step.item())
+        state["step"] = step
+        # (Re)initialize if fresh, shape changed, or keys missing
+        if len(state) == 1 or "exp_avg" not in state or state["exp_avg"].shape != point.shape:
+            state["exp_avg"]    = torch.zeros_like(point, memory_format=torch.preserve_format)
+            state["exp_avg_sq"] = torch.zeros((), device=point.device, dtype=torch.float64)
+            return state
+        # Device/dtype migration for exp_avg
+        if state["exp_avg"].device != point.device or state["exp_avg"].dtype != point.dtype:
+            state["exp_avg"] = state["exp_avg"].to(device=point.device, dtype=point.dtype)
+        # Scalar invariant for exp_avg_sq — must be 0-dim float64 on correct device
+        exp_avg_sq = state.get("exp_avg_sq")
+        if not torch.is_tensor(exp_avg_sq):
+            exp_avg_sq = torch.tensor(float(exp_avg_sq), device=point.device, dtype=torch.float64)
+        else:
+            exp_avg_sq = exp_avg_sq.to(device=point.device, dtype=torch.float64)
+            if exp_avg_sq.ndim != 0:
+                exp_avg_sq = exp_avg_sq.mean()
+        state["exp_avg_sq"] = exp_avg_sq
+        return state
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        manifold = self._manifold
+
+        for group in self.param_groups:
+            lr = group["lr"]
+            beta1, beta2 = group["betas"]
+            eps = group["eps"]
+
+            for point in group["params"]:
+                grad = point.grad
+                if grad is None:
+                    continue
+
+                state = self._prepare_state(point)
+                state["step"] += 1
+                exp_avg    = state["exp_avg"]
+                exp_avg_sq = state["exp_avg_sq"]
+
+                # Riemannian gradient: project Euclidean grad onto tangent space at W
+                _, Q_W, phi_mask_W = manifold._eigen_decompose(point)
+                rgrad = manifold._project_tangent(Q_W, phi_mask_W, grad)
+
+                # Re-project momentum to stay in current tangent space
+                exp_avg.copy_(manifold._project_tangent(Q_W, phi_mask_W, exp_avg))
+
+                # Adam update in tangent space (scalar variance — manifold norm)
+                exp_avg.mul_(beta1).add_(rgrad, alpha=1 - beta1)
+                grad_norm_sq = rgrad.double().pow(2).mean()
+                exp_avg_sq.mul_(beta2).add_(grad_norm_sq, alpha=1 - beta2)
+
+                bias_correction1 = 1 - beta1 ** state["step"]
+                bias_correction2 = 1 - beta2 ** state["step"]
+                denom     = exp_avg_sq.sqrt().div(math.sqrt(bias_correction2)).add_(eps)
+                direction = exp_avg.div(bias_correction1) / denom.to(exp_avg.dtype)
+                direction = manifold._project_tangent(Q_W, phi_mask_W, direction)
+
+                # Retract: step along manifold, halve if eigendecomp becomes ill-conditioned
+                step_vec    = -lr * direction
+                actual_step = step_vec
+                new_decomp  = None
+                scale = 1.0
+                while scale > 1e-4:
+                    try:
+                        new_decomp = manifold._eigen_decompose(point + actual_step)
+                        break
+                    except torch._C._LinAlgError:
+                        scale *= 0.5
+                        actual_step = step_vec * scale
+                if new_decomp is None:
+                    actual_step = torch.zeros_like(step_vec)
+                    new_decomp  = manifold._eigen_decompose(point)
+
+                new_point   = manifold.projx(point + actual_step, _decomp=new_decomp)
+                _, Q_new, phi_mask_new = new_decomp
+                new_exp_avg = manifold._project_tangent(Q_new, phi_mask_new, exp_avg)
+
+                point.copy_(new_point)
+                exp_avg.copy_(new_exp_avg.to(exp_avg.dtype))
+
+        return loss
+
+# -----------------------------------------------------------------------------
+# TOKENIZER-AGNOSTIC EVALUATION SETUP
+# -----------------------------------------------------------------------------
+
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+
+def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if not files:
+        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    usable = ((tokens.numel() - 1) // seq_len) * seq_len
+    if usable <= 0:
+        raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
+    return tokens[: usable + 1]
+
+
+def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, args.train_seq_len)
+            y = local[1:].reshape(-1, args.train_seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = model(x, y).detach()
+            batch_token_count = float(y.numel())
+            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+# -----------------------------------------------------------------------------
+# POST-TRAINING QUANTIZATION
+# -----------------------------------------------------------------------------
+
+CONTROL_TENSOR_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "CONTROL_TENSOR_NAME_PATTERNS",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+    ).split(",")
+    if pattern
+)
+INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
+        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
+    ).split(",")
+    if pattern
+)
+INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
+INT8_PER_ROW_SCALE_DTYPE = torch.float16
+INT8_CLIP_PERCENTILE = 99.99984
+INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+def tensor_nbytes(t: Tensor) -> int:
+    return int(t.numel()) * int(t.element_size())
+
+def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
+    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
+        return t.float().contiguous()
+    if t.dtype in {torch.float32, torch.bfloat16}:
+        passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+    return t
+
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    return q, scale
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+    quantized: dict[str, Tensor] = {}
+    scales: dict[str, Tensor] = {}
+    dtypes: dict[str, str] = {}
+    passthrough: dict[str, Tensor] = {}
+    passthrough_orig_dtypes: dict[str, str] = {}
+    qmeta: dict[str, dict[str, object]] = {}
+    stats = dict.fromkeys(
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        0,
+    )
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        stats["param_count"] += int(t.numel())
+        stats["num_tensors"] += 1
+        stats["baseline_tensor_bytes"] += tensor_nbytes(t)
+        if not t.is_floating_point():
+            stats["num_nonfloat_tensors"] += 1
+            passthrough[name] = t
+            stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+        stats["num_float_tensors"] += 1
+        q, s = quantize_float_tensor(t)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        quantized[name] = q
+        scales[name] = s
+        dtypes[name] = str(t.dtype).removeprefix("torch.")
+        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+    obj: dict[str, object] = {
+        "__quant_format__": "int8_clean_per_row_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": dtypes,
+        "passthrough": passthrough,
+    }
+    if qmeta:
+        obj["qmeta"] = qmeta
+    if passthrough_orig_dtypes:
+        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+    return obj, stats
+
+def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    qmeta = obj.get("qmeta", {})
+    passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
+    for name, q in obj["quantized"].items():
+        dtype = getattr(torch, obj["dtypes"][name])
+        s = obj["scales"][name]
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+            s = s.to(dtype=torch.float32)
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+        else:
+            scale = float(s.item())
+            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+    for name, t in obj["passthrough"].items():
+        out_t = t.detach().to("cpu").contiguous()
+        orig_dtype = passthrough_orig_dtypes.get(name)
+        if isinstance(orig_dtype, str):
+            out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
+        out[name] = out_t
+    return out
+
+# -----------------------------------------------------------------------------
+# DATA LOADING
+# -----------------------------------------------------------------------------
+
+def load_data_shard(file: Path) -> Tensor:
+    header_bytes = 256 * np.dtype("<i4").itemsize
+    token_bytes = np.dtype("<u2").itemsize
+    header = np.fromfile(file, dtype="<i4", count=256)
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+        raise ValueError(f"Unexpected shard header for {file}")
+    num_tokens = int(header[2])
+    expected_size = header_bytes + num_tokens * token_bytes
+    if file.stat().st_size != expected_size:
+        raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
+    if tokens_np.size != num_tokens:
+        raise ValueError(f"Short read for {file}")
+    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+
+
+class TokenStream:
+    def __init__(self, pattern: str):
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.file_idx = 0
+        self.tokens = load_data_shard(self.files[0])
+        self.pos = 0
+
+    def _advance_file(self) -> None:
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = 0
+
+    def take(self, n: int) -> Tensor:
+        chunks: list[Tensor] = []
+        remaining = n
+        while remaining > 0:
+            avail = self.tokens.numel() - self.pos
+            if avail <= 0:
+                self._advance_file()
+                continue
+            k = min(remaining, avail)
+            chunks.append(self.tokens[self.pos : self.pos + k])
+            self.pos += k
+            remaining -= k
+        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
+
+
+class DistributedTokenLoader:
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+        self.rank = rank
+        self.world_size = world_size
+        self.device = device
+        self.stream = TokenStream(pattern)
+
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+# -----------------------------------------------------------------------------
+# FMN MODEL
+# -----------------------------------------------------------------------------
+
+def projx_w0(W: Tensor) -> Tensor:
+    """Project W onto the Fibonacci manifold: snap eigenvalues to {φ, ψ}.
+    Kept for reference / fallback use only — FMNRiemannianAdam handles W0 directly.
+    """
+    orig_dtype = W.dtype
+    W_sym = (W + W.mT) / 2.0
+    eigenvalues, Q = torch.linalg.eigh(W_sym.double())
+    phi_mask = (eigenvalues - _phi).abs() < (eigenvalues - _psi).abs()
+    snapped = torch.where(
+        phi_mask,
+        torch.full_like(eigenvalues, _phi),
+        torch.full_like(eigenvalues, _psi),
+    )
+    return (Q @ torch.diag_embed(snapped) @ Q.mT).to(orig_dtype)
+
+
+@dataclass
+class FMNConfig:
+    vocab_size:       int   = 1024
+    block_size:       int   = 1024
+    n_layer:          int   = 42
+    n_embd:           int   = 128
+    mixer_kernel:     int   = 64
+    psi_ratio:        float = 3.0
+    dropout:          float = 0.06
+    bias:             bool  = False
+    w0_init:          str   = "random_Q"
+
+    braid_K:          int   = 4
+    braid_d_b:        int   = 64
+    braid_topk:       int   = 90
+
+    # New: only enable braid in the top part of the network
+    braid_start_layer: int  = 10   # 0-indexed in construction logic below
+
+    # New: make the relational search local instead of full T x T
+    braid_window:      int   = 128
+    braid_gate_cap:    float = 0.5   # clamp on tanh(lambda_B) — prevents braid dominating
+    braid_strand_cap:  float = 0.5   # clamp on tanh(lambda_strand) — prevents strand overwhelming slots
+
+    # Reserved hook for later hybrid attention/XSA experiments
+    use_xsa:           bool = False
+    xsa_start_layer:   int  = 10
+    xsa_heads:         int  = 4
+
+class FibonacciMixer(nn.Module):
+    def __init__(self, dim: int, kernel_size: int = 256, bias: bool = False):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.conv = nn.Conv1d(
+            dim, dim,
+            kernel_size=kernel_size,
+            groups=dim,
+            bias=False,
+            padding=kernel_size - 1,
+        )
+        with torch.no_grad():
+            for j in range(kernel_size):
+                self.conv.weight[:, 0, j] = _phi ** (-(kernel_size - j))
+        self.proj = nn.Linear(dim, dim, bias=bias)
+        self.gate = nn.Linear(dim, dim, bias=True)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, T, d = x.shape
+        xc  = x.transpose(1, 2)
+        out = self.conv(xc)[:, :, :T].transpose(1, 2)
+        g   = torch.sigmoid(self.gate(x))
+        return g * self.proj(out) + (1.0 - g) * x
+
+
+class PsiNet(nn.Module):
+    def __init__(self, dim: int, hidden_ratio: float = 3.0, bias: bool = False):
+        super().__init__()
+        hidden = max(256, int(dim * hidden_ratio))
+        self.fc1 = nn.Linear(dim, hidden, bias=bias)
+        self.fc2 = nn.Linear(hidden, dim, bias=bias)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = F.leaky_relu(self.fc1(x), negative_slope=0.5)
+        x = x * x
+        return self.fc2(x)
+
+
+class TinyCausalSelfAttention(nn.Module):
+    def __init__(self, dim: int, n_head: int = 4, bias: bool = False, dropout: float = 0.0):
+        super().__init__()
+        assert dim % n_head == 0, f"dim={dim} must be divisible by n_head={n_head}"
+        self.n_head = n_head
+        self.head_dim = dim // n_head
+        self.scale = self.head_dim ** -0.5
+
+        self.ln = nn.LayerNorm(dim)
+        self.q_proj = nn.Linear(dim, dim, bias=bias)
+        self.k_proj = nn.Linear(dim, dim, bias=bias)
+        self.v_proj = nn.Linear(dim, dim, bias=bias)
+        self.out_proj = nn.Linear(dim, dim, bias=bias)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        B, T, C = x.shape
+        h = self.n_head
+        d = self.head_dim
+
+        xn = self.ln(x)
+        q = self.q_proj(xn).view(B, T, h, d).transpose(1, 2)  # (B, h, T, d)
+        k = self.k_proj(xn).view(B, T, h, d).transpose(1, 2)
+        v = self.v_proj(xn).view(B, T, h, d).transpose(1, 2)
+
+        att = (q @ k.transpose(-2, -1)) * self.scale
+        mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
+        att = att.masked_fill(mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+        att = F.softmax(att, dim=-1)
+        att = self.dropout(att)
+
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        return self.out_proj(y)
+
+
+class SparseBraidRegister(nn.Module):
+    """Full braid register — sparse TopK writes + strand mixer + birth + aux losses.
+
+    Write mechanism: TopK sparse pair selection via W0 bilinear salience (from v8).
+    Full features ported from nanoFMN BraidRegister:
+      - Pre-norm (ln_write) on write inputs
+      - slot_key_bias std=2.0 — strong per-slot symmetry breaking from step 0
+      - Birth mechanism — recycles low-usage slots toward global sequence mean
+      - Strand mixer — K×K self-attention between slots after write+gate
+      - Aux losses: L_persist (anti-churn) + L_div (anti-collapse)
+
+    Directional render gate (replaces fixed lambda_B):
+      - Context direction computed from W0 spectral projectors — exact, no eigh needed
+        P_φ·q = (W0·q − ψ·q)/(φ−ψ),  P_ψ·q = (φ·q − W0·q)/(φ−ψ)
+      - φ_dir = ||P_φ·q̄|| / (||P_φ·q̄|| + ||P_ψ·q̄||), similarly ψ_dir
+      - render_coeffs (K, 3, d): constant + φ-coeff + ψ-coeff per slot per dim
+      - gate[b,k] = tanh(render_coeffs[k] @ [1, φ_dir, ψ_dir]_b)  shape (B,K,d)
+      - Zero-init → gate=0 at step 0; same slow-open behaviour as lambda_B
+
+    Slow-open design:
+      - W_V_read zero-init → injection z=0 at iter 0
+      - render_coeffs zero-init → directional gate=0 at iter 0
+      - lambda_strand init=0 → strand mixer no-op at init
+      - Gate bias -2       → g≈0.12 at init (strands persist by default)
+      - braid_lr_scale=0.1 → safe for large models
+    """
+    def __init__(self, d: int, K: int = 4, d_b: int = 128, topk_pairs: int = 16, window: int = 128, bias: bool = False, gate_cap: float = 1.0, strand_cap: float = 1.0):
+        super().__init__()
+        self.K          = K
+        self.d_b        = d_b
+        self.topk_pairs = topk_pairs
+        self.window     = window
+        self.gate_cap   = gate_cap
+        self.strand_cap = strand_cap
+
+        # Pre-norm on write inputs
+        self.ln_write = nn.LayerNorm(d)
+
+        # Displacement projection: W_V(x_i - x_j) → relational vector in d_b space
+        self.W_V      = nn.Linear(d,    d_b, bias=bias)
+
+        # Slot compatibility: project slot state to compare with R_t
+        self.W_K      = nn.Linear(d_b,  d_b, bias=bias)
+
+        # Per-slot symmetry-breaking offset in key space — std=2.0 forces strong
+        # slot specialisation from step 0 (vs v8's 0.1 which was too weak)
+        self.slot_key_bias = nn.Parameter(torch.randn(K, d_b) * 2.0)
+
+        # Vector gate: [slot_k ; weighted_R_k] → per-dim update rate
+        self.W_gate   = nn.Linear(2 * d_b, d_b, bias=True)
+        nn.init.constant_(self.W_gate.bias, -2.0)
+
+        # Strand mixer — K×K self-attention so slots can share context
+        # Cost: K²·d_b ops per layer — negligible for K≤8
+        self.ln_strand    = nn.LayerNorm(d_b)
+        self.Ws_Q         = nn.Linear(d_b, d_b, bias=bias)
+        self.Ws_K         = nn.Linear(d_b, d_b, bias=bias)
+        self.Ws_V         = nn.Linear(d_b, d_b, bias=bias)
+        # init=0 → strand mixer is a no-op at step 0; grows as needed
+        self.lambda_strand = nn.Parameter(torch.zeros(d_b))
+
+        # Read: sequence attends over updated slots
+        self.W_Q_read = nn.Linear(d,   d_b, bias=bias)
+        self.W_K_read = nn.Linear(d_b, d_b, bias=bias)
+        self.W_V_read = nn.Linear(d_b, d,   bias=bias)
+        # Zero-residual init: injection starts exactly 0
+        nn.init.zeros_(self.W_V_read.weight)
+
+        # Directional render gate — per-slot, per-dim, direction-dependent
+        # Basis: [1, φ_dir, ψ_dir] where φ/ψ dirs come from W0 spectral projectors
+        # Zero-init → gate=tanh(0)=0 at step 0
+        self.render_coeffs = nn.Parameter(torch.zeros(K, 3, d))
+
+        # Per-slot temperature scalars — learnable sharpness per slot.
+        # High temp → slot makes sharp, focused decisions (precise entity tracker).
+        # Low temp  → slot spreads broadly (diffuse context integrator).
+        # softplus keeps temps positive; init=1.0 → identical to current behaviour.
+        self.slot_temps = nn.Parameter(torch.ones(K))
+
+        self._diag_gate_mean   = 0.0
+        self._diag_sal_max     = 0.0
+        self._diag_strand_mean = 0.0
+        self._diag_temp_std    = 0.0
+
+    def forward(self, X_write: Tensor, X_read: Tensor, slots: Tensor, W0: Tensor):
+        b, T, d = X_write.shape
+        if T < 2:
+            # Short-sequence fallback: read-only, no slot update
+            # Use constant basis [1, 0, 0] — only the constant term of render_coeffs
+            q_r  = self.W_Q_read(X_read)
+            k_r  = self.W_K_read(slots)
+            v_r  = self.W_V_read(slots)
+            sc   = torch.bmm(q_r, k_r.transpose(1, 2)) / math.sqrt(self.d_b)
+            gate = torch.tanh(self.render_coeffs[:, 0, :]).clamp(-self.gate_cap, self.gate_cap)  # (K, d)
+            v_r_gated = v_r * gate.unsqueeze(0)  # (B, K, d)
+            z    = torch.bmm(F.softmax(sc, dim=-1), v_r_gated)
+            aux  = {'persist': X_write.new_zeros(()), 'div': X_write.new_zeros(())}
+            return z, slots, aux
+
+        topk = min(self.topk_pairs, T * (T - 1) // 2)
+
+        # ── Pre-norm on write inputs ──────────────────────────────────────────
+        X_n = self.ln_write(X_write)
+
+        # ── TopK salience in no_grad (avoids O(T²) graph through W0) ─────────
+        #with torch.no_grad():
+        #    X_W0    = X_n @ W0.T
+        #    sal     = torch.bmm(X_n, X_W0.transpose(1, 2))
+        #    mask    = torch.tril(torch.ones(T, T, device=X_write.device, dtype=torch.bool), diagonal=-1)
+        #    sal     = sal.masked_fill(~mask.unsqueeze(0), float('-inf'))
+        #    sal_flat     = sal.reshape(b, -1)
+        #    _, topk_idx  = sal_flat.topk(topk, dim=-1)
+        #    i_idx = topk_idx // T
+        #    j_idx = topk_idx %  T
+
+        with torch.no_grad():
+            W = min(self.window, T - 1)
+            X_W0 = X_n @ W0.T
+
+            # Local causal window only: compare token i to tokens in [i-W, i)
+            sal_chunks = []
+            i_chunks = []
+            j_chunks = []
+
+            for i in range(1, T):
+                j0 = max(0, i - W)
+                q = X_n[:, i:i+1, :]                          # (B, 1, d)
+                k = X_W0[:, j0:i, :]                          # (B, w, d)
+                s = torch.bmm(q, k.transpose(1, 2)).squeeze(1)  # (B, w)
+                sal_chunks.append(s)
+
+                js = torch.arange(j0, i, device=X_write.device)
+                is_ = torch.full_like(js, i)
+                i_chunks.append(is_)
+                j_chunks.append(js)
+
+            sal_cat = torch.cat(sal_chunks, dim=1)  # (B, total_pairs_local)
+            i_all = torch.cat(i_chunks, dim=0)      # (total_pairs_local,)
+            j_all = torch.cat(j_chunks, dim=0)      # (total_pairs_local,)
+
+            topk_eff = min(topk, sal_cat.size(1))
+            _, topk_idx = sal_cat.topk(topk_eff, dim=-1)
+
+            i_idx = i_all[topk_idx]
+            j_idx = j_all[topk_idx]
+
+        # Gather normed vectors for pair; recompute scalar salience with grad via W0.detach
+        exp_fn  = lambda idx: idx.unsqueeze(-1).expand(-1, -1, d)
+        x_newer = X_n.gather(1, exp_fn(i_idx))
+        x_older = X_n.gather(1, exp_fn(j_idx))
+
+        pair_sal   = (x_newer * (x_older @ W0.detach().T)).sum(-1)
+        topk_alpha = F.softmax(pair_sal, dim=-1)
+
+        # Relational aggregate from displacement vectors
+        rel_vecs = self.W_V(x_newer - x_older)
+        R_t      = (topk_alpha.unsqueeze(-1) * rel_vecs).sum(dim=1)  # (B, d_b)
+
+        # ── Slot routing ──────────────────────────────────────────────────────
+        slot_keys    = self.W_K(slots) + self.slot_key_bias.unsqueeze(0)  # (B, K, d_b)
+        compat       = torch.bmm(slot_keys, R_t.unsqueeze(-1)).squeeze(-1) / math.sqrt(self.d_b)
+        # Per-slot temperature: sharp slots claim specific patterns, broad slots integrate
+        temps        = F.softplus(self.slot_temps).unsqueeze(0)  # (1, K), always positive
+        compat       = compat * temps
+        slot_weights = F.softmax(compat, dim=-1)  # (B, K) — soft routing
+
+        weighted_R = slot_weights.unsqueeze(-1) * R_t.unsqueeze(1).expand(-1, self.K, -1)  # (B, K, d_b)
+
+        # ── Gated carry: clean GRU-style update ────────────────────────────
+        gate_in    = torch.cat([slots, weighted_R], dim=-1)
+        g          = torch.sigmoid(self.W_gate(gate_in))  # (B, K, d_b)
+        slots_born = (1.0 - g) * slots + g * weighted_R   # (B, K, d_b)
+
+        # ── Strand mixer: K×K self-attention between slots ────────────────────
+        # Slots attend to each other after write+gate, before read-back.
+        # This is what makes it a true "braid": co-active entities share context.
+        B_ln   = self.ln_strand(slots_born)                                   # (B, K, d_b)
+        sq     = self.Ws_Q(B_ln)                                              # (B, K, d_b)
+        sk     = self.Ws_K(B_ln)
+        sv     = self.Ws_V(B_ln)
+        ss     = torch.bmm(sq, sk.transpose(1, 2)) / math.sqrt(self.d_b)     # (B, K, K)
+        sa     = F.softmax(ss, dim=-1)
+        ctx    = torch.bmm(sa, sv)                                            # (B, K, d_b)
+        slots_next = slots_born + ctx * torch.tanh(self.lambda_strand).clamp(-self.strand_cap, self.strand_cap)        # residual, init=0
+
+        # ── Aux losses ────────────────────────────────────────────────────────
+        # L_persist: penalise violent slot churn
+        L_persist = ((slots_next - slots) ** 2).mean()
+
+        # L_div: penalise slot collapse (mean squared cosine similarity, off-diagonal)
+        B_normed  = F.normalize(slots_next.float(), dim=-1)            # (B, K, d_b)
+        cos_mat   = torch.bmm(B_normed, B_normed.transpose(1, 2))      # (B, K, K)
+        off_diag  = ~torch.eye(self.K, dtype=torch.bool, device=slots.device)
+        L_div     = (cos_mat ** 2)[:, off_diag].mean()
+
+        # ── Read: sequence attends over updated slots ─────────────────────────
+        q_r      = self.W_Q_read(X_read)
+        k_r      = self.W_K_read(slots_next)
+        v_r      = self.W_V_read(slots_next)
+        scores_r = torch.bmm(q_r, k_r.transpose(1, 2)) / math.sqrt(self.d_b)
+        # NOTE: temps intentionally NOT applied to read-back attention.
+        # Temps scale write-routing only; applying here too creates a
+        # positive feedback loop that collapses slot diversity over long runs.
+
+        # ── Directional render gate ───────────────────────────────────────────
+        # Spectral projectors onto W0 φ/ψ eigenspaces — exact, no eigh needed
+        # P_φ = (W0 − ψI)/(φ−ψ),  P_ψ = (φI − W0)/(φ−ψ)
+        _PHI = 1.6180339887498949
+        _PSI = -0.6180339887498949
+        _PHI_MINUS_PSI = _PHI - _PSI  # ≈ 2.2360679774997898
+        q_mean  = X_read.mean(dim=1)                                  # (B, d) — in W0's space
+        w0q     = q_mean @ W0.detach().T                              # (B, d)
+        phi_q   = (w0q - _PSI  * q_mean) / _PHI_MINUS_PSI            # (B, d) φ-component
+        psi_q   = (_PHI * q_mean - w0q)  / _PHI_MINUS_PSI            # (B, d) ψ-component
+        phi_mag = phi_q.norm(dim=-1, keepdim=True)                    # (B, 1)
+        psi_mag = psi_q.norm(dim=-1, keepdim=True)                    # (B, 1)
+        total   = phi_mag + psi_mag + 1e-6
+        phi_dir = phi_mag / total                                     # (B, 1) ∈ [0,1]
+        psi_dir = psi_mag / total                                     # (B, 1) ∈ [0,1]
+        basis   = torch.cat([torch.ones_like(phi_dir), phi_dir, psi_dir], dim=-1)  # (B, 3)
+
+        # gate[b,k,d] = tanh(render_coeffs[k] @ basis[b])
+        gate = torch.tanh(
+            torch.einsum('bi,kid->bkd', basis, self.render_coeffs)    # (B, K, d)
+        ).clamp(-self.gate_cap, self.gate_cap)
+
+        v_r_gated = v_r * gate                                        # (B, K, d)
+        z         = torch.bmm(F.softmax(scores_r, dim=-1), v_r_gated)  # (B, T, d)
+
+        with torch.no_grad():
+            self._diag_gate_mean   = gate.abs().mean().item()
+            self._diag_sal_max     = topk_alpha.max(dim=-1)[0].mean().item()
+            self._diag_strand_mean = torch.tanh(self.lambda_strand).abs().mean().item()
+            self._diag_temp_std    = F.softplus(self.slot_temps).std().item()
+
+        aux = {'persist': L_persist, 'div': L_div}
+        return z, slots_next, aux
+
+
+class FMNLayer(nn.Module):
+    def __init__(self, config: FMNConfig, layer_idx: int):
+        super().__init__()
+        dim = config.n_embd
+        self.layer_idx = layer_idx
+        self.use_braid = layer_idx >= config.braid_start_layer
+        self.use_xsa = config.use_xsa and layer_idx >= config.xsa_start_layer
+
+        self.ln_mix = nn.LayerNorm(dim)
+        self.ln_phi = nn.LayerNorm(dim)
+        self.ln_psi = nn.LayerNorm(dim)
+        self.mixer   = FibonacciMixer(dim, kernel_size=config.mixer_kernel, bias=config.bias)
+        self.psi_net = PsiNet(dim, hidden_ratio=config.psi_ratio, bias=config.bias)
+        self.dropout = nn.Dropout(config.dropout)
+
+        if self.use_xsa:
+            self.xsa = TinyCausalSelfAttention(
+                dim,
+                n_head=config.xsa_heads,
+                bias=config.bias,
+                dropout=config.dropout,
+            )
+        else:
+            self.xsa = None
+
+        if self.use_braid:
+            self.braid = SparseBraidRegister(
+                dim,
+                K=config.braid_K,
+                d_b=config.braid_d_b,
+                topk_pairs=config.braid_topk,
+                window=config.braid_window,
+                bias=config.bias,
+                gate_cap=config.braid_gate_cap,
+                strand_cap=config.braid_strand_cap,
+            )
+        else:
+            self.braid = None
+
+    def forward(self, M_prev: Tensor, W0: Tensor, slots: Tensor | None):
+        M_seq = M_prev + self.dropout(self.mixer(self.ln_mix(M_prev)))
+
+        if self.use_xsa:
+            assert self.xsa is not None
+            M_seq = M_seq + self.dropout(self.xsa(M_seq))
+
+        x = self.ln_phi(M_seq)
+        M_k = x @ W0.to(dtype=x.dtype).T
+        M_phi = (x + _phi * M_k) / (1.0 + _phi2)
+        M_psi = x - M_phi
+        correction = self.psi_net(self.ln_psi(M_psi))
+        M_out = M_seq + self.dropout(M_phi + correction)
+
+        if self.use_braid:
+            assert self.braid is not None
+            assert slots is not None
+            z, slots_next, aux = self.braid(M_prev, M_out, slots, W0)
+            M_out = M_out + z
+        else:
+            slots_next = slots
+            aux = {
+                "persist": M_out.new_zeros(()),
+                "div": M_out.new_zeros(()),
+            }
+
+        return M_out, M_psi, slots_next, aux
+
+
+class FMNLanguageModel(nn.Module):
+    def __init__(self, config: FMNConfig):
+        super().__init__()
+        self.config = config
+        dim = config.n_embd
+
+        if config.w0_init == "phi_identity":
+            W0_init = torch.eye(dim) * _phi
+        else:
+            n_psi_eig = max(1, dim // 16)
+            n_phi_eig = dim - n_psi_eig
+            eigs = torch.cat([
+                torch.full((n_phi_eig,), float(_phi)),
+                torch.full((n_psi_eig,), float(_psi)),
+            ])
+            Q, _ = torch.linalg.qr(torch.randn(dim, dim))
+            W0_init = (Q @ torch.diag(eigs) @ Q.T).float()
+        self.W0 = nn.Parameter(W0_init)
+
+        self.transformer = nn.ModuleDict(dict(
+            wte  = nn.Embedding(config.vocab_size, dim),
+            wpe  = nn.Embedding(config.block_size, dim),
+            drop = nn.Dropout(config.dropout),
+            h    = nn.ModuleList([FMNLayer(config, i) for i in range(config.n_layer)]),
+            ln_f = nn.LayerNorm(dim),
+        ))
+        self.psi_proj = nn.Linear(dim, dim, bias=config.bias)
+        self.lm_head = nn.Linear(dim, config.vocab_size, bias=False)
+        self.transformer.wte.weight = self.lm_head.weight
+
+        self.apply(self._init_weights)
+        n_braid = sum(
+            p.numel()
+            for layer in self.transformer.h
+            if layer.braid is not None
+            for p in layer.braid.parameters()
+        )
+        print(f"FMN params: {sum(p.numel() for p in self.parameters()) / 1e6:.2f}M "
+              f"(W0 shared: {self.W0.numel() / 1e6:.3f}M, "
+              f"{config.n_layer}L × {dim}d, kernel={config.mixer_kernel}, "
+              f"braid K={config.braid_K} d_b={config.braid_d_b} params={n_braid/1e6:.3f}M)")
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def manifold_err(self) -> float:
+        with torch.no_grad():
+            W = self.W0.detach().double()
+            I = torch.eye(W.shape[0], device=W.device, dtype=W.dtype)
+            return float(torch.norm(W @ W - W - I).item())
+
+    def braid_gate(self) -> float:
+        vals = [layer.braid._diag_gate_mean for layer in self.transformer.h if layer.braid is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    def braid_strand(self) -> float:
+        vals = [layer.braid._diag_strand_mean for layer in self.transformer.h if layer.braid is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    def braid_temp_std(self) -> float:
+        vals = [layer.braid._diag_temp_std for layer in self.transformer.h if layer.braid is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor,
+                braid_persist_w: float = 0.00, # original 0.01
+                braid_div_w: float = 0.00) -> Tensor: # original 0.10
+        B, T = input_ids.shape
+        pos = torch.arange(0, T, dtype=torch.long, device=input_ids.device)
+        M = self.transformer.drop(
+            self.transformer.wte(input_ids) + self.transformer.wpe(pos)
+        )
+        psi_stream = torch.zeros_like(M)
+
+        use_any_braid = any(layer.braid is not None for layer in self.transformer.h)
+        slots = (
+            torch.zeros(
+                B, self.config.braid_K, self.config.braid_d_b,
+                device=M.device, dtype=M.dtype
+            )
+            if use_any_braid else None
+        )
+
+        braid_persist = M.new_zeros(())
+        braid_div     = M.new_zeros(())
+        for k, layer in enumerate(self.transformer.h, 1):
+            M, M_psi, slots, aux = layer(M, self.W0, slots)
+            psi_stream    = psi_stream + (_abs_psi ** k) * M_psi
+            braid_persist = braid_persist + aux["persist"]
+            braid_div     = braid_div     + aux["div"]
+        out    = self.transformer.ln_f(M + self.psi_proj(psi_stream))
+        logits = self.lm_head(out) / math.sqrt(self.config.n_embd)
+        loss   = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)).float(),
+            target_ids.reshape(-1),
+        )
+        n_layers = len(self.transformer.h)
+        loss = loss \
+             + braid_persist_w * (braid_persist / n_layers) \
+             + braid_div_w     * (braid_div     / n_layers)
+        return loss
+
+# -----------------------------------------------------------------------------
+# TRAINING
+# -----------------------------------------------------------------------------
+
+def main() -> None:
+    global zeropower_via_newtonschulz5
+
+    code = Path(__file__).read_text(encoding="utf-8")
+    args = Hyperparameters()
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    rank        = int(os.environ.get("RANK", "0"))
+    world_size  = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank  = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    grad_scale       = 1.0 / grad_accum_steps
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32        = True
+
+    logfile = None
+    if master_process:
+        os.makedirs("logs", exist_ok=True)
+        logfile = f"logs/{args.run_id}.txt"
+        print(logfile)
+
+    def log0(msg: str, console: bool = True) -> None:
+        if not master_process:
+            return
+        if console:
+            print(msg)
+        if logfile is not None:
+            with open(logfile, "a", encoding="utf-8") as f:
+                print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    log0(f"Running Python {sys.version}", console=False)
+    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
+    log0("=" * 100, console=False)
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+
+    config = FMNConfig(
+        vocab_size        = args.vocab_size,
+        block_size        = args.train_seq_len,
+        n_layer           = args.num_layers,
+        n_embd            = args.model_dim,
+        mixer_kernel      = args.mixer_kernel,
+        psi_ratio         = args.psi_ratio,
+        w0_init           = args.w0_init,
+        braid_K           = args.braid_K,
+        braid_d_b         = args.braid_d_b,
+        braid_topk        = args.braid_topk_pairs,
+        braid_start_layer = max(args.num_layers - 3, 0),
+        braid_window      = 64,
+        use_xsa           = True,
+        xsa_start_layer   = max(args.num_layers - 3, 0),
+        xsa_heads         = 4,
+    )
+    base_model = FMNLanguageModel(config).to(device).bfloat16()
+    # W0 stays float32 — FMNRiemannianAdam works in float64 internally
+    base_model.W0.data = base_model.W0.data.float()
+    with torch.no_grad():
+        for name, param in base_model.named_parameters():
+            if param.ndim < 2 and param.dtype != torch.float32:
+                param.data = param.data.float()
+
+    compiled_model = base_model
+    model: nn.Module = (
+        DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
+        if distributed else compiled_model
+    )
+
+    # Optimizer setup
+    # W0          → FMNRiemannianAdam (geodesic steps on Fibonacci manifold, no projx_w0 needed)
+    # matrix      → Muon (all other 2D params except embedding and braid)
+    # scalar      → Adam
+    # braid_matrix → Muon at braid_lr (slow-open: 0.1× main LR)
+    # braid_scalar → Adam at braid_lr
+    braid_lr = args.matrix_lr * args.braid_lr_scale
+    param_dict = {n: p for n, p in base_model.named_parameters()}
+    EMB_NAME  = "transformer.wte.weight"
+    W0_NAME   = "W0"
+    BRAID_KEY = ".braid."
+
+    w0_params           = [param_dict[W0_NAME]]
+    tok_params          = [param_dict[EMB_NAME]]
+    matrix_params       = [p for n, p in param_dict.items()
+                           if p.ndim == 2 and n != EMB_NAME and n != W0_NAME and BRAID_KEY not in n]
+    scalar_params       = [p for n, p in param_dict.items()
+                           if p.ndim != 2 and n != EMB_NAME and BRAID_KEY not in n]
+    braid_matrix_params = [p for n, p in param_dict.items() if p.ndim == 2 and BRAID_KEY in n]
+    braid_scalar_params = [p for n, p in param_dict.items() if p.ndim != 2 and BRAID_KEY in n]
+
+    optimizer_tok = torch.optim.Adam(
+        [{"params": tok_params, "lr": args.embed_lr, "base_lr": args.embed_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
+    )
+    optimizer_w0 = FMNRiemannianAdam(
+        [{"params": w0_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps,
+    )
+    optimizer_muon = Muon(
+        matrix_params, lr=args.matrix_lr,
+        momentum=args.muon_momentum, backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
+    )
+    optimizer_braid_muon = Muon(
+        braid_matrix_params, lr=braid_lr,
+        momentum=args.muon_momentum, backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_braid_muon.param_groups:
+        group["base_lr"] = braid_lr
+    optimizer_braid_scalar = torch.optim.Adam(
+        [{"params": braid_scalar_params, "lr": braid_lr, "base_lr": braid_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True,
+    )
+    optimizers: list[torch.optim.Optimizer] = [
+        optimizer_tok, optimizer_w0, optimizer_muon, optimizer_scalar,
+        optimizer_braid_muon, optimizer_braid_scalar,
+    ]
+
+    n_params = sum(p.numel() for p in base_model.parameters())
+    log0(f"model_params:{n_params}")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(
+        f"fmn arch: {args.num_layers}L {args.model_dim}d kernel={args.mixer_kernel} "
+        f"psi_ratio={args.psi_ratio} w0_init={args.w0_init} "
+        f"braid K={args.braid_K} d_b={args.braid_d_b} topk={args.braid_topk_pairs} "
+        f"lr_scale={args.braid_lr_scale} persist_w={args.braid_persist_w} div_w={args.braid_div_w}"
+    )
+    log0(
+        f"embed_lr:{args.embed_lr} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"braid_lr:{braid_lr:.4e} W0_optimizer:FMNRiemannianAdam W0_manifold_err_init:{base_model.manifold_err():.2e}"
+    )
+    log0(
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(f"seed:{args.seed}")
+
+    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    def zero_grad_all() -> None:
+        for opt in optimizers:
+            opt.zero_grad(set_to_none=True)
+
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+
+    def lr_mul(step: int, elapsed_ms: float) -> float:
+        if args.warmdown_iters <= 0:
+            return 1.0
+        if max_wallclock_ms is None:
+            warmdown_start = max(args.iterations - args.warmdown_iters, 0)
+            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
+        step_ms = elapsed_ms / max(step, 1)
+        warmdown_ms = args.warmdown_iters * step_ms
+        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    # Warmup: prime compiled paths, then restore to true init
+    if args.warmup_steps > 0:
+        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
+        model.train()
+        for warmup_step in range(args.warmup_steps):
+            zero_grad_all()
+            for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    warmup_loss = model(x, y)
+                (warmup_loss * grad_scale).backward()
+            for opt in optimizers:
+                opt.step()
+            zero_grad_all()
+            if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
+                log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        base_model.load_state_dict(initial_model_state, strict=True)
+        for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
+            opt.load_state_dict(state)
+        zero_grad_all()
+        if distributed:
+            model.require_backward_grad_sync = True
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # Main training loop
+    training_time_ms = 0.0
+    stop_after_step: int | None = None
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+
+    step = 0
+    while True:
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+
+        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        if should_validate:
+            torch.cuda.synchronize()
+            training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            val_loss, val_bpb = eval_val(
+                args, model, rank, world_size, device, grad_accum_steps,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            )
+            log0(
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"w0_err:{base_model.manifold_err():.2e} "
+                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+            )
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+
+        if last_step:
+            if stop_after_step is not None and step < args.iterations:
+                log0(
+                    f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
+                    f"step:{step}/{args.iterations}"
+                )
+            break
+
+        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        scale = lr_mul(step, elapsed_ms)
+        zero_grad_all()
+        train_loss = torch.zeros((), device=device)
+        for micro_step in range(grad_accum_steps):
+            if distributed:
+                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                loss = model(x, y,
+                             braid_persist_w=args.braid_persist_w,
+                             braid_div_w=args.braid_div_w)
+            train_loss += loss.detach()
+            (loss * grad_scale).backward()
+        train_loss /= grad_accum_steps
+
+        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = muon_momentum
+        for group in optimizer_braid_muon.param_groups:
+            group["momentum"] = muon_momentum
+
+        for opt in optimizers:
+            for group in opt.param_groups:
+                group["lr"] = group["base_lr"] * scale
+
+        if args.grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+        for opt in optimizers:
+            opt.step()
+        # No projx_w0 needed — FMNRiemannianAdam retracts W0 onto the manifold each step
+
+        zero_grad_all()
+
+        step += 1
+        approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        should_log_train = (
+            args.train_log_every > 0
+            and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
+        )
+        if should_log_train:
+            log0(
+                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"w0_err:{base_model.manifold_err():.2e} "
+                f"braid_gate:{base_model.braid_gate():.4f} strand:{base_model.braid_strand():.4f} temp_std:{base_model.braid_temp_std():.4f} "
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+            )
+
+        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+        if distributed and max_wallclock_ms is not None:
+            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+            reached_cap = bool(reached_cap_tensor.item())
+        if stop_after_step is None and reached_cap:
+            stop_after_step = step
+
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+
+    if master_process:
+        torch.save(base_model.state_dict(), "final_model.pt")
+        model_bytes = os.path.getsize("final_model.pt")
+        code_bytes = len(code.encode("utf-8"))
+        log0(f"Serialized model: {model_bytes} bytes")
+        log0(f"Code size: {code_bytes} bytes")
+        log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_buf = io.BytesIO()
+    torch.save(quant_obj, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_raw_bytes = len(quant_raw)
+    if master_process:
+        with open("final_model.int8.ptz", "wb") as f:
+            f.write(quant_blob)
+        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        code_bytes = len(code.encode("utf-8"))
+        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+        log0(
+            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+        )
+        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+
+    if distributed:
+        dist.barrier()
+    with open("final_model.int8.ptz", "rb") as f:
+        quant_blob_disk = f.read()
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    torch.cuda.synchronize()
+    t_qeval = time.perf_counter()
+    q_val_loss, q_val_bpb = eval_val(
+        args, model, rank, world_size, device, grad_accum_steps,
+        val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+    )
+    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]
+Running PyTorch 2.10.0+cu128
+Mon Apr 13 10:24:59 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5080        On  |   00000000:01:00.0  On |                  N/A |
+|  0%   44C    P0             25W /  360W |     984MiB /  16303MiB |      2%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA GeForce RTX 5060 Ti     On  |   00000000:0B:00.0 Off |                  N/A |
+|  0%   37C    P1              7W /  180W |    1156MiB /  16311MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            3343      G   /usr/lib/xorg/Xorg                      182MiB |
+|    0   N/A  N/A            3593      G   /usr/bin/gnome-shell                     26MiB |
+|    0   N/A  N/A            4039      G   ...exec/xdg-desktop-portal-gnome         12MiB |
+|    0   N/A  N/A         2456754      G   .../8107/usr/lib/firefox/firefox         24MiB |
+|    0   N/A  N/A         2458262      G   /usr/share/windsurf/windsurf             68MiB |
+|    0   N/A  N/A         2459821      G   /usr/bin/gnome-calculator                12MiB |
+|    0   N/A  N/A         2703384      C   ...ameter-golf/.venv/bin/python3        488MiB |
+|    0   N/A  N/A         3017798      G   /usr/bin/nautilus                        20MiB |
+|    0   N/A  N/A         3335437      G   /usr/bin/gnome-text-editor               16MiB |
+|    1   N/A  N/A            3343      G   /usr/lib/xorg/Xorg                      808MiB |
+|    1   N/A  N/A         2703385      C   ...ameter-golf/.venv/bin/python3        326MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16749205
+world_size:2 grad_accum_steps:4
+fmn arch: 12L 512d kernel=256 psi_ratio=0.5 w0_init=random_Q braid K=7 d_b=128 topk=16 lr_scale=0.1 persist_w=0.0 div_w=0.01
+embed_lr:0.05 matrix_lr:0.01 scalar_lr:0.01 braid_lr:1.0000e-03 W0_optimizer:FMNRiemannianAdam W0_manifold_err_init:1.16e-01
+train_batch_tokens:131072 train_seq_len:1024 iterations:50000 warmup_steps:20 max_wallclock_seconds:0.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/50000 val_loss:6.9305 val_bpb:4.1046 w0_err:1.16e-01 train_time:0ms step_avg:0.01ms
+step:1/50000 train_loss:6.9326 w0_err:1.75e-06 braid_gate:0.0000 strand:0.0000 temp_std:0.0000 train_time:2259ms step_avg:2259.01ms
+step:2/50000 train_loss:6.7176 w0_err:1.76e-06 braid_gate:0.0001 strand:0.0010 temp_std:0.0000 train_time:4470ms step_avg:2234.89ms
+step:3/50000 train_loss:6.2645 w0_err:1.77e-06 braid_gate:0.0002 strand:0.0017 temp_std:0.0000 train_time:6717ms step_avg:2238.84ms
+step:4/50000 train_loss:6.0047 w0_err:1.72e-06 braid_gate:0.0004 strand:0.0024 temp_std:0.0000 train_time:8969ms step_avg:2242.21ms
+step:5/50000 train_loss:5.9596 w0_err:1.76e-06 braid_gate:0.0004 strand:0.0031 temp_std:0.0000 train_time:11338ms step_avg:2267.61ms
+step:6/50000 train_loss:5.8416 w0_err:1.73e-06 braid_gate:0.0005 strand:0.0038 temp_std:0.0001 train_time:13588ms step_avg:2264.67ms
+step:7/50000 train_loss:5.8327 w0_err:1.81e-06 braid_gate:0.0005 strand:0.0045 temp_std:0.0001 train_time:15839ms step_avg:2262.74ms
+step:8/50000 train_loss:5.9007 w0_err:1.76e-06 braid_gate:0.0006 strand:0.0051 temp_std:0.0001 train_time:18092ms step_avg:2261.51ms
+step:9/50000 train_loss:5.6817 w0_err:1.77e-06 braid_gate:0.0006 strand:0.0058 temp_std:0.0001 train_time:20342ms step_avg:2260.19ms
+step:10/50000 train_loss:5.6961 w0_err:1.72e-06 braid_gate:0.0007 strand:0.0065 temp_std:0.0001 train_time:22593ms step_avg:2259.34ms
+step:200/50000 train_loss:3.3414 w0_err:1.75e-06 braid_gate:0.0038 strand:0.0393 temp_std:0.0007 train_time:452729ms step_avg:2263.65ms
+step:400/50000 train_loss:3.0580 w0_err:1.78e-06 braid_gate:0.0060 strand:0.0418 temp_std:0.0098 train_time:905304ms step_avg:2263.26ms
+step:600/50000 train_loss:2.9760 w0_err:1.77e-06 braid_gate:0.0075 strand:0.0420 temp_std:0.0203 train_time:1357482ms step_avg:2262.47ms
+step:800/50000 train_loss:2.8658 w0_err:1.74e-06 braid_gate:0.0087 strand:0.0409 temp_std:0.0297 train_time:1809687ms step_avg:2262.11ms
+step:1000/50000 train_loss:2.7567 w0_err:1.70e-06 braid_gate:0.0099 strand:0.0406 temp_std:0.0395 train_time:2262060ms step_avg:2262.06ms
+step:1000/50000 val_loss:2.7300 val_bpb:1.6169 w0_err:1.70e-06 train_time:2262102ms step_avg:2262.10ms
+step:1200/50000 train_loss:2.7278 w0_err:1.73e-06 braid_gate:0.0115 strand:0.0381 temp_std:0.0506 train_time:2713903ms step_avg:2261.59ms
+step:1400/50000 train_loss:2.7560 w0_err:1.77e-06 braid_gate:0.0136 strand:0.0368 temp_std:0.0597 train_time:3165760ms step_avg:2261.26ms
+step:1600/50000 train_loss:2.5470 w0_err:1.77e-06 braid_gate:0.0164 strand:0.0372 temp_std:0.0758 train_time:3617523ms step_avg:2260.95ms
+step:1800/50000 train_loss:2.7543 w0_err:1.79e-06 braid_gate:0.0195 strand:0.0377 temp_std:0.0922 train_time:4069277ms step_avg:2260.71ms
+step:2000/50000 train_loss:2.6934 w0_err:1.74e-06 braid_gate:0.0231 strand:0.0370 temp_std:0.1093 train_time:4521128ms step_avg:2260.56ms
+step:2000/50000 val_loss:2.6181 val_bpb:1.5506 w0_err:1.74e-06 train_time:4521169ms step_avg:2260.58ms
+step:2200/50000 train_loss:2.4939 w0_err:1.82e-06 braid_gate:0.0265 strand:0.0389 temp_std:0.1333 train_time:4973467ms step_avg:2260.67ms
+step:2400/50000 train_loss:2.7391 w0_err:1.75e-06 braid_gate:0.0297 strand:0.0378 temp_std:0.1480 train_time:5425725ms step_avg:2260.72ms
+step:2600/50000 train_loss:2.5451 w0_err:1.76e-06 braid_gate:0.0330 strand:0.0397 temp_std:0.1724 train_time:5877891ms step_avg:2260.73ms
+step:2800/50000 train_loss:2.7125 w0_err:1.75e-06 braid_gate:0.0363 strand:0.0408 temp_std:0.1904 train_time:6330073ms step_avg:2260.74ms
+step:3000/50000 train_loss:2.5318 w0_err:1.74e-06 braid_gate:0.0398 strand:0.0401 temp_std:0.2162 train_time:6782307ms step_avg:2260.77ms
+step:3000/50000 val_loss:2.5704 val_bpb:1.5223 w0_err:1.74e-06 train_time:6782349ms step_avg:2260.78ms
+step:3200/50000 train_loss:2.5842 w0_err:1.75e-06 braid_gate:0.0431 strand:0.0401 temp_std:0.2303 train_time:7233307ms step_avg:2260.41ms
+step:3400/50000 train_loss:2.6922 w0_err:1.78e-06 braid_gate:0.0465 strand:0.0410 temp_std:0.2390 train_time:7683572ms step_avg:2259.87ms
+step:3600/50000 train_loss:2.6479 w0_err:1.75e-06 braid_gate:0.0492 strand:0.0414 temp_std:0.2533 train_time:8133795ms step_avg:2259.39ms
+step:3800/50000 train_loss:2.5613 w0_err:1.76e-06 braid_gate:0.0526 strand:0.0409 temp_std:0.2674 train_time:8584026ms step_avg:2258.95ms
+step:4000/50000 train_loss:2.6095 w0_err:1.79e-06 braid_gate:0.0562 strand:0.0407 temp_std:0.2825 train_time:9034060ms step_avg:2258.52ms
+step:4000/50000 val_loss:2.5439 val_bpb:1.5066 w0_err:1.79e-06 train_time:9034102ms step_avg:2258.53ms
+step:4200/50000 train_loss:2.6360 w0_err:1.78e-06 braid_gate:0.0590 strand:0.0409 temp_std:0.2975 train_time:9484414ms step_avg:2258.19ms
+step:4400/50000 train_loss:2.5586 w0_err:1.74e-06 braid_gate:0.0616 strand:0.0398 temp_std:0.3130 train_time:9935034ms step_avg:2257.96ms
+step:4600/50000 train_loss:2.5910 w0_err:1.73e-06 braid_gate:0.0645 strand:0.0396 temp_std:0.3325 train_time:10385755ms step_avg:2257.77ms
+step:4800/50000 train_loss:2.5095 w0_err:1.81e-06 braid_gate:0.0675 strand:0.0392 temp_std:0.3536 train_time:10836496ms step_avg:2257.60ms
+step:5000/50000 train_loss:2.5163 w0_err:1.83e-06 braid_gate:0.0703 strand:0.0388 temp_std:0.3778 train_time:11287186ms step_avg:2257.44ms
+step:5000/50000 val_loss:2.5221 val_bpb:1.4937 w0_err:1.83e-06 train_time:11287227ms step_avg:2257.45ms
+step:5200/50000 train_loss:2.5561 w0_err:1.72e-06 braid_gate:0.0728 strand:0.0383 temp_std:0.3944 train_time:11737460ms step_avg:2257.20ms
+step:5400/50000 train_loss:2.5080 w0_err:1.71e-06 braid_gate:0.0760 strand:0.0371 temp_std:0.4150 train_time:12187864ms step_avg:2257.01ms
+step:5600/50000 train_loss:2.5730 w0_err:1.80e-06 braid_gate:0.0790 strand:0.0376 temp_std:0.4324 train_time:12638177ms step_avg:2256.82ms
+step:5800/50000 train_loss:2.5605 w0_err:1.78e-06 braid_gate:0.0817 strand:0.0375 temp_std:0.4558 train_time:13088395ms step_avg:2256.62ms
+step:6000/50000 train_loss:2.5317 w0_err:1.78e-06 braid_gate:0.0846 strand:0.0377 temp_std:0.4739 train_time:13538949ms step_avg:2256.49ms
+step:6000/50000 val_loss:2.5047 val_bpb:1.4834 w0_err:1.78e-06 train_time:13538991ms step_avg:2256.50ms
+step:6200/50000 train_loss:3.6783 w0_err:1.80e-06 braid_gate:0.0877 strand:0.0374 temp_std:0.4925 train_time:13989203ms step_avg:2256.32ms
+step:6400/50000 train_loss:2.5674 w0_err:1.73e-06 braid_gate:0.0903 strand:0.0370 temp_std:0.5110 train_time:14439662ms step_avg:2256.20ms
+step:6600/50000 train_loss:2.6100 w0_err:1.77e-06 braid_gate:0.0924 strand:0.0372 temp_std:0.5378 train_time:14889982ms step_avg:2256.06ms
+step:6800/50000 train_loss:2.5406 w0_err:1.73e-06 braid_gate:0.0952 strand:0.0383 temp_std:0.5515 train_time:15340331ms step_avg:2255.93ms
+step:7000/50000 train_loss:2.5377 w0_err:1.75e-06 braid_gate:0.0980 strand:0.0378 temp_std:0.5698 train_time:15790692ms step_avg:2255.81ms
+step:7000/50000 val_loss:2.4900 val_bpb:1.4747 w0_err:1.75e-06 train_time:15790734ms step_avg:2255.82ms
+step:7200/50000 train_loss:2.5742 w0_err:1.77e-06 braid_gate:0.1004 strand:0.0386 temp_std:0.5888 train_time:16241309ms step_avg:2255.74ms
+step:7400/50000 train_loss:2.4779 w0_err:1.74e-06 braid_gate:0.1030 strand:0.0395 temp_std:0.6110 train_time:16691430ms step_avg:2255.60ms
+step:7600/50000 train_loss:2.5332 w0_err:1.74e-06 braid_gate:0.1051 strand:0.0391 temp_std:0.6276 train_time:17141619ms step_avg:2255.48ms
+step:7800/50000 train_loss:2.5318 w0_err:1.73e-06 braid_gate:0.1082 strand:0.0396 temp_std:0.6436 train_time:17591792ms step_avg:2255.36ms
+step:8000/50000 train_loss:2.5308 w0_err:1.80e-06 braid_gate:0.1108 strand:0.0389 temp_std:0.6670 train_time:18042135ms step_avg:2255.27ms
+step:8000/50000 val_loss:2.4760 val_bpb:1.4664 w0_err:1.80e-06 train_time:18042177ms step_avg:2255.27ms
+step:8200/50000 train_loss:2.5973 w0_err:1.82e-06 braid_gate:0.1131 strand:0.0394 temp_std:0.6874 train_time:18492684ms step_avg:2255.21ms
+step:8400/50000 train_loss:2.6775 w0_err:1.74e-06 braid_gate:0.1162 strand:0.0395 temp_std:0.7063 train_time:18943217ms step_avg:2255.14ms
+step:8600/50000 train_loss:2.4890 w0_err:1.75e-06 braid_gate:0.1191 strand:0.0394 temp_std:0.7301 train_time:19393777ms step_avg:2255.09ms
+step:8800/50000 train_loss:2.5107 w0_err:1.75e-06 braid_gate:0.1209 strand:0.0401 temp_std:0.7505 train_time:19844214ms step_avg:2255.02ms
+step:9000/50000 train_loss:2.4432 w0_err:1.72e-06 braid_gate:0.1234 strand:0.0391 temp_std:0.7725 train_time:20295219ms step_avg:2255.02ms
+step:9000/50000 val_loss:2.4694 val_bpb:1.4625 w0_err:1.72e-06 train_time:20295261ms step_avg:2255.03ms
+step:9200/50000 train_loss:2.4704 w0_err:1.77e-06 braid_gate:0.1258 strand:0.0397 temp_std:0.7914 train_time:20745899ms step_avg:2254.99ms
+step:9400/50000 train_loss:2.4677 w0_err:1.76e-06 braid_gate:0.1291 strand:0.0390 temp_std:0.8076 train_time:21196918ms step_avg:2254.99ms
+step:9600/50000 train_loss:2.4980 w0_err:1.74e-06 braid_gate:0.1312 strand:0.0396 temp_std:0.8249 train_time:21647558ms step_avg:2254.95ms
+step:9800/50000 train_loss:2.5712 w0_err:1.78e-06 braid_gate:0.1338 strand:0.0404 temp_std:0.8432 train_time:22098384ms step_avg:2254.94ms
+step:10000/50000 train_loss:2.6112 w0_err:1.77e-06 braid_gate:0.1362 strand:0.0416 temp_std:0.8616 train_time:22549168ms step_avg:2254.92ms
+step:10000/50000 val_loss:2.4598 val_bpb:1.4569 w0_err:1.77e-06 train_time:22549209ms step_avg:2254.92ms
+step:10200/50000 train_loss:2.3563 w0_err:1.77e-06 braid_gate:0.1383 strand:0.0417 temp_std:0.8797 train_time:23000082ms step_avg:2254.91ms
+step:10400/50000 train_loss:2.6295 w0_err:1.79e-06 braid_gate:0.1403 strand:0.0423 temp_std:0.9002 train_time:23451009ms step_avg:2254.90ms
+step:10600/50000 train_loss:2.5420 w0_err:1.75e-06 braid_gate:0.1427 strand:0.0422 temp_std:0.9158 train_time:23901840ms step_avg:2254.89ms
+step:10800/50000 train_loss:2.5164 w0_err:1.72e-06 braid_gate:0.1452 strand:0.0429 temp_std:0.9309 train_time:24352727ms step_avg:2254.88ms
+step:11000/50000 train_loss:2.6227 w0_err:1.76e-06 braid_gate:0.1470 strand:0.0427 temp_std:0.9498 train_time:24803622ms step_avg:2254.87ms
+step:11000/50000 val_loss:2.4586 val_bpb:1.4561 w0_err:1.76e-06 train_time:24803664ms step_avg:2254.88ms
+step:11200/50000 train_loss:2.5185 w0_err:1.76e-06 braid_gate:0.1496 strand:0.0433 temp_std:0.9665 train_time:25254172ms step_avg:2254.84ms
+step:11400/50000 train_loss:2.5419 w0_err:1.75e-06 braid_gate:0.1517 strand:0.0429 temp_std:0.9849 train_time:25704647ms step_avg:2254.79ms
+step:11600/50000 train_loss:2.4940 w0_err:1.78e-06 braid_gate:0.1541 strand:0.0435 temp_std:1.0061 train_time:26154935ms step_avg:2254.74ms
+step:11800/50000 train_loss:2.5600 w0_err:1.79e-06 braid_gate:0.1564 strand:0.0438 temp_std:1.0264 train_time:26606629ms step_avg:2254.80ms
+step:12000/50000 train_loss:2.4982 w0_err:1.72e-06 braid_gate:0.1587 strand:0.0440 temp_std:1.0483 train_time:27061413ms step_avg:2255.12ms
+step:12000/50000 val_loss:2.4493 val_bpb:1.4506 w0_err:1.72e-06 train_time:27061452ms step_avg:2255.12ms
+step:12200/50000 train_loss:2.5086 w0_err:1.76e-06 braid_gate:0.1608 strand:0.0445 temp_std:1.0696 train_time:27514429ms step_avg:2255.28ms
+step:12400/50000 train_loss:2.5332 w0_err:1.69e-06 braid_gate:0.1631 strand:0.0454 temp_std:1.0887 train_time:27965626ms step_avg:2255.29ms
+step:12600/50000 train_loss:2.5240 w0_err:1.79e-06 braid_gate:0.1655 strand:0.0457 temp_std:1.1078 train_time:28416824ms step_avg:2255.30ms
+step:12800/50000 train_loss:2.4402 w0_err:1.72e-06 braid_gate:0.1681 strand:0.0475 temp_std:1.1252 train_time:28868726ms step_avg:2255.37ms
+step:13000/50000 train_loss:2.4099 w0_err:1.76e-06 braid_gate:0.1698 strand:0.0467 temp_std:1.1419 train_time:29321187ms step_avg:2255.48ms
+step:13000/50000 val_loss:2.4480 val_bpb:1.4498 w0_err:1.76e-06 train_time:29321229ms step_avg:2255.48ms
+step:13200/50000 train_loss:2.4589 w0_err:1.76e-06 braid_gate:0.1725 strand:0.0483 temp_std:1.1574 train_time:29769914ms step_avg:2255.30ms
+step:13400/50000 train_loss:2.5230 w0_err:1.72e-06 braid_gate:0.1745 strand:0.0491 temp_std:1.1757 train_time:30218378ms step_avg:2255.10ms
+step:13600/50000 train_loss:2.4275 w0_err:1.71e-06 braid_gate:0.1761 strand:0.0490 temp_std:1.1905 train_time:30667156ms step_avg:2254.94ms
+step:13800/50000 train_loss:2.3927 w0_err:1.79e-06 braid_gate:0.1787 strand:0.0511 temp_std:1.2061 train_time:31115649ms step_avg:2254.76ms
+step:14000/50000 train_loss:2.5648 w0_err:1.80e-06 braid_gate:0.1807 strand:0.0503 temp_std:1.2173 train_time:31564180ms step_avg:2254.58ms
+step:14000/50000 val_loss:2.4430 val_bpb:1.4469 w0_err:1.80e-06 train_time:31564222ms step_avg:2254.59ms
+step:14200/50000 train_loss:2.4959 w0_err:1.76e-06 braid_gate:0.1823 strand:0.0520 temp_std:1.2332 train_time:32012771ms step_avg:2254.42ms
+step:14400/50000 train_loss:2.4137 w0_err:1.74e-06 braid_gate:0.1846 strand:0.0521 temp_std:1.2468 train_time:32461316ms step_avg:2254.26ms
+step:14600/50000 train_loss:2.4846 w0_err:1.77e-06 braid_gate:0.1862 strand:0.0535 temp_std:1.2562 train_time:32909936ms step_avg:2254.11ms
+step:14800/50000 train_loss:2.4486 w0_err:1.74e-06 braid_gate:0.1872 strand:0.0545 temp_std:1.2671 train_time:33358467ms step_avg:2253.95ms
+step:15000/50000 train_loss:2.4813 w0_err:1.77e-06 braid_gate:0.1895 strand:0.0555 temp_std:1.2816 train_time:33807027ms step_avg:2253.80ms
+step:15000/50000 val_loss:2.4428 val_bpb:1.4468 w0_err:1.77e-06 train_time:33807069ms step_avg:2253.80ms
+step:15200/50000 train_loss:2.5171 w0_err:1.80e-06 braid_gate:0.1908 strand:0.0572 temp_std:1.2944 train_time:34255470ms step_avg:2253.65ms
+step:15400/50000 train_loss:2.4739 w0_err:1.72e-06 braid_gate:0.1924 strand:0.0585 temp_std:1.3062 train_time:34703966ms step_avg:2253.50ms
+step:15600/50000 train_loss:2.4787 w0_err:1.80e-06 braid_gate:0.1947 strand:0.0598 temp_std:1.3199 train_time:35152310ms step_avg:2253.35ms
+step:15800/50000 train_loss:2.5274 w0_err:1.75e-06 braid_gate:0.1969 strand:0.0605 temp_std:1.3313 train_time:35600695ms step_avg:2253.21ms
+step:16000/50000 train_loss:2.4749 w0_err:1.74e-06 braid_gate:0.1976 strand:0.0629 temp_std:1.3382 train_time:36049120ms step_avg:2253.07ms
+step:16000/50000 val_loss:2.4322 val_bpb:1.4405 w0_err:1.74e-06 train_time:36049162ms step_avg:2253.07ms
+step:16200/50000 train_loss:2.4958 w0_err:1.71e-06 braid_gate:0.1999 strand:0.0634 temp_std:1.3527 train_time:36497410ms step_avg:2252.93ms
+step:16400/50000 train_loss:2.5456 w0_err:1.73e-06 braid_gate:0.2002 strand:0.0651 temp_std:1.3646 train_time:36945703ms step_avg:2252.79ms
+step:16600/50000 train_loss:2.4519 w0_err:1.72e-06 braid_gate:0.2028 strand:0.0655 temp_std:1.3732 train_time:37394103ms step_avg:2252.66ms
+step:16800/50000 train_loss:2.6046 w0_err:1.75e-06 braid_gate:0.2044 strand:0.0662 temp_std:1.3824 train_time:37842450ms step_avg:2252.53ms
+step:17000/50000 train_loss:2.4885 w0_err:1.76e-06 braid_gate:0.2048 strand:0.0679 temp_std:1.3972 train_time:38290782ms step_avg:2252.40ms
+step:17000/50000 val_loss:2.4299 val_bpb:1.4391 w0_err:1.76e-06 train_time:38290825ms step_avg:2252.40ms
+step:17200/50000 train_loss:2.4610 w0_err:1.80e-06 braid_gate:0.2067 strand:0.0693 temp_std:1.4066 train_time:38739353ms step_avg:2252.29ms
+step:17400/50000 train_loss:2.4080 w0_err:1.81e-06 braid_gate:0.2080 strand:0.0716 temp_std:1.4203 train_time:39187700ms step_avg:2252.17ms
+step:17600/50000 train_loss:2.6327 w0_err:1.73e-06 braid_gate:0.2096 strand:0.0719 temp_std:1.4302 train_time:39635997ms step_avg:2252.05ms
+step:17800/50000 train_loss:2.4532 w0_err:1.72e-06 braid_gate:0.2103 strand:0.0734 temp_std:1.4395 train_time:40084292ms step_avg:2251.93ms
+step:18000/50000 train_loss:2.3968 w0_err:1.70e-06 braid_gate:0.2119 strand:0.0751 temp_std:1.4483 train_time:40532689ms step_avg:2251.82ms
+step:18000/50000 val_loss:2.4277 val_bpb:1.4378 w0_err:1.70e-06 train_time:40532731ms step_avg:2251.82ms
+step:18200/50000 train_loss:2.5289 w0_err:1.71e-06 braid_gate:0.2132 strand:0.0757 temp_std:1.4586 train_time:40981123ms step_avg:2251.71ms
+step:18400/50000 train_loss:2.4192 w0_err:1.70e-06 braid_gate:0.2148 strand:0.0783 temp_std:1.4667 train_time:41429459ms step_avg:2251.60ms
+step:18600/50000 train_loss:2.5412 w0_err:1.74e-06 braid_gate:0.2158 strand:0.0791 temp_std:1.4765 train_time:41877862ms step_avg:2251.50ms
+step:18800/50000 train_loss:2.5492 w0_err:1.72e-06 braid_gate:0.2174 strand:0.0791 temp_std:1.4775 train_time:42326065ms step_avg:2251.39ms
+step:19000/50000 train_loss:2.3302 w0_err:1.73e-06 braid_gate:0.2181 strand:0.0811 temp_std:1.4862 train_time:42774293ms step_avg:2251.28ms
+step:19000/50000 val_loss:2.4274 val_bpb:1.4377 w0_err:1.73e-06 train_time:42774335ms step_avg:2251.28ms
+step:19200/50000 train_loss:2.5761 w0_err:1.71e-06 braid_gate:0.2197 strand:0.0828 temp_std:1.4953 train_time:43222583ms step_avg:2251.18ms
+step:19400/50000 train_loss:2.5912 w0_err:1.76e-06 braid_gate:0.2204 strand:0.0861 temp_std:1.5087 train_time:43670965ms step_avg:2251.08ms
+step:19600/50000 train_loss:2.4419 w0_err:1.79e-06 braid_gate:0.2214 strand:0.0884 temp_std:1.5188 train_time:44119361ms step_avg:2250.99ms
+step:19800/50000 train_loss:2.4638 w0_err:1.73e-06 braid_gate:0.2223 strand:0.0904 temp_std:1.5234 train_time:44567722ms step_avg:2250.90ms
+step:20000/50000 train_loss:2.6446 w0_err:1.75e-06 braid_gate:0.2233 strand:0.0920 temp_std:1.5312 train_time:45015906ms step_avg:2250.80ms
+step:20000/50000 val_loss:2.4207 val_bpb:1.4337 w0_err:1.75e-06 train_time:45015948ms step_avg:2250.80ms
+step:20200/50000 train_loss:2.5218 w0_err:1.71e-06 braid_gate:0.2249 strand:0.0951 temp_std:1.5383 train_time:45464331ms step_avg:2250.71ms
+step:20400/50000 train_loss:2.5498 w0_err:1.76e-06 braid_gate:0.2259 strand:0.0970 temp_std:1.5466 train_time:45912472ms step_avg:2250.61ms
+step:20600/50000 train_loss:2.5127 w0_err:1.74e-06 braid_gate:0.2272 strand:0.1000 temp_std:1.5518 train_time:46360605ms step_avg:2250.51ms
+step:20800/50000 train_loss:2.5167 w0_err:1.79e-06 braid_gate:0.2282 strand:0.1013 temp_std:1.5586 train_time:46808763ms step_avg:2250.42ms
+step:21000/50000 train_loss:2.4567 w0_err:1.77e-06 braid_gate:0.2288 strand:0.1031 temp_std:1.5638 train_time:47256891ms step_avg:2250.33ms
+step:21000/50000 val_loss:2.4252 val_bpb:1.4363 w0_err:1.77e-06 train_time:47256933ms step_avg:2250.33ms
+step:21200/50000 train_loss:2.5171 w0_err:1.74e-06 braid_gate:0.2305 strand:0.1068 temp_std:1.5708 train_time:47705177ms step_avg:2250.24ms
+step:21400/50000 train_loss:2.4639 w0_err:1.76e-06 braid_gate:0.2314 strand:0.1091 temp_std:1.5721 train_time:48153602ms step_avg:2250.17ms
+step:21600/50000 train_loss:2.4348 w0_err:1.78e-06 braid_gate:0.2327 strand:0.1113 temp_std:1.5786 train_time:48601965ms step_avg:2250.09ms
+step:21800/50000 train_loss:2.6141 w0_err:1.77e-06 braid_gate:0.2340 strand:0.1144 temp_std:1.5833 train_time:49050484ms step_avg:2250.02ms
+step:22000/50000 train_loss:2.5380 w0_err:1.74e-06 braid_gate:0.2347 strand:0.1182 temp_std:1.5875 train_time:49498918ms step_avg:2249.95ms
+step:22000/50000 val_loss:2.4174 val_bpb:1.4317 w0_err:1.74e-06 train_time:49498960ms step_avg:2249.95ms
+step:22200/50000 train_loss:2.6227 w0_err:1.72e-06 braid_gate:0.2363 strand:0.1211 temp_std:1.5942 train_time:49946964ms step_avg:2249.86ms
+step:22400/50000 train_loss:2.4289 w0_err:1.75e-06 braid_gate:0.2367 strand:0.1243 temp_std:1.5983 train_time:50394925ms step_avg:2249.77ms
+step:22600/50000 train_loss:2.4299 w0_err:1.74e-06 braid_gate:0.2376 strand:0.1276 temp_std:1.6044 train_time:50842799ms step_avg:2249.68ms
+step:22800/50000 train_loss:2.4904 w0_err:1.75e-06 braid_gate:0.2383 strand:0.1311 temp_std:1.6102 train_time:51290758ms step_avg:2249.59ms
+step:23000/50000 train_loss:2.4791 w0_err:1.76e-06 braid_gate:0.2393 strand:0.1337 temp_std:1.6210 train_time:51738663ms step_avg:2249.51ms
+step:23000/50000 val_loss:2.4131 val_bpb:1.4292 w0_err:1.76e-06 train_time:51738705ms step_avg:2249.51ms
+step:23200/50000 train_loss:2.5966 w0_err:1.76e-06 braid_gate:0.2402 strand:0.1386 temp_std:1.6304 train_time:52186826ms step_avg:2249.43ms
+step:23400/50000 train_loss:2.3717 w0_err:1.76e-06 braid_gate:0.2412 strand:0.1422 temp_std:1.6363 train_time:52634872ms step_avg:2249.35ms
+step:23600/50000 train_loss:2.5120 w0_err:1.72e-06 braid_gate:0.2425 strand:0.1455 temp_std:1.6415 train_time:53082925ms step_avg:2249.28ms
+step:23800/50000 train_loss:2.5477 w0_err:1.71e-06 braid_gate:0.2441 strand:0.1494 temp_std:1.6432 train_time:53530953ms step_avg:2249.20ms
+step:24000/50000 train_loss:2.4650 w0_err:1.72e-06 braid_gate:0.2445 strand:0.1534 temp_std:1.6493 train_time:53979044ms step_avg:2249.13ms
+step:24000/50000 val_loss:2.4186 val_bpb:1.4324 w0_err:1.72e-06 train_time:53979085ms step_avg:2249.13ms
+step:24200/50000 train_loss:2.4370 w0_err:1.77e-06 braid_gate:0.2461 strand:0.1591 temp_std:1.6520 train_time:54427267ms step_avg:2249.06ms
+step:24400/50000 train_loss:2.4573 w0_err:1.82e-06 braid_gate:0.2474 strand:0.1635 temp_std:1.6584 train_time:54875302ms step_avg:2248.99ms
+step:24600/50000 train_loss:2.4857 w0_err:1.73e-06 braid_gate:0.2484 strand:0.1696 temp_std:1.6675 train_time:55323479ms step_avg:2248.92ms
+step:24800/50000 train_loss:2.4757 w0_err:1.81e-06 braid_gate:0.2507 strand:0.1732 temp_std:1.6706 train_time:55771601ms step_avg:2248.85ms
+step:25000/50000 train_loss:2.5083 w0_err:1.74e-06 braid_gate:0.2510 strand:0.1755 temp_std:1.6751 train_time:56219554ms step_avg:2248.78ms
+step:25000/50000 val_loss:2.4173 val_bpb:1.4317 w0_err:1.74e-06 train_time:56219595ms step_avg:2248.78ms
+step:25200/50000 train_loss:2.5000 w0_err:1.78e-06 braid_gate:0.2526 strand:0.1802 temp_std:1.6779 train_time:56667464ms step_avg:2248.71ms
+step:25400/50000 train_loss:2.4912 w0_err:1.75e-06 braid_gate:0.2533 strand:0.1845 temp_std:1.6838 train_time:57115437ms step_avg:2248.64ms
+step:25600/50000 train_loss:2.5595 w0_err:1.71e-06 braid_gate:0.2552 strand:0.1887 temp_std:1.6902 train_time:57563291ms step_avg:2248.57ms
+step:25800/50000 train_loss:2.5323 w0_err:1.77e-06 braid_gate:0.2565 strand:0.1940 temp_std:1.6947 train_time:58011191ms step_avg:2248.50ms
+step:26000/50000 train_loss:2.4300 w0_err:1.69e-06 braid_gate:0.2572 strand:0.1974 temp_std:1.6998 train_time:58459193ms step_avg:2248.43ms
+step:26000/50000 val_loss:2.4093 val_bpb:1.4269 w0_err:1.69e-06 train_time:58459236ms step_avg:2248.43ms
+step:26200/50000 train_loss:2.4460 w0_err:1.76e-06 braid_gate:0.2578 strand:0.2018 temp_std:1.7041 train_time:58907076ms step_avg:2248.36ms
+step:26400/50000 train_loss:2.4999 w0_err:1.76e-06 braid_gate:0.2581 strand:0.2059 temp_std:1.7075 train_time:59354889ms step_avg:2248.29ms
+step:26600/50000 train_loss:2.5550 w0_err:1.70e-06 braid_gate:0.2604 strand:0.2100 temp_std:1.7128 train_time:59802849ms step_avg:2248.23ms
+step:26800/50000 train_loss:2.4833 w0_err:1.72e-06 braid_gate:0.2617 strand:0.2144 temp_std:1.7194 train_time:60250829ms step_avg:2248.17ms
+step:27000/50000 train_loss:2.4879 w0_err:1.70e-06 braid_gate:0.2624 strand:0.2182 temp_std:1.7276 train_time:60698575ms step_avg:2248.10ms
+step:27000/50000 val_loss:2.4067 val_bpb:1.4254 w0_err:1.70e-06 train_time:60698617ms step_avg:2248.10ms
+step:27200/50000 train_loss:2.4835 w0_err:1.71e-06 braid_gate:0.2633 strand:0.2217 temp_std:1.7358 train_time:61146696ms step_avg:2248.04ms
+step:27400/50000 train_loss:2.3280 w0_err:1.76e-06 braid_gate:0.2643 strand:0.2253 temp_std:1.7448 train_time:61594592ms step_avg:2247.98ms
+step:27600/50000 train_loss:2.4193 w0_err:1.74e-06 braid_gate:0.2650 strand:0.2287 temp_std:1.7536 train_time:62042397ms step_avg:2247.91ms
+step:27800/50000 train_loss:2.5803 w0_err:1.78e-06 braid_gate:0.2653 strand:0.2318 temp_std:1.7630 train_time:62490094ms step_avg:2247.85ms
+step:28000/50000 train_loss:2.5152 w0_err:1.76e-06 braid_gate:0.2666 strand:0.2358 temp_std:1.7739 train_time:62938119ms step_avg:2247.79ms
+step:28000/50000 val_loss:2.4114 val_bpb:1.4282 w0_err:1.76e-06 train_time:62938161ms step_avg:2247.79ms
+step:28200/50000 train_loss:2.5502 w0_err:1.72e-06 braid_gate:0.2669 strand:0.2376 temp_std:1.7835 train_time:63386002ms step_avg:2247.73ms
+step:28400/50000 train_loss:2.4266 w0_err:1.70e-06 braid_gate:0.2673 strand:0.2402 temp_std:1.7891 train_time:63833762ms step_avg:2247.67ms
+step:28600/50000 train_loss:2.3295 w0_err:1.76e-06 braid_gate:0.2689 strand:0.2435 temp_std:1.7957 train_time:64281786ms step_avg:2247.61ms
+step:28800/50000 train_loss:2.4363 w0_err:1.77e-06 braid_gate:0.2695 strand:0.2463 temp_std:1.8054 train_time:64729775ms step_avg:2247.56ms
+step:29000/50000 train_loss:2.3493 w0_err:1.76e-06 braid_gate:0.2695 strand:0.2493 temp_std:1.8185 train_time:65177920ms step_avg:2247.51ms
+step:29000/50000 val_loss:2.4039 val_bpb:1.4237 w0_err:1.76e-06 train_time:65177962ms step_avg:2247.52ms
+step:29200/50000 train_loss:2.3803 w0_err:1.79e-06 braid_gate:0.2715 strand:0.2520 temp_std:1.8264 train_time:65626537ms step_avg:2247.48ms
+step:29400/50000 train_loss:2.5037 w0_err:1.70e-06 braid_gate:0.2721 strand:0.2543 temp_std:1.8329 train_time:66075174ms step_avg:2247.45ms
+step:29600/50000 train_loss:2.4166 w0_err:1.69e-06 braid_gate:0.2728 strand:0.2573 temp_std:1.8373 train_time:66523877ms step_avg:2247.43ms
+step:29800/50000 train_loss:2.3978 w0_err:1.79e-06 braid_gate:0.2728 strand:0.2596 temp_std:1.8425 train_time:66972620ms step_avg:2247.40ms
+step:30000/50000 train_loss:2.5765 w0_err:1.77e-06 braid_gate:0.2741 strand:0.2615 temp_std:1.8475 train_time:67421226ms step_avg:2247.37ms
+step:30000/50000 val_loss:2.4009 val_bpb:1.4220 w0_err:1.77e-06 train_time:67421268ms step_avg:2247.38ms
+step:30200/50000 train_loss:2.4619 w0_err:1.75e-06 braid_gate:0.2741 strand:0.2635 temp_std:1.8572 train_time:67869899ms step_avg:2247.35ms
+step:30400/50000 train_loss:2.5481 w0_err:1.78e-06 braid_gate:0.2747 strand:0.2660 temp_std:1.8669 train_time:68318559ms step_avg:2247.32ms
+step:30600/50000 train_loss:2.4563 w0_err:1.76e-06 braid_gate:0.2760 strand:0.2677 temp_std:1.8697 train_time:68767175ms step_avg:2247.29ms
+step:30800/50000 train_loss:2.3890 w0_err:1.73e-06 braid_gate:0.2767 strand:0.2698 temp_std:1.8744 train_time:69215778ms step_avg:2247.27ms
+step:31000/50000 train_loss:2.4164 w0_err:1.78e-06 braid_gate:0.2773 strand:0.2713 temp_std:1.8825 train_time:69664397ms step_avg:2247.24ms
+step:31000/50000 val_loss:2.4094 val_bpb:1.4270 w0_err:1.78e-06 train_time:69664438ms step_avg:2247.24ms
+step:31200/50000 train_loss:2.4323 w0_err:1.70e-06 braid_gate:0.2780 strand:0.2734 temp_std:1.8942 train_time:70114524ms step_avg:2247.26ms
+step:31400/50000 train_loss:2.4707 w0_err:1.75e-06 braid_gate:0.2786 strand:0.2752 temp_std:1.8997 train_time:70565107ms step_avg:2247.30ms
+step:31600/50000 train_loss:2.5802 w0_err:1.72e-06 braid_gate:0.2786 strand:0.2775 temp_std:1.9062 train_time:71014043ms step_avg:2247.28ms
+step:31800/50000 train_loss:2.4579 w0_err:1.78e-06 braid_gate:0.2799 strand:0.2792 temp_std:1.9136 train_time:71463027ms step_avg:2247.27ms
+step:32000/50000 train_loss:2.4876 w0_err:1.76e-06 braid_gate:0.2799 strand:0.2816 temp_std:1.9180 train_time:71911961ms step_avg:2247.25ms
+step:32000/50000 val_loss:2.3971 val_bpb:1.4197 w0_err:1.76e-06 train_time:71912003ms step_avg:2247.25ms
+step:32200/50000 train_loss:2.5836 w0_err:1.68e-06 braid_gate:0.2806 strand:0.2836 temp_std:1.9209 train_time:72360497ms step_avg:2247.22ms
+step:32400/50000 train_loss:2.4393 w0_err:1.79e-06 braid_gate:0.2812 strand:0.2856 temp_std:1.9228 train_time:72808989ms step_avg:2247.19ms
+step:32600/50000 train_loss:2.4253 w0_err:1.70e-06 braid_gate:0.2819 strand:0.2877 temp_std:1.9301 train_time:73257401ms step_avg:2247.16ms
+step:32800/50000 train_loss:2.3598 w0_err:1.73e-06 braid_gate:0.2819 strand:0.2891 temp_std:1.9323 train_time:73705931ms step_avg:2247.13ms
+step:33000/50000 train_loss:2.5434 w0_err:1.74e-06 braid_gate:0.2839 strand:0.2908 temp_std:1.9384 train_time:74154417ms step_avg:2247.10ms
+step:33000/50000 val_loss:2.3960 val_bpb:1.4190 w0_err:1.74e-06 train_time:74154460ms step_avg:2247.10ms
+step:33200/50000 train_loss:2.4467 w0_err:1.72e-06 braid_gate:0.2845 strand:0.2934 temp_std:1.9453 train_time:74603076ms step_avg:2247.08ms
+step:33400/50000 train_loss:2.8828 w0_err:1.70e-06 braid_gate:0.2845 strand:0.2953 temp_std:1.9505 train_time:75053569ms step_avg:2247.11ms
+step:33600/50000 train_loss:2.2886 w0_err:1.77e-06 braid_gate:0.2852 strand:0.2964 temp_std:1.9558 train_time:75502301ms step_avg:2247.09ms
+step:33800/50000 train_loss:2.3614 w0_err:1.79e-06 braid_gate:0.2852 strand:0.2982 temp_std:1.9628 train_time:75950805ms step_avg:2247.07ms
+step:34000/50000 train_loss:2.5180 w0_err:1.72e-06 braid_gate:0.2852 strand:0.2989 temp_std:1.9686 train_time:76399339ms step_avg:2247.04ms
+step:34000/50000 val_loss:2.4013 val_bpb:1.4222 w0_err:1.72e-06 train_time:76399381ms step_avg:2247.04ms
+step:34200/50000 train_loss:2.5218 w0_err:1.73e-06 braid_gate:0.2865 strand:0.3004 temp_std:1.9763 train_time:76852295ms step_avg:2247.14ms
+step:34400/50000 train_loss:2.5220 w0_err:1.72e-06 braid_gate:0.2865 strand:0.3020 temp_std:1.9779 train_time:77304257ms step_avg:2247.22ms
+step:34600/50000 train_loss:2.5394 w0_err:1.75e-06 braid_gate:0.2865 strand:0.3037 temp_std:1.9808 train_time:77755223ms step_avg:2247.26ms
+step:34800/50000 train_loss:2.6066 w0_err:1.79e-06 braid_gate:0.2871 strand:0.3052 temp_std:1.9838 train_time:78206622ms step_avg:2247.32ms
+step:35000/50000 train_loss:2.5526 w0_err:1.74e-06 braid_gate:0.2878 strand:0.3066 temp_std:1.9868 train_time:78655253ms step_avg:2247.29ms
+step:35000/50000 val_loss:2.4015 val_bpb:1.4223 w0_err:1.74e-06 train_time:78655294ms step_avg:2247.29ms
+step:35200/50000 train_loss:2.6616 w0_err:1.71e-06 braid_gate:0.2871 strand:0.3071 temp_std:1.9945 train_time:79104079ms step_avg:2247.27ms
+step:35400/50000 train_loss:2.4868 w0_err:1.75e-06 braid_gate:0.2884 strand:0.3075 temp_std:1.9957 train_time:79552793ms step_avg:2247.25ms
+step:35600/50000 train_loss:2.5156 w0_err:1.80e-06 braid_gate:0.2891 strand:0.3085 temp_std:1.9986 train_time:80001417ms step_avg:2247.23ms
+step:35800/50000 train_loss:2.4258 w0_err:1.78e-06 braid_gate:0.2884 strand:0.3095 temp_std:2.0074 train_time:80450038ms step_avg:2247.21ms
+step:36000/50000 train_loss:2.4771 w0_err:1.74e-06 braid_gate:0.2891 strand:0.3102 temp_std:2.0083 train_time:80898638ms step_avg:2247.18ms
+step:36000/50000 val_loss:2.3991 val_bpb:1.4209 w0_err:1.74e-06 train_time:80898680ms step_avg:2247.19ms
+step:36200/50000 train_loss:2.4767 w0_err:1.74e-06 braid_gate:0.2897 strand:0.3112 temp_std:2.0136 train_time:81347312ms step_avg:2247.16ms
+step:36400/50000 train_loss:2.4763 w0_err:1.74e-06 braid_gate:0.2904 strand:0.3117 temp_std:2.0189 train_time:81795936ms step_avg:2247.14ms
+step:36600/50000 train_loss:2.3513 w0_err:1.72e-06 braid_gate:0.2904 strand:0.3126 temp_std:2.0237 train_time:82244601ms step_avg:2247.12ms
+step:36800/50000 train_loss:2.4240 w0_err:1.75e-06 braid_gate:0.2910 strand:0.3133 temp_std:2.0274 train_time:82693333ms step_avg:2247.10ms
+step:37000/50000 train_loss:2.4478 w0_err:1.77e-06 braid_gate:0.2910 strand:0.3141 temp_std:2.0294 train_time:83141946ms step_avg:2247.08ms
+step:37000/50000 val_loss:2.3970 val_bpb:1.4196 w0_err:1.77e-06 train_time:83141988ms step_avg:2247.08ms
+step:37200/50000 train_loss:2.4926 w0_err:1.79e-06 braid_gate:0.2910 strand:0.3151 temp_std:2.0332 train_time:83590812ms step_avg:2247.06ms
+step:37400/50000 train_loss:2.4794 w0_err:1.80e-06 braid_gate:0.2923 strand:0.3151 temp_std:2.0362 train_time:84039360ms step_avg:2247.04ms
+step:37600/50000 train_loss:2.6395 w0_err:1.76e-06 braid_gate:0.2923 strand:0.3162 temp_std:2.0399 train_time:84487893ms step_avg:2247.02ms
+step:37800/50000 train_loss:2.4446 w0_err:1.83e-06 braid_gate:0.2930 strand:0.3163 temp_std:2.0434 train_time:84936446ms step_avg:2247.00ms
+step:38000/50000 train_loss:2.4910 w0_err:1.77e-06 braid_gate:0.2943 strand:0.3175 temp_std:2.0483 train_time:85385092ms step_avg:2246.98ms
+step:38000/50000 val_loss:2.3973 val_bpb:1.4198 w0_err:1.77e-06 train_time:85385134ms step_avg:2246.98ms
+step:38200/50000 train_loss:2.4753 w0_err:1.79e-06 braid_gate:0.2943 strand:0.3181 temp_std:2.0566 train_time:85833745ms step_avg:2246.96ms
+step:38400/50000 train_loss:2.5180 w0_err:1.74e-06 braid_gate:0.2956 strand:0.3190 temp_std:2.0611 train_time:86282355ms step_avg:2246.94ms
+step:38600/50000 train_loss:2.5027 w0_err:1.76e-06 braid_gate:0.2962 strand:0.3205 temp_std:2.0670 train_time:86730991ms step_avg:2246.92ms
+step:38800/50000 train_loss:2.4690 w0_err:1.73e-06 braid_gate:0.2962 strand:0.3199 temp_std:2.0725 train_time:87179528ms step_avg:2246.90ms
+step:39000/50000 train_loss:2.4949 w0_err:1.79e-06 braid_gate:0.2956 strand:0.3212 temp_std:2.0739 train_time:87627990ms step_avg:2246.87ms
+step:39000/50000 val_loss:2.3964 val_bpb:1.4193 w0_err:1.79e-06 train_time:87628031ms step_avg:2246.87ms
+step:39200/50000 train_loss:2.4679 w0_err:1.69e-06 braid_gate:0.2975 strand:0.3214 temp_std:2.0792 train_time:88076439ms step_avg:2246.85ms
+step:39400/50000 train_loss:2.4441 w0_err:1.75e-06 braid_gate:0.2975 strand:0.3221 temp_std:2.0793 train_time:88525059ms step_avg:2246.83ms
+step:39600/50000 train_loss:2.5113 w0_err:1.77e-06 braid_gate:0.2982 strand:0.3226 temp_std:2.0853 train_time:88973658ms step_avg:2246.81ms
+step:39800/50000 train_loss:2.3193 w0_err:1.76e-06 braid_gate:0.2988 strand:0.3228 temp_std:2.0886 train_time:89422372ms step_avg:2246.79ms
+step:40000/50000 train_loss:2.3425 w0_err:1.71e-06 braid_gate:0.2995 strand:0.3227 temp_std:2.0942 train_time:89870854ms step_avg:2246.77ms
+step:40000/50000 val_loss:2.3966 val_bpb:1.4194 w0_err:1.71e-06 train_time:89870896ms step_avg:2246.77ms
+step:40200/50000 train_loss:2.3745 w0_err:1.72e-06 braid_gate:0.3008 strand:0.3239 temp_std:2.1006 train_time:90319739ms step_avg:2246.76ms
+step:40400/50000 train_loss:2.4599 w0_err:1.76e-06 braid_gate:0.3008 strand:0.3245 temp_std:2.1060 train_time:90768502ms step_avg:2246.75ms
+step:40600/50000 train_loss:2.4611 w0_err:1.78e-06 braid_gate:0.3014 strand:0.3248 temp_std:2.1085 train_time:91217280ms step_avg:2246.73ms
+step:40800/50000 train_loss:2.5154 w0_err:1.77e-06 braid_gate:0.3021 strand:0.3255 temp_std:2.1194 train_time:91665996ms step_avg:2246.72ms
+step:41000/50000 train_loss:2.6182 w0_err:1.75e-06 braid_gate:0.3021 strand:0.3259 temp_std:2.1227 train_time:92114568ms step_avg:2246.70ms
+step:41000/50000 val_loss:2.3881 val_bpb:1.4144 w0_err:1.75e-06 train_time:92114610ms step_avg:2246.70ms
+step:41200/50000 train_loss:2.4641 w0_err:1.74e-06 braid_gate:0.3014 strand:0.3261 temp_std:2.1274 train_time:92563339ms step_avg:2246.68ms
+step:41400/50000 train_loss:2.6532 w0_err:1.72e-06 braid_gate:0.3014 strand:0.3262 temp_std:2.1291 train_time:93012112ms step_avg:2246.67ms
+step:41600/50000 train_loss:2.5256 w0_err:1.72e-06 braid_gate:0.3014 strand:0.3267 temp_std:2.1319 train_time:93460800ms step_avg:2246.65ms
+step:41800/50000 train_loss:2.4249 w0_err:1.82e-06 braid_gate:0.3027 strand:0.3272 temp_std:2.1354 train_time:93909552ms step_avg:2246.64ms
+step:42000/50000 train_loss:2.4173 w0_err:1.75e-06 braid_gate:0.3034 strand:0.3275 temp_std:2.1469 train_time:94358427ms step_avg:2246.63ms
+step:42000/50000 val_loss:2.4082 val_bpb:1.4263 w0_err:1.75e-06 train_time:94358468ms step_avg:2246.63ms
+step:42200/50000 train_loss:2.3482 w0_err:1.80e-06 braid_gate:0.3034 strand:0.3279 temp_std:2.1526 train_time:94807059ms step_avg:2246.61ms
+step:42400/50000 train_loss:2.3590 w0_err:1.71e-06 braid_gate:0.3040 strand:0.3278 temp_std:2.1594 train_time:95255532ms step_avg:2246.59ms
+step:42600/50000 train_loss:2.5326 w0_err:1.75e-06 braid_gate:0.3053 strand:0.3284 temp_std:2.1631 train_time:95704035ms step_avg:2246.57ms
+step:42800/50000 train_loss:2.4051 w0_err:1.73e-06 braid_gate:0.3040 strand:0.3286 temp_std:2.1722 train_time:96152799ms step_avg:2246.56ms
+step:43000/50000 train_loss:2.5045 w0_err:1.76e-06 braid_gate:0.3053 strand:0.3294 temp_std:2.1755 train_time:96601294ms step_avg:2246.54ms
+step:43000/50000 val_loss:2.3894 val_bpb:1.4151 w0_err:1.76e-06 train_time:96601336ms step_avg:2246.54ms
+step:43200/50000 train_loss:2.7182 w0_err:1.78e-06 braid_gate:0.3047 strand:0.3295 temp_std:2.1777 train_time:97050094ms step_avg:2246.53ms
+step:43400/50000 train_loss:2.5017 w0_err:1.66e-06 braid_gate:0.3047 strand:0.3301 temp_std:2.1784 train_time:97498614ms step_avg:2246.51ms
+step:43600/50000 train_loss:2.3091 w0_err:1.77e-06 braid_gate:0.3060 strand:0.3303 temp_std:2.1852 train_time:97947452ms step_avg:2246.50ms
+step:43800/50000 train_loss:2.3924 w0_err:1.73e-06 braid_gate:0.3066 strand:0.3307 temp_std:2.1899 train_time:98396133ms step_avg:2246.49ms
+step:44000/50000 train_loss:2.4650 w0_err:1.78e-06 braid_gate:0.3066 strand:0.3314 temp_std:2.1916 train_time:98844758ms step_avg:2246.47ms
+step:44000/50000 val_loss:2.3923 val_bpb:1.4169 w0_err:1.78e-06 train_time:98844800ms step_avg:2246.47ms
+step:44200/50000 train_loss:2.4689 w0_err:1.77e-06 braid_gate:0.3066 strand:0.3312 temp_std:2.1966 train_time:99293540ms step_avg:2246.46ms
+step:44400/50000 train_loss:2.3615 w0_err:1.79e-06 braid_gate:0.3073 strand:0.3319 temp_std:2.2031 train_time:99742235ms step_avg:2246.45ms
+step:44600/50000 train_loss:2.5073 w0_err:1.74e-06 braid_gate:0.3079 strand:0.3325 temp_std:2.2045 train_time:100190990ms step_avg:2246.43ms
+step:44800/50000 train_loss:2.5238 w0_err:1.72e-06 braid_gate:0.3079 strand:0.3327 temp_std:2.2103 train_time:100639807ms step_avg:2246.42ms
+step:45000/50000 train_loss:2.5065 w0_err:1.76e-06 braid_gate:0.3086 strand:0.3330 temp_std:2.2155 train_time:101088597ms step_avg:2246.41ms
+step:45000/50000 val_loss:2.3927 val_bpb:1.4171 w0_err:1.76e-06 train_time:101088639ms step_avg:2246.41ms
+step:45200/50000 train_loss:2.3772 w0_err:1.77e-06 braid_gate:0.3092 strand:0.3333 temp_std:2.2200 train_time:101537128ms step_avg:2246.40ms
+step:45400/50000 train_loss:2.4586 w0_err:1.80e-06 braid_gate:0.3079 strand:0.3328 temp_std:2.2251 train_time:101985802ms step_avg:2246.38ms
+step:45600/50000 train_loss:2.3808 w0_err:1.79e-06 braid_gate:0.3086 strand:0.3333 temp_std:2.2297 train_time:102434449ms step_avg:2246.37ms
+step:45800/50000 train_loss:2.4791 w0_err:1.77e-06 braid_gate:0.3086 strand:0.3336 temp_std:2.2349 train_time:102883071ms step_avg:2246.36ms
+step:46000/50000 train_loss:2.6651 w0_err:1.74e-06 braid_gate:0.3092 strand:0.3337 temp_std:2.2404 train_time:103331762ms step_avg:2246.34ms
+step:46000/50000 val_loss:2.3900 val_bpb:1.4155 w0_err:1.74e-06 train_time:103331803ms step_avg:2246.34ms
+step:46200/50000 train_loss:2.4403 w0_err:1.78e-06 braid_gate:0.3099 strand:0.3343 temp_std:2.2450 train_time:103780402ms step_avg:2246.33ms
+step:46400/50000 train_loss:2.5355 w0_err:1.74e-06 braid_gate:0.3099 strand:0.3345 temp_std:2.2536 train_time:104229081ms step_avg:2246.32ms
+step:46600/50000 train_loss:2.3815 w0_err:1.76e-06 braid_gate:0.3105 strand:0.3352 temp_std:2.2598 train_time:104677923ms step_avg:2246.31ms
+step:46800/50000 train_loss:2.2666 w0_err:1.74e-06 braid_gate:0.3112 strand:0.3357 temp_std:2.2638 train_time:105126710ms step_avg:2246.30ms
+step:47000/50000 train_loss:2.4356 w0_err:1.76e-06 braid_gate:0.3118 strand:0.3360 temp_std:2.2696 train_time:105575412ms step_avg:2246.29ms
+step:47000/50000 val_loss:2.3870 val_bpb:1.4137 w0_err:1.76e-06 train_time:105575454ms step_avg:2246.29ms
+step:47200/50000 train_loss:2.5015 w0_err:1.78e-06 braid_gate:0.3118 strand:0.3365 temp_std:2.2735 train_time:106024356ms step_avg:2246.28ms
+step:47400/50000 train_loss:2.4755 w0_err:1.81e-06 braid_gate:0.3118 strand:0.3366 temp_std:2.2794 train_time:106472982ms step_avg:2246.27ms
+step:47600/50000 train_loss:2.2957 w0_err:1.74e-06 braid_gate:0.3118 strand:0.3366 temp_std:2.2839 train_time:106923915ms step_avg:2246.30ms
+step:47800/50000 train_loss:2.4738 w0_err:1.72e-06 braid_gate:0.3125 strand:0.3367 temp_std:2.2885 train_time:107374102ms step_avg:2246.32ms
+step:48000/50000 train_loss:2.4289 w0_err:1.70e-06 braid_gate:0.3125 strand:0.3368 temp_std:2.2892 train_time:107822871ms step_avg:2246.31ms
+step:48000/50000 val_loss:2.3911 val_bpb:1.4162 w0_err:1.70e-06 train_time:107822912ms step_avg:2246.31ms
+step:48200/50000 train_loss:2.5018 w0_err:1.77e-06 braid_gate:0.3125 strand:0.3373 temp_std:2.2953 train_time:108275125ms step_avg:2246.37ms
+step:48400/50000 train_loss:2.5056 w0_err:1.70e-06 braid_gate:0.3132 strand:0.3377 temp_std:2.2989 train_time:108727129ms step_avg:2246.43ms
+step:48600/50000 train_loss:2.5782 w0_err:1.77e-06 braid_gate:0.3138 strand:0.3379 temp_std:2.3050 train_time:109178902ms step_avg:2246.48ms
+step:48800/50000 train_loss:2.5116 w0_err:1.73e-06 braid_gate:0.3145 strand:0.3381 temp_std:2.3085 train_time:109629642ms step_avg:2246.51ms
+step:49000/50000 train_loss:2.4621 w0_err:1.77e-06 braid_gate:0.3145 strand:0.3385 temp_std:2.3069 train_time:110080083ms step_avg:2246.53ms
+step:49000/50000 val_loss:2.3918 val_bpb:1.4166 w0_err:1.77e-06 train_time:110080125ms step_avg:2246.53ms
+step:49200/50000 train_loss:2.3243 w0_err:1.78e-06 braid_gate:0.3145 strand:0.3392 temp_std:2.3117 train_time:110530172ms step_avg:2246.55ms
+step:49400/50000 train_loss:2.3162 w0_err:1.76e-06 braid_gate:0.3151 strand:0.3391 temp_std:2.3171 train_time:110980509ms step_avg:2246.57ms
+step:49600/50000 train_loss:2.3549 w0_err:1.76e-06 braid_gate:0.3151 strand:0.3386 temp_std:2.3210 train_time:111431054ms step_avg:2246.59ms
+step:49800/50000 train_loss:2.3556 w0_err:1.72e-06 braid_gate:0.3164 strand:0.3394 temp_std:2.3278 train_time:111881323ms step_avg:2246.61ms
+step:50000/50000 train_loss:2.4820 w0_err:1.78e-06 braid_gate:0.3164 strand:0.3396 temp_std:2.3337 train_time:112331505ms step_avg:2246.63ms
+step:50000/50000 val_loss:2.4030 val_bpb:1.4232 w0_err:1.78e-06 train_time:112331547ms step_avg:2246.63ms
+peak memory allocated: 6145 MiB reserved: 10026 MiB
+Serialized model: 34209363 bytes
+Code size: 69567 bytes
+Total submission size: 34278930 bytes
+Serialized model int8+zlib: 14716657 bytes (payload:18357594 raw_torch:18454439 payload_ratio:1.92x)
+Total submission size int8+zlib: 14786224 bytes
+final_int8_zlib_roundtrip val_loss:2.4032 val_bpb:1.4233 eval_time:282400ms
+final_int8_zlib_roundtrip_exact val_loss:2.40324839 val_bpb:1.42333906
