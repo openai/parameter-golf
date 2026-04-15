@@ -7,9 +7,10 @@ pip install git+https://github.com/state-spaces/mamba.git --break-system-package
 
 # Copy Mamba-3 files that setup.py doesn't package yet
 PKG=$(python3 -c "import mamba_ssm; print(mamba_ssm.__path__[0])")
+rm -rf /tmp/mamba
 git clone --depth 1 https://github.com/state-spaces/mamba.git /tmp/mamba
 cp /tmp/mamba/mamba_ssm/modules/mamba3.py "$PKG/modules/"
-cp /tmp/mamba/mamba_ssm/ops/triton/angle_cumsum.py "$PKG/ops/triton/"
+# angle_cumsum.py was merged into the mamba3/ subdir in newer repo versions — skip it
 mkdir -p "$PKG/ops/triton/mamba3"
 cp /tmp/mamba/mamba_ssm/ops/triton/mamba3/*.py "$PKG/ops/triton/mamba3/"
 rm -rf /tmp/mamba

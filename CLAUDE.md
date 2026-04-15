@@ -27,16 +27,21 @@ You are a Socratic ML Systems Engineer. The user is studying "Programming Massiv
 - No external downloads, dataset access, or network calls during evaluation
 - Must beat SOTA by ≥0.005 nats with statistical significance (p < 0.01)
 - Metric: **bits per byte (bpb)** on validation set — lower is better
-- **Merged SOTA: 1.1147 bpb (PR #1019, March 25 2026)** — Full Hessian GPTQ INT6 + AR self-gen, XSA-all, BigramHash 3072×112, LZMA, no TTT. Nothing has merged since.
+- **Merged SOTA: 1.0810 bpb (PR #1493, April 9 2026)** — SP8192 + 3-layer recurrence + parallel residuals + QK-Gain 5.25 + legal score-first TTT. All top entries are transformers.
 - **Validity guide: PR #1017** — defines four conditions for legal eval. Use this to judge any SLOT/TTT claim.
-- Unmerged/invalid claims (do NOT treat as targets):
-  - PR #1344: 1.092 bpb — SP4096 + Polar Express NS + MuonEq-R + depth recurrence. Unmerged.
-  - PR #1329: 0.636 bpb — Per-Sample SLOT + TTT. **Violates Condition 3 of PR #1017, likely rejected.** Any SLOT estimate derived from this PR is unreliable.
-  - PR #1430: 0.396 bpb SLOT — also violates Condition 3.
-- Our best SSM: **1.1501 bpb (Run 4c, unpublished)** → 35 mBPB from merged SOTA. Best published SSM: **1.1526 bpb (PR #1355)**. Our best transformer: 1.1201 bpb (PR #768).
-- PR #549: 1.1194 bpb — prior SOTA (GPTQ-lite, TTT, 11L 512d)
-- PR #640: 1.1570 bpb — ternary quantization (BitNet b1.58), 73.7M params in 16MB at 1.6 bits/param
-- Competition data supports **SP4096 tokenizer** — every top clean entry uses it. SP1024 is a disadvantage
+- **Top leaderboard (April 13 2026):**
+  - 1.0810 — SP8192 + 3-layer recurrence + parallel residuals + legal TTT (PR #1493)
+  - 1.0822 — SP8192 + parallel residuals + score-first TTT (PR #1477)
+  - 1.0828 — SP8192 + QK-Gain 5 + legal TTT (PR #1413)
+  - 1.0835 — SP8192 + Hessian-aware SDClip + progressive recurrence (PR #1412)
+  - 1.0856 — SP8192 + GPTQ embeddings + depth recurrence + SDClip (PR #1394)
+  - 1.0897 — SP4096 + depth recurrence + parallel residuals + MuonEq-R (PR #1334)
+  - 1.0912 — MuonEq-R + depth recurrence + WD=0.090 + all-Int6 (PR #1285)
+  - 1.0979 — SP4096 + 4x MLP + WD=0.085, no TTT/hash/SmearGate (PR #1218)
+- **Competition meta (April 2026):** SP8192 is the new standard tokenizer. Depth recurrence (layers 4-5 looped) works for transformers. Legal score-first TTT is in top 3. Parallel residuals are a big win. WD jumped to 0.085-0.090 (we use 0.04). MuonEq-R is now standard.
+- Our best SSM: **1.1394 bpb (SP8192 + INT8 embed GPTQ + chunk TTT, submitting)** → 58 mBPB from merged SOTA. Best published SSM: **1.1526 bpb (PR #1355)**. Our best transformer: 1.1201 bpb (PR #768).
+- **No SSM submissions from anyone else.** SSMs are on the competition wishlist. SSM-State SLOT would be first-of-its-kind.
+- Competition data supports **SP8192 tokenizer** — every top entry uses it. SP4096 is mid-table. SP1024 is a severe disadvantage.
 
 ## Critical Training Facts
 
@@ -90,14 +95,15 @@ Total fwd+bwd = 9.59 ms/iter. Triton kernels = ~3.57 ms; the rest (~6 ms) is in_
 - **Longer sequences (8K, 16K)**: Pure Mamba 8K = -10.7 mBPB vs hybrid 4K. 16K only +2.5 mBPB over 8K. Attention essential at our scale.
 
 ### Quantization (GPTQ + Late QAT)
-- **Best approach**: GPTQ + Late QAT + linear warmdown → **quant gap effectively 0 mBPB** (1.1546 training → 1.1526 post-quant, actually -2 mBPB)
-- GPTQ calibration: `GPTQ_NUM_SEQS=32, GPTQ_GEN_LEN=4096` (default) — AR self-generated, fully legal
-- GPTQ timing on 8×H100: ~215s generation + ~27s Hessian+sweep = ~4 min total — fits eval budget
-- Late QAT: `LATE_QAT_THRESHOLD=0.15` with `WARMDOWN_SHAPE=linear` — solved the 174 mBPB quant gap
-- `get_mamba3_in_proj_fp16_row_mask()` — keeps B/dd_dt/dd_A/trap rows (112 rows) in FP16, out of GPTQ error propagation
+- **Best SP8192 approach (2026-04-14)**: Train-data GPTQ + INT8 embed + embed Hessian → **4.3–7.4 mBPB gap** (BF16 1.1387–1.1474 → post-quant 1.1461–1.1517, 15.16–15.43MB)
+- **Quant sweep proved**: INT8 embeddings = 90% of fix (90→10 mBPB). GPTQ on matrices is negligible. Train-data Hessians + embed Hessian via final_norm output hook closes the last 6 mBPB.
+- **SDClip is catastrophic** for our architecture at any k value. Never use `GPTQ_CLIP_SIGMAS` or `GPTQ_EMBED_CLIP_SIGMAS`.
+- GPTQ from training data: `collect_hessians_from_train_data()` with `gptq_embed=True`. 20s vs 240s AR self-gen. Frees 220s of eval budget.
+- Late QAT: `LATE_QAT_THRESHOLD=0.15` with `WARMDOWN_SHAPE=linear` + `_embed_qat_bits` for embedding QAT
+- Optimal recipe: `USE_GPTQ=1 QUANT_BITS=6 QUANT_BITS_EMBED=8 GPTQ_NUM_SEQS=32`
 - in_proj output split order: `[z | x | B | C | dd_dt | dd_A | trap | angles]`
-- INT6 (`QUANT_BITS=6`) + LZMA (`USE_LZMA=1`). Model size: 15.78MB (within 16MB)
-- **FP16 in_proj rows**: Only 3 mBPB difference, not worth the 400KB cost
+- SP1024 approach (PR #1355): GPTQ + Late QAT → 0 mBPB gap (1.1546 → 1.1526). Still valid for SP1024.
+- **FP16 in_proj rows**: Feature removed (2026-04-13).
 
 ### Evaluation
 - **EVAL_STRIDE=16** is the script default but **exceeds 10-min eval budget** on 8×H100 (990s measured)
@@ -128,26 +134,37 @@ Total fwd+bwd = 9.59 ms/iter. Triton kernels = ~3.57 ms; the rest (~6 ms) is in_
 - Always use with `WARMDOWN_SHAPE=linear`
 
 ### TTT (Test-Time Training)
-- `TTT_ENABLED=0` — disabled for GPTQ runs (GPTQ replaces the benefit, eval budget is tight)
-- TTT does NOT parallelize across GPUs — all 8 GPUs run same sequential loop redundantly
+- **Chunk TTT is now the default** (`TTT_ENABLED=1`, `TTT_LR=0.010`, `TTT_OPTIMIZER=sgd`, `TTT_MOMENTUM=0.9`)
+- Score-first chunk TTT: score 32×4096 tokens under `no_grad`, then SGD adapt on same chunk
+- Result: −6.7 mBPB (post-quant 1.1461 → 1.1394), 184s eval time, 279s total (95s GPTQ + 184s TTT)
+- Window TTT (per-window, stateful-overlap): −0.1 mBPB in 573s — **conclusively dead**
+- TTT sweep: lr=0.010 const is optimal. Warmup-cosine gives +0.07-0.12 mBPB only.
+- TTT does NOT parallelize across GPUs — run solo on rank 0 after DDP teardown
+- **RoPE cache bug**: scoring under `inference_mode()` caches cos/sin as inference tensors; the adaptation forward hits the cache → crash. Fixed: use `no_grad()` instead.
 
-## Next Experiments (priority order)
+## Next Experiments (priority order, updated 2026-04-14)
 
-### Tier 1: SP4096 + Direct Embedding (NEXT)
-1. **SP4096 + direct embed + expand=1.5 + drop BigramHash**. Expected 12-30 mBPB. See plan file for details.
-2. **Weight decay sweep**: WD=0.06 or 0.09 with MATRIX_LR co-tuning. Quick config change.
+### Tier 0: Submit PR (in progress)
+Clean training run in progress on pod port 14068. Expected: ~1.1394 bpb end-to-end.
+PR draft: `reference_prs/pr_draft_mamba3_sp8192_ttt.md`.
 
-### Tier 2: Valid SLOT + TTT (PR #1017 compliant) on stateful-overlap scaffold
-3. **Valid causal SLOT** — optimize a per-sample `[bsz,1,dim]` residual-stream delta on already-scored context tokens only, apply to unseen tokens. Must satisfy all four conditions in PR #1017. **Expected: 15-30 mBPB** (informed guess, not measured). The prior 50-150 mBPB estimate came from PR #1329 which violates Condition 3 — invalid, do NOT use as a target. Capacity-regularization argument: SLOT fits 512 params on 4K tokens per sample (vs TTT's 26M params on the same), so it converges cleanly in the time budget where TTT cannot.
-4. **Score-first TTT improvements** — cosine LR decay, freeze most blocks, gradient clipping. Notebook TTT gave ~5 mBPB; tuned version expected **10-20 mBPB**.
-5. **Stateful-overlap budget**: both (3) and (4) ride on the stateful-overlap scaffold which frees ~468s of eval time vs sliding-window.
+### Tier 1: Architecture improvements (post-submission)
+1. **Parallel residuals** — top entries use this. Large win for transformers; worth testing for SSM.
+2. **WD tuning** — SOTA uses 0.085-0.090. Our 0.04 may be under-regularizing for 25M params.
 
-### Done (Tier 1 complete)
-- ~~Warmdown fix~~: WARMDOWN_ITERS=2600 → +0.5 mBPB alone (negligible without MuonEq-R)
-- ~~MuonEq-R~~: +5.4 mBPB BF16, +2.5 mBPB post-quant → **Run 4c = 1.1501 bpb**
+### Tier 2: Novel SSM eval techniques
+1. **SSM-State SLOT** — optimize initial SSM recurrent state (Angle, SSM, K, V) per eval window on already-scored overlap tokens. State gradients supported by Mamba3 backward kernel. Expected 10-20 mBPB. Eval budget has 321s remaining after GPTQ+TTT (279s used of 600s).
 
-### Key Negative Results (do not retry)
-- **Depth recurrence fails for SSMs**: -69 mBPB regression (SSM state discarded on repeat)
+### Done
+- ~~TBPTT~~: Dead (2026-04-13). Content-specific SSM state unrecoverable.
+- ~~SP8192 transition~~: Done (2026-04-14). 7L expand=2 2attn seq=4K is the config.
+- ~~INT8 embed GPTQ~~: Done (2026-04-14). 4.3–7.4 mBPB gap.
+- ~~Chunk TTT~~: Done (2026-04-14). −6.7 mBPB, 184s. lr=0.010 SGD is optimal.
+- ~~Warmdown fix~~: WARMDOWN_ITERS=2600 → matches SOTA
+- ~~MuonEq-R~~: +5.4 mBPB BF16 → Run 4c = 1.1501 bpb
+
+### Key Negative Results (do not retry, updated 2026-04-14)
+- ~~**Depth recurrence fails for SSMs**~~: Previous -69 mBPB result was WRONG (2026-04-13). Layer loops work: expand=1.5 + loop layers 3-4 gives 1.1410 bpb at step 5000 vs 1.1623 without loop. Best post-quant: 1.1990 with zero pruning. Use `NUM_LOOPS=2 LOOP_START=3 LOOP_END=4 ENABLE_LOOPING_AT=0.0`.
 - **Depth recurrence on attention layer only**: -36 mBPB (disrupts U-net skip connections)
 - **SP4096 at expand=2 with BigramHash**: Exceeds 16MB. Need expand=1.5 + drop BigramHash.
 - **d_state=128**: 25%+ slower at any seq_len
@@ -160,34 +177,54 @@ Total fwd+bwd = 9.59 ms/iter. Triton kernels = ~3.57 ms; the rest (~6 ms) is in_
 - ~~Stateful eval: Hurts post-quant bpb, INT6 errors accumulate in SSM state~~ **WRONG — this diagnosis was retracted 2026-04-08.** Quant delta is flat ~8.2 mBPB across 100-1892 windows. Real cause of pure-stateful BF16 regression was attention context loss at window boundaries. **Stateful-overlap (overlap=1024) resolves it and is now the preferred eval mode** (see Evaluation section). Do not re-apply the old warning.
 - **SSM step time constant with seq_len**: WRONG. 16K = 127ms vs 4K = 115ms. 10% overhead.
 - **HBM headroom can't help**: 100% compute-bound
-- **FP16 in_proj rows**: Only 3 mBPB, costs 400KB. Always use `FP16_INPROJ_ROWS=0`
+- **FP16 in_proj rows**: Only 3 mBPB, costs 400KB. Feature removed (2026-04-13).
 - **MIMO at small scale**: Negligible per Mamba-3 paper Table 3
+- **TBPTT (truncated BPTT with persistent SSM state)**: 10+ runs, conclusively dead (2026-04-13). BF16 stateful-overlap = 1.1648 (+17.4 mBPB vs Run 4c, seq_len 2K penalty). No overfitting (+4.2 mBPB train/val). **AR self-gen warmup (0-131K tokens) is useless** — model learns content-specific state from training streams that can't be recovered at eval. Training loss (1.8895) vs eval loss (1.9667) gap = 77 mNats of unrecoverable state advantage. Quant gap 5x worse (13.1 vs 2.7 mBPB). Standalone GPTQ bug was missing `search_clip=args.gptq_lite` (+42 mBPB, now fixed). Backup script: `train_mamba3_hybrid_tbptt.py`.
 - **dzdo→dqkv prologue fusion**: Correct (rel_l2=0 on all 9 grads) but +1.56 ms wallclock regression (9.59 → 11.15 ms, -16%). Root cause: +8 KB SMEM (extra z tile) at stage=2 pipelining broke the autotuner's optimal schedule. Kernel fusion at these SMEM levels must be SMEM-neutral (register-resident epilogue only, PR #1420 pattern). Left env-gated at `MAMBA3_FUSED_BWD=1`, off by default.
 - **Extended Triton autotune grid for dqkv/fwd**: 36 configs (maxnreg × num_warps × num_stages) picked identical winners to the 9-config grid. Stock is already Pareto-optimal.
+- **WD=0.085 kills learning for our architecture**: Plateaus at train_loss=6.5 (tested twice: run2, run4). SOTA uses 0.085-0.095 with 35.9M/11L. Our 26-29M/8L can't absorb that much regularization. Stick to WD=0.04.
+- **INT8 embeddings + Brotli-11**: Adds ~1MB vs INT6 embeds. Brotli slightly worse than LZMA for our model. Net larger, not smaller.
+- **Delayed layer loop activation**: torch.compile recompiles when loop activates mid-training (89→112ms). Pre-warming both paths during warmup doesn't fix it (different graph structure). Use ENABLE_LOOPING_AT=0.0 instead.
+- **SmearGate**: Removed (2026-04-13). All top entries dropped it. Saves code size.
+- **FP16_INPROJ_ROWS**: Removed (2026-04-13). Only 3 mBPB, costs 400KB.
+- **GPTQ_WARMUP_LEN**: Removed (2026-04-13). Proven no-op.
+- **Window TTT (eval_val_stateful_overlap_ttt)**: −0.1 mBPB in 573s on 1×H100. Gradient signal from 1×1024 tokens per window too weak vs chunk TTT's 32×4096 per chunk. Also blows 600s budget alone. Removed from main script (2026-04-14).
+- **Residual-stream SLOT (eval_val_stateful_overlap_slot)**: +2–8 mBPB consistently. No consistent gradient direction in FineWeb bpb (general LM task). Removed from main script (2026-04-14).
 
-### Standard 8×H100 run command
+### Standard 8×H100 run command (SP1024 baseline)
 ```bash
-FP16_INPROJ_ROWS=0 WARMDOWN_ITERS=2600 WARMDOWN_SHAPE=linear MUON_EQ_R=1 \
+WARMDOWN_ITERS=2600 WARMDOWN_SHAPE=linear MUON_EQ_R=1 \
 LATE_QAT_THRESHOLD=0.15 USE_GPTQ=1 QUANT_BITS=6 \
-EVAL_STRIDE=32 USE_LZMA=1 EVAL_TEMP=0.9 \
-WEIGHT_DECAY=0.04 MUON_MOMENTUM=0.99 MATRIX_LR=0.025 \
+EVAL_OVERLAP=1024 USE_LZMA=1 EVAL_TEMP=0.9 \
+WEIGHT_DECAY=0.085 EMBED_WD=0.085 MUON_MOMENTUM=0.99 MATRIX_LR=0.025 \
 torchrun --nproc_per_node=8 train_mamba3_hybrid.py
 ```
 
-**SP4096 run command (next experiment):**
+**SP8192 run command (validated, gives 1.1394 bpb):**
 ```bash
-VOCAB_SIZE=4096 MAMBA3_EXPAND=1.5 USE_BIGRAM_HASH=0 \
-FP16_INPROJ_ROWS=0 WARMDOWN_ITERS=2600 WARMDOWN_SHAPE=linear MUON_EQ_R=1 \
-LATE_QAT_THRESHOLD=0.15 USE_GPTQ=1 QUANT_BITS=6 \
-EVAL_STRIDE=32 USE_LZMA=1 EVAL_TEMP=0.9 \
+VOCAB_SIZE=8192 NUM_LAYERS=7 NUM_ATTN_LAYERS=2 USE_BIGRAM_HASH=0 TRAIN_SEQ_LEN=4096 \
+WARMDOWN_ITERS=2600 WARMDOWN_SHAPE=linear MUON_EQ_R=1 \
+LATE_QAT_THRESHOLD=0.15 USE_GPTQ=1 QUANT_BITS=6 QUANT_BITS_EMBED=8 GPTQ_NUM_SEQS=32 \
+EVAL_OVERLAP=1024 USE_LZMA=1 EVAL_TEMP=0.9 \
 WEIGHT_DECAY=0.04 MUON_MOMENTUM=0.99 MATRIX_LR=0.025 \
 torchrun --nproc_per_node=8 train_mamba3_hybrid.py
 ```
 
 ### 8192 BPE dataset
-- `huggingface-cli download sproos/parameter-golf-tokenizers --include 'datasets/fineweb10B_sp8192/*' --local-dir ./data --repo-type dataset`
-- Tokenizer: `records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/fineweb_8192_bpe.model`
-- NOT in the default competition HF repo
+SP8192 dataset is hosted in `kevclark/parameter-golf` (not the default `willdepueoai/parameter-golf` repo). Created by @clarkkev in PR #1394.
+```python
+# Download via Python (huggingface-cli may not be installed)
+from huggingface_hub import snapshot_download
+snapshot_download(
+    'kevclark/parameter-golf', repo_type='dataset',
+    allow_patterns=['datasets/datasets/fineweb10B_sp8192/*', 'datasets/tokenizers/fineweb_8192_bpe.*'],
+    local_dir='./data',
+)
+# Files land at data/datasets/fineweb10B_sp8192/ (129 files: 128 train + 1 val)
+# Tokenizer at data/tokenizers/fineweb_8192_bpe.model
+```
+- SP4096 is also available in the same repo (replace sp8192 with sp4096)
+- The official `data/cached_challenge_fineweb.py` script can also be used: `MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192 80`
 
 ## Pod Setup (mamba_ssm for Mamba-3)
 
@@ -205,35 +242,36 @@ This installs from source, clones the Mamba repo to copy the Mamba-3 module/kern
 
 ---
 
-## Current Project State (as of 2026-04-09)
+## Current Project State (as of 2026-04-14)
 
 ### Architecture
-8-layer hybrid: 7× Mamba-3 SISO blocks + 1 attention layer at layer 4, dim=512, d_state=64, mlp_mult=3, seq_len=4096, train_batch_tokens=1M
+7-layer hybrid: 5× Mamba-3 SISO blocks + 2 attention layers (at layers 2 and 5), dim=512, d_state=64, mlp_mult=3, seq_len=4096, train_batch_tokens=1M, vocab_size=8192 (SP8192 BPE)
 
 ### Best results
-| Run | Hardware | Steps | ms/step | val_bpb (BF16) | Post-quant bpb |
+| Run | Hardware | Steps | ms/step | val_bpb (BF16) | Post-quant+TTT bpb |
 |-----|----------|-------|---------|-----------------|----------------|
 | Clean BF16 | 8×H100 | 5,189 | 115.6 | 1.2087 | 1.8617 (INT6, no QAT) |
 | QAT (PR #1107) | 8×H100 | 5,193 | 115.6 | 1.2413 | 1.5633 (INT6+QAT+TTT) |
-| **Best: Late QAT + linear warmdown (PR #1355)** | **8×H100** | — | **115.9** | **1.1546** | **1.1526 (-2 mBPB gap)** |
-| **Best: MuonEq-R + warmdown fix (Run 4c)** | **8×H100** | **5,188** | **115.6** | **1.1474** | **1.1501 (15.98MB)** |
+| Late QAT + linear warmdown (PR #1355) | 8×H100 | — | 115.9 | 1.1546 | 1.1526 (-2 mBPB gap) |
+| MuonEq-R + warmdown fix (Run 4c) | 8×H100 | 5,188 | 115.6 | 1.1474 | 1.1501 (15.98MB) |
+| **SP8192 + INT8 embed GPTQ (run ~port14068)** | **8×H100** | **5,227** | **113.7** | **1.1387** | **1.1394 (15.43MB, +TTT)** |
 
 ### Submitted PRs
 - **PR #1355** — 1.1526 bpb (non-record, Mamba-3 hybrid + GPTQ + Late QAT + linear warmdown)
 - **PR #1107** — 1.5633 bpb (non-record, earlier QAT-only submission)
+- **Upcoming** — 1.1394 bpb (SP8192 + INT8 embed GPTQ + chunk TTT)
 
-### What's implemented in train_mamba3_hybrid.py
-- Full Hessian GPTQ with AR self-gen calibration (`USE_GPTQ=1`)
+### What's implemented in train_mamba3_hybrid.py (cleaned 2026-04-14)
+- Train-data GPTQ with embed Hessian (`USE_GPTQ=1`, `QUANT_BITS_EMBED=8`)
+- **Chunk score-first TTT on by default** (`TTT_ENABLED=1`, lr=0.010, SGD, batch=32)
 - Late QAT with linear warmdown (`LATE_QAT_THRESHOLD=0.15`, `WARMDOWN_SHAPE=linear`)
-- Mixed-precision in_proj: `get_mamba3_in_proj_fp16_row_mask()` protects B/dd_dt/dd_A/trap rows
-- MuonEq-R optimizer (`MUON_EQ_R=1`, +5.4 mBPB BF16, +2.5 mBPB post-quant)
-- Depth recurrence (`DEPTH_RECURRENCE=1`, coded but harmful for SSMs — do not use)
-- Stateful + stateful-overlap eval (`STATEFUL_EVAL=1`, `STATEFUL_OVERLAP=1024`) — **preferred eval mode**; ~32s eval vs 500s sliding, frees 468s for SLOT/TTT
-- Mamba-3 param env vars (`MAMBA3_EXPAND`, `MAMBA3_ROPE_FRACTION`, `MAMBA3_NGROUPS`, `MAMBA3_OUTPROJ_NORM`)
-- LZMA compression (`USE_LZMA=1`) — wired in compress+decompress paths
-- Temperature scaling at eval (`EVAL_TEMP`)
-- Sliding window eval with configurable stride (`EVAL_STRIDE`)
-- TTT (disabled by default)
+- MuonEq-R optimizer (`MUON_EQ_R=1`)
+- Stateful-overlap eval (`EVAL_OVERLAP=1024`) — 32s eval, unlocks TTT budget
+- LZMA compression (`USE_LZMA=1`)
+- Temperature scaling at eval (`EVAL_TEMP=0.9`)
+- Sliding window eval (`EVAL_STRIDE`)
+- **GPTQ + TTT run solo on rank 0 after DDP teardown** (fixes CUDA hook crash, avoids redundant TTT on 8 GPUs)
+- Removed: `eval_val_stateful_overlap_slot`, `eval_val_stateful_overlap_ttt` (both null results)
 
 ### Key Files
 | File | Description |
