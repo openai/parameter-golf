@@ -1275,7 +1275,8 @@ def train_model(h, device, val_data):
         if h.warmdown_frac <= 0:
             return 1.0
         if frac >= 1.0 - h.warmdown_frac:
-            return max((1.0 - frac) / h.warmdown_frac, h.min_lr)
+            t = (frac - (1.0 - h.warmdown_frac)) / h.warmdown_frac
+            return max(0.5 * (1.0 + math.cos(math.pi * t)), h.min_lr)
         return 1.0
 
     def step_fn(step, lr_scale):
