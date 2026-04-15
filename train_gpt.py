@@ -125,12 +125,19 @@ class CausalSelfAttention(nn.Module):
 		y=y.reshape(bsz,seqlen,dim);return self.proj(y)
 if _HAS_TRITON and _HAS_TMA:
 	@triton.jit
-	def _fused_linear_lrs_kernel(a_desc,b_desc,c_desc,aux_desc,M,N,K,BLOCK_SIZE_M:tl.constexpr,BLOCK_SIZE_N:tl.constexpr,BLOCK_SIZE_K:tl.constexpr,NUM_SMS:tl.constexpr,FORWARD:tl.constexpr):
+	def _rms_inv_kernel(x_ptr,inv_rms_ptr,M,K:tl.constexpr,eps,BLOCK_K:tl.constexpr):
+		pid=tl.program_id(0)
+		if pid<M:
+			cols=tl.arange(0,BLOCK_K);mask=cols<K;x=tl.load(x_ptr+pid*K+cols,mask=mask,other=0.0).to(tl.float32);sum_sq=tl.sum(x*x);inv_rms=1.0/tl.sqrt(sum_sq/K+eps);tl.store(inv_rms_ptr+pid,inv_rms.to(tl.bfloat16))
+	@triton.jit
+	def _fused_rms_linear_lrs_kernel(a_desc,b_desc,c_desc,aux_desc,inv_rms_ptr,ln_scale,M,N,K,BLOCK_SIZE_M:tl.constexpr,BLOCK_SIZE_N:tl.constexpr,BLOCK_SIZE_K:tl.constexpr,NUM_SMS:tl.constexpr,FORWARD:tl.constexpr):
 		dtype=tl.bfloat16;start_pid=tl.program_id(axis=0);num_pid_m=tl.cdiv(M,BLOCK_SIZE_M);num_pid_n=tl.cdiv(N,BLOCK_SIZE_N);k_tiles=tl.cdiv(K,BLOCK_SIZE_K);num_tiles=num_pid_m*num_pid_n;tile_id_c=start_pid-NUM_SMS
 		for tile_id in tl.range(start_pid,num_tiles,NUM_SMS,flatten=True):
-			pid_m=tile_id//num_pid_n;pid_n=tile_id%num_pid_n;offs_am=pid_m*BLOCK_SIZE_M;offs_bn=pid_n*BLOCK_SIZE_N;accumulator=tl.zeros((BLOCK_SIZE_M,BLOCK_SIZE_N),dtype=tl.float32)
+			pid_m=tile_id//num_pid_n;pid_n=tile_id%num_pid_n;offs_am=pid_m*BLOCK_SIZE_M;offs_bn=pid_n*BLOCK_SIZE_N
+			rows=offs_am+tl.arange(0,BLOCK_SIZE_M);row_mask=rows<M;inv_rms=tl.load(inv_rms_ptr+rows,mask=row_mask,other=0.0).to(dtype);row_scale=(inv_rms*ln_scale).to(dtype)
+			accumulator=tl.zeros((BLOCK_SIZE_M,BLOCK_SIZE_N),dtype=tl.float32)
 			for ki in range(k_tiles):
-				offs_k=ki*BLOCK_SIZE_K;a=a_desc.load([offs_am,offs_k]);b=b_desc.load([offs_bn,offs_k]);accumulator=tl.dot(a,b.T,accumulator)
+				offs_k=ki*BLOCK_SIZE_K;a=a_desc.load([offs_am,offs_k]);a_scaled=(a*row_scale[:,None]).to(dtype);b=b_desc.load([offs_bn,offs_k]);accumulator=tl.dot(a_scaled,b.T,accumulator)
 			tile_id_c+=NUM_SMS;offs_am_c=offs_am;offs_bn_c=offs_bn;acc=tl.reshape(accumulator,(BLOCK_SIZE_M,2,BLOCK_SIZE_N//2));acc=tl.permute(acc,(0,2,1));acc0,acc1=tl.split(acc);c0=acc0.to(dtype);c1=acc1.to(dtype)
 			if not FORWARD:
 				pre0=aux_desc.load([offs_am_c,offs_bn_c]);pre1=aux_desc.load([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2])
@@ -138,36 +145,43 @@ if _HAS_TRITON and _HAS_TMA:
 			c_desc.store([offs_am_c,offs_bn_c],c0);c_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],c1)
 			if FORWARD:
 				aux0=tl.where(c0>0,c0,0.5*c0);aux1=tl.where(c1>0,c1,0.5*c1);aux_desc.store([offs_am_c,offs_bn_c],aux0*aux0);aux_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],aux1*aux1)
-	def _fused_linear_lrs(a,b,aux=None):
+	def _compute_inv_rms(x_flat,eps=1e-6):
+		M,K=x_flat.shape;BLOCK_K=triton.next_power_of_2(K);inv_rms=torch.empty(M,device=x_flat.device,dtype=torch.bfloat16);_rms_inv_kernel[(M,)](x_flat,inv_rms,M,K,eps,BLOCK_K=BLOCK_K);return inv_rms
+	def _fused_rms_linear_lrs(a,b,inv_rms,ln_scale,aux=None):
 		M,K=a.shape;N,K2=b.shape;assert K==K2,"K mismatch";c=torch.empty((M,N),device=a.device,dtype=a.dtype);forward=aux is None
 		if aux is None:aux=torch.empty((M,N),device=a.device,dtype=a.dtype)
 		num_sms=torch.cuda.get_device_properties(a.device).multi_processor_count;BLOCK_SIZE_M,BLOCK_SIZE_N,BLOCK_SIZE_K=128,256,64;num_stages=4 if forward else 3
 		a_desc=TensorDescriptor.from_tensor(a,[BLOCK_SIZE_M,BLOCK_SIZE_K]);b_desc=TensorDescriptor.from_tensor(b,[BLOCK_SIZE_N,BLOCK_SIZE_K]);c_desc=TensorDescriptor.from_tensor(c,[BLOCK_SIZE_M,BLOCK_SIZE_N//2]);aux_desc=TensorDescriptor.from_tensor(aux,[BLOCK_SIZE_M,BLOCK_SIZE_N//2])
 		grid=lambda _:(min(num_sms,triton.cdiv(M,BLOCK_SIZE_M)*triton.cdiv(N,BLOCK_SIZE_N)),)
-		_fused_linear_lrs_kernel[grid](a_desc,b_desc,c_desc,aux_desc,M,N,K,BLOCK_SIZE_M=BLOCK_SIZE_M,BLOCK_SIZE_N=BLOCK_SIZE_N,BLOCK_SIZE_K=BLOCK_SIZE_K,NUM_SMS=num_sms,FORWARD=forward,num_stages=num_stages,num_warps=8)
+		_fused_rms_linear_lrs_kernel[grid](a_desc,b_desc,c_desc,aux_desc,inv_rms,float(ln_scale),M,N,K,BLOCK_SIZE_M=BLOCK_SIZE_M,BLOCK_SIZE_N=BLOCK_SIZE_N,BLOCK_SIZE_K=BLOCK_SIZE_K,NUM_SMS=num_sms,FORWARD=forward,num_stages=num_stages,num_warps=8)
 		return (c,aux) if forward else c
-	class _FusedMLPFn(torch.autograd.Function):
+	class _FusedRMSMLPFn(torch.autograd.Function):
 		@staticmethod
-		def forward(ctx,x,w1,w2):
-			x_flat=x.reshape(-1,x.shape[-1]);pre,post=_fused_linear_lrs(x_flat,w1);out=F.linear(post,w2);ctx.save_for_backward(x,w1,w2,pre,post);return out.view(*x.shape[:-1],out.shape[-1])
+		def forward(ctx,x,w1,w2,ln_scale,eps):
+			x_flat=x.reshape(-1,x.shape[-1]).contiguous();inv_rms=_compute_inv_rms(x_flat,eps);pre,post=_fused_rms_linear_lrs(x_flat,w1,inv_rms,ln_scale);out=F.linear(post,w2);ctx.save_for_backward(x_flat,w1,w2,pre,post,inv_rms);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
 		@staticmethod
 		def backward(ctx,grad_output):
-			x,w1,w2,pre,post=ctx.saved_tensors;x_flat=x.reshape(-1,x.shape[-1]);go_flat=grad_output.reshape(-1,grad_output.shape[-1]);dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=pre);dw1=dpre.T@x_flat;dx=dpre@w1
-			return dx.view_as(x),dw1,dw2
-	_fused_mlp_apply=_FusedMLPFn.apply
+			x_flat,w1,w2,pre,post,inv_rms=ctx.saved_tensors;ln_scale=ctx.ln_scale;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_rms_linear_lrs(go_flat,w2.T.contiguous(),inv_rms,1.0,aux=pre)
+			K=x_flat.shape[-1];inv_rms_f=inv_rms.to(torch.float32);x_normed=(x_flat.to(torch.float32)*inv_rms_f[:,None]*ln_scale).to(x_flat.dtype);dw1=dpre.T@x_normed;dxn=dpre@w1
+			dxn_f=dxn.to(torch.float32);x_f=x_flat.to(torch.float32);c=(dxn_f*x_f).sum(dim=-1,keepdim=True)/K;dx=(ln_scale*inv_rms_f[:,None]*(dxn_f-x_f*inv_rms_f[:,None]*inv_rms_f[:,None]*c)).to(x_flat.dtype)
+			return dx.view(ctx.x_shape),dw1,dw2,None,None
+	_fused_rms_mlp_apply=_FusedRMSMLPFn.apply
 else:
-	_fused_mlp_apply=None
+	_fused_rms_mlp_apply=None
 class MLP(nn.Module):
 	def __init__(self,dim,mlp_mult):super().__init__();hidden=int(mlp_mult*dim);self.fc=CastedLinear(dim,hidden,bias=False);self.proj=CastedLinear(hidden,dim,bias=False);self.proj._zero_init=True;self.use_fused=False
-	def forward(self,x):
-		if self.use_fused and _fused_mlp_apply is not None and self.training:return _fused_mlp_apply(x,self.fc.weight.to(x.dtype),self.proj.weight.to(x.dtype))
+	def forward(self,x,ln_scale=None):
+		if self.use_fused and _fused_rms_mlp_apply is not None and self.training and ln_scale is not None:
+			return _fused_rms_mlp_apply(x,self.fc.weight.to(x.dtype),self.proj.weight.to(x.dtype),ln_scale,1e-6)
 		return self.proj(F.leaky_relu(self.fc(x),negative_slope=.5).square())
 class Block(nn.Module):
 	def __init__(self,dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,train_seq_len,layer_idx=0,ln_scale=False):super().__init__();self.attn_norm=RMSNorm();self.mlp_norm=RMSNorm();self.attn=CausalSelfAttention(dim,num_heads,num_kv_heads,rope_base,qk_gain_init,train_seq_len);self.mlp=MLP(dim,mlp_mult);self.attn_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.mlp_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.resid_mix=nn.Parameter(torch.stack((torch.ones(dim),torch.zeros(dim))).float());self.ln_scale_factor=1./math.sqrt(layer_idx+1)if ln_scale else 1.;self.parallel=False
 	def forward(self,x,x0):
-		mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][None,None,:]*x+mix[1][None,None,:]*x0;attn_out=self.attn(self.attn_norm(x_in)*self.ln_scale_factor)
-		if self.parallel:mlp_out=self.mlp(self.mlp_norm(x_in)*self.ln_scale_factor);x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out+self.mlp_scale.to(dtype=x_in.dtype)[None,None,:]*mlp_out
-		else:x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out;x_out=x_out+self.mlp_scale.to(dtype=x_out.dtype)[None,None,:]*self.mlp(self.mlp_norm(x_out)*self.ln_scale_factor)
+		mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][None,None,:]*x+mix[1][None,None,:]*x0;attn_out=self.attn(self.attn_norm(x_in)*self.ln_scale_factor);use_fused=self.mlp.use_fused and _fused_rms_mlp_apply is not None and self.training
+		if self.parallel:mlp_in=x_in if use_fused else (self.mlp_norm(x_in)*self.ln_scale_factor);mlp_out=self.mlp(mlp_in,self.ln_scale_factor) if use_fused else self.mlp(mlp_in);x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out+self.mlp_scale.to(dtype=x_in.dtype)[None,None,:]*mlp_out
+		else:
+			x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out
+			mlp_in=x_out if use_fused else (self.mlp_norm(x_out)*self.ln_scale_factor);mlp_out=self.mlp(mlp_in,self.ln_scale_factor) if use_fused else self.mlp(mlp_in);x_out=x_out+self.mlp_scale.to(dtype=x_out.dtype)[None,None,:]*mlp_out
 		return x_out
 class GPT(nn.Module):
 	def __init__(self,h):
@@ -186,7 +200,7 @@ class GPT(nn.Module):
 			for i in range(max(0,h.num_layers-h.xsa_last_n),h.num_layers):self.blocks[i].attn.use_xsa=True
 		if h.parallel_residual_start>=0:
 			for i in range(h.parallel_residual_start,h.num_layers):self.blocks[i].parallel=True
-		if h.fused_mlp_enabled and _fused_mlp_apply is not None:
+		if h.fused_mlp_enabled and _fused_rms_mlp_apply is not None:
 			for block in self.blocks:block.mlp.use_fused=True
 		self.looping_active=False
 		if h.num_loops>0:
