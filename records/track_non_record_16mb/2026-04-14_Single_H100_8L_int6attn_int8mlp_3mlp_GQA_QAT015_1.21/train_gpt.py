@@ -324,11 +324,19 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
+INT4_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "INT4_NAME_PATTERNS",
+        "attn.,mlp.",
+    ).split(",")
+    if pattern
+)
 INT6_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "INT6_NAME_PATTERNS",
-        "attn.,mlp.",
+        "",
     ).split(",")
     if pattern
 )
@@ -358,6 +366,12 @@ def pack_lowbit_tensor(q: Tensor, bits: int) -> Tensor:
         out[:, 1] = ((packed32 >> 8) & 0xFF).to(torch.uint8)
         out[:, 2] = ((packed32 >> 16) & 0xFF).to(torch.uint8)
         return out.reshape(-1).contiguous()
+    if bits == 4:
+        pad = (-flat.numel()) % 2
+        if pad:
+            flat = torch.cat((flat, torch.zeros((pad,), dtype=torch.uint8)))
+        packed = (flat[0::2] & 0xF) | ((flat[1::2] & 0xF) << 4)
+        return packed.contiguous()
     if bits == 8:
         return flat.contiguous()
     raise ValueError(f"Unsupported bit width for byte packing: {bits}")
@@ -375,6 +389,14 @@ def unpack_lowbit_tensor(packed: Tensor, bits: int, shape: tuple[int, ...]) -> T
         out[:, 2] = ((packed32 >> 12) & mask).to(torch.uint8)
         out[:, 3] = ((packed32 >> 18) & mask).to(torch.uint8)
         return out.reshape(-1)[: math.prod(shape) + pad][: math.prod(shape)].view(shape).contiguous()
+    if bits == 4:
+        n = math.prod(shape)
+        lo = (packed & 0xF).to(torch.uint8)
+        hi = ((packed >> 4) & 0xF).to(torch.uint8)
+        out = torch.empty(packed.numel() * 2, dtype=torch.uint8)
+        out[0::2] = lo
+        out[1::2] = hi
+        return out[:n].view(shape).contiguous()
     if bits == 8:
         return packed[: math.prod(shape)].view(shape).contiguous()
     raise ValueError(f"Unsupported bit width for byte packing: {bits}")
@@ -433,10 +455,13 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        use_int6 = any(pattern in name for pattern in INT6_NAME_PATTERNS)
-        bits = 6 if use_int6 else 8
+        use_int4 = any(pattern in name for pattern in INT4_NAME_PATTERNS)
+        use_int6 = not use_int4 and any(pattern in name for pattern in INT6_NAME_PATTERNS)
+        bits = 4 if use_int4 else (6 if use_int6 else 8)
         q_signed, s = quantize_float_tensor(t, bits=bits)
-        if bits == 6:
+        if bits == 4:
+            q_stored = pack_lowbit_tensor((q_signed + 8).to(torch.uint8), bits=4)
+        elif bits == 6:
             q_stored = pack_lowbit_tensor((q_signed + 32).to(torch.uint8), bits=6)
         else:
             q_stored = q_signed.to(torch.int8).contiguous()
@@ -465,7 +490,11 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
         s = obj["scales"][name]
         meta = qmeta.get(name, {})
         bits = int(meta.get("bits", 8))
-        if bits == 6:
+        if bits == 4:
+            if "shape" not in meta:
+                raise ValueError(f"Missing shape metadata for packed int4 tensor {name}")
+            q = unpack_lowbit_tensor(q_stored, bits=4, shape=tuple(meta["shape"])).to(torch.int16) - 8
+        elif bits == 6:
             if "shape" not in meta:
                 raise ValueError(f"Missing shape metadata for packed int6 tensor {name}")
             q = unpack_lowbit_tensor(q_stored, bits=6, shape=tuple(meta["shape"])).to(torch.int16) - 32
@@ -922,7 +951,9 @@ def main() -> None:
     for name, module in base_model.named_modules():
         if isinstance(module, CastedLinear):
             param_name = f"{name}.weight"
-            if any(pattern in param_name for pattern in INT6_NAME_PATTERNS):
+            if any(pattern in param_name for pattern in INT4_NAME_PATTERNS):
+                module._qat_bits = 4
+            elif any(pattern in param_name for pattern in INT6_NAME_PATTERNS):
                 module._qat_bits = 6
     restore_low_dim_params_to_fp32(base_model)
     CastedLinear._qat_enabled = False
