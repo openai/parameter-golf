@@ -738,36 +738,36 @@ class GPT(nn.Module):
 
         for i in range(self.num_encoder_layers):
             # First pass
-            x = x + self.timesteps[:, i*3, :].unsqueeze(1)
+            x = x + self.timesteps[:, i*self.num_recurr, :].unsqueeze(1)
             x = self.blocks[i](x, x0)
             skips.append(x)
             
             # Second pass
-            x = x + self.timesteps[:, i*3+1, :].unsqueeze(1)
+            x = x + self.timesteps[:, i*self.num_recurr+1, :].unsqueeze(1)
             x = self.blocks[i](x, x0)
             skips.append(x)
 
             # Third pass
-            x = x + self.timesteps[:, i*3+2, :].unsqueeze(1)
+            x = x + self.timesteps[:, i*self.num_recurr+2, :].unsqueeze(1)
             x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # First pass
-            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = x + self.skip_weights[i*self.num_recurr].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr, :].unsqueeze(1)
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
             # Second pass
-            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = x + self.skip_weights[i*self.num_recurr+1].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr + 1, :].unsqueeze(1)
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
             # Third pass
-            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i, :].unsqueeze(1)
             if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = x + self.skip_weights[i*self.num_recurr+2].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr + 2, :].unsqueeze(1)
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
