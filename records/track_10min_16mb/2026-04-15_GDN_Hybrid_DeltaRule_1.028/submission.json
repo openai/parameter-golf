@@ -1,0 +1,28 @@
+{
+  "author": "Hamza Koyuer (@Hkoyuer)",
+  "affiliation": "Helolinks.com",
+  "val_bpb": 1.0274,
+  "val_bpb_seeds": {
+    "1337": 1.026927,
+    "42": 1.027811
+  },
+  "artifact_bytes_seeds": {
+    "1337": 15524240,
+    "42": 15305698
+  },
+  "training_seconds": 590,
+  "hardware": "8xH100 SXM 80GB",
+  "seeds": [1337, 42],
+  "tokenizer": "sp1024",
+  "architecture": "GDN-Hybrid (Gated DeltaNet + Sliding Window Attention)",
+  "ttt_enabled": false,
+  "warm_cache_supplemental": {
+    "seed_1337": {
+      "steps": 2252,
+      "ema_bpb": 1.006084,
+      "quantized_bpb": 1.014925,
+      "xsa_bpb": 1.019328,
+      "artifact_bytes": 15994883
+    }
+  }
+}
