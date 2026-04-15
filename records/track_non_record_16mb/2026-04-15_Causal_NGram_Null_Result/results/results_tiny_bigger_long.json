@@ -1,0 +1,150 @@
+{
+  "config": {
+    "val": "data/datasets/fineweb10B_sp1024/fineweb_val_000000.bin",
+    "dim": "256",
+    "layers": "4",
+    "heads": "4",
+    "seq_len": "256",
+    "batch": "16",
+    "steps": "4000",
+    "lr": "0.003",
+    "eval_stride": "64",
+    "eval_chunk_tokens": "8192",
+    "held_out_frac": "0.2",
+    "train_cap": "4000000",
+    "eval_cap": "120000",
+    "orders": "4",
+    "alphas": "0,0.05,0.1,0.15,0.2,0.25,0.3",
+    "seed": "42",
+    "out": "results_tiny_bigger_long.json",
+    "vocab_size": "None"
+  },
+  "device": "mps",
+  "n_params": 3487232,
+  "train_tokens": 4000000,
+  "eval_tokens": 120000,
+  "train_time_s": 318.77388286590576,
+  "final_train_loss": 3.540914535522461,
+  "baseline": {
+    "nll_sum": 436572.908726783,
+    "n_scored": 119999,
+    "mean_nll_nats": 3.638137890538946,
+    "bits_per_tok": 5.248723492750772,
+    "unique_ctx": null,
+    "eval_time_s": 3.2921700477600098
+  },
+  "runs": [
+    {
+      "nll_sum": 436572.908726783,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.638137890538946,
+      "bits_per_tok": 5.248723492750772,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 4.717875957489014,
+      "order": 4,
+      "alpha": 0.0,
+      "delta_vs_baseline_bpt": 0.0
+    },
+    {
+      "nll_sum": 436151.00886739447,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.6346220290785296,
+      "bits_per_tok": 5.243651176857377,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.122374773025513,
+      "order": 4,
+      "alpha": 0.05,
+      "delta_vs_baseline_bpt": -0.005072315893395185
+    },
+    {
+      "nll_sum": 435923.5000391607,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.6327261063772256,
+      "bits_per_tok": 5.240915938578296,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.164936780929565,
+      "order": 4,
+      "alpha": 0.1,
+      "delta_vs_baseline_bpt": -0.007807554172475584
+    },
+    {
+      "nll_sum": 435890.19914611743,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.632448596622617,
+      "bits_per_tok": 5.240515576631525,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.077538013458252,
+      "order": 4,
+      "alpha": 0.15,
+      "delta_vs_baseline_bpt": -0.008207916119246761
+    },
+    {
+      "nll_sum": 436050.44710856496,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.6337840074381034,
+      "bits_per_tok": 5.242442167192576,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.1999900341033936,
+      "order": 4,
+      "alpha": 0.2,
+      "delta_vs_baseline_bpt": -0.006281325558195938
+    },
+    {
+      "nll_sum": 436403.121346242,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.636722983910216,
+      "bits_per_tok": 5.246682213974182,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.096610069274902,
+      "order": 4,
+      "alpha": 0.25,
+      "delta_vs_baseline_bpt": -0.00204127877658955
+    },
+    {
+      "nll_sum": 436946.6586238953,
+      "n_scored": 119999,
+      "mean_nll_nats": 3.641252498969952,
+      "bits_per_tok": 5.2532169228884955,
+      "unique_ctx": {
+        "1": 1,
+        "2": 797,
+        "3": 33484,
+        "4": 79668
+      },
+      "eval_time_s": 6.062562942504883,
+      "order": 4,
+      "alpha": 0.3,
+      "delta_vs_baseline_bpt": 0.004493430137723742
+    }
+  ]
+}

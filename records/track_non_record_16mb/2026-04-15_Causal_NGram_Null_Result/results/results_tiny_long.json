@@ -1,0 +1,325 @@
+{
+  "config": {
+    "val": "data/datasets/fineweb10B_sp1024/fineweb_val_000000.bin",
+    "dim": "128",
+    "layers": "2",
+    "heads": "4",
+    "seq_len": "256",
+    "batch": "16",
+    "steps": "2500",
+    "lr": "0.003",
+    "eval_stride": "64",
+    "eval_chunk_tokens": "8192",
+    "held_out_frac": "0.2",
+    "train_cap": "4000000",
+    "eval_cap": "80000",
+    "orders": "3,4,5",
+    "alphas": "0,0.1,0.3,0.5,0.7,1.0",
+    "seed": "42",
+    "out": "results_tiny_long.json"
+  },
+  "device": "mps",
+  "n_params": 560640,
+  "train_tokens": 4000000,
+  "eval_tokens": 80000,
+  "train_time_s": 61.477548122406006,
+  "final_train_loss": 4.122010231018066,
+  "baseline": {
+    "nll_sum": 331529.8814580729,
+    "n_scored": 79999,
+    "mean_nll_nats": 4.144175320417417,
+    "bits_per_tok": 5.978781183340638,
+    "unique_ctx": null,
+    "eval_time_s": 0.7264420986175537
+  },
+  "runs": [
+    {
+      "nll_sum": 331529.8814580729,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.144175320417417,
+      "bits_per_tok": 5.978781183340638,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 1.4666202068328857,
+      "order": 3,
+      "alpha": 0.0,
+      "delta_vs_baseline_bpt": 0.0
+    },
+    {
+      "nll_sum": 330008.98053093906,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.125163821184503,
+      "bits_per_tok": 5.951353387677449,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 2.430483818054199,
+      "order": 3,
+      "alpha": 0.1,
+      "delta_vs_baseline_bpt": -0.02742779566318898
+    },
+    {
+      "nll_sum": 328526.6670799677,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.106634671432989,
+      "bits_per_tok": 5.924621475219051,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 2.3806657791137695,
+      "order": 3,
+      "alpha": 0.3,
+      "delta_vs_baseline_bpt": -0.054159708121587435
+    },
+    {
+      "nll_sum": 329132.21765153576,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.114204148196049,
+      "bits_per_tok": 5.935541921807242,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 2.3895070552825928,
+      "order": 3,
+      "alpha": 0.5,
+      "delta_vs_baseline_bpt": -0.04323926153339652
+    },
+    {
+      "nll_sum": 331766.169511987,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.1471289580118125,
+      "bits_per_tok": 5.983042381650656,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 2.429149866104126,
+      "order": 3,
+      "alpha": 0.7,
+      "delta_vs_baseline_bpt": 0.004261198310017811
+    },
+    {
+      "nll_sum": 339250.00368451315,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.240678054532096,
+      "bits_per_tok": 6.1180051992801125,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849
+      },
+      "eval_time_s": 2.4181909561157227,
+      "order": 3,
+      "alpha": 1.0,
+      "delta_vs_baseline_bpt": 0.1392240159394742
+    },
+    {
+      "nll_sum": 331529.8814580729,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.144175320417417,
+      "bits_per_tok": 5.978781183340638,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 1.7962548732757568,
+      "order": 4,
+      "alpha": 0.0,
+      "delta_vs_baseline_bpt": 0.0
+    },
+    {
+      "nll_sum": 330038.40105858794,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.125531582377129,
+      "bits_per_tok": 5.9518839549262825,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 2.8049559593200684,
+      "order": 4,
+      "alpha": 0.1,
+      "delta_vs_baseline_bpt": -0.026897228414355823
+    },
+    {
+      "nll_sum": 328563.2680840341,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.107092189702797,
+      "bits_per_tok": 5.925281534558019,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 2.808978319168091,
+      "order": 4,
+      "alpha": 0.3,
+      "delta_vs_baseline_bpt": -0.05349964878261915
+    },
+    {
+      "nll_sum": 329107.1224126546,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.113890453788854,
+      "bits_per_tok": 5.935089356441627,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 2.8163089752197266,
+      "order": 4,
+      "alpha": 0.5,
+      "delta_vs_baseline_bpt": -0.04369182689901141
+    },
+    {
+      "nll_sum": 331613.7040821641,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.145223116316005,
+      "bits_per_tok": 5.980292833287396,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 2.7937989234924316,
+      "order": 4,
+      "alpha": 0.7,
+      "delta_vs_baseline_bpt": 0.001511649946757565
+    },
+    {
+      "nll_sum": 338797.3468053083,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.235019772813514,
+      "bits_per_tok": 6.109842024304761,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205
+      },
+      "eval_time_s": 2.764600992202759,
+      "order": 4,
+      "alpha": 1.0,
+      "delta_vs_baseline_bpt": 0.13106084096412296
+    },
+    {
+      "nll_sum": 331529.8814580729,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.144175320417417,
+      "bits_per_tok": 5.978781183340638,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 2.16352915763855,
+      "order": 5,
+      "alpha": 0.0,
+      "delta_vs_baseline_bpt": 0.0
+    },
+    {
+      "nll_sum": 330060.8526676425,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.125812230998419,
+      "bits_per_tok": 5.95228884530045,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 3.235675096511841,
+      "order": 5,
+      "alpha": 0.1,
+      "delta_vs_baseline_bpt": -0.026492338040188024
+    },
+    {
+      "nll_sum": 328622.81749611883,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.107836566658569,
+      "bits_per_tok": 5.926355443500663,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 3.211941957473755,
+      "order": 5,
+      "alpha": 0.3,
+      "delta_vs_baseline_bpt": -0.05242573983997545
+    },
+    {
+      "nll_sum": 329192.84418191016,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.1149619892987435,
+      "bits_per_tok": 5.936635255407881,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 3.2627689838409424,
+      "order": 5,
+      "alpha": 0.5,
+      "delta_vs_baseline_bpt": -0.042145927932756955
+    },
+    {
+      "nll_sum": 331714.04029268934,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.1464773346253,
+      "bits_per_tok": 5.982102287822407,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 3.180006980895996,
+      "order": 5,
+      "alpha": 0.7,
+      "delta_vs_baseline_bpt": 0.0033211044817686997
+    },
+    {
+      "nll_sum": 338896.8381834578,
+      "n_scored": 79999,
+      "mean_nll_nats": 4.236263430586105,
+      "bits_per_tok": 6.111636243205841,
+      "unique_ctx": {
+        "1": 1,
+        "2": 786,
+        "3": 25849,
+        "4": 55205,
+        "5": 66814
+      },
+      "eval_time_s": 3.171586036682129,
+      "order": 5,
+      "alpha": 1.0,
+      "delta_vs_baseline_bpt": 0.13285505986520274
+    }
+  ]
+}

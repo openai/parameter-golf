@@ -1,0 +1,58 @@
+Loading data/datasets/fineweb10B_sp1024/fineweb_val_000000.bin...
+  using 2,000,000 tokens
+Fitting bigram baseline...
+  bigram fit in 0.8s
+
+=== BASELINE: bigram only (no n-gram) ===
+    ... 500000/1999999  bits/tok=6.2554
+    ... 1000000/1999999  bits/tok=6.2768
+    ... 1500000/1999999  bits/tok=6.2644
+  order=4 per_doc alpha=0.10  bits/tok=6.19760  delta=-0.07470  (36s)
+  order=4 per_doc alpha=0.30  bits/tok=6.07219  delta=-0.20012  (36s)
+  order=4 per_doc alpha=0.50  bits/tok=5.98140  delta=-0.29091  (38s)
+  order=4 per_doc alpha=1.00  bits/tok=5.91542  delta=-0.35689  (32s)
+  order=4 per_doc alpha=1.50  bits/tok=6.07005  delta=-0.20225  (34s)
+  order=4 global alpha=0.00  bits/tok=6.27231  delta=+0.00000  (10s)
+  order=4 global alpha=0.10  bits/tok=6.12800  delta=-0.14430  (28s)
+  order=4 global alpha=0.30  bits/tok=5.88178  delta=-0.39052  (28s)
+  order=4 global alpha=0.50  bits/tok=5.69721  delta=-0.57509  (28s)
+  order=4 global alpha=1.00  bits/tok=5.51410  delta=-0.75820  (32s)
+  order=4 global alpha=1.50  bits/tok=5.66349  delta=-0.60882  (28s)
+  order=5 per_doc alpha=0.10  bits/tok=6.19847  delta=-0.07384  (32s)
+  order=5 per_doc alpha=0.30  bits/tok=6.07461  delta=-0.19770  (33s)
+  order=5 per_doc alpha=0.50  bits/tok=5.98508  delta=-0.28722  (35s)
+  order=5 per_doc alpha=1.00  bits/tok=5.92058  delta=-0.35173  (34s)
+  order=5 per_doc alpha=1.50  bits/tok=6.07452  delta=-0.19779  (32s)
+  order=5 global alpha=0.00  bits/tok=6.27231  delta=+0.00000  (13s)
+  order=5 global alpha=0.10  bits/tok=6.13662  delta=-0.13569  (32s)
+  order=5 global alpha=0.30  bits/tok=5.90417  delta=-0.36813  (33s)
+  order=5 global alpha=0.50  bits/tok=5.72783  delta=-0.54448  (40s)
+  order=5 global alpha=1.00  bits/tok=5.53853  delta=-0.73378  (36s)
+  order=5 global alpha=1.50  bits/tok=5.65488  delta=-0.61742  (33s)
+  time 2.5s  bits/tok=6.27231
+
+=== PER-DOC CACHE vs GLOBAL CACHE — alpha sweep ===
+order     mode  alpha   bits/tok      delta
+--------------------------------------------------
+    4  per_doc   0.10    6.19760   -0.07470
+    4  per_doc   0.30    6.07219   -0.20012
+    4  per_doc   0.50    5.98140   -0.29091
+    4  per_doc   1.00    5.91542   -0.35689
+    4  per_doc   1.50    6.07005   -0.20225
+    4   global   0.00    6.27231   +0.00000
+    4   global   0.10    6.12800   -0.14430
+    4   global   0.30    5.88178   -0.39052
+    4   global   0.50    5.69721   -0.57509
+    4   global   1.00    5.51410   -0.75820
+    4   global   1.50    5.66349   -0.60882
+    5  per_doc   0.10    6.19847   -0.07384
+    5  per_doc   0.30    6.07461   -0.19770
+    5  per_doc   0.50    5.98508   -0.28722
+    5  per_doc   1.00    5.92058   -0.35173
+    5  per_doc   1.50    6.07452   -0.19779
+    5   global   0.00    6.27231   +0.00000
+    5   global   0.10    6.13662   -0.13569
+    5   global   0.30    5.90417   -0.36813
+    5   global   0.50    5.72783   -0.54448
+    5   global   1.00    5.53853   -0.73378
+    5   global   1.50    5.65488   -0.61742
