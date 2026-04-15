@@ -67,7 +67,7 @@ class Hyperparameters:
     embedding_dim = int(os.environ.get("EMBEDDING_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_mult = float(os.environ.get("MLP_MULT", 4.8))  # <-- was 4.0 in SOTA
+    mlp_mult = float(os.environ.get("MLP_MULT", 4))  # <-- was 4.0 in SOTA
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
     skip_gates_enabled = bool(int(os.environ.get("SKIP_GATES_ENABLED", "1")))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
