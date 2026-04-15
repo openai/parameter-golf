@@ -7,7 +7,17 @@
   "val_loss": null,
   "val_bpb": null,
   "seeds": [1337, 42, 7],
-  "seed_results": {},
+  "seed_results": {
+    "smoke_test": {
+      "seed": 1337,
+      "iterations": 2000,
+      "val_loss": 3.41333324,
+      "val_bpb": 2.02157356,
+      "hardware": "RTX 4090 24GB",
+      "data_variant": "sp1024",
+      "note": "2000-step smoke test — validates training stability only, not competition score"
+    }
+  },
   "bytes_total": null,
-  "notes": "Pending H100 validation. All innovations independently toggleable: MOE_TRAJECTORY_ENABLED, ENTROPY_LOSS_ENABLED, TRAJECTORY_ATTN_ENABLED. MoE routing adds ~2.5K params (10 experts x 7->16->8 + 10x7 centroids). Orthogonality penalty (0.01) encourages expert specialization. Scalars recomputed at encoder/decoder boundary for evolved representations."
+  "notes": "Smoke test (2000 steps, SP1024, RTX 4090) passed: val_bpb=2.0216, torch.compile(fullgraph=True) stable. Pending full H100 validation. All innovations independently toggleable: MOE_TRAJECTORY_ENABLED, ENTROPY_LOSS_ENABLED, TRAJECTORY_ATTN_ENABLED. MoE routing adds ~2.5K params (10 experts x 7->16->8 + 10x7 centroids). Orthogonality penalty (0.01) encourages expert specialization. Scalars recomputed at encoder/decoder boundary for evolved representations. Code compressed LZMA-9+base64: 63.7KB -> 20.5KB (67.8% reduction, 44KB saved for weights)."
 }
