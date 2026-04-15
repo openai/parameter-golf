@@ -843,6 +843,23 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     return Q[:, invperm], s
 
 
+def _layer_clip_sigmas(name, h):
+    """Per-layer clip sigmas: early layers are more sensitive (higher k),
+    late layers less sensitive (lower k). Improves quant quality on
+    sensitive layers while compressing insensitive ones harder."""
+    if "tok_emb" in name:
+        return h.embed_clip_sigmas
+    m = re.search(r"blocks\.(\d+)\.", name)
+    if not m:
+        return h.matrix_clip_sigmas
+    layer = int(m.group(1))
+    if layer <= 2:
+        return h.matrix_clip_sigmas * 1.15  # early: ~14.8
+    elif layer <= 5:
+        return h.matrix_clip_sigmas         # loop/mid: 12.85 (unchanged)
+    else:
+        return h.matrix_clip_sigmas * 0.88  # late (7-10): ~11.3
+
 def gptq_mixed_quantize(state_dict, hessians, h):
     result = {}
     meta = {}
@@ -852,7 +869,7 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             result[name] = t.to(torch.float16) if t.is_floating_point() else t
             meta[name] = "passthrough (float16)"
             continue
-        cs = h.embed_clip_sigmas if "tok_emb" in name else h.matrix_clip_sigmas
+        cs = _layer_clip_sigmas(name, h)
         bits = h.embed_bits if "tok_emb" in name else h.matrix_bits
         q, s = gptq_quantize_weight(
             t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1
