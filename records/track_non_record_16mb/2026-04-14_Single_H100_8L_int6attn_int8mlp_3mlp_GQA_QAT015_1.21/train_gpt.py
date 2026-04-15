@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import uuid
+import lzma
 import zlib
 from pathlib import Path
 
@@ -52,7 +53,7 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
-    rope_dims = int(os.environ.get("ROPE_DIMS", 32))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 64))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -491,9 +492,11 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 def compress_quant_payload(raw: bytes, args: Hyperparameters) -> tuple[bytes, str]:
-    return zlib.compress(raw, level=9), "zlib"
+    return lzma.compress(raw, preset=9), "lzma"
 
 def decompress_quant_payload(blob: bytes, label: str) -> bytes:
+    if label == "lzma":
+        return lzma.decompress(blob)
     if label == "zlib":
         return zlib.decompress(blob)
     raise ValueError(f"Unsupported compression label: {label}")
