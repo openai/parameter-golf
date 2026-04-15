@@ -1,0 +1,51 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-14",
+  "name": "Switched Deep Supervision (first DS submission)",
+  "author": "channyzf6",
+  "github_id": "channyzf6",
+  "blurb": "First Deep Supervision (DS) submission in the competition. Introduces Switched DS — random single-layer auxiliary CE supervision through the shared LM head — combined with per-layer adaptive GPTQ + int7 embeddings. Single-seed result: TTT BPB 1.08288, sliding BPB 1.08449, artifact 15.997 MB. Includes documented negative results on PC (cosine similarity inter-layer prediction) and MTP variants (block, Medusa-style, multiple horizons).",
+  "val_bpb": 1.08288,
+  "val_loss": 2.79718,
+  "val_bpb_sliding": 1.08449,
+  "val_bpb_quantized": 1.10110,
+  "val_bpb_pre_quant_post_ema": 1.08933,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb_pre_quant_post_ema": 1.08933,
+      "val_bpb_quantized": 1.10110,
+      "val_bpb_sliding": 1.08449,
+      "val_bpb_ttt": 1.08288,
+      "artifact_bytes": 15997104,
+      "steps": 4316,
+      "training_time_seconds": 588
+    }
+  },
+  "bytes_total": 15997104,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "techniques": [
+    "Switched Deep Supervision (random single layer per step, alpha=0.01)",
+    "Fraction-based DS alpha decay (active 0-70%, decay 70-85%, off 85-100%)",
+    "Per-layer adaptive GPTQ (MLP sigma=12.0, attn sigma=13.0)",
+    "int7 embeddings (sigma=15.0) — saves ~530KB",
+    "SP8192 tokenizer",
+    "Depth recurrence (loop layers 3-5, 3x, activate at 35%)",
+    "Parallel residuals (layers 7-10, GPT-J style)",
+    "MuonEq-R optimizer with WD=0.095",
+    "QK-Gain 5.25",
+    "XSA on all 11 layers",
+    "Legal score-first TTT (SGD lr=0.005, mom=0.9, 3 epochs)",
+    "EMA decay 0.9965, warmdown fraction 0.72"
+  ],
+  "novel_contributions": [
+    "First Deep Supervision submission in the competition",
+    "Switched DS — random single-layer aux supervision (novel scheduling)",
+    "Documented negative results on PC and MTP variants"
+  ],
+  "comparison_baseline_pr": 1493,
+  "delta_vs_sota_bpb": 0.0019,
+  "is_record": false,
+  "notes": "Single-seed result; 3-seed validation pending. Top-K sampled softmax for DS auxiliary losses is in progress on a separate branch — would unlock non-switched DS at affordable compute and potentially beat SOTA."
+}
