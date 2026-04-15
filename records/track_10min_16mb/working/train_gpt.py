@@ -36,7 +36,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     rope_train_seq_len = int(os.environ.get("ROPE_TRAIN_SEQ_LEN", 2048))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.5))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 6.0))
     num_loops = int(os.environ.get("NUM_LOOPS", 2))
     loop_start = int(os.environ.get("LOOP_START", 3))
     loop_end = int(os.environ.get("LOOP_END", 5))
