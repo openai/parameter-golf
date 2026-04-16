@@ -175,6 +175,7 @@ All post-training ops on saved weights. Workflow: reproduce PR-1493 once, save E
 | ID | Date | Branch | Config | val_bpb | Base | Notes |
 |----|------|--------|--------|---------|------|-------|
 | `pr1493_bundle_seed42` | 2026-04-16 | main | PR-1493 defaults, seed=42, 4562 steps in 588s, 8×H100 Modal, no TTT | **1.0872** (pre-quant, non-sliding, no TTT) | PR-1493 | Ceiling reference. Bundle on HF: `nprime06/parameter-golf-artifacts/pr1493_seed42/` (531 MB: ema_weights + hessians + template_sd). |
+| `pr1493_quantize_reference_v2` | 2026-04-16 | main | Bundle above, PR-1493 GPTQ defaults (int6 k=12.85, int8 tok_emb k=20.0), 1×H100 Modal | pre-quant: sliding **1.0708** / non-sliding 1.0872. post-quant: sliding **1.0818** / non-sliding 1.0984. artifact **15.97 MB**. | `pr1493_bundle_seed42` | Reference reproduction. Our sliding 1.0818 vs PR-1493's reported 1.0827 (3-seed mean) — within single-seed variance. Quant gap = 0.0110 BPB. Pipeline verified end-to-end; ready for Q1-Q11. |
 
 ## Findings
 
