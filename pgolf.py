@@ -296,6 +296,24 @@ def _merge_header(existing, new_cols):
     return merged
 
 
+def cmd_status(args):
+    header, rows = _read_tsv(RESULTS_FILE)
+    if not header:
+        print(f"No {RESULTS_FILE} found.")
+        return 1
+    for r in rows:
+        if r.get("commit") == args.iteration:
+            old = r.get("status", "")
+            r["status"] = args.status
+            if args.note:
+                r["description"] = (r.get("description", "") + f" [{args.note}]").strip()
+            _write_tsv(RESULTS_FILE, header, rows)
+            print(f"{args.iteration}: status {old!r} -> {args.status!r}")
+            return 0
+    print(f"No row with commit={args.iteration!r} in {RESULTS_FILE}")
+    return 1
+
+
 def cmd_eval(args):
     iteration = args.iteration
     description = args.description
@@ -416,7 +434,12 @@ def main():
     p_eval.add_argument("iteration", help="Iteration ID or commit hash")
     p_eval.add_argument("--script", default=DEFAULT_SCRIPT, help="Local script to deploy")
     p_eval.add_argument("--description", default="autoresearch run", help="Description of the run")
-    
+
+    p_status = subparsers.add_parser("status", help="Update the status of a recorded iteration in results.tsv")
+    p_status.add_argument("iteration", help="Iteration ID (commit column) to update")
+    p_status.add_argument("status", choices=("keep", "revert", "crash"), help="New status value")
+    p_status.add_argument("--note", default=None, help="Optional note appended to description")
+
     args = parser.parse_args()
 
     # Remote shell uses $HOME/... on brev; scp does not expand $HOME in paths, so use a home-relative prefix for brev.
@@ -441,6 +464,8 @@ def main():
         cmd_validate_submission(args)
     elif args.command == "eval":
         cmd_eval(args)
+    elif args.command == "status":
+        cmd_status(args)
 
 if __name__ == "__main__":
     main()

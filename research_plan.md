@@ -427,13 +427,44 @@ Categories that transfer across training regimes:
 - Sliding window stride tuning (64→32, 128)
 - GPTQ hessian with importance-weighted calibration
 
+## Re-ranking original ideas by transferability
+
+Re-reading §4/§5 through the hardware-independence lens (what survives going from 1xH100 PCIe @ ~1.4k steps to 8xH100 SXM @ ~4.5k steps?):
+
+- **Step-count-sensitive** (hold for final 8xH100 tuning — do NOT burn dev cycles here):
+  warmdown shape, EMA decay, SWA timing, `train_batch_tokens`, any LR schedule detail.
+  These are first-order functions of total steps. Dev-time wins are anti-signal.
+- **Step-count-agnostic / transferable** (burn dev cycles here):
+  quantization math, compression, attention/MLP structure, optimizer update rule (NS iters, WD),
+  init std, vocab size, MTP auxiliary heads, GPTQ calibration design.
+
+Re-ranked candidates from §4/§5 that were not yet executed:
+
+| Old rank | Idea | Transferable? | New rank | Why moved |
+|----|----|----|----|----|
+| T1.3, §5-E1 | Hessian-aware SDClip (per-row k from H trace) | Yes — pure math | **1** | Writeup calls it "promising, underexplored" (~−0.002). Underexplored, hw-indep, cheap. |
+| §5-E6 | Layer-adaptive bit allocation (int5/int6/int7 mix) | Yes — quant math | **2** | Strong Hessian evidence for heterogeneity; direct size/quality trade. |
+| T1.2, §3-G | Per-head SDClip (Q/K/V rows treated separately) | Yes — quant math | **3** | Natural extension of iter_9's per-layer win; heads within a layer differ. |
+| §5-E8 | MTP (4 heads, weight 0.3) | Yes — arch/loss | **4** | §4 Tier 3; "showed promise but never tested on top stack." Promoted — no step-count coupling. |
+| §5-E4 | QK-Gain sweep (5.5 vs 6.0 vs per-layer) | Yes — init | **5** | Cheap, 1-commit; iter_7 already validated sensitivity direction. |
+| T1, §3-G | Newton-Schulz 5→6 steps | Yes — optimizer | **6** | Better orthogonalization; cost is compile time only. |
+| §5-E2 | SP16384 vocabulary (6144 → 16384) | Yes — tokenizer | **7** | Highest single-lever potential (−0.003 to −0.008) but expensive: retokenize, rebuild BigramHash, re-fit sizes. Fire once other knobs are tuned. |
+| §5-E9 | Loop config (depth/width/iters within recurrence) | Yes — arch | **8** | Structural; cheap to try once we have a stable baseline. |
+| §5-E7 | Training seq length 4096 | Partial — changes grad noise | **9** | Arguably step-count-sensitive via effective batch; defer. |
+| §5-E3 | Selective TTT with low-rank adapters | Yes — eval-time | **10** | Eval-only so fully safe, but TTT is disabled in dev for iteration speed. Revisit pre-submission. |
+| §5-E5, §5-E10 | Warmdown shape / EMA+SWA | **No** — step-sensitive | — | Explicitly deferred to final 8xH100 runs. |
+
 ## Next experiments (transferable)
 
-| Iter | Experiment | Category |
-|------|-----------|----------|
-| iter_22 | int6→mixed int5/int6 per-layer | Quantization |
-| iter_23 | Newton-Schulz 5→6 iterations | Optimizer |
-| iter_24 | Per-head SDClip (Q/K/V separate) | Quantization |
-| iter_25 | Init std sweep on tied_embed | Init |
-| iter_26 | MLP 4x → 3.5x (trade width for depth?) | Architecture |
-| iter_27+ | Based on what wins above |
+| Iter | Experiment | Category | Expected |
+|------|-----------|----------|----------|
+| iter_22 | Hessian-aware SDClip (k ∝ sqrt(H_row_trace)) | Quantization | −0.001–0.003 |
+| iter_23 | Mixed-bit per-layer (int5 late MLP, int6 rest) | Quantization | −0.001–0.003, size up to 500KB |
+| iter_24 | Per-head SDClip (Q/K/V separately) | Quantization | −0.001–0.002 |
+| iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 |
+| iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 |
+| iter_27 | Newton-Schulz 5→6 iterations | Optimizer | −0.000–0.002 |
+| iter_28 | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) |
+| iter_29+ | Loop config refinement / based on wins above | Architecture | TBD |
+
+Deferred to final 8xH100 tuning (do NOT run in dev): `train_batch_tokens`, warmdown_frac shape, EMA decay, SWA, LR schedule tails.
