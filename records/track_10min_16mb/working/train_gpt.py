@@ -11,7 +11,7 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 42))
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.72))
+    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.68))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
