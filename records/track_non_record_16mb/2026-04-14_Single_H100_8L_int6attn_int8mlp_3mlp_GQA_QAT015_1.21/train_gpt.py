@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import uuid
+import lzma
 import zlib
 from pathlib import Path
 
@@ -491,11 +492,13 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 def compress_quant_payload(raw: bytes, args: Hyperparameters) -> tuple[bytes, str]:
-    return zlib.compress(raw, level=9), "zlib"
+    return lzma.compress(raw, preset=9), "lzma"
 
 def decompress_quant_payload(blob: bytes, label: str) -> bytes:
     if label == "zlib":
         return zlib.decompress(blob)
+    if label == "lzma":
+        return lzma.decompress(blob)
     raise ValueError(f"Unsupported compression label: {label}")
 
 def load_data_shard(file: Path) -> Tensor:
