@@ -5,7 +5,7 @@
   "team_name": "Mark Magumba",
   "team_or_author": "Mark Magumba",
   "contact": "magumbian@gmail.com",
-  "github_username": "YOUR_GITHUB_USERNAME",
+  "github_username": "Magumbian",
   "model_name": "ConvCompressedNodeFusion_v1",
   "summary": "Conv-compressed residual node-fusion LM with direct FineWeb training and recurrent block passes.",
   "primary_metric": "val_bpb",
