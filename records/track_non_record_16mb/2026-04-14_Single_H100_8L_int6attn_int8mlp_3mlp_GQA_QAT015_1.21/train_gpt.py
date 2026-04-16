@@ -10,7 +10,6 @@ import subprocess
 import sys
 import time
 import uuid
-import lzma
 import zlib
 from pathlib import Path
 
@@ -29,16 +28,16 @@ except ImportError:
 
 class Hyperparameters:
 
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/sp_bpe_8192/")
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp4096")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/sp_bpe_8192.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_4096_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 42))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 100000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 96))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
     iterations = int(os.environ.get("ITERATIONS", 35000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
@@ -47,22 +46,22 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 3))
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 4096))
     num_layers = int(os.environ.get("NUM_LAYERS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 3))
-    rope_dims = int(os.environ.get("ROPE_DIMS",32))
+    rope_dims = int(os.environ.get("ROPE_DIMS", 32))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    embed_lr = float(os.environ.get("EMBED_LR", 0.02))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lrgit = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.015))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.01))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.032))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.032))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -70,13 +69,13 @@ class Hyperparameters:
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    muon_wd = float(os.environ.get("MUON_WD", 0.04))
+    muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))
-    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.25))
+    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.20))
     use_flash_attn_interface = bool(int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1")))
-    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.30))
+    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     
@@ -492,11 +491,9 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     return out
 
 def compress_quant_payload(raw: bytes, args: Hyperparameters) -> tuple[bytes, str]:
-    return lzma.compress(raw, preset=9), "lzma"
+    return zlib.compress(raw, level=9), "zlib"
 
 def decompress_quant_payload(blob: bytes, label: str) -> bytes:
-    if label == "lzma":
-        return lzma.decompress(blob)
     if label == "zlib":
         return zlib.decompress(blob)
     raise ValueError(f"Unsupported compression label: {label}")
