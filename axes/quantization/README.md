@@ -174,6 +174,7 @@ All post-training ops on saved weights. Workflow: reproduce PR-1493 once, save E
 
 | ID | Date | Branch | Config | val_bpb | Base | Notes |
 |----|------|--------|--------|---------|------|-------|
+| `pr1493_bundle_seed42` | 2026-04-16 | main | PR-1493 defaults, seed=42, 4562 steps in 588s, 8×H100 Modal, no TTT | **1.0872** (pre-quant, non-sliding, no TTT) | PR-1493 | Ceiling reference. Bundle on HF: `nprime06/parameter-golf-artifacts/pr1493_seed42/` (531 MB: ema_weights + hessians + template_sd). |
 
 ## Findings
 
