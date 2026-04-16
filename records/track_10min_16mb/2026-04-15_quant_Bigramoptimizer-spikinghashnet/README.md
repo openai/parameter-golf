@@ -52,6 +52,22 @@ optimizer_tok = torch.optim.Adam(
 
 Now both `unigram_table.weight` and `bigram_table.weight` are trained.
 
+## Validation results (from terminal runs)
+
+The following results are taken from `final_int8_zlib_roundtrip_exact` lines in terminal run logs:
+
+| Run file | val_loss | val_bpb | steps | artifact_bytes |
+|---|---:|---:|---:|---:|
+| `train_v0.txt` | 3.03380227 | 1.79678859 | 104 | 5,624,651 |
+| `train_v1.txt` | 3.87858984 | 2.29711937 | 200 | 9,612,035 |
+| `train_v2.txt` | 2.89974137 | 1.71739017 | 108 | 5,867,139 |
+
+3-run aggregate:
+- Mean `val_loss`: **3.27071116**
+- Mean `val_bpb`: **1.93709938**
+- Std `val_loss`: **0.43330547**
+- Std `val_bpb`: **0.25662791**
+
 
 ## Submission files
 
@@ -72,8 +88,5 @@ cd /Users/laalinib68gmail.com/Documents/GitHub/parameter-golf
 RUN_ID=mlx_smoke ITERATIONS=200 TRAIN_BATCH_TOKENS=8192 VAL_LOSS_EVERY=0 VAL_BATCH_SIZE=8192 python3 train_gpt.py --hash_size 32768
 ```
 
-Adjust the arguments as needed for your submission run.
 
-## Results
 
-Validation results should be added here after running at least 3 independent training runs to compute a statistically significant average.
