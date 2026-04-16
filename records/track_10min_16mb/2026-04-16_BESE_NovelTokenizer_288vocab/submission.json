@@ -1,0 +1,21 @@
+{
+  "author": "Omer Bese",
+  "github_id": "mrbese",
+  "name": "BESE 288-vocab Novel Tokenizer + Depth Recurrence + Parallel Residuals",
+  "val_bpb": 1.1531,
+  "val_bpb_std": 0.0028,
+  "seeds": [1337, 42, 314],
+  "seed_results": [1.1554, 1.1539, 1.1499],
+  "date": "2026-04-16",
+  "summary": "BESE two-layer tokenizer (40 base + 248 BPE merges = 288 vocab) shrinks embedding table by ~276KB vs SP1024, funding extra transformer depth. Depth recurrence (3 loops on layers 3-5), parallel residuals, n-gram tilt at eval, compiled NS5 optimizer, batched EMA. 3-seed mean: 1.1531 BPB.",
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 600,
+  "compressed_model_bytes": 12635100,
+  "code_bytes": 88802,
+  "total_artifact_bytes": 12723902,
+  "vocab_size": 288,
+  "num_layers": 11,
+  "model_dim": 512,
+  "tokenizer": "BESE+BPE (custom 40-base + 248 merges)",
+  "notes": "First custom tokenizer submission to the challenge. 3-seed mean with sliding window eval (stride=64) and n-gram prior tilt. BESE's 288 vocab produces ~2x more tokens per byte than SP1024, but the 276KB embedding savings fund depth recurrence and parallel residuals."
+}
