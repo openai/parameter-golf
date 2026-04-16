@@ -1679,8 +1679,8 @@ def main():
                 loop_save_sd  = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
                 loop_save_opt = [copy.deepcopy(o.state_dict()) for o in optimizers]
                 loop_ema_save = {k: v.clone() for k, v in ema_state.items()}
-                compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-                model = compiled_model
+                # Re-use the existing compiled_model; loop_enabled guard triggers recompile
+                # on the first forward pass - no need for a separate torch.compile call.
                 model.train()
                 lu_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
                 for lws in range(args.loop_warmup_steps):
@@ -1713,7 +1713,8 @@ def main():
                      f"decoder:[{args.recur_end},{args.recur_start},{args.recur_start+1},"
                      f"{args.recur_end},{args.recur_end+1},{args.recur_end+2},"
                      f"{args.recur_end+3},{args.recur_end+4},{args.recur_end+5}]")
-                # Refresh elapsed time after warmup
+                # Preserve elapsed time before resetting interval timer
+                train_ms += 1000.0 * (time.perf_counter() - t0)
                 torch.cuda.synchronize()
                 t0 = time.perf_counter()
 
