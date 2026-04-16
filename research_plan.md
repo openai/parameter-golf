@@ -456,15 +456,35 @@ Re-ranked candidates from §4/§5 that were not yet executed:
 
 ## Next experiments (transferable)
 
-| Iter | Experiment | Category | Expected |
-|------|-----------|----------|----------|
-| iter_22 | Hessian-aware SDClip (k ∝ sqrt(H_row_trace)) | Quantization | −0.001–0.003 |
-| iter_23 | Mixed-bit per-layer (int5 late MLP, int6 rest) | Quantization | −0.001–0.003, size up to 500KB |
-| iter_24 | Per-head SDClip (Q/K/V separately) | Quantization | −0.001–0.002 |
-| iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 |
-| iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 |
-| iter_27 | Newton-Schulz 5→6 iterations | Optimizer | −0.000–0.002 |
-| iter_28 | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) |
-| iter_29+ | Loop config refinement / based on wins above | Architecture | TBD |
+| Iter | Experiment | Category | Expected | Result |
+|------|-----------|----------|----------|--------|
+| iter_22/a-d | Hessian-aware SDClip (H-weighted per-row std) | Quantization | −0.001–0.003 | **REVERT** — neutral-to-negative at matched size (see note) |
+| iter_23 | Mixed-bit per-layer (int5 late MLP, int6 rest) | Quantization | −0.001–0.003, size up to 500KB | pending |
+| iter_24 | Per-head SDClip (Q/K/V separately) | Quantization | −0.001–0.002 | pending |
+| iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | pending |
+| iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 | pending |
+| iter_27 | Newton-Schulz 5→6 iterations | Optimizer | −0.000–0.002 | pending |
+| iter_28 | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) | pending |
+| iter_29+ | Loop config refinement / based on wins above | Architecture | TBD | pending |
+
+### iter_22 notes (H-aware SDClip, four sub-iters)
+
+Replaced row-wise `std(dim=1)` with a Hessian-weighted row std:
+`row_std_h = sqrt( Σ_j h_weight[j] (W[i,j] − μ_h)^2 / Σ h_weight )`
+where `h_weight[j] = H[j,j] / mean(H.diag())`.
+
+Size vs `matrix_clip_sigmas` (all H-weighted, iter_15b baseline is `std`-based at 13.5 → 15.84MB):
+- c_s=12.5 → 16.62MB (smaller c_s ⇒ saturated ints ⇒ WORSE compression — counterintuitive but real)
+- c_s=13.5 → 16.21MB
+- c_s=14.0 → 16.03MB (29KB over)
+- c_s=14.5 → 15.84MB ✓ under cap, bpb **1.2470** vs iter_15b **1.2463** (+0.0007)
+
+Learnings:
+1. Smaller `clip_sigmas` → saturated int distribution → worse brotli compression. Intuition (more clipping = smaller ints = better compression) is wrong; what matters is the int histogram's entropy at large values.
+2. H-weighted per-row std is **redundant with GPTQ**: the GPTQ loop already propagates Hessian-weighted error across columns via the Hinv update. Adding H weighting to the scale formula double-counts.
+3. Best version (c_s=13.5, 16.21MB) tied iter_15b on quality — so the H-weighting is quality-neutral, not additive to GPTQ.
+4. **If revisited:** try H weighting **instead of** GPTQ's ordering/Hinv (replace the mechanism, don't stack it), or move to group-level rather than row-level H weighting.
+
+Reverted to iter_15b baseline.
 
 Deferred to final 8xH100 tuning (do NOT run in dev): `train_batch_tokens`, warmdown_frac shape, EMA decay, SWA, LR schedule tails.
