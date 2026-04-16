@@ -94,7 +94,9 @@ class Hyperparameters():
     compressor = os.environ.get('COMPRESSOR', 'brotli')  #(lzma or brotli)
     gptq_enabled = bool(int(os.environ.get('GPTQ_ENABLED', '1')))
     gptq_calibration_batches = int(os.environ.get('GPTQ_CALIBRATION_BATCHES', 64))
-    gptq_reserve_seconds = float(os.environ.get('GPTQ_RESERVE_SECONDS', 10.0))
+    gptq_reserve_seconds = float(os.environ.get('GPTQ_RESERVE_SECONDS', 12.0))
+    gptq_group_size = int(os.environ.get('GPTQ_GROUP_SIZE', 128))
+    gptq_sequential = bool(int(os.environ.get('GPTQ_SEQUENTIAL', '1')))
 
     # Distributed setup
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
@@ -908,7 +910,7 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
 def collect_hessians(
     model: nn.Module,
     train_loader: DistributedTokenLoader,
-    h: Hyperparameters,
+    hp: Hyperparameters,
     device: torch.device,
     n_calibration_batches: int = 64,
 ) -> dict[str, Tensor]:
@@ -938,13 +940,13 @@ def collect_hessians(
     with torch.no_grad():
         for i in range(n_calibration_batches):
             x, y = train_loader.next_batch(
-                h.train_batch_tokens,
-                h.train_seq_len, h.grad_accum_steps,
+                hp.train_batch_tokens,
+                hp.train_seq_len, hp.grad_accum_steps,
             )
             model.forward_logits(x)
 
-    for h in hooks:
-        h.remove()
+    for hk in hooks:
+        hk.remove()
 
     for name in hessians:
         hessians[name] = hessians[name].cpu() / n_calibration_batches
@@ -952,47 +954,133 @@ def collect_hessians(
     return hessians
 
 
+def collect_hessians_sequential(
+    model: nn.Module,
+    train_loader: DistributedTokenLoader,
+    hp: Hyperparameters,
+    device: torch.device,
+    state_dict: dict[str, Tensor],
+    n_calibration_batches: int = 64,
+    group_size: int = 128,
+) -> dict[str, Tensor]:
+    """Sequential Hessian collection: quantize each layer, inject the quantized
+    weights back into the model, then collect Hessians for later layers.
+    This propagates quantization error forward so later layers' Hessians
+    reflect the actual (quantized) activations they'll see at eval time."""
+    layer_order: list[tuple[str, CastedLinear]] = []
+    for name, module in model.named_modules():
+        if isinstance(module, CastedLinear) and module.weight.numel() > 65536:
+            cat = classify_param(name + ".weight")
+            if cat in ("mlp", "attn"):
+                layer_order.append((name + ".weight", module))
+
+    all_hessians: dict[str, Tensor] = {}
+    clip_range = 31
+
+    for layer_idx, (wname, layer_module) in enumerate(layer_order):
+        hessians: dict[str, Tensor] = {}
+        hook_handle = None
+
+        def make_hook(tgt_name: str):
+            def hook_fn(module, inp, out):
+                x = inp[0].detach().float()
+                if x.ndim == 3:
+                    x = x.reshape(-1, x.shape[-1])
+                if tgt_name not in hessians:
+                    hessians[tgt_name] = torch.zeros(
+                        x.shape[1], x.shape[1], dtype=torch.float32, device=device
+                    )
+                hessians[tgt_name].addmm_(x.T, x)
+            return hook_fn
+
+        hook_handle = layer_module.register_forward_hook(make_hook(wname))
+
+        model.eval()
+        with torch.no_grad():
+            for i in range(n_calibration_batches):
+                x, y = train_loader.next_batch(
+                    hp.train_batch_tokens,
+                    hp.train_seq_len, hp.grad_accum_steps,
+                )
+                model.forward_logits(x)
+
+        hook_handle.remove()
+
+        if wname in hessians:
+            H = hessians[wname].cpu() / n_calibration_batches
+            all_hessians[wname] = H
+
+            w_cpu = state_dict[wname].detach().cpu()
+            if group_size > 0 and group_size < w_cpu.shape[1]:
+                q, s = gptq_quantize_weight(w_cpu, H, clip_range=clip_range,
+                                            group_size=group_size)
+                w_quant = _dequant_groupwise(q, s, group_size)
+            else:
+                q, s = gptq_quantize_weight(w_cpu, H, clip_range=clip_range)
+                w_quant = q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
+
+            with torch.no_grad():
+                layer_module.weight.copy_(w_quant.to(layer_module.weight.dtype).to(device))
+
+        log(f"sequential_gptq: layer {layer_idx+1}/{len(layer_order)} {wname}")
+
+    return all_hessians
+
+
+def _compute_groupwise_scales(
+    W: Tensor, group_size: int, clip_range: int = 31
+) -> Tensor:
+    """Compute per-group fp16 scales for a 2D weight matrix."""
+    rows, cols = W.shape
+    n_groups = (cols + group_size - 1) // group_size
+    scales = torch.zeros(rows, n_groups, dtype=torch.float16)
+    for gi in range(n_groups):
+        c0 = gi * group_size
+        c1 = min(c0 + group_size, cols)
+        group_amax = W[:, c0:c1].abs().amax(dim=1)
+        scales[:, gi] = (group_amax / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+    return scales
+
+
 def gptq_quantize_weight(
     w: Tensor,
     H: Tensor,
     clip_range: int = 31,
     block_size: int = 128,
+    group_size: int = 0,
 ) -> tuple[Tensor, Tensor]:
-    """GPTQ with Cholesky error compensation and actorder (Frantar et al., ICLR 2023)."""
+    """GPTQ with Cholesky error compensation, actorder, groupwise scales,
+    and Hessian-weighted error metric (Frantar et al., ICLR 2023)."""
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
     H = H.float().clone()
+    use_groupwise = group_size > 0 and group_size < cols
 
-    # Zero out dead columns and add damping
     dead = torch.diag(H) == 0
     H[dead, dead] = 1
     damp = 0.01 * H.diag().mean()
     H.diagonal().add_(damp)
 
-    # Column reordering by descending Hessian diagonal (actorder)
+    H_diag = H.diag().clone()
+
     perm = torch.argsort(H.diag(), descending=True)
     invperm = torch.argsort(perm)
     W_perm = W_orig[:, perm].clone()
     W_perm[:, dead[perm]] = 0
     H = H[perm][:, perm]
 
-    # Upper Cholesky of the inverse
     try:
         Hinv = torch.cholesky_inverse(torch.linalg.cholesky(H))
         Hinv = torch.linalg.cholesky(Hinv, upper=True)
     except torch.linalg.LinAlgError:
+        if use_groupwise:
+            scales = _compute_groupwise_scales(W_orig, group_size, clip_range)
+            q = _quantize_with_groupwise_scales(W_orig, scales, group_size, clip_range)
+            return q, scales
         return quantize_int6_per_row(W_orig, clip_range)
 
-    # Search over scale candidates, running full GPTQ for each
-    best_q, best_scale, best_err = None, None, float('inf')
-    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
-        if pct < 1.0:
-            row_clip = torch.quantile(W_orig.abs(), pct, dim=1)
-        else:
-            row_clip = W_orig.abs().amax(dim=1)
-        s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-        sf = s.float()
-
+    def _run_gptq(sf_fn):
+        """Run GPTQ column sweep with a per-column scale function."""
         Q = torch.zeros(rows, cols, dtype=torch.int8)
         W_work = W_perm.clone()
         for i1 in range(0, cols, block_size):
@@ -1003,6 +1091,7 @@ def gptq_quantize_weight(
             for j in range(i2 - i1):
                 w_col = W_block[:, j]
                 d = Hinv_block[j, j]
+                sf = sf_fn(i1 + j)
                 q_col = torch.clamp(torch.round(w_col / sf), -clip_range, clip_range)
                 Q[:, i1 + j] = q_col.to(torch.int8)
                 err = (w_col - q_col.float() * sf) / d
@@ -1010,21 +1099,110 @@ def gptq_quantize_weight(
                 W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
             if i2 < cols:
                 W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+        return Q
 
-        recon = Q.float() * sf[:, None]
-        mse = (W_perm - recon).pow(2).mean().item()
-        if mse < best_err:
-            best_q, best_scale, best_err = Q, s, mse
+    def _hessian_weighted_error(Q, sf_fn):
+        """Compute sum of H_diag-weighted squared errors (in permuted order)."""
+        recon = torch.zeros_like(W_perm)
+        for c in range(cols):
+            recon[:, c] = Q[:, c].float() * sf_fn(c)
+        diff = W_perm - recon
+        h_diag_perm = H_diag[perm]
+        return (diff.pow(2) * h_diag_perm[None, :]).sum().item()
 
-    return best_q[:, invperm], best_scale
+    if use_groupwise:
+        n_groups_perm = (cols + group_size - 1) // group_size
+        gw_scales_perm = torch.zeros(rows, n_groups_perm, dtype=torch.float16)
+        for gi in range(n_groups_perm):
+            c0 = gi * group_size
+            c1 = min(c0 + group_size, cols)
+            gamax = W_perm[:, c0:c1].abs().amax(dim=1)
+            gw_scales_perm[:, gi] = (gamax / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+
+        def gw_sf_fn(col_idx):
+            return gw_scales_perm[:, col_idx // group_size].float()
+
+        Q = _run_gptq(gw_sf_fn)
+        Q_unperm = Q[:, invperm]
+
+        n_groups_orig = (cols + group_size - 1) // group_size
+        scales_orig = torch.zeros(rows, n_groups_orig, dtype=torch.float16)
+        for gi in range(n_groups_orig):
+            c0 = gi * group_size
+            c1 = min(c0 + group_size, cols)
+            orig_cols_in_perm = invperm[c0:c1]
+            for pc in orig_cols_in_perm:
+                scales_orig[:, gi] = torch.maximum(
+                    scales_orig[:, gi],
+                    gw_scales_perm[:, int(pc.item()) // group_size]
+                )
+        scales_orig = _compute_groupwise_scales(
+            _dequant_groupwise(Q_unperm, scales_orig, group_size) - W_orig + W_orig,
+            group_size, clip_range,
+        )
+        scales_orig = _compute_groupwise_scales(W_orig, group_size, clip_range)
+        Q_final = _quantize_with_groupwise_scales(
+            W_orig + (_dequant_groupwise(Q_unperm, scales_orig, group_size) - _dequant_groupwise(Q_unperm, scales_orig, group_size)),
+            scales_orig, group_size, clip_range,
+        )
+        Q_final = Q_unperm
+        return Q_final, scales_orig
+    else:
+        best_q, best_scale, best_err = None, None, float('inf')
+        for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
+            if pct < 1.0:
+                row_clip = torch.quantile(W_orig.abs(), pct, dim=1)
+            else:
+                row_clip = W_orig.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+
+            def row_sf_fn(col_idx, _s=s):
+                return _s.float()
+
+            Q = _run_gptq(row_sf_fn)
+            herr = _hessian_weighted_error(Q, row_sf_fn)
+            if herr < best_err:
+                best_q, best_scale, best_err = Q, s, herr
+
+        return best_q[:, invperm], best_scale
+
+
+def _quantize_with_groupwise_scales(
+    W: Tensor, scales: Tensor, group_size: int, clip_range: int = 31
+) -> Tensor:
+    rows, cols = W.shape
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    n_groups = scales.shape[1]
+    for gi in range(n_groups):
+        c0 = gi * group_size
+        c1 = min(c0 + group_size, cols)
+        sf = scales[:, gi].float()
+        Q[:, c0:c1] = torch.clamp(
+            torch.round(W[:, c0:c1] / sf[:, None]), -clip_range, clip_range
+        ).to(torch.int8)
+    return Q
+
+
+def _dequant_groupwise(Q: Tensor, scales: Tensor, group_size: int) -> Tensor:
+    rows, cols = Q.shape
+    W = torch.zeros(rows, cols, dtype=torch.float32)
+    n_groups = scales.shape[1]
+    for gi in range(n_groups):
+        c0 = gi * group_size
+        c1 = min(c0 + group_size, cols)
+        sf = scales[:, gi].float()
+        W[:, c0:c1] = Q[:, c0:c1].float() * sf[:, None]
+    return W
 
 
 def gptq_mixed_quantize_int6(
     state_dict: dict[str, Tensor],
     int6_cats: set[str],
     hessians: dict[str, Tensor],
+    group_size: int = 0,
 ) -> tuple[dict[str, Tensor], dict[str, object]]:
-    """Mixed quantization using full GPTQ for layers with Hessians, fallback to clip-search."""
+    """Mixed quantization using full GPTQ with groupwise scales for layers
+    with Hessians, fallback to clip-search for others."""
     result: dict[str, Tensor] = {}
     meta: dict[str, object] = {}
     gptq_count = 0
@@ -1046,9 +1224,11 @@ def gptq_mixed_quantize_int6(
 
         if cat in int6_cats and t.ndim == 2:
             if name in hessians:
-                q, s = gptq_quantize_weight(t, hessians[name])
+                q, s = gptq_quantize_weight(t, hessians[name], group_size=group_size)
                 gptq_count += 1
-                meta[name] = {"type": "int6", "method": "gptq"}
+                is_gw = s.ndim == 2
+                meta[name] = {"type": "int6", "method": "gptq_groupwise" if is_gw else "gptq",
+                              "group_size": group_size if is_gw else 0}
             else:
                 q, s = quantize_int6_per_row(t)
                 fallback_count += 1
@@ -1066,7 +1246,8 @@ def gptq_mixed_quantize_int6(
             result[name + ".scale"] = s
             meta[name] = {"type": "int8"}
 
-    log(f"GPTQ quantization: {gptq_count} layers with full GPTQ, {fallback_count} fallback to clip-search")
+    log(f"GPTQ quantization: {gptq_count} layers with GPTQ (group_size={group_size}), "
+        f"{fallback_count} fallback to clip-search")
     return result, meta
 
 
@@ -1112,7 +1293,12 @@ def dequantize_mixed_int6(result: dict[str, Tensor], meta: dict[str, object],
             out[name] = t
             continue
         q, s = result[name + ".q"], result[name + ".scale"]
-        if s.ndim > 0:
+        gs = 0
+        if isinstance(info, dict):
+            gs = info.get("group_size", 0)
+        if gs > 0 and s.ndim == 2:
+            out[name] = _dequant_groupwise(q, s, gs).to(orig_dtype)
+        elif s.ndim > 0:
             out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
@@ -1193,13 +1379,30 @@ def serialize(h: Hyperparameters, base_model: torch.nn.Module, code: str) -> int
         t0 = time.perf_counter()
         calib_loader = DistributedTokenLoader(h.train_files, h.rank, h.world_size,
                                               torch.device("cuda", h.local_rank))
-        hessians = collect_hessians(
-            base_model, calib_loader, h,
-            torch.device("cuda", h.local_rank),
-            n_calibration_batches=h.gptq_calibration_batches,
-        )
+        if h.gptq_sequential:
+            log(f"GPTQ:using sequential layer-wise propagation (group_size={h.gptq_group_size})")
+            hessians = collect_hessians_sequential(
+                base_model, calib_loader, h,
+                torch.device("cuda", h.local_rank),
+                state_dict=sd_cpu,
+                n_calibration_batches=h.gptq_calibration_batches,
+                group_size=h.gptq_group_size,
+            )
+            base_model.load_state_dict(
+                {k: v.to(base_model.state_dict()[k].dtype).to(
+                    base_model.state_dict()[k].device)
+                 for k, v in sd_cpu.items()},
+                strict=True,
+            )
+        else:
+            hessians = collect_hessians(
+                base_model, calib_loader, h,
+                torch.device("cuda", h.local_rank),
+                n_calibration_batches=h.gptq_calibration_batches,
+            )
         log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter() - t0:.1f}s")
-        quant_result, quant_meta = gptq_mixed_quantize_int6(sd_cpu, {"mlp", "attn"}, hessians)
+        quant_result, quant_meta = gptq_mixed_quantize_int6(
+            sd_cpu, {"mlp", "attn"}, hessians, group_size=h.gptq_group_size)
     else:
         quant_result, quant_meta = mixed_quantize_int6(sd_cpu, {"mlp", "attn"})
 
