@@ -1,0 +1,9 @@
+{
+  "authors": ["AVINASH0052"],
+  "track": "track_10min_16mb",
+  "description": "SP8192 + 11L Depth Recurrence (L3-5) + Parallel Residuals (L7+) + MuonEq-R + Score-First SGD TTT + GPTQ SDClip int6/int8 + Brotli-11",
+  "model_url": "",
+  "val_bpb": null,
+  "val_loss": null,
+  "notes": "Pending leaderboard run. Architecture: 11L×512d×8H/4KV, MLP 4x, depth recurrence L3-5 (×2), parallel residuals from L7, XSA all layers, SmearGate, tied embeddings, logit_softcap=30, QK-Gain=5.25. Training: MuonEq-R (row-norm, NS5), EMA(0.9965), warmdown_frac=0.72, muon_wd=0.095. Quant: GPTQ SDClip int6 (k=12.85σ) for matrices, int8 (k=20σ) for embeddings, Brotli-11. Eval: sliding window stride=64 + SGD TTT 3ep/32K chunk lr=0.005."
+}
