@@ -128,21 +128,18 @@ if _HAS_TRITON and _HAS_TMA:
 	def _rms_inv_kernel(x_ptr,inv_rms_ptr,M,K:tl.constexpr,eps,BLOCK_K:tl.constexpr):
 		pid=tl.program_id(0)
 		if pid<M:
-			cols=tl.arange(0,BLOCK_K);mask=cols<K;x=tl.load(x_ptr+pid*K+cols,mask=mask,other=0.0).to(tl.float32);sum_sq=tl.sum(x*x);inv_rms=1.0/tl.sqrt(sum_sq/K+eps);tl.store(inv_rms_ptr+pid,inv_rms.to(tl.bfloat16))
+			cols=tl.arange(0,BLOCK_K);mask=cols<K;x=tl.load(x_ptr+pid*K+cols,mask=mask,other=0.0).to(tl.float32);sum_sq=tl.sum(x*x);inv_rms=1.0/tl.sqrt(sum_sq/K+eps);tl.store(inv_rms_ptr+pid,inv_rms)
 	@triton.jit
-	def _fused_rms_linear_lrs_kernel(a_desc,b_desc,c_desc,aux_desc,inv_rms_ptr,ln_scale,M,N,K,BLOCK_SIZE_M:tl.constexpr,BLOCK_SIZE_N:tl.constexpr,BLOCK_SIZE_K:tl.constexpr,NUM_SMS:tl.constexpr,FORWARD:tl.constexpr,FUSE_RMS:tl.constexpr):
-		dtype=tl.bfloat16;start_pid=tl.program_id(axis=0);num_pid_m=tl.cdiv(M,BLOCK_SIZE_M);num_pid_n=tl.cdiv(N,BLOCK_SIZE_N);k_tiles=tl.cdiv(K,BLOCK_SIZE_K);num_tiles=num_pid_m*num_pid_n;tile_id_c=start_pid-NUM_SMS
+	def _fused_rms_linear_lrs_kernel(a_desc,b_desc,c_desc,aux_desc,inv_rms_ptr,ln_scale,M,N,K,BLOCK_SIZE_M:tl.constexpr,BLOCK_SIZE_N:tl.constexpr,BLOCK_SIZE_K:tl.constexpr,GROUP_SIZE_M:tl.constexpr,NUM_SMS:tl.constexpr,FORWARD:tl.constexpr,FUSE_RMS:tl.constexpr):
+		dtype=tl.bfloat16;start_pid=tl.program_id(axis=0);num_pid_m=tl.cdiv(M,BLOCK_SIZE_M);num_pid_n=tl.cdiv(N,BLOCK_SIZE_N);k_tiles=tl.cdiv(K,BLOCK_SIZE_K);num_tiles=num_pid_m*num_pid_n;num_pid_in_group=GROUP_SIZE_M*num_pid_n
 		for tile_id in tl.range(start_pid,num_tiles,NUM_SMS,flatten=True):
-			pid_m=tile_id//num_pid_n;pid_n=tile_id%num_pid_n;offs_am=pid_m*BLOCK_SIZE_M;offs_bn=pid_n*BLOCK_SIZE_N
-			if FUSE_RMS:
-				rows=offs_am+tl.arange(0,BLOCK_SIZE_M);row_mask=rows<M;inv_rms=tl.load(inv_rms_ptr+rows,mask=row_mask,other=0.0).to(dtype);row_scale=(inv_rms*ln_scale).to(dtype)
+			group_id=tile_id//num_pid_in_group;first_pid_m=group_id*GROUP_SIZE_M;group_size_m=min(num_pid_m-first_pid_m,GROUP_SIZE_M);pid_m=first_pid_m+(tile_id%group_size_m);pid_n=(tile_id%num_pid_in_group)//group_size_m;offs_am=pid_m*BLOCK_SIZE_M;offs_bn=pid_n*BLOCK_SIZE_N
 			accumulator=tl.zeros((BLOCK_SIZE_M,BLOCK_SIZE_N),dtype=tl.float32)
 			for ki in range(k_tiles):
-				offs_k=ki*BLOCK_SIZE_K;a=a_desc.load([offs_am,offs_k])
-				if FUSE_RMS:
-					a=(a*row_scale[:,None]).to(dtype)
-				b=b_desc.load([offs_bn,offs_k]);accumulator=tl.dot(a,b.T,accumulator)
-			tile_id_c+=NUM_SMS;offs_am_c=offs_am;offs_bn_c=offs_bn;acc=tl.reshape(accumulator,(BLOCK_SIZE_M,2,BLOCK_SIZE_N//2));acc=tl.permute(acc,(0,2,1));acc0,acc1=tl.split(acc)
+				offs_k=ki*BLOCK_SIZE_K;a=a_desc.load([offs_am,offs_k]);b=b_desc.load([offs_bn,offs_k]);accumulator=tl.dot(a,b.T,accumulator)
+			if FUSE_RMS:
+				rows=offs_am+tl.arange(0,BLOCK_SIZE_M);row_mask=rows<M;inv_rms=tl.load(inv_rms_ptr+rows,mask=row_mask,other=0.0);row_scale=inv_rms*ln_scale;accumulator=accumulator*row_scale[:,None]
+			offs_am_c=offs_am;offs_bn_c=offs_bn;acc=tl.reshape(accumulator,(BLOCK_SIZE_M,2,BLOCK_SIZE_N//2));acc=tl.permute(acc,(0,2,1));acc0,acc1=tl.split(acc)
 			if not FORWARD:
 				pre0_bf=aux_desc.load([offs_am_c,offs_bn_c]);pre1_bf=aux_desc.load([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2]);pre0=pre0_bf.to(tl.float32);pre1=pre1_bf.to(tl.float32)
 				c0=(acc0*tl.where(pre0>0,2.0*pre0,0.5*pre0)).to(dtype);c1=(acc1*tl.where(pre1>0,2.0*pre1,0.5*pre1)).to(dtype)
@@ -152,16 +149,16 @@ if _HAS_TRITON and _HAS_TMA:
 			if FORWARD:
 				aux0=tl.where(acc0>0,acc0,0.5*acc0);aux1=tl.where(acc1>0,acc1,0.5*acc1);aux_desc.store([offs_am_c,offs_bn_c],(aux0*aux0).to(dtype));aux_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],(aux1*aux1).to(dtype))
 	def _compute_inv_rms(x_flat,eps=1e-6):
-		M,K=x_flat.shape;BLOCK_K=triton.next_power_of_2(K);inv_rms=torch.empty(M,device=x_flat.device,dtype=torch.bfloat16);_rms_inv_kernel[(M,)](x_flat,inv_rms,M,K,eps,BLOCK_K=BLOCK_K);return inv_rms
+		M,K=x_flat.shape;BLOCK_K=triton.next_power_of_2(K);inv_rms=torch.empty(M,device=x_flat.device,dtype=torch.float32);_rms_inv_kernel[(M,)](x_flat,inv_rms,M,K,eps,BLOCK_K=BLOCK_K);return inv_rms
 	def _fused_linear_lrs(a,b,aux=None,inv_rms=None,ln_scale=1.0):
 		M,K=a.shape;N,K2=b.shape;assert K==K2,"K mismatch";c=torch.empty((M,N),device=a.device,dtype=a.dtype);forward=aux is None
 		if aux is None:aux=torch.empty((M,N),device=a.device,dtype=a.dtype)
 		fuse_rms=inv_rms is not None
-		if inv_rms is None:inv_rms=torch.empty(0,device=a.device,dtype=torch.bfloat16)
-		num_sms=torch.cuda.get_device_properties(a.device).multi_processor_count;BLOCK_SIZE_M,BLOCK_SIZE_N,BLOCK_SIZE_K=128,256,64;num_stages=4 if forward else 3
+		if inv_rms is None:inv_rms=torch.empty(0,device=a.device,dtype=torch.float32)
+		num_sms=torch.cuda.get_device_properties(a.device).multi_processor_count;BLOCK_SIZE_M,BLOCK_SIZE_N,BLOCK_SIZE_K=128,256,64;GROUP_SIZE_M=8;num_stages=4 if forward else 3
 		a_desc=TensorDescriptor.from_tensor(a,[BLOCK_SIZE_M,BLOCK_SIZE_K]);b_desc=TensorDescriptor.from_tensor(b,[BLOCK_SIZE_N,BLOCK_SIZE_K]);c_desc=TensorDescriptor.from_tensor(c,[BLOCK_SIZE_M,BLOCK_SIZE_N//2]);aux_desc=TensorDescriptor.from_tensor(aux,[BLOCK_SIZE_M,BLOCK_SIZE_N//2])
 		grid=lambda _:(min(num_sms,triton.cdiv(M,BLOCK_SIZE_M)*triton.cdiv(N,BLOCK_SIZE_N)),)
-		_fused_rms_linear_lrs_kernel[grid](a_desc,b_desc,c_desc,aux_desc,inv_rms,float(ln_scale),M,N,K,BLOCK_SIZE_M=BLOCK_SIZE_M,BLOCK_SIZE_N=BLOCK_SIZE_N,BLOCK_SIZE_K=BLOCK_SIZE_K,NUM_SMS=num_sms,FORWARD=forward,FUSE_RMS=fuse_rms,num_stages=num_stages,num_warps=8)
+		_fused_rms_linear_lrs_kernel[grid](a_desc,b_desc,c_desc,aux_desc,inv_rms,float(ln_scale),M,N,K,BLOCK_SIZE_M=BLOCK_SIZE_M,BLOCK_SIZE_N=BLOCK_SIZE_N,BLOCK_SIZE_K=BLOCK_SIZE_K,GROUP_SIZE_M=GROUP_SIZE_M,NUM_SMS=num_sms,FORWARD=forward,FUSE_RMS=fuse_rms,num_stages=num_stages,num_warps=8)
 		return (c,aux) if forward else c
 	class _FusedRMSMLPFn(torch.autograd.Function):
 		@staticmethod
