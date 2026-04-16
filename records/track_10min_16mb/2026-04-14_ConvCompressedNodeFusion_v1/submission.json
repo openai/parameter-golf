@@ -16,5 +16,5 @@
   "train_log": "train.log",
   "hardware": "A 40",
   "wallclock_minutes": 10.0,
-  "notes": "SImple convolutional compression"
+  "notes": "Residual depth recurrent convolutional compression"
 }
