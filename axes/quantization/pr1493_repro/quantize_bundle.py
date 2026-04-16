@@ -1,0 +1,144 @@
+"""Apply PR-1493's GPTQ quantization to a saved bundle and evaluate.
+
+Reproduces the merged-SOTA (PR-1493) quantization path on saved EMA weights
+WITHOUT retraining. Runs pre-quant and post-quant eval (standard + sliding window).
+No TTT, no ETLB.
+
+Usage:
+    cd axes/quantization/pr1493_repro
+    BUNDLE_DIR=./local_bundle_seed42 \
+    DATA_DIR=/path/to/parameter-golf/data \
+    SEED=42 \
+    torchrun --standalone --nproc_per_node=1 quantize_bundle.py
+
+Prints:
+    bundle_pre_quant_reference val_loss:... val_bpb:... eval_time:...ms
+    bundle_pre_quant_sliding   val_loss:... val_bpb:... eval_time:...ms
+    quant_artifact_brotli: <bytes>
+    quantized_reference val_loss:... val_bpb:... eval_time:...ms
+    quantized_sliding   val_loss:... val_bpb:... eval_time:...ms
+
+The `quantized_sliding` BPB is the number to compare against PR-1493's reported
+Sliding BPP of 1.0827. The `_reference` lines are the faster non-sliding eval.
+"""
+
+import io
+import os
+import sys
+import time
+from pathlib import Path
+
+# Set defaults BEFORE importing train_save_bundle. Hyperparameters reads env at class
+# definition time.
+os.environ.setdefault("BUNDLE_DIR", "bundle")
+os.environ.setdefault("VAL_LOSS_EVERY", "0")
+os.environ.setdefault("TTT_ENABLED", "0")
+os.environ.setdefault("ETLB_ENABLED", "0")
+
+import torch
+import torch.distributed as dist
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import train_save_bundle as tsb
+
+
+def main():
+    h = tsb.Hyperparameters()
+    tsb.set_logging_hparams(h)
+    log = tsb.log
+
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.set_float32_matmul_precision("high")
+    from torch.backends.cuda import (
+        enable_cudnn_sdp,
+        enable_flash_sdp,
+        enable_math_sdp,
+        enable_mem_efficient_sdp,
+    )
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
+    torch._dynamo.config.optimize_ddp = False
+
+    bundle_dir = Path(h.bundle_dir)
+    log(f"loading bundle from {bundle_dir.resolve()}")
+    ema_weights = torch.load(bundle_dir / "ema_weights.pt", map_location="cpu")
+    hessians = torch.load(bundle_dir / "hessians.pt", map_location="cpu")
+    template_sd = torch.load(bundle_dir / "template_sd.pt", map_location="cpu")
+    log(f"loaded: {len(ema_weights)} weights, {len(hessians)} hessians")
+
+    # Build eval model and load EMA weights
+    eval_model = tsb.GPT(h).to(device).bfloat16()
+    tsb.restore_fp32_params(eval_model)
+    current = eval_model.state_dict()
+    load_sd = {k: v.to(current[k].dtype) for k, v in ema_weights.items() if k in current}
+    missing = set(current) - set(load_sd)
+    if missing:
+        log(f"warning: {len(missing)} keys missing from EMA weights: {sorted(missing)[:5]}...")
+    eval_model.load_state_dict(load_sd, strict=False)
+    if h.num_loops > 0:
+        eval_model.looping_active = True
+
+    val_data = tsb.ValidationData(h, device)
+
+    # Pre-quant eval (reference ceiling)
+    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    tsb.timed_eval("bundle_pre_quant_reference", tsb.eval_val, h, device, val_data, compiled_model)
+    if h.sliding_window_enabled:
+        tsb.timed_eval(
+            "bundle_pre_quant_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model
+        )
+    torch._dynamo.reset()
+
+    # Quantize via PR-1493's gptq_mixed_quantize
+    sd_cpu = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
+    log("gptq: applying PR-1493 mixed quantize (int6 matrices k=12.85, int8 tok_emb k=20.0)...")
+    t0 = time.perf_counter()
+    quant_result, quant_meta = tsb.gptq_mixed_quantize(sd_cpu, hessians, h)
+    log(f"gptq: done in {time.perf_counter() - t0:.1f}s")
+
+    # Serialize + compress — verify artifact size
+    quant_buf = io.BytesIO()
+    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    quant_blob = tsb._compress(quant_raw, h.compressor)
+    artifact_bytes = len(quant_blob)
+    log(f"quant_artifact_{h.compressor}: {artifact_bytes} bytes ({artifact_bytes / 1e6:.3f} MB)")
+
+    # Dequantize and load into model
+    quant_state = torch.load(
+        io.BytesIO(tsb._decompress(quant_blob, h.compressor)),
+        map_location="cpu",
+    )
+    dequant_sd = tsb.dequantize_mixed(quant_state["w"], quant_state["m"], template_sd)
+    current = eval_model.state_dict()
+    restored = {k: v.to(current[k].dtype) for k, v in dequant_sd.items() if k in current}
+    eval_model.load_state_dict(restored, strict=False)
+    if h.num_loops > 0:
+        eval_model.looping_active = True
+
+    # Post-quant eval
+    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    tsb.timed_eval("quantized_reference", tsb.eval_val, h, device, val_data, compiled_model)
+    if h.sliding_window_enabled:
+        tsb.timed_eval("quantized_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model)
+
+    log("done: quantize + eval complete.")
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()

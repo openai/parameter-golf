@@ -5,7 +5,8 @@ Identical to the merged SOTA (PR-1493, 1.0810 BPB) training loop, but replaces t
 ## Files
 
 - `train_save_bundle.py` — patched PR-1493 training script. Full training + EMA + pre-quant eval, then saves bundle instead of quantizing.
-- `modal_launcher.py` — Modal runner. Uses the same persistent volume as `infra/modal_pr1493.py`, runs on 8×H100.
+- `quantize_bundle.py` — loads a saved bundle, applies PR-1493 GPTQ (or any variant via env vars), runs eval (pre-quant + post-quant, standard + sliding window). No TTT. This is the template for Q1-Q11 experiments.
+- `modal_launcher.py` — Modal runner. Supports `--mode prefetch / train / quantize`. Train uses 8×H100; quantize uses 1×H100.
 - `README.md` (this file).
 
 ## What the bundle contains
@@ -56,6 +57,45 @@ modal volume get parameter-golf-fineweb-cache \
 hf upload nprime06/parameter-golf-artifacts \
   ./local_bundle/ pr1493_seed42/
 ```
+
+## Quantize a saved bundle on Modal (1×H100)
+
+Reference reproduction — should produce a quantized BPB close to PR-1493's reported numbers:
+```bash
+modal run axes/quantization/pr1493_repro/modal_launcher.py \
+  --mode quantize \
+  --bundle-dir runs/pr1493_bundle_seed42/bundle \
+  --run-id pr1493_quantize_reference
+```
+
+Variants (for Q1-Q11 experiments) — override any of:
+```
+--matrix-bits <int>          default 6
+--embed-bits <int>           default 8
+--matrix-clip-sigmas <float> default 12.85
+--embed-clip-sigmas <float>  default 20.0
+```
+
+Example: probe whether `tok_emb` tolerates int6 at higher k (Q2):
+```bash
+modal run axes/quantization/pr1493_repro/modal_launcher.py \
+  --mode quantize \
+  --bundle-dir runs/pr1493_bundle_seed42/bundle \
+  --run-id pr1493_q2_embed_int6_k20 \
+  --embed-bits 6 \
+  --embed-clip-sigmas 20.0
+```
+
+## Quantize locally (after `modal volume get` + HF download)
+
+```bash
+cd axes/quantization/pr1493_repro
+BUNDLE_DIR=../../../local_bundle_seed42 \
+DATA_DIR=/path/to/parameter-golf/data \
+torchrun --standalone --nproc_per_node=1 quantize_bundle.py
+```
+
+Requires a local CUDA machine with flash_attn_3 installed (Hopper).
 
 ## Verifying before a full run
 

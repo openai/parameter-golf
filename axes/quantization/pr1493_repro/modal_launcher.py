@@ -45,8 +45,11 @@ CACHE_ROOT = Path("/cache")
 REMOTE_CODE_DIR = Path("/root/code/parameter-golf")
 LOCAL_SCRIPT = REPO_ROOT / "axes/quantization/pr1493_repro/train_save_bundle.py"
 REMOTE_SCRIPT = REMOTE_CODE_DIR / "axes/quantization/pr1493_repro/train_save_bundle.py"
+LOCAL_QUANT_SCRIPT = REPO_ROOT / "axes/quantization/pr1493_repro/quantize_bundle.py"
+REMOTE_QUANT_SCRIPT = REMOTE_CODE_DIR / "axes/quantization/pr1493_repro/quantize_bundle.py"
 
 BUNDLE_GPU = "H100!:8"
+QUANT_GPU = "H100!:1"
 BUNDLE_CPU = int(os.environ.get("MODAL_CPU", "32"))
 BUNDLE_MEMORY_MB = int(os.environ.get("MODAL_MEMORY_GB", "64")) * 1024
 
@@ -159,6 +162,11 @@ gpu_image = (
     .add_local_file(
         str(LOCAL_SCRIPT),
         remote_path=str(REMOTE_SCRIPT),
+        copy=True,
+    )
+    .add_local_file(
+        str(LOCAL_QUANT_SCRIPT),
+        remote_path=str(REMOTE_QUANT_SCRIPT),
         copy=True,
     )
 )
@@ -366,6 +374,138 @@ def train_bundle_8x_h100(
     )
 
 
+def _run_quantize(
+    *,
+    hf_revision: str | None,
+    bundle_dir: str,
+    run_id: str,
+    matrix_bits: int,
+    embed_bits: int,
+    matrix_clip_sigmas: float,
+    embed_clip_sigmas: float,
+) -> dict:
+    os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "hf"))
+    volume.reload()
+    data_root, _, dataset_stats = _ensure_sp8192_data(train_shards=0, val_shards=None, hf_revision=hf_revision)
+    resolved_bundle = Path(bundle_dir)
+    if not resolved_bundle.is_absolute():
+        resolved_bundle = CACHE_ROOT / resolved_bundle
+    if not resolved_bundle.exists():
+        raise FileNotFoundError(f"Bundle dir not found: {resolved_bundle}")
+    run_dir = CACHE_ROOT / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    volume.commit()
+
+    env = os.environ.copy()
+    env.update({
+        "PYTHONUNBUFFERED": "1",
+        "OMP_NUM_THREADS": "1",
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
+        "NCCL_ASYNC_ERROR_HANDLING": "1",
+        "HF_HUB_ENABLE_HF_TRANSFER": "1",
+        "RUN_ID": run_id,
+        "DATA_DIR": str(data_root),
+        "VOCAB_SIZE": str(VOCAB_SIZE),
+        "BUNDLE_DIR": str(resolved_bundle),
+        "VAL_LOSS_EVERY": "0",
+        "TTT_ENABLED": "0",
+        "ETLB_ENABLED": "0",
+        "MATRIX_BITS": str(matrix_bits),
+        "EMBED_BITS": str(embed_bits),
+        "MATRIX_CLIP_SIGMAS": str(matrix_clip_sigmas),
+        "EMBED_CLIP_SIGMAS": str(embed_clip_sigmas),
+    })
+
+    cmd = [
+        "torchrun",
+        "--standalone",
+        "--nproc_per_node=1",
+        str(REMOTE_QUANT_SCRIPT),
+    ]
+    launch_started = time.perf_counter()
+    proc = subprocess.run(
+        cmd, cwd=str(run_dir), env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, check=False,
+    )
+    launch_elapsed_seconds = time.perf_counter() - launch_started
+    volume.commit()
+
+    # Parse eval lines. Pattern: "<label> val_loss:X.X val_bpb:X.X eval_time:Nms"
+    eval_matches = list(re.finditer(
+        r"(?m)^(?P<label>\S+) val_loss:(?P<vl>[0-9.]+) val_bpb:(?P<bpb>[0-9.]+) eval_time:(?P<et>\d+)ms",
+        proc.stdout,
+    ))
+    eval_results = [
+        {
+            "label": m.group("label"),
+            "val_loss": float(m.group("vl")),
+            "val_bpb": float(m.group("bpb")),
+            "eval_time_ms": int(m.group("et")),
+        }
+        for m in eval_matches
+    ]
+    artifact_match = re.search(
+        r"quant_artifact_(?P<compressor>\w+): (?P<bytes>\d+) bytes",
+        proc.stdout,
+    )
+    artifact = None
+    if artifact_match:
+        artifact = {
+            "compressor": artifact_match.group("compressor"),
+            "bytes": int(artifact_match.group("bytes")),
+        }
+
+    return {
+        "ok": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "run_id": run_id,
+        "bundle_dir": str(resolved_bundle),
+        "config": {
+            "matrix_bits": matrix_bits,
+            "embed_bits": embed_bits,
+            "matrix_clip_sigmas": matrix_clip_sigmas,
+            "embed_clip_sigmas": embed_clip_sigmas,
+        },
+        "eval_results": eval_results,
+        "artifact": artifact,
+        "launch_elapsed_seconds": launch_elapsed_seconds,
+        "stdout_tail": _tail(proc.stdout),
+        "stderr_tail": _tail(proc.stderr),
+    }
+
+
+@app.function(
+    image=gpu_image,
+    gpu=QUANT_GPU,
+    cpu=8,
+    memory=32 * 1024,
+    timeout=60 * 60,
+    volumes={"/cache": volume},
+)
+def quantize_1x_h100(
+    hf_revision: str = "",
+    bundle_dir: str = "runs/pr1493_bundle_seed42/bundle",
+    run_id: str = "pr1493_quantize_reference",
+    matrix_bits: int = 6,
+    embed_bits: int = 8,
+    matrix_clip_sigmas: float = 12.85,
+    embed_clip_sigmas: float = 20.0,
+) -> str:
+    return json.dumps(
+        _run_quantize(
+            hf_revision=hf_revision or None,
+            bundle_dir=bundle_dir,
+            run_id=run_id,
+            matrix_bits=matrix_bits,
+            embed_bits=embed_bits,
+            matrix_clip_sigmas=matrix_clip_sigmas,
+            embed_clip_sigmas=embed_clip_sigmas,
+        ),
+        indent=2, sort_keys=True,
+    )
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "train",
@@ -380,11 +520,17 @@ def main(
     train_log_every: int = 500,
     val_loss_every: int = 4000,
     qk_gain_init: float = 5.25,
+    bundle_dir: str = "runs/pr1493_bundle_seed42/bundle",
+    matrix_bits: int = 6,
+    embed_bits: int = 8,
+    matrix_clip_sigmas: float = 12.85,
+    embed_clip_sigmas: float = 20.0,
     write_result: str = "",
 ) -> None:
     """Entrypoints:
       --mode prefetch   Stage SP8192 dataset into the Modal volume cache.
       --mode train      Run training + bundle save on 8x H100.
+      --mode quantize   Apply GPTQ + eval on a saved bundle (1x H100).
     """
     if mode == "prefetch":
         v = 0 if val_shards < 0 else val_shards
@@ -414,8 +560,19 @@ def main(
             val_loss_every=val_loss_every,
             qk_gain_init=qk_gain_init,
         )
+    elif mode == "quantize":
+        run_id = run_id or f"pr1493_quantize_{Path(bundle_dir).name}"
+        result = quantize_1x_h100.remote(
+            hf_revision=hf_revision,
+            bundle_dir=bundle_dir,
+            run_id=run_id,
+            matrix_bits=matrix_bits,
+            embed_bits=embed_bits,
+            matrix_clip_sigmas=matrix_clip_sigmas,
+            embed_clip_sigmas=embed_clip_sigmas,
+        )
     else:
-        raise ValueError("mode must be 'prefetch' or 'train'")
+        raise ValueError("mode must be 'prefetch', 'train', or 'quantize'")
 
     if write_result:
         Path(write_result).write_text(result, encoding="utf-8")
