@@ -843,22 +843,29 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     return Q[:, invperm], s
 
 
+_LAYER_K_MUL = [
+    1.20,  # 0: first layer, most sensitive
+    1.15,  # 1
+    1.10,  # 2
+    1.06,  # 3: loop start — error amplified by recurrence
+    1.06,  # 4: loop core
+    1.00,  # 5: loop end / transition
+    0.95,  # 6
+    0.90,  # 7: parallel residuals begin
+    0.87,  # 8
+    0.84,  # 9
+    0.80,  # 10: last layer, least sensitive
+]
+
 def _layer_clip_sigmas(name, h):
-    """Per-layer clip sigmas: early layers are more sensitive (higher k),
-    late layers less sensitive (lower k). Improves quant quality on
-    sensitive layers while compressing insensitive ones harder."""
     if "tok_emb" in name:
         return h.embed_clip_sigmas
     m = re.search(r"blocks\.(\d+)\.", name)
     if not m:
         return h.matrix_clip_sigmas
     layer = int(m.group(1))
-    if layer <= 2:
-        return h.matrix_clip_sigmas * 1.15  # early: ~14.8
-    elif layer <= 5:
-        return h.matrix_clip_sigmas         # loop/mid: 12.85 (unchanged)
-    else:
-        return h.matrix_clip_sigmas * 0.88  # late (7-10): ~11.3
+    mul = _LAYER_K_MUL[layer] if layer < len(_LAYER_K_MUL) else _LAYER_K_MUL[-1]
+    return h.matrix_clip_sigmas * mul
 
 def gptq_mixed_quantize(state_dict, hessians, h):
     result = {}
