@@ -1,0 +1,13 @@
+{
+  "name": "Ajinkya Mulay",
+  "github_id": "ajinkyamulay",
+  "val_bpb": null,
+  "artifact_size": null,
+  "date": "2026-04-16",
+  "run_id": "foba_glu_grammuon_v1",
+  "track": "track_10min_16mb",
+  "summary": "FoBa-GLU sparse pursuit gating + GramMuon + INT6 QAT + sliding window eval on 11L 3xMLP",
+  "hardware": "8x H100 SXM 80GB NVLink",
+  "seeds": [42, 43, 44],
+  "note": "Fill val_bpb and artifact_size from train.log after RunPod run"
+}
