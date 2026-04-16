@@ -63,6 +63,7 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
     num_layers = int(os.environ.get("NUM_LAYERS", 3))
     num_recurr = int(os.environ.get("NUM_RECURR", 3))
+    layers_recurr = [int(x) for x in os.environ.get("LAYERS_RECURR", "3,4").split(",")]
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -674,6 +675,7 @@ class GPT(nn.Module):
         vocab_size: int,
         num_layers: int,
         num_recurr: int,
+        layers_recurr,
         model_dim: int,
         num_heads: int,
         num_kv_heads: int,
@@ -683,7 +685,6 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        device
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -691,13 +692,14 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.num_layers = num_layers
         self.num_recurr = num_recurr
+        self.layers_recurr = layers_recurr
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.register_buffer('timesteps', generate_sinusoidal(num_recurr * num_layers, model_dim))
-        self.num_skip_weights = self.num_decoder_layers * num_recurr
+        self.num_skip_weights = self.num_layers + (num_recurr - 1) * len(layers_recurr)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         # Share weights -> we can up depth of attention mechanism
         self.blocks = nn.ModuleList(
@@ -715,7 +717,6 @@ class GPT(nn.Module):
         )
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
-        self.device = device
         if self.lm_head is not None:
             self.lm_head._zero_init = True
         self._init_weights()
@@ -731,44 +732,66 @@ class GPT(nn.Module):
         # We need a way to apply the timestep embeddings
         step = 0
 
+        # For lrecurrent layers
+        layers_recurr = list(self.layers_recurr)
+
+
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
+        count = 0
+        skip = 0
+
         for i in range(self.num_encoder_layers):
-            # First pass
-            x = x + self.timesteps[:, i*self.num_recurr, :].unsqueeze(1)
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-            
-            # Second pass
-            x = x + self.timesteps[:, i*self.num_recurr+1, :].unsqueeze(1)
-            x = self.blocks[i](x, x0)
-            skips.append(x)
+            if (i == layers_recurr[0]):
+                layers_recurr.pop(0)
+                # Loop
+                for j in range(self.num_recurr):
+                    # Time step embedding
+                    x = x + self.timesteps[:, count, :].unsqueeze(1)
+                    count += 1
 
-            # Third pass
-            # x = x + self.timesteps[:, i*self.num_recurr+2, :].unsqueeze(1)
-            # x = self.blocks[i](x, x0)
-            # skips.append(x)
+                    x = self.blocks[i](x, x0)
+                    skips.append(x)
+            else:
+                # Time step embedding
+                x = x + self.timesteps[:, count, :].unsqueeze(1)
+                count += 1
+
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+
         for i in range(self.num_decoder_layers):
-            # First pass
-            if skips:
-                x = x + self.skip_weights[i*self.num_recurr].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr, :].unsqueeze(1)
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            if (i + self.num_encoder_layers == layers_recurr[0]):
+                layers_recurr.pop(0)
+                # Loop
+                for j in range(self.num_recurr):
+                    # Skip connection
+                    if skips:
+                        x = x + self.skip_weights[skip].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                        skip += 1
 
-            # Second pass
-            if skips:
-                x = x + self.skip_weights[i*self.num_recurr+1].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr + 1, :].unsqueeze(1)
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+                    # Time step embedding
+                    x = x + self.timesteps[:, count, :].unsqueeze(1)
+                    count += 1
 
-            # Third pass
-            # if skips:
-                # x = x + self.skip_weights[i*self.num_recurr+2].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            # x = x + self.timesteps[:, self.num_encoder_layers*self.num_recurr + i*self.num_recurr + 2, :].unsqueeze(1)
-            # x = self.blocks[self.num_encoder_layers + i](x, x0)
+                    # Now apply block
+                    x = self.blocks[self.num_encoder_layers + i](x, x0)
+                    
+            else: 
+                # Skip connections
+                if skips:
+                    x = x + self.skip_weights[skip].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                    skip += 1
+                
+                # Time step embedding
+                x = x + self.timesteps[:, count, :].unsqueeze(1)
+                count += 1
+
+                # Now apply block
+                x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
