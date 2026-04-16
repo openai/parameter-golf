@@ -1,4 +1,5 @@
 import collections, copy, glob, io, lzma, math, os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
