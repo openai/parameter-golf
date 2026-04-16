@@ -7,11 +7,13 @@
 #   python3 data/cached_challenge_fineweb.py --variant sp8192
 
 set -euo pipefail
-cd "$(dirname "$0")/../../../.."   # repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$REPO_ROOT"
 
 SCRIPT="records/track_10min_16mb/2026-04-16_SP8192_CleanStack_SGD_TTT/train_gpt.py"
-export DATA_PATH="${DATA_PATH:-./data/datasets/fineweb10B_sp8192}"
-export TOKENIZER_PATH="${TOKENIZER_PATH:-./data/tokenizers/fineweb_8192_bpe.model}"
+export DATA_PATH="${DATA_PATH:-$REPO_ROOT/data/datasets/fineweb10B_sp8192}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-$REPO_ROOT/data/tokenizers/fineweb_8192_bpe.model}"
 export VOCAB_SIZE=8192
 export TTT_ENABLED=1
 export SEED="${SEED:-42}"
