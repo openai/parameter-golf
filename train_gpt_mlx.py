@@ -26,6 +26,11 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 from mlx.utils import tree_flatten, tree_unflatten
 
+try:
+    import wandb
+except ImportError:
+    wandb = None
+
 # ==============================================================================
 # SHARD FORMAT + COMPUTE DTYPE
 # ==============================================================================
@@ -47,9 +52,9 @@ class Hyperparameters:
     run_id: str = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed: int = int(os.environ.get("SEED", 1337))
 
-    # Training loop. These defaults now mirror train_gpt.py on a single process.
-    iterations: int = int(os.environ.get("ITERATIONS", 20_000))
-    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
+    # Training loop.
+    iterations: int = int(os.environ.get("ITERATIONS", 265))
+    val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 9999))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
@@ -64,27 +69,33 @@ class Hyperparameters:
     # Disable on 32GB+ unified memory for better throughput (MLX_EAGER_EVAL=0).
     mlx_eager_eval: bool = bool(int(os.environ.get("MLX_EAGER_EVAL", "1")))
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
-    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 50))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
 
-    # Model (defaults match the current baseline setup).
+    # Model shape.
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers: int = int(os.environ.get("NUM_LAYERS", 9))
-    model_dim: int = int(os.environ.get("MODEL_DIM", 512))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", 10))
+    model_dim: int = int(os.environ.get("MODEL_DIM", 768))
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
-    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 1))
+    mlp_mult: float = float(os.environ.get("MLP_MULT", 2.6))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    qat_int6_enable: bool = bool(int(os.environ.get("QAT_INT6_ENABLE", "1")))
+    rlma_rank: int = int(os.environ.get("RLMA_RANK", 16))
+    rlma_alpha: float = float(os.environ.get("RLMA_ALPHA", 16.0))
+    rlma_seed: int = int(os.environ.get("RLMA_SEED", 42))
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
     beta2: float = float(os.environ.get("BETA2", 0.95))
     adam_eps: float = float(os.environ.get("ADAM_EPS", 1e-8))
+    embed_lr: float = float(os.environ.get("EMBED_LR", 0.6))
+    head_lr: float = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr: float = float(os.environ.get("TIED_EMBED_LR", 0.05))
     matrix_lr: float = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr: float = float(os.environ.get("SCALAR_LR", 0.04))
@@ -128,6 +139,18 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
+
+INT6_QUANT_MAX = 31
+INT6_EPS = 1e-8
+HAS_STOP_GRADIENT = hasattr(mx, "stop_gradient")
+
+
+def straight_through_quantized(w_scaled: mx.array, w_quant: mx.array) -> mx.array:
+    # STE equivalent to: (w_quant - w_scaled).detach() + w_scaled
+    if HAS_STOP_GRADIENT:
+        return mx.stop_gradient(w_quant - w_scaled) + w_scaled
+    # Fallback if stop_gradient is unavailable in this MLX runtime.
+    return w_quant
 INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
@@ -286,6 +309,80 @@ class CastedLinear(nn.Module):
         return x @ self.weight.astype(x.dtype).T
 
 
+class QuantizedLinear(nn.Module):
+    # Keep weights in fp32 for optimizer/state quality. Optionally apply
+    # training-time fake INT6 quantization with STE, then matmul in compute dtype.
+    def __init__(self, in_dim: int, out_dim: int, bias: bool = False, qat_int6_enable: bool = True):
+        super().__init__()
+        linear = nn.Linear(in_dim, out_dim, bias=bias)
+        self.weight = linear.weight.astype(mx.float32)
+        self.bias = linear.bias.astype(mx.float32) if bias else None
+        self.qat_int6_enable = qat_int6_enable
+
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
+        w = self.weight
+        if training and self.qat_int6_enable and w.ndim == 2:
+            scale = mx.maximum(mx.max(mx.abs(w), axis=1, keepdims=True), INT6_EPS)
+            w_scaled = w / scale
+            w_quant = mx.clip(mx.round(w_scaled * INT6_QUANT_MAX), -INT6_QUANT_MAX, INT6_QUANT_MAX) / INT6_QUANT_MAX
+            w = straight_through_quantized(w_scaled, w_quant) * scale
+        out = x @ w.astype(x.dtype).T
+        if self.bias is not None:
+            out = out + self.bias.astype(x.dtype)
+        return out
+
+
+def orthogonal_matrix(shape: tuple[int, int], seed: int) -> np.ndarray:
+    out_features, in_features = shape
+    rng = np.random.default_rng(seed)
+    a = rng.standard_normal((out_features, in_features), dtype=np.float32)
+    if out_features >= in_features:
+        q, _ = np.linalg.qr(a, mode="reduced")
+    else:
+        q, _ = np.linalg.qr(a.T, mode="reduced")
+        q = q.T
+    return np.ascontiguousarray(q.astype(np.float32, copy=False))
+
+
+def kaiming_uniform(shape: tuple[int, int]) -> np.ndarray:
+    fan_in = shape[1]
+    bound = math.sqrt(3.0) * math.sqrt(2.0 / fan_in)
+    return np.random.uniform(-bound, bound, size=shape).astype(np.float32)
+
+
+class RandomAdapterLinear(nn.Module):
+    # Frozen deterministic orthogonal projection + trainable low-rank adapter.
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        rank: int = 16,
+        alpha: float = 16.0,
+        seed: int = 42,
+        bias: bool = False,
+    ):
+        super().__init__()
+        if rank <= 0:
+            raise ValueError(f"rank must be positive, got {rank}")
+        self.rank = rank
+        self.alpha = float(alpha)
+        self.scaling = self.alpha / float(self.rank)
+
+        self.fixed_w = mx.array(orthogonal_matrix((out_features, in_features), seed), dtype=mx.float32)
+        self.adapter_a = mx.array(kaiming_uniform((rank, in_features)), dtype=mx.float32)
+        self.adapter_b = mx.zeros((out_features, rank), dtype=mx.float32)
+        self.bias = mx.zeros((out_features,), dtype=mx.float32) if bias else None
+
+    def __call__(self, x: mx.array) -> mx.array:
+        frozen_out = x @ self.fixed_w.astype(x.dtype).T
+        adapter_hidden = x @ self.adapter_a.astype(x.dtype).T
+        adapter_out = adapter_hidden @ self.adapter_b.astype(x.dtype).T
+        out = frozen_out + (self.scaling * adapter_out)
+        if self.bias is not None:
+            out = out + self.bias.astype(x.dtype)
+        return out
+
+
 class RMSNormNoWeight(nn.Module):
     # MLX module wrapper around the functional RMSNorm helper so it composes nicely in blocks.
     def __call__(self, x: mx.array) -> mx.array:
@@ -304,6 +401,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        qat_int6_enable: bool,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -316,37 +414,37 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim)
-        self.c_k = CastedLinear(dim, kv_dim)
-        self.c_v = CastedLinear(dim, kv_dim)
-        self.proj = CastedLinear(dim, dim)
+        self.c_q = QuantizedLinear(dim, dim, bias=False, qat_int6_enable=qat_int6_enable)
+        self.c_k = QuantizedLinear(dim, kv_dim, bias=False, qat_int6_enable=qat_int6_enable)
+        self.c_v = QuantizedLinear(dim, kv_dim, bias=False, qat_int6_enable=qat_int6_enable)
+        self.proj = QuantizedLinear(dim, dim, bias=False, qat_int6_enable=qat_int6_enable)
         self.q_gain = mx.ones((num_heads,), dtype=mx.float32) * qk_gain_init
         self.rope = nn.RoPE(self.head_dim, traditional=False, base=rope_base)
         self.scale = self.head_dim ** -0.5
 
-    def __call__(self, x: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        q = self.c_q(x, training=training).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = self.c_k(x, training=training).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = self.c_v(x, training=training).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(0, 2, 1, 3)
 
         q = self.rope(rms_norm(q).astype(COMPUTE_DTYPE))
         k = self.rope(rms_norm(k).astype(COMPUTE_DTYPE))
         q = q * self.q_gain.astype(q.dtype)[None, :, None, None]
         y = mx.fast.scaled_dot_product_attention(q, k, v, scale=self.scale, mask="causal")
         y = y.transpose(0, 2, 1, 3).reshape(bsz, seqlen, dim)
-        return self.proj(y)
+        return self.proj(y, training=training)
 
 
 class MLP(nn.Module):
     # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
-    def __init__(self, dim: int, mlp_mult: int):
+    def __init__(self, dim: int, mlp_mult: float, rlma_rank: int, rlma_alpha: float, rlma_seed: int):
         super().__init__()
-        hidden = dim * mlp_mult
-        self.fc = CastedLinear(dim, hidden)
-        self.proj = CastedLinear(hidden, dim)
+        hidden = int(mlp_mult * dim)
+        self.fc = RandomAdapterLinear(dim, hidden, rank=rlma_rank, alpha=rlma_alpha, seed=rlma_seed, bias=False)
+        self.proj = RandomAdapterLinear(hidden, dim, rank=rlma_rank, alpha=rlma_alpha, seed=rlma_seed, bias=False)
 
-    def __call__(self, x: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, training: bool = False) -> mx.array:
         x = nn.relu(self.fc(x))
         return self.proj(x * x)
 
@@ -357,25 +455,29 @@ class Block(nn.Module):
         dim: int,
         num_heads: int,
         num_kv_heads: int,
-        mlp_mult: int,
+        mlp_mult: float,
         rope_base: float,
         qk_gain_init: float,
+        qat_int6_enable: bool,
+        rlma_rank: int,
+        rlma_alpha: float,
+        rlma_seed: int,
     ):
         super().__init__()
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, qat_int6_enable)
+        self.mlp = MLP(dim, mlp_mult, rlma_rank, rlma_alpha, rlma_seed)
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
 
-    def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
+    def __call__(self, x: mx.array, x0: mx.array, training: bool = False) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        attn_out = self.attn(self.attn_norm(x), training=training)
         x = x + self.attn_scale.astype(x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        x = x + self.mlp_scale.astype(x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x), training=training)
         return x
 
 
@@ -384,44 +486,75 @@ class GPT(nn.Module):
     # - encoder half accumulates skip tensors
     # - decoder half consumes reversed skips with learned skip_weights
     # - tied embeddings for the LM head (the baseline default setup)
-    def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
-                 logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float):
+    def __init__(
+        self,
+        vocab_size: int,
+        num_layers: int,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: float,
+        tie_embeddings: bool,
+        logit_chunk_tokens: int,
+        logit_softcap: float,
+        rope_base: float,
+        tied_embed_init_std: float,
+        qk_gain_init: float,
+        qat_int6_enable: bool,
+        rlma_rank: int,
+        rlma_alpha: float,
+        rlma_seed: int,
+    ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
+        self.tie_embeddings = tie_embeddings
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        self.lm_head = None if tie_embeddings else QuantizedLinear(dim, vocab_size, bias=False, qat_int6_enable=qat_int6_enable)
         self.blocks = [
-            Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
+            Block(
+                dim,
+                num_heads,
+                num_kv_heads,
+                mlp_mult,
+                rope_base,
+                qk_gain_init,
+                qat_int6_enable,
+                rlma_rank,
+                rlma_alpha,
+                rlma_seed,
+            )
             for i in range(num_layers)
         ]
         self.final_norm = RMSNormNoWeight()
 
         for b in self.blocks:
             b.attn.proj.weight = mx.zeros_like(b.attn.proj.weight)
-            b.mlp.proj.weight = mx.zeros_like(b.mlp.proj.weight)
+            b.mlp.proj.adapter_b = mx.zeros_like(b.mlp.proj.adapter_b)
         self.tok_emb.weight = (
             mx.random.normal(self.tok_emb.weight.shape, dtype=mx.float32) * tied_embed_init_std
         ).astype(COMPUTE_DTYPE)
+        if self.lm_head is not None:
+            self.lm_head.weight = mx.zeros_like(self.lm_head.weight)
 
     def softcap(self, logits: mx.array) -> mx.array:
         c = self.logit_softcap
         return c * mx.tanh(logits / c)
 
-    def __call__(self, input_ids: mx.array) -> mx.array:
+    def __call__(self, input_ids: mx.array, training: bool = False) -> mx.array:
         x = rms_norm(self.tok_emb(input_ids).astype(COMPUTE_DTYPE))
         x0 = x
         skips: list[mx.array] = []
 
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = self.blocks[i](x, x0, training=training)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             # Odd layer counts have one more decoder block than encoder block. The baseline only
@@ -429,16 +562,24 @@ class GPT(nn.Module):
             # without an added skip.
             if skips:
                 x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.num_encoder_layers + i](x, x0, training=training)
         return self.final_norm(x)
 
-    def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
+    def loss(self, input_ids: mx.array, target_ids: mx.array, training: bool = False) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
-        x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
+        x = self(input_ids, training=training).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
+
+        def project_logits(hidden: mx.array) -> mx.array:
+            if self.tie_embeddings:
+                return hidden @ self.tok_emb.weight.astype(hidden.dtype).T
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            return self.lm_head(hidden, training=training)
+
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
-            logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
+            logits_proj = project_logits(x)
             logits = self.softcap(logits_proj)
             return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
 
@@ -446,7 +587,7 @@ class GPT(nn.Module):
         n = int(x.shape[0])
         for s in range(0, n, self.logit_chunk_tokens):
             e = min(s + self.logit_chunk_tokens, n)
-            logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
+            logits_proj = project_logits(x[s:e])
             logits = self.softcap(logits_proj)
             loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
         return loss_sum / float(n)
@@ -491,10 +632,11 @@ class SplitOptimizers:
         self.args = args
         params = dict(tree_flatten(model.parameters()))
         self.embed_key = "tok_emb.weight"
+        self.head_key = "lm_head.weight" if not args.tie_embeddings else None
         self.matrix_keys = [
             k
             for k, p in params.items()
-            if k.startswith("blocks.") and p.ndim == 2 and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+            if k.startswith("blocks.") and p.ndim == 2 and "fixed_w" not in k and not any(pattern in k for pattern in CONTROL_TENSOR_NAME_PATTERNS)
         ]
         self.scalar_keys = [
             k
@@ -503,11 +645,22 @@ class SplitOptimizers:
         ]
 
         self.muon = Muon(self.matrix_keys, params, args)
+        token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
         self.adam_embed = optim.Adam(
-            learning_rate=args.tied_embed_lr,
+            learning_rate=token_lr,
             betas=[args.beta1, args.beta2],
             eps=args.adam_eps,
             bias_correction=True,
+        )
+        self.adam_head = (
+            optim.Adam(
+                learning_rate=args.head_lr,
+                betas=[args.beta1, args.beta2],
+                eps=args.adam_eps,
+                bias_correction=True,
+            )
+            if self.head_key is not None
+            else None
         )
         self.adam_scalar = optim.Adam(
             learning_rate=args.scalar_lr,
@@ -516,6 +669,15 @@ class SplitOptimizers:
             bias_correction=True,
         )
 
+        key_sets = [set(self.matrix_keys), set(self.scalar_keys), {self.embed_key}]
+        if self.head_key is not None:
+            key_sets.append({self.head_key})
+        for i in range(len(key_sets)):
+            for j in range(i + 1, len(key_sets)):
+                overlap = key_sets[i] & key_sets[j]
+                if overlap:
+                    raise RuntimeError(f"Optimizer parameter groups overlap: {sorted(overlap)}")
+
     def step(self, model: GPT, grads_tree: dict, step: int, lr_mul: float) -> None:
         params = dict(tree_flatten(model.parameters()))
         grads = dict(tree_flatten(grads_tree))
@@ -523,13 +685,23 @@ class SplitOptimizers:
 
         updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
 
-        self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
+        token_lr = self.args.tied_embed_lr if self.args.tie_embeddings else self.args.embed_lr
+        self.adam_embed.learning_rate = token_lr * lr_mul
         updated.update(
             self.adam_embed.apply_gradients(
                 {self.embed_key: grads[self.embed_key]},
                 {self.embed_key: params[self.embed_key]},
             )
         )
+
+        if self.adam_head is not None and self.head_key is not None:
+            self.adam_head.learning_rate = self.args.head_lr * lr_mul
+            updated.update(
+                self.adam_head.apply_gradients(
+                    {self.head_key: grads[self.head_key]},
+                    {self.head_key: params[self.head_key]},
+                )
+            )
 
         self.adam_scalar.learning_rate = self.args.scalar_lr * lr_mul
         scalar_grads = {k: grads[k] for k in self.scalar_keys}
@@ -849,6 +1021,46 @@ def main() -> None:
         with logfile.open("a", encoding="utf-8") as f:
             print(msg, file=f)
 
+    wandb_run = None
+
+    def wandb_log(metrics: dict[str, float | int]) -> None:
+        if wandb_run is not None:
+            wandb_run.log(metrics)
+
+    if int(os.environ.get("WANDB_ENABLED", "1")):
+        if wandb is None:
+            log("wandb: unavailable (package not installed)")
+        else:
+            try:
+                wandb_run = wandb.init(
+                    project=os.environ.get("WANDB_PROJECT", "parameter-golf"),
+                    name=os.environ.get("WANDB_NAME", args.run_id),
+                    id=args.run_id,
+                    resume="allow",
+                    mode=os.environ.get("WANDB_MODE", "online"),
+                    config={
+                        "run_id": args.run_id,
+                        "seed": args.seed,
+                        "iterations": args.iterations,
+                        "train_batch_tokens": args.train_batch_tokens,
+                        "train_seq_len": args.train_seq_len,
+                        "grad_accum_steps": args.grad_accum_steps,
+                        "val_loss_every": args.val_loss_every,
+                        "train_log_every": args.train_log_every,
+                        "model_dim": args.model_dim,
+                        "num_layers": args.num_layers,
+                        "num_heads": args.num_heads,
+                        "num_kv_heads": args.num_kv_heads,
+                        "tie_embeddings": args.tie_embeddings,
+                    },
+                )
+                wandb.define_metric("step")
+                wandb.define_metric("*", step_metric="step")
+                log(f"wandb:enabled project:{wandb_run.project} name:{wandb_run.name}")
+            except Exception as exc:
+                wandb_run = None
+                log(f"wandb:disabled reason:{exc}")
+
     code = Path(__file__).read_text(encoding="utf-8")
     log(code, console=False)
     log("=" * 100, console=False)
@@ -856,8 +1068,6 @@ def main() -> None:
     log(f"Running MLX {mx.__version__}", console=False)
     log("=" * 100, console=False)
 
-    if not args.tie_embeddings:
-        raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"TOKENIZER_PATH must point to a SentencePiece .model file: {args.tokenizer_path}")
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
@@ -892,11 +1102,16 @@ def main() -> None:
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
         logit_chunk_tokens=args.logit_chunk_tokens,
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
+        qat_int6_enable=args.qat_int6_enable,
+        rlma_rank=args.rlma_rank,
+        rlma_alpha=args.rlma_alpha,
+        rlma_seed=args.rlma_seed,
     )
     opt = SplitOptimizers(model, args)
 
@@ -907,9 +1122,9 @@ def main() -> None:
     # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_loss = mx.compile(lambda x, y: model.loss(x, y, training=False), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
-        nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+        nn.value_and_grad(model, lambda x, y: model.loss(x, y, training=True)),
         inputs=model.state,
         outputs=model.state,
     )
@@ -945,9 +1160,14 @@ def main() -> None:
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
-        f"embed_lr:{args.tied_embed_lr} "
+        f"embed_lr:{args.tied_embed_lr if args.tie_embeddings else args.embed_lr} "
+        f"head_lr:{args.head_lr if not args.tie_embeddings else 0.0} "
         f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
         f"muon_momentum:{args.muon_momentum} muon_steps:{args.muon_backend_steps}"
+    )
+    log(
+        f"rlma:enabled rank:{args.rlma_rank} alpha:{args.rlma_alpha} seed:{args.rlma_seed} "
+        f"qat_int6_enable:{args.qat_int6_enable}"
     )
     log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log(f"compute_dtype:{COMPUTE_DTYPE} compile:True")
@@ -1019,6 +1239,7 @@ def main() -> None:
                     f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                     f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms / max(step, 1):.2f}ms"
                 )
+            wandb_log({"val_loss": float(val_loss), "val_bpb": float(val_bpb), "step": step})
             t0 = time.perf_counter()
         if last_step:
             if stop_after_step is not None and step < args.iterations:
@@ -1043,6 +1264,7 @@ def main() -> None:
         train_loss_value = float(train_loss.item())
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
+        wandb_log({"loss": train_loss_value, "step": step + 1})
 
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
         approx_train_time_ms = train_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1098,6 +1320,8 @@ def main() -> None:
     q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
     log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
     log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    if wandb_run is not None:
+        wandb_run.finish()
 
 
 if __name__ == "__main__":

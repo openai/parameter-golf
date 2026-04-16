@@ -159,6 +159,8 @@ By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a lon
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 
+If you want to track runs in Weights & Biases, set `WANDB_ENABLED=1` before launching training. The scripts will log one training record per completed step with the current `step` and `loss`, and validation records whenever validation runs. You can also set `WANDB_PROJECT`, `WANDB_NAME`, or `WANDB_MODE` to customize where the run appears.
+
 For dataset export, tokenizer export, and docs-cache rebuild instructions, see [data/README.md](data/README.md).
 
 Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
