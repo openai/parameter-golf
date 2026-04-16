@@ -151,7 +151,7 @@ class Hyperparameters:
     # TTT (test-time training)
     ttt_enabled          = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_chunk_tokens     = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
-    ttt_lr               = float(os.environ.get("TTT_LR", 0.005))
+    ttt_lr               = float(os.environ.get("TTT_LR", 0.0005))
     ttt_epochs           = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_momentum         = float(os.environ.get("TTT_MOMENTUM", 0.9))
 
@@ -933,6 +933,11 @@ def eval_val_ttt_sgd(args, base_model, rank, world_size, device,
         for pg in optimizer.param_groups:
             pg['lr'] = ttt_lr * cos_frac
 
+        # Disable QAT during adapt: GPTQ weights are already quantized, enabling
+        # fake-quant (CastedLinear._qat_enabled=True from training) would double-
+        # quantize them and corrupt the gradients.
+        _saved_qat = CastedLinear._qat_enabled
+        CastedLinear._qat_enabled = False
         base_model.train()
         for _ in range(ttt_epochs):
             optimizer.zero_grad(set_to_none=True)
@@ -945,6 +950,7 @@ def eval_val_ttt_sgd(args, base_model, rank, world_size, device,
                     if p.grad is not None:
                         dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
             optimizer.step()
+        CastedLinear._qat_enabled = _saved_qat
 
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
