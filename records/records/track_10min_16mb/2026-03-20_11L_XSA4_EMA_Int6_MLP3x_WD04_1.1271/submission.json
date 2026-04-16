@@ -1,0 +1,16 @@
+{
+  "author": "Jack Princz",
+  "github_id": "jfprincz",
+  "name": "Record: 11L XSA + EMA + Int6 MLP3x + WD=0.04",
+  "blurb": "11 layers with Exclusive Self Attention (XSA) on last 4 layers, EMA weight averaging (decay=0.997), int6 per-row on all MLP+attention weights, int8 tok_emb, zstd-22. Weight decay 0.04 (Muon+AdamW). OrthoInit + muP scaling. SmearGate + BigramHash(2048x128). FA3. Sliding window eval stride=64, seq=2048.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": 1.90301335,
+  "val_bpb": 1.12707468,
+  "pre_quant_val_loss": 1.9293,
+  "pre_quant_val_bpb": 1.1427,
+  "int6_zstd_val_loss": 1.94077647,
+  "int6_zstd_val_bpb": 1.14943715,
+  "bytes_total": 15534645,
+  "bytes_model_int6_zstd": 15468512,
+  "bytes_code": 66133
+}

@@ -1,0 +1,11 @@
+{
+  "author": "Nan Liu",
+  "github_id": "nanlliu",
+  "name": "10L Mixed Precision",
+  "blurb": "10-layer 512-dim model with lower LR (MATRIX_LR=0.02) and mixed int8/int6 compression: full int8 for first/last 3 layers, int6 (step=4 rounding) for middle layers 3-6. Fits 16MB via better compression while gaining an extra transformer layer over baseline.",
+  "date": "2026-03-19T03:30:00Z",
+  "val_loss": 2.05104604,
+  "val_bpb": 1.21474500,
+  "bytes_total": 15928974,
+  "bytes_code": 48917
+}
