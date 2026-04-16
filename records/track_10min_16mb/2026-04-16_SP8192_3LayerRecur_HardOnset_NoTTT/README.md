@@ -48,3 +48,5 @@ With `RECUR_HOMOTOPY=0` (default), the function reduces to a one-line step thres
 * `VAL_LOSS_EVERY=99999` removes mid-training validation passes, increasing realized train steps within the same **600s** budget.
 * Quantization overhead from post-EMA fp32 to int6 sliding is small across all three seeds.
 * Training logs, eval logs, and the script are included.
+
+**Note:** This submission is part of my application for additional compute. My independent resources are limited, so further progress depends on access to more credits. I'd use that support not only to push this line further, but also to investigate broader, more ambitious ideas around the same core problem.
