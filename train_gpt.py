@@ -141,13 +141,13 @@ if _HAS_TRITON and _HAS_TMA:
 				rows=offs_am+tl.arange(0,BLOCK_SIZE_M);row_mask=rows<M;inv_rms=tl.load(inv_rms_ptr+rows,mask=row_mask,other=0.0);row_scale=inv_rms*ln_scale;accumulator=accumulator*row_scale[:,None]
 			offs_am_c=offs_am;offs_bn_c=offs_bn;acc=tl.reshape(accumulator,(BLOCK_SIZE_M,2,BLOCK_SIZE_N//2));acc=tl.permute(acc,(0,2,1));acc0,acc1=tl.split(acc)
 			if not FORWARD:
-				pre0_bf=aux_desc.load([offs_am_c,offs_bn_c]);pre1_bf=aux_desc.load([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2]);pre0=pre0_bf.to(tl.float32);pre1=pre1_bf.to(tl.float32)
-				c0=(acc0*tl.where(pre0>0,2.0*pre0,0.5*pre0)).to(dtype);c1=(acc1*tl.where(pre1>0,2.0*pre1,0.5*pre1)).to(dtype)
+				ag0_bf=aux_desc.load([offs_am_c,offs_bn_c]);ag1_bf=aux_desc.load([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2]);ag0=ag0_bf.to(tl.float32);ag1=ag1_bf.to(tl.float32)
+				c0=(acc0*ag0).to(dtype);c1=(acc1*ag1).to(dtype)
 			else:
-				c0=acc0.to(dtype);c1=acc1.to(dtype)
+				lrs0=tl.where(acc0>0,acc0,0.5*acc0);lrs1=tl.where(acc1>0,acc1,0.5*acc1);c0=(lrs0*lrs0).to(dtype);c1=(lrs1*lrs1).to(dtype)
 			c_desc.store([offs_am_c,offs_bn_c],c0);c_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],c1)
 			if FORWARD:
-				aux0=tl.where(acc0>0,acc0,0.5*acc0);aux1=tl.where(acc1>0,acc1,0.5*acc1);aux_desc.store([offs_am_c,offs_bn_c],(aux0*aux0).to(dtype));aux_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],(aux1*aux1).to(dtype))
+				ag0=tl.where(acc0>0,2.0*acc0,0.5*acc0);ag1=tl.where(acc1>0,2.0*acc1,0.5*acc1);aux_desc.store([offs_am_c,offs_bn_c],ag0.to(dtype));aux_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],ag1.to(dtype))
 	def _compute_inv_rms(x_flat,eps=1e-6):
 		M,K=x_flat.shape;BLOCK_K=triton.next_power_of_2(K);inv_rms=torch.empty(M,device=x_flat.device,dtype=torch.float32);_rms_inv_kernel[(M,)](x_flat,inv_rms,M,K,eps,BLOCK_K=BLOCK_K);return inv_rms
 	def _fused_linear_lrs(a,b,aux=None,inv_rms=None,ln_scale=1.0):
@@ -163,20 +163,20 @@ if _HAS_TRITON and _HAS_TMA:
 	class _FusedRMSMLPFn(torch.autograd.Function):
 		@staticmethod
 		def forward(ctx,x,w1,w2,ln_scale,eps):
-			x_flat=x.reshape(-1,x.shape[-1]).contiguous();inv_rms=_compute_inv_rms(x_flat,eps);pre,post=_fused_linear_lrs(x_flat,w1,inv_rms=inv_rms,ln_scale=ln_scale);out=F.linear(post,w2);ctx.save_for_backward(x_flat,w1,w2,pre,post,inv_rms);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
+			x_flat=x.reshape(-1,x.shape[-1]).contiguous();inv_rms=_compute_inv_rms(x_flat,eps);post,act_grad=_fused_linear_lrs(x_flat,w1,inv_rms=inv_rms,ln_scale=ln_scale);out=F.linear(post,w2);ctx.save_for_backward(x_flat,w1,w2,post,act_grad,inv_rms);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
 		@staticmethod
 		def backward(ctx,grad_output):
-			x_flat,w1,w2,pre,post,inv_rms=ctx.saved_tensors;ln_scale=ctx.ln_scale;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=pre)
+			x_flat,w1,w2,post,act_grad,inv_rms=ctx.saved_tensors;ln_scale=ctx.ln_scale;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=act_grad)
 			K=x_flat.shape[-1];inv_rms_f=inv_rms.to(torch.float32);x_normed=(x_flat.to(torch.float32)*inv_rms_f[:,None]*ln_scale).to(x_flat.dtype);dw1=dpre.T@x_normed;dxn=dpre@w1
 			dxn_f=dxn.to(torch.float32);x_f=x_flat.to(torch.float32);c=(dxn_f*x_f).sum(dim=-1,keepdim=True)/K;dx=(ln_scale*inv_rms_f[:,None]*(dxn_f-x_f*inv_rms_f[:,None]*inv_rms_f[:,None]*c)).to(x_flat.dtype)
 			return dx.view(ctx.x_shape),dw1,dw2,None,None
 	class _FusedSimpleMLPFn(torch.autograd.Function):
 		@staticmethod
 		def forward(ctx,x,w1,w2,ln_scale,eps):
-			x_flat=x.reshape(-1,x.shape[-1]).contiguous();x_normed=(F.rms_norm(x_flat,(x_flat.size(-1),),eps=eps)*ln_scale).contiguous();pre,post=_fused_linear_lrs(x_normed,w1);out=F.linear(post,w2);ctx.save_for_backward(x_flat,x_normed,w1,w2,pre,post);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
+			x_flat=x.reshape(-1,x.shape[-1]).contiguous();x_normed=(F.rms_norm(x_flat,(x_flat.size(-1),),eps=eps)*ln_scale).contiguous();post,act_grad=_fused_linear_lrs(x_normed,w1);out=F.linear(post,w2);ctx.save_for_backward(x_flat,x_normed,w1,w2,post,act_grad);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
 		@staticmethod
 		def backward(ctx,grad_output):
-			x_flat,x_normed,w1,w2,pre,post=ctx.saved_tensors;ln_scale=ctx.ln_scale;eps=ctx.eps;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=pre);dw1=dpre.T@x_normed;dxn=(dpre@w1)*ln_scale
+			x_flat,x_normed,w1,w2,post,act_grad=ctx.saved_tensors;ln_scale=ctx.ln_scale;eps=ctx.eps;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=act_grad);dw1=dpre.T@x_normed;dxn=(dpre@w1)*ln_scale
 			K=x_flat.shape[-1];x_f=x_flat.to(torch.float32);mean_sq=(x_f*x_f).mean(dim=-1,keepdim=True);inv_rms_f=1.0/(mean_sq+eps).sqrt();dxn_f=dxn.to(torch.float32);c=(dxn_f*x_f).sum(dim=-1,keepdim=True)/K;dx=(inv_rms_f*(dxn_f-x_f*inv_rms_f*inv_rms_f*c)).to(x_flat.dtype)
 			return dx.view(ctx.x_shape),dw1,dw2,None,None
 	_fused_rms_mlp_apply=_FusedRMSMLPFn.apply
