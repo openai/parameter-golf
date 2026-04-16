@@ -9,9 +9,16 @@ Hyperparameters.export_allocator=os.environ.get('EXPORT_ALLOCATOR','entropy').lo
 Hyperparameters.artifact_target_bytes=int(os.environ.get('ARTIFACT_TARGET_BYTES',16000000))
 Hyperparameters.allocator_group_cols=int(os.environ.get('ALLOCATOR_GROUP_COLS',128))
 Hyperparameters.allocator_matrix_bits=tuple(int(x)for x in os.environ.get('ALLOCATOR_MATRIX_BITS','5,6,7').split(',')if x)
+Hyperparameters.allocator_mlp_bits=tuple(int(x)for x in os.environ.get('ALLOCATOR_MLP_BITS','').split(',')if x)or None
+Hyperparameters.allocator_attn_bits=tuple(int(x)for x in os.environ.get('ALLOCATOR_ATTN_BITS','').split(',')if x)or None
 Hyperparameters.allocator_embed_bits=tuple(int(x)for x in os.environ.get('ALLOCATOR_EMBED_BITS','7,8').split(',')if x)
 Hyperparameters.allocator_matrix_sigmas=tuple(float(x)for x in os.environ.get('ALLOCATOR_MATRIX_SIGMAS','10.5,12.85,15.0').split(',')if x)
+Hyperparameters.allocator_mlp_sigmas=tuple(float(x)for x in os.environ.get('ALLOCATOR_MLP_SIGMAS','').split(',')if x)or None
+Hyperparameters.allocator_attn_sigmas=tuple(float(x)for x in os.environ.get('ALLOCATOR_ATTN_SIGMAS','').split(',')if x)or None
 Hyperparameters.allocator_embed_sigmas=tuple(float(x)for x in os.environ.get('ALLOCATOR_EMBED_SIGMAS','16.0,20.0,24.0').split(',')if x)
+Hyperparameters.allocator_use_entropy_proxy=bool(int(os.environ.get('ALLOCATOR_USE_ENTROPY_PROXY','1')))
+Hyperparameters.ttt_doc_local=bool(int(os.environ.get('TTT_DOC_LOCAL','0')))
+Hyperparameters.ttt_doc_boundary_token=int(os.environ.get('TTT_DOC_BOUNDARY_TOKEN','0'))
 Hyperparameters.allocator_lambdas=tuple(float(x)for x in os.environ.get('ALLOCATOR_LAMBDAS','0,1e-9,3e-9,1e-8,3e-8,1e-7,3e-7,1e-6,3e-6,1e-5').split(',')if x)
 Hyperparameters.allocator_code_wrappers=tuple(x for x in os.environ.get('ALLOCATOR_CODE_WRAPPERS','source,lzma_raw_b85_exec').split(',')if x)
 Hyperparameters.enable_compile=bool(int(os.environ.get('ENABLE_COMPILE','1')))
@@ -292,10 +299,24 @@ def _group_error(W,W_hat,H,c1,c2):
 	return _group_trace(H,c1,c2)*float((W.float()-W_hat.float()).pow(2).mean().item())
 def _dequant_group(q,s):
 	return q.float()*s.float().view(q.shape[0],1)
+def _entropy_proxy_bytes(q_int8):
+	flat=q_int8.reshape(-1).numpy().astype(np.int16)+128
+	counts=np.bincount(flat,minlength=256).astype(np.float64)
+	counts=counts[counts>0];n=counts.sum();probs=counts/n
+	bits_per_sym=-float((probs*np.log2(probs)).sum())
+	return float(bits_per_sym*n/8.)+16.*q_int8.shape[0]
 def _allocator_bits_for_name(name,h):
-	return h.allocator_embed_bits if'tok_emb'in name else h.allocator_matrix_bits
+	if'tok_emb'in name:return h.allocator_embed_bits
+	cat=classify_param(name)
+	if cat=='mlp'and h.allocator_mlp_bits is not None:return h.allocator_mlp_bits
+	if cat=='attn'and h.allocator_attn_bits is not None:return h.allocator_attn_bits
+	return h.allocator_matrix_bits
 def _allocator_sigmas_for_name(name,h):
-	return h.allocator_embed_sigmas if'tok_emb'in name else h.allocator_matrix_sigmas
+	if'tok_emb'in name:return h.allocator_embed_sigmas
+	cat=classify_param(name)
+	if cat=='mlp'and h.allocator_mlp_sigmas is not None:return h.allocator_mlp_sigmas
+	if cat=='attn'and h.allocator_attn_sigmas is not None:return h.allocator_attn_sigmas
+	return h.allocator_matrix_sigmas
 def _precompute_group_options(name,t,H,h):
 	W=t.detach().cpu().float().contiguous();rows,cols=W.shape;group_cols=max(1,h.allocator_group_cols);groups=[]
 	for c1 in range(0,cols,group_cols):
@@ -305,7 +326,9 @@ def _precompute_group_options(name,t,H,h):
 			clip_range=2**(bits-1)-1
 			for sigma in _allocator_sigmas_for_name(name,h):
 				q,s=gptq_quantize_weight(Wg,Hg,clip_sigmas=sigma,clip_range=clip_range,block_size=min(128,c2-c1))
-				recon=_dequant_group(q,s);err=_group_error(Wg,recon,H,c1,c2);proxy_bits=float(bits*Wg.numel()+16*rows)
+				recon=_dequant_group(q,s);err=_group_error(Wg,recon,H,c1,c2)
+				if h.allocator_use_entropy_proxy:proxy_bits=_entropy_proxy_bytes(q)*8.
+				else:proxy_bits=float(bits*Wg.numel()+16*rows)
 				opts.append({'bits':int(bits),'sigma':float(sigma),'q':q.contiguous(),'scale':s.contiguous(),'error':err,'proxy_bits':proxy_bits})
 		opts.sort(key=lambda x:(x['error'],x['proxy_bits']))
 		groups.append(opts)
@@ -487,6 +510,62 @@ def eval_val_ttt(h,device,val_data,base_model,batch_seqs=32):
 	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
 	for p in base_model.parameters():p.requires_grad_(True)
 	base_model.eval();return _loss_bpb(loss_sum,token_count,byte_count)
+def _find_doc_boundaries(val_tokens,boundary_token=0):
+	tokens_np=val_tokens.numpy()if val_tokens.is_cpu else val_tokens.cpu().numpy()
+	boundaries=[0]+[int(i)for i in np.where(tokens_np==boundary_token)[0]if i>0]
+	if boundaries[-1]<len(tokens_np)-1:boundaries.append(len(tokens_np))
+	return boundaries
+def eval_val_ttt_doclocal(h,device,val_data,base_model,batch_seqs=32):
+	rank=h.rank;world_size=h.world_size;seq_len=h.eval_seq_len;stride=h.eval_stride;total_tokens=val_data.val_tokens.numel()-1;context_size=seq_len-stride
+	boundaries=_find_doc_boundaries(val_data.val_tokens[:total_tokens],h.ttt_doc_boundary_token);num_docs=len(boundaries)-1
+	log(f"ttt_doclocal:start docs={num_docs} ttt_lr={h.ttt_lr} ttt_epochs={h.ttt_epochs} boundary_token={h.ttt_doc_boundary_token}")
+	base_state={k:v.detach().clone()for k,v in base_model.state_dict().items()};ttt_params=[p for p in base_model.parameters()]
+	for p in ttt_params:p.requires_grad_(True)
+	compiled_logits=torch.compile(base_model.forward_logits,dynamic=False,fullgraph=True)if h.enable_compile else base_model.forward_logits
+	loss_sum=torch.zeros((),device=device,dtype=torch.float64);token_count=torch.zeros((),device=device,dtype=torch.float64);byte_count=torch.zeros((),device=device,dtype=torch.float64)
+	for di in range(num_docs):
+		doc_start=boundaries[di];doc_end=boundaries[di+1];doc_len=doc_end-doc_start
+		if doc_len<seq_len:continue
+		base_model.load_state_dict(base_state,strict=True)
+		window_starts=[ws for ws in range(doc_start,doc_end,stride)if ws+context_size<doc_end and ws+seq_len<=total_tokens]
+		if not window_starts:continue
+		ttt_chunk=h.ttt_chunk_tokens;num_chunks=max(1,(doc_len+ttt_chunk-1)//ttt_chunk);chunk_windows=[[]for _ in range(num_chunks)]
+		for ws in window_starts:
+			s=0 if ws==doc_start else context_size;scored_start=ws+s;ci=min((scored_start-doc_start)//ttt_chunk,num_chunks-1);chunk_windows[ci].append(ws)
+		optimizer=torch.optim.SGD(ttt_params,lr=h.ttt_lr,momentum=h.ttt_momentum)
+		for ci in range(num_chunks):
+			windows=chunk_windows[ci]
+			if not windows:continue
+			my_s=len(windows)*rank//world_size;my_e=len(windows)*(rank+1)//world_size;my_windows=windows[my_s:my_e];base_model.eval()
+			with torch.no_grad():
+				for bi in range(0,len(my_windows),batch_seqs):
+					batch_ws=my_windows[bi:bi+batch_seqs];bsz=len(batch_ws);x_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);y_batch=torch.zeros(bsz,seq_len,dtype=torch.int64,device=device);wlens=[]
+					for(i,ws)in enumerate(batch_ws):we=min(ws+seq_len,total_tokens);wlen=we-ws;wlens.append(wlen);chunk_tok=val_data.val_tokens[ws:we+1].to(dtype=torch.int64,device=device);x_batch[i,:wlen]=chunk_tok[:-1];y_batch[i,:wlen]=chunk_tok[1:]
+					with torch.autocast(device_type='cuda',dtype=_compute_dtype(h)):logits=compiled_logits(x_batch)
+					nll=F.cross_entropy(logits.reshape(-1,logits.size(-1)).float(),y_batch.reshape(-1),reduction='none').reshape(bsz,seq_len)
+					for(i,ws)in enumerate(batch_ws):wlen=wlens[i];s=0 if ws==doc_start else context_size;scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt=y_batch[i,s:wlen];prev=x_batch[i,s:wlen];tb=val_data.base_bytes_lut[tgt].to(torch.float64);tb+=(val_data.has_leading_space_lut[tgt]&~val_data.is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()
+			is_last_chunk=ci==num_chunks-1
+			if not is_last_chunk and h.ttt_epochs>0:
+				chunk_start_tok=doc_start+ci*ttt_chunk;chunk_end_tok=min(doc_start+(ci+1)*ttt_chunk,doc_end);chunk_seqs=(chunk_end_tok-chunk_start_tok)//seq_len
+				if chunk_seqs>0:
+					base_model.train();cos_lr=h.ttt_lr*.5*(1.+math.cos(math.pi*ci/max(num_chunks-1,1)))
+					for pg in optimizer.param_groups:pg['lr']=cos_lr
+					my_seq_s=chunk_seqs*rank//world_size;my_seq_e=chunk_seqs*(rank+1)//world_size;my_chunk_seqs=my_seq_e-my_seq_s
+					for _ep in range(h.ttt_epochs):
+						for bs in range(0,my_chunk_seqs,batch_seqs):
+							be=min(bs+batch_seqs,my_chunk_seqs);actual_bs=my_seq_s+bs;start_tok=chunk_start_tok+actual_bs*seq_len;end_tok=chunk_start_tok+(my_seq_s+be)*seq_len+1
+							if end_tok>val_data.val_tokens.numel():continue
+							local=val_data.val_tokens[start_tok:end_tok].to(device=device,dtype=torch.int64);x=local[:-1].reshape(-1,seq_len);y=local[1:].reshape(-1,seq_len);optimizer.zero_grad(set_to_none=True)
+							with torch.autocast(device_type='cuda',dtype=_compute_dtype(h)):loss=base_model(x,y)
+							loss.backward()
+							if world_size>1:
+								for p in ttt_params:
+									if p.grad is not None:dist.all_reduce(p.grad,op=dist.ReduceOp.AVG)
+							torch.nn.utils.clip_grad_norm_(ttt_params,1.);optimizer.step()
+	if dist.is_available()and dist.is_initialized():dist.all_reduce(loss_sum,op=dist.ReduceOp.SUM);dist.all_reduce(token_count,op=dist.ReduceOp.SUM);dist.all_reduce(byte_count,op=dist.ReduceOp.SUM)
+	base_model.load_state_dict(base_state,strict=True)
+	for p in base_model.parameters():p.requires_grad_(True)
+	base_model.eval();return _loss_bpb(loss_sum,token_count,byte_count)
 def timed_eval(label,fn,*args,**kwargs):torch.cuda.synchronize();t0=time.perf_counter();val_loss,val_bpb=fn(*args,**kwargs);torch.cuda.synchronize();elapsed_ms=1e3*(time.perf_counter()-t0);log(f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms");return val_loss,val_bpb
 def train_model(h,device,val_data):
 	base_model=GPT(h).to(device).to(dtype=_compute_dtype(h));restore_fp32_params(base_model);compiled_model=torch.compile(base_model,dynamic=False,fullgraph=True)if h.enable_compile else base_model
@@ -559,6 +638,10 @@ def train_and_eval(h,device):
 		del eval_model,compiled_model;torch._dynamo.reset();torch.cuda.empty_cache();ttt_model=deserialize(h,device)
 		if h.num_loops>0:ttt_model.looping_active=True
 		timed_eval('quantized_ttt',eval_val_ttt,h,device,val_data,ttt_model);del ttt_model
+	if h.ttt_doc_local and h.ttt_enabled and h.sliding_window_enabled:
+		torch._dynamo.reset();torch.cuda.empty_cache();doclocal_model=deserialize(h,device)
+		if h.num_loops>0:doclocal_model.looping_active=True
+		timed_eval('quantized_ttt_doclocal',eval_val_ttt_doclocal,h,device,val_data,doclocal_model);del doclocal_model
 	if h.etlb_enabled and h.sliding_window_enabled:
 		if'eval_model'not in dir():
 			eval_model=deserialize(h,device)
