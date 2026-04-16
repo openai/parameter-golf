@@ -1,0 +1,35 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "GDN-Hybrid + TMA Megakernel + Brotli-11",
+  "blurb": "GDN-Hybrid (GatedDeltaNet + SWA), Hopper TMA fused relu_sq MLP megakernel, brotli-11 compression (saves ~700KB vs zstd-22), GPTQ int6 with eigendecomposition Hessian repair, allow_neg_eigval=True, SP1024",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_bpb": 1.01195,
+  "val_bpb_std": 0.00061,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.011245,
+      "ema_bpb": 1.000783,
+      "artifact_bytes": 15765907,
+      "steps": 2212
+    },
+    "1337": {
+      "val_bpb": 1.012324,
+      "ema_bpb": 1.001806,
+      "artifact_bytes": 15804631,
+      "steps": 2736
+    },
+    "2024": {
+      "val_bpb": 1.012281,
+      "ema_bpb": 1.000638,
+      "artifact_bytes": 15802165,
+      "steps": 2758
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 15790901,
+  "bytes_code": 115013,
+  "compression": "brotli-11"
+}
