@@ -301,4 +301,80 @@ The first 3 experiments are cheap, low-risk, and compound with each other. Exper
 A new record needs ≥0.005 nats improvement over 1.0810. That's roughly ≥0.003 bpb. Getting there likely requires stacking 2-3 of the above ideas rather than any single change.
 
 # Research Notes
-Experimental findings:
+
+## Regime change: 20 min wallclock + sliding window eval
+
+Starting from iter_7, we're running 20 min wallclock (was 10 min) with sliding window eval re-enabled. TTT stays off for now (adds ~370s for ~0.002 bpb — save for final validation). On the Brev H100 PCIe (~680 tok/s), this gives ~780 steps (was ~390). On RunPod SXM (~840 tok/s), it would give ~1200 steps. The SOTA used 8xH100 SXM for ~4550 steps in 10 min.
+
+The doubling of steps should make EMA/optimizer experiments viable again and improve compression quality (closer to 16MB). Sliding window historically gives −0.032 bpb — we'll now measure this directly.
+
+## Experimental findings (iter_0 through iter_6)
+
+### What worked
+| Experiment | Δ quantized_val_bpb | Notes |
+|-----------|-------------------|-------|
+| Per-group SDClip (iter_1) | −0.018 | Biggest single win. Early layers k×1.15, mid unchanged, late k×0.88 |
+| QK-Gain 5.25→5.5 (iter_2) | −0.002 | Monotonic trend continues |
+| QK-Gain 5.5→6.0 (iter_3) | −0.001 | Still improving, not saturated |
+| Cosine warmdown (iter_4) | −0.001 | Smoother decay > linear cliff |
+
+### What failed
+| Experiment | Δ quantized_val_bpb | Notes |
+|-----------|-------------------|-------|
+| EMA decay 0.9965→0.995 (iter_5) | +0.104 | Catastrophic post-EMA degradation |
+| warmdown_frac 0.72→0.80 (iter_6) | +0.333 | Even worse; model barely trains at full LR |
+
+### Key insight: post-EMA quality is decoupled from in-training loss
+All runs showed nearly identical in-training val_bpb (~1.21–1.28) but post-EMA ranged from 1.356 (good) to 1.688 (terrible). The EMA model averages over a trajectory whose shape depends heavily on schedule params. Small perturbations to EMA decay or warmdown can route the trajectory into completely different basins, and this only manifests after EMA weight substitution — not visible during training. With 2x steps this sensitivity should diminish, but we should still prefer small incremental changes to schedule params.
+
+### Hardware note: PCIe vs SXM throughput
+Brev H100 PCIe gives ~680 tok/s (390 steps / 10 min) vs RunPod SXM ~840 tok/s (606 steps / 10 min). This is a 36% throughput gap. At 20 min on PCIe we get ~780 steps, roughly matching old SXM 10-min runs. Results from different hardware should be compared cautiously — fewer steps means undertrained model, worse EMA, worse compression.
+
+## Revised experiment priorities (post-regime-change)
+
+### High confidence — run next
+1. **Re-baseline at 20 min + sliding window** (iter_7). Critical to establish the new reference point before testing changes. Expect a significant improvement from 2x steps and sliding window alone.
+
+2. **QK-Gain 7.0** (iter_8). The 5.25→5.5→6.0 trend was monotonically improving. Push further. If still improving, try 8.0.
+
+3. **Finer SDClip: per-layer k** (iter_9). Our 3-group scheme (early/mid/late) gave −0.018. Per-layer allocation using Hessian trace ratios could squeeze another 0.001–0.003. The Hessian data in the SOTA write-up shows traces vary 30x across layers — 3 groups is coarse.
+
+### Medium confidence — revisit with more steps
+4. **EMA decay sweep (conservative)** — try 0.997, 0.996 (small moves from 0.9965). With 2x steps, the EMA trajectory is smoother and should tolerate small changes. But after the iter_5 disaster, move in 0.0005 increments only.
+
+5. **warmdown_frac sweep (conservative)** — try 0.68, 0.70 (both *less* warmdown than 0.72, opposite direction from the failed 0.80). The intuition: with 2x total steps, the absolute number of warmdown steps is already doubled; we may not need such a large *fraction*.
+
+6. **Muon WD 0.095→0.11** (originally planned). Higher WD → smaller weights → better brotli compression. This was always the plan; delayed due to EMA sensitivity concerns. With more steps it should be testable.
+
+7. **GPTQ calibration batches 64→128** — more calibration data for the Hessian computation should improve quantization quality. Zero training cost, only ~10s extra quant time.
+
+### New ideas (from the regime change)
+8. **Exploit the step-count increase for model capacity** — with ~780 steps instead of ~390, we can train a slightly larger model that still converges. Options:
+   - MLP 4x → 4.5x (small capacity bump, ~3M more params)
+   - 12 layers instead of 11 (need to verify step-time impact)
+   - These need to still fit in 16MB after GPTQ, so careful sizing is needed.
+
+9. **Sliding window stride tuning** — the default is stride=64. Now that sliding window is on, try stride=32 for a richer eval at the cost of ~2x eval time. Or stride=128 to save time if the bpb delta is small.
+
+10. **Two-phase warmdown** — instead of a single cosine curve, try: fast decay (cosine over first 60% of warmdown) to 0.1, then a slow linear tail to min_lr. This keeps the model exploring longer at moderate LR before the final convergence.
+
+11. **Grad accumulation reduction** — current `grad_accum_steps=8` with `train_batch_tokens=786432`. If we halve to `grad_accum_steps=4`, we double the number of optimizer steps (noisier gradients, but 2x the step count). On 1xH100 this might let us reach ~1500 steps in 20 min. The trade-off: noisier gradients vs more updates. Worth testing.
+
+### Deprioritized / deferred
+- **SP16384 vocab** — risky, large embed table, probably needs TTT re-enabled to see the full benefit. Defer until we've locked in quant/schedule gains.
+- **MTP (multi-token prediction)** — interesting but architectural complexity; save for later.
+- **Hybrid SSM/attention** — speculative; not worth the iteration cost now.
+- **TTT improvements** — can't validate without TTT enabled. Defer to final testing phase.
+
+## Proposed iteration plan
+
+| Iter | Experiment | Rationale |
+|------|-----------|-----------|
+| iter_7 | 20 min baseline + sliding window | Establish new reference |
+| iter_8 | QK-Gain 6.0→7.0 | Continuing monotonic trend |
+| iter_9 | Per-layer SDClip (11 layers, 11 k-values) | Refine the biggest win |
+| iter_10 | GPTQ calibration 64→128 | Free quant quality improvement |
+| iter_11 | warmdown_frac 0.72→0.68 | Conservative schedule tuning |
+| iter_12 | EMA decay 0.9965→0.997 | Small conservative move |
+| iter_13 | Muon WD 0.095→0.11 | Compression headroom |
+| iter_14+ | Based on results — MLP width, grad accum, stride tuning |

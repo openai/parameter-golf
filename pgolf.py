@@ -144,8 +144,11 @@ def cmd_train(args):
         if args.provider == "brev"
         else ""
     )
+    env_vars = f"PYTHONUNBUFFERED=1 MAX_WALLCLOCK_SECONDS={args.wallclock}"
+    env_vars += f" SLIDING_WINDOW_ENABLED={int(args.sliding_window)}"
+    env_vars += f" TTT_ENABLED={int(args.ttt)}"
     train_cmd = (
-        f"{path_prefix}set -o pipefail && cd {ws} && PYTHONUNBUFFERED=1 "
+        f"{path_prefix}set -o pipefail && cd {ws} && {env_vars} "
         f"torchrun --standalone --nproc_per_node=1 train_gpt_remote.py "
         f"2>&1 | stdbuf -oL tee run.log"
     )
@@ -238,12 +241,68 @@ def best_eval(report):
             return key, evals[key]
     return None, None
 
+FIXED_COLS = [
+    'commit', 'best_val_bpb', 'best_eval', 'steps', 'train_time_s',
+    'memory_gb', 'total_bytes', 'code_bytes', 'model_bytes',
+]
+TAIL_COLS = ['status', 'description']
+
+
+def _build_tsv_row(row, eval_cols, all_cols):
+    """Build a TSV line from row dict + eval_cols dict, ordered by all_cols."""
+    vals = {**row, **eval_cols}
+    return '\t'.join(str(vals.get(c, '')) for c in all_cols)
+
+
+def _read_tsv(path):
+    """Read existing TSV into (header_list, [row_dicts])."""
+    if not os.path.isfile(path):
+        return None, []
+    with open(path, 'r') as f:
+        lines = [l.rstrip('\n') for l in f if l.strip()]
+    if not lines:
+        return None, []
+    header = lines[0].split('\t')
+    rows = []
+    for line in lines[1:]:
+        fields = line.split('\t')
+        rows.append(dict(zip(header, fields)))
+    return header, rows
+
+
+def _write_tsv(path, header, rows):
+    """Write header + rows to TSV, filling missing columns with ''."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        f.write('\t'.join(header) + '\n')
+        for r in rows:
+            f.write('\t'.join(str(r.get(c, '')) for c in header) + '\n')
+
+
+def _merge_header(existing, new_cols):
+    """Merge new columns into existing header, keeping TAIL_COLS last."""
+    merged = list(existing)
+    tail_set = set(TAIL_COLS)
+    insert_pos = len(merged)
+    for c in reversed(merged):
+        if c in tail_set:
+            insert_pos -= 1
+        else:
+            break
+    for c in new_cols:
+        if c not in merged:
+            merged.insert(insert_pos, c)
+            insert_pos += 1
+    return merged
+
+
 def cmd_eval(args):
     iteration = args.iteration
     description = args.description
     
     print(f"{'='*60}")
     print(f"  Eval Iteration: {iteration}")
+    print(f"  wallclock={args.wallclock}s  sliding_window={args.sliding_window}  ttt={args.ttt}")
     print(f"{'='*60}")
     
     cmd_deploy(args)
@@ -252,16 +311,24 @@ def cmd_eval(args):
     args.download_artifact = True
     report = cmd_validate_submission(args)
     
-    row = dict(commit=iteration, description=description,
-               peak_vram_mib=0, total_bytes=0, code_bytes=0, model_bytes=0)
+    row = dict(commit=iteration, description=description, status="crash",
+               steps=0, train_time_s=0, peak_vram_mib=0,
+               total_bytes=0, code_bytes=0, model_bytes=0)
     eval_cols = {}
     best_key, best_val = None, None
     
     if rc == 0 and report:
-        row.update(peak_vram_mib=report['peak_vram_mib'], total_bytes=report['total_bytes'],
-                   code_bytes=report['code_bytes'], model_bytes=report['model_bytes'])
+        row.update(
+            peak_vram_mib=report['peak_vram_mib'],
+            total_bytes=report['total_bytes'],
+            code_bytes=report['code_bytes'],
+            model_bytes=report['model_bytes'],
+            steps=report.get('steps', 0),
+            train_time_s=f"{report.get('train_time_ms', 0) / 1000:.1f}",
+            status="keep",
+        )
         for label, vals in report.get('evals', {}).items():
-            safe = label.replace('-','_').replace(' ','_')
+            safe = label.replace('-', '_').replace(' ', '_')
             eval_cols[f"{safe}_val_bpb"] = f"{vals['val_bpb']:.6f}"
             eval_cols[f"{safe}_val_loss"] = f"{vals['val_loss']:.6f}"
             eval_cols[f"{safe}_eval_time_ms"] = f"{vals['eval_time_ms']:.0f}"
@@ -269,42 +336,32 @@ def cmd_eval(args):
     
     row['best_eval'] = best_key or ""
     row['best_val_bpb'] = f"{best_val['val_bpb']:.6f}" if best_val else "0.000000"
-    row['memory_gb'] = f"{row['peak_vram_mib']/1024:.1f}"
+    row['memory_gb'] = f"{row['peak_vram_mib'] / 1024:.1f}"
     
-    # Build TSV with stable column order
-    fixed_cols = ['commit','best_val_bpb','best_eval','memory_gb','total_bytes','code_bytes','model_bytes']
     eval_col_names = sorted(eval_cols.keys())
-    all_cols = fixed_cols + eval_col_names + ['description']
+    new_cols = FIXED_COLS + eval_col_names + TAIL_COLS
     
-    os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
-    
-    # Read existing header if present
-    existing_header = None
-    if os.path.isfile(RESULTS_FILE):
-        with open(RESULTS_FILE, 'r') as f:
-            existing_header = f.readline().strip().split('\t')
-    
+    existing_header, existing_rows = _read_tsv(RESULTS_FILE)
     if existing_header:
-        # Merge any new columns
-        for c in all_cols:
-            if c not in existing_header:
-                existing_header.insert(-1, c)  # insert before description
-        all_cols = existing_header
+        all_cols = _merge_header(existing_header, new_cols)
+    else:
+        all_cols = new_cols
     
-    vals = {**row, **eval_cols}
-    line = '\t'.join(str(vals.get(c, '')) for c in all_cols)
-    
-    with open(RESULTS_FILE, 'w' if not existing_header else 'a') as f:
-        if not existing_header:
-            f.write('\t'.join(all_cols) + '\n')
-        f.write(line + '\n')
+    existing_rows.append({**row, **eval_cols})
+    _write_tsv(RESULTS_FILE, all_cols, existing_rows)
     
     print(f"\n{'='*60}")
     print(f"  Results for {iteration}:")
     print(f"    best_eval:  {best_key or 'N/A'}")
     print(f"    best_bpb:   {row['best_val_bpb']}")
+    for k in eval_col_names:
+        if k.endswith('_val_bpb'):
+            print(f"    {k}: {eval_cols[k]}")
+    print(f"    steps:      {row['steps']}")
+    print(f"    train_time: {row['train_time_s']}s")
     print(f"    memory_gb:  {row['memory_gb']}")
     print(f"    total_size: {row['total_bytes']:,} bytes")
+    print(f"    status:     {row['status']}")
     print(f"  Recorded to {RESULTS_FILE}")
     print(f"{'='*60}")
 
@@ -323,6 +380,18 @@ def main():
         "--ssh-config",
         default=None,
         help="SSH config file for --provider brev (default: ~/.brev/ssh_config or $BREV_SSH_CONFIG)",
+    )
+    parser.add_argument(
+        "--wallclock", type=int, default=1200,
+        help="Training wall-clock budget in seconds (default: 1200 = 20 min)",
+    )
+    parser.add_argument(
+        "--sliding-window", action=argparse.BooleanOptionalAction, default=True,
+        help="Enable sliding-window eval (default: on)",
+    )
+    parser.add_argument(
+        "--ttt", action=argparse.BooleanOptionalAction, default=False,
+        help="Enable TTT eval (default: off)",
     )
     
     subparsers = parser.add_subparsers(dest="command", required=True)

@@ -1,0 +1,8 @@
+commit	best_val_bpb	best_eval	steps	train_time_s	memory_gb	total_bytes	code_bytes	model_bytes	pre_quantization_post_ema_eval_time_ms	pre_quantization_post_ema_val_bpb	pre_quantization_post_ema_val_loss	quantized_eval_time_ms	quantized_val_bpb	quantized_val_loss	status	description
+iter_0	0.000000		579	589.1	38.4	16052835	63784	15989051	22369	1.378239	3.560135	23832	1.383158	3.572841	keep	baseline (dev, TTT+sliding disabled)
+iter_1	0.000000		602	588.7	38.4	16130096	64419	16065677	22533	1.359528	3.511801	23762	1.365064	3.526103	keep	per-group SDClip: early k*1.15, mid k, late k*0.88
+iter_2	0.000000		606	588.9	38.4	16128884	64418	16064466	22343	1.358095	3.508099	23774	1.363156	3.521173	keep	QK-Gain 5.25->5.5 + per-group SDClip
+iter_3	0.000000		606	588.3	38.4	16129474	64418	16065056	22401	1.356964	3.505179	23826	1.362061	3.518346	keep	QK-Gain 6.0 + per-group SDClip
+iter_4	0.000000		606	588.1	38.4	16129198	64490	16064708	22362	1.356037	3.502785	23730	1.361312	3.516411	keep	cosine warmdown + QK-Gain 6.0 + per-group SDClip
+iter_5	0.000000		390	588.5	38.4	16131483	64489	16066994	32224	1.459782	3.770768	34321	1.464988	3.784217	revert	EMA decay 0.995 (reverted, regression)
+iter_6	0.000000		391	588.8	38.4	16133057	64490	16068567	32171	1.688005	4.360293	33728	1.694373	4.376742	revert	warmdown_frac 0.80 (reverted, regression)

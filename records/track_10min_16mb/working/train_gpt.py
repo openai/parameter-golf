@@ -1398,7 +1398,7 @@ def train_model(h, device, val_data):
     current_state = base_model.state_dict()
     avg_state = {name: t.to(dtype=current_state[name].dtype) for (name, t) in ema_state.items()}
     base_model.load_state_dict(avg_state, strict=True)
-    return base_model, compiled_model
+    return base_model, compiled_model, step, training_time_ms
 
 
 def train_and_eval(h, device):
@@ -1409,7 +1409,7 @@ def train_and_eval(h, device):
     val_data = ValidationData(h, device)
     log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob('fineweb_train_*.bin')))}")
     log(f"val_tokens: {val_data.val_tokens.numel()-1}")
-    base_model, compiled_model = train_model(h, device, val_data)
+    base_model, compiled_model, final_step, train_time_ms = train_model(h, device, val_data)
     torch._dynamo.reset()
     timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
     code_text = Path(__file__).read_text(encoding="utf-8")
@@ -1448,6 +1448,8 @@ def train_and_eval(h, device):
             "model_bytes": quant_file_bytes,
             "total_bytes": submission_bytes,
             "peak_vram_mib": torch.cuda.max_memory_allocated() // 1024 // 1024,
+            "steps": final_step,
+            "train_time_ms": train_time_ms,
         }
         with open("train_log.json", "w") as _f:
             _json.dump(report, _f)
