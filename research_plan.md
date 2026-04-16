@@ -301,7 +301,4 @@ The first 3 experiments are cheap, low-risk, and compound with each other. Exper
 A new record needs ≥0.005 nats improvement over 1.0810. That's roughly ≥0.003 bpb. Getting there likely requires stacking 2-3 of the above ideas rather than any single change.
 
 # Research Notes
-
-## Experimental Findings
-
-## New Directions to Explore
+Experimental findings:

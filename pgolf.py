@@ -252,15 +252,14 @@ def cmd_eval(args):
     args.download_artifact = True
     report = cmd_validate_submission(args)
     
-    # Defaults for crash
-    row = dict(commit=iteration, description=description, status="crash",
+    row = dict(commit=iteration, description=description,
                peak_vram_mib=0, total_bytes=0, code_bytes=0, model_bytes=0)
     eval_cols = {}
     best_key, best_val = None, None
     
     if rc == 0 and report:
         row.update(peak_vram_mib=report['peak_vram_mib'], total_bytes=report['total_bytes'],
-                   code_bytes=report['code_bytes'], model_bytes=report['model_bytes'], status="keep")
+                   code_bytes=report['code_bytes'], model_bytes=report['model_bytes'])
         for label, vals in report.get('evals', {}).items():
             safe = label.replace('-','_').replace(' ','_')
             eval_cols[f"{safe}_val_bpb"] = f"{vals['val_bpb']:.6f}"
@@ -275,7 +274,7 @@ def cmd_eval(args):
     # Build TSV with stable column order
     fixed_cols = ['commit','best_val_bpb','best_eval','memory_gb','total_bytes','code_bytes','model_bytes']
     eval_col_names = sorted(eval_cols.keys())
-    all_cols = fixed_cols + eval_col_names + ['status','description']
+    all_cols = fixed_cols + eval_col_names + ['description']
     
     os.makedirs(os.path.dirname(RESULTS_FILE), exist_ok=True)
     
@@ -289,7 +288,7 @@ def cmd_eval(args):
         # Merge any new columns
         for c in all_cols:
             if c not in existing_header:
-                existing_header.insert(-2, c)  # insert before status,description
+                existing_header.insert(-1, c)  # insert before description
         all_cols = existing_header
     
     vals = {**row, **eval_cols}
@@ -306,7 +305,6 @@ def cmd_eval(args):
     print(f"    best_bpb:   {row['best_val_bpb']}")
     print(f"    memory_gb:  {row['memory_gb']}")
     print(f"    total_size: {row['total_bytes']:,} bytes")
-    print(f"    status:     {row['status']}")
     print(f"  Recorded to {RESULTS_FILE}")
     print(f"{'='*60}")
 
