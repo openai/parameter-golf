@@ -368,13 +368,72 @@ Brev H100 PCIe gives ~680 tok/s (390 steps / 10 min) vs RunPod SXM ~840 tok/s (6
 
 ## Proposed iteration plan
 
-| Iter | Experiment | Rationale |
-|------|-----------|-----------|
-| iter_7 | 20 min baseline + sliding window | Establish new reference |
-| iter_8 | QK-Gain 6.0→7.0 | Continuing monotonic trend |
-| iter_9 | Per-layer SDClip (11 layers, 11 k-values) | Refine the biggest win |
-| iter_10 | GPTQ calibration 64→128 | Free quant quality improvement |
-| iter_11 | warmdown_frac 0.72→0.68 | Conservative schedule tuning |
-| iter_12 | EMA decay 0.9965→0.997 | Small conservative move |
-| iter_13 | Muon WD 0.095→0.11 | Compression headroom |
-| iter_14+ | Based on results — MLP width, grad accum, stride tuning |
+| Iter | Experiment | Result |
+|------|-----------|--------|
+| iter_7 | 20 min baseline + sliding window | 1.2464 (new ref) |
+| iter_8 | QK-Gain 6.0→7.0 | +0.002 REVERT |
+| iter_8b | QK-Gain 6.0→6.5 | +0.0002 REVERT (QK saturated at 6.0) |
+| iter_9 | Per-layer SDClip (11-vector) | flat bpb, −30KB size, **KEEP** |
+| iter_10 | GPTQ calibration 64→128 | flat REVERT |
+| iter_11 | warmdown_frac 0.72→0.68 | −0.0002 KEEP (fragile) |
+| iter_12 | Muon WD 0.095→0.11 | +0.003 REVERT |
+| iter_13 | embed_clip_sigmas 20→15 | +230KB size, entropy up REVERT |
+| iter_14 | Steeper SDClip (1.22→0.65) | +247KB size REVERT |
+| iter_15 | matrix_clip_sigmas 12.85→14.0 | 341KB under but +0.001 bpb, superseded |
+| iter_15b | matrix_clip_sigmas 12.85→13.5 | **FIRST PASS 16MB**, best_bpb 1.2463, **KEEP** |
+| iter_16-19 | train_batch_tokens sweep 786K→196K | see note below |
+| iter_20 | warmdown_frac 0.68→0.60 | +0.003 REVERT |
+
+## Course correction: step-count-sensitive wins don't transfer
+
+Iters 16-19 revealed that the dominant lever on 1xH100 PCIe is batch size. Reducing `train_batch_tokens` from 786K (SOTA default) down to 262K nearly doubled optimizer steps (790→2172) and gave a massive −0.080 bpb cumulative gain (best 1.1659). Iter_19 at 196K hit the crossover point (+0.001 regression from gradient noise).
+
+**These wins are artifacts of 1xH100 PCIe throughput and will NOT transfer.** On the 8xH100 SXM submission target, the SOTA already gets ~4550 steps in 10 min at 786K batch. Reducing batch to our 262K "optimum" would push that to ~10-13k steps — far past any sweet spot. The right batch size on 8xH100 is probably close to the SOTA default, not ours.
+
+Same concern applies to EMA decay, warmdown_frac, and any schedule hyperparameter tuned at a particular step count. The iter_11 warmdown 0.68 win was tiny (−0.0002 at 790 steps); whether it helps at 4550 steps is unknown.
+
+**Decision: revert iters 16-21 (non-transferable) and re-focus on hardware-independent experiments.**
+
+Kept (transferable) changes so far:
+- iter_9: per-layer SDClip (quantization — math-only, hw-independent)
+- iter_15b: matrix_clip_sigmas 13.5 (quantization — math-only, hw-independent)
+- iter_11: warmdown_frac 0.68 (schedule — fragile at 790 steps, marginal; keep but flag)
+
+## Revised plan: hardware-independent improvements only
+
+Categories that transfer across training regimes:
+
+**Quantization / compression (dev-friendly, cheap, math-only):**
+- GPTQ block size / ordering variants
+- Per-head SDClip (not just per-layer) — Q/K/V heads have different sensitivities
+- int5/int7 on specific sensitive layers (first attention, last MLP)
+- Alternative compressor tuning (brotli-11 vs brotli-11 -W 24, zstd-22 long mode)
+- Byte-shuffle stride variations (current: 2 bytes? tune for the quantized tensor layout)
+- Mixed-bit per-layer allocation (int6 early, int5 late)
+
+**Architecture (transfers directly, may need size-budget balancing):**
+- 11 layers → 12 layers (check if still fits in 16MB with int6)
+- MLP expansion 4x → 3.5x or 4.5x (bigger ≠ better under quant)
+- Shared MLP weights between loop iterations (capacity doubling for free)
+- Depth-wise weight tying experiments
+- Different attention QK-head ratio
+
+**Optimizer / init (step-count-agnostic at first order):**
+- Newton-Schulz 5→6 iterations (more accurate Muon update)
+- Different init std on tied_embed / tok_emb
+- QK-Gain initialization schedule (linear ramp during warmup)
+
+**Eval-only (don't change training, only scoring pipeline):**
+- Sliding window stride tuning (64→32, 128)
+- GPTQ hessian with importance-weighted calibration
+
+## Next experiments (transferable)
+
+| Iter | Experiment | Category |
+|------|-----------|----------|
+| iter_22 | int6→mixed int5/int6 per-layer | Quantization |
+| iter_23 | Newton-Schulz 5→6 iterations | Optimizer |
+| iter_24 | Per-head SDClip (Q/K/V separate) | Quantization |
+| iter_25 | Init std sweep on tied_embed | Init |
+| iter_26 | MLP 4x → 3.5x (trade width for depth?) | Architecture |
+| iter_27+ | Based on what wins above |
