@@ -571,7 +571,10 @@ def main():
 	if 8%world_size!=0:raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
 	device=torch.device('cuda',local_rank);torch.cuda.set_device(device)
 	if distributed:dist.init_process_group(backend='nccl',device_id=device);dist.barrier()
-	torch.backends.cuda.matmul.allow_tf32=True;torch.backends.cudnn.allow_tf32=True;torch.set_float32_matmul_precision('high');from torch.backends.cuda import enable_cudnn_sdp,enable_flash_sdp,enable_math_sdp,enable_mem_efficient_sdp;enable_cudnn_sdp(False);enable_flash_sdp(True);enable_mem_efficient_sdp(False);enable_math_sdp(False);torch._dynamo.config.optimize_ddp=False;h=Hyperparameters();set_logging_hparams(h)
+	torch.backends.cuda.matmul.allow_tf32=True;torch.backends.cudnn.allow_tf32=True;torch.set_float32_matmul_precision('high');from torch.backends.cuda import enable_cudnn_sdp,enable_flash_sdp,enable_math_sdp,enable_mem_efficient_sdp;torch._dynamo.config.optimize_ddp=False;h=Hyperparameters()
+	if h.native_sdpa:enable_cudnn_sdp(True);enable_flash_sdp(True);enable_mem_efficient_sdp(True);enable_math_sdp(True)
+	else:enable_cudnn_sdp(False);enable_flash_sdp(True);enable_mem_efficient_sdp(False);enable_math_sdp(False)
+	set_logging_hparams(h)
 	if h.is_main_process:
 		os.makedirs('logs',exist_ok=True);log(100*'=',console=False);log('Hyperparameters:',console=True)
 		for(k,v)in sorted(vars(type(h)).items()):
