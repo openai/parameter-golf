@@ -1,0 +1,10 @@
+{
+  "author": "Jay Zuccarelli",
+  "github_id": "jayzuccarelli",
+  "name": "11L + LN Scale + BigramHash 3072x112 + GPTQ + EMA",
+  "description": "11-layer transformer with LN Scale 1/sqrt(layer+1), BigramHash 3072x112, full Hessian GPTQ with AR self-generated calibration, EMA decay=0.997, XSA all layers, LeakyReLU(0.5)^2, Muon momentum=0.99, warmdown=3000 steps, 7333 steps in 10 min on 8xH100.",
+  "val_loss": 1.93342259,
+  "val_bpb": 1.14508063,
+  "total_bytes": 16553918,
+  "date": "2026-04-16"
+}
