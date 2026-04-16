@@ -27,7 +27,10 @@ from huggingface_hub import hf_hub_download
 
 
 APP_NAME = "parameter-golf-pr1493-bundle"
-REPO_ROOT = Path(__file__).resolve().parents[3]
+_THIS = Path(__file__).resolve()
+# Guard: when Modal copies this file into the container it lands at /root/modal_launcher.py
+# (no parents[3]). REPO_ROOT is only needed locally to resolve LOCAL_SCRIPT.
+REPO_ROOT = _THIS.parents[3] if len(_THIS.parents) >= 4 else _THIS.parent
 REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "kevclark/parameter-golf")
 REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
 DATASET_NAME = "fineweb10B_sp8192"
