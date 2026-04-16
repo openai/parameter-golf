@@ -1,0 +1,73 @@
+W0416 01:48:38.610000 43358 torch/distributed/run.py:851] 
+W0416 01:48:38.610000 43358 torch/distributed/run.py:851] *****************************************
+W0416 01:48:38.610000 43358 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 01:48:38.610000 43358 torch/distributed/run.py:851] *****************************************
+logs/e0693539-9868-410b-8a2a-c8d1f593455a.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:20882280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0085 val_bpb:3.4656 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0073 train_time:191ms step_avg:191.11ms
+step:2/20000 train_loss:16.5916 train_time:383ms step_avg:191.71ms
+step:3/20000 train_loss:11.6019 train_time:586ms step_avg:195.26ms
+step:4/20000 train_loss:9.0390 train_time:788ms step_avg:196.96ms
+step:5/20000 train_loss:8.5756 train_time:990ms step_avg:198.09ms
+step:6/20000 train_loss:8.4676 train_time:1192ms step_avg:198.75ms
+step:7/20000 train_loss:8.1918 train_time:1395ms step_avg:199.22ms
+step:8/20000 train_loss:8.1050 train_time:1597ms step_avg:199.61ms
+step:9/20000 train_loss:7.6721 train_time:1799ms step_avg:199.89ms
+step:10/20000 train_loss:7.3878 train_time:2001ms step_avg:200.14ms
+step:200/20000 train_loss:4.0437 train_time:40634ms step_avg:203.17ms
+step:400/20000 train_loss:3.7853 train_time:81337ms step_avg:203.34ms
+step:600/20000 train_loss:3.5342 train_time:122075ms step_avg:203.46ms
+step:800/20000 train_loss:3.4445 train_time:162830ms step_avg:203.54ms
+step:1000/20000 train_loss:3.3112 train_time:203598ms step_avg:203.60ms
+step:1000/20000 val_loss:3.4532 val_bpb:1.3285 train_time:203618ms step_avg:203.62ms
+step:1200/20000 train_loss:3.2835 train_time:244381ms step_avg:203.65ms
+step:1400/20000 train_loss:3.2157 train_time:285167ms step_avg:203.69ms
+step:1600/20000 train_loss:3.3575 train_time:325958ms step_avg:203.72ms
+step:1800/20000 train_loss:3.2317 train_time:366754ms step_avg:203.75ms
+step:2000/20000 train_loss:3.2344 train_time:407558ms step_avg:203.78ms
+step:2000/20000 val_loss:3.3755 val_bpb:1.2986 train_time:407578ms step_avg:203.79ms
+step:2200/20000 train_loss:3.2070 train_time:448361ms step_avg:203.80ms
+step:2400/20000 train_loss:3.0667 train_time:489154ms step_avg:203.81ms
+step:2600/20000 train_loss:3.2735 train_time:529948ms step_avg:203.83ms
+step:2800/20000 train_loss:2.9946 train_time:570754ms step_avg:203.84ms
+step:2944/20000 val_loss:3.3150 val_bpb:1.2753 train_time:600156ms step_avg:203.86ms
+stopping_early: wallclock_cap train_time:600156ms step:2944/20000
+peak memory allocated: 15297 MiB reserved: 16494 MiB
+Applying EMA weights...
+Serialized model: 75184133 bytes
+Code size: 52563 bytes
+Total submission size: 75236696 bytes
+Serialized model int6+zstd: 15450522 bytes
+Total submission size int6+zstd: 15503085 bytes
+final_int8_zlib_roundtrip val_loss:3.3278 val_bpb:1.2802 eval_time:4584ms
+final_int8_zlib_roundtrip_exact val_loss:3.32781593 val_bpb:1.28022483
