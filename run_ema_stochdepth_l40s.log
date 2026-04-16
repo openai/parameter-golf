@@ -58,3 +58,16 @@ step:2000/20000 train_loss:3.2423 train_time:408960ms step_avg:204.48ms
 step:2000/20000 val_loss:3.3690 val_bpb:1.2961 train_time:408979ms step_avg:204.49ms
 step:2200/20000 train_loss:3.2102 train_time:449886ms step_avg:204.49ms
 step:2400/20000 train_loss:3.0685 train_time:490802ms step_avg:204.50ms
+step:2600/20000 train_loss:3.2804 train_time:531718ms step_avg:204.51ms
+step:2800/20000 train_loss:3.0405 train_time:572634ms step_avg:204.51ms
+step:2934/20000 val_loss:3.3110 val_bpb:1.2737 train_time:600073ms step_avg:204.52ms
+stopping_early: wallclock_cap train_time:600073ms step:2934/20000
+peak memory allocated: 15369 MiB reserved: 16494 MiB
+Applying EMA weights...
+Serialized model: 75184133 bytes
+Code size: 52973 bytes
+Total submission size: 75237106 bytes
+Serialized model int6+zstd: 15782643 bytes
+Total submission size int6+zstd: 15835616 bytes
+final_int8_zlib_roundtrip val_loss:3.3216 val_bpb:1.2778 eval_time:4587ms
+final_int8_zlib_roundtrip_exact val_loss:3.32157110 val_bpb:1.27782242

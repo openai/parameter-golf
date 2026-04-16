@@ -1,0 +1,73 @@
+W0416 02:33:11.794000 48379 torch/distributed/run.py:851] 
+W0416 02:33:11.794000 48379 torch/distributed/run.py:851] *****************************************
+W0416 02:33:11.794000 48379 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 02:33:11.794000 48379 torch/distributed/run.py:851] *****************************************
+logs/bf491f55-938f-4fbf-aed0-3082be02ae43.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:21030024
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0094 val_bpb:3.4660 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.0079 train_time:192ms step_avg:191.82ms
+step:2/20000 train_loss:16.5583 train_time:385ms step_avg:192.52ms
+step:3/20000 train_loss:11.6555 train_time:588ms step_avg:195.92ms
+step:4/20000 train_loss:9.1269 train_time:791ms step_avg:197.77ms
+step:5/20000 train_loss:8.6087 train_time:994ms step_avg:198.79ms
+step:6/20000 train_loss:8.4487 train_time:1197ms step_avg:199.52ms
+step:7/20000 train_loss:8.1514 train_time:1400ms step_avg:199.98ms
+step:8/20000 train_loss:8.1402 train_time:1603ms step_avg:200.38ms
+step:9/20000 train_loss:7.6885 train_time:1806ms step_avg:200.66ms
+step:10/20000 train_loss:7.3984 train_time:2009ms step_avg:200.88ms
+step:200/20000 train_loss:4.0225 train_time:40698ms step_avg:203.49ms
+step:400/20000 train_loss:3.7892 train_time:81514ms step_avg:203.78ms
+step:600/20000 train_loss:3.5341 train_time:122374ms step_avg:203.96ms
+step:800/20000 train_loss:3.4547 train_time:163247ms step_avg:204.06ms
+step:1000/20000 train_loss:3.3146 train_time:204114ms step_avg:204.11ms
+step:1000/20000 val_loss:3.4548 val_bpb:1.3291 train_time:204135ms step_avg:204.13ms
+step:1200/20000 train_loss:3.2902 train_time:244988ms step_avg:204.16ms
+step:1400/20000 train_loss:3.2152 train_time:285874ms step_avg:204.20ms
+step:1600/20000 train_loss:3.3699 train_time:326784ms step_avg:204.24ms
+step:1800/20000 train_loss:3.2373 train_time:367681ms step_avg:204.27ms
+step:2000/20000 train_loss:3.2424 train_time:408565ms step_avg:204.28ms
+step:2000/20000 val_loss:3.3729 val_bpb:1.2976 train_time:408586ms step_avg:204.29ms
+step:2200/20000 train_loss:3.2028 train_time:449454ms step_avg:204.30ms
+step:2400/20000 train_loss:3.0620 train_time:490340ms step_avg:204.31ms
+step:2600/20000 train_loss:3.2805 train_time:531235ms step_avg:204.32ms
+step:2800/20000 train_loss:3.0011 train_time:572117ms step_avg:204.33ms
+step:2937/20000 val_loss:3.3188 val_bpb:1.2768 train_time:600154ms step_avg:204.34ms
+stopping_early: wallclock_cap train_time:600154ms step:2937/20000
+peak memory allocated: 15343 MiB reserved: 15618 MiB
+Applying EMA weights...
+Serialized model: 75774533 bytes
+Code size: 52563 bytes
+Total submission size: 75827096 bytes
+Serialized model int6+zstd: 16098360 bytes
+Total submission size int6+zstd: 16150923 bytes
+final_int8_zlib_roundtrip val_loss:3.3290 val_bpb:1.2807 eval_time:4593ms
+final_int8_zlib_roundtrip_exact val_loss:3.32902582 val_bpb:1.28069028
