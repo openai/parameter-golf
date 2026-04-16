@@ -45,6 +45,8 @@ import train_save_bundle as tsb
 def main():
     h = tsb.Hyperparameters()
     tsb.set_logging_hparams(h)
+    # train_save_bundle.log() writes to h.logfile = f'logs/{run_id}.txt'; ensure dir exists.
+    os.makedirs(os.path.dirname(h.logfile) or ".", exist_ok=True)
     log = tsb.log
 
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
