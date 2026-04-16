@@ -1,0 +1,289 @@
+W0325 04:26:53.240000 47624 torch/distributed/run.py:803] 
+W0325 04:26:53.240000 47624 torch/distributed/run.py:803] *****************************************
+W0325 04:26:53.240000 47624 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 04:26:53.240000 47624 torch/distributed/run.py:803] *****************************************
+logs/submission_seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34144369
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+world_size:8 grad_accum_steps:1
+mlp_activation:leaky2
+flash_attention_3:True
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:9000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+int5_mlp:False prune_frac:0.0 ttt_enabled:True
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: buckefps67 (ishanramrakhiani-bindwell) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 1kqq1da8
+wandb: Tracking run with wandb version 0.25.1
+wandb: Run data is saved locally in /workspace/parameter-golf/parameter-golf/wandb/run-20260325_042714-1kqq1da8
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run submission_seed42
+wandb: ⭐️ View project at https://wandb.ai/ishanramrakhiani-bindwell/parameter-golf
+wandb: 🚀 View run at https://wandb.ai/ishanramrakhiani-bindwell/parameter-golf/runs/1kqq1da8
+wandb: WARNING Saving files without folders. If you want to preserve subdirectories pass base_path to wandb.save, i.e. wandb.save("/mnt/folder/file.h5", base_path="/mnt")
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized decay=0.997
+gptq:enabled samples=256 block_size=128 percdamp=0.01
+step:0/9000 val_loss:6.9310 val_bpb:4.1049 train_time:0ms step_avg:0.01ms
+step:1/9000 train_loss:6.9322 train_time:152ms step_avg:152.00ms
+step:2/9000 train_loss:8.4838 train_time:257ms step_avg:128.40ms
+step:3/9000 train_loss:7.7775 train_time:365ms step_avg:121.78ms
+step:4/9000 train_loss:7.1767 train_time:474ms step_avg:118.46ms
+step:5/9000 train_loss:6.9718 train_time:583ms step_avg:116.57ms
+step:6/9000 train_loss:6.9698 train_time:692ms step_avg:115.27ms
+step:7/9000 train_loss:7.0820 train_time:800ms step_avg:114.23ms
+step:8/9000 train_loss:7.0251 train_time:908ms step_avg:113.48ms
+step:9/9000 train_loss:6.6179 train_time:1016ms step_avg:112.88ms
+step:10/9000 train_loss:6.1881 train_time:1125ms step_avg:112.53ms
+step:200/9000 train_loss:2.3783 train_time:20967ms step_avg:104.83ms
+step:400/9000 train_loss:2.4007 train_time:41987ms step_avg:104.97ms
+step:600/9000 train_loss:2.3246 train_time:62947ms step_avg:104.91ms
+step:800/9000 train_loss:2.2282 train_time:84000ms step_avg:105.00ms
+step:1000/9000 train_loss:2.2638 train_time:104975ms step_avg:104.98ms
+step:1000/9000 val_loss:2.2142 val_bpb:1.3114 train_time:104991ms step_avg:104.99ms
+step:1200/9000 train_loss:2.3399 train_time:126037ms step_avg:105.03ms
+step:1400/9000 train_loss:2.1710 train_time:147096ms step_avg:105.07ms
+step:1600/9000 train_loss:2.0555 train_time:168084ms step_avg:105.05ms
+step:1800/9000 train_loss:2.1370 train_time:189144ms step_avg:105.08ms
+step:2000/9000 train_loss:2.0480 train_time:210145ms step_avg:105.07ms
+step:2000/9000 val_loss:2.1110 val_bpb:1.2503 train_time:210159ms step_avg:105.08ms
+step:2200/9000 train_loss:2.1191 train_time:231234ms step_avg:105.11ms
+step:2400/9000 train_loss:2.0445 train_time:252227ms step_avg:105.09ms
+step:2600/9000 train_loss:2.0846 train_time:273309ms step_avg:105.12ms
+step:2800/9000 train_loss:2.1312 train_time:294408ms step_avg:105.15ms
+step:3000/9000 train_loss:2.1354 train_time:315408ms step_avg:105.14ms
+step:3000/9000 val_loss:2.0614 val_bpb:1.2209 train_time:315424ms step_avg:105.14ms
+step:3200/9000 train_loss:2.1405 train_time:336499ms step_avg:105.16ms
+step:3400/9000 train_loss:1.9835 train_time:357491ms step_avg:105.14ms
+step:3600/9000 train_loss:2.0536 train_time:378571ms step_avg:105.16ms
+step:3800/9000 train_loss:2.0239 train_time:399566ms step_avg:105.15ms
+step:4000/9000 train_loss:1.9270 train_time:420626ms step_avg:105.16ms
+step:4000/9000 val_loss:2.0161 val_bpb:1.1940 train_time:420639ms step_avg:105.16ms
+step:4200/9000 train_loss:2.1020 train_time:441682ms step_avg:105.16ms
+step:4400/9000 train_loss:1.9739 train_time:462678ms step_avg:105.15ms
+step:4600/9000 train_loss:1.7847 train_time:483755ms step_avg:105.16ms
+step:4800/9000 train_loss:2.3669 train_time:504745ms step_avg:105.16ms
+step:5000/9000 train_loss:2.0303 train_time:525804ms step_avg:105.16ms
+step:5000/9000 val_loss:1.9537 val_bpb:1.1571 train_time:525819ms step_avg:105.16ms
+step:5200/9000 train_loss:1.9642 train_time:546790ms step_avg:105.15ms
+step:5400/9000 train_loss:1.9681 train_time:567850ms step_avg:105.16ms
+step:5600/9000 train_loss:1.8654 train_time:588914ms step_avg:105.16ms
+step:5706/9000 val_loss:1.9032 val_bpb:1.1272 train_time:599998ms step_avg:105.15ms
+stopping_early: wallclock_cap train_time:599998ms step:5706/9000
+peak memory allocated: 24871 MiB reserved: 25000 MiB
+ema:applying averaged weights
+qep_gptq: starting sequential quantization of 14 blocks
+qep_gptq: starting sequential quantization of 14 blocksqep_gptq: starting sequential quantization of 14 blocks
+qep_gptq: starting sequential quantization of 14 blocksqep_gptq: starting sequential quantization of 14 blocksqep_gptq: starting sequential quantization of 14 blocks
+qep_gptq: starting sequential quantization of 14 blocks
+
+
+
+Serialized model: 134526843 bytes
+Code size: 94087 bytes
+qep_gptq:starting sequential calibration+quantization...
+qep_gptq: starting sequential quantization of 14 blocks
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 0/14 done (gptq=6, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)  qep_gptq: block 1/14 done (gptq=12, naive=2)
+
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 1/14 done (gptq=12, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 2/14 done (gptq=18, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 3/14 done (gptq=24, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 4/14 done (gptq=30, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 5/14 done (gptq=36, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 6/14 done (gptq=42, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 7/14 done (gptq=48, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 8/14 done (gptq=54, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 9/14 done (gptq=60, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 10/14 done (gptq=66, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 11/14 done (gptq=72, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 12/14 done (gptq=78, naive=2)
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+  qep_gptq: block 13/14 done (gptq=84, naive=2)
+qep_gptq: complete. 84 GPTQ layers, 2 naive layers
+qep_gptq:done in 20.8s
+zstd-dict: trained 262144 byte dictionary, compressed=15996849
+torch+zstd-dict: trained 262144 byte dict, compressed=16713723
+[compression comparison]
+  manual+brotli11: 15723991 bytes (total=15818078)
+  torch+brotli11: 15725505 bytes (total=15819592)
+  torch+zstd22: 15914924 bytes (total=16009011)
+  manual+zstd22+dict: 16258997 bytes (total=16353084)
+  manual+zstd22: 16407156 bytes (total=16501243)
+  manual+lzma9: 16814104 bytes (total=16908191)
+  torch+zstd22+dict: 16975871 bytes (total=17069958)
+  manual+bz2_9: 17284572 bytes (total=17378659)
+  manual+zlib9: 17856259 bytes (total=17950346)
+  torch+zlib9: 17900487 bytes (total=17994574)
+Serialized model int6 BEST=manual+brotli11: 15723991 bytes
+Total submission size: 15818078 bytes
+saved pre-TTT state to final_model_pre_ttt.pt (134.5MB)
+final_int6_roundtrip val_loss:1.9285 val_bpb:1.1422 eval_time:7312ms
+final_int6_roundtrip_exact val_loss:1.92848449 val_bpb:1.14215714
+online_ttt: 3188 adapt steps during eval
+final_int6_sliding_window_online_ttt val_loss:1.8799 val_bpb:1.1134 stride:76 eval_time:552889ms
+final_int6_sliding_window_online_ttt_exact val_loss:1.87988986 val_bpb:1.11337994
+final_int6_sliding_window_s64 val_loss:1.8745 val_bpb:1.1102 stride:64 eval_time:86386ms
+final_int6_sliding_window_s64_exact val_loss:1.87445282 val_bpb:1.11015948
+wandb: updating run metadata
+wandb: uploading config.yaml; uploading output.log; uploading wandb-summary.json
+wandb: uploading history steps 41-41, summary, console lines 113-114
+wandb: 
+wandb: Run history:
+wandb:         artifact_bytes ▁
+wandb:            artifact_mb ▁
+wandb:             code_bytes ▁
+wandb:     final_int6_val_bpb ▁
+wandb:    final_int6_val_loss ▁
+wandb:       final_sw_val_bpb ▁
+wandb:            step_avg_ms ▁██████
+wandb: total_submission_bytes ▁
+wandb:             train_loss ▆█▇▇▆▆▇▆▆▆▂▂▂▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▁▁▁▁
+wandb:          train_time_ms ▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▄▄▄▄▅▅▅▅▆▆▆▆▇▇▇▇██
+wandb:                     +2 ...
+wandb: 
+wandb: Run summary:
+wandb:         artifact_bytes 15723991
+wandb:            artifact_mb 15.72399
+wandb:             code_bytes 94087
+wandb:            compression manual+brotli11
+wandb:     final_int6_val_bpb 1.14216
+wandb:    final_int6_val_loss 1.92848
+wandb:       final_sw_val_bpb 1.11338
+wandb:            step_avg_ms 105.15208
+wandb: total_submission_bytes 15818078
+wandb:             train_loss 1.86542
+wandb:                     +3 ...
+wandb: 
+wandb: 🚀 View run submission_seed42 at: https://wandb.ai/ishanramrakhiani-bindwell/parameter-golf/runs/1kqq1da8
+wandb: ⭐️ View project at: https://wandb.ai/ishanramrakhiani-bindwell/parameter-golf
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
+wandb: Find logs at: ./wandb/run-20260325_042714-1kqq1da8/logs
