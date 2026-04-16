@@ -16,13 +16,23 @@ Full SOTA stack:
   Post-TTT temperature calibration T=0.98
   WD=0.095 · MLR=0.022 · warmdown=72% · EMA=0.9965
 
-Run:
+Standard run (full RRT-LoRA):
+  SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt_rrt_v3.py
+
+Ablation run (pure depth recurrence, no LoRA — for baseline comparison):
+  SEED=42 ABLATE=1 torchrun --standalone --nproc_per_node=8 train_gpt_rrt_v3.py
+
+Run baseline first, then print comparison instructions:
+  SEED=42 ABLATE=1 ABLATE_BOTH=1 torchrun --standalone --nproc_per_node=8 train_gpt_rrt_v3.py
+  # then:
+  SEED=42 ABLATE=0 torchrun --standalone --nproc_per_node=8 train_gpt_rrt_v3.py
+
+Setup:
   pip install brotli sentencepiece
   pip install flash_attn_3 --no-deps \\
     --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
   MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \\
     python3 data/cached_challenge_fineweb.py --variant sp8192
-  SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt_rrt_v3.py
 """
 
 from __future__ import annotations
@@ -129,6 +139,12 @@ class Hyperparameters:
     beta2           = float(os.environ.get("BETA2",            0.95))
     adam_eps        = float(os.environ.get("ADAM_EPS",         1e-8))
     grad_clip       = float(os.environ.get("GRAD_CLIP",        1.0))
+
+    # Ablation flags
+    # ABLATE=1      — disable LoRA, run pure depth recurrence (baseline comparison)
+    # ABLATE_BOTH=1 — run baseline first, then RRT-LoRA, print side-by-side comparison
+    ablate_lora     = bool(int(os.environ.get("ABLATE",      0)))
+    ablate_both     = bool(int(os.environ.get("ABLATE_BOTH", 0)))
 
     @property
     def warmdown_iters(self) -> int:
@@ -504,11 +520,12 @@ class RRTModel(nn.Module):
     def __init__(self, args: Hyperparameters):
         super().__init__()
         self.args = args
-        self.lora_alpha  = 0.0
-        self.recur_active= False
-        self.enc_sched   = args.enc_schedule   # e.g. [0,1,2,3,4,5,3,4]
-        self.dec_sched   = args.dec_schedule   # e.g. [5,3,4,5,6,7,8,9,10]
-        recur_set = set(args.recur_layers)     # {3,4,5}
+        self.lora_alpha   = 0.0
+        self.recur_active = False
+        self.ablate_lora  = args.ablate_lora  # if True, LoRA adapters are built but alpha stays 0
+        self.enc_sched    = args.enc_schedule
+        self.dec_sched    = args.dec_schedule
+        recur_set = set(args.recur_layers)
 
         # Count how many times each layer appears in enc+dec for LoRA sizing
         from collections import Counter
@@ -541,7 +558,9 @@ class RRTModel(nn.Module):
             if isinstance(m, nn.Linear) and getattr(m,"_zero_init",False):
                 nn.init.zeros_(m.weight)
 
-    def set_lora_alpha(self, a: float): self.lora_alpha = float(a)
+    def set_lora_alpha(self, a: float):
+        # In ablation mode, keep alpha at 0 so LoRA adapters have no effect
+        self.lora_alpha = 0.0 if self.ablate_lora else float(a)
     def activate_recurrence(self): self.recur_active = True
 
     def _step_counter(self):
@@ -783,11 +802,15 @@ def main():
     if master:
         tp = sum(p.numel() for p in model.parameters())
         lp = sum(p.numel() for n,p in model.named_parameters() if "lora_" in n)
-        print(f"RRTModel  params={tp:,}  lora={lp:,}")
+        mode = "ABLATE (pure depth recurrence)" if args.ablate_lora else "RRT-LoRA"
+        print(f"RRTModel [{mode}]  params={tp:,}  lora={lp:,}")
         print(f"  enc={args.enc_schedule}")
         print(f"  dec={args.dec_schedule}")
         print(f"  parallel_from={args.parallel_from}  qk_gain={args.qk_gain_init}")
-        print(f"  lora_rank={args.lora_rank}  recur_activate={args.recur_activate_frac}")
+        if not args.ablate_lora:
+            print(f"  lora_rank={args.lora_rank}  recur_activate={args.recur_activate_frac}")
+        else:
+            print(f"  LoRA DISABLED — running pure depth recurrence baseline")
 
     ema   = EMA(model, args.ema_decay)
     model = torch.compile(model)
@@ -887,6 +910,8 @@ def main():
 
     if master:
         print(f"\n{'='*60}")
+        mode = "ABLATE (pure recurrence)" if args.ablate_lora else "RRT-LoRA"
+        print(f"  Mode:    {mode}")
         print(f"  Sliding  val_bpb = {vb_s:.4f}")
         if args.ttt_enabled:
             print(f"  TTT      val_bpb = {vb_t:.4f}  (TTT gain: +{vb_s-vb_t:.4f})")
@@ -894,6 +919,15 @@ def main():
         cb,mb,total = artifact_size(raw, code)
         print(f"Artifact: code={cb:,}B  model={mb:,}B  total={total:,}B")
         print(f"Under 16MB: {total < 16_000_000}")
+
+        # If ABLATE_BOTH=1, save this result and print instructions for second run
+        if args.ablate_both and args.ablate_lora:
+            print(f"\n── ABLATE_BOTH: baseline done ──")
+            print(f"  Baseline sliding bpb: {vb_s:.4f}")
+            if args.ttt_enabled:
+                print(f"  Baseline TTT bpb:     {vb_t:.4f}")
+            print(f"\nNow run with ABLATE=0 to get RRT-LoRA result.")
+            print(f"Expected LoRA gain: 0.003-0.008 bpb")
 
     if dist_on: dist.destroy_process_group()
 
