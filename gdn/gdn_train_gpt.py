@@ -74,8 +74,8 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
 
     # Training length — wallclock-limited
-    iterations = int(os.environ.get("ITERATIONS", 9999))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 3000))
+    iterations = int(os.environ.get("ITERATIONS", 2200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 400))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))   # Direction-5: 2048
@@ -1034,7 +1034,7 @@ def main():
         for name in avg_state:
             if name in swa_avg:
                 dtype = avg_state[name].dtype
-                avg_state[name] = (0.5 * avg_state[name].float() + 0.5 * swa_avg[name].float()).to(dtype)
+                avg_state[name] = (0.5 * avg_state[name].float() + 0.5 * swa_avg[name].to(avg_state[name].device).float()).to(dtype)
 
     base_model.load_state_dict(avg_state, strict=True)
 
