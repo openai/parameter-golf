@@ -46,24 +46,24 @@ class Hyperparameters:
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 131072))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
 
     # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 30000))
+    iterations = int(os.environ.get("ITERATIONS", 800))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 131072))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 241.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 3))
-    num_recurr = int(os.environ.get("NUM_RECURR", 3))
-    layers_recurr = [int(x) for x in os.environ.get("LAYERS_RECURR", "3,4").split(",")]
+    num_layers = int(os.environ.get("NUM_LAYERS", 8))
+    num_recurr = int(os.environ.get("NUM_RECURR", 2))
+    layers_recurr = [int(x) for x in os.environ.get("LAYERS_RECURR", "0,1,2").split(",")]
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 768))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -696,10 +696,11 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.register_buffer('timesteps', generate_sinusoidal(num_recurr * num_layers, model_dim))
-        self.num_skip_weights = self.num_layers + (num_recurr - 1) * len(layers_recurr)
+        # layers_recurr is the count of initial layers that get recurred twice
+        self.num_recurr_layers = len(layers_recurr)
+        total_passes = self.num_recurr_layers * 2 + (num_layers - self.num_recurr_layers)
+        self.register_buffer('timesteps', generate_sinusoidal(total_passes, model_dim))
+        self.num_skip_weights = self.num_recurr_layers
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         # Share weights -> we can up depth of attention mechanism
         self.blocks = nn.ModuleList(
@@ -729,69 +730,34 @@ class GPT(nn.Module):
                 nn.init.zeros_(module.weight)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        # We need a way to apply the timestep embeddings
-        step = 0
-
-        # For lrecurrent layers
-        layers_recurr = list(self.layers_recurr)
-
-
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
-
         count = 0
-        skip = 0
+        skip_idx = 0
 
-        for i in range(self.num_encoder_layers):
-            if (i == layers_recurr[0]):
-                layers_recurr.pop(0)
-                # Loop
-                for j in range(self.num_recurr):
-                    # Time step embedding
-                    x = x + self.timesteps[:, count, :].unsqueeze(1)
-                    count += 1
+        # First pass through recurred layers — no skip pushes
+        for i in range(self.num_recurr_layers):
+            x = x + self.timesteps[:, count, :].unsqueeze(1)
+            count += 1
+            x = self.blocks[i](x, x0)
 
-                    x = self.blocks[i](x, x0)
-                    skips.append(x)
-            else:
-                # Time step embedding
-                x = x + self.timesteps[:, count, :].unsqueeze(1)
-                count += 1
+        # Second pass through recurred layers — push skips
+        for i in range(self.num_recurr_layers):
+            x = x + self.timesteps[:, count, :].unsqueeze(1)
+            count += 1
+            x = self.blocks[i](x, x0)
+            skips.append(x)
 
-                x = self.blocks[i](x, x0)
-                skips.append(x)
-
-        for i in range(self.num_decoder_layers):
-            if (i + self.num_encoder_layers == layers_recurr[0]):
-                layers_recurr.pop(0)
-                # Loop
-                for j in range(self.num_recurr):
-                    # Skip connection
-                    if skips:
-                        x = x + self.skip_weights[skip].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                        skip += 1
-
-                    # Time step embedding
-                    x = x + self.timesteps[:, count, :].unsqueeze(1)
-                    count += 1
-
-                    # Now apply block
-                    x = self.blocks[self.num_encoder_layers + i](x, x0)
-                    
-            else: 
-                # Skip connections
-                if skips:
-                    x = x + self.skip_weights[skip].to(dtype=x.dtype)[None, None, :] * skips.pop()
-                    skip += 1
-                
-                # Time step embedding
-                x = x + self.timesteps[:, count, :].unsqueeze(1)
-                count += 1
-
-                # Now apply block
-                x = self.blocks[self.num_encoder_layers + i](x, x0)
+        # Tail layers — pop skips from second recurrence
+        for i in range(self.num_recurr_layers, self.num_layers):
+            if skips:
+                x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip_idx += 1
+            x = x + self.timesteps[:, count, :].unsqueeze(1)
+            count += 1
+            x = self.blocks[i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -912,7 +878,6 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-        device=device
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
