@@ -29,10 +29,10 @@ except ImportError:
 
 class Hyperparameters:
 
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp4096")
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/sp_bpe_8192/")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_4096_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/sp_bpe_8192.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 42))
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -57,12 +57,12 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.02))
     head_lrgit = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.032))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.032))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.015))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.01))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -73,10 +73,10 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.04))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 3))
-    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.20))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))
+    warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.25))
     use_flash_attn_interface = bool(int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1")))
-    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
+    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.30))
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     
