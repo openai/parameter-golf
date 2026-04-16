@@ -1,0 +1,39 @@
+{
+  "author": "pablinga19",
+  "github_id": "pablinga19",
+  "name": "SP8192 + 3-Layer Recurrence + Hard Onset + No TTT",
+  "blurb": "11L×512d D0 recipe with RECUR_LAYERS=3,4,5 hard onset at step 3000, EMA_DECAY=0.9965, GPTQ int6+brotli, no val pauses, no TTT. Single seed. int6 sliding 1.08582 BPB.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": 2.80430163,
+  "val_bpb": 1.08582287,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.80430163,
+      "val_bpb": 1.08582287,
+      "val_bpb_prequant": 1.08536091,
+      "val_bpb_roundtrip": 1.10271307,
+      "artifact_bytes": 15857563,
+      "steps": 5247,
+      "wallclock_seconds": 600,
+      "eval_method": "int6_sliding_stride64"
+    }
+  },
+  "config": {
+    "vocab_size": 8192,
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4,
+    "recur_layers": "3,4,5",
+    "recur_start_step": 3000,
+    "recur_homotopy": false,
+    "ema_decay": 0.9965,
+    "sdclip_k": 12.85,
+    "gptq_calibration_batches": 64,
+    "compressor": "brotli",
+    "ttt_enabled": false
+  }
+}
