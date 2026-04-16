@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DATA_DIR="${DATA_DIR:-${REPO_ROOT}/data}"
 DATASET_DIR="${DATASET_DIR:-${DATA_DIR}/datasets/fineweb10B_sp8192}"
 TRAIN_SHARDS="${TRAIN_SHARDS:-10}"
+export MATCHED_FINEWEB_REPO_ID="${MATCHED_FINEWEB_REPO_ID:-kevclark/parameter-golf}"
 
 mkdir -p "${SCRIPT_DIR}/logs"
 cd "${SCRIPT_DIR}"
@@ -15,6 +16,19 @@ if [[ "${INSTALL_DEPS:-0}" == "1" ]]; then
 fi
 
 if [[ "${DOWNLOAD_DATA:-1}" == "1" ]]; then
+  MANIFEST_PATH="${DATA_DIR}/manifest.json"
+  if [[ -f "${MANIFEST_PATH}" ]] && ! python3 - "${MANIFEST_PATH}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    manifest = json.load(f)
+sys.exit(0 if any(x.get("name") == "fineweb10B_sp8192" for x in manifest.get("datasets", [])) else 1)
+PY
+  then
+    echo "Refreshing cached manifest without fineweb10B_sp8192: ${MANIFEST_PATH}" >&2
+    rm -f "${MANIFEST_PATH}"
+  fi
   python3 "${REPO_ROOT}/data/cached_challenge_fineweb.py" --variant sp8192 --train-shards "${TRAIN_SHARDS}"
 fi
 

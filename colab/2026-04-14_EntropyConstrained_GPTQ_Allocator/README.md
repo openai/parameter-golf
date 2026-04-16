@@ -41,6 +41,8 @@ cd parameter-golf/colab/2026-04-14_EntropyConstrained_GPTQ_Allocator
 INSTALL_DEPS=1 bash run.sh
 ```
 
+The SP8192 shards are downloaded from `kevclark/parameter-golf`, matching the April 9 record reproduction. If a Colab runtime has already cached an older manifest, `run.sh` refreshes it before downloading.
+
 On a Colab T4, `run.sh` automatically switches to `COMPUTE_DTYPE=fp16`, disables `torch.compile`, and uses smaller single-GPU batch/calibration defaults. On larger GPUs, use:
 
 ```bash
