@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DATA_DIR="${DATA_DIR:-${REPO_ROOT}/data}"
 DATASET_DIR="${DATASET_DIR:-${DATA_DIR}/datasets/fineweb10B_sp8192}"
 TRAIN_SHARDS="${TRAIN_SHARDS:-10}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
 export MATCHED_FINEWEB_REPO_ID="${MATCHED_FINEWEB_REPO_ID:-kevclark/parameter-golf}"
 
 mkdir -p "${SCRIPT_DIR}/logs"
@@ -85,6 +86,10 @@ export ALLOCATOR_CODE_WRAPPERS="${ALLOCATOR_CODE_WRAPPERS:-source,lzma_raw_b85_e
 if [[ ! -d "${DATASET_DIR}" ]]; then
   echo "Missing dataset directory: ${DATASET_DIR}" >&2
   exit 1
+fi
+
+if [[ "${NPROC_PER_NODE}" -gt 1 ]]; then
+  exec torchrun --standalone --nproc_per_node="${NPROC_PER_NODE}" "${SCRIPT_DIR}/train_gpt.py"
 fi
 
 exec python3 "${SCRIPT_DIR}/train_gpt.py"

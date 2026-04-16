@@ -49,6 +49,8 @@ On a Colab T4, `run.sh` automatically switches to `COMPUTE_DTYPE=fp16`, disables
 RECORD_PROFILE=1 bash run.sh
 ```
 
+Set `NPROC_PER_NODE=8` on an 8-GPU box to launch with `torchrun`, matching the April 9 winner's distributed run shape.
+
 ## Logs
 
 The main log is written to:
