@@ -106,16 +106,26 @@ class Hyperparameters():
     # Hessian-Aware Quantization Regularization: minimize deployed GPTQ loss during training
     haqr_lambda = float(os.environ.get('HAQR_LAMBDA', 0.0))  # 0 = disabled, try 1e-4 to 1e-2
     haqr_onset = float(os.environ.get('HAQR_ONSET', 0.70))  # fraction of training to start
-    # Recurrence Homotopy: smooth sigmoid onset instead of hard step.
-    #   r(step) = sigmoid((step - t_mid) / tau)
-    # Recurrence is "available" (set_recurrence_active=True) from step t_mid - 5*tau
-    # so r ramps continuously from ~0.0067 through 0.5 at t_mid to ~0.9933 at t_mid + 5*tau.
-    # When RECUR_HOMOTOPY=0, the hard-gate activation at recur_start_step is preserved
-    # byte-for-byte. TMID/_TAU sentinels: -1 / -1.0 fall back to recur_start_step /
-    # recur_homotopy_beta for back-compat with prior implementations.
+    # ── Recurrence onset schedule ──────────────────────────────────────
+    # This submission keeps the broader stack fixed and changes only the
+    # recurrence onset schedule.  Two modes:
+    #
+    #   RECUR_HOMOTOPY=0 (default, used here):
+    #       Hard binary activation at RECUR_START_STEP.  No recurrence
+    #       before that step; full recurrence after.
+    #
+    #   RECUR_HOMOTOPY=1 (smooth onset, from #1394):
+    #       r(step) = sigmoid((step - t_mid) / tau), ramping from ~0
+    #       through 0.5 at t_mid to ~1.  Recurrence is "available" from
+    #       step t_mid - 5*tau (where sigmoid ≈ 0.007).
+    #
+    # RECUR_HOMOTOPY=0  — hard activation at RECUR_START_STEP (this submission)
     recur_homotopy = bool(int(os.environ.get('RECUR_HOMOTOPY', '0')))
-    recur_homotopy_beta = float(os.environ.get('RECUR_HOMOTOPY_BETA', 20.0))  # legacy; superseded by _TAU
+    # RECUR_HOMOTOPY_BETA — legacy steepness; superseded by _TAU
+    recur_homotopy_beta = float(os.environ.get('RECUR_HOMOTOPY_BETA', 20.0))
+    # RECUR_HOMOTOPY_TMID — sigmoid midpoint step; -1 falls back to RECUR_START_STEP
     recur_homotopy_tmid = int(os.environ.get('RECUR_HOMOTOPY_TMID', -1))
+    # RECUR_HOMOTOPY_TAU — sigmoid time-constant; -1 falls back to _BETA
     recur_homotopy_tau = float(os.environ.get('RECUR_HOMOTOPY_TAU', -1.0))
     # Sliding-Window Consistency Training: KL(full || slide) during training
     swc_lambda = float(os.environ.get('SWC_LAMBDA', 0.0))  # 0 = disabled, try 0.1 to 1.0
@@ -153,6 +163,7 @@ class Hyperparameters():
 
     # Depth Recurrence (Modification 2)
     recur_layers = os.environ.get("RECUR_LAYERS", "3,4,5")
+    # RECUR_START_STEP — the step at which recurrence activates (hard onset mode)
     recur_start_step = int(os.environ.get("RECUR_START_STEP", 3000))
     # Contractive recurrence (Lever 2): learnable per-pass Δ_r ∈ (0,1).
     # When enabled, adds one scalar param per recur layer; initial sigmoid(5)≈0.9933 ≈ rho=1 baseline.
@@ -242,6 +253,43 @@ def log(msg, console: bool = True) -> None:
         if _logger_hparams.logfile is not None:
             with open(_logger_hparams.logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
+
+# ----------------------------------------
+# Recurrence onset schedule  (the isolated change in this submission)
+# ----------------------------------------
+
+def update_recurrence_onset(h, step, model):
+    """Activate recurrence and update its blending weight for this training step.
+
+    Hard onset (RECUR_HOMOTOPY=0, this submission):
+        Binary switch at recur_start_step.  No recurrence before; full after.
+
+    Smooth onset (RECUR_HOMOTOPY=1, inherited from #1394):
+        Sigmoid ramp r(step) = σ((step - t_mid) / τ).
+        Blending weight updates in-place via buffer to avoid torch.compile retrace.
+    """
+    if h.recur_homotopy:
+        # ── smooth onset path (from #1394, not used in this submission) ──
+        _tmid = h.recur_homotopy_tmid if h.recur_homotopy_tmid >= 0 else h.recur_start_step
+        _tau = h.recur_homotopy_tau if h.recur_homotopy_tau > 0 else h.recur_homotopy_beta
+        _activation_step = _tmid - 5 * _tau  # sigmoid(-5) ≈ 0.0067 — effectively zero
+        if step >= _activation_step and not model._recurrence_active:
+            model.set_recurrence_active(True)
+            _r0 = 1.0 / (1.0 + math.exp(-(step - _tmid) / _tau))
+            log(f"recurrence:homotopy activated at step {step}, t_mid={_tmid} tau={_tau} "
+                f"r={_r0:.4f} virtual_layers={model._get_virtual_layers()}")
+        if model._recurrence_active:
+            rho = 1.0 / (1.0 + math.exp(-(step - _tmid) / _tau))
+            # In-place buffer update — avoids dynamo retrace on every step.
+            model._recur_rho.fill_(rho)
+    else:
+        # ── hard onset path (this submission) ────────────────────────
+        # Hard activation preserves the original step-threshold behavior
+        # when smooth onset is disabled.
+        if step >= h.recur_start_step and not model._recurrence_active:
+            model.set_recurrence_active(True)
+            log(f"recurrence:activated at step {step}, virtual_layers={model._get_virtual_layers()}")
+
 
 # ----------------------------------------
 # Data Loading
@@ -2531,30 +2579,9 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
     while True:
         last_step = step == h.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        # Modification 2: activate recurrence — homotopy or hard onset.
-        # Branches are disjoint: homotopy path has NO hard gate at
-        # recur_start_step (that would reintroduce a 0 → sigmoid(0)=0.5 jump
-        # at t_mid and defeat the schedule). Hard-onset path is byte-identical
-        # to pre-patch behavior when RECUR_HOMOTOPY=0.
-        if h.recur_homotopy:
-            _tmid = h.recur_homotopy_tmid if h.recur_homotopy_tmid >= 0 else h.recur_start_step
-            _tau = h.recur_homotopy_tau if h.recur_homotopy_tau > 0 else h.recur_homotopy_beta
-            _activation_step = _tmid - 5 * _tau  # sigmoid(-5) ≈ 0.0067 — effectively zero
-            if step >= _activation_step and not base_model._recurrence_active:
-                base_model.set_recurrence_active(True)
-                _r0 = 1.0 / (1.0 + math.exp(-(step - _tmid) / _tau))
-                log(f"recurrence:homotopy activated at step {step}, t_mid={_tmid} tau={_tau} "
-                    f"r={_r0:.4f} virtual_layers={base_model._get_virtual_layers()}")
-            if base_model._recurrence_active:
-                rho = 1.0 / (1.0 + math.exp(-(step - _tmid) / _tau))
-                # In-place buffer update — dynamo does NOT retrace on buffer value change,
-                # whereas a direct attribute assignment (`= rho`) DID retrace on every
-                # step and burned ~30s/step in proxy_v2 leg 3 before the fix.
-                base_model._recur_rho.fill_(rho)
-        else:
-            if step >= h.recur_start_step and not base_model._recurrence_active:
-                base_model.set_recurrence_active(True)
-                log(f"recurrence:activated at step {step}, virtual_layers={base_model._get_virtual_layers()}")
+        # Recurrence onset — the isolated change in this submission.
+        # See update_recurrence_onset() for both modes.
+        update_recurrence_onset(h, step, base_model)
 
         should_validate = last_step or (h.val_loss_every > 0 and step % h.val_loss_every == 0)
         if should_validate:

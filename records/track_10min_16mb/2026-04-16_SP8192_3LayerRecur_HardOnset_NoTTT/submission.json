@@ -43,7 +43,7 @@
   },
   "hardware": "8xH100 80GB SXM",
   "bytes_total": 15943547,
-  "bytes_code": 131868,
+  "bytes_code": 132898,
   "config": {
     "vocab_size": 8192,
     "num_layers": 11,

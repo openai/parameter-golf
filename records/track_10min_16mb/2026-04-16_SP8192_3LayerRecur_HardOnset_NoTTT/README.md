@@ -31,6 +31,18 @@ with $r(t) < r_0$ over part of the interval before the hard switch point. In tha
 
 In this submission, enabling the 3-layer recurrence stack at **step 3000** produced the reported **3-seed mean sliding val_bpb of 1.08625**.
 
+### Where the change lives in code
+
+This submission is a direct derivative of [#1394](https://github.com/openai/parameter-golf/pull/1394) and isolates one scheduling change. The relevant code is in `train_gpt.py`:
+
+| What | Location |
+|-|-|
+| Env-var knobs | `Hyperparameters` class: `RECUR_HOMOTOPY`, `RECUR_START_STEP`, `RECUR_HOMOTOPY_TMID`, `RECUR_HOMOTOPY_TAU` |
+| Onset logic | `update_recurrence_onset()` — a single function containing both the hard and smooth paths |
+| Call site | Training loop, right after `last_step` check |
+
+With `RECUR_HOMOTOPY=0` (default), the function reduces to a one-line step threshold at `RECUR_START_STEP=3000`. Everything else in the script is unchanged from #1394.
+
 ### Notes
 
 * `VAL_LOSS_EVERY=99999` removes mid-training validation passes, increasing realized train steps within the same **600s** budget.
