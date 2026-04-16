@@ -1805,7 +1805,7 @@ def main():
 
     # Optional: blend in SWA
     if swa_state is not None and swa_count > 0:
-        swa_avg = {n: (t / swa_count).to(dtype=current_sd[n].dtype)
+        swa_avg = {n: (t / swa_count).to(device=avg_state[n].device, dtype=current_sd[n].dtype)
                    for n, t in swa_state.items()}
         for n in avg_state:
             if n in swa_avg:
