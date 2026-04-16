@@ -1,17 +1,23 @@
 # PR-1493 reproduction — save bundle for offline quantization experiments
 
-Identical to the merged SOTA (PR-1493, 1.0810 BPB) training loop, but replaces the GPTQ + compress + eval chain with a bundle save. The bundle is the input to all quantization experiments in this axis.
+Identical to the merged SOTA (PR-1493, 1.0810 BPB) training loop, but replaces the GPTQ + compress + post-quant eval chain with a bundle save. The bundle is the input to all quantization experiments in this axis.
 
-## What it produces
+## Files
+
+- `train_save_bundle.py` — patched PR-1493 training script. Full training + EMA + pre-quant eval, then saves bundle instead of quantizing.
+- `modal_launcher.py` — Modal runner. Uses the same persistent volume as `infra/modal_pr1493.py`, runs on 8×H100.
+- `README.md` (this file).
+
+## What the bundle contains
 
 ```
-bundle/
-├── ema_weights.pt     # EMA-averaged state dict in float32
+<BUNDLE_DIR>/
+├── ema_weights.pt     # EMA-averaged state dict (float32)
 ├── hessians.pt        # per-tensor H = X^T X from 64 calibration batches
 └── template_sd.pt     # shape/dtype reference for dequantization
 ```
 
-Plus a pre-quant eval (BPB ceiling, logged to stdout).
+Plus `pre-quantization post-ema val_bpb: ...` logged to stdout — the ceiling BPB before any quantization.
 
 ## What it does NOT do
 
@@ -19,25 +25,58 @@ Plus a pre-quant eval (BPB ceiling, logged to stdout).
 - No compression / artifact serialization
 - No post-quant eval, sliding window, TTT, or ETLB
 
-## Run command (2×H200)
+## Launch on Modal (8×H100)
 
+**First time only — stage the SP8192 dataset to the Modal volume**:
 ```bash
-BUNDLE_DIR=./bundle \
-MAX_WALLCLOCK_SECONDS=0 \
-ITERATIONS=4550 \
-SEED=42 \
-torchrun --standalone --nproc_per_node=2 train_save_bundle.py
+modal run axes/quantization/pr1493_repro/modal_launcher.py --mode prefetch
 ```
 
-- `MAX_WALLCLOCK_SECONDS=0` disables the wallclock cap (2×H200 takes ~40 min vs 8×H100's ~10 min for the same steps).
-- `ITERATIONS=4550` matches PR-1493's actual step count.
-- `nproc_per_node=2` for 2×H200.
-
-## After the run
-
-Upload the bundle for offline iteration:
+**Training run** (~10 min on 8×H100 to hit PR-1493's 4550-step trajectory, plus a few min of Hessian collection):
 ```bash
-huggingface-cli upload <your-hf-repo>/parameter-golf-artifacts bundle/ pr1493_seed42/ --private
+modal run axes/quantization/pr1493_repro/modal_launcher.py \
+  --mode train \
+  --seed 42 \
+  --run-id pr1493_bundle_seed42 \
+  --iterations 20000 \
+  --max-wallclock-seconds 600
 ```
 
-Then any quantization experiment loads these three files and runs its own GPTQ variant without retraining.
+This runs the full 600s budget. Training stops early if it hits the wallclock (as PR-1493 does at ~4550 steps). Post-hoc Hessian collection + bundle save adds ~15-30s.
+
+**After the run — pull the bundle down**:
+```bash
+modal volume get parameter-golf-fineweb-cache \
+  runs/pr1493_bundle_seed42/bundle \
+  ./local_bundle
+```
+
+**Upload to HF for shared iteration**:
+```bash
+hf upload nprime06/parameter-golf-artifacts \
+  ./local_bundle/ pr1493_seed42/
+```
+
+## Verifying before a full run
+
+The launcher's `--mode train` with short iterations is a smoke test:
+```bash
+modal run axes/quantization/pr1493_repro/modal_launcher.py \
+  --mode train \
+  --iterations 50 \
+  --max-wallclock-seconds 120 \
+  --run-id pr1493_bundle_smoke
+```
+
+After it completes, the returned JSON should have `bundle_files` with all three names `exists: true`.
+
+## Notes / caveats
+
+- The Modal launcher disables TTT and ETLB (we only care about the pre-quant model). PR-1493's headline 1.0810 number includes TTT; our un-quantized ceiling will be a slightly higher number. That's expected — we're measuring the model weights, not the eval-time adaptation.
+- Bundle is ~500-700 MB for 33M params (fp32 weights + all Hessians). `.gitignore` blocks `.pt` files from the repo.
+- The first run after a rebuild of the Modal image will take a few extra minutes to build (flash_attn_3 install).
+- If you hit `ModalVolumeStale` or similar, call `volume.reload()` — the launcher already does this at the start of each function.
+
+## Reproducibility
+
+Using `seed=42` with PR-1493's default hyperparameters (VOCAB_SIZE=8192, all defaults in `Hyperparameters` class) should hit the PR-1493 reported bundle characteristics. Deviations indicate a divergence from the reference.
