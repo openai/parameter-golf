@@ -6,12 +6,31 @@ import sys
 import time
 from pathlib import Path
 
-WORKSPACE_DIR = "/workspace/parameter-golf"
 DEFAULT_SCRIPT = "records/track_10min_16mb/working/train_gpt.py"
 RESULTS_FILE = "records/track_10min_16mb/working/results.tsv"
 
+# Brev hosts typically ship a CUDA 12.x driver; default pip stacks often pull torch+cu130, which
+# will not initialize CUDA. Pin cu128 torch, then FA3 wheel with --no-deps so pip does not
+# replace torch again.
+BREV_TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
+BREV_FLASH_ATTN_3_WHEEL = (
+    "https://download.pytorch.org/whl/cu128/"
+    "flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
+)
+
+
+def resolve_ssh_config_path(args):
+    if getattr(args, "provider", "runpod") != "brev":
+        return None
+    p = args.ssh_config or os.environ.get("BREV_SSH_CONFIG") or "~/.brev/ssh_config"
+    return os.path.expanduser(p)
+
+
 def get_ssh_base_cmd(args):
     cmd = ["ssh", "-o", "StrictHostKeyChecking=accept-new"]
+    cfg = resolve_ssh_config_path(args)
+    if cfg:
+        cmd.extend(["-F", cfg])
     if args.key:
         cmd.extend(["-i", os.path.expanduser(args.key)])
     if args.port:
@@ -19,8 +38,12 @@ def get_ssh_base_cmd(args):
     cmd.append(args.server)
     return cmd
 
+
 def get_scp_base_cmd(args):
     cmd = ["scp", "-o", "StrictHostKeyChecking=accept-new"]
+    cfg = resolve_ssh_config_path(args)
+    if cfg:
+        cmd.extend(["-F", cfg])
     if args.key:
         cmd.extend(["-i", os.path.expanduser(args.key)])
     if args.port:
@@ -41,14 +64,26 @@ def cmd_setup(args):
     hf_token = getattr(args, 'hf_token', None) or os.environ.get('HF_TOKEN', '')
     hf_export = f'export HF_TOKEN="{hf_token}"' if hf_token else ''
     
+    ws = args.workspace_dir
+    clone_parent = args.clone_parent
+    if args.provider == "brev":
+        brev_stack = f"""
+    export PATH="$HOME/.local/bin:$PATH"
+    pip install --user -q --upgrade torch --index-url {BREV_TORCH_INDEX_URL}
+    pip install --user -q --no-deps --upgrade "{BREV_FLASH_ATTN_3_WHEEL}"
+    python3 -c "import torch; from flash_attn_interface import flash_attn_func; assert torch.cuda.is_available(), 'CUDA required for setup check'"
+    """
+    else:
+        brev_stack = ""
     setup_cmd = f"""set -e
     {hf_export}
-    if [ ! -f "{WORKSPACE_DIR}/data/cached_challenge_fineweb.py" ]; then
-        rm -rf {WORKSPACE_DIR}
-        cd /workspace && git clone https://github.com/openai/parameter-golf.git
+    if [ ! -f "{ws}/data/cached_challenge_fineweb.py" ]; then
+        rm -rf {ws}
+        cd {clone_parent} && git clone https://github.com/openai/parameter-golf.git
     fi
-    cd {WORKSPACE_DIR}
+    cd {ws}
     pip install --break-system-packages -q -r requirements.txt brotli 2>/dev/null || pip install -q -r requirements.txt brotli || true
+    {brev_stack}
     if [ ! -f "data/tokenizers/fineweb_8192_bpe.model" ]; then
         MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192
         mkdir -p data/tokenizers
@@ -72,12 +107,13 @@ def cmd_deploy(args):
         print(f"Error: Local script {script_path} not found.")
         sys.exit(1)
         
-    print(f"Deploying {script_path} to {args.server}:{WORKSPACE_DIR}/train_gpt_remote.py")
+    ws = args.workspace_dir
+    print(f"Deploying {script_path} to {args.server}:{ws}/train_gpt_remote.py")
     
     with open(script_path, "r") as f:
         script_content = f.read()
         
-    ssh_cmd = get_ssh_base_cmd(args) + [f"cat > {WORKSPACE_DIR}/train_gpt_remote.py"]
+    ssh_cmd = get_ssh_base_cmd(args) + [f"cat > {ws}/train_gpt_remote.py"]
     process = subprocess.Popen(ssh_cmd, stdin=subprocess.PIPE)
     process.communicate(input=script_content.encode('utf-8'))
     
@@ -99,10 +135,17 @@ def cmd_train(args):
 
     print(f"Training on {args.server}...")
     print(f"Local log: {local_log_path}")
-    run_ssh(args, f"rm -f {WORKSPACE_DIR}/train_log.json {WORKSPACE_DIR}/run.log")
+    ws = args.workspace_dir
+    run_ssh(args, f"rm -f {ws}/train_log.json {ws}/run.log")
 
+    # Brev / user pip installs often put torchrun in ~/.local/bin; non-interactive SSH has a minimal PATH.
+    path_prefix = (
+        'export PATH="$HOME/.local/bin:$PATH" && '
+        if args.provider == "brev"
+        else ""
+    )
     train_cmd = (
-        f"cd {WORKSPACE_DIR} && PYTHONUNBUFFERED=1 "
+        f"{path_prefix}set -o pipefail && cd {ws} && PYTHONUNBUFFERED=1 "
         f"torchrun --standalone --nproc_per_node=1 train_gpt_remote.py "
         f"2>&1 | stdbuf -oL tee run.log"
     )
@@ -122,7 +165,7 @@ def cmd_train(args):
     ts = _fmt_elapsed(time.time() - start_time)
 
     # SSH pipe can break before all output arrives; sync final log from remote
-    final_log, _, _ = run_ssh(args, f"cat {WORKSPACE_DIR}/run.log 2>/dev/null", capture=True)
+    final_log, _, _ = run_ssh(args, f"cat {ws}/run.log 2>/dev/null", capture=True)
     if final_log:
         with open(local_log_path, 'w') as log_f:
             log_f.write(final_log)
@@ -133,7 +176,7 @@ def cmd_train(args):
         print(f"[{ts}] Synced full run.log ({len(final_log)} bytes)")
 
     # Determine real success: train_log.json existing means training completed
-    out, _, rc = run_ssh(args, f"test -f {WORKSPACE_DIR}/train_log.json && echo OK", capture=True)
+    out, _, rc = run_ssh(args, f"test -f {ws}/train_log.json && echo OK", capture=True)
     if out.strip() == "OK":
         print(f"[{ts}] Training completed (train_log.json found).")
         return 0
@@ -146,7 +189,8 @@ def cmd_train(args):
 
 def fetch_train_log(args):
     """Fetch and parse train_log.json from the remote."""
-    out, _, rc = run_ssh(args, f"cat {WORKSPACE_DIR}/train_log.json 2>/dev/null", capture=True)
+    ws = args.workspace_dir
+    out, _, rc = run_ssh(args, f"cat {ws}/train_log.json 2>/dev/null", capture=True)
     if rc != 0 or not out:
         return None
     return json.loads(out)
@@ -173,7 +217,10 @@ def cmd_validate_submission(args):
         print(f"Downloading artifacts to {d}...")
         scp = get_scp_base_cmd(args)
         for remote, local in [("train_gpt_remote.py","train_gpt.py"),("final_model.int6.ptz","final_model.int6.ptz"),("run.log","run.log"),("train_log.json","train_log.json")]:
-            subprocess.run(scp + [f"{args.server}:{WORKSPACE_DIR}/{remote}", str(d / local)], capture_output=True)
+            subprocess.run(
+                scp + [f"{args.server}:{args.workspace_scp}/{remote}", str(d / local)],
+                capture_output=True,
+            )
         print("Artifacts downloaded.")
     
     return report
@@ -268,6 +315,17 @@ def main():
     
     parser.add_argument("--key", default="~/.ssh/id_ed25519", help="SSH identity file")
     parser.add_argument("--port", type=int, help="SSH port")
+    parser.add_argument(
+        "--provider",
+        choices=("runpod", "brev"),
+        default="runpod",
+        help="Remote environment: runpod uses /workspace/parameter-golf; brev uses $HOME/parameter-golf and SSH -F",
+    )
+    parser.add_argument(
+        "--ssh-config",
+        default=None,
+        help="SSH config file for --provider brev (default: ~/.brev/ssh_config or $BREV_SSH_CONFIG)",
+    )
     
     subparsers = parser.add_subparsers(dest="command", required=True)
     
@@ -293,7 +351,17 @@ def main():
     p_eval.add_argument("--description", default="autoresearch run", help="Description of the run")
     
     args = parser.parse_args()
-    
+
+    # Remote shell uses $HOME/... on brev; scp does not expand $HOME in paths, so use a home-relative prefix for brev.
+    if args.provider == "brev":
+        args.workspace_dir = "$HOME/parameter-golf"
+        args.workspace_scp = "parameter-golf"
+        args.clone_parent = "$HOME"
+    else:
+        args.workspace_dir = "/workspace/parameter-golf"
+        args.workspace_scp = "/workspace/parameter-golf"
+        args.clone_parent = "/workspace"
+
     if args.command == "setup":
         cmd_setup(args)
     elif args.command == "deploy":

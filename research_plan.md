@@ -1,0 +1,307 @@
+# Initial Plan
+
+## 1. Leaderboard Lineage (chronological)
+
+| Date | Score | Key delta(s) | Cumulative Δ from baseline |
+|------|------:|--------------|---------------------------|
+| 03-17 | 1.2244 | **Naive Baseline**: 9L/512d/1024vocab, int8+zlib, non-overlapping eval | — |
+| 03-18 | 1.2197 | FP16 tied embed + LR tuning | −0.005 |
+| 03-18 | 1.2147 | 10L, mixed int8/int6 | −0.010 |
+| 03-19 | 1.2060 | 2048 seq len (train+eval) | −0.018 |
+| 03-19 | 1.2014 | 4096 seq len + hyper tuning | −0.023 |
+| 03-19 | 1.1928 | LoRA TTT (doc-aware, per-chunk) | −0.032 |
+| 03-19 | 1.1925 | **Sliding window eval** stride=64 | −0.032 |
+| 03-19 | 1.1748 | Muon WD + 10L + spectral embed init | −0.050 |
+| 03-19 | 1.1630 | Mixed quant int6/int8 + 3x MLP + sliding eval | −0.061 |
+| 03-19 | 1.1586 | 10L int6 QAT + zstd-22 + MLP 2.6x | −0.066 |
+| 03-19 | 1.1556 | **SmearGate** + OrthoInit + Muon WD + int6 STE QAT | −0.069 |
+| 03-20 | 1.1458 | **BigramHash** + 3x MLP + SWA | −0.079 |
+| 03-20 | 1.1428 | Int5-MLP + BigramHash(10240) + SWA(0.4) | −0.082 |
+| 03-20 | 1.1307 | **XSA** (last 3L, efficient GQA-aware) | −0.094 |
+| 03-20 | 1.1271 | XSA (last 4L) + **EMA** replacing SWA | −0.097 |
+| 03-21 | 1.1248 | **Partial RoPE** (16/64) + **LN Scale** | −0.100 |
+| 03-22 | 1.1228 | **GPTQ-lite** (clip search) + EMA + warmdown3500 + QAT@0.15 | −0.102 |
+| 03-23 | 1.1194 | **LeakyReLU(0.5)²** + legal score-first **TTT** + Parallel Muon | −0.105 |
+| 03-25 | 1.1147 | AR self-gen **Full Hessian GPTQ** + XSA-all-11 + BigramHash 3072×112 | −0.110 |
+| 03-31 | 1.1063 | **Parallel Residuals** (L7+) + **mini depth recurrence** (L4-5) + AR GPTQ | −0.118 |
+| 04-01 | 1.0979 | **SP4096** vocab + MLP 4x + WD=0.085 + simplifications (removed TTT, hash embed, SmearGate, VR) | −0.127 |
+| 04-03 | 1.0912 | **MuonEq-R** + depth recurrence + WD=0.090 + **all-int6** GPTQ | −0.133 |
+| 04-04 | 1.0897 | SP4096 + depth recurrence + parallel residuals + MuonEq-R + QK-Gain 5.0 | −0.135 |
+| 04-05 | 1.0856 | **SP8192** + GPTQ embeddings + depth recurrence + **SDClip** | −0.139 |
+| 04-06 | 1.0835 | Parallel residuals + **Hessian-aware SDClip** + progressive recurrence | −0.141 |
+| 04-06 | 1.0828 | QK-Gain 5.0 + legal score-first **TTT** on SP8192 | −0.142 |
+| 04-08 | 1.0822 | Parallel residuals on SP8192 + score-first TTT | −0.142 |
+| 04-09 | **1.0810** | **3-layer recurrence** (L3-5) + parallel residuals + **QK-Gain 5.25** + legal TTT | **−0.143** |
+
+## 2. Anatomy of the Current SOTA (1.0810)
+
+### Architecture
+- 11 physical layers × 512d × 8H / 4KV (GQA)
+- MLP 4x expansion (2048 hidden), LeakyReLU(0.5)² activation
+- Partial RoPE (16 of 64 dims)
+- Layerwise LN Scale: 1/√(layer+1)
+- Tied token embeddings (SP8192 BPE vocab)
+- Logit softcap = 30.0
+- U-Net skip connections with sigmoid gates
+- XSA on all 11 layers
+- Parallel residuals from layer 7+ (GPT-J style)
+- 3-layer depth recurrence: layers 3-5 loop, activated at frac=0.35 → 17 virtual layers
+
+### Optimizer
+- MuonEq-R (row-normalized Muon, Newton-Schulz 5 steps) for matrix params
+- AdamW for embeddings/scalars
+- WD=0.095 (Muon), WD=0.085 (embed), WD=0.02 (Adam)
+- EMA decay=0.9965
+- Warmdown frac=0.72, MLR=0.022
+- ~4550 steps in 588s
+
+### Quantization & Compression
+- Full Hessian GPTQ with SDClip: `clip = k * std(row)`
+- int6 for attention/MLP matrices (k=12.85), int8 for embeddings (k=20.0)
+- Byte-shuffle + Brotli-11
+- Self-extracting LZMA code wrapper (~16.6KB)
+- ~15.99 MB total artifact
+
+### Evaluation
+- Sliding window stride=64
+- Legal score-first TTT: SGD(lr=0.005, momentum=0.9), 3 epochs per 32K chunk, cosine LR decay
+- ~500s eval (370s TTT + 83s sliding + 8s roundtrip)
+
+## 3. Design Choice Taxonomy
+
+### A. Tokenizer / Vocabulary
+
+| Choice | When introduced | Impact | Saturation |
+|--------|----------------|--------|-----------|
+| SP1024 (baseline) | 03-17 | baseline | replaced |
+| SP4096 | 04-01 | ~−0.012 vs SP1024 stack | replaced |
+| SP8192 | 04-05 | ~−0.008 vs SP4096 stack | **current, possibly saturated** |
+| Larger vocab (16k+)? | never tried | unknown — more context/step but bigger embed table | **open** |
+
+Notes: Each vocab increase lets the model see more context per fixed seq_len. The embed table grows but GPTQ-quantized int8 embeds compress well. Diminishing returns expected; 8192→16384 is plausible but untested. The embed table at 8192×512 = 4M params is already a meaningful fraction of the budget.
+
+### B. Model Depth / Width / Capacity
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| 9L → 10L | 03-18 | −0.003 | replaced |
+| 10L → 11L | 03-20 | −0.005 | **current** |
+| MLP 2x → 3x | 03-19 | −0.010 (single biggest early gain) | replaced |
+| MLP 3x → 4x | 04-01 | ~−0.005 (enabled by higher WD compression) | **current** |
+| 512d unchanged | — | — | appears optimal for 16MB budget |
+
+Notes: 11L×512d with MLP 4x is now standard. Deeper models are too slow per step. Wider models tried (640d, 704d in recurrence writeup) hurt due to fewer steps. The depth/width/MLP tradeoff looks **close to saturated** at current compression tech.
+
+### C. Depth Recurrence
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| No looping | baseline | — | — |
+| Loop L4-5 (1 extra pass) | 03-31 | −0.003 | replaced |
+| Loop L4-5 (2 extra) | 04-05 | ~−0.003 more | replaced |
+| Loop L3-5 (3-layer, 2 extra) | 04-09 | ~−0.002 more | **current** |
+| Activated mid-training (frac=0.35) | 04-09 | better than always-on | **current** |
+
+Notes: Recurrence gives a moderate but real gain. The key insight is **mini recurrence** (a few middle layers) with **delayed activation** to avoid losing too many steps. Full universal-transformer-style recurrence is a bust (see non-record writeup: +0.025 worse in controlled comparison). The 3-layer config at current is likely near-optimal for the step-time budget. Further recurrence gains would require faster per-step time (megakernels?) or better loop configurations.
+
+### D. Attention Innovations
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| XSA last 3L | 03-20 | −0.002 | replaced |
+| XSA last 4L | 03-20 | −0.001 more | replaced |
+| XSA all 11L | 04-01 | −0.001 more | **current** |
+| Partial RoPE 16/64 | 03-21 | −0.002 | **current** |
+| QK-Gain 1.5→4.0→5.0→5.25 | 03-19→04-09 | ~−0.003 total | **current, maybe still improvable** |
+
+Notes: XSA on all layers is zero-parameter-cost and appears saturated. QK-Gain has been monotonically increasing; 5.25 is current. Worth trying 5.5, 6.0 but likely small returns. Partial RoPE at 16/64 has been stable since 03-21.
+
+### E. Residual / Skip Structure
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| U-Net skip connections | baseline | baked in | **current** |
+| Sigmoid-gated skips | 04-01 | small improvement over raw skips | **current** |
+| Parallel residuals L7+ | 03-31 | −0.002 to −0.004 | **current** |
+
+Notes: Parallel residuals from L7+ is a consistent, free-parameter win. The learned routing is asymmetric (MLP barely writes to attn lane). The optimal start layer and routing structure are underexplored.
+
+### F. Optimizer
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| Muon (base) | baseline | — | replaced |
+| Muon WD=0.01→0.04 | 03-19 | −0.003 | replaced |
+| Muon WD=0.04→0.085 | 04-01 | −0.005 (via compression headroom) | replaced |
+| Muon WD=0.085→0.095 | 04-09 | small (via more int6 headroom) | **current** |
+| MuonEq-R (row normalize) | 04-03 | −0.001 | **current** |
+| EMA (replacing SWA) | 03-20 | −0.001 | **current** (decay=0.9965) |
+| Parallel Muon + banking | 03-23 | ~0 bpb (speed gain) | **dropped in later stacks** |
+
+Notes: WD is deeply coupled to compression quality. The insight that higher WD → smaller weights → better brotli → more int6 layers → lower bpb is one of the single most impactful findings in the entire competition. Further WD increases face diminishing returns (underfitting). EMA decay has been tuned from 0.997 to 0.9965. MuonEq-R is a free win.
+
+### G. Quantization & Compression
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| Int8 + zlib | baseline | — | replaced |
+| Int6 QAT (STE) | 03-19 | −0.010+ (smaller artifact → more params) | replaced |
+| Mixed int5/int6 | 03-20 | small (freed space for 10th layer) | replaced |
+| GPTQ-lite (clip search) | 03-22 | −0.001 | replaced |
+| Full Hessian GPTQ | 03-25 | −0.005 (strictly better quantizer) | **current** |
+| zstd-22 → Brotli-11 | 04-01 | better compression ratio | **current** |
+| SDClip (k * std(row)) | 04-05 | principled, faster, more tunable | **current** |
+| GPTQ embeddings (int8) | 04-05 | small (vs fp16 or naive round) | **current** |
+| All-int6 (via WD headroom) | 04-03 | −0.001 | **current** |
+| Hessian-aware SDClip | 04-06 | ~−0.002 (non-record) | **promising, underexplored** |
+| Byte-shuffle before Brotli | 04-01 | ~5% compression improvement | **current** |
+
+Notes: Quantization + compression is the single richest vein in this competition. The interaction between WD, clip range, bit width, and post-quant compression is deeply non-obvious (Kevin Clark's SDClip writeup is the key reference). **Per-group or per-layer k allocation is the most obvious next step** — the Hessian-SDClip writeup shows stable group-level importance across seeds. Output-Hessian weighting and layer-adaptive bit allocation are also open.
+
+### H. Evaluation-Time Techniques
+
+| Choice | When | Impact | Saturation |
+|--------|------|--------|-----------|
+| Non-overlapping eval | baseline | — | replaced |
+| Sliding window stride=64 | 03-19 | −0.032 (!!!) | **current** |
+| LoRA TTT (per-doc) | 03-19 | −0.004 (on top of sliding) | replaced |
+| Legal score-first TTT (SGD, all params) | 03-23 | −0.002 to −0.003 | **current** |
+| TTT dropped (04-01 stack) | 04-01 | reclaimed eval budget for systems wins | TTT came back 04-06 |
+| TTT on SP8192 stack | 04-06 | −0.002 | **current** |
+
+Notes: Sliding window was the single largest individual improvement in the whole competition. TTT adds a consistent −0.002 on top. The current TTT is simple full-weight SGD. **Selective TTT** (low-rank, high-perplexity focus, learning-rate scheduling per layer) is underexplored.
+
+### I. Removed / Abandoned Techniques
+
+| Technique | Why removed |
+|-----------|------------|
+| SmearGate | redundant with larger vocab (SP4096+) |
+| BigramHash | removed in SP4096+ stack (replaced by larger vocab semantics) |
+| Value Residuals | incompatible with depth recurrence (+0.14 worse) |
+| Gated Attention | no clear benefit |
+| QAT (STE) | torch.compile dead-code-eliminated it; little or no benefit anyway |
+| Parameter Banking | complexity for no bpb gain |
+| SWA | replaced by EMA |
+
+## 4. Search Space Map
+
+Dimensions ordered by estimated remaining headroom:
+
+### Tier 1: High headroom, strong evidence
+1. **Quantization: per-group/per-layer clip allocation** — Hessian traces are 30x different between early and late blocks but k is global. Non-uniform k is the most obvious untried thing.
+2. **TTT improvements** — Current is naive full-weight SGD. Low-rank adapters, perplexity-weighted chunk selection, per-layer LR, or momentum tuning all open.
+3. **Vocab size 8192 → 16384** — More context per step, larger embed table (but GPTQ-quantized embeds compress). Diminishing returns expected but delta could be 0.002-0.005.
+4. **Warmdown / LR schedule tuning** — Warmdown frac went from 0.3 to 0.72; precise shape matters. Cosine vs linear unexplored.
+
+### Tier 2: Moderate headroom, needs validation
+5. **QK-Gain > 5.25** — Monotonic improvement so far. Try 5.5, 6.0, per-layer gains.
+6. **Loop config tuning** — 3-layer vs 4-layer, different layer ranges, asymmetric repeats.
+7. **Parallel residual topology** — Start layer, learned routing weights, lane merge strategy.
+8. **Training sequence length > 2048** — 4096 helped early (−0.02) but was replaced by other wins. On the current stack, longer seq + sliding eval could still help.
+9. **EMA decay tuning** — 0.9965 is current; the space between 0.996 and 0.998 is underswept.
+10. **Better activation function** — LeakyReLU(0.5)² is standard; GEGLU, SwiGLU, or a learned negative slope are untried on the top stack.
+
+### Tier 3: Speculative, larger changes
+11. **Hybrid SSM/attention** — Replace some late blocks with Mamba-style SSM. No one has tried.
+12. **H-Net dynamic chunking** — Replace the fixed tokenizer with learned segmentation. High-upside moonshot.
+13. **Multi-token prediction** — MTP with 4 heads / weight 0.3 showed promise in the recurrence writeup but was never tested on the top stack.
+14. **JEPA for text** — Non-AR training signal. Research lane, not immediate record bet.
+15. **Megakernel fusion** — Fuse attention+MLP into fewer kernel launches. Pure systems win for more steps.
+
+## 5. Stack-Ranked Research Ideas
+
+Priority order for incremental record submissions on the current SP8192 stack.
+
+### Experiment 1: Per-group SDClip allocation
+- Use the stable group-level Hessian trace hierarchy (early >> loop >> mid >> late) to set different k values per block group.
+- Expected gain: 0.001-0.003 bpb (tighter allocation recovers some quant error in sensitive early layers while spending less entropy budget on less sensitive late ones).
+- Risk: low. Zero training cost, just a quant-time change.
+- Cost: 1 run to sweep k per group.
+
+### Experiment 2: SP16384 vocabulary
+- Train a SP16384 tokenizer on the FineWeb corpus. Each token covers more bytes → more context per 2048-token window.
+- Expected gain: 0.002-0.005 bpb (extrapolating from SP1024→SP4096→SP8192 trend, with diminishing returns).
+- Risk: medium. Embed table grows to 16384×512 = 8.4M params; need to verify it still fits in 16MB with int8 GPTQ embeddings. Tokenizer changes are scrutinized.
+- Cost: 2-3 runs to validate.
+
+### Experiment 3: Selective TTT with low-rank adapters
+- Instead of updating all params with SGD, update only a rank-4 or rank-8 adapter on q/v projections.
+- Spend TTT epochs only on high-perplexity chunks (score all chunks first, then train on the worst ones).
+- Expected gain: 0.001-0.002 bpb (more targeted adaptation + less catastrophic forgetting on good chunks).
+- Risk: low-medium. Need to verify adapters are compatible with quantized weights.
+- Cost: 3-5 runs.
+
+### Experiment 4: QK-Gain sweep (5.5, 6.0, per-layer)
+- The trend from 1.5 → 4.0 → 5.0 → 5.25 has been monotonically improving.
+- Try 5.5, 6.0, and per-layer learned gains (different init per layer depth).
+- Expected gain: 0.0005-0.001 bpb.
+- Risk: very low. Single hyperparameter change.
+- Cost: 1 run per value.
+
+### Experiment 5: Warmdown shape tuning
+- Warmdown frac at 0.72 is aggressive. Try cosine warmdown instead of linear.
+- Sweep warmdown_frac in [0.65, 0.70, 0.75, 0.80].
+- Try a two-phase warmdown (fast decay then slow tail).
+- Expected gain: 0.0005-0.001 bpb.
+- Risk: very low.
+- Cost: 4 runs.
+
+### Experiment 6: Layer-adaptive bit allocation
+- Instead of all-int6, try int7 on the most sensitive layers (early blocks) and int5 on the least sensitive (late blocks). SDClip math shows int7 with 2x k has similar compressed size.
+- Expected gain: 0.001-0.002 bpb.
+- Risk: low-medium. Need to verify artifact stays under 16MB.
+- Cost: 2-3 runs.
+
+### Experiment 7: Training seq length 4096
+- The current stack trains at 2048. Doubling to 4096 halves throughput but gives the model more context.
+- Combine with gradient accumulation adjustments to maintain batch tokens.
+- Expected gain: 0.002-0.005 bpb (based on the early 03-19 result, but the effect may compound differently on the current stack).
+- Risk: medium. Step time doubles; may not get enough training steps.
+- Cost: 2-3 runs.
+
+### Experiment 8: Multi-token prediction on current stack
+- MTP with 4 heads / weight 0.3 was optimal on the recurrence stack.
+- Never tested on the SP8192 + parallel residual + TTT stack.
+- Expected gain: 0.001-0.003 bpb (auxiliary loss may improve representation quality without extra eval cost).
+- Risk: medium. MTP auxiliary heads add small param overhead and need to verify compile compatibility.
+- Cost: 2-3 runs.
+
+### Experiment 9: Loop config refinement
+- Current: layers 3-5, 2 extra passes, activated at frac=0.35.
+- Try: layers 2-5 (4-layer loop, 1 extra pass), or layers 3-6.
+- Try progressive activation: first loop at 0.35, second at 0.50.
+- Expected gain: 0.0005-0.001 bpb.
+- Risk: low.
+- Cost: 3-4 runs.
+
+### Experiment 10: EMA + late SWA combination
+- EMA provides continuous smoothing; adding a few late SWA checkpoints during the final 5% of training may further smooth the weight landscape.
+- SWA on the recurrence stack inverted the quant gap in some cases.
+- Expected gain: 0.0005-0.001 bpb.
+- Risk: very low.
+- Cost: 1-2 runs.
+
+### Summary: Recommended execution order
+
+| Order | Experiment | Expected Δ | Runs | Risk |
+|-------|-----------|-----------|------|------|
+| 1 | Per-group SDClip | 0.001-0.003 | 1-2 | low |
+| 2 | QK-Gain sweep | 0.0005-0.001 | 2-3 | very low |
+| 3 | Warmdown shape | 0.0005-0.001 | 4 | very low |
+| 4 | SP16384 vocab | 0.002-0.005 | 3 | medium |
+| 5 | Selective TTT | 0.001-0.002 | 3-5 | low-medium |
+| 6 | Layer-adaptive bits | 0.001-0.002 | 2-3 | low-medium |
+| 7 | MTP on current stack | 0.001-0.003 | 2-3 | medium |
+| 8 | Training seq 4096 | 0.002-0.005 | 2-3 | medium |
+| 9 | Loop config | 0.0005-0.001 | 3-4 | low |
+| 10 | EMA + SWA combo | 0.0005-0.001 | 1-2 | very low |
+
+The first 3 experiments are cheap, low-risk, and compound with each other. Experiments 4-6 require more investment but have the largest potential individual deltas. Experiments 7-10 are refinements best done after the high-conviction changes are locked in.
+
+A new record needs ≥0.005 nats improvement over 1.0810. That's roughly ≥0.003 bpb. Getting there likely requires stacking 2-3 of the above ideas rather than any single change.
+
+# Research Notes
+
+## Experimental Findings
+
+## New Directions to Explore
