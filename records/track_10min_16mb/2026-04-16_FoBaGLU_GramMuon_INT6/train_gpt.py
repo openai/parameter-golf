@@ -707,7 +707,7 @@ def main():
     best_bpb = float("inf")
 
     for step in range(cfg.max_iters):
-        if time.time() - t0 > cfg.max_wallclock:
+        if cfg.max_wallclock > 0 and time.time() - t0 > cfg.max_wallclock:
             log(f"Timed stop at step {step}/{cfg.max_iters}")
             break
 
