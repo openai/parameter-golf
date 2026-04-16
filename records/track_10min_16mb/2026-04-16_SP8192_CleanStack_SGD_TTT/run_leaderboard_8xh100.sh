@@ -18,10 +18,11 @@ export VOCAB_SIZE=8192
 export TTT_ENABLED=1
 export SEED="${SEED:-42}"
 
-echo "=== SP8192 CleanStack SGD-TTT  seed=${SEED} ==="
+NGPU=$(python3 -c "import torch; print(torch.cuda.device_count())")
+echo "=== SP8192 CleanStack SGD-TTT  seed=${SEED}  GPUs=${NGPU} ==="
 torchrun \
   --standalone \
-  --nproc_per_node=8 \
+  --nproc_per_node="$NGPU" \
   "$SCRIPT" \
   2>&1 | tee "train_seed${SEED}.log"
 
