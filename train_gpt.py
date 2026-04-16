@@ -880,11 +880,10 @@ def main() -> None:
         if isinstance(module, (nn.Linear, nn.Embedding)):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    
+    model = torch.compile(base_model, mode="reduce-overhead")
     if distributed:
-        model = DDP(base_model, device_ids=[local_rank], broadcast_buffers=False, static_graph=True)
-    else:
-        model = base_model
-    model = torch.compile(model)
+        model = DDP(model, device_ids=[local_rank], broadcast_buffers=False, static_graph=True)
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
