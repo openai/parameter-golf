@@ -487,6 +487,23 @@ Learnings:
 
 Reverted to iter_15b baseline.
 
+### iter_24 notes (per-role SDClip — KEPT)
+
+Added `_ROLE_K_MUL` that adjusts `clip_sigmas` by tensor role on top of the per-layer multiplier. Hypothesis: c_v directly transforms values (outliers matter more than in softmax-filtered c_q/c_k), and attn.proj is on the residual path (sensitive).
+
+Initial values:
+- c_v: 1.15x, attn.proj: 1.05x (wider, preserve outliers)
+- c_q: 0.95x, c_k: 0.95x (tighter, softmax robust to small errors)
+- mlp.fc / mlp.proj: 1.00x (unchanged)
+
+Result: −0.00017 bpb at slightly smaller size (15.83 vs 15.84MB). Small win but transferable.
+
+**Follow-ups (for post-iter_28 deep dive):**
+- Sweep c_v multiplier in [1.05, 1.10, 1.15, 1.20, 1.25] — 1.15 was a guess
+- Try per-head-within-c_v (8 heads, separate k each) — requires grouped row_std per head
+- MLP roles were set to 1.0 without test — sweep them too
+- Combine with per-layer K_MUL re-tuning (current K_MUL was tuned with uniform role multipliers)
+
 ### iter_23 notes (mixed-bit per-layer, three sub-iters)
 
 Added `_tensor_bits(name, h)` that returns different bit widths per layer. Size delta per layer ≈ ±360KB for int7/int5 vs int6 (measured empirically).
