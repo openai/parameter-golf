@@ -99,6 +99,14 @@ class Hyperparameters:
     ttt_hard_window_min = int(os.environ.get("TTT_HARD_WINDOW_MIN", 0))
     ttt_param_mode = os.environ.get("TTT_PARAM_MODE", "full")
     ttt_anchor_l2 = float(os.environ.get("TTT_ANCHOR_L2", 0.0))
+    ttt_prefix_chunk_ratio = float(
+        os.environ.get("TTT_PREFIX_CHUNK_RATIO", 0.0)
+    )
+    ttt_prefix_epochs = int(os.environ.get("TTT_PREFIX_EPOCHS", -1))
+    ttt_prefix_lr_scale = float(os.environ.get("TTT_PREFIX_LR_SCALE", 1.0))
+    ttt_prefix_hard_window_fraction = float(
+        os.environ.get("TTT_PREFIX_HARD_WINDOW_FRACTION", -1.0)
+    )
     ttt_easy_chunk_ratio = float(os.environ.get("TTT_EASY_CHUNK_RATIO", 0.0))
     ttt_easy_chunk_epochs = int(os.environ.get("TTT_EASY_CHUNK_EPOCHS", 0))
     ttt_outlier_drop_fraction = float(
@@ -1486,33 +1494,13 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
-    ttt_mode = h.ttt_param_mode.lower()
-    named_ttt_params = list(base_model.named_parameters())
-    if ttt_mode == "control":
-        named_ttt_params = [
-            (name, p)
-            for (name, p) in named_ttt_params
-            if p.ndim < 2
-            or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-        ]
-    elif ttt_mode == "recur_control":
-        loop_prefixes = tuple(
-            f"blocks.{i}." for i in range(h.loop_start, h.loop_end + 1)
-        )
-        named_ttt_params = [
-            (name, p)
-            for (name, p) in named_ttt_params
-            if any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-            and (
-                any(prefix in name for prefix in loop_prefixes)
-                or "skip_weights" in name
-                or "skip_gates" in name
-            )
-        ]
-    elif ttt_mode != "full":
-        raise ValueError(f"Unsupported TTT_PARAM_MODE={h.ttt_param_mode}")
+    ttt_mode, named_ttt_params = _select_ttt_named_params(h, base_model)
     ttt_params = [p for (_, p) in named_ttt_params]
     ttt_param_count = sum(int(p.numel()) for p in ttt_params)
+    if ttt_param_count == 0:
+        raise ValueError(
+            f"TTT_PARAM_MODE={h.ttt_param_mode} selected no trainable parameters"
+        )
     ttt_base_params = (
         [p.detach().clone() for p in ttt_params]
         if h.ttt_anchor_l2 > 0 or h.ttt_blend_back > 0
@@ -1520,11 +1508,27 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
     )
     easy_chunk_ratio = max(0.0, min(h.ttt_easy_chunk_ratio, 1.0))
     easy_chunk_epochs = max(0, min(h.ttt_easy_chunk_epochs, h.ttt_epochs))
+    prefix_chunk_ratio = max(0.0, min(h.ttt_prefix_chunk_ratio, 1.0))
+    prefix_chunk_count = min(
+        num_chunks,
+        int(math.ceil(num_chunks * prefix_chunk_ratio)),
+    )
+    prefix_epochs = (
+        h.ttt_epochs
+        if h.ttt_prefix_epochs < 0
+        else max(0, h.ttt_prefix_epochs)
+    )
+    prefix_lr_scale = max(0.0, h.ttt_prefix_lr_scale)
+    prefix_hard_frac = (
+        hard_frac
+        if h.ttt_prefix_hard_window_fraction < 0.0
+        else max(0.0, min(h.ttt_prefix_hard_window_fraction, 1.0))
+    )
     outlier_drop_frac = max(0.0, min(h.ttt_outlier_drop_fraction, 0.95))
     score_weight_power = max(0.0, h.ttt_score_weight_power)
     blend_back = max(0.0, min(h.ttt_blend_back, 1.0))
     log(
-        f"ttt:start chunks={num_chunks} ttt_lr={h.ttt_lr} ttt_epochs={h.ttt_epochs} hard_window_fraction={hard_frac:.3f} param_mode={ttt_mode} trainable={ttt_param_count} anchor_l2={h.ttt_anchor_l2:g} easy_chunk_ratio={easy_chunk_ratio:.3f} easy_chunk_epochs={easy_chunk_epochs} outlier_drop_frac={outlier_drop_frac:.3f} score_weight_power={score_weight_power:.3f} blend_back={blend_back:.3f} reset_momentum={int(h.ttt_reset_momentum)}"
+        f"ttt:start chunks={num_chunks} ttt_lr={h.ttt_lr} ttt_epochs={h.ttt_epochs} hard_window_fraction={hard_frac:.3f} param_mode={ttt_mode} trainable={ttt_param_count} anchor_l2={h.ttt_anchor_l2:g} prefix_chunk_ratio={prefix_chunk_ratio:.3f} prefix_chunk_count={prefix_chunk_count} prefix_epochs={prefix_epochs} prefix_lr_scale={prefix_lr_scale:.3f} prefix_hard_window_fraction={prefix_hard_frac:.3f} easy_chunk_ratio={easy_chunk_ratio:.3f} easy_chunk_epochs={easy_chunk_epochs} outlier_drop_frac={outlier_drop_frac:.3f} score_weight_power={score_weight_power:.3f} blend_back={blend_back:.3f} reset_momentum={int(h.ttt_reset_momentum)}"
     )
     for p in base_model.parameters():
         p.requires_grad_(False)
@@ -1622,17 +1626,32 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                 * 0.5
                 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
             )
+            in_prefix_phase = ci < prefix_chunk_count
+            phase_lr = cos_lr * (
+                prefix_lr_scale if in_prefix_phase else 1.0
+            )
+            phase_hard_frac = (
+                prefix_hard_frac if in_prefix_phase else hard_frac
+            )
             for pg in optimizer.param_groups:
-                pg["lr"] = cos_lr
-            chunk_epochs = h.ttt_epochs
+                pg["lr"] = phase_lr
+            chunk_epochs = prefix_epochs if in_prefix_phase else h.ttt_epochs
             if (
-                easy_chunk_ratio > 0.0
+                not in_prefix_phase
+                and easy_chunk_ratio > 0.0
                 and easy_chunk_epochs < h.ttt_epochs
                 and running_chunk_loss is not None
                 and chunk_mean_loss < running_chunk_loss * easy_chunk_ratio
             ):
                 chunk_epochs = easy_chunk_epochs
-            if 0.0 < hard_frac < 1.0:
+            if h.is_main_process and (
+                ci == 0 or ci == prefix_chunk_count
+            ):
+                phase_name = "prefix" if in_prefix_phase else "suffix"
+                log(
+                    f"ttt:phase chunk={ci+1}/{num_chunks} phase={phase_name} epochs={chunk_epochs} lr={phase_lr:.6f} hard_window_fraction={phase_hard_frac:.3f}"
+                )
+            if 0.0 < phase_hard_frac < 1.0:
                 gathered = (
                     [None for _ in range(world_size)]
                     if world_size > 1
@@ -1655,7 +1674,7 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                 else:
                     candidate_scores = global_window_scores
                 selected = max(
-                    int(math.ceil(len(candidate_scores) * hard_frac)),
+                    int(math.ceil(len(candidate_scores) * phase_hard_frac)),
                     h.ttt_hard_window_min,
                 )
                 if world_size > 1:
@@ -1669,9 +1688,11 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                 selected_pairs = candidate_scores[:selected]
                 selected_windows = sorted(ws for (_, ws) in selected_pairs)
                 selected_score_map = {ws: score for (score, ws) in selected_pairs}
-                if ci == 0 and h.is_main_process:
+                if h.is_main_process and (
+                    ci == 0 or ci == prefix_chunk_count
+                ):
                     log(
-                        f"ttt:hard_windows selected={selected}/{len(candidate_scores)} dropped={len(global_window_scores) - len(candidate_scores)}"
+                        f"ttt:hard_windows chunk={ci+1}/{num_chunks} selected={selected}/{len(candidate_scores)} dropped={len(global_window_scores) - len(candidate_scores)}"
                     )
                 my_count = (
                     len(selected_windows) // world_size
@@ -1824,6 +1845,52 @@ def timed_eval(label, fn, *args, **kwargs):
         f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms"
     )
     return val_loss, val_bpb
+
+
+def _is_q_only_ttt_param(name):
+    return ".attn.c_q." in name or ".attn.q_gain" in name
+
+
+def _select_ttt_named_params(h, base_model):
+    ttt_mode = h.ttt_param_mode.lower()
+    named_ttt_params = list(base_model.named_parameters())
+    if ttt_mode == "full":
+        return ttt_mode, named_ttt_params
+    if ttt_mode == "control":
+        return ttt_mode, [
+            (name, p)
+            for (name, p) in named_ttt_params
+            if p.ndim < 2
+            or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        ]
+    loop_prefixes = tuple(
+        f"blocks.{i}." for i in range(h.loop_start, h.loop_end + 1)
+    )
+    if ttt_mode == "recur_control":
+        return ttt_mode, [
+            (name, p)
+            for (name, p) in named_ttt_params
+            if any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+            and (
+                any(prefix in name for prefix in loop_prefixes)
+                or "skip_weights" in name
+                or "skip_gates" in name
+            )
+        ]
+    if ttt_mode == "q_only":
+        return ttt_mode, [
+            (name, p)
+            for (name, p) in named_ttt_params
+            if _is_q_only_ttt_param(name)
+        ]
+    if ttt_mode == "loop_q_only":
+        return ttt_mode, [
+            (name, p)
+            for (name, p) in named_ttt_params
+            if _is_q_only_ttt_param(name)
+            and any(prefix in name for prefix in loop_prefixes)
+        ]
+    raise ValueError(f"Unsupported TTT_PARAM_MODE={h.ttt_param_mode}")
 
 
 def train_model(h, device, val_data):
