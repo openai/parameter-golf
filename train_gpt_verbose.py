@@ -402,6 +402,7 @@ class Hyperparameters:
     calib_second_pass = _e('CALIB_SECOND_PASS', 0, bool)
     calib_proxy_max_tok = _e('CALIB_PROXY_MAX_TOK', 4096, int)
     export_proxy_eval = _e('EXPORT_PROXY_EVAL', 0, bool)
+    training_dynamics_only = _e('TRAINING_DYNAMICS_ONLY', 0, bool)
     export_proxy_every = _e('EXPORT_PROXY_EVERY', 300, int)
     export_proxy_every_fraction = _e('EXPORT_PROXY_EVERY_FRACTION', 0.25, float)
     export_proxy_num_seqs = _e('EXPORT_PROXY_NUM_SEQS', 16, int)
@@ -504,15 +505,20 @@ def apply_competition_profile(args) -> None:
     args.eval_depth_recurrence = 3
     args.recurrence_depth = 3
     args.recurrence_layers = (3, 4, 5)
-    args.recurrence_start_fraction = 0.35
+    if _unset('RECURRENCE_START_FRACTION'):
+        args.recurrence_start_fraction = 0.35
     args.architecture = 'competition'
     args.shared_blocks = 0
-    args.matrix_lr = 0.022
-    args.scalar_lr = 0.001
+    if _unset('MATRIX_LR'):
+        args.matrix_lr = 0.022
+    if _unset('SCALAR_LR'):
+        args.scalar_lr = 0.001
     args.tied_embed_lr = 0.004
-    args.muon_wd = 0.095
+    if _unset('MUON_WD'):
+        args.muon_wd = 0.095
     args.ema_decay = 0.9965
-    args.ema_start_fraction = 0.4
+    if _unset('EMA_START_FRACTION'):
+        args.ema_start_fraction = 0.4
     args.warmdown_fraction = 0.72
     args.muon_backend_steps = 5
     args.grad_clip_norm = 1.0
@@ -2726,11 +2732,14 @@ def _poll_nn_diagnostics(model: nn.Module, step: int, log0, jsonl_path: str, is_
     stats = {'step': step, 'time': time.time()}
     params = list(model.named_parameters())
     component_rules = {
-        'skc_core': ('decay_rates', 'mixer_conv', 'spec_proj', 'gate_proj', 'router.', 'skc_prenorm_gamma', 'mlp_prenorm_gamma'),
-        'engram': ('engram.', 'bigram_hash'),
+        'skc_scan': ('decay_rates', 'mixer_conv', 'mixer_lowrank', 'mixer_diag', 'mixer_scale', 'spec_proj', 'gate_proj'),
+        'skc_gates': ('skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix', 'per_layer_skc_scales', 'per_layer_mlp_scales', 'per_layer_attn_scales', 'per_layer_resid_mixes'),
+        'skc_koopman': ('koopman_mixer', 'koopman_state', 'koopman_conv', 'koopman_speculator'),
+        'engram_tables': ('engram.tables', 'bigram_hash_table'),
+        'engram_ctrl': ('engram.router', 'engram.gate', 'engram.proj', 'engram.q_proj', 'engram.k_proj', 'engram.v_proj'),
         'feedback': ('feedback',),
-        'capsule_koopman': ('capsule', 'koopman'),
-        'residual_scales': ('per_layer_attn_scales', 'per_layer_mlp_scales', 'per_layer_skc_scales', 'per_layer_resid_mixes', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix'),
+        'capsule': ('capsule_bank', 'capsule_state', 'capsule_carry'),
+        'head': ('vocab_bias', 'lm_head', 'tok_emb', 'embed_proj'),
     }
     component_stats = {k: {'param_count': 0, 'grad_count': 0, 'grad_norm_sum': 0.0, 'gw_ratio_sum': 0.0, 'weight_norm_sum': 0.0} for k in component_rules}
     
@@ -2741,7 +2750,7 @@ def _poll_nn_diagnostics(model: nn.Module, step: int, log0, jsonl_path: str, is_
     with torch.no_grad():
         for n, p in params:
             for comp, keys in component_rules.items():
-                if any(k in n for k in keys):
+                if any((k in n for k in keys)):
                     component_stats[comp]['param_count'] += 1
                     component_stats[comp]['weight_norm_sum'] += p.data.norm().item()
                     if p.grad is not None:
@@ -2749,6 +2758,7 @@ def _poll_nn_diagnostics(model: nn.Module, step: int, log0, jsonl_path: str, is_
                         component_stats[comp]['grad_count'] += 1
                         component_stats[comp]['grad_norm_sum'] += g_norm_comp
                         component_stats[comp]['gw_ratio_sum'] += g_norm_comp / (p.data.norm().item() + 1e-8)
+                    break
             if p.requires_grad and p.grad is not None:
                 g_norm = p.grad.norm().item()
                 w_norm = p.data.norm().item()
@@ -4059,13 +4069,21 @@ def main() -> None:
     diag_jsonl = f'logs/diagnostics_{args.run_id}.jsonl'
     if master_process and args.diagnostics_enabled:
         with open(diag_jsonl, 'w') as f: pass # Clear/Create
-    _SKC_STRUCTURAL = ('decay_rates', 'band_centers', 'band_log_widths', 'eigenvalues', 'coupling_U', 'coupling_V', 'nonlinear_gate', 'mixer_conv', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix', 'skip_weights', 'vocab_bias', 'content_router', 'content_scale', 'gate_proj', 'decay_rates', 'router')
+    _SKC_STRUCTURAL = ('decay_rates', 'band_centers', 'band_log_widths', 'eigenvalues', 'coupling_U', 'coupling_V', 'nonlinear_gate', 'mixer_conv', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix', 'skip_weights', 'vocab_bias', 'content_router', 'content_scale', 'gate_proj', 'decay_rates', 'router.')
+    _SKC_GATES_AND_SCALES = (
+        'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix',
+        'decay_rates', 'add_gate', 'mul_gate', 'recurrent_gate',
+        'vrl_alpha', 'mixer_scale', 'skip_weights', 'skip_weight',
+        'q_gain', 'gate_proj', 'router.', 'feedback_gate',
+        'content_scale', 'engram_gate',
+    )
 
     def _is_skc_structural(name: str) -> bool:
         return any((k in name for k in _SKC_STRUCTURAL))
     muon_params = []
     adam_params = []
     adam_nodecay_params = []  # ternary latent weights: excluded from weight decay to prevent zero-snapping
+    adam_nodecay_scales_params = []  # SKC/Engram gates and residual scales: keep no-WD, optionally faster LR
     head_params = []
     engram_params = []
     _ternary_param_ids = {id(p) for (_, m) in base_model.named_modules() if isinstance(m, TernaryLinear) for p in m.parameters(recurse=False)}
@@ -4074,8 +4092,10 @@ def main() -> None:
             continue
         if 'engram.tables' in name:
             engram_params.append(p)
-        elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name or 'per_layer_' in name:
+        elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name:
             head_params.append(p)
+        elif 'per_layer_' in name or any((k in name for k in _SKC_GATES_AND_SCALES)):
+            adam_nodecay_scales_params.append(p)
         elif _is_skc_structural(name) or p.ndim < 2:
             if id(p) in _ternary_param_ids:
                 adam_nodecay_params.append(p)
@@ -4089,10 +4109,18 @@ def main() -> None:
         opt_matrix = torch.optim.AdamW(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
     else:
         opt_matrix = torch.optim.Adam(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
-    opt_adam = torch.optim.AdamW(
-        [{'params': adam_params, 'weight_decay': args.adam_wd},
-         {'params': adam_nodecay_params, 'weight_decay': 0.0}],
-        lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps)
+    _scales_lr_mult = float(os.environ.get('SCALES_LR_MULT', '3.0'))
+    _adam_param_groups = [
+        {'params': adam_params, 'weight_decay': args.adam_wd},
+        {'params': adam_nodecay_params, 'weight_decay': 0.0},
+    ]
+    if adam_nodecay_scales_params:
+        _adam_param_groups.append({
+            'params': adam_nodecay_scales_params,
+            'weight_decay': 0.0,
+            'lr': args.scalar_lr * _scales_lr_mult,
+        })
+    opt_adam = torch.optim.AdamW(_adam_param_groups, lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps)
     opt_head = torch.optim.AdamW(head_params, lr=args.tied_embed_lr if args.tie_embeddings else args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
     all_opts = [opt_matrix, opt_adam, opt_head]
     if engram_params:
@@ -4144,6 +4172,11 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def step_fraction(step: int) -> float:
+        if max_wallclock_ms is not None:
+            try:
+                return max(0.0, min(elapsed_ms / max(max_wallclock_ms, 1.0), 1.0))
+            except NameError:
+                pass
         return min(step / max(args.iterations, 1), 1.0)
 
     def interval_steps_from_fraction(interval_fraction: float) -> int | None:
@@ -4395,7 +4428,7 @@ def main() -> None:
                 if distributed:
                     dist.barrier()
         if args.recurrence_depth > 0 and args.recurrence_start_fraction > 0:
-            _want_recur = args.recurrence_depth if step >= int(args.iterations * args.recurrence_start_fraction) else 0
+            _want_recur = args.recurrence_depth if step_fraction(step) >= args.recurrence_start_fraction else 0
             if hasattr(base_model, 'backbone') and base_model.backbone.training_depth_recurrence != _want_recur:
                 base_model.backbone.training_depth_recurrence = _want_recur
                 base_model.training_depth_recurrence = _want_recur
@@ -4521,6 +4554,12 @@ def main() -> None:
     if device.type == 'cuda':
         torch.cuda.synchronize()
     training_time_ms += 1000.0 * (time.perf_counter() - t0)
+    if args.training_dynamics_only:
+        if master_process:
+            log0('training_dynamics_only: skipping final evaluation/export/serialization')
+        if distributed:
+            torch.distributed.barrier()
+        return
     _ema_is_active = step_fraction(step) >= args.ema_start_fraction
     _final_eval_ema_orig = None
     if ema is not None and _ema_is_active:
