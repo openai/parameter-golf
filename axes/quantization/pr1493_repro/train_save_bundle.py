@@ -4,16 +4,33 @@ import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as sp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
 try:
+    if os.environ.get("FORCE_SDPA_FALLBACK", "0") == "1":
+        raise ImportError("FORCE_SDPA_FALLBACK=1")
     from flash_attn_interface import flash_attn_func as flash_attn_3_func
 except ImportError:
+    import math as _math
     # Fallback for systems without flash_attn_3 (e.g. older glibc).
-    # Mathematically identical; uses PyTorch SDPA instead of flash kernel.
+    # Pure-PyTorch manual attention — no SDPA, no kernels. Guaranteed correct.
+    # Upcasts to float32 for softmax precision (matching flash_attn_3's fp32 accum).
     def flash_attn_3_func(q, k, v, causal=False):
-        # flash_attn shape: (B, S, H, D) -> SDPA shape: (B, H, S, D)
-        o = F.scaled_dot_product_attention(
-            q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), is_causal=causal
-        )
-        return o.transpose(1, 2)
+        # flash_attn shape: (B, S, H, D)
+        B, S, Hq, D = q.shape
+        Hkv = k.shape[2]
+        orig_dtype = q.dtype
+        q = q.float().transpose(1, 2)  # (B, Hq, S, D)
+        k = k.float().transpose(1, 2)  # (B, Hkv, S, D)
+        v = v.float().transpose(1, 2)  # (B, Hkv, S, D)
+        if Hq != Hkv:
+            k = k.repeat_interleave(Hq // Hkv, dim=1)
+            v = v.repeat_interleave(Hq // Hkv, dim=1)
+        scale = 1.0 / _math.sqrt(D)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * scale  # (B, H, S, S)
+        if causal:
+            mask = torch.triu(torch.ones(S, S, device=q.device, dtype=torch.bool), diagonal=1)
+            scores = scores.masked_fill(mask, float('-inf'))
+        attn = torch.softmax(scores, dim=-1)
+        o = torch.matmul(attn, v)  # (B, H, S, D)
+        return o.to(orig_dtype).transpose(1, 2)  # (B, S, H, D)
 
 class Hyperparameters:
     data_dir = os.environ.get('DATA_DIR', './data/')

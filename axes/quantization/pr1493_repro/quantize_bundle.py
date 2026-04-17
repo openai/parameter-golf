@@ -69,10 +69,13 @@ def main():
         enable_math_sdp,
         enable_mem_efficient_sdp,
     )
+    # When flash_attn_3 is available, restrict to flash_sdp (PR-1493 default).
+    # Otherwise enable all backends so the SDPA fallback can dispatch.
+    _has_flash = hasattr(tsb, "_FLASH_ATTN_AVAILABLE") or "flash_attn_interface" in sys.modules
     enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    enable_flash_sdp(not _has_flash)  # only use PyTorch built-in flash if no flash_attn_3
+    enable_mem_efficient_sdp(not _has_flash)
+    enable_math_sdp(not _has_flash)
     torch._dynamo.config.optimize_ddp = False
 
     bundle_dir = Path(h.bundle_dir)
@@ -96,14 +99,14 @@ def main():
 
     val_data = tsb.ValidationData(h, device)
 
-    # Pre-quant eval (reference ceiling)
-    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    tsb.timed_eval("bundle_pre_quant_reference", tsb.eval_val, h, device, val_data, compiled_model)
+    # Pre-quant eval (reference ceiling). Skip torch.compile — not needed for
+    # correctness and breaks with the SDPA fallback on systems without flash_attn_3.
+    eval_model.eval()
+    tsb.timed_eval("bundle_pre_quant_reference", tsb.eval_val, h, device, val_data, eval_model)
     if h.sliding_window_enabled:
         tsb.timed_eval(
             "bundle_pre_quant_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model
         )
-    torch._dynamo.reset()
 
     # Quantize via PR-1493's gptq_mixed_quantize
     sd_cpu = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
@@ -133,8 +136,8 @@ def main():
         eval_model.looping_active = True
 
     # Post-quant eval
-    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    tsb.timed_eval("quantized_reference", tsb.eval_val, h, device, val_data, compiled_model)
+    eval_model.eval()
+    tsb.timed_eval("quantized_reference", tsb.eval_val, h, device, val_data, eval_model)
     if h.sliding_window_enabled:
         tsb.timed_eval("quantized_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model)
 
