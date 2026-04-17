@@ -460,7 +460,7 @@ Re-ranked candidates from §4/§5 that were not yet executed:
 |------|-----------|----------|----------|--------|
 | iter_22/a-d | Hessian-aware SDClip (H-weighted per-row std) | Quantization | −0.001–0.003 | **REVERT** — neutral-to-negative at matched size (see note) |
 | iter_23/b/c | Mixed-bit per-layer | Quantization | −0.001–0.003 | **REVERT** — int5 cost > int7 gain |
-| iter_24 | Per-head SDClip (Q/K/V separately) | Quantization | −0.001–0.002 | pending |
+| iter_24 | Per-role SDClip (c_v +15%, c_q/c_k -5%, attn.proj +5%) | Quantization | −0.001–0.002 | **KEEP** (−0.00017, smaller too) |
 | iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | pending |
 | iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 | pending |
 | iter_27 | Newton-Schulz 5→6 iterations | Optimizer | −0.000–0.002 | pending |
