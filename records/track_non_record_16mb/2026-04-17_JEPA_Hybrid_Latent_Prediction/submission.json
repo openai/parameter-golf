@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-17",
+  "name": "JEPA Hybrid — Latent Prediction Meets Autoregressive LM",
+  "author": "butbutt42",
+  "github_id": "butbutt42",
+  "val_bpb": 1.7622,
+  "val_loss": 4.5513,
+  "bytes_total": 7488519
+}
