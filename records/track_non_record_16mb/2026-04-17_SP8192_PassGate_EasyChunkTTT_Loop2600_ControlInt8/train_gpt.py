@@ -641,20 +641,21 @@ class Block(nn.Module):
                 .float()
             )
             top_idx = route_score.topk(k, dim=1, sorted=False).indices
-            flat_mask = torch.zeros(
-                bsz, seqlen, dtype=torch.bool, device=x_out.device
+            route_mask = torch.zeros(
+                bsz, seqlen, 1, dtype=x_out.dtype, device=x_out.device
             )
-            flat_mask.scatter_(1, top_idx, True)
-            selected = route_in.reshape(-1, dim)[flat_mask.reshape(-1)]
-            if selected.numel() > 0:
-                routed = torch.zeros(
-                    bsz * seqlen, dim, device=x_out.device, dtype=x_out.dtype
-                )
-                routed[flat_mask.reshape(-1)] = (
-                    self.route_scale.to(dtype=selected.dtype)[None, :]
-                    * self.route_mlp(selected)
-                )
-                x_out = x_out + routed.view(bsz, seqlen, dim)
+            route_mask.scatter_(
+                1,
+                top_idx.unsqueeze(-1),
+                torch.ones(
+                    bsz, k, 1, dtype=x_out.dtype, device=x_out.device
+                ),
+            )
+            routed = (
+                self.route_scale.to(dtype=route_in.dtype)[None, None, :]
+                * self.route_mlp(route_in)
+            )
+            x_out = x_out + routed * route_mask
         return x_out
 
 
