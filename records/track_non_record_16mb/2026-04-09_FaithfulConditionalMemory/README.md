@@ -21,13 +21,17 @@ The submission adds a memory path that:
 
 This gives the model explicit reusable token-pattern memory in addition to self-attention.
 
-## Real 8xH100 Result
+## Real 8xH100 Results
 
 - Track: non-record 16MB
-- Seed: `42`
-- `final_int8_zlib_roundtrip_exact val_loss: 2.72026400`
-- `final_int8_zlib_roundtrip_exact val_bpb: 1.61095535`
-- Total submission size: `2,773,498` bytes
+
+| Seed | `final_int8_zlib_roundtrip_exact val_loss` | `final_int8_zlib_roundtrip_exact val_bpb` | Total size |
+|---|---:|---:|---:|
+| `42` | `2.72026400` | `1.61095535` | `2,773,498` bytes |
+| `1337` | `2.75858221` | `1.63364760` | `2,769,754` bytes |
+| `2024` | `2.73756576` | `1.62120154` | `2,772,946` bytes |
+
+- Mean cloud `val_bpb` across 3 seeds: `1.62193483`
 
 ## Strongest Local Signs Of Life
 
@@ -41,7 +45,7 @@ on longer proxy runs across three seeds.
 
 ## Interpretation
 
-This method had one of the strongest heavyweight standalone local signals we found, but it did not transfer competitively to real 8xH100 evaluation. It is submitted as a faithful implementation and negative/partial result for future work rather than as a leaderboard contender.
+This method had one of the strongest heavyweight standalone local signals we found. The 3-seed 8xH100 verification confirms that it transfers reproducibly, but not competitively enough to challenge the dense frontier. It is submitted as a faithful implementation and negative/partial result for future work rather than as a leaderboard contender.
 
 ## Run Command
 
