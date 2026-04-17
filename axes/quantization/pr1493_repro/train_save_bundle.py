@@ -3,7 +3,17 @@ from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    # Fallback for systems without flash_attn_3 (e.g. older glibc).
+    # Mathematically identical; uses PyTorch SDPA instead of flash kernel.
+    def flash_attn_3_func(q, k, v, causal=False):
+        # flash_attn shape: (B, S, H, D) -> SDPA shape: (B, H, S, D)
+        o = F.scaled_dot_product_attention(
+            q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2), is_causal=causal
+        )
+        return o.transpose(1, 2)
 
 class Hyperparameters:
     data_dir = os.environ.get('DATA_DIR', './data/')

@@ -34,6 +34,7 @@ os.environ.setdefault("BUNDLE_DIR", "bundle")
 os.environ.setdefault("VAL_LOSS_EVERY", "0")
 os.environ.setdefault("TTT_ENABLED", "0")
 os.environ.setdefault("ETLB_ENABLED", "0")
+os.environ.setdefault("SLIDING_WINDOW_ENABLED", "0")  # skip sliding by default for fast iteration
 
 import torch
 import torch.distributed as dist
