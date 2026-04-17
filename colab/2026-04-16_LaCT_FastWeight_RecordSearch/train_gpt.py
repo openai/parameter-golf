@@ -210,7 +210,7 @@ class LaCTFastWeightAdapter(nn.Module):
 		self._init_norms={name:p.detach().float().norm(dim=0,keepdim=True).clamp_min(1e-6)for name,p in self.named_parameters()}
 	def forward(self,x):
 		if self.kind=='swiglu':
-			h=torch.silu(x@self.w1.to(x.dtype))*(x@self.w3.to(x.dtype));return self.scale*(h@self.w2.to(x.dtype))
+			h=F.silu(x@self.w1.to(x.dtype))*(x@self.w3.to(x.dtype));return self.scale*(h@self.w2.to(x.dtype))
 		h=x@self.w1.to(x.dtype);return self.scale*(h@self.w2.to(x.dtype))
 	@torch.no_grad()
 	def normalize_(self):
