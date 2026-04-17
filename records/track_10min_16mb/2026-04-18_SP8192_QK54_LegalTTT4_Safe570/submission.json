@@ -1,0 +1,16 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "SP8192 + QK5.4 + Legal score-first TTT(4) + strict 570s cap",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "hardware": "8xH100 80GB SXM",
+  "val_bpb": 1.08149059,
+  "roundtrip_val_bpb": 1.09962158,
+  "seed": 1337,
+  "train_s": 550.146,
+  "eval_s": 411.361,
+  "bytes_total": 15994638,
+  "technique_summary": "SP8192 recurrence + parallel residuals + QK gain 5.4 + legal score-first TTT (4 epochs) + GPTQ int6/int8 + brotli",
+  "notes": "Non-record single-seed report from strict compliance-capped run (MAX_WALLCLOCK_SECONDS=570)."
+}
