@@ -61,9 +61,9 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 7))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     # Depth recurrence: comma-separated list of physical layer indices to repeat once.
-    # e.g. RECUR_LAYERS=3,4 with NUM_LAYERS=7 gives schedule [0,1,2,3,4,3,4,5,6]
+    # e.g. RECUR_LAYERS=3,4 with NUM_LAYERS=9 gives schedule [0,1,2,3,4,3,4,5,6,7,8] (11 virtual passes)
     recur_layers_str = os.environ.get("RECUR_LAYERS", "3,4")
     recur_layers: list[int] = [int(x) for x in recur_layers_str.split(",") if x.strip()] if recur_layers_str.strip() else []
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
