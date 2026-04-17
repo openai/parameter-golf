@@ -857,6 +857,23 @@ _LAYER_K_MUL = [
     0.80,  # 10: last layer, least sensitive
 ]
 
+_ROLE_K_MUL = {
+    "attn.c_q":   0.95,
+    "attn.c_k":   0.95,
+    "attn.c_v":   1.15,
+    "attn.proj":  1.05,
+    "mlp.fc":     1.00,
+    "mlp.proj":   1.00,
+}
+
+
+def _role_mul(name):
+    for role, mul in _ROLE_K_MUL.items():
+        if role in name:
+            return mul
+    return 1.0
+
+
 def _layer_clip_sigmas(name, h):
     if "tok_emb" in name:
         return h.embed_clip_sigmas
@@ -865,7 +882,7 @@ def _layer_clip_sigmas(name, h):
         return h.matrix_clip_sigmas
     layer = int(m.group(1))
     mul = _LAYER_K_MUL[layer] if layer < len(_LAYER_K_MUL) else _LAYER_K_MUL[-1]
-    return h.matrix_clip_sigmas * mul
+    return h.matrix_clip_sigmas * mul * _role_mul(name)
 
 def gptq_mixed_quantize(state_dict, hessians, h):
     result = {}
