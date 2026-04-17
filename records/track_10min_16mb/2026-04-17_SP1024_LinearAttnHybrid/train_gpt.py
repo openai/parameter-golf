@@ -1163,6 +1163,7 @@ def main() -> None:
     log0(f"pre_quant val_loss:{vl:.6f} val_bpb:{vb:.6f}")
 
     # Collect Hessians for GPTQ on rank 0 only; broadcast packed payload.
+    blob: bytes = b""
     if _is_rank_zero():
         hessians = collect_hessian(model, val_tokens, cfg, device)
         q_state = quantise_state_dict(model, cfg, hessians)
@@ -1201,14 +1202,29 @@ def main() -> None:
             payload["state"] = q_state
             blob = serialise(payload)
             log0(f"[quant] after fallback artifact_bytes={len(blob)}")
-        # Round-trip: decode and evaluate.
-        payload_rt = deserialise(blob)
-        sd = reconstruct_state_dict(payload_rt["state"], cfg)
-        # Load into a fresh model.
-        reloaded = LM(cfg).to(device)
-        missing = reloaded.load_state_dict(sd, strict=False)
+
+    # Broadcast blob from rank 0 to all ranks so the final eval runs collectively.
+    if dist_enabled:
+        size_t = torch.tensor([len(blob)], dtype=torch.long, device=device)
+        dist.broadcast(size_t, src=0)
+        blob_size = int(size_t.item())
+        if not _is_rank_zero():
+            buf = torch.empty(blob_size, dtype=torch.uint8, device=device)
+        else:
+            buf = torch.frombuffer(bytearray(blob), dtype=torch.uint8).to(device)
+        dist.broadcast(buf, src=0)
+        if not _is_rank_zero():
+            blob = bytes(buf.cpu().numpy().tobytes())
+
+    # Round-trip: decode and evaluate on all ranks.
+    payload_rt = deserialise(blob)
+    sd = reconstruct_state_dict(payload_rt["state"], cfg)
+    reloaded = LM(cfg).to(device)
+    missing = reloaded.load_state_dict(sd, strict=False)
+    if _is_rank_zero():
         log0(f"[quant] reload_missing={len(missing.missing_keys)} unexpected={len(missing.unexpected_keys)}")
-        vl_q, vb_q = eval_sliding(reloaded, val_tokens, base_lut, ls_lut, bound_lut, device, cfg, rank, world)
+    vl_q, vb_q = eval_sliding(reloaded, val_tokens, base_lut, ls_lut, bound_lut, device, cfg, rank, world)
+    if _is_rank_zero():
         total_bytes = len(blob) + _code_bytes()
         log0(f"final_artifact_only_bytes={len(blob)} code_bytes={_code_bytes()} total_bytes={total_bytes}")
         log0(f"final_int8_zlib_roundtrip val_loss:{vl_q:.4f} val_bpb:{vb_q:.4f} total_bytes:{total_bytes}")
