@@ -1,5 +1,18 @@
 {
   "track": "track_10min_16mb",
+  "name": "Baseline_MTP",
+  "date": "2026-04-17",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "bytes_model": null,
+  "training_time_seconds": 600,
+  "gpus": "8xH100",
+  "notes": "Proven 9L x 512d baseline with multi-token prediction (MTP) auxiliary loss only. No depth recurrence. MTP weight 0.3, disabled at eval."
+}
+{
+  "track": "track_10min_16mb",
   "name": "FastAttn_MTP_DepthRec",
   "date": "2026-04-17",
   "val_loss": null,

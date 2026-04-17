@@ -61,9 +61,9 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 7))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 2))
-    model_dim = int(os.environ.get("MODEL_DIM", 576))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
@@ -71,7 +71,7 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     # Depth recurrence: how many times to loop through the block stack (weights shared).
     # num_reps=1 gives the baseline behaviour.
-    num_reps = int(os.environ.get("NUM_REPS", 2))
+    num_reps = int(os.environ.get("NUM_REPS", 1))
     # Multi-token prediction (MTP): auxiliary loss predicting token t+2.
     # 0.0 disables. Active losses get summed with mtp_weight.
     mtp_weight = float(os.environ.get("MTP_WEIGHT", 0.3))
@@ -684,7 +684,11 @@ class GPT(nn.Module):
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         # Per-extra-rep gate (init 0 so training starts as a pure U-Net, then learns to use recurrence).
-        self.rep_gates = nn.Parameter(torch.zeros(max(num_reps - 1, 1), model_dim, dtype=torch.float32))
+        # Only created when num_reps>1 to avoid DDP unused-parameter errors.
+        if num_reps > 1:
+            self.rep_gates = nn.Parameter(torch.zeros(num_reps - 1, model_dim, dtype=torch.float32))
+        else:
+            self.rep_gates = None
         self.blocks = nn.ModuleList(
             [
                 Block(

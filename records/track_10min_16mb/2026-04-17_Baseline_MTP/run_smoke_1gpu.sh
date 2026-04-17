@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Single-GPU smoke test to verify the new arch compiles and trains a few steps.
+# Single-GPU smoke test for Baseline + MTP.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,9 +9,9 @@ TRAIN="${HERE}/train_gpt.py"
 : "${DATA_PATH:=${REPO_ROOT}/data/datasets/fineweb10B_sp1024}"
 : "${TOKENIZER_PATH:=${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model}"
 
-# Auto-download dataset + tokenizer if not already present
+# Auto-download dataset + tokenizer if not already present.
 if [[ ! -f "${TOKENIZER_PATH}" || ! -d "${DATA_PATH}" ]]; then
-    echo "[setup] Data/tokenizer not found – running download script..."
+    echo "[setup] Data/tokenizer not found - running download script..."
     python3 "${REPO_ROOT}/data/cached_challenge_fineweb.py" --variant sp1024
 fi
 
@@ -35,9 +35,9 @@ VOCAB_SIZE=1024 \
 NUM_LAYERS=4 \
 MODEL_DIM=256 \
 NUM_HEADS=4 \
-NUM_KV_HEADS=1 \
+NUM_KV_HEADS=2 \
 MLP_MULT=2 \
-NUM_REPS=2 \
+NUM_REPS=1 \
 MTP_WEIGHT=0.3 \
 TIE_EMBEDDINGS=1 \
 torchrun --standalone --nproc_per_node=1 "${TRAIN}"
