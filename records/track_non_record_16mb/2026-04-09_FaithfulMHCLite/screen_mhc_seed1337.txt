@@ -1,0 +1,10 @@
+logs/screen_mhc_seed1337.txt
+seed:1337
+...
+step:11437/200000 val_loss:2.8600 val_bpb:1.6936 train_time:600020ms step_avg:52.46ms
+stopping_early: wallclock_cap train_time:600020ms step:11437/200000
+Serialized model int6+zstd: 2261206 bytes
+Total submission size int8+zlib: 2317237 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+final_int8_zlib_roundtrip val_loss:2.8131 val_bpb:1.6659 eval_time:393ms
+final_int8_zlib_roundtrip_exact val_loss:2.81310075 val_bpb:1.66593378

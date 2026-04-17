@@ -1443,7 +1443,10 @@ def main() -> None:
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
     if _COMPRESSOR == "zstd":
-        decompressed = zstandard.ZstdDecompressor().decompress(quant_blob_disk)
+        with zstandard.ZstdDecompressor().stream_reader(
+            io.BytesIO(quant_blob_disk)
+        ) as reader:
+            decompressed = reader.read()
     else:
         decompressed = zlib.decompress(quant_blob_disk)
     quant_state = torch.load(io.BytesIO(decompressed), map_location="cpu")

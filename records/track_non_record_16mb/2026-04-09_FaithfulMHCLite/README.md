@@ -20,13 +20,17 @@ The submission replaces the ordinary residual path with a multi-stream residual 
 
 This tests whether constrained multi-stream routing can improve a small parameter-limited language model.
 
-## Real 8xH100 Result
+## Real 8xH100 Results
 
 - Track: non-record 16MB
-- Seed: `42`
-- `final_int8_zlib_roundtrip_exact val_loss: 2.85774078`
-- `final_int8_zlib_roundtrip_exact val_bpb: 1.69236985`
-- Total submission size: `2,290,235` bytes
+
+| Seed | `final_int8_zlib_roundtrip_exact val_loss` | `final_int8_zlib_roundtrip_exact val_bpb` | Total size |
+|---|---:|---:|---:|
+| `42` | `2.85774078` | `1.69236985` | `2,290,235` bytes |
+| `1337` | `2.81310075` | `1.66593378` | `2,317,237` bytes |
+| `2024` | `2.81310075` | `1.66593378` | `2,300,762` bytes |
+
+- Mean cloud `val_bpb` across 3 seeds: `1.67474580`
 
 ## Strongest Local Signs Of Life
 
@@ -39,7 +43,7 @@ on longer proxy runs across two seeds.
 
 ## Interpretation
 
-The method is stable, trainable, and genuinely behaves like a viable standalone branch. It did not transfer competitively to real 8xH100 evaluation, but it is still a worthwhile hyper-connection implementation and negative/partial result submission.
+The method is stable, trainable, and genuinely behaves like a viable standalone branch. The 3-seed 8xH100 verification confirms that it transfers reproducibly, but not competitively enough to beat the dense frontier. It is still a worthwhile hyper-connection implementation and negative/partial result submission.
 
 ## Bundled Dependency
 
