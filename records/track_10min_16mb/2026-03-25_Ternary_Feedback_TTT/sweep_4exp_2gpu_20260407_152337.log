@@ -1,7 +1,0 @@
-[15:23:37] === Terminating all live pods ===
-[15:23:37] All pods terminated. Waiting 30s for cleanup...
-[15:24:07] ======================================================
-[15:24:07] Starting exp1_16experts_256d
-[15:24:07] Config: NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 BIGRAM_HASH_BUCKETS=16384
-[15:24:07] Log: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/exp_exp1_16experts_256d_20260407_152407.log
-[15:24:07] ======================================================

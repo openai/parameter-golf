@@ -1,64 +1,0 @@
-[10:27:43] ========================================================
-[10:27:43] Cheap Multi-GPU Small SKC Orchestrator
-[10:27:43] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_102743
-[10:27:43] GPU count: 2
-[10:27:43] Min mem  : 12GB
-[10:27:43] Data     : 12 train shards
-[10:27:43] ========================================================
-[10:27:46] GC: terminating stale live pod paramgolf-small-20260408-101659 (lbmts4vh0ya7hd, uptime=603s)
-[10:27:46] Terminating pod lbmts4vh0ya7hd...
-{
-  "podTerminate": null
-}
-[10:27:52] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.88/hr
-[10:27:52] Trying 2xNVIDIA A40 on SECURE...
-[10:27:53]   success: pod=6jf9fsgfuvxf73 cost=$0.88/hr
-[10:27:53] Waiting for pod SSH readiness...
-[10:28:22] Pod ready: root@194.68.245.111:22198
-[10:28:22] Verifying GPU and runtime...
-0, NVIDIA A40, 46068 MiB
-1, NVIDIA A40, 46068 MiB
-torch 2.4.1+cu124 cuda 12.4 gpus 2
-[10:28:45] Installing tmux and preparing logs...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libevent-core-2.1-7 libutempter0
-The following NEW packages will be installed:
-  libevent-core-2.1-7 libutempter0 tmux
-0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
-Need to get 531 kB of archives.
-After this operation, 1365 kB of additional disk space will be used.
-Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
-Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
-Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 531 kB in 1s (946 kB/s)
-Selecting previously unselected package libevent-core-2.1-7:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
-Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
-Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Selecting previously unselected package libutempter0:amd64.
-Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
-Unpacking libutempter0:amd64 (1.2.1-2build2) ...
-Selecting previously unselected package tmux.
-Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
-Unpacking tmux (3.2a-4ubuntu0.2) ...
-Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Setting up libutempter0:amd64 (1.2.1-2build2) ...
-Setting up tmux (3.2a-4ubuntu0.2) ...
-Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
-[10:28:57] Installing dependencies...
-wrote:/workspace/install_setup.sh
-[10:29:36] Preparing data...
-wrote:/workspace/data_setup.sh
-[10:30:11] Uploading code...
-[10:30:20] Remote env overrides: NUM_LAYERS=8 MODEL_DIM=320 MOE_ENABLED=1 MOE_NUM_EXPERTS=8 MOE_TOP_K=4 
-[10:30:20] Smoke test...
-==========================================================================
-  Cheap Multi-GPU Small SKC Run
-  RUN_ID : small_skc_2gpu_s42_20260408_153026
-  MODEL  : SKC L=8 D=320 H=8/4
-run_small_skc_2gpu.sh: line 219: SKC_BLOCK_SIZE: unbound variable
-[10:30:35] Launching 10-minute run...

@@ -76,7 +76,7 @@ def minify_python(src_text: str) -> str:
     tree = _StripDocstrings().visit(tree)
     ast.fix_missing_locations(tree)
     unparsed = ast.unparse(tree)
-    return _strip_comments(unparsed)
+    return unparsed
 
 
 def _wrapper(codec: str, compressed: bytes, filename: str) -> str:
@@ -113,14 +113,67 @@ def _select_wrapper(compressed: bytes, filename: str, codec: str) -> tuple[str, 
     return best_codec, options[best_codec]
 
 
+def _inline_triton_kernels(src: str, root: Path) -> str:
+    """Inline triton_kernels.py into the source text if imported."""
+    if "import triton_kernels" not in src:
+        return src
+    kernel_file = root / "triton_kernels.py"
+    if not kernel_file.exists():
+        return src
+    
+    # Read kernels and strip parity tests and main blocks via AST
+    kernels_src = kernel_file.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(kernels_src)
+        class TestStripper(ast.NodeTransformer):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST | None:
+                if node.name.startswith('test_') or node.name == 'test_all_parity':
+                    return None
+                return node
+            def visit_If(self, node: ast.If) -> ast.AST | None:
+                # Strip if __name__ == "__main__":
+                if (isinstance(node.test, ast.Compare) and 
+                    isinstance(node.test.left, ast.Name) and 
+                    node.test.left.id == "__name__"):
+                    return None
+                return self.generic_visit(node)
+        
+        tree = TestStripper().visit(tree)
+        kernels_src = ast.unparse(tree)
+    except Exception:
+        # Fallback to simple heuristic if AST fails
+        if 'if __name__ == "__main__":' in kernels_src:
+            kernels_src = kernels_src.split('if __name__ == "__main__":')[0]
+    
+    # Remove the import line and insert the kernels content
+    # We replace 'import triton_kernels' with the full content of triton_kernels.py
+    # but we must also handle 'from triton_kernels import ...'
+    
+    import re
+    # Remove future imports from the injected kernels to avoid SyntaxError
+    # since they must appear at the top of the file.
+    # Robust regex: handles potential whitespace around imports and multiple quote types
+    kernels_src = re.sub(r"^\s*from\s+__future__\s+import\s+annotations\s*\n", "", kernels_src, flags=re.MULTILINE)
+    
+    src = src.replace("import triton_kernels", kernels_src)
+    
+    # 2. Cleanup 'from triton_kernels import (...)' imports which are now redundant
+    src = re.sub(r"from triton_kernels import \(.*?\)", "", src, flags=re.DOTALL)
+    src = re.sub(r"from triton_kernels import .*", "", src)
+    
+    return src
+
 def build_submission(
     source: Path,
     output: Path,
     lzma_preset: int,
     minify: bool,
     codec: str,
+    root: Path | None = None,
 ) -> dict[str, object]:
     raw_src = source.read_text(encoding="utf-8")
+    # Inline kernels before any minification or DCE
+    raw_src = _inline_triton_kernels(raw_src, root or source.parent)
     build_src = minify_python(raw_src) if minify else raw_src
     compressed = lzma.compress(build_src.encode("utf-8"), preset=lzma_preset)
     selected_codec, wrapper = _select_wrapper(compressed, source.name, codec)
@@ -151,6 +204,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     source = Path(args.source)
+    orig_root = source.resolve().parent
     if args.dce:
         from extract_competition import extract_competition
         raw_src = source.read_text(encoding="utf-8")
@@ -166,6 +220,7 @@ def main() -> None:
         lzma_preset=args.lzma_preset,
         minify=not args.no_minify,
         codec=args.codec,
+        root=orig_root,
     )
     print(f"Built {args.output} from {args.source}")
     for k in (

@@ -1,8 +1,0 @@
-** WARNING: connection is not using a post-quantum key exchange algorithm.
-** This session may be vulnerable to "store now, decrypt later" attacks.
-** The server may need to be upgraded. See https://openssh.com/pq.html
-"=========================================================================="
-"LAUNCHING: 6-Hour CUDA Marathon (Architecture: TKA-H | Shared: 2)"
-"RUN ID: cuda_marathon_win_20260402_ 62000"
-"=========================================================================="
-client_loop: send disconnect: Broken pipe

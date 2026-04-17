@@ -1,159 +1,0 @@
-[10:39:15] ========================================================
-[10:39:15] Cheap Multi-GPU Small SKC Orchestrator
-[10:39:15] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260408_103915
-[10:39:15] GPU count: 2
-[10:39:15] Min mem  : 12GB
-[10:39:15] Data     : 12 train shards
-[10:39:15] ========================================================
-[10:39:17] GC: terminating stale live pod paramgolf-small-20260408-103332 (hykvg2b2q49gk7, uptime=320s)
-[10:39:17] Terminating pod hykvg2b2q49gk7...
-{
-  "podTerminate": null
-}
-[10:39:22] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.88/hr
-[10:39:22] Trying 2xNVIDIA A40 on SECURE...
-[10:39:24]   success: pod=g29nmbwruzz5q3 cost=$0.88/hr
-[10:39:24] Waiting for pod SSH readiness...
-[10:39:51] Pod ready: root@69.30.85.137:22091
-[10:39:51] Verifying GPU and runtime...
-0, NVIDIA A40, 46068 MiB
-1, NVIDIA A40, 46068 MiB
-torch 2.4.1+cu124 cuda 12.4 gpus 2
-[10:40:13] Installing tmux and preparing logs...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libevent-core-2.1-7 libutempter0
-The following NEW packages will be installed:
-  libevent-core-2.1-7 libutempter0 tmux
-0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
-Need to get 531 kB of archives.
-After this operation, 1365 kB of additional disk space will be used.
-Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
-Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
-Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
-Fetched 531 kB in 1s (748 kB/s)
-Selecting previously unselected package libevent-core-2.1-7:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
-Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
-Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Selecting previously unselected package libutempter0:amd64.
-Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
-Unpacking libutempter0:amd64 (1.2.1-2build2) ...
-Selecting previously unselected package tmux.
-debconf: delaying package configuration, since apt-utils is not installed
-Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
-Unpacking tmux (3.2a-4ubuntu0.2) ...
-Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Setting up libutempter0:amd64 (1.2.1-2build2) ...
-Setting up tmux (3.2a-4ubuntu0.2) ...
-Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
-[10:40:28] Installing dependencies...
-wrote:/workspace/install_setup.sh
-[10:41:11] Preparing data...
-wrote:/workspace/data_setup.sh
-[10:42:05] Uploading code...
-[10:42:20] Remote env overrides: NUM_LAYERS=8 MODEL_DIM=320 MOE_ENABLED=1 MOE_NUM_EXPERTS=8 MOE_TOP_K=4 
-[10:42:20] Smoke test...
-==========================================================================
-  Cheap Multi-GPU Small SKC Run
-  RUN_ID : small_skc_2gpu_s42_20260408_154226
-  MODEL  : SKC L=8 D=320 H=8/4
-  SKC    : block=64 caps=32 cap_dim=128
-  ENGRAM : buckets=16384 dim=112 orders=3
-  TERNARY: train_align=1@0.85 thr_search=1 scale_search=1
-  CURR   : 64 -> 128 -> 256 @ 35% / 65%
-  BATCH  : 16384 tok/step  seq=2048
-  VRAM   : min_gpu_mem=45GB  val_batch=262144
-  BUDGET : 45s
-  SEED   : 42
-  GPUS   : 2
-  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
-  SMOKE  : 1
-==========================================================================
-logs/cuda/small_skc_2gpu_s42_20260408_154226.txt
-params:3213704 L:8 d:320 h:8 kv:4 ws:2 ga:4 s:42
-[rank1]: Traceback (most recent call last):
-[rank1]:   File "/workspace/train_gpt.py", line 3114, in <module>
-[rank1]:     main()
-[rank1]:   File "/workspace/train_gpt.py", line 2734, in main
-[rank1]:     loss = model(x, y)
-[rank1]:            ^^^^^^^^^^^
-[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
-[rank1]:     return self._call_impl(*args, **kwargs)
-[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
-[rank1]:     return forward_call(*args, **kwargs)
-[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank1]:   File "/workspace/train_gpt.py", line 1997, in forward
-[rank1]:     hidden, consistency_losses, _, jepa_loss = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
-[rank1]:                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank1]:   File "/workspace/train_gpt.py", line 1897, in _compute_hidden
-[rank1]:     x, v_out = self._run_block(i, x, x0, v0=v0)
-[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank1]:   File "/workspace/train_gpt.py", line 1865, in _run_block
-[rank1]:     x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor)
-[rank1]:                                                                      ^^^^^^^^^
-[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1729, in __getattr__
-[rank1]:     raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-[rank1]: AttributeError: 'SKCLayer' object has no attribute 'mlp'
-[rank0]: Traceback (most recent call last):
-[rank0]:   File "/workspace/train_gpt.py", line 3114, in <module>
-[rank0]:     main()
-[rank0]:   File "/workspace/train_gpt.py", line 2734, in main
-[rank0]:     loss = model(x, y)
-[rank0]:            ^^^^^^^^^^^
-[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
-[rank0]:     return self._call_impl(*args, **kwargs)
-[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1562, in _call_impl
-[rank0]:     return forward_call(*args, **kwargs)
-[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank0]:   File "/workspace/train_gpt.py", line 1997, in forward
-[rank0]:     hidden, consistency_losses, _, jepa_loss = self._compute_hidden(input_ids, carry_capsules=carry_capsules)
-[rank0]:                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank0]:   File "/workspace/train_gpt.py", line 1897, in _compute_hidden
-[rank0]:     x, v_out = self._run_block(i, x, x0, v0=v0)
-[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-[rank0]:   File "/workspace/train_gpt.py", line 1865, in _run_block
-[rank0]:     x = x + self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) * block.mlp(block.mlp_norm(x) * block.ln_scale_factor)
-[rank0]:                                                                      ^^^^^^^^^
-[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1729, in __getattr__
-[rank0]:     raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-[rank0]: AttributeError: 'SKCLayer' object has no attribute 'mlp'
-W0408 15:42:43.758000 138584227971712 torch/distributed/elastic/multiprocessing/api.py:858] Sending process 839 closing signal SIGTERM
-E0408 15:42:43.873000 138584227971712 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 1 (pid: 840) of binary: /usr/bin/python
-Traceback (most recent call last):
-  File "/usr/local/bin/torchrun", line 8, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
-    return f(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 901, in main
-    run(args)
-  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 892, in run
-    elastic_launch(
-  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 133, in __call__
-    return launch_agent(self._config, self._entrypoint, list(args))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
-    raise ChildFailedError(
-torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
-============================================================
-train_gpt.py FAILED
-------------------------------------------------------------
-Failures:
-  <NO_OTHER_FAILURES>
-------------------------------------------------------------
-Root Cause (first observed failure):
-[0]:
-  time      : 2026-04-08_15:42:43
-  host      : 058b7ccb9382
-  rank      : 1 (local_rank: 1)
-  exitcode  : 1 (pid: 840)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-============================================================
-[10:42:52] Launching 10-minute run...

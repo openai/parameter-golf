@@ -1,3 +1,0 @@
-====== START I_lr_high @ Fri Apr  3 15:13:21 CDT 2026 ======
-run_sequential_ablation.sh: line 13: MATRIX_LR=0.05: command not found
-====== END I_lr_high @ Fri Apr  3 15:13:21 CDT 2026 ======

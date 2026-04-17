@@ -1,6 +1,0 @@
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 24.2 -> 26.0.1
-[notice] To update, run: python -m pip install --upgrade pip
-deps_ok
-=== INSTALL DONE ===

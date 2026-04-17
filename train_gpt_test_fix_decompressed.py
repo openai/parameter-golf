@@ -2,14 +2,12 @@ from __future__ import annotations
 import copy
 import glob
 import io
-import json
 import math
 import os
 import random
 import sys
 import time
 import lzma
-import subprocess
 import warnings
 from contextlib import nullcontext
 from pathlib import Path
@@ -28,32 +26,590 @@ except ImportError:
     HAS_TRITON = False
 if os.environ.get('DISABLE_TRITON', '0') == '1':
     HAS_TRITON = False
+'triton_kernels.py — Custom Triton kernels for high-performance training.\n\nConsolidated source of truth for all memory-bandwidth-bound operations.\nIncludes: FWHT, Parallel Scan, Spectral Decay Scan, Ternary Dequant, Engram, and RMSNorm.\n'
+import math
+import os
+import torch
+import torch.nn.functional as F
+from torch import Tensor
+try:
+    import triton
+    import triton.language as tl
+    HAS_TRITON = True
+except ImportError:
+    HAS_TRITON = False
+if os.environ.get('DISABLE_TRITON', '0') == '1':
+    HAS_TRITON = False
+_HADAMARD_CACHE: dict[tuple[int, str], Tensor] = {}
 
-# Import consolidated kernels
-import triton_kernels
-from triton_kernels import (
-    triton_fwht_blockwise,
-    triton_parallel_scan,
-    triton_ternary_dequant,
-    triton_engram_hash_gather,
-    triton_spectral_decay_scan,
-    triton_rms_norm,
-    optimized_moe_dispatch,
-    optimized_feedback_retrieve
-)
+def _get_hadamard(n: int, device) -> Tensor:
+    key = (n, str(device))
+    if key not in _HADAMARD_CACHE:
+        assert n > 0 and n & n - 1 == 0, f'n must be power of 2, got {n}'
+        H = torch.ones(1, 1, dtype=torch.float32, device='cpu')
+        for _ in range(int(math.log2(n))):
+            H = torch.cat([torch.cat([H, H], 1), torch.cat([H, -H], 1)], 0)
+        H = (H / math.sqrt(n)).to(device).contiguous()
+        _HADAMARD_CACHE[key] = H
+    return _HADAMARD_CACHE[key]
+if HAS_TRITON:
 
+    @triton.jit
+    def _fwht_kernel(X_ptr, H_ptr, Out_ptr, total_blocks, D: tl.constexpr, stride_xb, stride_xt, stride_xd, BLOCK_SIZE: tl.constexpr, BLOCK_D: tl.constexpr):
+        pid_b = tl.program_id(0)
+        pid_d = tl.program_id(1)
+        if pid_b >= total_blocks:
+            return
+        d_offs = pid_d * BLOCK_D + tl.arange(0, BLOCK_D)
+        d_mask = d_offs < D
+        H = tl.load(H_ptr + tl.arange(0, BLOCK_SIZE)[:, None] * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)[None, :])
+        t_offs = tl.arange(0, BLOCK_SIZE)
+        x_ptrs = X_ptr + pid_b * stride_xb + t_offs[:, None] * stride_xt + d_offs[None, :] * stride_xd
+        data = tl.load(x_ptrs, mask=d_mask[None, :], other=0.0)
+        result = tl.dot(H.to(tl.bfloat16), data.to(tl.bfloat16))
+        out_ptrs = Out_ptr + pid_b * stride_xb + t_offs[:, None] * stride_xt + d_offs[None, :] * stride_xd
+        tl.store(out_ptrs, result.to(data.dtype), mask=d_mask[None, :])
+
+    class TritonFWHTFn(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, x_blocks: Tensor, H: Tensor) -> Tensor:
+            x_blocks = x_blocks.contiguous()
+            (total_blocks, block_size, D) = x_blocks.shape
+            out = torch.empty_like(x_blocks)
+            BLOCK_D = min(D, 128)
+            grid = (total_blocks, triton.cdiv(D, BLOCK_D))
+            _fwht_kernel[grid](x_blocks, H, out, total_blocks, D, x_blocks.stride(0), x_blocks.stride(1), x_blocks.stride(2), BLOCK_SIZE=block_size, BLOCK_D=BLOCK_D, num_warps=4, num_stages=3)
+            ctx.save_for_backward(H)
+            return out
+
+        @staticmethod
+        def backward(ctx, dy: Tensor) -> tuple[Tensor, None]:
+            (H,) = ctx.saved_tensors
+            dy = dy.contiguous().to(torch.float32)
+            (total_blocks, block_size, D) = dy.shape
+            dx = torch.empty_like(dy)
+            BLOCK_D = min(D, 128)
+            grid = (total_blocks, triton.cdiv(D, BLOCK_D))
+            _fwht_kernel[grid](dy, H, dx, total_blocks, D, dy.stride(0), dy.stride(1), dy.stride(2), BLOCK_SIZE=block_size, BLOCK_D=BLOCK_D, num_warps=4, num_stages=3)
+            return (dx.to(dtype=H.dtype), None)
+
+def triton_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None=None) -> Tensor:
+    max_stages = int(math.log2(block_size))
+    if num_stages is not None and int(num_stages) != max_stages:
+        return _pytorch_fwht_blockwise(x, block_size, num_stages)
+    if not HAS_TRITON or not x.is_cuda:
+        return _pytorch_fwht_blockwise(x, block_size, num_stages)
+    (B, T, D) = x.shape
+    pad_len = (block_size - T % block_size) % block_size
+    if pad_len > 0:
+        x = F.pad(x, (0, 0, 0, pad_len))
+    T_padded = x.shape[1]
+    num_blocks = T_padded // block_size
+    x_blocks = x.reshape(B * num_blocks, block_size, D).contiguous()
+    H = _get_hadamard(block_size, x.device).to(torch.float32)
+    y_blocks = TritonFWHTFn.apply(x_blocks, H)
+    y = y_blocks.reshape(B, T_padded, D)
+    return y[:, :T, :]
+
+def _pytorch_fwht_blockwise(x: Tensor, block_size: int, num_stages: int | None=None) -> Tensor:
+    (B, T, D) = x.shape
+    pad_len = (block_size - T % block_size) % block_size
+    if pad_len > 0:
+        x = F.pad(x, (0, 0, 0, pad_len))
+    T_padded = x.shape[1]
+    num_blocks = T_padded // block_size
+    if num_stages is None or num_stages == int(math.log2(block_size)):
+        H = _get_hadamard(block_size, x.device).to(x.dtype)
+        x_blocks = x.view(B * num_blocks, block_size, D)
+        res = torch.matmul(H, x_blocks)
+        return res.view(B, T_padded, D)[:, :T, :]
+    result = x.view(B * num_blocks, block_size, D)
+    h = int(num_stages)
+    for stage in range(h):
+        stride = 1 << stage
+        result = result.view(B * num_blocks, block_size // (2 * stride), 2, stride, D)
+        even = result[:, :, 0, :, :]
+        odd = result[:, :, 1, :, :]
+        result = torch.cat([even + odd, even - odd], dim=2)
+    return result.view(B, T_padded, D)[:, :T, :] * (1.0 / math.sqrt(2 ** h))
+if HAS_TRITON:
+
+    @triton.jit
+    def _scan_fwd_kernel(B_ptr, D_ptr, H_ptr, B_dim, T_dim, S_dim, stride_b, stride_t, stride_s, BLOCK_S: tl.constexpr):
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(S_dim, BLOCK_S)
+        s_block = pid % tl.cdiv(S_dim, BLOCK_S)
+        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S)
+        s_mask = s_offs < S_dim
+        h = tl.zeros((BLOCK_S,), dtype=tl.float32)
+        for t in range(T_dim):
+            base = batch_idx * stride_b + t * stride_t
+            b_val = tl.load(B_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            h = d_val * h + b_val
+            tl.store(H_ptr + base + s_offs * stride_s, h, mask=s_mask)
+
+    @triton.jit
+    def _scan_bwd_kernel(DH_ptr, D_ptr, H_ptr, DB_ptr, DD_ptr, B_dim, T_dim, S_dim, stride_b, stride_t, stride_s, BLOCK_S: tl.constexpr):
+        pid = tl.program_id(0)
+        batch_idx = pid // tl.cdiv(S_dim, BLOCK_S)
+        s_block = pid % tl.cdiv(S_dim, BLOCK_S)
+        s_offs = s_block * BLOCK_S + tl.arange(0, BLOCK_S)
+        s_mask = s_offs < S_dim
+        delta = tl.zeros((BLOCK_S,), dtype=tl.float32)
+        for t_rev in range(T_dim):
+            t = T_dim - 1 - t_rev
+            base = batch_idx * stride_b + t * stride_t
+            dh_val = tl.load(DH_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            d_val = tl.load(D_ptr + base + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            delta = dh_val + delta
+            tl.store(DB_ptr + base + s_offs * stride_s, delta.to(tl.float32), mask=s_mask)
+            h_prev = tl.zeros((BLOCK_S,), dtype=tl.float32)
+            if t > 0:
+                h_prev = tl.load(H_ptr + (batch_idx * stride_b + (t - 1) * stride_t) + s_offs * stride_s, mask=s_mask, other=0.0).to(tl.float32)
+            tl.store(DD_ptr + base + s_offs * stride_s, (delta * h_prev).to(tl.float32), mask=s_mask)
+            delta = d_val * delta
+
+    class TritonScanFn(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, B_vals: Tensor, D: Tensor) -> Tensor:
+            (B_dim, T_dim, S_dim) = B_vals.shape
+            (B_vals_c, D_c) = (B_vals.contiguous(), D.contiguous())
+            h = torch.empty_like(B_vals_c, dtype=torch.float32)
+            BLOCK_S = 32
+            num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
+            _scan_fwd_kernel[num_programs,](B_vals_c, D_c, h, B_dim, T_dim, S_dim, B_vals_c.stride(0), B_vals_c.stride(1), B_vals_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
+            ctx.save_for_backward(D_c, h)
+            ctx.shape = (B_dim, T_dim, S_dim)
+            return h.to(B_vals.dtype)
+
+        @staticmethod
+        def backward(ctx, dh: Tensor) -> tuple[Tensor, Tensor]:
+            (D, h) = ctx.saved_tensors
+            (B_dim, T_dim, S_dim) = ctx.shape
+            dh_c = dh.contiguous()
+            (dB, dD) = (torch.empty_like(dh_c, dtype=torch.float32), torch.empty_like(dh_c, dtype=torch.float32))
+            BLOCK_S = 32
+            num_programs = B_dim * triton.cdiv(S_dim, BLOCK_S)
+            _scan_bwd_kernel[num_programs,](dh_c, D, h, dB, dD, B_dim, T_dim, S_dim, dh_c.stride(0), dh_c.stride(1), dh_c.stride(2), BLOCK_S=BLOCK_S, num_warps=2, num_stages=1)
+            return (dB, dD)
+
+def triton_parallel_scan(B_vals: Tensor, D: Tensor) -> Tensor:
+    if not HAS_TRITON or not B_vals.is_cuda:
+        return _pytorch_scan_fallback(B_vals, D)
+    return TritonScanFn.apply(B_vals, D)
+
+def _pytorch_scan_fallback(B_vals: Tensor, D: Tensor) -> Tensor:
+    (B_dim, T_dim, S_dim) = B_vals.shape
+    h = B_vals.new_zeros(B_dim, S_dim)
+    hs = []
+    for t in range(T_dim):
+        h = D[:, t] * h + B_vals[:, t]
+        hs.append(h)
+    return torch.stack(hs, dim=1)
+if HAS_TRITON:
+
+    @triton.jit
+    def _ternary_dequant_kernel(W_ptr, Out_ptr, H_ptr, Thr_ptr, ScaleMult_ptr, nrows, ncols, ncols_padded, GROUP_SIZE: tl.constexpr, BLOCK_G: tl.constexpr, HAS_TURBO: tl.constexpr):
+        pid = tl.program_id(0)
+        groups_per_row = ncols_padded // GROUP_SIZE
+        total_groups = nrows * groups_per_row
+        g_start = pid * BLOCK_G
+        g_ids = g_start + tl.arange(0, BLOCK_G)
+        g_mask = g_ids < total_groups
+        rows = g_ids // groups_per_row
+        col_starts = g_ids % groups_per_row * GROUP_SIZE
+        g_offs = tl.arange(0, GROUP_SIZE)
+        (thr, scale_mult) = (tl.load(Thr_ptr).to(tl.float32), tl.load(ScaleMult_ptr).to(tl.float32))
+        w_ptrs = W_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :]
+        w_groups = tl.load(w_ptrs, mask=g_mask[:, None] & (col_starts[:, None] + g_offs[None, :] < ncols), other=0.0)
+        if HAS_TURBO:
+            H = tl.load(H_ptr + tl.arange(0, GROUP_SIZE)[:, None] * GROUP_SIZE + tl.arange(0, GROUP_SIZE)[None, :])
+            w_groups = tl.dot(w_groups.to(tl.bfloat16), H.to(tl.bfloat16))
+        scale = tl.maximum(tl.sum(tl.abs(w_groups), axis=1) / GROUP_SIZE, 5.96e-08)
+        z = w_groups / scale[:, None]
+        abs_z = tl.abs(z)
+        q = tl.where(z >= 0, (abs_z + 0.5).to(tl.int32).to(tl.float32), -(abs_z + 0.5).to(tl.int32).to(tl.float32))
+        q = tl.minimum(tl.maximum(q, -1.0), 1.0)
+        q = tl.where((thr > 0.0) & (tl.abs(z) < thr), 0.0, q)
+        dequant = q * (scale[:, None] * scale_mult)
+        if HAS_TURBO:
+            dequant = tl.dot(dequant.to(tl.bfloat16), H.to(tl.bfloat16))
+        tl.store(Out_ptr + rows[:, None] * ncols + col_starts[:, None] + g_offs[None, :], dequant.to(w_groups.dtype), mask=g_mask[:, None] & (col_starts[:, None] + g_offs[None, :] < ncols))
+
+def triton_ternary_dequant(w: Tensor, group_size: int, H_fixed: Tensor | None, calib_thr: Tensor, calib_scale_mult: Tensor, turbo: bool) -> Tensor:
+    (nrows, ncols) = (w.shape[0], w.shape[-1])
+    pad = (group_size - ncols % group_size) % group_size
+    ncols_padded = ncols + pad
+    out = torch.empty(nrows, ncols, dtype=w.dtype, device=w.device)
+    grid = (triton.cdiv(nrows * (ncols_padded // group_size), 16),)
+    _ternary_dequant_kernel[grid](w, out, H_fixed if turbo and H_fixed is not None else torch.zeros(1, device=w.device), calib_thr, calib_scale_mult, nrows, ncols, ncols_padded, GROUP_SIZE=group_size, BLOCK_G=16, HAS_TURBO=turbo and H_fixed is not None, num_warps=4, num_stages=2)
+    return out
+if HAS_TRITON:
+
+    @triton.jit
+    def _engram_hash_gather_kernel_2x2(IDS_ptr, OUT_ptr, TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr, P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr, B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr, BLOCK_HD: tl.constexpr, stride_ib, stride_it, stride_ob, stride_ot, stride_od):
+        pid = tl.program_id(0)
+        (b_idx, t_idx) = (pid // T_dim, pid % T_dim)
+        if b_idx >= B_dim:
+            return
+        (hd_offs, hd_mask) = (tl.arange(0, BLOCK_HD), tl.arange(0, BLOCK_HD) < HD)
+        out_base = b_idx * stride_ob + t_idx * stride_ot
+        curr = tl.load(IDS_ptr + b_idx * stride_ib + t_idx * stride_it).to(tl.int64)
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + b_idx * stride_ib + (tl.maximum(t_idx, 1) - 1) * stride_it).to(tl.int64)
+            (h0, h1) = ((prev * P0 + curr) % BUCKETS, (prev * P1 + curr) % BUCKETS)
+            (e0, e1) = (tl.load(TBL0_ptr + h0 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL1_ptr + h1 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32))
+        else:
+            (e0, e1) = (tl.zeros((BLOCK_HD,), dtype=tl.float32), tl.zeros((BLOCK_HD,), dtype=tl.float32))
+        if t_idx >= 2:
+            pp = tl.load(IDS_ptr + b_idx * stride_ib + (tl.maximum(t_idx, 2) - 2) * stride_it).to(tl.int64)
+            prev = tl.load(IDS_ptr + b_idx * stride_ib + (tl.maximum(t_idx, 1) - 1) * stride_it).to(tl.int64)
+            (h2, h3) = ((pp * (P2 * P2) + prev * P2 + curr) % BUCKETS, (pp * (P3 * P3) + prev * P3 + curr) % BUCKETS)
+            (e2, e3) = (tl.load(TBL2_ptr + h2 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL3_ptr + h3 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32))
+        else:
+            (e2, e3) = (tl.zeros((BLOCK_HD,), dtype=tl.float32), tl.zeros((BLOCK_HD,), dtype=tl.float32))
+        tl.store(OUT_ptr + out_base + hd_offs * stride_od, e0, mask=hd_mask)
+        tl.store(OUT_ptr + out_base + (HD + hd_offs) * stride_od, e1, mask=hd_mask)
+        tl.store(OUT_ptr + out_base + (2 * HD + hd_offs) * stride_od, e2, mask=hd_mask)
+        tl.store(OUT_ptr + out_base + (3 * HD + hd_offs) * stride_od, e3, mask=hd_mask)
+
+    @triton.jit
+    def _engram_hash_gather_kernel_3x3(IDS_ptr, OUT_ptr, TBL0_ptr, TBL1_ptr, TBL2_ptr, TBL3_ptr, TBL4_ptr, TBL5_ptr, TBL6_ptr, TBL7_ptr, TBL8_ptr, P0: tl.constexpr, P1: tl.constexpr, P2: tl.constexpr, P3: tl.constexpr, P4: tl.constexpr, P5: tl.constexpr, P6: tl.constexpr, P7: tl.constexpr, P8: tl.constexpr, B_dim, T_dim, BUCKETS: tl.constexpr, HD: tl.constexpr, BLOCK_HD: tl.constexpr, stride_ib, stride_it, stride_ob, stride_ot, stride_od):
+        pid = tl.program_id(0)
+        (b_idx, t_idx) = (pid // T_dim, pid % T_dim)
+        if b_idx >= B_dim:
+            return
+        (hd_offs, hd_mask) = (tl.arange(0, BLOCK_HD), tl.arange(0, BLOCK_HD) < HD)
+        (out_base, ids_base) = (b_idx * stride_ob + t_idx * stride_ot, b_idx * stride_ib)
+        curr = tl.load(IDS_ptr + ids_base + t_idx * stride_it).to(tl.int64)
+        if t_idx >= 1:
+            prev = tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 1) - 1) * stride_it).to(tl.int64)
+            (h0, h1, h2) = ((prev * P0 + curr) % BUCKETS, (prev * P1 + curr) % BUCKETS, (prev * P2 + curr) % BUCKETS)
+            (e0, e1, e2) = (tl.load(TBL0_ptr + h0 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL1_ptr + h1 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL2_ptr + h2 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32))
+        else:
+            e0 = e1 = e2 = tl.zeros((BLOCK_HD,), dtype=tl.float32)
+        if t_idx >= 2:
+            (pp, prev) = (tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 2) - 2) * stride_it).to(tl.int64), tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 1) - 1) * stride_it).to(tl.int64))
+            (h3, h4, h5) = ((pp * (P3 * P3) + prev * P3 + curr) % BUCKETS, (pp * (P4 * P4) + prev * P4 + curr) % BUCKETS, (pp * (P5 * P5) + prev * P5 + curr) % BUCKETS)
+            (e3, e4, e5) = (tl.load(TBL3_ptr + h3 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL4_ptr + h4 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL5_ptr + h5 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32))
+        else:
+            e3 = e4 = e5 = tl.zeros((BLOCK_HD,), dtype=tl.float32)
+        if t_idx >= 3:
+            (ppp, pp_4, prev_4) = (tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 3) - 3) * stride_it).to(tl.int64), tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 2) - 2) * stride_it).to(tl.int64), tl.load(IDS_ptr + ids_base + (tl.maximum(t_idx, 1) - 1) * stride_it).to(tl.int64))
+            h6 = (((ppp * P6 + pp_4) % BUCKETS * P6 + prev_4) % BUCKETS * P6 + curr) % BUCKETS
+            h7 = (((ppp * P7 + pp_4) % BUCKETS * P7 + prev_4) % BUCKETS * P7 + curr) % BUCKETS
+            h8 = (((ppp * P8 + pp_4) % BUCKETS * P8 + prev_4) % BUCKETS * P8 + curr) % BUCKETS
+            (e6, e7, e8) = (tl.load(TBL6_ptr + h6 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL7_ptr + h7 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32), tl.load(TBL8_ptr + h8 * HD + hd_offs, mask=hd_mask, other=0.0).to(tl.float32))
+        else:
+            e6 = e7 = e8 = tl.zeros((BLOCK_HD,), dtype=tl.float32)
+        for (i, e) in enumerate([e0, e1, e2, e3, e4, e5, e6, e7, e8]):
+            tl.store(OUT_ptr + out_base + (i * HD + hd_offs) * stride_od, e, mask=hd_mask)
+
+    class _TritonEngramHashGatherFn(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, input_ids: Tensor, primes: Tensor, buckets: int, num_orders: int, num_heads: int, head_dim: int, *weights: Tensor) -> Tensor:
+            (B, T) = input_ids.shape
+            hash_dim = head_dim * num_orders * num_heads
+            out = torch.empty(B, T, hash_dim, dtype=torch.bfloat16, device=input_ids.device)
+            p = primes[:num_orders * num_heads].tolist()
+            block_hd = triton.next_power_of_2(head_dim)
+            if num_orders == 2 and num_heads == 2:
+                _engram_hash_gather_kernel_2x2[B * T,](input_ids, out, weights[0], weights[1], weights[2], weights[3], p[0], p[1], p[2], p[3], B, T, buckets, head_dim, block_hd, input_ids.stride(0), input_ids.stride(1), out.stride(0), out.stride(1), out.stride(2), num_warps=2, num_stages=1)
+            elif num_orders == 3 and num_heads == 3:
+                _engram_hash_gather_kernel_3x3[B * T,](input_ids, out, *weights, *p, B, T, buckets, head_dim, block_hd, input_ids.stride(0), input_ids.stride(1), out.stride(0), out.stride(1), out.stride(2), num_warps=4, num_stages=1)
+            else:
+                return _engram_pytorch_retrieve(input_ids, list(weights), p, num_orders, num_heads, buckets).to(out.dtype)
+            ctx.save_for_backward(input_ids, primes, *weights)
+            ctx.config = (num_orders, num_heads, int(buckets))
+            return out
+
+        @staticmethod
+        def backward(ctx, grad_output: Tensor):
+            saved = ctx.saved_tensors
+            (input_ids, primes, weights) = (saved[0], saved[1], saved[2:])
+            (num_orders, num_heads, buckets) = ctx.config
+            primes_list = primes[:num_orders * num_heads].tolist()
+            w_in = [w.detach().requires_grad_(True) for w in weights]
+            with torch.enable_grad():
+                memory = _engram_pytorch_retrieve(input_ids, w_in, primes_list, num_orders, num_heads, buckets)
+            grads = torch.autograd.grad(memory, w_in, grad_output, allow_unused=True)
+            return (None, None, None, None, None, None) + tuple(grads)
+
+def triton_engram_hash_gather(input_ids: Tensor, tables: list, primes: Tensor, num_orders: int, num_heads: int, head_dim: int, buckets: int) -> Tensor:
+    if not HAS_TRITON or not input_ids.is_cuda:
+        return _engram_pytorch_retrieve(input_ids, [t.weight for t in tables], primes.tolist(), num_orders, num_heads, buckets)
+    return _TritonEngramHashGatherFn.apply(input_ids, primes, buckets, num_orders, num_heads, head_dim, *[t.weight for t in tables])
+
+def _engram_pytorch_retrieve(input_ids: Tensor, weights: list, primes_list: list, num_orders: int, num_heads: int, buckets: int) -> Tensor:
+    (B, T) = input_ids.shape
+    parts = []
+    ids_long = input_ids.long()
+    (head_dim, dtype) = (weights[0].size(-1), weights[0].dtype)
+    for order in range(num_orders):
+        for head in range(num_heads):
+            k = order * num_heads + head
+            p = primes_list[k]
+            min_len = order + 2
+            if T < min_len:
+                parts.append(torch.zeros(B, T, head_dim, dtype=dtype, device=input_ids.device))
+                continue
+            if order == 0:
+                (h, pad) = ((ids_long[:, :-1] * p + ids_long[:, 1:]) % buckets, 1)
+            elif order == 1:
+                (h, pad) = ((ids_long[:, :-2] * (p * p) + ids_long[:, 1:-1] * p + ids_long[:, 2:]) % buckets, 2)
+            elif order == 2:
+                (h, pad) = ((((ids_long[:, :-3] * p + ids_long[:, 1:-2]) % buckets * p + ids_long[:, 2:-1]) % buckets * p + ids_long[:, 3:]) % buckets, 3)
+            h_p = F.pad(h, (pad, 0), value=-1)
+            m = (h_p >= 0).unsqueeze(-1)
+            parts.append(F.embedding(h_p.clamp(min=0), weights[k]) * m.to(dtype))
+    return torch.cat(parts, dim=-1)
+if HAS_TRITON:
+
+    @triton.jit
+    def _spectral_decay_scan_fwd_kernel(X_ptr, GATE_ptr, DECAY_ptr, INIT_STATE_ptr, OUT_ptr, B_dim, NUM_BLOCKS, BLOCK_SZ: tl.constexpr, D_dim, stride_xb, stride_xn, stride_xt, stride_xd, stride_gb, stride_gn, stride_gt, stride_gd, stride_ob, stride_on, stride_ot, stride_od, BLOCK_D: tl.constexpr):
+        pid = tl.program_id(0)
+        (batch_idx, d_block) = (pid // tl.cdiv(D_dim, BLOCK_D), pid % tl.cdiv(D_dim, BLOCK_D))
+        if batch_idx >= B_dim:
+            return
+        (d_offs, d_mask) = (d_block * BLOCK_D + tl.arange(0, BLOCK_D), tl.arange(0, BLOCK_D) < D_dim)
+        decay = tl.clamp(tl.load(DECAY_ptr + d_offs, mask=d_mask, other=0.0).to(tl.float32), 0.0, 0.999)
+        prefix = tl.load(INIT_STATE_ptr + d_offs, mask=d_mask, other=0.0).to(tl.float32)
+        for block_idx in range(NUM_BLOCKS):
+            (x_b, g_b, o_b) = (batch_idx * stride_xb + block_idx * stride_xn, batch_idx * stride_gb + block_idx * stride_gn, batch_idx * stride_ob + block_idx * stride_on)
+            cur_prefix = prefix
+            for t in range(BLOCK_SZ):
+                x_v = tl.load(X_ptr + x_b + t * stride_xt + d_offs * stride_xd, mask=d_mask, other=0.0).to(tl.float32)
+                g_v = tl.load(GATE_ptr + g_b + t * stride_gt + d_offs * stride_gd, mask=d_mask, other=0.0).to(tl.float32)
+                tl.store(OUT_ptr + o_b + t * stride_ot + d_offs * stride_od, (x_v + cur_prefix).to(OUT_ptr.dtype.element_ty), mask=d_mask)
+                cur_prefix = cur_prefix * decay + g_v * x_v
+            prefix = cur_prefix
+
+    class _TritonSpectralDecayScanFn(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, x_b: Tensor, decay: Tensor, gate: Tensor, initial_state: Tensor | None=None) -> Tensor:
+            (B, nb, sz, D) = x_b.shape
+            out = torch.empty_like(x_b)
+            bd = min(D, 64)
+            init_val = initial_state if initial_state is not None else torch.zeros(D, device=x_b.device, dtype=torch.float32)
+            _spectral_decay_scan_fwd_kernel[B * triton.cdiv(D, bd),](x_b, gate, decay, init_val, out, B, nb, sz, D, *x_b.stride(), *gate.stride(), *out.stride(), BLOCK_D=bd, num_warps=2, num_stages=1)
+            ctx.save_for_backward(x_b, decay, gate, initial_state)
+            return out.to(x_b.dtype)
+
+        @staticmethod
+        def backward(ctx, grad_output: Tensor):
+            (x_c, d_c, g_c, init_c) = ctx.saved_tensors
+            (nb, sz) = (x_c.shape[1], x_c.shape[2])
+            (xi, di, gi) = [t.detach().to(torch.float32).requires_grad_(True) for t in (x_c, d_c, g_c)]
+            ii = init_c.detach().to(torch.float32).requires_grad_(True) if init_c is not None else None
+            go = grad_output.to(torch.float32)
+            with torch.enable_grad():
+                dec = torch.clamp(di, 0.0, 0.999)
+                gated = gi * xi
+            t_idx = torch.arange(0, sz, device=dec.device, dtype=dec.dtype)
+            cur_s = ii.unsqueeze(0) if ii is not None else torch.zeros(xi.size(0), xi.size(-1), device=xi.device)
+            outs = []
+            for b in range(nb):
+                b_outs = []
+                for t in range(sz):
+                    x_v = xi[:, b, t, :]
+                    g_v = gi[:, b, t, :]
+                    b_outs.append(x_v + cur_s)
+                    cur_s = cur_s * dec + g_v * x_v
+                outs.append(torch.stack(b_outs, dim=1))
+            res = torch.stack(outs, dim=1)
+            res = res + di.sum() * 1e-09
+            if ii is not None:
+                res = res + ii.sum() * 1e-09
+            grads = torch.autograd.grad(res, (xi, di, gi) + ((ii,) if ii is not None else ()), go, allow_unused=True)
+            return tuple((g.to(grad_output.dtype) if g is not None else None for g in grads[:3] + ((grads[3],) if ii is not None else (None,))))
+
+def triton_spectral_decay_scan(x_blocks: Tensor, decay_rates: Tensor, gate: Tensor, initial_state: Tensor | None=None) -> Tensor:
+    if HAS_TRITON and x_blocks.is_cuda:
+        return _TritonSpectralDecayScanFn.apply(x_blocks, decay_rates, gate, initial_state)
+    (B, nb, sz, D) = x_blocks.shape
+    dec = torch.clamp(decay_rates, 0.0, 0.999)
+    gated = gate * x_blocks
+    dec = torch.clamp(decay_rates, 0.0, 0.999)
+    (B_dim, nb, sz, D_dim) = x_blocks.shape
+    device = x_blocks.device
+    dtype = x_blocks.dtype
+    state = initial_state.clone() if initial_state is not None else torch.zeros(B_dim, D_dim, device=device, dtype=torch.float32)
+    if state.dim() == 1:
+        state = state.unsqueeze(0).expand(B_dim, -1)
+    outputs = []
+    for b in range(nb):
+        block_out = []
+        for t in range(sz):
+            x_v = x_blocks[:, b, t, :].to(torch.float32)
+            g_v = gate[:, b, t, :].to(torch.float32)
+            block_out.append((x_v + state).to(dtype))
+            state = state * dec + g_v * x_v
+        outputs.append(torch.stack(block_out, dim=1))
+    return torch.stack(outputs, dim=1)
+if HAS_TRITON:
+
+    @triton.jit
+    def _rms_norm_fwd_kernel(X_ptr, OUT_ptr, RSTD_ptr, N_dim: tl.constexpr, stride_xr, stride_xc, stride_or, stride_oc, eps: tl.constexpr, BLOCK_N: tl.constexpr):
+        row = tl.program_id(0)
+        (col_offs, mask) = (tl.arange(0, BLOCK_N), tl.arange(0, BLOCK_N) < N_dim)
+        x = tl.load(X_ptr + row * stride_xr + col_offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
+        rstd = 1.0 / tl.sqrt(tl.sum(x * x, axis=0) / N_dim + eps)
+        tl.store(RSTD_ptr + row, rstd)
+        tl.store(OUT_ptr + row * stride_or + col_offs * stride_oc, (x * rstd).to(OUT_ptr.dtype.element_ty), mask=mask)
+
+    @triton.jit
+    def _rms_norm_bwd_kernel(X_ptr, DY_ptr, RSTD_ptr, DX_ptr, N_dim: tl.constexpr, stride_xr, stride_xc, stride_dyr, stride_dyc, stride_dxr, stride_dxc, BLOCK_N: tl.constexpr):
+        row = tl.program_id(0)
+        (col_offs, mask) = (tl.arange(0, BLOCK_N), tl.arange(0, BLOCK_N) < N_dim)
+        x = tl.load(X_ptr + row * stride_xr + col_offs * stride_xc, mask=mask, other=0.0).to(tl.float32)
+        dy = tl.load(DY_ptr + row * stride_dyr + col_offs * stride_dyc, mask=mask, other=0.0).to(tl.float32)
+        rstd = tl.load(RSTD_ptr + row).to(tl.float32)
+        dx = rstd * (dy - x * (rstd * rstd) * (tl.sum(x * dy, axis=0) / N_dim))
+        tl.store(DX_ptr + row * stride_dxr + col_offs * stride_dxc, dx.to(tl.float32), mask=mask)
+
+    class _TritonRMSNormFn(torch.autograd.Function):
+
+        @staticmethod
+        def forward(ctx, x: Tensor, eps: float) -> Tensor:
+            (orig_shape, D) = (x.shape, x.size(-1))
+            x_2d = x.reshape(-1, D).contiguous()
+            (num_rows, BLOCK_N) = (x_2d.shape[0], triton.next_power_of_2(D))
+            (out, rstd) = (torch.empty_like(x_2d), torch.empty(num_rows, dtype=torch.float32, device=x.device))
+            _rms_norm_fwd_kernel[num_rows,](x_2d, out, rstd, D, *x_2d.stride(), *out.stride(), eps=eps, BLOCK_N=BLOCK_N, num_warps=min(8, max(1, BLOCK_N // 256)), num_stages=1)
+            ctx.save_for_backward(x_2d, rstd)
+            ctx.config = (D, BLOCK_N, orig_shape, x.dtype)
+            return out.reshape(orig_shape).to(x.dtype)
+
+        @staticmethod
+        def backward(ctx, grad_output: Tensor):
+            (x_2d, rstd) = ctx.saved_tensors
+            (D, BLOCK_N, orig_shape, dtype) = ctx.config
+            dy_2d = grad_output.reshape(-1, D).contiguous().to(torch.float32)
+            dx_2d = torch.empty_like(x_2d, dtype=torch.float32)
+            _rms_norm_bwd_kernel[x_2d.shape[0],](x_2d, dy_2d, rstd, dx_2d, D, *x_2d.stride(), *dy_2d.stride(), *dx_2d.stride(), BLOCK_N=BLOCK_N)
+            return (dx_2d.reshape(orig_shape).to(dtype), None)
+
+def triton_rms_norm(x: Tensor, weight: Tensor | None=None, eps: float=1e-06) -> Tensor:
+    if not HAS_TRITON or not x.is_cuda or x.size(-1) > 8192:
+        return F.rms_norm(x, (x.size(-1),), weight=weight, eps=eps)
+    res = _TritonRMSNormFn.apply(x, eps)
+    return res * weight.to(res.dtype) if weight is not None else res
+
+def optimized_moe_dispatch(x_flat: Tensor, experts: list, selected_experts: Tensor, routing_weights: Tensor, effective_top_k: int, num_experts: int) -> Tensor:
+    final_output = x_flat * 0.0
+    active_experts = set()
+    for k_idx in range(effective_top_k):
+        (expert_ids, weights_k) = (selected_experts[:, k_idx], routing_weights[:, k_idx:k_idx + 1])
+        for (i, expert) in enumerate(experts):
+            token_indices = (expert_ids == i).nonzero(as_tuple=True)[0]
+            if token_indices.numel() > 0:
+                final_output.index_add_(0, token_indices, expert(x_flat[token_indices]) * weights_k[token_indices])
+                active_experts.add(i)
+    for (i, expert) in enumerate(experts):
+        if i not in active_experts:
+            dummy = expert(x_flat[:1] * 0.0).sum() * 0.0
+            final_output[0:1] = final_output[0:1] + dummy
+    return final_output
+
+def optimized_feedback_retrieve(q: Tensor, k: Tensor, v: Tensor, lr: Tensor, sketch_len: int) -> Tensor:
+    inner = torch.bmm(k, q.transpose(1, 2))
+    return (lr / max(sketch_len, 1) * torch.bmm(v.transpose(1, 2), inner)).transpose(1, 2)
+
+def test_all_parity(device='cuda'):
+    print('Running exhaustive parity tests (forward + backward)...')
+    torch.manual_seed(42)
+    x_dim = 128
+    x = torch.randn(16, x_dim, device=device, requires_grad=True)
+    w = torch.randn(x_dim, device=device, requires_grad=True)
+    y_tri = triton_rms_norm(x, w)
+    y_ref = F.rms_norm(x, (x_dim,), weight=w)
+    assert torch.allclose(y_tri, y_ref, atol=0.01), 'RMSNorm forward mismatch'
+    y_tri.sum().backward()
+    (grad_x_tri, grad_w_tri) = (x.grad.clone(), w.grad.clone())
+    x.grad.zero_()
+    w.grad.zero_()
+    y_ref.sum().backward()
+    assert torch.allclose(grad_x_tri, x.grad, atol=0.01), 'RMSNorm grad_x mismatch'
+    assert torch.allclose(grad_w_tri, w.grad, atol=0.01), 'RMSNorm grad_w mismatch'
+    print('RMSNorm Forward/Backward: PASS')
+    (B, T, S) = (2, 64, 32)
+    bv = torch.randn(B, T, S, device=device, requires_grad=True)
+    d = torch.sigmoid(torch.randn(B, T, S, device=device)).requires_grad_(True)
+    y_tri = triton_parallel_scan(bv, d)
+    y_ref = _pytorch_scan_fallback(bv, d)
+    assert torch.allclose(y_tri, y_ref, atol=0.01), 'Scan forward mismatch'
+    y_tri.sum().backward()
+    (grad_bv_tri, grad_d_tri) = (bv.grad.clone(), d.grad.clone())
+    bv.grad.zero_()
+    d.grad.zero_()
+    y_ref.sum().backward()
+    assert torch.allclose(grad_bv_tri, bv.grad, atol=0.01), 'Scan grad_bv mismatch'
+    assert torch.allclose(grad_d_tri, d.grad, atol=0.01), 'Scan grad_d mismatch'
+    print('Scan Forward/Backward: PASS')
+    (B, nb, sz, D) = (1, 4, 32, 64)
+    x = torch.randn(B, nb, sz, D, device=device, requires_grad=True)
+    decay = torch.sigmoid(torch.randn(D, device=device)).requires_grad_(True)
+    gate = torch.sigmoid(torch.randn(B, nb, sz, D, device=device)).requires_grad_(True)
+    init_state = torch.randn(D, device=device, requires_grad=True)
+    y_tri = triton_spectral_decay_scan(x, decay, gate, initial_state=init_state)
+
+    def ref_scan(x, dec, g, istate=None):
+        dec_clamped = torch.clamp(dec, 0.0, 0.999)
+        (B_dim, nb_dim, sz_dim, D_dim) = x.shape
+        state = istate.clone() if istate is not None else torch.zeros(B_dim, D_dim, device=x.device, dtype=torch.float32)
+        if state.dim() == 1:
+            state = state.unsqueeze(0).expand(B_dim, -1)
+        outs = []
+        for b in range(nb_dim):
+            b_outs = []
+            for t in range(sz_dim):
+                x_v = x[:, b, t, :].to(torch.float32)
+                g_v = g[:, b, t, :].to(torch.float32)
+                b_outs.append((x_v + state).to(x.dtype))
+                state = state * dec_clamped + g_v * x_v
+            outs.append(torch.stack(b_outs, dim=1))
+        return torch.stack(outs, dim=1)
+    y_ref = ref_scan(x, decay, gate, istate=init_state)
+    assert torch.allclose(y_tri, y_ref, atol=0.01), f'Spectral Decay Scan forward mismatch: max diff {(y_tri - y_ref).abs().max()}'
+    y_tri.sum().backward()
+    (grad_x_tri, grad_decay_tri, grad_gate_tri, grad_init_tri) = (x.grad.clone(), decay.grad.clone(), gate.grad.clone(), init_state.grad.clone())
+    x.grad.zero_()
+    decay.grad.zero_()
+    gate.grad.zero_()
+    init_state.grad.zero_()
+    y_ref.sum().backward()
+    assert torch.allclose(grad_x_tri, x.grad, atol=0.01), 'Spectral Decay Scan grad_x mismatch'
+    assert torch.allclose(grad_decay_tri, decay.grad, atol=0.01), f'Spectral Decay Scan grad_decay mismatch: max diff {(grad_decay_tri - decay.grad).abs().max()}'
+    assert torch.allclose(grad_gate_tri, gate.grad, atol=0.01), 'Spectral Decay Scan grad_gate mismatch'
+    assert torch.allclose(grad_init_tri, init_state.grad, atol=0.01), f'Spectral Decay Scan grad_init mismatch: max diff {(grad_init_tri - init_state.grad).abs().max()}'
+    print('Spectral Decay Scan (with initial_state) Forward/Backward: PASS')
+    x1 = torch.randn(1, 1, sz, D, device=device, requires_grad=True)
+    decay1 = torch.sigmoid(torch.randn(D, device=device)).requires_grad_(True)
+    gate1 = torch.sigmoid(torch.randn(1, 1, sz, D, device=device)).requires_grad_(True)
+    init1 = torch.randn(D, device=device, requires_grad=True)
+    y1 = triton_spectral_decay_scan(x1, decay1, gate1, initial_state=init1)
+    y1.sum().backward()
+    assert decay1.grad.abs().sum() > 0, 'Spectral Decay Scan: NO SIGNAL to decay_rates in single-block mode!'
+    assert init1.grad.abs().sum() > 0, 'Spectral Decay Scan: NO SIGNAL to initial_state in single-block mode!'
+    print('Spectral Decay Scan Single-Block Signal: PASS')
+    print('All Parity Tests Finished Successfully.')
 TRITON_ENGRAM_ENABLED = bool(int(os.environ.get('TRITON_ENGRAM_ENABLED', '1')))
 
 class TaperedGradients(torch.autograd.Function):
-    """Decouples forward tapering from backward gradient magnitude to prevent learning death."""
+
     @staticmethod
     def forward(ctx, x: Tensor, taper_weight: float) -> Tensor:
         ctx.taper_weight = float(taper_weight)
         return x * ctx.taper_weight
+
     @staticmethod
     def backward(ctx, grad_output: Tensor) -> tuple[Tensor, None]:
-        # Preserve full gradient magnitude even when contribution is tapered
-        return grad_output, None
+        return (grad_output, None)
 
 def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor, alpha: float=0.05, entropy_thr: float=2.0) -> Tensor:
     with torch.no_grad():
@@ -61,36 +617,19 @@ def engram_entropy_gated_correction(logits: Tensor, engram_logits: Tensor, alpha
         log_probs = torch.log(probs.clamp(min=1e-10))
         entropy = -(probs * log_probs).sum(dim=-1, keepdim=True)
         mask = (entropy > entropy_thr).to(logits.dtype)
-    return logits + alpha * mask * engram_logits
-
-@torch._dynamo.disable
-def enforce_ddp_participation(model, base_loss):
-    """
-    Ensures all parameters participate in the autograd graph by touching them with 
-    a dummy zero-gradient op. Guarded with @torch._dynamo.disable to prevent 
-    aggressive compiler pruning of the dummy loss.
-    """
-    dummy_loss = 0.0
-    for p in model.parameters():
-        if p.requires_grad:
-            dummy_loss = dummy_loss + (0.0 * p.sum())
-    return base_loss + dummy_loss
+        return logits + alpha * mask * engram_logits
 if os.environ.get('TORCHINDUCTOR_FX_GRAPH_CACHE') == '1':
     try:
         import torch._inductor.config
         torch._inductor.config.fx_graph_cache = True
     except (ImportError, AttributeError):
         pass
-try:
-    import torch._inductor.config
-    _compile_threads_env = os.environ.get('TORCHINDUCTOR_COMPILE_THREADS')
-    if _compile_threads_env:
-        torch._inductor.config.compile_threads = int(_compile_threads_env)
-    else:
-        # Use a conservative default when unset to avoid underutilized compile workers.
-        torch._inductor.config.compile_threads = max(1, min((os.cpu_count() or 1), 16))
-except (ImportError, AttributeError, ValueError):
-    pass
+if os.environ.get('TORCHINDUCTOR_COMPILE_THREADS'):
+    try:
+        import torch._inductor.config
+        torch._inductor.config.compile_threads = int(os.environ['TORCHINDUCTOR_COMPILE_THREADS'])
+    except (ImportError, AttributeError, ValueError):
+        pass
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.checkpoint import checkpoint
 try:
@@ -103,8 +642,6 @@ except ImportError:
         from flash_attn import flash_attn_func as _fa2_func
 
         def flash_attn_func(q, k, v, causal=False, **kwargs):
-            # FA2 natively supports GQA (MQA/GQA); manual repeat_interleave is physically redundant
-            # and physically duplicates VRAM, defeating the architectural purpose of GQA.
             return _fa2_func(q, k, v, causal=causal)
     except ImportError:
 
@@ -203,9 +740,6 @@ class Hyperparameters:
     run_id = os.environ.get('RUN_ID', f'run_{int(time.time())}')
     seed = _e('SEED', 42, int)
     compile_mode = _e('COMPILE_MODE', 'default', str)
-    allow_dynamic_max_autotune = _e('ALLOW_DYNAMIC_MAX_AUTOTUNE', 0, bool)
-    compile_target = _e('COMPILE_TARGET', 'full', str)
-    compile_max_modules = _e('COMPILE_MAX_MODULES', 0, int)
     iterations = _e('ITERATIONS', 10000, int)
     warmdown_fraction = _e('WARMDOWN_FRACTION', 0.35, float)
     warmup_steps = _e('WARMUP_STEPS', 5, int)
@@ -418,7 +952,6 @@ class Hyperparameters:
     ternary_clip_mode = _e('TERNARY_CLIP_MODE', 'percentile', str)
     ternary_clip_rows_k = _e('TERNARY_CLIP_ROWS_K', 12.85, float)
     ternary_embed_clip_rows_k = _e('TERNARY_EMBED_CLIP_ROWS_K', 20.0, float)
-    diagnostics_enabled = _e('DIAGNOSTICS_ENABLED', 0, bool)
     ternary_compress_brotli = _e('TERNARY_COMPRESS_BROTLI', 1, bool)
     runtime_path_policy = _e('RUNTIME_PATH_POLICY', 'strict', str)
     final_eval_sequential_carry = _e('FINAL_EVAL_SEQUENTIAL_CARRY', 0, bool)
@@ -430,7 +963,6 @@ def validate_config_surface(args) -> None:
     args.matrix_optimizer = args.matrix_optimizer.lower()
     args.export_mode = args.export_mode.lower()
     args.ternary_clip_mode = args.ternary_clip_mode.lower()
-    args.compile_target = str(getattr(args, 'compile_target', 'full')).strip().lower()
     if args.softcap_type not in {'poly', 'tanh'}:
         raise ValueError(f'SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}')
     if args.matrix_optimizer not in {'muon', 'adamw', 'adam'}:
@@ -439,10 +971,6 @@ def validate_config_surface(args) -> None:
         raise ValueError(f'EXPORT_MODE must be one of ternary_lzma/competition_ternary/competition_gptq, got {args.export_mode!r}')
     if args.ternary_clip_mode not in {'percentile', 'row_std', 'none'}:
         raise ValueError(f'TERNARY_CLIP_MODE must be one of percentile/row_std/none, got {args.ternary_clip_mode!r}')
-    if args.compile_target not in {'full', 'backbone', 'blocks'}:
-        raise ValueError(f'COMPILE_TARGET must be one of full/backbone/blocks, got {args.compile_target!r}')
-    if int(getattr(args, 'compile_max_modules', 0)) < 0:
-        raise ValueError(f'COMPILE_MAX_MODULES must be >= 0, got {args.compile_max_modules!r}')
     for frac_name in ('warmup_fraction', 'muon_momentum_warmup_fraction', 'warmdown_fraction', 'ema_start_fraction', 'feedback_every_fraction', 'untie_at_fraction', 'seq_schedule_fraction', 'batch_schedule_fraction', 'curr_p1_f', 'curr_p2_f', 'curr_p3_f', 'curr_p4_f', 'curr_p5_f', 'val_loss_every_fraction', 'train_log_every_fraction', 'churn_log_every_fraction', 'export_proxy_every_fraction', 'export_aligned_train_start_fraction', 'moe_start_fraction'):
         frac_val = getattr(args, frac_name)
         if not 0.0 <= frac_val <= 1.0:
@@ -597,89 +1125,6 @@ def apply_competition_profile(args) -> None:
         args.turbo_quant_train = 0
     if _unset('TURBO_QUANT_EXPORT'):
         args.turbo_quant_export = 1
-
-def compile_model_for_mode(model: nn.Module, compile_mode: str, compile_dynamic: bool, compile_options: dict | None) -> nn.Module:
-    if compile_mode == 'none':
-        return model
-    if compile_mode == 'max-autotune':
-        # For max-autotune, use options-only API; passing both mode+options triggers RuntimeError.
-        opts = compile_options if compile_options is not None else {'max_autotune': True}
-        return torch.compile(model, dynamic=compile_dynamic, options=opts)
-    return torch.compile(model, mode=compile_mode, dynamic=compile_dynamic)
-
-def _set_child_module(root: nn.Module, module_path: str, new_module: nn.Module) -> bool:
-    parts = [p for p in module_path.split('.') if p]
-    if not parts:
-        return False
-    parent = root
-    for p in parts[:-1]:
-        parent = getattr(parent, p, None)
-        if parent is None:
-            return False
-    leaf = parts[-1]
-    if not hasattr(parent, leaf):
-        return False
-    setattr(parent, leaf, new_module)
-    return True
-
-def apply_selective_compile(base_model: nn.Module, compile_mode: str, compile_dynamic: bool, compile_options: dict | None, compile_target: str, compile_max_modules: int, log0) -> tuple[nn.Module, list[str]]:
-    if compile_mode == 'none':
-        return (base_model, [])
-    if compile_target == 'full':
-        return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model>'])
-
-    compiled_targets: list[str] = []
-    if compile_target == 'backbone':
-        bb = getattr(base_model, 'backbone', None)
-        if isinstance(bb, nn.Module):
-            _set_child_module(base_model, 'backbone', compile_model_for_mode(bb, compile_mode, compile_dynamic, compile_options))
-            compiled_targets.append('backbone')
-        else:
-            log0('compile:target=backbone unavailable; falling back to full model compile')
-            return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model:fallback>'])
-        return (base_model, compiled_targets)
-
-    if compile_target == 'blocks':
-        bb = getattr(base_model, 'backbone', None)
-        if not isinstance(bb, nn.Module):
-            log0('compile:target=blocks unavailable; falling back to full model compile')
-            return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model:fallback>'])
-        compiled_any = False
-        max_mods = int(compile_max_modules)
-        remaining = max_mods if max_mods > 0 else None
-        candidates: list[tuple[str, int, nn.Module]] = []
-        blocks = getattr(bb, 'blocks', None)
-        if isinstance(blocks, nn.ModuleList):
-            for i, blk in enumerate(blocks):
-                candidates.append(('backbone.blocks', i, blk))
-        shared_bank = getattr(bb, 'shared_block_bank', None)
-        if isinstance(shared_bank, nn.ModuleList):
-            # Shared bank tends to be highest ROI because it is reused across many layers.
-            shared_candidates = [('backbone.shared_block_bank', i, blk) for i, blk in enumerate(shared_bank)]
-            candidates = shared_candidates + candidates
-        for (prefix, i, blk) in candidates:
-            if remaining is not None and remaining <= 0:
-                break
-            compiled_blk = compile_model_for_mode(blk, compile_mode, compile_dynamic, compile_options)
-            if prefix == 'backbone.blocks' and isinstance(blocks, nn.ModuleList):
-                blocks[i] = compiled_blk
-            elif prefix == 'backbone.shared_block_bank' and isinstance(shared_bank, nn.ModuleList):
-                shared_bank[i] = compiled_blk
-            else:
-                continue
-            compiled_targets.append(f'{prefix}.{i}')
-            compiled_any = True
-            if remaining is not None:
-                remaining -= 1
-        if not compiled_any:
-            log0('compile:target=blocks found no block containers; falling back to full model compile')
-            return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model:fallback>'])
-        if max_mods > 0 and len(compiled_targets) < len(candidates):
-            log0(f'compile:target=blocks budget compiled={len(compiled_targets)}/{len(candidates)} modules (COMPILE_MAX_MODULES={max_mods})')
-        return (base_model, compiled_targets)
-
-    # Guarded by config validation; keep a safe fallback.
-    return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model:fallback>'])
 
 def apply_runtime_path_policy(args) -> None:
     policy = str(getattr(args, 'runtime_path_policy', 'legacy')).strip().lower()
@@ -841,30 +1286,18 @@ def estimate_export_lower_bound_bytes(model: nn.Module, args, code_bytes: int) -
     sd = model.state_dict()
     ternary_names = export_ternary_param_names(model)
     ternary_names = {k for k in ternary_names if k in sd}
-    
-    # Refine estimator: only count parameters likely to be in the final artifact.
-    # We exclude reconstructable buffers (persistent=False) and strictly mirror
-    # the ternary/fp16 export sets.
     seen_ptrs = set()
     ternary_params = 0
     fp_params = 0
-    
-    # Mirror export_ternary_param_names and export_fp16_param_names
-    ternary_set = export_ternary_param_names(model)
-    fp16_set = export_fp16_param_names(model)
-    
-    for k, v in sd.items():
+    for (k, v) in sd.items():
         ptr = v.data_ptr()
         if ptr in seen_ptrs:
             continue
         seen_ptrs.add(ptr)
-        
-        if k in ternary_set:
+        if k in ternary_names:
             ternary_params += v.numel()
-        elif k in fp16_set:
+        else:
             fp_params += v.numel()
-        # Non-parameter buffers and non-exported parameters are ignored by the compact logic
-
     ternary_bytes_lb = int(math.ceil(ternary_params * (math.log2(3.0) / 8.0) + ternary_params / max(int(args.bitnet_group_size), 1) * 2.0))
     if args.fp_storage == 'fp4':
         fp_bytes = int(math.ceil(fp_params * 0.5))
@@ -872,33 +1305,8 @@ def estimate_export_lower_bound_bytes(model: nn.Module, args, code_bytes: int) -
         fp_bytes = int(fp_params)
     else:
         fp_bytes = int(fp_params * 2)
-    
     total_lb = int(ternary_bytes_lb + fp_bytes + code_bytes)
     return (total_lb, ternary_bytes_lb, fp_bytes, int(code_bytes))
-
-def get_fresh_code_bytes(args) -> int:
-    """Always build a fresh package to get accurate budget accounting."""
-    try:
-        # Create a fresh build using the current source
-        # We use a temporary filename to avoid clobbering an existing train_gpt.py
-        tmp_name = f"train_gpt_accounting_{int(time.time())}_{random.randint(0, 1000)}.py"
-        cmd = [
-            sys.executable, "build_submission.py",
-            "--source", "train_gpt_verbose.py",
-            "--output", tmp_name,
-            "--lzma-preset", str(args.lzma_preset)
-        ]
-        # Use subprocess to avoid polluting current process
-        subprocess.run(cmd, check=True, capture_output=True)
-        size = os.path.getsize(tmp_name)
-        if os.path.exists(tmp_name):
-            os.remove(tmp_name)
-        return size
-    except Exception as e:
-        # If building fails (e.g. build_submission.py missing), fallback to existing file or safe upper bound
-        if os.path.exists('train_gpt.py'):
-            return os.path.getsize('train_gpt.py')
-        return 1000000 # 1MB as a safe upper bound
 
 def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method='standard', ternary_override_names: set | None=None, calib: dict | None=None, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, fp16_names: set[str] | None=None) -> tuple[dict, dict]:
     quantized = {}
@@ -928,9 +1336,9 @@ def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method=
             scale_mult = tensor_calib.get('scale_mult', 1.0)
             z = t_grouped / scale
             if thr > 0.0:
-                q = torch.where(z.abs() < thr, torch.zeros_like(z), (torch.sign(z) * torch.trunc(z.abs() + 0.5)).clamp(-1, 1)).to(torch.int8)
+                q = torch.where(z.abs() < thr, torch.zeros_like(z), z.round().clamp(-1, 1)).to(torch.int8)
             else:
-                q = (torch.sign(z) * torch.trunc(z.abs() + 0.5)).clamp(-1, 1).to(torch.int8)
+                q = z.round().clamp(-1, 1).to(torch.int8)
             if scale_mult != 1.0:
                 scale = scale * scale_mult
             if ternary_method == 'standard':
@@ -1046,7 +1454,6 @@ def ns_orth(G: Tensor, steps: int=10, eps: float=1e-07) -> Tensor:
         B = b * A + c * A @ A
         X = a * X + B @ X
     X = X.T if transposed else X
-    # Stability Guard: check for NaNs before returning
     if torch.isnan(X).any():
         return torch.zeros_like(X_full)
     out[active] = X
@@ -1347,6 +1754,7 @@ class TernaryLinear(nn.Linear):
         return F.linear(x, w_ternary.to(x.dtype), self.bias.to(x.dtype) if self.bias is not None else None)
 
 class NormedTernaryLinear(TernaryLinear):
+
     def __init__(self, in_features, out_features, bias=False, group_size=64):
         super().__init__(in_features, out_features, bias=bias, group_size=group_size)
         self.gamma = nn.Parameter(torch.ones(in_features, dtype=torch.float32))
@@ -1403,7 +1811,7 @@ class EngramHash(nn.Module):
             prev = input_ids[:, 2:-1].long()
             curr = input_ids[:, 3:].long()
             nb = self.buckets_per_head
-            h = ((((ppp * p + pp) % nb) * p + prev) % nb * p + curr) % nb
+            h = (((ppp * p + pp) % nb * p + prev) % nb * p + curr) % nb
             h = F.pad(h, (3, 0), value=-1)
         else:
             raise ValueError(f'Unsupported n-gram order {order + 2}')
@@ -1437,7 +1845,7 @@ class EngramHash(nn.Module):
                     gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
                     return gate * self.proj(memory)
                 return self.proj(memory)
-        if num_total_heads == 4 and self.num_orders == 2 and self.num_heads == 2:
+        if num_total_heads == 4 and self.num_orders == 2 and (self.num_heads == 2):
             p = self._primes[:4]
             h_indices = torch.full((B, T, 4), -1, dtype=torch.long, device=ids_long.device)
             if T > 1:
@@ -1446,9 +1854,9 @@ class EngramHash(nn.Module):
             if T > 2:
                 tg = (ids_long[:, :-2].unsqueeze(-1) * (p[2:] * p[2:]) + ids_long[:, 1:-1].unsqueeze(-1) * p[2:] + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
                 h_indices[:, 2:, 2:] = tg
-            mask = (h_indices >= 0)
+            mask = h_indices >= 0
             h_indices_clamped = h_indices.clamp(min=0)
-            head_outputs = [table(h_indices_clamped[:, :, i]) * mask[:, :, i:i+1].to(dtype=table.weight.dtype) for (i, table) in enumerate(self.tables)]
+            head_outputs = [table(h_indices_clamped[:, :, i]) * mask[:, :, i:i + 1].to(dtype=table.weight.dtype) for (i, table) in enumerate(self.tables)]
             memory = torch.cat(head_outputs, dim=-1)
         else:
             primes = self._primes[:num_total_heads]
@@ -1462,9 +1870,8 @@ class EngramHash(nn.Module):
                     elif order == 1:
                         h_val = (ids_long[:, :-2].unsqueeze(-1) * (p * p) + ids_long[:, 1:-1].unsqueeze(-1) * p + ids_long[:, 2:].unsqueeze(-1)) % self.buckets_per_head
                     elif order == 2:
-                        # order=2 corresponds to a 4-gram (ids[t-3], ids[t-2], ids[t-1], ids[t])
                         nb = self.buckets_per_head
-                        h_val = ((((ids_long[:, :-3].unsqueeze(-1) * p + ids_long[:, 1:-2].unsqueeze(-1)) % nb) * p + ids_long[:, 2:-1].unsqueeze(-1)) % nb * p + ids_long[:, 3:].unsqueeze(-1)) % nb
+                        h_val = (((ids_long[:, :-3].unsqueeze(-1) * p + ids_long[:, 1:-2].unsqueeze(-1)) % nb * p + ids_long[:, 2:-1].unsqueeze(-1)) % nb * p + ids_long[:, 3:].unsqueeze(-1)) % nb
                     else:
                         h_ls = [self._hash_ngram(input_ids, order, hdy).unsqueeze(-1) for hdy in range(self.num_heads)]
                         h_val = torch.cat(h_ls, dim=-1)
@@ -1472,9 +1879,9 @@ class EngramHash(nn.Module):
                         h[:, T - h_val.size(1):, :] = h_val
                 parts.append(h)
             all_indices = torch.cat(parts, dim=-1)
-            mask = (all_indices >= 0)
+            mask = all_indices >= 0
             all_indices_clamped = all_indices.clamp(min=0)
-            head_outputs = [self.tables[i](all_indices_clamped[:, :, i]) * mask[:, :, i:i+1].to(dtype=self.tables[i].weight.dtype) for i in range(len(self.tables))]
+            head_outputs = [self.tables[i](all_indices_clamped[:, :, i]) * mask[:, :, i:i + 1].to(dtype=self.tables[i].weight.dtype) for i in range(len(self.tables))]
             memory = torch.cat(head_outputs, dim=-1)
         if hidden is not None:
             h_norm = torch.nn.functional.normalize(hidden.to(memory.dtype), dim=-1)
@@ -1486,31 +1893,14 @@ class EngramHash(nn.Module):
         return self.proj(memory)
 
 class EvalEngram(nn.Module):
-    """VRAM-resident, val-stream-populated complementary engram for eval-time use.
-
-    Complements the packed EngramHash: adds an entropy-gated logit correction
-    accumulated online from val-stream teacher-forced (context, next-token) pairs.
-    Designed to stack additively with Legal TTT: this module never mutates model
-    weights, and Legal TTT never touches EvalEngram counts (they live outside the
-    optimizer's param_groups). Populate BEFORE consuming a position's logits, so
-    there is no causal leak (at position t we emit a correction using context
-    hashed from ids[:t+1], then AFTER scoring we absorb the true target for
-    future same-hash contexts).
-
-    Storage (one-table-per-(order,head)):
-      logit_sum: (NUM_ORDERS, NUM_HEADS, BUCKETS, VOCAB)  fp32
-      count:     (NUM_ORDERS, NUM_HEADS, BUCKETS)          int32
-    Prior = Laplace(alpha=eval_engram_laplace).
-    """
-
     _PRIMES = EngramHash._PRIMES
 
-    def __init__(self, num_buckets: int, num_orders: int, num_heads: int, head_dim: int, vocab_size: int, laplace: float = 1.0, device=None, dtype=torch.float32):
+    def __init__(self, num_buckets: int, num_orders: int, num_heads: int, head_dim: int, vocab_size: int, laplace: float=1.0, device=None, dtype=torch.float32):
         super().__init__()
         self.num_buckets = int(num_buckets)
         self.num_orders = int(num_orders)
         self.num_heads = int(num_heads)
-        self.head_dim = int(head_dim)  # kept for parity / future embedding mode
+        self.head_dim = int(head_dim)
         self.vocab_size = int(vocab_size)
         self.laplace = float(laplace)
         total = self.num_orders * self.num_heads
@@ -1521,7 +1911,7 @@ class EvalEngram(nn.Module):
         self.register_buffer('count', torch.zeros(self.num_orders, self.num_heads, self.num_buckets, dtype=torch.int32, device=device), persistent=False)
 
     def _hash(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
-        B, T = input_ids.shape
+        (B, T) = input_ids.shape
         if T <= order + 1:
             return input_ids.new_zeros((B, T), dtype=torch.long)
         p = int(self._primes[order * self.num_heads + head_idx].item())
@@ -1534,7 +1924,7 @@ class EvalEngram(nn.Module):
             h = (ids[:, :-2] * (p * p) + ids[:, 1:-1] * p + ids[:, 2:]) % nb
             h = F.pad(h, (2, 0), value=-1)
         elif order == 2:
-            h = ((((ids[:, :-3] * p + ids[:, 1:-2]) % nb) * p + ids[:, 2:-1]) % nb * p + ids[:, 3:]) % nb
+            h = (((ids[:, :-3] * p + ids[:, 1:-2]) % nb * p + ids[:, 2:-1]) % nb * p + ids[:, 3:]) % nb
             h = F.pad(h, (3, 0), value=-1)
         else:
             raise ValueError(f'order {order} unsupported')
@@ -1542,12 +1932,9 @@ class EvalEngram(nn.Module):
 
     @torch.no_grad()
     def absorb(self, input_ids: Tensor, target_ids: Tensor) -> None:
-        """Accumulate one-hot target contributions into hashed buckets.
-        input_ids: (B, T) context; target_ids: (B, T) teacher-forced next tokens.
-        Skips positions where hash is left-padded (order+1 boundary)."""
         if input_ids.numel() == 0:
             return
-        B, T = input_ids.shape
+        (B, T) = input_ids.shape
         V = self.vocab_size
         tgt_flat = target_ids.reshape(-1).long().clamp_(0, V - 1)
         for order in range(self.num_orders):
@@ -1555,12 +1942,10 @@ class EvalEngram(nn.Module):
             if T <= pad:
                 continue
             for head in range(self.num_heads):
-                hh = self._hash(input_ids, order, head)  # (B, T)
-                # positions [:pad] are left-pad, skip them
+                hh = self._hash(input_ids, order, head)
                 h_flat = hh[:, pad:].reshape(-1)
                 t_flat = target_ids[:, pad:].reshape(-1).long().clamp_(0, V - 1)
                 flat_bt = h_flat * V + t_flat
-                # scatter-add into flattened view of logit_sum[o,h]
                 view = self.logit_sum[order, head].view(-1)
                 ones = torch.ones_like(flat_bt, dtype=view.dtype)
                 view.scatter_add_(0, flat_bt, ones)
@@ -1569,9 +1954,7 @@ class EvalEngram(nn.Module):
 
     @torch.no_grad()
     def logits(self, input_ids: Tensor) -> Tensor:
-        """Return averaged (logit_sum/count) summed across (order,head), shape (B,T,V).
-        Buckets with count==0 contribute the Laplace prior (uniform)."""
-        B, T = input_ids.shape
+        (B, T) = input_ids.shape
         out = input_ids.new_zeros((B, T, self.vocab_size), dtype=self.logit_sum.dtype)
         lap = self.laplace
         V = self.vocab_size
@@ -1580,21 +1963,18 @@ class EvalEngram(nn.Module):
             if T <= pad:
                 continue
             for head in range(self.num_heads):
-                hh = self._hash(input_ids, order, head)  # (B, T) long
-                # Gather
+                hh = self._hash(input_ids, order, head)
                 flat_h = hh.reshape(-1)
                 mask_h = (flat_h >= 0).view(B, T, 1)
                 flat_h_clamped = flat_h.clamp(min=0)
-                tbl = self.logit_sum[order, head]        # (buckets, V)
-                cnt = self.count[order, head]            # (buckets,)
-                
+                tbl = self.logit_sum[order, head]
+                cnt = self.count[order, head]
                 gathered_sum = tbl.index_select(0, flat_h_clamped).view(B, T, V)
                 gathered_cnt = cnt.index_select(0, flat_h_clamped).view(B, T, 1).to(gathered_sum.dtype)
-                denom = gathered_cnt + (lap * V)
+                denom = gathered_cnt + lap * V
                 probs = (gathered_sum + lap) / denom.clamp_min(1.0)
-                # Convert to log-domain additive correction; mask positions inside left-pad and where hash was unknown
                 m_final = (torch.arange(T, device=input_ids.device).view(1, T, 1) >= pad).to(probs.dtype) * mask_h.to(probs.dtype)
-                log_probs = torch.log(probs.clamp_min(1e-8)) * m_final
+                log_probs = torch.log(probs.clamp_min(1e-08)) * m_final
                 out = out + log_probs
         return out
 
@@ -1614,52 +1994,42 @@ def _engram_order_keep_ratio(order: int, args) -> float:
 def _engram_bucket_hits_from_tokens(engram: EngramHash, tokens: Tensor | None) -> list[Tensor] | None:
     if tokens is None or tokens.numel() == 0:
         return None
-    # Keep tokens on device to avoid PCIe sync/bottleneck
     tok = tokens.long()
     device = tok.device
     hits = []
     for order in range(engram.num_orders):
         for head in range(engram.num_heads):
-            # _hash_ngram already handles the device correctly if tokens are on GPU
             idx = engram._hash_ngram(tok, order, head).reshape(-1)
-            # Filter out padding (-1)
             valid_mask = (idx >= 0) & (idx < engram.buckets_per_head)
             if not valid_mask.any():
                 h = torch.zeros(engram.buckets_per_head, dtype=torch.float32, device=device)
             else:
                 idx_v = idx[valid_mask]
-                # torch.bincount is efficient on GPU
                 h = torch.bincount(idx_v, minlength=engram.buckets_per_head).float()
-            hits.append(h.cpu()) # Move result back for final aggregation
+            hits.append(h.cpu())
     return hits
 
 @torch.no_grad()
 def prune_engram_tables_for_export(sd: dict[str, Tensor], base_model: nn.Module, args, sample_tokens: Tensor | None, log0) -> tuple[dict[str, Tensor], dict[str, float] | None]:
-    # Pruning must be coordinated across all ranks to avoid NCCL deadlocks
     engram = getattr(base_model, 'engram', None)
-    is_master = sd is not None and len(sd) > 0  # Heuristic for master rank in DDP
+    is_master = sd is not None and len(sd) > 0
     prune_enabled = args.engram_export_prune_enabled and engram is not None and isinstance(engram, EngramHash)
     if not prune_enabled:
-        # All ranks must reach this early-exit together
         return (sd, None)
     if args.engram_export_token_budget > 0 and sample_tokens is not None and (sample_tokens.numel() > args.engram_export_token_budget):
         flat = sample_tokens.reshape(-1)[:args.engram_export_token_budget]
         sample_tokens = flat.reshape(1, -1)
     hits = _engram_bucket_hits_from_tokens(engram, sample_tokens)
-    
-    if dist.is_initialized() and hasattr(base_model, 'engram_hits') and base_model.engram_hits is not None:
+    if dist.is_initialized() and hasattr(base_model, 'engram_hits') and (base_model.engram_hits is not None):
         dist.all_reduce(base_model.engram_hits, op=dist.ReduceOp.SUM)
-    if dist.is_initialized() and hasattr(base_model, 'engram_decay_hits') and base_model.engram_decay_hits is not None:
+    if dist.is_initialized() and hasattr(base_model, 'engram_decay_hits') and (base_model.engram_decay_hits is not None):
         dist.all_reduce(base_model.engram_decay_hits, op=dist.ReduceOp.SUM)
-        
-
     if hits is not None and dist.is_initialized():
         device = next(base_model.parameters()).device
         for i in range(len(hits)):
             h_cuda = hits[i].to(device)
             dist.all_reduce(h_cuda, op=dist.ReduceOp.SUM)
             hits[i] = h_cuda.cpu()
-
     score_alpha = float(args.engram_export_score_alpha)
     min_keep = int(args.engram_export_keep_min_buckets)
     max_keep = int(args.engram_export_keep_max_buckets)
@@ -1832,7 +2202,7 @@ class TernaryMoE(nn.Module):
         return max(0.0, min(elapsed_fraction / self.moe_start_fraction, 1.0))
 
     def _pytorch_dispatch(self, x_flat: torch.Tensor, selected_experts: torch.Tensor, routing_weights: torch.Tensor, effective_top_k: int) -> torch.Tensor:
-        final_output = x_flat * 0.0  # Safe for autograd (not a leaf)
+        final_output = x_flat * 0.0
         selected_experts_flat = selected_experts.reshape(-1)
         routing_weights_flat = routing_weights.reshape(-1)
         x_flat_rep = x_flat.repeat_interleave(effective_top_k, dim=0)
@@ -1863,12 +2233,9 @@ class TernaryMoE(nn.Module):
             extras = routing_weights[:, self.top_k:]
             primary_mass = route_alpha + (1.0 - route_alpha) * (self.top_k / effective_top_k)
             extra_mass = max(0.0, 1.0 - primary_mass)
-            # STE trick: normalize forward pass but pass gradients through unmodified
-            primary_target = primary / primary.sum(dim=-1, keepdim=True).clamp(min=1e-08)
-            primary = primary + (primary_target - primary).detach()
-            if extras.size(-1) > 0:
-                extras_target = extras / extras.sum(dim=-1, keepdim=True).clamp(min=1e-08)
-                extras = extras + (extras_target - extras).detach()
+            primary = primary / primary.sum(dim=-1, keepdim=True).clamp(min=1e-08)
+            if extras.size(-1) > 1:
+                extras = extras / extras.sum(dim=-1, keepdim=True).clamp(min=1e-08)
             routing_weights = torch.cat((primary * primary_mass, extras * extra_mass), dim=-1)
         routing_weights = routing_weights.to(x.dtype)
         final_output = optimized_moe_dispatch(x_flat, list(self.experts), selected_experts, routing_weights, effective_top_k, self.num_experts)
@@ -2098,7 +2465,7 @@ class KoopmanDynamics(nn.Module):
         self._use_hadamard = capsule_dim & capsule_dim - 1 == 0 and capsule_dim >= 2
         if self._use_hadamard:
             H = _build_hadamard_pt(capsule_dim, torch.device('cpu'))
-            self.register_buffer('_H', H, persistent=False)
+            self.register_buffer('_H', H)
 
     def _rotate(self, c: Tensor) -> Tensor:
         if self._use_hadamard:
@@ -2248,12 +2615,9 @@ def causal_spectral_decay_scan(x_blocks, decay_rates, gate, initial_state=None):
         except (RuntimeError, TypeError):
             pass
     dec = torch.clamp(decay_rates, 0.0, 0.999)
-    # Issue 4 & 5: Gated linear recurrence (y = x + s; s = d*s + g*x)
-    # This captures full sequence dynamics even in single-block curriculum phases.
     state = initial_state.clone() if initial_state is not None else torch.zeros(B_dim, D_dim, device=x_blocks.device, dtype=torch.float32)
     if state.dim() == 1:
         state = state.unsqueeze(0).expand(B_dim, -1)
-    
     outputs = []
     for b in range(nb):
         block_out = []
@@ -2261,7 +2625,7 @@ def causal_spectral_decay_scan(x_blocks, decay_rates, gate, initial_state=None):
             x_v = x_blocks[:, b, t, :].to(torch.float32)
             g_v = gate[:, b, t, :].to(torch.float32)
             block_out.append((x_v + state).to(x_blocks.dtype))
-            state = (state * dec) + (g_v * x_v)
+            state = state * dec + g_v * x_v
         outputs.append(torch.stack(block_out, dim=1))
     return torch.stack(outputs, dim=1)
 
@@ -2364,8 +2728,6 @@ class SKCLayer(nn.Module):
         self.skc_scale = _residual_scale_init(dim, residual_scale_init)
         self.mlp_scale = _residual_scale_init(dim, residual_scale_init)
         self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
-        # Learnable gamma for SKC pre-norm + MLP pre-norm (was missing → unit-variance input
-        # into ternary projections, preventing the model from scaling features for the quantizer)
         self.skc_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
@@ -2491,7 +2853,6 @@ class ParallelSKCBlock(nn.Module):
         skc_out = self.spec_proj_out(s_conv)
         spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
         _skc_s = (external_skc_scale if external_skc_scale is not None else self.skc_scale).to(x.dtype)
-        
         try:
             mlp_in = triton_rms_norm(x, weight=self.mlp_prenorm_gamma.to(x.dtype)) * self.ln_scale_factor
         except (RuntimeError, TypeError):
@@ -2502,7 +2863,6 @@ class ParallelSKCBlock(nn.Module):
         else:
             (mlp_out, moe_loss) = (_mlp_raw, None)
         _mlp_s = (external_mlp_scale if external_mlp_scale is not None else self.mlp_scale).to(x.dtype)
-        
         x_out = x + _skc_s[None, None, :] * skc_out + _mlp_s[None, None, :] * mlp_out
         if spec_aux is not None and moe_loss is not None:
             combined_aux = spec_aux + moe_loss
@@ -2521,8 +2881,6 @@ class TokenStem(nn.Module):
         self.lm_head = QATLinear(model_dim, vocab_size, bias=False, fp_storage=fp_storage)
         if tied:
             if embed_dim != model_dim:
-                # Re-initialize head to expect the projected dimension (embed_dim)
-                # rather than the model_dim. This ensures metadata and optimizers are aligned.
                 self.lm_head = QATLinear(embed_dim, vocab_size, bias=False, fp_storage=fp_storage)
             self.lm_head.weight = self.tok_emb.weight
 
@@ -2665,10 +3023,6 @@ class LatentCorrector(nn.Module):
         speculative_losses = []
         prev_capsule_state = None
         fast_forwarded = False
-        active_mask = torch.ones(x.shape[0], 1, 1, device=x.device, dtype=x.dtype)
-        final_x = x.clone()
-        final_grounded_capsule_state = grounded_capsule_state.clone() if grounded_capsule_state is not None else None
-        
         for correction_pass in range(num_passes + 1):
             if correction_pass > 0 and feedback_enabled and (self.feedback_pooler is not None):
                 sketch = self.feedback_pooler(final_norm(x), valid_len=feedback_valid_len)
@@ -2683,154 +3037,26 @@ class LatentCorrector(nn.Module):
                     consistency_losses.append((c_pred, grounded_capsule_state.detach()))
                 if c_spec is not None:
                     speculative_losses.append(c_spec)
-                if koopman_speculator_enabled and (c_spec is not None) and (not fast_forwarded):
+                if koopman_speculator_enabled and c_spec is not None and (not fast_forwarded):
                     capsule_state = c_spec
                     fast_forwarded = True
-                if adaptive_halt_enabled and (prev_capsule_state is not None) and (correction_pass >= 1) and (not fast_forwarded):
-                    # Compute per-sequence halting condition (Issue 4)
-                    delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2, dim=(1, 2), keepdim=True))
-                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2, dim=(1, 2), keepdim=True)) + 1e-08
-                    still_active = (delta / norm >= self.adaptive_halt_threshold).to(x.dtype)
-                    active_mask = active_mask * still_active
-                    if active_mask.sum() == 0:
+                if adaptive_halt_enabled and prev_capsule_state is not None and (correction_pass >= 1) and (not fast_forwarded):
+                    delta = torch.sqrt(torch.mean((grounded_capsule_state - prev_capsule_state) ** 2))
+                    norm = torch.sqrt(torch.mean(grounded_capsule_state ** 2)) + 1e-08
+                    if (delta / norm < self.adaptive_halt_threshold).any():
+                        grounded_capsule_state = prev_capsule_state
                         break
-            
-            # Mask inputs to avoid wasting compute/gradients on converged sequences
-            encoded_masked = encoded * active_mask
-            (x_new, dec_aux, dec_aux_terms) = backbone.decoder_pass(encoded_masked, x0, skips, sketch=sketch, v0=v0, elapsed_fraction=elapsed_fraction, prev_capsules=None, reset_mask=ssm_reset_mask, feedback_adapters=self.feedback_adapter)
-            
-            # Update results only for active sequences
-            x = x_new * active_mask + final_x * (1.0 - active_mask)
-            final_x = x
-            if grounded_capsule_state is not None:
-                final_grounded_capsule_state = grounded_capsule_state * active_mask + (final_grounded_capsule_state if final_grounded_capsule_state is not None else 0.0) * (1.0 - active_mask)
-            
+            (x, dec_aux, dec_aux_terms) = backbone.decoder_pass(encoded, x0, skips, sketch=sketch, v0=v0, elapsed_fraction=elapsed_fraction, prev_capsules=None, reset_mask=ssm_reset_mask, feedback_adapters=self.feedback_adapter)
             if dec_aux is not None:
-                enc_aux = (dec_aux * active_mask.view(-1)).sum() if enc_aux is None else enc_aux + (dec_aux * active_mask.view(-1)).sum()
+                enc_aux = dec_aux if enc_aux is None else enc_aux + dec_aux
                 enc_aux_terms += dec_aux_terms
             if fast_forwarded:
                 break
-        grounded_capsule_state = final_grounded_capsule_state
         c_final = grounded_capsule_state.detach() if grounded_capsule_state is not None else None
         jepa_loss = [(c_s, c_final) for c_s in speculative_losses] if c_final is not None else []
         if enc_aux is not None and enc_aux_terms > 0:
             enc_aux = enc_aux / enc_aux_terms
         return (final_norm(x), consistency_losses, grounded_capsule_state, jepa_loss, enc_aux)
-@torch._dynamo.disable
-def _poll_nn_diagnostics(model: nn.Module, step: int, log0, jsonl_path: str, is_smoke: bool=False, is_moe_active: bool=True):
-    """
-    Explicitly polls parameters and gradients from base_model post-backward.
-    Implementation focuses on cheap observables (proxies) and master-only JSONL streaming.
-    """
-    import json
-    stats = {'step': step, 'time': time.time()}
-    params = list(model.named_parameters())
-    component_rules = {
-        'skc_core': ('decay_rates', 'mixer_conv', 'spec_proj', 'gate_proj', 'router.', 'skc_prenorm_gamma', 'mlp_prenorm_gamma'),
-        'engram': ('engram.', 'bigram_hash'),
-        'feedback': ('feedback',),
-        'capsule_koopman': ('capsule', 'koopman'),
-        'residual_scales': ('per_layer_attn_scales', 'per_layer_mlp_scales', 'per_layer_skc_scales', 'per_layer_resid_mixes', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix'),
-    }
-    component_stats = {k: {'param_count': 0, 'grad_count': 0, 'grad_norm_sum': 0.0, 'gw_ratio_sum': 0.0, 'weight_norm_sum': 0.0} for k in component_rules}
-    
-    # 1. Global Gradient/Weight Health (Cheap summaries)
-    val_gw, val_count = 0.0, 0
-    max_gw = 0.0
-    slowest_layer, fastest_layer = "", ""
-    with torch.no_grad():
-        for n, p in params:
-            for comp, keys in component_rules.items():
-                if any(k in n for k in keys):
-                    component_stats[comp]['param_count'] += 1
-                    component_stats[comp]['weight_norm_sum'] += p.data.norm().item()
-                    if p.grad is not None:
-                        g_norm_comp = p.grad.norm().item()
-                        component_stats[comp]['grad_count'] += 1
-                        component_stats[comp]['grad_norm_sum'] += g_norm_comp
-                        component_stats[comp]['gw_ratio_sum'] += g_norm_comp / (p.data.norm().item() + 1e-8)
-            if p.requires_grad and p.grad is not None:
-                g_norm = p.grad.norm().item()
-                w_norm = p.data.norm().item()
-                ratio = g_norm / (w_norm + 1e-8)
-                val_gw += ratio
-                val_count += 1
-                if ratio > max_gw:
-                    max_gw = ratio
-                    fastest_layer = n
-                if ratio < 1e-5: # Threshold for vanishing observation
-                    slowest_layer = n
-
-    if val_count > 0:
-        stats['gw_ratio_mean'] = val_gw / val_count
-        stats['gw_ratio_max'] = max_gw
-        stats['fastest_layer'] = fastest_layer
-        stats['slowest_layer'] = slowest_layer
-
-    # 2. Ternary Occupancy (Candidates: matrices with ndim >= 2)
-    t_zeros, t_count = 0.0, 0
-    with torch.no_grad():
-        for n, p in params:
-            if p.ndim >= 2 and ('weight' in n or 'router' in n):
-                z = p / (p.abs().mean() + 1e-8)
-                t_zeros += (z.abs() < 0.5).float().mean().item()
-                t_count += 1
-    if t_count > 0: stats['ternary_zeros_avg'] = t_zeros / t_count
-
-    # 3. MoE / Structural Proxies (Avoiding expensive eigvals)
-    moe_stats = {'entropy': [], 'usage': []}
-    structural_scales = {}
-    dead_experts = 0
-    with torch.no_grad():
-        for n, p in params:
-            if is_moe_active and 'router.weight' in n:
-                probs = torch.softmax(p.float(), dim=0)
-                ent = -(probs * torch.log(probs + 1e-9)).sum().item()
-                moe_stats['entropy'].append(ent)
-                # Proxy for "dead" experts from weight bias: if a row is extremely low norm
-                row_norms = p.norm(dim=1)
-                dead_experts += (row_norms < 0.01).sum().item()
-
-            if any(k in n for k in ['skc_scale', 'mlp_scale', 'resid_mix', 'decay_rates']):
-                structural_scales[n] = p.mean().item()
-
-    if moe_stats['entropy']:
-        stats['moe_ent_proxy'] = sum(moe_stats['entropy'])/len(moe_stats['entropy'])
-        stats['moe_dead_experts'] = dead_experts
-    comp_summary = {}
-    for comp, vals in component_stats.items():
-        if vals['param_count'] == 0:
-            continue
-        comp_summary[comp] = {
-            'params': vals['param_count'],
-            'grad_coverage': vals['grad_count'] / max(vals['param_count'], 1),
-            'grad_norm_mean': vals['grad_norm_sum'] / max(vals['grad_count'], 1),
-            'gw_ratio_mean': vals['gw_ratio_sum'] / max(vals['grad_count'], 1),
-            'weight_norm_mean': vals['weight_norm_sum'] / max(vals['param_count'], 1),
-        }
-    if comp_summary:
-        stats['component_summary'] = comp_summary
-    
-    # 4. Anomaly Trigger & Console Summary
-    anomaly = (max_gw > 1.0) or (stats.get('gw_ratio_mean', 1.0) < 1e-4)
-    if anomaly or is_smoke:
-        stats['structural_snapshots'] = structural_scales
-
-    # Executive Console Log
-    con_msg = f"DIAG [step:{step}] g/w_mean:{stats.get('gw_ratio_mean',0):.5f} t0:{stats.get('ternary_zeros_avg',0):.3f}"
-    if is_moe_active and 'moe_ent_proxy' in stats:
-        con_msg += f" moe_ent:{stats['moe_ent_proxy']:.3f} dead_exp:{stats['moe_dead_experts']}"
-    if 'component_summary' in stats and 'skc_core' in stats['component_summary']:
-        con_msg += f" skc_gcov:{stats['component_summary']['skc_core']['grad_coverage']:.2f}"
-    if 'component_summary' in stats and 'engram' in stats['component_summary']:
-        con_msg += f" eng_gcov:{stats['component_summary']['engram']['grad_coverage']:.2f}"
-    log0(con_msg)
-    
-    # Master-only JSONL Append (Buffered write recommended for production, here sequential is okay at 20-step cadence)
-    with open(jsonl_path, 'a') as f:
-        f.write(json.dumps(stats) + '\n')
-
-
 
 class GPT(nn.Module):
 
@@ -2917,8 +3143,8 @@ class GPT(nn.Module):
         self.engram = None
         if bigram_hash_enabled:
             self.engram = EngramHash(num_buckets=bigram_hash_buckets, hash_dim=bigram_hash_dim, model_dim=model_dim, fp_storage=False, num_heads=engram_num_heads, num_orders=engram_num_orders)
-        self.eval_engram = None  # lazily constructed at eval time if enabled
-        self._packed_engram_snapshot = None  # populated on enable_freeze_check()
+        self.eval_engram = None
+        self._packed_engram_snapshot = None
         self.engram_inject_layer = engram_inject_layer
         self.capsule_bank = None
         if capsule_enabled:
@@ -3092,10 +3318,8 @@ class GPT(nn.Module):
         (x, x0) = self._apply_embedding(input_ids)
         num_passes = self._resolve_feedback_passes(feedback_passes)
         ssm_reset_mask = self._build_ssm_reset_mask(input_ids)
-        # Force-disable inference-only behaviors (speculator/halt) when requested (default True during eval)
-        # to ensure evaluation graph matches the training graph.
-        spec_enabled = self.koopman_speculator_enabled if (not disable_speculation) else False
-        halt_enabled = self.adaptive_halt_enabled if (not disable_speculation) else False
+        spec_enabled = self.koopman_speculator_enabled if not disable_speculation else False
+        halt_enabled = self.adaptive_halt_enabled if not disable_speculation else False
         return self.latent_corrector(x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training=self.training, engram_enabled=self.engram is not None, feedback_enabled=self.feedback_enabled, final_norm=self.final_norm, koopman_speculator_steps=self.koopman_speculator_steps, koopman_speculator_enabled=spec_enabled, adaptive_halt_enabled=halt_enabled)
 
     def _compute_logits(self, hidden: torch.Tensor) -> torch.Tensor:
@@ -3137,36 +3361,25 @@ class GPT(nn.Module):
                     del m._last_capsules
 
     def maybe_build_eval_engram(self, args, device) -> None:
-        """Construct EvalEngram if enabled and not already built. Idempotent."""
         if not getattr(args, 'eval_engram_enabled', False):
             return
         if self.eval_engram is not None:
             return
         vocab_size = self.vocab_bias.numel()
-        self.eval_engram = EvalEngram(
-            num_buckets=int(args.eval_engram_buckets),
-            num_orders=int(args.eval_engram_num_orders),
-            num_heads=int(args.eval_engram_num_heads),
-            head_dim=int(args.eval_engram_head_dim),
-            vocab_size=int(vocab_size),
-            laplace=float(args.eval_engram_laplace),
-            device=device,
-        )
+        self.eval_engram = EvalEngram(num_buckets=int(args.eval_engram_buckets), num_orders=int(args.eval_engram_num_orders), num_heads=int(args.eval_engram_num_heads), head_dim=int(args.eval_engram_head_dim), vocab_size=int(vocab_size), laplace=float(args.eval_engram_laplace), device=device)
 
     @torch.no_grad()
     def snapshot_packed_engram(self) -> None:
-        """Snapshot packed EngramHash tables so eval-time TTT cannot drift them."""
         if self.engram is None:
             return
         self._packed_engram_snapshot = [t.weight.detach().clone() for t in self.engram.tables]
 
     @torch.no_grad()
-    def restore_packed_engram(self, strict: bool = False) -> bool:
-        """Restore packed tables from snapshot. Returns True if any drift was found."""
+    def restore_packed_engram(self, strict: bool=False) -> bool:
         if self.engram is None or self._packed_engram_snapshot is None:
             return False
         drifted = False
-        for t, snap in zip(self.engram.tables, self._packed_engram_snapshot):
+        for (t, snap) in zip(self.engram.tables, self._packed_engram_snapshot):
             if not torch.equal(t.weight.detach(), snap):
                 drifted = True
                 if strict:
@@ -3217,28 +3430,23 @@ class GPT(nn.Module):
         ds = disable_speculation if disable_speculation is not None else False
         (hidden, consistency_losses, _, jepa_loss, block_aux) = self._compute_hidden(input_ids, elapsed_fraction=elapsed_fraction, carry_capsules=carry_capsules, feedback_passes=feedback_passes, disable_speculation=ds)
         logits = self._compute_logits(hidden.reshape(-1, hidden.size(-1))) + self.vocab_bias
-        
         if temperature != 1.0:
             logits = logits / temperature
-        
         logits = logits.reshape(input_ids.size(0), input_ids.size(1), -1)
         logits = self._engram_entropy_correct(logits, input_ids)
-        
         logits_f = logits.float().reshape(-1, self.vocab_bias.numel())
         targets = target_ids.reshape(-1)
         if reduction == 'none':
             return F.cross_entropy(logits_f, targets, reduction='none').reshape(input_ids.shape)
-        
         ce_loss_raw = F.cross_entropy(logits_f, targets)
         ce_loss = ce_loss_raw
-
         if self.training:
-            if consistency_losses and (self.koopman_consistency_weight > 0):
+            if consistency_losses and self.koopman_consistency_weight > 0:
                 consist_sum = torch.tensor(0.0, device=input_ids.device)
                 for (c_pred, c_actual) in consistency_losses:
                     consist_sum = consist_sum + F.mse_loss(c_pred, c_actual)
                 ce_loss = ce_loss + self.koopman_consistency_weight * (consist_sum / len(consistency_losses))
-            if jepa_loss and (self.koopman_speculator_weight > 0):
+            if jepa_loss and self.koopman_speculator_weight > 0:
                 spec_sum = torch.tensor(0.0, device=input_ids.device)
                 for (c_spec, c_final) in jepa_loss:
                     spec_sum = spec_sum + F.mse_loss(c_spec, c_final)
@@ -3321,12 +3529,10 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
     val_loss = (loss_sum / token_count.clamp_min(1.0)).item()
     bpb = val_loss / math.log(2.0) * (token_count.item() / max(byte_count.item(), 1.0))
-    # State Isolation: Ensure evaluation mode doesn't leave persistent flags
-    # that could bypass training logic (like dropout or norm updates)
     model.train(was_training)
     return (float(val_loss), float(bpb))
 
-def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride: int=64, temperature: float=1.0, feedback_passes: int | None=None, logger=None, force_sequential: bool=False):
+def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride: int=64, temperature: float=1.0, feedback_passes: int | None=None, logger=None):
     del grad_accum_steps
     seq_len = args.train_seq_len
     batch_size = args.sliding_batch_size
@@ -3335,13 +3541,7 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     all_starts = list(range(0, total_tokens, stride))
-    if force_sequential:
-        # Prevent sharding to ensure Rank 0 carries state through the entire contiguous stream.
-        # Other ranks will participate in all_reduce with zeroed statistics.
-        my_starts = all_starts if rank == 0 else []
-        my_starts = [s for s in my_starts if min(s + seq_len, total_tokens) - s >= 1]
-    else:
-        my_starts = [s for (idx, s) in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
+    my_starts = [s for (idx, s) in enumerate(all_starts) if idx % world_size == rank and min(s + seq_len, total_tokens) - s >= 1]
     use_carry = args.capsule_carry_enabled and batch_size == 1
     decay = args.capsule_carry_decay if args.capsule_carry_enabled else 0.0
     eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
@@ -3383,7 +3583,7 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
             nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
             for (j, start) in enumerate(batch_starts):
                 wlen = wlens[j]
-                score_from = 0 if start == 0 else seq_len - stride
+                score_from = 0 if start == 0 else max(wlen - stride, 0)
                 scored = nll[j, score_from:wlen]
                 sx = x_batch[j, score_from:wlen]
                 sy = y_batch[j, score_from:wlen]
@@ -3405,45 +3605,27 @@ def collect_ttt_params(base_model: nn.Module, scope: str) -> tuple[dict[str, boo
     params: list[Tensor] = []
     for (name, p) in base_model.named_parameters():
         original[name] = p.requires_grad
-        allow = False
         if scope == 'capsule_bank':
             allow = name.startswith('capsule_bank.')
         else:
-            # Strictly isolate from capsule_bank when in other scopes
-            allow = (
-                name.startswith('feedback_pooler.')
-                or name.startswith('feedback_adapters.')
-                or name == 'skip_weights'
-            )
-        if scope != 'capsule_bank' and ('blocks.' in name or 'shared_block_bank.' in name):
+            allow = name.startswith('feedback_pooler.') or name.startswith('feedback_adapters.') or name == 'skip_weights'
+        if scope != 'capsule_bank' and name.startswith('blocks.'):
             parts = name.split('.')
-            # Extract index and leaf correctly regardless of prefix (backbone.blocks vs blocks vs shared_block_bank)
-            block_idx, leaf = -1, ""
-            for i, part in enumerate(parts):
-                if part.isdigit():
-                    block_idx = int(part)
-                    leaf = parts[i+1] if i+1 < len(parts) else ""
-                    break
-            if block_idx >= 0:
+            if len(parts) >= 3:
+                block_idx = int(parts[1])
+                leaf = parts[2]
                 if block_idx >= base_model.num_encoder_layers and leaf in {'attn_scale', 'mlp_scale', 'skc_scale'}:
                     allow = True
                 if scope == 'skc_safe' and leaf in {'decay_rates', 'resid_mix', 'mixer_conv'}:
                     allow = True
-        if scope != 'capsule_bank' and ('.per_layer_attn_scales.' in f'.{name}.' or '.per_layer_mlp_scales.' in f'.{name}.'):
-            parts = name.split('.')
-            idx = -1
-            for part in parts:
-                if part.isdigit():
-                    idx = int(part)
-                    break
+        if scope != 'capsule_bank' and (name.startswith('per_layer_attn_scales.') or name.startswith('per_layer_mlp_scales.')):
+            idx = int(name.split('.')[1])
             if idx >= base_model.num_encoder_layers:
                 allow = True
-        if scope == 'skc_safe' and '.per_layer_skc_scales.' in f'.{name}.':
+        if scope == 'skc_safe' and name.startswith('per_layer_skc_scales.'):
             allow = True
         p.requires_grad_(allow)
-        # Structurally exclude packed engram tables from TTT — they are frozen
-        # training-time memory and must never drift during eval SGD.
-        if allow and ('engram' in name):
+        if allow and 'engram' in name:
             allow = False
             p.requires_grad_(False)
         if allow:
@@ -3462,15 +3644,11 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     seq_len = args.train_seq_len
     batch_size = batch_seqs
     if getattr(args, 'ttt_single_rank_eval', False) and world_size > 1:
-        # Issue 3: Distributed TTT eval loses context at shard boundaries.
-        # For the final leaderboard score, we force single-rank evaluation
-        # to ensure the true continuous token stream is preserved.
         if rank == 0:
             total_tokens = val_tokens.numel() - 1
         else:
-            # Other ranks participate in collectives but skip scoring
             val_tokens = val_tokens[:0]
-            total_tokens = -1 
+            total_tokens = -1
     else:
         full_tokens = val_tokens.numel() - 1
         rank_start = full_tokens * rank // world_size
@@ -3484,7 +3662,7 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     for ws in window_starts:
         end = min(ws + seq_len, total_tokens)
         wlen = end - ws
-        score_from = 0 if ws == 0 else seq_len - stride
+        score_from = 0 if ws == 0 else max(wlen - stride, 0)
         chunk_idx = min((ws + score_from) // ttt_chunk, num_chunks - 1)
         chunk_windows[chunk_idx].append(ws)
     log0(f'ttt_sliding:start rank={rank}/{world_size} chunks={num_chunks} chunk_tokens={ttt_chunk} stride={stride} ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs} scope={args.ttt_scope}')
@@ -3497,12 +3675,9 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     was_training = base_model.training
     (original_grad, ttt_params) = collect_ttt_params(base_model, args.ttt_scope)
     if is_master:
-        log0(f'ttt_sliding:unfrozen_parameters = {[n for n, p in base_model.named_parameters() if any(s in n for s in args.ttt_scope.split(","))]}')
+        log0(f"ttt_sliding:unfrozen_parameters = {[n for (n, p) in base_model.named_parameters() if any((s in n for s in args.ttt_scope.split(',')))]}")
     original_ttt_weights = [p.detach().cpu().clone() for p in ttt_params]
     log0(f'ttt_sliding:params unfrozen={sum((p.numel() for p in ttt_params))}')
-    # Legal-TTT-aligned EvalEngram: build lazily, snapshot packed tables so TTT
-    # SGD cannot drift them. Absorb happens strictly AFTER each chunk's SCORE
-    # phase (see below), mirroring Legal TTT's "score-first, then adapt" rule.
     base_model.maybe_build_eval_engram(args, device)
     if getattr(args, 'freeze_packed_engram', False):
         base_model.snapshot_packed_engram()
@@ -3556,17 +3731,14 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                     nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
                     for (i, ws) in enumerate(batch_ws):
                         wlen = wlens[i]
-                        score_from = 0 if ws == 0 else seq_len - stride
+                        score_from = 0 if ws == 0 else max(wlen - stride, 0)
                         scored = nll[i, score_from:wlen].to(torch.float64)
                         loss_sum += scored.sum()
                         token_count += float(wlen - score_from)
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
                         byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
-            # LEGAL EvalEngram absorb: chunk ci has been fully SCORED above under
-            # torch.no_grad(). Only now do we absorb its tokens into EvalEngram so
-            # that subsequent chunks benefit. Skip on last chunk (no consumer).
-            if _ee is not None and ci < num_chunks - 1 and chunk_end > chunk_start + 1:
+            if _ee is not None and ci < num_chunks - 1 and (chunk_end > chunk_start + 1):
                 _span = val_tokens[chunk_start:chunk_end + 1].to(device=device, dtype=torch.int64)
                 if _span.numel() > 1:
                     _x_ee = _span[:-1].reshape(1, -1)
@@ -3605,14 +3777,10 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                         if _cs is not None:
                             epoch_carry_capsules = (_cs.mean(dim=0, keepdim=True) * (1 - decay) + (epoch_carry_capsules if epoch_carry_capsules is not None else 0) * decay).detach()
                     else:
-                        # Force pure Cross-Entropy objective for TTT to match scoring path and prevent auxiliary oscillation
                         logits_ttt = base_model.forward_logits(x, temperature=temperature, feedback_passes=eval_feedback_passes)
                         loss = F.cross_entropy(logits_ttt.reshape(-1, logits_ttt.size(-1)).float(), y.reshape(-1))
                     loss.backward()
                     optimizer.step()
-                    # TTT Safety Reset: If we've processed too many tokens without an EOS,
-                    # clear the optimizer state to prevent catastrophic graph/gradient drift
-                    # and potential OOM from unconditioned accumulation.
                     if reset_ttt_state or (bs > 0 and bs % (8192 // seq_len) == 0):
                         _reset_optimizer_state(optimizer)
                         epoch_carry_capsules = None
@@ -3636,9 +3804,6 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
             for (p, saved) in zip(ttt_params, original_ttt_weights):
                 p.copy_(saved.to(device=p.device, dtype=p.dtype))
         restore_requires_grad(base_model, original_grad)
-        # Verify packed EngramHash tables were not drifted by TTT SGD. In
-        # strict mode (FREEZE_CHECK_STRICT=1) this raises on drift; otherwise
-        # it silently restores from snapshot and logs a warning.
         if getattr(args, 'freeze_packed_engram', False):
             _drifted = base_model.restore_packed_engram(strict=bool(getattr(args, 'freeze_check_strict', False)))
             if _drifted:
@@ -3900,15 +4065,12 @@ class EMAHelper:
                 p.data.copy_(original[name].to(p.device))
 
 def main() -> None:
-    torch._dynamo.config.optimize_ddp = False
     args = Hyperparameters()
-    # Support diagnostic flags via environment variable for compatibility with orchestration scripts
     if os.environ.get('ZERO_AUX_LOSSES', '0') == '1':
-        log0("DIAGNOSTIC: Zeroing auxiliary losses (consistency, speculator, moe)", flush=True)
+        log0('DIAGNOSTIC: Zeroing auxiliary losses (consistency, speculator, moe)', flush=True)
         args.koopman_consistency_weight = 0.0
         args.koopman_speculator_weight = 0.0
         args.moe_router_aux_loss_coef = 0.0
-
     apply_competition_profile(args)
     apply_runtime_path_policy(args)
     validate_config_surface(args)
@@ -3935,8 +4097,6 @@ def main() -> None:
         dist_backend = 'nccl' if device.type == 'cuda' else 'gloo'
         from datetime import timedelta
         _nccl_timeout_sec = int(os.environ.get('TORCH_NCCL_TIMEOUT_SEC', '120'))
-        # Container environments (Docker/RunPod) often lack InfiniBand; pin to eth0
-        # to avoid NCCL hanging indefinitely probing for non-existent IB devices.
         if device.type == 'cuda':
             os.environ.setdefault('NCCL_IB_DISABLE', '1')
             os.environ.setdefault('NCCL_SOCKET_IFNAME', 'eth0')
@@ -3968,33 +4128,22 @@ def main() -> None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-    
-    # HARD FAIL on tokenizer/data path mismatch to prevent rank-hangs
     _tok_f = args.tokenizer_path.lower()
     _dat_f = args.data_path.lower()
-    if ('8192' in _tok_f and '50257' in _dat_f) or ('50257' in _tok_f and '8192' in _dat_f):
+    if '8192' in _tok_f and '50257' in _dat_f or ('50257' in _tok_f and '8192' in _dat_f):
         if master_process:
-            log0(f"CRITICAL: Tokenizer/Data mismatch! tok={args.tokenizer_path} data={args.data_path}")
+            log0(f'CRITICAL: Tokenizer/Data mismatch! tok={args.tokenizer_path} data={args.data_path}')
         sys.exit(1)
-
     if distributed:
         dist.barrier()
     args.vocab_size = int(sp.vocab_size())
-
-    # Regime lock: verify the dataset path and tokenizer are from the same sp<VOCAB> family.
-    # A mismatch (e.g. sp1024 data + sp8192 tokenizer) silently produces wrong BPB numbers.
-    _tok_base = os.path.basename(args.tokenizer_path)          # fineweb_8192_bpe.model
-    _dat_base = os.path.basename(os.path.normpath(args.data_path))  # fineweb10B_sp8192
+    _tok_base = os.path.basename(args.tokenizer_path)
+    _dat_base = os.path.basename(os.path.normpath(args.data_path))
     import re as _re
-    _tok_vocab = _re.search(r'(\d+)', _tok_base)
-    _dat_vocab = _re.search(r'sp(\d+)', _dat_base)
-    if _tok_vocab and _dat_vocab and _tok_vocab.group(1) != _dat_vocab.group(1):
-        raise RuntimeError(
-            f'TOKENIZER/DATA REGIME MISMATCH: tokenizer vocab={_tok_vocab.group(1)} '
-            f'but dataset suggests vocab={_dat_vocab.group(1)}. '
-            f'Set DATA_PATH and TOKENIZER_PATH to the same sp<VOCAB> family. '
-            f'tokenizer={args.tokenizer_path} data={args.data_path}'
-        )
+    _tok_vocab = _re.search('(\\d+)', _tok_base)
+    _dat_vocab = _re.search('sp(\\d+)', _dat_base)
+    if _tok_vocab and _dat_vocab and (_tok_vocab.group(1) != _dat_vocab.group(1)):
+        raise RuntimeError(f'TOKENIZER/DATA REGIME MISMATCH: tokenizer vocab={_tok_vocab.group(1)} but dataset suggests vocab={_dat_vocab.group(1)}. Set DATA_PATH and TOKENIZER_PATH to the same sp<VOCAB> family. tokenizer={args.tokenizer_path} data={args.data_path}')
     log0(f'regime_check: tokenizer={_tok_base} data={_dat_base} vocab={args.vocab_size} OK')
     (base_bytes_lut, has_leading_space_lut, is_boundary_token_lut) = build_luts(sp, args.vocab_size, device)
     base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope, residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init, residual_proj_init_std=args.residual_proj_init_std, embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage, softcap_type=args.softcap_type, no_cache=args.compile_mode == 'reduce-overhead', rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len, feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim, feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay, feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage, feedback_gate_init=args.feedback_gate_init, feedback_passes=args.feedback_passes, shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled, capsule_num=args.capsule_num, capsule_dim=args.capsule_dim, partial_rope_dims=args.partial_rope_dims, vrl_enabled=args.vrl_enabled, vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping, bigram_hash_enabled=args.bigram_hash_enabled, bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim, engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders, engram_inject_layer=args.engram_inject_layer, xsa_start_layer=args.xsa_start_layer, moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k, architecture=args.architecture, koopman_enabled=args.koopman_enabled, koopman_rank=args.koopman_rank, koopman_diag_init=args.koopman_diag_init, koopman_consistency_weight=args.koopman_consistency_weight, koopman_speculator_enabled=args.koopman_speculator_enabled, koopman_speculator_steps=args.koopman_speculator_steps, koopman_speculator_weight=args.koopman_speculator_weight, adaptive_halt_enabled=args.adaptive_halt_enabled, adaptive_halt_threshold=args.adaptive_halt_threshold, koopman_state_dim=args.koopman_state_dim, koopman_mixer_rank=args.koopman_mixer_rank, koopman_conv_kernel=args.koopman_conv_kernel, koopman_decay_window=args.koopman_decay_window, koopman_scan_checkpoint=args.koopman_scan_checkpoint, koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq, skc_num_capsules=args.skc_num_capsules, skc_capsule_dim=args.skc_capsule_dim, skc_conv_kernel=args.skc_conv_kernel, skc_block_size=args.skc_block_size, skc_aux_entropy_fraction=args.skc_aux_entropy_fraction, skc_recurrent_core=args.skc_recurrent_core, skc_upper_branch=args.skc_upper_branch, moe_layer_frac=args.moe_layer_frac, moe_start_fraction=args.moe_start_fraction, moe_router_aux_loss_coef=args.moe_router_aux_loss_coef, eos_token_id=int(sp.eos_id()), reset_ssm_on_eos=args.reset_ssm_on_eos, skc_parallel_residual=args.skc_parallel_residual).to(device)
@@ -4002,85 +4151,58 @@ def main() -> None:
         import subprocess
         _code_bytes = 0
         try:
-            _code_bytes = get_fresh_code_bytes(args)
+            subprocess.run([sys.executable, 'build_submission.py', '--output', 'train_gpt_budget_proxy.py'], check=True, capture_output=True, timeout=30)
+            if os.path.exists('train_gpt_budget_proxy.py'):
+                _code_bytes = os.path.getsize('train_gpt_budget_proxy.py')
+                os.remove('train_gpt_budget_proxy.py')
         except Exception:
-            # Fallback to a safe estimate if build fails (e.g. missing dependencies in this env)
-            _code_bytes = int(len(code.encode('utf-8')) * 0.45) # 0.45x is a conservative minification/lzma estimate
-            
+            _code_bytes = int(len(code.encode('utf-8')) * 0.45)
         (_lb_total, _lb_ternary, _lb_fp, _lb_code) = estimate_export_lower_bound_bytes(base_model, args, _code_bytes)
         log0(f'budget_lower_bound: total_lb={_lb_total} ternary_lb={_lb_ternary} fp16={_lb_fp} code={_lb_code} cap={args.hard_budget_bytes}')
         if args.hard_budget_enforce and _lb_total > int(args.hard_budget_bytes):
             raise RuntimeError(f'Projected minimum artifact+code bytes {_lb_total} exceeds HARD_BUDGET_BYTES={args.hard_budget_bytes}; reduce FP footprint / model size before training.')
     compile_dynamic = bool(args.curr_enabled or args.seq_len_start > 0 or args.batch_tokens_start > 0)
-    if args.compile_mode == 'max-autotune' and compile_dynamic and (not args.allow_dynamic_max_autotune):
-        # Dynamic shapes cause repeated specializations and can explode max-autotune latency.
-        log0('compile:max-autotune forcing dynamic=False (set ALLOW_DYNAMIC_MAX_AUTOTUNE=1 to override)')
-        compile_dynamic = False
     compile_options = None
     if args.compile_mode == 'max-autotune':
         compile_options = {'max_autotune': True, 'shape_padding': bool(int(os.environ.get('COMPILE_SHAPE_PADDING', '1'))), 'triton.cudagraphs': bool(int(os.environ.get('COMPILE_TRITON_CUDAGRAPHS', '0')))}
-    (compiled_model, _compiled_targets) = apply_selective_compile(
-        base_model,
-        args.compile_mode,
-        compile_dynamic,
-        compile_options,
-        args.compile_target,
-        args.compile_max_modules,
-        log0,
-    )
     if args.compile_mode != 'none':
-        if len(_compiled_targets) <= 4:
-            log0(f'compile:mode={args.compile_mode} target={args.compile_target} dynamic={int(compile_dynamic)} targets={",".join(_compiled_targets)}')
+        if compile_options is not None:
+            try:
+                compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic, options=compile_options)
+            except RuntimeError as e:
+                if 'Either mode or options can be specified' not in str(e):
+                    raise
+                compiled_model = torch.compile(base_model, dynamic=compile_dynamic, options=compile_options)
         else:
-            log0(f'compile:mode={args.compile_mode} target={args.compile_target} dynamic={int(compile_dynamic)} targets={len(_compiled_targets)} modules')
+            compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic)
+    else:
+        compiled_model = base_model
     feedback_interleaving = args.feedback_enabled and args.feedback_passes > 0 and (max(args.feedback_every, 1) > 1)
     sparse_moe = args.moe_enabled and args.moe_top_k < args.moe_num_experts
     force_find_unused = bool(int(os.environ.get('DDP_FIND_UNUSED_PARAMETERS', '0')))
     has_shared_blocks = int(getattr(args, 'shared_blocks', 0)) > 0
-    
-    # 1. TTT Pre-DDP Guarantee: Ensure TTT params are active before DDP wrapper snapshots them
-    if getattr(args, 'ttt_enabled', False):
-        for name, p in base_model.named_parameters():
-            if any(scope_key in name for scope_key in ['feedback', 'skc_safe', 'capsule_bank', 'skip_weights', 'per_layer']):
-                p.requires_grad_(True)
-
-    # Default DDP to the fast/safe path for large-scale runs.
-    # Enable find_unused only when explicitly forced.
-    use_find_unused = force_find_unused
-    ddp_participation_trick = bool(int(os.environ.get('DDP_PARTICIPATION_TRICK', '0')))
-    
-    ddp_static_graph = bool(int(os.environ.get('DDP_STATIC_GRAPH', '0')))
+    use_find_unused = False
     if distributed:
-        model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused, static_graph=ddp_static_graph)
+        model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
     else:
         model = compiled_model
-    
-    # Initialize Diagnostics (Master Rank Only)
-    diag_jsonl = f'logs/diagnostics_{args.run_id}.jsonl'
-    if master_process and args.diagnostics_enabled:
-        with open(diag_jsonl, 'w') as f: pass # Clear/Create
     _SKC_STRUCTURAL = ('decay_rates', 'band_centers', 'band_log_widths', 'eigenvalues', 'coupling_U', 'coupling_V', 'nonlinear_gate', 'mixer_conv', 'skc_scale', 'mlp_scale', 'attn_scale', 'resid_mix', 'skip_weights', 'vocab_bias', 'content_router', 'content_scale', 'gate_proj', 'decay_rates', 'router')
 
     def _is_skc_structural(name: str) -> bool:
         return any((k in name for k in _SKC_STRUCTURAL))
     muon_params = []
     adam_params = []
-    adam_nodecay_params = []  # ternary latent weights: excluded from weight decay to prevent zero-snapping
     head_params = []
     engram_params = []
-    _ternary_param_ids = {id(p) for (_, m) in base_model.named_modules() if isinstance(m, TernaryLinear) for p in m.parameters(recurse=False)}
     for (name, p) in base_model.named_parameters():
         if not p.requires_grad:
             continue
         if 'engram.tables' in name:
             engram_params.append(p)
-        elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name or 'per_layer_' in name:
+        elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name or ('per_layer_' in name):
             head_params.append(p)
         elif _is_skc_structural(name) or p.ndim < 2:
-            if id(p) in _ternary_param_ids:
-                adam_nodecay_params.append(p)
-            else:
-                adam_params.append(p)
+            adam_params.append(p)
         else:
             muon_params.append(p)
     if args.matrix_optimizer == 'muon':
@@ -4089,10 +4211,7 @@ def main() -> None:
         opt_matrix = torch.optim.AdamW(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
     else:
         opt_matrix = torch.optim.Adam(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
-    opt_adam = torch.optim.AdamW(
-        [{'params': adam_params, 'weight_decay': args.adam_wd},
-         {'params': adam_nodecay_params, 'weight_decay': 0.0}],
-        lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps)
+    opt_adam = torch.optim.AdamW(adam_params, lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
     opt_head = torch.optim.AdamW(head_params, lr=args.tied_embed_lr if args.tie_embeddings else args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
     all_opts = [opt_matrix, opt_adam, opt_head]
     if engram_params:
@@ -4195,8 +4314,7 @@ def main() -> None:
                 else:
                     (x, y) = ensure_train_loader().next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
                 with autocast_context(device):
-                    # GPT.forward returns (loss, ce_raw) during training
-                    loss, _ = model(x, y, elapsed_fraction=0.0, feedback_passes=args.feedback_passes)
+                    (loss, _) = model(x, y, elapsed_fraction=0.0, feedback_passes=args.feedback_passes)
                 (loss * grad_scale).backward()
             for o in optimizers:
                 o.step()
@@ -4262,7 +4380,6 @@ def main() -> None:
             if device.type == 'cuda':
                 torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            # Gated EMA evaluation: only apply if EMA has actually started tracking
             _ema_is_active = step_fraction(step) >= args.ema_start_fraction
             if args.ema_enabled and args.ema_eval_apply and (ema is not None) and _ema_is_active:
                 _orig_ema_weights = ema.apply_shadow(base_model)
@@ -4291,13 +4408,11 @@ def main() -> None:
             if active_seq_len != target_seq_len:
                 active_seq_len = target_seq_len
                 base_model.reset_capsule_carry()
-                # train_loader already handles target_seq_len in next_batch(); reuse to preserve stream position.
                 log0(f'step:{step} curr_seq_len_jump:{active_seq_len}')
         elif args.seq_len_start > 0 and (not _seq_switched):
             if step >= int(args.iterations * args.seq_schedule_fraction):
                 active_seq_len = args.train_seq_len
                 _seq_switched = True
-                # Reusing train_loader to preserve stream position across seq_len switch.
                 log0(f'step:{step} seq_len_switch:{args.seq_len_start}->{active_seq_len}')
         if args.batch_tokens_start > 0 and (not _batch_switched):
             if step >= int(args.iterations * args.batch_schedule_fraction):
@@ -4317,37 +4432,30 @@ def main() -> None:
             (x, y) = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
             prog_frac = step_fraction(step)
             with autocast_context(device):
-                # GPT.forward returns (total_loss, raw_ce) during training
-                loss, ce_raw = model(x, y, elapsed_fraction=prog_frac, feedback_passes=feedback_passes)
-                if distributed and ddp_participation_trick:
-                    loss = enforce_ddp_participation(base_model, loss)
+                (loss, ce_raw) = model(x, y, elapsed_fraction=prog_frac, feedback_passes=feedback_passes)
+                if distributed:
+                    dummy_loss = torch.stack([p.view(-1)[0] * 0.0 for p in model.parameters() if p.requires_grad]).sum()
+                    loss = loss + dummy_loss
             local_loss = loss
             train_loss.add_(local_loss.detach())
             train_ce_raw.add_(ce_raw.detach() / grad_accum_steps)
             (local_loss * grad_scale).backward()
         train_loss /= grad_accum_steps
         if step == 0 and os.environ.get('DEBUG_GRAD_FLOW', '0') == '1':
-            # Smoke test: verify gradients reach the 1-D params that would freeze
-            # silently if Triton kernels severed the autograd graph. Named to match
-            # the kinds of params previously observed stuck at init values.
             _watched = ('skc_prenorm_gamma', 'mlp_prenorm_gamma', 'final_norm', 'vocab_bias', 'gamma')
             _missing = []
-            for _n, _p in base_model.named_parameters():
+            for (_n, _p) in base_model.named_parameters():
                 if not _p.requires_grad:
                     continue
-                if any(_w in _n for _w in _watched) and _p.grad is None:
+                if any((_w in _n for _w in _watched)) and _p.grad is None:
                     _missing.append(_n)
             if _missing:
                 raise RuntimeError(f'DEBUG_GRAD_FLOW: {len(_missing)} watched params have grad=None after step 0 — Triton autograd wrappers are severing the graph. First 10: {_missing[:10]}')
-            log0(f'DEBUG_GRAD_FLOW: grad flow OK ({sum(1 for _n, _p in base_model.named_parameters() if _p.grad is not None)} params received grads)')
+            log0(f'DEBUG_GRAD_FLOW: grad flow OK ({sum((1 for (_n, _p) in base_model.named_parameters() if _p.grad is not None))} params received grads)')
         if args.grad_clip_norm > 0:
             grad_norm = torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
             if not torch.isfinite(grad_norm):
                 log0(f'WARNING: Non-finite grad_norm detected at step {step}: {grad_norm.item()}')
-        
-        # Inline Poll-Based Diagnostics
-        if master_process and args.diagnostics_enabled and (step % 20 == 0 or step < 5):
-            _poll_nn_diagnostics(base_model, step, log0, diag_jsonl, is_smoke=(step < 5), is_moe_active=args.moe_enabled)
         if args.untie_at_fraction > 0 and (not _untied):
             if step >= int(args.iterations * args.untie_at_fraction):
                 if distributed:
@@ -4359,37 +4467,31 @@ def main() -> None:
                     base_model.tok_stem.tied = False
                     base_model.tie_embeddings = False
                     base_model.tok_stem.lm_head.weight.requires_grad_(True)
-                    opt_head.add_param_group({
-                        'params': [base_model.tok_stem.lm_head.weight],
-                        'lr': args.head_lr,
-                        'base_lr': args.head_lr
-                    })
+                    head_params.append(base_model.tok_stem.lm_head.weight)
+                    opt_head = torch.optim.AdamW(head_params, lr=args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
+                    for g in opt_head.param_groups:
+                        g['base_lr'] = g['lr']
                     optimizers = [opt_matrix, opt_adam, opt_head]
                     if ema is not None:
                         ema.add_parameter(_LM_HEAD_STATE_KEY, base_model.tok_stem.lm_head.weight)
-                    if args.compile_mode == 'max-autotune':
-                        # Avoid a second full autotune compile pass mid-run.
-                        log0(f'step:{step} untying lm_head: reusing existing compiled graph (skip recompile for max-autotune)')
+                    torch._dynamo.reset()
+                    if args.compile_mode != 'none':
+                        if compile_options is not None:
+                            try:
+                                compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic, options=compile_options)
+                            except RuntimeError:
+                                compiled_model = torch.compile(base_model, dynamic=compile_dynamic, options=compile_options)
+                        else:
+                            compiled_model = torch.compile(base_model, mode=args.compile_mode, dynamic=compile_dynamic)
                     else:
-                        torch._dynamo.reset()
-                        (compiled_model, _compiled_targets) = apply_selective_compile(
-                            base_model,
-                            args.compile_mode,
-                            compile_dynamic,
-                            compile_options,
-                            args.compile_target,
-                            args.compile_max_modules,
-                            log0,
-                        )
-                    
+                        compiled_model = base_model
                     if distributed:
                         dist.barrier()
                         log0(f'step:{step} untying lm_head: reconstructing DDP wrapper')
                         del model
-                        model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused, static_graph=ddp_static_graph)
+                        model = DDP(compiled_model, device_ids=[local_rank], find_unused_parameters=use_find_unused)
                     else:
                         model = compiled_model
-                    
                     log0(f'step:{step} untied lm_head (head_lr={args.head_lr})')
                     _untied = True
                 if distributed:
@@ -4402,13 +4504,10 @@ def main() -> None:
                 log0(f'step:{step} recurrence_depth:{_want_recur} (frac={step_fraction(step):.3f})')
         if args.matrix_optimizer == 'muon':
             frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-            # Dynamic backend_steps: ramp from muon_backend_steps down to 1 over
-            # the warmdown phase — matrices are already well-conditioned by then,
-            # so fewer NS iterations are needed and each step is cheaper.
             _sf = step_fraction(step)
             _wd_start = 1.0 - args.warmdown_fraction
             if _sf >= _wd_start:
-                _wd_frac = (_sf - _wd_start) / max(args.warmdown_fraction, 1e-6)
+                _wd_frac = (_sf - _wd_start) / max(args.warmdown_fraction, 1e-06)
                 _dyn_steps = max(1, round(args.muon_backend_steps * (1.0 - 0.7 * _wd_frac)))
             else:
                 _dyn_steps = args.muon_backend_steps
@@ -4416,16 +4515,13 @@ def main() -> None:
                 g['backend_steps'] = _dyn_steps
                 g['momentum'] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
         scale = lr_mul(step)
-        # Log grad norms for critical parameters to detect swamped gradients before step
         v_grad_norm = 0.0
         f_grad_norm = 0.0
         if master_process:
-            # Inspection of the prediction head and exit norm to verify gradient bite
             if base_model.vocab_bias.grad is not None:
                 v_grad_norm = torch.norm(base_model.vocab_bias.grad / grad_scale).item()
             if hasattr(base_model, 'final_norm') and base_model.final_norm.weight.grad is not None:
                 f_grad_norm = torch.norm(base_model.final_norm.weight.grad / grad_scale).item()
-        
         for opt in optimizers:
             for g in opt.param_groups:
                 g['lr'] = g['base_lr'] * scale
@@ -4443,7 +4539,6 @@ def main() -> None:
             if distributed:
                 dist.barrier()
             if master_process:
-                # Gated EMA evaluation for proxy selection
                 _ema_is_active = step_fraction(step) >= args.ema_start_fraction
                 _proxy_ema_orig = None
                 if ema is not None and _ema_is_active:
@@ -4509,9 +4604,8 @@ def main() -> None:
             t0 = time.perf_counter()
         if stop_after_step is None and max_wallclock_ms is not None and (step % 10 == 0):
             approx_ms = 1000.0 * (time.perf_counter() - train_wall_start)
-            # Stop early to allow for calibration, compression, and serialization
             grace_ms = args.export_grace_seconds * 1000.0
-            reached_cap = approx_ms >= (max_wallclock_ms - grace_ms)
+            reached_cap = approx_ms >= max_wallclock_ms - grace_ms
             if distributed:
                 cap_t = torch.tensor(int(reached_cap), device=device)
                 dist.all_reduce(cap_t, op=dist.ReduceOp.MAX)
@@ -4566,7 +4660,7 @@ def main() -> None:
             args.sliding_batch_size = 1
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
-            return eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, temperature=temperature, logger=log0, force_sequential=True)
+            return eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, temperature=temperature, logger=log0)
         finally:
             args.sliding_batch_size = saved_batch_size
 
@@ -4587,19 +4681,15 @@ def main() -> None:
     (val_loss, val_bpb) = _eval_val_safe()
     (final_loss, final_bpb) = (val_loss, val_bpb)
     log0(f'final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}')
-    # FINAL VERIFICATION: Diagnostic evaluation on a slice of training data
-    # This detects train/eval graph mismatches: if train loss at step N was 5.0
-    # but eval(train_slice) at step N is 9.0, then the eval path is broken.
     if master_process:
-        log0("--- FINAL DIAGNOSTIC EVALUATION ---")
+        log0('--- FINAL DIAGNOSTIC EVALUATION ---')
         train_slice_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
         (sx, sy) = train_slice_loader.next_batch(args.train_batch_tokens, args.train_seq_len, 1)
         base_model.eval()
         with torch.no_grad():
-             diag_loss = base_model(sx, sy, feedback_passes=resolve_eval_feedback_passes(args)).item()
-        log0(f"DIAGNOSTIC: Final Train Slice Loss = {diag_loss:.4f} (Step {args.iterations})")
+            diag_loss = base_model(sx, sy, feedback_passes=resolve_eval_feedback_passes(args)).item()
+        log0(f'DIAGNOSTIC: Final Train Slice Loss = {diag_loss:.4f} (Step {args.iterations})')
         base_model.train()
-    
     if _final_eval_ema_orig is not None:
         ema.restore(base_model, _final_eval_ema_orig)
     if distributed:
@@ -4624,7 +4714,6 @@ def main() -> None:
         torch.distributed.barrier()
     using_best_proxy_sd = args.export_proxy_use_best and _best_proxy_sd is not None
     _ema_original = None
-    # Mutually exclusive: best_proxy or EMA shadow weights (Bug 3)
     if using_best_proxy_sd:
         log0(f'serialization:using best_proxy_sd (EMA-smoothed, proxy_bpb={_best_proxy_bpb:.4f})', flush=True)
         base_model.load_state_dict(_best_proxy_sd)
@@ -4636,9 +4725,6 @@ def main() -> None:
     tok_budget = int(max(0, args.engram_export_token_budget))
     if tok_budget > 0:
         _engram_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=tok_budget).to(device)
-
-    # SD is required for pruning, but we must run pruning on all ranks for all_reduce to work.
-    # Non-master ranks can use a dummy dict to save memory since they don't serialize.
     if master_process:
         log0('serialization:started', flush=True)
         export_ternary_names = export_ternary_param_names(base_model)
@@ -4678,9 +4764,7 @@ def main() -> None:
     else:
         sd = {}
         final_calib = {}
-        
     (sd, _engram_prune_info) = prune_engram_tables_for_export(sd, base_model, args, _engram_tokens, log0)
-    
     if master_process:
         methods = {}
         for method in ('standard', 'bitmask'):
@@ -4715,8 +4799,7 @@ def main() -> None:
                 f.write(full_blob)
             log0(f'competition_export: codec={final_codec} method={best} size={len(full_blob) / 1000000.0:.2f}MB')
         artifact_bytes = len(full_blob)
-        # Use actual built wrapper bytes if available, otherwise fallback to unminified source estimate
-        code_bytes = get_fresh_code_bytes(args)
+        code_bytes = len(code.encode('utf-8'))
         total = artifact_bytes + code_bytes
         log0(f"artifact:{artifact_bytes / 1000000.0:.2f}MB ternary:{q_stats['ternary_params']}({q_stats['ternary_bytes']}B) fp:{q_stats['fp_params']}({q_stats['fp_bytes']}B) code:{code_bytes}")
         hbb = args.hard_budget_bytes
@@ -4757,7 +4840,6 @@ def main() -> None:
             import brotli
             decompressed_bytes = brotli.decompress(raw_bytes[1:])
         else:
-            # Fallback: try raw LZMA if no header detected
             decompressed_bytes = lzma.decompress(raw_bytes)
         loaded = torch.load(io.BytesIO(decompressed_bytes), map_location='cpu', weights_only=False)
     except Exception as e:
@@ -4815,7 +4897,6 @@ def main() -> None:
             torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         try:
-            # Enable single-rank mode for the final leaderboard-grade scoring
             args.ttt_single_rank_eval = True
             (ttt_loss, ttt_bpb) = _eval_val_sliding_ttt_safe(opt_temp)
         except Exception as e:
@@ -4833,20 +4914,13 @@ def main() -> None:
         log0(f'legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms')
         log0(f'legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}')
         (augmented_val_loss, augmented_val_bpb) = (ttt_loss, ttt_bpb)
-    # ---- 4-case ablation: baseline / engram-only / ttt-only / ttt+engram ----
     if int(os.environ.get('ABLATION_EVAL', '0')) and args.sliding_eval and master_process:
         log0('ablation_eval:start — running 4-case ablation (baseline, engram, ttt, ttt+engram)')
         _saved_engram = base_model.engram
         _saved_eval_engram = base_model.eval_engram
         _saved_ttt = int(args.ttt_enabled)
         ablation_results: dict[str, tuple[float, float]] = {}
-        for _abl_name, _abl_engram, _abl_ttt in [
-            ('baseline',     False, False),
-            ('engram_only',  True,  False),
-            ('ttt_only',     False, True),
-            ('ttt_engram',   True,  True),
-        ]:
-            # Toggle engram correction: set model.engram = None to disable
+        for (_abl_name, _abl_engram, _abl_ttt) in [('baseline', False, False), ('engram_only', True, False), ('ttt_only', False, True), ('ttt_engram', True, True)]:
             if not _abl_engram:
                 base_model.engram = None
                 base_model.eval_engram = None
@@ -4869,13 +4943,11 @@ def main() -> None:
             _abl_ms = 1000.0 * (time.perf_counter() - t_abl)
             ablation_results[_abl_name] = (_abl_loss, _abl_bpb)
             log0(f'ablation_eval:{_abl_name} val_loss:{_abl_loss:.6f} val_bpb:{_abl_bpb:.6f} time:{_abl_ms:.0f}ms')
-        # Restore original state
         base_model.engram = _saved_engram
         args.ttt_enabled = _saved_ttt
         log0('ablation_eval:summary')
-        for _abl_name, (_abl_loss, _abl_bpb) in ablation_results.items():
+        for (_abl_name, (_abl_loss, _abl_bpb)) in ablation_results.items():
             log0(f'  {_abl_name:15s}  loss={_abl_loss:.6f}  bpb={_abl_bpb:.6f}')
-        # Pick the best ablation as final result
         _best_abl = min(ablation_results, key=lambda k: ablation_results[k][1] if not math.isnan(ablation_results[k][1]) else float('inf'))
         log0(f'ablation_eval:best={_best_abl} bpb={ablation_results[_best_abl][1]:.6f}')
         (augmented_val_loss, augmented_val_bpb) = ablation_results[_best_abl]
@@ -4944,26 +5016,16 @@ def main() -> None:
         (augmented_val_loss, augmented_val_bpb) = (ngram_val_loss, ngram_bpb)
     if master_process:
         artifact_bytes = os.path.getsize('final_model.ternary.ptz') if os.path.exists('final_model.ternary.ptz') else 0
-        # Final scoreboard check
-        c_code_bytes = get_fresh_code_bytes(args)
+        if os.path.exists('train_gpt.py'):
+            c_code_bytes = os.path.getsize('train_gpt.py')
+        else:
+            c_code_bytes = len(code.encode('utf-8')) if 'code' in locals() else 0
         total_bytes = artifact_bytes + c_code_bytes
         log0(f'scoreboard: raw_bpb={final_bpb:.4f} roundtrip_bpb={roundtrip_val_bpb:.4f} augmented_bpb={augmented_val_bpb:.4f}')
-        # Fix Issue 1: Submit the best final metric
         submission_bpb = min(float(roundtrip_val_bpb), float(augmented_val_bpb))
         submission_loss = augmented_val_loss if augmented_val_bpb <= roundtrip_val_bpb else roundtrip_val_loss
         with open('submission.json', 'w') as f:
-            json.dump({
-                'author': 'Aki Gogikar (OneNewAI)',
-                'github_id': 'akhileshgogikar',
-                'name': 'KoopCaps-HRM Ternary Reasoner',
-                'blurb': 'KoopCaps-HRM: 20M ternary SKC MoE with EMA, GPTQ-lite, and deterministic export.',
-                'date': '2026-03-27T00:00:00Z',
-                'val_loss': round(float(submission_loss), 4),
-                'val_bpb': round(float(submission_bpb), 4),
-                'augmented_val_bpb': round(float(augmented_val_bpb), 4),
-                'bytes_total': total_bytes, 
-                'bytes_code': c_code_bytes
-            }, f, indent=2)
+            json.dump({'author': 'Aki Gogikar (OneNewAI)', 'github_id': 'akhileshgogikar', 'name': 'KoopCaps-HRM Ternary Reasoner', 'blurb': 'KoopCaps-HRM: 20M ternary SKC MoE with EMA, GPTQ-lite, and deterministic export.', 'date': '2026-03-27T00:00:00Z', 'val_loss': round(float(submission_loss), 4), 'val_bpb': round(float(submission_bpb), 4), 'augmented_val_bpb': round(float(augmented_val_bpb), 4), 'bytes_total': total_bytes, 'bytes_code': c_code_bytes}, f, indent=2)
     if distributed:
         try:
             torch.distributed.barrier()

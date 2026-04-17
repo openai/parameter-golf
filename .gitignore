@@ -10,6 +10,12 @@ data/docs_selected.jsonl
 .venv
 logs/
 
+# Model and training artifacts
+_archive/
+*.pt
+*.ptz
+*.npz
+
 # Local secrets
 *.secret.sh
 .runpod_secret.sh

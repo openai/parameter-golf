@@ -1,79 +1,0 @@
-[13:45:22] === Terminating all live pods ===
-[13:45:23] All pods terminated. Waiting 30s for cleanup...
-[13:45:53] ======================================================
-[13:45:53] Starting exp1_16experts_256d_batch16k
-[13:45:53] Config: NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 TRAIN_BATCH_TOKENS=16384 BIGRAM_HASH_BUCKETS=16384
-[13:45:53] Log: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/exp_exp1_16experts_256d_batch16k_20260407_134553.log
-[13:45:53] ======================================================
-[13:45:53] ========================================================
-[13:45:53] Cheap Multi-GPU Small SKC Orchestrator
-[13:45:53] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_134553
-[13:45:53] GPU count: 2
-[13:45:53] Min mem  : 20GB
-[13:45:53] Data     : 2 train shards
-[13:45:53] ========================================================
-[13:45:55] Secure candidate: A40 (NVIDIA A40)  2x  mem=48GB  stock=High  price=$0.8/hr
-[13:45:55] Trying 2xNVIDIA A40 on SECURE...
-[13:45:56]   success: pod=a4flxm9vkgmdre cost=$0.8/hr
-[13:45:56] Waiting for pod SSH readiness...
-[13:46:20] Pod ready: root@194.68.245.18:22051
-[13:46:20] Verifying GPU and runtime...
-0, NVIDIA A40, 46068 MiB
-1, NVIDIA A40, 46068 MiB
-torch 2.4.1+cu124 cuda 12.4 gpus 2
-[13:46:36] Installing tmux and preparing logs...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libevent-core-2.1-7 libutempter0
-The following NEW packages will be installed:
-  libevent-core-2.1-7 libutempter0 tmux
-0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
-Need to get 531 kB of archives.
-After this operation, 1365 kB of additional disk space will be used.
-Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
-Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
-Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 531 kB in 0s (2096 kB/s)
-Selecting previously unselected package libevent-core-2.1-7:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
-Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
-Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Selecting previously unselected package libutempter0:amd64.
-Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
-Unpacking libutempter0:amd64 (1.2.1-2build2) ...
-Selecting previously unselected package tmux.
-Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
-Unpacking tmux (3.2a-4ubuntu0.2) ...
-Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Setting up libutempter0:amd64 (1.2.1-2build2) ...
-Setting up tmux (3.2a-4ubuntu0.2) ...
-Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
-[13:46:46] Installing dependencies...
-wrote:/workspace/install_setup.sh
-[13:47:15] Preparing data...
-wrote:/workspace/data_setup.sh
-[13:47:43] Uploading code...
-[13:47:54] Remote env overrides: TRAIN_BATCH_TOKENS=16384 TERNARY_THRESHOLD_SEARCH=0 EXPORT_ONLY=0 SEED=1337 NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 BIGRAM_HASH_BUCKETS=16384 
-[13:47:54] Smoke test...
-==========================================================================
-  Cheap Multi-GPU Small SKC Run
-  RUN_ID : small_skc_2gpu_s1337_20260407_184758
-  MODEL  : SKC L=8 D=256 H=4/2
-  SKC    : block=16 caps=8 cap_dim=64
-  ENGRAM : buckets=16384 dim=112 orders=3
-  TERNARY: train_align=0@0.85 thr_search=0 scale_search=0
-  CURR   : 64 -> 128 -> 256 @ 35% / 65%
-  BATCH  : 16384 tok/step  seq=2048
-  VRAM   : min_gpu_mem=45GB  val_batch=32768
-  BUDGET : 45s
-  SEED   : 1337
-  GPUS   : 2
-  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
-  SMOKE  : 1
-==========================================================================
-[13:51:04] Launching 10-minute run...
-[14:49:03] FATAL: Full run did not complete in time
-[14:49:03] KEEP_POD_ON_EXIT=1, skipping termination of pod a4flxm9vkgmdre.

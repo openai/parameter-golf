@@ -1,162 +1,0 @@
-[11:49:35] === Terminating all live pods ===
-[11:49:37] All pods terminated. Waiting 30s for cleanup...
-[11:50:07] ======================================================
-[11:50:07] Starting exp1_16experts_256d_batch16k
-[11:50:07] Config: NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 TRAIN_BATCH_TOKENS=16384 BIGRAM_HASH_BUCKETS=16384
-[11:50:07] Log: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/exp_exp1_16experts_256d_batch16k_20260407_115007.log
-[11:50:07] ======================================================
-[11:50:07] ========================================================
-[11:50:07] Cheap Multi-GPU Small SKC Orchestrator
-[11:50:07] Artifacts: /Users/akhileshgogikar/parameter-golf/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/small_skc_multigpu_20260407_115007
-[11:50:07] GPU count: 2
-[11:50:07] Min mem  : 40GB
-[11:50:07] Data     : 2 train shards
-[11:50:07] ========================================================
-[11:50:16] Secure candidate: A100 SXM (NVIDIA A100-SXM4-80GB)  2x  mem=80GB  stock=Medium  price=$2.98/hr
-[11:50:16] Trying 2xNVIDIA A100-SXM4-80GB on SECURE...
-[11:50:18]   success: pod=d6zop82rj58mj5 cost=$2.98/hr
-[11:50:18] Waiting for pod SSH readiness...
-[11:50:45] Pod ready: root@154.54.102.52:12706
-[11:50:45] Verifying GPU and runtime...
-0, NVIDIA A100-SXM4-80GB, 81920 MiB
-1, NVIDIA A100-SXM4-80GB, 81920 MiB
-torch 2.4.1+cu124 cuda 12.4 gpus 2
-[11:51:06] Installing tmux and preparing logs...
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libevent-core-2.1-7 libutempter0
-The following NEW packages will be installed:
-  libevent-core-2.1-7 libutempter0 tmux
-0 upgraded, 3 newly installed, 0 to remove and 146 not upgraded.
-Need to get 531 kB of archives.
-After this operation, 1365 kB of additional disk space will be used.
-Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]
-Get:2 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]
-Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]
-debconf: delaying package configuration, since apt-utils is not installed
-Fetched 531 kB in 0s (3294 kB/s)
-Selecting previously unselected package libevent-core-2.1-7:amd64.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24135 files and directories currently installed.)
-Preparing to unpack .../libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ...
-Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Selecting previously unselected package libutempter0:amd64.
-Preparing to unpack .../libutempter0_1.2.1-2build2_amd64.deb ...
-Unpacking libutempter0:amd64 (1.2.1-2build2) ...
-Selecting previously unselected package tmux.
-Preparing to unpack .../tmux_3.2a-4ubuntu0.2_amd64.deb ...
-Unpacking tmux (3.2a-4ubuntu0.2) ...
-Setting up libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ...
-Setting up libutempter0:amd64 (1.2.1-2build2) ...
-Setting up tmux (3.2a-4ubuntu0.2) ...
-Processing triggers for libc-bin (2.35-0ubuntu3.8) ...
-[11:51:18] Installing dependencies...
-wrote:/workspace/install_setup.sh
-[11:52:01] Preparing data...
-wrote:/workspace/data_setup.sh
-[11:52:52] Uploading code...
-[11:53:12] Remote env overrides: TRAIN_BATCH_TOKENS=16384 TERNARY_THRESHOLD_SEARCH=1 NGRAM_CACHE_ENABLED=0 EXPORT_ONLY=0 SEED=1337 NUM_LAYERS=8 MODEL_DIM=256 KOOPMAN_MIXER_RANK=4 MOE_ENABLED=1 MOE_NUM_EXPERTS=16 MOE_TOP_K=2 BIGRAM_HASH_BUCKETS=16384 
-[11:53:12] Smoke test...
-==========================================================================
-  Cheap Multi-GPU Small SKC Run
-  RUN_ID : small_skc_2gpu_s1337_20260407_165318
-  MODEL  : SKC L=8 D=256 H=4/2
-  SKC    : block=16 caps=8 cap_dim=64
-  ENGRAM : buckets=16384 dim=112 orders=3
-  TERNARY: train_align=0@0.85 thr_search=1 scale_search=0
-  CURR   : 64 -> 128 -> 256 @ 35% / 65%
-  BATCH  : 16384 tok/step  seq=256
-  VRAM   : min_gpu_mem=80GB  val_batch=32768
-  BUDGET : 45s
-  SEED   : 1337
-  GPUS   : 2
-  EXPORT : turbo=1 hess=0 sliding=0 ngram=0
-  SMOKE  : 1
-==========================================================================
-logs/cuda/small_skc_2gpu_s1337_20260407_165318.txt
-DDP enabled: 2 GPUs find_unused=0 static_graph=1
-Muon optimizer: matrix_lr=0.02 scalar_lr=0.015 embed_lr=0.035 scalar_decay=35 engram_scalar=12
-params:36721480 L:8 d:256 h:4 kv:2 ws:2 ga:1 s:1337
-step:1/500000 loss:7.6126 t:1076ms avg:1075.8ms
-step:2/500000 loss:7.5756 t:1577ms avg:788.6ms
-step:3/500000 loss:7.1335 t:2114ms avg:704.8ms
-step:4/500000 loss:8.2074 t:2599ms avg:649.7ms
-step:5/500000 loss:7.5283 t:3064ms avg:612.7ms
-step:6/500000 loss:15.4528 t:3528ms avg:588.1ms
-step:7/500000 loss:10.6006 t:3993ms avg:570.4ms
-step:8/500000 loss:12.9472 t:4452ms avg:556.5ms
-step:9/500000 loss:10.7983 t:4895ms avg:543.9ms
-[11:56:28] Launching 10-minute run...
-[11:56:50] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:57:10] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:57:29] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:57:48] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:58:08] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:58:26] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:58:45] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:59:04] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[11:59:28] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:00:03] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:00:24] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:00:46] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:01:03] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:01:22] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:01:41] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:01:59] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:02:18] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:02:37] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:02:55] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:03:15] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:03:33] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:03:51] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:04:14] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:04:35] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:04:55] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:05:14] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:05:36] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:05:55] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:06:14] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:06:33] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:06:52] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:07:10] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:07:34] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:07:55] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:08:14] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:08:32] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:08:51] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:09:12] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:09:31] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:09:50] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:10:09] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:10:28] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:10:47] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:11:05] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:11:22] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:11:41] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:11:58] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:12:16] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:12:34] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:12:51] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:13:09] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:13:28] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:13:45] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:14:09] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:14:26] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:14:47] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:15:06] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:15:25] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:15:43] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:16:03] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:16:23] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:16:42] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:16:59] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:17:18] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:17:36] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:17:56] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:18:18] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:18:37] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:18:55] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:19:14] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:19:36] progress » checkpoint:best_live step=0 val_bpb:4.1728
-[12:19:54] progress » checkpoint:best_live step=0 val_bpb:4.1728

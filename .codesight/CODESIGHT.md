@@ -1,0 +1,390 @@
+# parameter-golf — AI Context Map
+
+> **Stack:** raw-http | none | unknown | python
+
+> 0 routes | 0 models | 0 components | 53 lib files | 28 env vars | 2 middleware | 0% test coverage
+> **Token savings:** this file is ~7,900 tokens. Without it, AI exploration would cost ~23,100 tokens. **Saves ~15,200 tokens per conversation.**
+> **Last scanned:** 2026-04-16 07:00 — re-run after significant changes
+
+---
+
+# Libraries
+
+- `_archive/logs/remote_run_20260413/train_gpt_tail.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-17_LoRA_TTT/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-17_NaiveBaseline/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-18_FP16Embed_WD3600/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-18_LongContextSeq2048/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-18_LowerLR/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_10L_MixedPrecision/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_MLP3x_QAT_Int6_SlidingWindow/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_Seq2048_FP16Emb_TunedLR/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_SlidingWindowEval/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_TrainingOptSeq4096/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_WarmdownQuantization/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-19_smeargate_orthoinit_muonwd/train_gpt_v5.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-20_10L_Int5MLP_MuonWD04_SWA50/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-20_11L_EfficientPartialXSA_FA3_SWA120/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/train_gpt_cuda_ternary.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/chinchilla_extrapolate.py` — function chinchilla_optimal_loss: (N, D), function project: (params_1060ti, tokens_per_sec_1060ti, target_params, h100_multiplier)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/generate_ablation_report.py` — function parse_logs: (log_path)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/iso_compute_bakeoff.py`
+  - function build_env: (config_name, model_dim, overrides) -> dict
+  - function run_training: (config_name, env_overrides, max_steps, model_dim, max_wallclock, val_loss_every, label) -> dict
+  - function calibrate_single: (config_name, target_ms, tolerance) -> int
+  - function run_calibration: () -> dict
+  - function run_race: (calibrated_dims, race_steps, eval_every, start_from) -> list
+  - function generate_report: (calibrated_dims, results, outpath)
+  - _...1 more_
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/live_dashboard.py`
+  - function tail_mac: ()
+  - function tail_win: ()
+  - function make_layout: () -> Layout
+  - function update_layout: (layout)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/patch_moe.py` — class DenseTernaryMoE
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/predict_h100_frontier.py`
+  - function power_law: (C, alpha, beta, L_inf)
+  - function parse_log_for_chinchilla: (log_path, tflops_rating)
+  - function predict_h100_loss: (log_path)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/run_all_benchmarks.py`
+  - function merge_env: (override_env)
+  - function run_experiment: (name, env_overrides, time_limit)
+  - function do_ablation: (name, env)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/speed_shootout.py` — function benchmark: (args, name)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/sweep_speed_aware.py`
+  - function merge_env: (overrides) -> dict
+  - function run_config: (name, overrides, time_limit_s) -> dict
+  - function main: ()
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/test_compile.py` — function fn: (x, mask)
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/test_dense_moe_mlx.py`
+  - function loss_fn: (model, x)
+  - class MLP
+  - class DenseTernaryMoE
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/test_moe_mlx.py` — class MLP, class TernaryMoE
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_mlx.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/train_gpt_winner.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/track_non_record_16mb/2026-03-19_SwiGLU_WarmdownFix_QuarterBatch_1x5090/train_gpt.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `_archive/records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/train_gpt_cuda_binary.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function optimized_moe_dispatch: (x_flat, experts, selected_experts, routing_weights, effective_top_k, num_experts) -> Tensor
+  - function optimized_feedback_retrieve: (q, k, v, lr, sketch_len) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - _...74 more_
+- `build_submission.py`
+  - function minify_python: (src_text) -> str
+  - function build_submission: (source, output, lzma_preset, minify, codec, root) -> dict[str, object]
+  - function parse_args: () -> argparse.Namespace
+  - function main: () -> None
+- `data/cached_challenge_fineweb.py`
+  - function dataset_dir_for_variant: (name) -> str
+  - function local_path_for_remote: (relative_path) -> Path
+  - function get: (relative_path) -> None
+  - function manifest_path: () -> Path
+  - function load_manifest: (*, skip_manifest_download) -> dict
+  - function artifact_paths_for_tokenizer: (tokenizer_entry) -> list[str]
+  - _...2 more_
+- `data/download_hf_docs_and_tokenize.py`
+  - function default_pure_byte_tokenizer: () -> PureByteTokenizer
+  - function docs_sidecar_path: (docs_jsonl) -> Path
+  - function maybe_load_docs_sidecar_meta: (docs_jsonl) -> dict[str, Any] | None
+  - function copy_from_hf_cache: (*, repo_id, remote_root, filename, destination) -> bool
+  - function iter_docs: (path)
+  - function count_docs: (path) -> int
+  - _...14 more_
+- `extract_competition.py`
+  - function strip_comments_and_blanks: (src) -> str
+  - function extract_competition: (source_text, verbose) -> str
+  - function main: ()
+  - class DeadCodeEliminator
+  - class UnusedImportPruner
+  - class DocstringStripper
+- `scratch/test_dce_source.py` — function main: ()
+- `scratch/verify_dtype.py` — function test_dtype_preservation: ()
+- `scratch/verify_engram.py` — function test_engram_dispatch: ()
+- `scratch/verify_momentum.py` — function test_optimizer_momentum: ()
+- `scratch/verify_rounding.py` — function aligned_round: (z), function test_rounding: ()
+- `train_gpt_final_test_decompressed.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - function triton_spectral_decay_scan: (x_blocks, decay_rates, gate, initial_state) -> Tensor
+  - function triton_rms_norm: (x, weight, eps) -> Tensor
+  - _...79 more_
+- `train_gpt_test_fix_decompressed.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - function triton_spectral_decay_scan: (x_blocks, decay_rates, gate, initial_state) -> Tensor
+  - function triton_rms_norm: (x, weight, eps) -> Tensor
+  - _...79 more_
+- `train_gpt_verbose.py`
+  - function engram_entropy_gated_correction: (logits, engram_logits, alpha, entropy_thr) -> Tensor
+  - function autocast_context: (device)
+  - function validate_config_surface: (args) -> None
+  - function apply_competition_profile: (args) -> None
+  - function apply_runtime_path_policy: (args) -> None
+  - function resolve_eval_feedback_passes: (args, feedback_passes) -> int
+  - _...70 more_
+- `triton_kernels.py`
+  - function triton_fwht_blockwise: (x, block_size, num_stages) -> Tensor
+  - function triton_parallel_scan: (B_vals, D) -> Tensor
+  - function triton_ternary_dequant: (w, group_size, H_fixed, calib_thr, calib_scale_mult, turbo) -> Tensor
+  - function triton_engram_hash_gather: (input_ids, tables, primes, num_orders, num_heads, head_dim, buckets) -> Tensor
+  - function triton_spectral_decay_scan: (x_blocks, decay_rates, gate, initial_state) -> Tensor
+  - function triton_rms_norm: (x, weight, eps) -> Tensor
+  - _...3 more_
+
+---
+
+# Config
+
+## Environment Variables
+
+- `ABLATION_EVAL` **required** — train_gpt_final_test_decompressed.py
+- `COMPILE_SHAPE_PADDING` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `COMPILE_TRITON_CUDAGRAPHS` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `DATA_PATH` **required** — _archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/iso_compute_bakeoff.py
+- `DDP_FIND_UNUSED_PARAMETERS` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `DEBUG_GRAD_FLOW` **required** — train_gpt_final_test_decompressed.py
+- `DISABLE_TRITON` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `ENGRAM_COMPETITION_ENABLED` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `FAST_SMOKE` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `FAST_SMOKE_BATCHES` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `GRAD_ACCUM_STEPS` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `LOCAL_RANK` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `MATCHED_FINEWEB_REMOTE_ROOT_PREFIX` **required** — data/cached_challenge_fineweb.py
+- `MATCHED_FINEWEB_REPO_ID` **required** — data/cached_challenge_fineweb.py
+- `MATCHED_FINEWEB_SP_BATCH_SIZE` **required** — data/download_hf_docs_and_tokenize.py
+- `MATCHED_FINEWEB_TOKENIZER_THREADS` **required** — data/download_hf_docs_and_tokenize.py
+- `RANK` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `RUN_ID` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `SWEEP_TIME_LIMIT` **required** — _archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/sweep_speed_aware.py
+- `TOKENIZER_PATH` **required** — _archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/iso_compute_bakeoff.py
+- `TORCH_NCCL_TIMEOUT_SEC` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `TORCHINDUCTOR_COMPILE_THREADS` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `TORCHINDUCTOR_FX_GRAPH_CACHE` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `TRITON_ENGRAM_ENABLED` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `TURBO_QUANT_KV` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `VAL_MAX_TOKENS` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `WORLD_SIZE` **required** — _archive/logs/remote_run_20260413/train_gpt_tail.py
+- `ZERO_AUX_LOSSES` **required** — train_gpt_final_test_decompressed.py
+
+---
+
+# Middleware
+
+## custom
+- generate_ablation_report — `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/generate_ablation_report.py`
+- generate_report — `_archive/records/track_10min_16mb/2026-03-25_Ternary_Feedback_TTT/generate_report.py`
+
+---
+
+# Test Coverage
+
+> **0%** of routes and models are covered by tests
+> 18 test files found
+
+---
+
+_Generated by [codesight](https://github.com/Houseofmvps/codesight) — see your codebase clearly_
