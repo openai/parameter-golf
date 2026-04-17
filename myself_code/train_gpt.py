@@ -7,7 +7,7 @@ from torch import nn, Tensor
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 class Hyperparameters:
-    data_dir = os.environ.get('DATA_DIR', '../../../data/')
+    data_dir = os.environ.get('DATA_DIR', '../data/')
     seed = int(os.environ.get('SEED', 1337))
     run_id = os.environ.get('RUN_ID', str(uuid.uuid4()))
     iterations = int(os.environ.get('ITERATIONS', 20000))

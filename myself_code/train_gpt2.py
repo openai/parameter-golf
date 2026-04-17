@@ -27,7 +27,7 @@ from flash_attn import flash_attn_func as flash_attn_3_func
 import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 class Hyperparameters:
-    data_path = os.environ.get("DATA_PATH", "../../../data/datasets/fineweb10B_sp1024")
+    data_path = os.environ.get("DATA_PATH", "../data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "../../../data/tokenizers/fineweb_1024_bpe.model")
