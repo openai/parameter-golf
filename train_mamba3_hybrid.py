@@ -62,6 +62,10 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 1_048_576))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 4096))
+    attn_seq_len = int(os.environ.get("ATTN_SEQ_LEN", 0))  # windowed attention (0 = same as train_seq_len)
+    # Progressive context: start short (fast steps), ramp to full train_seq_len.
+    # Format: "frac1:len1,frac2:len2" e.g. "0.3:1024,0.6:2048" means 0-30% at 1024, 30-60% at 2048, rest at train_seq_len
+    progressive_ctx = os.environ.get("PROGRESSIVE_CTX", "")  # empty = disabled
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     sweep_mode = bool(int(os.environ.get("SWEEP_MODE", "0")))  # skip post-training (quant, serialize, TTT)
 
@@ -84,6 +88,10 @@ class Hyperparameters:
     quant_bits = int(os.environ.get("QUANT_BITS", 6))  # quantization bit width for attention (6 or 8)
     quant_bits_mlp = int(os.environ.get("QUANT_BITS_MLP", 0))  # MLP bit width (0 = same as quant_bits)
     quant_bits_embed = int(os.environ.get("QUANT_BITS_EMBED", 0))  # embedding bit width (0 = same as quant_bits, SOTA: 8)
+    # Mixed-precision SSM: dd_A and dd_dt rows of mamba3.in_proj.weight at higher bits.
+    # A/dt errors compound through the recurrence (Q-Mamba ICLR 2025: uniform 6-bit collapses
+    # Mamba ppl 5.5→21+). Only ~32 rows per SSM block — cheap to protect. 0 = same as quant_bits.
+    quant_bits_ssm_dynamics = int(os.environ.get("QUANT_BITS_SSM_DYNAMICS", 0))
     gptq_clip_sigmas = float(os.environ.get("GPTQ_CLIP_SIGMAS", 0))  # SDClip for matrices (0 = percentile search, SOTA: 12.85)
     gptq_embed_clip_sigmas = float(os.environ.get("GPTQ_EMBED_CLIP_SIGMAS", 0))  # SDClip for embeddings (0 = same as matrices, SOTA: 20)
     qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.0))  # QAT: start at this fraction of training (0 = disabled)
@@ -531,6 +539,27 @@ INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
+
+def compute_ssm_dynamics_row_mask(name: str, rows: int, cfg: dict) -> Tensor | None:
+    """For mamba3.in_proj.weight, return a boolean mask of shape (rows,) marking
+    dd_A and dd_dt rows (the recurrence-sensitive subset). Returns None for other tensors.
+    in_proj output layout: [z | xv | B | C | dd_dt | dd_A | trap | angles]."""
+    if "mamba3.in_proj.weight" not in name:
+        return None
+    d_inner = int(cfg["model_dim"] * cfg["mamba3_expand"])
+    d_state = int(cfg["mamba3_d_state"])
+    ngroups = int(cfg["mamba3_ngroups"])
+    mimo_rank = 1  # SISO (is_mimo=False in Mamba3Layer)
+    nheads = d_inner // int(cfg["mamba3_headdim"])
+    off = 2 * d_inner + 2 * d_state * ngroups * mimo_rank
+    dt_start, dt_end = off, off + nheads
+    A_start, A_end = dt_end, dt_end + nheads
+    if A_end > rows:
+        return None  # shape mismatch — bail silently
+    mask = torch.zeros(rows, dtype=torch.bool)
+    mask[dt_start:A_end] = True  # dt + A span
+    return mask
+
 def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
     if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
         return t.float().contiguous()
@@ -539,21 +568,36 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def _quantize_with_clip(t32: Tensor, clip_abs: Tensor | float, qmax: int) -> tuple[Tensor, Tensor, Tensor]:
+def _quantize_with_clip(t32: Tensor, clip_abs: Tensor | float, qmax: Tensor | int) -> tuple[Tensor, Tensor, Tensor]:
+    # qmax may be a per-row tensor (mixed precision). When per-row, we quantize with
+    # per-row step size but still store into an int8 tensor — the higher-bit rows use
+    # the wider range of int8, the lower-bit rows stay within their narrower clip.
     if t32.ndim == 2 and isinstance(clip_abs, Tensor):
+        qmax_col = qmax[:, None] if isinstance(qmax, Tensor) else qmax
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8)
+        scale = (clip_abs / (qmax.float() if isinstance(qmax, Tensor) else float(qmax)))
+        scale = scale.clamp_min(1.0 / 127)
+        q_unclamped = torch.round(clipped / scale[:, None])
+        if isinstance(qmax_col, Tensor):
+            qmax_f = qmax_col.float()
+            q = torch.maximum(torch.minimum(q_unclamped, qmax_f), -qmax_f).to(torch.int8)
+        else:
+            q = torch.clamp(q_unclamped, -qmax, qmax).to(torch.int8)
         recon = q.float() * scale[:, None]
         return q.contiguous(), scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous(), recon
     clip_abs_f = float(clip_abs) if isinstance(clip_abs, Tensor) else clip_abs
-    scale_f = clip_abs_f / qmax if clip_abs_f > 0 else 1.0
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs_f, clip_abs_f) / scale_f), -qmax, qmax).to(torch.int8)
+    qmax_i = int(qmax) if not isinstance(qmax, Tensor) else int(qmax.item())
+    scale_f = clip_abs_f / qmax_i if clip_abs_f > 0 else 1.0
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs_f, clip_abs_f) / scale_f), -qmax_i, qmax_i).to(torch.int8)
     recon = q.float() * scale_f
     return q.contiguous(), torch.tensor(scale_f, dtype=torch.float32), recon
 
-def quantize_float_tensor(t: Tensor, bits: int = 8, search_clip: bool = False) -> tuple[Tensor, Tensor]:
-    qmax = (1 << (bits - 1)) - 1
+def quantize_float_tensor(t: Tensor, bits: int | Tensor = 8, search_clip: bool = False) -> tuple[Tensor, Tensor]:
+    # bits may be a per-row tensor of shape (rows,) for mixed-precision 2D weights.
+    if isinstance(bits, Tensor):
+        qmax = ((1 << (bits.long() - 1)) - 1).to(torch.int64)
+    else:
+        qmax = (1 << (int(bits) - 1)) - 1
     t32 = t.float()
 
     if not search_clip:
@@ -723,12 +767,13 @@ def collect_hessians_from_train_data(
 
 
 def quantize_int6_gptq(
-    weight: Tensor, hessian: Tensor | None = None, clip_range: int = 31, block_size: int = 128,
+    weight: Tensor, hessian: Tensor | None = None, clip_range: int | Tensor = 31, block_size: int = 128,
     clip_sigmas: float = 0.0,
 ) -> tuple[Tensor, Tensor]:
     """Full GPTQ: Hessian-aware int6 quantization with Cholesky error compensation and column reordering.
     If clip_sigmas > 0, uses SDClip (std-deviation-based clipping like SOTA) instead of percentile search.
-    Falls back to percentile search if hessian is None (same as existing gptq_lite path)."""
+    Falls back to percentile search if hessian is None (same as existing gptq_lite path).
+    clip_range may be a per-row tensor of shape (rows,) for mixed-precision quantization."""
     t32 = weight.float()
     if t32.ndim != 2 or hessian is None:
         return _quantize_int6_percentile(t32, clip_range)
@@ -753,6 +798,16 @@ def quantize_int6_gptq(
         print(f"gptq:cholesky_fallback shape={tuple(weight.shape)} dead={int(dead.sum())}/{cols}", flush=True)
         return _quantize_int6_percentile(weight, clip_range=clip_range)
 
+    # Per-row clip_range support: when a Tensor, broadcast as (rows,) for 1D ops
+    # and (rows, 1) for 2D ops. Scale clamp_min is per-row when clip_range is per-row.
+    cr_is_tensor = isinstance(clip_range, Tensor)
+    if cr_is_tensor:
+        cr_1d = clip_range.float()  # (rows,)
+        cr_min = (1.0 / cr_1d).to(torch.float32)
+    else:
+        cr_1d = float(clip_range)
+        cr_min = 1.0 / float(clip_range)
+
     def _gptq_sweep(s: Tensor) -> tuple[Tensor, float]:
         """Run GPTQ block-wise quantization with given per-row scale s."""
         sf = s.float()
@@ -768,7 +823,10 @@ def quantize_int6_gptq(
             for i in range(count):
                 w = W1[:, i]
                 d = Hinv1[i, i]
-                q = torch.clamp(torch.round(w / sf), -clip_range, clip_range).to(torch.int8)
+                if cr_is_tensor:
+                    q = torch.maximum(torch.minimum(torch.round(w / sf), cr_1d), -cr_1d).to(torch.int8)
+                else:
+                    q = torch.clamp(torch.round(w / sf), -cr_1d, cr_1d).to(torch.int8)
                 Q1[:, i] = q
                 err = (w - q.float() * sf) / d
                 W1[:, i:] -= err.unsqueeze(1) * Hinv1[i, i:].unsqueeze(0)
@@ -780,10 +838,18 @@ def quantize_int6_gptq(
         mse = (W - recon).pow(2).mean().item()
         return Q, mse
 
+    def _scale_from_row_clip(row_clip: Tensor) -> Tensor:
+        # s = max(row_clip / clip_range, 1 / clip_range). Works scalar or per-row.
+        raw = row_clip / cr_1d if cr_is_tensor else row_clip / cr_1d
+        if cr_is_tensor:
+            return torch.maximum(raw, cr_min).to(torch.float16)
+        return raw.clamp_min(cr_min).to(torch.float16)
+
     if clip_sigmas > 0:
         # SDClip: scale = clip_sigmas * row_std / clip_range (SOTA approach)
         row_std = t32.std(dim=1)
-        s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+        raw = (clip_sigmas * row_std) / cr_1d if cr_is_tensor else (clip_sigmas * row_std) / cr_1d
+        s = raw.clamp_min(1e-10).to(torch.float16)
         Q, _ = _gptq_sweep(s)
         Q = Q[:, inv_perm]
         return Q, s
@@ -792,7 +858,7 @@ def quantize_int6_gptq(
         best_q, best_scale, best_err = None, None, float("inf")
         for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
             row_clip = torch.quantile(t32.abs(), pct, dim=1) if pct < 1.0 else t32.abs().amax(dim=1)
-            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            s = _scale_from_row_clip(row_clip)
             Q, mse = _gptq_sweep(s)
             if mse < best_err:
                 best_q, best_scale, best_err = Q, s, mse
@@ -800,25 +866,40 @@ def quantize_int6_gptq(
         return best_q, best_scale
 
 
-def _quantize_int6_percentile(t32: Tensor, clip_range: int = 31) -> tuple[Tensor, Tensor]:
-    """Fallback percentile-search quantization (no Hessian)."""
+def _quantize_int6_percentile(t32: Tensor, clip_range: int | Tensor = 31) -> tuple[Tensor, Tensor]:
+    """Fallback percentile-search quantization (no Hessian).
+    clip_range may be a per-row tensor of shape (rows,) for mixed precision."""
+    cr_is_tensor = isinstance(clip_range, Tensor)
     if t32.ndim == 2:
+        cr_col = clip_range[:, None].float() if cr_is_tensor else float(clip_range)
+        cr_1d = clip_range.float() if cr_is_tensor else float(clip_range)
+        cr_min = (1.0 / cr_1d) if cr_is_tensor else 1.0 / cr_1d
         best_q, best_s, best_err = None, None, float("inf")
         for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
             row_clip = torch.quantile(t32.abs(), pct, dim=1) if pct < 1.0 else t32.abs().amax(dim=1)
-            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
-            q = torch.clamp(torch.round(t32 / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+            raw = row_clip / cr_1d
+            s = (torch.maximum(raw, cr_min) if cr_is_tensor else raw.clamp_min(cr_min)).to(torch.float16)
+            if cr_is_tensor:
+                q = torch.maximum(torch.minimum(torch.round(t32 / s.float()[:, None]), cr_col), -cr_col).to(torch.int8)
+            else:
+                q = torch.clamp(torch.round(t32 / s.float()[:, None]), -cr_col, cr_col).to(torch.int8)
             err = (t32 - q.float() * s.float()[:, None]).pow(2).mean().item()
             if err < best_err:
                 best_q, best_s, best_err = q, s, err
         return best_q, best_s
+    # 1D fallback — scalar clip_range only
+    cr_scalar = int(clip_range) if not cr_is_tensor else int(clip_range.max().item())
     amax = t32.abs().max().item()
-    scale = torch.tensor(amax / clip_range if amax > 0 else 1.0, dtype=torch.float16)
-    q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, clip_range).to(torch.int8)
+    scale = torch.tensor(amax / cr_scalar if amax > 0 else 1.0, dtype=torch.float16)
+    q = torch.clamp(torch.round(t32 / scale.float()), -cr_scalar, cr_scalar).to(torch.int8)
     return q, scale
 
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8, quant_bits_mlp: int = 0, quant_bits_embed: int = 0, search_clip: bool = False):
+def quantize_state_dict_int8(
+    state_dict: dict[str, Tensor], quant_bits: int = 8, quant_bits_mlp: int = 0,
+    quant_bits_embed: int = 0, search_clip: bool = False,
+    quant_bits_ssm_dynamics: int = 0, ssm_cfg: dict | None = None,
+):
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -849,11 +930,19 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], quant_bits: int = 8,
             continue
 
         stats["num_float_tensors"] += 1
-        bits = quant_bits
+        bits: int | Tensor = quant_bits
         if quant_bits_embed > 0 and "tok_emb" in name:
             bits = quant_bits_embed
         elif quant_bits_mlp > 0 and "mlp" in name:
             bits = quant_bits_mlp
+        # Mixed-precision in_proj: promote dd_A + dd_dt rows to higher bits.
+        if quant_bits_ssm_dynamics > 0 and ssm_cfg is not None and t.ndim == 2:
+            dyn_mask = compute_ssm_dynamics_row_mask(name, t.shape[0], ssm_cfg)
+            if dyn_mask is not None:
+                base = int(bits) if not isinstance(bits, Tensor) else int(quant_bits)
+                per_row = torch.full((t.shape[0],), base, dtype=torch.int64)
+                per_row[dyn_mask] = quant_bits_ssm_dynamics
+                bits = per_row
         q, s = quantize_float_tensor(t, bits=bits, search_clip=search_clip)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
@@ -1171,7 +1260,10 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
 
 
 class AttentionLayer(nn.Module):
-    """Standalone causal self-attention with GQA and RoPE."""
+    """Standalone causal self-attention with GQA and RoPE.
+    Supports windowed attention: if window_size > 0 and seqlen > window_size,
+    splits input into non-overlapping windows, applies causal attention within each.
+    SSM layers provide cross-window context via recurrent state."""
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int,
                  rope_base: float, qk_gain_init: float):
         super().__init__()
@@ -1179,6 +1271,7 @@ class AttentionLayer(nn.Module):
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         kv_dim = num_kv_heads * self.head_dim
+        self.window_size = 0  # 0 = full attention, set via args.attn_seq_len
 
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -1188,7 +1281,8 @@ class AttentionLayer(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
 
-    def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
+    def _attn_core(self, x: Tensor, v_embed: Tensor | None) -> Tensor:
+        """Full causal attention on a single (possibly windowed) sequence."""
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -1208,6 +1302,20 @@ class AttentionLayer(nn.Module):
             enable_gqa=(self.num_kv_heads != self.num_heads),
         )
         return self.proj(y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim))
+
+    def forward(self, x: Tensor, v_embed: Tensor | None = None) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        w = self.window_size
+        if w <= 0 or seqlen <= w:
+            return self._attn_core(x, v_embed)
+        # Windowed attention: reshape into windows, process each independently.
+        # Fold batch and window dimensions so each window is a separate "batch item".
+        n_windows = seqlen // w
+        assert seqlen % w == 0, f"seqlen {seqlen} not divisible by window_size {w}"
+        x_win = x.reshape(bsz * n_windows, w, dim)
+        ve_win = v_embed.reshape(bsz * n_windows, w, -1) if v_embed is not None else None
+        out_win = self._attn_core(x_win, ve_win)
+        return out_win.reshape(bsz, seqlen, dim)
 
 
 class MLP(nn.Module):
@@ -1324,6 +1432,7 @@ class GPT(nn.Module):
         rope_base: float = 10000.0, qk_gain_init: float = 1.0,
         ve_enabled: bool = False, ve_dim: int = 64,
         num_loops: int = 0, loop_start: int = 3, loop_end: int = 4,
+        attn_window: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -1395,6 +1504,10 @@ class GPT(nn.Module):
                     mamba3_outproj_norm=mamba3_outproj_norm,
                     layer_idx=i,
                 ))
+
+        if attn_window > 0:
+            for i in self.attn_indices:
+                self.blocks[i].attn.window_size = attn_window
 
         kv_dim = num_kv_heads * (model_dim // num_heads)
         if ve_enabled and self.attn_indices:
@@ -1644,11 +1757,14 @@ def main() -> None:
         qk_gain_init=args.qk_gain_init,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim,
         num_loops=args.num_loops, loop_start=args.loop_start, loop_end=args.loop_end,
+        attn_window=args.attn_seq_len,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    if args.progressive_ctx:
+        torch._dynamo.config.recompile_limit = 64  # progressive context needs many shape variants
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False,
                            find_unused_parameters=(args.num_loops > 0)) if distributed else compiled_model
@@ -1704,7 +1820,8 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"mode:mamba3_hybrid num_attn_layers:{args.num_attn_layers} attn_indices:{base_model.attn_indices}")
     log0(f"ssd: d_state:{args.mamba3_d_state} expand:{args.mamba3_expand} headdim:{args.mamba3_headdim} ngroups:{args.mamba3_ngroups} rope_frac:{args.mamba3_rope_fraction} outproj_norm:{args.mamba3_outproj_norm}")
-    log0(f"attn: num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} rope_base:{args.rope_base}")
+    log0(f"attn: num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} rope_base:{args.rope_base}" +
+         (f" window:{args.attn_seq_len}" if args.attn_seq_len > 0 else ""))
     log0(f"num_layers:{args.num_layers} mlp_mult:{args.mlp_mult}")
     if args.muon_eq_r:
         log0(f"muon_eq_r:enabled")
@@ -1727,6 +1844,15 @@ def main() -> None:
             opt.zero_grad(set_to_none=True)
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+
+    # Parse progressive context schedule: "0.3:1024,0.6:2048" → [(0.3, 1024), (0.6, 2048)]
+    _progressive_schedule: list[tuple[float, int]] = []
+    if args.progressive_ctx:
+        for entry in args.progressive_ctx.split(","):
+            frac_str, len_str = entry.strip().split(":")
+            _progressive_schedule.append((float(frac_str), int(len_str)))
+        _progressive_schedule.sort()
+        log0(f"progressive_ctx: {_progressive_schedule} → final {args.train_seq_len}")
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
         if args.warmdown_iters <= 0:
@@ -1761,6 +1887,24 @@ def main() -> None:
             zero_grad_all()
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        # Pre-warm progressive context seq_lens so torch.compile caches all shapes upfront.
+        # Without this, dynamo hits recompile_limit and falls back to eager mode.
+        if _progressive_schedule:
+            warmup_seq_lens = sorted(set(slen for _, slen in _progressive_schedule))
+            for slen in warmup_seq_lens:
+                log0(f"progressive_warmup: seq_len={slen}")
+                zero_grad_all()
+                for micro_step in range(grad_accum_steps):
+                    if distributed:
+                        model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                    x, y = train_loader.next_batch(args.train_batch_tokens, slen, grad_accum_steps)
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                        warmup_loss = model(x, y)
+                    (warmup_loss * grad_scale).backward()
+                for opt in optimizers:
+                    opt.step()
+                zero_grad_all()
+
         # Pre-warm the looped graph too so torch.compile caches both variants
         if args.num_loops > 0:
             base_model.looping_active = True
@@ -1790,6 +1934,7 @@ def main() -> None:
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
     training_time_ms = 0.0
+    cur_seq_len = args.train_seq_len
     stop_after_step: int | None = None
     swa_state: dict[str, Tensor] | None = None
     swa_count = 0
@@ -1853,7 +1998,17 @@ def main() -> None:
 
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
+        # Progressive context: ramp seq_len based on elapsed wallclock fraction.
+        prev_seq_len = cur_seq_len
         cur_seq_len = args.train_seq_len
+        if _progressive_schedule and max_wallclock_ms:
+            elapsed_frac = elapsed_ms / max_wallclock_ms
+            for frac_end, slen in _progressive_schedule:
+                if elapsed_frac < frac_end:
+                    cur_seq_len = slen
+                    break
+        if step > 0 and cur_seq_len != prev_seq_len:
+            log0(f"progressive_ctx:transition seq_len {prev_seq_len}→{cur_seq_len} at step {step} frac={elapsed_frac:.3f}")
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
@@ -1978,6 +2133,14 @@ def main() -> None:
     if not master_process:
         return
 
+    ssm_cfg = {
+        "model_dim": args.model_dim,
+        "mamba3_expand": args.mamba3_expand,
+        "mamba3_d_state": args.mamba3_d_state,
+        "mamba3_ngroups": args.mamba3_ngroups,
+        "mamba3_headdim": args.mamba3_headdim,
+    }
+
     if args.use_gptq:
         t_gptq = time.perf_counter()
         # AR GPTQ: torch.compile + triton.set_allocator(ContextVar.set) in _Mamba3Function
@@ -2006,7 +2169,15 @@ def main() -> None:
             if H is not None and t_cpu.is_floating_point() and t_cpu.ndim == 2 and t_cpu.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
                 is_embed = "tok_emb" in name
                 bits = args.quant_bits_embed if (is_embed and args.quant_bits_embed > 0) else args.quant_bits
-                cr = (1 << (bits - 1)) - 1
+                cr: int | Tensor = (1 << (bits - 1)) - 1
+                # Per-row clip range for SSM dynamics rows: larger range = higher precision.
+                if args.quant_bits_ssm_dynamics > 0 and not is_embed:
+                    dyn_mask = compute_ssm_dynamics_row_mask(name, t_cpu.shape[0], ssm_cfg)
+                    if dyn_mask is not None:
+                        dyn_cr = (1 << (args.quant_bits_ssm_dynamics - 1)) - 1
+                        cr_t = torch.full((t_cpu.shape[0],), float(cr), dtype=torch.float32)
+                        cr_t[dyn_mask] = float(dyn_cr)
+                        cr = cr_t
                 cs = args.gptq_embed_clip_sigmas if (is_embed and args.gptq_embed_clip_sigmas > 0) else args.gptq_clip_sigmas
                 q, s = quantize_int6_gptq(t_cpu, hessian=H, clip_range=cr, clip_sigmas=cs)
                 gptq_sd[name] = (q.float() * s.float()[:, None]).to(t_cpu.dtype)
@@ -2021,6 +2192,7 @@ def main() -> None:
         base_model.state_dict(), quant_bits=args.quant_bits,
         quant_bits_mlp=args.quant_bits_mlp, quant_bits_embed=args.quant_bits_embed,
         search_clip=args.gptq_lite,
+        quant_bits_ssm_dynamics=args.quant_bits_ssm_dynamics, ssm_cfg=ssm_cfg,
     )
     # Selective ±1 pruning: zero out least-impactful ±1 quantized values to fit target size
     if (args.use_lzma or args.use_brotli) and args.target_mb > 0 and master_process:

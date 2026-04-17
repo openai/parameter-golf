@@ -1,18 +1,83 @@
-data/tokenizers
+# ── Python ──────────────────────────────────────────────
 __pycache__/
-.DS_Store
-modded-nanogpt/
-modded-nanogpt
-data/datasets
-data/manifest.json
-data/docs_selected.jsonl
+*.py[cod]
+*.egg
+*.egg-info/
+.venv/
+venv/
 .mypy_cache/
-.venv
-logs/
-# Local run artifacts
-logs_*.log
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ── Editor / OS ─────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Notebooks (exclude specific ones; keep intentional notebooks) ─
+eval_testing.ipynb
+
+# ── Tokenized datasets and shards (live on HF: mradassaad/pg-artifacts) ─
+data/
+*.tokens
+
+# ── Model artifacts (transferred via scp/rsync, too big to git) ─
+checkpoints/
+*.pt
+*.pth
+*.safetensors
 *.ptz
+*.bin
+
+# ── Training / eval logs ────────────────────────────────
+# records/ is tracked (competition SOTA log) — see negation below
+logs/
+logs_*/
+logs_*.log
+*.log
+wandb/
+runs/
+outputs/
+
+# Keep records/ (competition SOTA reference logs) despite *.log rule
+!records/
+!records/**
+!records/**/*.log
+
+# ── Profiling traces and reports ────────────────────────
 *.nsys-rep
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 profiling/trace_*.json
-eval_testing.ipynb
+profiling/*.prof
+*.prof
+chrome_trace_*.json
+
+# ── Triton / CUDA caches ────────────────────────────────
+.triton_cache/
+triton_cache/
+
+# ── Build / temp ────────────────────────────────────────
+build/
+dist/
+*.tmp
+*.bak
+*.orig
+
+# ── External cloned repos (not ours) ────────────────────
+modded-nanogpt/
+modded-nanogpt
+mamba/
+
+# ── Research PDFs (large, not source-controlled) ────────
+*.pdf
+
+# ── Secrets ─────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
