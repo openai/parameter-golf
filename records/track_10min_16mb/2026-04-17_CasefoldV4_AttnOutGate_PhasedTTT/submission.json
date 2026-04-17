@@ -1,0 +1,40 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Casefold V4 + Attention Output Gate + Multi-Phase Global SGD + Phased TTT",
+  "date": "2026-04-17",
+  "track": "10min_16mb",
+  "val_bpb": 1.05733,
+  "val_bpb_std": 0.00035,
+  "val_loss_nats": 3.04721,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_bpb": 1.05693, "val_loss": 3.04604, "artifact_bytes": 15936269},
+    "0":    {"val_bpb": 1.05730, "val_loss": 3.04712, "artifact_bytes": 15937514},
+    "1234": {"val_bpb": 1.05777, "val_loss": 3.04846, "artifact_bytes": 15938772}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Casefold V4 tokenizer normalization (retrained SP8192 on lowercased text) + per-head Attention Output Gate (zero-init, 11 layers) + SmearGate + 3-layer depth recurrence (L3-5) + parallel residuals (L8+) + multi-phase global SGD TTT (3 phases, 2000 prefix docs) + per-doc LoRA TTT + full-Hessian GPTQ int6/int7 + Brotli-11",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "casefold_pending_review": "Issue #1604"
+  },
+  "attribution": {
+    "base_architecture": "@samacqua (PR #1530)",
+    "attn_output_gate": "@MarioPaerle (PR #1667)",
+    "smear_gate_concept": "@kellerjordan (modded-nanogpt), @MarioPaerle (PR #1667 reintroduction)",
+    "casefold_concept": "@mikeapedia (PR #1578)",
+    "phased_ttt_concept": "@romeerp (PR #1610)",
+    "score_first_ttt_framework": "@abaybektursun (PR #549)",
+    "casefold_v4_retokenization_and_multiphase_ttt": "@dexhunter (PR #1626, PR #1670)"
+  }
+}
