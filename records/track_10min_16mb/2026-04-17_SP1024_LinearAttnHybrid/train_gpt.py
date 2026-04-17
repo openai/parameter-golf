@@ -1081,7 +1081,7 @@ def main() -> None:
     log0(f"param_count={param_count}")
 
     if dist_enabled:
-        ddp_model = DDP(model, device_ids=[device.index], broadcast_buffers=False, gradient_as_bucket_view=True)
+        ddp_model = DDP(model, device_ids=[device.index], broadcast_buffers=False, gradient_as_bucket_view=True, find_unused_parameters=True)
         forward_model = ddp_model
     else:
         forward_model = model
