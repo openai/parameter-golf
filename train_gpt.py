@@ -61,7 +61,11 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 7))
+    # Depth recurrence: comma-separated list of physical layer indices to repeat once.
+    # e.g. RECUR_LAYERS=3,4 with NUM_LAYERS=7 gives schedule [0,1,2,3,4,3,4,5,6]
+    recur_layers_str = os.environ.get("RECUR_LAYERS", "3,4")
+    recur_layers: list[int] = [int(x) for x in recur_layers_str.split(",") if x.strip()] if recur_layers_str.strip() else []
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -659,6 +663,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        recur_layers: list[int] | None = None,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -667,8 +672,18 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        # Build virtual block schedule (depth recurrence).
+        # recur_layers: physical layer indices to repeat once after their last occurrence.
+        # e.g. num_layers=7, recur_layers=[3,4] → schedule=[0,1,2,3,4,3,4,5,6] (9 virtual passes)
+        recur_layers = sorted(set(recur_layers or []))
+        if recur_layers:
+            cutoff = max(recur_layers) + 1
+            self.block_schedule = list(range(cutoff)) + recur_layers + list(range(cutoff, num_layers))
+        else:
+            self.block_schedule = list(range(num_layers))
+        virtual_num_layers = len(self.block_schedule)
+        self.num_encoder_layers = virtual_num_layers // 2
+        self.num_decoder_layers = virtual_num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
         self.blocks = nn.ModuleList(
@@ -704,13 +719,14 @@ class GPT(nn.Module):
         skips: list[Tensor] = []
 
         # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+        # block_schedule maps virtual index → physical block index (supports depth recurrence).
+        for vi in range(self.num_encoder_layers):
+            x = self.blocks[self.block_schedule[vi]](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = self.blocks[self.block_schedule[self.num_encoder_layers + i]](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -835,6 +851,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
