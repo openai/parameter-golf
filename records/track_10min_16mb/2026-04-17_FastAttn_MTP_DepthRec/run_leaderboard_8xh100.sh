@@ -7,8 +7,12 @@
 #   (3) slightly bigger width (576 vs 512) since DR is param-free
 set -euo pipefail
 
-: "${DATA_PATH:=./data/datasets/fineweb10B_sp1024}"
-: "${TOKENIZER_PATH:=./data/tokenizers/fineweb_1024_bpe.model}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${HERE}/../../.."
+TRAIN="${HERE}/train_gpt.py"
+
+: "${DATA_PATH:=${REPO_ROOT}/data/datasets/fineweb10B_sp1024}"
+: "${TOKENIZER_PATH:=${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model}"
 : "${SEED:=42}"
 : "${RUN_ID:=fastattn_mtp_dr_$(date +%s)}"
 
@@ -16,9 +20,6 @@ export NCCL_IB_DISABLE=1
 export TORCH_CUDNN_V8_API_ENABLED=1
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export OMP_NUM_THREADS=1
-
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRAIN="${HERE}/train_gpt.py"
 
 DATA_PATH="${DATA_PATH}" \
 TOKENIZER_PATH="${TOKENIZER_PATH}" \
