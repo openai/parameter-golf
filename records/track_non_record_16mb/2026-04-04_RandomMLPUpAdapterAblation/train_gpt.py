@@ -78,6 +78,7 @@ class Hyperparameters:
     random_mlp_up_gain = bool(int(os.environ.get("RANDOM_MLP_UP_GAIN", "1")))
     random_mlp_up_base_seed = int(os.environ.get("RANDOM_MLP_UP_BASE_SEED", 20260403))
     random_mlp_up_init = os.environ.get("RANDOM_MLP_UP_INIT", "qr")
+    random_mlp_up_num_experts = int(os.environ.get("RANDOM_MLP_UP_NUM_EXPERTS", 1))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -400,7 +401,7 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
-RANDOM_MLP_UP_PARAM_NAME_PATTERNS = ("adapter_gain", "adapter_down", "adapter_up")
+RANDOM_MLP_UP_PARAM_NAME_PATTERNS = ("adapter_gain", "adapter_down", "adapter_up", "adapter_router")
 INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
 INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
@@ -632,6 +633,16 @@ def build_random_mlp_up_weight(
     return q[:out_features, :].contiguous()
 
 
+def split_hidden_width(total_width: int, num_parts: int) -> list[int]:
+    if num_parts <= 0:
+        raise ValueError(f"num_parts must be positive, got {num_parts}")
+    if num_parts > total_width:
+        raise ValueError(f"num_parts must be <= total_width, got {num_parts} and {total_width}")
+    base = total_width // num_parts
+    remainder = total_width % num_parts
+    return [base + (1 if idx < remainder else 0) for idx in range(num_parts)]
+
+
 class RandomMLPUpAdapter(nn.Module):
     def __init__(
         self,
@@ -642,17 +653,39 @@ class RandomMLPUpAdapter(nn.Module):
         layer_idx: int,
         use_gain: bool,
         init: str,
+        num_experts: int,
     ):
         super().__init__()
-        self.register_buffer(
-            "random_weight",
-            build_random_mlp_up_weight(out_features, in_features, base_seed + layer_idx, init),
-            persistent=False,
+        self.num_experts = max(num_experts, 1)
+        self.expert_widths = split_hidden_width(out_features, self.num_experts)
+        self.expert_offsets: tuple[tuple[int, int], ...] = tuple(
+            (sum(self.expert_widths[:idx]), sum(self.expert_widths[: idx + 1]))
+            for idx in range(self.num_experts)
         )
+        expert_seeds = (
+            [base_seed + layer_idx]
+            if self.num_experts == 1
+            else [base_seed + 1009 * layer_idx + expert_idx for expert_idx in range(self.num_experts)]
+        )
+        random_weights = [
+            build_random_mlp_up_weight(
+                width,
+                in_features,
+                expert_seeds[expert_idx],
+                init,
+            )
+            for expert_idx, width in enumerate(self.expert_widths)
+        ]
+        self.register_buffer("random_weight", torch.cat(random_weights, dim=0).contiguous(), persistent=False)
         if use_gain:
             self.adapter_gain = nn.Parameter(torch.ones(out_features, dtype=torch.float32))
         else:
             self.register_buffer("adapter_gain", torch.ones(out_features, dtype=torch.float32), persistent=False)
+        if self.num_experts > 1:
+            self.adapter_router = CastedLinear(in_features, self.num_experts, bias=False)
+            nn.init.zeros_(self.adapter_router.weight)
+        else:
+            self.adapter_router = None
         self.rank = rank
         if rank > 0:
             self.adapter_down = CastedLinear(in_features, rank, bias=False)
@@ -666,6 +699,12 @@ class RandomMLPUpAdapter(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         base = F.linear(x, self.random_weight.to(dtype=x.dtype))
         base = base * self.adapter_gain.to(dtype=x.dtype)
+        if self.adapter_router is not None:
+            router = F.softmax(self.adapter_router(x).float(), dim=-1).to(dtype=x.dtype)
+            expert_chunks = []
+            for expert_idx, (start, end) in enumerate(self.expert_offsets):
+                expert_chunks.append(base[..., start:end] * router[..., expert_idx : expert_idx + 1])
+            base = torch.cat(expert_chunks, dim=-1)
         if self.adapter_down is None or self.adapter_up is None:
             return base
         delta = self.adapter_up(self.adapter_down(x))
@@ -778,6 +817,7 @@ class MLP(nn.Module):
         random_mlp_up_gain: bool,
         random_mlp_up_base_seed: int,
         random_mlp_up_init: str,
+        random_mlp_up_num_experts: int,
     ):
         super().__init__()
         hidden = mlp_mult * dim
@@ -790,6 +830,7 @@ class MLP(nn.Module):
                 layer_idx=layer_idx,
                 use_gain=random_mlp_up_gain,
                 init=random_mlp_up_init,
+                num_experts=random_mlp_up_num_experts,
             )
         else:
             self.fc = CastedLinear(dim, hidden, bias=False)
@@ -816,6 +857,7 @@ class Block(nn.Module):
         random_mlp_up_gain: bool,
         random_mlp_up_base_seed: int,
         random_mlp_up_init: str,
+        random_mlp_up_num_experts: int,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -830,6 +872,7 @@ class Block(nn.Module):
             random_mlp_up_gain,
             random_mlp_up_base_seed,
             random_mlp_up_init,
+            random_mlp_up_num_experts,
         )
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -863,6 +906,7 @@ class GPT(nn.Module):
         random_mlp_up_gain: bool,
         random_mlp_up_base_seed: int,
         random_mlp_up_init: str,
+        random_mlp_up_num_experts: int,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -891,6 +935,7 @@ class GPT(nn.Module):
                     random_mlp_up_gain,
                     random_mlp_up_base_seed,
                     random_mlp_up_init,
+                    random_mlp_up_num_experts,
                 )
                 for i in range(num_layers)
             ]
@@ -1054,6 +1099,7 @@ def main() -> None:
         random_mlp_up_gain=args.random_mlp_up_gain,
         random_mlp_up_base_seed=args.random_mlp_up_base_seed,
         random_mlp_up_init=args.random_mlp_up_init,
+        random_mlp_up_num_experts=args.random_mlp_up_num_experts,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1119,7 +1165,8 @@ def main() -> None:
     log0(f"model_params:{n_params}")
     log0(
         f"random_mlp_up_layers:{args.random_mlp_up_layers} random_mlp_up_rank:{args.random_mlp_up_rank} "
-        f"random_mlp_up_gain:{args.random_mlp_up_gain} random_mlp_up_init:{args.random_mlp_up_init}"
+        f"random_mlp_up_gain:{args.random_mlp_up_gain} random_mlp_up_init:{args.random_mlp_up_init} "
+        f"random_mlp_up_num_experts:{args.random_mlp_up_num_experts}"
     )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
