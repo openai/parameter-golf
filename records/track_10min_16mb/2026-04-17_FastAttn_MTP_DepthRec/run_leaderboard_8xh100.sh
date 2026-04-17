@@ -16,6 +16,12 @@ TRAIN="${HERE}/train_gpt.py"
 : "${SEED:=42}"
 : "${RUN_ID:=fastattn_mtp_dr_$(date +%s)}"
 
+# Auto-download dataset + tokenizer if not already present
+if [[ ! -f "${TOKENIZER_PATH}" || ! -d "${DATA_PATH}" ]]; then
+    echo "[setup] Data/tokenizer not found – running download script..."
+    python3 "${REPO_ROOT}/data/cached_challenge_fineweb.py" --variant sp1024
+fi
+
 export NCCL_IB_DISABLE=1
 export TORCH_CUDNN_V8_API_ENABLED=1
 export CUDA_DEVICE_MAX_CONNECTIONS=1
