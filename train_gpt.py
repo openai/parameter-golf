@@ -73,7 +73,7 @@ class Hyperparameters:
     # Partial RoPE: only rotate this many dims per head (rest are position-free)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     # EMA: exponential moving average of weights for smoother final model
-    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.0))  # disabled by default until GPTQ is ready
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
