@@ -1,0 +1,38 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-18",
+  "name": "SP8192 Parcae Trajectory Readout + Late Loop Onset",
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "val_bpb": 1.08322102,
+  "val_bpb_std": 0.0,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08322102,
+      "artifact_bytes": 15959009
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + Parcae-style loop reinjection + grouped trajectory readout + late loop onset at step 2600 + full legal TTT",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "record_claim": false
+  },
+  "notes": "Single-seed non-record submission. This was the strongest distinct Parcae-family result we reached, but the total submission size was 16,061,982 bytes, so it is not valid for the 16MB leaderboard track in its current form.",
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev",
+    "recurrent_sp8192_stack": "@dexhunter",
+    "legal_ttt_framework": "@abaybektursun",
+    "submission_variant": "@Buld1n"
+  }
+}
