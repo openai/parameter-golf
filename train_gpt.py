@@ -602,7 +602,7 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-
+'''
 class MLP(nn.Module):
     # relu^2 MLP from the original modded-nanogpt setup
     def __init__(self, dim: int, mlp_mult: int):
@@ -615,7 +615,21 @@ class MLP(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.fc(x))
         return self.proj(x.square())
+'''
+class SwiGLU(nn.Module):
+    def __init__(self, dim: int, mlp_mult: int):
+        super().__init__()
+        # SwiGLU uses 3 matrices instead of 2!
+        hidden = mlp_mult * dim
+        self.fc_gate = CastedLinear(dim, hidden, bias=False)
+        self.fc_up   = CastedLinear(dim, hidden, bias=False)
+        self.proj    = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
 
+    def forward(self, x: Tensor) -> Tensor:
+        gate = F.silu(self.fc_gate(x))   # SiLU activation
+        up   = self.fc_up(x)             # linear gate
+        return self.proj(gate * up)      # element-wise multiply then project
 
 class Block(nn.Module):
     def __init__(
@@ -631,7 +645,8 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        #self.mlp = MLP(dim, mlp_mult)
+        self.mlp = SwiGLU(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
