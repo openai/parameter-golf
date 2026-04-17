@@ -333,17 +333,29 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+        # GPTQ-lite: try multiple clip percentiles per row, keep the one with lowest MSE.
+        # This adapts to different weight distributions (e.g., EMA-smoothed weights).
+        candidates = [0.999, 0.9995, 0.9999, 0.99999, 1.0]
+        best_q = None
+        best_scale = None
+        best_mse = float("inf")
+        for pct in candidates:
+            if pct < 1.0:
+                clip_abs = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                clip_abs = t32.abs().amax(dim=1)
+            clip_abs = clip_abs.clamp_min(1e-8)
+            scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+            clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8)
+            # Compute reconstruction MSE
+            recon = q.float() * scale[:, None]
+            mse = (t32 - recon).pow(2).mean().item()
+            if mse < best_mse:
+                best_q = q.contiguous()
+                best_scale = scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+                best_mse = mse
+        return best_q, best_scale
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
