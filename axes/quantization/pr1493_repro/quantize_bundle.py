@@ -99,14 +99,17 @@ def main():
 
     val_data = tsb.ValidationData(h, device)
 
-    # Pre-quant eval (reference ceiling). Skip torch.compile — not needed for
-    # correctness and breaks with the SDPA fallback on systems without flash_attn_3.
+    # Pre-quant eval (reference ceiling).
+    # IMPORTANT: torch.compile is REQUIRED — the model gives wrong results in eager mode.
+    # This is a known issue with this architecture (likely CastedLinear + autocast interaction).
     eval_model.eval()
-    tsb.timed_eval("bundle_pre_quant_reference", tsb.eval_val, h, device, val_data, eval_model)
+    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    tsb.timed_eval("bundle_pre_quant_reference", tsb.eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
         tsb.timed_eval(
             "bundle_pre_quant_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model
         )
+    torch._dynamo.reset()
 
     # Quantize via PR-1493's gptq_mixed_quantize
     sd_cpu = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
@@ -137,7 +140,8 @@ def main():
 
     # Post-quant eval
     eval_model.eval()
-    tsb.timed_eval("quantized_reference", tsb.eval_val, h, device, val_data, eval_model)
+    compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    tsb.timed_eval("quantized_reference", tsb.eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
         tsb.timed_eval("quantized_sliding", tsb.eval_val_sliding, h, device, val_data, eval_model)
 
