@@ -459,7 +459,7 @@ Re-ranked candidates from §4/§5 that were not yet executed:
 | Iter | Experiment | Category | Expected | Result |
 |------|-----------|----------|----------|--------|
 | iter_22/a-d | Hessian-aware SDClip (H-weighted per-row std) | Quantization | −0.001–0.003 | **REVERT** — neutral-to-negative at matched size (see note) |
-| iter_23 | Mixed-bit per-layer (int5 late MLP, int6 rest) | Quantization | −0.001–0.003, size up to 500KB | pending |
+| iter_23/b/c | Mixed-bit per-layer | Quantization | −0.001–0.003 | **REVERT** — int5 cost > int7 gain |
 | iter_24 | Per-head SDClip (Q/K/V separately) | Quantization | −0.001–0.002 | pending |
 | iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | pending |
 | iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 | pending |
@@ -484,6 +484,24 @@ Learnings:
 2. H-weighted per-row std is **redundant with GPTQ**: the GPTQ loop already propagates Hessian-weighted error across columns via the Hinv update. Adding H weighting to the scale formula double-counts.
 3. Best version (c_s=13.5, 16.21MB) tied iter_15b on quality — so the H-weighting is quality-neutral, not additive to GPTQ.
 4. **If revisited:** try H weighting **instead of** GPTQ's ordering/Hinv (replace the mechanism, don't stack it), or move to group-level rather than row-level H weighting.
+
+Reverted to iter_15b baseline.
+
+### iter_23 notes (mixed-bit per-layer, three sub-iters)
+
+Added `_tensor_bits(name, h)` that returns different bit widths per layer. Size delta per layer ≈ ±360KB for int7/int5 vs int6 (measured empirically).
+
+| Sub-iter | Allocation | Size | best_bpb | Δ vs iter_15b |
+|---|---|---|---|---|
+| iter_23 | int7: 0-1 (2 lyr), int5: 8-10 (3 lyr) | 15.48MB | 1.247650 | +0.0013 |
+| iter_23b | int7: 0-2 (3 lyr), int5: 10 (1 lyr) | 16.56MB (over) | 1.246103 (pre-size-cap) | −0.0002 |
+| iter_23c | int7: 0-1 (2 lyr), int5: 9-10 (2 lyr) | 15.84MB (size-matched) | 1.246765 | +0.0004 |
+
+Learnings:
+1. **int5 has a sharper quality cliff than int7's gain**. At matched size (iter_23c), dropping 2 late layers to int5 costs more than bumping 2 early layers to int7 buys back.
+2. **Size-cost of one layer's bit change is ~360KB** after compression — makes the precision budget very tight.
+3. iter_23b (heavy int7) showed the quality win exists (−0.0002) but only at 16.56MB — the cap kills it.
+4. **If revisited:** try (a) **asymmetric early-only int7** combined with `clip_sigmas` tightening (not just bit change) to recover size, (b) int6→int7 on attention only (fewer tensors, cheaper), (c) attempt layer 0 int8 like tok_emb (highest sensitivity per K_MUL), and/or (d) try **per-head bit allocation** within attention.
 
 Reverted to iter_15b baseline.
 
