@@ -70,6 +70,10 @@ class Hyperparameters:
     recur_start_step = int(os.environ.get("RECUR_START_STEP", 0))
     # Parallel residuals: GPT-J style from this physical layer onward (-1 = disabled)
     parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 7))
+    # Partial RoPE: only rotate this many dims per head (rest are position-free)
+    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
+    # EMA: exponential moving average of weights for smoother final model
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -568,6 +572,7 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -579,6 +584,8 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
+        # Partial RoPE: only rotate rope_dims dims, rest are position-free
+        self.rope_dims = rope_dims if rope_dims > 0 else self.head_dim
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
@@ -586,7 +593,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
+        self.rotary = Rotary(self.rope_dims, base=rope_base)
 
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
@@ -596,8 +603,15 @@ class CausalSelfAttention(nn.Module):
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin)
-        k = apply_rotary_emb(k, cos, sin)
+        if self.rope_dims < self.head_dim:
+            # Partial RoPE: rotate first rope_dims, leave rest untouched
+            q_rot, q_pass = q[..., :self.rope_dims], q[..., self.rope_dims:]
+            k_rot, k_pass = k[..., :self.rope_dims], k[..., self.rope_dims:]
+            q = torch.cat((apply_rotary_emb(q_rot, cos, sin), q_pass), dim=-1)
+            k = torch.cat((apply_rotary_emb(k_rot, cos, sin), k_pass), dim=-1)
+        else:
+            q = apply_rotary_emb(q, cos, sin)
+            k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
         y = F.scaled_dot_product_attention(
             q,
@@ -635,12 +649,13 @@ class Block(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         parallel_residual: bool = False,
+        rope_dims: int = 0,
     ):
         super().__init__()
         self.parallel_residual = parallel_residual
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, rope_dims=rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -681,6 +696,7 @@ class GPT(nn.Module):
         recur_layers: list[int] | None = None,
         recur_start_step: int = 0,
         parallel_start_layer: int = -1,
+        rope_dims: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -723,6 +739,7 @@ class GPT(nn.Module):
                     rope_base,
                     qk_gain_init,
                     parallel_residual=(parallel_start_layer >= 0 and i >= parallel_start_layer),
+                    rope_dims=rope_dims,
                 )
                 for i in range(num_layers)
             ]
@@ -894,11 +911,18 @@ def main() -> None:
         recur_layers=args.recur_layers,
         recur_start_step=args.recur_start_step,
         parallel_start_layer=args.parallel_start_layer,
+        rope_dims=args.rope_dims,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
+    # EMA: maintain exponential moving average of weights
+    ema_decay = args.ema_decay
+    ema_params: dict[str, Tensor] = {}
+    if ema_decay > 0:
+        for name, param in base_model.named_parameters():
+            ema_params[name] = param.data.clone()
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
@@ -1096,6 +1120,12 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # EMA update
+        if ema_params:
+            with torch.no_grad():
+                for name, param in base_model.named_parameters():
+                    ema_params[name].mul_(ema_decay).add_(param.data, alpha=1.0 - ema_decay)
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1127,6 +1157,13 @@ def main() -> None:
     # -----------------------------
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    # Swap in EMA weights before saving (smoother, less noise)
+    if ema_params:
+        log0("Swapping in EMA weights for save/quantization")
+        with torch.no_grad():
+            for name, param in base_model.named_parameters():
+                param.data.copy_(ema_params[name])
 
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
