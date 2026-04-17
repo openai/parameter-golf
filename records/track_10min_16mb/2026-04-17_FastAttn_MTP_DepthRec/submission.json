@@ -1,0 +1,13 @@
+{
+  "track": "track_10min_16mb",
+  "name": "FastAttn_MTP_DepthRec",
+  "date": "2026-04-17",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "bytes_model": null,
+  "training_time_seconds": 600,
+  "gpus": "8xH100",
+  "notes": "Fork of proven baseline. Adds (1) depth recurrence NUM_REPS=2, (2) multi-token prediction MTP_WEIGHT=0.3, (3) width 576 (vs 512). 7 physical layers, 14 effective via recurrence."
+}

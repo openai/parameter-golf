@@ -1,0 +1,15 @@
+tmux new -s run
+
+cd /workspace
+rm -rf parameter-golf
+git clone https://github.com/AVINASH0052/parameter-golf.git
+cd parameter-golf
+git checkout submission/fastattn-mtp-dr
+
+pip install brotli sentencepiece -q
+
+python3 data/cached_challenge_fineweb.py --variant sp1024
+
+bash records/track_10min_16mb/2026-04-17_FastAttn_MTP_DepthRec/run_smoke_1gpu.sh
+
+SEED=42 bash records/track_10min_16mb/2026-04-17_FastAttn_MTP_DepthRec/run_leaderboard_8xh100.sh 2>&1 | tee train_seed42.log
