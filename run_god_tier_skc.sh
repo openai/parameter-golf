@@ -7,6 +7,15 @@ mkdir -p logs/max_vram_10min
 
 RUN_ID="${RUN_ID:-max_vram_10min_$(date +%Y%m%d_%H%M%S)}"
 NPROC="${NPROC:-2}"
+AUTO_TUNE="${AUTO_TUNE:-0}"
+AUTO_TUNE_PROFILE="${AUTO_TUNE_PROFILE:-}"
+if [[ -z "${AUTO_TUNE_PROFILE}" ]]; then
+  if [[ "${DIAGNOSTICS_ENABLED:-0}" == "1" ]]; then
+    AUTO_TUNE_PROFILE="diagnostic"
+  else
+    AUTO_TUNE_PROFILE="competition"
+  fi
+fi
 
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo "nvidia-smi not found; cannot auto-size VRAM." >&2
@@ -60,6 +69,25 @@ else
 fi
 
 LOG_FILE="logs/max_vram_10min/${RUN_ID}.log"
+AUTO_TUNE_ENV_FILE="logs/max_vram_10min/${RUN_ID}.auto_tune.env"
+AUTO_TUNE_JSON_FILE="logs/max_vram_10min/${RUN_ID}.auto_tune.json"
+
+echo "run_id=${RUN_ID} nproc=${NPROC} free_mb_min=${FREE_MB_MIN} train_batch_tokens=${TRAIN_BATCH_TOKENS_AUTO} warmup_batch_tokens=${COMPILER_WARMUP_BATCH_TOKENS_AUTO} sliding_batch=${SLIDING_BATCH_SIZE_AUTO}" | tee "${LOG_FILE}"
+
+if [[ "${AUTO_TUNE}" == "1" ]]; then
+  python3 auto_tune_launcher.py \
+    --root "${ROOT_DIR}" \
+    --run-id "${RUN_ID}" \
+    --nproc "${NPROC}" \
+    --profile "${AUTO_TUNE_PROFILE}" \
+    --logs-dir "logs/auto_tune" \
+    --emit-env-file "${AUTO_TUNE_ENV_FILE}" \
+    --emit-json-file "${AUTO_TUNE_JSON_FILE}" | tee -a "${LOG_FILE}"
+  # Auto-tune is restricted to runtime launcher knobs. It must not alter model shape
+  # or artifact-budget parameters that determine the 16MB submission target.
+  # shellcheck disable=SC1090
+  source "${AUTO_TUNE_ENV_FILE}"
+fi
 
 COMMON_ENV=(
   RUN_ID="${RUN_ID}"
@@ -111,8 +139,6 @@ COMMON_ENV=(
   ENGRAM_EXPORT_TOKEN_BUDGET="${ENGRAM_EXPORT_TOKEN_BUDGET:-131072}"
   WALL_CLOCK_TIMEOUT=570
 )
-
-echo "run_id=${RUN_ID} nproc=${NPROC} free_mb_min=${FREE_MB_MIN} train_batch_tokens=${TRAIN_BATCH_TOKENS_AUTO} warmup_batch_tokens=${COMPILER_WARMUP_BATCH_TOKENS_AUTO} sliding_batch=${SLIDING_BATCH_SIZE_AUTO}" | tee "${LOG_FILE}"
 
 # Optional: upload canonical sources to a remote pod before launch.
 # Invoke by setting POD_SSH, POD_SSH_PORT (default 22), LOCAL_WORKTREE.
