@@ -1,8 +1,8 @@
 {
   "name": "Block Attention Residuals",
   "val_bpb": 1.1224,
-  "blurb": "Block Attention Residuals (2 blocks, mix=0.25, temp=1.1) + XSA all 11 layers + tuned TTT (LR=0.003, freeze=1) on PR #414 stack with Parameter Banking + Parallel Muon. LeakyReLU(0.5)^2, warmdown=3500, ~7000 iters. No BigramHash/SmearGate.",
+  "blurb": "Block Attention Residuals (2 blocks, mix=0.25, temp=1.1) + XSA all 11 layers + tuned TTT (LR=0.003, freeze=1) on PR #414 stack with Parameter Banking + Parallel Muon. LeakyReLU(0.5)^2, warmdown=3500.",
   "author": "balaji-rao",
   "github_id": "kings-crown",
-  "date": "2026-04-16"
+  "date": "2026-04-17"
 }
