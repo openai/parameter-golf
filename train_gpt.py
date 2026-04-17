@@ -66,6 +66,10 @@ class Hyperparameters:
     # e.g. RECUR_LAYERS=3,4 with NUM_LAYERS=9 gives schedule [0,1,2,3,4,3,4,5,6,7,8] (11 virtual passes)
     recur_layers_str = os.environ.get("RECUR_LAYERS", "3,4")
     recur_layers: list[int] = [int(x) for x in recur_layers_str.split(",") if x.strip()] if recur_layers_str.strip() else []
+    # Staged recurrence: activate recurrence after this many steps (0 = from start)
+    recur_start_step = int(os.environ.get("RECUR_START_STEP", 0))
+    # Parallel residuals: GPT-J style from this physical layer onward (-1 = disabled)
+    parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 7))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -617,7 +621,7 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+        x = F.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
 
@@ -630,8 +634,10 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        parallel_residual: bool = False,
     ):
         super().__init__()
+        self.parallel_residual = parallel_residual
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
@@ -643,9 +649,18 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        if self.parallel_residual:
+            # GPT-J style: attention and MLP read from same input, outputs summed
+            normed = self.attn_norm(x)
+            attn_out = self.attn(normed)
+            mlp_out = self.mlp(self.mlp_norm(x))
+            x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out \
+                  + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+        else:
+            # Sequential (default): attention first, then MLP
+            attn_out = self.attn(self.attn_norm(x))
+            x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -664,6 +679,8 @@ class GPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         recur_layers: list[int] | None = None,
+        recur_start_step: int = 0,
+        parallel_start_layer: int = -1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -671,11 +688,14 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        self.recur_start_step = recur_start_step
+        self.current_step = 0
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         # Build virtual block schedule (depth recurrence).
         # recur_layers: physical layer indices to repeat once after their last occurrence.
         # e.g. num_layers=7, recur_layers=[3,4] → schedule=[0,1,2,3,4,3,4,5,6] (9 virtual passes)
         recur_layers = sorted(set(recur_layers or []))
+        self.block_schedule_plain = list(range(num_layers))  # no recurrence
         if recur_layers:
             cutoff = max(recur_layers) + 1
             self.block_schedule = list(range(cutoff)) + recur_layers + list(range(cutoff, num_layers))
@@ -695,6 +715,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    parallel_residual=(parallel_start_layer >= 0 and i >= parallel_start_layer),
                 )
                 for i in range(num_layers)
             ]
@@ -718,15 +739,26 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
+        # Staged recurrence: use plain sequential schedule before recur_start_step,
+        # then switch to block_schedule with recurrence after.
+        use_recurrence = self.recur_start_step <= 0 or self.current_step >= self.recur_start_step
+        schedule = self.block_schedule if use_recurrence else self.block_schedule_plain
+
+        # Recompute encoder/decoder split based on active schedule
+        vlen = len(schedule)
+        n_enc = vlen // 2
+        n_dec = vlen - n_enc
+
         # First half stores skips; second half reuses them in reverse order.
-        # block_schedule maps virtual index → physical block index (supports depth recurrence).
-        for vi in range(self.num_encoder_layers):
-            x = self.blocks[self.block_schedule[vi]](x, x0)
+        for vi in range(n_enc):
+            x = self.blocks[schedule[vi]](x, x0)
             skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
+        for i in range(n_dec):
+            if i < self.num_skip_weights and skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.block_schedule[self.num_encoder_layers + i]](x, x0)
+            elif skips:
+                skips.pop()  # discard skip if no weight for it
+            x = self.blocks[schedule[n_enc + i]](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -852,6 +884,8 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
         recur_layers=args.recur_layers,
+        recur_start_step=args.recur_start_step,
+        parallel_start_layer=args.parallel_start_layer,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1022,6 +1056,7 @@ def main() -> None:
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        base_model.current_step = step  # for staged recurrence
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
