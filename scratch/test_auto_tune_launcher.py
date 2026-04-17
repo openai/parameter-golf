@@ -4,6 +4,7 @@ import unittest
 
 from auto_tune_launcher import (
     HardwareInfo,
+    auto_tune_quick,
     build_batch_candidates,
     build_signature,
     classify_failure,
@@ -47,6 +48,10 @@ class AutoTuneLauncherTests(unittest.TestCase):
     def test_batch_candidates_respect_explicit_override(self) -> None:
         env = {"AUTO_TUNE_BATCH_CANDIDATES": "16000,10128,8192"}
         self.assertEqual(build_batch_candidates(49152, env, "competition"), [16000, 10128, 8192])
+
+    def test_batch_candidates_quick_mode_keeps_short_list(self) -> None:
+        env = {"AUTO_TUNE_QUICK": "1"}
+        self.assertEqual(build_batch_candidates(49152, env, "competition"), [49152, 10128, 8192])
 
     def test_classify_oom(self) -> None:
         failure, reason = classify_failure(
@@ -95,6 +100,14 @@ class AutoTuneLauncherTests(unittest.TestCase):
         ladder = compile_ladder("competition")
         self.assertEqual(ladder[0], ("max-autotune", "blocks", 4))
         self.assertEqual(ladder[-1], ("none", "full", 0))
+
+    def test_compile_ladder_quick_mode_prefers_eager_then_small_compile(self) -> None:
+        ladder = compile_ladder("competition", {"AUTO_TUNE_QUICK": "1"})
+        self.assertEqual(ladder, [("none", "full", 0), ("reduce-overhead", "blocks", 1)])
+
+    def test_quick_mode_flag(self) -> None:
+        self.assertTrue(auto_tune_quick({"AUTO_TUNE_QUICK": "1"}))
+        self.assertFalse(auto_tune_quick({}))
 
     def test_dedupe_preserve_order(self) -> None:
         self.assertEqual(dedupe_preserve_order([4, 2, 4, 1, 2]), [4, 2, 1])

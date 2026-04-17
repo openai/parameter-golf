@@ -181,12 +181,19 @@ def parse_int_list(raw: str | None) -> list[int]:
     return [int(part) for part in parts if part]
 
 
+def auto_tune_quick(env: dict[str, str]) -> bool:
+    return env.get("AUTO_TUNE_QUICK", "0") == "1"
+
+
 def build_batch_candidates(heuristic: int, env: dict[str, str], profile: str) -> list[int]:
     explicit = parse_int_list(env.get("AUTO_TUNE_BATCH_CANDIDATES"))
     min_batch = int(env.get("AUTO_TUNE_MIN_BATCH_TOKENS", "8192"))
     max_batch = int(env.get("AUTO_TUNE_MAX_BATCH_TOKENS", str(max(heuristic, 16000))))
     if explicit:
         return [value for value in dedupe_preserve_order(explicit) if min_batch <= value <= max_batch]
+    if auto_tune_quick(env):
+        quick_values = [heuristic, min(10128, max_batch), min_batch]
+        return [value for value in dedupe_preserve_order(quick_values) if min_batch <= value <= max_batch]
 
     floor_values = [16000, 10128, 8192]
     if profile == "h100_final":
@@ -203,7 +210,15 @@ def build_batch_candidates(heuristic: int, env: dict[str, str], profile: str) ->
     return filtered or [min_batch]
 
 
-def build_warmup_candidates(heuristic: int, train_batch: int) -> list[int]:
+def build_warmup_candidates(heuristic: int, train_batch: int, env: dict[str, str]) -> list[int]:
+    if auto_tune_quick(env):
+        values = [
+            min(heuristic, train_batch),
+            min(train_batch, 8192),
+            0,
+        ]
+        filtered = [value for value in dedupe_preserve_order(values) if value <= max(train_batch, heuristic)]
+        return filtered or [0]
     values = [
         heuristic,
         min(train_batch, 16384),
@@ -216,10 +231,16 @@ def build_warmup_candidates(heuristic: int, train_batch: int) -> list[int]:
     return filtered or [0]
 
 
-def compile_ladder(profile: str) -> list[tuple[str, str, int]]:
+def compile_ladder(profile: str, env: dict[str, str] | None = None) -> list[tuple[str, str, int]]:
+    env = env or {}
     if profile in {"diagnostic", "convergence"}:
         # For convergence diagnostics we intentionally avoid compile effects.
         return [("none", "full", 0)]
+    if auto_tune_quick(env):
+        return [
+            ("none", "full", 0),
+            ("reduce-overhead", "blocks", 1),
+        ]
     return [
         ("max-autotune", "blocks", 4),
         ("max-autotune", "blocks", 2),
@@ -391,6 +412,7 @@ def build_base_env(root: Path, run_id: str, env: dict[str, str], nproc: int) -> 
     merged.update(
         {
             "RUN_ID": run_id,
+            "AUTO_TUNE_QUICK": env.get("AUTO_TUNE_QUICK", "0"),
             "PYTORCH_CUDA_ALLOC_CONF": env.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"),
             "DDP_FIND_UNUSED_PARAMETERS": env.get("DDP_FIND_UNUSED_PARAMETERS", "0"),
             "OMP_NUM_THREADS": env.get("OMP_NUM_THREADS", "8"),
@@ -487,7 +509,7 @@ def attempt_candidate(
     compile_mode, compile_target, compile_max_modules = compile_cfg
     find_unused_values = [0]
     if try_find_unused:
-        find_unused_values = [0, 1]
+        find_unused_values = [1, 0] if auto_tune_quick(base_env) else [0, 1]
 
     for ddp_find_unused in find_unused_values:
         selected_warmup = 0
@@ -651,17 +673,18 @@ def tune_profile(args: argparse.Namespace) -> dict[str, Any]:
     heuristic_batch = int(env.get("TRAIN_BATCH_TOKENS", str(default_train_batch_tokens(hw.min_free_mb))))
     heuristic_warmup = int(env.get("COMPILER_WARMUP_BATCH_TOKENS", str(default_warmup_batch_tokens(hw.min_free_mb))))
     batch_candidates = build_batch_candidates(heuristic_batch, env, args.profile)
-    min_success_steps = int(env.get("AUTO_TUNE_MIN_SUCCESS_STEPS", "2"))
-    precompile_seconds = int(env.get("AUTO_TUNE_MAX_PRECOMPILE_SECONDS", "240"))
-    smoke_seconds = int(env.get("AUTO_TUNE_MAX_SMOKE_SECONDS", "90"))
+    quick_mode = auto_tune_quick(env)
+    min_success_steps = int(env.get("AUTO_TUNE_MIN_SUCCESS_STEPS", "1" if quick_mode else "2"))
+    precompile_seconds = int(env.get("AUTO_TUNE_MAX_PRECOMPILE_SECONDS", "60" if quick_mode else "240"))
+    smoke_seconds = int(env.get("AUTO_TUNE_MAX_SMOKE_SECONDS", "20" if quick_mode else "90"))
     try_find_unused = env.get("AUTO_TUNE_TRY_FIND_UNUSED", "1") == "1"
     attempts: list[dict[str, Any]] = []
     selected_env: dict[str, str] | None = None
 
     base_env = build_base_env(root, args.run_id, env, args.nproc)
     for batch in batch_candidates:
-        warmup_candidates = build_warmup_candidates(heuristic_warmup, batch)
-        for compile_cfg in compile_ladder(args.profile):
+        warmup_candidates = build_warmup_candidates(heuristic_warmup, batch, env)
+        for compile_cfg in compile_ladder(args.profile, env):
             candidate_env, candidate_attempts = attempt_candidate(
                 root=root,
                 base_env=base_env,

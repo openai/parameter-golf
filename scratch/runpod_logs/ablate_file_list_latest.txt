@@ -1,0 +1,14 @@
+logs/ablateA_legacy_wd004_r35.console.log
+logs/ablateA_legacy_wd004_r35_r2.console.log
+logs/cuda/ablateA_legacy_wd004_r35.txt
+logs/cuda/ablateA_legacy_wd004_r35_r2.txt
+logs/cuda/ablateB_legacy_wd000_r35.txt
+logs/cuda/ablateC_legacy_wd000_r65.txt
+logs/diagnostics_ablateA_legacy_wd004_r35.jsonl
+logs/diagnostics_ablateA_legacy_wd004_r35_r2.jsonl
+logs/diagnostics_ablateB_legacy_wd000_r35.jsonl
+logs/diagnostics_ablateC_legacy_wd000_r65.jsonl
+logs/max_vram_10min/ablateA_legacy_wd004_r35.log
+logs/max_vram_10min/ablateA_legacy_wd004_r35_r2.log
+logs/max_vram_10min/ablateB_legacy_wd000_r35.log
+logs/max_vram_10min/ablateC_legacy_wd000_r65.log
