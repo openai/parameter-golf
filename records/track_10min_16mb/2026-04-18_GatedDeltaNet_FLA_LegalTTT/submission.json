@@ -1,0 +1,53 @@
+{
+  "author": "arsenis-cmd",
+  "github_id": "arsenis-cmd",
+  "name": "GatedDeltaNet (FLA) + Legal Score-First TTT",
+  "blurb": "GatedDeltaNet linear attention (FLA) + legal score-first TTT on PR #1687 K_KVShare_Wider architecture. GDN replaces softmax attention with O(n) recurrent layers via gated delta rule. TTT adds 3-epoch SGD chunk adaptation at eval time. 3-seed mean: 1.00995 BPB (std 0.0012). All artifacts under 16 MiB.",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.00995,
+  "val_bpb_std": 0.00120,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.01130,
+      "val_bpb_pre_ttt": 1.02142,
+      "ttt_delta": -0.01012,
+      "artifact_bytes": 16600916,
+      "steps": 2364
+    },
+    "314": {
+      "val_bpb": 1.00896,
+      "val_bpb_pre_ttt": 1.01872,
+      "ttt_delta": -0.00976,
+      "artifact_bytes": 16548775,
+      "steps": 2398
+    },
+    "999": {
+      "val_bpb": 1.00959,
+      "val_bpb_pre_ttt": 1.01967,
+      "ttt_delta": -0.01008,
+      "artifact_bytes": 16474250,
+      "steps": 2370
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "GatedDeltaNet (FLA) K_KVShare_Wider + EMA(0.997) + SWA(50) + Late QAT + Int6/Int8 Mixed Quant + zstd-22 + Score-First TTT (SGD 3ep, lr=0.005, freeze=2)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "gated_deltanet_architecture": "@resouer (PR #1687) — K_KVShare_Wider, FLA integration, full training recipe",
+    "flash_linear_attention": "@sustcsonglin — GatedDeltaNet implementation (fla-core 0.4.2)",
+    "legal_ttt_framework": "@Christopher-Lee-McClendon (PR #461) — score-first TTT (adapted for GDN)"
+  }
+}

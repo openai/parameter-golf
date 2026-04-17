@@ -30,6 +30,7 @@ Happy training!
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
+| GatedDeltaNet (FLA) + Legal Score-First TTT | 1.00995 | arsenis-cmd | On PR #1687: GatedDeltaNet linear attention (FLA) K_KVShare_Wider + score-first TTT (3ep SGD) | 2026-04-18 | [info](records/track_10min_16mb/2026-04-18_GatedDeltaNet_FLA_LegalTTT/README.md) |
 | SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT | 1.0810 | bigbag | On PR #1493: 3-layer recurrence, parallel residuals, QK-Gain 5.25, and legal score-first TTT on the PR #1394 stack | 2026-04-09 | [info](records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/README.md) |
 | SP8192 + Parallel Residuals + Score-First TTT | 1.0822 | aryanbhosale | On PR #1477: parallel residuals on the PR #1413 SP8192 + legal score-first TTT stack | 2026-04-08 | [info](records/track_10min_16mb/2026-04-08_SP8192_ParallelResid_ScoreFirstTTT/README.md) |
 | SP8192 + QK-Gain 5 + Legal Score-First TTT | 1.0828 | dexhunter | On PR #1413: QK-Gain 5.0 + legal score-first TTT on the PR #1394 SP8192 stack | 2026-04-06 | [info](records/track_10min_16mb/2026-04-06_SP8192_QK5_LegalTTT_1.0828/README.md) |
