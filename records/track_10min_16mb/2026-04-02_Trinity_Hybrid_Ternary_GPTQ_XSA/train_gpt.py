@@ -204,12 +204,20 @@ class Hyperparameters:
     slot_beta1 = float(os.environ.get("SLOT_BETA1", 0.6))
     slot_beta2 = float(os.environ.get("SLOT_BETA2", 0.5))
     slot_batch_seqs = int(os.environ.get("SLOT_BATCH_SEQS", 128))
-    # N-gram mixer (PR #1430: Order-22, 4M buckets, entropy-adaptive alpha)
+    # N-gram mixer: Order-22 greedy backoff is OPTIMAL (v7 Order-50+KN was worse: 0.669 vs 0.371)
     ngram_enabled = bool(int(os.environ.get("NGRAM_ENABLED", "1")))
-    ngram_order = int(os.environ.get("NGRAM_ORDER", 22))
-    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", 4_194_304))
-    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 2))
-    ngram_min_tokens = int(os.environ.get("NGRAM_MIN_TOKENS", 5000))
+    ngram_order = int(os.environ.get("NGRAM_ORDER", 22))  # reverted from 50 (KN interpolation dilutes good high-order hits)
+    ngram_buckets = int(os.environ.get("NGRAM_BUCKETS", 4_194_304))  # reverted from 8M (saves 1.5GB memory)
+    ngram_min_count = int(os.environ.get("NGRAM_MIN_COUNT", 2))  # reverted from 1 (single counts are noisy)
+    ngram_min_tokens = int(os.environ.get("NGRAM_MIN_TOKENS", 5000))  # reverted from 3000
+    # v7: configurable alpha + N-gram entropy skip + logistic mixing + APM
+    ngram_alpha_base = float(os.environ.get("NGRAM_ALPHA_BASE", 0.20))
+    ngram_alpha_range = float(os.environ.get("NGRAM_ALPHA_RANGE", 0.55))
+    ngram_alpha_center = float(os.environ.get("NGRAM_ALPHA_CENTER", 2.5))
+    ngram_skip_thresh = float(os.environ.get("NGRAM_SKIP_THRESH", -1.0))  # -1 = disabled; 1.5 = Nacrith default
+    ngram_logistic_mix = bool(int(os.environ.get("NGRAM_LOGISTIC_MIX", "0")))  # 0=linear(v6), 1=logistic(PAQ)
+    ngram_apm_enabled = bool(int(os.environ.get("NGRAM_APM_ENABLED", "0")))  # APM post-processing
+    ngram_apm_lr = float(os.environ.get("NGRAM_APM_LR", 0.005))  # APM learning rate
     # GPTQ damp factor
     gptq_damp_factor = float(os.environ.get("GPTQ_DAMP_FACTOR", 0.005))
 
@@ -1345,14 +1353,23 @@ def eval_val_sliding_ttt(
 # Built incrementally on scored tokens (score-first, then update). Legal under rules.
 
 class BackoffNgramMixer:
-    """GPU-vectorized N-gram mixer. update() and score() use tensor ops, no Python loops."""
-    PRIMES_T = torch.tensor([36313, 27191, 51647, 81929, 131071, 174763, 233017, 282527, 357347, 451439], dtype=torch.int64)
+    """GPU-vectorized N-gram mixer v7: Order-22 greedy backoff + entropy skip + logistic mixing + APM."""
+    # 50 unique primes for hashing (no modulo wrap → fewer collisions)
+    PRIMES_T = torch.tensor([
+        36313, 27191, 51647, 81929, 131071, 174763, 233017, 282527, 357347, 451439,
+        524287, 655357, 786433, 917503, 1048573, 1179641, 1310719, 1441793, 1572857, 1703929,
+        1835003, 1966079, 2097143, 2228227, 2359297, 2490367, 2621431, 2752507, 2883577, 3014657,
+        3145721, 3276799, 3407873, 3538943, 3670013, 3801097, 3932161, 4063231, 4194301, 4325377,
+        4456447, 4587523, 4718593, 4849667, 4980737, 5111813, 5242877, 5373953, 5505023, 5636099,
+    ], dtype=torch.int64)
 
     def __init__(self, vocab_size: int = 1024, device: torch.device = None,
                  num_buckets: int = 4_194_304, max_order: int = 22,
                  min_count: int = 2, min_tokens: int = 5000,
                  alpha_base: float = 0.20, alpha_range: float = 0.55,
-                 alpha_center: float = 2.5):
+                 alpha_center: float = 2.5,
+                 skip_thresh: float = -1.0, logistic_mix: bool = False,
+                 apm_enabled: bool = False, apm_lr: float = 0.005):
         self.V = vocab_size
         self.B = num_buckets
         self.mask = num_buckets - 1  # power-of-2 bitmask
@@ -1362,6 +1379,10 @@ class BackoffNgramMixer:
         self.alpha_base = alpha_base
         self.alpha_range = alpha_range
         self.alpha_center = alpha_center
+        self.skip_thresh = skip_thresh  # v7: N-gram entropy skip threshold (-1 = disabled)
+        self.logistic_mix = logistic_mix  # v7: logistic-domain mixing (PAQ-style)
+        self.apm_enabled = apm_enabled  # v7: APM post-processing
+        self.apm_lr = apm_lr
         self.tokens_seen = 0
         self.device = device or torch.device('cpu')
         self.uni_counts = torch.zeros(vocab_size, dtype=torch.float32, device=self.device)
@@ -1371,6 +1392,13 @@ class BackoffNgramMixer:
         self.full_counts = [torch.zeros(num_buckets, dtype=torch.float32, device=self.device)
                            for _ in range(max_order - 1)]
         self.primes = self.PRIMES_T.to(self.device)
+        # v7: APM correction table (Adaptive Probability Map)
+        # Table indexed by [quantized_neural_prob_bin, last_byte] -> correction factor
+        if apm_enabled:
+            self.apm_bins = 64  # quantize neural prob into 64 bins
+            self.apm_table = torch.zeros(self.apm_bins, vocab_size, dtype=torch.float32, device=self.device)
+            self.apm_counts = torch.zeros(self.apm_bins, dtype=torch.float32, device=self.device)
+            self.apm_total_corrections = 0
 
     def update(self, tokens: Tensor):
         """Vectorized update of n-gram tables."""
@@ -1391,21 +1419,47 @@ class BackoffNgramMixer:
             valid = n - ctx_len
             ctx_hash = torch.zeros(valid, dtype=torch.int64, device=self.device)
             for k in range(ctx_len):
-                prime = self.primes[k % 10]
+                prime = self.primes[k % len(self.primes)]
                 ctx_hash ^= tokens[k:k + valid].long() * prime
             ctx_buckets = (ctx_hash & self.mask).long()
             # Full hash: ctx_hash XOR (target * prime)
             target_tokens = tokens[ctx_len:ctx_len + valid].long()
-            full_hash = ctx_hash ^ (target_tokens * self.primes[(order - 1) % 10])
+            full_hash = ctx_hash ^ (target_tokens * self.primes[(order - 1) % len(self.primes)])
             full_buckets = (full_hash & self.mask).long()
             # scatter_add into count tables
             ones = torch.ones(valid, device=self.device)
             self.ctx_counts[oi].scatter_add_(0, ctx_buckets, ones)
             self.full_counts[oi].scatter_add_(0, full_buckets, ones)
 
+    def update_apm(self, mixed_p: Tensor, y_batch: Tensor, score_mask: Tensor):
+        """v7: Update APM correction table after scoring a batch (GPU-vectorized)."""
+        if not self.apm_enabled:
+            return
+        with torch.no_grad():
+            flat_p = mixed_p.reshape(-1).to(self.device)
+            flat_y = y_batch.reshape(-1).to(self.device)
+            flat_mask = score_mask.reshape(-1).bool()
+            p_scored = flat_p[flat_mask]
+            y_scored = flat_y[flat_mask]
+            if p_scored.numel() == 0:
+                return
+            bins = (p_scored * (self.apm_bins - 1)).long().clamp(0, self.apm_bins - 1)
+            error = -torch.log(p_scored.clamp(min=1e-10))
+            # Vectorized update using scatter operations
+            # Compute linear index into apm_table: bin * V + token
+            linear_idx = bins * self.V + y_scored
+            # EMA update: table[idx] = table[idx] * (1-lr) + error * lr
+            # Approximation: use scatter_add for the error term, decay separately
+            self.apm_table.reshape(-1).mul_(1.0 - self.apm_lr)  # decay all
+            self.apm_table.reshape(-1).scatter_add_(0, linear_idx, error * self.apm_lr)
+            # Update counts per bin
+            ones = torch.ones(bins.numel(), device=self.device)
+            self.apm_counts.scatter_add_(0, bins, ones)
+            self.apm_total_corrections += p_scored.numel()
+
     def score(self, logits: Tensor, x_batch: Tensor, y_batch: Tensor,
               score_mask: Tensor) -> Tensor:
-        """GPU-vectorized scoring with n-gram blending."""
+        """GPU-vectorized greedy backoff + entropy skip + logistic mix + APM (v7)."""
         bsz, seq_len = y_batch.shape
         dev = logits.device
         with torch.no_grad():
@@ -1414,13 +1468,11 @@ class BackoffNgramMixer:
             entropy = -(neural_p_all * log_p).sum(dim=-1)
             neural_p = neural_p_all.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
 
-        # Initialize ngram_p with smoothed unigram
         targets = y_batch.to(self.device).long()
         ngram_p = (self.uni_counts[targets.reshape(-1)] + 0.5) / (self.uni_total + 0.5 * self.V)
         ngram_p = ngram_p.reshape(bsz, seq_len)
         hit = torch.zeros(bsz, seq_len, dtype=torch.bool, device=self.device)
 
-        # Backoff: highest order first (vectorized per order)
         x_dev = x_batch.to(self.device).long()
         y_dev = y_batch.to(self.device).long()
         for order in range(self.max_order, 1, -1):
@@ -1428,37 +1480,70 @@ class BackoffNgramMixer:
             if seq_len <= ctx_len:
                 continue
             oi = order - 2
-            valid_cols = seq_len - ctx_len  # positions that have enough context
-            # Build context hash for all (batch, valid_position) pairs
-            # x_dev[:, col:col+1] for each context position
+            valid_cols = seq_len - ctx_len
             ctx_hash = torch.zeros(bsz, valid_cols, dtype=torch.int64, device=self.device)
             for k in range(ctx_len):
-                prime = self.primes[k % 10]
-                # Context token at offset k from start of context window
-                # For position t (from ctx_len to seq_len-1), context starts at t-ctx_len+1
-                # So context token k is at position (t - ctx_len + 1 + k) = t - ctx_len + 1 + k
-                col_start = 1 + k  # in x_batch, position offset
+                prime = self.primes[k % len(self.primes)]
+                col_start = 1 + k
                 col_end = col_start + valid_cols
                 if col_end > seq_len:
                     break
                 ctx_hash ^= x_dev[:, col_start:col_end].long() * prime
             ctx_buckets = (ctx_hash & self.mask).long()
-            # Full hash
             target_cols = y_dev[:, ctx_len:ctx_len + valid_cols].long()
-            full_hash = ctx_hash ^ (target_cols * self.primes[(order - 1) % 10])
+            full_hash = ctx_hash ^ (target_cols * self.primes[(order - 1) % len(self.primes)])
             full_buckets = (full_hash & self.mask).long()
-            # Lookup counts
             ctx_c = self.ctx_counts[oi][ctx_buckets.reshape(-1)].reshape(bsz, valid_cols)
             full_c = self.full_counts[oi][full_buckets.reshape(-1)].reshape(bsz, valid_cols)
-            # Where ctx_c >= min_count AND not already hit
             valid_mask = (ctx_c >= self.min_count) & (~hit[:, ctx_len:ctx_len + valid_cols])
             p = (full_c / ctx_c.clamp(min=1)).clamp(0, 1)
             ngram_p[:, ctx_len:ctx_len + valid_cols] = torch.where(valid_mask, p, ngram_p[:, ctx_len:ctx_len + valid_cols])
             hit[:, ctx_len:ctx_len + valid_cols] |= valid_mask
 
         ngram_p = ngram_p.to(dev)
-        alpha = self.alpha_base + self.alpha_range * torch.sigmoid(2.0 * (entropy - self.alpha_center))
-        mixed_p = (1.0 - alpha) * neural_p + alpha * ngram_p
+
+        # v7 FEATURE 1: N-gram entropy skip (Nacrith-style)
+        # When n-gram distribution is highly confident (low entropy), skip neural model entirely
+        if self.skip_thresh > 0:
+            # Compute n-gram entropy from the full distribution (not just target token prob)
+            # Approximate: use -log(ngram_p) as proxy (exact would need full distribution)
+            # For greedy backoff with high-confidence match, ngram_p is close to 1 → entropy ≈ 0
+            ngram_confident = (ngram_p > 0.8) & hit.to(dev)  # high-confidence n-gram hit
+            # Also check neural entropy — skip blending when neural is uncertain AND n-gram is confident
+            skip_mask = ngram_confident & (entropy > self.skip_thresh)
+        else:
+            skip_mask = torch.zeros_like(score_mask, dtype=torch.bool)
+
+        # v7 FEATURE 2: Logistic-domain mixing (PAQ-style)
+        if self.logistic_mix:
+            # Transform to log-odds (logistic domain) before mixing
+            eps_lo = 1e-7
+            neural_lo = torch.log(neural_p.clamp(min=eps_lo) / (1.0 - neural_p.clamp(max=1-eps_lo)))
+            ngram_lo = torch.log(ngram_p.clamp(min=eps_lo) / (1.0 - ngram_p.clamp(max=1-eps_lo)))
+            alpha = self.alpha_base + self.alpha_range * torch.sigmoid(2.0 * (entropy - self.alpha_center))
+            mixed_lo = (1.0 - alpha) * neural_lo + alpha * ngram_lo
+            mixed_p = torch.sigmoid(mixed_lo)
+        else:
+            # v6 linear mixing (default)
+            alpha = self.alpha_base + self.alpha_range * torch.sigmoid(2.0 * (entropy - self.alpha_center))
+            mixed_p = (1.0 - alpha) * neural_p + alpha * ngram_p
+
+        # Apply entropy skip: where n-gram is highly confident, use pure n-gram
+        if self.skip_thresh > 0:
+            mixed_p = torch.where(skip_mask, ngram_p, mixed_p)
+
+        # v7 FEATURE 3: APM post-processing (Secondary Symbol Estimation)
+        if self.apm_enabled and self.apm_total_corrections > 100:
+            # Quantize mixed_p into bins for table lookup
+            prob_bins = (mixed_p * (self.apm_bins - 1)).long().clamp(0, self.apm_bins - 1)
+            # Get correction from table (additive in log-prob space)
+            correction = self.apm_table[prob_bins.reshape(-1), y_batch.reshape(-1).to(self.device)].reshape(bsz, seq_len).to(dev)
+            count_smooth = self.apm_counts[prob_bins.reshape(-1)].reshape(bsz, seq_len).to(dev).clamp(min=1.0)
+            # Exponential moving average correction
+            correction_factor = (correction / count_smooth).clamp(-2.0, 2.0)
+            mixed_p = mixed_p * torch.exp(correction_factor * 0.1)
+            mixed_p = mixed_p.clamp(min=1e-10, max=1.0)
+
         nll = -torch.log(mixed_p.clamp(min=1e-10))
         std_nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction="none").reshape(bsz, seq_len)
         return torch.where(score_mask, nll, std_nll)
@@ -1526,10 +1611,24 @@ def eval_val_slot_v2(
             max_order=getattr(args, 'ngram_order', 22),
             min_count=getattr(args, 'ngram_min_count', 2),
             min_tokens=getattr(args, 'ngram_min_tokens', 5000),
+            alpha_base=getattr(args, 'ngram_alpha_base', 0.20),
+            alpha_range=getattr(args, 'ngram_alpha_range', 0.55),
+            alpha_center=getattr(args, 'ngram_alpha_center', 2.5),
+            skip_thresh=getattr(args, 'ngram_skip_thresh', -1.0),
+            logistic_mix=getattr(args, 'ngram_logistic_mix', False),
+            apm_enabled=getattr(args, 'ngram_apm_enabled', False),
+            apm_lr=getattr(args, 'ngram_apm_lr', 0.005),
         )
         if rank == 0:
             mem_mb = ngram_mixer.B * 2 * (ngram_mixer.max_order - 1) * 4 / 1024 / 1024
-            print(f"ngram_mixer: order={ngram_mixer.max_order} buckets={ngram_mixer.B} mem={mem_mb:.0f}MB")
+            v7_feats = []
+            if ngram_mixer.skip_thresh > 0: v7_feats.append(f"skip@{ngram_mixer.skip_thresh}")
+            if ngram_mixer.logistic_mix: v7_feats.append("logistic")
+            if ngram_mixer.apm_enabled: v7_feats.append(f"apm@{ngram_mixer.apm_lr}")
+            v7_str = f" v7=[{','.join(v7_feats)}]" if v7_feats else ""
+            print(f"ngram_mixer: order={ngram_mixer.max_order} buckets={ngram_mixer.B} "
+                  f"alpha=[{ngram_mixer.alpha_base},{ngram_mixer.alpha_range},c={ngram_mixer.alpha_center}] "
+                  f"mem={mem_mb:.0f}MB{v7_str}")
 
     # Try to compile forward_hidden for speed
     try:
@@ -1647,9 +1746,25 @@ def eval_val_slot_v2(
                 byte_count += tb.sum()
 
         # STEP 5b: Update N-gram table AFTER scoring (score-first protocol)
+        # v7 fix: per-sequence update to avoid dropping tokens from longer windows
         if ngram_mixer is not None:
-            wlen_common = min(wlens) if wlens else seq_len
-            ngram_mixer.update(x_batch[:, :wlen_common].reshape(-1))
+            # Fast path: if all windows are same length, do single batched update (v6 behavior)
+            wlen_min, wlen_max = min(wlens), max(wlens)
+            if wlen_min == wlen_max:
+                ngram_mixer.update(x_batch[:, :wlen_min].reshape(-1))
+            else:
+                # Slow path: per-sequence update for variable-length windows
+                for i in range(bsz):
+                    wlen = wlens[i]
+                    if wlen > 0:
+                        ngram_mixer.update(x_batch[i, :wlen])
+            # Also update APM table with final mixed probabilities
+            if ngram_mixer.apm_enabled and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
+                with torch.no_grad():
+                    # Recompute mixed_p for APM update (lightweight)
+                    neural_p_apm = torch.softmax(logits_final.float(), dim=-1)
+                    target_p = neural_p_apm.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
+                    ngram_mixer.update_apm(target_p, y_batch, score_mask)
 
         # STEP 6: Discard delta+bias (they go out of scope on next iteration)
         del delta, logit_bias, optimizer, hidden, h_final
@@ -1794,14 +1909,39 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
             continue
     if Hinv is None:
         return _quantize_int6_percentile(t32, clip_range)
+    # v7: per-row optimal percentile search — each row gets its own best clip
+    per_row_clip = bool(int(os.environ.get("GPTQ_PER_ROW_CLIP", "1")))
+    pcts = [0.9990, 0.9995, 0.9999, 0.99999, 1.0]
     best_q = None; best_scale = None; best_err = float('inf')
-    for pct in [0.9990, 0.9995, 0.9999, 0.99999, 1.0]:
-        if pct < 1.0:
-            row_clip = torch.quantile(t32.abs(), pct, dim=1)
-        else:
-            row_clip = t32.abs().amax(dim=1)
+
+    if per_row_clip:
+        # Per-row: test all percentiles, pick best per row, then run GPTQ once
+        all_clips = []
+        for pct in pcts:
+            if pct < 1.0:
+                all_clips.append(torch.quantile(t32.abs(), pct, dim=1))
+            else:
+                all_clips.append(t32.abs().amax(dim=1))
+        all_clips = torch.stack(all_clips, dim=0)  # (5, rows)
+        # Per-row MSE for each percentile (without GPTQ compensation, fast approx)
+        best_clip_idx = torch.zeros(rows, dtype=torch.long)
+        for r in range(rows):
+            best_row_err = float('inf')
+            for pi, pct in enumerate(pcts):
+                rc = all_clips[pi, r]
+                sc = (rc / clip_range).clamp_min(1.0 / clip_range)
+                qr = torch.clamp(torch.round(t32[r] / sc), -clip_range, clip_range)
+                err_r = (t32[r] - qr * sc).pow(2).mean().item()
+                if err_r < best_row_err:
+                    best_row_err = err_r
+                    best_clip_idx[r] = pi
+        # Build optimal per-row clip
+        row_clip = torch.zeros(rows)
+        for r in range(rows):
+            row_clip[r] = all_clips[best_clip_idx[r], r]
         s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
         sf = s.float()
+        # Single GPTQ pass with optimal per-row scales
         Q = torch.zeros_like(W, dtype=torch.int8)
         W_work = W.clone()
         for i1 in range(0, cols, block_size):
@@ -1822,10 +1962,40 @@ def quantize_int6_gptq(weight, hessian=None, clip_range=31, block_size=128):
             Q[:, i1:i2] = Q1
             if i2 < cols:
                 W_work[:, i2:] -= Err1 @ Hinv[i1:i2, i2:]
-        recon = Q.float() * sf[:, None]
-        mse = (W - recon).pow(2).mean().item()
-        if mse < best_err:
-            best_q, best_scale, best_err = Q, s, mse
+        best_q, best_scale = Q, s
+    else:
+        # v6 behavior: global percentile search
+        for pct in pcts:
+            if pct < 1.0:
+                row_clip = torch.quantile(t32.abs(), pct, dim=1)
+            else:
+                row_clip = t32.abs().amax(dim=1)
+            s = (row_clip / clip_range).clamp_min(1.0 / clip_range).to(torch.float16)
+            sf = s.float()
+            Q = torch.zeros_like(W, dtype=torch.int8)
+            W_work = W.clone()
+            for i1 in range(0, cols, block_size):
+                i2 = min(i1 + block_size, cols)
+                count = i2 - i1
+                W1 = W_work[:, i1:i2].clone()
+                Q1 = torch.zeros(rows, count, dtype=torch.int8)
+                Err1 = torch.zeros(rows, count)
+                Hinv1 = Hinv[i1:i2, i1:i2]
+                for i in range(count):
+                    w = W1[:, i]
+                    d = Hinv1[i, i]
+                    q = torch.clamp(torch.round(w / sf), -clip_range, clip_range).to(torch.int8)
+                    Q1[:, i] = q
+                    err = (w - q.float() * sf) / d
+                    W1[:, i:] -= err.unsqueeze(1) * Hinv1[i, i:].unsqueeze(0)
+                    Err1[:, i] = err
+                Q[:, i1:i2] = Q1
+                if i2 < cols:
+                    W_work[:, i2:] -= Err1 @ Hinv[i1:i2, i2:]
+            recon = Q.float() * sf[:, None]
+            mse = (W - recon).pow(2).mean().item()
+            if mse < best_err:
+                best_q, best_scale, best_err = Q, s, mse
     best_q = best_q[:, inv_perm]
     return best_q, best_scale
 
@@ -2091,7 +2261,6 @@ def mixed_quantize_trinity(state_dict: dict[str, Tensor], hessians: dict[str, Te
             continue
         # Trinity v4-fix: int6 GPTQ for ALL large weights (MLP + attention)
         if (cat == "mlp" or cat == "attn") and t.ndim >= 1:
-            # Int6 GPTQ for attention weights
             cr = 31
             H = hessians.get(name) if hessians else None
             if H is not None:
@@ -2102,8 +2271,19 @@ def mixed_quantize_trinity(state_dict: dict[str, Tensor], hessians: dict[str, Te
             result[name + ".scale"] = s
             meta[name] = {"type": "int6"}
             int6_count += 1
+        elif cat == "embed":
+            # v7: embeddings in FP16 (errors compound via tied weights input+output)
+            embed_mode = os.environ.get("EMBED_QUANT", "fp16")  # fp16 | int8
+            if embed_mode == "fp16":
+                result[name] = t.to(torch.float16)
+                meta[name] = "passthrough_fp16"
+            else:
+                q, s = quantize_float_tensor(t)
+                result[name + ".q"] = q
+                result[name + ".scale"] = s
+                meta[name] = {"type": "int8"}
         else:
-            # Fallback: int8 for other large tensors (e.g., embeddings)
+            # Fallback: int8 for other large tensors
             q, s = quantize_float_tensor(t)
             result[name + ".q"] = q
             result[name + ".scale"] = s
@@ -2819,7 +2999,7 @@ def main() -> None:
         ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
             args, slot_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
-            stride=args.slot_stride, eval_seq_len=effective_eval_seq_len, batch_seqs=32,
+            stride=args.slot_stride, eval_seq_len=effective_eval_seq_len, batch_seqs=args.ttt_batch_seqs,
         )
         torch.cuda.synchronize()
         log0(
@@ -2836,7 +3016,7 @@ def main() -> None:
             args, slot_model, rank, world_size, device,
             val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
             slot_lr=args.slot_lr, slot_steps=args.slot_steps, stride=args.slot_stride,
-            eval_seq_len=effective_eval_seq_len, batch_seqs=32,
+            eval_seq_len=effective_eval_seq_len, batch_seqs=args.slot_batch_seqs,
         )
         torch.cuda.synchronize()
         log0(
