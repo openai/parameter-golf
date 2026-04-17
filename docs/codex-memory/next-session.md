@@ -95,3 +95,27 @@ Scope:
 3. `scripts/diagnostics/compress_probe.py`
 4. `diagnostics/README.md`
 5. `records/track_non_record_16mb/2026-03-30_training_bundle_plus/train_gpt.py`
+
+## Next session — PR #1610 RunPod execution
+
+Use the committed RunPod pipeline on branch `submission/pr1610-corrector`
+at SHA `218b623f8962a301e41180b6050186a3c189d063`.
+
+Required precondition:
+- `00_verify_pod.sh` must confirm the warmup-fix ancestor
+  `a33191f572430566b88c4d61badb0369e1e6f9a3` is present in history.
+
+Session 3 operator flow:
+1. Launch pod per `scripts/runpod_pipeline/pod_launch.md`
+2. Start automated stages 0–3:
+   - `bash scripts/runpod_pipeline/run_all.sh`
+3. Review fork decision:
+   - `bash scripts/runpod_pipeline/04_decide_and_proceed.sh`
+4. Choose one manual Stage 4 path:
+   - primary: `BEST_ALPHA=<x> BEST_ORDERS='<y>' bash scripts/runpod_pipeline/04a_gate_b.sh`
+   - fallback: `bash scripts/runpod_pipeline/04b_fallback_level1a.sh`
+5. Preserve artifacts before teardown:
+   - `UPLOAD_TARGET="hf:<repo>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`
+   - or `UPLOAD_TARGET="rsync:<user@host>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`
+
+Do not use `s3://` for Stage 5; S3 support was removed from the script and docs.

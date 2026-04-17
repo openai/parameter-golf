@@ -88,13 +88,7 @@ UPLOAD_TARGET="hf:amrayach/parameter-golf-runs:pr1610-corrector" \
   bash scripts/runpod_pipeline/05_preserve_artifacts.sh
 ```
 
-**Option B — AWS S3:**
-```bash
-UPLOAD_TARGET="s3://your-bucket/parameter-golf" \
-  bash scripts/runpod_pipeline/05_preserve_artifacts.sh
-```
-
-**Option C — rsync to Pegasus:**
+**Option B — rsync to Pegasus:**
 ```bash
 UPLOAD_TARGET="rsync:amay@pegasus.dfki.de:/netscratch/amay/runs" \
   bash scripts/runpod_pipeline/05_preserve_artifacts.sh

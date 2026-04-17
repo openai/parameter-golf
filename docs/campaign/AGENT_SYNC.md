@@ -390,3 +390,32 @@ exactly matches prior Codex measurement (deviation 0, within ±200 band).
 
 **Refs**: `LEGALITY_SPEC.md:104-120, 72-79`;
 `train_gpt.py:35, 2521-2522, 2689-2690, warmup marker block`.
+
+## Session 3 pipeline launch state — 2026-04-17
+
+RunPod pipeline for PR `#1610` + posterior corrector is now committed and
+pushed at:
+
+- branch: `submission/pr1610-corrector`
+- launch SHA: `218b623f8962a301e41180b6050186a3c189d063`
+- required warmup-fix ancestor: `a33191f572430566b88c4d61badb0369e1e6f9a3`
+
+Targeted re-audit against `origin/submission/pr1610-corrector` confirmed:
+
+- local HEAD == remote HEAD at `218b623f8962a301e41180b6050186a3c189d063`
+- `scripts/runpod_pipeline/` is tracked and contains 11 files
+- `02_gate_a.sh` now persists the seed-0 checkpoint before any log parsing
+- `03_ablations.sh` / `04_decide_and_proceed.sh` implement the three-way fork:
+  - `best_delta >= 0.002` → primary / Gate B
+  - `0.001 <= best_delta < 0.002` → hold / human decision
+  - `all deltas < 0.001` → fallback
+- `04b_fallback_level1a.sh` now fails closed on missing BPB or missing variant results
+- Stage 5 upload targets are `hf:` and `rsync:` only; stale `s3://` docs removed
+
+Session 3 operator entry point:
+
+- start: `bash scripts/runpod_pipeline/run_all.sh`
+- review fork: `bash scripts/runpod_pipeline/04_decide_and_proceed.sh`
+- preserve artifacts before teardown:
+  - `UPLOAD_TARGET="hf:<repo>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`
+  - `UPLOAD_TARGET="rsync:<user@host>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`

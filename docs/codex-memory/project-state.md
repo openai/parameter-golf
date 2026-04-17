@@ -191,3 +191,21 @@ Do not use:
 - Use the corrected compression probe to decide whether the next big fork is:
   - compression-path upgrade + modest width, or
   - a different larger fork that does not depend on width unlock
+
+## 2026-04-17 PR #1610 RunPod pipeline state
+
+- Branch `submission/pr1610-corrector` is launch-pinned at commit
+  `218b623f8962a301e41180b6050186a3c189d063`.
+- Session 1 warmup-fix commit `a33191f572430566b88c4d61badb0369e1e6f9a3`
+  remains in ancestry and is enforced by `scripts/runpod_pipeline/00_verify_pod.sh`.
+- `scripts/runpod_pipeline/` is committed and tracked (11 files).
+- The final pre-launch doc mismatch was a stale S3 upload option in
+  `scripts/runpod_pipeline/README.md`; removed. Stage 5 now documents only
+  `hf:` and `rsync:` upload targets, matching `05_preserve_artifacts.sh`.
+- Targeted re-audit after the fixes confirmed:
+  - local HEAD == `origin/submission/pr1610-corrector`
+  - Gate A checkpoint persistence happens before parsing
+  - Stage 3 / Stage 4 decision logic includes the 0.001–0.002 hold band
+  - fallback variants fail closed on missing BPB/results
+
+Current status: Session 3 pod workflow is launch-ready from repo state.
