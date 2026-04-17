@@ -702,6 +702,13 @@ class GPT(nn.Module):
         else:
             self.block_schedule = list(range(num_layers))
         virtual_num_layers = len(self.block_schedule)
+        # Start with plain schedule (no recurrence) if staged; otherwise use full schedule
+        if recur_start_step > 0:
+            self.active_schedule = self.block_schedule_plain
+        else:
+            self.active_schedule = self.block_schedule
+        self.active_n_enc = len(self.active_schedule) // 2
+        self.active_n_dec = len(self.active_schedule) - self.active_n_enc
         self.num_encoder_layers = virtual_num_layers // 2
         self.num_decoder_layers = virtual_num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -733,21 +740,22 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
+    def activate_recurrence(self) -> None:
+        """Switch from plain schedule to recurrence schedule. Called from training loop."""
+        self.active_schedule = self.block_schedule
+        self.active_n_enc = len(self.block_schedule) // 2
+        self.active_n_dec = len(self.block_schedule) - self.active_n_enc
+
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
-        # Staged recurrence: use plain sequential schedule before recur_start_step,
-        # then switch to block_schedule with recurrence after.
-        use_recurrence = self.recur_start_step <= 0 or self.current_step >= self.recur_start_step
-        schedule = self.block_schedule if use_recurrence else self.block_schedule_plain
-
-        # Recompute encoder/decoder split based on active schedule
-        vlen = len(schedule)
-        n_enc = vlen // 2
-        n_dec = vlen - n_enc
+        # Use the active schedule (set by training loop, no data-dependent branching here).
+        schedule = self.active_schedule
+        n_enc = self.active_n_enc
+        n_dec = self.active_n_dec
 
         # First half stores skips; second half reuses them in reverse order.
         for vi in range(n_enc):
@@ -1056,7 +1064,10 @@ def main() -> None:
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        base_model.current_step = step  # for staged recurrence
+        # Staged recurrence: activate at the configured step
+        if args.recur_start_step > 0 and step == args.recur_start_step:
+            base_model.activate_recurrence()
+            log0(f"recurrence_activated at step {step}")
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
