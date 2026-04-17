@@ -64,6 +64,7 @@ class Hyperparameters:
     muon_wd = float(os.environ.get('MUON_WD', 0.095))
     embed_wd = float(os.environ.get('EMBED_WD', 0.085))
     ema_decay = float(os.environ.get('EMA_DECAY', 0.9965))
+    ema_update_every = int(os.environ.get('EMA_UPDATE_EVERY', 1))
     ttt_enabled = bool(int(os.environ.get('TTT_ENABLED', '0')))
     ttt_lr = float(os.environ.get('TTT_LR', 0.005))
     ttt_epochs = int(os.environ.get('TTT_EPOCHS', 3))
@@ -198,7 +199,8 @@ class ShuffledSequenceLoader:
         self.files = all_files[h.rank::h.world_size]
         self.rng = np.random.Generator(np.random.PCG64(h.rank))
         self.num_tokens = [_read_num_tokens(f) for f in self.files]
-        self.start_inds = [[] for _ in self.files]
+        self.start_inds = [np.empty((0,), dtype=np.int64) for _ in self.files]
+        self.start_pos = [0 for _ in self.files]
         self._cpu_x_u16 = None
         self._cpu_y_u16 = None
         for si in range(len(self.files)):
@@ -209,12 +211,14 @@ class ShuffledSequenceLoader:
         phase = int(self.rng.integers(max_phase + 1)) if max_phase > 0 else 0
         num_sequences = (self.num_tokens[si] - 1 - phase) // self.seq_len
         sequence_order = self.rng.permutation(num_sequences)
-        self.start_inds[si] = (phase + sequence_order * self.seq_len).tolist()
+        self.start_inds[si] = (phase + sequence_order * self.seq_len).astype(np.int64, copy=False)
+        self.start_pos[si] = 0
 
     def next_batch(self, global_tokens, grad_accum_steps):
         device_tokens = global_tokens // (self.world_size * grad_accum_steps)
         device_batch_size = device_tokens // self.seq_len
-        remaining = np.array([len(s) for s in self.start_inds], dtype=np.float64)
+        remaining = np.array([int(self.start_inds[si].size - self.start_pos[si]) for si in range(len(self.files))], dtype=np.float64)
+        total = float(remaining.sum())
         if self._cpu_x_u16 is None or self._cpu_x_u16.size(0) != device_batch_size:
             self._cpu_x_u16 = torch.empty(
             (device_batch_size, self.seq_len), dtype=torch.uint16, pin_memory=True)
@@ -223,7 +227,6 @@ class ShuffledSequenceLoader:
         x_cpu_np = self._cpu_x_u16.numpy()
         y_cpu_np = self._cpu_y_u16.numpy()
         for bi in range(device_batch_size):
-            total = remaining.sum()
             if total <= 0:
                 for si in range(len(self.files)):
                     self._reset_shard(si)
@@ -231,8 +234,11 @@ class ShuffledSequenceLoader:
                 total = remaining.sum()
             probs = remaining / total
             si = int(self.rng.choice(len(self.files), p=probs))
-            start_ind = self.start_inds[si].pop()
+            idx = self.start_pos[si]
+            start_ind = int(self.start_inds[si][idx])
+            self.start_pos[si] = idx + 1
             remaining[si] -= 1
+            total -= 1
             mm = _get_shard_memmap(self.files[si])
             window=mm[start_ind:start_ind+self.seq_len+1]
             x_cpu_np[bi]=window[:-1]
@@ -507,6 +513,7 @@ class Muon(torch.optim.Optimizer):
 
     def __init__(self, params, lr, momentum, backend_steps, nesterov=True, weight_decay=0.0, row_normalize=False):
         super().__init__(params, dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, weight_decay=weight_decay, row_normalize=row_normalize))
+        self._flat_update_buffers = {}
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -517,7 +524,7 @@ class Muon(torch.optim.Optimizer):
         distributed = dist.is_available() and dist.is_initialized()
         world_size = dist.get_world_size() if distributed else 1
         rank = dist.get_rank() if distributed else 0
-        for group in self.param_groups:
+        for group_idx, group in enumerate(self.param_groups):
             params = group['params']
             if not params:
                 continue
@@ -526,7 +533,11 @@ class Muon(torch.optim.Optimizer):
             backend_steps = group['backend_steps']
             nesterov = group['nesterov']
             total_params = sum((int(p.numel()) for p in params))
-            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+            updates_flat = self._flat_update_buffers.get(group_idx)
+            if updates_flat is None or updates_flat.numel() != total_params or updates_flat.device != params[0].device:
+                updates_flat = torch.empty(total_params, device=params[0].device, dtype=torch.bfloat16)
+                self._flat_update_buffers[group_idx] = updates_flat
+            updates_flat.zero_()
             curr = 0
             for i, p in enumerate(params):
                 if i % world_size == rank and p.grad is not None:
@@ -1151,6 +1162,7 @@ def train_model(h, device, val_data):
         train_loader = ShuffledSequenceLoader(h, device)
     ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
     ema_decay = h.ema_decay
+    ema_update_every = max(1, h.ema_update_every)
     training_time_ms = 0.0
     stop_after_step = None
     torch.cuda.synchronize()
@@ -1177,10 +1189,11 @@ def train_model(h, device, val_data):
             base_model.looping_active = True
             log(f'layer_loop:enabled step:{step} frac:{frac:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}')
         train_loss = step_fn(step, scale)
-        with torch.no_grad():
-            for name, t in base_model.state_dict().items():
-                ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
         step += 1
+        if step % ema_update_every == 0:
+            with torch.no_grad():
+                for name, t in base_model.state_dict().items():
+                    ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = h.train_log_every > 0 and (step <= 5 or step % h.train_log_every == 0 or stop_after_step is not None)
         if should_log_train:
