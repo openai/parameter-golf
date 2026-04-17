@@ -1,0 +1,11 @@
+{
+  "author": "avinash-sr",
+  "github_id": "avinash-sr",
+  "name": "SP1024 Linear-Attention Hybrid + Late QAT + Hessian GPTQ",
+  "blurb": "12L/512d hybrid model alternating GQA softmax attention with a chunked gated linear-time mixer on SP1024 tokens; trained with Muon + AdamW + trapezoidal LR + SWA + late int6 QAT; exported with Hessian-aware per-row GPTQ (int6 matrices, int7 embeddings) and Brotli-11 compression; sliding-window eval at stride 64.",
+  "date": "2026-04-17T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
