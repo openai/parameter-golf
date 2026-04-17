@@ -1,0 +1,12 @@
+{
+  "name": "nothingLiVa",
+  "github_id": "nothingLiVa",
+  "val_bpb": 1.07399,
+  "val_bpb_seeds": [1.07408, 1.07390, 1.07399],
+  "seeds": [1337, 42, 2024],
+  "artifact_size_bytes": [15980000, 15980000, 15980000],
+  "train_time_seconds": 590,
+  "hardware": "8x H100 80GB SXM",
+  "base_pr": 1042,
+  "description": "Lowercase Tokenization + SP10240 + FreqGPTQ + INT6 matrices + INT7 embeddings BPB 1.07399"
+}
