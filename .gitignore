@@ -8,4 +8,21 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/
+logs/# Checkpoints live on the NA-1 persistent volume, not in git.
+runs/**/checkpoints/
+runs/**/*.pt
+runs/**/*.ckpt
+runs/**/*.bin
+
+# Large logs — keep tail/gzipped version in-repo, ignore raw if big.
+runs/**/train.log
+!runs/**/train.log.gz
+!runs/**/train.log.tail
+
+# Allow small evidence files explicitly (whitelist pattern).
+# These are covered by not being excluded above:
+# - runs/**/config.json
+# - runs/**/final.json
+# - runs/**/loss_curve.csv
+# - runs/**/notes.md
+# - runs/**/checkpoints.md
