@@ -1,0 +1,56 @@
+step1500: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step1500.pt
+step2275: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step2275.pt
+step3412: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step3412.pt
+step3849: /workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt
+loading checkpoints...
+loaded 4 raw states + EMA state from step3849
+recurrence active (eval setting): encoder=[0, 1, 2, 3, 4, 5, 3, 4] decoder=[5, 3, 4, 5, 6, 7, 8, 9, 10]
+computing Hessians from C0 (EMA-only) weights — ONCE, reused across configs...
+Hessians collected in 14.6s; saving...
+C0 (EMA-only (control)): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C0: quant_bpb=1.105179 sliding_bpb=1.088686 size=15979642 bytes (quant 169.9s, sliding 717.5s)
+swa_sweep.py done
+step1500: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step1500.pt
+step2275: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step2275.pt
+step3412: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step3412.pt
+step3849: /workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt
+loading checkpoints...
+loaded 4 raw states + EMA state from step3849
+recurrence active (eval setting): encoder=[0, 1, 2, 3, 4, 5, 3, 4] decoder=[5, 3, 4, 5, 6, 7, 8, 9, 10]
+RELOADED Hessians from /workspace/runs/002-swa-plus-ema-1h-c0/hessians.pt (67 keys)
+C0: already done (json exists), skipping
+C1 (SWA all 4 post-recurrence): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C1: quant_bpb=1.146941 sliding_bpb=nan size=15977443 bytes (quant 135.1s, sliding 0.0s)
+C2 (SWA late 3): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C2: quant_bpb=1.122731 sliding_bpb=nan size=15979447 bytes (quant 132.9s, sliding 0.0s)
+C3 (0.5 SWA + 0.5 EMA): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C3: quant_bpb=1.122511 sliding_bpb=nan size=15977186 bytes (quant 130.4s, sliding 0.0s)
+C4 (0.25 SWA + 0.75 EMA): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C4: quant_bpb=1.111082 sliding_bpb=nan size=15978389 bytes (quant 126.7s, sliding 0.0s)
+C5 (0.75 SWA + 0.25 EMA): starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+C5: quant_bpb=1.135318 sliding_bpb=nan size=15976948 bytes (quant 130.5s, sliding 0.0s)
+swa_sweep.py done

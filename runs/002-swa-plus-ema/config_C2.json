@@ -1,0 +1,20 @@
+{
+  "config_id": "C2",
+  "description": "SWA late 3",
+  "meta": {
+    "type": "swa",
+    "snapshots": [
+      "step2275",
+      "step3412",
+      "step3849"
+    ],
+    "blend": null
+  },
+  "val_bpb_quantized": 1.122731464011305,
+  "val_loss_quantized": 2.8996236501095067,
+  "val_bpb_sliding": NaN,
+  "val_loss_sliding": NaN,
+  "artifact_size_bytes": 15979447,
+  "elapsed_quant_sec": 132.8606551643461,
+  "elapsed_sliding_sec": 3.998167812824249e-06
+}

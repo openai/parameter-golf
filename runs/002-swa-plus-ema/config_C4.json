@@ -1,0 +1,21 @@
+{
+  "config_id": "C4",
+  "description": "0.25 SWA + 0.75 EMA",
+  "meta": {
+    "type": "blend",
+    "snapshots": [
+      "step1500",
+      "step2275",
+      "step3412",
+      "step3849"
+    ],
+    "blend": 0.25
+  },
+  "val_bpb_quantized": 1.111082409431753,
+  "val_loss_quantized": 2.8695382064900645,
+  "val_bpb_sliding": NaN,
+  "val_loss_sliding": NaN,
+  "artifact_size_bytes": 15978389,
+  "elapsed_quant_sec": 126.65248901583254,
+  "elapsed_sliding_sec": 4.696659743785858e-06
+}

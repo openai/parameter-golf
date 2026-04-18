@@ -1,0 +1,21 @@
+{
+  "config_id": "C1",
+  "description": "SWA all 4 post-recurrence",
+  "meta": {
+    "type": "swa",
+    "snapshots": [
+      "step1500",
+      "step2275",
+      "step3412",
+      "step3849"
+    ],
+    "blend": null
+  },
+  "val_bpb_quantized": 1.1469413836605262,
+  "val_loss_quantized": 2.9621494257133385,
+  "val_bpb_sliding": NaN,
+  "val_loss_sliding": NaN,
+  "artifact_size_bytes": 15977443,
+  "elapsed_quant_sec": 135.1089573474601,
+  "elapsed_sliding_sec": 2.853572368621826e-06
+}

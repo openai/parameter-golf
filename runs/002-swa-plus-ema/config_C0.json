@@ -1,0 +1,16 @@
+{
+  "config_id": "C0",
+  "description": "EMA-only (control)",
+  "meta": {
+    "type": "ema",
+    "snapshots": [],
+    "blend": null
+  },
+  "val_bpb_quantized": 1.1051789806396541,
+  "val_loss_quantized": 2.854291709628608,
+  "val_bpb_sliding": 1.0886856291849885,
+  "val_loss_sliding": 2.811695137357756,
+  "artifact_size_bytes": 15979642,
+  "elapsed_quant_sec": 169.92010641936213,
+  "elapsed_sliding_sec": 717.5288322353736
+}
