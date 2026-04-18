@@ -344,6 +344,9 @@ class Hyperparameters:
     sliding_eval = _e('SLIDING_EVAL', 1, bool)
     sliding_eval_stride = _e('SLIDING_EVAL_STRIDE', 64, int)
     sliding_batch_size = _e('SLIDING_BATCH_SIZE', 256, int)
+    sliding_logit_slice = _e('SLIDING_LOGIT_SLICE', 1, bool)
+    sliding_batched_feedback = _e('SLIDING_BATCHED_FEEDBACK', 1, bool)
+    eval_hw_tier = _e('EVAL_HW_TIER', 'auto', str)
     temp_scaling = _e('TEMP_SCALING', 1, bool)
     turbo_quant_export = _e('TURBO_QUANT_EXPORT', 1, bool)
     turbo_quant_train = _e('TURBO_QUANT_TRAIN', 1, bool)
@@ -379,6 +382,7 @@ class Hyperparameters:
     ttt_momentum = _e('TTT_MOMENTUM', 0.9, float)
     ttt_batch_seqs = _e('TTT_BATCH_SEQS', 32, int)
     ttt_grad_clip = _e('TTT_GRAD_CLIP', 1.0, float)
+    ttt_grad_checkpoint = _e('TTT_GRAD_CHECKPOINT', 0, bool)
     val_batch_size = _e('VAL_BATCH_SIZE', 32768, int)
     val_loss_every = _e('VAL_LOSS_EVERY', 400, int)
     val_loss_every_fraction = _e('VAL_LOSS_EVERY_FRACTION', 0.5, float)
@@ -3785,7 +3789,8 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
                 x_batch[j, :wlen] = chunk[:-1]
                 y_batch[j, :wlen] = chunk[1:]
             mixed_valid_lengths = min(wlens) != max(wlens)
-            needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None)
+            _batched_feedback_ok = bool(getattr(args, 'sliding_batched_feedback', True))
+            needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None) and (not _batched_feedback_ok)
             if use_carry:
                 _fvl = wlens[0] if wlens[0] < seq_len else None
                 (logits, capsule_state) = base_model.forward_logits_with_carry(x_batch, carry_capsules=carry_capsules, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
@@ -3800,16 +3805,33 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
             else:
                 _fvl = min(wlens) if min(wlens) < seq_len else None
                 logits = base_model.forward_logits(x_batch, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
-            nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
-            for (j, start) in enumerate(batch_starts):
-                wlen = wlens[j]
-                score_from = 0 if start == 0 else min(max(seq_len - stride, 0), wlen)
-                scored = nll[j, score_from:wlen]
-                sx = x_batch[j, score_from:wlen]
-                sy = y_batch[j, score_from:wlen]
-                loss_sum += scored.to(torch.float64).sum()
-                token_count += float(scored.numel())
-                byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            # Optional: slice logits to scored region before CE. Saves vocab*positions
+            # CE compute on positions thrown away by stride. Only safe when all rows
+            # in the batch share score_from and wlen (true except the last batch).
+            score_from_list = [0 if start == 0 else min(max(seq_len - stride, 0), wlens[j]) for (j, start) in enumerate(batch_starts)]
+            uniform = (len(set(score_from_list)) == 1) and (min(wlens) == max(wlens))
+            if getattr(args, 'sliding_logit_slice', True) and uniform:
+                sf = score_from_list[0]; wl = wlens[0]
+                ls = logits[:, sf:wl, :].float()
+                ys = y_batch[:, sf:wl]
+                nll_slice = F.cross_entropy(ls.reshape(-1, ls.size(-1)), ys.reshape(-1), reduction='none').reshape(bsz, wl - sf)
+                loss_sum += nll_slice.to(torch.float64).sum()
+                token_count += float(nll_slice.numel())
+                for (j, start) in enumerate(batch_starts):
+                    sx = x_batch[j, sf:wl]
+                    sy = ys[j]
+                    byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            else:
+                nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
+                for (j, start) in enumerate(batch_starts):
+                    wlen = wlens[j]
+                    score_from = score_from_list[j]
+                    scored = nll[j, score_from:wlen]
+                    sx = x_batch[j, score_from:wlen]
+                    sy = y_batch[j, score_from:wlen]
+                    loss_sum += scored.to(torch.float64).sum()
+                    token_count += float(scored.numel())
+                    byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
@@ -3874,6 +3896,48 @@ def restore_requires_grad(base_model: nn.Module, original: dict[str, bool]) -> N
     for (name, p) in base_model.named_parameters():
         p.requires_grad_(original.get(name, True))
 
+def _detect_eval_hw_tier(device) -> str:
+    if device.type != 'cuda' or not torch.cuda.is_available():
+        return 'low'
+    try:
+        n = torch.cuda.device_count()
+        per_gpu = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        total = per_gpu * n
+    except Exception:
+        return 'low'
+    if total >= 480 and per_gpu >= 70:
+        return 'h100_8x'
+    if per_gpu >= 40:
+        return 'high'
+    return 'low'
+
+_EVAL_TIER_DEFAULTS = {
+    'h100_8x': dict(SLIDING_BATCH_SIZE=512, SLIDING_EVAL_STRIDE=64,  TTT_BATCH_SEQS=32, TTT_CHUNK_TOKENS=32768, TTT_GRAD_CHECKPOINT=0),
+    'high':    dict(SLIDING_BATCH_SIZE=256, SLIDING_EVAL_STRIDE=128, TTT_BATCH_SEQS=16, TTT_CHUNK_TOKENS=16384, TTT_GRAD_CHECKPOINT=0),
+    'low':     dict(SLIDING_BATCH_SIZE=64,  SLIDING_EVAL_STRIDE=256, TTT_BATCH_SEQS=4,  TTT_CHUNK_TOKENS=8192,  TTT_GRAD_CHECKPOINT=1),
+}
+
+def apply_eval_hw_tier_defaults(args, device, log0=print) -> str:
+    tier = args.eval_hw_tier
+    if tier in (None, '', 'auto'):
+        tier = _detect_eval_hw_tier(device)
+    if tier not in _EVAL_TIER_DEFAULTS:
+        log0(f'eval_hw_tier:unknown={tier!r} keeping current defaults')
+        return tier
+    defaults = _EVAL_TIER_DEFAULTS[tier]
+    applied = {}
+    for env_key, val in defaults.items():
+        if os.environ.get(env_key) is None:
+            applied[env_key] = val
+    # mutate args only for unset envs (explicit overrides win)
+    if 'SLIDING_BATCH_SIZE' in applied: args.sliding_batch_size = applied['SLIDING_BATCH_SIZE']
+    if 'SLIDING_EVAL_STRIDE' in applied: args.sliding_eval_stride = applied['SLIDING_EVAL_STRIDE']
+    if 'TTT_BATCH_SEQS' in applied: args.ttt_batch_seqs = applied['TTT_BATCH_SEQS']
+    if 'TTT_CHUNK_TOKENS' in applied: args.ttt_chunk_tokens = applied['TTT_CHUNK_TOKENS']
+    if 'TTT_GRAD_CHECKPOINT' in applied: args.ttt_grad_checkpoint = bool(applied['TTT_GRAD_CHECKPOINT'])
+    log0(f'eval_hw_tier:tier={tier} applied={applied} (explicit env overrides win)')
+    return tier
+
 def _reset_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
     optimizer.zero_grad(set_to_none=True)
     optimizer.state.clear()
@@ -3917,7 +3981,9 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     was_training = base_model.training
     (original_grad, ttt_params) = collect_ttt_params(base_model, args.ttt_scope)
     if is_master:
-        log0(f'ttt_sliding:unfrozen_parameters = {[n for n, p in base_model.named_parameters() if any(s in n for s in args.ttt_scope.split(","))]}')
+        _ttt_param_ids = {id(p) for p in ttt_params}
+        _unfrozen_names = [n for (n, p) in base_model.named_parameters() if id(p) in _ttt_param_ids]
+        log0(f'ttt_sliding:unfrozen_parameters = {_unfrozen_names}')
     original_ttt_weights = [p.detach().cpu().clone() for p in ttt_params]
     log0(f'ttt_sliding:params unfrozen={sum((p.numel() for p in ttt_params))}')
     # Legal-TTT-aligned EvalEngram: build lazily, snapshot packed tables so TTT
@@ -3958,7 +4024,8 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                         x_batch[i, :wlen] = chunk[:-1]
                         y_batch[i, :wlen] = chunk[1:]
                     mixed_valid_lengths = min(wlens) != max(wlens)
-                    needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None)
+                    _batched_feedback_ok = bool(getattr(args, 'sliding_batched_feedback', True))
+                    needs_unbatched_feedback = mixed_valid_lengths and base_model.feedback_enabled and (base_model.feedback_pooler is not None) and (not _batched_feedback_ok)
                     if use_carry:
                         _fvl = wlens[0] if wlens[0] < seq_len else None
                         (logits, capsule_state) = base_model.forward_logits_with_carry(x_batch, carry_capsules=carry_capsules, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
@@ -3973,16 +4040,29 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                     else:
                         _fvl = min(wlens) if min(wlens) < seq_len else None
                         logits = base_model.forward_logits(x_batch, temperature=temperature, feedback_valid_len=_fvl, feedback_passes=eval_feedback_passes)
-                    nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
-                    for (i, ws) in enumerate(batch_ws):
-                        wlen = wlens[i]
-                        score_from = 0 if ws == 0 else min(max(seq_len - stride, 0), wlen)
-                        scored = nll[i, score_from:wlen].to(torch.float64)
-                        loss_sum += scored.sum()
-                        token_count += float(scored.numel())
-                        sx = x_batch[i, score_from:wlen]
-                        sy = y_batch[i, score_from:wlen]
-                        byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+                    score_from_list = [0 if ws == 0 else min(max(seq_len - stride, 0), wlens[i]) for (i, ws) in enumerate(batch_ws)]
+                    uniform = (len(set(score_from_list)) == 1) and (min(wlens) == max(wlens))
+                    if getattr(args, 'sliding_logit_slice', True) and uniform:
+                        sf = score_from_list[0]; wl = wlens[0]
+                        ls = logits[:, sf:wl, :].float()
+                        ys = y_batch[:, sf:wl]
+                        nll_slice = F.cross_entropy(ls.reshape(-1, ls.size(-1)), ys.reshape(-1), reduction='none').reshape(bsz, wl - sf)
+                        loss_sum += nll_slice.to(torch.float64).sum()
+                        token_count += float(nll_slice.numel())
+                        for (i, ws) in enumerate(batch_ws):
+                            sx = x_batch[i, sf:wl]; sy = ys[i]
+                            byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+                    else:
+                        nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
+                        for (i, ws) in enumerate(batch_ws):
+                            wlen = wlens[i]
+                            score_from = score_from_list[i]
+                            scored = nll[i, score_from:wlen].to(torch.float64)
+                            loss_sum += scored.sum()
+                            token_count += float(scored.numel())
+                            sx = x_batch[i, score_from:wlen]
+                            sy = y_batch[i, score_from:wlen]
+                            byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
             # LEGAL EvalEngram absorb: chunk ci has been fully SCORED above under
             # torch.no_grad(). Only now do we absorb its tokens into EvalEngram so
             # that subsequent chunks benefit. Skip on last chunk (no consumer).
@@ -4019,14 +4099,25 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                     x = local[:-1].reshape(-1, seq_len)
                     y = local[1:].reshape(-1, seq_len)
                     optimizer.zero_grad(set_to_none=True)
+                    _use_ckpt = bool(getattr(args, 'ttt_grad_checkpoint', False))
                     if use_carry:
-                        (logits_ttt, _cs) = base_model.forward_logits_with_carry(x, carry_capsules=epoch_carry_capsules, temperature=temperature, feedback_passes=eval_feedback_passes)
+                        if _use_ckpt:
+                            (logits_ttt, _cs) = torch.utils.checkpoint.checkpoint(
+                                lambda _x, _cc: base_model.forward_logits_with_carry(_x, carry_capsules=_cc, temperature=temperature, feedback_passes=eval_feedback_passes),
+                                x, epoch_carry_capsules, use_reentrant=False)
+                        else:
+                            (logits_ttt, _cs) = base_model.forward_logits_with_carry(x, carry_capsules=epoch_carry_capsules, temperature=temperature, feedback_passes=eval_feedback_passes)
                         loss = F.cross_entropy(logits_ttt.reshape(-1, logits_ttt.size(-1)).float(), y.reshape(-1))
                         if _cs is not None:
                             epoch_carry_capsules = (_cs.mean(dim=0, keepdim=True) * (1 - decay) + (epoch_carry_capsules if epoch_carry_capsules is not None else 0) * decay).detach()
                     else:
                         # Force pure Cross-Entropy objective for TTT to match scoring path and prevent auxiliary oscillation
-                        logits_ttt = base_model.forward_logits(x, temperature=temperature, feedback_passes=eval_feedback_passes)
+                        if _use_ckpt:
+                            logits_ttt = torch.utils.checkpoint.checkpoint(
+                                lambda _x: base_model.forward_logits(_x, temperature=temperature, feedback_passes=eval_feedback_passes),
+                                x, use_reentrant=False)
+                        else:
+                            logits_ttt = base_model.forward_logits(x, temperature=temperature, feedback_passes=eval_feedback_passes)
                         loss = F.cross_entropy(logits_ttt.reshape(-1, logits_ttt.size(-1)).float(), y.reshape(-1))
                     loss.backward()
                     optimizer.step()
@@ -5075,17 +5166,37 @@ def main() -> None:
 
     def _eval_val_sliding_ttt_safe(temperature: float) -> tuple[float, float]:
         tb0 = int(args.ttt_batch_seqs)
-        for tb in (tb0, max(tb0 // 2, 8), 8, 4, 2, 1):
-            try:
-                args.ttt_batch_seqs = int(tb)
-                if device.type == 'cuda':
-                    torch.cuda.empty_cache()
-                return eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, batch_seqs=args.ttt_batch_seqs, temperature=temperature, log0=log0, is_master=master_process)
-            except Exception as e:
-                if not _is_oom(e):
-                    raise
-                log0(f'legal_ttt_retry: OOM at TTT_BATCH_SEQS={tb}, retrying smaller', flush=True)
+        ck0 = int(args.ttt_chunk_tokens)
+        gc0 = bool(args.ttt_grad_checkpoint)
+        # ladder: shrink batch first, then enable checkpoint, then halve chunk repeatedly
+        ladder = []
+        for tb in (tb0, max(tb0 // 2, 4), 4, 2, 1):
+            ladder.append((tb, ck0, gc0))
+        for tb in (max(tb0 // 2, 2), 1):
+            ladder.append((tb, ck0, True))
+        ck = ck0
+        for _ in range(3):
+            ck = max(ck // 2, 1024)
+            ladder.append((1, ck, True))
+        try:
+            for (tb, ck, gc) in ladder:
+                try:
+                    args.ttt_batch_seqs = int(tb)
+                    args.ttt_chunk_tokens = int(ck)
+                    args.ttt_grad_checkpoint = bool(gc)
+                    if device.type == 'cuda':
+                        torch.cuda.empty_cache()
+                    return eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride=args.sliding_eval_stride, batch_seqs=args.ttt_batch_seqs, temperature=temperature, log0=log0, is_master=master_process)
+                except Exception as e:
+                    if not _is_oom(e):
+                        raise
+                    log0(f'legal_ttt_retry: OOM at TTT_BATCH_SEQS={tb} TTT_CHUNK_TOKENS={ck} TTT_GRAD_CHECKPOINT={int(gc)}, escalating', flush=True)
+        finally:
+            args.ttt_batch_seqs = tb0
+            args.ttt_chunk_tokens = ck0
+            args.ttt_grad_checkpoint = gc0
         raise RuntimeError('legal_ttt evaluation failed after OOM retries')
+    apply_eval_hw_tier_defaults(args, device, log0=log0)
     log0(f'final_evaluation:starting step:{step + 1}/{args.iterations}')
     (val_loss, val_bpb) = _eval_val_safe()
     (final_loss, final_bpb) = (val_loss, val_bpb)

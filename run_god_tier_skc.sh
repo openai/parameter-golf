@@ -7,6 +7,10 @@ mkdir -p logs/max_vram_10min
 
 RUN_ID="${RUN_ID:-max_vram_10min_$(date +%Y%m%d_%H%M%S)}"
 NPROC="${NPROC:-2}"
+if (( NPROC < 2 )) && [[ "${ALLOW_SINGLE_GPU:-0}" != "1" ]]; then
+  echo "ERROR: multi-GPU is required for experiments in this repo. Set NPROC>=2 (or ALLOW_SINGLE_GPU=1 for explicit exception)." >&2
+  exit 4
+fi
 AUTO_TUNE="${AUTO_TUNE:-0}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-2100}"
 AUTO_TUNE_PROFILE="${AUTO_TUNE_PROFILE:-}"
@@ -73,6 +77,10 @@ pick_warmup_batch_tokens() {
 TRAIN_BATCH_TOKENS_AUTO="$(pick_train_batch_tokens "${FREE_MB_MIN}")"
 if [[ -n "${MATRIX_LOCK_BATCH_TOKENS:-}" ]]; then
   TRAIN_BATCH_TOKENS_AUTO="${MATRIX_LOCK_BATCH_TOKENS}"
+  if (( FREE_MB_MIN < 30000 )) && (( TRAIN_BATCH_TOKENS_AUTO > 32768 )) && [[ "${ALLOW_UNSAFE_MATRIX_LOCK:-0}" != "1" ]]; then
+    echo "WARN: MATRIX_LOCK_BATCH_TOKENS=${TRAIN_BATCH_TOKENS_AUTO} exceeds safe cap for free_mb_min=${FREE_MB_MIN}; clamping to 32768 (set ALLOW_UNSAFE_MATRIX_LOCK=1 to override)." >&2
+    TRAIN_BATCH_TOKENS_AUTO=32768
+  fi
 fi
 COMPILER_WARMUP_BATCH_TOKENS_AUTO="$(pick_warmup_batch_tokens "${FREE_MB_MIN}")"
 # Keep eval deterministic and OOM-safe for submission pipeline.
