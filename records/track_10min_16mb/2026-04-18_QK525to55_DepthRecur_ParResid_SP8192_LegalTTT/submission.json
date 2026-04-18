@@ -1,0 +1,15 @@
+{
+  "val_bpb_mean": 1.08089,
+  "val_bpb_std": 0.00038,
+  "seeds": {
+    "42": {"val_bpb": 1.08047, "artifact_bytes": 16020894},
+    "314": {"val_bpb": 1.08099, "artifact_bytes": 16023759},
+    "999": {"val_bpb": 1.08121, "artifact_bytes": 16025049}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 588,
+  "eval_method": "sliding_window + legal_ttt",
+  "key_change": "QK_GAIN_INIT=5.5 (up from 5.25)",
+  "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT (PR #1394, #1331, #1412, #549)",
+  "author": "G3sparky (Gavin Saunders)"
+}
