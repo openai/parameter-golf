@@ -1,7 +1,9 @@
 # Hessian-Aware SDClip (λ-weighted)
 
-**Status:** candidate (strongest of the near-SOTA port set)
-**Expected Δ:** +0.0002 to +0.0010 bpb (author-reported on weaker baseline; transfer to SOTA uncertain)
+**Status:** ❌ SHELVED 2026-04-19 — tested as spec 001, monotonic worsening at every non-zero λ. See `research/evaluations/001-hessian-sdclip.md` and `diary/2026-04-19-spec-001-null-result.md`. Do not revisit without a fundamentally different formulation.
+**Observed Δ:** **+0.00009 to +0.00158 bpb** (hurts; gap grows monotonically with λ).
+**Secondary finding:** at λ ≥ 0.40 the `.ptz` artifact exceeds 16MB limit — the row-scale multiplier reduces Brotli compression efficiency.
+**Original status:** candidate (strongest of the near-SOTA port set) — expected +0.0002 to +0.0010 bpb. Did not transfer from near-SOTA's 1.0835 base to our 1.086 stack.
 **Source:** `records/track_10min_16mb/2026-04-06_SP8192_HessianSDClip_ProgressiveRecurrence/README.md`, section "Hessian-Aware SDClip".
 
 ## Idea
