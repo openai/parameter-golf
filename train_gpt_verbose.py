@@ -11,6 +11,7 @@ import sys
 import time
 import lzma
 import subprocess
+import threading
 import warnings
 from contextlib import nullcontext
 from pathlib import Path
@@ -387,7 +388,9 @@ class Hyperparameters:
     val_loss_every = _e('VAL_LOSS_EVERY', 400, int)
     val_loss_every_fraction = _e('VAL_LOSS_EVERY_FRACTION', 0.5, float)
     train_log_every = _e('TRAIN_LOG_EVERY', 20, int)
-    train_log_every_fraction = _e('TRAIN_LOG_EVERY_FRACTION', 0.05, float)
+    # Default 0: a frac of args.iterations=200000 produces a 10k-step cadence that
+    # never fires in wallclock-capped 10-min runs. Prefer absolute TRAIN_LOG_EVERY.
+    train_log_every_fraction = _e('TRAIN_LOG_EVERY_FRACTION', 0.0, float)
     churn_log_every = _e('CHURN_LOG_EVERY', 0, int)
     churn_log_every_fraction = _e('CHURN_LOG_EVERY_FRACTION', 0.0, float)
     batch_tokens_start = _e('BATCH_TOKENS_START', 0, int)
@@ -665,7 +668,7 @@ def compile_model_for_mode(model: nn.Module, compile_mode: str, compile_dynamic:
     if compile_mode == 'none':
         return model
     try:
-        if compile_mode == 'max-autotune':
+        if compile_mode in ('max-autotune', 'max-autotune-no-cudagraphs'):
             # For max-autotune, use options-only API; passing both mode+options triggers RuntimeError.
             opts = compile_options if compile_options is not None else {'max_autotune': True}
             return torch.compile(model, dynamic=compile_dynamic, options=opts)
@@ -1412,14 +1415,25 @@ class TernaryLinear(nn.Linear):
         super().__init__(in_features, out_features, bias=bias)
         self.group_size = group_size
         self._calib_name: str | None = None
-        self.register_buffer('calib_thr', torch.tensor(0.0), persistent=False)
-        self.register_buffer('calib_scale_mult', torch.tensor(1.0), persistent=False)
+        # Persist export calibration across state_dict roundtrips.
+        self.register_buffer('calib_thr', torch.tensor(0.0), persistent=True)
+        self.register_buffer('calib_scale_mult', torch.tensor(1.0), persistent=True)
         self.is_p2 = group_size & group_size - 1 == 0
         if self.is_p2:
             h_mat = _build_hadamard_pt(group_size, 'cpu')
             self.register_buffer('H_fixed', h_mat, persistent=False)
         else:
             self.register_buffer('H_fixed', None, persistent=False)
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        # Backward compatibility: older checkpoints did not persist calibration buffers.
+        thr_key = prefix + 'calib_thr'
+        mult_key = prefix + 'calib_scale_mult'
+        if thr_key not in state_dict:
+            state_dict[thr_key] = self.calib_thr.detach().clone()
+        if mult_key not in state_dict:
+            state_dict[mult_key] = self.calib_scale_mult.detach().clone()
+        super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight.float()
@@ -4543,9 +4557,55 @@ def main() -> None:
         # Dynamic shapes cause repeated specializations and can explode max-autotune latency.
         log0('compile:max-autotune forcing dynamic=False (set ALLOW_DYNAMIC_MAX_AUTOTUNE=1 to override)')
         compile_dynamic = False
+    if args.compile_mode in ('max-autotune', 'max-autotune-no-cudagraphs') and bool(int(os.environ.get('INDUCTOR_PIN_AUTOTUNE', '1'))):
+        try:
+            import torch._inductor.config as _ic
+            if hasattr(_ic, 'max_autotune'):
+                _ic.max_autotune = True
+            if hasattr(_ic, 'max_autotune_gemm'):
+                _ic.max_autotune_gemm = True
+            if hasattr(_ic, 'max_autotune_gemm_backends'):
+                _ic.max_autotune_gemm_backends = 'TRITON'
+            if hasattr(_ic, 'coordinate_descent_tuning'):
+                _ic.coordinate_descent_tuning = False
+            if hasattr(_ic, 'coordinate_descent_check_all_directions'):
+                _ic.coordinate_descent_check_all_directions = False
+            if hasattr(_ic, 'search_autotune_cache'):
+                _ic.search_autotune_cache = True
+            if hasattr(_ic, 'autotune_local_cache'):
+                _ic.autotune_local_cache = True
+            if hasattr(_ic, 'benchmark_kernel'):
+                _ic.benchmark_kernel = False
+            _tr = getattr(_ic, 'triton', None)
+            if _tr is not None:
+                if hasattr(_tr, 'autotune_at_compile_time'):
+                    _tr.autotune_at_compile_time = bool(int(os.environ.get('COMPILE_AUTOTUNE_AT_COMPILE_TIME', '0')))
+                if hasattr(_tr, 'cudagraphs'):
+                    _tr.cudagraphs = bool(int(os.environ.get('COMPILE_TRITON_CUDAGRAPHS', '0')))
+            log0('compile:inductor_autotune_policy pinned (cache-first, coordinate_descent=0)')
+        except Exception as _cfg_e:
+            log0(f'compile:inductor_autotune_policy skipped ({type(_cfg_e).__name__}: {_cfg_e})')
     compile_options = None
-    if args.compile_mode == 'max-autotune':
-        compile_options = {'max_autotune': True, 'shape_padding': bool(int(os.environ.get('COMPILE_SHAPE_PADDING', '1'))), 'triton.cudagraphs': bool(int(os.environ.get('COMPILE_TRITON_CUDAGRAPHS', '0')))}
+    if args.compile_mode in ('max-autotune', 'max-autotune-no-cudagraphs'):
+        _cudagraphs = bool(int(os.environ.get('COMPILE_TRITON_CUDAGRAPHS', '0')))
+        if args.compile_mode == 'max-autotune-no-cudagraphs':
+            _cudagraphs = False
+        compile_options = {
+            'max_autotune': True,
+            'shape_padding': bool(int(os.environ.get('COMPILE_SHAPE_PADDING', '1'))),
+            'triton.cudagraphs': _cudagraphs,
+        }
+        # Only include triton.autotune_at_compile_time on PyTorch builds that know
+        # the option; otherwise torch.compile raises and falls back to eager
+        # (~3-4x slower, which caps reachable steps in a 10-min run).
+        try:
+            _tr_cfg = getattr(torch._inductor.config, 'triton', None)
+        except Exception:
+            _tr_cfg = None
+        if _tr_cfg is not None and hasattr(_tr_cfg, 'autotune_at_compile_time'):
+            compile_options['triton.autotune_at_compile_time'] = bool(
+                int(os.environ.get('COMPILE_AUTOTUNE_AT_COMPILE_TIME', '0'))
+            )
     (compiled_model, _compiled_targets) = apply_selective_compile(
         base_model,
         args.compile_mode,
@@ -4677,11 +4737,48 @@ def main() -> None:
     _ttt_info = f'ttt={args.ttt_enabled} scope={args.ttt_scope}' if args.ttt_enabled else 'ttt=off'
     log0(f'competition_config: {_tokenizer_regime} {_arch_info} {_recurrence_info} {_export_info} {_ttt_info}')
     train_loader: DistributedTokenLoader | None = None
+    train_loader_init_thread: threading.Thread | None = None
+    train_loader_init_error: Exception | None = None
+    train_loader_init_ready = threading.Event()
+    train_loader_init_started_at: float | None = None
+    train_loader_init_done_at: float | None = None
     val_tokens: torch.Tensor | None = None
+
+    def start_train_loader_init_thread() -> None:
+        nonlocal train_loader_init_thread, train_loader_init_error, train_loader_init_started_at, train_loader_init_done_at, train_loader
+        if train_loader is not None or train_loader_init_thread is not None:
+            return
+        train_loader_init_started_at = time.perf_counter()
+
+        def _init() -> None:
+            nonlocal train_loader, train_loader_init_error, train_loader_init_done_at
+            try:
+                train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+            except Exception as _e:
+                train_loader_init_error = _e
+            finally:
+                train_loader_init_done_at = time.perf_counter()
+                train_loader_init_ready.set()
+
+        train_loader_init_thread = threading.Thread(target=_init, name='train_loader_init', daemon=True)
+        train_loader_init_thread.start()
+
+    def wait_train_loader_init_thread() -> None:
+        nonlocal train_loader_init_thread, train_loader_init_error
+        if train_loader_init_thread is None:
+            return
+        train_loader_init_ready.wait()
+        train_loader_init_thread.join(timeout=0)
+        train_loader_init_thread = None
+        if train_loader_init_error is not None:
+            _e = train_loader_init_error
+            train_loader_init_error = None
+            raise RuntimeError('Background train loader initialization failed') from _e
 
     def ensure_train_loader() -> DistributedTokenLoader:
         nonlocal train_loader
         if train_loader is None:
+            wait_train_loader_init_thread()
             train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
         return train_loader
 
@@ -4725,6 +4822,22 @@ def main() -> None:
         return next_step
 
     def lr_mul(step: int):
+        # Wallclock-aware when MAX_WALLCLOCK_SECONDS is set: drive warmup/warmdown off
+        # step_fraction() (which is wallclock-based in that regime) instead of
+        # step/args.iterations, so short wallclock-capped runs actually reach peak LR.
+        if max_wallclock_ms is not None:
+            frac = step_fraction(step)
+            if args.warmup_fraction > 0:
+                if frac < args.warmup_fraction:
+                    return max(min(frac / max(args.warmup_fraction, 1e-9), 1.0), 0.001)
+            elif args.warmup_steps > 0 and step < args.warmup_steps:
+                return (step + 1) / args.warmup_steps
+            if args.warmdown_fraction <= 0:
+                return 1.0
+            warmdown_start = 1.0 - args.warmdown_fraction
+            if frac >= warmdown_start:
+                return max((1.0 - frac) / max(args.warmdown_fraction, 1e-9), 0.0)
+            return 1.0
         if args.warmup_fraction > 0:
             warmup_steps = int(args.iterations * args.warmup_fraction)
             if step < warmup_steps:
@@ -4744,6 +4857,11 @@ def main() -> None:
     active_batch_tokens = args.batch_tokens_start if args.batch_tokens_start > 0 else args.train_batch_tokens
     _compile_warmup_n = args.compiler_warmup_steps
     if _compile_warmup_n > 0:
+        _overlap_loader_init = bool(args.synthetic_warmup) and bool(int(os.environ.get('OVERLAP_COMPILE_DATA_INIT', '1')))
+        if _overlap_loader_init:
+            start_train_loader_init_thread()
+            if master_process:
+                log0('probe:dataloader_init_background:start', flush=True)
         _py_rng = random.getstate()
         _np_rng = np.random.get_state()
         _torch_rng = torch.get_rng_state()
@@ -4779,9 +4897,16 @@ def main() -> None:
         if _torch_cuda_rng is not None:
             torch.cuda.set_rng_state_all(_torch_cuda_rng)
         zero_grad_all()
+        if distributed:
+            # Keep all ranks aligned after synthetic compile warmup.
+            dist.barrier()
         if not args.synthetic_warmup:
             log0('probe:reinitializing_dataloader', flush=True)
             train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        elif _overlap_loader_init:
+            wait_train_loader_init_thread()
+            if master_process and train_loader_init_started_at is not None and train_loader_init_done_at is not None:
+                log0(f'probe:dataloader_init_background:done elapsed={train_loader_init_done_at - train_loader_init_started_at:.2f}s', flush=True)
     if args.precompile_only:
         if device.type == 'cuda':
             torch.cuda.synchronize()
@@ -5221,7 +5346,7 @@ def main() -> None:
         base_model.eval()
         with torch.no_grad():
              diag_loss = base_model(sx, sy, feedback_passes=resolve_eval_feedback_passes(args)).item()
-        log0(f"DIAGNOSTIC: Final Train Slice Loss = {diag_loss:.4f} (Step {args.iterations})")
+        log0(f"DIAGNOSTIC: Final Train Slice Loss = {diag_loss:.4f} (Step {step + 1}/{args.iterations})")
         base_model.train()
     
     if _final_eval_ema_orig is not None:
