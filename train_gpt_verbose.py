@@ -5382,6 +5382,65 @@ def main() -> None:
                 log0(f'final_eval_retry: OOM at VAL_BATCH_SIZE={vb}, retrying smaller', flush=True)
         raise RuntimeError('final_evaluation failed after OOM retries')
 
+    def _eval_tokens_safe(tokens: Tensor, tag: str) -> tuple[float, float]:
+        vb0 = int(args.val_batch_size)
+        for vb in (vb0, max(vb0 // 2, 4096), 4096, 2048, 1024):
+            try:
+                args.val_batch_size = int(vb)
+                if device.type == 'cuda':
+                    torch.cuda.empty_cache()
+                eval_fn = eval_val
+                if int(os.environ.get('EVAL_DISABLE_DYNAMO', '0')) == 1 and hasattr(torch._dynamo, 'disable'):
+                    eval_fn = torch._dynamo.disable(eval_fn)
+                return eval_fn(args, model, rank, world_size, device, grad_accum_steps, tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            except Exception as e:
+                if not _is_oom(e):
+                    raise
+                log0(f'{tag}_retry: OOM at VAL_BATCH_SIZE={vb}, retrying smaller', flush=True)
+        raise RuntimeError(f'{tag} failed after OOM retries')
+
+    def _compute_train_slice_ce_evalmode(tokens: Tensor) -> float:
+        total_seqs = (tokens.numel() - 1) // args.train_seq_len
+        if total_seqs <= 0:
+            return float('nan')
+        seq_start = total_seqs * rank // world_size
+        seq_end = total_seqs * (rank + 1) // world_size
+        local_batch_tokens = min(args.val_batch_size, 131072) // world_size
+        local_batch_seqs = max(1, local_batch_tokens // args.train_seq_len)
+        ce_sum = torch.zeros((), device=device, dtype=torch.float64)
+        tok_count = torch.zeros((), device=device, dtype=torch.float64)
+        eval_feedback_passes = resolve_eval_feedback_passes(args)
+        was_training = base_model.training
+        base_model.eval()
+        with torch.no_grad():
+            for batch_start in range(seq_start, seq_end, local_batch_seqs):
+                batch_end = min(batch_start + local_batch_seqs, seq_end)
+                raw_start = batch_start * args.train_seq_len
+                raw_end = batch_end * args.train_seq_len + 1
+                local = tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
+                (x, y) = (local[:-1].reshape(-1, args.train_seq_len), local[1:].reshape(-1, args.train_seq_len))
+                with autocast_context(device):
+                    ce = base_model(x, y, temperature=1.0, feedback_passes=eval_feedback_passes).detach()
+                n = float(y.numel())
+                ce_sum += ce.to(torch.float64) * n
+                tok_count += n
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(ce_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(tok_count, op=dist.ReduceOp.SUM)
+        base_model.train(was_training)
+        return float((ce_sum / tok_count.clamp_min(1.0)).item())
+
+    def _surface_meta(metric_name: str, model_obj: nn.Module) -> str:
+        dynamo_disabled = int(os.environ.get('EVAL_DISABLE_DYNAMO', '0'))
+        return (
+            f'metric_surface:{metric_name} '
+            f'dynamo_disabled={dynamo_disabled} '
+            f'compile_mode={args.compile_mode} '
+            f'compile_target={args.compile_target} '
+            f'autocast_dtype={str(ptdtype)} '
+            f'model_mode={"train" if model_obj.training else "eval"}'
+        )
+
     def _eval_val_sliding_safe(temperature: float) -> tuple[float, float]:
         sb0 = int(args.sliding_batch_size)
         for sb in (sb0, max(sb0 // 2, 1), 32, 16, 8):
@@ -5461,9 +5520,24 @@ def main() -> None:
         (val_loss, val_bpb) = _eval_val_safe()
     (final_loss, final_bpb) = (val_loss, val_bpb)
     log0(f'final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}')
-    # FINAL VERIFICATION: Diagnostic evaluation on a slice of training data
-    # This detects train/eval graph mismatches: if train loss at step N was 5.0
-    # but eval(train_slice) at step N is 9.0, then the eval path is broken.
+    _train_slice_bpb = float('nan')
+    _train_slice_loss_evalpath = float('nan')
+    _train_slice_ce_evalmode = float('nan')
+    _train_slice_tok = int(os.environ.get('PARITY_TRAIN_MAX_TOK', '131072'))
+    _parity_matrix_enabled = int(os.environ.get('PARITY_MATRIX_ENABLED', '1')) == 1
+    if _parity_matrix_enabled:
+        try:
+            train_slice_tokens = ld_val(args.train_files, args.train_seq_len, max_tok=_train_slice_tok).to(device)
+            export_eval_hard_reset(args, base_model, device, log0=log0, context='parity_train_evalpath')
+            (_train_slice_loss_evalpath, _train_slice_bpb) = _eval_tokens_safe(train_slice_tokens, 'parity_train_evalpath')
+            log0(_surface_meta('train_bpb_evalpath', base_model))
+            _train_slice_ce_evalmode = _compute_train_slice_ce_evalmode(train_slice_tokens)
+            log0(_surface_meta('train_loss_evalmode', base_model))
+            log0(f'parity_matrix:train_slice tokens={train_slice_tokens.numel()} train_bpb_evalpath={_train_slice_bpb:.6f} train_loss_evalpath={_train_slice_loss_evalpath:.6f} train_loss_evalmode={_train_slice_ce_evalmode:.6f}')
+        except Exception as e:
+            log0(f'parity_matrix:train_slice_failed err={type(e).__name__}:{e}')
+    log0(_surface_meta('val_bpb_evalpath', base_model))
+    # FINAL VERIFICATION (legacy single-batch diagnostic retained for continuity)
     if master_process:
         log0("--- FINAL DIAGNOSTIC EVALUATION ---")
         train_slice_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -5562,6 +5636,7 @@ def main() -> None:
     
     _roundtrip_ref = None
     _parity_baseline_logits = None
+    _export_parity_metrics: dict[str, float] = {}
     _best_q_obj = None
     if master_process:
         _parity_live_sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
@@ -5654,6 +5729,10 @@ def main() -> None:
             _c_logits = _capture_parity_logits(_c_calib or final_calib, 'export_parity_C', n_tok)
             _ab = compute_logit_parity_metrics(_a_logits, _b_logits)
             _ac = compute_logit_parity_metrics(_a_logits, _c_logits)
+            _export_parity_metrics['pre_export_bpb'] = float(_a_bpb)
+            _export_parity_metrics['pre_export_ce'] = float(_a_loss)
+            _export_parity_metrics['post_dequant_bpb'] = float(_c_bpb)
+            _export_parity_metrics['post_dequant_ce'] = float(_c_loss)
             log0(f"export_parity:stage=A live_float_baseline ce={_a_loss:.6f} bpb={_a_bpb:.6f} l2=0.000000 max_abs=0.000000 argmax_agree=1.0000 topk_kl=0.000000e+00")
             log0(f"export_parity:stage=B live_float_after_apply_final_calib ce={_b_loss:.6f} bpb={_b_bpb:.6f} l2={_ab['l2']:.6f} max_abs={_ab['max_abs']:.6f} argmax_agree={_ab['argmax_agree']:.4f} topk_kl={_ab['topk_kl']:.6e}")
             log0(f"export_parity:stage=C dequant_roundtrip_no_codec ce={_c_loss:.6f} bpb={_c_bpb:.6f} l2={_ac['l2']:.6f} max_abs={_ac['max_abs']:.6f} argmax_agree={_ac['argmax_agree']:.4f} topk_kl={_ac['topk_kl']:.6e}")
@@ -5712,10 +5791,24 @@ def main() -> None:
                 _d_logits = base_model.forward_logits(x, temperature=1.0, feedback_passes=eval_feedback_passes).float()
             _ad = compute_logit_parity_metrics(_parity_baseline_logits, _d_logits)
             (_d_loss, _d_bpb) = _eval_val_safe()
+            _export_parity_metrics['post_roundtrip_bpb'] = float(_d_bpb)
+            _export_parity_metrics['post_roundtrip_ce'] = float(_d_loss)
             log0(f"export_parity:stage=D full_export_roundtrip ce={_d_loss:.6f} bpb={_d_bpb:.6f} l2={_ad['l2']:.6f} max_abs={_ad['max_abs']:.6f} argmax_agree={_ad['argmax_agree']:.4f} topk_kl={_ad['topk_kl']:.6e}")
     torch._dynamo.reset()
     (q_val_loss, q_val_bpb) = _eval_val_safe()
     log0(f'final_ternary_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}')
+    if _parity_matrix_enabled and master_process:
+        _pre_bpb = _export_parity_metrics.get('pre_export_bpb', final_bpb)
+        _post_bpb = _export_parity_metrics.get('post_roundtrip_bpb', q_val_bpb)
+        log0(_surface_meta('pre_export', base_model))
+        log0(_surface_meta('post_export', base_model))
+        log0(
+            f'parity_matrix:summary train_bpb_evalpath={_train_slice_bpb:.6f} '
+            f'val_bpb_evalpath={final_bpb:.6f} '
+            f'train_loss_evalmode={_train_slice_ce_evalmode:.6f} '
+            f'pre_export_bpb={_pre_bpb:.6f} '
+            f'post_export_bpb={_post_bpb:.6f}'
+        )
     roundtrip_val_loss = q_val_loss
     roundtrip_val_bpb = q_val_bpb
     augmented_val_loss = q_val_loss
