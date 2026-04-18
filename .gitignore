@@ -8,7 +8,12 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/# Checkpoints live on the NA-1 persistent volume, not in git.
+logs/
+
+# Worktrees for exp/<slug> branches live here; each is its own checkout.
+worktrees/
+
+# Checkpoints live on the NA-1 persistent volume, not in git.
 runs/**/checkpoints/
 runs/**/*.pt
 runs/**/*.ckpt

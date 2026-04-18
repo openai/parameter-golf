@@ -45,6 +45,38 @@ Any session unsure which mode it's in should ask the user before acting.
 - Spec, `runs/` dir, and evaluation all share the same `NNN-slug`.
 - Failed runs keep their number (with `status: failed` in `final.json`); a retry is a new spec.
 
+## Branches & worktrees
+
+**Branch model:**
+- `main` — openai upstream. Untouched.
+- `beating-sota` — older working branch. History only.
+- `research` — long-lived. Holds the scaffold + accumulated specs/runs/evaluations/diary + current baseline training code. **All research sessions live here.**
+- `exp/<slug>` — short-lived, one per idea with a code change. Forks from `research`. The spec pins a specific commit hash on this branch.
+- A winning `exp/<slug>` is merged back into `research`, so future `exp/*` branches fork from an enriched baseline.
+
+Ideas with **no code change** (hyperparam-only) don't need a branch. The spec pins a `research` commit and lists the config diff.
+
+**Worktrees:**
+Code for an `exp/<slug>` branch lives in a worktree so the research session can keep editing `research/specs/` etc. on `research` while code changes are made in parallel.
+
+Layout:
+```
+parameter-golf/                 # main worktree, always on `research`
+  train_gpt_sota.py, research/, runs/, ...
+  worktrees/                    # sibling dirs, one per active exp branch
+    bigram-hash/                # full checkout of exp/bigram-hash
+    progressive-recur/          # full checkout of exp/progressive-recurrence
+```
+
+`worktrees/` is gitignored — it's not part of the tree on `research`.
+
+**Commands:**
+- Create: `git worktree add worktrees/bigram-hash -b exp/bigram-hash research`
+- Remove when done: `git worktree remove worktrees/bigram-hash` (branch stays in git, dir goes away)
+- List: `git worktree list`
+
+**Execution sessions do not use worktrees.** Pods get their own fresh clone and `git checkout <commit>` to the spec's pinned hash.
+
 ## Spec template
 
 A spec in `research/specs/NNN-slug.md` contains:

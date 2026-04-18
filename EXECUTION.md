@@ -21,6 +21,19 @@ Read this alongside `CLAUDE.md` at the start of any execution session.
 
 The spec dictates which rungs apply; execution doesn't skip rungs without the user's say-so.
 
+## Branches, worktrees, and what you check out
+
+Execution sessions **do not use worktrees.** Worktrees are a research-session convenience for parallel code editing on the laptop. On a pod:
+
+1. Fresh `git clone` of the `parameter-golf` repo (if not already present on the volume).
+2. `git fetch` all branches.
+3. `git checkout <commit>` — the exact commit hash the spec pins. This commit lives on some `exp/<slug>` branch (or directly on `research` for hyperparam-only ideas).
+4. Run.
+
+You are on a detached HEAD or the branch tip; either way, the working tree is whatever that commit snapshots. No worktree sibling dirs.
+
+If the spec's commit hash doesn't exist on the remote yet, **stop** — the research session forgot to push. Hand back.
+
 ## Persistent storage (NA-1)
 
 - Network volume mounted at `/workspace/` on any pod in NA-1.
