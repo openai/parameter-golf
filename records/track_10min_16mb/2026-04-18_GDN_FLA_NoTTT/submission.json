@@ -1,0 +1,51 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "GatedDeltaNet FLA + Brotli (No TTT)",
+  "blurb": "GatedDeltaNet linear attention (FLA) K_KVShare_Wider + brotli-11 compression. No TTT. 3-seed mean: 1.01902 BPB (std 0.0017). All artifacts under 16 MB.",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.01902,
+  "val_bpb_std": 0.0017,
+  "seeds": [
+    1337,
+    42,
+    2025
+  ],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.0172,
+      "artifact_bytes": 15595190,
+      "steps": 2400,
+      "ema_bpb": 0.998608
+    },
+    "42": {
+      "val_bpb": 1.02054,
+      "artifact_bytes": 15602610,
+      "steps": 2410,
+      "ema_bpb": 1.001194
+    },
+    "2025": {
+      "val_bpb": 1.01933,
+      "artifact_bytes": 15608600,
+      "steps": 2408,
+      "ema_bpb": 1.00126
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "GatedDeltaNet FLA K_KVShare_Wider (10L 544d 8H) + EMA(0.997) + SWA(50) + Late QAT + Int6/Int8 GPTQ + Brotli-11",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "gated_deltanet_architecture": "@resouer (PR #1687) - K_KVShare_Wider, FLA integration",
+    "flash_linear_attention": "@sustcsonglin - GatedDeltaNet implementation (fla-core 0.4.2)"
+  }
+}
