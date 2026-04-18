@@ -1,0 +1,5 @@
+127.0.0.1 - - [18/Apr/2026:08:52:12 -0500] "GET / HTTP/1.1" 200 2363 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+127.0.0.1 - - [18/Apr/2026:08:52:12 -0500] "GET /style.css HTTP/1.1" 200 3288 "http://localhost:8080/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+127.0.0.1 - - [18/Apr/2026:08:52:12 -0500] "GET /app.js HTTP/1.1" 200 2039 "http://localhost:8080/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+127.0.0.1 - - [18/Apr/2026:08:52:13 -0500] "GET /data.json HTTP/1.1" 200 6531 "http://localhost:8080/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+127.0.0.1 - - [18/Apr/2026:08:52:13 -0500] "GET /favicon.ico HTTP/1.1" 404 555 "http://localhost:8080/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"

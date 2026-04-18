@@ -1,0 +1,1 @@
+2026/04/18 08:52:13 [error] 4041#0: *2 open() "/Users/akhileshgogikar/parameter-golf/web/favicon.ico" failed (2: No such file or directory), client: 127.0.0.1, server: localhost, request: "GET /favicon.ico HTTP/1.1", host: "localhost:8080", referrer: "http://localhost:8080/"

@@ -664,11 +664,15 @@ def apply_competition_profile(args) -> None:
 def compile_model_for_mode(model: nn.Module, compile_mode: str, compile_dynamic: bool, compile_options: dict | None) -> nn.Module:
     if compile_mode == 'none':
         return model
-    if compile_mode == 'max-autotune':
-        # For max-autotune, use options-only API; passing both mode+options triggers RuntimeError.
-        opts = compile_options if compile_options is not None else {'max_autotune': True}
-        return torch.compile(model, dynamic=compile_dynamic, options=opts)
-    return torch.compile(model, mode=compile_mode, dynamic=compile_dynamic)
+    try:
+        if compile_mode == 'max-autotune':
+            # For max-autotune, use options-only API; passing both mode+options triggers RuntimeError.
+            opts = compile_options if compile_options is not None else {'max_autotune': True}
+            return torch.compile(model, dynamic=compile_dynamic, options=opts)
+        return torch.compile(model, mode=compile_mode, dynamic=compile_dynamic)
+    except Exception as e:
+        print(f'[compile] torch.compile(mode={compile_mode}, dynamic={compile_dynamic}) failed: {type(e).__name__}: {e}; falling back to eager', flush=True)
+        return model
 
 def _set_child_module(root: nn.Module, module_path: str, new_module: nn.Module) -> bool:
     parts = [p for p in module_path.split('.') if p]
@@ -688,6 +692,12 @@ def _set_child_module(root: nn.Module, module_path: str, new_module: nn.Module) 
 def apply_selective_compile(base_model: nn.Module, compile_mode: str, compile_dynamic: bool, compile_options: dict | None, compile_target: str, compile_max_modules: int, log0) -> tuple[nn.Module, list[str]]:
     if compile_mode == 'none':
         return (base_model, [])
+    # Known-bad combo: max-autotune + full/blocks hits Inductor sympy extraction on immutable_dict
+    # kwargs flowing into compiled regions (run_block's Optional[Tensor]/Optional[float] args).
+    # backbone scope keeps those as Python-level attrs and works. Auto-downgrade unless forced.
+    if compile_mode == 'max-autotune' and compile_target in ('full', 'blocks') and (not bool(int(os.environ.get('COMPILE_FORCE_SCOPE', '0')))):
+        log0(f'compile:auto-downgrading target={compile_target}->backbone under max-autotune (set COMPILE_FORCE_SCOPE=1 to override)')
+        compile_target = 'backbone'
     if compile_target == 'full':
         return (compile_model_for_mode(base_model, compile_mode, compile_dynamic, compile_options), ['<full-model>'])
 
@@ -2611,7 +2621,7 @@ class ParallelSKCBlock(nn.Module):
             self.eng_bias_proj = None
             self.eng_gate_proj = None
 
-    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float | None=None, layer_idx: int | None=None):
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float=0.0, layer_idx: int | None=None):
         (B, T, D) = x.shape
         if T == 0:
             return (x, None, None)
@@ -2671,7 +2681,7 @@ class ParallelSKCBlock(nn.Module):
             denom = x.norm(dim=-1).mean().item() + 1e-8
             skc_ratio = (skc_out.norm(dim=-1).mean().item() / denom)
             mlp_ratio = (mlp_out.norm(dim=-1).mean().item() / denom)
-            eng_ratio = float(eng_amp_ratio) if eng_amp_ratio is not None else 0.0
+            eng_ratio = float(eng_amp_ratio)
             self._last_amp = {'skc_res': skc_ratio, 'mlp_res': mlp_ratio, 'eng_res': eng_ratio}
             if self.training and bool(int(os.environ.get('BRANCH_AMP_LOG', '0'))):
                 _diag_step = int(getattr(self, '_diag_step', -1))
@@ -2746,7 +2756,7 @@ class Backbone(nn.Module):
             return 1
         return self.training_depth_recurrence
 
-    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float | None=None) -> tuple[Tensor, Tensor | None, Tensor | None]:
+    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float=0.0) -> tuple[Tensor, Tensor | None, Tensor | None]:
         if self.blocks is not None:
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
@@ -2841,7 +2851,7 @@ class LatentCorrector(nn.Module):
         enc_aux_terms = 0
         for i in range(backbone.num_encoder_layers):
             eng_ctx_i: Tensor | None = None
-            eng_amp_ratio_i: float | None = None
+            eng_amp_ratio_i: float = 0.0
             if engram_enabled and i == engram_inject_layer:
                 if training and elapsed_fraction > engram_taper_start:
                     _taper_range = max(engram_taper_end - engram_taper_start, 1e-06)
