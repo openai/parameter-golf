@@ -1,16 +1,9 @@
 """
-Stochastic Feature Transformer (SFT) — Learning Adapters on Random Linear Maps
+Stochastic Feature Transformer (SFT)
 
-Key innovation: Replace standard learned MLP projections with FIXED random projections
-(generated from a deterministic seed, costing 0 bytes) followed by learned adapters.
-This halves MLP parameter storage, allowing more layers in the same 16MB budget.
-
-Based on Random Features theory (Rahimi & Recht, NeurIPS 2007).
-This is the specific approach OpenAI requested in "Requests for PRs": "Learning adapters
-on random linear maps" — and the first submission to implement it.
-
-Architecture: SP8192, 11L×512d, GQA 8H/4KV, RandomFeatureMLP 4×, depth recurrence,
-parallel residuals, partial RoPE, QK-Gain 5.25, EMA, GPTQ int6, Brotli, score-first TTT.
+Architecture: SP8192, 11L×512d, GQA 8H/4KV, MLP 4×, 3-layer depth recurrence,
+parallel residuals (from layer 7), partial RoPE, QK-Gain 5.25, U-net skip connections,
+EMA, GPTQ int6 + Brotli-11, score-first TTT.
 """
 
 from __future__ import annotations
@@ -73,7 +66,8 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    mlp_expansion = int(os.environ.get("MLP_EXPANSION", 4))
+    # MLP
+    mlp_expansion = float(os.environ.get("MLP_EXPANSION", 4.0))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.25))
@@ -90,9 +84,6 @@ class Hyperparameters:
 
     # Parallel residuals
     parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", 7))
-
-    # Random Feature MLP — THE KEY INNOVATION
-    rf_base_seed = 314159  # Fixed seed for generating random projections (costs 0 bytes)
 
     # Optimizer
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.022))
@@ -529,62 +520,28 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
-class RandomFeatureMLP(nn.Module):
-    """
-    THE KEY INNOVATION: MLP where the input projection is a FIXED random matrix
-    generated from a deterministic seed. Only the output projection is learned.
-
-    This halves MLP parameter storage (the random matrix costs 0 bytes in the
-    artifact, since it's regenerated from the seed at load time).
-
-    Based on Random Features / Random Kitchen Sinks (Rahimi & Recht, 2007).
-    The random projection Φ(x) = σ(R @ x) creates a rich feature space.
-    The learned adapter W_out maps these features back to model dimension.
-    """
-
-    def __init__(self, dim: int, expansion: int = 4, layer_idx: int = 0, base_seed: int = 314159):
+class MLP(nn.Module):
+    def __init__(self, dim: int, expansion: float = 4.0):
         super().__init__()
-        self.dim = dim
-        self.hidden = dim * expansion
-        self.layer_idx = layer_idx
-        self.base_seed = base_seed
-
-        # Random projection matrix — generated deterministically, NOT stored in checkpoint
-        self._init_random_projection()
-
-        # Learned output projection — the ONLY stored MLP parameter
-        self.proj = CastedLinear(self.hidden, dim, bias=False)
+        hidden = int(expansion * dim)
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
-    def _init_random_projection(self):
-        """Generate the random projection matrix from a deterministic seed.
-        This matrix is NOT saved in the state dict — it costs 0 bytes."""
-        gen = torch.Generator()
-        gen.manual_seed(self.base_seed + self.layer_idx)
-        # Gaussian random projection, variance-preserving
-        R = torch.randn(self.hidden, self.dim, generator=gen) / math.sqrt(self.dim)
-        self.register_buffer("R", R, persistent=False)
-
     def forward(self, x: Tensor) -> Tensor:
-        # Random projection (0 stored parameters)
-        z = F.linear(x, self.R.to(x.dtype))
-        # LeakyReLU(0.5) squared activation (proven in parameter-golf)
-        z = F.leaky_relu(z, negative_slope=0.5)
-        z = z * z
-        # Learned output projection (stored parameters)
-        return self.proj(z)
+        return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.5).square())
 
 
 class Block(nn.Module):
-    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_expansion: int,
+    def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_expansion: float,
                  rope_base: float, rope_dims: int, qk_gain_init: float, layer_idx: int,
-                 rf_base_seed: int, parallel_residual: bool = False, ln_scale_val: float = 1.0):
+                 parallel_residual: bool = False, ln_scale_val: float = 1.0):
         super().__init__()
         self.parallel_residual = parallel_residual
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, rope_dims, qk_gain_init)
-        self.mlp = RandomFeatureMLP(dim, mlp_expansion, layer_idx, rf_base_seed)
+        self.mlp = MLP(dim, mlp_expansion)
         self.attn_scale = nn.Parameter(torch.full((dim,), ln_scale_val, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.full((dim,), ln_scale_val, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -609,7 +566,7 @@ class Block(nn.Module):
 
 
 class SFT(nn.Module):
-    """Stochastic Feature Transformer — a GPT with RandomFeatureMLP layers."""
+    """Stochastic Feature Transformer."""
 
     def __init__(self, args: Hyperparameters):
         super().__init__()
@@ -643,7 +600,6 @@ class SFT(nn.Module):
                 rope_dims=args.rope_dims,
                 qk_gain_init=args.qk_gain_init,
                 layer_idx=i,
-                rf_base_seed=args.rf_base_seed,
                 parallel_residual=parallel,
                 ln_scale_val=ln_scale_val,
             ))
@@ -1150,10 +1106,7 @@ def main() -> None:
     model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     n_params = sum(p.numel() for p in base_model.parameters())
-    n_rf_params = sum(buf.numel() for name, buf in base_model.named_buffers() if "R" in name)
-    log0(f"model_params:{n_params} (stored)")
-    log0(f"random_feature_params:{n_rf_params} (FREE — regenerated from seed, 0 bytes in artifact)")
-    log0(f"effective_params:{n_params + n_rf_params}")
+    log0(f"model_params:{n_params}")
 
     # Reserve time for GPTQ at the end
     effective_wallclock = args.max_wallclock_seconds - args.gptq_reserve_seconds
