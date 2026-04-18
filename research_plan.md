@@ -464,7 +464,7 @@ Re-ranked candidates from §4/§5 that were not yet executed:
 | iter_25/b | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | **REVERT** — +0.11 bpb, MTP overhead kills step count (see note) |
 | iter_26/b | QK-Gain per-layer init schedule | Init | −0.001–0.002 | **REVERT** — +0.0006 (ramp up) / +0.0016 (ramp down) |
 | iter_27/b | Newton-Schulz 5→6 / 5→4 | Optimizer | −0.000–0.002 | **REVERT** — 6 +0.0043, 4 +0.0019 (NS=5 is a local min) |
-| iter_28 | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) | pending |
+| iter_28/b-d | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) | **TABLED** — quality win at full embed but 2.3MB over budget (see note) |
 | iter_29+ | Loop config refinement / based on wins above | Architecture | TBD | pending |
 
 ### iter_22 notes (H-aware SDClip, four sub-iters)
@@ -576,5 +576,105 @@ Learnings:
 4. Could also try **double-precision in the quadratic update** (some users report fp64 A@A helps more than extra steps), or a heterogeneous mix — NS=6 only for the biggest tensors where whitening matters most.
 
 Reverted to iter_24 baseline.
+
+### iter_28 notes (SP16384 vocab — TABLED)
+
+Trained a SP16384 tokenizer on the FineWeb corpus and retokenized all data on the remote server. The embed table grows from 8192×512 = 4.2M params to 16384×512 = 8.4M params.
+
+| Sub-iter | embed_dim | total_size | quant_sw_val_bpb | Δ vs baseline (1.2462) | Status |
+|---|---|---|---|---|---|
+| iter_28 | 512 | 18.3MB | **1.2460** | **−0.0002** | over 16MB by 2.3MB |
+| iter_28b | 256 | — | — | — | crash (KeyError: embed_proj not in hessians) |
+| iter_28c | 256 (fixed) | 16.0MB | 1.2646 | +0.0184 | 12KB over + terrible quality |
+| iter_28d | 384 | 17.3MB | 1.2569 | +0.0107 | 1.3MB over + quality regression |
+
+Learnings:
+1. **SP16384 works quality-wise** — iter_28 at full embed_dim=512 achieved the best sliding-window bpb of the entire exploration (1.2460, better than baseline!), confirming the hypothesis that more context per token helps. But it's 2.3MB over budget.
+2. **Embedding dimension bottleneck is fatal** — reducing embed_dim from 512 to 384 or 256 to fit the budget destroys quality more than the vocab gain provides. The projection layers (embed_proj/head_proj) add an information bottleneck that the model can't recover from.
+3. **Infra worked**: SP tokenizer training (~1h on 45GB corpus), retokenization (80 shards, ~40 min), Hessian collection for embed_proj/head_proj layers — all functional after bug fixes.
+4. **If revisited:** (a) try int6 embeddings instead of int8 (saves ~2MB at 16384×512), (b) tighter `embed_clip_sigmas` to improve brotli compression, (c) reduce `model_dim` from 512 to 448 across the whole model (not just embeddings) to make room, (d) try SP12288 as a middle ground, (e) combine with weight decay increase to improve overall compression.
+
+Reverted to iter_24 baseline.
+
+## Phase 1 Summary (iter_22–28): BFS Exploration Results
+
+### Scorecard
+
+| Iter | Idea | Category | Result | Kept? |
+|------|------|----------|--------|-------|
+| 22 | Hessian-aware SDClip | Quant | Neutral at matched size | No |
+| 23 | Mixed-bit per-layer (int5/int6/int7) | Quant | int5 cost > int7 gain | No |
+| 24 | Per-role SDClip | Quant | **−0.00017 bpb** | **Yes** |
+| 25 | MTP 4 heads w=0.3 | Arch | +0.11 bpb (step-count overhead) | No |
+| 26 | QK-Gain per-layer init | Init | Symmetric regression both directions | No |
+| 27 | Newton-Schulz 5→6/4 steps | Optimizer | NS=5 is a local min (coefs tuned for 5) | No |
+| 28 | SP16384 vocab | Tokenizer | Quality win but 2.3MB over budget | Tabled |
+
+**Net gain from 7 iterations: −0.00017 bpb (iter_24 only)**
+
+### Meta-learnings
+
+1. **The SOTA stack is highly optimized.** Most "obvious" improvements (H-weighting, mixed-bit, per-layer gains, NS steps) were already implicitly captured or locally optimal. Single-lever improvements of >0.001 bpb are very hard to find.
+
+2. **Quantization/compression is the binding constraint, not model quality.** SP16384 proved that raw model quality can still improve (−0.0002 bpb at full embed_dim), but the 16MB cap kills it. Future gains likely come from *making more room* inside 16MB rather than from training/architecture changes alone.
+
+3. **Step-count is the binding constraint for training changes.** MTP, which adds auxiliary FLOPs, lost 24% of optimizer steps and that cost dwarfed any representation benefit. On 1xH100, any change that slows per-step throughput is DOA.
+
+4. **The optimizer is locally optimal.** NS coefficients are fitted for exactly 5 steps, QK-Gain 6.0 is a learned-parameter equilibrium. Perturbations in either direction regress.
+
+5. **GPTQ already captures most Hessian information.** Stacking H-weighted SDClip on top of GPTQ's Hinv-based error propagation double-counts; the gain is zero. Mixed-bit similarly has no leverage because GPTQ's row-level scale already adapts precision per-row.
+
+## Phase 2: Most Promising Next Branches
+
+Ranked by expected impact × feasibility:
+
+### Tier 1: High conviction (should run next)
+
+**A. Compression headroom for SP16384** (unblock iter_28)
+- The quality signal from iter_28 (−0.0002 at full embed_dim) is real. The problem is purely size.
+- **int6 embeddings** (instead of int8) saves ~2.1MB at 16384×512, which should fit under 16MB while keeping full embed_dim.
+- Alternatively, tighter `embed_clip_sigmas` (20→12) on the larger embedding table.
+- Expected: if we can fit it, −0.001 to −0.003 bpb. This is the single highest-leverage experiment.
+- Cost: 1-2 runs.
+
+**B. Per-role SDClip deep sweep** (extend iter_24 win)
+- iter_24's c_v=1.15x was a guess. Sweep [1.05, 1.10, 1.15, 1.20, 1.25].
+- Also sweep MLP roles (currently 1.0x — never tested).
+- Try per-head-within-c_v (8 separate k values).
+- Expected: −0.0005 to −0.002 bpb (compound on existing win).
+- Cost: 3-5 runs.
+
+**C. Per-layer SDClip re-tuning** (re-optimize K_MUL table)
+- The current 11-entry `_LAYER_K_MUL` was tuned at iter_9 under different conditions (pre per-role).
+- Re-sweep with per-role multipliers active — the interaction could shift optima.
+- Expected: −0.0005 to −0.001 bpb.
+- Cost: 2-3 runs.
+
+### Tier 2: Medium conviction (worth trying)
+
+**D. WD + compression co-optimization**
+- Higher WD → smaller weights → better brotli. iter_12 tried WD 0.095→0.11 and regressed, but that was step-count-sensitive.
+- Try WD=0.10 with simultaneous `matrix_clip_sigmas` re-tuning (they interact).
+- On 8xH100 final runs, this could unlock −0.001 to −0.003 bpb via compression headroom.
+- Cost: 3-4 runs.
+
+**E. SP12288 vocab (middle ground)**
+- SP16384 works but doesn't fit. SP12288 adds 50% more tokens than SP8192.
+- Embed table: 12288×512 = 6.3MB (vs 4.2MB for SP8192, 8.4MB for SP16384).
+- At int8: ~2MB growth which *might* fit with clip_sigmas tuning.
+- Cost: 1 tokenization + 2-3 runs.
+
+**F. MTP with reduced overhead** (revisit iter_25)
+- K=2 heads instead of 4, or only active for final 40% of training.
+- Shared projection across offsets (single head, learned offset embedding).
+- Half-dim heads (d/2) to halve FLOPs overhead.
+- Only viable on 8xH100 where step count is less binding.
+- Cost: 3-4 runs.
+
+### Tier 3: Speculative (low priority)
+
+**G. NS coefficient re-derivation for 6 steps** (revisit iter_27 properly)
+**H. Loop config tuning (L2-5 vs L3-5, progressive activation schedule)**
+**I. Hybrid byte-shuffle stride tuning for quantized tensors**
 
 Deferred to final 8xH100 tuning (do NOT run in dev): `train_batch_tokens`, warmdown_frac shape, EMA decay, SWA, LR schedule tails.
