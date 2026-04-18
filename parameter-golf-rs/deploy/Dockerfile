@@ -8,15 +8,15 @@
 # introduced in cuBLAS 12.5. We use CUDA 12.6 to ensure full API coverage.
 
 # === Build stage ===
-FROM nvidia/cuda:12.6.3-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 AS builder
 
 # Install Rust toolchain
 RUN apt-get update && apt-get install -y curl build-essential pkg-config libssl-dev && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install NCCL dev (matching CUDA 12.6)
-RUN apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev
+# Install NCCL dev and cuDNN dev (matching CUDA 12.6)
+RUN apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn9-cuda-12 libcudnn9-dev-cuda-12 || apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn8-dev
 
 WORKDIR /build
 
@@ -28,16 +28,17 @@ COPY crates/ crates/
 RUN cargo build --release --features cuda -p pg-train -p pg-bench
 
 # === Runtime stage ===
-FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
-RUN apt-get update && apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn9-cuda-12 || apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn8 && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/pg-train /usr/local/bin/pg-train
 COPY --from=builder /build/target/release/smoke /usr/local/bin/pg-smoke
 COPY --from=builder /build/target/release/gemm-bench /usr/local/bin/pg-gemm-bench
 COPY --from=builder /build/target/release/nccl-bench /usr/local/bin/pg-nccl-bench
 COPY --from=builder /build/target/release/preliminary /usr/local/bin/pg-preliminary
-
+COPY --from=builder /build/target/release/parity-forward /usr/local/bin/pg-parity-forward
+COPY specs /specs
 # Data directory mount point
 # VOLUME /data removed since Modal handles volumes via @app.function(volumes={...})
 

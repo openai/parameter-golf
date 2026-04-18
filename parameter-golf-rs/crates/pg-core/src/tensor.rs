@@ -75,6 +75,41 @@ impl GpuTensor {
 
     #[cfg(feature = "cuda")]
     /// Allocate a zeroed tensor on GPU.
+    pub fn from_host_data_gpu(
+        stream: std::sync::Arc<cudarc::driver::CudaStream>,
+        host_data: &[u8],
+        shape: &[usize],
+        dtype: DType,
+    ) -> PgResult<Self> {
+        let numel: usize = shape.iter().product();
+        let expected_bytes = numel * dtype.size_bytes();
+        if host_data.len() != expected_bytes {
+            return Err(PgError::InvalidOp(format!(
+                "host data length {} != expected {} for shape {:?}",
+                host_data.len(),
+                expected_bytes,
+                shape
+            )));
+        }
+        
+        let mut dev_data = stream.alloc_zeros::<u8>(expected_bytes)
+            .map_err(|e| PgError::InvalidOp(format!("GPU alloc failed: {:?}", e)))?;
+        
+        stream.memcpy_htod(host_data, &mut dev_data)
+            .map_err(|e| PgError::InvalidOp(format!("GPU memcpy failed: {:?}", e)))?;
+
+        Ok(Self {
+            data: TensorStorage::Gpu {
+                data: std::sync::Arc::new(dev_data),
+                stream,
+            },
+            shape: SmallVec::from_slice(shape),
+            strides: Self::contiguous_strides(shape),
+            dtype,
+            offset: 0,
+        })
+    }
+    #[cfg(feature = "cuda")]
     pub fn zeros_gpu(
         stream: std::sync::Arc<cudarc::driver::CudaStream>,
         shape: &[usize],
@@ -105,6 +140,18 @@ impl GpuTensor {
                 let all_data = stream.memcpy_dtov(data.as_ref()).map_err(|e| PgError::InvalidOp(format!("GPU memcpy failed: {:?}", e)))?;
                 Ok(all_data[self.offset..self.offset + nbytes].to_vec())
             }
+        }
+    }
+
+    #[cfg(feature = "cuda")]
+    pub fn cu_ptr(&self, stream: &std::sync::Arc<cudarc::driver::CudaStream>) -> PgResult<u64> {
+        match &self.data {
+            TensorStorage::Gpu { data, .. } => {
+                use cudarc::driver::DevicePtr;
+                let (base, _) = data.device_ptr(stream);
+                Ok(base as u64 + self.offset as u64)
+            }
+            _ => Err(PgError::InvalidOp("Not a GPU tensor".into())),
         }
     }
 

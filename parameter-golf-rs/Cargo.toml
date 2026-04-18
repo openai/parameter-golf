@@ -16,8 +16,10 @@ members = [
 [workspace.dependencies]
 # GPU / CUDA — requires CUDA toolkit on build machine
 # Use `cargo build --features cuda` to enable
-cudarc = { version = "0.16", features = ["std", "cublas", "driver", "nccl", "curand", "nvrtc", "cuda-12080", "f16"] }
+cudarc = { version = "0.16", features = ["std", "cublas", "cudnn", "driver", "nccl", "curand", "nvrtc", "cuda-12080", "f16"] }
 half = { version = "2", features = ["std", "num-traits", "bytemuck"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 # Compression
 zstd = "0.13"

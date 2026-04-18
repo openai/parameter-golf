@@ -12,7 +12,17 @@
 /// Newton-Schulz 5-step orthogonalization.
 /// G: [B, M, N] or [M, N] — finds the closest orthogonal matrix.
 /// Returns X with X^T X ≈ I (or X X^T ≈ I if transposed).
-pub fn newton_schulz5(g: &[f32], shape: &[usize], steps: usize) -> Vec<f32> {
+pub fn newton_schulz5(
+    g: &[f32],
+    shape: &[usize],
+    steps: usize,
+    x: &mut [f32],
+    a_buf: &mut [f32],
+    b_buf: &mut [f32],
+    aa: &mut [f32],
+    new_x: &mut [f32],
+    result: &mut [f32],
+) {
     let (a, b, c) = (3.4445_f32, -4.7750_f32, 2.0315_f32);
 
     // Handle 2D or 3D input
@@ -26,7 +36,6 @@ pub fn newton_schulz5(g: &[f32], shape: &[usize], steps: usize) -> Vec<f32> {
     let (rows, cols) = if transposed { (n, m) } else { (m, n) };
 
     // X = G (optionally transposed) / ||G||_F
-    let mut x = vec![0.0f32; batch * rows * cols];
     for bi in 0..batch {
         let g_off = bi * m * n;
         let x_off = bi * rows * cols;
@@ -54,12 +63,6 @@ pub fn newton_schulz5(g: &[f32], shape: &[usize], steps: usize) -> Vec<f32> {
             *v *= inv_norm;
         }
     }
-
-    // Scratch buffers for matmuls
-    let mut a_buf = vec![0.0f32; batch * rows * rows]; // X @ X^T
-    let mut b_buf = vec![0.0f32; batch * rows * rows]; // b*A + c*(A@A)
-    let mut aa = vec![0.0f32; batch * rows * rows]; // A @ A
-    let mut new_x = vec![0.0f32; batch * rows * cols];
 
     for _ in 0..steps {
         for bi in 0..batch {
@@ -109,7 +112,6 @@ pub fn newton_schulz5(g: &[f32], shape: &[usize], steps: usize) -> Vec<f32> {
 
     // Transpose back if needed
     if transposed {
-        let mut result = vec![0.0f32; batch * m * n];
         for bi in 0..batch {
             let x_off = bi * rows * cols;
             let r_off = bi * m * n;
@@ -119,11 +121,8 @@ pub fn newton_schulz5(g: &[f32], shape: &[usize], steps: usize) -> Vec<f32> {
                 }
             }
         }
-        result
-    } else if shape.len() == 2 {
-        x[..m * n].to_vec()
     } else {
-        x
+        result[..batch * m * n].copy_from_slice(&x[..batch * m * n]);
     }
 }
 
@@ -138,6 +137,7 @@ pub struct MuonBankState {
     pub ns_b: Vec<f32>,           // [B*rows*rows]
     pub ns_new_x: Vec<f32>,       // [B*rows*cols]
     pub ns_update: Vec<f32>,      // [B*M*N] — nesterov update scratch
+    pub ns_result: Vec<f32>,      // [B*M*N] — result scratch
 }
 
 /// Muon optimizer (CPU single-GPU reference).
@@ -176,6 +176,7 @@ impl Muon {
                     ns_b: vec![0.0; batch * rows * rows],
                     ns_new_x: vec![0.0; batch * rows * cols],
                     ns_update: vec![0.0; numel],
+                    ns_result: vec![0.0; numel],
                 }
             })
             .collect();
@@ -217,18 +218,29 @@ impl Muon {
         let update = &state.ns_update[..grad.len()];
 
         // 3. Newton-Schulz orthogonalization
-        let ortho = newton_schulz5(&update, &[shape[0], shape[1], shape[2]], self.ns_steps);
+        let param_len = param.len();
+        newton_schulz5(
+            &state.ns_update[..param_len], 
+            &[shape[0], shape[1], shape[2]], 
+            self.ns_steps,
+            &mut state.ns_x,
+            &mut state.ns_a,
+            &mut state.ns_b,
+            &mut state.ns_aa,
+            &mut state.ns_new_x,
+            &mut state.ns_result,
+        );
 
         // 4. Weight decay + update
         let lr_scale = self.lr * state.scale;
         if self.weight_decay > 0.0 {
             let decay = 1.0 - self.lr * self.weight_decay;
             for i in 0..param.len() {
-                param[i] = decay * param[i] - lr_scale * ortho[i];
+                param[i] = decay * param[i] - lr_scale * state.ns_result[i];
             }
         } else {
             for i in 0..param.len() {
-                param[i] -= lr_scale * ortho[i];
+                param[i] -= lr_scale * state.ns_result[i];
             }
         }
     }
@@ -248,7 +260,13 @@ mod tests {
             // Small perturbation
             g[i * 4 + ((i + 1) % 4)] = 0.1;
         }
-        let result = newton_schulz5(&g, &[4, 4], 10);
+        let mut x = vec![0.0; 16];
+        let mut a_buf = vec![0.0; 16];
+        let mut b_buf = vec![0.0; 16];
+        let mut aa = vec![0.0; 16];
+        let mut new_x = vec![0.0; 16];
+        let mut result = vec![0.0; 16];
+        newton_schulz5(&g, &[4, 4], 10, &mut x, &mut a_buf, &mut b_buf, &mut aa, &mut new_x, &mut result);
 
         // Check that X^T X is approximately identity
         // NS5 pushes singular values toward uniformity
@@ -297,7 +315,13 @@ mod tests {
                 }
             }
         }
-        let result = newton_schulz5(&g, &[2, 4, 4], 10);
+        let mut x = vec![0.0; 32];
+        let mut a_buf = vec![0.0; 32];
+        let mut b_buf = vec![0.0; 32];
+        let mut aa = vec![0.0; 32];
+        let mut new_x = vec![0.0; 32];
+        let mut result = vec![0.0; 32];
+        newton_schulz5(&g, &[2, 4, 4], 10, &mut x, &mut a_buf, &mut b_buf, &mut aa, &mut new_x, &mut result);
         assert_eq!(result.len(), 32);
 
         // Diagonal elements should be close to ±1

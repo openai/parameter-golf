@@ -107,6 +107,32 @@ def nccl_bench():
         raise RuntimeError(f"NCCL bench failed with code {result.returncode}")
 
 
+@app.function(
+    image=image,
+    gpu="H100:1",
+    timeout=300,
+    startup_timeout=900,
+)
+def parity_forward():
+    """Run parity-forward on the baseline_sp8192 spec."""
+    import subprocess
+    import os
+
+    os.environ["RUST_LOG"] = "info"
+    result = subprocess.run(
+        ["pg-parity-forward", "--spec", "/specs/baseline_sp8192.toml"],
+        env=os.environ,
+        capture_output=True,
+        text=True,
+        timeout=240,
+    )
+    print(result.stdout)
+    if result.stderr:
+        print(f"stderr: {result.stderr}")
+    if result.returncode != 0:
+        raise RuntimeError(f"Parity-forward failed with code {result.returncode}")
+
+
 # --- Training & Evaluation ---
 
 

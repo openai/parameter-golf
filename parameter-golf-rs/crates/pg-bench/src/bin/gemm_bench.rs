@@ -57,7 +57,7 @@ fn main() {
         for _ in 0..WARMUP_ITERS {
             unsafe {
                 engine
-                    .matmul_bf16(&a, &b, &mut c, m, n, k, 1.0, 0.0)
+                    .matmul_f32(cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0, m, n, k, 1.0, 0.0)
                     .expect("warmup gemm failed");
             }
         }
@@ -74,7 +74,7 @@ fn main() {
         for _ in 0..BENCH_ITERS {
             unsafe {
                 engine
-                    .matmul_bf16(&a, &b, &mut c, m, n, k, 1.0, 0.0)
+                    .matmul_f32(cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0, m, n, k, 1.0, 0.0)
                     .expect("bench gemm failed");
             }
         }
@@ -125,7 +125,7 @@ fn main() {
         for _ in 0..WARMUP_ITERS {
             unsafe {
                 engine
-                    .batched_matmul_bf16(&a, &b, &mut c, batch, m, n, k, 1.0, 0.0)
+                    .batched_matmul_f32(cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0, batch, m, n, k, 1.0, 0.0)
                     .expect("warmup batched gemm failed");
             }
         }
@@ -141,7 +141,7 @@ fn main() {
         for _ in 0..BENCH_ITERS {
             unsafe {
                 engine
-                    .batched_matmul_bf16(&a, &b, &mut c, batch, m, n, k, 1.0, 0.0)
+                    .batched_matmul_f32(cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0, cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0, batch, m, n, k, 1.0, 0.0)
                     .expect("bench batched gemm failed");
             }
         }

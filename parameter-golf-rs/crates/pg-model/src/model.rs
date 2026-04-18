@@ -12,6 +12,8 @@
 ///   - mlp_down_bank [11, 512, 1536]: MLP down projections
 
 use crate::config::ModelConfig;
+use crate::plan::ExecutionPlan;
+use pg_core::PgResult;
 
 /// Per-block learnable parameters (non-banked).
 pub struct BlockParams {
@@ -245,6 +247,60 @@ impl GptModel {
         eprintln!("  mlp_up_bank:   {:?}", c.mlp_up_bank_shape());
         eprintln!("  mlp_down_bank: {:?}", c.mlp_down_bank_shape());
         eprintln!("========================");
+    }
+
+    pub fn fill_deterministic(&mut self) {
+        fn fill(buf: &mut [f32], mul: usize, add: usize, modu: usize, scale: f32, bias: f32) {
+            for (i, v) in buf.iter_mut().enumerate() {
+                *v = scale * (((i * mul + add) % modu) as f32) + bias;
+            }
+        }
+
+        fill(&mut self.tok_emb, 7, 3, 29, 0.008, -0.11);
+        fill(&mut self.bigram_embed, 11, 5, 31, 0.007, -0.09);
+        fill(&mut self.bigram_proj, 13, 1, 37, 0.006, -0.10);
+        fill(&mut self.smear_gate, 5, 2, 19, 0.08, -0.7);
+        fill(&mut self.skip_weights, 3, 4, 17, 0.01, 0.92);
+        fill(&mut self.qo_bank, 17, 9, 41, 0.005, -0.10);
+        fill(&mut self.kv_bank, 19, 7, 43, 0.005, -0.09);
+        fill(&mut self.mlp_up_bank, 23, 6, 47, 0.004, -0.08);
+        fill(&mut self.mlp_down_bank, 29, 8, 53, 0.004, -0.07);
+        fill(&mut self.ve_embed, 31, 3, 59, 0.006, -0.09);
+        fill(&mut self.ve_proj, 37, 2, 61, 0.005, -0.08);
+        self.bigram_scale = 0.05;
+        self.ve_scale = 0.10;
+
+        for (i, scale) in self.ve_layer_scales.iter_mut().enumerate() {
+            *scale = 0.85 + 0.05 * ((i % 3) as f32);
+        }
+
+        for (layer, block) in self.blocks.iter_mut().enumerate() {
+            for (i, v) in block.attn_scale.iter_mut().enumerate() {
+                *v = 0.92 + 0.02 * (((layer + i) % 5) as f32);
+            }
+            for (i, v) in block.mlp_scale.iter_mut().enumerate() {
+                *v = 0.90 + 0.015 * (((2 * layer + i) % 7) as f32);
+            }
+            let d = self.config.model_dim;
+            for i in 0..d {
+                block.resid_mix[i] = 0.82 + 0.02 * (((layer + i) % 4) as f32);
+                block.resid_mix[d + i] = -0.06 + 0.02 * (((layer + 2 * i) % 5) as f32);
+            }
+            for (head, gain) in block.q_gain.iter_mut().enumerate() {
+                *gain = self.config.qk_gain_init * (0.9 + 0.04 * (((layer + head) % 3) as f32));
+            }
+        }
+    }
+
+    pub fn forward_with_plan(
+        &self,
+        plan: &ExecutionPlan,
+        input_ids: &[u32],
+        buf: &mut ForwardBuffer,
+    ) -> PgResult<()> {
+        plan.validate_model_config(&self.config)?;
+        self.forward(input_ids, buf);
+        Ok(())
     }
 
     // ---- Bank slicing helpers ----

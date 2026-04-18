@@ -7,10 +7,15 @@
 /// Grid/block dimensions are set for H100 (132 SMs, 1024 threads/block).
 
 use std::sync::Arc;
-use cudarc::driver::{CudaContext, CudaStream, CudaSlice, CudaModule, CudaFunction};
+use cudarc::driver::{CudaContext, CudaStream, CudaSlice, CudaModule, CudaFunction, PushKernelArg};
 use pg_core::error::{PgError, PgResult};
 
 /// Compiled GPU kernel module — initialized once, reused for all launches.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
+pub struct CudaPtr(pub u64);
+unsafe impl cudarc::driver::DeviceRepr for CudaPtr {}
+
 pub struct GpuKernels {
     stream: Arc<CudaStream>,
     _module: Arc<CudaModule>,
@@ -29,11 +34,26 @@ pub struct GpuKernels {
     add_scaled: CudaFunction,
     causal_attention_naive: CudaFunction,
     xsa_fwd: CudaFunction,
+    copy_fwd: CudaFunction,
 }
 
 /// CUDA C source for all element-wise kernels.
 /// f32 data, f32 compute, one thread per element (or per row for reductions).
 const CUDA_SOURCE: &str = r#"
+// ──────────────────────────────────────────────────────────────
+// Copy forward: dst[idx] = src[idx]
+// ──────────────────────────────────────────────────────────────
+extern "C" __global__ void copy_fwd(
+    const float* __restrict__ src,
+    float* __restrict__ dst,
+    int n
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        dst[idx] = src[idx];
+    }
+}
+
 // ──────────────────────────────────────────────────────────────
 // RMSNorm forward: y[row] = (x[row] / rms) * ln_scale_factor
 // Grid: (num_rows,), Block: (block_dim,) — warp reduction per row
@@ -521,7 +541,7 @@ impl GpuKernels {
             cudarc::nvrtc::safe::CompileOptions {
                 // NOTE: fast_math disabled for parity. Enable after GPU-CPU match is confirmed.
                 use_fast_math: None,
-                arch: Some("sm_90".to_string()), // H100
+                arch: Some("sm_90"), // H100
                 ..Default::default()
             },
         ).map_err(|e| PgError::InvalidOp(format!("NVRTC compilation failed: {:?}", e)))?;
@@ -529,28 +549,25 @@ impl GpuKernels {
         let module = ctx.load_module(ptx)
             .map_err(|e| PgError::InvalidOp(format!("PTX module load failed: {:?}", e)))?;
 
-        let load_fn = |name: &str| -> PgResult<CudaFunction> {
-            module.load_fn(name)
-                .map_err(|e| PgError::InvalidOp(format!("Failed to load kernel '{}': {:?}", name, e)))
-        };
-
+        
         Ok(Self {
             stream,
-            _module: module,
-            rms_norm_fwd: load_fn("rms_norm_forward")?,
-            leaky_relu_sq_fwd: load_fn("leaky_relu_sq_forward")?,
-            residual_mix: load_fn("residual_mix")?,
-            residual_add_scale: load_fn("residual_add_scale")?,
-            smear_gate_fwd: load_fn("smear_gate_forward")?,
-            embedding_gather: load_fn("embedding_gather")?,
-            qk_norm_fwd: load_fn("qk_norm_forward")?,
-            partial_rope_fwd: load_fn("partial_rope_forward")?,
-            q_gain_fwd: load_fn("q_gain_forward")?,
-            cross_entropy_fwd: load_fn("cross_entropy_forward")?,
-            bigram_hash_embed: load_fn("bigram_hash_embed")?,
-            add_scaled: load_fn("add_scaled")?,
-            causal_attention_naive: load_fn("causal_attention_naive")?,
-            xsa_fwd: load_fn("xsa_forward")?,
+            _module: module.clone(),
+            rms_norm_fwd: module.load_function("rms_norm_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            leaky_relu_sq_fwd: module.load_function("leaky_relu_sq_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            residual_mix: module.load_function("residual_mix").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            residual_add_scale: module.load_function("residual_add_scale").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            smear_gate_fwd: module.load_function("smear_gate_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            embedding_gather: module.load_function("embedding_gather").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            qk_norm_fwd: module.load_function("qk_norm_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            partial_rope_fwd: module.load_function("partial_rope_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            q_gain_fwd: module.load_function("q_gain_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            cross_entropy_fwd: module.load_function("cross_entropy_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            bigram_hash_embed: module.load_function("bigram_hash_embed").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            add_scaled: module.load_function("add_scaled").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            causal_attention_naive: module.load_function("causal_attention_naive").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            xsa_fwd: module.load_function("xsa_forward").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
+            copy_fwd: module.load_function("copy_fwd").map_err(|e| PgError::InvalidOp(format!("Failed to load kernel {}", e)))?,
         })
     }
 
@@ -563,8 +580,8 @@ impl GpuKernels {
     /// RMSNorm forward: y = (x / rms(x)) * ln_scale_factor
     pub fn rms_norm_forward(
         &self,
-        x: &CudaSlice<f32>,
-        y: &mut CudaSlice<f32>,
+        x: CudaPtr,
+        y: CudaPtr,
         num_rows: u32,
         dim: u32,
         ln_scale_factor: f32,
@@ -574,17 +591,37 @@ impl GpuKernels {
         let block = 256u32.min(dim.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.rms_norm_fwd)
-                .arg(x)
-                .arg(y)
+                .arg(&x)
+                .arg(&y)
                 .arg(&(dim as i32))
                 .arg(&ln_scale_factor)
                 .arg(&eps)
                 .arg(&(n as i32))
-                .grid_dim(num_rows)
-                .block_dim(block)
-                .shared_mem_bytes(128)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (num_rows, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 128 })
                 .map_err(|e| PgError::InvalidOp(format!("rms_norm launch: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub fn copy_fwd(
+        &self,
+        src: CudaPtr,
+        dst: CudaPtr,
+        n: u32,
+    ) -> PgResult<()> {
+        let block = 256u32;
+        let grid = (n + block - 1) / block;
+        unsafe {
+            self.stream.launch_builder(&self.copy_fwd)
+                .arg(&src)
+                .arg(&dst)
+                .arg(&(n as i32))
+                .launch(cudarc::driver::LaunchConfig {
+                    grid_dim: (grid, 1, 1).into(),
+                    block_dim: (block, 1, 1).into(),
+                    shared_mem_bytes: 0,
+                })
+                .map_err(|e| PgError::InvalidOp(format!("copy_fwd failed: {:?}", e)))?;
         }
         Ok(())
     }
@@ -592,20 +629,18 @@ impl GpuKernels {
     /// LeakyReLU² forward: y = leaky_relu(x, 0.5)²
     pub fn leaky_relu_sq_forward(
         &self,
-        x: &CudaSlice<f32>,
-        y: &mut CudaSlice<f32>,
+        x: CudaPtr,
+        y: CudaPtr,
         n: u32,
     ) -> PgResult<()> {
         let block = 256u32;
         let grid = (n + block - 1) / block;
         unsafe {
             self.stream.launch_builder(&self.leaky_relu_sq_fwd)
-                .arg(x)
-                .arg(y)
+                .arg(&x)
+                .arg(&y)
                 .arg(&(n as i32))
-                .grid_dim(grid)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (grid, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("leaky_relu_sq launch: {:?}", e)))?;
         }
         Ok(())
@@ -614,10 +649,10 @@ impl GpuKernels {
     /// Residual mixing: out = mix[0,:] * x + mix[1,:] * x0
     pub fn residual_mix_fwd(
         &self,
-        x: &CudaSlice<f32>,
-        x0: &CudaSlice<f32>,
-        mix: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        x: CudaPtr,
+        x0: CudaPtr,
+        mix: CudaPtr,
+        out: CudaPtr,
         dim: u32,
         n: u32,
     ) -> PgResult<()> {
@@ -625,15 +660,13 @@ impl GpuKernels {
         let grid = (n + block - 1) / block;
         unsafe {
             self.stream.launch_builder(&self.residual_mix)
-                .arg(x)
-                .arg(x0)
-                .arg(mix)
-                .arg(out)
+                .arg(&x)
+                .arg(&x0)
+                .arg(&mix)
+                .arg(&out)
                 .arg(&(dim as i32))
                 .arg(&(n as i32))
-                .grid_dim(grid)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (grid, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("residual_mix launch: {:?}", e)))?;
         }
         Ok(())
@@ -642,9 +675,9 @@ impl GpuKernels {
     /// Residual add with scale: x += scale * proj (in-place)
     pub fn residual_add_scale_fwd(
         &self,
-        x: &mut CudaSlice<f32>,
-        proj: &CudaSlice<f32>,
-        scale: &CudaSlice<f32>,
+        x: CudaPtr,
+        proj: CudaPtr,
+        scale: CudaPtr,
         dim: u32,
         n: u32,
     ) -> PgResult<()> {
@@ -652,14 +685,12 @@ impl GpuKernels {
         let grid = (n + block - 1) / block;
         unsafe {
             self.stream.launch_builder(&self.residual_add_scale)
-                .arg(x)
-                .arg(proj)
-                .arg(scale)
+                .arg(&x)
+                .arg(&proj)
+                .arg(&scale)
                 .arg(&(dim as i32))
                 .arg(&(n as i32))
-                .grid_dim(grid)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (grid, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("residual_add_scale launch: {:?}", e)))?;
         }
         Ok(())
@@ -668,9 +699,9 @@ impl GpuKernels {
     /// SmearGate forward
     pub fn smear_gate_fwd(
         &self,
-        x: &CudaSlice<f32>,
-        gate: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        x: CudaPtr,
+        gate: CudaPtr,
+        out: CudaPtr,
         tokens: u32,
         dim: u32,
     ) -> PgResult<()> {
@@ -679,14 +710,12 @@ impl GpuKernels {
         let grid = (n + block - 1) / block;
         unsafe {
             self.stream.launch_builder(&self.smear_gate_fwd)
-                .arg(x)
-                .arg(gate)
-                .arg(out)
+                .arg(&x)
+                .arg(&gate)
+                .arg(&out)
                 .arg(&(tokens as i32))
                 .arg(&(dim as i32))
-                .grid_dim(grid)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (grid, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("smear_gate launch: {:?}", e)))?;
         }
         Ok(())
@@ -695,23 +724,21 @@ impl GpuKernels {
     /// Embedding gather: out[t, :] = emb[ids[t], :]
     pub fn embedding_gather_fwd(
         &self,
-        ids: &CudaSlice<i32>,
-        emb: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        ids: CudaPtr,
+        emb: CudaPtr,
+        out: CudaPtr,
         dim: u32,
         tokens: u32,
     ) -> PgResult<()> {
         let block = 256u32.min(dim.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.embedding_gather)
-                .arg(ids)
-                .arg(emb)
-                .arg(out)
+                .arg(&ids)
+                .arg(&emb)
+                .arg(&out)
                 .arg(&(dim as i32))
                 .arg(&(tokens as i32))
-                .grid_dim(tokens)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (tokens, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("embedding_gather launch: {:?}", e)))?;
         }
         Ok(())
@@ -720,7 +747,7 @@ impl GpuKernels {
     /// QK-norm: in-place per-head RMSNorm
     pub fn qk_norm_fwd(
         &self,
-        qk: &mut CudaSlice<f32>,
+        qk: CudaPtr,
         head_dim: u32,
         total_heads: u32,
         eps: f32,
@@ -731,14 +758,11 @@ impl GpuKernels {
         let block = 32u32;
         unsafe {
             self.stream.launch_builder(&self.qk_norm_fwd)
-                .arg(qk)
+                .arg(&qk)
                 .arg(&(head_dim as i32))
                 .arg(&(total_heads as i32))
                 .arg(&eps)
-                .grid_dim(total_heads)
-                .block_dim(block)
-                .shared_mem_bytes(4)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (total_heads, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 4 })
                 .map_err(|e| PgError::InvalidOp(format!("qk_norm launch: {:?}", e)))?;
         }
         Ok(())
@@ -747,9 +771,9 @@ impl GpuKernels {
     /// Partial RoPE: in-place rotate first rope_dims of each head
     pub fn partial_rope_fwd(
         &self,
-        x: &mut CudaSlice<f32>,
-        cos_table: &CudaSlice<f32>,
-        sin_table: &CudaSlice<f32>,
+        x: CudaPtr,
+        cos_table: CudaPtr,
+        sin_table: CudaPtr,
         seq_len: u32,
         num_heads: u32,
         head_dim: u32,
@@ -760,17 +784,15 @@ impl GpuKernels {
         let block = 32u32.max(half.next_power_of_two().min(64));
         unsafe {
             self.stream.launch_builder(&self.partial_rope_fwd)
-                .arg(x)
-                .arg(cos_table)
-                .arg(sin_table)
+                .arg(&x)
+                .arg(&cos_table)
+                .arg(&sin_table)
                 .arg(&(seq_len as i32))
                 .arg(&(num_heads as i32))
                 .arg(&(head_dim as i32))
                 .arg(&(rope_dims as i32))
                 .arg(&(total_heads as i32))
-                .grid_dim(total_heads)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (total_heads, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("partial_rope launch: {:?}", e)))?;
         }
         Ok(())
@@ -779,8 +801,8 @@ impl GpuKernels {
     /// Q-gain: Q *= gain[head] per head (in-place)
     pub fn q_gain_fwd(
         &self,
-        q: &mut CudaSlice<f32>,
-        gain: &CudaSlice<f32>,
+        q: CudaPtr,
+        gain: CudaPtr,
         num_heads: u32,
         head_dim: u32,
         total_heads: u32,
@@ -788,14 +810,12 @@ impl GpuKernels {
         let block = 64u32.min(head_dim.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.q_gain_fwd)
-                .arg(q)
-                .arg(gain)
+                .arg(&q)
+                .arg(&gain)
                 .arg(&(num_heads as i32))
                 .arg(&(head_dim as i32))
                 .arg(&(total_heads as i32))
-                .grid_dim(total_heads)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (total_heads, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("q_gain launch: {:?}", e)))?;
         }
         Ok(())
@@ -804,9 +824,9 @@ impl GpuKernels {
     /// Cross-entropy forward with softcap
     pub fn cross_entropy_fwd(
         &self,
-        logits: &CudaSlice<f32>,
-        targets: &CudaSlice<i32>,
-        losses: &mut CudaSlice<f32>,
+        logits: CudaPtr,
+        targets: CudaPtr,
+        losses: CudaPtr,
         vocab_size: u32,
         softcap: f32,
         num_tokens: u32,
@@ -814,16 +834,13 @@ impl GpuKernels {
         let block = 256u32.min(vocab_size.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.cross_entropy_fwd)
-                .arg(logits)
-                .arg(targets)
-                .arg(losses)
+                .arg(&logits)
+                .arg(&targets)
+                .arg(&losses)
                 .arg(&(vocab_size as i32))
                 .arg(&softcap)
                 .arg(&(num_tokens as i32))
-                .grid_dim(num_tokens)
-                .block_dim(block)
-                .shared_mem_bytes(256)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (num_tokens, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 256 })
                 .map_err(|e| PgError::InvalidOp(format!("cross_entropy launch: {:?}", e)))?;
         }
         Ok(())
@@ -832,9 +849,9 @@ impl GpuKernels {
     /// Bigram hash embedding gather
     pub fn bigram_hash_embed_fwd(
         &self,
-        ids: &CudaSlice<i32>,
-        embed: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        ids: CudaPtr,
+        embed: CudaPtr,
+        out: CudaPtr,
         bigram_vocab: u32,
         bigram_dim: u32,
         tokens: u32,
@@ -842,15 +859,13 @@ impl GpuKernels {
         let block = 128u32.min(bigram_dim.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.bigram_hash_embed)
-                .arg(ids)
-                .arg(embed)
-                .arg(out)
+                .arg(&ids)
+                .arg(&embed)
+                .arg(&out)
                 .arg(&(bigram_vocab as i32))
                 .arg(&(bigram_dim as i32))
                 .arg(&(tokens as i32))
-                .grid_dim(tokens)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (tokens, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("bigram_hash_embed launch: {:?}", e)))?;
         }
         Ok(())
@@ -859,8 +874,8 @@ impl GpuKernels {
     /// x += alpha * y (in-place)
     pub fn add_scaled_fwd(
         &self,
-        x: &mut CudaSlice<f32>,
-        y: &CudaSlice<f32>,
+        x: CudaPtr,
+        y: CudaPtr,
         alpha: f32,
         n: u32,
     ) -> PgResult<()> {
@@ -868,13 +883,11 @@ impl GpuKernels {
         let grid = (n + block - 1) / block;
         unsafe {
             self.stream.launch_builder(&self.add_scaled)
-                .arg(x)
-                .arg(y)
+                .arg(&x)
+                .arg(&y)
                 .arg(&alpha)
                 .arg(&(n as i32))
-                .grid_dim(grid)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (grid, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("add_scaled launch: {:?}", e)))?;
         }
         Ok(())
@@ -885,10 +898,10 @@ impl GpuKernels {
     /// out: [tokens * num_heads, head_dim]
     pub fn causal_attention_naive_fwd(
         &self,
-        q: &CudaSlice<f32>,
-        k: &CudaSlice<f32>,
-        v: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        q: CudaPtr,
+        k: CudaPtr,
+        v: CudaPtr,
+        out: CudaPtr,
         tokens: u32,
         num_heads: u32,
         num_kv_heads: u32,
@@ -898,17 +911,15 @@ impl GpuKernels {
         let block = head_dim.min(64);
         unsafe {
             self.stream.launch_builder(&self.causal_attention_naive)
-                .arg(q)
-                .arg(k)
-                .arg(v)
-                .arg(out)
+                .arg(&q)
+                .arg(&k)
+                .arg(&v)
+                .arg(&out)
                 .arg(&(tokens as i32))
                 .arg(&(num_heads as i32))
                 .arg(&(num_kv_heads as i32))
                 .arg(&(head_dim as i32))
-                .grid_dim(total_heads)
-                .block_dim(block)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (total_heads, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 0 })
                 .map_err(|e| PgError::InvalidOp(format!("causal_attention launch: {:?}", e)))?;
         }
         Ok(())
@@ -919,9 +930,9 @@ impl GpuKernels {
     /// out: [tokens * num_heads, head_dim]
     pub fn xsa_fwd(
         &self,
-        attn_out: &CudaSlice<f32>,
-        v: &CudaSlice<f32>,
-        out: &mut CudaSlice<f32>,
+        attn_out: CudaPtr,
+        v: CudaPtr,
+        out: CudaPtr,
         tokens: u32,
         num_heads: u32,
         num_kv_heads: u32,
@@ -933,17 +944,14 @@ impl GpuKernels {
         let block = 64u32.min(head_dim.next_power_of_two());
         unsafe {
             self.stream.launch_builder(&self.xsa_fwd)
-                .arg(attn_out)
-                .arg(v)
-                .arg(out)
+                .arg(&attn_out)
+                .arg(&v)
+                .arg(&out)
                 .arg(&(tokens as i32))
                 .arg(&(num_heads as i32))
                 .arg(&(num_kv_heads as i32))
                 .arg(&(head_dim as i32))
-                .grid_dim(total_heads)
-                .block_dim(block)
-                .shared_mem_bytes(256)
-                .launch()
+                .launch(cudarc::driver::LaunchConfig { grid_dim: (total_heads, 1, 1).into(), block_dim: (block, 1, 1).into(), shared_mem_bytes: 256 })
                 .map_err(|e| PgError::InvalidOp(format!("xsa launch: {:?}", e)))?;
         }
         Ok(())

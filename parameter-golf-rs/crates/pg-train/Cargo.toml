@@ -24,3 +24,6 @@ cudarc = { workspace = true, optional = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

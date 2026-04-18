@@ -5,10 +5,14 @@ edition = "2024"
 
 [features]
 default = []
-cuda = ["pg-core/cuda", "pg-kernels/cuda"]
+cuda = ["pg-core/cuda", "pg-kernels/cuda", "dep:cudarc"]
 
 [dependencies]
 pg-core = { path = "../pg-core" }
 pg-kernels = { path = "../pg-kernels" }
+cudarc = { workspace = true, optional = true }
+bytemuck = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }

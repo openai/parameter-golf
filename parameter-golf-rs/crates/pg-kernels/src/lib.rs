@@ -15,3 +15,6 @@ pub mod gemm;
 
 #[cfg(feature = "cuda")]
 pub mod gpu_kernels;
+
+#[cfg(feature = "cuda")]
+pub mod flash_attn;

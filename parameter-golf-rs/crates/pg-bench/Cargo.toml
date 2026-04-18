@@ -5,7 +5,7 @@ edition = "2024"
 
 [features]
 default = []
-cuda = ["pg-kernels/cuda", "pg-core/cuda", "dep:cudarc", "dep:half"]
+cuda = ["pg-kernels/cuda", "pg-core/cuda", "pg-model/cuda", "dep:cudarc", "dep:half"]
 
 [dependencies]
 pg-core = { path = "../pg-core" }
@@ -17,6 +17,7 @@ half = { workspace = true, optional = true }
 rayon = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
+bytemuck = { workspace = true }
 
 [[bin]]
 name = "smoke"
@@ -37,3 +38,10 @@ required-features = ["cuda"]
 name = "preliminary"
 path = "src/bin/preliminary.rs"
 
+[[bin]]
+name = "parity-forward"
+path = "src/bin/parity_forward.rs"
+
+[[bin]]
+name = "parity-step"
+path = "src/bin/parity_step.rs"
