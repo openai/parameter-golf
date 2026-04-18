@@ -1,0 +1,51 @@
+{
+  "author": "swapp1990",
+  "github_id": "swapp1990",
+  "name": "SP8192 + 11L MLP4x + Partial RoPE (16/64) + GPTQ SDClip + SGD TTT",
+  "date": "2026-04-18",
+  "track": "track_10min_16mb",
+  "val_bpb": 1.0820,
+  "val_bpb_std": 0.00085,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.0820,
+      "artifact_bytes": 15781176,
+      "steps": 6666,
+      "step_avg_ms": 90.01,
+      "train_time_ms": 600036,
+      "eval_time_ms": 365257
+    },
+    "314": {
+      "val_bpb": 1.0829,
+      "artifact_bytes": 15858571,
+      "steps": 6659,
+      "step_avg_ms": 90.11,
+      "train_time_ms": 600066,
+      "eval_time_ms": 374587
+    },
+    "999": {
+      "val_bpb": 1.0812,
+      "artifact_bytes": 15852988,
+      "steps": 6667,
+      "step_avg_ms": 90.00,
+      "train_time_ms": 600039,
+      "eval_time_ms": 377977
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 15858571,
+  "technique_summary": "Partial RoPE (rotate 16 of 64 head dims) on the SP8192 + 11L MLP4x + QK-Gain 5.25 + GPTQ SDClip + SGD TTT stack. EMBED_CLIP_SIGMAS=15 for tighter embedding quantization. SDClip fallback for tok_emb (no GPTQ Hessian).",
+  "pytorch_version": "2.4.0",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "three_seeds": true
+  },
+  "attribution": "Based on PR #1493 stack (bigbag). Partial RoPE from PR #287 (jfprincz)."
+}
