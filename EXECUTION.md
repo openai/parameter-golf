@@ -58,7 +58,11 @@ On receiving spec number `NNN`:
    - Checkpoints to emit — which steps, what state, where?
    - Open questions flagged by the spec — resolve each with the user.
 3. Surface ambiguities as questions, not assumptions. This is cheap — launching under ambiguity wastes $3+.
-4. Only after the interview passes: preflight, then launch.
+4. **Confirm the hardware ladder — especially smoke.** Research sets the default in the spec. You cannot silently skip a rung.
+   - If the spec marks smoke **required**, run it. No exceptions without user's explicit waiver.
+   - If the spec marks smoke **skipped** citing a recent clean run: verify that prior run is actually recent (hours to a day, not weeks) and that the code hasn't moved. If either is off, ask the user before proceeding.
+   - If you're tempted to skip a rung "because the change is small," ask first. A $0.50 smoke test is insurance against a $3.50 wasted full run.
+5. Only after the interview passes: preflight, then launch.
 
 ## Preflight checklist (before any launch)
 

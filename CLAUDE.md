@@ -88,7 +88,7 @@ A spec in `research/specs/NNN-slug.md` contains:
 - **Accept criteria** — what counts as a success vs noise.
 - **Config diff** — hyperparam lines that change (not full config).
 - **Code changes** — branch `exp/<slug>` + commit hash. Inline diff snippet for interview readability. *No attached .py files.*
-- **Hardware ladder** — 1×H100 smoke → 2×H100 mini → 8×H100 official, with which rungs apply.
+- **Hardware ladder** — 1×H100 smoke → 2×H100 mini → 8×H100 official, with which rungs apply. Smoke is **required** for specs with code changes. For hyperparam-only specs on an already-validated commit, smoke may be marked "skip — last clean run was spec NNN" (cite it). Multi-GPU-specific logic (collectives, sharding) adds a 2×H100 dry-run rung between smoke and official. When in doubt, include smoke.
 - **Seed plan** — single seed for mini-tests; 3 seeds typical for official submission (same spec, one dir per seed).
 - **Inputs** — data path, tokenizer path, hotstart checkpoint path (absolute, on NA-1 volume), which prior run it came from.
 - **Checkpoints to emit** — which steps to save, what state (model / +optim / +EMA / quantized), retention policy, destination path on NA-1.
