@@ -1,0 +1,59 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "GatedDeltaNet FLA + Score-First TTT + Brotli",
+  "blurb": "GatedDeltaNet linear attention (FLA) K_KVShare_Wider + legal score-first TTT (SGD 3ep freeze=2) + brotli-11 compression. 3-seed mean: 1.00980 BPB (std 0.0015). All artifacts under 16 MB.",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.0098,
+  "val_bpb_std": 0.00153,
+  "seeds": [
+    1337,
+    42,
+    2025
+  ],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.00803,
+      "val_bpb_pre_ttt": 1.0172,
+      "ttt_delta": -0.00917,
+      "artifact_bytes": 15595190,
+      "steps": 2400,
+      "ema_bpb": 0.998608
+    },
+    "42": {
+      "val_bpb": 1.01069,
+      "val_bpb_pre_ttt": 1.02054,
+      "ttt_delta": -0.00986,
+      "artifact_bytes": 15602610,
+      "steps": 2410,
+      "ema_bpb": 1.001194
+    },
+    "2025": {
+      "val_bpb": 1.01067,
+      "val_bpb_pre_ttt": 1.01933,
+      "ttt_delta": -0.00866,
+      "artifact_bytes": 15608600,
+      "steps": 2408,
+      "ema_bpb": 1.00126
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "GatedDeltaNet FLA K_KVShare_Wider (10L 544d 8H) + EMA(0.997) + SWA(50) + Late QAT + Int6/Int8 GPTQ + Brotli-11 + Score-First TTT (SGD lr=0.005 3ep freeze=2)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "gated_deltanet_architecture": "@resouer (PR #1687) - K_KVShare_Wider, FLA integration",
+    "flash_linear_attention": "@sustcsonglin - GatedDeltaNet implementation (fla-core 0.4.2)",
+    "legal_ttt_framework": "@Christopher-Lee-McClendon (PR #461) - score-first TTT"
+  }
+}
