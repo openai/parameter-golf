@@ -1171,6 +1171,7 @@ def ttt_score_first(
 
     2-chunk approach: score first half, train on first half, score second half.
     The second half benefits from adaptation on the first half.
+    All ranks participate in each phase (score/train) using standard DDP distribution.
     """
     seq_len = args.train_seq_len
     total_seqs = (val_tokens.numel() - 1) // seq_len
@@ -1188,21 +1189,45 @@ def ttt_score_first(
          f"frozen={sum(p.numel() for p in base_model.parameters() if not p.requires_grad)}")
     optimizer = torch.optim.AdamW(ttt_params, lr=args.ttt_lr, weight_decay=0.0)
 
-    # Per-rank split
-    my_start = (total_seqs * rank) // world_size
-    my_end = (total_seqs * (rank + 1)) // world_size
-    my_mid = (mid_seq * (rank + 1)) // world_size  # approximate midpoint per rank
-
     loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     t0 = time.perf_counter()
 
-    # --- CHUNK 1: Score first half (no adaptation yet) ---
-    base_model.eval()
-    with torch.inference_mode():
-        for bs in range(my_start, my_mid, batch_seqs):
-            be = min(bs + batch_seqs, my_mid)
+    def _score_range(seq_start_global, seq_end_global):
+        """Score a global range of sequences, distributed across ranks."""
+        n_seqs = seq_end_global - seq_start_global
+        r_start = seq_start_global + (n_seqs * rank) // world_size
+        r_end = seq_start_global + (n_seqs * (rank + 1)) // world_size
+        base_model.eval()
+        with torch.inference_mode():
+            for bs in range(r_start, r_end, batch_seqs):
+                be = min(bs + batch_seqs, r_end)
+                raw_start = bs * seq_len
+                raw_end = be * seq_len + 1
+                if raw_end > val_tokens.numel():
+                    continue
+                local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
+                x = local[:-1].reshape(-1, seq_len)
+                y = local[1:].reshape(-1, seq_len)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    batch_loss = base_model(x, y).detach()
+                loss_sum += batch_loss.to(torch.float64) * float(y.numel())
+                token_count += float(y.numel())
+                prev_ids = x.reshape(-1)
+                tgt_ids = y.reshape(-1)
+                tb = base_bytes_lut[tgt_ids].to(torch.float64)
+                tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
+                byte_count += tb.sum()
+
+    def _train_range(seq_start_global, seq_end_global):
+        """Train on a global range of sequences, distributed across ranks."""
+        n_seqs = seq_end_global - seq_start_global
+        r_start = seq_start_global + (n_seqs * rank) // world_size
+        r_end = seq_start_global + (n_seqs * (rank + 1)) // world_size
+        base_model.train()
+        for bs in range(r_start, r_end, batch_seqs):
+            be = min(bs + batch_seqs, r_end)
             raw_start = bs * seq_len
             raw_end = be * seq_len + 1
             if raw_end > val_tokens.numel():
@@ -1210,61 +1235,33 @@ def ttt_score_first(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
             x = local[:-1].reshape(-1, seq_len)
             y = local[1:].reshape(-1, seq_len)
+            optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                batch_loss = base_model(x, y).detach()
-            loss_sum += batch_loss.to(torch.float64) * float(y.numel())
-            token_count += float(y.numel())
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            tb = base_bytes_lut[tgt_ids].to(torch.float64)
-            tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
-            byte_count += tb.sum()
+                loss = base_model(x, y)
+            loss.backward()
+            if world_size > 1:
+                for p in ttt_params:
+                    if p.grad is not None:
+                        dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+            torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
+            optimizer.step()
+
+    # --- Phase 1: Score first half (no adaptation) ---
+    _score_range(0, mid_seq)
+    if world_size > 1:
+        dist.barrier()
     log0(f"ttt_score_first:scored chunk1 time:{time.perf_counter()-t0:.1f}s")
 
-    # --- TRAIN on first half ---
-    base_model.train()
-    for bs in range(my_start, my_mid, batch_seqs):
-        be = min(bs + batch_seqs, my_mid)
-        raw_start = bs * seq_len
-        raw_end = be * seq_len + 1
-        if raw_end > val_tokens.numel():
-            continue
-        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-        x = local[:-1].reshape(-1, seq_len)
-        y = local[1:].reshape(-1, seq_len)
-        optimizer.zero_grad(set_to_none=True)
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            loss = base_model(x, y)
-        loss.backward()
-        if world_size > 1:
-            for p in ttt_params:
-                if p.grad is not None:
-                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
-        torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
-        optimizer.step()
+    # --- Phase 2: Train on first half (all ranks participate) ---
+    _train_range(0, mid_seq)
+    if world_size > 1:
+        dist.barrier()
     log0(f"ttt_score_first:trained chunk1 time:{time.perf_counter()-t0:.1f}s")
 
-    # --- CHUNK 2: Score second half (with adaptation from first half) ---
-    base_model.eval()
-    with torch.inference_mode():
-        for bs in range(my_mid, my_end, batch_seqs):
-            be = min(bs + batch_seqs, my_end)
-            raw_start = bs * seq_len
-            raw_end = be * seq_len + 1
-            if raw_end > val_tokens.numel():
-                continue
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
-            x = local[:-1].reshape(-1, seq_len)
-            y = local[1:].reshape(-1, seq_len)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                batch_loss = base_model(x, y).detach()
-            loss_sum += batch_loss.to(torch.float64) * float(y.numel())
-            token_count += float(y.numel())
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            tb = base_bytes_lut[tgt_ids].to(torch.float64)
-            tb += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.float64)
-            byte_count += tb.sum()
+    # --- Phase 3: Score second half (with adaptation) ---
+    _score_range(mid_seq, total_seqs)
+    if world_size > 1:
+        dist.barrier()
     log0(f"ttt_score_first:scored chunk2 time:{time.perf_counter()-t0:.1f}s")
 
     # Restore all params to trainable
@@ -1272,7 +1269,7 @@ def ttt_score_first(
         p.requires_grad_(True)
     base_model.eval()
 
-    # Compute BPB
+    # Compute BPB (reduce across ranks)
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
