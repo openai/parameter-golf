@@ -429,3 +429,58 @@ Session 3 operator entry point:
   `876bb3603eaeb9213d23e555645b49ed30d66738`.
 - `a33191f572430566b88c4d61badb0369e1e6f9a3` remains the required warmup-fix
   ancestry guard enforced by `scripts/runpod_pipeline/00_verify_pod.sh`.
+
+## 2026-04-18 Rev 5 pre-launch patches
+
+Two external reviews (Claude web, Codex) surfaced pre-launch work worth
+doing before the paid RunPod session. Patches landed in commit
+`1765afc7d62ce03a1219ca81cc92eea4fabdf343`. The Session 3 launch SHA now
+advances to this commit.
+
+Patch chain:
+`a33191f...` → `218b623f...` → `775bb2f` → `876bb3603...` → `e8556c6...` →
+`1765afc7d62ce03a1219ca81cc92eea4fabdf343`.
+
+Patches in `1765afc`:
+- `05_preserve_artifacts.sh`: automatic provenance capture
+  (`runs/commit_sha.txt`, `runs/hardware_info.txt`, `runs/env_fingerprint.txt`)
+  written before tarball; ancestry guard on HEAD; `repo_type="model"` fix
+  to match `amay01/parameter-golf-session3-artifacts` (created as type=model,
+  not dataset).
+- `00_verify_pod.sh`: optional `EXPECTED_SHA` exact-pin check layered on
+  the existing ancestry-only guard; opt-in via env var, non-breaking for
+  other sessions.
+- `run_all.sh`: parameterized banner SHA (`${EXPECTED_SHA:-a33191f...}`)
+  and prelude warning if `EXPECTED_SHA` is unset, so the orchestrator
+  doesn't silently downgrade to ancestry-only.
+- `README.md`: Gate A kill threshold aligned (`1.078` → `1.07516564`);
+  Block 1 operator commands now include `git checkout <LAUNCH_SHA>` and
+  `EXPECTED_SHA="<LAUNCH_SHA>"` pass-through.
+
+Session 3 operator entry point (revised for exact-SHA discipline):
+
+```
+cd /workspace
+git clone --branch submission/pr1610-corrector \
+  https://github.com/amrayach/parameter-golf.git
+cd parameter-golf
+git checkout 1765afc7d62ce03a1219ca81cc92eea4fabdf343
+EXPECTED_SHA="1765afc7d62ce03a1219ca81cc92eea4fabdf343" \
+  bash scripts/runpod_pipeline/00_verify_pod.sh
+# then individual stage scripts per Session 3 spec
+```
+
+Rev 5 decision overlay (driven by competitive intel on open PRs #1700 /
+#1716 / #1707 / #1693):
+
+- The scripted three-way fork in `03_ablations.sh` /
+  `04_decide_and_proceed.sh` is unchanged; it still returns
+  `recommended_path` based on delta thresholds 0.002 / 0.001.
+- Live guidance layer overrides with an absolute-BPB matrix:
+  - seed-0 ablation BPB `< 1.0720` and delta `> 0.0015` → run `04a_gate_b.sh`
+  - BPB `1.0720–1.0745` and delta `> 0.0015` → present both options,
+    highlight non-record framing if Gate B runs
+  - BPB `>= 1.0745` or delta `< 0.0015` → stop, skip `04a` and `04b`,
+    proceed to Stage 5
+- `04b_fallback_level1a.sh` is deprecated for this session;
+  runs only on explicit operator request.
