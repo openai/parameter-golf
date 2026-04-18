@@ -78,16 +78,62 @@ Stack these in one run:
 - [ ] One 8×H100 10min run
 - **Expected result:** +0.005 (proven in another submission)
 
-## Code Changes Made So Far
+## Code Changes Made
 
-1. **train_gpt.py**: Added checkpoint saving at event boundaries
-   - Set `CKPT_DIR=/path` to enable
-   - Auto-saves at momentum warmup end, warmdown start, recurrence activation
-   - Also saves pre-EMA and post-EMA at end of training
-   - Extra checkpoints via `CKPT_STEPS=10000,15000`
+1. **train_gpt_sota.py** — Decoded SOTA submission (1.0810 bpb) from LZMA blob into readable 1400-line Python
+   - Added checkpoint saving at event boundaries (momentum warmup, warmdown, recurrence, pre/post EMA)
+   - Added temporal checkpoints via `CKPT_STEPS=1000,2000,...` env var
+   - Added BigramHash embedding (3072×112, disabled by default with `BIGRAM_VOCAB_SIZE=0`)
+   - Enable via `CKPT_DIR=/path`
 
-2. **run_8xh100_10m.sh**: New launch script for 8×H100 competition conditions
-   - Full SOTA config (SP8192, 11L, MLP4×, all features)
-   - Auto-logs + auto-stops pod
+2. **hotstart.py** — Utility for loading checkpoints and resuming/re-quantizing/re-evaluating
+   - `resume` — load checkpoint, resume training from that step
+   - `requant` — re-quantize with different clip_sigmas, calibration params
+   - `reeval` — re-eval quantized model with different TTT params
+   - `reema` — re-blend EMA weights at different ratios
 
-3. **run_2xh100_10m.sh / run_2xh100_full.sh**: Updated with auto-log + auto-stop
+3. **run_8xh100_10m.sh** — Launch script for 8×H100 competition conditions
+   - Auto-installs brotli if missing
+   - Saves to `/workspace/runs/{date}-{name}/` on network volume
+   - Auto-logs + auto-stops pod after 30s grace
+
+4. **train_gpt_baseline.py** — Backup of original baseline code
+
+## Infrastructure
+
+- **Pod template:** `runpod/parameter-golf:latest` (template ID: y5cejece4j)
+  - Has: flash_attn3, sentencepiece, PyTorch 2.8
+  - Missing: brotli (auto-installed by run script)
+  - Requires: `PUBLIC_KEY` env var for SSH access
+- **Network volume:** `hvpdph5i3g` (US-NE-1, 150GB)
+  - Has SP8192 + SP1024 data, parameter-golf repo
+- **US-NE-1** has 1×/2×/4×/8× H100 SXM available
+- **AP-JP-1** is backup (9/9 availability checks, supports volumes)
+- Pod ID for setup: `39623ko4jkxhz4` (stopped)
+
+## Test Results (1×H100)
+
+### Checkpoint saving ✅
+Ran 50 steps with `ITERATIONS=50, MUON_MOMENTUM_WARMUP_STEPS=10`. All 8 checkpoints saved:
+- `ckpt_event_step5.pt` (temporal)
+- `ckpt_event_step10.pt` (momentum warmup end)
+- `ckpt_warmdown_start_step15.pt` (warmdown event)
+- `ckpt_pre_recurrence_step18.pt` (recurrence event)
+- `ckpt_event_step25.pt` (temporal)
+- `ckpt_event_step45.pt` (temporal)
+- `ckpt_final_pre_ema_step50.pt`
+- `ckpt_final_post_ema_step50.pt`
+Each ~404 MB (model + optimizer + EMA state). Plus `final_model.pt` (130MB) and `final_model.int6.ptz` (16MB).
+
+### Resume (hotstart) ✅
+Loaded step 25 checkpoint → resumed training to step 50. Loss decreasing (5.44→5.21). Recurrence correctly activated (frac=0.50 > 0.35).
+
+### Requant / Reeval / Reema — not tested
+Too slow on 1×H100 (GPTQ Hessian collection takes minutes). Will test on 8×H100.
+
+## Next Steps
+
+- [ ] 8×H100 baseline run (SOTA reproduction) with checkpoints
+- [ ] 8×H100 BigramHash run (SOTA + BigramHash)
+- [ ] Test requant/reeval/reema on 8×H100 checkpoints
+- [ ] If BigramHash wins → prepare submission

@@ -93,6 +93,9 @@ class Hyperparameters:
     logfile = f"logs/{run_id}.txt"
     model_path = "final_model.pt"
     quantized_model_path = "final_model.int6.ptz"
+    # BigramHash: cheap n-gram features added to token embeddings
+    bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 3072))
+    bigram_dim = int(os.environ.get("BIGRAM_DIM", 112))
 
 
 _logger_hparams = None
@@ -426,6 +429,39 @@ class Block(nn.Module):
         return x_out
 
 
+class BigramHashEmbedding(nn.Module):
+    """Cheap n-gram features: hash consecutive token pairs into an embedding table.
+
+    For each position i, computes hash(token[i-1], token[i]) and looks up an embedding.
+    This gives the model a free signal about local context (what came before this token)
+    without needing an attention layer. Initialized to zero so it doesn't disrupt early training.
+    """
+
+    def __init__(self, bigram_vocab_size: int, bigram_dim: int, model_dim: int):
+        super().__init__()
+        self.bigram_vocab_size = bigram_vocab_size
+        self.embed = nn.Embedding(bigram_vocab_size, bigram_dim)
+        nn.init.zeros_(self.embed.weight)
+        self.proj = CastedLinear(bigram_dim, model_dim, bias=False) if bigram_dim != model_dim else None
+        if self.proj is not None:
+            nn.init.zeros_(self.proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+
+    def bigram_hash(self, tokens: Tensor) -> Tensor:
+        t = tokens.to(torch.int32)
+        mod = self.bigram_vocab_size - 1
+        out = torch.empty_like(t)
+        out[..., 0] = mod  # first position has no previous token, map to last bucket
+        out[..., 1:] = torch.bitwise_xor(36313 * t[..., 1:], 27191 * t[..., :-1]) % mod
+        return out.long()
+
+    def forward(self, token_ids: Tensor) -> Tensor:
+        h = self.embed(self.bigram_hash(token_ids))
+        if self.proj is not None:
+            h = self.proj(h)
+        return h * self.scale.to(dtype=h.dtype)
+
+
 class GPT(nn.Module):
     def __init__(self, h):
         super().__init__()
@@ -435,6 +471,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = h.tied_embed_init_std
         self.logit_softcap = h.logit_softcap
         self.tok_emb = nn.Embedding(h.vocab_size, h.embedding_dim)
+        self.bigram = BigramHashEmbedding(h.bigram_vocab_size, h.bigram_dim, h.model_dim) if h.bigram_vocab_size > 0 else None
         if h.embedding_dim != h.model_dim:
             self.embed_proj = CastedLinear(h.embedding_dim, h.model_dim, bias=False)
             self.head_proj = CastedLinear(h.model_dim, h.embedding_dim, bias=False)
@@ -513,6 +550,8 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         if self.embed_proj is not None:
             x = self.embed_proj(x)
+        if self.bigram is not None:
+            x = x + self.bigram(input_ids)
         x0 = x
         skips = []
         enc_iter = self.encoder_indices if self.looping_active else range(self.num_encoder_layers)
