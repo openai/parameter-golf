@@ -397,12 +397,12 @@ RunPod pipeline for PR `#1610` + posterior corrector is now committed and
 pushed at:
 
 - branch: `submission/pr1610-corrector`
-- launch SHA: `218b623f8962a301e41180b6050186a3c189d063`
+- launch SHA: `876bb3603eaeb9213d23e555645b49ed30d66738`
 - required warmup-fix ancestor: `a33191f572430566b88c4d61badb0369e1e6f9a3`
 
 Targeted re-audit against `origin/submission/pr1610-corrector` confirmed:
 
-- local HEAD == remote HEAD at `218b623f8962a301e41180b6050186a3c189d063`
+- local HEAD == remote HEAD at `876bb3603eaeb9213d23e555645b49ed30d66738`
 - `scripts/runpod_pipeline/` is tracked and contains 11 files
 - `02_gate_a.sh` now persists the seed-0 checkpoint before any log parsing
 - `03_ablations.sh` / `04_decide_and_proceed.sh` implement the three-way fork:
@@ -419,3 +419,13 @@ Session 3 operator entry point:
 - preserve artifacts before teardown:
   - `UPLOAD_TARGET="hf:<repo>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`
   - `UPLOAD_TARGET="rsync:<user@host>:<path>" bash scripts/runpod_pipeline/05_preserve_artifacts.sh`
+
+## 2026-04-18 post-Ultrareview launch pin
+
+- Post-review fix chain for the RunPod launch branch:
+  `a33191f572430566b88c4d61badb0369e1e6f9a3` → `218b623f8962a301e41180b6050186a3c189d063`
+  → `775bb2f` → `876bb3603eaeb9213d23e555645b49ed30d66738`
+- Current launch SHA for Session 3 is
+  `876bb3603eaeb9213d23e555645b49ed30d66738`.
+- `a33191f572430566b88c4d61badb0369e1e6f9a3` remains the required warmup-fix
+  ancestry guard enforced by `scripts/runpod_pipeline/00_verify_pod.sh`.

@@ -99,7 +99,7 @@ Scope:
 ## Next session — PR #1610 RunPod execution
 
 Use the committed RunPod pipeline on branch `submission/pr1610-corrector`
-at SHA `218b623f8962a301e41180b6050186a3c189d063`.
+at SHA `876bb3603eaeb9213d23e555645b49ed30d66738`.
 
 Required precondition:
 - `00_verify_pod.sh` must confirm the warmup-fix ancestor

@@ -195,7 +195,7 @@ Do not use:
 ## 2026-04-17 PR #1610 RunPod pipeline state
 
 - Branch `submission/pr1610-corrector` is launch-pinned at commit
-  `218b623f8962a301e41180b6050186a3c189d063`.
+  `876bb3603eaeb9213d23e555645b49ed30d66738`.
 - Session 1 warmup-fix commit `a33191f572430566b88c4d61badb0369e1e6f9a3`
   remains in ancestry and is enforced by `scripts/runpod_pipeline/00_verify_pod.sh`.
 - `scripts/runpod_pipeline/` is committed and tracked (11 files).
