@@ -198,19 +198,20 @@ class TestSinglePass(unittest.TestCase):
 
     def test_single_pass(self):
         tokens = list(range(20))
-        # Single pass: process all tokens in one run
+        # Single pass: one corrector sees all 20 tokens at once
         c_single = _corrector()
         biases_single = _feed_sequence(c_single, tokens)
 
-        # Two-chunk pass: split at position 10
+        # Chunked pass: same corrector, fed in two batches (split at 10)
         c_chunk = _corrector()
-        biases_chunk = _feed_sequence(c_chunk, tokens)
+        biases_chunk = _feed_sequence(c_chunk, tokens[:10]) + _feed_sequence(c_chunk, tokens[10:])
 
-        # Must be identical (corrector state is global, not per-chunk)
+        # Must be identical — corrector state is cumulative, not per-chunk
+        self.assertEqual(len(biases_single), len(biases_chunk))
         for t, (b1, b2) in enumerate(zip(biases_single, biases_chunk)):
             self.assertTrue(
                 torch.allclose(b1, b2, atol=1e-6),
-                f"Bias differs at position {t} between single-pass and chunked"
+                f"Chunk-boundary non-invariance at position {t}"
             )
 
 

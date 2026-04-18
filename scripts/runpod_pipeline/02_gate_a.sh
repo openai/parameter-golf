@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stage 2: Gate A — full train+eval, seed 0, CORRECTOR_ALPHA=0.0
-# Kill if BPB > 1.078, eval > 600s, or artifact > per-seed limit
+# Kill if BPB > 1.07516564 (published 1.07216564 + 0.003), eval > 600s, or artifact > limit
 # Persists checkpoint to /workspace/checkpoints/seed0/ after PASS
 set -euo pipefail
 

@@ -171,10 +171,12 @@ run_full_seed 2 "${SEED2_ARTIFACT_LIMIT}"
 # ── Step 3: 3-seed corrector mean check ───────────────────────────────────────
 echo ""
 echo "=== Gate B: 3-seed corrector mean check ==="
-"${PYTHON}" - "${RUNS_DIR}" <<'PY'
+"${PYTHON}" - "${RUNS_DIR}" "${BEST_ALPHA}" "${BEST_ORDERS}" <<'PY'
 import json, pathlib, sys
 
-runs_dir = pathlib.Path(sys.argv[1])
+runs_dir    = pathlib.Path(sys.argv[1])
+best_alpha  = float(sys.argv[2])
+best_orders = sys.argv[3]
 
 seed0c = json.loads((runs_dir / "gate_b_seed0_corrector.json").read_text())
 seed1  = json.loads((runs_dir / "gate_b_seed1.json").read_text())
@@ -208,8 +210,8 @@ summary = {
     "corrector_mean_bpb":    mean_bpb,
     "published_baseline_mean": published_mean,
     "delta_from_published":  mean_bpb - published_mean,
-    "corrector_alpha": None,  # filled below
-    "corrector_orders": None,
+    "corrector_alpha": best_alpha,
+    "corrector_orders": best_orders,
     "status": "PASS"
 }
 out = runs_dir / "gate_b_summary.json"

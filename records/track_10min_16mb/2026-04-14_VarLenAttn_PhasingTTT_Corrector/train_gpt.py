@@ -37,7 +37,7 @@ class PrefixNgramCorrector:
             lu, lz = self._lu.tolist(), self._lz
             for n in self.orders:
                 ctx = tuple(self.hist[-(n-1):]) if n > 1 else ()
-                tbl = self.ng[n].get(hash(ctx))
+                tbl = self.ng[n].get(ctx)
                 if tbl:
                     tot = sum(tbl.values())
                     for tok, cnt in tbl.items():
@@ -53,8 +53,7 @@ class PrefixNgramCorrector:
         self._lu = self._lz = None
         for n in self.orders:
             ctx = tuple(self.hist[-(n-1):]) if n > 1 else ()
-            h = hash(ctx)
-            d = self.ng[n].setdefault(h, {})
+            d = self.ng[n].setdefault(ctx, {})
             d[t] = d.get(t, 0) + 1
         self.hist.append(t)
 
@@ -3352,6 +3351,15 @@ def train_and_eval(h, device):
                     ptl[:, : min(h.ttt_chunk_size, ctx_len)].mean(dim=-1).sum().backward()
                     wo.step()
                     wo.zero_grad(set_to_none=True)
+                    if h.corrector_alpha > 0:
+                        dummy_bias = torch.zeros(
+                            bsz, 1, h.vocab_size, device=device, dtype=torch.bfloat16,
+                        )
+                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                            ptl2 = fwd_ttt_compiled(xw, yw, lora=wl, logit_bias=dummy_bias)
+                        ptl2[:, : min(h.ttt_chunk_size, ctx_len)].mean(dim=-1).sum().backward()
+                        wo.step()
+                        wo.zero_grad(set_to_none=True)
                 del wl, wo
             # END warmup synthetic tokens
             torch.cuda.empty_cache()
