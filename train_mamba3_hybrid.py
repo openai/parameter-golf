@@ -76,7 +76,6 @@ class Hyperparameters:
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))  # batch size for sliding eval
     # Test-Time Training (TTT): chunk-based score-first adaptation on val data.
     # Score each chunk (32×4096) under no_grad, then SGD adapt on the same chunk.
-    # Sweep result: lr=0.010 const (SGD, momentum=0.9) → −6.7 mBPB, 184s.
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.010))
     ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
@@ -91,7 +90,8 @@ class Hyperparameters:
     # Mixed-precision SSM: dd_A and dd_dt rows of mamba3.in_proj.weight at higher bits.
     # A/dt errors compound through the recurrence (Q-Mamba ICLR 2025: uniform 6-bit collapses
     # Mamba ppl 5.5→21+). Only ~32 rows per SSM block — cheap to protect. 0 = same as quant_bits.
-    quant_bits_ssm_dynamics = int(os.environ.get("QUANT_BITS_SSM_DYNAMICS", 0))
+    # Default=8 (free quality win validated 2026-04-17 ablation: −0.8 mBPB for +0.01 MiB).
+    quant_bits_ssm_dynamics = int(os.environ.get("QUANT_BITS_SSM_DYNAMICS", 8))
     gptq_clip_sigmas = float(os.environ.get("GPTQ_CLIP_SIGMAS", 0))  # SDClip for matrices (0 = percentile search, SOTA: 12.85)
     gptq_embed_clip_sigmas = float(os.environ.get("GPTQ_EMBED_CLIP_SIGMAS", 0))  # SDClip for embeddings (0 = same as matrices, SOTA: 20)
     qat_start_frac = float(os.environ.get("QAT_START_FRAC", 0.0))  # QAT: start at this fraction of training (0 = disabled)
@@ -139,6 +139,10 @@ class Hyperparameters:
     mamba3_ngroups = int(os.environ.get("MAMBA3_NGROUPS", 1))
     mamba3_rope_fraction = float(os.environ.get("MAMBA3_ROPE_FRACTION", 0.5))
     mamba3_outproj_norm = bool(int(os.environ.get("MAMBA3_OUTPROJ_NORM", "0")))
+    # Low-rank in_proj factorization: 0 = dense (original), >0 = factor as (d→rank→out)
+    # Mamba-3 in_proj is (d=512 → 2232) = 1.14M params/block; rank=128 → 351K params/block.
+    # Enables ≤16MB submission at 7L 6-SSM configs. Throughput cost ~3-5% from extra matmul.
+    mamba3_in_proj_rank = int(os.environ.get("IN_PROJ_RANK", 0))
     # Attention layers (evenly spaced among SSD layers).
     num_attn_layers = int(os.environ.get("NUM_ATTN_LAYERS", 1))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -504,14 +508,6 @@ def eval_val_stateful_overlap(
     base_model.train()
     return float(val_loss), float(bits_per_token * tokens_per_byte)
 
-
-# eval_val_stateful_overlap_slot (residual-stream SLOT) — archived to profiling/eval_ttt.py
-# null result: consistently +2–8 mBPB; no consistent gradient direction in FineWeb bpb.
-
-# eval_val_stateful_overlap_ttt (window-level TTT) — archived to profiling/eval_ttt.py
-# null result: −0.1 mBPB in 573s; gradient signal from 1×1024 tokens is too weak vs chunk TTT.
-# Chunk TTT (32×4096 chunks, lr=0.010, SGD) gives −6.7 mBPB in 184s.
-
 # QUANTIZATION
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -541,10 +537,14 @@ def tensor_nbytes(t: Tensor) -> int:
 
 
 def compute_ssm_dynamics_row_mask(name: str, rows: int, cfg: dict) -> Tensor | None:
-    """For mamba3.in_proj.weight, return a boolean mask of shape (rows,) marking
-    dd_A and dd_dt rows (the recurrence-sensitive subset). Returns None for other tensors.
-    in_proj output layout: [z | xv | B | C | dd_dt | dd_A | trap | angles]."""
-    if "mamba3.in_proj.weight" not in name:
+    """For mamba3.in_proj.weight (dense) OR mamba3.in_proj.1.weight (factored up-projection),
+    return a boolean mask of shape (rows,) marking dd_A and dd_dt rows (the recurrence-sensitive
+    subset). Returns None for other tensors.
+    in_proj output layout: [z | xv | B | C | dd_dt | dd_A | trap | angles]. Factored up-proj
+    keeps the same row layout since the output dim matches."""
+    is_dense_in_proj = "mamba3.in_proj.weight" in name
+    is_factored_up = "mamba3.in_proj.1.weight" in name
+    if not (is_dense_in_proj or is_factored_up):
         return None
     d_inner = int(cfg["model_dim"] * cfg["mamba3_expand"])
     d_state = int(cfg["mamba3_d_state"])
@@ -1139,7 +1139,7 @@ class Mamba3Layer(nn.Module):
     def __init__(self, dim: int, d_state: int = 64, expand: float = 2,
                  headdim: int = 64, chunk_size: int = 64,
                  ngroups: int = 1, rope_fraction: float = 0.5,
-                 is_outproj_norm: bool = False):
+                 is_outproj_norm: bool = False, in_proj_rank: int = 0):
         super().__init__()
         from mamba_ssm.modules.mamba3 import Mamba3
         self.mamba3 = Mamba3(
@@ -1148,15 +1148,36 @@ class Mamba3Layer(nn.Module):
             ngroups=ngroups, rope_fraction=rope_fraction,
             is_outproj_norm=is_outproj_norm,
         )
-        # Replace nn.Linear with CastedLinear so QAT fake-quant and float32 master
-        # weights apply to Mamba-3's projections (which have the worst outlier problem).
-        for attr in ("in_proj", "out_proj"):
-            src = getattr(self.mamba3, attr)
+        # out_proj always dense (smaller matrix, less redundancy). CastedLinear applies QAT
+        # and fp32 master weights to outlier-heavy projections.
+        src_out = self.mamba3.out_proj
+        dst_out = CastedLinear(src_out.in_features, src_out.out_features, bias=src_out.bias is not None)
+        dst_out.weight = src_out.weight
+        if src_out.bias is not None:
+            dst_out.bias = src_out.bias
+        self.mamba3.out_proj = dst_out
+
+        if in_proj_rank > 0:
+            # Low-rank factorization: in_proj (d→out) = (d→rank) @ (rank→out).
+            # Sequential preserves the `m.in_proj(x)` call site. GPTQ hooks fire per-CastedLinear.
+            src = self.mamba3.in_proj
+            in_features, out_features = src.in_features, src.out_features
+            has_bias = src.bias is not None
+            self.mamba3.in_proj = nn.Sequential(
+                CastedLinear(in_features, in_proj_rank, bias=False),
+                CastedLinear(in_proj_rank, out_features, bias=has_bias),
+            )
+            nn.init.normal_(self.mamba3.in_proj[0].weight, std=(2.0 / in_features) ** 0.5)
+            nn.init.normal_(self.mamba3.in_proj[1].weight, std=(2.0 / in_proj_rank) ** 0.5)
+            if has_bias:
+                nn.init.zeros_(self.mamba3.in_proj[1].bias)
+        else:
+            src = self.mamba3.in_proj
             dst = CastedLinear(src.in_features, src.out_features, bias=src.bias is not None)
             dst.weight = src.weight
             if src.bias is not None:
                 dst.bias = src.bias
-            setattr(self.mamba3, attr, dst)
+            self.mamba3.in_proj = dst
 
     def _pre_ssd(self, x):
         """Pre-SSD ops: in_proj, split, reshape, compute ADT/DT, norms."""
@@ -1355,7 +1376,7 @@ class Block(nn.Module):
         mamba3_d_state: int = 64, mamba3_expand: float = 2,
         mamba3_headdim: int = 64, mamba3_chunk_size: int = 64,
         mamba3_ngroups: int = 1, mamba3_rope_fraction: float = 0.5,
-        mamba3_outproj_norm: bool = False,
+        mamba3_outproj_norm: bool = False, mamba3_in_proj_rank: int = 0,
         layer_idx: int = 0,
     ):
         super().__init__()
@@ -1365,7 +1386,7 @@ class Block(nn.Module):
             dim, d_state=mamba3_d_state, expand=mamba3_expand,
             headdim=mamba3_headdim, chunk_size=mamba3_chunk_size,
             ngroups=mamba3_ngroups, rope_fraction=mamba3_rope_fraction,
-            is_outproj_norm=mamba3_outproj_norm,
+            is_outproj_norm=mamba3_outproj_norm, in_proj_rank=mamba3_in_proj_rank,
         )
         self.mlp = MLP(dim, mlp_mult)
         self.m3_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -1427,7 +1448,7 @@ class GPT(nn.Module):
         mamba3_d_state: int = 64, mamba3_expand: float = 2,
         mamba3_headdim: int = 64, mamba3_chunk_size: int = 64,
         mamba3_ngroups: int = 1, mamba3_rope_fraction: float = 0.5,
-        mamba3_outproj_norm: bool = False,
+        mamba3_outproj_norm: bool = False, mamba3_in_proj_rank: int = 0,
         num_attn_layers: int = 1, num_heads: int = 8, num_kv_heads: int = 4,
         rope_base: float = 10000.0, qk_gain_init: float = 1.0,
         ve_enabled: bool = False, ve_dim: int = 64,
@@ -1502,6 +1523,7 @@ class GPT(nn.Module):
                     mamba3_headdim=mamba3_headdim, mamba3_chunk_size=mamba3_chunk_size,
                     mamba3_ngroups=mamba3_ngroups, mamba3_rope_fraction=mamba3_rope_fraction,
                     mamba3_outproj_norm=mamba3_outproj_norm,
+                    mamba3_in_proj_rank=mamba3_in_proj_rank,
                     layer_idx=i,
                 ))
 
@@ -1752,6 +1774,7 @@ def main() -> None:
         mamba3_headdim=args.mamba3_headdim, mamba3_chunk_size=args.mamba3_chunk_size,
         mamba3_ngroups=args.mamba3_ngroups, mamba3_rope_fraction=args.mamba3_rope_fraction,
         mamba3_outproj_norm=args.mamba3_outproj_norm,
+        mamba3_in_proj_rank=args.mamba3_in_proj_rank,
         num_attn_layers=args.num_attn_layers, num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads, rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
@@ -1819,7 +1842,7 @@ def main() -> None:
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(f"mode:mamba3_hybrid num_attn_layers:{args.num_attn_layers} attn_indices:{base_model.attn_indices}")
-    log0(f"ssd: d_state:{args.mamba3_d_state} expand:{args.mamba3_expand} headdim:{args.mamba3_headdim} ngroups:{args.mamba3_ngroups} rope_frac:{args.mamba3_rope_fraction} outproj_norm:{args.mamba3_outproj_norm}")
+    log0(f"ssd: d_state:{args.mamba3_d_state} expand:{args.mamba3_expand} headdim:{args.mamba3_headdim} ngroups:{args.mamba3_ngroups} rope_frac:{args.mamba3_rope_fraction} outproj_norm:{args.mamba3_outproj_norm} in_proj_rank:{args.mamba3_in_proj_rank}")
     log0(f"attn: num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads} rope_base:{args.rope_base}" +
          (f" window:{args.attn_seq_len}" if args.attn_seq_len > 0 else ""))
     log0(f"num_layers:{args.num_layers} mlp_mult:{args.mlp_mult}")
