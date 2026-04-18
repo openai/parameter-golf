@@ -52,6 +52,31 @@ The trainer keeps the existing final roundtrip eval and adds a final sliding win
 
 Both exact metrics are logged separately.
 
+## Early Smoke Results
+
+Short single GPU smoke runs were used to sanity check learning dynamics before a full length comparison.
+
+`random_up_moe_12l_5layers_e2`
+
+1. run with `TRAIN_BATCH_TOKENS=65536` and `MAX_WALLCLOCK_SECONDS=180`
+2. stopped at step `768`
+3. reached `train_loss=2.5663` at step `750`
+4. finished with `val_loss=2.6259` and `val_bpb=1.5552`
+5. averaged about `234.6 ms` per optimizer step
+
+This is materially stronger than the random guess starting point for a `1024` token vocabulary, which is about `ln(1024) ~= 6.93`. Even without completing the full schedule, the model clearly learns useful token structure and exits the near uniform regime quickly.
+
+`random_up_moe_12l_5layers_e2_rank8`
+
+1. matched the same short wall clock smoke setup
+2. reached `train_loss=3.7947` at step `100`
+3. reached `train_loss=2.5555` at step `750`
+4. averaged about `235.8 ms` per optimizer step
+
+The rank `8` correction path did not show a clear early training advantage over the pure routed `e2` variant in this short run. The train curves were very close, so the smoke result should be read as roughly neutral rather than a win or loss for the added correction path.
+
+Overall, these partial runs suggest the random MLP up construction is viable enough to train a competent model under the existing recipe, but they do not yet show a decisive benefit from the small low rank correction. A longer run with scheduled intermediate validation is still needed for a confident ranking across variants.
+
 ## Reproduce
 
 ```bash
