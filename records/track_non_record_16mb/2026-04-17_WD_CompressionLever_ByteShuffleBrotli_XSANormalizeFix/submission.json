@@ -1,0 +1,12 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-17",
+  "name": "WD as compression lever + byte-shuffle/brotli + XSA F.normalize fix",
+  "author": "Victor Fiz",
+  "github_id": "Bananakin1",
+  "val_bpb": 1.1470,
+  "val_bpb_standard_eval": 1.1812,
+  "bytes_total": 15960000,
+  "hardware": "single RTX 3070 (8 GB VRAM), 7000 steps, 10 train shards",
+  "note": "Non-record findings on the compression side of the pipeline. val_bpb measured locally on a single RTX 3070; not validated on 8xH100 yet. One verified finding (XSA F.normalize fix), one single-point observation (byte-shuffle+brotli), one un-isolated hypothesis (Muon WD as compression knob) — see README for the evidence breakdown."
+}
