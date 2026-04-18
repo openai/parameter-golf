@@ -710,21 +710,23 @@ def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
         W_block = W_work[:, i1:i2].clone()
         Hinv_block = Hinv[i1:i2, i1:i2]
         Err = torch.zeros(rows, i2 - i1)
+        # Precompute NF bin boundaries for fast quantization (midpoints between levels)
+        sorted_levels, _ = nf_levels.sort()
+        bin_edges = (sorted_levels[:-1] + sorted_levels[1:]) / 2  # (n_levels-1,)
         for j in range(i2 - i1):
             w_col = W_block[:, j]
             d = Hinv_block[j, j]
             z_col = w_col / sf  # normalize to z-scores
-            # Snap to nearest NF level
-            dists = (z_col.unsqueeze(1) - nf_levels.unsqueeze(0)).abs()
-            idx = dists.argmin(dim=1)
+            # Fast binning via searchsorted (O(rows * log(n_levels)) vs O(rows * n_levels))
+            idx = torch.searchsorted(bin_edges, z_col)
             Q[:, i1 + j] = idx.to(torch.int8)
-            recon = nf_levels[idx] * sf  # reconstruction
+            recon = sorted_levels[idx] * sf  # reconstruction
             err = (w_col - recon) / d
             Err[:, j] = err
             W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
         if i2 < cols:
             W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
-    return (Q[:, invperm], s, nf_levels)
+    return (Q[:, invperm], s, sorted_levels)
 
 def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     W_orig = w.float().clone()
