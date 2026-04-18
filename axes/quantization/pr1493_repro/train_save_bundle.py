@@ -670,6 +670,62 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
         hessians[name] = hessians[name].cpu() / n_calibration_batches
     return hessians
 
+def _compute_nf_levels(bits):
+    """Compute NormalFloat quantization levels (Gaussian quantile centroids)."""
+    n = 2 ** bits
+    # Equal-probability bin boundaries on N(0,1)
+    probs = torch.linspace(0, 1, n + 1)
+    probs[0] = 0.001; probs[-1] = 0.999  # avoid ±inf
+    boundaries = torch.erfinv(2 * probs - 1) * math.sqrt(2)
+    # Centroids: E[X | b_i < X < b_{i+1}] = (phi(b_i) - phi(b_{i+1})) / (Phi(b_{i+1}) - Phi(b_i))
+    phi = lambda x: torch.exp(-0.5 * x**2) / math.sqrt(2 * math.pi)
+    prob_mass = probs[1:] - probs[:-1]
+    levels = (phi(boundaries[:-1]) - phi(boundaries[1:])) / prob_mass
+    return levels  # (2^bits,) in z-score space
+
+def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
+    """GPTQ with NormalFloat levels instead of uniform. Scale = row_std."""
+    W_orig = w.float().clone()
+    rows, cols = W_orig.shape
+    nf_levels = _compute_nf_levels(bits)  # (2^bits,) z-score levels
+    H = H.float().clone()
+    dead = torch.diag(H) == 0
+    H[dead, dead] = 1
+    damp = 0.01 * H.diag().mean()
+    H.diagonal().add_(damp)
+    perm = torch.argsort(H.diag(), descending=True)
+    invperm = torch.argsort(perm)
+    W_perm = W_orig[:, perm].clone()
+    W_perm[:, dead[perm]] = 0
+    H = H[perm][:, perm]
+    Hinv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    row_std = W_orig.std(dim=1).clamp_min(1e-10)
+    s = row_std.to(torch.float16)  # scale = row_std (no k needed for NF)
+    sf = s.float()
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    W_work = W_perm.clone()
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        W_block = W_work[:, i1:i2].clone()
+        Hinv_block = Hinv[i1:i2, i1:i2]
+        Err = torch.zeros(rows, i2 - i1)
+        for j in range(i2 - i1):
+            w_col = W_block[:, j]
+            d = Hinv_block[j, j]
+            z_col = w_col / sf  # normalize to z-scores
+            # Snap to nearest NF level
+            dists = (z_col.unsqueeze(1) - nf_levels.unsqueeze(0)).abs()
+            idx = dists.argmin(dim=1)
+            Q[:, i1 + j] = idx.to(torch.int8)
+            recon = nf_levels[idx] * sf  # reconstruction
+            err = (w_col - recon) / d
+            Err[:, j] = err
+            W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
+        if i2 < cols:
+            W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+    return (Q[:, invperm], s, nf_levels)
+
 def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
@@ -708,6 +764,7 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     return (Q[:, invperm], s)
 
 def gptq_mixed_quantize(state_dict, hessians, h):
+    quant_format = os.environ.get('QUANT_FORMAT', 'uniform')  # 'uniform' or 'nf'
     result = {}
     meta = {}
     for name, tensor in state_dict.items():
@@ -716,12 +773,21 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             result[name] = t.to(torch.float16) if t.is_floating_point() else t
             meta[name] = 'passthrough (float16)'
             continue
-        cs = h.embed_clip_sigmas if 'tok_emb' in name else h.matrix_clip_sigmas
-        bits = h.embed_bits if 'tok_emb' in name else h.matrix_bits
-        q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
-        result[name + '.q'] = q
-        result[name + '.scale'] = s
-        meta[name] = f'gptq (int{bits})'
+        is_embed = 'tok_emb' in name
+        cs = h.embed_clip_sigmas if is_embed else h.matrix_clip_sigmas
+        bits = h.embed_bits if is_embed else h.matrix_bits
+        use_nf = (quant_format == 'nf') and not is_embed  # NF for matrices, uniform for tok_emb
+        if use_nf:
+            q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=bits, block_size=128)
+            result[name + '.q'] = q
+            result[name + '.scale'] = s
+            result[name + '.nf_lut'] = nf_lut.to(torch.float16)
+            meta[name] = f'gptq (nf{bits})'
+        else:
+            q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
+            result[name + '.q'] = q
+            result[name + '.scale'] = s
+            meta[name] = f'gptq (int{bits})'
     categories = collections.defaultdict(set)
     for name, cat in meta.items():
         short = re.sub('\\.\\d+$', '', re.sub('blocks\\.\\d+', 'blocks', name))
@@ -745,7 +811,14 @@ def dequantize_mixed(result, meta, template_sd):
             out[name] = t
             continue
         q, s = (result[name + '.q'], result[name + '.scale'])
-        if s.ndim > 0:
+        nf_lut_key = name + '.nf_lut'
+        if nf_lut_key in result:
+            # NF dequant: reconstruction = nf_lut[index] * scale
+            nf_lut = result[nf_lut_key].float()
+            indices = q.long()
+            recon = nf_lut[indices] * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
+            out[name] = recon.to(orig_dtype)
+        elif s.ndim > 0:
             out[name] = (q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))).to(orig_dtype)
         else:
             out[name] = (q.float() * float(s.item())).to(orig_dtype)
