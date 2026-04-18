@@ -1,7 +1,8 @@
 # SWA + EMA combo
 
-**Status:** candidate
-**Expected Δ:** +0.001 to +0.003
+**Status:** ❌ SHELVED 2026-04-19 — tested as spec 002, linear monotonic worsening with SWA fraction (+0.006 at 25% SWA, +0.042 at 100% SWA). See `research/evaluations/002-swa-plus-ema.md` and `diary/2026-04-19-spec-002-swa-kill.md`. Do not revisit without a fundamentally different snapshot-collection protocol (e.g. dense late-warmdown sampling on a purpose-built training run).
+**Observed Δ:** +0.006 to +0.042 bpb (all hurt; linearly scales with SWA fraction).
+**Original Expected Δ:** +0.001 to +0.003 (did not transfer to our stack).
 **Source:** 2026-03-25 submission used SWA on top of EMA.
 
 ## Idea
