@@ -131,7 +131,8 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
     latest_depth3_eval_aligned_20260418)
       # Latest experiment preset (depth-3 from start + eval-aligned fast path).
       # Mirrors tool wrappers and recent train_gpt_verbose.py updates.
-      set_default_env DDP_FIND_UNUSED_PARAMETERS 1
+      set_default_env DDP_FIND_UNUSED_PARAMETERS 0
+      set_default_env DDP_STATIC_GRAPH 1
       set_default_env COMPETITION_PROFILE 1
       set_default_env EXPORT_MODE competition_gptq
       set_default_env RUNTIME_PATH_POLICY strict
@@ -139,7 +140,7 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
       set_default_env TRAINING_DEPTH_RECURRENCE 3
       set_default_env EVAL_DEPTH_RECURRENCE 3
       set_default_env RECURRENCE_START_FRACTION 0.0
-      set_default_env FEEDBACK_PASSES 1
+      set_default_env FEEDBACK_PASSES 0
       set_default_env EVAL_FEEDBACK_PASSES 1
       set_default_env EVAL_HW_TIER h100_8x
       set_default_env TTT_GRAD_CHECKPOINT 0
@@ -150,6 +151,9 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
       set_default_env TORCHDYNAMO_CACHE_SIZE_LIMIT 64
       set_default_env MAX_WALLCLOCK_SECONDS 540
       set_default_env TRAIN_BATCH_TOKENS 32768
+      set_default_env TRAIN_BATCH_TOKENS_AUTO 1
+      set_default_env TERNARY_CALIB_DISTRIBUTED 1
+      set_default_env EXPORT_PARITY_SHARDED 1
       set_default_env TRAIN_SEQ_LEN 1024
       set_default_env TERNARY_THRESHOLD_SEARCH 1
       set_default_env TERNARY_SCALE_SEARCH 1
@@ -183,6 +187,13 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
       set_default_env SYNTHETIC_WARMUP 1
       set_default_env COMPILE_SHAPE_PADDING 1
       set_default_env COMPILE_TRITON_CUDAGRAPHS 1
+      # Reliability guards added 2026-04-18: keep final eval + export parity + full
+      # per-tensor ternary calibration on, so roundtrip_logit_audit stays high-fidelity
+      # and rank-side dynamo compile failures can't kill final_evaluation.
+      set_default_env EVAL_DISABLE_DYNAMO 1
+      set_default_env FULL_TERNARY_CALIBRATION 1
+      set_default_env EXPORT_PARITY_HARNESS 1
+      set_default_env EXPORT_PARITY_HARNESS_DISTRIBUTED 1
       ;;
     best_comp10m_20260418_124242)
       # Repro preset for records/logs/best_comp10m_20260418_124242.*

@@ -4286,7 +4286,17 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device, base
     max_seconds = args.calib_max_seconds
     proxy_max_tok = args.calib_proxy_max_tok
     proxy_tokens = proxy_tokens[:proxy_max_tok] if proxy_tokens.numel() > proxy_max_tok else proxy_tokens
-    sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
+    _calib_distributed = int(os.environ.get('TERNARY_CALIB_DISTRIBUTED', '1')) == 1
+    _dist_on = dist.is_available() and dist.is_initialized() and (dist.get_world_size() > 1)
+    _calib_sharded = _calib_distributed and _dist_on
+    _rank = dist.get_rank() if _dist_on else 0
+    _ws = dist.get_world_size() if _dist_on else 1
+    if _calib_sharded:
+        # Keep state-dict tensors on their current GPU device to avoid host<->device copies
+        # during sensitivity probing. load_state_dict handles device placement.
+        sd = {k: v.detach().clone() for (k, v) in base_model.state_dict().items()}
+    else:
+        sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
     ternary_names = export_ternary_param_names(base_model)
 
     def _budget_ok():
@@ -4316,14 +4326,51 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device, base
     probe_thr = thr_vals[len(thr_vals) // 2] if len(thr_vals) > 1 else 0.05
     probe_sm = scale_vals[len(scale_vals) // 2] if len(scale_vals) > 1 else 1.0
     sensitivities: list[tuple[float, str]] = []
-    for name in rank_pool:
-        if not _budget_ok():
-            remaining = [n for n in rank_pool if n not in {s[1] for s in sensitivities}]
-            sensitivities += [(0.0, n) for n in remaining]
-            break
-        probe = {name: {'thr': probe_thr, 'scale_mult': probe_sm}}
-        delta = abs(_eval(probe) - baseline_bpb)
-        sensitivities.append((delta, name))
+    if _calib_sharded:
+        # Shard sensitivity probing: rank r evaluates rank_pool[r::ws]. After each rank
+        # finishes its assigned tensors (or hits budget), all_gather_object merges results
+        # onto every rank so _EXPORT_CALIB is identical downstream.
+        _local_sens: list[tuple[float, str]] = []
+        for (_idx, name) in enumerate(rank_pool):
+            if _idx % _ws != _rank:
+                continue
+            if not _budget_ok():
+                _local_sens.append((0.0, name))
+                continue
+            probe = {name: {'thr': probe_thr, 'scale_mult': probe_sm}}
+            delta = abs(_eval(probe) - baseline_bpb)
+            _local_sens.append((delta, name))
+        try:
+            dist.barrier()
+        except Exception:
+            pass
+        _gathered: list = [None] * _ws
+        try:
+            dist.all_gather_object(_gathered, _local_sens)
+        except Exception:
+            _gathered = [_local_sens]
+        _seen: set[str] = set()
+        for _chunk in _gathered:
+            if not _chunk:
+                continue
+            for (_d, _n) in _chunk:
+                if _n in _seen:
+                    continue
+                _seen.add(_n)
+                sensitivities.append((float(_d), _n))
+        # Cover anything missing (e.g. rank ran out of budget before processing).
+        for _n in rank_pool:
+            if _n not in _seen:
+                sensitivities.append((0.0, _n))
+    else:
+        for name in rank_pool:
+            if not _budget_ok():
+                remaining = [n for n in rank_pool if n not in {s[1] for s in sensitivities}]
+                sensitivities += [(0.0, n) for n in remaining]
+                break
+            probe = {name: {'thr': probe_thr, 'scale_mult': probe_sm}}
+            delta = abs(_eval(probe) - baseline_bpb)
+            sensitivities.append((delta, name))
     sensitivities.sort(reverse=True)
     candidates = [name for (_, name) in sensitivities[:top_n]]
 
@@ -4344,22 +4391,50 @@ def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device, base
                     best_bpb = bpb
                     (best_thr, best_sm) = (thr, sm)
         return (best_thr, best_sm, best_bpb)
-    for name in candidates:
-        if not _budget_ok():
-            break
-        (best_thr, best_sm, best_bpb) = _search_one(name, calib, baseline_bpb)
-        if best_thr != 0.0 or best_sm != 1.0:
-            calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
-            baseline_bpb = best_bpb
-    if args.calib_second_pass:
-        for name in list(calib.keys()):
+    _full_calib = int(os.environ.get('FULL_TERNARY_CALIBRATION', '0')) == 1
+    # When sharded, only rank 0 runs the per-candidate fine search (sequential state mutation
+    # of `calib`/`baseline_bpb` makes parallelizing correctness-preserving hard). We then
+    # broadcast the authoritative calib to all ranks so _EXPORT_CALIB is identical everywhere.
+    _do_search = (not _calib_sharded) or (_rank == 0)
+    if _do_search:
+        for name in candidates:
             if not _budget_ok():
                 break
             (best_thr, best_sm, best_bpb) = _search_one(name, calib, baseline_bpb)
-            calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
-            baseline_bpb = best_bpb
+            if best_thr != 0.0 or best_sm != 1.0:
+                calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
+                baseline_bpb = best_bpb
+            elif _full_calib:
+                calib[name] = {'thr': 0.0, 'scale_mult': 1.0}
+        if _full_calib:
+            for name in all_eligible:
+                if name not in calib:
+                    calib[name] = {'thr': 0.0, 'scale_mult': 1.0}
+        if args.calib_second_pass:
+            for name in list(calib.keys()):
+                if not _budget_ok():
+                    break
+                (best_thr, best_sm, best_bpb) = _search_one(name, calib, baseline_bpb)
+                calib[name] = {'thr': best_thr, 'scale_mult': best_sm}
+                baseline_bpb = best_bpb
+    if _calib_sharded:
+        try:
+            dist.barrier()
+        except Exception:
+            pass
+        _bcast = [calib if _rank == 0 else None]
+        try:
+            dist.broadcast_object_list(_bcast, src=0)
+            calib = _bcast[0] if isinstance(_bcast[0], dict) else {}
+        except Exception:
+            # Fallback: ensure all ranks have something consistent (empty = identity).
+            calib = calib if _rank == 0 else {}
+        try:
+            dist.barrier()
+        except Exception:
+            pass
     elapsed = _time.perf_counter() - t_start
-    print(f'calib:budget evals={evals[0]}/{max_evals} time={elapsed:.1f}s/{max_seconds}s', flush=True)
+    print(f'calib:budget evals={evals[0]}/{max_evals} time={elapsed:.1f}s/{max_seconds}s sharded={_calib_sharded}', flush=True)
     return calib
 
 def ternary_clip_search(state_dict: dict, group_size: int, num_percentiles: int=5, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, clip_mode: str='percentile', row_std_k: float=12.85, embed_row_std_k: float=20.0) -> dict:
@@ -4485,6 +4560,38 @@ def main() -> None:
         dist.init_process_group(backend=dist_backend, device_id=device if device.type == 'cuda' else None, timeout=timedelta(seconds=_nccl_timeout_sec))
         dist.barrier()
     master_process = rank == 0
+    # Hardware-aware TRAIN_BATCH_TOKENS auto-bump. Gated by TRAIN_BATCH_TOKENS_AUTO=1.
+    # Queries per-rank free GPU memory and picks a tier; scales down for deep recurrence.
+    # Respects explicit user setting unless AUTO=1 (which allows override).
+    try:
+        _auto = int(os.environ.get('TRAIN_BATCH_TOKENS_AUTO', '0')) == 1
+    except Exception:
+        _auto = False
+    if _auto and device.type == 'cuda':
+        try:
+            (_free, _total) = torch.cuda.mem_get_info(device)
+            _free_mb_local = torch.tensor([int(_free // (1024 * 1024))], device=device, dtype=torch.long)
+            if distributed:
+                dist.all_reduce(_free_mb_local, op=dist.ReduceOp.MIN)
+            _free_mb = int(_free_mb_local.item())
+            if _free_mb < 30 * 1024:
+                _chosen = 32768; _tier = '3090-safe (<30GB)'
+            elif _free_mb < 60 * 1024:
+                _chosen = 65536; _tier = 'mid (30-60GB)'
+            else:
+                _chosen = 131072; _tier = 'h100 (>60GB)'
+            _depth = max(1, int(getattr(args, 'training_depth_recurrence', 0)))
+            _orig = _chosen
+            if _depth >= 3:
+                # Recurrence ~N× activation memory; divide target accordingly (min 8192).
+                _chosen = max(8192, (_chosen // _depth))
+            _prev = int(args.train_batch_tokens)
+            args.train_batch_tokens = int(_chosen)
+            if master_process:
+                print(f'batch_auto: free_mb={_free_mb} depth={_depth} chose tokens={_chosen} (tier={_tier} pre_depth={_orig} prev_explicit={_prev})', flush=True)
+        except Exception as _e_auto:
+            if master_process:
+                print(f'batch_auto: skipped ({_e_auto})', flush=True)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     os.makedirs('logs/cuda/', exist_ok=True)
@@ -5332,8 +5439,25 @@ def main() -> None:
             args.ttt_grad_checkpoint = gc0
         raise RuntimeError('legal_ttt evaluation failed after OOM retries')
     apply_eval_hw_tier_defaults(args, device, log0=log0)
+    # Guard final eval against rank-side dynamo/compile failures. Final eval runs once,
+    # so prefer eager fallback over crashing the whole run with ChildFailedError.
+    if int(os.environ.get('EVAL_DISABLE_DYNAMO', '0')) == 1:
+        try:
+            torch._dynamo.config.suppress_errors = True
+        except Exception:
+            pass
+        try:
+            torch._dynamo.reset()
+        except Exception:
+            pass
+        log0('final_evaluation:dynamo_disabled suppress_errors=1 (EVAL_DISABLE_DYNAMO=1)', flush=True)
     log0(f'final_evaluation:starting step:{step + 1}/{args.iterations}')
-    (val_loss, val_bpb) = _eval_val_safe()
+    if int(os.environ.get('EVAL_DISABLE_DYNAMO', '0')) == 1:
+        _fn = torch._dynamo.disable(_eval_val_safe) if hasattr(torch._dynamo, 'disable') else _eval_val_safe
+        with nullcontext():
+            (val_loss, val_bpb) = _fn()
+    else:
+        (val_loss, val_bpb) = _eval_val_safe()
     (final_loss, final_bpb) = (val_loss, val_bpb)
     log0(f'final_evaluation:completed val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}')
     # FINAL VERIFICATION: Diagnostic evaluation on a slice of training data
@@ -5503,7 +5627,17 @@ def main() -> None:
         _roundtrip_ref = collect_roundtrip_logit_reference(args, base_model, val_tokens, device=device)
         if getattr(args, 'roundtrip_logit_audit', False):
             _parity_baseline_logits = _roundtrip_ref['logits'].to(device=device, dtype=torch.float32)
-        if int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and world_size == 1:
+        _parity_allow_distributed = int(os.environ.get('EXPORT_PARITY_HARNESS_DISTRIBUTED', '0')) == 1
+        _parity_enabled = int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1
+        # EXPORT_PARITY_SHARDED reserved for future parallel stage execution. Currently a
+        # no-op flag that preserves the sequential A->B->C path (stages mutate shared model
+        # state_dict and cross-rank sharding would require broadcasting _best_q_obj and
+        # _parity_live_sd; left sequential to avoid correctness risk in export path).
+        _parity_sharded = int(os.environ.get('EXPORT_PARITY_SHARDED', '0')) == 1
+        if _parity_sharded and master_process:
+            log0('export_parity:sharded_flag_set (currently no-op; stages run sequentially on rank 0 by design)')
+        _parity_run_now = _parity_enabled and (world_size == 1 or _parity_allow_distributed)
+        if _parity_run_now:
             n_tok = int(max(64, getattr(args, 'roundtrip_logit_audit_tokens', 1024)))
             # A: live float baseline (no explicit final calib)
             load_roundtrip_state_strict(base_model, _parity_live_sd)
@@ -5522,8 +5656,8 @@ def main() -> None:
             log0(f"export_parity:stage=A live_float_baseline ce={_a_loss:.6f} bpb={_a_bpb:.6f} l2=0.000000 max_abs=0.000000 argmax_agree=1.0000 topk_kl=0.000000e+00")
             log0(f"export_parity:stage=B live_float_after_apply_final_calib ce={_b_loss:.6f} bpb={_b_bpb:.6f} l2={_ab['l2']:.6f} max_abs={_ab['max_abs']:.6f} argmax_agree={_ab['argmax_agree']:.4f} topk_kl={_ab['topk_kl']:.6e}")
             log0(f"export_parity:stage=C dequant_roundtrip_no_codec ce={_c_loss:.6f} bpb={_c_bpb:.6f} l2={_ac['l2']:.6f} max_abs={_ac['max_abs']:.6f} argmax_agree={_ac['argmax_agree']:.4f} topk_kl={_ac['topk_kl']:.6e}")
-        elif int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and world_size > 1:
-            log0('export_parity:skipped in distributed mode (set NPROC=1 for full A/B/C/D parity harness)')
+        elif _parity_enabled and world_size > 1 and not _parity_allow_distributed:
+            log0('export_parity:skipped in distributed mode (set EXPORT_PARITY_HARNESS_DISTRIBUTED=1 to run on rank 0, or NPROC=1 for single-gpu parity)')
         if args.eval_depth_recurrence > 0:
             base_model.training_depth_recurrence = args.eval_depth_recurrence
             if hasattr(base_model, 'backbone'):
@@ -5568,7 +5702,7 @@ def main() -> None:
     export_eval_hard_reset(args, base_model, device, log0=log0, context='roundtrip_eval', apply_calib=_loaded_roundtrip_calib or final_calib)
     if master_process:
         run_roundtrip_logit_audit(args, base_model, _roundtrip_ref, device=device, log0=log0)
-        if int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and _parity_baseline_logits is not None and world_size == 1:
+        if int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and _parity_baseline_logits is not None and (world_size == 1 or int(os.environ.get('EXPORT_PARITY_HARNESS_DISTRIBUTED', '0')) == 1):
             n_tok = int(max(64, getattr(args, 'roundtrip_logit_audit_tokens', 1024)))
             tok = val_tokens[:n_tok + 1]
             x = tok[:-1].to(device=device, dtype=torch.int64).unsqueeze(0)
