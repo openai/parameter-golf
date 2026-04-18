@@ -72,7 +72,9 @@ Phase-boundary set, emitted automatically when `CKPT_DIR` is set. Purpose: reusa
 - **Ckpt-I/O preflight fail:** if the `Checkpoints will be saved at steps: [...]` log line doesn't appear on rank 0 within the first minute, or the momentum-warmup ckpt doesn't land on disk within ~60s of training start, kill before step 500 — `CKPT_DIR` is not plumbed through.
 
 ## Cost estimate
-- 8×H100 NA-1, ~10 min **training** / ~12 min **total wall** (compile + evals + EMA/quant/compress + ckpt writes): **~$3.50**.
+- 8×H100 NA-1, ~10 min **training** / ~20 min **total wall**: **~$6.00**.
+- Wall breakdown: 10 min training + ~1 min EMA/quant/compress + ~25s quantized eval + ~2 min sliding-window eval + ~6 min TTT eval + ckpt writes.
+- Prior spec said "~12 min / ~$3.50" — that was training-only thinking; TTT eval alone adds ~6 min.
 
 ## Extra artifacts
 The 9-file phase-boundary checkpoint set IS the artifact beyond defaults. No separate extras.
