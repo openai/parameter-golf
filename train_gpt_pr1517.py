@@ -1196,6 +1196,7 @@ def ttt_score_first(
 
     def _score_range(seq_start_global, seq_end_global):
         """Score a global range of sequences, distributed across ranks."""
+        nonlocal loss_sum, token_count, byte_count
         n_seqs = seq_end_global - seq_start_global
         r_start = seq_start_global + (n_seqs * rank) // world_size
         r_end = seq_start_global + (n_seqs * (rank + 1)) // world_size
