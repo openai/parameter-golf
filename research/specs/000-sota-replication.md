@@ -18,14 +18,20 @@ Official leaderboard entry `2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTT
 - No NaN, no divergence, wall time within 20% of SOTA submission's ~588s.
 
 ## Config diff
-One override: **`BIGRAM_VOCAB_SIZE=0`** to disable the BigramHash embedding that's present in our `train_gpt_sota.py` (commit `d529fe8`) but NOT in the leaderboard SOTA submission. Defaults otherwise enable BigramHash at 3072×112 (see `train_gpt_sota.py:97-98, 432-474`), which would mean running a different model than the 2026-04-09 reference. Setting `BIGRAM_VOCAB_SIZE=0` gates `self.bigram` to `None` (L474) and matches the leaderboard.
+Three env overrides required to match the 2026-04-09 leaderboard SOTA submission:
 
-Otherwise: shipped defaults — SP8192 tokenizer, 11L / 512d / MLP4×, 3-layer depth recurrence, parallel residuals from layer 7, LeakyReLU², MuonEq-R, GPTQ INT6, SDClip, EMA, TTT enabled, sliding window, brotli-11.
+- **`BIGRAM_VOCAB_SIZE=0`** — disables BigramHash embedding present in our code (L474 gates `self.bigram` to `None`) but absent from the SOTA submission. Default in code is 3072; must be zeroed.
+- **`QK_GAIN_INIT=5.25`** — SOTA log confirms `qk_gain_init: 5.25`; code default is 5.0. Confirmed by decoding the SOTA submission source.
+- **`TTT_ENABLED=1`** — SOTA log confirms TTT active; code default is 0. Confirmed by SOTA README reproduction command and decoded source.
+
+Note: `ttt_hash_buckets=16384` and `ttt_hash_embed=True` appear in the SOTA config log but are **dead config** — decoded SOTA source confirms no code path references them. Our code missing them is fine.
+
+Otherwise: shipped defaults — SP8192 tokenizer, 11L / 512d / MLP4×, 3-layer depth recurrence, parallel residuals from layer 7, LeakyReLU², MuonEq-R, GPTQ INT6, SDClip, EMA, sliding window, brotli-11.
 
 ## Code changes
 - Branch: `research`
 - Commit: `01e6fcf` (HEAD at spec freeze)
-- Diff: none
+- Diff: none (hyperparam-only — all changes are env overrides, no code edits)
 
 ## Hardware ladder
 - [ ] 2×H100 mini — **skip**, Exp 24 already validated the SOTA code path on 2×H100
@@ -78,3 +84,5 @@ The 9-file phase-boundary checkpoint set IS the artifact beyond defaults. No sep
 - Confirm ≥ 15 GB free on NA-1 scratch for the checkpoint set.
 - Confirm `CKPT_DIR=/workspace/runs/000-sota-replication/checkpoints/` and `CKPT_STEPS=455,1137,2275,3412` are set in the launch env before `torchrun`.
 - Confirm `BIGRAM_VOCAB_SIZE=0` is set in the launch env (overrides the default 3072 that's baked into our code but absent from the leaderboard SOTA).
+- Confirm `QK_GAIN_INIT=5.25` is set (code default 5.0; SOTA log confirms 5.25).
+- Confirm `TTT_ENABLED=1` is set (code default 0; SOTA README + log confirm TTT active).
