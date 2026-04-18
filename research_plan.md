@@ -461,9 +461,9 @@ Re-ranked candidates from §4/§5 that were not yet executed:
 | iter_22/a-d | Hessian-aware SDClip (H-weighted per-row std) | Quantization | −0.001–0.003 | **REVERT** — neutral-to-negative at matched size (see note) |
 | iter_23/b/c | Mixed-bit per-layer | Quantization | −0.001–0.003 | **REVERT** — int5 cost > int7 gain |
 | iter_24 | Per-role SDClip (c_v +15%, c_q/c_k -5%, attn.proj +5%) | Quantization | −0.001–0.002 | **KEEP** (−0.00017, smaller too) |
-| iter_25 | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | pending |
-| iter_26 | QK-Gain per-layer schedule | Init | −0.001–0.002 | pending |
-| iter_27 | Newton-Schulz 5→6 iterations | Optimizer | −0.000–0.002 | pending |
+| iter_25/b | MTP 4 heads, weight 0.3 | Architecture | −0.001–0.003 | **REVERT** — +0.11 bpb, MTP overhead kills step count (see note) |
+| iter_26/b | QK-Gain per-layer init schedule | Init | −0.001–0.002 | **REVERT** — +0.0006 (ramp up) / +0.0016 (ramp down) |
+| iter_27/b | Newton-Schulz 5→6 / 5→4 | Optimizer | −0.000–0.002 | **REVERT** — 6 +0.0043, 4 +0.0019 (NS=5 is a local min) |
 | iter_28 | SP16384 vocabulary rebuild | Tokenizer | −0.003–0.008 (biggest but priciest) | pending |
 | iter_29+ | Loop config refinement / based on wins above | Architecture | TBD | pending |
 
@@ -521,5 +521,60 @@ Learnings:
 4. **If revisited:** try (a) **asymmetric early-only int7** combined with `clip_sigmas` tightening (not just bit change) to recover size, (b) int6→int7 on attention only (fewer tensors, cheaper), (c) attempt layer 0 int8 like tok_emb (highest sensitivity per K_MUL), and/or (d) try **per-head bit allocation** within attention.
 
 Reverted to iter_15b baseline.
+
+### iter_25 notes (MTP 4 heads, weight 0.3 — REVERTED)
+
+Added 4 extra `CastedLinear(model_dim, model_dim)` heads that project the final hidden state to shifted-by-k targets (k=1..4). Auxiliary loss = `(mtp_weight / K) * Σ_k CE(project(head_k(x))[:-k], targets[k:])`. MTP heads gated on `self.training` so validation is main-loss only; serialization filters `mtp_heads.*` so on-disk weights are unchanged (heads are training-only scaffolding).
+
+| Sub-iter | Fix | steps | pre-EMA val_bpb | quant_val_bpb | Decision |
+|---|---|---|---|---|---|
+| iter_25 (first run) | eval still counted MTP aux → inflated val | 598 | 2.096 | 1.3579 | broken eval |
+| iter_25b | `self.training` gate fixes eval | 598 | 1.367 | **1.3572** | **REVERT** |
+
+Baseline (iter_24): ~790 steps, quant_val_bpb ≈ 1.2461. MTP run: 598 steps, 1.3572 → **+0.111 bpb regression**.
+
+Learnings:
+1. **MTP pays in training time, not bpb** at this budget. Four extra projections per forward cut tok/s from ~580K to ~490K; at 10 min wallclock that's ~24% fewer optimizer steps, which alone costs ~0.02 bpb (extrapolating from iter_16-19 step-count scaling).
+2. Pre-EMA val (1.367) is only slightly worse than post-quant (1.357) → EMA actually *recovers* some of the loss, so the under-trained checkpoint is the main culprit, not the MTP signal per se.
+3. **If revisited:** (a) reduce K to 2 heads, (b) only activate MTP for the last fraction of training (`frac > 0.6`) so it doesn't starve early steps, (c) share a single projection across all k-offsets via a learned offset embedding, (d) try smaller-dim heads (d/2) to halve FLOPs, (e) only test MTP on a hardware regime where step count is less binding (8xH100 SXM final runs).
+4. Worth noting the on-disk weights logic worked cleanly — the filter-in-serialize pattern means we can freely experiment with auxiliary-only training signals without paying size.
+
+Reverted to iter_24 baseline (per-role SDClip kept).
+
+### iter_26 notes (per-layer QK-Gain init schedule — REVERTED)
+
+`q_gain` is a learnable per-head parameter, but all layers share init `qk_gain_init=6.0`. Hypothesis: depth changes optimal attention sharpness, so layer-varying init could land in a better basin.
+
+Threaded `layer_idx` + `num_layers` into `CausalSelfAttention` and initialized `q_gain[L] = qk_gain_init * (a + b * L/(N−1))`.
+
+| Sub-iter | Schedule (L0→L10) | quant_sliding_window_val_bpb | Δ vs iter_24 |
+|---|---|---|---|
+| iter_26 | 0.75x → 1.25x (up ramp, shallow → sharp) | 1.246768 | +0.00061 |
+| iter_26b | 1.15x → 0.85x (down ramp, sharp → shallow) | 1.247734 | +0.00158 |
+
+Learnings:
+1. **Symmetric regression in both directions** — this is the cleanest signal that uniform init at 6.0 already sits in a reasonable basin that diverging from (in either direction, with 11 layers of gradient flow to find per-layer adjustments) makes worse.
+2. The per-head `q_gain` is learnable, so the schedule is only an init perturbation. At 790 steps the model doesn't fully undo a bad init.
+3. The up-ramp was slightly less harmful than down-ramp — *weakly* consistent with the intuition that deeper layers want sharper attention — but the magnitude is too small relative to noise.
+4. **If revisited:** (a) try a non-linear (concave/convex) schedule centered on 6.0, (b) try fixing early layers at a **different value** rather than a ramp (e.g. L0 only at 7.5), (c) combine with per-head gain differentiation *within* a layer (outlier heads given different init), (d) reconsider after Newton-Schulz iters (iter_27) changes the optimizer's ability to move q_gain quickly.
+
+Reverted to iter_24 baseline.
+
+### iter_27 notes (Newton-Schulz steps 5 → 6 / 4 — REVERTED)
+
+`zeropower_via_newtonschulz5` uses fixed cubic coefficients `(a,b,c) = (3.4445, -4.775, 2.0315)` from Keller Jordan's Muon reference — tuned specifically for 5 iterations (the polynomial sequence was optimized so 5 applications approximate SVD-whitening on expected singular-value distributions).
+
+| Sub-iter | NS steps | quant_sliding_window_val_bpb | Δ vs iter_24 |
+|---|---|---|---|
+| iter_27 | 6 | 1.250480 | +0.00432 |
+| iter_27b | 4 | 1.248019 | +0.00186 |
+
+Learnings:
+1. **NS=5 is a local minimum** — both +1 and −1 step regress, consistent with the coefficients being over-fit to exactly 5 iterations (adding a step overshoots past orthogonal; dropping a step under-whitens).
+2. The 6-step hit (+0.00432) is worse than the 4-step hit (+0.00186), suggesting the polynomial blows up faster when iterated past its design point than it fails to converge when truncated early.
+3. **If revisited:** this is a "big idea" whose win requires **re-deriving the (a,b,c) coefficients for the new step count** (via the Lagrangian polynomial fit from Jordan's writeup). Plain step-count tuning without coef retuning is fundamentally the wrong experiment.
+4. Could also try **double-precision in the quadratic update** (some users report fp64 A@A helps more than extra steps), or a heterogeneous mix — NS=6 only for the biggest tensors where whitening matters most.
+
+Reverted to iter_24 baseline.
 
 Deferred to final 8xH100 tuning (do NOT run in dev): `train_batch_tokens`, warmdown_frac shape, EMA decay, SWA, LR schedule tails.
