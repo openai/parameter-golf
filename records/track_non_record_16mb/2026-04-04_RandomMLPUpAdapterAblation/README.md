@@ -64,7 +64,7 @@ Short single GPU smoke runs were used to sanity check learning dynamics before a
 4. finished with `val_loss=2.6259` and `val_bpb=1.5552`
 5. averaged about `234.6 ms` per optimizer step
 
-This is materially stronger than the random guess starting point for a `1024` token vocabulary, which is about `ln(1024) ~= 6.93`. Even without completing the full schedule, the model clearly learns useful token structure and exits the near uniform regime quickly.
+This is materially stronger than the random guess starting point for a `1024` token vocabulary, which is about `ln(1024) ~= 6.93`. Even without completing the full schedule, the model clearly learns useful token structure and exits the near uniform regime quickly. Admittedly it is far below other competitors and it is questionalbe whether or not the compute and latency costs are worthwhile with gains. Probably looking forward need to look at efficiency. 
 
 `random_up_moe_12l_5layers_e2_rank8`
 
