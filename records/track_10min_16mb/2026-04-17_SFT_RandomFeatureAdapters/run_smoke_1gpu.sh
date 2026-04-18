@@ -4,7 +4,7 @@
 #   bash records/track_10min_16mb/2026-04-17_SFT_RandomFeatureAdapters/run_smoke_1gpu.sh
 
 set -euo pipefail
-cd "$(dirname "$0")/../../../.."   # repo root
+cd "$(dirname "$0")/../../.."   # repo root
 
 SCRIPT="records/track_10min_16mb/2026-04-17_SFT_RandomFeatureAdapters/train_gpt.py"
 export DATASETS_DIR="${DATASETS_DIR:-./data/datasets/fineweb10B_sp8192}"
