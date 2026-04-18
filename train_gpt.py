@@ -27,6 +27,53 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
+def _detect_sdpa_enable_gqa_support() -> bool:
+    q = torch.zeros((1, 1, 1, 1), dtype=torch.float32)
+    try:
+        F.scaled_dot_product_attention(
+            q,
+            q,
+            q,
+            attn_mask=None,
+            is_causal=False,
+            enable_gqa=False,
+        )
+        return True
+    except TypeError:
+        return False
+
+
+SDPA_ENABLE_GQA_SUPPORTED = _detect_sdpa_enable_gqa_support()
+
+
+def repeat_kv_heads(x: Tensor, repeats: int) -> Tensor:
+    if repeats == 1:
+        return x
+    bsz, num_kv_heads, seqlen, head_dim = x.shape
+    return x[:, :, None, :, :].expand(bsz, num_kv_heads, repeats, seqlen, head_dim).reshape(
+        bsz, num_kv_heads * repeats, seqlen, head_dim
+    )
+
+
+def sdpa_with_gqa_fallback(q: Tensor, k: Tensor, v: Tensor, *, is_causal: bool) -> Tensor:
+    needs_gqa = q.size(1) != k.size(1)
+    if SDPA_ENABLE_GQA_SUPPORTED:
+        return F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=is_causal,
+            enable_gqa=needs_gqa,
+        )
+    if needs_gqa:
+        repeats = q.size(1) // k.size(1)
+        k = repeat_kv_heads(k, repeats)
+        v = repeat_kv_heads(v, repeats)
+    return F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=is_causal)
+
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -591,14 +638,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        y = sdpa_with_gqa_fallback(q, k, v, is_causal=True)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
