@@ -1,108 +1,116 @@
-# Spec 003 — BigramHash paired from-scratch screen
+# Spec 003 — BigramHash signal screen (match Exp 24 baseline)
 
 **Slug:** `bigram-hash-screen`
 **Created:** 2026-04-19
 **Links to idea:** `research/ideas/bigram-hash.md`
 
 ## Hypothesis
-Adding BigramHash (3072 hash buckets × 112 dim ≈ 344K params) to our SOTA stack improves pre-quant val_bpb. We don't test the 16MB fit here — the artifact will be oversized (~16.2 MB). Spec 003 is a **signal screen**: does BigramHash actually help on our architecture? Budget-fit engineering is deferred to spec 004 (only if this wins).
+Adding BigramHash (3072 buckets × 112 dims ≈ 344K params) to our stack improves pre-quant val_bpb. This is a **signal screen** — we don't test the 16MB fit here (artifact will be ~16.2 MB, oversized but fine for screening). Budget-fit engineering is deferred to spec 004 (only if this wins).
 
-Comparison is primarily via **training-loss trajectory at matched steps**, not just post-training eval. BigramHash activates from step 1 (`train_gpt_sota.py:474, 553-554`, zero-init → no disruption), so a paired run with same seed gives a deterministic train_loss comparison all the way through.
+**Comparison via training-loss trajectory at matched steps**, plus final pre-quant val_bpb. BigramHash activates from step 1 (`train_gpt_sota.py:474, 553-554`, zero-init → no disruption), so same-seed runs give a deterministic train_loss comparison.
 
-## Baseline
-Control run within this same spec (paired). Nominal reference: Exp 24 (2×H100, 40-min, SOTA replication, 1.0867 post-quant). Control's trajectory here should match Exp 24's shape.
+## Baseline — REUSE EXP 24
+Exp 24 is already a 2×H100 40-min SOTA-code training run with `BIGRAM_VOCAB_SIZE=0`. Log at `logs/exp24_sota_sp8192_2xh100_40m.log`. We **don't rerun the control** — we match Exp 24's config exactly (below) in the variant and compare variant's train_loss against Exp 24's log at matched steps.
+
+Cost savings: ~$4 and ~45 min vs the original paired-runs plan.
+
+### Exp 24 reference milestones (from `logs/exp24_sota_sp8192_2xh100_40m.log`)
+
+| Step | train_loss | val_bpb (if sampled) |
+|---|---|---|
+| 500 | 3.2805 | — |
+| 1000 | 3.2346 | 1.2424 |
+| 1500 | 3.1254 | — |
+| 2000 | ? (interview) | 1.2?? |
+| 3000 | ? | 1.1?? |
+| 4531 (final) | ? | **pre-quant 1.08670** |
+
+Final artifact: 15.989 MB, post-quant val_bpb 1.09850. No TTT.
 
 ## Expected Δ
-+0.002 to +0.005 bpb at end-of-training pre-quant (per original BigramHash submission's claim). Train_loss curves should diverge from ~step 500 onward if the signal is real.
++0.002 to +0.005 bpb at end-of-training pre-quant (per original BigramHash submission's claim). Train_loss curves should diverge below Exp 24's from ~step 500 onward if the signal is real.
 
 ## Accept criteria
-- **Validity:** Control run's end-of-training pre-quant val_bpb is within ±0.003 of Exp 24's 1.0985 pre-quant. (Loose tolerance because pod-to-pod throughput varies; both our control and variant sit on the same pod, so their Δ is still clean.)
-- **Signal:** variant ≤ control at ≥3 of last 4 logged train_loss milestones AND end-of-training pre-quant Δ ≤ **−0.002** vs control.
+- **Validity:** variant's training trajectory shape (step 0 → first 200-500 steps) roughly matches Exp 24's. If training explodes or wildly diverges early, kill and investigate — probably a config plumbing issue.
+- **Signal:** variant ≤ Exp 24 at ≥3 of last 4 train_loss milestones AND final pre-quant val_bpb ≤ **1.0847** (Δ ≤ −0.002 vs Exp 24's 1.08670).
+
+**Important caveat:** This screens BigramHash on `QK_GAIN_INIT=5.0` (Exp 24's config), not our spec-000 baseline's 5.25. The two interventions are orthogonal (bigram is embedding-layer; QK gain is attention-layer), so a positive signal here should transfer to QK=5.25 — but it's not bulletproof. Spec 004 (if we promote) is a proper full-stack 8×H100 run with `QK_GAIN_INIT=5.25`.
 
 ## Config diff
-**Hyperparam-only. Two paired runs on the same pod.**
+**Match Exp 24 exactly.** Only difference: `BIGRAM_VOCAB_SIZE`.
 
-| Env var | Control | Variant |
+| Env var | Value | Source |
 |---|---|---|
-| `BIGRAM_VOCAB_SIZE` | 0 | 3072 |
-| `BIGRAM_DIM` | (n/a) | 112 |
-| `QK_GAIN_INIT` | 5.25 | 5.25 |
-| `TTT_ENABLED` | 1 | 1 |
-| `SEED` | 42 | 42 |
-| `TRAIN_LOG_EVERY` | 200 (tightened from 500 default for fine-grained comparison) | 200 |
+| `BIGRAM_VOCAB_SIZE` | **3072** | the variable under test |
+| `BIGRAM_DIM` | 112 | hyperparameter default matches Exp 24 implicit value (Exp 24 didn't have the option; the code now does) |
+| `QK_GAIN_INIT` | **5.0** | Exp 24's value (code default; current spec 000 uses 5.25 but we match Exp 24 for clean comparison) |
+| `TTT_ENABLED` | **0** | Exp 24 didn't have TTT on; we don't enable it either |
+| `SEED` | **1337** | Exp 24's seed |
+| `TRAIN_LOG_EVERY` | **100** | Exp 24's value |
+| `MAX_WALLCLOCK_SECONDS` | 2400 | Exp 24's 40-min cap |
 
-**Same seed is critical** — identical data ordering is what makes matched-step comparison meaningful.
+Leave everything else at code defaults. **Single run, no paired control run** — Exp 24's log is the control.
 
 ## Code changes
 - Branch: `research`
-- Commit: `b44c34e`
-- Diff: **none.** BigramHash is already implemented in `train_gpt_sota.py` (L96-98 config, L432-460 class, L474 instantiation, L553-554 forward).
+- Commit: `77085f6`
+- Diff: **none.** BigramHash is already implemented (`train_gpt_sota.py:432-460, 474, 553-554`). Hyperparam-only spec.
 
 ## Hardware ladder
-- [ ] 2×H100 NA-1 — **only rung**. Both runs sequential on the **same pod** (no re-provisioning between them — critical for hardware-controlled Δ).
-- [ ] 8×H100 — not used. This is a screen, not a submission attempt.
+- [ ] 2×H100 NA-1 — **only rung**. Match Exp 24's harness.
+- [ ] 8×H100 — not used. Screen only.
+
+Note: different physical pod than Exp 24 (inevitable — Exp 24's pod is long gone). Step count may differ from Exp 24's 4531 due to pod-to-pod throughput variance. Compare at matched **step numbers** (not wall-clock times); train_loss at step N reflects the model's state after N steps regardless of pod speed.
 
 ## Seed plan
-Single seed (42), but **both runs use the same seed.** This is intentional — we want identical data ordering so that train_loss divergence can be attributed to the architecture, not to data variance.
+Single seed (1337, matching Exp 24). Same-seed + same-config-except-bigram gives deterministic data ordering, so any divergence in train_loss is attributable to BigramHash.
 
 ## Inputs
 - Data: `/workspace/data/datasets/fineweb10B_sp8192/`
 - Tokenizer: `/workspace/data/tokenizers/fineweb_8192_bpe.model`
-- Hotstart: **none** — both runs are from-scratch.
-- Base repo commit: pin current `research` HEAD.
-
-## Checkpoints to emit
-**None retained.** These are screen models, not submission candidates, and we won't hotstart from either trajectory (spec 000's checkpoints already cover equivalent ground).
+- Hotstart: **none** — from-scratch training.
+- Exp 24 reference log (for comparison, read-only): `logs/exp24_sota_sp8192_2xh100_40m.log` (in-repo, ~4 KB).
+- Base repo commit: `77085f6` on `research`.
 
 ## Execution protocol
-Sequential on the same pod:
 
 ```bash
-# Run 1: control
-BIGRAM_VOCAB_SIZE=0 BIGRAM_DIM=112 \
-QK_GAIN_INIT=5.25 TTT_ENABLED=1 SEED=42 \
-TRAIN_LOG_EVERY=200 \
-torchrun --standalone --nproc_per_node=2 train_gpt_sota.py \
-  > /workspace/runs/003-bigram-hash-screen/control_train.log 2>&1
-
-# Wait for completion. If early-kill triggered per gates below, skip variant.
-
-# Run 2: variant
 BIGRAM_VOCAB_SIZE=3072 BIGRAM_DIM=112 \
-QK_GAIN_INIT=5.25 TTT_ENABLED=1 SEED=42 \
-TRAIN_LOG_EVERY=200 \
+QK_GAIN_INIT=5.0 TTT_ENABLED=0 SEED=1337 \
+TRAIN_LOG_EVERY=100 MAX_WALLCLOCK_SECONDS=2400 \
 torchrun --standalone --nproc_per_node=2 train_gpt_sota.py \
   > /workspace/runs/003-bigram-hash-screen/variant_train.log 2>&1
 ```
 
-Both runs with the same 40-minute wall-clock cap (default in Hyperparameters). Step count per run is hardware-dependent (~2000-3000 on 2×H100 in 40 min based on Exp 24).
+Run to wallclock cap (~40 min). Post-training pre-quant eval is automatic. No TTT eval (disabled). No sliding eval needed for screen signal.
 
 ## Stop-early criteria
-**Applied to the variant run only (control is always run to end as reference):**
+Applied to the variant run, comparing against Exp 24's log at matched steps:
 
-| After step N | Gate | Action |
+| At variant step N | Condition | Action |
 |---|---|---|
-| 500 | Variant within ±0.05 of control train_loss | Continue — noise dominates early |
-| 1000 | Variant train_loss > control + 0.01 | **Kill variant.** BigramHash clearly hurting. Save ~25 min pod time. |
-| 1500 | Variant train_loss > control − 0.005 | Weak signal; continue but flag for ambiguous-case handling |
-| 2000+ | Variant ≤ control − 0.01 | Strong signal; run to end |
+| 100-500 | Variant train_loss within ~±0.1 of Exp 24 at matched step | Normal — early steps are noisy, keep going |
+| 1000 | Variant > Exp 24[step 1000] + 0.03 (Exp 24 was 3.2346 → kill if variant > 3.26) | **Kill.** BigramHash is hurting. Save ~30 min pod time. |
+| 1500 | Variant > Exp 24[step 1500] − 0.01 (Exp 24 was 3.1254 → variant should be ≤ 3.115 to show signal) | Weak — flag, continue |
+| 2000+ | Variant ≤ Exp 24 − 0.02 at same step | Strong — run to end |
 
-Standard: NaN / step-time > 2× expected / divergence → kill and mark failed.
+Standard: NaN / step-time > 2× expected / divergence → kill.
 
 ## Cost estimate
 - 2×H100 NA-1 at ~$6/hr.
-- Two 40-min runs sequential = 80 min pod time = **~$8**.
-- With early-kill at step 1000 (variant clearly bad): **~$5**.
+- Single 40-min run = **~$4**.
+- Early-kill at step 1000: **~$2**.
+- No second run because Exp 24 is the control.
 
 ## Extra artifacts
-- `runs/003-bigram-hash-screen/control_train.log` — full stdout (train_loss at every 200 steps).
-- `runs/003-bigram-hash-screen/variant_train.log` — full stdout.
-- `runs/003-bigram-hash-screen/final.json` — both runs' final metrics: `{control: {pre_quant_bpb, quantized_bpb, sliding_bpb, post_ttt_bpb, step_count, seconds}, variant: {same fields}, delta: {all four stages}}`.
-- `runs/003-bigram-hash-screen/loss_compare.md` — **primary artifact.** Matched-step train_loss table with columns: step, control_loss, variant_loss, Δ. Must include ALL logged milestones, not just final.
+- `runs/003-bigram-hash-screen/variant_train.log` — full stdout (train_loss at every 100 steps, per Exp 24's cadence).
+- `runs/003-bigram-hash-screen/final.json` — variant's end metrics (pre-quant bpb, post-quant bpb, step count, throughput) + Δ vs Exp 24's 1.08670 pre-quant.
+- `runs/003-bigram-hash-screen/loss_compare.md` — **primary artifact.** Matched-step train_loss table with columns: step, exp24_train_loss, variant_train_loss, Δ. Include ALL milestones from both logs.
 - `runs/003-bigram-hash-screen/notes.md` — execution narrative.
 
+No train checkpoints (hotstart from this trajectory isn't planned). No `.ptz` retained (screen model, not submission candidate).
+
 ## Open questions for interview
-- Confirm no re-provisioning between the two runs. **Critical.** Hardware-controlled Δ fails if pods differ.
-- Confirm execution's interpretation of the early-termination gates — if unclear, err toward **running both to completion** and defer kill-or-promote to research. The extra $3 is cheap insurance.
-- Confirm the 40-min wall cap matches `MAX_WALLCLOCK_SECONDS=2400` (Exp 24 harness). If Hyperparameters default differs, explicitly set `MAX_WALLCLOCK_SECONDS=2400` in the launch env.
-- Confirm TRAIN_LOG_EVERY=200 doesn't materially slow down training (it shouldn't — just more log-line prints).
+- Confirm `MAX_WALLCLOCK_SECONDS=2400` matches Exp 24's timing; if Hyperparameters default differs from 2400, explicit override required.
+- Confirm `logs/exp24_sota_sp8192_2xh100_40m.log` is accessible on pod (in-repo at checkout, should be present).
+- Pod variance note: if our pod is materially slower than Exp 24's (e.g. trains only 3500 steps in the 40 min), the final pre-quant eval will be on an under-trained model and the Δ vs Exp 24 is confounded by training completeness. Interview surfacing: what should execution do if step count at 40 min is < 4000? Recommend: **extend wall cap to match Exp 24's step count**, not its wall time — set `MAX_WALLCLOCK_SECONDS` high enough that variant reaches step 4500. Would cost extra ~$1-2 but gives apples-to-apples comparison.
