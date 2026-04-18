@@ -131,6 +131,7 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
     latest_depth3_eval_aligned_20260418)
       # Latest experiment preset (depth-3 from start + eval-aligned fast path).
       # Mirrors tool wrappers and recent train_gpt_verbose.py updates.
+      set_default_env DDP_FIND_UNUSED_PARAMETERS 1
       set_default_env COMPETITION_PROFILE 1
       set_default_env EXPORT_MODE competition_gptq
       set_default_env RUNTIME_PATH_POLICY strict

@@ -22,6 +22,7 @@ VOLUME_GB="${VOLUME_GB:-20}"
 DISK_GB="${DISK_GB:-20}"
 DATA_SHARDS="${DATA_SHARDS:-24}"
 HF_REPO="kevclark/parameter-golf"
+EXPERIMENT_PRESET="${EXPERIMENT_PRESET:-latest_depth3_eval_aligned_20260418}"
 BALANCE_FLOOR="10"
 KEEP_POD_ON_EXIT="${KEEP_POD_ON_EXIT:-0}"
 POD_TERMINATED=0
@@ -226,6 +227,7 @@ log "========================================================"
 log "God-tier SKC RunPod Orchestrator"
 log "Artifacts: ${LOCAL_ARTIFACTS_DIR}"
 log "GPUs: ${GPU_COUNT}  Min VRAM: ${MIN_GPU_MEMORY_GB}GB"
+log "Experiment preset: ${EXPERIMENT_PRESET}"
 log "========================================================"
 
 for cmd in curl jq ssh scp python3; do command -v "$cmd" >/dev/null 2>&1 || die "Required: $cmd"; done
@@ -320,12 +322,12 @@ wait_for_log_token "/workspace/logs/data_setup.log" "=== DATA DONE ===" 3600 || 
 download_from_pod "/workspace/logs/data_setup.log" "${LOCAL_ARTIFACTS_DIR}/data_setup.log" 1 || true
 
 log "Launching god-tier SKC run..."
-LAUNCH_SCRIPT=$(cat <<'LAUNCHEOF'
+LAUNCH_SCRIPT=$(cat <<LAUNCHEOF
 #!/usr/bin/env bash
 set -ex
 cd /workspace
 mkdir -p logs/max_vram_10min
-bash run_god_tier_skc.sh
+EXPERIMENT_PRESET="${EXPERIMENT_PRESET}" bash run_god_tier_skc.sh
 echo "=== DONE ==="
 LAUNCHEOF
 )
