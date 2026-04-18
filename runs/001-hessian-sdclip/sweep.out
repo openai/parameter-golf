@@ -1,0 +1,78 @@
+loading checkpoint: /workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt
+checkpoint step: 3849
+applied EMA weights from checkpoint
+recurrence active: encoder=[0, 1, 2, 3, 4, 5, 3, 4] decoder=[5, 3, 4, 5, 6, 7, 8, 9, 10]
+computing Hessians (one-time, ~3-5 min)...
+Hessians collected in 14.4s — saving to /workspace/runs/001-hessian-sdclip/hessians.pt
+Hessians SAVED (67 keys)
+lambdas to process: [0.0, 0.05, 0.1]
+λ=0.00: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.00: val_bpb=1.105179 val_loss=2.854292 size=15979642 bytes (168.9s)
+λ=0.05: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.05: val_bpb=1.105266 val_loss=2.854516 size=15980308 bytes (130.3s)
+λ=0.10: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.10: val_bpb=1.105298 val_loss=2.854599 size=15982510 bytes (133.9s)
+sweep.py done
+loading checkpoint: /workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt
+checkpoint step: 3849
+applied EMA weights from checkpoint
+recurrence active: encoder=[0, 1, 2, 3, 4, 5, 3, 4] decoder=[5, 3, 4, 5, 6, 7, 8, 9, 10]
+RELOADED Hessians from /workspace/runs/001-hessian-sdclip/hessians.pt (67 keys)
+lambdas to process: [0.0, 0.05, 0.1, 0.2, 0.4, 0.6]
+λ=0.00: already done (json exists), skipping
+λ=0.05: already done (json exists), skipping
+λ=0.10: already done (json exists), skipping
+λ=0.20: starting
+Traceback (most recent call last):
+  File "/workspace/runs/001-hessian-sdclip/sweep.py", line 157, in <module>
+    main()
+  File "/workspace/runs/001-hessian-sdclip/sweep.py", line 115, in main
+    quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt_sota.py", line 868, in gptq_mixed_quantize
+    q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1, hessian_clip_lambda=h.hessian_clip_lambda)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt_sota.py", line 822, in gptq_quantize_weight
+    W_perm = W_orig[:, perm].clone()
+             ~~~~~~^^^^^^^^^
+RuntimeError: indices should be either on cpu or on the same device as the indexed tensor (cpu)
+loading checkpoint: /workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt
+checkpoint step: 3849
+applied EMA weights from checkpoint
+recurrence active: encoder=[0, 1, 2, 3, 4, 5, 3, 4] decoder=[5, 3, 4, 5, 6, 7, 8, 9, 10]
+RELOADED Hessians from /workspace/runs/001-hessian-sdclip/hessians.pt (67 keys)
+lambdas to process: [0.0, 0.05, 0.1, 0.2, 0.4, 0.6]
+λ=0.00: already done (json exists), skipping
+λ=0.05: already done (json exists), skipping
+λ=0.10: already done (json exists), skipping
+λ=0.20: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.20: val_bpb=1.105527 val_loss=2.855191 size=15991263 bytes (145.4s)
+λ=0.40: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.40: val_bpb=1.106181 val_loss=2.856880 size=16019404 bytes (135.7s)
+λ=0.60: starting
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+λ=0.60: val_bpb=1.106760 val_loss=2.858375 size=16057235 bytes (136.4s)
+sweep.py done

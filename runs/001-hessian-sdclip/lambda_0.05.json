@@ -1,0 +1,7 @@
+{
+  "lambda": 0.05,
+  "val_bpb_quantized": 1.1052658256064989,
+  "val_loss_quantized": 2.854515999877726,
+  "artifact_size_bytes": 15980308,
+  "elapsed_sec": 130.2725014630705
+}
