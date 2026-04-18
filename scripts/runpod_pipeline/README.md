@@ -1,7 +1,8 @@
 # RunPod Pipeline — PR #1610 + Posterior Corrector
 
 **Branch**: `submission/pr1610-corrector`
-**Required SHA**: `a33191f572430566b88c4d61badb0369e1e6f9a3`
+**Ancestry anchor**: `a33191f572430566b88c4d61badb0369e1e6f9a3` (warmup fix — verified by `00_verify_pod.sh`)
+**Session launch SHA**: `<LAUNCH_SHA>` (pinned via `EXPECTED_SHA` env var; see Block 1)
 **Image**: `amay01/parameter-golf@sha256:6206b37e0f363c3886323b391e64bb0e46b1623e203b6b9e55f165fd774ea2cf`
 
 See `pod_launch.md` for pod creation. Then run the blocks below **in order**.
@@ -18,14 +19,16 @@ git clone \
   --branch submission/pr1610-corrector \
   https://github.com/amrayach/parameter-golf.git
 cd parameter-golf
-bash scripts/runpod_pipeline/run_all.sh 2>&1 | tee /workspace/pipeline_run_all.log
+git checkout <LAUNCH_SHA>                   # pin exact launch commit (see header)
+EXPECTED_SHA="<LAUNCH_SHA>" \
+  bash scripts/runpod_pipeline/run_all.sh 2>&1 | tee /workspace/pipeline_run_all.log
 ```
 
 **What it does**: verifies pod, downloads ~24 GB dataset, runs Gate A full train+eval
 (seed 0, ~20 min), runs 3 corrector ablations (~15 min total). Stops before Stage 4.
 
 **Kill signals baked in**:
-- BPB > 1.078 → pipeline aborts (don't pay for Stage 4)
+- BPB > 1.07516564 (published 1.07216564 + 0.003) → pipeline aborts (don't pay for Stage 4)
 - eval > 600s → pipeline aborts
 - artifact > per-seed limit → pipeline aborts
 - disk < 20 GB remaining at any stage → pipeline aborts

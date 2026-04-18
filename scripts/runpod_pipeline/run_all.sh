@@ -7,6 +7,11 @@
 #   bash scripts/runpod_pipeline/run_all.sh
 set -euo pipefail
 
+if [ -z "${EXPECTED_SHA:-}" ]; then
+    echo "WARNING: EXPECTED_SHA unset — 00_verify_pod.sh will run ancestry-only (no exact-SHA pin)." >&2
+    echo "  For Session launches, export EXPECTED_SHA=<launch-sha> before invoking run_all.sh." >&2
+fi
+
 REPO_DIR="/workspace/parameter-golf"
 PIPELINE_DIR="${REPO_DIR}/scripts/runpod_pipeline"
 
@@ -30,7 +35,7 @@ echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║  RunPod Pipeline — PR #1610 + Posterior Corrector           ║"
 echo "║  Branch: submission/pr1610-corrector                        ║"
-echo "║  SHA:    a33191f572430566b88c4d61badb0369e1e6f9a3           ║"
+echo "║  SHA:    ${EXPECTED_SHA:-a33191f572430566b88c4d61badb0369e1e6f9a3}           ║"
 echo "║  Budget: ~\$40 for stages 0-4 (~6 hrs at \$21.52/hr)         ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

@@ -22,6 +22,49 @@ echo "=== Stage 5: Artifact preservation === $(date)"
 FREE_GB=$(df -BG /workspace --output=avail 2>/dev/null | tail -1 | tr -d 'G ')
 [ "${FREE_GB:-0}" -lt 5 ] && { echo "ERROR: < 5G free — cannot create tarball" >&2; exit 1; }
 
+# Provenance capture — write BEFORE tarball so files land inside it
+echo ""
+echo "=== Capturing provenance fingerprints ==="
+cd "${REPO_DIR}"
+
+# Ancestry guard: HEAD must descend from the warmup-fix anchor (a33191f)
+ANCHOR_SHA="a33191f572430566b88c4d61badb0369e1e6f9a3"
+if ! git merge-base --is-ancestor "${ANCHOR_SHA}" HEAD 2>/dev/null; then
+    echo "FATAL: HEAD ($(git rev-parse HEAD)) is not a descendant of ${ANCHOR_SHA}" >&2
+    echo "       Tarball would lie about provenance; refusing to continue." >&2
+    exit 1
+fi
+
+{
+  git rev-parse HEAD
+  git log -1 --format='%H %s'
+  git log -1 --format='  author: %an <%ae>%n  date:   %ai'
+} > "${RUNS_DIR}/commit_sha.txt"
+
+nvidia-smi > "${RUNS_DIR}/hardware_info.txt" 2>&1 || \
+  echo "nvidia-smi unavailable" > "${RUNS_DIR}/hardware_info.txt"
+
+"${PYTHON}" - > "${RUNS_DIR}/env_fingerprint.txt" <<'PY'
+import torch
+try:
+    import flash_attn_interface
+    fa_ver = getattr(flash_attn_interface, "__version__", "unknown")
+except Exception as e:
+    fa_ver = f"import-failed: {e!r}"
+print(f"torch                 {torch.__version__}")
+print(f"cuda (torch-reported) {torch.version.cuda}")
+print(f"flash_attn_interface  {fa_ver}")
+print(f"python                {__import__('sys').version.split()[0]}")
+PY
+
+# Non-empty guard — catches silent failures
+for f in "${RUNS_DIR}/commit_sha.txt" "${RUNS_DIR}/hardware_info.txt" "${RUNS_DIR}/env_fingerprint.txt"; do
+    [ -s "$f" ] || { echo "FATAL: $f is empty — provenance capture failed" >&2; exit 1; }
+done
+
+echo "Provenance fingerprints captured:"
+wc -l "${RUNS_DIR}/commit_sha.txt" "${RUNS_DIR}/hardware_info.txt" "${RUNS_DIR}/env_fingerprint.txt"
+
 cd /workspace
 
 echo "Creating tarball: ${TARBALL}"
@@ -85,7 +128,7 @@ url = api.upload_file(
     path_or_fileobj=local_path,
     path_in_repo=path_in_repo,
     repo_id=repo_id,
-    repo_type="dataset",
+    repo_type="model",
 )
 print(f"Upload complete: {url}")
 PY

@@ -68,6 +68,16 @@ fi
 echo "git HEAD: ${CURRENT_COMMIT}"
 echo "required SHA ${REQUIRED_COMMIT}: present in history: OK"
 
+# 4b. Optional exact-SHA pin for Session launches
+if [ -n "${EXPECTED_SHA:-}" ]; then
+    if [ "${CURRENT_COMMIT}" != "${EXPECTED_SHA}" ]; then
+        echo "ERROR: HEAD=${CURRENT_COMMIT} != EXPECTED_SHA=${EXPECTED_SHA}" >&2
+        echo "  Session launches must run on the pinned SHA." >&2
+        exit 1
+    fi
+    echo "exact SHA pin: ${CURRENT_COMMIT} == EXPECTED_SHA: OK"
+fi
+
 # 5. Train script exists
 TRAIN_SCRIPT="records/track_10min_16mb/2026-04-14_VarLenAttn_PhasingTTT_Corrector/train_gpt.py"
 [ -f "${TRAIN_SCRIPT}" ] || { echo "ERROR: ${TRAIN_SCRIPT} not found"; exit 1; }
