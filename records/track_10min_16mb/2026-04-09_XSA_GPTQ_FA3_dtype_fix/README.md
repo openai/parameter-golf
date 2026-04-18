@@ -1,23 +1,27 @@
 # Record: XSA-all + GPTQ + BigramHash 3072 + EMA + FA3 dtype fix
 
-**val_bpb: 1.1220** (sliding window, stride=64) | **~15.9 MB** artifact | 8×H100 SXM, 600s
+**val_bpb = 1.1161** (3-seed mean, std 0.0009) | **< 16 MB** | 8xH100 SXM
 
-## Results
+## 3-Seed Results
 
 | Seed | Steps | ms/step | Sliding BPB (s64) | Artifact |
 |------|-------|---------|-------------------|----------|
-| 1337 | 6,244 | 96ms | **1.1220** | ~15.9 MB |
+| 42   | ~6,900 | ~87ms | **1.1166** | 15,935,215 |
+| 314  | ~6,900 | ~87ms | **1.1151** | 15,938,283 |
+| 999  | ~6,900 | ~87ms | **1.1165** | 15,933,311 |
+| **Mean** | | | **1.1161** | |
+| **Std** | | | **0.0009** | |
 
 ## Architecture
 
-Built on the PR #1019 stack with one key addition: FA3 dtype compatibility wrapper enabling native Hopper attention on PyTorch 2.5.1 (which lacks auto-casting for FA3).
+Built on the PR #1019 stack with one key addition: FA3 dtype compatibility wrapper enabling native Hopper attention.
 
 | Component | Setting |
 |-----------|---------|
 | Layers | 11 (512d, 8 GQA heads, 4 KV heads) |
-| MLP | 3× (1536) with LeakyReLU(0.5)² |
+| MLP | 3x (1536) with LeakyReLU(0.5)^2 |
 | Attention | XSA on all 11 layers + FA3 with bf16 wrapper |
-| BigramHash | 3072 × dim=112 |
+| BigramHash | 3072 x dim=112 |
 | RoPE | Partial (16/64 dims) |
 | EMA | decay=0.997, every step |
 | Quantization | Full Hessian GPTQ, AR self-gen calibration |
@@ -50,11 +54,17 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Hardware
 
-- 8× NVIDIA H100 80GB HBM3 SXM (Vast.ai, Nebraska)
-- PyTorch 2.5.1+cu124, CUDA 12.4
-- Flash Attention 3 (compiled from source for Hopper)
-- 96ms/step average
+- 8x NVIDIA H100 80GB HBM3 SXM (Vast.ai)
+- PyTorch 2.9.1+cu128, CUDA 12.8
+- Flash Attention 3 (Hopper native)
 
-## Authors
+## Compliance
 
-Gavin Saunders & Tron (Claude Code agent)
+- Pure neural, no TTT/SLOT/n-gram-cache
+- All artifacts under 16,000,000 bytes on all 3 seeds
+- Training under 600s on all 3 seeds
+- Sliding window eval (stride=64), strictly causal
+
+## Author
+
+Gavin Saunders (@G3sparky)
