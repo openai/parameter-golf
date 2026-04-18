@@ -30,6 +30,7 @@ Full 8×H100 baseline: ~1.20 bpb (official).
 | 21 | **Full run: all improvements, 40min** | `exp/depth-recurrence` | f776719 | 2×H100 | **1.1963** | **-0.077** | ✅ NEW BEST |
 | 22 | **SOTA code test (SP1024)** | SOTA submission | obfuscated | 1×H100 | 1.6050 | — | ✅ test only |
 | 23 | **SOTA code test (SP8192)** | SOTA submission | obfuscated | 1×H100 | 1.4052 | — | ✅ test only |
+| 000 | **Spec 000 — SOTA replication** (seed 42, BIGRAM=0, QK=5.25, TTT=1) | `research` | 01e6fcf | 8×H100 NA-1 | **1.08622** (post-TTT) | +0.0054 vs SOTA 1.0810 | ⚠️ outside accept window — throughput deficit (3849/4550 steps), code confirmed faithful; adopt as baseline |
 
 ---
 

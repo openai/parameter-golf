@@ -1,0 +1,40 @@
+{
+  "spec": "000-sota-replication",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb": 1.08621766,
+  "val_bpb_pre_ttt_sliding": 1.08774104,
+  "val_bpb_quantized": 1.10430016,
+  "val_bpb_post_ema_pre_quant": 1.09288539,
+  "val_bpb_training_end": 1.0938,
+  "hardware": "8xH100",
+  "region": "US-NE-1",
+  "wall_time_sec": 588,
+  "training_steps": 3849,
+  "training_steps_sota": 4550,
+  "cost_usd": 9.5,
+  "pod_id": "t7k5v85j3fwpdh",
+  "git_commit": "01e6fcf1217ae9743cf6ddc8bdb572dd9e1a0360",
+  "launch_env": {
+    "BIGRAM_VOCAB_SIZE": 0,
+    "QK_GAIN_INIT": 5.25,
+    "TTT_ENABLED": 1,
+    "SEED": 42,
+    "CKPT_STEPS": "455,1137,2275,3412",
+    "CKPT_DIR": "/workspace/runs/000-sota-replication/checkpoints"
+  },
+  "started_at": "2026-04-18T20:24:00Z",
+  "ended_at": "2026-04-18T20:47:30Z",
+  "checkpoints_emitted": [
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_event_step455.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_warmdown_start_step1048.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_event_step1137.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_pre_recurrence_step1378.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_event_step1500.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_event_step2275.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_event_step3412.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_final_pre_ema_step3849.pt",
+    "/workspace/runs/000-sota-replication/checkpoints/ckpt_final_post_ema_step3849.pt"
+  ]
+}

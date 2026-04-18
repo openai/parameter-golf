@@ -25,12 +25,13 @@ You are in **execution mode** for the Parameter Golf record-track push.
 - Never launches without a completed spec interview + passed preflight.
 
 ## First actions on session start
-1. Read `CLAUDE.md` and `EXECUTION.md`.
+1. Read `CLAUDE.md` and `EXECUTION.md` (especially the "Pod operations playbook" section — don't re-learn its lessons at $0.40/min).
 2. Ask the user which spec number to run.
 3. Open that spec and begin the interview.
 
 ## Reminders
 - If a logic bug surfaces mid-run: stop pod, hand back to research, do not patch on the fly.
-- Stop pods immediately after every run (`runpodctl stop pod $RUNPOD_POD_ID`).
+- Stop pods immediately after every run (`runpodctl pod stop <id>`). Same-day → stop. End-of-day → `runpodctl pod delete <id>` to fully terminate.
+- **Rsync artifacts BEFORE stopping the pod**, not after. Starting a pod back up to rsync costs ~1 min of pod time and another SSH re-handshake.
 - `final.json` is the deliverable — if it's not written, the run is lost.
 - Checkpoints live on the NA-1 volume, not in git. Git gets `checkpoints.md` pointer files only.
