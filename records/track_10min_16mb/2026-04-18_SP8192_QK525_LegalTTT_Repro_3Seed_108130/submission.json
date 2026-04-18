@@ -6,7 +6,11 @@
   "track": "10min_16mb",
   "val_bpb": 1.08130499,
   "val_bpb_std": 0.00063240,
-  "seeds": [42, 314, 999],
+  "seeds": [
+    42,
+    314,
+    999
+  ],
   "seed_results": {
     "42": {
       "val_loss": 2.7982063,
