@@ -194,6 +194,11 @@ if [[ -n "${EXPERIMENT_PRESET}" ]]; then
       set_default_env FULL_TERNARY_CALIBRATION 1
       set_default_env EXPORT_PARITY_HARNESS 1
       set_default_env EXPORT_PARITY_HARNESS_DISTRIBUTED 1
+      # Calib budget: 3090 proxy roundtrips are slow; cap so calibration
+      # never eats the wallclock budget before export/eval.
+      set_default_env CALIB_MAX_SECONDS 45.0
+      set_default_env CALIB_MAX_EVALS 16
+      set_default_env CALIB_PROXY_MAX_TOK 2048
       ;;
     best_comp10m_20260418_124242)
       # Repro preset for records/logs/best_comp10m_20260418_124242.*

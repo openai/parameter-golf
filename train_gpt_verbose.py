@@ -418,6 +418,7 @@ class Hyperparameters:
     ternary_threshold_high = _e('TERNARY_THRESHOLD_HIGH', 0.15, float)
     ternary_threshold_steps = _e('TERNARY_THRESHOLD_STEPS', 4, int)
     ternary_scale_search = _e('TERNARY_SCALE_SEARCH', 0, bool)
+    ternary_qat = _e('TERNARY_QAT', 0, bool)
     ternary_scale_mult_low = _e('TERNARY_SCALE_MULT_LOW', 0.9, float)
     ternary_scale_mult_high = _e('TERNARY_SCALE_MULT_HIGH', 1.1, float)
     ternary_scale_mult_steps = _e('TERNARY_SCALE_MULT_STEPS', 3, int)
@@ -5298,7 +5299,7 @@ def main() -> None:
         if stop_after_step is not None and step >= stop_after_step:
             log0(f'stopping_early: wallclock_cap wall:{approx_ms:.0f}ms train_time:{training_time_ms:.0f}ms step:{step}/{args.iterations}')
             break
-        if args.export_aligned_train and (not _aligned_phase_started) and (args.ternary_threshold_search or args.ternary_scale_search) and (max_wallclock_ms is not None and elapsed_ms >= args.export_aligned_train_start_fraction * max_wallclock_ms or (max_wallclock_ms is None and step >= int(args.iterations * args.export_aligned_train_start_fraction))):
+        if args.export_aligned_train and (not args.ternary_qat) and (not _aligned_phase_started) and (args.ternary_threshold_search or args.ternary_scale_search) and (max_wallclock_ms is not None and elapsed_ms >= args.export_aligned_train_start_fraction * max_wallclock_ms or (max_wallclock_ms is None and step >= int(args.iterations * args.export_aligned_train_start_fraction))):
             if device.type == 'cuda':
                 torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
@@ -5481,7 +5482,7 @@ def main() -> None:
     if master_process:
         _write_probe_summary_csv(_probe_summary_path, _probe_rows)
         log0(f'probe_summary: wrote {_probe_summary_path} rows={len(_probe_rows)}')
-    if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
+    if master_process and args.export_aligned_train and (not args.ternary_qat) and (args.ternary_threshold_search or args.ternary_scale_search):
         if _proxy_calib_tokens is None:
             _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
         log0(f'export_calib:starting thr_search={args.ternary_threshold_search} scale_search={args.ternary_scale_search}', flush=True)
@@ -5541,7 +5542,7 @@ def main() -> None:
             sd.pop(_LM_HEAD_STATE_KEY, None)
             sd.pop('lm_head.weight', None)
         final_calib = _export_calib
-        needs_final_calib = (args.ternary_threshold_search or args.ternary_scale_search) and (using_best_proxy_sd or not _aligned_phase_started or args.gptq_lite_enabled)
+        needs_final_calib = (not args.ternary_qat) and (args.ternary_threshold_search or args.ternary_scale_search) and (using_best_proxy_sd or not _aligned_phase_started or args.gptq_lite_enabled)
         if needs_final_calib:
             if _proxy_calib_tokens is None:
                 _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=32768).to(device)
