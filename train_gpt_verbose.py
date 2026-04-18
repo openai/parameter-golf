@@ -1,5 +1,6 @@
 from __future__ import annotations
 import copy
+import csv
 import glob
 import io
 import json
@@ -292,6 +293,12 @@ class Hyperparameters:
     eval_engram_alpha = _e('EVAL_ENGRAM_ALPHA', 0.05, float)
     eval_engram_entropy_thr = _e('EVAL_ENGRAM_ENTROPY_THR', 2.0, float)
     eval_engram_laplace = _e('EVAL_ENGRAM_LAPLACE', 1.0, float)
+    eval_engram_reset_each_eval = _e('EVAL_ENGRAM_RESET_EACH_EVAL', 1, bool)
+    roundtrip_logit_audit = _e('ROUNDTRIP_LOGIT_AUDIT', 0, bool)
+    roundtrip_logit_audit_tokens = _e('ROUNDTRIP_LOGIT_AUDIT_TOKENS', 1024, int)
+    roundtrip_logit_audit_argmax_min = _e('ROUNDTRIP_LOGIT_AUDIT_ARGMAX_MIN', 0.99, float)
+    roundtrip_logit_audit_max_abs = _e('ROUNDTRIP_LOGIT_AUDIT_MAX_ABS', 0.5, float)
+    roundtrip_logit_audit_enforce = _e('ROUNDTRIP_LOGIT_AUDIT_ENFORCE', 0, bool)
     freeze_packed_engram = _e('FREEZE_PACKED_ENGRAM', 1, bool)
     freeze_check_strict = _e('FREEZE_CHECK_STRICT', 0, bool)
     xsa_start_layer = _e('XSA_START_LAYER', -1, int)
@@ -349,8 +356,21 @@ class Hyperparameters:
     engram_eval_correction = _e('ENGRAM_EVAL_CORRECTION', 0, bool)
     engram_eval_alpha = _e('ENGRAM_EVAL_ALPHA', 0.05, float)
     engram_eval_entropy_thr = _e('ENGRAM_EVAL_ENTROPY_THR', 2.0, float)
-    engram_taper_start = _e('ENGRAM_TAPER_START', 0.4, float)
-    engram_taper_end = _e('ENGRAM_TAPER_END', 0.8, float)
+    engram_taper_start = _e('ENGRAM_TAPER_START', 0.9, float)
+    engram_taper_end = _e('ENGRAM_TAPER_END', 0.99, float)
+    engram_gate_log = _e('ENG_GATE_LOG', 0, bool)
+    eng_gate_bias_init = _e('ENG_GATE_BIAS_INIT', 0.0, float)
+    eng_write_every = _e('ENG_WRITE_EVERY', 1, int)
+    eng_to_skc_mode = _e('ENG_TO_SKC_MODE', 'off', str)
+    skc_causal_probe = _e('SKC_CAUSAL_PROBE', 0, bool)
+    eng_causal_probe = _e('ENG_CAUSAL_PROBE', 0, bool)
+    skc_probe_every = _e('SKC_PROBE_EVERY', 50, int)
+    skc_probe_warmup = _e('SKC_PROBE_WARMUP', 50, int)
+    branch_amp_log = _e('BRANCH_AMP_LOG', 0, bool)
+    skc_residual_scale_init = _e('SKC_RESIDUAL_SCALE_INIT', 0.15, float)
+    skc_amp_ramp_fraction = _e('SKC_AMP_RAMP_FRACTION', 0.3, float)
+    skc_struct_lr_mult = _e('SKC_STRUCT_LR_MULT', 1.5, float)
+    head_lr_mult = _e('HEAD_LR_MULT', 1.0, float)
     ttt_enabled = _e('TTT_ENABLED', 0, bool)
     ttt_scope = _e('TTT_SCOPE', 'feedback')
     ttt_lr = _e('TTT_LR', 0.002, float)
@@ -431,6 +451,7 @@ def validate_config_surface(args) -> None:
     args.matrix_optimizer = args.matrix_optimizer.lower()
     args.export_mode = args.export_mode.lower()
     args.ternary_clip_mode = args.ternary_clip_mode.lower()
+    args.eng_to_skc_mode = str(getattr(args, 'eng_to_skc_mode', 'off')).strip().lower()
     args.compile_target = str(getattr(args, 'compile_target', 'full')).strip().lower()
     if args.softcap_type not in {'poly', 'tanh'}:
         raise ValueError(f'SOFTCAP_TYPE must be one of poly/tanh, got {args.softcap_type!r}')
@@ -442,6 +463,8 @@ def validate_config_surface(args) -> None:
         raise ValueError(f'TERNARY_CLIP_MODE must be one of percentile/row_std/none, got {args.ternary_clip_mode!r}')
     if args.compile_target not in {'full', 'backbone', 'blocks'}:
         raise ValueError(f'COMPILE_TARGET must be one of full/backbone/blocks, got {args.compile_target!r}')
+    if args.eng_to_skc_mode not in {'off', 'gate', 'bias'}:
+        raise ValueError(f'ENG_TO_SKC_MODE must be one of off/gate/bias, got {args.eng_to_skc_mode!r}')
     if int(getattr(args, 'compile_max_modules', 0)) < 0:
         raise ValueError(f'COMPILE_MAX_MODULES must be >= 0, got {args.compile_max_modules!r}')
     for frac_name in ('warmup_fraction', 'muon_momentum_warmup_fraction', 'warmdown_fraction', 'ema_start_fraction', 'feedback_every_fraction', 'untie_at_fraction', 'seq_schedule_fraction', 'batch_schedule_fraction', 'curr_p1_f', 'curr_p2_f', 'curr_p3_f', 'curr_p4_f', 'curr_p5_f', 'val_loss_every_fraction', 'train_log_every_fraction', 'churn_log_every_fraction', 'export_proxy_every_fraction', 'export_aligned_train_start_fraction', 'moe_start_fraction'):
@@ -480,6 +503,24 @@ def validate_config_surface(args) -> None:
         raise ValueError(f'ENGRAM_EXPORT_SCORE_ALPHA must be in [0, 1], got {args.engram_export_score_alpha}')
     if args.engram_export_token_budget < 0:
         raise ValueError(f'ENGRAM_EXPORT_TOKEN_BUDGET must be >= 0, got {args.engram_export_token_budget}')
+    if args.eng_write_every < 1:
+        raise ValueError(f'ENG_WRITE_EVERY must be >= 1, got {args.eng_write_every}')
+    if args.skc_probe_every < 1:
+        raise ValueError(f'SKC_PROBE_EVERY must be >= 1, got {args.skc_probe_every}')
+    if args.skc_probe_warmup < 0:
+        raise ValueError(f'SKC_PROBE_WARMUP must be >= 0, got {args.skc_probe_warmup}')
+    if args.skc_residual_scale_init < 0.0:
+        raise ValueError(f'SKC_RESIDUAL_SCALE_INIT must be >= 0, got {args.skc_residual_scale_init}')
+    if args.skc_amp_ramp_fraction < 0.0:
+        raise ValueError(f'SKC_AMP_RAMP_FRACTION must be >= 0, got {args.skc_amp_ramp_fraction}')
+    if args.skc_struct_lr_mult <= 0.0:
+        raise ValueError(f'SKC_STRUCT_LR_MULT must be > 0, got {args.skc_struct_lr_mult}')
+    if args.head_lr_mult <= 0.0:
+        raise ValueError(f'HEAD_LR_MULT must be > 0, got {args.head_lr_mult}')
+    if args.competition_profile and args.head_lr_mult < 0.9 and not _e('ALLOW_HEAD_LR_UNDERSCALE', 0, bool):
+        raise ValueError(f'HEAD_LR_MULT={args.head_lr_mult} regresses loss +2.2% at 10-min horizon (A4/C3). Set ALLOW_HEAD_LR_UNDERSCALE=1 to override.')
+    if args.engram_taper_end < args.engram_taper_start:
+        raise ValueError(f'ENGRAM_TAPER_END must be >= ENGRAM_TAPER_START, got {args.engram_taper_end} < {args.engram_taper_start}')
 
 def apply_competition_profile(args) -> None:
     if not bool(args.competition_profile):
@@ -547,8 +588,20 @@ def apply_competition_profile(args) -> None:
     args.moe_router_aux_loss_coef = 0.0
     args.feedback_enabled = 0
     args.capsule_enabled = 0
+    if _unset('SKC_RESIDUAL_SCALE_INIT'):
+        args.skc_residual_scale_init = 0.15
+    if _unset('SKC_AMP_RAMP_FRACTION'):
+        args.skc_amp_ramp_fraction = 0.3
+    if _unset('SKC_STRUCT_LR_MULT'):
+        args.skc_struct_lr_mult = 1.5
+    if _unset('ENGRAM_TAPER_START'):
+        args.engram_taper_start = 0.9
+    if _unset('ENGRAM_TAPER_END'):
+        args.engram_taper_end = 0.99
     if _unset('BIGRAM_HASH_ENABLED'):
-        args.bigram_hash_enabled = int(bool(int(os.environ.get('ENGRAM_COMPETITION_ENABLED', '1'))))
+        args.bigram_hash_enabled = int(bool(int(os.environ.get('ENGRAM_COMPETITION_ENABLED', '0'))))
+    if args.bigram_hash_enabled and _unset('ENG_GATE_BIAS_INIT'):
+        args.eng_gate_bias_init = 1.5
     if args.bigram_hash_enabled:
         if _unset('BIGRAM_HASH_BUCKETS'):
             args.bigram_hash_buckets = 32768
@@ -821,6 +874,7 @@ def export_ternary_param_names(model: nn.Module) -> set[str]:
             names.add(f'{module_name}.weight' if module_name else 'weight')
     return names
 _LM_HEAD_STATE_KEY = 'tok_stem.lm_head.weight'
+_EXPORT_CALIB_META_KEY = '__export_calib__'
 
 def export_fp16_param_names(model: nn.Module) -> set[str]:
     names: set[str] = set()
@@ -906,7 +960,30 @@ def get_fresh_code_bytes(args) -> int:
             return os.path.getsize('train_gpt.py')
         return 1000000 # 1MB as a safe upper bound
 
-def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method='standard', ternary_override_names: set | None=None, calib: dict | None=None, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, fp16_names: set[str] | None=None) -> tuple[dict, dict]:
+def _normalize_export_calib(calib: dict | None) -> dict[str, dict[str, float]]:
+    if not calib:
+        return {}
+    out: dict[str, dict[str, float]] = {}
+    for (name, entry) in calib.items():
+        if not isinstance(entry, dict):
+            continue
+        out[str(name)] = {'thr': float(entry.get('thr', 0.0)), 'scale_mult': float(entry.get('scale_mult', 1.0))}
+    return out
+
+def extract_serialized_export_calib(quantized: dict) -> dict[str, dict[str, float]]:
+    if not isinstance(quantized, dict):
+        return {}
+    entry = quantized.get(_EXPORT_CALIB_META_KEY)
+    if not isinstance(entry, dict):
+        return {}
+    if entry.get('type') != 'meta_export_calib':
+        return {}
+    data = entry.get('data')
+    if not isinstance(data, dict):
+        return {}
+    return _normalize_export_calib(data)
+
+def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method='standard', ternary_override_names: set | None=None, calib: dict | None=None, ternary_names: set[str] | None=None, turbo_quant_export: bool=True, fp16_names: set[str] | None=None, serialize_calib: bool=True) -> tuple[dict, dict]:
     quantized = {}
     stats = {'ternary_params': 0, 'ternary_bytes': 0, 'fp_params': 0, 'fp_bytes': 0}
     for (name, tensor) in state_dict.items():
@@ -964,13 +1041,20 @@ def q_sd(state_dict: dict, group_size: int=64, fp_storage=False, ternary_method=
             quantized[name] = {'type': 'fp16', 'data': t.half()}
             stats['fp_params'] += t.numel()
             stats['fp_bytes'] += t.numel() * 2
+    if serialize_calib:
+        quantized[_EXPORT_CALIB_META_KEY] = {'type': 'meta_export_calib', 'data': _normalize_export_calib(calib)}
     return (quantized, stats)
 
 def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
     out = {}
     for (name, entry) in quantized.items():
-        if entry['type'] in ('ternary', 'ternary_bitmask'):
-            if entry['type'] == 'ternary':
+        if not isinstance(entry, dict):
+            continue
+        etype = entry.get('type')
+        if etype == 'meta_export_calib':
+            continue
+        if etype in ('ternary', 'ternary_bitmask'):
+            if etype == 'ternary':
                 q = unpack_ternary(entry['packed'], entry['n_trits'])
             else:
                 q = unpack_ternary_bitmask(entry['packed'], entry['n_trits'])
@@ -986,9 +1070,9 @@ def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
             result = t[:shape[0], :shape[1]].to(target_dtype)
             orig = entry.get('orig_shape')
             out[name] = result.reshape(orig).contiguous() if orig and orig != shape else result.contiguous()
-        elif entry['type'] == 'fp8':
+        elif etype == 'fp8':
             out[name] = entry['data'].to(torch.float32).to(target_dtype).contiguous()
-        elif entry['type'] == 'fp4':
+        elif etype == 'fp4':
             out[name] = dequantize_from_int4(entry['packed'], entry['scale'], entry['shape']).to(target_dtype).contiguous()
         else:
             out[name] = entry['data'].to(target_dtype).contiguous()
@@ -1370,7 +1454,7 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 class EngramHash(nn.Module):
     _PRIMES = [92821, 131071, 174763, 216091, 262147, 314159, 393241, 462841, 524287, 611953, 700001, 786433, 873781, 967229, 1048573, 1153381, 1222229, 1333331, 1444441, 1555553, 1666661, 1777771, 1888881, 1999993]
 
-    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int, fp_storage: str | bool, num_heads: int=4, num_orders: int=2):
+    def __init__(self, num_buckets: int, hash_dim: int, model_dim: int, fp_storage: str | bool, num_heads: int=4, num_orders: int=2, gate_bias_init: float=0.0):
         super().__init__()
         num_total_heads = num_orders * num_heads
         if num_total_heads > len(self._PRIMES):
@@ -1386,6 +1470,7 @@ class EngramHash(nn.Module):
         self.proj = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
         self.gate_k = TernaryLinear(actual_dim, model_dim, bias=False, group_size=64)
         self._gate_scale_raw = nn.Parameter(torch.tensor(0.541, dtype=torch.float32))
+        self._gate_bias = nn.Parameter(torch.tensor(float(gate_bias_init), dtype=torch.float32))
 
     def _hash_ngram(self, input_ids: Tensor, order: int, head_idx: int) -> Tensor:
         (B, T) = input_ids.shape
@@ -1440,7 +1525,22 @@ class EngramHash(nn.Module):
                     m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
                     gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
                     gate_scale = 3.9 * torch.sigmoid(self._gate_scale_raw.float()) + 0.1
-                    gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
+                    gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype) + self._gate_bias.to(gate_logits.dtype))
+                    if bool(int(os.environ.get('ENG_GATE_LOG', '0'))):
+                        _diag_step = int(getattr(self, '_diag_step', -1))
+                        _every = max(int(os.environ.get('SKC_PROBE_EVERY', '50')), 1)
+                        _warm = max(int(os.environ.get('SKC_PROBE_WARMUP', '50')), 0)
+                        if _diag_step >= _warm and (_diag_step % _every == 0):
+                            _log_fn = getattr(self, '_diag_log_fn', None)
+                            if callable(_log_fn):
+                                with torch.no_grad():
+                                    g = gate.float()
+                                    sat = ((g < 0.1) | (g > 0.9)).float().mean().item()
+                                    _g_mean = g.mean().item()
+                                    _g_std = g.std(unbiased=False).item()
+                                    _log_fn(f'eng_gate step={_diag_step} mean={_g_mean:.6f} std={_g_std:.6f} sat={sat:.6f}')
+                                    if abs(_g_mean - 0.5) < 0.02 and _g_std < 0.01 and _diag_step >= 100:
+                                        _log_fn(f'WARN: engram gate may be detached from graph (step={_diag_step}, mean={_g_mean:.6f}, std={_g_std:.6f})')
                     return gate * self.proj(memory)
                 return self.proj(memory)
         if num_total_heads == 4 and self.num_orders == 2 and self.num_heads == 2:
@@ -1487,7 +1587,22 @@ class EngramHash(nn.Module):
             m_norm = torch.nn.functional.normalize(self.gate_k(memory), dim=-1)
             gate_logits = (h_norm * m_norm).sum(dim=-1, keepdim=True)
             gate_scale = 3.9 * torch.sigmoid(self._gate_scale_raw.float()) + 0.1
-            gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype))
+            gate = torch.sigmoid(gate_logits * gate_scale.to(gate_logits.dtype) + self._gate_bias.to(gate_logits.dtype))
+            if bool(int(os.environ.get('ENG_GATE_LOG', '0'))):
+                _diag_step = int(getattr(self, '_diag_step', -1))
+                _every = max(int(os.environ.get('SKC_PROBE_EVERY', '50')), 1)
+                _warm = max(int(os.environ.get('SKC_PROBE_WARMUP', '50')), 0)
+                if _diag_step >= _warm and (_diag_step % _every == 0):
+                    _log_fn = getattr(self, '_diag_log_fn', None)
+                    if callable(_log_fn):
+                        with torch.no_grad():
+                            g = gate.float()
+                            sat = ((g < 0.1) | (g > 0.9)).float().mean().item()
+                            _g_mean = g.mean().item()
+                            _g_std = g.std(unbiased=False).item()
+                            _log_fn(f'eng_gate step={_diag_step} mean={_g_mean:.6f} std={_g_std:.6f} sat={sat:.6f}')
+                            if abs(_g_mean - 0.5) < 0.02 and _g_std < 0.01 and _diag_step >= 100:
+                                _log_fn(f'WARN: engram gate may be detached from graph (step={_diag_step}, mean={_g_mean:.6f}, std={_g_std:.6f})')
             return gate * self.proj(memory)
         return self.proj(memory)
 
@@ -2375,6 +2490,7 @@ class SKCLayer(nn.Module):
         self.skc_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.aux_loss_fn = SpectralTernaryAuxLoss(weight=0.01, min_entropy_fraction=aux_min_entropy_fraction)
+        self._last_amp = {'skc_res': 0.0, 'mlp_res': 0.0, 'eng_res': 0.0}
 
     def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
         (B, T, D) = x.shape
@@ -2411,6 +2527,9 @@ class SKCLayer(nn.Module):
         s_conv = F.conv1d(s_conv_pad, weight.to(s_conv_in.dtype), groups=self.capsule_dim)
         s_conv = s_conv.transpose(1, 2)
         skc_out = self.spec_proj_out(s_conv)
+        with torch.no_grad():
+            _res_norm = x.norm(dim=-1).mean().item() + 1e-8
+            _skc_ratio = skc_out.norm(dim=-1).mean().item() / _res_norm
         _scale = external_skc_scale if external_skc_scale is not None else self.skc_scale.to(x.dtype)
         x = x + _scale[None, None, :] * skc_out
         spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
@@ -2424,6 +2543,18 @@ class SKCLayer(nn.Module):
         else:
             (mlp_out, moe_loss) = (_mlp_raw, None)
         _m_scale = external_mlp_scale if external_mlp_scale is not None else self.mlp_scale.to(x.dtype)
+        with torch.no_grad():
+            _mlp_ratio = mlp_out.norm(dim=-1).mean().item() / _res_norm
+            self._last_amp = {'skc_res': _skc_ratio, 'mlp_res': _mlp_ratio, 'eng_res': 0.0}
+            if self.training and bool(int(os.environ.get('BRANCH_AMP_LOG', '0'))):
+                _diag_step = int(getattr(self, '_diag_step', -1))
+                _every = max(int(os.environ.get('SKC_PROBE_EVERY', '50')), 1)
+                _warm = max(int(os.environ.get('SKC_PROBE_WARMUP', '50')), 0)
+                if _diag_step >= _warm and (_diag_step % _every == 0):
+                    _log_fn = getattr(self, '_diag_log_fn', None)
+                    if callable(_log_fn):
+                        _lid = int(getattr(self, '_layer_idx', -1))
+                        _log_fn(f'amp L{_lid} skc/res={_skc_ratio:.6f} mlp/res={_mlp_ratio:.6f} eng/res=0.000000')
         x = x + _m_scale[None, None, :] * mlp_out
         if spec_aux is not None and moe_loss is not None:
             combined_aux: Tensor | None = spec_aux + moe_loss
@@ -2433,7 +2564,7 @@ class SKCLayer(nn.Module):
 
 class ParallelSKCBlock(nn.Module):
 
-    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64, mlp_mult=4, group_size=128, activation='lrelu2', leaky_relu_slope=0.5, ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, aux_min_entropy_fraction: float=0.8):
+    def __init__(self, dim, capsule_num=32, capsule_dim=128, conv_kernel=4, block_size=64, mlp_mult=4, group_size=128, activation='lrelu2', leaky_relu_slope=0.5, ln_scale_factor=1.0, moe_enabled=False, moe_num_experts=8, moe_top_k=2, moe_start_fraction: float=0.65, moe_aux_coef: float=0.001, residual_scale_init: float=0.15, resid_mix_x0_init: float=0.05, aux_min_entropy_fraction: float=0.8, skc_amp_ramp_fraction: float=0.0, eng_to_skc_mode: str='off'):
         super().__init__()
         self.dim = dim
         self.capsule_num = capsule_num
@@ -2461,8 +2592,22 @@ class ParallelSKCBlock(nn.Module):
         self.resid_mix = _resid_mix_scalar_init(resid_mix_x0_init)
         self.skc_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_prenorm_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.skc_amp_ramp_fraction = float(max(skc_amp_ramp_fraction, 0.0))
+        self.eng_to_skc_mode = str(eng_to_skc_mode).lower()
+        self._last_amp = {'skc_res': 0.0, 'mlp_res': 0.0, 'eng_res': 0.0}
+        if self.eng_to_skc_mode == 'bias':
+            self.eng_bias_proj = TernaryLinear(dim, capsule_dim, group_size=group_size)
+            self.eng_gate_proj = TernaryLinear(dim, capsule_dim, group_size=group_size)
+            self.eng_bias_proj._zero_init = True
+            self.eng_gate_proj._zero_init = True
+        elif self.eng_to_skc_mode == 'gate':
+            self.eng_gate_proj = TernaryLinear(dim, dim, group_size=group_size)
+            self.eng_gate_proj._zero_init = True
+        else:
+            self.eng_bias_proj = None
+            self.eng_gate_proj = None
 
-    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None):
+    def forward(self, x, x0, v0=None, prev_capsules=None, elapsed_fraction=1.0, external_skc_scale=None, external_mlp_scale=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float | None=None, layer_idx: int | None=None):
         (B, T, D) = x.shape
         if T == 0:
             return (x, None, None)
@@ -2475,7 +2620,11 @@ class ParallelSKCBlock(nn.Module):
         pad_len = (self.block_size - T % self.block_size) % self.block_size
         T_pad = T + pad_len
         s = self.spec_proj_in(normed)
-        g = torch.sigmoid(self.gate_proj(normed))
+        g_logits = self.gate_proj(normed)
+        if eng_ctx is not None and self.eng_to_skc_mode == 'bias' and self.eng_bias_proj is not None and self.eng_gate_proj is not None:
+            s = s + self.eng_bias_proj(eng_ctx)
+            g_logits = g_logits + self.eng_gate_proj(eng_ctx)
+        g = torch.sigmoid(g_logits)
         s_pad = F.pad(s, (0, 0, 0, pad_len))
         g_pad = F.pad(g, (0, 0, 0, pad_len))
         num_blocks = T_pad // self.block_size
@@ -2495,8 +2644,13 @@ class ParallelSKCBlock(nn.Module):
         weight = self.mixer_conv.view(self.capsule_dim, 1, self.conv_kernel)
         s_conv = F.conv1d(s_conv_pad, weight.to(s_conv_in.dtype), groups=self.capsule_dim).transpose(1, 2)
         skc_out = self.spec_proj_out(s_conv)
+        if eng_ctx is not None and self.eng_to_skc_mode == 'gate' and self.eng_gate_proj is not None:
+            skc_out = skc_out * (1.0 + torch.tanh(self.eng_gate_proj(eng_ctx)))
         spec_aux: Tensor | None = self.aux_loss_fn(s_spec) if self.training else None
         _skc_s = (external_skc_scale if external_skc_scale is not None else self.skc_scale).to(x.dtype)
+        if self.skc_amp_ramp_fraction > 0.0:
+            ramp_prog = min(max(float(elapsed_fraction) / max(self.skc_amp_ramp_fraction, 1e-06), 1.0), 2.0)
+            _skc_s = _skc_s * ramp_prog
         
         try:
             mlp_in = triton_rms_norm(x, weight=self.mlp_prenorm_gamma.to(x.dtype)) * self.ln_scale_factor
@@ -2508,7 +2662,23 @@ class ParallelSKCBlock(nn.Module):
         else:
             (mlp_out, moe_loss) = (_mlp_raw, None)
         _mlp_s = (external_mlp_scale if external_mlp_scale is not None else self.mlp_scale).to(x.dtype)
-        
+
+        with torch.no_grad():
+            denom = x.norm(dim=-1).mean().item() + 1e-8
+            skc_ratio = (skc_out.norm(dim=-1).mean().item() / denom)
+            mlp_ratio = (mlp_out.norm(dim=-1).mean().item() / denom)
+            eng_ratio = float(eng_amp_ratio) if eng_amp_ratio is not None else 0.0
+            self._last_amp = {'skc_res': skc_ratio, 'mlp_res': mlp_ratio, 'eng_res': eng_ratio}
+            if self.training and bool(int(os.environ.get('BRANCH_AMP_LOG', '0'))):
+                _diag_step = int(getattr(self, '_diag_step', -1))
+                _every = max(int(os.environ.get('SKC_PROBE_EVERY', '50')), 1)
+                _warm = max(int(os.environ.get('SKC_PROBE_WARMUP', '50')), 0)
+                if _diag_step >= _warm and (_diag_step % _every == 0):
+                    _log_fn = getattr(self, '_diag_log_fn', None)
+                    if callable(_log_fn):
+                        _lid = int(layer_idx) if layer_idx is not None else -1
+                        _log_fn(f'amp L{_lid} skc/res={skc_ratio:.6f} mlp/res={mlp_ratio:.6f} eng/res={eng_ratio:.6f}')
+
         x_out = x + _skc_s[None, None, :] * skc_out + _mlp_s[None, None, :] * mlp_out
         if spec_aux is not None and moe_loss is not None:
             combined_aux = spec_aux + moe_loss
@@ -2572,11 +2742,25 @@ class Backbone(nn.Module):
             return 1
         return self.training_depth_recurrence
 
-    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None) -> tuple[Tensor, Tensor | None, Tensor | None]:
+    def run_block(self, layer_idx: int, x: Tensor, x0: Tensor, v0: Tensor | None=None, elapsed_fraction: float=1.0, prev_capsules: Tensor | None=None, reset_mask: Tensor | None=None, eng_ctx: Tensor | None=None, eng_amp_ratio: float | None=None) -> tuple[Tensor, Tensor | None, Tensor | None]:
         if self.blocks is not None:
             blk = self.blocks[layer_idx]
             if isinstance(blk, SKCLayer):
-                return blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+                blk._layer_idx = int(layer_idx)
+                out = blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction)
+                if not hasattr(self, '_last_amp_ratios'):
+                    self._last_amp_ratios = {}
+                if hasattr(blk, '_last_amp'):
+                    self._last_amp_ratios[layer_idx] = dict(blk._last_amp)
+                return out
+            if isinstance(blk, ParallelSKCBlock):
+                blk._layer_idx = int(layer_idx)
+                out = blk(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction, eng_ctx=eng_ctx, eng_amp_ratio=eng_amp_ratio, layer_idx=layer_idx)
+                if not hasattr(self, '_last_amp_ratios'):
+                    self._last_amp_ratios = {}
+                if hasattr(blk, '_last_amp'):
+                    self._last_amp_ratios[layer_idx] = dict(blk._last_amp)
+                return out
             if isinstance(blk, KoopmanBlock):
                 return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=reset_mask)
             return blk(x, x0, v0=v0, elapsed_fraction=elapsed_fraction)
@@ -2589,9 +2773,20 @@ class Backbone(nn.Module):
             x = x + self.per_layer_attn_scales[layer_idx].to(dtype=x.dtype) * mixer_out
             v_out = None
         elif layer_type == 'skc':
+            if hasattr(block, '_layer_idx'):
+                block._layer_idx = int(layer_idx)
+            else:
+                try:
+                    block._layer_idx = int(layer_idx)
+                except Exception:
+                    pass
             _skc_scale = self.per_layer_skc_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_skc_scales is not None else None
             _mlp_scale = self.per_layer_mlp_scales[layer_idx].to(dtype=x.dtype) if self.per_layer_mlp_scales is not None else None
-            (x, v_out, aux_loss) = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction, external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale)
+            (x, v_out, aux_loss) = block(x, x0, v0=v0, prev_capsules=prev_capsules, elapsed_fraction=elapsed_fraction, external_skc_scale=_skc_scale, external_mlp_scale=_mlp_scale, eng_ctx=eng_ctx, eng_amp_ratio=eng_amp_ratio, layer_idx=layer_idx)
+            if not hasattr(self, '_last_amp_ratios'):
+                self._last_amp_ratios = {}
+            if hasattr(block, '_last_amp'):
+                self._last_amp_ratios[layer_idx] = dict(block._last_amp)
             return (x, v_out, aux_loss)
         elif layer_type == 'par_attn':
             h = block.attn_norm(x) * block.ln_scale_factor
@@ -2635,22 +2830,34 @@ class LatentCorrector(nn.Module):
         self.feedback_adapter = feedback_adapter
         self.adaptive_halt_threshold = threshold
 
-    def forward(self, x, x0, input_ids, backbone, engram, engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training, engram_enabled, feedback_enabled, final_norm, koopman_speculator_steps, koopman_speculator_enabled, adaptive_halt_enabled):
+    def forward(self, x, x0, input_ids, backbone, engram, engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training, engram_enabled, feedback_enabled, final_norm, koopman_speculator_steps, koopman_speculator_enabled, adaptive_halt_enabled, engram_taper_start: float=0.6, engram_taper_end: float=0.95, eng_write_every: int=1):
         skips: list[Tensor] = []
         v0 = None
         enc_aux: Tensor | None = None
         enc_aux_terms = 0
         for i in range(backbone.num_encoder_layers):
+            eng_ctx_i: Tensor | None = None
+            eng_amp_ratio_i: float | None = None
             if engram_enabled and i == engram_inject_layer:
-                if training and elapsed_fraction > 0.6:
-                    _taper_range = max(0.95 - 0.6, 1e-06)
-                    _engram_w = max(0.25, min(1.0, (0.95 - elapsed_fraction) / _taper_range))
+                if training and elapsed_fraction > engram_taper_start:
+                    _taper_range = max(engram_taper_end - engram_taper_start, 1e-06)
+                    _engram_w = max(0.25, min(1.0, (engram_taper_end - elapsed_fraction) / _taper_range))
                 else:
                     _engram_w = 1.0
                 if _engram_w > 0.0:
-                    x = x + TaperedGradients.apply(engram(input_ids, hidden=x), _engram_w)
+                    eng_out = engram(input_ids, hidden=x)
+                    if training and max(int(eng_write_every), 1) > 1:
+                        _step = int(getattr(backbone, '_diag_step', 0))
+                        if (_step % max(int(eng_write_every), 1)) != 0:
+                            eng_out = eng_out.detach()
+                    with torch.no_grad():
+                        _x_amp = x.norm(dim=-1).mean().item() + 1e-8
+                        eng_amp_ratio_i = eng_out.norm(dim=-1).mean().item() / _x_amp
+                        backbone._last_engram_weight = float(_engram_w)
+                    eng_ctx_i = eng_out
+                    x = x + TaperedGradients.apply(eng_out, _engram_w)
             for _ in range(backbone.recurrence_passes_for_layer(i)):
-                (x, v_out, blk_aux) = backbone.run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask)
+                (x, v_out, blk_aux) = backbone.run_block(i, x, x0, v0=v0, elapsed_fraction=elapsed_fraction, reset_mask=ssm_reset_mask, eng_ctx=eng_ctx_i, eng_amp_ratio=eng_amp_ratio_i)
                 if blk_aux is not None:
                     enc_aux = blk_aux if enc_aux is None else enc_aux + blk_aux
                     enc_aux_terms += 1
@@ -2841,10 +3048,112 @@ def _poll_nn_diagnostics(model: nn.Module, step: int, log0, jsonl_path: str, is_
         f.write(json.dumps(stats) + '\n')
 
 
+def _set_diag_step_metadata(model: nn.Module, step: int, log0) -> None:
+    for module in model.modules():
+        if isinstance(module, (SKCLayer, ParallelSKCBlock, EngramHash)):
+            module._diag_step = int(step)
+            module._diag_log_fn = log0
+    if hasattr(model, 'backbone'):
+        model.backbone._diag_step = int(step)
+
+
+def _extract_loss_value(loss_out: Tensor | tuple[Tensor, Tensor]) -> Tensor:
+    if isinstance(loss_out, tuple):
+        return loss_out[0]
+    return loss_out
+
+
+def _probe_skc_causal(model: nn.Module, x: Tensor, y: Tensor, elapsed_fraction: float, feedback_passes: int) -> dict[str, float]:
+    out: dict[str, float] = {}
+    named_skc = [(n, p) for (n, p) in model.named_parameters() if 'skc_scale' in n and p.requires_grad]
+    with torch.no_grad():
+        base = _extract_loss_value(model(x, y, elapsed_fraction=elapsed_fraction, feedback_passes=feedback_passes, disable_speculation=True)).item()
+        out['base'] = base
+        backups = [(p, p.detach().clone()) for (_, p) in named_skc]
+        try:
+            for mult in (0.0, 0.5, 2.0, 4.0):
+                for (_, p) in named_skc:
+                    p.mul_(float(mult))
+                out[str(mult)] = _extract_loss_value(model(x, y, elapsed_fraction=elapsed_fraction, feedback_passes=feedback_passes, disable_speculation=True)).item()
+                for (p, b) in backups:
+                    p.copy_(b)
+        finally:
+            for (p, b) in backups:
+                p.copy_(b)
+    return out
+
+
+def _probe_engram_causal(model: nn.Module, x: Tensor, y: Tensor, elapsed_fraction: float, feedback_passes: int) -> dict[str, float]:
+    out: dict[str, float] = {}
+    if not hasattr(model, 'engram_inject_layer'):
+        return out
+    with torch.no_grad():
+        on = _extract_loss_value(model(x, y, elapsed_fraction=elapsed_fraction, feedback_passes=feedback_passes, disable_speculation=True)).item()
+        old_layer = int(model.engram_inject_layer)
+        model.engram_inject_layer = -99
+        try:
+            off = _extract_loss_value(model(x, y, elapsed_fraction=elapsed_fraction, feedback_passes=feedback_passes, disable_speculation=True)).item()
+        finally:
+            model.engram_inject_layer = old_layer
+    out['on'] = on
+    out['off'] = off
+    return out
+
+
+def _collect_probe_row(model: nn.Module, step: int, loss_val: float, skc_probe: dict[str, float], eng_probe: dict[str, float]) -> dict[str, float]:
+    row: dict[str, float] = {'step': float(step), 'loss': float(loss_val)}
+    base = skc_probe.get('base')
+    if base is not None:
+        row['skc_zero_delta'] = base - skc_probe.get('0.0', base)
+        row['skc_quad_delta'] = skc_probe.get('4.0', base) - base
+    else:
+        row['skc_zero_delta'] = 0.0
+        row['skc_quad_delta'] = 0.0
+    if eng_probe:
+        row['eng_zero_delta'] = eng_probe.get('off', eng_probe.get('on', 0.0)) - eng_probe.get('on', 0.0)
+    else:
+        row['eng_zero_delta'] = 0.0
+    amp_map = getattr(getattr(model, 'backbone', None), '_last_amp_ratios', {}) or {}
+    for (layer_idx, vals) in amp_map.items():
+        row[f'amp_skc_L{layer_idx}'] = float(vals.get('skc_res', 0.0))
+    if hasattr(model, 'backbone'):
+        bb = model.backbone
+        n_layers = len(bb.layer_types) if hasattr(bb, 'layer_types') else 0
+        for i in range(n_layers):
+            v = 0.0
+            try:
+                if bb.blocks is not None:
+                    blk = bb.blocks[i]
+                else:
+                    blk = bb.shared_block_bank[bb.block_map[i]]
+                if hasattr(blk, 'skc_scale'):
+                    v = float(blk.skc_scale.mean().item())
+                elif bb.per_layer_skc_scales is not None:
+                    v = float(bb.per_layer_skc_scales[i].mean().item())
+            except Exception:
+                v = 0.0
+            row[f'skc_scale_mean_L{i}'] = v
+        row['engram_weight_effective'] = float(getattr(bb, '_last_engram_weight', 1.0))
+    else:
+        row['engram_weight_effective'] = 1.0
+    return row
+
+
+def _write_probe_summary_csv(path: str, rows: list[dict[str, float]]) -> None:
+    if not rows:
+        return
+    keys = sorted({k for r in rows for k in r.keys()})
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=keys)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 
 class GPT(nn.Module):
 
-    def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float, rope_base: float, qk_gain_init: float, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, residual_proj_init_std: float=0.002, embed_dim: int=0, training_depth_recurrence: int=0, recurrence_layers: tuple[int, ...]=(), fp_storage: str | bool=False, softcap_type: str='poly', no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024, feedback_enabled: bool=True, feedback_dim: int=64, feedback_sketch_tokens: int=4, feedback_replay: str='decoder', feedback_target: str='decoder', feedback_fp_storage: str | bool=True, feedback_gate_init: float=0.05, feedback_passes: int=1, shared_blocks: int=0, capsule_enabled: bool=False, capsule_num: int=16, capsule_dim: int=64, partial_rope_dims: int=0, vrl_enabled: bool=False, vrl_start_layer: int=8, ln_scale_damping: bool=False, bigram_hash_enabled: bool=False, bigram_hash_buckets: int=4096, bigram_hash_dim: int=128, engram_num_heads: int=4, engram_num_orders: int=2, engram_inject_layer: int=1, xsa_start_layer: int=-1, moe_enabled: bool=False, moe_num_experts: int=8, moe_top_k: int=2, architecture: str='hybrid', koopman_enabled: bool=True, koopman_rank: int=2, koopman_diag_init: float=0.9, koopman_consistency_weight: float=0.005, koopman_speculator_enabled: bool=True, koopman_speculator_steps: int=3, koopman_speculator_weight: float=0.01, adaptive_halt_enabled: bool=True, adaptive_halt_threshold: float=0.05, koopman_state_dim: int=128, koopman_mixer_rank: int=4, koopman_conv_kernel: int=4, koopman_decay_window: int=32, koopman_scan_checkpoint: bool=True, koopman_scan_checkpoint_min_seq: int=1024, skc_num_capsules: int=32, skc_capsule_dim: int=128, skc_conv_kernel: int=4, skc_block_size: int=64, skc_aux_entropy_fraction: float=0.8, skc_recurrent_core: bool=False, skc_upper_branch: bool=False, moe_layer_frac: float=0.67, moe_start_fraction: float=0.65, moe_router_aux_loss_coef: float=0.001, eos_token_id: int=-1, reset_ssm_on_eos: bool=True, skc_parallel_residual: bool=False):
+    def __init__(self, vocab_size: int, num_layers: int, model_dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int, tie_embeddings: bool, tied_embed_init_std: float, logit_softcap: float, rope_base: float, qk_gain_init: float, group_size: int=64, activation: str='relu2', leaky_relu_slope: float=0.5, residual_scale_init: float=0.05, resid_mix_x0_init: float=0.05, residual_proj_init_std: float=0.002, embed_dim: int=0, training_depth_recurrence: int=0, recurrence_layers: tuple[int, ...]=(), fp_storage: str | bool=False, softcap_type: str='poly', no_cache: bool=False, rope_type: str='rope', yarn_max_len: int=4096, train_seq_len: int=1024, feedback_enabled: bool=True, feedback_dim: int=64, feedback_sketch_tokens: int=4, feedback_replay: str='decoder', feedback_target: str='decoder', feedback_fp_storage: str | bool=True, feedback_gate_init: float=0.05, feedback_passes: int=1, shared_blocks: int=0, capsule_enabled: bool=False, capsule_num: int=16, capsule_dim: int=64, partial_rope_dims: int=0, vrl_enabled: bool=False, vrl_start_layer: int=8, ln_scale_damping: bool=False, bigram_hash_enabled: bool=False, bigram_hash_buckets: int=4096, bigram_hash_dim: int=128, engram_num_heads: int=4, engram_num_orders: int=2, engram_inject_layer: int=1, engram_taper_start: float=0.4, engram_taper_end: float=0.8, eng_write_every: int=1, eng_to_skc_mode: str='off', eng_gate_bias_init: float=0.0, xsa_start_layer: int=-1, moe_enabled: bool=False, moe_num_experts: int=8, moe_top_k: int=2, architecture: str='hybrid', koopman_enabled: bool=True, koopman_rank: int=2, koopman_diag_init: float=0.9, koopman_consistency_weight: float=0.005, koopman_speculator_enabled: bool=True, koopman_speculator_steps: int=3, koopman_speculator_weight: float=0.01, adaptive_halt_enabled: bool=True, adaptive_halt_threshold: float=0.05, koopman_state_dim: int=128, koopman_mixer_rank: int=4, koopman_conv_kernel: int=4, koopman_decay_window: int=32, koopman_scan_checkpoint: bool=True, koopman_scan_checkpoint_min_seq: int=1024, skc_num_capsules: int=32, skc_capsule_dim: int=128, skc_conv_kernel: int=4, skc_block_size: int=64, skc_aux_entropy_fraction: float=0.8, skc_recurrent_core: bool=False, skc_upper_branch: bool=False, skc_residual_scale_init: float=0.15, skc_amp_ramp_fraction: float=0.0, moe_layer_frac: float=0.67, moe_start_fraction: float=0.65, moe_router_aux_loss_coef: float=0.001, eos_token_id: int=-1, reset_ssm_on_eos: bool=True, skc_parallel_residual: bool=False):
         super().__init__()
         self.skc_parallel_residual = skc_parallel_residual
         self.training_depth_recurrence = training_depth_recurrence
@@ -2926,10 +3235,16 @@ class GPT(nn.Module):
             self._block_map = list(range(num_layers))
         self.engram = None
         if bigram_hash_enabled:
-            self.engram = EngramHash(num_buckets=bigram_hash_buckets, hash_dim=bigram_hash_dim, model_dim=model_dim, fp_storage=False, num_heads=engram_num_heads, num_orders=engram_num_orders)
+            self.engram = EngramHash(num_buckets=bigram_hash_buckets, hash_dim=bigram_hash_dim, model_dim=model_dim, fp_storage=False, num_heads=engram_num_heads, num_orders=engram_num_orders, gate_bias_init=eng_gate_bias_init)
         self.eval_engram = None  # lazily constructed at eval time if enabled
         self._packed_engram_snapshot = None  # populated on enable_freeze_check()
         self.engram_inject_layer = engram_inject_layer
+        self.engram_taper_start = float(engram_taper_start)
+        self.engram_taper_end = float(engram_taper_end)
+        self.eng_write_every = max(int(eng_write_every), 1)
+        self.eng_to_skc_mode = str(eng_to_skc_mode).lower()
+        self.skc_residual_scale_init = float(skc_residual_scale_init)
+        self.skc_amp_ramp_fraction = float(max(skc_amp_ramp_fraction, 0.0))
         self.capsule_bank = None
         if capsule_enabled:
             self.capsule_bank = CapsuleBank(model_dim=model_dim, capsule_num=capsule_num, capsule_dim=capsule_dim, fp_storage=fp_storage, koopman_enabled=koopman_enabled, koopman_rank=koopman_rank, koopman_diag_init=koopman_diag_init)
@@ -2959,9 +3274,9 @@ class GPT(nn.Module):
         def _make_skc_block(layer_idx):
             ln_sf = 1.0 / (layer_idx + 1) ** 0.5 if ln_scale_damping else 1.0
             layer_moe = moe_enabled and layer_idx >= moe_layer_threshold
-            _skc_kwargs = dict(dim=model_dim, capsule_num=self.skc_num_capsules, capsule_dim=self.skc_capsule_dim, conv_kernel=self.skc_conv_kernel, block_size=self.skc_block_size, mlp_mult=mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init)
+            _skc_kwargs = dict(dim=model_dim, capsule_num=self.skc_num_capsules, capsule_dim=self.skc_capsule_dim, conv_kernel=self.skc_conv_kernel, block_size=self.skc_block_size, mlp_mult=mlp_mult, group_size=group_size, activation=activation, leaky_relu_slope=leaky_relu_slope, ln_scale_factor=ln_sf, moe_enabled=layer_moe, moe_num_experts=moe_num_experts, moe_top_k=moe_top_k, moe_start_fraction=self.moe_start_fraction, moe_aux_coef=moe_router_aux_loss_coef, residual_scale_init=self.skc_residual_scale_init, resid_mix_x0_init=self.resid_mix_x0_init)
             if self.skc_parallel_residual:
-                return ParallelSKCBlock(**_skc_kwargs)
+                return ParallelSKCBlock(**_skc_kwargs, skc_amp_ramp_fraction=self.skc_amp_ramp_fraction, eng_to_skc_mode=self.eng_to_skc_mode)
             return SKCLayer(**_skc_kwargs)
 
         def _make_par_attn_block(layer_idx):
@@ -3106,7 +3421,7 @@ class GPT(nn.Module):
         # to ensure evaluation graph matches the training graph.
         spec_enabled = self.koopman_speculator_enabled if (not disable_speculation) else False
         halt_enabled = self.adaptive_halt_enabled if (not disable_speculation) else False
-        return self.latent_corrector(x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training=self.training, engram_enabled=self.engram is not None, feedback_enabled=self.feedback_enabled, final_norm=self.final_norm, koopman_speculator_steps=self.koopman_speculator_steps, koopman_speculator_enabled=spec_enabled, adaptive_halt_enabled=halt_enabled)
+        return self.latent_corrector(x, x0, input_ids, self.backbone, self.engram, self.engram_inject_layer, num_passes, elapsed_fraction, carry_capsules, feedback_valid_len, ssm_reset_mask, training=self.training, engram_enabled=self.engram is not None, feedback_enabled=self.feedback_enabled, final_norm=self.final_norm, koopman_speculator_steps=self.koopman_speculator_steps, koopman_speculator_enabled=spec_enabled, adaptive_halt_enabled=halt_enabled, engram_taper_start=self.engram_taper_start, engram_taper_end=self.engram_taper_end, eng_write_every=self.eng_write_every)
 
     def _compute_logits(self, hidden: torch.Tensor) -> torch.Tensor:
         return self.tok_stem.compute_logits(hidden, softcap=self._softcap)
@@ -3336,6 +3651,101 @@ def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens
     model.train(was_training)
     return (float(val_loss), float(bpb))
 
+def maybe_reset_eval_engram_state(args, base_model, device, log0=print, context: str='eval') -> None:
+    if not getattr(args, 'eval_engram_enabled', False):
+        return
+    base_model.maybe_build_eval_engram(args, device)
+    ee = getattr(base_model, 'eval_engram', None)
+    if ee is None:
+        return
+    if getattr(args, 'eval_engram_reset_each_eval', True):
+        ee.reset()
+        log0(f'eval_engram:reset context={context}')
+
+@torch.no_grad()
+def export_eval_hard_reset(args, base_model, device, log0=print, context: str='export_eval', apply_calib: dict | None=None) -> None:
+    if hasattr(base_model, 'reset_capsule_carry'):
+        base_model.reset_capsule_carry()
+    if getattr(args, 'freeze_packed_engram', False) and hasattr(base_model, 'restore_packed_engram'):
+        try:
+            base_model.restore_packed_engram(strict=False)
+        except Exception as e:
+            log0(f'export_eval_hard_reset:warn restore_packed_engram failed context={context} err={e}')
+    maybe_reset_eval_engram_state(args, base_model, device, log0=log0, context=context)
+    if apply_calib is not None and hasattr(base_model, 'apply_export_calib'):
+        base_model.apply_export_calib(apply_calib)
+    base_model.eval()
+
+@torch.no_grad()
+def load_quantized_roundtrip_state(model: nn.Module, quantized_obj: dict, target_dtype=torch.float32) -> dict[str, dict[str, float]]:
+    load_roundtrip_state_strict(model, deq_sd(quantized_obj, target_dtype=target_dtype))
+    calib = extract_serialized_export_calib(quantized_obj)
+    if hasattr(model, 'apply_export_calib'):
+        model.apply_export_calib(calib)
+    return calib
+
+@torch.no_grad()
+def compute_logit_parity_metrics(ref_logits: Tensor, test_logits: Tensor, topk: int=16) -> dict[str, float]:
+    ref = ref_logits.float()
+    tst = test_logits.float()
+    delta = tst - ref
+    l2 = float(torch.sqrt(torch.mean(delta * delta)).item())
+    max_abs = float(delta.abs().max().item())
+    argmax_agree = float((tst.argmax(dim=-1) == ref.argmax(dim=-1)).float().mean().item())
+    vocab = ref.size(-1)
+    k = int(max(1, min(topk, vocab)))
+    top_idx = torch.topk(ref, k=k, dim=-1).indices
+    ref_top = torch.gather(ref, -1, top_idx)
+    tst_top = torch.gather(tst, -1, top_idx)
+    ref_lp = F.log_softmax(ref_top, dim=-1)
+    tst_lp = F.log_softmax(tst_top, dim=-1)
+    ref_p = ref_lp.exp()
+    topk_kl = float(torch.sum(ref_p * (ref_lp - tst_lp), dim=-1).mean().item())
+    return {'l2': l2, 'max_abs': max_abs, 'argmax_agree': argmax_agree, 'topk_kl': topk_kl}
+
+@torch.no_grad()
+def collect_roundtrip_logit_reference(args, base_model, val_tokens: Tensor, device, temperature: float=1.0, feedback_passes: int | None=None):
+    if not getattr(args, 'roundtrip_logit_audit', False):
+        return None
+    n_tok = int(max(64, getattr(args, 'roundtrip_logit_audit_tokens', 1024)))
+    tok = val_tokens[:n_tok + 1]
+    if tok.numel() < 2:
+        return None
+    x = tok[:-1].to(device=device, dtype=torch.int64).unsqueeze(0)
+    eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
+    was_training = base_model.training
+    export_eval_hard_reset(args, base_model, device, context='roundtrip_ref')
+    with autocast_context(device):
+        ref_logits = base_model.forward_logits(x, temperature=temperature, feedback_passes=eval_feedback_passes)
+    base_model.train(was_training)
+    return {'x': x.detach().cpu(), 'logits': ref_logits.detach().float().cpu()}
+
+@torch.no_grad()
+def run_roundtrip_logit_audit(args, base_model, reference, device, log0=print, temperature: float=1.0, feedback_passes: int | None=None):
+    if reference is None:
+        return None
+    x = reference['x'].to(device=device, dtype=torch.int64)
+    ref = reference['logits'].to(device=device, dtype=torch.float32)
+    eval_feedback_passes = resolve_eval_feedback_passes(args, feedback_passes)
+    was_training = base_model.training
+    export_eval_hard_reset(args, base_model, device, context='roundtrip_audit')
+    with autocast_context(device):
+        q_logits = base_model.forward_logits(x, temperature=temperature, feedback_passes=eval_feedback_passes).float()
+    base_model.train(was_training)
+    metrics = compute_logit_parity_metrics(ref, q_logits, topk=16)
+    l2 = metrics['l2']
+    max_abs = metrics['max_abs']
+    argmax_agree = metrics['argmax_agree']
+    topk_kl = metrics['topk_kl']
+    log0(f'roundtrip_logit_audit: tokens={x.numel()} l2={l2:.6f} max_abs={max_abs:.6f} argmax_agree={argmax_agree:.4f} topk_kl={topk_kl:.6e}')
+    violates = (argmax_agree < float(args.roundtrip_logit_audit_argmax_min)) or (max_abs > float(args.roundtrip_logit_audit_max_abs))
+    if violates and getattr(args, 'roundtrip_logit_audit_enforce', False):
+        raise RuntimeError(
+            f'Roundtrip logit audit failed: argmax_agree={argmax_agree:.4f} (min={args.roundtrip_logit_audit_argmax_min}), '
+            f'max_abs={max_abs:.6f} (max={args.roundtrip_logit_audit_max_abs})'
+        )
+    return {'l2': l2, 'max_abs': max_abs, 'argmax_agree': argmax_agree, 'topk_kl': topk_kl}
+
 def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps, val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, stride: int=64, temperature: float=1.0, feedback_passes: int | None=None, logger=None, force_sequential: bool=False):
     del grad_accum_steps
     seq_len = args.train_seq_len
@@ -3393,12 +3803,12 @@ def eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_step
             nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
             for (j, start) in enumerate(batch_starts):
                 wlen = wlens[j]
-                score_from = 0 if start == 0 else seq_len - stride
+                score_from = 0 if start == 0 else min(max(seq_len - stride, 0), wlen)
                 scored = nll[j, score_from:wlen]
                 sx = x_batch[j, score_from:wlen]
                 sy = y_batch[j, score_from:wlen]
                 loss_sum += scored.to(torch.float64).sum()
-                token_count += float(wlen - score_from)
+                token_count += float(scored.numel())
                 byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
     if dist.is_available() and dist.is_initialized():
         for t in (loss_sum, token_count, byte_count):
@@ -3513,7 +3923,7 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
     # Legal-TTT-aligned EvalEngram: build lazily, snapshot packed tables so TTT
     # SGD cannot drift them. Absorb happens strictly AFTER each chunk's SCORE
     # phase (see below), mirroring Legal TTT's "score-first, then adapt" rule.
-    base_model.maybe_build_eval_engram(args, device)
+    maybe_reset_eval_engram_state(args, base_model, device, log0=log0, context='legal_ttt')
     if getattr(args, 'freeze_packed_engram', False):
         base_model.snapshot_packed_engram()
     _ee = getattr(base_model, 'eval_engram', None)
@@ -3566,10 +3976,10 @@ def eval_val_sliding_ttt(args, base_model, rank, world_size, device, val_tokens,
                     nll = F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(), y_batch.reshape(-1), reduction='none').reshape(bsz, seq_len)
                     for (i, ws) in enumerate(batch_ws):
                         wlen = wlens[i]
-                        score_from = 0 if ws == 0 else seq_len - stride
+                        score_from = 0 if ws == 0 else min(max(seq_len - stride, 0), wlen)
                         scored = nll[i, score_from:wlen].to(torch.float64)
                         loss_sum += scored.sum()
-                        token_count += float(wlen - score_from)
+                        token_count += float(scored.numel())
                         sx = x_batch[i, score_from:wlen]
                         sy = y_batch[i, score_from:wlen]
                         byte_count += token_byte_count(sx, sy, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
@@ -3716,11 +4126,15 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int, pro
     if getattr(base_model, 'tie_embeddings', False):
         sd_for_export.pop(_LM_HEAD_STATE_KEY, None)
         sd_for_export.pop('lm_head.weight', None)
+    _can_proxy_prune = not (dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1)
+    if _can_proxy_prune:
+        _proxy_prune_tokens = proxy_tokens.unsqueeze(0) if proxy_tokens.ndim == 1 else proxy_tokens
+        (sd_for_export, _) = prune_engram_tables_for_export(sd_for_export, base_model, args, _proxy_prune_tokens, log0=(lambda _msg: None))
     eval_feedback_passes = resolve_eval_feedback_passes(args)
     try:
         (q_obj, _) = q_sd(sd_for_export, group_size=group_size, fp_storage=args.fp_storage, calib=calib, ternary_names=ternary_names, turbo_quant_export=args.turbo_quant_export, fp16_names=fp16_names)
-        load_roundtrip_state_strict(base_model, deq_sd(q_obj, target_dtype=torch.float32))
-        base_model.eval()
+        _loaded_calib = load_quantized_roundtrip_state(base_model, q_obj, target_dtype=torch.float32)
+        export_eval_hard_reset(args, base_model, device, context='proxy_roundtrip_eval', apply_calib=_loaded_calib or calib)
         loss_sum = 0.0
         tok_count = 0
         byte_count = 0.0
@@ -3743,6 +4157,8 @@ def _proxy_roundtrip_bpb(sd: dict, base_model, calib: dict, group_size: int, pro
         return val_loss / math.log(2.0) * (tok_count / max(byte_count, 1.0))
     finally:
         base_model.load_state_dict(sd)
+        if hasattr(base_model, 'apply_export_calib'):
+            base_model.apply_export_calib({})
         base_model.train(was_training)
 
 def calibrate_ternary(base_model, proxy_tokens: torch.Tensor, args, device, base_bytes_lut: Tensor, has_leading_space_lut: Tensor, is_boundary_token_lut: Tensor) -> dict:
@@ -4007,7 +4423,7 @@ def main() -> None:
         )
     log0(f'regime_check: tokenizer={_tok_base} data={_dat_base} vocab={args.vocab_size} OK')
     (base_bytes_lut, has_leading_space_lut, is_boundary_token_lut) = build_luts(sp, args.vocab_size, device)
-    base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope, residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init, residual_proj_init_std=args.residual_proj_init_std, embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage, softcap_type=args.softcap_type, no_cache=args.compile_mode == 'reduce-overhead', rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len, feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim, feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay, feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage, feedback_gate_init=args.feedback_gate_init, feedback_passes=args.feedback_passes, shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled, capsule_num=args.capsule_num, capsule_dim=args.capsule_dim, partial_rope_dims=args.partial_rope_dims, vrl_enabled=args.vrl_enabled, vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping, bigram_hash_enabled=args.bigram_hash_enabled, bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim, engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders, engram_inject_layer=args.engram_inject_layer, xsa_start_layer=args.xsa_start_layer, moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k, architecture=args.architecture, koopman_enabled=args.koopman_enabled, koopman_rank=args.koopman_rank, koopman_diag_init=args.koopman_diag_init, koopman_consistency_weight=args.koopman_consistency_weight, koopman_speculator_enabled=args.koopman_speculator_enabled, koopman_speculator_steps=args.koopman_speculator_steps, koopman_speculator_weight=args.koopman_speculator_weight, adaptive_halt_enabled=args.adaptive_halt_enabled, adaptive_halt_threshold=args.adaptive_halt_threshold, koopman_state_dim=args.koopman_state_dim, koopman_mixer_rank=args.koopman_mixer_rank, koopman_conv_kernel=args.koopman_conv_kernel, koopman_decay_window=args.koopman_decay_window, koopman_scan_checkpoint=args.koopman_scan_checkpoint, koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq, skc_num_capsules=args.skc_num_capsules, skc_capsule_dim=args.skc_capsule_dim, skc_conv_kernel=args.skc_conv_kernel, skc_block_size=args.skc_block_size, skc_aux_entropy_fraction=args.skc_aux_entropy_fraction, skc_recurrent_core=args.skc_recurrent_core, skc_upper_branch=args.skc_upper_branch, moe_layer_frac=args.moe_layer_frac, moe_start_fraction=args.moe_start_fraction, moe_router_aux_loss_coef=args.moe_router_aux_loss_coef, eos_token_id=int(sp.eos_id()), reset_ssm_on_eos=args.reset_ssm_on_eos, skc_parallel_residual=args.skc_parallel_residual).to(device)
+    base_model = GPT(vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim, num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult, tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std, logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init, group_size=args.bitnet_group_size, activation=args.activation_type, leaky_relu_slope=args.leaky_relu_slope, residual_scale_init=args.residual_scale_init, resid_mix_x0_init=args.resid_mix_x0_init, residual_proj_init_std=args.residual_proj_init_std, embed_dim=args.embed_dim, training_depth_recurrence=args.training_depth_recurrence, recurrence_layers=args.recurrence_layers, fp_storage=args.fp_storage, softcap_type=args.softcap_type, no_cache=args.compile_mode == 'reduce-overhead', rope_type=args.rope_type, yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len, feedback_enabled=args.feedback_enabled, feedback_dim=args.feedback_dim, feedback_sketch_tokens=args.feedback_sketch_tokens, feedback_replay=args.feedback_replay, feedback_target=args.feedback_target, feedback_fp_storage=args.feedback_fp_storage, feedback_gate_init=args.feedback_gate_init, feedback_passes=args.feedback_passes, shared_blocks=args.shared_blocks, capsule_enabled=args.capsule_enabled, capsule_num=args.capsule_num, capsule_dim=args.capsule_dim, partial_rope_dims=args.partial_rope_dims, vrl_enabled=args.vrl_enabled, vrl_start_layer=args.vrl_start_layer, ln_scale_damping=args.ln_scale_damping, bigram_hash_enabled=args.bigram_hash_enabled, bigram_hash_buckets=args.bigram_hash_buckets, bigram_hash_dim=args.bigram_hash_dim, engram_num_heads=args.engram_num_heads, engram_num_orders=args.engram_num_orders, engram_inject_layer=args.engram_inject_layer, engram_taper_start=args.engram_taper_start, engram_taper_end=args.engram_taper_end, eng_write_every=args.eng_write_every, eng_to_skc_mode=args.eng_to_skc_mode, eng_gate_bias_init=args.eng_gate_bias_init, xsa_start_layer=args.xsa_start_layer, moe_enabled=args.moe_enabled, moe_num_experts=args.moe_num_experts, moe_top_k=args.moe_top_k, architecture=args.architecture, koopman_enabled=args.koopman_enabled, koopman_rank=args.koopman_rank, koopman_diag_init=args.koopman_diag_init, koopman_consistency_weight=args.koopman_consistency_weight, koopman_speculator_enabled=args.koopman_speculator_enabled, koopman_speculator_steps=args.koopman_speculator_steps, koopman_speculator_weight=args.koopman_speculator_weight, adaptive_halt_enabled=args.adaptive_halt_enabled, adaptive_halt_threshold=args.adaptive_halt_threshold, koopman_state_dim=args.koopman_state_dim, koopman_mixer_rank=args.koopman_mixer_rank, koopman_conv_kernel=args.koopman_conv_kernel, koopman_decay_window=args.koopman_decay_window, koopman_scan_checkpoint=args.koopman_scan_checkpoint, koopman_scan_checkpoint_min_seq=args.koopman_scan_checkpoint_min_seq, skc_num_capsules=args.skc_num_capsules, skc_capsule_dim=args.skc_capsule_dim, skc_conv_kernel=args.skc_conv_kernel, skc_block_size=args.skc_block_size, skc_aux_entropy_fraction=args.skc_aux_entropy_fraction, skc_recurrent_core=args.skc_recurrent_core, skc_upper_branch=args.skc_upper_branch, skc_residual_scale_init=args.skc_residual_scale_init, skc_amp_ramp_fraction=args.skc_amp_ramp_fraction, moe_layer_frac=args.moe_layer_frac, moe_start_fraction=args.moe_start_fraction, moe_router_aux_loss_coef=args.moe_router_aux_loss_coef, eos_token_id=int(sp.eos_id()), reset_ssm_on_eos=args.reset_ssm_on_eos, skc_parallel_residual=args.skc_parallel_residual).to(device)
     if master_process and args.hard_budget_bytes > 0:
         import subprocess
         _code_bytes = 0
@@ -4077,6 +4493,7 @@ def main() -> None:
         'q_gain', 'gate_proj', 'router.', 'feedback_gate',
         'content_scale', 'engram_gate',
     )
+    _SKC_STRUCTURAL_MATRIX = ('spec_proj_in', 'spec_proj_out', 'gate_proj', 'mixer_conv', 'decay_rates', 'koopman_mixer', 'koopman_state', 'koopman_conv', 'spec_init_state', 'skc_prenorm_gamma', 'mlp_prenorm_gamma')
 
     def _is_skc_structural(name: str) -> bool:
         return any((k in name for k in _SKC_STRUCTURAL))
@@ -4084,6 +4501,7 @@ def main() -> None:
     adam_params = []
     adam_nodecay_params = []  # ternary latent weights: excluded from weight decay to prevent zero-snapping
     adam_nodecay_scales_params = []  # SKC/Engram gates and residual scales: keep no-WD, optionally faster LR
+    skc_structural_params = []
     head_params = []
     engram_params = []
     _ternary_param_ids = {id(p) for (_, m) in base_model.named_modules() if isinstance(m, TernaryLinear) for p in m.parameters(recurse=False)}
@@ -4094,6 +4512,8 @@ def main() -> None:
             engram_params.append(p)
         elif 'tok_emb' in name or 'lm_head' in name or 'embed_proj' in name:
             head_params.append(p)
+        elif any((k in name for k in _SKC_STRUCTURAL_MATRIX)):
+            skc_structural_params.append(p)
         elif 'per_layer_' in name or any((k in name for k in _SKC_GATES_AND_SCALES)):
             adam_nodecay_scales_params.append(p)
         elif _is_skc_structural(name) or p.ndim < 2:
@@ -4109,6 +4529,15 @@ def main() -> None:
         opt_matrix = torch.optim.AdamW(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
     else:
         opt_matrix = torch.optim.Adam(muon_params, lr=args.matrix_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
+    if skc_structural_params:
+        _skc_struct_lr = args.matrix_lr * args.skc_struct_lr_mult
+        _skc_struct_muon_compatible = args.matrix_optimizer == 'muon' and all((p.ndim >= 2 for p in skc_structural_params))
+        if _skc_struct_muon_compatible:
+            opt_skc_struct = Muon(skc_structural_params, lr=_skc_struct_lr, momentum=args.muon_momentum, backend_steps=args.muon_backend_steps, wd=args.muon_wd, active_grad_eps=args.muon_active_grad_eps)
+        else:
+            opt_skc_struct = torch.optim.AdamW(skc_structural_params, lr=_skc_struct_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.muon_wd)
+    else:
+        opt_skc_struct = None
     _scales_lr_mult = float(os.environ.get('SCALES_LR_MULT', '3.0'))
     _adam_param_groups = [
         {'params': adam_params, 'weight_decay': args.adam_wd},
@@ -4121,8 +4550,11 @@ def main() -> None:
             'lr': args.scalar_lr * _scales_lr_mult,
         })
     opt_adam = torch.optim.AdamW(_adam_param_groups, lr=args.scalar_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps)
-    opt_head = torch.optim.AdamW(head_params, lr=args.tied_embed_lr if args.tie_embeddings else args.head_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
+    _head_base_lr = (args.tied_embed_lr if args.tie_embeddings else args.head_lr) * args.head_lr_mult
+    opt_head = torch.optim.AdamW(head_params, lr=_head_base_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd)
     all_opts = [opt_matrix, opt_adam, opt_head]
+    if opt_skc_struct is not None:
+        all_opts.append(opt_skc_struct)
     if engram_params:
         opt_engram = torch.optim.AdamW(engram_params, lr=args.engram_lr, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=0.0)
         all_opts.append(opt_engram)
@@ -4272,6 +4704,9 @@ def main() -> None:
     _best_proxy_bpb: float = float('inf')
     _best_proxy_sd: dict | None = None
     _proxy_calib_tokens: torch.Tensor | None = None
+    _probe_rows: list[dict[str, float]] = []
+    _probe_batch: tuple[Tensor, Tensor] | None = None
+    _probe_summary_path = os.path.join('logs', f'skc_matrix_{args.run_id}', 'probe_summary.csv')
     _feedback_interval_steps = interval_steps_from_fraction(args.feedback_every_fraction) if args.feedback_enabled and args.feedback_passes > 0 and (args.feedback_every_fraction > 0) else None
     _next_feedback_step = _feedback_interval_steps
     _val_interval_steps = interval_steps_from_fraction(args.val_loss_every_fraction) if args.val_loss_every_fraction > 0 else args.val_loss_every if args.val_loss_every > 0 else None
@@ -4288,6 +4723,7 @@ def main() -> None:
     t0 = train_wall_start
     step = 0
     for step in range(args.iterations):
+        _set_diag_step_metadata(base_model, step, log0)
         now = time.perf_counter()
         approx_ms = 1000.0 * (now - train_wall_start)
         elapsed_ms = approx_ms
@@ -4348,6 +4784,8 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro == grad_accum_steps - 1
             (x, y) = train_loader.next_batch(active_batch_tokens, active_seq_len, grad_accum_steps)
+            if _probe_batch is None and step == 0 and micro == 0:
+                _probe_batch = (x.detach().clone(), y.detach().clone())
             prog_frac = step_fraction(step)
             with autocast_context(device):
                 # GPT.forward returns (total_loss, raw_ce) during training
@@ -4394,8 +4832,8 @@ def main() -> None:
                     base_model.tok_stem.lm_head.weight.requires_grad_(True)
                     opt_head.add_param_group({
                         'params': [base_model.tok_stem.lm_head.weight],
-                        'lr': args.head_lr,
-                        'base_lr': args.head_lr
+                        'lr': args.head_lr * args.head_lr_mult,
+                        'base_lr': args.head_lr * args.head_lr_mult
                     })
                     optimizers = [opt_matrix, opt_adam, opt_head]
                     if ema is not None:
@@ -4423,7 +4861,7 @@ def main() -> None:
                     else:
                         model = compiled_model
                     
-                    log0(f'step:{step} untied lm_head (head_lr={args.head_lr})')
+                    log0(f'step:{step} untied lm_head (head_lr={args.head_lr * args.head_lr_mult})')
                     _untied = True
                 if distributed:
                     dist.barrier()
@@ -4464,6 +4902,30 @@ def main() -> None:
                 g['lr'] = g['base_lr'] * scale
             opt.step()
         zero_grad_all()
+        _do_probe = (args.skc_causal_probe or args.eng_causal_probe or args.branch_amp_log or args.engram_gate_log) and _probe_batch is not None and step >= args.skc_probe_warmup and (step % max(args.skc_probe_every, 1) == 0)
+        if _do_probe:
+            (_px, _py) = _probe_batch
+            _was_training = base_model.training
+            base_model.eval()
+            try:
+                _feedback_probe = 0 if args.feedback_enabled else 0
+                _skc = _probe_skc_causal(base_model, _px, _py, elapsed_fraction=step_fraction(step), feedback_passes=_feedback_probe) if args.skc_causal_probe else {}
+                _eng = _probe_engram_causal(base_model, _px, _py, elapsed_fraction=step_fraction(step), feedback_passes=_feedback_probe) if args.eng_causal_probe else {}
+                if _skc:
+                    _b = _skc.get('base', 0.0)
+                    _l0 = _skc.get('0.0', _b)
+                    _l05 = _skc.get('0.5', _b)
+                    _l2 = _skc.get('2.0', _b)
+                    _l4 = _skc.get('4.0', _b)
+                    log0(f'skc_causal step={step} base={_b:.6f} z={(_b - _l0):.6f} half={(_b - _l05):.6f} dbl={(_l2 - _b):.6f} quad={(_l4 - _b):.6f}')
+                if _eng:
+                    _on = _eng.get('on', 0.0)
+                    _off = _eng.get('off', _on)
+                    log0(f'eng_causal step={step} on={_on:.6f} off={_off:.6f} delta={(_off - _on):.6f}')
+                _probe_rows.append(_collect_probe_row(base_model, step=step, loss_val=float(train_loss.item()), skc_probe=_skc, eng_probe=_eng))
+            finally:
+                if _was_training:
+                    base_model.train()
         if hasattr(base_model, 'capsule_bank') and base_model.capsule_bank is not None and (base_model.capsule_bank.koopman is not None):
             with torch.no_grad():
                 base_model.capsule_bank.koopman.diag.clamp_(-0.999, 0.999)
@@ -4557,6 +5019,8 @@ def main() -> None:
     if args.training_dynamics_only:
         if master_process:
             log0('training_dynamics_only: skipping final evaluation/export/serialization')
+            _write_probe_summary_csv(_probe_summary_path, _probe_rows)
+            log0(f'probe_summary: wrote {_probe_summary_path} rows={len(_probe_rows)}')
         if distributed:
             torch.distributed.barrier()
         return
@@ -4644,6 +5108,9 @@ def main() -> None:
     if distributed:
         torch.distributed.barrier()
         log0('ema:ranks synchronized for export', flush=True)
+    if master_process:
+        _write_probe_summary_csv(_probe_summary_path, _probe_rows)
+        log0(f'probe_summary: wrote {_probe_summary_path} rows={len(_probe_rows)}')
     if master_process and args.export_aligned_train and (args.ternary_threshold_search or args.ternary_scale_search):
         if _proxy_calib_tokens is None:
             _proxy_calib_tokens = ld_val(args.val_files, args.train_seq_len, max_tok=args.calib_proxy_max_tok).to(device)
@@ -4671,6 +5138,8 @@ def main() -> None:
         log0('ema:applying shadow weights...', flush=True)
         _ema_original = ema.apply_shadow(base_model, move_to_cpu=True)
         log0('ema:applied shadow weights and offloaded originals to CPU', flush=True)
+    if (master_process and ema is not None and step_fraction(step) >= args.ema_start_fraction and (not using_best_proxy_sd) and _ema_original is None):
+        raise RuntimeError('EMA shadow weights were expected for export but are not active')
     _engram_tokens = None
     tok_budget = int(max(0, args.engram_export_token_budget))
     if tok_budget > 0:
@@ -4720,7 +5189,28 @@ def main() -> None:
         
     (sd, _engram_prune_info) = prune_engram_tables_for_export(sd, base_model, args, _engram_tokens, log0)
     
+    _roundtrip_ref = None
+    _parity_baseline_logits = None
+    _best_q_obj = None
     if master_process:
+        _parity_live_sd = {k: v.detach().cpu().clone() for (k, v) in base_model.state_dict().items()}
+
+        def _capture_parity_logits(apply_calib: dict | None, context: str, n_tok: int) -> Tensor:
+            tok = val_tokens[:n_tok + 1]
+            if tok.numel() < 2:
+                return torch.empty((0,), device=device)
+            x = tok[:-1].to(device=device, dtype=torch.int64).unsqueeze(0)
+            export_eval_hard_reset(args, base_model, device, log0=log0, context=context, apply_calib=apply_calib)
+            eval_feedback_passes = resolve_eval_feedback_passes(args, None)
+            with autocast_context(device):
+                logits = base_model.forward_logits(x, temperature=1.0, feedback_passes=eval_feedback_passes).float()
+            return logits.detach()
+
+        def _eval_stage(stage_name: str, apply_calib: dict | None=None) -> tuple[float, float]:
+            export_eval_hard_reset(args, base_model, device, log0=log0, context=f'export_parity_{stage_name}', apply_calib=apply_calib)
+            (stage_loss, stage_bpb) = _eval_val_safe()
+            return (float(stage_loss), float(stage_bpb))
+
         methods = {}
         for method in ('standard', 'bitmask'):
             (q_obj, stats) = q_sd(sd, group_size=args.bitnet_group_size, fp_storage=args.fp_storage, ternary_method=method, calib=final_calib, ternary_names=export_ternary_names, turbo_quant_export=args.turbo_quant_export, fp16_names=export_fp16_names)
@@ -4741,10 +5231,11 @@ def main() -> None:
             else:
                 best_blob = lzma_blob
                 best_codec = 'lzma'
-            methods[method] = {'blob': best_blob, 'stats': stats, 'codec': best_codec}
+            methods[method] = {'blob': best_blob, 'stats': stats, 'codec': best_codec, 'q_obj': q_obj}
         best = min(methods, key=lambda m: len(methods[m]['blob']))
         (final_blob, q_stats) = (methods[best]['blob'], methods[best]['stats'])
         final_codec = methods[best]['codec']
+        _best_q_obj = methods[best]['q_obj']
         codec_header = b'\x00' if final_codec == 'lzma' else b'\x01'
         full_blob = codec_header + final_blob
         with open('final_model.ternary.ptz', 'wb') as f:
@@ -4762,6 +5253,31 @@ def main() -> None:
         log0(f"budget:{total}/{hbb} ({total / 1000000.0:.2f}/{hbb / 1000000.0:.2f}MB) {('FITS' if total <= hbb else 'OVER')}")
         if args.hard_budget_enforce and args.hard_budget_bytes > 0 and (total > int(args.hard_budget_bytes)):
             raise RuntimeError(f'Final artifact budget exceeded: total={total} > HARD_BUDGET_BYTES={args.hard_budget_bytes}')
+        base_model.apply_export_calib(final_calib)
+        _roundtrip_ref = collect_roundtrip_logit_reference(args, base_model, val_tokens, device=device)
+        if getattr(args, 'roundtrip_logit_audit', False):
+            _parity_baseline_logits = _roundtrip_ref['logits'].to(device=device, dtype=torch.float32)
+        if int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and world_size == 1:
+            n_tok = int(max(64, getattr(args, 'roundtrip_logit_audit_tokens', 1024)))
+            # A: live float baseline (no explicit final calib)
+            load_roundtrip_state_strict(base_model, _parity_live_sd)
+            (_a_loss, _a_bpb) = _eval_stage('live_float_baseline', apply_calib=None)
+            _a_logits = _capture_parity_logits(None, 'export_parity_A', n_tok)
+            # B: live float after explicit final calib
+            load_roundtrip_state_strict(base_model, _parity_live_sd)
+            (_b_loss, _b_bpb) = _eval_stage('live_float_after_apply_final_calib', apply_calib=final_calib)
+            _b_logits = _capture_parity_logits(final_calib, 'export_parity_B', n_tok)
+            # C: in-memory roundtrip q/deq without codec
+            _c_calib = load_quantized_roundtrip_state(base_model, _best_q_obj, target_dtype=torch.float32)
+            (_c_loss, _c_bpb) = _eval_stage('dequant_roundtrip_no_codec', apply_calib=_c_calib or final_calib)
+            _c_logits = _capture_parity_logits(_c_calib or final_calib, 'export_parity_C', n_tok)
+            _ab = compute_logit_parity_metrics(_a_logits, _b_logits)
+            _ac = compute_logit_parity_metrics(_a_logits, _c_logits)
+            log0(f"export_parity:stage=A live_float_baseline ce={_a_loss:.6f} bpb={_a_bpb:.6f} l2=0.000000 max_abs=0.000000 argmax_agree=1.0000 topk_kl=0.000000e+00")
+            log0(f"export_parity:stage=B live_float_after_apply_final_calib ce={_b_loss:.6f} bpb={_b_bpb:.6f} l2={_ab['l2']:.6f} max_abs={_ab['max_abs']:.6f} argmax_agree={_ab['argmax_agree']:.4f} topk_kl={_ab['topk_kl']:.6e}")
+            log0(f"export_parity:stage=C dequant_roundtrip_no_codec ce={_c_loss:.6f} bpb={_c_bpb:.6f} l2={_ac['l2']:.6f} max_abs={_ac['max_abs']:.6f} argmax_agree={_ac['argmax_agree']:.4f} topk_kl={_ac['topk_kl']:.6e}")
+        elif int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and world_size > 1:
+            log0('export_parity:skipped in distributed mode (set NPROC=1 for full A/B/C/D parity harness)')
         if args.eval_depth_recurrence > 0:
             base_model.training_depth_recurrence = args.eval_depth_recurrence
             if hasattr(base_model, 'backbone'):
@@ -4802,7 +5318,20 @@ def main() -> None:
     except Exception as e:
         log0(f'Final roundtrip decompression/load failed: {e}')
         raise
-    load_roundtrip_state_strict(base_model, deq_sd(loaded, target_dtype=torch.float32))
+    _loaded_roundtrip_calib = load_quantized_roundtrip_state(base_model, loaded, target_dtype=torch.float32)
+    export_eval_hard_reset(args, base_model, device, log0=log0, context='roundtrip_eval', apply_calib=_loaded_roundtrip_calib or final_calib)
+    if master_process:
+        run_roundtrip_logit_audit(args, base_model, _roundtrip_ref, device=device, log0=log0)
+        if int(os.environ.get('EXPORT_PARITY_HARNESS', '1')) == 1 and _parity_baseline_logits is not None and world_size == 1:
+            n_tok = int(max(64, getattr(args, 'roundtrip_logit_audit_tokens', 1024)))
+            tok = val_tokens[:n_tok + 1]
+            x = tok[:-1].to(device=device, dtype=torch.int64).unsqueeze(0)
+            eval_feedback_passes = resolve_eval_feedback_passes(args, None)
+            with autocast_context(device):
+                _d_logits = base_model.forward_logits(x, temperature=1.0, feedback_passes=eval_feedback_passes).float()
+            _ad = compute_logit_parity_metrics(_parity_baseline_logits, _d_logits)
+            (_d_loss, _d_bpb) = _eval_val_safe()
+            log0(f"export_parity:stage=D full_export_roundtrip ce={_d_loss:.6f} bpb={_d_bpb:.6f} l2={_ad['l2']:.6f} max_abs={_ad['max_abs']:.6f} argmax_agree={_ad['argmax_agree']:.4f} topk_kl={_ad['topk_kl']:.6e}")
     torch._dynamo.reset()
     (q_val_loss, q_val_bpb) = _eval_val_safe()
     log0(f'final_ternary_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}')
@@ -4822,6 +5351,7 @@ def main() -> None:
         temp_time_ms = 1000.0 * (time.perf_counter() - t_temp)
         log0(f'temp_scaling optimal_T:{opt_temp:.2f} eval_time:{temp_time_ms:.0f}ms')
     if args.sliding_eval:
+        maybe_reset_eval_engram_state(args, base_model, device, log0=log0, context='sliding_eval')
         if device.type == 'cuda':
             torch.cuda.synchronize()
         t_sliding = time.perf_counter()
@@ -4850,6 +5380,7 @@ def main() -> None:
         log0(f'final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} (stride={args.sliding_eval_stride}, T={opt_temp:.2f}, sequential_carry={args.final_eval_sequential_carry and args.capsule_carry_enabled}) eval_time:{sliding_time_ms:.0f}ms')
         (augmented_val_loss, augmented_val_bpb) = (sw_loss, sw_bpb)
     if args.ttt_enabled:
+        maybe_reset_eval_engram_state(args, base_model, device, log0=log0, context='ttt_eval')
         if device.type == 'cuda':
             torch.cuda.synchronize()
         t_ttt = time.perf_counter()
@@ -4878,6 +5409,9 @@ def main() -> None:
         _saved_engram = base_model.engram
         _saved_eval_engram = base_model.eval_engram
         _saved_ttt = int(args.ttt_enabled)
+        (_abl_orig_grad, _abl_ttt_params) = collect_ttt_params(base_model, args.ttt_scope)
+        _abl_ttt_snapshot = [p.detach().cpu().clone() for p in _abl_ttt_params]
+        restore_requires_grad(base_model, _abl_orig_grad)
         ablation_results: dict[str, tuple[float, float]] = {}
         for _abl_name, _abl_engram, _abl_ttt in [
             ('baseline',     False, False),
@@ -4885,6 +5419,11 @@ def main() -> None:
             ('ttt_only',     False, True),
             ('ttt_engram',   True,  True),
         ]:
+            export_eval_hard_reset(args, base_model, device, log0=log0, context=f'ablation_{_abl_name}')
+            if _abl_ttt_params:
+                with torch.no_grad():
+                    for (_p, _saved) in zip(_abl_ttt_params, _abl_ttt_snapshot):
+                        _p.copy_(_saved.to(device=_p.device, dtype=_p.dtype))
             # Toggle engram correction: set model.engram = None to disable
             if not _abl_engram:
                 base_model.engram = None
@@ -4910,7 +5449,13 @@ def main() -> None:
             log0(f'ablation_eval:{_abl_name} val_loss:{_abl_loss:.6f} val_bpb:{_abl_bpb:.6f} time:{_abl_ms:.0f}ms')
         # Restore original state
         base_model.engram = _saved_engram
+        base_model.eval_engram = _saved_eval_engram
         args.ttt_enabled = _saved_ttt
+        if _abl_ttt_params:
+            with torch.no_grad():
+                for (_p, _saved) in zip(_abl_ttt_params, _abl_ttt_snapshot):
+                    _p.copy_(_saved.to(device=_p.device, dtype=_p.dtype))
+        restore_requires_grad(base_model, _abl_orig_grad)
         log0('ablation_eval:summary')
         for _abl_name, (_abl_loss, _abl_bpb) in ablation_results.items():
             log0(f'  {_abl_name:15s}  loss={_abl_loss:.6f}  bpb={_abl_bpb:.6f}')

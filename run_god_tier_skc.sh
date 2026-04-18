@@ -25,11 +25,21 @@ fi
 
 # Allow any zombie processes from previous failures to clear VRAM.
 sleep 2
+nvidia-smi --gpu-reset 2>/dev/null || true
 
 SMI_ARGS=""
 if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
   SMI_ARGS="-i ${CUDA_VISIBLE_DEVICES}"
 fi
+
+FREE_MB_EXPECTED_MIN="${FREE_MB_EXPECTED_MIN:-70000}"
+for _ in 1 2 3; do
+  sleep 3
+  FREE_CHECK="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits $SMI_ARGS | head -n "${NPROC}" | awk 'NR==1{m=$1} $1<m{m=$1} END{print int(m)}')"
+  if [[ -n "${FREE_CHECK}" ]] && (( FREE_CHECK >= FREE_MB_EXPECTED_MIN )); then
+    break
+  fi
+done
 
 # Use the minimum free VRAM across the GPUs we will use.
 FREE_MB_MIN="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits $SMI_ARGS | head -n "${NPROC}" | awk 'NR==1{m=$1} $1<m{m=$1} END{print int(m)}')"
@@ -61,6 +71,9 @@ pick_warmup_batch_tokens() {
 }
 
 TRAIN_BATCH_TOKENS_AUTO="$(pick_train_batch_tokens "${FREE_MB_MIN}")"
+if [[ -n "${MATRIX_LOCK_BATCH_TOKENS:-}" ]]; then
+  TRAIN_BATCH_TOKENS_AUTO="${MATRIX_LOCK_BATCH_TOKENS}"
+fi
 COMPILER_WARMUP_BATCH_TOKENS_AUTO="$(pick_warmup_batch_tokens "${FREE_MB_MIN}")"
 # Keep eval deterministic and OOM-safe for submission pipeline.
 if (( FREE_MB_MIN >= 50000 )); then
@@ -130,8 +143,16 @@ COMMON_ENV=(
   EXPORT_PROXY_EVERY="${EXPORT_PROXY_EVERY:-250}"
   EXPORT_PROXY_NUM_SEQS="${EXPORT_PROXY_NUM_SEQS:-16}"
   TERNARY_COMPRESS_BROTLI="${TERNARY_COMPRESS_BROTLI:-1}"
-  ENGRAM_COMPETITION_ENABLED="${ENGRAM_COMPETITION_ENABLED:-1}"
+  ENGRAM_COMPETITION_ENABLED="${ENGRAM_COMPETITION_ENABLED:-0}"
+  BIGRAM_HASH_ENABLED="${BIGRAM_HASH_ENABLED:-${ENGRAM_COMPETITION_ENABLED}}"
   SKC_RECURRENT_CORE="${SKC_RECURRENT_CORE:-1}"
+  SKC_RESIDUAL_SCALE_INIT="${SKC_RESIDUAL_SCALE_INIT:-0.15}"
+  SKC_AMP_RAMP_FRACTION="${SKC_AMP_RAMP_FRACTION:-0.3}"
+  SKC_STRUCT_LR_MULT="${SKC_STRUCT_LR_MULT:-1.5}"
+  HEAD_LR_MULT="${HEAD_LR_MULT:-1.0}"
+  ENGRAM_TAPER_START="${ENGRAM_TAPER_START:-0.9}"
+  ENGRAM_TAPER_END="${ENGRAM_TAPER_END:-0.99}"
+  ENG_WRITE_EVERY="${ENG_WRITE_EVERY:-1}"
   ENGRAM_EXPORT_PRUNE_ENABLED="${ENGRAM_EXPORT_PRUNE_ENABLED:-1}"
   ENGRAM_EXPORT_KEEP_BIGRAM_RATIO="${ENGRAM_EXPORT_KEEP_BIGRAM_RATIO:-0.45}"
   ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO="${ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO:-0.20}"
