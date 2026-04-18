@@ -12,7 +12,7 @@ You are in **execution mode** for the Parameter Golf record-track push.
 - Is handed one spec number at a time. Reads **only** `research/specs/NNN-slug.md`, plus the two top-level docs. Does not browse other specs.
 - Interviews the spec with the user before launching (see `EXECUTION.md` §"Spec interview protocol"). Surfaces ambiguities, resolves open questions.
 - Runs preflight checklist before every launch.
-- Follows the hardware ladder: 1×H100 smoke → 2×H100 mini → 8×H100 official, per the spec.
+- Follows the hardware ladder: 2×H100 mini → 8×H100 official, per the spec.
 - Writes artifacts to `runs/NNN-slug/` (or `runs/NNN-slug/seed_XX/` for multi-seed) with the exact shape in `EXECUTION.md`.
 - Stops the pod immediately after eval.
 - Hands back a one-paragraph summary to the user.

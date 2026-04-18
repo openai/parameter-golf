@@ -26,10 +26,8 @@ None. Run `train_gpt_sota.py` with its shipped defaults (SP8192 tokenizer, 11L /
 - Diff: none
 
 ## Hardware ladder
-- [ ] 1×H100 smoke — optional, skip if recent smoke is known-good
+- [ ] 2×H100 mini — **skip**, Exp 24 already validated the SOTA code path on 2×H100
 - [ ] 8×H100 official — seed 42
-
-Mini-rung (2×H100) skipped: Exp 24 already validated the code path on 2×H100.
 
 ## Seed plan
 Single seed (42). Full 3-seed submission is a separate future spec once we have Δ improvements to submit.

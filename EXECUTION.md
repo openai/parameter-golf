@@ -13,11 +13,10 @@ Read this alongside `CLAUDE.md` at the start of any execution session.
 
 | Rung | Hardware | Purpose | Typical wall time | Typical cost |
 |---|---|---|---|---|
-| Smoke | **1×H100** | Syntax, imports, data load, 10–50 training steps, sanity-check loss curve | ~3 min | <$0.50 |
-| Mini | **2×H100 (NA-1)** | Full short training run, single seed. Cheap signal for ideas. | ~30–40 min | ~$3 |
+| Mini | **2×H100 (NA-1)** | Smoke + signal in one. Full short training run, single seed. Catches bugs and gives a cheap bpb signal. | ~30–40 min | ~$3 |
 | Official | **8×H100 (NA-1)** | Competition-spec run. Seed 42 for first, 3 seeds for final submission. | ~12 min wall per seed | ~$3.50 per seed |
 
-**Rule:** never let an 8×H100 pod discover a bug a 1×H100 could catch. If the spec involves multi-GPU-specific logic (collectives, sharding), a 2×H100 dry-run may be warranted before 8×.
+**Rule:** never let an 8×H100 pod discover a bug the 2×H100 mini could have caught.
 
 The spec dictates which rungs apply; execution doesn't skip rungs without the user's say-so.
 
@@ -79,8 +78,8 @@ If any check fails and it's an **environment** issue (missing dep, path typo), f
 
 ## Launch & monitor
 
-1. Smoke first (1×H100) unless spec explicitly waives it. Check: no NaN in first 50 steps, loss decreasing, step time reasonable.
-2. Promote to the spec's target rung.
+1. Mini first (2×H100) unless spec explicitly waives it. Check: no NaN in first ~50 steps, loss decreasing, step time reasonable — then let it run to completion for the bpb signal.
+2. Promote to 8×H100 official if mini looks clean and the spec calls for it.
 3. During the run, watch for:
    - NaN loss → kill, mark failed.
    - Hung collectives (step time blows up) → kill, mark failed.

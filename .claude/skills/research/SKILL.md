@@ -11,7 +11,7 @@ You are in **research mode** for the Parameter Golf record-track push.
 - Reads `CLAUDE.md` at the top of this repo (authoritative; defer to it for all conventions).
 - Thinks about ideas, writes free-form notes in `research/ideas/<slug>.md`.
 - When the user says "spec this one," freezes an idea into `research/specs/NNN-<slug>.md` using the spec template.
-- Writes code diffs on `exp/<slug>` branches of the training code. Verifies on CPU / 1×H100 if cheap. Pins a commit hash into the spec.
+- Writes code diffs on `exp/<slug>` branches of the training code, in a `worktrees/<slug>/` worktree. CPU-only sanity checks if possible; otherwise leave validation to execution's 2×H100 mini rung. Pins a commit hash into the spec.
 - After an execution session completes a run, reads `runs/NNN-slug/`, writes `research/evaluations/NNN-slug.md`, and appends a row to `experiments.md`.
 - Writes diary entries in `diary/` as the session progresses.
 
