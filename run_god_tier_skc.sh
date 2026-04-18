@@ -13,6 +13,13 @@ if (( NPROC < 2 )) && [[ "${ALLOW_SINGLE_GPU:-0}" != "1" ]]; then
 fi
 AUTO_TUNE="${AUTO_TUNE:-0}"
 RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS:-2100}"
+EXPERIMENT_PRESET="${EXPERIMENT_PRESET:-}"
+if [[ -z "${EXPERIMENT_PRESET}" && "${REPRO_BEST_COMP10M_20260418_124242:-0}" == "1" ]]; then
+  EXPERIMENT_PRESET="best_comp10m_20260418_124242"
+fi
+if [[ -z "${EXPERIMENT_PRESET}" && "${REPRO_LATEST_DEPTH3_20260418:-0}" == "1" ]]; then
+  EXPERIMENT_PRESET="latest_depth3_eval_aligned_20260418"
+fi
 AUTO_TUNE_PROFILE="${AUTO_TUNE_PROFILE:-}"
 if [[ -z "${AUTO_TUNE_PROFILE}" ]]; then
   if [[ "${DIAGNOSTICS_ENABLED:-0}" == "1" ]]; then
@@ -109,6 +116,126 @@ if [[ "${AUTO_TUNE}" == "1" ]]; then
   # or artifact-budget parameters that determine the 16MB submission target.
   # shellcheck disable=SC1090
   source "${AUTO_TUNE_ENV_FILE}"
+fi
+
+set_default_env() {
+  local key="$1"
+  local value="$2"
+  if [[ -z "${!key:-}" ]]; then
+    export "${key}=${value}"
+  fi
+}
+
+if [[ -n "${EXPERIMENT_PRESET}" ]]; then
+  case "${EXPERIMENT_PRESET}" in
+    latest_depth3_eval_aligned_20260418)
+      # Latest experiment preset (depth-3 from start + eval-aligned fast path).
+      # Mirrors tool wrappers and recent train_gpt_verbose.py updates.
+      set_default_env COMPETITION_PROFILE 1
+      set_default_env EXPORT_MODE competition_gptq
+      set_default_env RUNTIME_PATH_POLICY strict
+      set_default_env RECURRENCE_DEPTH 3
+      set_default_env TRAINING_DEPTH_RECURRENCE 3
+      set_default_env EVAL_DEPTH_RECURRENCE 3
+      set_default_env RECURRENCE_START_FRACTION 0.0
+      set_default_env FEEDBACK_PASSES 1
+      set_default_env EVAL_FEEDBACK_PASSES 1
+      set_default_env EVAL_HW_TIER h100_8x
+      set_default_env TTT_GRAD_CHECKPOINT 0
+      set_default_env TTT_BATCH_SEQS 32
+      set_default_env TTT_CHUNK_TOKENS 32768
+      set_default_env RUN_TTT_SLIDING 0
+      set_default_env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS 1
+      set_default_env TORCHDYNAMO_CACHE_SIZE_LIMIT 64
+      set_default_env MAX_WALLCLOCK_SECONDS 540
+      set_default_env TRAIN_BATCH_TOKENS 32768
+      set_default_env TRAIN_SEQ_LEN 1024
+      set_default_env TERNARY_THRESHOLD_SEARCH 1
+      set_default_env TERNARY_SCALE_SEARCH 1
+      set_default_env EXPORT_ALIGNED_TRAIN 1
+      set_default_env EXPORT_ALIGNED_TRAIN_START_FRACTION 0.75
+      set_default_env EXPORT_PROXY_EVAL 1
+      set_default_env EXPORT_PROXY_EVERY 250
+      set_default_env EXPORT_PROXY_NUM_SEQS 16
+      set_default_env TERNARY_COMPRESS_BROTLI 1
+      set_default_env ENGRAM_COMPETITION_ENABLED 0
+      set_default_env BIGRAM_HASH_ENABLED 0
+      set_default_env SKC_RECURRENT_CORE 1
+      set_default_env SKC_RESIDUAL_SCALE_INIT 0.15
+      set_default_env SKC_AMP_RAMP_FRACTION 0.3
+      set_default_env SKC_STRUCT_LR_MULT 1.5
+      set_default_env HEAD_LR_MULT 1.0
+      set_default_env ENGRAM_TAPER_START 0.9
+      set_default_env ENGRAM_TAPER_END 0.99
+      set_default_env ENGRAM_EXPORT_PRUNE_ENABLED 1
+      set_default_env ENGRAM_EXPORT_KEEP_BIGRAM_RATIO 0.45
+      set_default_env ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO 0.20
+      set_default_env ENGRAM_EXPORT_KEEP_MIN_BUCKETS 256
+      set_default_env ENGRAM_EXPORT_SCORE_ALPHA 0.80
+      set_default_env ENGRAM_EXPORT_TOKEN_BUDGET 131072
+      set_default_env FINAL_EVAL_SEQUENTIAL_CARRY 1
+      set_default_env ROUNDTRIP_LOGIT_AUDIT 1
+      set_default_env ROUNDTRIP_LOGIT_AUDIT_TOKENS 1024
+      set_default_env COMPILE_MODE max-autotune-no-cudagraphs
+      set_default_env COMPILE_TARGET full
+      set_default_env COMPILER_WARMUP_STEPS 1
+      set_default_env SYNTHETIC_WARMUP 1
+      set_default_env COMPILE_SHAPE_PADDING 1
+      set_default_env COMPILE_TRITON_CUDAGRAPHS 1
+      ;;
+    best_comp10m_20260418_124242)
+      # Repro preset for records/logs/best_comp10m_20260418_124242.*
+      # Keeps "set-if-unset" semantics so explicit user exports still win.
+      set_default_env COMPETITION_PROFILE 1
+      set_default_env EXPORT_MODE competition_gptq
+      set_default_env RUNTIME_PATH_POLICY strict
+      set_default_env MAX_WALLCLOCK_SECONDS 540
+      set_default_env TRAIN_BATCH_TOKENS 32768
+      set_default_env TRAIN_SEQ_LEN 1024
+      set_default_env TERNARY_THRESHOLD_SEARCH 1
+      set_default_env TERNARY_SCALE_SEARCH 1
+      set_default_env EXPORT_ALIGNED_TRAIN 1
+      set_default_env EXPORT_ALIGNED_TRAIN_START_FRACTION 0.75
+      set_default_env EXPORT_PROXY_EVAL 1
+      set_default_env EXPORT_PROXY_EVERY 250
+      set_default_env EXPORT_PROXY_NUM_SEQS 16
+      set_default_env TERNARY_COMPRESS_BROTLI 1
+      set_default_env ENGRAM_COMPETITION_ENABLED 0
+      set_default_env BIGRAM_HASH_ENABLED 0
+      set_default_env SKC_RECURRENT_CORE 1
+      set_default_env SKC_RESIDUAL_SCALE_INIT 0.15
+      set_default_env SKC_AMP_RAMP_FRACTION 0.3
+      set_default_env SKC_STRUCT_LR_MULT 1.5
+      set_default_env HEAD_LR_MULT 1.0
+      set_default_env ENGRAM_TAPER_START 0.9
+      set_default_env ENGRAM_TAPER_END 0.99
+      set_default_env ENGRAM_EXPORT_PRUNE_ENABLED 1
+      set_default_env ENGRAM_EXPORT_KEEP_BIGRAM_RATIO 0.45
+      set_default_env ENGRAM_EXPORT_KEEP_TRIGRAM_RATIO 0.20
+      set_default_env ENGRAM_EXPORT_KEEP_MIN_BUCKETS 256
+      set_default_env ENGRAM_EXPORT_SCORE_ALPHA 0.80
+      set_default_env ENGRAM_EXPORT_TOKEN_BUDGET 131072
+      set_default_env FEEDBACK_PASSES 0
+      set_default_env EVAL_FEEDBACK_PASSES 2
+      set_default_env EVAL_HW_TIER auto
+      set_default_env RECURRENCE_START_FRACTION 0.65
+      set_default_env FINAL_EVAL_SEQUENTIAL_CARRY 1
+      set_default_env ROUNDTRIP_LOGIT_AUDIT 1
+      set_default_env ROUNDTRIP_LOGIT_AUDIT_TOKENS 1024
+      set_default_env COMPILE_MODE max-autotune-no-cudagraphs
+      set_default_env COMPILE_TARGET full
+      set_default_env COMPILER_WARMUP_STEPS 1
+      set_default_env SYNTHETIC_WARMUP 1
+      set_default_env COMPILE_SHAPE_PADDING 1
+      set_default_env COMPILE_TRITON_CUDAGRAPHS 1
+      ;;
+    *)
+      echo "ERROR: Unknown EXPERIMENT_PRESET='${EXPERIMENT_PRESET}'" >&2
+      echo "Known presets: latest_depth3_eval_aligned_20260418, best_comp10m_20260418_124242" >&2
+      exit 5
+      ;;
+  esac
+  echo "experiment_preset=${EXPERIMENT_PRESET}" | tee -a "${LOG_FILE}"
 fi
 
 COMMON_ENV=(

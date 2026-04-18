@@ -5625,7 +5625,8 @@ def main() -> None:
         sliding_time_ms = 1000.0 * (time.perf_counter() - t_sliding)
         log0(f'final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} (stride={args.sliding_eval_stride}, T={opt_temp:.2f}, sequential_carry={args.final_eval_sequential_carry and args.capsule_carry_enabled}) eval_time:{sliding_time_ms:.0f}ms')
         (augmented_val_loss, augmented_val_bpb) = (sw_loss, sw_bpb)
-    if args.ttt_enabled:
+    run_ttt_sliding = int(os.environ.get('RUN_TTT_SLIDING', '1')) == 1
+    if args.ttt_enabled and run_ttt_sliding:
         maybe_reset_eval_engram_state(args, base_model, device, log0=log0, context='ttt_eval')
         if device.type == 'cuda':
             torch.cuda.synchronize()
@@ -5649,6 +5650,8 @@ def main() -> None:
         log0(f'legal_ttt val_loss:{ttt_loss:.4f} val_bpb:{ttt_bpb:.4f} eval_time:{ttt_time_ms:.0f}ms')
         log0(f'legal_ttt_exact val_loss:{ttt_loss:.8f} val_bpb:{ttt_bpb:.8f}')
         (augmented_val_loss, augmented_val_bpb) = (ttt_loss, ttt_bpb)
+    elif args.ttt_enabled and (not run_ttt_sliding):
+        log0('legal_ttt:skipped (RUN_TTT_SLIDING=0)')
     # ---- 4-case ablation: baseline / engram-only / ttt-only / ttt+engram ----
     if int(os.environ.get('ABLATION_EVAL', '0')) and args.sliding_eval and master_process:
         log0('ablation_eval:start — running 4-case ablation (baseline, engram, ttt, ttt+engram)')
