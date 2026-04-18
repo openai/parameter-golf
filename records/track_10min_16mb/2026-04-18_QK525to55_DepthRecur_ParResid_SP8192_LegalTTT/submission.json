@@ -1,10 +1,10 @@
 {
-  "val_bpb_mean": 1.08089,
-  "val_bpb_std": 0.00038,
+  "val_bpb_mean": 1.08102,
+  "val_bpb_std": 0.00051,
   "seeds": {
-    "42": {"val_bpb": 1.08047, "artifact_bytes": 16020894},
-    "314": {"val_bpb": 1.08099, "artifact_bytes": 16023759},
-    "999": {"val_bpb": 1.08121, "artifact_bytes": 16025049}
+    "42": {"val_bpb": 1.08044, "artifact_bytes": 15994470},
+    "314": {"val_bpb": 1.08120, "artifact_bytes": 15993777},
+    "999": {"val_bpb": 1.08141, "artifact_bytes": 15991277}
   },
   "hardware": "8xH100 80GB SXM",
   "training_time_seconds": 588,

@@ -30,7 +30,7 @@ Hyperparameters:
   iterations: 20000
   ln_scale: True
   local_rank: 0
-  logfile: logs/37025904-0efd-45e1-9546-63c2c93320a8.txt
+  logfile: logs/31c8ee29-fd15-472e-979a-b06f278ee8c0.txt
   logit_softcap: 30.0
   loop_end: 5
   loop_start: 3
@@ -60,7 +60,7 @@ Hyperparameters:
   rope_base: 10000.0
   rope_dims: 16
   rope_train_seq_len: 2048
-  run_id: 37025904-0efd-45e1-9546-63c2c93320a8
+  run_id: 31c8ee29-fd15-472e-979a-b06f278ee8c0
   scalar_lr: 0.02
   seed: 42
   skip_gates_enabled: True
@@ -89,7 +89,7 @@ Hyperparameters:
 ====================================================================================================
 Running Python 3.11.10 | packaged by conda-forge | (main, Oct 16 2024, 01:27:36) [GCC 13.3.0]
 Running PyTorch 2.9.1+cu128
-Sat Apr 18 06:20:19 2026       
+Sat Apr 18 09:54:00 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
 +-----------------------------------------+------------------------+----------------------+
@@ -98,35 +98,35 @@ Sat Apr 18 06:20:19 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA H100 80GB HBM3          On  |   00000000:04:00.0 Off |                    0 |
-| N/A   34C    P0            114W /  700W |    1521MiB /  81559MiB |      3%      Default |
+| N/A   35C    P0            113W /  700W |    1521MiB /  81559MiB |      2%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   1  NVIDIA H100 80GB HBM3          On  |   00000000:05:00.0 Off |                    0 |
-| N/A   33C    P0            124W /  700W |    1521MiB /  81559MiB |      2%      Default |
+| N/A   34C    P0            123W /  700W |    1521MiB /  81559MiB |      2%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   2  NVIDIA H100 80GB HBM3          On  |   00000000:0B:00.0 Off |                    0 |
-| N/A   34C    P0            114W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   35C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   3  NVIDIA H100 80GB HBM3          On  |   00000000:0C:00.0 Off |                    0 |
-| N/A   32C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   4  NVIDIA H100 80GB HBM3          On  |   00000000:84:00.0 Off |                    0 |
-| N/A   33C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   34C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   5  NVIDIA H100 80GB HBM3          On  |   00000000:85:00.0 Off |                    0 |
-| N/A   32C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   6  NVIDIA H100 80GB HBM3          On  |   00000000:8B:00.0 Off |                    0 |
-| N/A   34C    P0            122W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   35C    P0            121W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 |   7  NVIDIA H100 80GB HBM3          On  |   00000000:8C:00.0 Off |                    0 |
-| N/A   32C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+| N/A   33C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -161,38 +161,38 @@ loop_warmup_step: 6/20
 loop_warmup_step: 10/20
 loop_warmup_step: 20/20
 0/20000 val_loss: 9.0090 val_bpb: 3.4877
-1/20000 train_loss: 9.0104 train_time: 0.0m tok/s: 7985220
-2/20000 train_loss: 12.3654 train_time: 0.0m tok/s: 8027893
-3/20000 train_loss: 11.0100 train_time: 0.0m tok/s: 7991361
-4/20000 train_loss: 9.4548 train_time: 0.0m tok/s: 7982961
-5/20000 train_loss: 8.3267 train_time: 0.0m tok/s: 7974923
-500/20000 train_loss: 3.3771 train_time: 0.8m tok/s: 7821461
-1000/20000 train_loss: 3.2904 train_time: 1.7m tok/s: 7841514
-1500/20000 train_loss: 3.1850 train_time: 2.5m tok/s: 7848882
-2000/20000 train_loss: 3.0707 train_time: 3.3m tok/s: 7852723
-layer_loop:enabled step:2056 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
-2500/20000 train_loss: 3.1229 train_time: 4.5m tok/s: 7208930
-3000/20000 train_loss: 2.8984 train_time: 5.8m tok/s: 6804911
-3500/20000 train_loss: 2.9449 train_time: 7.0m tok/s: 6543552
-4000/20000 train_loss: 2.8248 train_time: 8.2m tok/s: 6360378
-4000/20000 val_loss: 2.8808 val_bpb: 1.1152
-4500/20000 train_loss: 2.8450 train_time: 9.5m tok/s: 6209779
-4623/20000 val_loss: 2.8114 val_bpb: 1.0884
-stopping_early: wallclock_cap train_time: 588082ms step: 4623/20000
+1/20000 train_loss: 9.0104 train_time: 0.0m tok/s: 8323419
+2/20000 train_loss: 12.3654 train_time: 0.0m tok/s: 8223529
+3/20000 train_loss: 11.0100 train_time: 0.0m tok/s: 8119130
+4/20000 train_loss: 9.4547 train_time: 0.0m tok/s: 8083206
+5/20000 train_loss: 8.3267 train_time: 0.0m tok/s: 8054328
+500/20000 train_loss: 3.3764 train_time: 0.8m tok/s: 7814000
+1000/20000 train_loss: 3.2872 train_time: 1.7m tok/s: 7829403
+1500/20000 train_loss: 3.1850 train_time: 2.5m tok/s: 7840973
+2000/20000 train_loss: 3.0729 train_time: 3.3m tok/s: 7846825
+layer_loop:enabled step:2054 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.1287 train_time: 4.5m tok/s: 7214375
+3000/20000 train_loss: 2.8977 train_time: 5.8m tok/s: 6726913
+3500/20000 train_loss: 2.9404 train_time: 7.1m tok/s: 6480876
+4000/20000 train_loss: 2.8203 train_time: 8.3m tok/s: 6308009
+4000/20000 val_loss: 2.8776 val_bpb: 1.1140
+4500/20000 train_loss: 2.8408 train_time: 9.5m tok/s: 6180179
+4604/20000 val_loss: 2.8112 val_bpb: 1.0883
+stopping_early: wallclock_cap train_time: 588018ms step: 4604/20000
 peak memory allocated: 39045 MiB reserved: 39124 MiB
 ema:applying EMA weights
-pre-quantization post-ema val_loss:2.80825072 val_bpb:1.08716137 eval_time:6924ms
+pre-quantization post-ema val_loss:2.80812820 val_bpb:1.08711394 eval_time:6975ms
 Serialized model: 135431033 bytes
-Code size: 48606 bytes
+Code size: 16607 bytes
 GPTQ:collecting Hessians from calibration data...
 GPTQ:collected 67 Hessians in 12.7s
 Quantized weights:
   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
   gptq (int8): tok_emb.weight
   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
-Serialized model quantized+brotli: 15972288 bytes
-Total submission size quantized+brotli: 16020894 bytes
-quantized val_loss:2.83725173 val_bpb:1.09838856 eval_time:21888ms
-quantized_sliding_window val_loss:2.79439766 val_bpb:1.08179841 eval_time:115055ms
+Serialized model quantized+brotli: 15977863 bytes
+Total submission size quantized+brotli: 15994470 bytes
+quantized val_loss:2.83705302 val_bpb:1.09831164 eval_time:21932ms
+quantized_sliding_window val_loss:2.79417179 val_bpb:1.08171097 eval_time:120357ms
 ttt:start chunks=1238 ttt_lr=0.005 ttt_epochs=3
-quantized_ttt val_loss:2.79095469 val_bpb:1.08046553 eval_time:376567ms
+quantized_ttt val_loss:2.79087872 val_bpb:1.08043613 eval_time:364112ms
