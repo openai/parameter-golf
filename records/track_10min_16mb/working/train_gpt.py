@@ -844,17 +844,17 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
 
 
 _LAYER_K_MUL = [
-    1.20,  # 0: first layer, most sensitive
-    1.15,  # 1
-    1.10,  # 2
-    1.06,  # 3: loop start — error amplified by recurrence
-    1.06,  # 4: loop core
+    1.30,  # 0: first layer, most sensitive
+    1.22,  # 1
+    1.15,  # 2
+    1.08,  # 3: loop start
+    1.08,  # 4: loop core
     1.00,  # 5: loop end / transition
-    0.95,  # 6
-    0.90,  # 7: parallel residuals begin
-    0.87,  # 8
-    0.84,  # 9
-    0.80,  # 10: last layer, least sensitive
+    0.92,  # 6
+    0.85,  # 7: parallel residuals begin
+    0.80,  # 8
+    0.76,  # 9
+    0.72,  # 10: last layer, least sensitive
 ]
 
 _ROLE_K_MUL = {
