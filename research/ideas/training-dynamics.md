@@ -75,6 +75,36 @@ See accompanying scripts in `research/scripts/` (TBD). Core set:
 6. **Loop-vs-non-loop differential over time**: time-series of (loop mean movement) / (non-loop mean movement). Is it flat ~1.08, or does it have structure?
 7. **Cross-reference the flat zone location**: spec 006 has step-based schedule; flat zone is expected to shift from step 2000-2500 (spec 000 wallclock-based) to some step-scaled equivalent. Verify by looking for zero-progress regions in the finer loss curve.
 
+## Post-spec-006 findings (2026-04-20, added after artifacts landed)
+
+### Flat zone: closed case
+Val_bpb at 100-step resolution throughout spec 006 descends smoothly from step 100 (1.725) to 4550 (1.088). **No plateau, no flat bed, nowhere.** The spec 000 "flat zone" at step 2000-2500 was aliasing between single-batch train_loss variance (±0.05-0.10 noise floor) and a true descent of only ~0.005 bpb over those 500 steps.
+
+Explicitly checked the "delayed flat zone" hypothesis: if it were warmdown-phase-linked, spec 006's later warmdown_start (1275 vs 1048) should have shifted any such feature to ~step 2389-2978. Val gains per 100 steps in that window are −0.003 to −0.005 — no localized slowdown beyond the normal mid-training gentle deceleration.
+
+**Takeaway:** the three-cause hypothesis (A post-recurrence adaptation, B LR-schedule artifact, C data-order) is obsolete — there was no phenomenon to explain.
+
+### The real feature: recurrence activation transient
+Step 1593 (spec 006) fires recurrence → step 1600 train_loss jumps +0.156, val_bpb +0.040. Full recovery by step 1700 (val ahead of pre-bump trajectory by −0.013). Visible in both train and val → real adaptation event, not noise.
+
+**~100 steps of "recovery cost" to switch on recurrence.** If a softer activation (progressive recurrence, loop-layer warmup) could eliminate this, potential gain ~0.003-0.005 bpb. Worth spec'ing.
+
+### Step-based vs wallclock-based schedule: matched-step comparison
+At every matched step, spec 006 is **worse** than spec 000:
+| step | spec 006 val_bpb | spec 000 / 004b ref | Δ (006 behind) |
+|---|---|---|---|
+| 2000 | 1.1816 | 1.1747 (004b) | +0.007 |
+| 3000 | 1.1456 | ~1.132 (004b) | +0.014 |
+| 3800 | 1.1174 | 1.0948 (004b) | +0.023 |
+| 3849 | ~1.115 | 1.0929 (spec 000) | +0.022 |
+
+Mechanism: step-based schedule shifts warmdown_start to step 1275 (vs wallclock-based 1048) → at matched steps, spec 006 has less warmdown progress → higher effective LR → less "polish." Spec 006's final 1.08639 wins only because it gets 701 more warmdown-descent steps.
+
+**Intervention lead:** earlier warmdown (larger warmdown_frac, e.g., 0.80 or 0.85 instead of 0.72) likely yields better per-step val_bpb descent and, at fixed step count, better final bpb. Worth testing in a dedicated spec.
+
+### Curve consistency, yet again
+Pre-recurrence (steps 100-1500), spec 006 (QK=5.25) tracks 004b (QK=6.0) within ±0.012 train_loss. **QK_GAIN_INIT in the 5.25-6.0 range is irrelevant at this resolution** — confirmed.
+
 ## Links
 - Plan: `~/.claude/plans/okay-yeah-so-i-ancient-porcupine.md`
 - Spec: `research/specs/006-dense-ckpts.md`
