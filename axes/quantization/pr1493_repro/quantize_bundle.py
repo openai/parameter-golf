@@ -131,7 +131,7 @@ def main():
 
                     if prune_method == "hessian" and h_key is not None:
                         # importance = |w| * sqrt(H_diag_col)
-                        H_diag = hessians[h_key].float().diag()
+                        H_diag = hessians[h_key].float().diag().to(w.device)
                         col_sens = H_diag.sqrt().clamp_min(1e-10)
                         importance = w.abs() * col_sens.unsqueeze(0)  # (rows, cols)
                     else:
