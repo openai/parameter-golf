@@ -111,6 +111,22 @@ def main():
         )
     torch._dynamo.reset()
 
+    # Optional: post-hoc magnitude pruning before GPTQ
+    prune_fraction = float(os.environ.get("PRUNE_FRACTION", "0.0"))
+    if prune_fraction > 0:
+        log(f"pruning: zeroing smallest {prune_fraction:.0%} of weights by magnitude...")
+        pruned_count = 0
+        total_count = 0
+        with torch.no_grad():
+            for name, param in eval_model.named_parameters():
+                if param.ndim == 2 and param.numel() > 65536 and "tok_emb" not in name:
+                    threshold = torch.quantile(param.data.abs().float(), prune_fraction)
+                    mask = param.data.abs() >= threshold
+                    pruned_count += (~mask).sum().item()
+                    total_count += param.numel()
+                    param.data *= mask
+        log(f"pruning: zeroed {pruned_count:,} / {total_count:,} values ({pruned_count/total_count:.1%})")
+
     # Quantize via PR-1493's gptq_mixed_quantize
     sd_cpu = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
     log("gptq: applying PR-1493 mixed quantize (int6 matrices k=12.85, int8 tok_emb k=20.0)...")

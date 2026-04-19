@@ -384,6 +384,7 @@ def _run_quantize(
     matrix_clip_sigmas: float,
     embed_clip_sigmas: float,
     quant_format: str = "uniform",
+    prune_fraction: float = 0.0,
 ) -> dict:
     os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "hf"))
     volume.reload()
@@ -416,6 +417,7 @@ def _run_quantize(
         "MATRIX_CLIP_SIGMAS": str(matrix_clip_sigmas),
         "EMBED_CLIP_SIGMAS": str(embed_clip_sigmas),
         "QUANT_FORMAT": quant_format,
+        "PRUNE_FRACTION": str(prune_fraction),
     })
 
     cmd = [
@@ -494,6 +496,7 @@ def quantize_1x_h100(
     matrix_clip_sigmas: float = 12.85,
     embed_clip_sigmas: float = 20.0,
     quant_format: str = "uniform",
+    prune_fraction: float = 0.0,
 ) -> str:
     return json.dumps(
         _run_quantize(
@@ -505,6 +508,7 @@ def quantize_1x_h100(
             matrix_clip_sigmas=matrix_clip_sigmas,
             embed_clip_sigmas=embed_clip_sigmas,
             quant_format=quant_format,
+            prune_fraction=prune_fraction,
         ),
         indent=2, sort_keys=True,
     )
@@ -530,6 +534,7 @@ def main(
     matrix_clip_sigmas: float = 12.85,
     embed_clip_sigmas: float = 20.0,
     quant_format: str = "uniform",
+    prune_fraction: float = 0.0,
     write_result: str = "",
 ) -> None:
     """Entrypoints:
@@ -576,6 +581,7 @@ def main(
             matrix_clip_sigmas=matrix_clip_sigmas,
             embed_clip_sigmas=embed_clip_sigmas,
             quant_format=quant_format,
+            prune_fraction=prune_fraction,
         )
     else:
         raise ValueError("mode must be 'prefetch', 'train', or 'quantize'")
