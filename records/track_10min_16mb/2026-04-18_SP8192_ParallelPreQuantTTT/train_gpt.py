@@ -162,7 +162,7 @@ class Hyperparameters:
     prequant_ttt_wd = float(os.environ.get("PREQUANT_TTT_WD", 0.0))
     prequant_ttt_chunk_tokens = int(os.environ.get("PREQUANT_TTT_CHUNK_TOKENS", 32768))
     prequant_ttt_grad_clip = float(os.environ.get("PREQUANT_TTT_GRAD_CLIP", 1.0))
-    ttt_ema_enabled = bool(int(os.environ.get("TTT_EMA_ENABLED", "1")))
+    ttt_ema_enabled = bool(int(os.environ.get("TTT_EMA_ENABLED", "0")))  # V15: disabled by default
     ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.7))
 
     # --- L-BFGS Causal SLOT (logit-space delta optimization during eval) ---
@@ -352,6 +352,10 @@ class ValidationData:
                 f"VOCAB_SIZE={h.vocab_size} does not match tokenizer vocab_size={int(self.sp.vocab_size())}"
             )
         self.val_tokens = load_validation_tokens(h.val_files, h.eval_seq_len)
+        # V15: Load byte sidecar for CaseOps compliance (None if no sidecar exists)
+        self.val_token_bytes = load_validation_token_bytes(h.val_files, self.val_tokens.numel())
+        if h.is_main_process:
+            log(f"val_bpb:byte_sidecar:{'enabled' if self.val_token_bytes is not None else 'disabled'}")
         self.base_bytes_lut, self.has_leading_space_lut, self.is_boundary_token_lut = (
             build_sentencepiece_luts(self.sp, h.vocab_size, device)
         )
@@ -416,6 +420,33 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
 _SHARD_HEADER_BYTES = 256 * np.dtype("<i4").itemsize
 _SHARD_NTOKENS_CACHE: dict[str, int] = {}
 _MMAP_CACHE: dict[str, np.ndarray] = {}
+
+
+def load_validation_token_bytes(pattern, expected_len):
+    """V15: Load byte sidecar for CaseOps tokenizer compliance.
+
+    For tokenizers that apply transforms (e.g., CaseOps), per-token byte counts
+    cannot be derived from the SentencePiece vocab alone. The sidecar file
+    (fineweb_val_bytes_*.bin) records raw original UTF-8 byte counts per token,
+    enabling honest BPB computation.
+
+    Returns None if no sidecar exists (fall back to LUT-based counting).
+    """
+    bytes_pattern = pattern.replace("fineweb_val_", "fineweb_val_bytes_")
+    if bytes_pattern == pattern:
+        return None
+    files = [Path(p) for p in sorted(glob.glob(bytes_pattern))]
+    if not files:
+        return None
+    token_bytes = torch.cat([load_data_shard(file) for file in files]).to(torch.int32).contiguous()
+    if token_bytes.numel() < expected_len:
+        raise ValueError(
+            f"Validation byte sidecar is too short: expected at least {expected_len}, got {token_bytes.numel()}"
+        )
+    if token_bytes.numel() > expected_len:
+        token_bytes = token_bytes[:expected_len]
+    return token_bytes
+
 
 def _read_num_tokens(file: Path) -> int:
     key = str(file)
@@ -826,13 +857,20 @@ def eval_val(h, device, val_data, model):
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = val_data.base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (
-                val_data.has_leading_space_lut[tgt_ids] & ~val_data.is_boundary_token_lut[prev_ids]
-            ).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+            # V15: Prefer byte sidecar (CaseOps compliance) when available
+            if val_data.val_token_bytes is not None:
+                token_bytes = val_data.val_token_bytes[raw_start + 1 : raw_end].to(
+                    device=device, dtype=torch.float64, non_blocking=True
+                )
+                val_byte_count += token_bytes.sum()
+            else:
+                prev_ids = x.reshape(-1)
+                tgt_ids = y.reshape(-1)
+                token_bytes = val_data.base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (
+                    val_data.has_leading_space_lut[tgt_ids] & ~val_data.is_boundary_token_lut[prev_ids]
+                ).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
@@ -882,11 +920,20 @@ def eval_val_sliding(h, device, val_data, base_model, batch_seqs=32):
                 scored_nll = nll[i, s:wlen].to(torch.float64)
                 loss_sum += scored_nll.sum()
                 token_count += float(wlen - s)
-                tgt = y_batch[i, s:wlen]
-                prev = x_batch[i, s:wlen]
-                tb = val_data.base_bytes_lut[tgt].to(torch.float64)
-                tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
-                byte_count += tb.sum()
+                # V15: Prefer byte sidecar (CaseOps compliance) - eval_val_sliding
+                if val_data.val_token_bytes is not None:
+                    abs_start = ws + s
+                    abs_end = ws + wlen
+                    tb = val_data.val_token_bytes[abs_start + 1 : abs_end + 1].to(
+                        device=device, dtype=torch.float64, non_blocking=True
+                    )
+                    byte_count += tb.sum()
+                else:
+                    tgt = y_batch[i, s:wlen]
+                    prev = x_batch[i, s:wlen]
+                    tb = val_data.base_bytes_lut[tgt].to(torch.float64)
+                    tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
@@ -960,11 +1007,20 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                     scored_nll = nll[i, s:wlen].to(torch.float64)
                     loss_sum += scored_nll.sum()
                     token_count += float(wlen - s)
-                    tgt = y_batch[i, s:wlen]
-                    prev = x_batch[i, s:wlen]
-                    tb = val_data.base_bytes_lut[tgt].to(torch.float64)
-                    tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
-                    byte_count += tb.sum()
+                    # V15: Prefer byte sidecar (CaseOps compliance)
+                    if val_data.val_token_bytes is not None:
+                        abs_start = ws + s
+                        abs_end = ws + wlen
+                        tb = val_data.val_token_bytes[abs_start + 1 : abs_end + 1].to(
+                            device=device, dtype=torch.float64, non_blocking=True
+                        )
+                        byte_count += tb.sum()
+                    else:
+                        tgt = y_batch[i, s:wlen]
+                        prev = x_batch[i, s:wlen]
+                        tb = val_data.base_bytes_lut[tgt].to(torch.float64)
+                        tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
+                        byte_count += tb.sum()
         is_last_chunk = ci == num_chunks - 1
         if not is_last_chunk and h.ttt_epochs > 0:
             base_model.train()
