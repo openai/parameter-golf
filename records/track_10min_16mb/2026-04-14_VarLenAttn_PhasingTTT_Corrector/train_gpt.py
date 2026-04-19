@@ -3201,15 +3201,16 @@ def train_and_eval(h, device):
     _skip_training = bool(h.eval_only_path or quantized_eval_only)
     torch._dynamo.reset()
     if not ttt_only_eval:
-        timed_eval(
-            "diagnostic pre-quantization post-ema",
-            eval_val,
-            h,
-            device,
-            val_data,
-            compiled_model,
-            compiled_forward_logits,
-        )
+        if not quantized_eval_only:
+            timed_eval(
+                "diagnostic pre-quantization post-ema",
+                eval_val,
+                h,
+                device,
+                val_data,
+                compiled_model,
+                compiled_forward_logits,
+            )
         if not _skip_training:
             serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
         else:
@@ -3255,7 +3256,7 @@ def train_and_eval(h, device):
             "the eval-only checkpoint directly for TTT"
         )
     if h.ttt_enabled:
-        if not ttt_only_eval:
+        if not ttt_only_eval and not quantized_eval_only:
             del eval_model, compiled_model
         torch._dynamo.reset()
         torch.cuda.empty_cache()
