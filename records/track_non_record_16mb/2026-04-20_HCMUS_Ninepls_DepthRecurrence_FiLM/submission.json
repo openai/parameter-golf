@@ -1,1 +1,7 @@
-
+{
+  "name": "Group Ninepls_HCMUS",
+  "github_id": "NGBao1608",
+  "val_bpb": null,
+  "artifact_size": 48237,
+  "description": "EMA(0.997) + XSA last-3-layers + SmearGate + BigramHash(4096x128) + int8+zlib. Non-record track."
+}
