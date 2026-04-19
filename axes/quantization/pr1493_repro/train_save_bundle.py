@@ -765,8 +765,28 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
             W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
     return (Q[:, invperm], s)
 
+def _assign_tier(name):
+    """Assign sensitivity tier based on Hessian trace analysis + loop correction."""
+    if 'blocks.' not in name:
+        return 'embed'
+    block = int(name.split('.')[1])
+    is_proj = '.attn.proj' in name or name.endswith('.attn.proj.weight')
+    is_mlp_proj = '.mlp.proj' in name or name.endswith('.mlp.proj.weight')
+    # T5: blocks 8-10 attn.proj (effective < 5K)
+    if block >= 8 and is_proj:
+        return 'T5'
+    # T4: blocks 6-10 non-mlp.proj (effective 5K-15K), plus b7.attn.proj
+    if block == 7 and is_proj:
+        return 'T4'
+    if block >= 6 and not is_mlp_proj:
+        return 'T4'
+    if block == 10 and is_mlp_proj:
+        return 'T4'
+    # T1-T3: everything else (sensitive, keep baseline or better)
+    return 'T1_T3'
+
 def gptq_mixed_quantize(state_dict, hessians, h):
-    quant_format = os.environ.get('QUANT_FORMAT', 'uniform')  # 'uniform' or 'nf'
+    quant_format = os.environ.get('QUANT_FORMAT', 'uniform')  # 'uniform', 'nf', or 'tiered'
     result = {}
     meta = {}
     for name, tensor in state_dict.items():
@@ -776,16 +796,36 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             meta[name] = 'passthrough (float16)'
             continue
         is_embed = 'tok_emb' in name
-        cs = h.embed_clip_sigmas if is_embed else h.matrix_clip_sigmas
-        bits = h.embed_bits if is_embed else h.matrix_bits
-        use_nf = (quant_format == 'nf') and not is_embed  # NF for matrices, uniform for tok_emb
-        if use_nf:
+        if quant_format == 'tiered' and not is_embed:
+            tier = _assign_tier(name)
+            if tier == 'T5':
+                q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=3, block_size=128)
+                result[name + '.q'] = q
+                result[name + '.scale'] = s
+                result[name + '.nf_lut'] = nf_lut.to(torch.float16)
+                meta[name] = f'tiered-T5 (nf3)'
+            elif tier == 'T4':
+                q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=6.0, clip_range=15)
+                result[name + '.q'] = q
+                result[name + '.scale'] = s
+                meta[name] = f'tiered-T4 (int5 k=6)'
+            else:
+                cs = h.matrix_clip_sigmas
+                bits = h.matrix_bits
+                q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
+                result[name + '.q'] = q
+                result[name + '.scale'] = s
+                meta[name] = f'tiered-T1_T3 (int{bits} k={cs})'
+        elif quant_format == 'nf' and not is_embed:
+            bits = h.matrix_bits
             q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=bits, block_size=128)
             result[name + '.q'] = q
             result[name + '.scale'] = s
             result[name + '.nf_lut'] = nf_lut.to(torch.float16)
             meta[name] = f'gptq (nf{bits})'
         else:
+            cs = h.embed_clip_sigmas if is_embed else h.matrix_clip_sigmas
+            bits = h.embed_bits if is_embed else h.matrix_bits
             q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
             result[name + '.q'] = q
             result[name + '.scale'] = s
