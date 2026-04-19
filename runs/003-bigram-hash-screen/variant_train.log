@@ -1,0 +1,239 @@
+W0418 23:25:51.411000 254 torch/distributed/run.py:803] 
+W0418 23:25:51.411000 254 torch/distributed/run.py:803] *****************************************
+W0418 23:25:51.411000 254 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0418 23:25:51.411000 254 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  bigram_dim: 112
+  bigram_vocab_size: 3072
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 4
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/a0fef504-471e-4187-9d8d-af1da80b1727.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 2400.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: a0fef504-471e-4187-9d8d-af1da80b1727
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: False
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 2
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40546304
+model_params:36345945
+gptq:reserving 12s, effective=2388000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0077 val_bpb: 3.4878
+1/20000 train_loss: 9.0090 train_time: 0.0m tok/s: 2091670
+2/20000 train_loss: 12.2787 train_time: 0.0m tok/s: 2063420
+3/20000 train_loss: 11.0410 train_time: 0.0m tok/s: 2053733
+4/20000 train_loss: 9.4797 train_time: 0.0m tok/s: 2039457
+5/20000 train_loss: 8.3124 train_time: 0.0m tok/s: 2035164
+100/20000 train_loss: 4.5047 train_time: 1.0m tok/s: 1344075
+200/20000 train_loss: 3.7023 train_time: 2.0m tok/s: 1289336
+300/20000 train_loss: 3.4959 train_time: 3.0m tok/s: 1326272
+400/20000 train_loss: 3.4387 train_time: 3.8m tok/s: 1378058
+500/20000 train_loss: 3.2753 train_time: 4.6m tok/s: 1435678
+600/20000 train_loss: 3.3020 train_time: 5.3m tok/s: 1486446
+700/20000 train_loss: 3.2980 train_time: 6.0m tok/s: 1527666
+800/20000 train_loss: 3.2335 train_time: 6.7m tok/s: 1563232
+900/20000 train_loss: 3.1559 train_time: 7.4m tok/s: 1592906
+1000/20000 train_loss: 3.2358 train_time: 8.1m tok/s: 1618947
+1100/20000 train_loss: 3.1994 train_time: 8.8m tok/s: 1641671
+1200/20000 train_loss: 3.1873 train_time: 9.5m tok/s: 1662060
+1300/20000 train_loss: 3.1551 train_time: 10.1m tok/s: 1680341
+1400/20000 train_loss: 3.1917 train_time: 10.8m tok/s: 1696184
+1500/20000 train_loss: 3.1259 train_time: 11.5m tok/s: 1711017
+1600/20000 train_loss: 3.1528 train_time: 12.2m tok/s: 1724314
+1700/20000 train_loss: 3.1613 train_time: 12.8m tok/s: 1736542
+1800/20000 train_loss: 3.1195 train_time: 13.5m tok/s: 1747885
+layer_loop:enabled step:1866 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1900/20000 train_loss: 3.1180 train_time: 14.3m tok/s: 1745206
+2000/20000 train_loss: 3.0593 train_time: 15.2m tok/s: 1720050
+2100/20000 train_loss: 3.0623 train_time: 16.2m tok/s: 1698069
+2200/20000 train_loss: 3.0461 train_time: 17.2m tok/s: 1678688
+2300/20000 train_loss: 3.0118 train_time: 18.1m tok/s: 1661445
+2400/20000 train_loss: 3.0535 train_time: 19.1m tok/s: 1645992
+2500/20000 train_loss: 2.9701 train_time: 20.1m tok/s: 1631987
+2600/20000 train_loss: 2.9553 train_time: 21.1m tok/s: 1617307
+2700/20000 train_loss: 3.0230 train_time: 22.0m tok/s: 1605961
+2800/20000 train_loss: 2.9802 train_time: 23.0m tok/s: 1595628
+2900/20000 train_loss: 2.9659 train_time: 24.0m tok/s: 1586067
+3000/20000 train_loss: 2.9885 train_time: 24.9m tok/s: 1577271
+3100/20000 train_loss: 2.9449 train_time: 25.9m tok/s: 1569201
+3200/20000 train_loss: 2.9718 train_time: 26.9m tok/s: 1561752
+3300/20000 train_loss: 2.9165 train_time: 27.8m tok/s: 1554811
+3400/20000 train_loss: 2.9677 train_time: 28.8m tok/s: 1548393
+3500/20000 train_loss: 2.8978 train_time: 29.7m tok/s: 1542399
+3600/20000 train_loss: 2.9573 train_time: 30.7m tok/s: 1536720
+3700/20000 train_loss: 2.9232 train_time: 31.7m tok/s: 1531017
+3800/20000 train_loss: 2.8860 train_time: 32.6m tok/s: 1525672
+3900/20000 train_loss: 2.8934 train_time: 33.6m tok/s: 1521061
+4000/20000 train_loss: 2.8867 train_time: 34.6m tok/s: 1516688
+4000/20000 val_loss: 2.8706 val_bpb: 1.1115
+4100/20000 train_loss: 2.8603 train_time: 35.5m tok/s: 1512587
+4200/20000 train_loss: 2.8654 train_time: 36.5m tok/s: 1508722
+4300/20000 train_loss: 2.8558 train_time: 37.4m tok/s: 1505028
+4400/20000 train_loss: 2.8290 train_time: 38.4m tok/s: 1501526
+4500/20000 train_loss: 2.8049 train_time: 39.4m tok/s: 1498210
+4544/20000 val_loss: 2.8127 val_bpb: 1.0891
+stopping_early: wallclock_cap train_time: 2388234ms step: 4544/20000
+peak memory allocated: 39343 MiB reserved: 39418 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.80961221 val_bpb:1.08787912 eval_time:13917ms
+Serialized model: 136349567 bytes
+Code size: 65666 bytes
+GPTQ:collecting Hessians from calibration data...
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1477, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1471, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1400, in train_and_eval
+[rank1]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank1]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 966, in serialize
+[rank1]:     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
+[rank1]:                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 859, in gptq_mixed_quantize
+[rank1]:     q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
+[rank1]:                                    ~~~~~~~~^^^^^^
+[rank1]: KeyError: 'bigram.embed.weight'
+GPTQ:collected 67 Hessians in 13.0s
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1477, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1471, in main
+[rank0]:     train_and_eval(h, device)
+[rank0]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 1400, in train_and_eval
+[rank0]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank0]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 966, in serialize
+[rank0]:     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
+[rank0]:                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt_sota.py", line 859, in gptq_mixed_quantize
+[rank0]:     q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
+[rank0]:                                    ~~~~~~~~^^^^^^
+[rank0]: KeyError: 'bigram.embed.weight'
+[rank0]:[W419 00:09:29.372737425 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0419 00:09:30.967000 254 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 322 closing signal SIGTERM
+E0419 00:09:31.336000 254 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 1 (pid: 323) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt_sota.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-19_00:09:30
+  host      : 25114808a1af
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 323)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
