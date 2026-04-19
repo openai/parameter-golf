@@ -33,6 +33,7 @@ Full 8×H100 baseline: ~1.20 bpb (official).
 | 000 | **Spec 000 — SOTA replication** (seed 42, BIGRAM=0, QK=5.25, TTT=1) | `research` | 01e6fcf | 8×H100 NA-1 | **1.08622** (post-TTT) | +0.0054 vs SOTA 1.0810 | ⚠️ outside accept window — throughput deficit (3849/4550 steps), code confirmed faithful; adopt as baseline |
 | 001 | **Spec 001 — Hessian-SDClip λ screen** (6 λ, quant-only) | `exp/hessian-sdclip` | 74c8385 | 1×H100 NA-1 | **1.10518 → 1.10676** (λ=0 → λ=0.60, quant-only, not post-TTT) | +0.00009 to +0.00158 vs λ=0 control | ❌ killed — monotonic worsening at all λ; artifact >16MB at λ≥0.40; idea shelved |
 | 002 | **Spec 002 — SWA + EMA blend screen** (6 configs, quant-only) | `exp/swa-plus-ema` | 46c2a92 | 1×H100 NA-1 | **1.10518 → 1.14694** (C0 EMA-only → C1 pure SWA, quant-only) | +0.006 to +0.042 vs C0 (all configs hurt) | ❌ killed — linear worsening with SWA fraction; EMA-only is best; idea shelved |
+| 003 | **Spec 003 — BigramHash signal screen** (single run, match Exp 24 config) | `research` | 3825019 | 2×H100 NA-1 | **1.08788** (pre-quant post-EMA) | +0.00118 vs Exp 24's 1.08670 | ❌ killed — miss signal gate by +0.00318; variant train_loss worse at 4/4 final milestones; idea shelved |
 
 ---
 
