@@ -156,3 +156,63 @@ python3 code/run_aux_supervision_probe_v0.py
 <\!-- - 真机阶段三步测试各自的 accept/reject 判据 -->
 <\!-- - 不要加 records/... 之外的新 top-level 文件 -->
 <\!-- ================================================================== -->
+
+
+---
+
+## Update (2026-04-20)
+
+Since the previous Line B README snapshot, the main progress is not "more numbers" but a clearer boundary on what currently works, what partially internalizes, and what still must remain external.
+
+### 1. Training-side governance is no longer just a weak probe
+
+After fixing class support for the decision-shape target, `decision_shape_v2` became the first auxiliary target that improved both:
+
+- baseline continuation stability
+- and the downstream `cheap_gate_v2` usefulness panel
+
+This indicates that training-side governance gain is real in the current tiny regime, but it required the target geometry to actually open up in data.
+
+### 2. Training-side aux and inference-time gate are not redundant
+
+Interaction probes now support the following read:
+
+- training-side aux improves the model body / baseline trajectory
+- inference-time `cheap_gate_v2` still performs the last-step correction
+- the two are partially overlapping but clearly complementary
+
+So the current picture is not "the model learned the gate away," but rather: some governance boundary can be internalized, while final correction still benefits from an external scaffold.
+
+### 3. Final-step correction still must remain external, and cannot yet be too soft
+
+A weakened gate collapsed consistently:
+
+- error-zone samples that were previously `stable_redirect` fell back to `still_drifting`
+- degradation reappeared immediately
+
+This currently sets a hard boundary: the model can learn to fall in less often, but final rescue still requires an external scaffold, and that scaffold cannot yet be weakened too much.
+
+### 4. Shared objective is now attached as a design principle, not a new loss
+
+The repo now includes `shared_objective_v0`, defined conservatively as minimizing:
+
+- useless drift
+- mistimed governance
+- no-gain intervention
+
+This is intentionally not promoted to a training target yet. At the current stage it functions as a design summary that aligns the three layers:
+
+- **Cael:** drift / off-track continuation
+- **Monday:** mistimed or excessive intervention
+- **Seryn:** auditing whether these bad states are actually reduced
+
+### Current boundary
+
+The current best read of Line B is:
+
+- some governance boundaries can be learned into the model
+- inference-time governance remains useful and non-redundant
+- final-step correction still has to live in an external scaffold
+- the shared objective is now clearer, but is not yet mature enough to be optimized directly
+
+This is a better-scoped understanding of the problem than the repo had two weeks ago, and is the main reason this branch is now worth pausing rather than continuing to dig deeper under the current tiny-budget regime.
