@@ -162,6 +162,8 @@ class Hyperparameters:
     prequant_ttt_wd = float(os.environ.get("PREQUANT_TTT_WD", 0.0))
     prequant_ttt_chunk_tokens = int(os.environ.get("PREQUANT_TTT_CHUNK_TOKENS", 32768))
     prequant_ttt_grad_clip = float(os.environ.get("PREQUANT_TTT_GRAD_CLIP", 1.0))
+    ttt_ema_enabled = bool(int(os.environ.get("TTT_EMA_ENABLED", "1")))
+    ttt_ema_decay = float(os.environ.get("TTT_EMA_DECAY", 0.7))
 
     # --- L-BFGS Causal SLOT (logit-space delta optimization during eval) ---
     lbfgs_slot_enabled = bool(int(os.environ.get("LBFGS_SLOT_ENABLED", "0")))
@@ -1067,6 +1069,14 @@ def pre_quant_adamw_ttt(h, device, val_data, base_model):
     base_model.train()
     batch_seqs = h.ttt_batch_seqs
 
+    # TTT EMA state (v14 innovation): maintain EMA of trainable params across epochs
+    ttt_ema_state = {}
+    if h.ttt_ema_enabled:
+        for n, p in base_model.named_parameters():
+            if p.requires_grad:
+                ttt_ema_state[n] = p.data.detach().clone()
+        log(f'ttt_ema:initialized decay={h.ttt_ema_decay} params={len(ttt_ema_state)}')
+
     for epoch in range(h.prequant_ttt_epochs):
         epoch_t0 = time.perf_counter()
         current_lr = scheduler.get_last_lr()[0]
@@ -1107,6 +1117,13 @@ def pre_quant_adamw_ttt(h, device, val_data, base_model):
                 if p.requires_grad:
                     dist.all_reduce(p.data, op=dist.ReduceOp.AVG)
 
+        # TTT EMA update (v14): blend current weights into EMA state
+        if h.ttt_ema_enabled:
+            with torch.no_grad():
+                for n, p in base_model.named_parameters():
+                    if n in ttt_ema_state:
+                        ttt_ema_state[n].mul_(h.ttt_ema_decay).add_(p.data, alpha=1.0 - h.ttt_ema_decay)
+
         # Per-epoch diagnostic eval to find sweet spot
         base_model.eval()
         with torch.no_grad():
@@ -1115,6 +1132,20 @@ def pre_quant_adamw_ttt(h, device, val_data, base_model):
         epoch_elapsed = time.perf_counter() - epoch_t0
         log(f"prequant_ttt:epoch {epoch+1}/{h.prequant_ttt_epochs} "
             f"val_bpb={diag_bpb:.6f} lr={current_lr:.6f} time={epoch_elapsed:.1f}s")
+
+    # TTT EMA: replace final weights with EMA-averaged weights (v14 innovation)
+    if h.ttt_ema_enabled and ttt_ema_state:
+        with torch.no_grad():
+            for n, p in base_model.named_parameters():
+                if n in ttt_ema_state:
+                    p.data.copy_(ttt_ema_state[n])
+        log(f'ttt_ema:loaded final EMA weights into model')
+        # Diagnostic: eval with EMA weights
+        base_model.eval()
+        with torch.no_grad():
+            ema_loss, ema_bpb = eval_val(h, device, val_data, base_model)
+        log(f'ttt_ema:final val_bpb={ema_bpb:.6f} (vs last-epoch above)')
+        base_model.train()
 
     # Unfreeze all parameters
     for p in base_model.parameters():
