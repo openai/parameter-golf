@@ -1,0 +1,37 @@
+{
+  "author": "AjAnubolu",
+  "github_id": "AjAnubolu",
+  "name": "SP8192 + Parallel Pre-Quant AdamW TTT",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.04290,
+  "val_bpb_std": 0.00153,
+  "seeds": [1337, 42, 999],
+  "seed_results": {
+    "1337": {"val_bpb": 1.04114, "artifact_bytes": 15990684},
+    "42": {"val_bpb": 1.04390, "artifact_bytes": 15990823},
+    "999": {"val_bpb": 1.04366, "artifact_bytes": 15992375}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.6.0+cu126",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + 8-GPU Parallel Pre-Quant AdamW TTT (21 epochs, epoch-level cosine LR, federated averaging) + torch.compile + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_eval_time_adaptation": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "fixed_predictor": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain_525": "@bigbag (PR #1493)",
+    "prequant_ttt_concept": "@stukenov (PR #1364)",
+    "parallel_prequant_ttt_with_epoch_cosine_lr": "this PR (@AjAnubolu)"
+  }
+}
