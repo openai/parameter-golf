@@ -860,7 +860,7 @@ _LAYER_K_MUL = [
 _ROLE_K_MUL = {
     "attn.c_q":   0.95,
     "attn.c_k":   0.95,
-    "attn.c_v":   1.15,
+    "attn.c_v":   1.05,
     "attn.proj":  1.05,
     "mlp.fc":     1.00,
     "mlp.proj":   1.00,
