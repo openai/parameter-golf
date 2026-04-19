@@ -816,6 +816,18 @@ def gptq_mixed_quantize(state_dict, hessians, h):
                 result[name + '.q'] = q
                 result[name + '.scale'] = s
                 meta[name] = f'tiered-T1_T3 (int{bits} k={cs})'
+        elif quant_format == 'tiered_k' and not is_embed:
+            # All int5, but sensitive tensors get tight k (outlier range),
+            # tolerant tensors get wide k (compresses well via near-zero clustering)
+            tier = _assign_tier(name)
+            if tier in ('T1_T3',):
+                k_val = 6.0   # tight k: GPTQ needs dynamic range for critical columns
+            else:
+                k_val = 12.85  # wide k: values cluster near 0, Brotli compresses well
+            q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=k_val, clip_range=15)
+            result[name + '.q'] = q
+            result[name + '.scale'] = s
+            meta[name] = f'tiered_k-{tier} (int5 k={k_val})'
         elif quant_format == 'nf' and not is_embed:
             bits = h.matrix_bits
             q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=bits, block_size=128)
