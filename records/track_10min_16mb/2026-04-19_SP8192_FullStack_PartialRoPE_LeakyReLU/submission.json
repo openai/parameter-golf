@@ -1,0 +1,37 @@
+{
+    "val_bpb": null,
+    "val_bpb_std": null,
+    "seeds": [
+        42,
+        314,
+        999
+    ],
+    "seed_results": [
+        {
+            "seed": 42,
+            "sliding_bpb": null,
+            "ttt_bpb": null,
+            "artifact_bytes": null,
+            "training_seconds": null
+        },
+        {
+            "seed": 314,
+            "sliding_bpb": null,
+            "ttt_bpb": null,
+            "artifact_bytes": null,
+            "training_seconds": null
+        },
+        {
+            "seed": 999,
+            "sliding_bpb": null,
+            "ttt_bpb": null,
+            "artifact_bytes": null,
+            "training_seconds": null
+        }
+    ],
+    "artifact_bytes": null,
+    "training_seconds": null,
+    "hardware": "8xH100 SXM",
+    "torch_version": "2.9.1+cu128",
+    "notes": "SP8192 + 3-layer recurrence (layers 3-5, progressive 35%/65%) + parallel residuals (layer 7+) + QK-Gain 5.25 + LeakyReLU(0.5)^2 + Partial RoPE 16/64 + Layerwise LN scale + Sigmoid-gated skips + MuonEq-R WD=0.095 MLR=0.022 + EMA 0.9965 + SDClip int6/int8 + Brotli + Legal Score-First TTT (3 epochs lr=0.005 cosine decay)"
+}
