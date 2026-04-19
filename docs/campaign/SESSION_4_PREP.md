@@ -20,6 +20,7 @@ Time-box:
 3. Rotate the HF token that was pasted during Session 3.
 4. Rebuild and push the RunPod image with the local Dockerfile keepalive fix, then repin the new digest in `scripts/runpod_pipeline/pod_launch.md`.
 5. Read `docs/runpod_pitfalls.md` before launching any paid pod.
+6. Decide on the stashed `scripts/runpod_pr1610_reproduction.sh` WIP before pod launch. Do not execute reproduction-script changes that are not committed or deliberately restored from stash.
 
 ## Required follow-up review
 
