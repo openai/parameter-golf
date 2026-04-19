@@ -22,12 +22,19 @@ if [ "${FREE_GB:-0}" -lt 30 ]; then
 fi
 
 cd "${REPO_DIR}"
+mkdir -p "${DATA_DIR}"
 
 count_shards() {
-    ls "${DATA_DIR}"/fineweb_train_*.bin 2>/dev/null | wc -l
+    shopt -s nullglob
+    local files=("${DATA_DIR}"/fineweb_train_*.bin)
+    shopt -u nullglob
+    printf '%s\n' "${#files[@]}"
 }
 count_val() {
-    ls "${DATA_DIR}"/fineweb_val_*.bin 2>/dev/null | wc -l
+    shopt -s nullglob
+    local files=("${DATA_DIR}"/fineweb_val_*.bin)
+    shopt -u nullglob
+    printf '%s\n' "${#files[@]}"
 }
 
 TRAIN_COUNT=$(count_shards)
