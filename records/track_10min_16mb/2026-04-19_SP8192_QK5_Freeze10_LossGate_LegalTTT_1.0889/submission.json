@@ -3,7 +3,7 @@
   "val_bpb": 1.08885521,
   "val_loss": 2.81262609,
   "bytes_total": 15994383,
-  "blurb": "Single-seed legal 8xH100 run on the PR1413 SP8192 + QK5 stack with freeze10 loss-gated score-first TTT. Train 588.005s, final legal_ttt_exact 1.08885521 BPB, total size 15,994,383 bytes. This submission satisfies the 10min/16MB constraints but is not presented as a new-SOTA claim.",
+  "blurb": "Single-seed legal 8xH100 run on the PR1413 SP8192 + QK5 stack with freeze10 loss-gated score-first TTT. Train 588.005s, final legal_ttt_exact 1.08885521 BPB, total size 15,994,383 bytes. This is a competitive 10min/16MB submission that beats the naive baseline by a wide margin, but it is not presented as a new-#1 SOTA claim.",
   "author": "muhammed.erin95",
   "github_id": "muhammed.erin95",
   "date": "2026-04-19",

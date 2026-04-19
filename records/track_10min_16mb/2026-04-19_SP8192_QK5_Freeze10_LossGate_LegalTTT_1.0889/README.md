@@ -11,7 +11,8 @@ This submission is a legal 8xH100 / 10 minute / 16 MB result on the `SP8192 + QK
 Important scope note:
 - this is a **single-seed** submission
 - it satisfies the track runtime and size constraints
-- it is **not** presented as a new SOTA claim against the current best merged leaderboard result
+- it is intended as a strong legal competitive submission
+- it is **not** presented as a new-#1 SOTA claim against the current best merged leaderboard result
 
 ## Result
 
@@ -29,6 +30,7 @@ Important scope note:
 
 Relative reading:
 - beats the naive baseline `1.2244` by about `0.1355 bpb`
+- lands in the merged-result neighborhood rather than the baseline neighborhood
 - stays under the 16,000,000-byte cap by `5617 bytes`
 - stays under the 600-second train cap
 - stays under the 600-second eval cap
@@ -64,10 +66,16 @@ This run is useful even without a new-SOTA claim because it demonstrates all of 
 - train and eval both under the official 600-second limits
 - artifact under 16 MB
 - selective loss-gated TTT working on the PR1413-style stack
+- a real score/speed tradeoff versus the stronger but slower full-update legal TTT surface
 
 It is also a concrete proof that the earlier byte overage was a packaging issue, not a model-size issue:
 - previous code-size-inflated run: `50811` code bytes
 - this corrected run: `18203` code bytes
+
+In other words:
+- this is not "just baseline-clearing"
+- it is a real competitive 10min/16MB submission
+- the main reason it is not a record claim is simply that the current best merged result is even stronger
 
 ## Compliance
 
