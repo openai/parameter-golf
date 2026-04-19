@@ -134,6 +134,12 @@ def main():
                         H_diag = hessians[h_key].float().diag().to(w.device)
                         col_sens = H_diag.sqrt().clamp_min(1e-10)
                         importance = w.abs() * col_sens.unsqueeze(0)  # (rows, cols)
+                    elif prune_method == "large":
+                        # INVERSE: prune the LARGEST weights (counterintuitive control)
+                        importance = -w.abs()  # negative so largest get lowest "importance"
+                    elif prune_method == "random":
+                        # Random pruning (control baseline)
+                        importance = torch.rand_like(w)
                     else:
                         importance = w.abs()
 
