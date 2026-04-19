@@ -1,26 +1,39 @@
 # Agent Sync
 
-Date: 2026-04-01
+Date: 2026-04-19
 
 ## Current Objective
 
-Reproduce PR `#1610` directly and layer a full-vocab posterior corrector to push below 1.070 BPB.
+Session 3 closed with a clean negative result on the n-gram posterior corrector. Active objective for Session 4: Fallback Cascade Level 1A on the preserved Gate-A checkpoint, using `#1586`-style export-only requant levers (`clip_sigmas` + int7 embeddings).
 
-Execution plan: `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3, 2026-04-14).
+Execution references:
+- historical plan: `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3, 2026-04-14)
+- next-session checklist: `docs/campaign/SESSION_4_PREP.md`
+- merged infra lessons: `docs/runpod_pitfalls.md`
 
-Key decisions:
-1. source base is `#1610` `train_gpt.py` at SHA `ca191953` -- NOT patched D variant
-2. non-record PR `#1598` remains open and frozen; do not edit unless reviewers ask
-3. D / R1 evidence bundle is frozen; no more synthesis on that stack
-4. budget: $212 RunPod (~35 runs), deadline Apr 30
-5. fallback cascade defined if corrector < 0.001 BPB gain (export-only -> retrain -> writeup)
+Key facts:
+1. source base remains `#1610` `train_gpt.py` at SHA `ca191953` -- NOT patched D variant
+2. Gate A passed scientifically: BPB `1.07218477` vs published `1.07216564` (delta `+1.913×10⁻⁵`), eval `455.9 s`, artifact `15,999,394 B`
+3. Gate B was not attempted; the corrector lane is closed after all three eval-only ablations regressed BPB
+4. fallback cascade is now active at Level 1A (export-only on the preserved seed-0 checkpoint)
+5. pod `utwe9wnuze72ds` is still idle and must be terminated before Session 4
 
-The mainline is now:
-- reproduce `#1610` faithfully (Gate A: seed-0 within 0.003 of published 1.07258)
-- validate 3-seed reproduction (Gate B: mean within 0.002 of published 1.07336)
-- add full-vocab posterior corrector (eval-only on existing checkpoint first)
-- multi-seed validation if corrector shows >= 0.002 BPB gain
-- target: record-track PR at <= 1.070 BPB
+## Session 3 Result
+
+- Gate A scientific result: PASS. Administrative `FAIL` flag came from a stale internal headroom threshold (`15,997,520 B`), not from the competition rule. Actual artifact landed `606 B` under the `16,000,000 B` cap.
+- Corrector ablations (all eval-only on the preserved Gate-A checkpoint) all degraded BPB:
+  - baseline: `1.07218477` at `455.9 s`
+  - `1a`: `α=0.3`, orders `[8]`, BPB `1.08876294`, delta `+0.01658`, eval `462.8 s`
+  - `1b`: `α=0.3`, orders `[5,8,12]`, BPB `1.08891256`, delta `+0.01673`, eval `472.4 s`
+  - `1c`: `α=0.1`, orders `[5,8,12]`, BPB `1.07430360`, delta `+0.00212`, eval `465.8 s`
+- Decision: close the corrector lane for this eval pipeline and shift to Fallback Level 1A.
+- Budget state:
+  - productive Session 3 sub-session: `~$40` total, with `~$22` productive work and `~$18` deployment waste
+  - earlier infra-thrash sub-session: `~$10.40` total, with `~$6.80` preventable waste
+  - remaining RunPod credit: `$76.64` per billing page
+- Preserved artifact: `amay01/parameter-golf-session3-artifacts/runs/runs_20260418_2204.tar.gz` (MD5 `caf8adf63d8c80965f6671beba95d7aa`, `141 MB`)
+
+Older sections below are archival context from the pre-Session-3 campaign and are superseded by the objective/result summary above unless explicitly referenced.
 
 ## Challenge Reality
 

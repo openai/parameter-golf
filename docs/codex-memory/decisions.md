@@ -2,7 +2,7 @@
 
 ## Strategy
 
-- Active record hunt: reproduce `#1610` directly + posterior corrector
+- Active record hunt: preserve the `#1610` reproduction, close the corrector lane, and execute Fallback Level 1A on the preserved checkpoint
 - Source base: `#1610` `train_gpt.py` at SHA `ca191953`
 - Execution plan: `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3)
 - D / R1 evidence bundle is frozen; `#1598` non-record PR is frozen
@@ -13,6 +13,33 @@
 Decision: use `#1610` `train_gpt.py` directly as the source base, NOT patch D variant, NOT reproduce `#1530` first.
 
 Rationale: D variant is 558-line LZMA-minified, missing 7 critical #1610 features (BatchedTTTLoRA, phased TTT eval, DocumentPackingLoader, Triton fused MLP, `_build_cu_seqlens`, weight banking, VarLen FA3). #1610 PR body misleads about scope of changes from #1530 (vocab 8192 vs 1024, 11 vs 9 layers, mlp_mult 4 vs 2). Verified at pinned SHAs: #1610 `ca191953`, #1530 `7dca3ded`.
+
+## D-S3-01 — `#1610` direct base replaces `#1530`-first plan (2026-04-19)
+
+Decision: keep `#1610` as the direct source base for all remaining competitive work; do not revive the `#1530`-first path.
+
+Rationale: the D variant is missing critical `#1610` infrastructure, so patching D remains more error-prone than working directly from `#1610`. This preserves the original Revision-3 implementation-base decision after Session 3 execution. Source: original plan, "Implementation Base Decision."
+
+## D-S3-02 — N-gram posterior corrector is closed for this eval pipeline (2026-04-19)
+
+Decision: close the n-gram posterior corrector lane for the current TTT-phased eval pipeline.
+
+Rationale: three eval-only configurations all degraded BPB, with monotonic alpha scaling and no inflection toward improvement:
+- `1a`: `α=0.3`, `[8]`, BPB `1.08876294`, delta `+0.01658`
+- `1b`: `α=0.3`, `[5,8,12]`, BPB `1.08891256`, delta `+0.01673`
+- `1c`: `α=0.1`, `[5,8,12]`, BPB `1.07430360`, delta `+0.00212`
+
+The pattern implies the corrector is adding harmful bias rather than complementary signal, and TTT-phased eval likely already captures the document-local structure the low-order n-gram path was meant to add. Source: Report 1 §1.4, Findings 1–5; claude-mem observations `5905` and `5901`.
+
+## D-S3-03 — Fallback Cascade Level 1A is the Session 4 plan (2026-04-19)
+
+Decision: activate Fallback Cascade Level 1A as the next competitive path.
+
+Rationale: Fallback 1A is a zero-retraining export-only path on the preserved Gate-A checkpoint, bounded to 1–2 requant runs (`~$6–12`) and governed by a strict kill criterion (`<0.001 BPB gain` or artifact exceeds cap). The concrete levers are per-layer adaptive GPTQ `clip_sigmas` plus int7 embeddings. Source: original plan, "Fallback Cascade"; Report 1 §1.4 and §3; claude-mem observation `5901`.
+
+### Session 3 lesson — internal headroom threshold drift (2026-04-19)
+
+Session 1's internal headroom math (`2,480 B` buffer under the cap) was computed against pristine `#1610` HEAD, but the working tree composition drifted before Session 3. That produced a false administrative `GATE_A: FAIL` at `15,999,394 B` even though the artifact was still `606 B` under the competition rule. Going forward, internal safety thresholds must be recomputed dynamically from the current base-tree size and should reserve a `5,000 B` buffer below `16,000,000 B`.
 
 ## Competition phase
 

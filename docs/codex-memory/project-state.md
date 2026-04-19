@@ -1,16 +1,16 @@
 # Project State
 
-Date: 2026-03-31
+Date: 2026-04-19
 
 ## Objective
 
 Primary:
 
-- reproduce PR `#1610` directly and layer a full-vocab posterior corrector to push below 1.070 BPB
+- current target: `#1610`-direct, Gate A reproduced (BPB `1.07218477`), corrector lane closed, Fallback 1A active
 - source base: `#1610` `train_gpt.py` at SHA `ca191953` (replaces the earlier `#1530`-first plan)
-- execution plan: `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3, 2026-04-14)
-- budget: $212 RunPod (~35 runs), deadline Apr 30
-- fallback cascade: export-only (#1586-style) -> retrain -> writeup if corrector fails
+- execution plan remains `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3, 2026-04-14) as historical reference
+- Session 4 handoff: `docs/campaign/SESSION_4_PREP.md`
+- fallback cascade now active at Level 1A: export-only `#1586`-style requant levers on the preserved Gate-A checkpoint
 
 Secondary:
 
@@ -18,8 +18,32 @@ Secondary:
 - D / R1 evidence bundle is frozen as local evidence base
 - keep `07c1` background-only
 - cleanup still pending:
-  - delete the old RunPod pod if it still exists
+  - delete idle RunPod pod `utwe9wnuze72ds`
   - rotate the leaked RunPod API key
+  - rotate the leaked HF token
+
+## Session 3 result
+
+- Gate A: scientifically reproduced PR `#1610` at BPB `1.07218477` vs published `1.07216564` (delta `+1.913×10⁻⁵`), eval `455.9 s`, artifact `15,999,394 B`
+- Gate A administrative `FAIL` was false: stale internal headroom threshold `15,997,520 B` tripped even though the artifact was `606 B` under the competition cap
+- Gate B: not attempted
+- Corrector ablations (all eval-only on the preserved Gate-A seed-0 checkpoint):
+  - baseline: `1.07218477`
+  - `1a`: `α=0.3`, orders `[8]`, BPB `1.08876294`, delta `+0.01658`, eval `462.8 s`
+  - `1b`: `α=0.3`, orders `[5,8,12]`, BPB `1.08891256`, delta `+0.01673`, eval `472.4 s`
+  - `1c`: `α=0.1`, orders `[5,8,12]`, BPB `1.07430360`, delta `+0.00212`, eval `465.8 s`
+- Locked interpretation: corrector damage scaled monotonically with `α`; no tested configuration improved BPB; corrector lane is closed for this TTT-phased eval pipeline
+- Active next move: Fallback Cascade Level 1A (`clip_sigmas` + int7 embeddings), 1–2 requant-only runs, kill criterion `<0.001 BPB gain` or artifact exceeds cap
+- Artifact preservation:
+  - `amay01/parameter-golf-session3-artifacts/runs/runs_20260418_2204.tar.gz`
+  - MD5 `caf8adf63d8c80965f6671beba95d7aa`
+  - contains Gate-A checkpoint, all 3 ablation logs, summary JSONs, and provenance
+- Budget state:
+  - productive Session 3 sub-session: `~$40` total (`~$22` productive + `~$18` deployment waste)
+  - earlier infra-thrash sub-session: `~$10.40` total (`~$6.80` preventable waste)
+  - remaining RunPod credit: `$76.64`
+
+Historical sections below are archival pre-Session-3 context and should not be treated as the active plan.
 
 ## Current campaign state
 
