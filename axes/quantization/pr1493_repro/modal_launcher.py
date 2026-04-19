@@ -385,6 +385,7 @@ def _run_quantize(
     embed_clip_sigmas: float,
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
+    prune_method: str = "magnitude",
 ) -> dict:
     os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "hf"))
     volume.reload()
@@ -418,6 +419,7 @@ def _run_quantize(
         "EMBED_CLIP_SIGMAS": str(embed_clip_sigmas),
         "QUANT_FORMAT": quant_format,
         "PRUNE_FRACTION": str(prune_fraction),
+        "PRUNE_METHOD": prune_method,
     })
 
     cmd = [
@@ -497,6 +499,7 @@ def quantize_1x_h100(
     embed_clip_sigmas: float = 20.0,
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
+    prune_method: str = "magnitude",
 ) -> str:
     return json.dumps(
         _run_quantize(
@@ -509,6 +512,7 @@ def quantize_1x_h100(
             embed_clip_sigmas=embed_clip_sigmas,
             quant_format=quant_format,
             prune_fraction=prune_fraction,
+            prune_method=prune_method,
         ),
         indent=2, sort_keys=True,
     )
@@ -535,6 +539,7 @@ def main(
     embed_clip_sigmas: float = 20.0,
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
+    prune_method: str = "magnitude",
     write_result: str = "",
 ) -> None:
     """Entrypoints:
@@ -582,6 +587,7 @@ def main(
             embed_clip_sigmas=embed_clip_sigmas,
             quant_format=quant_format,
             prune_fraction=prune_fraction,
+            prune_method=prune_method,
         )
     else:
         raise ValueError("mode must be 'prefetch', 'train', or 'quantize'")

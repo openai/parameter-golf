@@ -111,17 +111,34 @@ def main():
         )
     torch._dynamo.reset()
 
-    # Optional: post-hoc magnitude pruning before GPTQ
+    # Optional: post-hoc pruning before GPTQ
     prune_fraction = float(os.environ.get("PRUNE_FRACTION", "0.0"))
+    prune_method = os.environ.get("PRUNE_METHOD", "magnitude")  # 'magnitude' or 'hessian'
     if prune_fraction > 0:
-        log(f"pruning: zeroing smallest {prune_fraction:.0%} of weights by magnitude...")
+        log(f"pruning: method={prune_method} fraction={prune_fraction:.0%}")
         pruned_count = 0
         total_count = 0
         with torch.no_grad():
             for name, param in eval_model.named_parameters():
                 if param.ndim == 2 and param.numel() > 65536 and "tok_emb" not in name:
-                    threshold = torch.quantile(param.data.abs().float(), prune_fraction)
-                    mask = param.data.abs() >= threshold
+                    w = param.data.float()
+                    if prune_method == "hessian" and name + ".weight" in hessians:
+                        h_key = name + ".weight"
+                    elif prune_method == "hessian" and name in hessians:
+                        h_key = name
+                    else:
+                        h_key = None
+
+                    if prune_method == "hessian" and h_key is not None:
+                        # importance = |w| * sqrt(H_diag_col)
+                        H_diag = hessians[h_key].float().diag()
+                        col_sens = H_diag.sqrt().clamp_min(1e-10)
+                        importance = w.abs() * col_sens.unsqueeze(0)  # (rows, cols)
+                    else:
+                        importance = w.abs()
+
+                    threshold = torch.quantile(importance.flatten(), prune_fraction)
+                    mask = importance >= threshold
                     pruned_count += (~mask).sum().item()
                     total_count += param.numel()
                     param.data *= mask
