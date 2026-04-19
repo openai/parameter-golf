@@ -247,8 +247,8 @@ def train_model_with_pruning(h, device, val_data):
             tsb.log(f"pruning: collected {len(hessian_diags)} Hessian diags")
 
         if warmdown_started and hessian_diags and step % prune_every == 0:
-            warmdown_total = h.iterations - warmdown_start_step
-            warmdown_progress = (step - warmdown_start_step) / max(warmdown_total, 1)
+            # Use frac-based progress (respects wallclock cap, not h.iterations)
+            warmdown_progress = (frac - h.warmdown_frac) / (1.0 - h.warmdown_frac + 1e-9)
             # Cubic schedule: slow start, accelerate
             current_sparsity = final_sparsity * (1 - (1 - warmdown_progress) ** 3)
             if current_sparsity > 0.001:
@@ -261,8 +261,8 @@ def train_model_with_pruning(h, device, val_data):
 
         # Apply pruning threshold after optimizer step (keep pruned weights at zero)
         if warmdown_started and hessian_diags:
-            warmdown_total = h.iterations - warmdown_start_step
-            warmdown_progress = (step - warmdown_start_step) / max(warmdown_total, 1)
+            # Use frac-based progress (respects wallclock cap, not h.iterations)
+            warmdown_progress = (frac - h.warmdown_frac) / (1.0 - h.warmdown_frac + 1e-9)
             current_sparsity = final_sparsity * (1 - (1 - warmdown_progress) ** 3)
             if current_sparsity > 0.001:
                 with torch.no_grad():
@@ -302,11 +302,16 @@ def train_model_with_pruning(h, device, val_data):
 
     tsb.log(f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB")
 
-    # Apply EMA
+    # Apply EMA, then enforce sparsity on EMA (EMA lags behind pruning)
     tsb.log("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
     base_model.load_state_dict(avg_state, strict=True)
+
+    # Enforce final sparsity on EMA weights (EMA lags behind live pruning)
+    if warmdown_started and hessian_diags and final_sparsity > 0:
+        tsb.log(f"pruning: enforcing {final_sparsity:.0%} sparsity on EMA weights...")
+        apply_pruning(base_model, hessian_diags, final_sparsity)
 
     # Log final sparsity
     total_zeros = 0
