@@ -1,0 +1,18 @@
+{
+  "author": "Mikeapedia",
+  "github_id": "mikeapedia",
+  "name": "Neural Base Model, No TTT: Parcae + Gates + Layered Windows",
+  "blurb": "Non-record base-model submission. val_bpb 1.07706 with sliding-window eval only (no TTT, no LoRA, no global-SGD). Beats merged non-casefold SOTA (PR #1493 at 1.0810) by 0.00394 BPB on architectural strength alone. Establishes a base-model ceiling reference for future TTT work. Builds on our PR #1674 (Parcae loop, Gemma-style attention, Gram NS) with layered local sliding windows (512/1024 split at layer 6), AttnOutGate and SmearGate from the PR #1693 lineage, and PR #1530's varlen attention. Tokenizer: standard SP8192 (not casefold).",
+  "date": "2026-04-18T00:00:00Z",
+  "val_bpb": 1.07706,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {"val_bpb": 1.07706, "artifact_bytes": 15962729}
+  },
+  "bytes_total": 15962729,
+  "record_type": "non-record",
+  "tokenizer": "SP8192",
+  "ttt_enabled": false,
+  "comparison_baseline_pr": 1493,
+  "comparison_baseline_bpb": 1.0810
+}
