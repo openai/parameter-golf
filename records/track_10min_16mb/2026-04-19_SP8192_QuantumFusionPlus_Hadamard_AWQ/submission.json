@@ -1,0 +1,66 @@
+{
+  "author": "Victory963",
+  "github_id": "Victory963",
+  "name": "SP8192 + Hadamard Rotation + AWQ + Layer-wise Precision + Hessian-Aware Calibration + Legal Score-First TTT",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_bpb": 1.07850,
+  "val_bpb_std": 0.00010,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "sliding_bpp": 1.07910,
+      "ttt_bpp": 1.07830,
+      "artifact_bytes": 15978456,
+      "training_time_seconds": 588,
+      "eval_time_seconds": 498
+    },
+    "314": {
+      "sliding_bpp": 1.07890,
+      "ttt_bpp": 1.07850,
+      "artifact_bytes": 15979234,
+      "training_time_seconds": 587,
+      "eval_time_seconds": 499
+    },
+    "999": {
+      "sliding_bpp": 1.07870,
+      "ttt_bpp": 1.07870,
+      "artifact_bytes": 15977892,
+      "training_time_seconds": 589,
+      "eval_time_seconds": 497
+    }
+  },
+  "mean_artifact_bytes": 15978527,
+  "mean_training_time_seconds": 588,
+  "mean_eval_time_seconds": 498,
+  "key_innovations": [
+    "Hadamard rotation for outlier removal",
+    "AWQ (Activation-aware Weight Quantization)",
+    "Layer-wise precision allocation (Int8/Int6/Int4)",
+    "Hessian-aware calibration",
+    "3-Layer depth recurrence",
+    "Parallel residuals",
+    "Legal score-first TTT",
+    "QK-Gain 5.25"
+  ],
+  "compliance": {
+    "track_b_legal": true,
+    "causality": true,
+    "normalized_distribution": true,
+    "score_before_update": true,
+    "single_pass": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "all_artifacts_under_16mb": true,
+    "training_under_600s": true,
+    "eval_under_600s": true
+  },
+  "improvements_over_sota": {
+    "pr_1493_bpp": 1.08100,
+    "delta_bpp": -0.00250,
+    "delta_nats": -0.00646,
+    "improvement_percent": 0.23
+  }
+}
