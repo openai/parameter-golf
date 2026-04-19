@@ -13,13 +13,13 @@ The key result is that a heavily quantized `int5` base can be repaired back towa
 
 Longer-form writeup:
 
-- full white paper placeholder: `https://arxiv.org/abs/XXXX.XXXXX`
+- white paper pending final approval; not linked in this submission yet
 
 ## Main Result
 
 Winning repair configuration:
 
-- Base checkpoint: 1xRTX5090 600s base run documented in `base_train.log`
+- Base checkpoint: fresh 1xRTX5090 600s reproduction run documented in `base_train.log`
 - Repair target: `blocks.7-8.mlp.(fc|proj)`
 - Base precision during repair: `int5`
 - Reference precision during repair: `int8`
@@ -30,25 +30,25 @@ Winning repair configuration:
 Validation results:
 
 - `1024`-sequence slice:
-  - `int8` baseline: `1.3327 BPB`
-  - `int5` base: `1.5084 BPB`
-  - repaired merged checkpoint: `1.3461 BPB`
-  - recovered `92.4%` of the `int5 -> int8` gap
+  - `int8` baseline: `1.3461 BPB`
+  - `int5` base: `1.4984 BPB`
+  - repaired merged checkpoint: `1.3610 BPB`
+  - recovered `90.2%` of the `int5 -> int8` gap
 - Full validation:
-  - merged repaired checkpoint: `1.3390 BPB`
-  - merged repaired checkpoint after uniform `int8` roundtrip: `1.3411 BPB`
+  - merged repaired checkpoint: `1.3522 BPB`
+  - merged repaired checkpoint after uniform `int8` roundtrip: `1.3535 BPB`
 
 Artifact size:
 
-- compressed model (`int8+zlib`): `10,924,302 bytes`
+- compressed model (`int8+zlib`): `10,769,165 bytes`
 - required code snapshot:
   - `train_gpt.py`
   - `sophonic_lora_repair.py`
   - `sophonic_eval.py`
-- conservative code bytes: `91,821`
-- conservative total bytes: `11,016,123`
+- code bytes: `92,110`
+- total bytes: `10,861,275`
 
-This leaves `4,983,877` bytes of headroom under the `16,000,000` byte cap.
+This leaves `5,138,725` bytes of headroom under the `16,000,000` byte cap.
 
 ## What Sophonics Means Here
 
@@ -125,12 +125,11 @@ Interpretation:
 
 | Experiment | Eval set | Repaired BPB | Recovery | Notes |
 | --- | --- | ---: | ---: | --- |
-| Static residual Sophonics, `int5`, rank-4 | trained-base full-val | `1.4988` | `1%` | negative result |
-| LoRA repair, `int6`, `blocks.7-8.mlp`, rank-16 | `1024`-seq slice | `1.3367` | `90.6%` | best `int6` result |
-| LoRA repair, `int5`, `blocks.7-8.mlp`, rank-16, 600 steps | `1024`-seq slice | `1.3461` | `92.4%` | main result |
-| LoRA repair, `int5`, `blocks.0-1.mlp`, rank-16, 600 steps | `1024`-seq slice | `1.4092` | `56.5%` | negative control |
-| Winning merged checkpoint, pre-quant | full validation | `1.3390` | — | full-val gate |
-| Winning merged checkpoint, `int8+zlib` | full validation | `1.3411` | — | final artifact score |
+| Static residual Sophonics, `int5`, rank-4 | earlier trained-base eval | `1.4988` | `1%` | negative result |
+| LoRA repair, `int5`, `blocks.0-1.mlp`, rank-16, 600 steps | earlier `1024`-seq slice | `1.4092` | `56.5%` | negative control |
+| LoRA repair, `int5`, `blocks.7-8.mlp`, rank-16, 600 steps | fresh `1024`-seq slice | `1.3610` | `90.2%` | main reproduced result |
+| Winning merged checkpoint, pre-quant | full validation | `1.3522` | — | full-val gate |
+| Winning merged checkpoint, `int8+zlib` | full validation | `1.3535` | — | final artifact score |
 
 ## Why This Is Non-Record
 

@@ -1,6 +1,6 @@
 Device: cuda
-Loading model: artifacts/sophonic_poc_5090_a/final_model.pt
-Loading validation tokens: ./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
+Loading model: artifacts/sophonic_5090_base/final_model.pt
+Loading validation tokens: /workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
 Validation tokens: 62,021,632
 
 ========================================================================
@@ -14,111 +14,111 @@ Chosen modules (4):
   - blocks.8.mlp.proj
 Trainable LoRA params: 98,304
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-Uniform int8 baseline                        val_bpb=1.3120  val_loss=2.2156  (1s)
+Uniform int8 baseline                        val_bpb=1.3259  val_loss=2.2390  (1s)
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-Uniform int5 base                            val_bpb=1.4829  val_loss=2.5042  (1s)
-Recoverable gap (int5 -> int8): +0.1709 BPB
+Uniform int5 base                            val_bpb=1.4737  val_loss=2.4887  (1s)
+Recoverable gap (int5 -> int8): +0.1479 BPB
 
 Starting LoRA repair training
-step:1/600 train_loss:2.5107 elapsed:0.1s
-step:10/600 train_loss:2.4010 elapsed:0.6s
-step:20/600 train_loss:2.3484 elapsed:1.1s
-step:30/600 train_loss:2.4891 elapsed:1.6s
-step:40/600 train_loss:2.4797 elapsed:2.1s
-step:50/600 train_loss:2.2477 elapsed:2.6s
-step:60/600 train_loss:2.3497 elapsed:3.1s
-step:70/600 train_loss:2.4612 elapsed:3.6s
-step:80/600 train_loss:2.1613 elapsed:4.1s
-step:90/600 train_loss:2.3628 elapsed:4.6s
-step:100/600 train_loss:2.4292 elapsed:5.1s
+step:1/600 train_loss:2.4930 elapsed:0.3s
+step:10/600 train_loss:2.4502 elapsed:0.6s
+step:20/600 train_loss:2.3622 elapsed:1.0s
+step:30/600 train_loss:2.5000 elapsed:1.4s
+step:40/600 train_loss:2.5101 elapsed:1.7s
+step:50/600 train_loss:2.2840 elapsed:2.1s
+step:60/600 train_loss:2.3720 elapsed:2.4s
+step:70/600 train_loss:2.4771 elapsed:2.8s
+step:80/600 train_loss:2.1943 elapsed:3.1s
+step:90/600 train_loss:2.3839 elapsed:3.5s
+step:100/600 train_loss:2.4383 elapsed:3.8s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 100                         val_bpb=1.3368  val_loss=2.2574  (1s)
+LoRA repair step 100                         val_bpb=1.3514  val_loss=2.2822  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1461 BPB (85.5% of int5->int8 gap)
-step:110/600 train_loss:2.2608 elapsed:7.0s
-step:120/600 train_loss:2.3057 elapsed:7.5s
-step:130/600 train_loss:2.4355 elapsed:8.0s
-step:140/600 train_loss:2.4588 elapsed:8.5s
-step:150/600 train_loss:2.4594 elapsed:9.0s
-step:160/600 train_loss:2.1551 elapsed:9.5s
-step:170/600 train_loss:2.2090 elapsed:10.0s
-step:180/600 train_loss:2.5075 elapsed:10.5s
-step:190/600 train_loss:2.2946 elapsed:11.0s
-step:200/600 train_loss:3.1702 elapsed:11.5s
+  repair gain vs int5: +0.1223 BPB (82.7% of int5->int8 gap)
+step:110/600 train_loss:2.2833 elapsed:5.7s
+step:120/600 train_loss:2.3190 elapsed:6.1s
+step:130/600 train_loss:2.4661 elapsed:6.4s
+step:140/600 train_loss:2.4706 elapsed:6.7s
+step:150/600 train_loss:2.4859 elapsed:7.1s
+step:160/600 train_loss:2.1683 elapsed:7.4s
+step:170/600 train_loss:2.2574 elapsed:7.8s
+step:180/600 train_loss:2.5390 elapsed:8.1s
+step:190/600 train_loss:2.3127 elapsed:8.5s
+step:200/600 train_loss:3.2111 elapsed:8.8s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 200                         val_bpb=1.3307  val_loss=2.2471  (1s)
+LoRA repair step 200                         val_bpb=1.3464  val_loss=2.2737  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1522 BPB (89.1% of int5->int8 gap)
-step:210/600 train_loss:2.4646 elapsed:13.4s
-step:220/600 train_loss:2.2975 elapsed:13.9s
-step:230/600 train_loss:2.5543 elapsed:14.4s
-step:240/600 train_loss:2.1748 elapsed:14.9s
-step:250/600 train_loss:2.0664 elapsed:15.5s
-step:260/600 train_loss:2.2994 elapsed:16.0s
-step:270/600 train_loss:2.2291 elapsed:16.5s
-step:280/600 train_loss:2.1835 elapsed:17.0s
-step:290/600 train_loss:2.5170 elapsed:17.5s
-step:300/600 train_loss:2.4016 elapsed:18.0s
+  repair gain vs int5: +0.1273 BPB (86.1% of int5->int8 gap)
+step:210/600 train_loss:2.4749 elapsed:10.5s
+step:220/600 train_loss:2.3167 elapsed:10.9s
+step:230/600 train_loss:2.5678 elapsed:11.2s
+step:240/600 train_loss:2.1984 elapsed:11.6s
+step:250/600 train_loss:2.0787 elapsed:11.9s
+step:260/600 train_loss:2.3163 elapsed:12.3s
+step:270/600 train_loss:2.2557 elapsed:12.6s
+step:280/600 train_loss:2.2154 elapsed:13.0s
+step:290/600 train_loss:2.5502 elapsed:13.3s
+step:300/600 train_loss:2.4183 elapsed:13.6s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 300                         val_bpb=1.3271  val_loss=2.2411  (1s)
+LoRA repair step 300                         val_bpb=1.3428  val_loss=2.2676  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1558 BPB (91.2% of int5->int8 gap)
-step:310/600 train_loss:2.4708 elapsed:19.9s
-step:320/600 train_loss:2.2591 elapsed:20.4s
-step:330/600 train_loss:2.3399 elapsed:20.9s
-step:340/600 train_loss:2.4903 elapsed:21.4s
-step:350/600 train_loss:2.2443 elapsed:21.9s
-step:360/600 train_loss:2.6380 elapsed:22.4s
-step:370/600 train_loss:2.3139 elapsed:22.9s
-step:380/600 train_loss:2.1842 elapsed:23.4s
-step:390/600 train_loss:2.3035 elapsed:23.9s
-step:400/600 train_loss:2.3104 elapsed:24.4s
+  repair gain vs int5: +0.1309 BPB (88.6% of int5->int8 gap)
+step:310/600 train_loss:2.4882 elapsed:15.4s
+step:320/600 train_loss:2.2793 elapsed:15.7s
+step:330/600 train_loss:2.3603 elapsed:16.1s
+step:340/600 train_loss:2.5200 elapsed:16.4s
+step:350/600 train_loss:2.2597 elapsed:16.8s
+step:360/600 train_loss:2.6578 elapsed:17.1s
+step:370/600 train_loss:2.3406 elapsed:17.5s
+step:380/600 train_loss:2.2058 elapsed:17.8s
+step:390/600 train_loss:2.3159 elapsed:18.2s
+step:400/600 train_loss:2.3263 elapsed:18.5s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 400                         val_bpb=1.3260  val_loss=2.2392  (1s)
+LoRA repair step 400                         val_bpb=1.3418  val_loss=2.2660  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1569 BPB (91.8% of int5->int8 gap)
-step:410/600 train_loss:2.3194 elapsed:26.3s
-step:420/600 train_loss:2.1962 elapsed:26.8s
-step:430/600 train_loss:2.1842 elapsed:27.3s
-step:440/600 train_loss:2.2587 elapsed:27.8s
-step:450/600 train_loss:2.5482 elapsed:28.3s
-step:460/600 train_loss:2.1014 elapsed:28.9s
-step:470/600 train_loss:2.1111 elapsed:29.4s
-step:480/600 train_loss:2.3731 elapsed:29.9s
-step:490/600 train_loss:2.3533 elapsed:30.4s
-step:500/600 train_loss:2.3598 elapsed:30.9s
+  repair gain vs int5: +0.1319 BPB (89.2% of int5->int8 gap)
+step:410/600 train_loss:2.3474 elapsed:20.4s
+step:420/600 train_loss:2.2205 elapsed:20.7s
+step:430/600 train_loss:2.2058 elapsed:21.0s
+step:440/600 train_loss:2.2867 elapsed:21.4s
+step:450/600 train_loss:2.5717 elapsed:21.7s
+step:460/600 train_loss:2.1226 elapsed:22.0s
+step:470/600 train_loss:2.1343 elapsed:22.4s
+step:480/600 train_loss:2.3962 elapsed:22.7s
+step:490/600 train_loss:2.3723 elapsed:23.0s
+step:500/600 train_loss:2.3801 elapsed:23.3s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 500                         val_bpb=1.3249  val_loss=2.2373  (1s)
+LoRA repair step 500                         val_bpb=1.3400  val_loss=2.2628  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1580 BPB (92.5% of int5->int8 gap)
-step:510/600 train_loss:2.2490 elapsed:32.8s
-step:520/600 train_loss:2.1135 elapsed:33.3s
-step:530/600 train_loss:2.2140 elapsed:33.8s
-step:540/600 train_loss:2.1095 elapsed:34.3s
-step:550/600 train_loss:2.2035 elapsed:34.8s
-step:560/600 train_loss:2.3215 elapsed:35.3s
-step:570/600 train_loss:2.4622 elapsed:35.8s
-step:580/600 train_loss:2.1431 elapsed:36.3s
-step:590/600 train_loss:2.3081 elapsed:36.8s
-step:600/600 train_loss:2.1842 elapsed:37.3s
+  repair gain vs int5: +0.1338 BPB (90.5% of int5->int8 gap)
+step:510/600 train_loss:2.2720 elapsed:25.2s
+step:520/600 train_loss:2.1576 elapsed:25.6s
+step:530/600 train_loss:2.2363 elapsed:26.0s
+step:540/600 train_loss:2.1335 elapsed:26.3s
+step:550/600 train_loss:2.2245 elapsed:26.7s
+step:560/600 train_loss:2.3314 elapsed:27.0s
+step:570/600 train_loss:2.4807 elapsed:27.4s
+step:580/600 train_loss:2.1661 elapsed:27.7s
+step:590/600 train_loss:2.3270 elapsed:28.1s
+step:600/600 train_loss:2.2155 elapsed:28.4s
     eval: 2% (4/256 seqs)    eval: 33% (84/256 seqs)    eval: 64% (164/256 seqs)    eval: 95% (244/256 seqs)    eval: 100% (256/256 seqs)      
-LoRA repair step 600                         val_bpb=1.3243  val_loss=2.2364  (1s)
+LoRA repair step 600                         val_bpb=1.3398  val_loss=2.2626  (1s)
   saved best merged checkpoint to artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
-  repair gain vs int5: +0.1586 BPB (92.8% of int5->int8 gap)
+  repair gain vs int5: +0.1339 BPB (90.6% of int5->int8 gap)
     eval: 0% (4/1024 seqs)    eval: 8% (84/1024 seqs)    eval: 16% (164/1024 seqs)    eval: 24% (244/1024 seqs)    eval: 32% (324/1024 seqs)    eval: 39% (404/1024 seqs)    eval: 47% (484/1024 seqs)    eval: 55% (564/1024 seqs)    eval: 63% (644/1024 seqs)    eval: 71% (724/1024 seqs)    eval: 79% (804/1024 seqs)    eval: 86% (884/1024 seqs)    eval: 94% (964/1024 seqs)    eval: 100% (1024/1024 seqs)      
-Uniform int8 final baseline                  val_bpb=1.3327  val_loss=2.2243  (5s)
+Uniform int8 final baseline                  val_bpb=1.3461  val_loss=2.2467  (4s)
     eval: 0% (4/1024 seqs)    eval: 8% (84/1024 seqs)    eval: 16% (164/1024 seqs)    eval: 24% (244/1024 seqs)    eval: 32% (324/1024 seqs)    eval: 39% (404/1024 seqs)    eval: 47% (484/1024 seqs)    eval: 55% (564/1024 seqs)    eval: 63% (644/1024 seqs)    eval: 71% (724/1024 seqs)    eval: 79% (804/1024 seqs)    eval: 86% (884/1024 seqs)    eval: 94% (964/1024 seqs)    eval: 100% (1024/1024 seqs)      
-Uniform int5 final base                      val_bpb=1.5084  val_loss=2.5176  (5s)
+Uniform int5 final base                      val_bpb=1.4984  val_loss=2.5009  (4s)
     eval: 0% (4/1024 seqs)    eval: 8% (84/1024 seqs)    eval: 16% (164/1024 seqs)    eval: 24% (244/1024 seqs)    eval: 32% (324/1024 seqs)    eval: 39% (404/1024 seqs)    eval: 47% (484/1024 seqs)    eval: 55% (564/1024 seqs)    eval: 63% (644/1024 seqs)    eval: 71% (724/1024 seqs)    eval: 79% (804/1024 seqs)    eval: 86% (884/1024 seqs)    eval: 94% (964/1024 seqs)    eval: 100% (1024/1024 seqs)      
-Best merged repair final eval                val_bpb=1.3461  val_loss=2.2467  (5s)
-Final eval recovered: +0.1623 BPB (92.4% of final-eval gap)
+Best merged repair final eval                val_bpb=1.3610  val_loss=2.2716  (4s)
+Final eval recovered: +0.1374 BPB (90.2% of final-eval gap)
 
 ========================================================================
 SUMMARY
 ========================================================================
-Uniform int8: 1.3120 BPB
-Uniform int5: 1.4829 BPB
-Best LoRA repair: 1.3243 BPB at step 600
-Gap to recover: +0.1709 BPB
-Recovered by LoRA: +0.1586 BPB (92.8% of gap)
-Final train loss: 2.1842
+Uniform int8: 1.3259 BPB
+Uniform int5: 1.4737 BPB
+Best LoRA repair: 1.3398 BPB at step 600
+Gap to recover: +0.1479 BPB
+Recovered by LoRA: +0.1339 BPB (90.6% of gap)
+Final train loss: 2.2155
