@@ -1,0 +1,223 @@
+W0419 04:20:42.997000 484835 torch/distributed/run.py:803] 
+W0419 04:20:42.997000 484835 torch/distributed/run.py:803] *****************************************
+W0419 04:20:42.997000 484835 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0419 04:20:42.997000 484835 torch/distributed/run.py:803] *****************************************
+=== GDN Hybrid 7k Full Training ===
+Arch: K_KVShare_Wider (ARCH_MODE=K)
+Seed: 314, Steps: 7000, Warmdown: 2100
+World size: 8, Grad accum: 1
+EMA decay: 0.997, SWA: True (every 50)
+Late QAT threshold: 0.15
+Eval compile enabled: False
+Validation tokens: 40,540,160
+Model built in 0.2s
+Parameters: {'embedding': 4861441, 'recurrent': 11269920, 'attention': 5440, 'mlp': 17761600, 'other': 11424, 'total': 33909825}
+Total params: 33,909,825
+Matrix params: 29,400,192
+Scalar params: 53,185
+Embed params: 4,456,448
+Generated coprime shard order: stride across 80 shards
+
+================================================================================
+Starting training: 7000 steps (from step 0)
+================================================================================
+
+[rank6]:[W419 04:20:58.949907071 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W419 04:20:58.025477490 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W419 04:20:58.147229703 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W419 04:20:58.148824722 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W419 04:20:58.149562581 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W419 04:20:58.155516603 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W419 04:20:58.166621466 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank4]:[W419 04:20:58.168280596 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+step     1/7000 | loss 9.0036 | lr_mul 0.0500 | mom 0.850 | 0.37 steps/s | 3s
+step     2/7000 | loss 8.7877 | lr_mul 0.1000 | mom 0.850 | 0.67 steps/s | 3s
+step     3/7000 | loss 8.2154 | lr_mul 0.1500 | mom 0.851 | 0.93 steps/s | 3s
+step     4/7000 | loss 7.6211 | lr_mul 0.2000 | mom 0.851 | 1.15 steps/s | 3s
+step     5/7000 | loss 7.4127 | lr_mul 0.2500 | mom 0.851 | 1.34 steps/s | 4s
+step     6/7000 | loss 7.2753 | lr_mul 0.3000 | mom 0.851 | 1.51 steps/s | 4s
+step     7/7000 | loss 7.3712 | lr_mul 0.3500 | mom 0.851 | 1.66 steps/s | 4s
+step     8/7000 | loss 7.2815 | lr_mul 0.4000 | mom 0.852 | 1.79 steps/s | 4s
+step     9/7000 | loss 7.0685 | lr_mul 0.4500 | mom 0.852 | 1.90 steps/s | 5s
+step    10/7000 | loss 6.7714 | lr_mul 0.5000 | mom 0.852 | 2.01 steps/s | 5s
+step   100/7000 | loss 5.0945 | lr_mul 1.0000 | mom 0.870 | 3.62 steps/s | 28s
+step   200/7000 | loss 4.1632 | lr_mul 1.0000 | mom 0.890 | 3.74 steps/s | 53s
+step   300/7000 | loss 3.7829 | lr_mul 1.0000 | mom 0.910 | 3.78 steps/s | 79s
+step   400/7000 | loss 3.6376 | lr_mul 1.0000 | mom 0.930 | 3.80 steps/s | 105s
+step   500/7000 | loss 3.5756 | lr_mul 1.0000 | mom 0.950 | 3.84 steps/s | 130s
+step   600/7000 | loss 3.4631 | lr_mul 1.0000 | mom 0.950 | 3.84 steps/s | 156s
+step   700/7000 | loss 3.4292 | lr_mul 1.0000 | mom 0.950 | 3.85 steps/s | 182s
+step   800/7000 | loss 3.3958 | lr_mul 1.0000 | mom 0.950 | 3.85 steps/s | 208s
+step   900/7000 | loss 3.3539 | lr_mul 1.0000 | mom 0.950 | 3.85 steps/s | 234s
+step  1000/7000 | loss 3.3273 | lr_mul 1.0000 | mom 0.950 | 3.86 steps/s | 259s
+step  1100/7000 | loss 3.3099 | lr_mul 1.0000 | mom 0.950 | 3.86 steps/s | 285s
+step  1200/7000 | loss 3.2847 | lr_mul 1.0000 | mom 0.950 | 3.86 steps/s | 311s
+step  1300/7000 | loss 3.2886 | lr_mul 1.0000 | mom 0.950 | 3.86 steps/s | 336s
+step  1400/7000 | loss 3.3030 | lr_mul 1.0000 | mom 0.950 | 3.87 steps/s | 362s
+step  1500/7000 | loss 3.2575 | lr_mul 1.0000 | mom 0.950 | 3.87 steps/s | 387s
+step  1600/7000 | loss 3.2436 | lr_mul 1.0000 | mom 0.950 | 3.87 steps/s | 413s
+step  1700/7000 | loss 3.2508 | lr_mul 1.0000 | mom 0.950 | 3.87 steps/s | 439s
+step  1800/7000 | loss 3.2339 | lr_mul 1.0000 | mom 0.950 | 3.87 steps/s | 465s
+step  1900/7000 | loss 3.2364 | lr_mul 1.0000 | mom 0.950 | 3.88 steps/s | 490s
+step  2000/7000 | loss 3.2252 | lr_mul 1.0000 | mom 0.950 | 3.88 steps/s | 516s
+step  2100/7000 | loss 3.2294 | lr_mul 1.0000 | mom 0.950 | 3.88 steps/s | 542s
+step  2200/7000 | loss 3.2011 | lr_mul 1.0000 | mom 0.950 | 3.88 steps/s | 568s
+step  2300/7000 | loss 3.2101 | lr_mul 1.0000 | mom 0.950 | 3.88 steps/s | 593s
+Wallclock limit reached (600s), will stop after this step
+Stopping early at step 2328 (wallclock limit)
+
+Training complete in 600s
+Peak memory: 41126 MiB
+
+=== Applying EMA weights ===
+EMA BPB (no XSA): 1.000334
+Saved raw EMA model
+
+=== Quantizing to int6 + zstd-22 ===
+Artifact: 15,527,172 bytes (14.81 MB)
+
+=== Roundtrip Validation (quantized model) ===
+Quantized BPB (no XSA): 1.019032
+Quantization degradation: +0.018697
+
+================================================================================
+FINAL RESULTS — K_KVShare_Wider seed=314
+  Training: 7000 steps, 600s
+  EMA BPB (fp32):     1.000334
+  Quantized BPB:      1.019032
+  Artifact size:      15,527,172 bytes
+================================================================================
+final_int6_roundtrip_exact val_loss:3.09828560 val_bpb:1.01903158
+
+=== Legal Score-First TTT (GDN) ===
+ttt_gdn:start chunks=1238 chunk_tokens=32768 total_windows=633440 stride=64 ttt_lr=0.005 ttt_epochs=3 freeze_blocks=2
+ttt_gdn:params unfrozen=28100257 frozen=5809568
+  ttt_chunk [1/1238] bpb=1.029315 time=0.3s
+  ttt_chunk [11/1238] bpb=1.002259 time=2.5s
+  ttt_chunk [21/1238] bpb=1.034535 time=4.7s
+  ttt_chunk [31/1238] bpb=1.033169 time=6.9s
+  ttt_chunk [41/1238] bpb=1.028416 time=9.1s
+  ttt_chunk [51/1238] bpb=1.024284 time=11.3s
+  ttt_chunk [61/1238] bpb=1.018682 time=13.5s
+  ttt_chunk [71/1238] bpb=1.023913 time=15.7s
+  ttt_chunk [81/1238] bpb=1.019526 time=17.9s
+  ttt_chunk [91/1238] bpb=1.016725 time=20.1s
+  ttt_chunk [101/1238] bpb=1.015657 time=22.4s
+  ttt_chunk [111/1238] bpb=1.014952 time=24.6s
+  ttt_chunk [121/1238] bpb=1.017140 time=26.8s
+  ttt_chunk [131/1238] bpb=1.020095 time=29.0s
+  ttt_chunk [141/1238] bpb=1.020178 time=31.2s
+  ttt_chunk [151/1238] bpb=1.020117 time=33.4s
+  ttt_chunk [161/1238] bpb=1.020523 time=35.6s
+  ttt_chunk [171/1238] bpb=1.020449 time=37.8s
+  ttt_chunk [181/1238] bpb=1.019266 time=40.0s
+  ttt_chunk [191/1238] bpb=1.018462 time=42.2s
+  ttt_chunk [201/1238] bpb=1.016276 time=44.4s
+  ttt_chunk [211/1238] bpb=1.019626 time=46.6s
+  ttt_chunk [221/1238] bpb=1.019026 time=48.8s
+  ttt_chunk [231/1238] bpb=1.020403 time=51.0s
+  ttt_chunk [241/1238] bpb=1.019741 time=53.2s
+  ttt_chunk [251/1238] bpb=1.019765 time=55.4s
+  ttt_chunk [261/1238] bpb=1.020071 time=57.6s
+  ttt_chunk [271/1238] bpb=1.020093 time=59.8s
+  ttt_chunk [281/1238] bpb=1.019162 time=62.0s
+  ttt_chunk [291/1238] bpb=1.019753 time=64.2s
+  ttt_chunk [301/1238] bpb=1.019607 time=66.4s
+  ttt_chunk [311/1238] bpb=1.018194 time=68.6s
+  ttt_chunk [321/1238] bpb=1.018094 time=70.8s
+  ttt_chunk [331/1238] bpb=1.018139 time=73.0s
+  ttt_chunk [341/1238] bpb=1.017400 time=75.2s
+  ttt_chunk [351/1238] bpb=1.018072 time=77.4s
+  ttt_chunk [361/1238] bpb=1.016916 time=79.6s
+  ttt_chunk [371/1238] bpb=1.015508 time=81.8s
+  ttt_chunk [381/1238] bpb=1.015386 time=84.0s
+  ttt_chunk [391/1238] bpb=1.014838 time=86.2s
+  ttt_chunk [401/1238] bpb=1.014526 time=88.5s
+  ttt_chunk [411/1238] bpb=1.014840 time=90.7s
+  ttt_chunk [421/1238] bpb=1.014268 time=92.9s
+  ttt_chunk [431/1238] bpb=1.014207 time=95.1s
+  ttt_chunk [441/1238] bpb=1.014276 time=97.3s
+  ttt_chunk [451/1238] bpb=1.015273 time=99.5s
+  ttt_chunk [461/1238] bpb=1.013816 time=101.7s
+  ttt_chunk [471/1238] bpb=1.013760 time=103.9s
+  ttt_chunk [481/1238] bpb=1.013847 time=106.1s
+  ttt_chunk [491/1238] bpb=1.014133 time=108.3s
+  ttt_chunk [501/1238] bpb=1.013712 time=110.5s
+  ttt_chunk [511/1238] bpb=1.013506 time=112.7s
+  ttt_chunk [521/1238] bpb=1.013267 time=114.9s
+  ttt_chunk [531/1238] bpb=1.013250 time=117.1s
+  ttt_chunk [541/1238] bpb=1.013350 time=119.3s
+  ttt_chunk [551/1238] bpb=1.013087 time=121.5s
+  ttt_chunk [561/1238] bpb=1.012728 time=123.7s
+  ttt_chunk [571/1238] bpb=1.012193 time=126.0s
+  ttt_chunk [581/1238] bpb=1.012353 time=128.2s
+  ttt_chunk [591/1238] bpb=1.012529 time=130.4s
+  ttt_chunk [601/1238] bpb=1.012589 time=132.6s
+  ttt_chunk [611/1238] bpb=1.013041 time=134.8s
+  ttt_chunk [621/1238] bpb=1.013708 time=137.0s
+  ttt_chunk [631/1238] bpb=1.013601 time=139.2s
+  ttt_chunk [641/1238] bpb=1.013751 time=141.4s
+  ttt_chunk [651/1238] bpb=1.013958 time=143.6s
+  ttt_chunk [661/1238] bpb=1.013259 time=145.8s
+  ttt_chunk [671/1238] bpb=1.012908 time=148.0s
+  ttt_chunk [681/1238] bpb=1.013953 time=150.2s
+  ttt_chunk [691/1238] bpb=1.013801 time=152.5s
+  ttt_chunk [701/1238] bpb=1.013467 time=154.7s
+  ttt_chunk [711/1238] bpb=1.013902 time=156.9s
+  ttt_chunk [721/1238] bpb=1.014087 time=159.1s
+  ttt_chunk [731/1238] bpb=1.013518 time=161.3s
+  ttt_chunk [741/1238] bpb=1.013363 time=163.5s
+  ttt_chunk [751/1238] bpb=1.012592 time=165.7s
+  ttt_chunk [761/1238] bpb=1.011896 time=167.9s
+  ttt_chunk [771/1238] bpb=1.011043 time=170.1s
+  ttt_chunk [781/1238] bpb=1.010933 time=172.3s
+  ttt_chunk [791/1238] bpb=1.011193 time=174.5s
+  ttt_chunk [801/1238] bpb=1.011146 time=176.7s
+  ttt_chunk [811/1238] bpb=1.010628 time=179.0s
+  ttt_chunk [821/1238] bpb=1.009853 time=181.2s
+  ttt_chunk [831/1238] bpb=1.009671 time=183.4s
+  ttt_chunk [841/1238] bpb=1.009346 time=185.6s
+  ttt_chunk [851/1238] bpb=1.009021 time=187.8s
+  ttt_chunk [861/1238] bpb=1.008355 time=190.0s
+  ttt_chunk [871/1238] bpb=1.008112 time=192.2s
+  ttt_chunk [881/1238] bpb=1.007749 time=194.4s
+  ttt_chunk [891/1238] bpb=1.007270 time=196.6s
+  ttt_chunk [901/1238] bpb=1.006838 time=198.8s
+  ttt_chunk [911/1238] bpb=1.006680 time=201.0s
+  ttt_chunk [921/1238] bpb=1.007008 time=203.2s
+  ttt_chunk [931/1238] bpb=1.007692 time=205.4s
+  ttt_chunk [941/1238] bpb=1.008078 time=207.7s
+  ttt_chunk [951/1238] bpb=1.008001 time=209.9s
+  ttt_chunk [961/1238] bpb=1.008615 time=212.1s
+  ttt_chunk [971/1238] bpb=1.008646 time=214.3s
+  ttt_chunk [981/1238] bpb=1.009018 time=216.5s
+  ttt_chunk [991/1238] bpb=1.008870 time=218.7s
+  ttt_chunk [1001/1238] bpb=1.009122 time=220.9s
+  ttt_chunk [1011/1238] bpb=1.009435 time=223.1s
+  ttt_chunk [1021/1238] bpb=1.009983 time=225.3s
+  ttt_chunk [1031/1238] bpb=1.010465 time=227.5s
+  ttt_chunk [1041/1238] bpb=1.010655 time=229.7s
+  ttt_chunk [1051/1238] bpb=1.010542 time=232.0s
+  ttt_chunk [1061/1238] bpb=1.010603 time=234.2s
+  ttt_chunk [1071/1238] bpb=1.010677 time=236.4s
+  ttt_chunk [1081/1238] bpb=1.010587 time=238.6s
+  ttt_chunk [1091/1238] bpb=1.010692 time=240.8s
+  ttt_chunk [1101/1238] bpb=1.011093 time=243.0s
+  ttt_chunk [1111/1238] bpb=1.011312 time=245.2s
+  ttt_chunk [1121/1238] bpb=1.011483 time=247.4s
+  ttt_chunk [1131/1238] bpb=1.011132 time=249.6s
+  ttt_chunk [1141/1238] bpb=1.010806 time=251.8s
+  ttt_chunk [1151/1238] bpb=1.010858 time=254.0s
+  ttt_chunk [1161/1238] bpb=1.010998 time=256.3s
+  ttt_chunk [1171/1238] bpb=1.010790 time=258.5s
+  ttt_chunk [1181/1238] bpb=1.010428 time=260.7s
+  ttt_chunk [1191/1238] bpb=1.010565 time=262.9s
+  ttt_chunk [1201/1238] bpb=1.010764 time=265.1s
+  ttt_chunk [1211/1238] bpb=1.010565 time=267.3s
+  ttt_chunk [1221/1238] bpb=1.010138 time=269.5s
+  ttt_chunk [1231/1238] bpb=1.009858 time=271.7s
+  ttt_chunk [1238/1238] bpb=1.009840 time=273.1s
+ttt_gdn:done val_loss=3.070153 val_bpb=1.009779 elapsed=273.1s
+TTT BPB:          1.009779 (delta: -0.009253)
+TTT eval time:    273.4s
+final_int6_ttt_exact val_loss:3.07015325 val_bpb:1.00977880

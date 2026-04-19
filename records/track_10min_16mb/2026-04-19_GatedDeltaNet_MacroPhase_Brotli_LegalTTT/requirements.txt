@@ -1,0 +1,11 @@
+numpy
+torch==2.9.1
+sentencepiece
+zstandard
+brotli
+flash-linear-attention==0.4.2
+fla-core==0.4.2
+triton
+transformers==5.5.4
+tokenizers==0.22.2
+safetensors==0.7.0

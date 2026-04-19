@@ -1,0 +1,37 @@
+{
+  "author": "yahya010",
+  "github_id": "yahya010",
+  "name": "GatedDeltaNet (FLA) + Legal Score-First TTT + Brotli-11 Compression",
+  "blurb": "First VALID sub-1.02 BPB submission. PR #1698's GatedDeltaNet + Legal Score-First TTT stack with zstandard-22 replaced by brotli-11 compression. Brotli saves ~6% over zstd on the int6-GPTQ byte stream, bringing all 3 artifacts comfortably under the 16,000,000-byte cap while keeping clip_range=31 (no extra quant penalty). PR #1698 itself is invalid (artifacts 16.47-16.60 MB, over the 16,000,000-byte decimal cap). Macro-phase SGD TTT hook added (from PR #1700's Multi-Phase design) but disabled in the scored run (ttt_macro_phases=0) because on seed 42 it was indistinguishable from vanilla per-chunk SGD (-0.00999 vs -0.01012).",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_bpb": 1.01080,
+  "val_bpb_std": 0.00115,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.01205, "artifact_bytes": 15543829},
+    "314": {"val_bpb": 1.00978, "artifact_bytes": 15527172},
+    "999": {"val_bpb": 1.01056, "artifact_bytes": 15524066}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + GatedDeltaNet (FLA linear attention, K_KVShare_Wider from PR #1687) + Legal Score-First SGD TTT (3 epochs per 32K-token chunk, freeze first 2 blocks) + int6 GPTQ (clip_range=31) + int8 embeddings + brotli-11 compression. Optional macro-phase SGD hook from PR #1700 (disabled in scored run).",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "full_base_stack": "@arsenis-cmd (PR #1698) — GatedDeltaNet + Legal Score-First TTT on K_KVShare_Wider",
+    "architecture_and_config": "@resouer (PR #1687, K_KVShare_Wider config + FLA integration)",
+    "fla_kernel": "@sustcsonglin (flash-linear-attention)",
+    "score_first_ttt": "@Christopher-Lee-McClendon (PR #461)",
+    "macro_phase_concept": "@jorge-asenjo (PR #1700), @dexhunter (PR #1626)"
+  }
+}
