@@ -677,4 +677,51 @@ Ranked by expected impact × feasibility:
 **H. Loop config tuning (L2-5 vs L3-5, progressive activation schedule)**
 **I. Hybrid byte-shuffle stride tuning for quantized tensors**
 
-Deferred to final 8xH100 tuning (do NOT run in dev): `train_batch_tokens`, warmdown_frac shape, EMA decay, SWA, LR schedule tails.
+## Phase 3: 80-min Dev Regime (approximating 10min on 8xH100 SXM)
+
+### Regime analysis
+
+| Env | Wallclock | Throughput | Batch | Steps | Budget |
+|-----|-----------|-----------|-------|-------|--------|
+| Brev 1xH100 PCIe (old) | 20 min | ~580K tok/s | 786K | ~790 | dev |
+| **Brev 1xH100 PCIe (new)** | **80 min** | **~580K tok/s** | **786K** | **~3160** | **dev** |
+| RunPod 8xH100 SXM (final) | 10 min | ~5.96M tok/s | 786K | ~4550 | submission |
+
+At 80 min we get ~3160 steps — 69% of the SOTA's 4550. The gap is due to the PCIe vs SXM throughput difference (580K vs 745K tok/s per GPU). This is close enough to meaningfully tune schedule params, but results should be validated on the final environment.
+
+### Approach: two passes
+
+**Pass 1 (iters 38-50): Re-baseline + schedule sweep at 3160 steps** (~13 iters)
+These parameters were explicitly deferred as "step-count-sensitive" and are now actionable:
+
+| Iter | Experiment | Rationale |
+|------|-----------|-----------|
+| 38 | 80-min baseline (no changes) | Establish reference at new step count |
+| 39 | warmdown_frac 0.68→0.72 | SOTA default; may work better at 3x steps |
+| 40 | warmdown_frac winner → 0.75 or 0.65 | Bracket the optimum |
+| 41 | EMA decay 0.9965→0.997 | Half-life grows from 9%→6% of training; more smoothing |
+| 42 | EMA decay winner direction ± 0.0005 | Fine-tune |
+| 43 | Muon WD 0.095→0.11 | Higher WD → better compression; failed at 790 steps, may work at 3160 |
+| 44 | Muon WD winner direction | Fine-tune |
+| 45 | train_batch_tokens 786K→524K | At 3160 steps, halving batch → ~4740 steps (closer to SOTA) |
+| 46 | Best batch → further tuning | Match SOTA step count |
+| 47 | matrix_clip_sigmas re-tune | Model weights change with more training; optimal clip may shift |
+| 48-50 | Compound best wins | Stack the schedule improvements |
+
+**Pass 2 (iters 51-57): Architecture + quant refinements at tuned schedule** (~7 iters)
+With the schedule locked in, try architecture changes that were step-count-gated:
+
+| Iter | Experiment | Rationale |
+|------|-----------|-----------|
+| 51 | K_MUL even steeper (1.35→0.65) | iter_37 showed steeper = better; push further |
+| 52 | Loop config: L2-5 or L3-6 | More recurrence capacity with enough steps |
+| 53 | 12 layers (if model still fits 16MB) | Extra depth viable with 3x steps |
+| 54 | MLP 4x→3.5x to free space for layer 12 | Trade width for depth |
+| 55-57 | Compound + clean up | Stack wins, re-tune quant for final model |
+
+**Reserved (iters 58-62): TTT optimization** (5 iters, re-enable TTT)
+
+### Key principles
+- Keep `train_batch_tokens=786K` as default since SOTA uses it on 8xSXM (but test 524K since our step count is lower)
+- EMA/warmdown/WD changes are now safe to explore (4x more steps = smoother trajectory)
+- Every kept change must be transferable to 8xSXM or explicitly flagged as step-count-dependent
