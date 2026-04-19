@@ -408,7 +408,8 @@ def load_data_shard(file: Path) -> Tensor:
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
 def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
-    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    # V15 fix: exclude byte sidecar files (fineweb_val_bytes_*.bin) from val token loading
+    files = [Path(p) for p in sorted(glob.glob(pattern)) if "_bytes_" not in str(p)]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
