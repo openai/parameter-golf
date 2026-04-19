@@ -4,7 +4,7 @@ Date: 2026-04-19
 
 ## Current Objective
 
-Session 3 closed with a clean negative result on the n-gram posterior corrector. Active objective for Session 4: Fallback Cascade Level 1A on the preserved Gate-A checkpoint, using `#1586`-style export-only requant levers (`clip_sigmas` + int7 embeddings).
+Session 3 closed with a clean negative result on the n-gram posterior corrector. PR4 non-record evidence package submitted upstream on 2026-04-19 at `records/track_non_record_16mb/2026-04-19_pr1610_reproduction_corrector_negative/` (branch `submission/pr1610-corrector`). Active objective for Session 4: Fallback Cascade Level 1A on the preserved Gate-A checkpoint, using `#1586`-style export-only requant levers (`clip_sigmas` + int7 embeddings). Do not self-comment on PR4 for 48 hours.
 
 Execution references:
 - historical plan: `docs/campaign/PLAN_PR1610_CORRECTOR.md` (locked Revision 3, 2026-04-14)

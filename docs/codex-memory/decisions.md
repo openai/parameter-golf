@@ -1,5 +1,27 @@
 # Locked Decisions
 
+## Non-record PR4 submitted as narrow evidence package (2026-04-19)
+
+Decision: submit PR4 as a non-record package at `records/track_non_record_16mb/2026-04-19_pr1610_reproduction_corrector_negative/`, not as a record claim or an "arc-completion" synthesis of prior PRs.
+
+Rationale:
+- Issue #1017 Section II requires record-track submissions to beat current merged rank 1 by at least 0.005 nats at p<0.01. Our package shows reproduction (+1.9e-5 BPB vs published #1610 seed 0) and a bounded negative result on a posterior corrector; it does not beat the record bar.
+- Issue #1017 Section I explicitly warns against AI-remix synthesis. Packaging four unrelated PRs as a unified "arc" would read as exactly that pattern to reviewers.
+- The valuable content per Section VII is clean ablations, negative results, systems contributions, and reproducibility. This PR delivers all four narrowly and honestly.
+
+Scope bounds:
+- Single-seed (seed 0), acknowledged.
+- Negative result is conditional on the phased-LoRA-TTT eval pipeline tested; does not generalize to all posterior correctors or non-TTT eval paths.
+- Reproduction is framed as credibility prerequisite, not a contribution.
+- Bug fix is framed as incidental (surfaced while running the ablations).
+
+Artifact provenance:
+- Local PR folder: 239,706 bytes total (well under 16,000,000-byte competition cap).
+- External supplementary archive: `amay01/parameter-golf-pr1610-reproduction-artifacts` (renamed from prior `-session3-artifacts` to remove multi-session-workflow signal).
+- Branch: `submission/pr1610-corrector` at commit from this session; two-commit structure (PR folder + URL sweep in commit 1, internal campaign docs in commit 2).
+
+Post-submission discipline: no self-comments on the upstream PR for 48 hours unless a reviewer asks. Reviewer signals determine next steps; do not defend or elaborate preemptively.
+
 ## Strategy
 
 - Active record hunt: preserve the `#1610` reproduction, close the corrector lane, and execute Fallback Level 1A on the preserved checkpoint

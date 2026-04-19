@@ -2,7 +2,7 @@
 
 ## Phase
 
-**Updated 2026-04-14.** Strategy pivot: reproduce `#1610` directly + posterior corrector. Plan locked at `docs/campaign/PLAN_PR1610_CORRECTOR.md` (Revision 3).
+**Updated 2026-04-19.** Session 3 closed with a clean negative result on the posterior corrector. PR4 non-record evidence package submitted upstream at `records/track_non_record_16mb/2026-04-19_pr1610_reproduction_corrector_negative/`. Branch `submission/pr1610-corrector` pushed. Awaiting upstream reviewer signal.
 
 ## Immediate next action
 
@@ -10,29 +10,23 @@ Read only:
 1. `AGENTS.md`
 2. `docs/campaign/AGENT_SYNC.md`
 3. `CLAUDE.md`
-4. `docs/campaign/PLAN_PR1610_CORRECTOR.md`
+4. `docs/codex-memory/decisions.md` (section "Non-record PR4 submitted...")
 
-**Task for next session (Session B): baseline reproduction only.**
+**Primary task for next session: do nothing on the PR for 48 hours unless a reviewer comments.** Per discipline note from Session 3 review: self-comments from the submitter within 48 hours of opening signal to reviewers that the PR didn't do its own work. The submission stands on its own.
 
-1. **Verify pinned source exists.**
-   - `/tmp/pr1610_train_gpt_pinned.py` should exist from prior session
-   - If missing, re-fetch from GitHub at SHA `ca1919539dc6e328ea890cb03ad3ca1c5a84da55`
+**Secondary task (unblocked by PR status): Fallback Cascade Level 1A on preserved Gate A seed-0 checkpoint.** Export-only quantization refinement (`#1586`-style `clip_sigmas` tuning + int7 embeddings), 1-2 requant-only runs, $6-12, 1-day time-box. Kill criterion: < 0.001 BPB gain or artifact exceeds cap.
 
-2. **Run dependency gate.**
-   - Fetch `requirements.txt` from #1610 at pinned SHA
-   - Verify: flash_attn_interface (FA3), triton, brotli, sentencepiece, torch version
-   - Document any version mismatches
+Preconditions for Level 1A:
+- Pod `utwe9wnuze72ds` must be terminated (idle from Session 3).
+- New pod required (Level 1A uses different entry path than Gate A).
+- Preserved checkpoint available at `amay01/parameter-golf-pr1610-reproduction-artifacts/runs/runs_20260418_2204.tar.gz` (MD5 `caf8adf63d8c80965f6671beba95d7aa`).
 
-3. **Run baseline reproduction (Gate A then Gate B).**
-   - Seed 0 first, verify within 0.003 of published 1.07258
-   - Then seeds 1, 2 for 3-seed mean
+**If a reviewer comments on PR4:**
+- Triage within one session: factual correction → amend commit; methodological critique → respond with evidence, not defense; rejection → close cleanly and record the feedback in `decisions.md`.
 
-4. **Do not start the corrector.**
-
-Subsequent sessions:
-- **Session C**: corrector skeleton + legality tests + benchmark
-- **Session D**: first eval-only corrector trial
-- **Session E**: fallback / README / submission polish
+Subsequent sessions after Level 1A:
+- If Level 1A shows ≥ 0.002 BPB gain: consider Level 1B (MATRIX_LR tuning, requires retraining).
+- If Level 1A shows < 0.001 BPB gain: park the record-hunt, treat PR4 as the terminal submission for this competition cycle.
 
 ## What happened in Session 05c-plus / 05f (MEASURED)
 
