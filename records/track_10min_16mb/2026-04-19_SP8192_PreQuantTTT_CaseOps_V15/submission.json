@@ -1,0 +1,56 @@
+{
+  "author": "alertcat",
+  "github_id": "alertcat",
+  "name": "PR #1735 + CaseOps Tokenizer (V15)",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_loss": 2.26584965,
+  "val_bpb": 1.03540487,
+  "val_bpb_std": 0.00056684,
+  "seeds": [
+    1337,
+    42,
+    999
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.26461669,
+      "val_bpb": 1.03484145,
+      "artifact_bytes": 15996061
+    },
+    "42": {
+      "val_loss": 2.26754687,
+      "val_bpb": 1.03618043,
+      "artifact_bytes": 15996195
+    },
+    "999": {
+      "val_loss": 2.2653854,
+      "val_bpb": 1.03519273,
+      "artifact_bytes": 15994993
+    }
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_eval_time_adaptation": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "fixed_predictor": true,
+    "three_seeds": true,
+    "score_first_ttt": true
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1735 (AjAnubolu) base + CaseOps Tokenizer (PR #1729 romeerp): SP8192 lossless-case tokenizer with byte sidecar for honest BPB + 3-Layer Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + 8-GPU Parallel Pre-Quant AdamW TTT (21 epochs, epoch-level cosine LR, federated averaging) + GPTQ SDClip + Brotli",
+  "attribution": {
+    "pr1735_base": "@AjAnubolu (PR #1735) - Parallel Pre-Quant AdamW TTT",
+    "caseops_tokenizer": "@romeerp (PR #1729) - lossless caps tokenizer + byte sidecar",
+    "depth_recurrence": "@dexhunter (PR #1331)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain_525": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "v15_integration": "this PR (@alertcat) - byte sidecar support added to PR #1735 stack to enable CaseOps tokenizer"
+  }
+}
