@@ -1,0 +1,83 @@
+====================================================================================================
+Running Python 3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:13:31) [GCC 14.3.0]
+Running PyTorch 2.11.0+cu130
+WARNING: VOCAB_SIZE=1024 != tokenizer vocab_size=8192
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/home/shayrapetyan/parameter-golf/records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/fineweb_8192_bpe.model
+train_loader:dataset:data train_shards:3
+val_loader:tokens:99328
+model_params:17059912
+world_size:1 grad_accum_steps:8
+train_batch_tokens:524288 train_seq_len:1024 iterations:500
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:25/500 train_loss:1.7746 train_time:23059ms
+step:25/500 val_loss:1.6429 val_bpb:0.5658
+*** NEW BEST val_loss:1.6429 at step 25 ***
+step:50/500 train_loss:1.6924 train_time:29252ms
+step:50/500 val_loss:1.6084 val_bpb:0.5539
+*** NEW BEST val_loss:1.6084 at step 50 ***
+step:75/500 train_loss:1.7298 train_time:35353ms
+step:75/500 val_loss:1.5783 val_bpb:0.5436
+*** NEW BEST val_loss:1.5783 at step 75 ***
+step:100/500 train_loss:1.7074 train_time:41373ms
+step:100/500 val_loss:1.5359 val_bpb:0.5290
+*** NEW BEST val_loss:1.5359 at step 100 ***
+step:125/500 train_loss:1.5138 train_time:47406ms
+step:125/500 val_loss:1.5119 val_bpb:0.5207
+*** NEW BEST val_loss:1.5119 at step 125 ***
+step:150/500 train_loss:1.6117 train_time:53433ms
+step:150/500 val_loss:1.5129 val_bpb:0.5210
+step:175/500 train_loss:1.2755 train_time:59524ms
+step:175/500 val_loss:1.5064 val_bpb:0.5188
+*** NEW BEST val_loss:1.5064 at step 175 ***
+step:200/500 train_loss:1.4520 train_time:65572ms
+step:200/500 val_loss:1.4989 val_bpb:0.5162
+*** NEW BEST val_loss:1.4989 at step 200 ***
+step:225/500 train_loss:1.5447 train_time:71611ms
+step:225/500 val_loss:1.4948 val_bpb:0.5148
+*** NEW BEST val_loss:1.4948 at step 225 ***
+step:250/500 train_loss:1.5861 train_time:77654ms
+step:250/500 val_loss:1.4838 val_bpb:0.5110
+*** NEW BEST val_loss:1.4838 at step 250 ***
+step:275/500 train_loss:1.4351 train_time:83757ms
+step:275/500 val_loss:1.4937 val_bpb:0.5144
+step:300/500 train_loss:1.4392 train_time:90006ms
+step:300/500 val_loss:1.5045 val_bpb:0.5182
+step:325/500 train_loss:1.3288 train_time:96337ms
+step:325/500 val_loss:1.5217 val_bpb:0.5241
+step:350/500 train_loss:1.4823 train_time:102551ms
+step:350/500 val_loss:1.5444 val_bpb:0.5319
+step:375/500 train_loss:1.4342 train_time:108707ms
+step:375/500 val_loss:1.5539 val_bpb:0.5352
+step:400/500 train_loss:1.3171 train_time:114916ms
+step:400/500 val_loss:1.5770 val_bpb:0.5431
+step:425/500 train_loss:1.2447 train_time:121076ms
+step:425/500 val_loss:1.6674 val_bpb:0.5743
+step:450/500 train_loss:1.1869 train_time:127250ms
+step:450/500 val_loss:1.6705 val_bpb:0.5753
+step:475/500 train_loss:1.1770 train_time:133502ms
+step:475/500 val_loss:1.8107 val_bpb:0.6236
+step:500/500 train_loss:1.2105 train_time:139687ms
+step:500/500 val_loss:1.9666 val_bpb:0.6773
+Training completed: 500 steps
+Best val_loss: 1.4838 at step 250
+Saved compressed model: 13225782 bytes (12.61 MB)

@@ -1,0 +1,19 @@
+{
+  "author": "shayrapetyan",
+  "github_id": "shayrapetyan",
+  "name": "Nairi - 9L 512D Vocab1024",
+  "blurb": "Baseline architecture with encoder-decoder skip connections; model uses vocab_size=1024 with tokenizer vocab_size=8192 for compression efficiency",
+  "date": "2026-04-17T21:00:00Z",
+  "val_bpb": 0.5116,
+  "val_bpb_std": 0.025,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.5116, "best_step": 250},
+    "42": {"val_bpb": 0.5570, "best_step": 500},
+    "2025": {"val_bpb": 0.5467, "best_step": 500}
+  },
+  "hardware": "1xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "Baseline architecture + encoder-decoder skip connections + Muon optimizer + early stopping",
+  "architecture": "9L Transformer, 512 dim, 8 heads, 4 KV heads, 1024 vocab, tied embeddings"
+}
