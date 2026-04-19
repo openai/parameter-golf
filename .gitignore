@@ -9,3 +9,17 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+# --- SyntagmaNull submission local-run artifacts ---
+# Big corpus / dataset caches scattered in *_ablation directories (not to be pushed)
+*_ablation/corpora/**/docs_selected.jsonl
+*_ablation/corpora/**/datasets/
+*_ablation_strict/corpora/**/docs_selected.jsonl
+*_ablation_strict/corpora/**/datasets/
+mismatch_ablation/**/datasets/
+mismatch_ablation/**/docs_selected.jsonl
+inline_ablation/**/datasets/
+inline_ablation/**/docs_selected.jsonl
+curriculum_ablation/**/datasets/
+curriculum_ablation/**/docs_selected.jsonl
+# Local venv variants
+.venv-mps-train/

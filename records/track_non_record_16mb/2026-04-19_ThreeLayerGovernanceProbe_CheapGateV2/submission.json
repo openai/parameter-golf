@@ -1,0 +1,18 @@
+{
+  "author": "SyntagmaNull",
+  "github_id": "SyntagmaNull",
+  "name": "Three-Layer Governance Probe + Inference-time Cheap Gate v2 (Signs-of-Life)",
+  "blurb": "Three-layer supervision chain (Cael generation -> Monday intervention policy -> Seryn audit) wired to a minimal real_cael checkpoint. Inference-time cheap_gate_v2_candidate separates persistent-error (redirect) from pre-error (mark-only) on a small probe. Pre-compute-grant signs-of-life submission; no 8xH100 record numbers yet.",
+  "date": "2026-04-19",
+  "track": "non_record_16mb",
+  "status": "signs_of_life",
+  "val_bpb": null,
+  "val_loss": null,
+  "seeds": [],
+  "seed_results": {},
+  "artifact_bytes_mean": null,
+  "train_time_s_mean": null,
+  "eval_time_s_mean": null,
+  "hardware": "local probe on minimal real_cael checkpoint; 8xH100 SXM planned for grant run",
+  "reproducibility_notes": "See README.md 'How to reproduce'. Probe outputs in probe_results/ reproduce via run_usefulness_probe_v0.py and run_aux_supervision_probe_v0.py; model checkpoints excluded from PR (regeneratable)."
+}
