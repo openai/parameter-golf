@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHEPHERD — Mission Control</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "JetBrains Mono", Consolas, monospace; background:#05070f; color:#d9e4ff; padding:20px; }
+  h1 { font-family: Arial, sans-serif; font-weight:900; letter-spacing:.08em; font-size:26px; color:#8fb7ff; margin-bottom:14px; }
+  .sub { font-size:12px; color:#6b7da0; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; }
+  .card { background:#0d1326; border:1px solid #1e2a50; border-radius:12px; padding:14px; }
+  .label { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#6b7da0; margin-bottom:6px; }
+  .big { font-size:28px; font-weight:700; color:#e8eefc; }
+  .mid { font-size:16px; font-weight:600; color:#c7d4f0; }
+  .ok   { color:#6ee7a8; }
+  .warn { color:#ffd166; }
+  .bad  { color:#ff7a7a; }
+  .row { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-top:12px; }
+  .gpu-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:10px; font-size:12px; }
+  .gpu-box { background:#07101f; border:1px solid #1a2647; border-radius:8px; padding:8px; }
+  .probe-row { display:flex; gap:16px; margin-top:8px; font-size:14px; }
+  .probe-row span { padding:4px 10px; background:#07101f; border:1px solid #1a2647; border-radius:6px; }
+  pre { white-space:pre-wrap; word-break:break-word; font-size:12px; line-height:1.4; color:#8fa3c9; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .dot.live  { background:#6ee7a8; box-shadow:0 0 8px #6ee7a8; }
+  .dot.stale { background:#ffd166; }
+  .dot.dead  { background:#ff7a7a; }
+</style>
+</head>
+<body>
+  <h1><span class="dot live" id="livedot"></span>SHEPHERD &mdash; MISSION CONTROL</h1>
+  <div class="sub" id="sub">waiting for telemetry...</div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Run</div><div class="mid" id="run_id">&mdash;</div></div>
+    <div class="card"><div class="label">Hardware</div><div class="mid" id="hardware">&mdash;</div></div>
+    <div class="card"><div class="label">Step</div><div class="big" id="step">&mdash;</div></div>
+    <div class="card"><div class="label">Elapsed (s)</div><div class="big" id="elapsed">&mdash;</div></div>
+  </div>
+
+  <div class="row">
+    <div class="card"><div class="label">Train Loss</div><div class="big" id="train_loss">&mdash;</div></div>
+    <div class="card"><div class="label">Val Loss</div><div class="big" id="val_loss">&mdash;</div></div>
+    <div class="card"><div class="label">Est BPB</div><div class="big" id="est_bpb">&mdash;</div></div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="label">Probes</div>
+    <div class="probe-row">
+      <span>init: <b id="probe_init">&mdash;</b></span>
+      <span>d1: <b id="probe_d1">&mdash;</b></span>
+      <span>d2: <b id="probe_d2">&mdash;</b></span>
+      <span>d3: <b id="probe_d3">&mdash;</b></span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="label">GPUs</div>
+    <div class="gpu-grid" id="gpu_grid">&mdash;</div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="label">Last Log Line</div>
+    <pre id="log_line">&mdash;</pre>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="label">Raw Payload</div>
+    <pre id="raw">&mdash;</pre>
+  </div>
+
+<script>
+let lastUpdate = 0;
+
+function fmt(v) { return (v===null||v===undefined) ? "—" : v; }
+
+async function refresh() {
+  try {
+    const res = await fetch('./telemetry.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const t = await res.json();
+    lastUpdate = Date.now();
+
+    document.getElementById('run_id').textContent     = fmt(t.run_id || t.run_name);
+    document.getElementById('hardware').textContent   = fmt(t.hardware);
+    document.getElementById('step').textContent       = fmt(t.step);
+    document.getElementById('elapsed').textContent    = fmt(t.elapsed_sec);
+    document.getElementById('train_loss').textContent = fmt(t.train_loss ?? t.loss);
+    document.getElementById('val_loss').textContent   = fmt(t.val_loss);
+    document.getElementById('est_bpb').textContent    = fmt(t.est_bpb);
+    document.getElementById('probe_init').textContent = fmt(t.probe_init);
+    document.getElementById('probe_d1').textContent   = fmt(t.probe_d1);
+    document.getElementById('probe_d2').textContent   = fmt(t.probe_d2);
+    document.getElementById('probe_d3').textContent   = fmt(t.probe_d3);
+    document.getElementById('log_line').textContent   = fmt(t.log_line);
+    document.getElementById('raw').textContent        = JSON.stringify(t, null, 2);
+    document.getElementById('sub').textContent        = 'updated ' + (t.updated_at || new Date().toISOString());
+
+    // GPUs
+    const grid = document.getElementById('gpu_grid');
+    grid.innerHTML = '';
+    const n = t.gpu_count || (Array.isArray(t.gpu_util_pct) ? t.gpu_util_pct.length : 0);
+    if (n > 0) {
+      for (let i = 0; i < n; i++) {
+        const box = document.createElement('div');
+        box.className = 'gpu-box';
+        const util = Array.isArray(t.gpu_util_pct) ? t.gpu_util_pct[i] : '—';
+        const vram = Array.isArray(t.gpu_vram_used_mb) ? t.gpu_vram_used_mb[i] : '—';
+        const temp = Array.isArray(t.gpu_temp_c) ? t.gpu_temp_c[i] : '—';
+        const pwr  = Array.isArray(t.gpu_power_w) ? t.gpu_power_w[i] : '—';
+        box.innerHTML = `<b>GPU ${i}</b> (${t.gpu_name || ''})<br>
+          util: ${util}%<br>
+          vram: ${vram} MB<br>
+          temp: ${temp} &deg;C<br>
+          power: ${pwr} W`;
+        grid.appendChild(box);
+      }
+    } else {
+      grid.textContent = 'no gpu data';
+    }
+  } catch (e) {
+    document.getElementById('log_line').textContent = 'fetch error: ' + e;
+  }
+}
+
+function heartbeat() {
+  const dot = document.getElementById('livedot');
+  const age = Date.now() - lastUpdate;
+  if (lastUpdate === 0 || age > 15000) dot.className = 'dot dead';
+  else if (age > 5000) dot.className = 'dot stale';
+  else dot.className = 'dot live';
+}
+
+refresh();
+setInterval(refresh, 2000);
+setInterval(heartbeat, 1000);
+</script>
+</body>
+</html>
