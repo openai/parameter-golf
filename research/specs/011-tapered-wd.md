@@ -1,9 +1,9 @@
-# Spec 010 — Tapered weight decay (training lever, port from #1729)
+# Spec 011 — Tapered weight decay (training lever, port from #1729)
 
 **Slug:** `tapered-wd`
 **Created:** 2026-04-20
-**Links to idea:** `research/ideas/1736-improvement.md` (spec-010 section).
-**Can run in parallel with:** spec 009 (separate pod, independent work).
+**Links to idea:** `research/ideas/1736-improvement.md`.
+**Can run in parallel with:** specs 009 and 010 (separate pod, independent work).
 
 ## Hypothesis
 
@@ -93,10 +93,10 @@ Single pod, single run:
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 
-mkdir -p /workspace/runs/010-tapered-wd/seed_42
+mkdir -p /workspace/runs/011-tapered-wd/seed_42
 
 NCCL_NET=Socket DATA_DIR=./data \
-ARTIFACT_DIR=/workspace/runs/010-tapered-wd/seed_42 \
+ARTIFACT_DIR=/workspace/runs/011-tapered-wd/seed_42 \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
@@ -108,7 +108,7 @@ WD_TAPER_START_FRAC=0.70 \
 WD_TAPER_FINAL_MULT=0.50 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
-  > /workspace/runs/010-tapered-wd/seed_42/train.log 2>&1
+  > /workspace/runs/011-tapered-wd/seed_42/train.log 2>&1
 ```
 
 Verify in log: `muon_wd` value at step >= 0.7×total_steps should show the ramp. Add a one-time log line at the start of the taper zone:
@@ -120,7 +120,7 @@ log(f"WD_TAPER: start_step={start_step} total_steps={total_steps} "
 
 ## Checkpoints to emit
 
-**Exactly one:** `runs/010-tapered-wd/seed_42/final_model.pt` — auto-saved by `serialize()` before GPTQ. Same convention as spec 008. Reusable for future quant-family experiments (SpinQuant, per-group bit, AR-selfgen) on top of tapered-WD weights if this lever lands.
+**Exactly one:** `runs/011-tapered-wd/seed_42/final_model.pt` — auto-saved by `serialize()` before GPTQ. Same convention as spec 008. Reusable for future quant-family experiments (SpinQuant, per-group bit, AR-selfgen) on top of tapered-WD weights if this lever lands.
 
 Plus the submission `.ptz` artifact and `final.json` as usual.
 
@@ -145,16 +145,16 @@ Same rough cost as spec 008, since it's a full retrain with a tiny config change
 
 ## Extra artifacts
 
-- `runs/010-tapered-wd/seed_42/train.log` — full training log
-- `runs/010-tapered-wd/seed_42/final_model.pt` — pre-GPTQ FP checkpoint
-- `runs/010-tapered-wd/seed_42/final_model.int6.ptz` — quantized submission artifact
-- `runs/010-tapered-wd/seed_42/final.json` — post-TTT val_bpb, Δ vs spec 008, wall times
-- `runs/010-tapered-wd/seed_42/notes.md` — execution narrative
+- `runs/011-tapered-wd/seed_42/train.log` — full training log
+- `runs/011-tapered-wd/seed_42/final_model.pt` — pre-GPTQ FP checkpoint
+- `runs/011-tapered-wd/seed_42/final_model.int6.ptz` — quantized submission artifact
+- `runs/011-tapered-wd/seed_42/final.json` — post-TTT val_bpb, Δ vs spec 008, wall times
+- `runs/011-tapered-wd/seed_42/notes.md` — execution narrative
 
 ## Open questions for interview
 
 1. **Which optimizer(s) get the taper?** PR #1729's body suggests their taper applied to *Muon WD only*. Our implementation should probably follow that — the lever as they measured it is Muon-specific. Adam WD can be left at 0.02 throughout. Confirm at interview; if unclear, run Muon-only for the first pass.
-2. **Parallel to spec 009?** Yes — spec 009 hotstarts off spec 008's `pre_gptq.pt` on one pod; spec 010 retrains on a separate pod. Independent. Total combined cost ~$35 if run simultaneously, vs ~$35 sequentially anyway — simultaneity just parallelizes wall time.
+2. **Parallel to spec 009?** Yes — spec 009 hotstarts off spec 008's `pre_gptq.pt` on one pod; spec 011 retrains on a separate pod. Independent. Total combined cost ~$35 if run simultaneously, vs ~$35 sequentially anyway — simultaneity just parallelizes wall time.
 3. **Is the taper linear or cosine?** PR #1729's README implies linear from start_frac to end. If cosine decay is preferred, we can change to `mult = h.wd_taper_final_mult + 0.5 * (1 - h.wd_taper_final_mult) * (1 + cos(pi * progress))`. For the first pass, linear is simpler and cheaper to reason about.
 4. **Does WD taper interact with MATRIX_LR decay?** #1736 already has a cosine LR schedule during warmdown. Tapering WD on top is an additional schedule — need to verify no weird interaction (e.g., LR near-zero + reduced WD = almost no parameter movement, which shouldn't matter but worth glancing at training log).
 
