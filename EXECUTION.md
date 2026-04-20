@@ -74,6 +74,7 @@ On receiving spec number `NNN`:
 - [ ] Hotstart checkpoint exists and is readable (if spec specifies one).
 - [ ] `git rev-parse HEAD` on the pod matches the commit hash in the spec. Use `git stash push -u -m "pod-local"` to clear any uncommitted pod-local edits that might block `checkout`.
 - [ ] Enough free disk on `/workspace/` for expected checkpoints (9 × ~300 MB = ~2.7 GB for the standard phase-boundary set).
+- [ ] `TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache` set on the launch env, and `mkdir -p /workspace/.torch_inductor_cache` on the volume beforehand. Persists the torch.compile cache across pod cycles; reruns of the same commit skip ~80% of the ~5min compile (saves 3-4min wallclock). Graph-hash-keyed so it's safe — different commits just don't reuse each other's entries.
 
 If any check fails and it's an **environment** issue (missing dep, path typo), fix it and re-check. If it's a **logic** issue (wrong commit, bad config), stop and hand back to research.
 
@@ -279,3 +280,7 @@ Spec 000's early SSH+heredoc mishap + recovery cost ~$3.60 of pure churn before 
 ### Monitoring pattern that works
 
 A 60-second SSH poll loop parsing `tail -n 400` of the pod's `train.log`, posting one Discord row per tick, with event-triggered pings for each ckpt file landing and each new val, closes out cleanly when the final `quantized_ttt val_bpb:` line lands. Helpers live at `.claude/scripts/discord_post.sh` and `discord_post_table.sh`. The state file at `/tmp/spec000_monitor.state` records what's already been pinged so nothing double-posts.
+
+### Polling cadence during active runs — 30 seconds
+
+**During any live training run (smoke, screen, or submission): poll the pod's `train.log` every 30 seconds.** This is the user's expected cadence and takes precedence over the default self-pacing. ScheduleWakeup's 60s floor means using a tight Bash `until` loop that `sleep 30` and re-SSH-tail. Do not drift to 1-min, 2-min, 5-min poll intervals unless the user explicitly says to slow down — the short cadence is load-bearing for the user's ability to intercept bugs early.
