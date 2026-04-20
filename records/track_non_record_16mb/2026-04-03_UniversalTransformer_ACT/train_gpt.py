@@ -32,7 +32,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # Hybrid ETD (Encode-Think-Decode) architecture:
 # - Unique encoder layers map input to latent space (with U-Net skip storage)
-# - Shared "think" layers loop multiple times (iterative refinement)
+# - Think layers share one MLP across depth with per-layer FiLM (gamma, beta)
+#   modulation; attention stays per-layer. The stack loops num_think_passes times.
 # - Unique decoder layers map back to output space (with U-Net skip consumption)
 # This combines the best of both worlds: unique capacity where layers do
 # fundamentally different jobs, and parameter-efficient looping where
@@ -733,6 +734,45 @@ class Block(nn.Module):
         return x
 
 
+class ThinkBlock(nn.Module):
+    # Like Block, but the MLP is shared across think layers and passed in at forward
+    # time; each layer gets its own FiLM (gamma, beta) modulation on the MLP input.
+    # Attention stays per-layer.
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        self.has_mlp = mlp_mult > 0
+        self.attn_norm = RMSNorm()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        if self.has_mlp:
+            self.mlp_norm = RMSNorm()
+            self.film_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+            self.film_beta = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+            self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor, x0: Tensor, shared_mlp: "MLP") -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out = self.attn(self.attn_norm(x))
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        if self.has_mlp:
+            h = self.mlp_norm(x)
+            gamma = self.film_gamma.to(dtype=h.dtype)
+            beta = self.film_beta.to(dtype=h.dtype)
+            h = gamma[None, None, :] * h + beta[None, None, :]
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * shared_mlp(h)
+        return x
+
+
 class GPT(nn.Module):
     def __init__(
         self,
@@ -782,8 +822,10 @@ class GPT(nn.Module):
         # ENCODE: unique front layers (store U-Net skips)
         self.encoder_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_encoder_layers)])
 
-        # THINK: shared layers looped num_think_passes times (configurable size)
-        self.think_blocks = nn.ModuleList([Block(**think_block_args) for _ in range(num_think_layers)])
+        # THINK: shared MLP across depth with per-layer FiLM; attention per-layer.
+        # Stack loops num_think_passes times.
+        self.think_blocks = nn.ModuleList([ThinkBlock(**think_block_args) for _ in range(num_think_layers)])
+        self.think_mlp = MLP(model_dim, think_mlp_mult) if think_mlp_mult > 0 else None
 
         # Pass embedding for the think loop (distinguishes recursion depth)
         self.pass_emb = nn.Embedding(num_think_passes, model_dim)
@@ -833,7 +875,7 @@ class GPT(nn.Module):
             x = x + pass_vec.unsqueeze(0).unsqueeze(0)
 
             for block in self.think_blocks:
-                x = block(x, x0)
+                x = block(x, x0, self.think_mlp)
 
         # ---- DECODE: unique layers, consume skips in reverse ----
         for i, block in enumerate(self.decoder_blocks):
@@ -980,12 +1022,14 @@ def main() -> None:
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
-    # Collect all block params across encoder, think, decoder
+    # Collect all block params across encoder, think, decoder (plus the shared think MLP)
     all_block_named_params = (
         list(base_model.encoder_blocks.named_parameters())
         + list(base_model.think_blocks.named_parameters())
         + list(base_model.decoder_blocks.named_parameters())
     )
+    if base_model.think_mlp is not None:
+        all_block_named_params += [(f"think_mlp.{n}", p) for n, p in base_model.think_mlp.named_parameters()]
     matrix_params = [
         p
         for name, p in all_block_named_params
@@ -1045,7 +1089,7 @@ def main() -> None:
     )
     log0(
         f"enc/dec_blocks: heads={args.num_heads} kv={args.num_kv_heads} mlp={args.mlp_mult}x | "
-        f"think_blocks: heads={args.think_num_heads} kv={args.think_kv_heads} mlp={args.think_mlp_mult}x"
+        f"think_blocks: heads={args.think_num_heads} kv={args.think_kv_heads} mlp={args.think_mlp_mult}x (shared+film)"
     )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
