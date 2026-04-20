@@ -145,6 +145,14 @@ class Hyperparameters:
     # live in CausalSelfAttention.forward, MLP.forward, and the TTT mirrors.
     spinquant_enabled = bool(int(os.environ.get("SPINQUANT_ENABLED", "0")))
     spinquant_seed = int(os.environ.get("SPINQUANT_SEED", "42"))
+    # Comma-separated subset of the 4 rotation sites to apply. Default is "all
+    # 4" so existing SPINQUANT_ENABLED=1 runs (spec 010) behave identically.
+    # Valid tag names: attn_in, attn_proj_in, mlp_in, mlp_proj_in. Spec 010b
+    # uses this to ablate which sites are responsible for the long/short-doc
+    # regime split observed in spec 010.
+    spinquant_sites = os.environ.get(
+        "SPINQUANT_SITES", "attn_in,attn_proj_in,mlp_in,mlp_proj_in"
+    )
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -2182,19 +2190,37 @@ def _hadamard_rotation(n: int, seed: int, tag: str) -> torch.Tensor:
     return Q
 
 
+def _parse_spinquant_sites(h) -> "frozenset[str]":
+    """Parse h.spinquant_sites (comma-separated) into a frozenset of tag names.
+    Unknown tags are silently dropped (with a log). Returns empty set if the
+    env var is empty or 'none'."""
+    raw = getattr(h, "spinquant_sites", "attn_in,attn_proj_in,mlp_in,mlp_proj_in")
+    if raw.strip().lower() in ("", "none"):
+        return frozenset()
+    valid = {"attn_in", "attn_proj_in", "mlp_in", "mlp_proj_in"}
+    tags = {t.strip() for t in raw.split(",") if t.strip()}
+    unknown = tags - valid
+    if unknown:
+        log(f"spinquant:unknown_sites_ignored:{sorted(unknown)}")
+    return frozenset(tags & valid)
+
+
 def install_spinquant_rotations(model, h, seed=None, log_fn=print) -> int:
-    """Install the four global rotation buffers on every CausalSelfAttention
-    and MLP in `model`. Buffers are non-persistent (regenerated deterministically
-    at load). Returns number of modules touched. Does NOT flip CastedLinear._sq_active
-    — caller does that after banks have been loaded with rotated weights."""
+    """Install the global rotation buffers on every CausalSelfAttention and MLP
+    in `model`, restricted to sites in h.spinquant_sites. Buffers are
+    non-persistent (regenerated deterministically at load). Returns number of
+    modules touched. Does NOT flip CastedLinear._sq_active — caller does that
+    after banks have been loaded with rotated weights."""
     if seed is None:
         seed = int(os.environ.get("SPINQUANT_SEED", "42"))
+    sites = _parse_spinquant_sites(h)
     model_dim = h.model_dim
     hidden_dim = int(h.mlp_mult * h.model_dim)
-    R_attn_in = _hadamard_rotation(model_dim, seed, "attn_in")
-    R_attn_proj_in = _hadamard_rotation(model_dim, seed, "attn_proj_in")
-    R_mlp_in = _hadamard_rotation(model_dim, seed, "mlp_in")
-    R_mlp_proj_in = _hadamard_rotation(hidden_dim, seed, "mlp_proj_in")
+    # Generate rotations only for sites we're actually installing.
+    R_attn_in = _hadamard_rotation(model_dim, seed, "attn_in") if "attn_in" in sites else None
+    R_attn_proj_in = _hadamard_rotation(model_dim, seed, "attn_proj_in") if "attn_proj_in" in sites else None
+    R_mlp_in = _hadamard_rotation(model_dim, seed, "mlp_in") if "mlp_in" in sites else None
+    R_mlp_proj_in = _hadamard_rotation(hidden_dim, seed, "mlp_proj_in") if "mlp_proj_in" in sites else None
     try:
         device = next(model.parameters()).device
     except StopIteration:
@@ -2202,16 +2228,20 @@ def install_spinquant_rotations(model, h, seed=None, log_fn=print) -> int:
     touched = 0
     for m in model.modules():
         if isinstance(m, CausalSelfAttention):
-            m.register_buffer("_sq_R_attn_in", R_attn_in.to(device), persistent=False)
-            m.register_buffer("_sq_R_attn_proj_in", R_attn_proj_in.to(device), persistent=False)
+            if R_attn_in is not None:
+                m.register_buffer("_sq_R_attn_in", R_attn_in.to(device), persistent=False)
+            if R_attn_proj_in is not None:
+                m.register_buffer("_sq_R_attn_proj_in", R_attn_proj_in.to(device), persistent=False)
             touched += 1
         elif isinstance(m, MLP):
-            m.register_buffer("_sq_R_mlp_in", R_mlp_in.to(device), persistent=False)
-            m.register_buffer("_sq_R_mlp_proj_in", R_mlp_proj_in.to(device), persistent=False)
+            if R_mlp_in is not None:
+                m.register_buffer("_sq_R_mlp_in", R_mlp_in.to(device), persistent=False)
+            if R_mlp_proj_in is not None:
+                m.register_buffer("_sq_R_mlp_proj_in", R_mlp_proj_in.to(device), persistent=False)
             touched += 1
     log_fn(
         f"spinquant:installed_rotations:{touched}_modules seed:{seed} "
-        f"model_dim:{model_dim} hidden_dim:{hidden_dim}"
+        f"sites:{sorted(sites)} model_dim:{model_dim} hidden_dim:{hidden_dim}"
     )
     return touched
 
@@ -2239,8 +2269,13 @@ def _spinquant_rotate_sd_and_H(sd_cpu: dict, hessians: dict, h, log_fn=print) ->
         H_rot = R.T @ (x.T @ x) @ R = R.T @ H @ R
 
     After this call, F.linear(x_rot, W_rot) == F.linear(x, W) exactly (to fp
-    precision), so GPTQ quantizing W_rot with H_rot is mathematically matched."""
+    precision), so GPTQ quantizing W_rot with H_rot is mathematically matched.
+
+    h.spinquant_sites filters which of the 4 tags get rotated; tags not in the
+    set are skipped here AND in install_spinquant_rotations, keeping the two
+    code paths in sync."""
     seed = h.spinquant_seed
+    sites = _parse_spinquant_sites(h)
     tag_to_R: "dict[str, torch.Tensor]" = {}
 
     def _R_for(tag: str, in_dim: int) -> torch.Tensor:
@@ -2251,6 +2286,7 @@ def _spinquant_rotate_sd_and_H(sd_cpu: dict, hessians: dict, h, log_fn=print) ->
     baked_weights = 0
     baked_hessians = 0
     missing_hessian = 0
+    skipped_by_sites = 0
     for name in list(sd_cpu.keys()):
         tag = None
         for suffix, t in _SQ_KEY_TO_TAG.items():
@@ -2258,6 +2294,9 @@ def _spinquant_rotate_sd_and_H(sd_cpu: dict, hessians: dict, h, log_fn=print) ->
                 tag = t
                 break
         if tag is None:
+            continue
+        if tag not in sites:
+            skipped_by_sites += 1
             continue
         W = sd_cpu[name]
         if W.ndim != 2:
@@ -2286,7 +2325,8 @@ def _spinquant_rotate_sd_and_H(sd_cpu: dict, hessians: dict, h, log_fn=print) ->
 
     log_fn(
         f"spinquant:rotated_weights:{baked_weights} hessians:{baked_hessians} "
-        f"missing_hessians:{missing_hessian}"
+        f"missing_hessians:{missing_hessian} skipped_by_sites:{skipped_by_sites} "
+        f"active_sites:{sorted(sites)}"
     )
 
 
