@@ -4,6 +4,32 @@
 **Created:** 2026-04-21
 **Links to idea:** `research/ideas/recurrence-parallel-literature.md`.
 
+---
+
+## ⚠️ CRITICAL FOR EXECUTION — READ BEFORE ACTING ON ANY LOG
+
+**α is architecturally out-of-circuit until looping activates at `training_frac ≥ 0.35`.**
+
+Concretely: at default config (ITERATIONS=20000, wallclock cap 600s, giving ~4828 actual steps):
+- Steps **0 → ~1690**: looping_active=False, α is NOT in the forward graph, α.grad is None, **α grad_norm=0.0 is EXPECTED AND NORMAL.**
+- Step **~1690**: looping activates, α enters the forward graph from this step onward
+- Steps **~1690 → ~4828**: α.grad is non-None, α grad_norm should become non-zero if plumbing is correct
+
+**DO NOT HALT OR FLAG THE RUN** during steps 0-1690 because of α grad_norm=0.0. That is expected behavior, not a bug. Only treat α grad_norm=0 as a failure signal **AFTER step ~1690** (post-looping-activation).
+
+### Applies specifically to:
+
+| Situation | α grad_norm=0 interpretation |
+|---|---|
+| Smoke with `ITERATIONS=500` and default `ENABLE_LOOPING_AT=0.35` | **NORMAL.** Smoke never crosses the 0.35 threshold at 500 steps. Expected. Do not halt. |
+| Real 8H screen, steps 0-1690 | **NORMAL.** Pre-looping phase. Do not halt. |
+| Real 8H screen, steps 1700+ with all-zero grad_norm for 5+ log entries | **BROKEN plumbing.** Halt and investigate. |
+| Smoke with `ENABLE_LOOPING_AT=0` (override for plumbing check) | Should see **NON-ZERO** grad_norm almost immediately. If zero here, plumbing is broken. |
+
+**Prior incident (2026-04-21):** A first smoke at `ITERATIONS=500, ENABLE_LOOPING_AT=0.35` was incorrectly flagged as failing the stop-early criterion. α grad_norm=0 was expected at that phase; the spec's stop-early wording didn't condition on looping_active. The smoke was actually FINE (500 iters no NaN, identity-at-init preserved). The experiment workflow was unnecessarily halted due to spec ambiguity. Fixed in this version of the spec — do not repeat.
+
+---
+
 ## Hypothesis
 
 In #1736's Loop345 (layers 3-5 × 3 passes = 17 virtual layers), every pass fully commits its block output to the residual stream — there's no learned control over how much each pass contributes. Recur-Alpha adds a learnable blend scalar per (non-first pass, looped layer), initialized to zero:
@@ -189,11 +215,45 @@ recur_alpha: values=[[0.02, 0.01, 0.03], [0.00, 0.01, 0.02]] grad_norm=0.0008
 
 **No intermediate model checkpoints** for this first run. Can add if α trajectory reveals something requiring mid-training inspection.
 
-## Stop-early criteria
+## Stop-early criteria (ALL conditioned on looping being active)
 
+Unconditional (always halt):
 - NaN / inf in train_loss → halt
 - Step time > 2× spec 008 → halt (indicates compile failure / unexpected overhead)
-- α grad norms exactly zero for 5+ consecutive log entries → halt, optimizer routing broken
+
+Conditional on `looping_active=True` (roughly step ≥ 1700 at default 0.35):
+- α grad_norm exactly 0.0 for 5+ consecutive log entries **AFTER looping activates** → halt, optimizer routing broken
+
+**Pre-looping-activation (steps 0 to ~1690): do NOT halt based on α grad_norm.** Zero is expected. See the ⚠️ CRITICAL banner at the top of this spec.
+
+## Smoke protocol (updated 2026-04-21 after first-smoke issue)
+
+**The smoke must use `ENABLE_LOOPING_AT=0` to force looping active from step 1.** Otherwise α is out-of-circuit for the entire 500-iter smoke window and no α plumbing information is gained.
+
+Smoke command:
+```
+ITERATIONS=500 RECUR_ALPHA_ENABLED=1 ENABLE_LOOPING_AT=0 TRAIN_LOG_EVERY=50 ...
+```
+
+Smoke pass criteria:
+- No NaN / inf
+- α grad_norm **non-zero** from early log entries (confirms autograd edge exists)
+- α values slightly drifted from 0 (confirms optimizer applies updates)
+- 500 iters complete cleanly
+
+**Real screen** keeps `ENABLE_LOOPING_AT=0.35` unchanged — do NOT propagate the smoke override to the real run. Prior PG evidence:
+- #1739 (step-0 activation): **1.3936 bpb catastrophic**
+- #1726 (`ENABLE_LOOPING_AT=0.15`): +0.050 worse than 0.35
+- The 0.35 default is empirically tuned and load-bearing for the main run.
+
+## Alternative: skip second smoke, go direct to screen
+
+Given the first smoke already verified compile + no-NaN + param count + identity-at-init, the α-plumbing question can be answered during the real screen itself:
+- Watch α grad_norm across the first ~1800 steps (expected 0)
+- Around step 1700, looping activates; α grad_norm should become non-zero within the next few log entries
+- If α grad_norm stays 0 AFTER step 1700 (5+ consecutive log entries), plumbing is broken → halt
+
+This path costs ~$5-6 for the screen vs ~$5-7 for another smoke + screen. Either path is valid.
 
 ## Cost estimate
 
