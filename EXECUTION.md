@@ -284,3 +284,29 @@ A 60-second SSH poll loop parsing `tail -n 400` of the pod's `train.log`, postin
 ### Polling cadence during active runs — 30 seconds
 
 **During any live training run (smoke, screen, or submission): poll the pod's `train.log` every 30 seconds.** This is the user's expected cadence and takes precedence over the default self-pacing. ScheduleWakeup's 60s floor means using a tight Bash `until` loop that `sleep 30` and re-SSH-tail. Do not drift to 1-min, 2-min, 5-min poll intervals unless the user explicitly says to slow down — the short cadence is load-bearing for the user's ability to intercept bugs early.
+
+### Progress updates — side-by-side vs baseline
+
+When a spec has a named baseline run (e.g. spec 008 for most post-1736 experiments), format progress updates as a three-column table: step, baseline train_loss at that step, current run's train_loss at that step, Δ. Example:
+
+```
+┌──────┬────────────────┬────────────────┬─────────┐
+│ step │ 008 train_loss │ 015 train_loss │    Δ    │
+├──────┼────────────────┼────────────────┼─────────┤
+│ 500  │ 2.5807         │ 2.5858         │ +0.0051 │
+│ 1000 │ 2.8105         │ 2.8116         │ +0.0011 │
+│ 1500 │ 2.6434         │ 2.6386         │ −0.0048 │
+│ 2000 │ 2.6723         │ 2.6729         │ +0.0006 │
+│ 2500 │ 2.5580         │ 2.5572         │ −0.0008 │
+│ 2700 │ —              │ 2.5053         │ —       │
+└──────┴────────────────┴────────────────┴─────────┘
+```
+
+Rules:
+- Baseline column: pull train_loss rows at matched steps from the baseline run's `train.log` (e.g. `runs/008-1736-reproduction/seed_42/train.log`). If the baseline is missing that step (different log cadence), leave `—`.
+- Current column: latest value from the live pod's `train.log`.
+- Δ = current − baseline. Positive Δ = current is worse. Show 4 decimals.
+- Append a new row every time a new training step with a logged train_loss appears; do not re-post old rows.
+- Between log events, still emit the 30s poll heartbeat so the user knows the monitor is alive — but don't repost the table every 30s if nothing has advanced.
+
+This format makes regressions and improvements visible at a glance across the whole run and is strictly preferred over single-value-per-tick updates.
