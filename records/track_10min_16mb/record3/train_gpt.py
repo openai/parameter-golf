@@ -37,7 +37,8 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 3e1))
     rope_base = float(os.environ.get("ROPE_BASE", 1e4))
-    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
+    # 0 => full head_dim RoPE; set ROPE_DIMS=16 for partial-RoPE ablations.
+    rope_dims = int(os.environ.get("ROPE_DIMS", 0))
     rope_train_seq_len = int(os.environ.get("ROPE_TRAIN_SEQ_LEN", 2048))
     rope_yarn = bool(int(os.environ.get("ROPE_YARN", "0")))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
@@ -84,6 +85,8 @@ class Hyperparameters:
     ttt_mlp_lora = bool(int(os.environ.get("TTT_MLP_LORA", "1")))
     ttt_o_lora = bool(int(os.environ.get("TTT_O_LORA", "1")))
     ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adam")
+    ttt_loss_gate_mode = os.environ.get("TTT_LOSS_GATE_MODE", "none").lower()
+    ttt_loss_gate_threshold = float(os.environ.get("TTT_LOSS_GATE_THRESHOLD", 0.0))
     ttt_eval_batches = os.environ.get("TTT_EVAL_BATCHES", "")
     val_doc_fraction = float(os.environ.get("VAL_DOC_FRACTION", 1.0))
     compressor = os.environ.get("COMPRESSOR", "brotli")
@@ -884,6 +887,17 @@ class GPT(nn.Module):
         self.tok_emb = nn.Embedding(h.vocab_size, h.model_dim)
         self.num_layers = h.num_layers
         head_dim = h.model_dim // h.num_heads
+        if h.rope_dims < 0:
+            raise ValueError(f"ROPE_DIMS must be >= 0, got {h.rope_dims}")
+        if h.rope_dims > head_dim:
+            raise ValueError(
+                f"ROPE_DIMS={h.rope_dims} must be <= head_dim={head_dim}"
+            )
+        if h.rope_dims > 0 and h.rope_dims % 2 != 0:
+            raise ValueError(f"ROPE_DIMS must be even, got {h.rope_dims}")
+        effective_rope_dims = head_dim if h.rope_dims == 0 else h.rope_dims
+        if h.rope_yarn and effective_rope_dims == 2:
+            raise ValueError("ROPE_DIMS=2 is incompatible with YaRN (division by zero)")
         kv_dim = h.num_kv_heads * head_dim
         hidden_dim = int(h.mlp_mult * h.model_dim)
         self.qo_bank = nn.Parameter(torch.empty(2 * h.num_layers, h.model_dim, h.model_dim))
@@ -1703,8 +1717,43 @@ def restore_fp32_params(model):
 
 
 def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
+    def _fresh_loader():
+        try:
+            return train_loader.__class__(h, device)
+        except Exception:
+            return train_loader
+
+    # FreqGPTQ: estimate calibration token frequencies and upweight the top-100
+    # tokens by 2x during Hessian accumulation.
+    token_freq = torch.zeros(h.vocab_size, dtype=torch.int64, device=device)
+    with torch.no_grad():
+        for _ in range(n_calibration_batches):
+            x, _ = train_loader.next_batch(h.train_batch_tokens, h.grad_accum_steps)
+            token_freq.add_(torch.bincount(x.reshape(-1), minlength=h.vocab_size))
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(token_freq, op=dist.ReduceOp.SUM)
+    topk = min(100, h.vocab_size)
+    top_ids = torch.topk(token_freq, k=topk).indices
+    token_weight_lut = torch.ones(h.vocab_size, dtype=torch.float32, device=device)
+    token_weight_lut[top_ids] = 2.0
+    log(f"gptq_freq: upweighting top-{topk} calibration tokens by 2x")
+
+    hess_loader = _fresh_loader()
     hessians = {}
     hooks = []
+    current_token_weights = None
+
+    def _weighted_hessian_add(name, x):
+        if current_token_weights is not None and current_token_weights.numel() == x.shape[0]:
+            x_weighted = x * current_token_weights[:, None]
+        else:
+            x_weighted = x
+        if name not in hessians:
+            hessians[name] = torch.zeros(
+                x.shape[1], x.shape[1], dtype=torch.float32, device=device
+            )
+        hessians[name].addmm_(x.T, x_weighted)
+
     for i, block in enumerate(model.blocks):
         block.attn._calib = True
         block.mlp._calib = True
@@ -1716,23 +1765,13 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
             if x.ndim == 3:
                 x = x.reshape(-1, x.shape[-1])
             for suffix in ["c_q", "c_k", "c_v"]:
-                name = f"blocks.{layer_idx}.attn.{suffix}.weight"
-                if name not in hessians:
-                    hessians[name] = torch.zeros(
-                        x.shape[1], x.shape[1], dtype=torch.float32, device=device
-                    )
-                hessians[name].addmm_(x.T, x)
+                _weighted_hessian_add(f"blocks.{layer_idx}.attn.{suffix}.weight", x)
             y = module._last_proj_input
             if y is not None:
                 y = y.float()
                 if y.ndim == 3:
                     y = y.reshape(-1, y.shape[-1])
-                name = f"blocks.{layer_idx}.attn.proj.weight"
-                if name not in hessians:
-                    hessians[name] = torch.zeros(
-                        y.shape[1], y.shape[1], dtype=torch.float32, device=device
-                    )
-                hessians[name].addmm_(y.T, y)
+                _weighted_hessian_add(f"blocks.{layer_idx}.attn.proj.weight", y)
         return hook_fn
 
     def make_mlp_hook(layer_idx):
@@ -1740,23 +1779,13 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
             x = inp[0].detach().float()
             if x.ndim == 3:
                 x = x.reshape(-1, x.shape[-1])
-            name = f"blocks.{layer_idx}.mlp.fc.weight"
-            if name not in hessians:
-                hessians[name] = torch.zeros(
-                    x.shape[1], x.shape[1], dtype=torch.float32, device=device
-                )
-            hessians[name].addmm_(x.T, x)
+            _weighted_hessian_add(f"blocks.{layer_idx}.mlp.fc.weight", x)
             h_act = module._last_down_input
             if h_act is not None:
                 h_act = h_act.float()
                 if h_act.ndim == 3:
                     h_act = h_act.reshape(-1, h_act.shape[-1])
-                name = f"blocks.{layer_idx}.mlp.proj.weight"
-                if name not in hessians:
-                    hessians[name] = torch.zeros(
-                        h_act.shape[1], h_act.shape[1], dtype=torch.float32, device=device
-                    )
-                hessians[name].addmm_(h_act.T, h_act)
+                _weighted_hessian_add(f"blocks.{layer_idx}.mlp.proj.weight", h_act)
         return hook_fn
 
     for i, block in enumerate(model.blocks):
@@ -1769,11 +1798,7 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
             x = inp[0].detach().float()
             if x.ndim == 3:
                 x = x.reshape(-1, x.shape[-1])
-            if weight_name not in hessians:
-                hessians[weight_name] = torch.zeros(
-                    x.shape[1], x.shape[1], dtype=torch.float32, device=device
-                )
-            hessians[weight_name].addmm_(x.T, x)
+            _weighted_hessian_add(weight_name, x)
         return hook_fn
 
     if model.tie_embeddings:
@@ -1784,11 +1809,7 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
                 x = out.detach().float()
                 if x.ndim == 3:
                     x = x.reshape(-1, x.shape[-1])
-                if name not in hessians:
-                    hessians[name] = torch.zeros(
-                        x.shape[1], x.shape[1], dtype=torch.float32, device=device
-                    )
-                hessians[name].addmm_(x.T, x)
+                _weighted_hessian_add(name, x)
             return hook_fn
 
         hooks.append(
@@ -1797,8 +1818,10 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
     model.eval()
     with torch.no_grad():
         for _ in range(n_calibration_batches):
-            x, _ = train_loader.next_batch(h.train_batch_tokens, h.grad_accum_steps)
+            x, _ = hess_loader.next_batch(h.train_batch_tokens, h.grad_accum_steps)
+            current_token_weights = token_weight_lut[x.reshape(-1)]
             model.forward_logits(x)
+    current_token_weights = None
     for hook in hooks:
         hook.remove()
     for i, block in enumerate(model.blocks):
@@ -2500,6 +2523,18 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         )
 
     reusable_opt = _build_opt(reusable_lora)
+    loss_gate_mode = str(getattr(h, "ttt_loss_gate_mode", "none")).lower()
+    if loss_gate_mode not in {"none", "running_mean"}:
+        raise ValueError(
+            f"TTT_LOSS_GATE_MODE must be one of none|running_mean, got {loss_gate_mode!r}"
+        )
+    loss_gate_threshold = float(getattr(h, "ttt_loss_gate_threshold", 0.0))
+    gated_skip_steps = 0
+    gated_total_steps = 0
+    if loss_gate_mode != "none":
+        log(
+            f"ttt_loss_gate:mode={loss_gate_mode} threshold={loss_gate_threshold:.6f}"
+        )
     local_scored_docs = []
     global_ttt_done = prefix_doc_limit == 0
     try:
@@ -2533,6 +2568,8 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
         num_chunks_t = torch.tensor(num_chunks, dtype=torch.int64, device=device)
+        chunk_running_mean = torch.tensor(0.0, dtype=torch.float32, device=device)
+        chunk_running_count = 0
         for ci in range(max_nc):
             active = [ci < nc for nc in num_chunks]
             needs_train = any(ci < nc - 1 for nc in num_chunks)
@@ -2607,16 +2644,47 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                 )
             if needs_train:
                 activate_chunk_mask = (num_chunks_t - 1 > ci).float()
-                for gi in range(h.ttt_grad_steps):
-                    if gi > 0:
-                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                            per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
-                    per_doc = per_tok_loss[
-                        :, chunk_offset : chunk_offset + chunk_size
-                    ].mean(dim=-1)
-                    cur_opt.zero_grad(set_to_none=True)
-                    (per_doc * activate_chunk_mask).sum().backward()
-                    cur_opt.step()
+                has_train_docs = True
+                if loss_gate_mode == "running_mean":
+                    probe_per_doc = (
+                        per_tok_loss[:, chunk_offset : chunk_offset + chunk_size]
+                        .mean(dim=-1)
+                        .detach()
+                        .float()
+                    )
+                    active_docs = activate_chunk_mask > 0
+                    has_active_docs = bool(active_docs.any().item())
+                    if has_active_docs:
+                        probe_chunk_loss = probe_per_doc[active_docs].mean()
+                        if chunk_running_count == 0:
+                            # No history yet: always allow the first chunk update.
+                            has_train_docs = True
+                            chunk_running_mean = probe_chunk_loss
+                            chunk_running_count = 1
+                        else:
+                            delta = float(chunk_running_mean - probe_chunk_loss.item())
+                            has_train_docs = bool(delta > loss_gate_threshold)
+                            chunk_running_mean = (chunk_running_mean * chunk_running_count + probe_chunk_loss) / (chunk_running_count + 1)
+                            chunk_running_count += 1  # only once
+                            gated_total_steps += 1
+                        gated_total_steps += 1
+                    else:
+                        has_train_docs = False
+                    if has_active_docs and not has_train_docs:
+                        gated_skip_steps += 1
+                else:
+                    has_train_docs = True
+                if has_train_docs:
+                    for gi in range(h.ttt_grad_steps):
+                        if gi > 0:
+                            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                                per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+                        per_doc = per_tok_loss[
+                            :, chunk_offset : chunk_offset + chunk_size
+                        ].mean(dim=-1)
+                        cur_opt.zero_grad(set_to_none=True)
+                        (per_doc * activate_chunk_mask).sum().backward()
+                        cur_opt.step()
             else:
                 del per_tok_loss
         batch_num = orig_batch_idx + 1
@@ -2636,10 +2704,15 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             r_loss = cur_loss_val / max(cur_tokens, 1)
             r_bpb = r_loss / math.log(2.0) * (cur_tokens / max(cur_bytes_val, 1))
             elapsed = time.perf_counter() - t_start
+            gate_stats = (
+                f" gs:{gated_skip_steps}/{gated_total_steps}"
+                if loss_gate_mode == "running_mean"
+                else ""
+            )
             log(
                 f"ttp: b{batch_num}/{queue_len} bl:{b_loss:.4f} bb:{b_bpb:.4f} "
                 f"rl:{r_loss:.4f} rb:{r_bpb:.4f} dl:{min(doc_lens)}-{max(doc_lens)} "
-                f"gd:{int(global_ttt_done)}"
+                f"gd:{int(global_ttt_done)}{gate_stats}"
             )
         if not global_ttt_done:
             local_scored_docs.extend(
