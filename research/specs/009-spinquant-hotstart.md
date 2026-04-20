@@ -1,9 +1,19 @@
-# Spec 009 — SpinQuant V1 hotstart on top of #1736
+# Spec 009 — SpinQuant hotstart on top of #1736 (ABC sweep)
 
 **Slug:** `spinquant-hotstart`
 **Created:** 2026-04-20
-**Links to idea:** `research/ideas/1736-improvement.md` (spec-009 section)
+**Links to idea:** `research/ideas/1736-improvement.md` and `research/ideas/spinquant-integration-notes.md` (full integration analysis).
 **Depends on:** spec 008 complete, `runs/008-1736-reproduction/seed_42/final_model.pt` present (auto-saved by `serialize()` before GPTQ — no code patch needed in spec 008).
+
+## Scope
+
+Sweep three SpinQuant modes **in one pod session**, selectable by `SPINQUANT_MODE` env var:
+
+- **`internal_only`** (Option B) — only per-layer R_a^ℓ (V-out / O-in) and R_m^ℓ (fc-out / proj-in). Does not touch the residual stream, so none of #1736's per-channel residual multipliers matter. Low risk, expected −0.003 bpb.
+- **`full`** (Option A) — add residual-stream R₀ on top of internal rotations. Requires folding `attn_scale`, `mlp_scale`, `skip_weights` into adjacent linear rows; `resid_mix` handled by freeze-to-mean (accepting a small float-pass perturbation). Expected −0.005 bpb if the fold holds.
+- **`port_1695`** (Option C, conditional) — port #1695's rotation bookkeeping exactly. Only run if `gh pr diff 1695` reveals an approach meaningfully different from Options A/B (e.g. a cleaner `resid_mix` handling we can adopt).
+
+All three hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each, same checkpoint). Total ~30 min GPU time + ~$15–20 across the sweep.
 
 ## Hypothesis
 
@@ -13,11 +23,15 @@ Hadamard rotation of weight matrices before GPTQ quantization (SpinQuant V1) spr
 
 Spec 008's reproduced seed-42 val_bpb (target ~1.06610 ± 0.003). Exact number is whatever spec 008 actually lands; this spec compares Δ against that.
 
-## Expected Δ
+## Expected Δ (per mode, all vs spec 008 baseline)
 
-- **Strong:** −0.005 to −0.007 bpb vs spec 008 → SpinQuant confirmed as a free quant lever on #1736, stacks with CaseOps.
-- **Weak:** −0.001 to −0.004 bpb → partial benefit; investigate whether rotation classes were fully applied or whether #1736's int6 GPTQ is already less outlier-sensitive than #1695's stack.
-- **Null or negative:** |Δ| ≤ 0.001 or positive → implementation bug suspected (likely a missed consistent-pair rotation); halt and debug before proceeding.
+| Mode | Expected Δ (bpb) | Notes |
+|---|---|---|
+| `internal_only` | −0.002 to −0.004 | majority of SpinQuant benefit comes from internal rotations; clean, low-risk |
+| `full` | −0.004 to −0.007 | only if `resid_mix` freeze doesn't degrade too much |
+| `port_1695` | depends on #1695 | only runs if their approach is meaningfully different |
+
+Null or positive Δ on `internal_only` → implementation bug (almost certainly a banked-slice misalignment); halt the sweep and debug before proceeding to `full`.
 
 ## Accept criteria
 
@@ -204,26 +218,53 @@ Single seed (42), matching spec 008. Compares directly against spec 008's seed-4
 
 ## Execution protocol
 
-Single pod, single seed, single pass:
+Single pod, three sequential runs — `internal_only` first (fastest signal + framework validation), then `full`, then optionally `port_1695`.
 
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 
-mkdir -p /workspace/runs/009-spinquant-hotstart
+COMMON_ENV=(
+  NCCL_NET=Socket DATA_DIR=./data
+  CASEOPS_ENABLED=1
+  PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3
+  MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0
+  EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0
+  GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16
+  GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1
+  SPINQUANT_SEED=42
+  HOTSTART_FP_CKPT=/workspace/runs/008-1736-reproduction/seed_42/final_model.pt
+  SEED=42
+)
 
-NCCL_NET=Socket DATA_DIR=./data \
-CASEOPS_ENABLED=1 \
-PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
-MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
-EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
-GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16 \
-GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-SPINQUANT_ENABLED=1 SPINQUANT_SEED=42 \
-HOTSTART_FP_CKPT=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt \
-SEED=42 \
-torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
-  > /workspace/runs/009-spinquant-hotstart/run.log 2>&1
+# Variant B: internal-only
+mkdir -p /workspace/runs/009-spinquant-hotstart/internal_only
+env "${COMMON_ENV[@]}" \
+  ARTIFACT_DIR=/workspace/runs/009-spinquant-hotstart/internal_only \
+  SPINQUANT_MODE=internal_only \
+  torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
+  > /workspace/runs/009-spinquant-hotstart/internal_only/run.log 2>&1
+
+# Gate: if Variant B failed FP invariance or val_bpb > spec-008 baseline + 0.003, HALT.
+# Almost certainly means banked-slice misalignment — fix before proceeding to A.
+
+# Variant A: full (internal + residual + folds)
+mkdir -p /workspace/runs/009-spinquant-hotstart/full
+env "${COMMON_ENV[@]}" \
+  ARTIFACT_DIR=/workspace/runs/009-spinquant-hotstart/full \
+  SPINQUANT_MODE=full \
+  torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
+  > /workspace/runs/009-spinquant-hotstart/full/run.log 2>&1
+
+# Variant C: only if #1695's approach is meaningfully different from A. Skip otherwise.
+mkdir -p /workspace/runs/009-spinquant-hotstart/port_1695
+env "${COMMON_ENV[@]}" \
+  ARTIFACT_DIR=/workspace/runs/009-spinquant-hotstart/port_1695 \
+  SPINQUANT_MODE=port_1695 \
+  torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
+  > /workspace/runs/009-spinquant-hotstart/port_1695/run.log 2>&1
 ```
+
+After all three complete: `runpodctl pod stop $POD_ID` per the default memory policy.
 
 ## Kill protocol
 
@@ -246,21 +287,29 @@ torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
 
 | Item | Cost |
 |---|---|
-| Pod spin-up | $1 |
-| Phase 1 invariance check (1×H100, ~1 min) | $0.10 |
-| Phase 2 GPTQ + TTT eval (8×H100, ~10–15 min) | $3 |
-| Buffer for debug | $2 |
-| **Total** | **~$6** |
+| Pod spin-up + framework compile warm-up | $2 |
+| Variant B `internal_only` (~10 min GPU) | $5 |
+| Variant A `full` (~10 min GPU) | $5 |
+| Variant C `port_1695` (~10 min GPU, optional) | $5 |
+| Buffer for debug (invariance mismatches, GPTQ hiccups) | $5 |
+| **Total (A+B)** | **~$17** |
+| **Total (A+B+C)** | **~$22** |
 
-If FP invariance fails first try and we debug once, total rises to ~$10.
+Same `final_model.pt` hotstarts all three, so marginal cost per variant is just compute. The up-front integration work (building the unified `spinquant_hotstart.py` with toggle flags) is research-side, not execution-side — not on this budget line.
 
 ## Extra artifacts
 
-- `runs/009-spinquant-hotstart/run.log` — full log
-- `runs/009-spinquant-hotstart/artifact.ptz` — SpinQuant + GPTQ quantized submission
-- `runs/009-spinquant-hotstart/rotation_seeds.json` — reproducibility: records the `SPINQUANT_SEED` and any per-layer seed offsets used
-- `runs/009-spinquant-hotstart/invariance_report.json` — Phase 1 diff stats (max/mean logit diff pre vs post rotation)
-- `runs/009-spinquant-hotstart/final.json` — val_bpb, Δ vs spec 008, artifact size, wall times
+Per variant (one subdir per mode):
+
+- `runs/009-spinquant-hotstart/<mode>/run.log` — full log
+- `runs/009-spinquant-hotstart/<mode>/final_model.int6.ptz` — rotated + quantized submission artifact
+- `runs/009-spinquant-hotstart/<mode>/rotation_seeds.json` — rotation parameters (base seed + which modes were active + per-layer seed offsets)
+- `runs/009-spinquant-hotstart/<mode>/invariance_report.json` — FP forward-pass diff stats pre vs post rotation
+- `runs/009-spinquant-hotstart/<mode>/final.json` — val_bpb, Δ vs spec 008, artifact size, wall times
+
+Top-level summary written by research during evaluation:
+
+- `runs/009-spinquant-hotstart/summary.md` — side-by-side table of all three modes' final val_bpb, Δ, artifact size, and commentary on which won and why.
 
 ## Open questions for interview
 
@@ -273,8 +322,8 @@ If FP invariance fails first try and we debug once, total rises to ~$10.
 
 ## What this spec does NOT do
 
-- Does not retrain any weights.
+- Does not retrain any weights. All three variants are post-training transforms on spec 008's `final_model.pt`.
 - Does not tune `SPINQUANT_SEED` — first run uses 42; if rotation-seed sensitivity matters (unlikely for Hadamard) we can sweep later.
 - Does not change CaseOps, gates, TTT, or any other non-quant lever.
-- Does not emit a pre-quant checkpoint (spec 008's serves for all quant-family hotstarts).
-- Does not run multi-seed — matches spec 008's single-seed convention.
+- Does not run multi-seed — matches spec 008's single-seed convention. If one of the three modes wins and we later need 3-seed confirmation, a follow-up spec runs all three data seeds on the winning mode.
+- Does not attempt to fold `resid_mix` in Option A's fold path — `resid_mix` is frozen to its channel-mean value, accepting a small float-pass perturbation. Alternative treatments are deferred to follow-up specs if Option A shows signal but invariance is problematic.
