@@ -1,0 +1,17 @@
+{
+  "author": "skar07",
+  "track": "10min_16mb",
+  "model_name": "GeodesicBigram-SOTA-Hybrid",
+  "description": "Hybrid model combining Geodesic Topological Tokenizer + BigramHash with the SOTA 11L GPT (3-layer recurrence + parallel residuals). Geodesic tokenizer provides high compression ratio (chars/token), while BigramHash injects local statistical priors. Architecture includes Legal TTT and MuonEq-R optimization.",
+  "bpb": 1.058,
+  "params": "11L x 512d x 8H, 3-layer recur, parallel residuals",
+  "tech_stack": [
+    "Geodesic Tokenizer (Serialized)",
+    "BigramHash",
+    "3-Layer Recurrence",
+    "Parallel Residuals",
+    "MuonEq-R",
+    "Full-Hessian GPTQ int6",
+    "EMA Weight Averaging"
+  ]
+}
