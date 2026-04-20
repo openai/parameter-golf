@@ -216,11 +216,22 @@ def apply_rotations(model: GPT, h: Hyperparameters, mode: str, base_seed: int) -
         )
 
     if mode == MODE_PORT_1695:
-        raise NotImplementedError(
-            "SPINQUANT_MODE=port_1695 is deferred until #1695's diff is read "
-            "and the rotation scheme is ported. Script will be updated in a "
-            "follow-up spec."
-        )
+        # #1695's scheme is implemented inside train_gpt.py itself
+        # (_spinquant_rotate_sd_and_H called inside serialize(), and
+        # install_spinquant_rotations called inside deserialize() when
+        # h.spinquant_enabled is True). The driver's job is just to flip
+        # the flag; no in-model mutation here. See research/specs/
+        # 010-port-1695-online-rotation.md.
+        h.spinquant_enabled = True
+        h.spinquant_seed = base_seed
+        manifest["rotations"] = {
+            "strategy": "online+static via train_gpt.py machinery",
+            "hyperparameters": {
+                "spinquant_enabled": True,
+                "spinquant_seed": base_seed,
+            },
+        }
+        return manifest
 
     raise ValueError(f"Unknown SPINQUANT_MODE={mode!r}; expected one of {_KNOWN_MODES}")
 

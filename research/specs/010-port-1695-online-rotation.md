@@ -3,7 +3,8 @@
 **Slug:** `port-1695-online-rotation`
 **Created:** 2026-04-20
 **Links to idea:** `research/ideas/1736-improvement.md` and `research/ideas/spinquant-integration-notes.md` (Addendum section: "how #1695 actually does it").
-**Depends on:** spec 008 complete (`pre_gptq.pt` available). Should run **after** spec 009 — we want spec 009's `internal_only` number first, to judge whether this more invasive port delivers additional signal.
+**Depends on:** spec 008 complete (`pre_gptq.pt` available). Can run **after** (or in parallel with) spec 009.
+**Implementation state:** code landed in commit (see below). Float-pass invariance verified by construction (`F.linear(x @ R, W @ R) == F.linear(x, W)` for orthogonal R); GPU behavior unverified until pod runs.
 
 ## Hypothesis
 
@@ -66,31 +67,42 @@ HOTSTART_FP_CKPT=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt
 
 Plus `ARTIFACT_DIR=/workspace/runs/010-port-1695/`.
 
-## Code changes
+## Code changes (as implemented)
 
-- **Branch:** `research`.
-- **Patch target:** `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py`.
-- **Additions (~150 LOC, porting directly from #1695's diff):**
-  1. `_hadamard_rotation(n, seed, tag)` utility — Sylvester-Hadamard × random-sign diag, QR re-orthogonalization. Uses `_SPINQUANT_CACHE` keyed by `(seed, tag, n)`.
-  2. `install_spinquant_rotations(model, h, seed, log_fn)` — registers buffers `_sq_R_attn_in`, `_sq_R_attn_proj_in` on every `CausalSelfAttention` module; `_sq_R_mlp_in`, `_sq_R_mlp_proj_in` on every `MLP`.
-  3. `CastedLinear._sq_active` class-level bool flag, default `False`.
-  4. Forward-pass hooks in:
-     - `CausalSelfAttention.forward` — lines ~765 and ~808 (pre-QKV and pre-out_proj).
-     - `MLP.forward` — lines ~818 (pre-fc) and ~822 (pre-proj, AFTER LeakyReLU square). Also disable fused kernel when `_sq_active`.
-     - `forward_ttt` (both parallel and sequential variants) — matching hooks.
-  5. Rotation of GPTQ collected Hessian in `serialize()` path — a `_spinquant_rotate_sd_and_H` function that applies `H_new = R.T @ H @ R` for each matrix whose forward input is rotated.
-- **New file (optional):** `spinquant_online_hotstart.py` — standalone driver that:
-  1. Loads FP state_dict from `HOTSTART_FP_CKPT`.
-  2. Calls `install_spinquant_rotations(...)`.
-  3. Sets `CastedLinear._sq_active = True`.
-  4. Calls `serialize(h, base_model, code)` — GPTQ runs in rotated forward.
-  5. Calls `deserialize(h, device)`.
-  6. Runs quantized eval + phased TTT.
-  7. Writes `final.json`.
+Landed in `train_gpt.py` + driver dispatch in `spinquant_hotstart.py`. All changes env-var-gated (`SPINQUANT_ENABLED`, default 0) so this spec does not perturb spec 008 or spec 009's `baseline`/`internal_only` modes.
 
-  Very similar structure to `spinquant_hotstart.py` from spec 009, just with `install_spinquant_rotations` replacing the R_a rotation.
+### `train_gpt.py`
 
-- **Reference:** `gh pr diff 1695` — copy their rotation primitives and install function directly. Their forward-pass hook pattern works for both training-path and TTT-path forwards.
+1. **Import:** `hashlib` (for `_stable_seed`).
+2. **Hyperparameters:** `spinquant_enabled` (bool, env `SPINQUANT_ENABLED`), `spinquant_seed` (int, env `SPINQUANT_SEED`, default 42).
+3. **`CastedLinear._sq_active`:** class-level bool flag, default `False`.
+4. **Utility block** (after `_rebank_state_dict`):
+   - `_stable_seed(seed, tag)` — SHA-256-derived deterministic seed.
+   - `_hadamard_rotation(n, seed, tag)` — Sylvester-Hadamard × random sign diag, QR re-orthogonalized. Cached by `(seed, tag, n)`.
+   - `install_spinquant_rotations(model, h, seed, log_fn)` — registers `_sq_R_attn_in`, `_sq_R_attn_proj_in` buffers on every `CausalSelfAttention` and `_sq_R_mlp_in`, `_sq_R_mlp_proj_in` on every `MLP`.
+   - `_SQ_KEY_TO_TAG` — suffix → tag map for the 6 rotated state_dict keys.
+   - `_spinquant_rotate_sd_and_H(sd_cpu, hessians, h, log_fn)` — in-place rotates matching weights (`W ← W @ R`) and Hessians (`H ← R.T @ H @ R`).
+5. **Forward hooks (4 modules × 2 sites = 8 hook insertions):**
+   - `CausalSelfAttention.forward` — pre-QKV (`x_qkv = x @ R_attn_in`) and pre-attn-proj (`y @ R_attn_proj_in`).
+   - `MLP.forward` — pre-fc (`x @ R_mlp_in`) and post-activation pre-proj (`hidden @ R_mlp_proj_in`). Disables fused kernel when active.
+   - `_block_with_lora` (TTT sequential path) — matching two sites with LoRA using unrotated `n`.
+   - `_parallel_block_with_lora` (TTT parallel path) — matching two sites.
+6. **`serialize()`:** after `collect_hessians()` returns and before `gptq_mixed_quantize()`, calls `_spinquant_rotate_sd_and_H` if `h.spinquant_enabled`.
+7. **`deserialize()`:** after `load_state_dict`, calls `install_spinquant_rotations` and sets `CastedLinear._sq_active = True` if `h.spinquant_enabled`.
+
+### `spinquant_hotstart.py`
+
+`port_1695` mode now sets `h.spinquant_enabled = True` and `h.spinquant_seed = base_seed`. All the actual rotation work is inside `train_gpt.py`'s `serialize()` and `deserialize()`. The driver contributes no new rotation logic; it's just a dispatch flag.
+
+### Compatibility
+
+- Spec 008's env block with `SPINQUANT_ENABLED=0` (default) → unchanged behavior.
+- Spec 009's `baseline` and `internal_only` modes don't touch `SPINQUANT_ENABLED` — they continue to use their in-driver static R_a rotation. Unaffected.
+- Only `spinquant_hotstart.py` launched with `SPINQUANT_MODE=port_1695` activates the new code path.
+
+### Reference
+
+PR #1695's diff, lines ~920–1080 (utility block) and ~1329 (forward hooks) and ~2880–2945 (serialize/deserialize integration). Porting was largely mechanical; only adjustment to #1736's stack was the TTT-path hooks, which go in `_block_with_lora` / `_parallel_block_with_lora` rather than the single-forward `forward_ttt` their base had.
 
 ## Hardware ladder
 
@@ -109,6 +121,8 @@ Single seed 42. If it wins clearly (>−0.002 over baseline and > spec 009 inter
 
 ## Execution protocol
 
+Execution runs `spinquant_hotstart.py` with `SPINQUANT_MODE=port_1695`. The driver toggles the Hyperparameters flag, train_gpt.py's serialize/deserialize do the rest.
+
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 
@@ -122,12 +136,15 @@ MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
 EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-SPINQUANT_ENABLED=1 SPINQUANT_SEED=42 \
+SPINQUANT_MODE=port_1695 \
+SPINQUANT_SEED=42 \
 HOTSTART_FP_CKPT=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt \
 SEED=42 \
-torchrun --standalone --nproc_per_node=8 spinquant_online_hotstart.py \
+torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
   > /workspace/runs/010-port-1695/run.log 2>&1
 ```
+
+Note: `SPINQUANT_MODE=port_1695` is the driver flag (read by `spinquant_hotstart.py`). The driver sets `h.spinquant_enabled = True` internally — no need to pass `SPINQUANT_ENABLED=1` as env.
 
 ## Stop-early criteria
 

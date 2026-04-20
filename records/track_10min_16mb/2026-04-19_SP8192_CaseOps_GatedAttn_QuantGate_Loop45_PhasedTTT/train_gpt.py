@@ -1,4 +1,4 @@
-import base64, collections, copy, fcntl, glob, io, lzma, math, os
+import base64, collections, copy, fcntl, glob, hashlib, io, lzma, math, os
 from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
 from torch import nn
@@ -133,6 +133,18 @@ class Hyperparameters:
     # impact: scales per head (8 values), symmetric quant over [-127, 127].
     # No Hessian needed (gate weights not in collect_hessians()).
     gated_attn_quant_gate = bool(int(os.environ.get("GATED_ATTN_QUANT_GATE", "0")))
+    # SpinQuant V1 port from PR #1695 (X-Abhishek-X). Disabled by default so this
+    # file still reproduces #1736 bit-identically when the env var is absent.
+    # When enabled, four Hadamard rotations are applied online in the forward
+    # pass (pre-QKV, pre-attn-proj, pre-fc, pre-mlp-proj) and correspondingly
+    # baked into the state_dict + Hessian before GPTQ. F.linear(x @ R, W @ R)
+    # == F.linear(x, W) exactly (float-invariant), but GPTQ sees the rotated
+    # basis where outliers are more evenly spread → lower quantization error.
+    # See research/specs/010-port-1695-online-rotation.md for the integration
+    # plan; installation happens in deserialize() and the 4 forward-pass hooks
+    # live in CausalSelfAttention.forward, MLP.forward, and the TTT mirrors.
+    spinquant_enabled = bool(int(os.environ.get("SPINQUANT_ENABLED", "0")))
+    spinquant_seed = int(os.environ.get("SPINQUANT_SEED", "42"))
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -530,6 +542,13 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
+    # SpinQuant V1: class-level flag gates the forward-pass rotation hooks in
+    # CausalSelfAttention.forward, MLP.forward, _block_with_lora, and
+    # _parallel_block_with_lora. OFF during training (Dynamo constant-folds the
+    # branch away). Flipped to True by deserialize() after install_spinquant_
+    # rotations() registers the R buffers on every attn/mlp module.
+    _sq_active: bool = False
+
     def forward(self, x):
         w = self.weight.to(x.dtype)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
@@ -760,12 +779,20 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x, q_w, k_w, v_w, out_w, cu_seqlens=None, max_seqlen=0):
         bsz, seqlen, dim = x.shape
+        # SpinQuant V1: rotate residual → Q/K/V input. Branch dies at Dynamo
+        # compile when _sq_active=False (training). Math: F.linear(x @ R, W @ R)
+        # == F.linear(x, W) exactly; the weight rotation lives in state_dict
+        # courtesy of _spinquant_rotate_sd_and_H() before GPTQ.
+        if CastedLinear._sq_active and hasattr(self, "_sq_R_attn_in"):
+            x_qkv = x @ self._sq_R_attn_in.to(x.dtype)
+        else:
+            x_qkv = x
         # q_raw kept around as a tap point for attn_out_gate_src='q' (post-projection,
         # pre-reshape, pre-RoPE).
-        q_raw = F.linear(x, q_w.to(x.dtype))
+        q_raw = F.linear(x_qkv, q_w.to(x.dtype))
         q = q_raw.reshape(bsz, seqlen, self.num_heads, self.head_dim)
-        k = F.linear(x, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = F.linear(x, v_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        k = F.linear(x_qkv, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = F.linear(x_qkv, v_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -807,6 +834,10 @@ class CausalSelfAttention(nn.Module):
             y = y * g[..., None]
         y = y.reshape(bsz, seqlen, dim)
         self._last_proj_input = y.detach() if getattr(self, "_calib", False) else None
+        # SpinQuant V1: rotate attention output → proj input, matched by the
+        # input-col rotation of attn.proj.weight in state_dict.
+        if CastedLinear._sq_active and hasattr(self, "_sq_R_attn_proj_in"):
+            y = y @ self._sq_R_attn_proj_in.to(x.dtype)
         return F.linear(y, out_w.to(x.dtype))
 
 
@@ -816,10 +847,20 @@ class MLP(nn.Module):
         self.use_fused = True
 
     def forward(self, x, up_w, down_w):
-        if self.training and self.use_fused:
+        # SpinQuant V1 forward rotations. Branches die at compile when _sq_active=False.
+        sq = CastedLinear._sq_active and hasattr(self, "_sq_R_mlp_in")
+        if sq:
+            x = x @ self._sq_R_mlp_in.to(x.dtype)
+        # Fused kernel cannot express mid-hidden rotation, so disable it when SQ is on.
+        # SQ is only active post-deserialize (eval/TTT) where fused is already typically
+        # off; this guard covers the TTT-train case if it ever arises.
+        if self.training and self.use_fused and not sq:
             return FusedLeakyReLUSquareMLP(x, up_w.to(x.dtype), down_w.to(x.dtype))
         hidden = F.leaky_relu(F.linear(x, up_w.to(x.dtype)), negative_slope=0.5).square()
+        # Capture BEFORE the mlp_proj_in rotation so the Hessian stays on unrotated hidden.
         self._last_down_input = hidden.detach() if getattr(self, "_calib", False) else None
+        if sq and hasattr(self, "_sq_R_mlp_proj_in"):
+            hidden = hidden @ self._sq_R_mlp_proj_in.to(x.dtype)
         return F.linear(hidden, down_w.to(x.dtype))
 
 
@@ -1221,14 +1262,21 @@ class GPT(nn.Module):
         n = block.attn_norm(x_in) * block.ln_scale_factor
         attn = block.attn
         bsz, seqlen, dim = n.shape
+        # SpinQuant V1 (TTT path): rotate n for base Q/K/V linears. LoRA continues
+        # to see unrotated n so the adapter output lives in the unrotated basis,
+        # which is the same basis the base path produces after R cancels.
+        if CastedLinear._sq_active and hasattr(attn, "_sq_R_attn_in"):
+            n_qkv = n @ attn._sq_R_attn_in.to(n.dtype)
+        else:
+            n_qkv = n
         # Keep raw Q for AttnOutGate src='q' (matches forward path semantics).
-        q_raw = F.linear(n, q_w.to(n.dtype)) + lora.q_loras[slot](n)
+        q_raw = F.linear(n_qkv, q_w.to(n.dtype)) + lora.q_loras[slot](n)
         q = q_raw.reshape(bsz, seqlen, attn.num_heads, attn.head_dim)
-        k = F.linear(n, k_w.to(n.dtype))
+        k = F.linear(n_qkv, k_w.to(n.dtype))
         if lora.k_loras is not None:
             k = k + lora.k_loras[slot](n)
         k = k.reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim)
-        v = (F.linear(n, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
+        v = (F.linear(n_qkv, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
             bsz, seqlen, attn.num_kv_heads, attn.head_dim
         )
         q = F.rms_norm(q, (q.size(-1),))
@@ -1253,7 +1301,12 @@ class GPT(nn.Module):
             g = torch.sigmoid(F.linear(n_c, attn.attn_gate_w.to(n.dtype)))
             y = y * g[..., None]
         y = y.reshape(bsz, seqlen, dim)
-        attn_out = F.linear(y, out_w.to(n.dtype))
+        # SpinQuant V1 (TTT path): rotate attention output before out_proj.
+        if CastedLinear._sq_active and hasattr(attn, "_sq_R_attn_proj_in"):
+            y_proj = y @ attn._sq_R_attn_proj_in.to(n.dtype)
+        else:
+            y_proj = y
+        attn_out = F.linear(y_proj, out_w.to(n.dtype))
         if lora.o_loras is not None:
             attn_out = attn_out + lora.o_loras[slot](n)
         x_out = x_in + block.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
@@ -1274,13 +1327,18 @@ class GPT(nn.Module):
         n = block.attn_norm(attn_read) * block.ln_scale_factor
         attn = block.attn
         bsz, seqlen, dim = n.shape
-        q_raw = F.linear(n, q_w.to(n.dtype)) + lora.q_loras[slot](n)
+        # SpinQuant V1 (TTT parallel path): rotate n for base Q/K/V. LoRA uses unrotated n.
+        if CastedLinear._sq_active and hasattr(attn, "_sq_R_attn_in"):
+            n_qkv = n @ attn._sq_R_attn_in.to(n.dtype)
+        else:
+            n_qkv = n
+        q_raw = F.linear(n_qkv, q_w.to(n.dtype)) + lora.q_loras[slot](n)
         q = q_raw.reshape(bsz, seqlen, attn.num_heads, attn.head_dim)
-        k = F.linear(n, k_w.to(n.dtype))
+        k = F.linear(n_qkv, k_w.to(n.dtype))
         if lora.k_loras is not None:
             k = k + lora.k_loras[slot](n)
         k = k.reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim)
-        v = (F.linear(n, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
+        v = (F.linear(n_qkv, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
             bsz, seqlen, attn.num_kv_heads, attn.head_dim
         )
         q = F.rms_norm(q, (q.size(-1),))
@@ -1304,7 +1362,12 @@ class GPT(nn.Module):
             g = torch.sigmoid(F.linear(n_c, attn.attn_gate_w.to(n.dtype)))
             y = y * g[..., None]
         y = y.reshape(bsz, seqlen, dim)
-        attn_out = F.linear(y, out_w.to(n.dtype))
+        # SpinQuant V1 (TTT parallel path): rotate attention output before out_proj.
+        if CastedLinear._sq_active and hasattr(attn, "_sq_R_attn_proj_in"):
+            y_proj = y @ attn._sq_R_attn_proj_in.to(n.dtype)
+        else:
+            y_proj = y
+        attn_out = F.linear(y_proj, out_w.to(n.dtype))
         if lora.o_loras is not None:
             attn_out = attn_out + lora.o_loras[slot](n)
         attn_out = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
@@ -2055,6 +2118,178 @@ def _rebank_state_dict(flat_sd, num_layers, model_dim, kv_dim, hidden_dim):
     return sd
 
 
+# =============================================================================
+# SpinQuant V1 — Hadamard rotation primitives (port from PR #1695)
+# =============================================================================
+# Zero serialized bytes: rotations are regenerated deterministically from
+# (SPINQUANT_SEED, tag) at load time. Applied in two places:
+#
+#   1. Statically on the state_dict + Hessians, right before GPTQ quantizes:
+#      W_rot = W @ R   (input-col rotation, so F.linear(x @ R, W_rot) == F.linear(x, W))
+#      H_rot = R.T @ H @ R  (matches the rotated activation covariance)
+#
+#   2. Online at forward time, gated by CastedLinear._sq_active:
+#      x_rotated = x @ R  before each of the 4 target linear layers.
+#
+# Math: orthogonal R means R @ R.T == I, so the static + online rotations
+# cancel at fp precision. Pre-quant forward is bit-identical to unrotated.
+# Only GPTQ sees the rotated basis, where outliers are spread more evenly
+# and quantization error is reduced.
+#
+# Four rotation sites:
+#   - R_attn_in        (d_model) — residual → Q/K/V input
+#   - R_attn_proj_in   (d_model) — attention output → proj input
+#   - R_mlp_in         (d_model) — residual → fc input
+#   - R_mlp_proj_in    (d_ff)    — post-LeakyReLU² → proj input
+#
+# The MLP proj rotation is applied AFTER the nonlinearity, so the rotation
+# never has to commute with LeakyReLU. Residual stream is untouched, so all
+# per-channel multipliers (attn_scale, mlp_scale, resid_mix, skip_weights)
+# operate in their trained basis.
+
+_SPINQUANT_CACHE: "dict[tuple[int, str, int], torch.Tensor]" = {}
+
+
+def _stable_seed(seed: int, tag: str) -> int:
+    """SHA-256-derived seed. Deterministic across processes; Python's built-in
+    hash() varies with PYTHONHASHSEED and would desync train vs eval."""
+    h = hashlib.sha256(f"{seed}:{tag}".encode("utf-8")).digest()
+    return int.from_bytes(h[:4], "big")
+
+
+def _hadamard_rotation(n: int, seed: int, tag: str) -> torch.Tensor:
+    """Sylvester-Hadamard × random sign diagonal → QR re-orthonormalize.
+    Deterministic in (seed, tag, n). Returns orthogonal R of shape (n, n)
+    such that R.T @ R == I (to QR precision ~2e-6)."""
+    key = (seed, tag, n)
+    if key in _SPINQUANT_CACHE:
+        return _SPINQUANT_CACHE[key]
+    p = 1
+    while p < n:
+        p *= 2
+    H = torch.ones(1, 1)
+    while H.shape[0] < p:
+        H = torch.cat(
+            [torch.cat([H, H], dim=1), torch.cat([H, -H], dim=1)],
+            dim=0,
+        )
+    H = H / math.sqrt(p)
+    g = torch.Generator().manual_seed(_stable_seed(seed, tag))
+    D = torch.diag(torch.randint(0, 2, (p,), generator=g).float() * 2 - 1)
+    R = (D @ H)[:n, :n]
+    Q, _ = torch.linalg.qr(R)
+    _SPINQUANT_CACHE[key] = Q
+    return Q
+
+
+def install_spinquant_rotations(model, h, seed=None, log_fn=print) -> int:
+    """Install the four global rotation buffers on every CausalSelfAttention
+    and MLP in `model`. Buffers are non-persistent (regenerated deterministically
+    at load). Returns number of modules touched. Does NOT flip CastedLinear._sq_active
+    — caller does that after banks have been loaded with rotated weights."""
+    if seed is None:
+        seed = int(os.environ.get("SPINQUANT_SEED", "42"))
+    model_dim = h.model_dim
+    hidden_dim = int(h.mlp_mult * h.model_dim)
+    R_attn_in = _hadamard_rotation(model_dim, seed, "attn_in")
+    R_attn_proj_in = _hadamard_rotation(model_dim, seed, "attn_proj_in")
+    R_mlp_in = _hadamard_rotation(model_dim, seed, "mlp_in")
+    R_mlp_proj_in = _hadamard_rotation(hidden_dim, seed, "mlp_proj_in")
+    try:
+        device = next(model.parameters()).device
+    except StopIteration:
+        device = torch.device("cpu")
+    touched = 0
+    for m in model.modules():
+        if isinstance(m, CausalSelfAttention):
+            m.register_buffer("_sq_R_attn_in", R_attn_in.to(device), persistent=False)
+            m.register_buffer("_sq_R_attn_proj_in", R_attn_proj_in.to(device), persistent=False)
+            touched += 1
+        elif isinstance(m, MLP):
+            m.register_buffer("_sq_R_mlp_in", R_mlp_in.to(device), persistent=False)
+            m.register_buffer("_sq_R_mlp_proj_in", R_mlp_proj_in.to(device), persistent=False)
+            touched += 1
+    log_fn(
+        f"spinquant:installed_rotations:{touched}_modules seed:{seed} "
+        f"model_dim:{model_dim} hidden_dim:{hidden_dim}"
+    )
+    return touched
+
+
+# Which globally-shared rotation applies to each flat state_dict key suffix.
+# Only the 6 attn/mlp bank weights are rotated in V1.
+_SQ_KEY_TO_TAG: "dict[str, str]" = {
+    ".attn.c_q.weight":   "attn_in",
+    ".attn.c_k.weight":   "attn_in",
+    ".attn.c_v.weight":   "attn_in",
+    ".attn.proj.weight":  "attn_proj_in",
+    ".mlp.fc.weight":     "mlp_in",
+    ".mlp.proj.weight":   "mlp_proj_in",
+}
+
+
+def _spinquant_rotate_sd_and_H(sd_cpu: dict, hessians: dict, h, log_fn=print) -> None:
+    """In-place: rotate the 6 canonical flat weights and their matching Hessians.
+    Must be called AFTER collect_hessians() returns (so H is collected on
+    unrotated activations) and BEFORE gptq_mixed_quantize() consumes them.
+
+    Math:
+        x_rot = x @ R
+        W_rot = W @ R             (W is [out, in], R is [in, in])
+        H_rot = R.T @ (x.T @ x) @ R = R.T @ H @ R
+
+    After this call, F.linear(x_rot, W_rot) == F.linear(x, W) exactly (to fp
+    precision), so GPTQ quantizing W_rot with H_rot is mathematically matched."""
+    seed = h.spinquant_seed
+    tag_to_R: "dict[str, torch.Tensor]" = {}
+
+    def _R_for(tag: str, in_dim: int) -> torch.Tensor:
+        if tag not in tag_to_R:
+            tag_to_R[tag] = _hadamard_rotation(in_dim, seed, tag).float().cpu()
+        return tag_to_R[tag]
+
+    baked_weights = 0
+    baked_hessians = 0
+    missing_hessian = 0
+    for name in list(sd_cpu.keys()):
+        tag = None
+        for suffix, t in _SQ_KEY_TO_TAG.items():
+            if name.endswith(suffix) and name.startswith("blocks."):
+                tag = t
+                break
+        if tag is None:
+            continue
+        W = sd_cpu[name]
+        if W.ndim != 2:
+            continue
+        in_dim = W.shape[1]
+        R = _R_for(tag, in_dim)
+        assert R.shape == (in_dim, in_dim), (
+            f"spinquant: R shape {tuple(R.shape)} != ({in_dim},{in_dim}) "
+            f"for {name} tag={tag}"
+        )
+        orig_dtype = W.dtype
+        sd_cpu[name] = (W.float() @ R).to(orig_dtype).contiguous()
+        baked_weights += 1
+
+        if name in hessians:
+            H = hessians[name]
+            assert H.shape == (in_dim, in_dim), (
+                f"spinquant: H shape {tuple(H.shape)} != ({in_dim},{in_dim}) for {name}"
+            )
+            H_dev = H.device
+            H32 = H.float().cpu()
+            hessians[name] = (R.T @ H32 @ R).to(H.dtype).to(H_dev)
+            baked_hessians += 1
+        else:
+            missing_hessian += 1
+
+    log_fn(
+        f"spinquant:rotated_weights:{baked_weights} hessians:{baked_hessians} "
+        f"missing_hessians:{missing_hessian}"
+    )
+
+
 
 def _compressed_code_size(code):
     code_raw = code.encode("utf-8")
@@ -2089,6 +2324,11 @@ def serialize(h, base_model, code):
         n_calibration_batches=h.gptq_calibration_batches,
     )
     log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s")
+    # SpinQuant V1 bake: rotate weights W ← W @ R and Hessians H ← R.T H R.
+    # Runs AFTER Hessian collection (so H was measured on unrotated activations)
+    # and BEFORE GPTQ (so the quantizer sees the rotated frame end-to-end).
+    if getattr(h, "spinquant_enabled", False):
+        _spinquant_rotate_sd_and_H(sd_cpu, hessians, h, log_fn=log)
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
@@ -2119,6 +2359,13 @@ def deserialize(h, device):
     hidden_dim = int(h.mlp_mult * h.model_dim)
     deq_state = _rebank_state_dict(deq_flat, h.num_layers, h.model_dim, kv_dim, hidden_dim)
     eval_model.load_state_dict(deq_state, strict=True)
+    # SpinQuant V1: banks now hold rotated weights (W @ R). Install the matching
+    # R buffers and flip the class-level flag so the forward rotation hooks fire.
+    # Math: F.linear(x @ R, W @ R) == F.linear(x, W) exactly (to fp precision).
+    if getattr(h, "spinquant_enabled", False):
+        install_spinquant_rotations(eval_model, h, seed=h.spinquant_seed, log_fn=log)
+        CastedLinear._sq_active = True
+        log(f"spinquant:_sq_active=True (forward rotations armed)")
     return eval_model
 
 
