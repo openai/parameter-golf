@@ -1,6 +1,6 @@
 # Idea — GradPower for Muon (port from #1682)
 
-**Status:** 📝 CANDIDATE, bundled into spec 012.
+**Status:** 📝 CANDIDATE, bundled into spec 011.
 **Source:** PR #1682 (PapaFranku4647, non-record).
 
 ## Core
@@ -47,5 +47,6 @@ Env var `MUON_GRAD_POWER` (default 1.0 → identity / no-op, byte-compatible wit
 
 ## Cross-references
 
-- Companion levers: `research/ideas/per-layer-qk-gain.md`, spec 011 tapered WD.
-- Bundled into: `research/specs/012-training-bundle.md`.
+- Companion lever: `research/ideas/per-layer-qk-gain.md`.
+- Shelved standalone tapered-WD design: `research/specs/_shelved/011-tapered-wd.md`.
+- Bundled into: `research/specs/011-training-bundle.md`.

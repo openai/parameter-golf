@@ -1,8 +1,8 @@
-# Spec 012 — Training-time bundle (tapered WD + GradPower)
+# Spec 011 — Training-time bundle (tapered WD + GradPower)
 
 **Slug:** `training-bundle`
 **Created:** 2026-04-20
-**Supersedes:** spec 011 (tapered-wd alone). Spec 011 design doc kept for reference; it is not run as a standalone.
+**Supersedes:** `research/specs/_shelved/011-tapered-wd.md` (old tapered-WD-alone design, never run; shelved).
 **Links to ideas:** `research/ideas/1736-improvement.md`, `gradpower-muon.md`, `per-layer-qk-gain.md`.
 
 ## Hypothesis
@@ -14,7 +14,7 @@ Two **training-time, upstream-of-TTT** levers stack additively on #1736:
 
 Each is env-gated and independently isolable. Both default to no-op when unset → train_gpt.py is byte-compatible with spec 008.
 
-**Dropped from first-pass:** softer QK_GAIN (port #1648). Highest-risk lever; deferred to spec 013 if 012 lands cleanly. Keeps attribution between WD and GradPower only, and avoids the scenario where QK regression masks a WD or GradPower win.
+**Dropped from first-pass:** softer QK_GAIN (port #1648). Highest-risk lever; deferred to spec 012 if 011 lands cleanly. Keeps attribution between WD and GradPower only, and avoids the scenario where QK regression masks a WD or GradPower win.
 
 ## Baseline
 
@@ -96,10 +96,10 @@ Single seed (42) for screen. 3-seed confirmation only if bundle lands and we com
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 
-mkdir -p /workspace/runs/012-training-bundle/seed_42
+mkdir -p /workspace/runs/011-training-bundle/seed_42
 
 NCCL_NET=Socket DATA_DIR=./data \
-ARTIFACT_DIR=/workspace/runs/012-training-bundle/seed_42 \
+ARTIFACT_DIR=/workspace/runs/011-training-bundle/seed_42 \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
@@ -112,7 +112,7 @@ WD_TAPER_FINAL_MULT=0.50 \
 MUON_GRAD_POWER=0.9 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
-  > /workspace/runs/012-training-bundle/seed_42/train.log 2>&1
+  > /workspace/runs/011-training-bundle/seed_42/train.log 2>&1
 ```
 
 Expected log lines at start:
@@ -140,7 +140,7 @@ Expected log lines at start:
 
 Two single-flag runs = ~$40 additional spend. Only do this if bundle lands Δ ≤ −0.002.
 
-**Spec 013 (queued):** softer QK_GAIN (5.0 → 2.5 uniform, then per-layer if uniform wins). Was part of 012's first draft but deferred as highest-regression-risk lever. Run only after 012 lands and we've confirmed the stack is healthy.
+**Spec 012 (queued):** softer QK_GAIN (5.0 → 2.5 uniform, then per-layer if uniform wins). Was part of 011's first draft but deferred as highest-regression-risk lever. Run only after 011 lands and we've confirmed the stack is healthy.
 
 ## Open questions for interview
 
@@ -149,7 +149,7 @@ Two single-flag runs = ~$40 additional spend. Only do this if bundle lands Δ �
 
 ## What this spec does NOT do
 
-- Does not change `QK_GAIN_INIT` (deferred to spec 013).
+- Does not change `QK_GAIN_INIT` (deferred to spec 012).
 - Does not include xIELU activation or symmetric resid_mix from #1648 — deferred.
 - Does not include Tap-In (#1555) — eval-time lever, separate spec.
 - Does not include trajectory-state readout (#1676) — deferred.

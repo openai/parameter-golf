@@ -1,9 +1,10 @@
-# Spec 011 — Tapered weight decay (training lever, port from #1729)
+# Spec 011 — Tapered weight decay (SHELVED 2026-04-20)
+
+**Status:** SHELVED. Superseded by `research/specs/011-training-bundle.md` which bundles tapered WD with GradPower (port #1682). This standalone design was never run. Kept as a reference for design intent.
 
 **Slug:** `tapered-wd`
 **Created:** 2026-04-20
 **Links to idea:** `research/ideas/1736-improvement.md`.
-**Can run in parallel with:** specs 009 and 010 (separate pod, independent work).
 
 ## Hypothesis
 

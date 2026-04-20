@@ -1,6 +1,6 @@
 # Idea — Per-layer QK_GAIN initialization (port from #1648)
 
-**Status:** 📝 CANDIDATE, bundled into spec 012.
+**Status:** 📝 CANDIDATE, deferred to spec 012 (was briefly bundled into draft 011 then dropped — QK is the highest-regression-risk lever and attribution would be muddled if bundled).
 **Source:** PR #1648 (mikeapedia, non-record, out of compute).
 
 ## Core
@@ -39,12 +39,12 @@ Default behavior (env vars absent): byte-identical to #1736.
 
 ## Testing strategy
 
-Phase 1 (bundled into spec 012): test `QK_GAIN_INIT=2.5` (uniform) alongside tapered WD + GradPower. Cheapest test of the direction.
+Phase 1 (spec 012 — queued after spec 011 lands): test `QK_GAIN_INIT=2.5` (uniform) as the sole change vs spec 011's winning config. Cheapest test of the direction. Isolated so regression is easy to attribute.
 
-Phase 2 (if spec 012 lands and QK-gain is a real contributor): run a convergence loop on #1736's stack to find the actual per-layer optimum.
+Phase 2 (if spec 012 shows the direction is right): run a convergence loop on #1736's stack to find the actual per-layer optimum.
 
 ## Cross-references
 
-- Companion: `research/ideas/gradpower-muon.md`, spec 011 tapered WD.
-- Bundled into: `research/specs/012-training-bundle.md`.
-- Source PR also proposes xIELU activation + symmetric resid_mix (not in this spec; deferred as potential spec 013).
+- Companion: `research/ideas/gradpower-muon.md`.
+- Not in spec 011 (training-bundle). Scheduled for spec 012.
+- Source PR also proposes xIELU activation + symmetric resid_mix (deferred further).
