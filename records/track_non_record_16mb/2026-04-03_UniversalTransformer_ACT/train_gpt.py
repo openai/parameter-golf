@@ -103,14 +103,10 @@ class Hyperparameters:
     quant_bits = int(os.environ.get("QUANT_BITS", 8))
     think_quant_bits = int(os.environ.get("THINK_QUANT_BITS", 8))
     embed_bits = int(os.environ.get("EMBED_BITS", 8))
-    matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
-    embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 20.0))
-    think_clip_sigmas = float(os.environ.get("THINK_CLIP_SIGMAS", 20.0))
     gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 64))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
 
-    # Noisy QAT: inject quantization-calibrated noise into think block weights during training
-    # Trains think weights to be robust to quantization error that compounds through loop passes
+
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
@@ -346,10 +342,9 @@ def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[str, int] | None = None, hessians: dict[str, Tensor] | None = None, clip_sigmas_map: dict[str, float] | None = None):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[str, int] | None = None, hessians: dict[str, Tensor] | None = None):
     # Mixed precision: tensor_bits maps tensor name patterns to bit widths.
     # e.g. {"think_blocks": 8, "default": 6} means think blocks get int8, rest get int6.
-    # clip_sigmas_map: maps name patterns to clip_sigmas, e.g. {"tok_emb": 20.0, "default": 12.85}
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -368,14 +363,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[st
             if pattern != "default" and pattern in name:
                 return bits
         return tensor_bits.get("default", 8)
-
-    def _get_clip_sigmas(name: str) -> float:
-        if clip_sigmas_map is None:
-            return 3.0
-        for pattern, cs in clip_sigmas_map.items():
-            if pattern != "default" and pattern in name:
-                return cs
-        return clip_sigmas_map.get("default", 3.0)
 
     for name, tensor in state_dict.items():
         t = tensor.detach().to("cpu").contiguous()
@@ -397,9 +384,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[st
 
         stats["num_float_tensors"] += 1
         bits = _get_bits(name)
-        cs = _get_clip_sigmas(name)
         if hessians is not None and name in hessians:
-            q, s = gptq_quantize_weight(t, hessians[name], bits=bits, clip_sigmas=cs)
+            q, s = gptq_quantize_weight(t, hessians[name], bits=bits)
             qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits, "method": "gptq"}
         else:
             q, s = quantize_float_tensor(t, bits=bits)
@@ -451,7 +437,7 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 # GPTQ QUANTIZATION
 # -----------------------------
 
-def gptq_quantize_weight(w: Tensor, H: Tensor, bits: int = 6, clip_sigmas: float = 3.0, block_size: int = 128) -> tuple[Tensor, Tensor]:
+def gptq_quantize_weight(w: Tensor, H: Tensor, bits: int = 6, block_size: int = 128) -> tuple[Tensor, Tensor]:
     clip_range = (1 << (bits - 1)) - 1
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
@@ -465,8 +451,8 @@ def gptq_quantize_weight(w: Tensor, H: Tensor, bits: int = 6, clip_sigmas: float
     W_perm[:, dead[perm]] = 0
     H = H[perm][:, perm]
     Hinv = torch.linalg.cholesky(torch.cholesky_inverse(torch.linalg.cholesky(H)), upper=True)
-    row_std = W_orig.std(dim=1)
-    s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+    clip_abs = torch.quantile(W_orig.abs(), INT8_CLIP_Q, dim=1).clamp_min(1e-10)
+    s = (clip_abs / clip_range).to(torch.float16)
     sf = s.float()
     Q = torch.zeros(rows, cols, dtype=torch.int8)
     W_work = W_perm.clone()
@@ -1237,13 +1223,7 @@ def main() -> None:
         "tok_emb": args.embed_bits,
         "default": args.quant_bits,
     }
-    clip_sigmas_map = {
-        "tok_emb": args.embed_clip_sigmas,
-        "think_blocks": args.think_clip_sigmas,
-        "default": args.matrix_clip_sigmas,
-    }
-    log0(f"quantization: encoder/decoder={args.quant_bits}bit think={args.think_quant_bits}bit embed={args.embed_bits}bit")
-    log0(f"clip_sigmas: matrix={args.matrix_clip_sigmas} think={args.think_clip_sigmas} embed={args.embed_clip_sigmas}")
+    log0(f"quantization: encoder/decoder={args.quant_bits}bit think={args.think_quant_bits}bit embed={args.embed_bits}bit clip_q={INT8_CLIP_Q}")
 
     hessians = None
     if args.gptq_calibration_batches > 0:
@@ -1252,7 +1232,7 @@ def main() -> None:
         hessians = collect_hessians(base_model, train_loader_calib, args, grad_accum_steps)
         log0(f"gptq:hessians collected for {len(hessians)} tensors")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), tensor_bits=tensor_bits, hessians=hessians, clip_sigmas_map=clip_sigmas_map)
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), tensor_bits=tensor_bits, hessians=hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
