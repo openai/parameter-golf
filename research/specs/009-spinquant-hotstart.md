@@ -3,7 +3,7 @@
 **Slug:** `spinquant-hotstart`
 **Created:** 2026-04-20
 **Links to idea:** `research/ideas/1736-improvement.md` (spec-009 section)
-**Depends on:** spec 008 complete, `runs/008-1736-reproduction/seed_42/pre_gptq.pt` present.
+**Depends on:** spec 008 complete, `runs/008-1736-reproduction/seed_42/final_model.pt` present (auto-saved by `serialize()` before GPTQ — no code patch needed in spec 008).
 
 ## Hypothesis
 
@@ -51,30 +51,141 @@ No training run. No `MATRIX_LR` / `MUON` / dataset settings matter — this spec
 
 ## Rotation structure
 
-Three classes, all fixed (not learned), stored as non-parameter buffers:
+Three classes of rotations, all fixed (not learned), stored as non-parameter buffers. Derived from reading #1736's `GPT` class (line 876) and `_unbank_state_dict` (line 2003).
 
-| Class | Shape | Applied to | # distinct Rs | Constraint |
-|---|---|---|---|---|
-| **Residual-stream R₀** | d_model × d_model | Embedding weight, attn input projections (Q/K/V slices of `qo_bank`/`kv_bank`), attn output projection input side, MLP W1 input side, MLP W2 output side, lm_head input side | 1 (global, shared across all 11 layers) | must be orthogonal; applied as `W ← R₀·W` or `W·R₀ᵀ` per in/out side |
-| **Per-layer attn R_a^ℓ** | d_head × d_head | Internal Q·Kᵀ rotation per layer | 11 (or fewer if banked) | applied to Q-out and K-out consistently |
-| **Per-layer MLP R_m^ℓ** | d_ff × d_ff | Internal W1→W2 rotation per layer | 11 | applied to W1-out and W2-in consistently |
+### Class 1: Residual-stream R₀ (one shared [512, 512] orthogonal matrix)
 
-**R construction:** preferred `R = diag(±1) · Hadamard(d)` (signed Hadamard — structured, outlier-spreading). Fallback: random orthogonal via `torch.linalg.qr(torch.randn(d,d))`.
+Applied to every weight tensor that reads from or writes into the residual stream. In #1736's banked layout (n = num_layers = 11):
 
-**Critical:** for `R₀`, every residual-stream read/write side must use the same R₀ across all layers (including across Loop45 recurrence passes — key R₀ by "residual stream" not by "invocation"). Any miss breaks float invariance.
+| Banked tensor | Slice / index | Semantic | Rotation op |
+|---|---|---|---|
+| `qo_bank` | `[0:n]` | Q projections (c_q) — reads residual | `W[i] ← W[i] @ R₀.T` (input-side) |
+| `qo_bank` | `[n:2n]` | attn output proj — writes residual | `W[i] ← R₀ @ W[i]` (output-side) |
+| `kv_bank` | `[0:n]` | K projections — reads residual | `W[i] ← W[i] @ R₀.T` |
+| `kv_bank` | `[n:2n]` | V projections — reads residual (V output is internal to attn) | `W[i] ← W[i] @ R₀.T` |
+| `mlp_up_bank` | `[0:n]` | MLP fc — reads residual | `W[i] ← W[i] @ R₀.T` |
+| `mlp_down_bank` | `[0:n]` | MLP proj — writes residual | `W[i] ← R₀ @ W[i]` |
+| `tok_emb.weight` | — | embedding (lookup writes residual) | `W ← W @ R₀.T` (rotates d_model columns) |
+| `lm_head.weight` | — | output head (reads residual) | `W ← W @ R₀.T` |
+| `skip_weights` | — | U-net skip-channel weights (line 956), shape `[num_skip_weights, d_model]`, per-channel mixing on residual | needs equivalent channel rotation — per-channel diagonal absorbed into R₀ context; see "skip-stream complication" below |
+
+### Class 2: Per-layer attention R_a^ℓ (11 × [d_head, d_head] orthogonal)
+
+Internal to each attention block, rotates the V-output / O-input basis. Not on residual, so independent per layer (no Loop45 consistency issue — each layer just gets its own seeded rotation).
+
+Applied to: V projection rows (output dim of V) and O projection columns (input dim of O), matched per layer. Exact banked indices: `kv_bank[n + i]` output rows and `qo_bank[n + i]` input columns.
+
+### Class 3: Per-layer MLP R_m^ℓ (11 × [d_ff, d_ff] orthogonal)
+
+Internal to each MLP block, rotates the fc-output / proj-input basis. Independent per layer.
+
+Applied to: `mlp_up_bank[i]` output rows and `mlp_down_bank[i]` input columns.
+
+### R construction
+
+Preferred: `R = diag(±1) · Hadamard(d)` — signed Hadamard is structured, outlier-spreading, and cheap. Random sign chosen via `SPINQUANT_SEED`. Fallback for non-power-of-2 dims: `R = Q` where `Q, _ = torch.linalg.qr(torch.randn(d, d))` — random orthogonal.
+
+For R₀ at d=512: Hadamard(512) exists (512 = 2⁹), so signed Hadamard is the clean choice.
+
+### Critical constraints
+
+1. **R₀ is shared across all 11 layers AND across Loop45 recurrence passes.** Key the rotation state by "residual stream identity," not by "invocation index." If layers 4 or 5 somehow end up with different R₀ across their multiple invocations (e.g., if rotation were applied inside `block.forward` dynamically), float invariance breaks — but since we rotate the weights statically before eval, this isn't a runtime concern.
+2. **R_a and R_m are per-layer and completely independent** — no Loop45 issue. Layers 4 and 5 each get one R_a and one R_m; those rotations apply on every Loop45 pass through those layers naturally.
+3. **The integration point is line 2978 of `train_gpt.py`** (just before `serialize(h, base_model, ...)`). Rotations apply to `base_model`'s parameters in-place. `serialize()` then GPTQ-quantizes the rotated weights without modification.
 
 ## Code changes
 
 - **Branch:** `research` (this is a commitment-class change — quant lever becomes part of our baseline if it lands).
-- **New file:** `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py` — a standalone script that:
-  1. Loads the FP checkpoint specified by `HOTSTART_FP_CKPT`.
-  2. Generates R₀, R_a^ℓ, R_m^ℓ using `SPINQUANT_SEED`.
-  3. Applies rotations to banked weight tensors (slicing `qo_bank` / `kv_bank` as appropriate).
-  4. Sanity-checks FP forward invariance on one batch (Phase 1 accept).
-  5. Invokes #1736's existing GPTQ + TTT + eval pipeline on the rotated weights (reusing functions from `train_gpt.py`).
-  6. Writes the artifact + bpb to `runs/009-spinquant-hotstart/`.
-- **No modifications** to `train_gpt.py` other than exposing a couple of its GPTQ/eval functions as importable (if they're currently inlined under `if __name__ == "__main__"`).
-- **Reference:** read #1695's diff when available; port rotation bookkeeping onto #1736's banked layout.
+- **New file:** `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py` (~200–300 LOC). Approximate structure:
+
+  ```python
+  from train_gpt import (
+      Hyperparameters, GPT, ValidationData,
+      serialize, deserialize, eval_val, eval_val_ttt_phased,
+      BatchedTTTLoRA, timed_eval,
+      restore_fp32_params,
+  )
+
+  def build_rotations(d_model, d_head, d_ff, num_layers, seed):
+      # Signed-Hadamard for R₀, R_a^ℓ, R_m^ℓ
+      ...
+
+  def fold_rmsnorm_into_next_linear(state_dict, num_layers):
+      # Fold attn_norm.gamma into qo_bank[:n] and kv_bank[:n] (input-side),
+      # mlp_norm.gamma into mlp_up_bank, final_norm.gamma into lm_head.
+      # Then set all gammas to 1. See "RMSNorm fold" below.
+      ...
+
+  def apply_spinquant_rotations(state_dict, R0, R_a_list, R_m_list, num_layers):
+      # Apply rotation map from the Rotation Structure table above.
+      # Also rotates skip_weights if present.
+      ...
+
+  def verify_fp_invariance(model_orig, model_rotated, val_data, device, tol):
+      # Run forward on a small batch pre/post rotation. max abs logit diff < tol.
+      ...
+
+  def main():
+      h = Hyperparameters()
+      # 1. Build empty GPT(h), load state_dict from final_model.pt
+      # 2. Fold RMSNorm gammas
+      # 3. Build rotations, apply in-place
+      # 4. FP invariance check (Phase 1 accept)
+      # 5. Call serialize(h, base_model, code=...) — triggers GPTQ on rotated weights
+      # 6. Call deserialize(h, device) — loads quantized
+      # 7. Reproduce the quantized-eval + TTT blocks from train_and_eval() (lines 2969-3075)
+      # 8. Write final.json with bpb, delta vs baseline, rotation seeds
+  ```
+
+- **Small refactor in `train_gpt.py` (preferred path):** factor the TTT eval block at lines 2997–3075 of `train_and_eval` into a named helper:
+
+  ```python
+  def run_ttt_eval(h, device, val_data):
+      """Loads quantized model from h.quantized_model_path, warms up TTT LoRA compile,
+      runs eval_val_ttt_phased, logs the result. Returns (val_loss, val_bpb)."""
+      ...
+  ```
+
+  Then `train_and_eval` calls `run_ttt_eval(...)` instead of inlining, and `spinquant_hotstart.py` can too. This is a pure refactor with no behavior change — safe to include as part of spec 009's commit. Alternative: copy-paste the block verbatim into the hotstart script (~80 LOC dup), simpler but maintains two copies.
+
+- **No other modifications** to `train_gpt.py`.
+
+- **Reference code:** PR #1695's diff (SpinQuant V1) once visible — port rotation bookkeeping if their layout is compatible. Otherwise re-derive from the SpinQuant paper (Liu et al. 2024) cross-referenced against #1736's banked layout.
+
+## RMSNorm fold (required before rotation)
+
+RMSNorm does `y = gamma · x / ||x||_RMS`. For the rotation to preserve float invariance, RMSNorm must be in its "gamma=1" form, because only then does RMSNorm commute with orthogonal rotation:
+
+`RMSNorm(R·x) = (R·x) / ||R·x||_RMS = (R·x) / ||x||_RMS = R · RMSNorm(x)` (orthogonal preserves norms).
+
+With gamma ≠ 1, the per-channel scaling breaks commutativity unless `gamma` is also rotated, but then it's no longer an elementwise scaling.
+
+**Fold procedure:** before applying rotations, fold each RMSNorm's gamma into the weight rows/columns of the next linear layer on the residual-read side, then set gamma to 1. Specifically in #1736:
+
+| RMSNorm | Location | Fold target (next linear on residual-read side) |
+|---|---|---|
+| `attn_norm` (per-block) | before attention | `qo_bank[i]` columns (for c_q), `kv_bank[i]` columns (for c_k), `kv_bank[n+i]` columns (for c_v) — all get `W[:, j] ← W[:, j] · gamma_j` |
+| `mlp_norm` (per-block) | before MLP | `mlp_up_bank[i]` columns: `W[:, j] ← W[:, j] · gamma_j` |
+| `final_norm` | before lm_head | `lm_head.weight` columns: `W[:, j] ← W[:, j] · gamma_j` |
+
+After folding, set each RMSNorm's gamma parameter to 1 (or replace the module with a plain `x / ||x||_RMS` that has no gamma). The forward pass is numerically unchanged at this stage — the fold is identity-preserving as long as RMSNorm is immediately followed by one of the listed linear layers.
+
+## Skip-stream complication
+
+Lines 893–960 of `train_gpt.py` reveal a U-net encoder/decoder split:
+
+- `num_encoder_layers = num_layers // 2 = 5`
+- `num_decoder_layers = 6`
+- `skip_weights` tensor of shape `[num_skip_weights, model_dim]` — per-channel weights that mix encoder outputs into decoder residual stream.
+
+Because the skip path carries residual-stream values, it has to be rotation-consistent too. The naive per-channel multiplier doesn't compose with a full rotation R₀.
+
+**Two options** (execution to pick based on the actual forward code):
+
+- **(a) Element-wise skip:** if skip is applied as `decoder_residual = decoder_residual + skip_weights[k] * encoder_residual` (elementwise), then rotating both residual streams with the same R₀ is consistent AS LONG AS we leave `skip_weights` untouched — because elementwise multiplication commutes with rotation only when the multiplier is a rotation-equivariant operator, which for general per-channel vectors it is not. This breaks float invariance. **Fix:** either fold `skip_weights` into the nearest linear on the decoder side (similar to RMSNorm fold) so the residual path passes through a rotated linear, or replace the per-channel scaling with a full [d, d] linear that can absorb R₀. The first is cleaner if the skip-application code permits.
+- **(b) Matmul skip:** if skip is applied as a proper linear `decoder_residual = decoder_residual + skip_linear_k(encoder_residual)`, then rotate `skip_linear_k.weight` by R₀ on both input and output sides: `W ← R₀ @ W @ R₀.T`. Float invariance preserved.
+
+**Action for execution:** read the `GPT.forward` / block-orchestration code around line 956 (`skip_weights`) to determine which form #1736 uses, then apply the matching fix. This is the single highest-risk part of the integration — get this wrong and FP invariance fails, Phase 1 accept fails immediately.
 
 ## Hardware ladder
 
@@ -153,11 +264,12 @@ If FP invariance fails first try and we debug once, total rises to ~$10.
 
 ## Open questions for interview
 
-1. **Can #1736's `train_gpt.py` export its GPTQ + TTT entry points as importable functions?** If they're all inlined under `main()`, the hotstart script has to duplicate orchestration code. Preferable: minimal refactor in `train_gpt.py` to split `main()` into named helpers that `spinquant_hotstart.py` can call.
-2. **Banked layout accounting** — `qo_bank` and `kv_bank` in #1736 concatenate Q+O (or Q+O projections) and K+V respectively. Need to verify which slices correspond to which residual-stream reads/writes before rotating (a diagram from the code will confirm).
-3. **Loop45 consistency** — confirm that `R₀` applied to residual-stream weights of layers 4 and 5 is invariant across the multiple invocations of those layers in the recurrence.
-4. **Phased TTT compatibility** — phased TTT adapts weights during eval. SpinQuant rotation must be applied *before* phased TTT sees the weights, so TTT adapts the rotated weights. Verify the ordering in #1736's eval pipeline.
-5. **Reference code availability** — is #1695's diff visible (is the PR source readable)? If yes, port directly. If not, we re-derive from the SpinQuant paper and cross-check against the banked layout.
+1. **Skip-stream form** — is the U-net skip at line 956 element-wise multiply or a full linear matmul? Read `GPT.forward` or the block-loop code; apply the matching rotation fix (see "Skip-stream complication" section). High-impact: this is the most likely failure mode for FP invariance.
+2. **TTT refactor vs copy-paste** — option (b) refactor `train_and_eval`'s TTT block (lines 2997–3075) into `run_ttt_eval(...)` helper and call it from both the hotstart script and `train_and_eval`, OR option (a) duplicate the block verbatim in the hotstart script. Preference: (b) — cleaner, single source of truth. Execution's call.
+3. **GPTQ already handles mixed precision** (see `gptq_mixed_quantize` at 1863) — need to confirm that the rotated weights don't violate whatever the mixed-precision allocator assumes (e.g., per-matrix outlier heuristics). Likely fine since rotation *reduces* outliers, but worth a sanity assert during GPTQ.
+4. **Phased-TTT ordering** — phased TTT at line 3064 (`eval_val_ttt_phased`) adapts LoRA on top of the quantized model. Rotation happens once, pre-GPTQ. TTT LoRA is then trained on top of the rotated-and-quantized base. This should be fine: LoRA is post-hoc and doesn't rely on the un-rotated basis, but worth verifying that `BatchedTTTLoRA` doesn't make assumptions about the weight distribution shape.
+5. **Reference code availability** — is #1695's diff visible (is the PR source readable via `gh pr diff 1695`)? If yes, port rotation bookkeeping directly. If not, re-derive from the SpinQuant paper (Liu et al. 2024) and cross-check against the banked layout.
+6. **Hadamard impl** — does torch ship a Hadamard primitive, or do we need `scipy.linalg.hadamard` / a hand-rolled one? For d=512, `scipy.linalg.hadamard(512)` returns a `{±1}` matrix that we scale by `1/√512` for orthogonality. Cheap either way.
 
 ## What this spec does NOT do
 

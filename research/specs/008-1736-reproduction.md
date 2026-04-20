@@ -133,14 +133,7 @@ If smoke passes → proceed to Phase 3. If smoke fails → halt, post diagnosis,
 
 ### Phase 3 — 8×H100 single-seed official (seed 42)
 
-**Before launching:** patch `train_gpt.py` to save the pre-GPTQ FP checkpoint. Find the code path right before the GPTQ quantization call and inject:
-
-```python
-if int(os.environ.get("SAVE_PRE_GPTQ", "0")) and rank == 0:
-    torch.save(model.state_dict(), os.environ["PRE_GPTQ_CKPT_PATH"])
-```
-
-Gated on an env var so the change is invisible when not requested (keeps the reproduction as clean as possible). One-line equivalent acceptable.
+**No code patch required.** `serialize()` (line 2074 of `train_gpt.py`) already calls `torch.save(base_model.state_dict(), h.model_path)` unconditionally before GPTQ runs, with `model_path = f"{artifact_dir}/final_model.pt"`. Setting `ARTIFACT_DIR` to our run directory makes the pre-GPTQ FP checkpoint land at `.../seed_42/final_model.pt` naturally — that file becomes the hotstart input for specs 009+.
 
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
@@ -148,6 +141,7 @@ cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_
 mkdir -p /workspace/runs/008-1736-reproduction/seed_42
 
 NCCL_NET=Socket DATA_DIR=./data \
+ARTIFACT_DIR=/workspace/runs/008-1736-reproduction/seed_42 \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
@@ -155,12 +149,12 @@ EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 MATRIX_LR=0.026 \
 GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-SAVE_PRE_GPTQ=1 \
-PRE_GPTQ_CKPT_PATH=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt \
 SEED=42 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
   > /workspace/runs/008-1736-reproduction/seed_42/train.log 2>&1
 ```
+
+(Check that `ARTIFACT_DIR` is the correct env-var name — Hyperparameters field is `artifact_dir` at line 185; confirm spelling of the env-var read on the pod.)
 
 ### Kill protocol
 
@@ -169,11 +163,11 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py \
 
 ## Checkpoints to emit
 
-**Exactly one:** `runs/008-1736-reproduction/seed_42/pre_gptq.pt` — FP16/FP32 weights saved right before GPTQ quantization runs.
+**Exactly one:** `runs/008-1736-reproduction/seed_42/final_model.pt` — FP weights saved by `serialize()` (line 2074) right before GPTQ quantization.
 
-Rationale: the entire quant-family spec chain (009 SpinQuant, plus any future per-group-bit / AR-selfgen / AWQ experiments) can hotstart off this single checkpoint because SpinQuant and its siblings are post-training transforms. Per-experiment cost drops from ~$10 retrain to ~$1–2 rotate-and-requant. The one-line injection into `train_gpt.py` is gated on an env var so the reproduction itself is unaffected.
+No code patch needed — the save is already in the training script and writes to `{artifact_dir}/final_model.pt` every run. Specs 009+ hotstart off this single file because SpinQuant and its siblings are post-training transforms. Per-experiment cost drops from ~$10 retrain to ~$1–2 rotate-and-requant.
 
-No intermediate / phase-boundary checkpoints. No post-GPTQ checkpoints (the training log + `final.json` carry the info we'd want).
+No intermediate / phase-boundary checkpoints. No post-GPTQ checkpoints (the training log + `final.json` + the `.ptz` artifact carry the info we'd want).
 
 ## Stop-early criteria
 
@@ -198,8 +192,8 @@ Downstream quant experiments (spec 009+) hotstart off the checkpoint from this r
 ## Extra artifacts
 
 - `runs/008-1736-reproduction/seed_42/train.log` — full training stdout/stderr
-- `runs/008-1736-reproduction/seed_42/pre_gptq.pt` — pre-GPTQ FP checkpoint (hotstart input for spec 009+)
-- `runs/008-1736-reproduction/seed_42/artifact.ptz` (or whatever `train_gpt.py` writes) — the submission artifact
+- `runs/008-1736-reproduction/seed_42/final_model.pt` — pre-GPTQ FP checkpoint (auto-saved by `serialize()`; hotstart input for spec 009+)
+- `runs/008-1736-reproduction/seed_42/final_model.int6.ptz` — the compressed GPTQ submission artifact
 - `runs/008-1736-reproduction/smoke/train.log` — Phase 2 smoke log
 - `runs/008-1736-reproduction/final.json` — seed-42 summary (bpb, artifact size, wall times, step at which pre_gptq.pt was saved)
 - `runs/008-1736-reproduction/notes.md` — execution narrative + any deviations from this spec
@@ -210,7 +204,8 @@ Downstream quant experiments (spec 009+) hotstart off the checkpoint from this r
 2. **HF shortcut** — is `romeerp/parameter-golf-caseops-v1` on HuggingFace byte-compatible with what `prepare_caseops_data.py` produces? If yes, Phase 1 can be replaced with a ~20 GB download + schema check (saves ~2 hours). Quick way to test: download one val shard + its byte sidecar from HF, compare byte-for-byte against local prep output on a sample doc.
 3. **flash-attn-3 install** — is the wheel at `https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/` still reachable from the pod's region? Preflight step per #1736 README: `pip install flash_attn_3 --no-deps --find-links <wheel-url>`. If unreachable, fallback?
 4. **Smoke override mechanism** — does `train_gpt.py` accept an `ITERATIONS` / `MAX_STEPS` env var, or a `DISABLE_EVAL` flag? Execution should grep the script for the iteration count constant and pick the cleanest override path. If no clean override exists, we can instead just run the full training and abort after ~2 min of logging — the smoke goal is the first 50 steps of log output.
-5. **Pre-GPTQ hook location** — execution should grep `train_gpt.py` for where GPTQ is invoked (likely a function call on the FP model) and inject the `torch.save(...)` one line before, gated on `SAVE_PRE_GPTQ`. Verify the saved state_dict loads correctly before declaring Phase 3 a pass (simple `torch.load(...)` check on the pod).
+5. **Artifact-dir env-var spelling** — `Hyperparameters.artifact_dir` is the field name (line 185 of `train_gpt.py`). Execution should grep for `os.environ` reads near that line to confirm the exact env var (likely `ARTIFACT_DIR`). If it's not env-var-configurable, a one-line Hyperparameters patch may be needed.
+6. **Verify pre-GPTQ save** — after Phase 3 completes, confirm `final_model.pt` is present in `seed_42/` and is loadable with `torch.load(...)`. This is the single output spec 009+ depend on.
 
 ## What this spec does NOT do
 
