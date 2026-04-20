@@ -728,6 +728,72 @@ def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
             W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
     return (Q[:, invperm], s, sorted_levels)
 
+def gptq_sparse_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128, sparsity_threshold=1.0):
+    """SparseGPT: joint sparsification + quantization in one Hessian sweep.
+
+    At each column, compares:
+      error_quantize = (w - q*scale)^2 / H_inv[j,j]
+      error_zero     = w^2 / H_inv[j,j]
+
+    If error_zero < sparsity_threshold * error_quantize, zeros the weight
+    instead of quantizing. Error propagates identically either way.
+
+    sparsity_threshold controls aggressiveness:
+      1.0 = zero only if strictly cheaper than quantizing
+      2.0 = zero if cost is up to 2x quantizing (more aggressive)
+      0.5 = zero only if cost is less than half of quantizing (conservative)
+    """
+    W_orig = w.float().clone()
+    rows, cols = W_orig.shape
+    H = H.float().clone()
+    dead = torch.diag(H) == 0
+    H[dead, dead] = 1
+    damp = 0.01 * H.diag().mean()
+    H.diagonal().add_(damp)
+    perm = torch.argsort(H.diag(), descending=True)
+    invperm = torch.argsort(perm)
+    W_perm = W_orig[:, perm].clone()
+    W_perm[:, dead[perm]] = 0
+    H = H[perm][:, perm]
+    Hinv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    row_std = W_orig.std(dim=1)
+    s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+    sf = s.float()
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    W_work = W_perm.clone()
+    n_zeroed = 0
+    n_quantized = 0
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        W_block = W_work[:, i1:i2].clone()
+        Hinv_block = Hinv[i1:i2, i1:i2]
+        Err = torch.zeros(rows, i2 - i1)
+        for j in range(i2 - i1):
+            w_col = W_block[:, j]
+            d = Hinv_block[j, j]
+            # Standard GPTQ quantization
+            q_col = torch.clamp(torch.round(w_col / sf), -clip_range, clip_range)
+            recon_quant = q_col.float() * sf
+            # Compare: cost of quantizing vs cost of zeroing (per element)
+            err_quant = (w_col - recon_quant).pow(2)
+            err_zero = w_col.pow(2)
+            # Per-element decision: zero if cheaper (within threshold)
+            should_zero = err_zero < sparsity_threshold * err_quant
+            q_col[should_zero] = 0
+            Q[:, i1 + j] = q_col.to(torch.int8)
+            # Reconstruction after decision
+            final_recon = q_col.float() * sf
+            err = (w_col - final_recon) / d
+            Err[:, j] = err
+            W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
+            n_zeroed += should_zero.sum().item()
+            n_quantized += (~should_zero).sum().item()
+        if i2 < cols:
+            W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+    sparsity = n_zeroed / (n_zeroed + n_quantized) if (n_zeroed + n_quantized) > 0 else 0
+    return (Q[:, invperm], s, sparsity)
+
 def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
@@ -828,6 +894,17 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             result[name + '.q'] = q
             result[name + '.scale'] = s
             meta[name] = f'tiered_k-{tier} (int5 k={k_val})'
+        elif quant_format == 'sparse' and not is_embed:
+            cs = h.matrix_clip_sigmas
+            bits = h.matrix_bits
+            sparsity_threshold = float(os.environ.get('SPARSITY_THRESHOLD', '1.0'))
+            q, s, sparsity = gptq_sparse_quantize_weight(
+                t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1,
+                sparsity_threshold=sparsity_threshold
+            )
+            result[name + '.q'] = q
+            result[name + '.scale'] = s
+            meta[name] = f'sparse-gptq (int{bits} k={cs} sparsity={sparsity:.1%})'
         elif quant_format == 'nf' and not is_embed:
             bits = h.matrix_bits
             q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=bits, block_size=128)
