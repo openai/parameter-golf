@@ -8,6 +8,40 @@
 
 Training CE currently weights all tokens equally; the eval metric (bits-per-byte) weights tokens by source UTF-8 byte count. Multi-byte tokens like " the" (4 bytes) contribute 4× to eval but 1× to gradient signal. Reweighting training CE by `byte_weights[targets]` aligns the training objective with the eval metric, reducing the gradient-signal/metric mismatch.
 
+## Thoughts (rationale + things that could go wrong)
+
+### Why the direction should be negative (better)
+
+The misalignment is real and quantifiable. SP8192's mean bytes-per-token is ~3–4; distribution runs 1 to ~15. A 4-byte token gets 4× eval weight but equal gradient under standard CE. Reweighting pushes the optimizer to invest capacity where the eval rewards it. Of all the levers we've surveyed, this has the clearest first-principles alignment between mechanism and goal — not just a port of someone else's tuning.
+
+### Why I'm less sure about magnitude
+
+Three discounts compound on top of #1519's claimed Δ:
+
+1. **Effective LR shift.** Weighting concentrates gradient on multi-byte tokens; Muon's LR schedule is tuned on uniform CE. We may be slightly off the tuned optimum.
+2. **TTT absorption.** Specs 010/010b showed TTT LoRA absorbs some upstream deltas. If the base model is already reasonable on multi-byte tokens, TTT picks up the slack anyway.
+3. **CaseOps approximation.** We use `base_bytes_lut` (surface-piece bytes), not the context-aware `val_bytes` sidecar. Case-flag tokens get weighted by their surface bytes but contribute zero eval bytes in context → small over-weighting of a population the eval doesn't reward.
+
+### Outcome decision matrix
+
+| Endpoint Δ | Interpretation | Action |
+|---|---|---|
+| ≤ −0.002 | Lever transfers; objective alignment works on #1736 | 3-seed confirmation ($30), promote, stack with other levers |
+| (−0.002, −0.0005) | Small help | Queue 012 QK_GAIN; come back for 3-seed if stack lands |
+| (−0.0005, +0.001) | Null | Either approximation too lossy or TTT absorbs; shelve, try 012 or trajectory readout next |
+| > +0.001 | Regression | Reweighting fights tuned optimum or CaseOps approximation misleads; shelve |
+| NaN / destabilize | SP8192 hit the #1519 instability threshold | Shelve; fixing would need SP1024 migration or novel reweight schedule |
+
+### Honest self-check — the meta-story risk
+
+Three null/regression results in a row (011 GradPower, 013 BigramHash confounded, hypothetical 014 null) would suggest a meta-pattern: **#1736 is already well-tuned, incremental ports from other stacks don't stack on top.** If 014 is also null, the better question isn't "what lever next" but:
+
+- (a) Retune something #1736 already does (Muon schedule, LR, etc.) for our specific data
+- (b) Commit to a 3-seed official on plain spec 008 and squeeze std advantage
+- (c) Fundamentally different quant approach (AWQ instead of GPTQ)
+
+This framing matters because it's cheap to decide now, expensive to decide later.
+
 ## Baseline
 
 Spec 008's seed-42 val_bpb (`runs/008-1736-reproduction/seed_42/final.json`) = 1.0697 (endpoint bare). Comparison is Δ vs that number.
