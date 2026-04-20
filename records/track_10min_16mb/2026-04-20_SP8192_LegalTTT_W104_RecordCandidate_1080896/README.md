@@ -16,7 +16,8 @@ This submission is a record candidate because the 3-seed mean BPB is below the c
 | 314 | 2.79285442 | 1.08120098 |
 | 999 | 2.79261328 | 1.08110763 |
 
-Mean val_bpb: **1.08089556**  
+Mean val_bpb: **1.08089556**
+
 Population std val_bpb: **0.00036790**
 
 ## Configuration
@@ -43,4 +44,6 @@ Population std val_bpb: **0.00036790**
 
 ## Notes
 
-This run does not use V7, V8, or V9 auxiliary data. It is a faithful SP8192 LegalTTT replay candidate focused on reducing bad-seed variance while keeping the official FineWeb validation setup.
+This run does not use V7, V8, or V9 auxiliary data.
+
+It is a faithful SP8192 LegalTTT replay candidate focused on reducing bad-seed variance while keeping the official FineWeb validation setup.
