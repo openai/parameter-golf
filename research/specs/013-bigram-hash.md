@@ -59,7 +59,32 @@ All other env vars unchanged. Defaults for PRIME_A/PRIME_B match #1716.
 
 ### Early-stop guidance
 
-Same protocol as spec 011: executor + user monitor `train.log` via `tail -f`. Compare train_loss vs spec 008 at matched step. Kill on NaN, step-time blow-up, or consistently worse trend (joint judgment). Default to finish when ambiguous — zero-init projection means bigram contribution ramps from zero, so early-training signal is dominated by the unchanged tok_emb path.
+Same protocol as spec 011: executor + user monitor `train.log` via `tail -f`. Compare train_loss vs spec 008 at matched step. Kill on NaN, step-time blow-up, or consistently worse trend (joint judgment). Default to finish when ambiguous.
+
+### Pre-registered expectations (what the curve should look like)
+
+**Important context:** the projection is zero-init. At step 0 the bigram contribution is literally zero and grows with training as `proj` and `embed` learn useful values. Effect on train_loss grows *quadratically* with `||proj||`, so expect **no early signal and late-training divergence**.
+
+Mapped to #1736's ~4500 total steps:
+
+| Step range | Expected behavior | Interpretation |
+|---|---|---|
+| **0–300** (startup) | train_loss within noise of spec 008 | projection ≈0, bigram contributes nothing |
+| **300–1000** (warmup) | still near-zero Δ; <0.001 nats | gradient just starting to concentrate on high-frequency buckets |
+| **1000–2500** (mid) | **first meaningful check**; divergence 0.002–0.005 nats if it works | bigram table has learned common-pair patterns |
+| **2500–4500** (settled) | gap widens to 0.005–0.015 nats final train_loss Δ | fully warmed up bigram, gain plateaus |
+| **Post-TTT val_bpb** | −0.001 to −0.003 bpb | TTT absorbs some upstream gain (spec 010 finding); reported Δ smaller than train_loss Δ |
+
+**Decision thresholds at specific steps:**
+
+- **Step 1500–2000 is the first real check.** If no visible divergence (bigram run ≡ spec 008 ±0.001 nats), the bigram table isn't gaining traction. Two possibilities: (a) projection learning too slowly (second-run LR tweak candidate); (b) #1736's existing capacity (SmearGate, parallel residuals) already captures first-order bigram signal → null result. Either way, **don't kill here** — let it finish to confirm the null.
+- **Step 2500+ is decisive.** Consistently worse than spec 008 = kill candidate (discuss). Consistently better or matched = let it finish.
+
+**Would be surprising (investigate immediately):**
+
+- **Very early divergence (step <500).** Zero-init projection can't produce fast effects; early divergence indicates a bug (wrong init, optimizer hit, hash collision collapse, shape mismatch finding a new path).
+- **Train_loss lower but val_bpb higher post-eval.** Bigram overfitting to training bigrams that don't generalize. Unusual in a 600s run.
+- **Step time >> spec 008.** The bigram forward is a cheap lookup + linear; it should not add visible step-time overhead. If it does, something's off (e.g., CPU-GPU transfer, unfused kernel).
 
 ## Seed plan
 
