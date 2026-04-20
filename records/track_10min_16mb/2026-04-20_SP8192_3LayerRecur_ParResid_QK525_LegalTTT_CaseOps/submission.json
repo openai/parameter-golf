@@ -1,0 +1,53 @@
+{
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT + CaseOps Tokenizer",
+  "val_bpb": 1.07462,
+  "val_bpb_std": 0.00043,
+  "n_seeds": 3,
+  "seeds": [42, 314, 999],
+  "per_seed_val_bpb": {
+    "42": 1.07447,
+    "314": 1.07521,
+    "999": 1.07418
+  },
+  "per_seed_artifact_bytes": {
+    "42": 15991629,
+    "314": 15990248,
+    "999": 15989091
+  },
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 588,
+  "eval_time_seconds": 497,
+  "artifact_bytes_max": 15991629,
+  "track": "B",
+  "compliance": {
+    "issue_1017_condition_1": true,
+    "issue_1017_condition_2": true,
+    "issue_1017_condition_3": true,
+    "issue_1017_condition_4": true,
+    "size_16mb_decimal": true,
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "no_etlb": true
+  },
+  "delta_vs_merged_sota": {
+    "prior_sota_pr": 1493,
+    "prior_sota_author": "bigbag",
+    "prior_sota_bpb": 1.0810,
+    "delta_bpb": -0.00638,
+    "delta_nats_per_token": -0.01402,
+    "z_statistic": 22.8,
+    "p_value": "<<0.0001"
+  },
+  "attribution": [
+    {"pr": 1493, "author": "bigbag", "contribution": "merged SOTA base stack (SP8192 + 3L recurrence + parallel residuals + QK-Gain 5.25 + legal TTT)"},
+    {"pr": 1729, "author": "romeerp", "contribution": "CaseOps lossless tokenizer + byte sidecar design (pending)"},
+    {"pr": 1394, "author": "clarkkev", "contribution": "SP8192 base stack, GPTQ SDClip, MuonEq-R"},
+    {"pr": 1331, "author": "dexhunter", "contribution": "3-layer depth recurrence"},
+    {"pr": 1412, "author": "Robby955", "contribution": "parallel residuals"},
+    {"pr": 549, "author": "abaybektursun", "contribution": "legal score-first TTT precedent"},
+    {"pr": 461, "author": "Christopher-Lee-McClendon", "contribution": "LoRA TTT framework"}
+  ]
+}
