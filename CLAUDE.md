@@ -1,7 +1,13 @@
 # Parameter Golf — Repo Conventions
 
 ## What this is
-OpenAI Parameter Golf challenge, **record track**. Goal: beat SOTA **1.0810 bpb**. Deadline **2026-04-30**. Training code (`train_gpt_sota.py`, `hotstart.py`, `run_*.sh`) lives at the repo root alongside this scaffold.
+OpenAI Parameter Golf challenge, **record track**. Goal: beat SOTA. Deadline **2026-04-30**. Training code lives at the repo root alongside this scaffold.
+
+**Current baseline (as of 2026-04-20):** rebased from merged SOTA #1493 (1.0810) to PR **#1736** (dexhunter, unmerged, claimed val_bpb **1.06549**: SP8192 + CaseOps tokenizer + attn-out gate + quant-gate + Loop45 + phased TTT). Rationale: in the ~10 days since the merged SOTA landed, the credible unmerged frontier moved ~0.015 bpb past it on a small number of witnessed, legal levers; continuing to iterate off spec-000 leaves us behind the frontier before we even try. Modal-scenario analysis in `research/frontier-map.md`, `diary/2026-04-19-frontier-scan.md`, `diary/2026-04-19-frontier-map.md`. Full plan in `research/ideas/1736-improvement.md`.
+
+**Two baselines live in the repo:**
+- `train_gpt_sota.py` + `hotstart.py` + `run_*.sh` at repo root — the old #1493-derived baseline (spec 000). Retained for backward-compat sanity reruns.
+- `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py` + siblings — the new #1736-derived baseline. This is the base specs 008+ use.
 
 ## Two session modes
 Every Claude session in this repo is either **research** or **execution**. They do different things and must not overlap.
@@ -55,6 +61,8 @@ Any session unsure which mode it's in should ask the user before acting.
 - A winning `exp/<slug>` is merged back into `research`, so future `exp/*` branches fork from an enriched baseline.
 
 Ideas with **no code change** (hyperparam-only) don't need a branch. The spec pins a `research` commit and lists the config diff.
+
+**Exception — baseline-migration specs.** A spec whose purpose *is* to move the research baseline (e.g. spec 008: rebase to #1736) lands its code directly on `research` rather than on an `exp/<slug>` branch. Rationale: the code is becoming the new baseline, not a side experiment to be evaluated and possibly discarded. Use this exception only when the spec's explicit goal is "replace the baseline," not "try a variant." Normal experimentation still goes through `exp/<slug>`.
 
 **Worktrees:**
 Code for an `exp/<slug>` branch lives in a worktree so the research session can keep editing `research/specs/` etc. on `research` while code changes are made in parallel.
