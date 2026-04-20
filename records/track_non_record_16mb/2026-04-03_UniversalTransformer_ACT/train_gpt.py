@@ -104,6 +104,7 @@ class Hyperparameters:
     # THINK_QUANT_BITS: bits for think block weights (default 8, use 8 to preserve loop precision)
     quant_bits = int(os.environ.get("QUANT_BITS", 8))
     think_quant_bits = int(os.environ.get("THINK_QUANT_BITS", 8))
+    gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 64))
 
     # Noisy QAT: inject quantization-calibrated noise into think block weights during training
     # Trains think weights to be robust to quantization error that compounds through loop passes
@@ -342,7 +343,7 @@ def quantize_float_tensor(t: Tensor, bits: int = 8) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -max_val, max_val).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[str, int] | None = None):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[str, int] | None = None, hessians: dict[str, Tensor] | None = None):
     # Mixed precision: tensor_bits maps tensor name patterns to bit widths.
     # e.g. {"think_blocks": 8, "default": 6} means think blocks get int8, rest get int6.
     quantized: dict[str, Tensor] = {}
@@ -384,11 +385,15 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], tensor_bits: dict[st
 
         stats["num_float_tensors"] += 1
         bits = _get_bits(name)
-        q, s = quantize_float_tensor(t, bits=bits)
-        if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits}
+        if bits < 8 and hessians is not None and name in hessians:
+            q, s = gptq_quantize_weight(t, hessians[name], bits=bits)
+            qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits, "method": "gptq"}
         else:
-            qmeta[name] = {"bits": bits}
+            q, s = quantize_float_tensor(t, bits=bits)
+            if s.ndim > 0:
+                qmeta[name] = {"scheme": "per_row", "axis": 0, "bits": bits}
+            else:
+                qmeta[name] = {"bits": bits}
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
@@ -427,6 +432,78 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
             out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
         out[name] = out_t
     return out
+
+
+# -----------------------------
+# GPTQ QUANTIZATION
+# -----------------------------
+
+def gptq_quantize_weight(w: Tensor, H: Tensor, bits: int = 6, clip_sigmas: float = 3.0, block_size: int = 128) -> tuple[Tensor, Tensor]:
+    clip_range = (1 << (bits - 1)) - 1
+    W_orig = w.float().clone()
+    rows, cols = W_orig.shape
+    H = H.float().clone()
+    dead = torch.diag(H) == 0
+    H[dead, dead] = 1
+    H.diagonal().add_(0.01 * H.diag().mean())
+    perm = torch.argsort(H.diag(), descending=True)
+    invperm = torch.argsort(perm)
+    W_perm = W_orig[:, perm].clone()
+    W_perm[:, dead[perm]] = 0
+    H = H[perm][:, perm]
+    Hinv = torch.linalg.cholesky(torch.cholesky_inverse(torch.linalg.cholesky(H)), upper=True)
+    row_std = W_orig.std(dim=1)
+    s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+    sf = s.float()
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    W_work = W_perm.clone()
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        W_block = W_work[:, i1:i2].clone()
+        Hinv_block = Hinv[i1:i2, i1:i2]
+        Err = torch.zeros(rows, i2 - i1)
+        for j in range(i2 - i1):
+            w_col = W_block[:, j]
+            d = Hinv_block[j, j]
+            q_col = torch.clamp(torch.round(w_col / sf), -clip_range, clip_range)
+            Q[:, i1 + j] = q_col.to(torch.int8)
+            err = (w_col - q_col.float() * sf) / d
+            Err[:, j] = err
+            W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
+        if i2 < cols:
+            W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+    return Q[:, invperm], s
+
+
+def collect_hessians(model: nn.Module, train_loader: "DistributedTokenLoader", args: Hyperparameters, grad_accum_steps: int) -> dict[str, Tensor]:
+    hessians: dict[str, Tensor] = {}
+    hooks = []
+
+    def make_hook(name: str):
+        def hook_fn(module, inp, out):
+            x = inp[0].detach().float()
+            if x.ndim == 3:
+                x = x.reshape(-1, x.shape[-1])
+            if name not in hessians:
+                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=x.device)
+            hessians[name].addmm_(x.T, x)
+        return hook_fn
+
+    for name, module in model.named_modules():
+        if isinstance(module, CastedLinear) and module.weight.numel() > INT8_KEEP_FLOAT_MAX_NUMEL:
+            hooks.append(module.register_forward_hook(make_hook(name + ".weight")))
+
+    model.eval()
+    with torch.no_grad():
+        for _ in range(args.gptq_calibration_batches):
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            model(x, y)
+
+    for hook in hooks:
+        hook.remove()
+
+    n = args.gptq_calibration_batches
+    return {name: H.cpu() / n for name, H in hessians.items()}
 
 
 # -----------------------------
@@ -1124,7 +1201,15 @@ def main() -> None:
     }
     log0(f"quantization: encoder/decoder={args.quant_bits}bit think={args.think_quant_bits}")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), tensor_bits=tensor_bits)
+    hessians = None
+    needs_gptq = args.gptq_calibration_batches > 0 and (args.quant_bits < 8 or args.think_quant_bits < 8)
+    if needs_gptq:
+        log0(f"gptq:collecting hessians calibration_batches={args.gptq_calibration_batches}")
+        train_loader_calib = DistributedTokenLoader(args.train_files, rank, world_size, device)
+        hessians = collect_hessians(base_model, train_loader_calib, args, grad_accum_steps)
+        log0(f"gptq:hessians collected for {len(hessians)} tensors")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), tensor_bits=tensor_bits, hessians=hessians)
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
