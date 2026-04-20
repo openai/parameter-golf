@@ -53,7 +53,7 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 256))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 512))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -782,12 +782,10 @@ def get_linear_progression_kv_heads(layer_idx, total_layers, num_heads):
     fraction = layer_idx / (total_layers - 1)
     raw_kv = min_kv + (max_kv - min_kv) * fraction
     
-    # Constraints: Must be power of 2 and divide num_heads
-    kv_heads = 2 ** round(math.log2(raw_kv))
-    while num_heads % kv_heads != 0:
-        kv_heads //= 2
-        
-    return int(max(2, kv_heads))
+    valid_kvs = [i for i in range(1, num_heads + 1) if num_heads % i == 0]
+    kv_heads = min(valid_kvs, key=lambda x: abs(x - raw_kv))
+    
+    return int(max(1, kv_heads))
 
 def get_rope_p_smooth(i: int, num_layers: int, p_min=0.25, p_max=0.75) -> float:
     if num_layers <= 1:
@@ -847,8 +845,14 @@ class GPT(nn.Module):
         emb = self.tok_emb(input_ids)
         x = F.rms_norm(emb, (emb.size(-1),))
 
-        for block in self.blocks:
-            x = block(x, emb)
+        skips = []
+        for i, block in enumerate(self.blocks):
+            if i < len(self.blocks):                     # Layers 0, 1, 2, 3
+                skips.append(x)           # Just saves a reference to the tensor in memory
+            elif i >= len(self.blocks):                  # Layers 4, 5, 6, 7
+                x = x + skips.pop()       # A simple element-wise addition
+            
+            x = block(x, emb)             # The actual Transformer Block computation
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
