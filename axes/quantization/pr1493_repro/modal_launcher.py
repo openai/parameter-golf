@@ -216,6 +216,8 @@ def _run_bundle(
     train_log_every: int,
     val_loss_every: int,
     qk_gain_init: float,
+    wd_final: float = 0.095,
+    wd_taper_start_frac: float = 1.0,
 ) -> dict:
     modal_provider = os.environ.get("MODAL_CLOUD_PROVIDER", "")
     modal_region = os.environ.get("MODAL_REGION", "")
@@ -250,6 +252,9 @@ def _run_bundle(
         # Disable eval-time adaptation — we only want clean training + bundle save
         "TTT_ENABLED": "0",
         "ETLB_ENABLED": "0",
+        # WD taper (no-op unless overridden)
+        "WD_FINAL": str(wd_final),
+        "WD_TAPER_START_FRAC": str(wd_taper_start_frac),
     })
 
     cmd = [
@@ -357,6 +362,8 @@ def train_bundle_8x_h100(
     train_log_every: int = 500,
     val_loss_every: int = 4000,
     qk_gain_init: float = 5.25,
+    wd_final: float = 0.095,
+    wd_taper_start_frac: float = 1.0,
 ) -> str:
     return json.dumps(
         _run_bundle(
@@ -369,6 +376,8 @@ def train_bundle_8x_h100(
             train_log_every=train_log_every,
             val_loss_every=val_loss_every,
             qk_gain_init=qk_gain_init,
+            wd_final=wd_final,
+            wd_taper_start_frac=wd_taper_start_frac,
         ),
         indent=2, sort_keys=True,
     )
@@ -545,6 +554,8 @@ def main(
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
     sparsity_threshold: float = 1.0,
+    wd_final: float = 0.095,
+    wd_taper_start_frac: float = 1.0,
     write_result: str = "",
 ) -> None:
     """Entrypoints:
@@ -579,6 +590,8 @@ def main(
             train_log_every=train_log_every,
             val_loss_every=val_loss_every,
             qk_gain_init=qk_gain_init,
+            wd_final=wd_final,
+            wd_taper_start_frac=wd_taper_start_frac,
         )
     elif mode == "quantize":
         run_id = run_id or f"pr1493_quantize_{Path(bundle_dir).name}"

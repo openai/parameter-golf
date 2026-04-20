@@ -1345,6 +1345,14 @@ def train_model(h, device, val_data):
         if h.num_loops > 0 and (not base_model.looping_active) and (frac >= h.enable_looping_at):
             base_model.looping_active = True
             log(f'layer_loop:enabled step:{step} frac:{frac:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}')
+        # WD taper: reduce WD during late training (PR-1729 style)
+        _wd_final = float(os.environ.get('WD_FINAL', str(h.muon_wd)))
+        _wd_taper_start = float(os.environ.get('WD_TAPER_START_FRAC', '1.0'))  # default=1.0 means no taper
+        if _wd_final != h.muon_wd and frac >= _wd_taper_start:
+            taper_progress = (frac - _wd_taper_start) / (1.0 - _wd_taper_start + 1e-9)
+            current_wd = h.muon_wd + (_wd_final - h.muon_wd) * taper_progress
+            for group in optimizers.optimizer_muon.param_groups:
+                group['weight_decay'] = current_wd
         train_loss = step_fn(step, scale)
         with torch.no_grad():
             for name, t in base_model.state_dict().items():
