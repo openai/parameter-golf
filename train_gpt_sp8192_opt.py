@@ -65,6 +65,10 @@ class Hyperparameters():
     rope_train_seq_len = int(os.environ.get('ROPE_TRAIN_SEQ_LEN', 2048))
     ln_scale = bool(int(os.environ.get('LN_SCALE', '1')))
     qk_gain_init = float(os.environ.get('QK_GAIN_INIT', 4.0))
+    # Per-layer QK-gain init schedule (comma-separated floats, length = num_layers)
+    # Overrides qk_gain_init per layer. bigbag found 5.25 optimal; sweep from lower per-layer.
+    # Example: QK_GAIN_INIT_SCHEDULE="2.0,2.5,3.0,3.5,4.0,4.5,4.5,4.0,3.5,3.0,2.5"
+    qk_gain_init_schedule = os.environ.get("QK_GAIN_INIT_SCHEDULE", "")
 
     # Layer looping
     num_loops = int(os.environ.get('NUM_LOOPS', 2))
@@ -376,7 +380,8 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor, rope_dims: int = 0) ->
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int,
-                 rope_base: float, qk_gain_init: float, train_seq_len: int):
+                 rope_base: float, qk_gain_init: float, train_seq_len: int,
+                 layer_idx: int = 0, qk_gain_init_schedule: str = ""):
         super().__init__()
         if dim % num_heads != 0:
             raise ValueError("model_dim must be divisible by num_heads")
@@ -393,7 +398,8 @@ class CausalSelfAttention(nn.Module):
         self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        effective_gain = _resolve_qk_gain_for_layer(qk_gain_init, qk_gain_init_schedule, layer_idx)
+        self.q_gain = nn.Parameter(torch.full((num_heads,), effective_gain, dtype=torch.float32))
         self.rope_dims = 0
         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len)
         self.use_xsa = False
@@ -440,12 +446,13 @@ class MLP(nn.Module):
 class Block(nn.Module):
     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  rope_base: float, qk_gain_init: float, train_seq_len: int,
-                 layer_idx: int = 0, ln_scale: bool = False):
+                 layer_idx: int = 0, ln_scale: bool = False, qk_gain_init_schedule: str = ""):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(
-            dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len)
+            dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len,
+            layer_idx=layer_idx, qk_gain_init_schedule=qk_gain_init_schedule)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -481,7 +488,8 @@ class GPT(nn.Module):
         self.num_decoder_layers = h.num_layers - self.num_encoder_layers
         self.blocks = nn.ModuleList([
             Block(h.model_dim, h.num_heads, h.num_kv_heads, h.mlp_mult, h.rope_base,
-                  h.qk_gain_init, h.train_seq_len, layer_idx=i, ln_scale=h.ln_scale)
+                  h.qk_gain_init, h.train_seq_len, layer_idx=i, ln_scale=h.ln_scale,
+                  qk_gain_init_schedule=h.qk_gain_init_schedule)
             for i in range(h.num_layers)
         ])
         if h.rope_dims > 0:
@@ -572,6 +580,19 @@ def classify_param(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn"
     return "other"
+
+
+def _resolve_qk_gain_for_layer(qk_gain_init: float, qk_gain_init_schedule: str, layer_idx: int) -> float:
+    """Return the qk_gain_init for a given layer index.
+
+    If qk_gain_init_schedule is a comma-separated list, index into it by layer_idx.
+    Falls back to the global qk_gain_init when schedule is empty or index is out of range.
+    """
+    if qk_gain_init_schedule:
+        parts = [float(x.strip()) for x in qk_gain_init_schedule.split(",") if x.strip()]
+        if layer_idx < len(parts):
+            return parts[layer_idx]
+    return qk_gain_init
 
 # ----------------------------------------
 # Optimization
