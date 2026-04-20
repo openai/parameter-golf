@@ -16,8 +16,9 @@ import subprocess
 import sys
 import time
 import uuid
-import zlib
 from pathlib import Path
+
+import brotli
 
 import numpy as np
 import sentencepiece as spm
@@ -32,8 +33,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # Hybrid ETD (Encode-Think-Decode) architecture:
 # - Unique encoder layers map input to latent space (with U-Net skip storage)
-# - Think layers share one MLP across depth with per-layer FiLM (gamma, beta)
-#   modulation; attention stays per-layer. The stack loops num_think_passes times.
+# - Shared "think" layers loop multiple times (iterative refinement)
 # - Unique decoder layers map back to output space (with U-Net skip consumption)
 # This combines the best of both worlds: unique capacity where layers do
 # fundamentally different jobs, and parameter-efficient looping where
@@ -522,6 +522,45 @@ def collect_hessians(model: nn.Module, train_loader: "DistributedTokenLoader", a
 
 
 # -----------------------------
+# COMPRESSION
+# -----------------------------
+# Byte-shuffle deinterleaves every `stride`-th byte into contiguous groups
+# before compression. For 16-bit data (fp16 scales, dtype metadata) this groups
+# high and low bytes together, exposing lower entropy to the entropy coder and
+# yielding better ratios than raw brotli on mixed-precision state dicts.
+
+_BSHF_MAGIC = b"BSHF"
+
+def byte_shuffle(data: bytes, stride: int = 2) -> bytes:
+    if stride <= 1 or len(data) < stride:
+        return data
+    src = np.frombuffer(data, dtype=np.uint8)
+    out = np.empty(len(src), dtype=np.uint8)
+    off = 0
+    for p in range(stride):
+        chunk = src[p::stride]
+        out[off:off + len(chunk)] = chunk
+        off += len(chunk)
+    return _BSHF_MAGIC + bytes([stride]) + out.tobytes()
+
+def byte_unshuffle(data: bytes) -> bytes:
+    if len(data) < 5 or data[:4] != _BSHF_MAGIC:
+        return data
+    stride = data[4]
+    if stride < 2:
+        return data[5:]
+    payload = np.frombuffer(data, dtype=np.uint8, offset=5)
+    n = len(payload)
+    out = np.empty(n, dtype=np.uint8)
+    off = 0
+    for p in range(stride):
+        k = n // stride + (1 if p < n % stride else 0)
+        out[p::stride][:k] = payload[off:off + k]
+        off += k
+    return out.tobytes()
+
+
+# -----------------------------
 # DATA LOADING
 # -----------------------------
 
@@ -734,45 +773,6 @@ class Block(nn.Module):
         return x
 
 
-class ThinkBlock(nn.Module):
-    # Like Block, but the MLP is shared across think layers and passed in at forward
-    # time; each layer gets its own FiLM (gamma, beta) modulation on the MLP input.
-    # Attention stays per-layer.
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        rope_base: float,
-        qk_gain_init: float,
-    ):
-        super().__init__()
-        self.has_mlp = mlp_mult > 0
-        self.attn_norm = RMSNorm()
-        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
-        if self.has_mlp:
-            self.mlp_norm = RMSNorm()
-            self.film_gamma = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-            self.film_beta = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-            self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
-
-    def forward(self, x: Tensor, x0: Tensor, shared_mlp: "MLP") -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        if self.has_mlp:
-            h = self.mlp_norm(x)
-            gamma = self.film_gamma.to(dtype=h.dtype)
-            beta = self.film_beta.to(dtype=h.dtype)
-            h = gamma[None, None, :] * h + beta[None, None, :]
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * shared_mlp(h)
-        return x
-
-
 class GPT(nn.Module):
     def __init__(
         self,
@@ -822,10 +822,8 @@ class GPT(nn.Module):
         # ENCODE: unique front layers (store U-Net skips)
         self.encoder_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_encoder_layers)])
 
-        # THINK: shared MLP across depth with per-layer FiLM; attention per-layer.
-        # Stack loops num_think_passes times.
-        self.think_blocks = nn.ModuleList([ThinkBlock(**think_block_args) for _ in range(num_think_layers)])
-        self.think_mlp = MLP(model_dim, think_mlp_mult) if think_mlp_mult > 0 else None
+        # THINK: shared layers looped num_think_passes times (configurable size)
+        self.think_blocks = nn.ModuleList([Block(**think_block_args) for _ in range(num_think_layers)])
 
         # Pass embedding for the think loop (distinguishes recursion depth)
         self.pass_emb = nn.Embedding(num_think_passes, model_dim)
@@ -875,7 +873,7 @@ class GPT(nn.Module):
             x = x + pass_vec.unsqueeze(0).unsqueeze(0)
 
             for block in self.think_blocks:
-                x = block(x, x0, self.think_mlp)
+                x = block(x, x0)
 
         # ---- DECODE: unique layers, consume skips in reverse ----
         for i, block in enumerate(self.decoder_blocks):
@@ -1022,14 +1020,12 @@ def main() -> None:
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
-    # Collect all block params across encoder, think, decoder (plus the shared think MLP)
+    # Collect all block params across encoder, think, decoder
     all_block_named_params = (
         list(base_model.encoder_blocks.named_parameters())
         + list(base_model.think_blocks.named_parameters())
         + list(base_model.decoder_blocks.named_parameters())
     )
-    if base_model.think_mlp is not None:
-        all_block_named_params += [(f"think_mlp.{n}", p) for n, p in base_model.think_mlp.named_parameters()]
     matrix_params = [
         p
         for name, p in all_block_named_params
@@ -1089,7 +1085,7 @@ def main() -> None:
     )
     log0(
         f"enc/dec_blocks: heads={args.num_heads} kv={args.num_kv_heads} mlp={args.mlp_mult}x | "
-        f"think_blocks: heads={args.think_num_heads} kv={args.think_kv_heads} mlp={args.think_mlp_mult}x (shared+film)"
+        f"think_blocks: heads={args.think_num_heads} kv={args.think_kv_heads} mlp={args.think_mlp_mult}x"
     )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
@@ -1302,7 +1298,7 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_blob = brotli.compress(byte_shuffle(quant_raw), quality=11)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1311,16 +1307,16 @@ def main() -> None:
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model int8+brotli: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int8+brotli: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(byte_unshuffle(brotli.decompress(quant_blob_disk))), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1330,10 +1326,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int8_brotli_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_int8_brotli_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
