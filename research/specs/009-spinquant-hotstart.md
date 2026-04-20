@@ -7,13 +7,14 @@
 
 ## Scope
 
-Sweep three SpinQuant modes **in one pod session**, selectable by `SPINQUANT_MODE` env var:
+Sweep four modes **in one pod session**, selectable by `SPINQUANT_MODE` env var:
 
-- **`internal_only`** (Option B) — only per-layer R_a^ℓ (V-out / O-in) and R_m^ℓ (fc-out / proj-in). Does not touch the residual stream, so none of #1736's per-channel residual multipliers matter. Low risk, expected −0.003 bpb.
-- **`full`** (Option A) — add residual-stream R₀ on top of internal rotations. Requires folding `attn_scale`, `mlp_scale`, `skip_weights` into adjacent linear rows; `resid_mix` handled by freeze-to-mean (accepting a small float-pass perturbation). Expected −0.005 bpb if the fold holds.
-- **`port_1695`** (Option C) — port #1695's rotation bookkeeping. Even if their approach is similar to A, running it is cheap and gives a third data point to cross-check against (tells us whether any difference in numbers comes from the method or from implementation noise).
+- **`baseline`** — no rotation. Loads `final_model.pt`, calls `serialize()` → `deserialize()` → eval + TTT. Produces our local post-TTT number for #1736 reproduction (the spec 008 gate number that was missed by the watcher-trigger bug). Doubles as the apples-to-apples baseline that the SpinQuant Δs are measured against.
+- **`internal_only`** (Option B) — only per-layer R_a^ℓ (V-out / O-in) and R_m^ℓ (fc-out / proj-in). Does not touch the residual stream, so none of #1736's per-channel residual multipliers matter. Low risk, expected −0.003 bpb vs baseline.
+- **`full`** (Option A) — add residual-stream R₀ on top of internal rotations. Requires folding `attn_scale`, `mlp_scale`, `skip_weights` into adjacent linear rows; `resid_mix` handled by freeze-to-mean (accepting a small float-pass perturbation). Expected −0.005 bpb vs baseline if the fold holds.
+- **`port_1695`** (Option C) — port #1695's rotation bookkeeping. Even if their approach is similar to A, running it is cheap and gives a third SpinQuant data point to cross-check against (tells us whether any difference in numbers comes from the method or from implementation noise).
 
-All three hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each, same checkpoint). Total ~30 min GPU time + ~$20 across the sweep.
+All four hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each). Total ~40 min GPU time, ~$27 across the sweep. `baseline` also closes the loop on spec 008's missed gate number — no separate eval-only rerun needed.
 
 ## Hypothesis
 
@@ -23,10 +24,11 @@ Hadamard rotation of weight matrices before GPTQ quantization (SpinQuant V1) spr
 
 Spec 008's reproduced seed-42 val_bpb (target ~1.06610 ± 0.003). Exact number is whatever spec 008 actually lands; this spec compares Δ against that.
 
-## Expected Δ (per mode, all vs spec 008 baseline)
+## Expected Δ (per mode, all vs local `baseline` mode)
 
 | Mode | Expected Δ (bpb) | Notes |
 |---|---|---|
+| `baseline` | 0 (reference) | closes the loop on spec 008's gate number; target ≈ 1.066 (within ±0.001 of #1736's 1.06610 reproduces training) |
 | `internal_only` | −0.002 to −0.004 | majority of SpinQuant benefit comes from internal rotations; clean, low-risk |
 | `full` | −0.004 to −0.007 | only if `resid_mix` freeze doesn't degrade too much |
 | `port_1695` | depends on #1695 | runs unconditionally — if their approach matches A, confirms implementation; if different, third data point |
@@ -218,7 +220,7 @@ Single seed (42), matching spec 008. Compares directly against spec 008's seed-4
 
 ## Execution protocol
 
-Single pod, three sequential runs — `internal_only` first (fastest signal + framework validation), then `full`, then optionally `port_1695`.
+Single pod, four sequential runs — `baseline` first (closes spec 008's missed gate number and establishes local eval reference), then `internal_only`, `full`, `port_1695`.
 
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
@@ -235,6 +237,17 @@ COMMON_ENV=(
   HOTSTART_FP_CKPT=/workspace/runs/008-1736-reproduction/seed_42/final_model.pt
   SEED=42
 )
+
+# Variant 0: baseline (closes the loop on spec 008's missed gate number)
+mkdir -p /workspace/runs/009-spinquant-hotstart/baseline
+env "${COMMON_ENV[@]}" \
+  ARTIFACT_DIR=/workspace/runs/009-spinquant-hotstart/baseline \
+  SPINQUANT_MODE=baseline \
+  torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
+  > /workspace/runs/009-spinquant-hotstart/baseline/run.log 2>&1
+
+# Gate: baseline post-TTT val_bpb should be within 0.003 of #1736's 1.06610.
+# If not, spec 008 reproduction issue — halt before running SpinQuant variants.
 
 # Variant B: internal-only
 mkdir -p /workspace/runs/009-spinquant-hotstart/internal_only
@@ -288,11 +301,14 @@ After all three complete: `runpodctl pod stop $POD_ID` per the default memory po
 | Item | Cost |
 |---|---|
 | Pod spin-up + framework compile warm-up | $2 |
-| Variant B `internal_only` (~10 min GPU) | $5 |
-| Variant A `full` (~10 min GPU) | $5 |
-| Variant C `port_1695` (~10 min GPU) | $5 |
+| `baseline` (~10 min GPU) — closes spec 008's missed gate number | $5 |
+| `internal_only` (~10 min GPU) | $5 |
+| `full` (~10 min GPU) | $5 |
+| `port_1695` (~10 min GPU) | $5 |
 | Buffer for debug (invariance mismatches, GPTQ hiccups) | $5 |
-| **Total** | **~$22** |
+| **Total** | **~$27** |
+
+Folds in spec 008's otherwise-separate ~$3 eval-only rerun, so net ~$24 of new spend (and 4 measured numbers vs 2 across two specs).
 
 Same `final_model.pt` hotstarts all three, so marginal cost per variant is just compute. The up-front integration work (building the unified `spinquant_hotstart.py` with toggle flags) is research-side, not execution-side — not on this budget line.
 
