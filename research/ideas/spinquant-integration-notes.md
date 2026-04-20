@@ -197,3 +197,47 @@ Step 8 is where a `run_ttt_eval(h, device, val_data)` helper in `train_gpt.py` (
 - Parent idea: `research/ideas/1736-improvement.md`
 - Code under review: `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py`
 - Reference PRs: #1695 (SpinQuant V1 on #1529-adjacent base), original SpinQuant paper (Liu et al. 2024).
+
+## Addendum (2026-04-20): how #1695 actually does it — different approach entirely
+
+Read `gh pr diff 1695` after writing spec 009's 2-mode implementation. **#1695's approach is not static weight rotation with folds — it's online activation rotation with rotated-basis GPTQ.** This is a materially different design from what my earlier analysis assumed.
+
+### #1695's design in 4 bullets
+
+- **4 global Hadamard rotations**, generated deterministically from `SPINQUANT_SEED` and a per-site `tag`:
+  - `R_attn_in` (d_model) — applied to residual x before Q/K/V projections: `x_qkv = x @ R_attn_in`
+  - `R_attn_proj_in` (d_model) — applied to attn output y before O projection: `y = y @ R_attn_proj_in`
+  - `R_mlp_in` (d_model) — applied to residual before fc: `x = x @ R_mlp_in`
+  - `R_mlp_proj_in` (d_ff) — applied to MLP hidden (post LeakyReLU^2) before proj: `hidden = hidden @ R_mlp_proj_in`
+- **Online at forward time**, not baked into weights. The rotations are `register_buffer`s on `CausalSelfAttention` and `MLP` modules, activated by a class-level flag `CastedLinear._sq_active`.
+- **OFF during training**, ON after deserialize for eval + TTT. Dynamo constant-folds the branch away during training.
+- **GPTQ Hessians are rotated accordingly** — `_spinquant_rotate_sd_and_H` (referenced in their diff) rotates the collected activation covariance matrices to match the rotated forward.
+
+### Why this works (and sidesteps both our blockers)
+
+1. **LeakyReLU problem vanishes.** `R_mlp_proj_in` is applied *after* `F.leaky_relu(...).square()`, not across it. No need to commute rotation through a nonlinearity.
+2. **`resid_mix` problem vanishes.** Rotations are per-linear-input, never on the residual stream. The residual keeps its original basis, so all per-channel multipliers (`attn_scale`, `mlp_scale`, `resid_mix`, `skip_weights`) operate in their trained basis — unchanged.
+3. **No float invariance needed.** The model *is* different from the un-rotated trained model. The bet: the rotation perturbation is small enough that post-quant val_bpb still improves, because GPTQ in the rotated basis sees more evenly distributed activation outliers.
+
+### Cost
+
+- Modifies `CausalSelfAttention.forward`, `MLP.forward`, and the TTT-path forward mirrors (two per block, parallel + sequential variants). ~100 LOC of forward-pass edits in `train_gpt.py`.
+- Rotation of GPTQ's collected Hessian — 1 function, probably ~30 LOC.
+- `install_spinquant_rotations(...)` to register buffers and flip the class flag — ~40 LOC (already visible in their diff).
+- Total: ~200 LOC of actual code change, but it's invasive (touches hot training/eval paths).
+
+### How this reframes our `full` / `port_1695` plan
+
+- **Drop the "static weight rotation with folds" design.** `full` mode as previously scoped (residual-stream R_0 + attn_scale/mlp_scale/skip_weights folds + resid_mix freeze-to-mean) is the textbook SpinQuant V1 approach, but #1695 demonstrates that the online-activation variant delivers the same claimed −0.005 bpb without any of the fold complexity.
+- **`port_1695` is the right follow-up, not `full`.** We should port their exact scheme: 4 rotation sites in the forward pass, rotated GPTQ Hessians, class-level activation flag. Much cleaner than trying to fold multipliers.
+- **Our R_a-only `internal_only` mode is still useful** as a fp-invariant sanity check and an independent data point. If R_a alone delivers ~−0.002 and port_1695's full online stack delivers ~−0.005, that tells us attention-internal and MLP/residual rotations each contribute roughly half — matching SpinQuant ablations in the literature.
+
+### Open sub-questions for the port
+
+1. Does their `install_spinquant_rotations` get called at a specific point in `train_and_eval`? Presumably after `deserialize()` and before the quantized eval. Confirm insertion point.
+2. Their `R_attn_proj_in` rotates `y` (attn output, shape `[B, T, num_heads * head_dim]`) entirely — not per-head. So this is a full d_model rotation on the concatenated attention output, not the per-head R_a I implemented. Related but different mathematical object.
+3. How do they handle the post-attention gates (`attn_out_gate`, `gated_attn`) that exist in #1736 but not in their base #1529? These gates multiply `y` per-head before out_proj. A post-gate rotation on the full d_model dim may compose cleanly (the gate is applied before, rotation after), but worth double-checking.
+4. GPTQ Hessian rotation — the exact expression for rotating `H = X^T X` when `X_new = X @ R`: `H_new = R^T @ H @ R`. Simple but needs to be applied to the right Hessians at the right time.
+5. Their `_spinquant_rotate_sd_and_H` also touches state_dict — do they rotate any weights statically as well? Need to read that function.
+
+This is worth a full follow-up spec (call it spec 011 — "port_1695: online Hadamard rotation with rotated GPTQ"). Not blocked on anything from spec 009; can be designed in parallel while 009 runs.
