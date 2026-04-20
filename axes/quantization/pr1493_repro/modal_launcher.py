@@ -386,6 +386,7 @@ def _run_quantize(
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
+    sparsity_threshold: float = 1.0,
 ) -> dict:
     os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "hf"))
     volume.reload()
@@ -420,6 +421,7 @@ def _run_quantize(
         "QUANT_FORMAT": quant_format,
         "PRUNE_FRACTION": str(prune_fraction),
         "PRUNE_METHOD": prune_method,
+        "SPARSITY_THRESHOLD": str(sparsity_threshold),
     })
 
     cmd = [
@@ -500,6 +502,7 @@ def quantize_1x_h100(
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
+    sparsity_threshold: float = 1.0,
 ) -> str:
     return json.dumps(
         _run_quantize(
@@ -513,6 +516,7 @@ def quantize_1x_h100(
             quant_format=quant_format,
             prune_fraction=prune_fraction,
             prune_method=prune_method,
+            sparsity_threshold=sparsity_threshold,
         ),
         indent=2, sort_keys=True,
     )
@@ -540,6 +544,7 @@ def main(
     quant_format: str = "uniform",
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
+    sparsity_threshold: float = 1.0,
     write_result: str = "",
 ) -> None:
     """Entrypoints:
@@ -588,6 +593,7 @@ def main(
             quant_format=quant_format,
             prune_fraction=prune_fraction,
             prune_method=prune_method,
+            sparsity_threshold=sparsity_threshold,
         )
     else:
         raise ValueError("mode must be 'prefetch', 'train', or 'quantize'")
