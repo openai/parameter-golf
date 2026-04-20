@@ -99,6 +99,11 @@ class Hyperparameters():
     # Quant-only mode: skip training, load checkpoint, run GPTQ+eval
     quant_only_checkpoint = os.environ.get("QUANT_ONLY_CHECKPOINT", "")
 
+    # Mixed-regime GPTQ calibration: independent batch counts for attn vs MLP Hessians
+    calib_split_by_module = bool(int(os.environ.get("CALIB_SPLIT_BY_MODULE", "0")))
+    calib_attn_batches = int(os.environ.get("CALIB_ATTN_BATCHES", "0"))  # 0 = use gptq_calibration_batches
+    calib_mlp_batches = int(os.environ.get("CALIB_MLP_BATCHES", "0"))   # 0 = use gptq_calibration_batches
+
     # Quantization & Compression
     compressor = os.environ.get('COMPRESSOR', 'brotli')
     gptq_calibration_batches = int(os.environ.get('GPTQ_CALIBRATION_BATCHES', 64))
@@ -799,6 +804,88 @@ def collect_hessians(
     return hessians
 
 
+def collect_hessians_split_by_module(
+    model: nn.Module,
+    train_loader: ShuffledSequenceLoader,
+    h: "Hyperparameters",
+    device: torch.device,
+) -> dict[str, Tensor]:
+    """Run separate Hessian collection passes for attn vs MLP modules.
+
+    Uses h.calib_attn_batches for attention layers and h.calib_mlp_batches for MLP layers
+    (both default to h.gptq_calibration_batches when set to 0). tok_emb uses the default.
+    Enables independent calibration schedules per module type.
+    """
+    n_attn = h.calib_attn_batches if h.calib_attn_batches > 0 else h.gptq_calibration_batches
+    n_mlp = h.calib_mlp_batches if h.calib_mlp_batches > 0 else h.gptq_calibration_batches
+
+    hessians: dict[str, Tensor] = {}
+
+    for module_cat, n_batches in [("attn", n_attn), ("mlp", n_mlp)]:
+        local_hessians: dict[str, Tensor] = {}
+        hooks = []
+
+        for name, module in model.named_modules():
+            if isinstance(module, CastedLinear) and module.weight.numel() > 65536:
+                if classify_param(name + ".weight") != module_cat:
+                    continue
+                param_key = name + ".weight"
+                local_hessians[param_key] = torch.zeros(
+                    module.weight.shape[1], module.weight.shape[1],
+                    dtype=torch.float32, device=device,
+                )
+                def make_hook(pk: str):
+                    def hook_fn(m, inp, out):
+                        x = inp[0].detach().float()
+                        if x.ndim == 3:
+                            x = x.reshape(-1, x.shape[-1])
+                        local_hessians[pk].addmm_(x.T, x)
+                    return hook_fn
+                hooks.append(module.register_forward_hook(make_hook(param_key)))
+
+        model.eval()
+        with torch.no_grad():
+            for _ in range(n_batches):
+                x, _ = train_loader.next_batch(h.train_batch_tokens, h.grad_accum_steps)
+                model.forward_logits(x)
+
+        for hook in hooks:
+            hook.remove()
+
+        for pk in local_hessians:
+            hessians[pk] = local_hessians[pk].cpu() / n_batches
+
+    # tok_emb Hessian via output of head_proj / final_norm (same as collect_hessians)
+    if model.tie_embeddings:
+        tok_hessians: dict[str, Tensor] = {}
+        hook_module = model.head_proj if model.head_proj is not None else model.final_norm
+
+        def make_output_hook(name: str):
+            def hook_fn(module, inp, out):
+                x = out.detach().float()
+                if x.ndim == 3:
+                    x = x.reshape(-1, x.shape[-1])
+                if name not in tok_hessians:
+                    tok_hessians[name] = torch.zeros(
+                        x.shape[1], x.shape[1], dtype=torch.float32, device=device
+                    )
+                tok_hessians[name].addmm_(x.T, x)
+            return hook_fn
+
+        tok_hook = hook_module.register_forward_hook(make_output_hook("tok_emb.weight"))
+        n_tok = h.gptq_calibration_batches
+        model.eval()
+        with torch.no_grad():
+            for _ in range(n_tok):
+                x, _ = train_loader.next_batch(h.train_batch_tokens, h.grad_accum_steps)
+                model.forward_logits(x)
+        tok_hook.remove()
+        for pk in tok_hessians:
+            hessians[pk] = tok_hessians[pk].cpu() / n_tok
+
+    return hessians
+
+
 def gptq_quantize_weight(
     w: Tensor,
     H: Tensor,
@@ -973,10 +1060,16 @@ def serialize(h: Hyperparameters, base_model: torch.nn.Module, code: str) -> tup
     log("GPTQ:collecting Hessians from calibration data...")
     t0 = time.perf_counter()
     calib_loader = ShuffledSequenceLoader(h, device)
-    hessians = collect_hessians(
-        base_model, calib_loader, h, device,
-        n_calibration_batches=h.gptq_calibration_batches,
-    )
+    if h.calib_split_by_module:
+        n_attn = h.calib_attn_batches if h.calib_attn_batches > 0 else h.gptq_calibration_batches
+        n_mlp = h.calib_mlp_batches if h.calib_mlp_batches > 0 else h.gptq_calibration_batches
+        log(f"GPTQ:mixed-regime split calibration attn={n_attn} mlp={n_mlp} batches")
+        hessians = collect_hessians_split_by_module(base_model, calib_loader, h, device)
+    else:
+        hessians = collect_hessians(
+            base_model, calib_loader, h, device,
+            n_calibration_batches=h.gptq_calibration_batches,
+        )
     log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter() - t0:.1f}s")
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
 
