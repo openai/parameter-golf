@@ -182,3 +182,48 @@ If you read TWO: add **Exclusive Self-Attention** (2603.09078) — the XSA paper
 If you read THREE: add **Universal Transformer** (1807.03819) — the foundational recurrence paper.
 
 Everything else is reference material.
+
+---
+
+## Recurrence schedule / when to activate (added 2026-04-21)
+
+### What the literature says
+
+1. **ProRes — Progressive Residual Warmup** — arXiv [2603.05369](https://arxiv.org/abs/2603.05369). Residual branches activate sequentially from shallow to deep with a coefficient warming 0→1 linearly. Shallow layers stabilize first.
+
+2. **Sparse Growing Transformer (SGT)** — arXiv [2603.23998](https://arxiv.org/abs/2603.23998). Recurrence activated in DEEPER layers FIRST, then extended to shallower. Claims deeper layers differentiate earlier in training.
+
+3. **Staged Training for Transformer LMs** — Shen et al, ICML 2022 ([PDF](https://proceedings.mlr.press/v162/shen22f/shen22f.pdf)). Progressive stacking with heuristic schedules (50K/70K/280K steps for 3/6/12 layer models).
+
+4. **Learning to Grow (LiGO)** — reuse pretrained smaller models as initialization for deeper ones. Saves ~44% FLOPs on BERT-Base pretraining.
+
+5. **Curriculum-Guided Layer Scaling (CGLS)** — arXiv [2506.11389](https://arxiv.org/abs/2506.11389). Couples progressive model expansion with data-complexity curriculum.
+
+### Key tensions in the literature
+
+- **ProRes / FreezeOut:** shallow layers converge first → freeze them early.
+- **SGT:** deeper layers differentiate first → activate recurrence there first.
+- **ILR:** early-layer recurrence beats late-layer recurrence (in their test).
+
+These are contradictory claims about WHERE convergence happens first. Likely architecture- and task-dependent. **Our stack's dynamics haven't been measured.**
+
+### Consistent claim across papers
+
+**Progressive/curriculum schedules beat hard switches** for training stability. #1736's current `enable_looping_at=0.35` is a hard switch — the literature would predict this is suboptimal but not catastrophic.
+
+### Candidate variants for "better timing"
+
+Ranked by cost:
+
+1. **Earlier activation:** `enable_looping_at=0.15` or `0.20`. Env var only. Cheap to test.
+2. **Later activation:** `enable_looping_at=0.50` or `0.70`. Env var only. Cheap to test.
+3. **Smooth ramp of NUM_LOOPS:** 0 → 1 at 35% → 2 at 60%. Code change, ~30-50 LOC.
+4. **Mixing-coefficient warmup:** blend single-forward and looped output via α that ramps from 0 to 1. Code change, moderate.
+5. **Progressive layer expansion (SGT-style):** layer-specific activation schedule. Complex; probably not worth the budget.
+
+### Honest assessment for our decision
+
+- The literature is NOT conclusive. Progressive > hard is consistent, but specific schedules vary.
+- Variants 1 and 2 are env-var-only and could be tested in a 3-run sweep (~$15 total in screening mode).
+- Variants 3 and 4 need code changes; higher risk of bugs per our Edit-split-block lesson.
+- Running a 3-point sweep of `enable_looping_at` on spec 008 would generate empirically-grounded data about OUR stack's dynamics, which neither the ILR nor SGT papers provide.
