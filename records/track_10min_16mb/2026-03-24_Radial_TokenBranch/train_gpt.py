@@ -29,19 +29,13 @@ import torch.nn.functional as F
 import sentencepiece as spm
 
 # ------------------------------------------------------------
-# H100 / CUDA
+# H100 / CUDA  (globals set lazily inside main() for CPU import compat)
 # ------------------------------------------------------------
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
-
-assert torch.cuda.is_available(), "CUDA non disponibile"
-DEVICE = torch.device("cuda")
-GPU_NAME = torch.cuda.get_device_name(0)
-GPU_MEM_GB = torch.cuda.get_device_properties(0).total_memory / 1e9
-AMP_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
 # ------------------------------------------------------------
 # CONFIG
@@ -337,6 +331,9 @@ def artifact_audit(model_gpu, out_path):
     print(f"\n=== AUDIT ===\nModel: {m_bytes:,}\nCode:  {c_bytes:,}\nTotal: {m_bytes+c_bytes:,}\nPASS ✅" if m_bytes+c_bytes <= 16_000_000 else "FAIL ❌")
 
 def main():
+    assert torch.cuda.is_available(), "CUDA non disponibile"
+    DEVICE = torch.device("cuda")
+    AMP_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     torch.manual_seed(1337)
     model = DualArchitectureRadialHashDisciplined().to(DEVICE)
     ema_m = DualArchitectureRadialHashDisciplined().to(DEVICE); ema_m.load_state_dict(model.state_dict())
