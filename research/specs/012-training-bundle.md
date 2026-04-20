@@ -68,18 +68,18 @@ Everything else identical. `QK_GAIN_INIT` left at the default 5.0 (not changed f
 
 ### Early-stop guidance (on the 8×H100 rung)
 
-Watch `train.log` via `tail -f`. Every `TRAIN_LOG_EVERY` steps, it emits `{step}/{iterations} train_loss: X.XXXX`. Compare against spec 008's log at matched step.
+**Protocol:** executor + user both monitor `train.log` via `tail -f` once training is underway. Every `TRAIN_LOG_EVERY` steps the run emits `{step}/{iterations} train_loss: X.XXXX`. Compare against spec 008's log at matched step.
 
-**Kill criterion (after step ≥ 2000, to let warmup + momentum settle):**
-- Spec 012's train_loss ≥ spec 008's train_loss + 0.01 for 3+ consecutive log entries → terminate pod. Saves the ~$4 of TTT+eval phase.
+**Kill-the-pod decision is a joint call, not an automatic trigger.** Things to flag for discussion:
+- Consistently worse than spec 008 (by any visible margin) across multiple late-training log entries, trend not improving.
+- train_loss plateau that looks qualitatively different from spec 008's curve.
+- NaN, inf, or step-time blow-up → automatic kill (these are bugs, not regressions).
 
-**Let-it-finish criterion:** within ±0.005 of spec 008 at matched steps → finish the run, the post-TTT delta is where the signal is.
-
-**Strong early positive:** spec 012's train_loss ≤ spec 008's train_loss − 0.005 at step 2000 → let it finish, likely a real win.
+**Default if in doubt:** let it finish. The $4 saved by early-terminating isn't worth killing a run that might still deliver a real post-TTT delta. Spec 010/010b showed TTT absorbs some upstream deltas; a "neutral train_loss" can still produce a non-trivial post-TTT win.
 
 **Caveats:**
-1. Train_loss is on training data, not val. In principle a lower train_loss can coexist with higher val_bpb (overfitting), but in a 600s data-bound run this is unlikely.
-2. GPTQ + TTT can redistribute bpb. Spec 010/010b showed TTT absorbs some upstream deltas; a "neutral train_loss" can still produce a non-trivial post-TTT delta. So treat train_loss as a *lower bound* on the bad case — if it's clearly worse, kill; if it's ambiguous, let it finish.
+1. Train_loss is on training data, not val. Lower train_loss can coexist with higher val_bpb (overfitting), though in a 600s data-bound run this is unlikely.
+2. Treat train_loss as a *lower bound* on the bad case — clearly worse → discuss killing; ambiguous → finish.
 
 ## Seed plan
 
