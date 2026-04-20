@@ -1,6 +1,43 @@
-# Literature notes — recurrence + parallel residuals + XSA
+# Recurrence research thread (active) + literature
 
-**Purpose:** Background reading list for the "training-side architecture" research thread. Not meant to be read cover-to-cover; use as a reference when designing experiments.
+**Status:** 🟢 ACTIVE — recurrence is the active research focus as of 2026-04-21. Kicking off this session.
+**Goal:** find one recurrence-class experiment worth running within the remaining ~10-day deadline window.
+**Budget envelope:** ~$30 for exploratory runs, reserve ~$60–80 for a 3-seed final submission.
+
+## What we're doing today (2026-04-21)
+
+1. ✅ Literature gathered on recurrence, parallel residuals, XSA, recurrence-schedule research.
+2. ✅ Key tensions identified:
+   - ILR says early-layer recurrence wins; SGT says deep-layer activation first.
+   - Progressive schedules consistently beat hard switches.
+3. ✅ Observed that switching recurrence position via `LOOP_START/LOOP_END` is a **composite change** (recurrence + encoder/decoder split + U-Net skip routing) — not an isolation test.
+4. ⏳ **Decision pending:** which recurrence experiment to actually run (see "Candidate experiments" below).
+
+## Candidate experiments, ranked
+
+| # | Experiment | Isolation | Cost | Expected signal |
+|---|---|---|---|---|
+| 1 | **Timing sweep:** `enable_looping_at ∈ {0.15, 0.35, 0.55}` | Clean | ~$15 (3 screening) | Tests if progressive-schedule literature transfers |
+| 2 | **Position test:** `LOOP_START=0 LOOP_END=1` (vs baseline 4,5) | **Confounded** (also shifts encoder/decoder split + U-Net routing) | ~$20 | Tests ILR claim, but attribution is messy |
+| 3 | **Code-change clean position test:** add ENCODER_END_LAYER knob to decouple encoder/decoder split from loop position | Clean | ~$25 (code + run) | Isolates ILR claim but risks code bugs |
+| 4 | **Cross-pass XSA** (novel): subtract pass-N-1 component from pass-N during recurrence | Clean | ~$25 (code + run) | Genuinely novel, connects XSA + recurrence |
+| 5 | **Progressive ramp:** smooth NUM_LOOPS curriculum 0 → 2 | Clean but complex | ~$30 (code + run) | Tests progressive-beats-hard-switch literature claim |
+
+## Decision criteria
+
+- **Cheapest informative option:** #1 (timing sweep). Data about OUR stack, zero code risk.
+- **Most novel option:** #4 (cross-pass XSA). Unstudied in literature.
+- **Highest-confidence option:** #1 (timing sweep), because the "progressive beats hard switch" claim is the most consistent finding across multiple papers.
+
+## Recommendation
+
+**Start with #1 (timing sweep, ~$15).** Gives us empirical data about our specific stack's sensitivity to recurrence schedule, which neither ILR nor SGT papers provide. If timing sweep reveals strong sensitivity, follow up with either #3 or #4 based on what the curve suggests.
+
+If timing sweep is flat (0.15 ≈ 0.35 ≈ 0.55), we've learned that recurrence timing isn't the lever on our stack. Pivot to either #4 (novel) or commit to 3-seed ship on spec 008.
+
+---
+
+**Purpose (below):** Background reading list for the "training-side architecture" research thread. Not meant to be read cover-to-cover; use as a reference when designing experiments.
 **Date compiled:** 2026-04-21.
 
 ## XSA — what's actually in our code
