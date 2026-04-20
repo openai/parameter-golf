@@ -1,5 +1,7 @@
 # Spec 014 — BPB-weighted cross-entropy loss (port from #1519)
 
+**Status:** 🗄️ **SHELVED 2026-04-21.** Ran as screening on seed 42; result +0.0619 bpb vs spec 008 (catastrophic regression). See `research/evaluations/014-bpb-weighted-loss.md` for decision rationale. Do NOT re-run under this push; post-deadline only.
+
 **Slug:** `bpb-weighted-loss`
 **Created:** 2026-04-20
 **Links to idea:** `research/ideas/bpb-weighted-loss.md`.
