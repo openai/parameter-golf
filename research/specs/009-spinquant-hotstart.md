@@ -11,9 +11,9 @@ Sweep three SpinQuant modes **in one pod session**, selectable by `SPINQUANT_MOD
 
 - **`internal_only`** (Option B) — only per-layer R_a^ℓ (V-out / O-in) and R_m^ℓ (fc-out / proj-in). Does not touch the residual stream, so none of #1736's per-channel residual multipliers matter. Low risk, expected −0.003 bpb.
 - **`full`** (Option A) — add residual-stream R₀ on top of internal rotations. Requires folding `attn_scale`, `mlp_scale`, `skip_weights` into adjacent linear rows; `resid_mix` handled by freeze-to-mean (accepting a small float-pass perturbation). Expected −0.005 bpb if the fold holds.
-- **`port_1695`** (Option C, conditional) — port #1695's rotation bookkeeping exactly. Only run if `gh pr diff 1695` reveals an approach meaningfully different from Options A/B (e.g. a cleaner `resid_mix` handling we can adopt).
+- **`port_1695`** (Option C) — port #1695's rotation bookkeeping. Even if their approach is similar to A, running it is cheap and gives a third data point to cross-check against (tells us whether any difference in numbers comes from the method or from implementation noise).
 
-All three hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each, same checkpoint). Total ~30 min GPU time + ~$15–20 across the sweep.
+All three hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each, same checkpoint). Total ~30 min GPU time + ~$20 across the sweep.
 
 ## Hypothesis
 
@@ -29,7 +29,7 @@ Spec 008's reproduced seed-42 val_bpb (target ~1.06610 ± 0.003). Exact number i
 |---|---|---|
 | `internal_only` | −0.002 to −0.004 | majority of SpinQuant benefit comes from internal rotations; clean, low-risk |
 | `full` | −0.004 to −0.007 | only if `resid_mix` freeze doesn't degrade too much |
-| `port_1695` | depends on #1695 | only runs if their approach is meaningfully different |
+| `port_1695` | depends on #1695 | runs unconditionally — if their approach matches A, confirms implementation; if different, third data point |
 
 Null or positive Δ on `internal_only` → implementation bug (almost certainly a banked-slice misalignment); halt the sweep and debug before proceeding to `full`.
 
@@ -255,7 +255,7 @@ env "${COMMON_ENV[@]}" \
   torchrun --standalone --nproc_per_node=8 spinquant_hotstart.py \
   > /workspace/runs/009-spinquant-hotstart/full/run.log 2>&1
 
-# Variant C: only if #1695's approach is meaningfully different from A. Skip otherwise.
+# Variant C: always run.
 mkdir -p /workspace/runs/009-spinquant-hotstart/port_1695
 env "${COMMON_ENV[@]}" \
   ARTIFACT_DIR=/workspace/runs/009-spinquant-hotstart/port_1695 \
@@ -290,10 +290,9 @@ After all three complete: `runpodctl pod stop $POD_ID` per the default memory po
 | Pod spin-up + framework compile warm-up | $2 |
 | Variant B `internal_only` (~10 min GPU) | $5 |
 | Variant A `full` (~10 min GPU) | $5 |
-| Variant C `port_1695` (~10 min GPU, optional) | $5 |
+| Variant C `port_1695` (~10 min GPU) | $5 |
 | Buffer for debug (invariance mismatches, GPTQ hiccups) | $5 |
-| **Total (A+B)** | **~$17** |
-| **Total (A+B+C)** | **~$22** |
+| **Total** | **~$22** |
 
 Same `final_model.pt` hotstarts all three, so marginal cost per variant is just compute. The up-front integration work (building the unified `spinquant_hotstart.py` with toggle flags) is research-side, not execution-side — not on this budget line.
 
