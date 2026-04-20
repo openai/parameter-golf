@@ -1,0 +1,7 @@
+torch
+sentencepiece
+zstandard
+brotli
+flash-attn
+flash-linear-attention
+numpy
