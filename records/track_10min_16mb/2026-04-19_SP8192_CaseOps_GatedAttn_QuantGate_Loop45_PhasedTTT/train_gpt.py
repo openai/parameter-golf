@@ -2344,11 +2344,16 @@ def _compressed_code_size(code):
 
 
 def serialize(h, base_model, code):
-    code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
     if h.is_main_process:
         torch.save(base_model.state_dict(), h.model_path)
         model_bytes = os.path.getsize(h.model_path)
         log(f"Serialized model: {model_bytes} bytes")
+    try:
+        code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        code_bytes_uncompressed, code_bytes = len(code.encode("utf-8")), 0
+        log(f"pyminify unavailable ({type(e).__name__}); skipping compressed-code-size measurement")
+    if h.is_main_process:
         log(f"Code size (uncompressed): {code_bytes_uncompressed} bytes")
         log(f"Code size (compressed): {code_bytes} bytes")
     sd_cpu = _unbank_state_dict(base_model.state_dict(), h.num_layers)

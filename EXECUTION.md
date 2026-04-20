@@ -68,6 +68,7 @@ On receiving spec number `NNN`:
 - [ ] PyTorch version matches spec (default: what `train_gpt_sota.py` expects — check the file).
 - [ ] `sentencepiece` installed in pod (user memory: this needs explicit pip install).
 - [ ] `brotli` installed (`pip install brotli --break-system-packages -q` — container disk, reinstalls on every pod start).
+- [ ] `python-minifier` installed (`pip install python-minifier --break-system-packages -q` — supplies the `pyminify` binary used by `serialize()`'s `_compressed_code_size()`. Missing it no longer crashes the run (train_gpt wraps in try/except), but the submission-size measurement is skipped without it, so install it for any full-pipeline / submission run.).
 - [ ] Data path from spec exists. The real path is `/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/`, not `/workspace/data/...`. Verify via `ls`.
 - [ ] Tokenizer file present at `/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model`.
 - [ ] Checkpoint dir writeable (`CKPT_DIR` env var set, directory created with `mkdir -p` before launch so `setsid` redirects don't fail).
