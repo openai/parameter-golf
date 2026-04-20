@@ -52,7 +52,7 @@ Everything else identical. `QK_GAIN_INIT` left at the default 5.0 (not changed f
 ## Code changes
 
 - **Branch:** `exp/training-bundle` (worktree at `worktrees/training-bundle/`).
-- **Commit:** `8d54854`.
+- **Commit:** `893cefd` (fixes rotary-reassignment bug in 8d54854; see commit message).
 - **Patch target:** `records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py`.
 - **Patch scope:** Add four new `Hyperparameters` fields (with no-op defaults) + three small insertion points:
   - `WD_TAPER_*` — mutate `group["weight_decay"]` in the training loop when `step >= start_step`.
