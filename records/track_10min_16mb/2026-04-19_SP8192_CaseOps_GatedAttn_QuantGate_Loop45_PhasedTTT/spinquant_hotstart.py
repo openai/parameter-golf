@@ -64,6 +64,7 @@ from train_gpt import (  # type: ignore[import-not-found]
     GPT,
     Hyperparameters,
     ValidationData,
+    _rebank_state_dict,
     deserialize,
     eval_val,
     eval_val_ttt_phased,
@@ -385,6 +386,18 @@ def main() -> int:
     # Some state_dict saves are the raw dict; some wrap under 'model'. Tolerate both.
     if isinstance(sd, dict) and "state_dict" in sd and "qo_bank" not in sd:
         sd = sd["state_dict"]
+    # Spec 008's SAVE_PRE_GPTQ patch saves the unbanked flat state_dict (per-layer
+    # blocks.N.attn.c_q.weight keys) produced by _unbank_state_dict at train_gpt.py
+    # line 2079. The GPT model uses banked tensors (qo_bank, kv_bank, mlp_*_bank),
+    # so rebank before load_state_dict or every banked weight silently stays at
+    # its init value.
+    if "qo_bank" not in sd:
+        head_dim = h.model_dim // h.num_heads
+        kv_dim = h.num_kv_heads * head_dim
+        hidden_dim = int(h.mlp_mult * h.model_dim)
+        sd = _rebank_state_dict(sd, h.num_layers, h.model_dim, kv_dim, hidden_dim)
+        # Move rebanked tensors to target device (train_gpt's _rebank builds on CPU).
+        sd = {k: v.to(device) if torch.is_tensor(v) else v for k, v in sd.items()}
     missing, unexpected = base_model.load_state_dict(sd, strict=False)
     if missing:
         log(f"spinquant_hotstart: state_dict missing keys: {missing[:10]}"
