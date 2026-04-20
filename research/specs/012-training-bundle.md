@@ -1,4 +1,4 @@
-# Spec 012 — Training-time bundle (tapered WD + GradPower + softer QK-gain)
+# Spec 012 — Training-time bundle (tapered WD + GradPower)
 
 **Slug:** `training-bundle`
 **Created:** 2026-04-20
@@ -7,13 +7,14 @@
 
 ## Hypothesis
 
-Three **training-time, upstream-of-TTT** levers stack additively on #1736:
+Two **training-time, upstream-of-TTT** levers stack additively on #1736:
 
 1. **Tapered Muon WD** (port #1729): full WD early → half WD after 70% of steps.
 2. **GradPower p=0.9** for Muon (port #1682): softens pre-orthogonalization gradient magnitudes.
-3. **Softer uniform QK-gain init=2.5** (port #1648, simplified): reduces over-sharp attention at init.
 
-Each is env-gated and independently isolable by a single env-var flip. All three default to no-op when unset → train_gpt.py is byte-compatible with spec 008.
+Each is env-gated and independently isolable. Both default to no-op when unset → train_gpt.py is byte-compatible with spec 008.
+
+**Dropped from first-pass:** softer QK_GAIN (port #1648). Highest-risk lever; deferred to spec 013 if 012 lands cleanly. Keeps attribution between WD and GradPower only, and avoids the scenario where QK regression masks a WD or GradPower win.
 
 ## Baseline
 
@@ -23,10 +24,9 @@ Spec 008's seed-42 val_bpb (`runs/008-1736-reproduction/seed_42/final.json`). Co
 
 - Tapered WD alone: −0.0005 to −0.002 (thin)
 - GradPower alone: −0.001 to −0.003
-- QK-gain 5.0 → 2.5 alone: **unknown; could be −0.002 to −0.005 OR could regress**
-- Bundled: conservatively −0.001 to −0.004 (some interaction / non-additive absorption expected)
+- Bundled (WD + GradPower): **−0.0015 to −0.004** (roughly additive, some overlap possible)
 
-**Headline risk:** QK-gain change is the biggest unknown. Softer init is plausible per #1648's convergence evidence but may interact badly with #1736's specific stack. Isolation follow-up run needed if bundle regresses.
+**Headline risk:** Both levers are training-time, upstream of TTT. Our spec 010/010b finding shows TTT absorbs upstream deltas unevenly; post-TTT Δ may be smaller than pre-TTT Δ.
 
 ## Accept criteria
 
@@ -34,10 +34,10 @@ Spec 008's seed-42 val_bpb (`runs/008-1736-reproduction/seed_42/final.json`). Co
 - Post-quant post-TTT val_bpb measured.
 - Artifact < 16 MB, within time budget.
 - **Decision criterion:**
-  - Δ ≤ −0.002 → promote, run isolation (three single-flag runs) to attribute.
-  - Δ ∈ (−0.002, −0.0005] → promote cautiously, isolate the positive flag(s).
-  - Δ ∈ (−0.0005, +0.001) → null bundle; run flag-isolation mini to find if any single flag helps alone.
-  - Δ > +0.001 → regression (likely QK-gain). Run with `QK_GAIN_INIT=5.0` restored (WD+GradPower only) as second attempt.
+  - Δ ≤ −0.002 → promote, run two single-flag isolation runs (WD-only, GradPower-only) to attribute.
+  - Δ ∈ (−0.002, −0.0005] → promote cautiously, isolate.
+  - Δ ∈ (−0.0005, +0.001) → null bundle; consider flag-isolation mini or kill both.
+  - Δ > +0.001 → regression; investigate before retrying.
 
 ## Config diff vs spec 008
 
@@ -45,10 +45,9 @@ Spec 008's seed-42 val_bpb (`runs/008-1736-reproduction/seed_42/final.json`). Co
 WD_TAPER_START_FRAC=0.70
 WD_TAPER_FINAL_MULT=0.50
 MUON_GRAD_POWER=0.9
-QK_GAIN_INIT=2.5
 ```
 
-Everything else identical.
+Everything else identical. `QK_GAIN_INIT` left at the default 5.0 (not changed for this run).
 
 ## Code changes
 
@@ -64,8 +63,23 @@ Everything else identical.
 
 ## Hardware ladder
 
-- [x] **8×H100 full training run, seed 42.** Same as spec 008. ~30 min wall + TTT eval. ~$20.
-- Optional mini on 2×H100 with reduced steps only if the code patch lands late and we need a quick NaN check. Skip if patch is clean.
+- [x] **Smoke test: 2×H100, short run (~5 min, ~$1).** Purpose: confirm the code patch doesn't crash, NaN, or divergence-bomb. **Do NOT read val_bpb from this rung** — batch-size regime differs from 8×H100, so any Δ is ambiguous. Pass criterion: 500+ training steps complete, train_loss curve smooth (no NaN, not diverging). Typical invocation: `ITERATIONS=500 torchrun --nproc_per_node=2 train_gpt.py`.
+- [x] **8×H100 full training run, seed 42.** Same as spec 008. ~30 min wall + TTT eval. ~$20. Read post-TTT val_bpb from `final.json` here.
+
+### Early-stop guidance (on the 8×H100 rung)
+
+Watch `train.log` via `tail -f`. Every `TRAIN_LOG_EVERY` steps, it emits `{step}/{iterations} train_loss: X.XXXX`. Compare against spec 008's log at matched step.
+
+**Kill criterion (after step ≥ 2000, to let warmup + momentum settle):**
+- Spec 012's train_loss ≥ spec 008's train_loss + 0.01 for 3+ consecutive log entries → terminate pod. Saves the ~$4 of TTT+eval phase.
+
+**Let-it-finish criterion:** within ±0.005 of spec 008 at matched steps → finish the run, the post-TTT delta is where the signal is.
+
+**Strong early positive:** spec 012's train_loss ≤ spec 008's train_loss − 0.005 at step 2000 → let it finish, likely a real win.
+
+**Caveats:**
+1. Train_loss is on training data, not val. In principle a lower train_loss can coexist with higher val_bpb (overfitting), but in a 600s data-bound run this is unlikely.
+2. GPTQ + TTT can redistribute bpb. Spec 010/010b showed TTT absorbs some upstream deltas; a "neutral train_loss" can still produce a non-trivial post-TTT delta. So treat train_loss as a *lower bound* on the bad case — if it's clearly worse, kill; if it's ambiguous, let it finish.
 
 ## Seed plan
 
@@ -96,14 +110,13 @@ GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 WD_TAPER_START_FRAC=0.70 \
 WD_TAPER_FINAL_MULT=0.50 \
 MUON_GRAD_POWER=0.9 \
-QK_GAIN_INIT=2.5 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
   > /workspace/runs/012-training-bundle/seed_42/train.log 2>&1
 ```
 
 Expected log lines at start:
-- `TRAINING_BUNDLE: wd_taper=0.70→0.50, muon_grad_power=0.9, qk_gain=2.5`
+- `training_bundle: wd_taper_start_frac=0.7 wd_taper_final_mult=0.5 muon_grad_power=0.9 qk_gain_init=5.0 qk_gain_per_layer=''`
 
 ## Checkpoints to emit
 
@@ -122,21 +135,22 @@ Expected log lines at start:
 
 ## Follow-up runs (if bundle lands)
 
-- **Isolation run #1:** QK_GAIN_INIT=5.0 (restore), WD_TAPER + GradPower only → attribute the QK contribution.
-- **Isolation run #2:** MUON_GRAD_POWER=1.0, WD_TAPER + QK only → attribute GradPower.
-- **Isolation run #3:** WD_TAPER_START_FRAC=0, GradPower + QK only → attribute WD taper.
+- **Isolation run #1:** MUON_GRAD_POWER=1.0, WD_TAPER on → attribute GradPower.
+- **Isolation run #2:** WD_TAPER_START_FRAC=0, GradPower on → attribute WD taper.
 
-Three single-flag runs = ~$60 additional spend. Only do this if bundle lands Δ ≤ −0.002.
+Two single-flag runs = ~$40 additional spend. Only do this if bundle lands Δ ≤ −0.002.
+
+**Spec 013 (queued):** softer QK_GAIN (5.0 → 2.5 uniform, then per-layer if uniform wins). Was part of 012's first draft but deferred as highest-regression-risk lever. Run only after 012 lands and we've confirmed the stack is healthy.
 
 ## Open questions for interview
 
-1. Should the first pass use `QK_GAIN_INIT=2.5` (uniform softer) or the full 11-value `QK_GAIN_PER_LAYER` list? Plan uses uniform for simplicity — per-layer requires convergence runs we haven't done.
-2. Should tapered WD apply to Muon only (per #1729) or also Adam? Plan uses Muon only.
-3. If bundle regresses, do we rerun immediately with `QK_GAIN_INIT=5.0` restored, or pause for analysis? Plan: rerun immediately, QK is the most likely culprit.
+1. Should tapered WD apply to Muon only (per #1729) or also Adam? Plan uses Muon only.
+2. Is the WD taper linear (current) or cosine? #1729's README implies linear; easy to swap if cosine preferred.
 
 ## What this spec does NOT do
 
-- Does not include xIELU activation or symmetric resid_mix from #1648 — deferred to potential spec 013.
+- Does not change `QK_GAIN_INIT` (deferred to spec 013).
+- Does not include xIELU activation or symmetric resid_mix from #1648 — deferred.
 - Does not include Tap-In (#1555) — eval-time lever, separate spec.
 - Does not include trajectory-state readout (#1676) — deferred.
 - Does not run 3-seed — single-seed screen only.
