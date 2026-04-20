@@ -7,14 +7,18 @@
 
 ## Scope
 
-Sweep four modes **in one pod session**, selectable by `SPINQUANT_MODE` env var:
+**This session implements two modes. Two more are deferred to a follow-up spec while modes 1–2 run on the pod.**
 
-- **`baseline`** — no rotation. Loads `final_model.pt`, calls `serialize()` → `deserialize()` → eval + TTT. Produces our local post-TTT number for #1736 reproduction (the spec 008 gate number that was missed by the watcher-trigger bug). Doubles as the apples-to-apples baseline that the SpinQuant Δs are measured against.
-- **`internal_only`** (Option B) — only per-layer R_a^ℓ (V-out / O-in) and R_m^ℓ (fc-out / proj-in). Does not touch the residual stream, so none of #1736's per-channel residual multipliers matter. Low risk, expected −0.003 bpb vs baseline.
-- **`full`** (Option A) — add residual-stream R₀ on top of internal rotations. Requires folding `attn_scale`, `mlp_scale`, `skip_weights` into adjacent linear rows; `resid_mix` handled by freeze-to-mean (accepting a small float-pass perturbation). Expected −0.005 bpb vs baseline if the fold holds.
-- **`port_1695`** (Option C) — port #1695's rotation bookkeeping. Even if their approach is similar to A, running it is cheap and gives a third SpinQuant data point to cross-check against (tells us whether any difference in numbers comes from the method or from implementation noise).
+Modes selectable by `SPINQUANT_MODE` env var:
 
-All four hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each). Total ~40 min GPU time, ~$27 across the sweep. `baseline` also closes the loop on spec 008's missed gate number — no separate eval-only rerun needed.
+- **`baseline`** (implemented) — no rotation. Loads `final_model.pt`, calls `serialize()` → `deserialize()` → eval + TTT. Produces our local post-TTT number for #1736 reproduction (the spec 008 gate number that was missed by the watcher-trigger bug). Doubles as the apples-to-apples reference that SpinQuant Δs are measured against.
+- **`internal_only`** (implemented) — per-layer attention internal rotation **R_a only** (V-out / O-in, per KV-group). Float-invariant by construction (softmax(QKᵀ)V is rotation-equivariant in V's d_head axis). Does NOT include MLP internal rotation R_m, because #1736's MLP nonlinearity (LeakyReLU(slope=0.5)→square) is not rotation-equivariant. Expected Δ: −0.001 to −0.002 bpb vs baseline (R_a alone is ~half of full internal SpinQuant's benefit).
+- **`full`** (DEFERRED to follow-up spec) — would add residual-stream R₀ with per-channel multiplier folds (attn_scale, mlp_scale, skip_weights) and `resid_mix` freeze-to-mean. Deferred because the fold design needs discussion (see integration notes + `resid_mix` issue). Script will reject `SPINQUANT_MODE=full` with a helpful error.
+- **`port_1695`** (DEFERRED) — pending read of `#1695`'s actual diff. Script rejects with "not implemented yet."
+
+Modes 1–2 hotstart off the same `final_model.pt` and run back-to-back on one pod (~10 min compute each). Total ~20 min GPU, ~$12–15. `baseline` closes spec 008's missed gate number in the same session.
+
+**Why the scope cut:** the MLP LeakyReLU breaks `R_m` float-invariance without either (a) sign-only rotations (tiny benefit) or (b) accepting model perturbation (non-zero-cost transform, needs empirical justification). The residual-stream rotation in `full` has the separate `resid_mix` problem. Both are legitimate research directions but shouldn't block the 2-mode first pass.
 
 ## Hypothesis
 
