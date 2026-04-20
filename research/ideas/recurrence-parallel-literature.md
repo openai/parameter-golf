@@ -7,33 +7,66 @@
 ## What we're doing today (2026-04-21)
 
 1. ✅ Literature gathered on recurrence, parallel residuals, XSA, recurrence-schedule research.
-2. ✅ Key tensions identified:
-   - ILR says early-layer recurrence wins; SGT says deep-layer activation first.
-   - Progressive schedules consistently beat hard switches.
-3. ✅ Observed that switching recurrence position via `LOOP_START/LOOP_END` is a **composite change** (recurrence + encoder/decoder split + U-Net skip routing) — not an isolation test.
-4. ⏳ **Decision pending:** which recurrence experiment to actually run (see "Candidate experiments" below).
+2. ✅ Reviewed **PG-internal recurrence history** (#8 → #363 → #1285 → #1204 → #1334 → #1394 → Pavel's 857de47 → #1663 → #1697 → #1726 → #1736 → #1714 → #1678 → #1739).
+3. ✅ **Confirmed actual baseline config:** #1736 uses `NUM_LOOPS=2, LOOP_START=3, LOOP_END=5, ENABLE_LOOPING_AT=0.35` — i.e., **Loop345 (3 layers × 3 passes = 17 virtual layers)**, not "Loop45" as directory name suggests.
+4. ⏳ **Decision pending:** which recurrence experiment to actually run (see "Candidate experiments, DISPROVEN and SURVIVING" below).
 
-## Candidate experiments, ranked
+## PG-internal recurrence findings (takes priority over outside literature for OUR stack)
 
-| # | Experiment | Isolation | Cost | Expected signal |
+| Experiment | PR | Result |
+|---|---|---|
+| Naive loop on unquantized (flat vs looped) | #363 | Looped +0.025 worse; quantization error compounds superlinearly through repeated weights |
+| Noisy QAT fixes quant-recurrence interaction | #363 | Quant gap 0.37 → 0.002 bpb |
+| WD raise 0.085→0.090 enables all-int6 | #1285 (dexhunter) | First working record; WD-quant synergy |
+| Step-3000 onset first used | #1204 | Prior to this, no explicit step-based onset |
+| Loop345 (3-layer loop) introduced | 857de47 (Pavel L.) | Merged as SOTA 1.0810 |
+| Hard-onset = smooth homotopy | #1663 | **No difference; homotopy wasted complexity** |
+| Onset sweep {1600,...,3000} on this arch | #1697 | 2600 optimal (single seed) |
+| ENABLE_LOOPING_AT=0.15 vs 0.35 | #1726 | **0.15 is +0.050 worse** |
+| Range expansion to layers 2-7 | #1726 | **+0.163 worse** |
+| Peripheral shift to 5-6 only | #1726 | **+0.006 worse** |
+| Step-0 activation | #1739 | **Catastrophic: 1.3936 bpb** |
+| Recur-Alpha (learnable scalar, init 0) | #1714 | 1.0857 pre-TTT; **grant ran out before TTT eval** — composition with #1736 never measured |
+| 4-layer loop Loop3-6 | #1678 | Pending 8×H100 eval |
+
+## Candidate experiments: DISPROVEN on this stack — DO NOT RUN
+
+| # | Experiment | Why killed |
+|---|---|---|
+| ~~1~~ | ~~Timing sweep (earlier activation)~~ | #1726 already: 0.15 → +0.050 worse. #1739: step-0 catastrophic. |
+| ~~2~~ | ~~Progressive ramp / smooth activation schedule~~ | #1663: hard-onset = smooth, no difference. |
+| ~~3~~ | ~~Position shift to layers 0-1 or 5-6~~ | #1726: layer 2-7 +0.163 worse; layer 5-6 +0.006 worse. Layer 3-5 is sweet spot. |
+
+**Key learning:** ILR paper's "early-layer recurrence wins" finding does NOT transfer to this stack. It's been directly tested on PG and failed.
+
+## Candidate experiments: STILL VIABLE
+
+| # | Experiment | Isolation | Cost | Reasoning |
 |---|---|---|---|---|
-| 1 | **Timing sweep:** `enable_looping_at ∈ {0.15, 0.35, 0.55}` | Clean | ~$15 (3 screening) | Tests if progressive-schedule literature transfers |
-| 2 | **Position test:** `LOOP_START=0 LOOP_END=1` (vs baseline 4,5) | **Confounded** (also shifts encoder/decoder split + U-Net routing) | ~$20 | Tests ILR claim, but attribution is messy |
-| 3 | **Code-change clean position test:** add ENCODER_END_LAYER knob to decouple encoder/decoder split from loop position | Clean | ~$25 (code + run) | Isolates ILR claim but risks code bugs |
-| 4 | **Cross-pass XSA** (novel): subtract pass-N-1 component from pass-N during recurrence | Clean | ~$25 (code + run) | Genuinely novel, connects XSA + recurrence |
-| 5 | **Progressive ramp:** smooth NUM_LOOPS curriculum 0 → 2 | Clean but complex | ~$30 (code + run) | Tests progressive-beats-hard-switch literature claim |
+| **A** | **Port Recur-Alpha (#1714) onto #1736** | Clean | ~$25 | Learnable scalar per looped block, init 0 = identity. 6 params. Never composed with #1736's phased TTT (author's grant ran out). **Strongest remaining candidate.** |
+| B | **Cross-pass XSA** (novel) | Clean | ~$25 | Subtract pass-N-1 component from pass-N during recurrence. Genuinely novel; not in any prior PR or paper found. Higher code risk. |
+| C | **4-layer loop (Loop3-6)** | Clean env-var | ~$20 | #1678 running it in parallel; we could race or wait. Given #1726 showed expansion to 2-7 is worse, 3-6 sitting between 3-5 (good) and 2-7 (bad) is speculative. |
+| D | **Wait for #1678 result** | N/A | $0 | Free info. Downside: no control over schedule, result may be inconclusive. |
 
-## Decision criteria
+## Updated recommendation
 
-- **Cheapest informative option:** #1 (timing sweep). Data about OUR stack, zero code risk.
-- **Most novel option:** #4 (cross-pass XSA). Unstudied in literature.
-- **Highest-confidence option:** #1 (timing sweep), because the "progressive beats hard switch" claim is the most consistent finding across multiple papers.
+**Port Recur-Alpha from #1714 onto #1736 as spec 015.** Reasoning:
 
-## Recommendation
+1. **Identity-at-init** — zero regression risk at worst. Unlike BigramHash's RNG drift or BPB-weighted's optimizer fight, this is safe-by-default.
+2. **Composition pattern matches dexhunter's playbook** — take a proven-elsewhere lever, compose it with our base, be the first to measure it with phased TTT.
+3. **Nobody else has this data.** #1714's grant ran out before TTT eval. We're uniquely positioned.
+4. **Cheap.** ~30 LOC (scalar per loop iteration, init 0, fold into block-forward). Uses existing loop machinery. No encoder/decoder plumbing changes.
+5. **Directly addresses the recurrence question.** The Recur-Alpha scalar is literally "how much of the recurrence output to use per pass" — learnable.
 
-**Start with #1 (timing sweep, ~$15).** Gives us empirical data about our specific stack's sensitivity to recurrence schedule, which neither ILR nor SGT papers provide. If timing sweep reveals strong sensitivity, follow up with either #3 or #4 based on what the curve suggests.
+**Why not cross-pass XSA first:** more novel but higher risk. We haven't even measured whether pass-to-pass redundancy exists on our stack (the prerequisite). Cross-pass XSA is the follow-up if Recur-Alpha lands and redundancy analysis suggests stationarity.
 
-If timing sweep is flat (0.15 ≈ 0.35 ≈ 0.55), we've learned that recurrence timing isn't the lever on our stack. Pivot to either #4 (novel) or commit to 3-seed ship on spec 008.
+## What running Recur-Alpha would look like
+
+- **Code:** per `_parallel_block` and sequential block paths during the decoder loop, attach a learnable scalar `recur_alpha[k]` for each pass index k in 0..num_loops. At init all zero → block output blends α=0% of recurrence carry, α=100% of first-pass output (identity).
+- **Branch:** `exp/recur-alpha` from research.
+- **Ladder:** 2H smoke ($1) → 8H full ($20) = $21.
+- **Seed:** 42, screening mode.
+- **Expected Δ:** if α learns to move off 0, there's something real; if α stays near 0, recurrence isn't carrying useful information in later passes (consistent with stationarity hypothesis).
 
 ---
 
