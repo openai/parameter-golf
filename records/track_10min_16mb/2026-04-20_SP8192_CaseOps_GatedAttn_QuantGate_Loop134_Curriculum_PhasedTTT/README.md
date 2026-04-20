@@ -1,4 +1,4 @@
-# Record: SP8192 + CaseOps + Gated Attention + Quant Gate + 1->3->4 Recurrence Curriculum + Phased TTT — val_bpb 1.06505
+# Record: CaseOps Tokenizer + Recurrence Depth Curriculum + Base Arch Stack — val_bpb 1.06505
 
 **val_bpb: 1.06505** (3-seed mean, std=0.00081) | **val_loss: 2.33073 nats/token** (std=0.00178) | **~15.98 MB** | 8xH100 SXM | Phased TTT
 
@@ -24,20 +24,36 @@
 
 Compared with PR #1736's 3-seed mean of **1.06549**, this curriculum improves the final endpoint by **0.00043 BPB** while staying under both the 600s eval budget and the 16,000,000-byte decimal artifact cap.
 
-## Key change from PR #1736
+## Specific contribution in this record
 
-This record keeps the same CaseOps tokenizer, byte-sidecar accounting, gated attention, quant gate, and phased TTT stack from PR #1736. The only model-side change is the recurrence schedule.
+The core new idea here is **curriculum recurrence depth**.
 
-PR #1736 uses a fixed recurrent depth after loop activation. This submission instead uses a **deterministic equal-thirds recurrence curriculum**:
+The base stack already existed:
+
+- SP8192 base architecture / looped stack from earlier merged work
+- CaseOps tokenizer + original-byte sidecar accounting from PR #1729
+- phased TTT from the prior stack
+- gated attention / quant-gate components from earlier work
+
+This record's contribution is to change how recurrence depth is used during training and evaluation.
+
+Instead of training with one fixed recurrent depth after loop activation, this submission uses a **deterministic equal-thirds recurrence curriculum**:
 
 - once the loop path is enabled, train at total recurrence depth `1`
 - then switch to total recurrence depth `3`
 - then switch to total recurrence depth `4`
 - evaluate and run phased TTT at fixed depth `4`
 
-Depth here is counted as the **total number of passes through the recurrent loop block**. So `1` is the shallowest loop-enabled path, `3` is the former PR #1736-style depth, and `4` is one extra refinement pass at the endpoint.
+Depth here is counted as the **total number of passes through the recurrent loop block**. So `1` is the shallowest loop-enabled path, `3` is the standard middle-depth path, and `4` is one extra refinement pass at the endpoint.
 
-The intuition is that this teaches a scalable refinement operator without paying the full cost of training at the deepest recurrence for the entire run. In practice, it improves the final phased-TTT endpoint even though one seed (`1234`) is slightly worse than PR #1736; the mean improves because seeds `0` and `42` improve more strongly.
+The intended mechanism is:
+
+- early in the loop-enabled regime, force the recurrent block to learn a useful shallow refinement operator
+- then expand to the normal depth so the model keeps strong baseline behavior
+- only in the final phase ask the same shared recurrent block to support a deeper refinement chain
+- at eval / phased TTT, cash in that extra learned depth by running the model at depth `4`
+
+So the hypothesis is not "train deeper everywhere." It is "teach the recurrent block to scale its refinement depth over training, then evaluate at the deepest trained depth." Empirically, that improves the final phased-TTT endpoint even though one seed (`1234`) is slightly worse than PR #1736; the mean improves because seeds `0` and `42` improve more strongly.
 
 ## CaseOps tokenizer and legality
 
@@ -121,9 +137,19 @@ done
 
 ## Lineage
 
-- Builds directly on **PR #1736** for the CaseOps tokenizer, byte-sidecar accounting, gated attention, quant gate, and phased TTT stack.
-- Keeps the same legality-preserving tokenizer path from **PR #1729**.
-- Replaces PR #1736's fixed recurrent depth with a deterministic `1 -> 3 -> 4` recurrence curriculum and fixed-depth-`4` eval.
+- **PR #1530** contributed the core SP8192 base architecture / looped-stack foundation.
+- **PR #1626** contributed the phased-TTT schedule that this stack continues to use.
+- **PR #1729** contributed the **CaseOps tokenizer**, lossless capitalization transform, and original-byte sidecar BPB accounting.
+- **PR #1667** contributed the attention out-gate pattern used in this family of runs.
+- **PR #1736** assembled those ingredients into one competitive stack.
+- **This record's novel change** is the deterministic `1 -> 3 -> 4` recurrence-depth curriculum with fixed-depth-`4` eval.
+
+## Credits
+
+- @romeerp — CaseOps tokenizer, byte-sidecar accounting, and this recurrence-curriculum contribution.
+- @samacqua — SP8192 base architecture / looped-stack foundation from PR #1530.
+- @MarioPaerle — attention gate pattern.
+- prior phased-TTT contributors in the PR #1626 line.
 
 ## Included files
 

@@ -1,8 +1,8 @@
 {
   "author": "dexhunter",
   "github_id": "dexhunter",
-  "name": "SP8192 + CaseOps + Gated Attention + Quant Gate + 1->3->4 Recurrence Curriculum + Phased TTT",
-  "blurb": "Builds on PR #1736's CaseOps + byte-sidecar + gated-attention stack, but replaces fixed recurrence depth with a deterministic 1->3->4 recurrence curriculum after loop activation and evaluates at fixed depth 4. BPB is still scored on original pre-transform UTF-8 bytes via the validation byte sidecar.",
+  "name": "CaseOps Tokenizer + Recurrence Depth Curriculum + Base Arch Stack",
+  "blurb": "Combines the inherited SP8192 base architecture stack with the CaseOps tokenizer / original-byte sidecar path, and adds a deterministic 1->3->4 recurrence-depth curriculum after loop activation. Eval and phased TTT run at fixed depth 4; BPB is still scored on original pre-transform UTF-8 bytes.",
   "date": "2026-04-20",
   "track": "10min_16mb",
   "val_loss": 2.33073,
