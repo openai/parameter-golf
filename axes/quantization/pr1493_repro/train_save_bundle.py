@@ -679,12 +679,20 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
         hessians[name] = hessians[name].cpu() / n_calibration_batches
     return hessians
 
-def _compute_nf_levels(bits):
-    """Compute NormalFloat quantization levels (Gaussian quantile centroids)."""
+def _compute_nf_levels(bits, k=None):
+    """Compute NormalFloat quantization levels (Gaussian quantile centroids).
+
+    If k is provided, extends tail coverage to ±kσ instead of default ±3σ.
+    Levels remain dense near zero (Gaussian-optimal) but outliers aren't clipped.
+    """
     n = 2 ** bits
     # Equal-probability bin boundaries on N(0,1)
     probs = torch.linspace(0, 1, n + 1)
-    probs[0] = 0.001; probs[-1] = 0.999  # avoid ±inf
+    if k is not None and k > 5:
+        # Extend tails: use extreme boundary probabilities
+        probs[0] = 1e-10; probs[-1] = 1 - 1e-10
+    else:
+        probs[0] = 0.001; probs[-1] = 0.999
     boundaries = torch.erfinv(2 * probs - 1) * math.sqrt(2)
     # Centroids: E[X | b_i < X < b_{i+1}] = (phi(b_i) - phi(b_{i+1})) / (Phi(b_{i+1}) - Phi(b_i))
     phi = lambda x: torch.exp(-0.5 * x**2) / math.sqrt(2 * math.pi)
@@ -692,11 +700,15 @@ def _compute_nf_levels(bits):
     levels = (phi(boundaries[:-1]) - phi(boundaries[1:])) / prob_mass
     return levels  # (2^bits,) in z-score space
 
-def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
-    """GPTQ with NormalFloat levels instead of uniform. Scale = row_std."""
+def gptq_quantize_weight_nf(w, H, bits=5, block_size=128, k=None, sparsity_threshold=0.0):
+    """GPTQ with NormalFloat levels instead of uniform. Scale = row_std.
+
+    If k is provided, extends NF tail coverage to ±kσ.
+    If sparsity_threshold > 0, applies SparseGPT zero-or-quantize decision.
+    """
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
-    nf_levels = _compute_nf_levels(bits)  # (2^bits,) z-score levels
+    nf_levels = _compute_nf_levels(bits, k=k)  # (2^bits,) z-score levels
     H = H.float().clone()
     dead = torch.diag(H) == 0
     H[dead, dead] = 1
@@ -722,14 +734,23 @@ def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
         # Precompute NF bin boundaries for fast quantization (midpoints between levels)
         sorted_levels, _ = nf_levels.sort()
         bin_edges = (sorted_levels[:-1] + sorted_levels[1:]) / 2  # (n_levels-1,)
+        # Find the index of the zero level for sparse decisions
+        zero_idx = (sorted_levels.abs()).argmin().item()
         for j in range(i2 - i1):
             w_col = W_block[:, j]
             d = Hinv_block[j, j]
             z_col = w_col / sf  # normalize to z-scores
-            # Fast binning via searchsorted (O(rows * log(n_levels)) vs O(rows * n_levels))
+            # Fast binning via searchsorted
             idx = torch.searchsorted(bin_edges, z_col)
+            # SparseGPT decision: zero if cheaper (when enabled)
+            if sparsity_threshold > 0:
+                recon_quant = sorted_levels[idx] * sf
+                err_quant = (w_col - recon_quant).pow(2)
+                err_zero = w_col.pow(2)
+                should_zero = err_zero < sparsity_threshold * err_quant
+                idx[should_zero] = zero_idx
             Q[:, i1 + j] = idx.to(torch.int8)
-            recon = sorted_levels[idx] * sf  # reconstruction
+            recon = sorted_levels[idx] * sf
             err = (w_col - recon) / d
             Err[:, j] = err
             W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
@@ -985,11 +1006,16 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             meta[name] = f'sparse-gptq (int{bits} k={cs} sparsity={sparsity:.1%})'
         elif quant_format == 'nf' and not is_embed:
             bits = h.matrix_bits
-            q, s, nf_lut = gptq_quantize_weight_nf(t, hessians[name], bits=bits, block_size=128)
+            nf_k = h.matrix_clip_sigmas if h.matrix_clip_sigmas > 5 else None
+            sp_thresh = float(os.environ.get('SPARSITY_THRESHOLD', '0'))
+            q, s, nf_lut = gptq_quantize_weight_nf(
+                t, hessians[name], bits=bits, block_size=128,
+                k=nf_k, sparsity_threshold=sp_thresh
+            )
             result[name + '.q'] = q
             result[name + '.scale'] = s
             result[name + '.nf_lut'] = nf_lut.to(torch.float16)
-            meta[name] = f'gptq (nf{bits})'
+            meta[name] = f'gptq (nf{bits} k={nf_k} sparse={sp_thresh})'
         else:
             cs = h.embed_clip_sigmas if is_embed else h.matrix_clip_sigmas
             bits = h.embed_bits if is_embed else h.matrix_bits
