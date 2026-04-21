@@ -1,5 +1,20 @@
 # 2026-04-21 — Recur-Alpha findings (specs 015 + 016)
 
+---
+
+## ⚠️ LATE ADDITION (discovered 2026-04-21 post-017)
+
+Post-017, a latent gap in the recur-alpha patch (commit `a9aa141`) was identified: **the TTT forward path (`_block_with_lora` → called from `forward_ttt` → used by `eval_val_ttt_phased`) does not apply the α blend.** `forward_logits` (training + normal eval) does apply it.
+
+Consequence: every post-TTT number captured on this branch so far (spec 017's 1.06733) was measured on a model where TTT adapted LoRAs and computed loss against an effective α=1 configuration, not against the α-learned one. Training used the α blend; TTT did not.
+
+This doesn't invalidate the training-side findings in this diary (α trajectory shape, depth-monotonicity inversion, path-dependence, late-training rate). Those come from `forward_logits`, which is consistent on-branch.
+
+But it does leave open the question of whether the "partial absorption" story in §6/§7 is partly actual absorption vs partly "TTT was evaluating a different model." Not resolving here — future separate spec. Shelve decision for 017 stands on the observed numbers.
+
+---
+
+
 Two single-seed screens on learnable per-pass α blending, run earlier today on the #1736 stack. Writing the story up now while fresh; formal evaluations deferred to post-3-seed. A public note may follow.
 
 ## 1. What Recur-Alpha is (brief)

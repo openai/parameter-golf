@@ -4,6 +4,24 @@
 **Created:** 2026-04-21 (updated 2026-04-21 — NA unavailable, reframed for JP)
 **Links to:** spec 016, `research/ideas/beating-1736-note.md`, spec 016b (throughput diagnostic)
 
+---
+
+## ⚠️ RETROACTIVE FINDING (discovered 2026-04-21 post-run)
+
+**The TTT forward path in this commit does NOT apply recur_alpha.** 017's post-TTT val_bpb of **1.06733** was measured on a model where `_block_with_lora` (the TTT forward) ignores the learned α values entirely — effectively α=1 during both LoRA adaptation and post-TTT eval loss measurement.
+
+Details:
+- `forward_logits` (training forward): applies α blend — model learns α values = [[1.08, 1.27, 1.43], [1.02, 0.97, 0.83]]
+- `_block_with_lora` (TTT forward, line ~1409): **no reference to recur_alpha, alpha_info, or blend op**
+- `eval_val_ttt_phased` (lines ~3011, 3052): uses `forward_ttt_train` → `forward_ttt` → `_block_with_lora` for BOTH the TTT loss measurement AND the LoRA adaptation gradient
+- Therefore: post-TTT number was measured on an effective α=1 model, not the α-learned one
+
+This is a latent gap in spec 015's original recur-alpha patch (commit `a9aa141`), inherited by 016 and 017.
+
+**Not fixing in 017's artifacts.** This note documents the finding for future-me. The downstream decision (shelve recur-alpha submission path) stands for now because the observed 017 post-TTT at this bug-level is what it is. A proper fix + rerun is a separate future spec (would test whether applying α during TTT improves or worsens val_bpb — either direction would be informative).
+
+---
+
 ## Goal
 
 Run spec 016's commit (`4dd2d63`) with the **full training → GPTQ → phased-TTT pipeline end-to-end** and capture the real post-TTT val_bpb. Spec 016's screen killed training before TTT ran; 016's post-hoc TTT eval OOM'd due to the EVAL_ONLY bypass. This spec does one clean full-pipeline pass to produce the submission-quality number we've been projecting.
