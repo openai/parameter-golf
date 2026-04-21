@@ -61,12 +61,16 @@ import sentencepiece as spm
 
 # Local import — lossless_caps.py ships next to this script.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from lossless_caps import encode_lossless_caps_v2  # noqa: E402
+from lossless_caps import (  # noqa: E402
+    LOSSLESS_CAPS_CASEOPS_V1,
+    encode_lossless_caps_v2,
+    surface_piece_original_byte_counts,
+)
 
 
 SHARD_MAGIC = 20240520
 SHARD_VERSION = 1
-SHARD_TOKENS = 10_000_000  # tokens per shard — matches the main pipeline
+SHARD_TOKENS = 100_000_000  # tokens per shard — matches the original CaseOps export path
 
 
 def _write_shard(out_path: pathlib.Path, arr: np.ndarray) -> None:
@@ -93,49 +97,30 @@ def _iter_docs(docs_path: pathlib.Path):
             yield obj["text"] if isinstance(obj, dict) else obj
 
 
-def _token_original_byte_counts(
-    sp: spm.SentencePieceProcessor,
-    original_text: str,
-    transformed_text: str,
-) -> np.ndarray:
-    """Compute per-token canonical (pre-transform) UTF-8 byte counts.
+def _encode_with_original_byte_counts(
+    sp: spm.SentencePieceProcessor, text: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Match the original CaseOps exporter exactly.
 
-    The tokenizer runs on the TRANSFORMED text (so operator tokens exist in
-    the vocabulary), but BPB must be scored on the ORIGINAL byte stream.
-    We tokenize the transformed text, then walk each token's surface form
-    through the decoder to recover the pre-transform substring, and count
-    the UTF-8 bytes of that.
-
-    This is an APPROXIMATION — it assumes every token maps cleanly back to
-    a contiguous original substring. For caseops_v1 (which is character-
-    level and bijective) this holds exactly, because operator tokens
-    correspond to positions in the original string where the case was
-    derived from surrounding letters rather than materialised bytes.
+    The original PR #1729 export path tokenized via
+    ``encode_as_immutable_proto`` and computed canonical byte counts from the
+    exact piece surfaces using ``surface_piece_original_byte_counts``. Reuse
+    that logic here so the rebuilt validation sidecar matches the true
+    CaseOps dataset format byte-for-byte.
     """
-    # Re-encode via the SP model and get pieces (surface strings with the
-    # leading ▁ preserved, as in the BPE vocabulary).
-    piece_ids = sp.encode(transformed_text, out_type=int)
-    pieces = [sp.id_to_piece(int(pid)) for pid in piece_ids]
-    # Walk pieces and match against the transformed text to find byte spans.
-    counts = np.empty(len(piece_ids), dtype=np.uint16)
-    cursor_t = 0
-    cursor_o = 0
-    from lossless_caps import decode_lossless_caps_v2 as _decode
-    for i, piece in enumerate(pieces):
-        # SentencePiece uses ▁ as the whitespace marker.
-        surface = piece.replace("\u2581", " ")
-        span = transformed_text[cursor_t:cursor_t + len(surface)]
-        cursor_t += len(span)
-        # Decode just this span to find the original bytes it came from.
-        try:
-            decoded_prefix = _decode(transformed_text[:cursor_t])
-            original_bytes = len(decoded_prefix.encode("utf-8")) - cursor_o
-            cursor_o += original_bytes
-        except Exception:
-            # Fall back to counting the transformed surface.
-            original_bytes = len(span.encode("utf-8"))
-        counts[i] = max(0, min(65535, original_bytes))
-    return counts
+    transformed = encode_lossless_caps_v2(text)
+    proto = sp.encode_as_immutable_proto(transformed)
+    token_ids = np.fromiter((piece.id for piece in proto.pieces), dtype=np.int32)
+    byte_counts = np.asarray(
+        surface_piece_original_byte_counts(
+            (piece.surface for piece in proto.pieces),
+            text_transform_name=LOSSLESS_CAPS_CASEOPS_V1,
+        ),
+        dtype=np.uint16,
+    )
+    if token_ids.shape[0] != byte_counts.shape[0]:
+        raise ValueError("token id count and byte count length disagree")
+    return token_ids, byte_counts
 
 
 def main() -> None:
@@ -163,14 +148,12 @@ def main() -> None:
     n_docs = 0
 
     for text in _iter_docs(args.docs):
-        transformed = encode_lossless_caps_v2(text)
-        piece_ids = np.asarray(sp.encode(transformed, out_type=int), dtype=np.int32)
+        piece_ids, piece_byte_counts = _encode_with_original_byte_counts(sp, text)
         token_ids = np.empty(piece_ids.size + 1, dtype=np.int32)
         token_ids[0] = bos_id
         token_ids[1:] = piece_ids
         if n_docs < args.val_docs:
             # Validation doc — also compute byte sidecar
-            piece_byte_counts = _token_original_byte_counts(sp, text, transformed)
             if piece_byte_counts.shape[0] != piece_ids.shape[0]:
                 raise ValueError("token id count and original byte count length disagree")
             byte_counts = np.zeros(token_ids.shape[0], dtype=np.int32)
