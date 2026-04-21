@@ -1,18 +1,23 @@
-# Spec 017 — Recur-Alpha matched-throughput full-pipeline run
+# Spec 017 — Recur-Alpha full-pipeline submission run
 
 **Slug:** `recur-alpha-full`
-**Created:** 2026-04-21
+**Created:** 2026-04-21 (updated 2026-04-21 — NA unavailable, reframed for JP)
 **Links to:** spec 016, `research/ideas/beating-1736-note.md`, spec 016b (throughput diagnostic)
+
+## Goal
+
+Run spec 016's commit (`4dd2d63`) with the **full training → GPTQ → phased-TTT pipeline end-to-end** and capture the real post-TTT val_bpb. Spec 016's screen killed training before TTT ran; 016's post-hoc TTT eval OOM'd due to the EVAL_ONLY bypass. This spec does one clean full-pipeline pass to produce the submission-quality number we've been projecting.
 
 ## Hypothesis
 
-On a matched-throughput 8×H100 NA pod running the full training → GPTQ → TTT pipeline end-to-end (no EVAL_ONLY_CHECKPOINT shortcut), spec 016's commit (`4dd2d63`, α=1 init + grad_norm logging fix) produces a post-TTT val_bpb **≤ 1.06550**, beating #1736's claimed 1.06610 by ≥0.0005.
+The post-TTT val_bpb will be ~1.0679-1.0682 on JP (mirroring 016's step-count footprint, projected via #1736-typical TTT recovery) — close to but likely not beating #1736's claimed 1.06610. A beat is plausible if: (a) recur-alpha × TTT composition gives better-than-typical recovery, (b) this JP pod happens to be fast (matched to 008's 4828 steps), or (c) both.
 
-Works backward from the target via the chain:
+Working backward via the chain:
 - Target post-TTT: 1.06610 (beat = ≤ 1.06550)
 - Assuming #1736-typical TTT recovery (−0.01237), target post-GPTQ: ≤ 1.07847
 - Assuming observed GPTQ cost (+0.00947), target pre-quant post-EMA: ≤ 1.06900
-- 016's JP pre-quant post-EMA at step 4708 was 1.07083; at matched 008-step (4828), projected ~1.06471 — well under the target.
+- 016's JP pre-quant post-EMA at step 4708 was 1.07083 — **+0.00183 off the target at typical JP throughput**.
+- Margin only closes if we get ~36 more steps (to 4744+), which depends on JP pod lottery.
 
 ## Baseline
 
@@ -61,11 +66,12 @@ None. Same commit as spec 016: **`4dd2d63` on `fork/exp/recur-alpha-ones`**.
 
 ## Hardware ladder
 
-- **Skip smoke** — cite spec 016's JP smoke + the upcoming spec 016b NA 2×H100 throughput diagnostic as sufficient recent validation.
-- **8×H100 NA-1** (primary). Seed 42.
-  - If 016b confirms no throughput tax → high confidence, single-seed is enough for now
-  - If 016b shows tax → single-seed is diagnostic; decide 3-seed based on result
-- **(Conditional) 3-seed NA** (seeds 43, 44): only if spec 017 seed 42 lands in "clear promote" or "close" bucket. ~$30.
+- **Skip smoke** — cite spec 016's JP smoke + spec 016b throughput diagnostic as recent validation.
+- **8×H100, region = whichever has capacity.** As of 2026-04-21 NA-1 had no availability; JP (AP-JP-1, volume `jlxvxeiol4`) is the fallback and actually fine — per spec 016b's same-pod comparison, the 2-4% tok/s gap we saw in 015/016 is either pod variance or architectural (not region-specific). Either way, running on JP gives us a valid measurement.
+- **Seed 42** first.
+  - If 016b confirms no throughput tax → single-seed is likely enough
+  - If 016b shows tax → single-seed is a diagnostic; 3-seed decision based on outcome
+- **(Conditional) 3-seed** (seeds 43, 44): only if spec 017 seed 42 lands in "clear promote" or "close" bucket. ~$30.
 
 ## Seed plan
 
@@ -73,24 +79,26 @@ Single seed (42) first. 3-seed (42/43/44) only if seed 42 promotes or lands in t
 
 ## Inputs
 
-- Data: CaseOps dataset on NA-1 volume. **OPEN QUESTION**: NA volume's CaseOps data was being prepped as of spec 015 (via prep pod `q52slv996d3uqx`); verify completion before launching. If NA data isn't ready, fall back to JP but note the throughput-vs-017 comparison gets noisier.
+- Data: CaseOps dataset. On JP volume `jlxvxeiol4` mounted at `/runpod`, path is `/runpod/data/datasets/fineweb10B_sp8192/`. On NA if available, path is `/workspace/data/datasets/fineweb10B_sp8192/`. Verify before launch.
 - Tokenizer: `fineweb_8192_bpe.model`, bundled with submission dir.
-- Hotstart: **none — fresh from-scratch training.** We considered hotstarting from 016's saved `final_model.pt` on JP volume, but fresh-train on NA gives cleaner apples-to-apples comparison against 008's reference pipeline. Hotstart is a separate (cheaper) experiment if we want it later.
+- Hotstart: **none — fresh from-scratch training.** Cleaner apples-to-apples against 008's reference pipeline than hotstart-from-016-checkpoint would be. Hotstart is a separate (cheaper) experiment if we want it later.
 
 ## Execution protocol
 
 Standard #1736 full training + eval flow. Explicitly **do not use EVAL_ONLY_CHECKPOINT bypass** — that shortcut caused the OOM in 016's post-hoc. The normal end-of-train flow runs GPTQ and TTT with properly-primed CUDA allocator.
 
+**Region-specific paths** — on JP, substitute `/workspace` → `/runpod`. Example below uses JP paths; on NA use `/workspace` instead.
+
 ```bash
-cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+cd /runpod/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git checkout 4dd2d63
 
-mkdir -p /workspace/runs/017-recur-alpha-full/seed_42
-mkdir -p /workspace/.torch_inductor_cache
+mkdir -p /runpod/runs/017-recur-alpha-full/seed_42
+mkdir -p /runpod/.torch_inductor_cache
 
-NCCL_NET=Socket DATA_DIR=/workspace/data \
-ARTIFACT_DIR=/workspace/runs/017-recur-alpha-full/seed_42 \
-TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
+NCCL_NET=Socket DATA_DIR=/runpod/data \
+ARTIFACT_DIR=/runpod/runs/017-recur-alpha-full/seed_42 \
+TORCHINDUCTOR_CACHE_DIR=/runpod/.torch_inductor_cache \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
@@ -102,7 +110,7 @@ RECUR_ALPHA_ENABLED=1 \
 TRAIN_LOG_EVERY=100 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
-  > /workspace/runs/017-recur-alpha-full/seed_42/train.log 2>&1
+  > /runpod/runs/017-recur-alpha-full/seed_42/train.log 2>&1
 ```
 
 ## Checkpoints / artifacts to emit
