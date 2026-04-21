@@ -737,6 +737,64 @@ def gptq_quantize_weight_nf(w, H, bits=5, block_size=128):
             W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
     return (Q[:, invperm], s, sorted_levels)
 
+def gptq_widezero_quantize_weight(w, H, clip_sigmas=3.0, clip_range=31, dead_factor=3.0, block_size=128):
+    """GPTQ with a non-uniform grid: wide zero bin, tight tail bins.
+
+    Grid levels (positive side): 0, dead_factor*step, (dead_factor+1)*step, (dead_factor+2)*step, ...
+    Where step = k * row_std / (dead_factor + clip_range - 1)
+
+    dead_factor=1.0 → uniform grid (baseline)
+    dead_factor=3.0 → zero bin is 3× wider than tail bins
+    """
+    W_orig = w.float().clone()
+    rows, cols = W_orig.shape
+    H = H.float().clone()
+    dead = torch.diag(H) == 0
+    H[dead, dead] = 1
+    damp = 0.01 * H.diag().mean()
+    H.diagonal().add_(damp)
+    perm = torch.argsort(H.diag(), descending=True)
+    invperm = torch.argsort(perm)
+    W_perm = W_orig[:, perm].clone()
+    W_perm[:, dead[perm]] = 0
+    H = H[perm][:, perm]
+    Hinv = torch.cholesky_inverse(torch.linalg.cholesky(H))
+    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    row_std = W_orig.std(dim=1).clamp_min(1e-10)
+    # Build the non-uniform level set in z-score space (will be scaled by row_std)
+    # Positive levels: dead_factor, dead_factor+1, dead_factor+2, ..., dead_factor+clip_range-1
+    # In step units where step = k / (dead_factor + clip_range - 1)
+    step_z = clip_sigmas / (dead_factor + clip_range - 1)
+    pos_levels = torch.tensor([0.0] + [step_z * (dead_factor + i) for i in range(clip_range)])
+    # Full symmetric grid: negative (reversed) + positive
+    neg_levels = -pos_levels[1:].flip(0)
+    levels_z = torch.cat([neg_levels, pos_levels])  # (2*clip_range + 1,) in z-score space
+    sorted_levels, _ = levels_z.sort()
+    bin_edges = (sorted_levels[:-1] + sorted_levels[1:]) / 2
+
+    s = row_std.to(torch.float16)
+    sf = s.float()
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    W_work = W_perm.clone()
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        W_block = W_work[:, i1:i2].clone()
+        Hinv_block = Hinv[i1:i2, i1:i2]
+        Err = torch.zeros(rows, i2 - i1)
+        for j in range(i2 - i1):
+            w_col = W_block[:, j]
+            d = Hinv_block[j, j]
+            z_col = w_col / sf  # normalize to z-scores
+            idx = torch.searchsorted(bin_edges, z_col)
+            Q[:, i1 + j] = idx.to(torch.int8)
+            recon = sorted_levels[idx] * sf
+            err = (w_col - recon) / d
+            Err[:, j] = err
+            W_block[:, j:] -= err.unsqueeze(1) * Hinv_block[j, j:].unsqueeze(0)
+        if i2 < cols:
+            W_work[:, i2:] -= Err @ Hinv[i1:i2, i2:]
+    return (Q[:, invperm], s, sorted_levels)
+
 def gptq_sparse_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128, sparsity_threshold=1.0):
     """SparseGPT: joint sparsification + quantization in one Hessian sweep.
 
@@ -903,6 +961,17 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             result[name + '.q'] = q
             result[name + '.scale'] = s
             meta[name] = f'tiered_k-{tier} (int5 k={k_val})'
+        elif quant_format == 'widezero' and not is_embed:
+            cs = h.matrix_clip_sigmas
+            dead_factor = float(os.environ.get('DEAD_FACTOR', '3.0'))
+            q, s, wz_lut = gptq_widezero_quantize_weight(
+                t, hessians[name], clip_sigmas=cs, clip_range=31,
+                dead_factor=dead_factor, block_size=128
+            )
+            result[name + '.q'] = q
+            result[name + '.scale'] = s
+            result[name + '.nf_lut'] = wz_lut.to(torch.float16)  # reuse nf_lut key for dequant
+            meta[name] = f'widezero (k={cs} dead={dead_factor})'
         elif quant_format == 'sparse' and not is_embed:
             cs = h.matrix_clip_sigmas
             bits = h.matrix_bits
