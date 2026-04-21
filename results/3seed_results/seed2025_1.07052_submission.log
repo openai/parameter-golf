@@ -1,0 +1,202 @@
+nohup: ignoring input
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /workspace/parameter-golf/data/
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.997
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/seed2025_submission.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 4
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.02
+  max_wallclock_seconds: 21600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.085
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  qk_gain_init: 4.0
+  qk_gain_init_schedule: [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 4.5, 4.0, 3.5, 3.0, 2.5]
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: seed2025_submission
+  scalar_lr: 0.02
+  seed: 2025
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  val_batch_tokens: 524288
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 500
+  vocab_size: 8192
+  warmdown_frac: 0.667
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards: 10
+val_tokens: 40540160
+model_params:35943512
+gptq:reserving 12s, effective=21588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0067 val_bpb: 3.4868
+1/20000 train_loss: 9.0063 train_time: 0.0m tok/s: 1034437
+2/20000 train_loss: 12.3314 train_time: 0.0m tok/s: 1024213
+3/20000 train_loss: 11.1525 train_time: 0.0m tok/s: 1017540
+4/20000 train_loss: 9.5771 train_time: 0.1m tok/s: 1012888
+5/20000 train_loss: 8.4680 train_time: 0.1m tok/s: 1010701
+500/20000 train_loss: 3.3225 train_time: 6.6m tok/s: 998812
+500/20000 val_loss: 3.3264 val_bpb: 1.2878
+1000/20000 train_loss: 3.2127 train_time: 13.1m tok/s: 1000774
+1000/20000 val_loss: 3.1996 val_bpb: 1.2387
+1500/20000 train_loss: 3.1322 train_time: 19.6m tok/s: 1001576
+1500/20000 val_loss: 3.1543 val_bpb: 1.2211
+2000/20000 train_loss: 3.1372 train_time: 26.2m tok/s: 1001345
+2000/20000 val_loss: 3.0958 val_bpb: 1.1985
+2500/20000 train_loss: 3.0769 train_time: 32.7m tok/s: 1001401
+2500/20000 val_loss: 3.0713 val_bpb: 1.1890
+3000/20000 train_loss: 3.0519 train_time: 39.3m tok/s: 1000985
+3000/20000 val_loss: 3.0591 val_bpb: 1.1843
+3500/20000 train_loss: 3.0667 train_time: 45.9m tok/s: 1000492
+3500/20000 val_loss: 3.0515 val_bpb: 1.1813
+4000/20000 train_loss: 3.0460 train_time: 52.4m tok/s: 1000239
+4000/20000 val_loss: 3.0444 val_bpb: 1.1786
+4500/20000 train_loss: 3.0456 train_time: 59.0m tok/s: 1000290
+4500/20000 val_loss: 3.0394 val_bpb: 1.1767
+5000/20000 train_loss: 3.0609 train_time: 65.5m tok/s: 1000074
+5000/20000 val_loss: 3.0356 val_bpb: 1.1752
+5500/20000 train_loss: 3.0362 train_time: 72.1m tok/s: 999814
+5500/20000 val_loss: 3.0316 val_bpb: 1.1736
+6000/20000 train_loss: 2.9973 train_time: 78.7m tok/s: 999827
+6000/20000 val_loss: 3.0295 val_bpb: 1.1728
+6500/20000 train_loss: 3.0036 train_time: 85.2m tok/s: 999842
+6500/20000 val_loss: 3.0258 val_bpb: 1.1714
+7000/20000 train_loss: 3.0554 train_time: 91.8m tok/s: 999981
+7000/20000 val_loss: 3.0242 val_bpb: 1.1707
+7500/20000 train_loss: 3.0589 train_time: 98.3m tok/s: 1000126
+7500/20000 val_loss: 3.0216 val_bpb: 1.1698
+8000/20000 train_loss: 3.0014 train_time: 104.8m tok/s: 1000277
+8000/20000 val_loss: 3.0204 val_bpb: 1.1693
+8500/20000 train_loss: 3.0435 train_time: 111.4m tok/s: 1000365
+8500/20000 val_loss: 3.0177 val_bpb: 1.1683
+9000/20000 train_loss: 2.9964 train_time: 117.9m tok/s: 1000403
+9000/20000 val_loss: 3.0165 val_bpb: 1.1678
+9500/20000 train_loss: 2.9920 train_time: 124.5m tok/s: 1000421
+9500/20000 val_loss: 3.0120 val_bpb: 1.1660
+10000/20000 train_loss: 3.0164 train_time: 131.0m tok/s: 1000488
+10000/20000 val_loss: 3.0074 val_bpb: 1.1643
+10500/20000 train_loss: 3.0061 train_time: 137.6m tok/s: 1000533
+10500/20000 val_loss: 3.0028 val_bpb: 1.1625
+11000/20000 train_loss: 2.9757 train_time: 144.1m tok/s: 1000563
+11000/20000 val_loss: 2.9984 val_bpb: 1.1608
+11500/20000 train_loss: 2.9948 train_time: 150.6m tok/s: 1000567
+11500/20000 val_loss: 2.9950 val_bpb: 1.1595
+12000/20000 train_loss: 3.0045 train_time: 157.2m tok/s: 1000625
+12000/20000 val_loss: 2.9886 val_bpb: 1.1570
+12500/20000 train_loss: 2.9883 train_time: 163.7m tok/s: 1000689
+12500/20000 val_loss: 2.9847 val_bpb: 1.1555
+13000/20000 train_loss: 2.9682 train_time: 170.3m tok/s: 1000651
+13000/20000 val_loss: 2.9800 val_bpb: 1.1537
+13500/20000 train_loss: 2.9543 train_time: 176.8m tok/s: 1000760
+13500/20000 val_loss: 2.9756 val_bpb: 1.1519
+layer_loop:enabled step:13736 frac:0.500 encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+14000/20000 train_loss: 2.9606 train_time: 184.5m tok/s: 994661
+14000/20000 val_loss: 2.9617 val_bpb: 1.1466
+14500/20000 train_loss: 2.9377 train_time: 193.2m tok/s: 983829
+14500/20000 val_loss: 2.9448 val_bpb: 1.1400
+15000/20000 train_loss: 2.9508 train_time: 201.9m tok/s: 973863
+15000/20000 val_loss: 2.9363 val_bpb: 1.1367
+15500/20000 train_loss: 2.9139 train_time: 210.6m tok/s: 964773
+15500/20000 val_loss: 2.9288 val_bpb: 1.1338
+16000/20000 train_loss: 2.9003 train_time: 219.3m tok/s: 956340
+16000/20000 val_loss: 2.9208 val_bpb: 1.1307
+16500/20000 train_loss: 2.9310 train_time: 228.0m tok/s: 948587
+16500/20000 val_loss: 2.9135 val_bpb: 1.1279
+17000/20000 train_loss: 2.8985 train_time: 236.7m tok/s: 941393
+17000/20000 val_loss: 2.9062 val_bpb: 1.1251
+17500/20000 train_loss: 2.9126 train_time: 245.4m tok/s: 934743
+17500/20000 val_loss: 2.8980 val_bpb: 1.1219
+18000/20000 train_loss: 2.8745 train_time: 254.1m tok/s: 928577
+18000/20000 val_loss: 2.8905 val_bpb: 1.1190
+18500/20000 train_loss: 2.8515 train_time: 262.8m tok/s: 922780
+18500/20000 val_loss: 2.8824 val_bpb: 1.1158
+19000/20000 train_loss: 2.8536 train_time: 271.5m tok/s: 917386
+19000/20000 val_loss: 2.8723 val_bpb: 1.1119
+19500/20000 train_loss: 2.8828 train_time: 280.1m tok/s: 912357
+19500/20000 val_loss: 2.8633 val_bpb: 1.1085
+20000/20000 train_loss: 2.8369 train_time: 288.8m tok/s: 907597
+20000/20000 val_loss: 2.8534 val_bpb: 1.1046
+peak memory allocated: 35613 MiB reserved: 35652 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.77686567 val_bpb:1.07501124 eval_time:20371ms
+Serialized model: 135426937 bytes
+Code size: 15645 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 11.6s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15950331 bytes
+Total submission size quantized+brotli: 15965976 bytes
+quantized val_loss:2.80862569 val_bpb:1.08730653 eval_time:22681ms
+quantized_sliding_window val_loss:2.76528555 val_bpb:1.07052821 eval_time:636703ms
