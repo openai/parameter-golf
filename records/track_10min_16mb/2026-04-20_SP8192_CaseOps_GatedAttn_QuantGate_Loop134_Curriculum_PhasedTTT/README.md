@@ -107,10 +107,13 @@ The submission ships with the trained CaseOps SentencePiece model and the biject
 python3 ../../data/download_hf_docs_and_tokenize.py
 
 # 2. Build CaseOps-transformed shards + val byte sidecar.
+#    This reproduces the original CaseOps export format:
+#    one BOS token per doc, and a matching leading 0 byte-count entry.
 python3 prepare_caseops_data.py \
     --docs ./fineweb10B_raw/docs_selected.jsonl \
     --out  ./data/datasets/fineweb10B_sp8192_caseops/datasets \
-    --sp   ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+    --sp   ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
+    --val-docs 50000
 ```
 
 ## Run command (3-seed reproduction)

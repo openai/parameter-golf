@@ -39,6 +39,13 @@ Usage:
         --out  ./data/datasets/fineweb10B_sp8192_caseops/datasets \\
         --sp   ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
 
+This script is intended to reproduce the actual shard format used by the
+original CaseOps export path from PR #1729 / the HF-hosted dataset:
+
+- every document is prepended with ``bos_id``
+- validation byte sidecars include a matching leading ``0`` byte count
+- the default validation split is the canonical 50,000-doc challenge split
+
 Requirements: sentencepiece, numpy. CPU-only. Runs once; reused across seeds.
 """
 from __future__ import annotations
@@ -136,11 +143,14 @@ def main() -> None:
     ap.add_argument("--docs", required=True, type=pathlib.Path, help="Path to docs_selected.jsonl")
     ap.add_argument("--out",  required=True, type=pathlib.Path, help="Output datasets dir")
     ap.add_argument("--sp",   required=True, type=pathlib.Path, help="Path to CaseOps SP model")
-    ap.add_argument("--val-docs", type=int, default=10_000, help="Validation docs count")
+    ap.add_argument("--val-docs", type=int, default=50_000, help="Validation docs count")
     args = ap.parse_args()
 
     sp = spm.SentencePieceProcessor(model_file=str(args.sp))
-    print(f"loaded sp: vocab={sp.vocab_size()}", flush=True)
+    bos_id = int(sp.bos_id())
+    if bos_id < 0:
+        raise ValueError("tokenizer must define a valid bos_id")
+    print(f"loaded sp: vocab={sp.vocab_size()} bos_id={bos_id}", flush=True)
 
     train_out = args.out / "datasets" / "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved"
     train_out.mkdir(parents=True, exist_ok=True)
@@ -154,12 +164,19 @@ def main() -> None:
 
     for text in _iter_docs(args.docs):
         transformed = encode_lossless_caps_v2(text)
-        token_ids = sp.encode(transformed, out_type=int)
+        piece_ids = np.asarray(sp.encode(transformed, out_type=int), dtype=np.int32)
+        token_ids = np.empty(piece_ids.size + 1, dtype=np.int32)
+        token_ids[0] = bos_id
+        token_ids[1:] = piece_ids
         if n_docs < args.val_docs:
             # Validation doc — also compute byte sidecar
-            byte_counts = _token_original_byte_counts(sp, text, transformed)
-            val_buf_tokens.extend(token_ids)
-            val_buf_bytes.extend(int(b) for b in byte_counts[:len(token_ids)])
+            piece_byte_counts = _token_original_byte_counts(sp, text, transformed)
+            if piece_byte_counts.shape[0] != piece_ids.shape[0]:
+                raise ValueError("token id count and original byte count length disagree")
+            byte_counts = np.zeros(token_ids.shape[0], dtype=np.int32)
+            byte_counts[1:] = piece_byte_counts.astype(np.int32, copy=False)
+            val_buf_tokens.extend(int(t) for t in token_ids)
+            val_buf_bytes.extend(int(b) for b in byte_counts)
             if len(val_buf_tokens) >= SHARD_TOKENS:
                 _write_shard(train_out / f"fineweb_val_{val_written:06d}.bin",
                              np.array(val_buf_tokens[:SHARD_TOKENS], dtype=np.uint16))
@@ -169,7 +186,7 @@ def main() -> None:
                 val_buf_bytes = val_buf_bytes[SHARD_TOKENS:]
                 val_written += 1
         else:
-            train_buf.extend(token_ids)
+            train_buf.extend(int(t) for t in token_ids)
             if len(train_buf) >= SHARD_TOKENS:
                 _write_shard(train_out / f"fineweb_train_{train_written:06d}.bin",
                              np.array(train_buf[:SHARD_TOKENS], dtype=np.uint16))
