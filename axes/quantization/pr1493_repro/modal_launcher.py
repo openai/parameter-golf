@@ -219,6 +219,8 @@ def _run_bundle(
     wd_final: float = 0.095,
     wd_taper_start_frac: float = 1.0,
     cautious_wd: bool = False,
+    num_layers: int = 11,
+    parallel_residual_start: int = 7,
 ) -> dict:
     modal_provider = os.environ.get("MODAL_CLOUD_PROVIDER", "")
     modal_region = os.environ.get("MODAL_REGION", "")
@@ -258,6 +260,9 @@ def _run_bundle(
         "WD_TAPER_START_FRAC": str(wd_taper_start_frac),
         # Cautious WD (0 = off, 1 = on)
         "CAUTIOUS_WD": "1" if cautious_wd else "0",
+        # Architecture overrides
+        "NUM_LAYERS": str(num_layers),
+        "PARALLEL_RESIDUAL_START": str(parallel_residual_start),
     })
 
     cmd = [
@@ -368,6 +373,8 @@ def train_bundle_8x_h100(
     wd_final: float = 0.095,
     wd_taper_start_frac: float = 1.0,
     cautious_wd: bool = False,
+    num_layers: int = 11,
+    parallel_residual_start: int = 7,
 ) -> str:
     return json.dumps(
         _run_bundle(
@@ -383,6 +390,8 @@ def train_bundle_8x_h100(
             wd_final=wd_final,
             wd_taper_start_frac=wd_taper_start_frac,
             cautious_wd=cautious_wd,
+            num_layers=num_layers,
+            parallel_residual_start=parallel_residual_start,
         ),
         indent=2, sort_keys=True,
     )
@@ -562,6 +571,8 @@ def main(
     wd_final: float = 0.095,
     wd_taper_start_frac: float = 1.0,
     cautious_wd: bool = False,
+    num_layers: int = 11,
+    parallel_residual_start: int = 7,
     write_result: str = "",
 ) -> None:
     """Entrypoints:
@@ -599,6 +610,8 @@ def main(
             wd_final=wd_final,
             wd_taper_start_frac=wd_taper_start_frac,
             cautious_wd=cautious_wd,
+            num_layers=num_layers,
+            parallel_residual_start=parallel_residual_start,
         )
     elif mode == "quantize":
         run_id = run_id or f"pr1493_quantize_{Path(bundle_dir).name}"
