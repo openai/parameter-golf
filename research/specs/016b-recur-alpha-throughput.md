@@ -33,18 +33,39 @@ Single **2×H100 NA** pod for the whole diagnostic. Smaller hardware is fine bec
 
 ## Execution protocol
 
-Single pod, two sequential runs. Use NA-1 region explicitly (avoid JP). Use `TORCHINDUCTOR_CACHE_DIR` to speed recompiles (empty cache on first run each, filled for rerun).
+Single pod, three sequential runs: one warmup (discard) + two measurement. Use NA-1 region explicitly (avoid JP). Use `TORCHINDUCTOR_CACHE_DIR` to cache compile artifacts.
 
-### Run A — 008 baseline (no recur-alpha)
+### Run 0 — Warmup (throwaway, 008 commit, ~50 steps)
+
+Primes pod-level state (NCCL fabric, CUDA drivers, memory allocator patterns) so that Run A and Run B both start from an equally-warm pod. Output is discarded.
 
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
-
-# Ensure checkout is at 008-era commit with #1736 baseline code (no recur-alpha logic)
 git checkout 154c9b8
 
-mkdir -p /workspace/runs/016b-throughput/run-a-008
+mkdir -p /workspace/runs/016b-throughput/run-0-warmup
 mkdir -p /workspace/.torch_inductor_cache
+
+NCCL_NET=Socket DATA_DIR=/workspace/data \
+ARTIFACT_DIR=/workspace/runs/016b-throughput/run-0-warmup \
+TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
+CASEOPS_ENABLED=1 \
+GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
+ENABLE_LOOPING_AT=0 \
+ITERATIONS=50 \
+TRAIN_LOG_EVERY=25 \
+SEED=42 \
+torchrun --standalone --nproc_per_node=2 train_gpt.py \
+  > /workspace/runs/016b-throughput/run-0-warmup/train.log 2>&1
+```
+
+Discard this run's tok/s numbers. Its purpose is exclusively to warm the pod.
+
+### Run A — 008 baseline (no recur-alpha, 150 steps, measurement)
+
+```bash
+# Still on 154c9b8 — no need to re-checkout
+mkdir -p /workspace/runs/016b-throughput/run-a-008
 
 NCCL_NET=Socket DATA_DIR=/workspace/data \
 ARTIFACT_DIR=/workspace/runs/016b-throughput/run-a-008 \
@@ -52,16 +73,16 @@ TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
 CASEOPS_ENABLED=1 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 ENABLE_LOOPING_AT=0 \
-ITERATIONS=300 \
+ITERATIONS=150 \
 TRAIN_LOG_EVERY=25 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=2 train_gpt.py \
   > /workspace/runs/016b-throughput/run-a-008/train.log 2>&1
 ```
 
-Expected: compile (~5 min) + 300 steps of looping-active training. Read tok/s at steps 100, 150, 200, 250. Training loss will be bad (catastrophic like #1739) — **do not panic, bpb is not the measurement here.**
+Second time on this commit on this pod — torch.compile cache hits, compile drops to ~1-2 min. Read tok/s at steps 50, 100, 150. Training loss will be catastrophic (like #1739) — **do not panic, bpb is not the measurement here.**
 
-### Run B — 016 with recur-alpha (same pod, fresh compile)
+### Run B — 016 with recur-alpha (150 steps, measurement)
 
 ```bash
 git checkout 4dd2d63
@@ -75,31 +96,32 @@ CASEOPS_ENABLED=1 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 RECUR_ALPHA_ENABLED=1 \
 ENABLE_LOOPING_AT=0 \
-ITERATIONS=300 \
+ITERATIONS=150 \
 TRAIN_LOG_EVERY=25 \
 SEED=42 \
 torchrun --standalone --nproc_per_node=2 train_gpt.py \
   > /workspace/runs/016b-throughput/run-b-016/train.log 2>&1
 ```
 
-Different commit, so compile cache doesn't reuse — second ~5 min compile. Read tok/s at matched steps.
+Different commit than Run A → different graph hash → fresh ~5 min compile. Read tok/s at matched steps 50, 100, 150.
 
-### After both runs
+### After all three runs
 
-- Rsync both `train.log` files to local `runs/016b-throughput/`
+- Rsync all three `train.log` files to local `runs/016b-throughput/`
 - **Stop the pod immediately.** Save the full pipeline run for spec 017 decision.
 
 ## Expected artifacts
 
 ```
 runs/016b-throughput/
+  run-0-warmup/train.log    # discarded, kept for audit
   run-a-008/train.log
   run-b-016/train.log
-  notes.md           # execution writeup: ratio, raw tok/s, decision
+  notes.md                   # execution writeup: ratio, raw tok/s, decision
 ```
 
 No final.json needed — this isn't a submission experiment, just a diagnostic. `notes.md` must include:
-- Raw tok/s at steps 100/150/200/250 for both runs
+- Raw tok/s at steps 50/100/150 for Run A and Run B (ignore Run 0)
 - Ratio 016/008 at each matched step
 - Any anomalies (step-time spikes, compile hiccups)
 - Decision: which bucket we landed in per the criteria above
@@ -108,14 +130,20 @@ No final.json needed — this isn't a submission experiment, just a diagnostic. 
 
 - NaN / inf in step time (not loss — loss WILL be huge; ignore) → halt, investigate
 - Compile failure on either commit → halt, investigate (shouldn't happen, both commits previously compiled fine)
-- Step 300 reached → done, measurement complete
+- Step 150 reached on Run B → done, measurement complete
 
 ## Cost estimate
 
 | item | cost |
 |---|---|
-| 2×H100 NA pod × ~45 min (compile ×2 + training ×2 + overhead) | ~$2.50 |
-| **Total 016b diagnostic** | **~$3** |
+| Pod boot + SSH (~2 min) | ~$0.10 |
+| Run 0 warmup: compile ~5 min + 50 steps (~10 sec) | ~$0.30 |
+| Run A 008: warm compile cache hit ~1-2 min + 150 steps (~25 sec) | ~$0.15 |
+| Run B 016: fresh compile ~5 min + 150 steps (~25 sec) | ~$0.40 |
+| Rsync + pod stop | ~$0.05 |
+| **Total 016b diagnostic** | **~$1** |
+
+Total wallclock: ~15-20 min.
 
 ## Open questions for interview
 
