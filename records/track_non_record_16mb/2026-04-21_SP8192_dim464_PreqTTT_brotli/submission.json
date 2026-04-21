@@ -1,0 +1,9 @@
+{
+  "name": "SP8192 + dim=464 + Pre-Quantization TTT (7 epochs) + Brotli",
+  "val_bpb": 1.1863,
+  "bytes_total": 15915528,
+  "blurb": "Pre-quantization TTT (adapt FP32 weights on full val set before INT6 quantization) with 7 epochs. SP8192 tokenizer, dim=464 (sweet spot for brotli+INT6+INT8-embed under 16MB), depth recurrence (layers 3-5 ×2), parallel residuals from layer 7, LeakyReLU(0.5)², BigramHash(1536), XSA last 4 layers, QAT INT6, brotli compression. Single RTX 5090, 12k steps. Technique scales: 21 epochs on 8×H100 estimated ~1.15 BPB.",
+  "author": "Christian Brandt",
+  "github_id": "BrandtChristian",
+  "date": "2026-04-21"
+}
