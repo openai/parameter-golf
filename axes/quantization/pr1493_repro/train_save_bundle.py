@@ -572,11 +572,18 @@ class Muon(torch.optim.Optimizer):
             if distributed:
                 dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
             wd = group.get('weight_decay', 0.0)
+            cautious = group.get('cautious', False)
             curr = 0
             for p in params:
                 if wd > 0.0:
                     p.data.mul_(1.0 - lr * wd)
                 g = updates_flat[curr:curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                if cautious and p.grad is not None:
+                    # Cautious optimizer: only update where gradient and update agree in sign
+                    mask = (torch.sign(g) == torch.sign(p.grad)).to(g.dtype)
+                    # Rescale to preserve update magnitude (mean of mask ≈ fraction kept)
+                    mask *= mask.numel() / (mask.sum() + 1e-8)
+                    g = g * mask
                 p.add_(g, alpha=-lr)
                 curr += p.numel()
         return loss
@@ -596,8 +603,10 @@ class Optimizers:
         tok_params = [{'params': [base_model.tok_emb.weight], 'lr': token_lr, 'base_lr': token_lr}]
         self.optimizer_tok = torch.optim.AdamW(tok_params, betas=(h.beta1, h.beta2), eps=h.adam_eps, weight_decay=h.embed_wd, fused=True)
         self.optimizer_muon = Muon(matrix_params, lr=h.matrix_lr, momentum=h.muon_momentum, backend_steps=h.muon_backend_steps, weight_decay=h.muon_wd, row_normalize=h.muon_row_normalize)
+        _cautious_wd = bool(int(os.environ.get('CAUTIOUS_WD', '0')))
         for group in self.optimizer_muon.param_groups:
             group['base_lr'] = h.matrix_lr
+            group['cautious'] = _cautious_wd
         self.optimizer_scalar = torch.optim.AdamW([{'params': scalar_params, 'lr': h.scalar_lr, 'base_lr': h.scalar_lr}], betas=(h.beta1, h.beta2), eps=h.adam_eps, weight_decay=h.adam_wd, fused=True)
         self.optimizers = [self.optimizer_tok, self.optimizer_muon, self.optimizer_scalar]
         if base_model.lm_head is not None:
