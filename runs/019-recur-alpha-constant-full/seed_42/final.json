@@ -1,0 +1,74 @@
+{
+  "spec": "019-recur-alpha-constant-full",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "git_commit": "3c3a13416bfce38c10cb27472a66d3fb5fd8777b",
+  "pod_id": "jzsfonth5x0fe1",
+  "hardware": "8xH100 SXM",
+  "region": "AP-JP-1",
+
+  "training": {
+    "stopping_early": "wallclock_cap",
+    "final_step": 4697,
+    "train_time_ms": 596136,
+    "tok_per_sec_snapshots": {
+      "100":  8369316,
+      "500":  8123356,
+      "1000": 8084652,
+      "2000": 8078319,
+      "3000": 6939579,
+      "4000": 6398045,
+      "4500": 6230399
+    }
+  },
+
+  "post_training": {
+    "val_bpb_pre_gptq_post_ema": 1.07062800,
+    "val_bpb_post_gptq": 1.07989230,
+    "val_bpb_post_ttt": 1.06743766,
+    "submission_size_bytes": 15980998,
+    "under_16mb_cap": true,
+    "ttt_eval_time_s": 553.3
+  },
+
+  "step_matched_val_bpb": {
+    "step_4000": {
+      "019": 1.1071,
+      "017": 1.1088,
+      "008": 1.1110
+    }
+  },
+
+  "comparison": {
+    "target_1736_post_ttt": 1.06610,
+    "delta_vs_1736": 0.00134,
+    "017_post_ttt": 1.06733,
+    "delta_vs_017": 0.00011,
+    "008_final_step": 4828,
+    "019_final_step": 4697,
+    "step_deficit_vs_008": 131
+  },
+
+  "extrapolation_to_step_4828": {
+    "method": "linear from step 4000→4697 rate (5.23e-5 bpb/step)",
+    "expected_pre_quant_post_ema": 1.0638,
+    "expected_post_gptq": 1.0731,
+    "expected_post_ttt": 1.0606,
+    "note": "conservative (warmdown is superlinear); real number likely better"
+  },
+
+  "recur_alpha_values_hardcoded": {
+    "pass_1": [1.078125, 1.2734375, 1.4296875],
+    "pass_2": [1.015625, 0.97265625, 0.83203125],
+    "source": "017 endpoint recur_alpha_final"
+  },
+
+  "artifacts": {
+    "train_log": "runs/019-recur-alpha-constant-full/seed_42/train.log",
+    "final_model_pt": "runs/019-recur-alpha-constant-full/seed_42/final_model.pt",
+    "final_model_int6_ptz": "runs/019-recur-alpha-constant-full/seed_42/final_model.int6.ptz"
+  },
+
+  "cost_usd": 10.50
+}
