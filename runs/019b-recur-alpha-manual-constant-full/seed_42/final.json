@@ -1,0 +1,70 @@
+{
+  "spec": "019b-recur-alpha-manual-constant-full",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "git_commit": "9517a3b",
+  "git_branch": "exp/recur-alpha-manual-constant-full",
+  "pod_id": "6pyy9q7aatvgpb",
+  "hardware": "8xH100 SXM",
+  "region": "AP-JP-1",
+  "network_volume_id": "jlxvxeiol4",
+
+  "training": {
+    "stopping_early": "wallclock_cap",
+    "final_step": 4716,
+    "train_time_ms": 596109,
+    "mid_train_step_4000_val_bpb": 1.1071,
+    "tok_per_sec_snapshots": {
+      "600":  8115451,
+      "1300": 8082236,
+      "1900": 8082974,
+      "2400": 7695149,
+      "3200": 6784807,
+      "4000": 6431417,
+      "4500": 6262589,
+      "4700": 6225615
+    }
+  },
+
+  "post_training": {
+    "val_bpb_pre_gptq_post_ema": 1.06950534,
+    "val_bpb_post_gptq": 1.07876695,
+    "val_bpb_post_ttt": 1.06627722,
+    "submission_size_bytes": 15981844,
+    "under_16mb_cap": true,
+    "ttt_eval_time_s": 511.6
+  },
+
+  "comparison": {
+    "target_1736_post_ttt": 1.06610,
+    "delta_vs_1736": 0.00018,
+    "019_post_ttt": 1.06744,
+    "delta_vs_019": -0.00116,
+    "017_post_ttt": 1.06733,
+    "008_post_ttt": 1.06728,
+    "008_final_step": 4828,
+    "019_final_step": 4697,
+    "019b_final_step": 4716
+  },
+
+  "bucket_outcome": "(1.06550, 1.06710] - close, within seed std",
+
+  "recur_alpha_values_hardcoded": {
+    "pass_1": [1.078125, 1.2734375, 1.4296875],
+    "pass_2": [1.015625, 0.97265625, 0.83203125],
+    "source": "017 endpoint recur_alpha_final (same as 019)"
+  },
+
+  "code_change_vs_019": "Algebraic lerp form at 4 sites: replaced torch.lerp(a, b, w) with a + w * (b - a)",
+
+  "artifacts": {
+    "train_log": "runs/019b-recur-alpha-manual-constant-full/seed_42/train.log",
+    "final_model_int6_ptz": "runs/019b-recur-alpha-manual-constant-full/seed_42/final_model.int6.ptz",
+    "final_model_pt_on_volume": "/workspace/runs/019b-recur-alpha-manual-constant-full/seed_42/final_model.pt (JP volume jlxvxeiol4, 135 MB — not git-synced)",
+    "failed_first_attempt_log": "runs/019b-recur-alpha-manual-constant-full/seed_42/train.tokenizer_path_bug.log (tokenizer path bug, resolved)"
+  },
+
+  "cost_usd": 14.50,
+  "cost_note": "~36 min 8xH100 JP at $23.92/hr: 2 min tokenizer-bug attempt + ~34 min successful pipeline. Includes prior 6vc98xb3qwpzri smoke ($1) and cuh1g7lxkdhi5z OOM attempt ($4). Spec 019b total spend: ~$19."
+}

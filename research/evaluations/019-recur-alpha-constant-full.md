@@ -27,13 +27,13 @@ Miss vs #1736: **+0.00134**. Marginally worse than 017 (1.06733) by 0.00011 — 
 
 ## Why 019 underperformed the projection
 
-**Step count: 4,697 vs expected 4,825+.** The constant-α throughput win (92% overhead recovery, +2.24% over tensor lerp at proxy scale) was real on the controlled NA proxy pod. On this JP pod, 019 ran ~130K tok/s slower than 017's JP pod throughout — a node variance that swamped the blend-op savings entirely. Net result: 131 fewer steps than 008 instead of the expected ~5 fewer.
+**Step count: 4,697 vs expected 4,825+.** 019 ran ~130K tok/s slower than 017 throughout the run. This gap is **much larger than observed node variance** across JP pods on prior runs (node-to-node scatter has been on the order of tens of K tok/s, not 130K). The deficit is architectural — constant-α + `torch.lerp` is genuinely slower than 017's manual-blend + tensor-α path at full scale, directly opposite to what the 018c proxy predicted (92% overhead recovery, +2.24% over tensor lerp). The proxy→full extrapolation failed.
 
-This is confirmed by step-matched loss: at step 4000, **019 had better val_bpb than both 008 and 017** (1.1071 vs 1.1088 vs 1.1110). The model quality is genuinely better per step; it just didn't get enough steps.
+Step-matched loss shows the model quality signal is real: at step 4000, **019 had better val_bpb than both 008 and 017** (1.1071 vs 1.1088 vs 1.1110). The per-step quality improved; the run just got fewer steps due to the unexpected throughput regression.
 
-| step | 008 val_bpb | 017 val_bpb | 019 val_bpb |
-|------|-------------|-------------|-------------|
-| 4000 | 1.1110 | 1.1088 | **1.1071** |
+| step | 008 val_bpb | 017 val_bpb | 019 val_bpb | 019b val_bpb |
+|------|-------------|-------------|-------------|--------------|
+| 4000 | 1.1110 | 1.1088 | **1.1071** | **1.1071** |
 
 ## Linear extrapolation to step 4828
 
@@ -58,20 +58,19 @@ At matched pipeline quality (roughly — 019 has fewer steps but better per-step
 
 | scale | config | overhead vs baseline |
 |-------|--------|---------------------|
-| Proxy 6L/256d (018c) | constant-α | −0.24% (92% recovery) |
-| Full 11L/512d (019) | constant-α vs 017 (same scale) | confounded by pod lottery |
+| Proxy 6L/256d (018c) | constant-α + lerp | −0.24% (92% recovery) |
+| Full 11L/512d (019) | constant-α + lerp vs 017 (same scale) | **−130K tok/s vs 017 throughout** |
 
-019's tok/s ran 130K below 017 throughout — a pod variance artifact. The proxy test (018c) was controlled; the full model test was not. **We cannot confirm or deny the throughput benefit at full scale from this run alone.** A same-pod A/B would be needed to isolate the constant-α signal.
+The 130K tok/s gap is architectural, not node variance (observed JP node-to-node scatter is much smaller). **The 018c proxy result did not generalize to full scale.** Constant-α + `torch.lerp` is slower at full than 017's tensor-α + manual blend — the opposite of what the proxy predicted.
 
-## Decision — NEEDS FASTER POD
+This is the central open question coming out of 019: why does the proxy mispredict here? Hypotheses (fusion heuristics flipping with scale, TTT-path wiring adding sites, something specific to lerp's primitive template at full matmul-dominated graphs) are not distinguished by this run.
 
-**Do not shelve.** The model quality at matched steps is strictly better than 008 and 017. The miss is 100% attributable to pod lottery. Options:
+## Decision — OPEN QUESTION: PROXY→FULL GAP
 
-1. **Rerun 019 on NA-1** (when capacity available) — same commit, same config, single seed. If NA pod matches 008's 4828 steps, projected post-TTT ~1.0606. Cost: ~$10.
-2. **3-seed on NA-1** if seed 42 promotes — another ~$20-24.
-3. **Shelve constant-α for now, pivot to Path B** (learn-then-freeze, spec 020) — if we believe the α values should be seed-specific rather than transplanted from 017.
+**Do not shelve recur-alpha.** Per-step quality is strictly better than 008 and 017. But the throughput regression at full scale is real and unexplained, and the proxy→full extrapolation failed. Next step is a diagnostic idea (pending) to understand the gap, followed by either:
 
-Recommendation: **Option 1 first.** The linear extrapolation gives high confidence. One clean NA run resolves the question for ~$10.
+- A fix that actually works at full (manual+literal per 019b, or a different construction), or
+- Accepting the tax and moving to stack recur-alpha with the next lever.
 
 ## Cost
 
