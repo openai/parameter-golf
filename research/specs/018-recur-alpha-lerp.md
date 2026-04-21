@@ -36,7 +36,13 @@ Mini-model "blend overhead" baseline: whatever 016b (Run B vs Run A) measures. O
 ## Code changes
 
 **Branch:** `exp/recur-alpha-lerp` forking from `4dd2d63` (spec 016's commit, which already has α=1 init and the grad_norm logging fix).
-**Commit:** `97d9854` on `fork/exp/recur-alpha-lerp`.
+**Commit:** `ede7895` on `fork/exp/recur-alpha-lerp`.
+
+Two-commit stack on the branch:
+- `97d9854`: torch.lerp replacement in forward_logits (encoder + decoder blend sites)
+- `ede7895`: TTT forward-path fix — apply torch.lerp blend in forward_ttt too (closes the α=1-at-TTT bug discovered after 017 landed)
+
+**Note:** spec 018's throughput test uses `ENABLE_LOOPING_AT=0` + `ITERATIONS=150` + training-only (no TTT phase). So the TTT fix is *included* in the commit but *not exercised* by 018's diagnostic. It's shipped here so downstream full-pipeline specs can fork from this branch with the fix intact.
 
 **Patch:** Two one-line changes in `forward_logits` of `records/.../train_gpt.py`:
 
