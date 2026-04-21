@@ -262,6 +262,7 @@ def _run_bundle(
         "CAUTIOUS_WD": "1" if cautious_wd else "0",
         # Architecture overrides
         "NUM_LAYERS": str(num_layers),
+        "XSA_LAST_N": str(num_layers),
         "PARALLEL_RESIDUAL_START": str(parallel_residual_start),
     })
 
