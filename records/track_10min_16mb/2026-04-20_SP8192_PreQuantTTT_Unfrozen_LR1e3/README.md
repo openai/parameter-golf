@@ -11,7 +11,7 @@ PR #1738 is undertuned in its pre-quant TTT phase. At the default `PREQUANT_TTT_
 | `PREQUANT_TTT_LR` | `5e-4` | **`1e-3`** |
 | `PREQUANT_TTT_FREEZE_BLOCKS` | `2` | **`0`** |
 
-No changes to architecture, tokenizer, main training, or evaluation. The submitted `train_gpt.py` is PR #1738's `train_gpt.py` with two `os.environ.setdefault` lines prepended.
+No changes to architecture, tokenizer, main training, or evaluation. The submitted `train_gpt.py` is PR #1738's `train_gpt.py` with two `os.environ.setdefault` lines prepended. The packed blob also includes a small FlashAttention-3 compatibility fix: a `.to(bf16)` cast around the `flash_attn_3_func` call, because without it PR #1738's `train_gpt.py` crashes on pytorch 2.5.1 with `RuntimeError: FlashAttention only supports fp16, bf16, and fp8_e4m3` (q/k/v can arrive as fp32 after `torch.compile` rewrites). The cast is behaviorally identical on pytorch 2.9.1 (PR #1738's stack).
 
 ## Why it works
 
