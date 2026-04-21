@@ -411,6 +411,8 @@ def _run_quantize(
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
     sparsity_threshold: float = 1.0,
+    num_layers: int = 11,
+    parallel_residual_start: int = 7,
 ) -> dict:
     os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "hf"))
     volume.reload()
@@ -446,6 +448,9 @@ def _run_quantize(
         "PRUNE_FRACTION": str(prune_fraction),
         "PRUNE_METHOD": prune_method,
         "SPARSITY_THRESHOLD": str(sparsity_threshold),
+        "NUM_LAYERS": str(num_layers),
+        "PARALLEL_RESIDUAL_START": str(parallel_residual_start),
+        "XSA_LAST_N": str(num_layers),
     })
 
     cmd = [
@@ -527,6 +532,8 @@ def quantize_1x_h100(
     prune_fraction: float = 0.0,
     prune_method: str = "magnitude",
     sparsity_threshold: float = 1.0,
+    num_layers: int = 11,
+    parallel_residual_start: int = 7,
 ) -> str:
     return json.dumps(
         _run_quantize(
@@ -541,6 +548,8 @@ def quantize_1x_h100(
             prune_fraction=prune_fraction,
             prune_method=prune_method,
             sparsity_threshold=sparsity_threshold,
+            num_layers=num_layers,
+            parallel_residual_start=parallel_residual_start,
         ),
         indent=2, sort_keys=True,
     )
@@ -628,6 +637,8 @@ def main(
             prune_fraction=prune_fraction,
             prune_method=prune_method,
             sparsity_threshold=sparsity_threshold,
+            num_layers=num_layers,
+            parallel_residual_start=parallel_residual_start,
         )
     else:
         raise ValueError("mode must be 'prefetch', 'train', or 'quantize'")
