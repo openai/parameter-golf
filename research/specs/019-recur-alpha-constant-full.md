@@ -39,10 +39,11 @@ Secondary comparison: **017's 1.06733** (same recur-alpha mechanism, different �
 ## Code changes
 
 **Branch:** `exp/recur-alpha-constant-full` forking from `aabfbea` (018c's commit) + additional TTT wiring.
-**Commit:** `2895db3` on `fork/exp/recur-alpha-constant-full`.
+**Commit:** `3c3a134` on `fork/exp/recur-alpha-constant-full`.
+*(Corrected from original `2895db3`: pass-2 L5 α was 1.3984375 — 016's endpoint — instead of 1.4296875 — 017's actual recur_alpha_final. Bug introduced when 018c commit was prepared before 017 finished. Fixed during spec 019 execution interview.)*
 
 Key properties:
-- **No learnable α** — values hardcoded at `((1.078125, 1.2734375, 1.3984375), (1.015625, 0.97265625, 0.83203125))` from 017 endpoint
+- **No learnable α** — values hardcoded at `((1.078125, 1.2734375, 1.4296875), (1.015625, 0.97265625, 0.83203125))` from 017 endpoint
 - **torch.compile sees α as compile-time constants** in both `forward_logits` and `forward_ttt` lerp sites
 - **TTT bug fixed** — recur-alpha applies during TTT adaptation + eval (was missing in 015/016/017)
 - `self.recur_alpha = None` — not a Parameter, no gradient tracking, no optimizer state
