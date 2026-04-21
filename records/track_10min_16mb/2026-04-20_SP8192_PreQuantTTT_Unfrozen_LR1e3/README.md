@@ -20,6 +20,14 @@ No changes to architecture, tokenizer, main training, or evaluation. The submitt
 
 Both effects stack monotonically. The final delta is driven by a better TTT endpoint, not by any change to the quantizer or main train loop.
 
+![Pre-quant TTT convergence](figs/ttt_convergence.png)
+
+**Figure 1** — Pre-quant TTT val_bpb per epoch at three configurations, seed 42. The y-axis is the TTT-phase val_bpb measured on the legal held-out tokens *before* GPTQ quantization; lower is better. The 21-epoch cosine schedule is a fixed budget. At `LR=2.5e-4` (default-halved, grey dotted) the curve flattens well before epoch 21, ending at 1.0512. At `LR=1e-3` with the inherited `freeze=2` (blue dashed) the curve is still monotonically descending at epoch 21, ending at 1.0191 — evidence that the inherited LR undertrains the final TTT pass. Unfreezing all blocks (`freeze=0`, red solid) pushes the endpoint to 1.0119.
+
+![Freeze-depth sweep](figs/freeze_sweep.png)
+
+**Figure 2** — Sweep over `PREQUANT_TTT_FREEZE_BLOCKS` at `LR=1e-3`, seed 42. The y-axis is the scored sliding-window val_bpb (stride-64); lower is better. The sweep is strictly monotone over freeze ∈ {0, 1, 2, 3} — less freezing is always better within this range under the 21-epoch TTT budget. `freeze=0` (red) at 1.0294 sits 0.0260 below the `freeze=3` endpoint and below PR #1738's reported 3-seed mean of 1.03540 (dashed grey).
+
 ## 3-seed results (8× H100 80GB SXM, 10-min train / 10-min eval budgets)
 
 | Seed | val_loss | val_bpb (sliding) | val_bpb (fixed) | artifact bytes |
