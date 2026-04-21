@@ -24,86 +24,45 @@ None. Uses existing commits:
 - **008 side:** `154c9b8` (spec 008 pinned commit on `research`) — no recur-alpha code.
 - **016 side:** `4dd2d63` (`exp/recur-alpha-ones`) — recur-alpha enabled via `RECUR_ALPHA_ENABLED=1`.
 
+## Model config (proxy — NOT full submission model)
+
+The full 11L/512d model does not fit on 2×H100 under DDP (each GPU holds full model + optimizer state, ~78 GB used). We run a **6L/256d proxy model** via env vars only — no code change:
+
+```
+NUM_LAYERS=6    MODEL_DIM=256    XSA_LAST_N=6    PARALLEL_START_LAYER=99
+```
+
+- `XSA_LAST_N=6` — must match NUM_LAYERS (default 11 would reference non-existent layers)
+- `PARALLEL_START_LAYER=99` — disables parallel residuals (default 8 > num_layers=6, set explicitly for safety)
+- Loop config unchanged: `LOOP_START=3 LOOP_END=5 NUM_LOOPS=2` — looped layers 3,4,5 still exist in a 6-layer model ✓
+- All other flags (CaseOps, GatedAttn, QuantGate) unchanged
+
+**Caveat:** smaller model means cheaper layers, so the 6-scalar blend op is a larger *fraction* of compute. Any overhead measured here is an upper bound on real overhead at full model size. If we see <1% difference here, the full model is definitely safe.
+
 ## Hardware
 
-Single **2×H100 NA** pod for the whole diagnostic. Smaller hardware is fine because:
-- We're measuring the *ratio* 016/008 on identical pod, not absolute numbers
-- Blend-op overhead is per-GPU memory-bandwidth, scales similarly at 2-GPU and 8-GPU
-- Much cheaper (~$3/hr vs ~$24/hr)
+Single **2×H100 US-NE-1** pod, NA volume `hvpdph5i3g` mounted at `/workspace`. CaseOps data already on volume at `/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/`. ~$6/hr.
 
 ## Execution protocol
 
-Single pod, three sequential runs: one warmup (discard) + two measurement. Use NA-1 region explicitly (avoid JP). Use `TORCHINDUCTOR_CACHE_DIR` to cache compile artifacts.
+Two sequential runs on the same pod (no warmup — small model compiles fast). Each runs to the 596s wallclock cap.
 
-### Run 0 — Warmup (throwaway, 008 commit, ~50 steps)
-
-Primes pod-level state (NCCL fabric, CUDA drivers, memory allocator patterns) so that Run A and Run B both start from an equally-warm pod. Output is discarded.
+### Run A — 008 baseline (commit 154c9b8, no recur-alpha)
 
 ```bash
-cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
-git checkout 154c9b8
-
-mkdir -p /workspace/runs/016b-throughput/run-0-warmup
-mkdir -p /workspace/.torch_inductor_cache
-
-NCCL_NET=Socket DATA_DIR=/workspace/data \
-ARTIFACT_DIR=/workspace/runs/016b-throughput/run-0-warmup \
+NCCL_NET=Socket DATA_DIR=/workspace/parameter-golf/data \
 TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
-CASEOPS_ENABLED=1 \
-GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-ENABLE_LOOPING_AT=0 \
-ITERATIONS=50 \
-TRAIN_LOG_EVERY=25 \
-SEED=42 \
-torchrun --standalone --nproc_per_node=2 train_gpt.py \
-  > /workspace/runs/016b-throughput/run-0-warmup/train.log 2>&1
+ARTIFACT_DIR=/workspace/runs/016b-throughput/run-a-2gpu \
+CASEOPS_ENABLED=1 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
+ENABLE_LOOPING_AT=0 TRAIN_LOG_EVERY=25 SEED=42 \
+NUM_LAYERS=6 MODEL_DIM=256 XSA_LAST_N=6 PARALLEL_START_LAYER=99 \
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+torchrun --standalone --nproc_per_node=2 train_gpt.py
 ```
 
-Discard this run's tok/s numbers. Its purpose is exclusively to warm the pod.
+### Run B — 016 recur-alpha (commit 4dd2d63, RECUR_ALPHA_ENABLED=1)
 
-### Run A — 008 baseline (no recur-alpha, 150 steps, measurement)
-
-```bash
-# Still on 154c9b8 — no need to re-checkout
-mkdir -p /workspace/runs/016b-throughput/run-a-008
-
-NCCL_NET=Socket DATA_DIR=/workspace/data \
-ARTIFACT_DIR=/workspace/runs/016b-throughput/run-a-008 \
-TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
-CASEOPS_ENABLED=1 \
-GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-ENABLE_LOOPING_AT=0 \
-ITERATIONS=150 \
-TRAIN_LOG_EVERY=25 \
-SEED=42 \
-torchrun --standalone --nproc_per_node=2 train_gpt.py \
-  > /workspace/runs/016b-throughput/run-a-008/train.log 2>&1
-```
-
-Second time on this commit on this pod — torch.compile cache hits, compile drops to ~1-2 min. Read tok/s at steps 50, 100, 150. Training loss will be catastrophic (like #1739) — **do not panic, bpb is not the measurement here.**
-
-### Run B — 016 with recur-alpha (150 steps, measurement)
-
-```bash
-git checkout 4dd2d63
-
-mkdir -p /workspace/runs/016b-throughput/run-b-016
-
-NCCL_NET=Socket DATA_DIR=/workspace/data \
-ARTIFACT_DIR=/workspace/runs/016b-throughput/run-b-016 \
-TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
-CASEOPS_ENABLED=1 \
-GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-RECUR_ALPHA_ENABLED=1 \
-ENABLE_LOOPING_AT=0 \
-ITERATIONS=150 \
-TRAIN_LOG_EVERY=25 \
-SEED=42 \
-torchrun --standalone --nproc_per_node=2 train_gpt.py \
-  > /workspace/runs/016b-throughput/run-b-016/train.log 2>&1
-```
-
-Different commit than Run A → different graph hash → fresh ~5 min compile. Read tok/s at matched steps 50, 100, 150.
+Same env as Run A plus `RECUR_ALPHA_ENABLED=1`. Alpha active from step 0 (`ENABLE_LOOPING_AT=0`).
 
 ### After all three runs
 

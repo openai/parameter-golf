@@ -286,6 +286,32 @@ A 60-second SSH poll loop parsing `tail -n 400` of the pod's `train.log`, postin
 
 **During any live training run (smoke, screen, or submission): poll the pod's `train.log` every 30 seconds.** This is the user's expected cadence and takes precedence over the default self-pacing. ScheduleWakeup's 60s floor means using a tight Bash `until` loop that `sleep 30` and re-SSH-tail. Do not drift to 1-min, 2-min, 5-min poll intervals unless the user explicitly says to slow down — the short cadence is load-bearing for the user's ability to intercept bugs early.
 
+### Monitoring — interview the user upfront
+
+**Before every run (smoke, screen, or submission), explicitly ask the user what to monitor.** The spec has stop-early criteria; the user has domain-specific signals they care about live (α trajectory shape, tok/s drift, matched-step Δ vs baseline, specific log markers, diagnostic lines). Silent-inference has failed before — be explicit.
+
+Ask as an `AskUserQuestion` during the spec interview, alongside smoke/screen and failure-case questions. Defaults to offer:
+- NaN / inf detection
+- Step-rate / tok/s drift
+- Step-matched Δ vs the spec's baseline (per `feedback_step_matched_comparison.md`)
+- `stopping_early` detection + trigger post-run cleanup
+- Anything spec-specific named in the free-text "Other" slot
+
+During the run, report on exactly those signals at each 30s poll tick — no more, no less. Don't add signals the user didn't ask for; don't drop the ones they did.
+
+**Preferred tick format (user requested, spec 016 onward — "all in one"):** combine the matched-step train_loss comparison table (baseline1/baseline2/current/Δ) and the spec-specific diagnostic table (e.g. α trajectory for recur-alpha specs) in one composite update per poll tick. Example:
+
+```
+┌──────┬────────────┬────────────┬────────────┬─────────┐
+│ step │ 008 train  │ 015 train  │ 016 train  │  Δ vs015│
+├──────┼────────────┼────────────┼────────────┼─────────┤
+│ 2500 │  2.5580    │  2.5572    │  <live>    │ <Δ>     │
+└──────┴────────────┴────────────┴────────────┴─────────┘
+
+recur_alpha (016): [[α21_3, α21_4, α21_5], [α22_3, α22_4, α22_5]]
+  step 2500: [[1.02, 1.15, 1.37], [0.85, 0.76, 0.75]]
+```
+
 ### Progress updates — side-by-side vs baseline
 
 When a spec has a named baseline run (e.g. spec 008 for most post-1736 experiments), format progress updates as a three-column table: step, baseline train_loss at that step, current run's train_loss at that step, Δ. Example:

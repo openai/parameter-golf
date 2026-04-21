@@ -44,10 +44,12 @@ Our 008 post-TTT number: **not measured** (008's execution stopped before TTT ev
 
 ## Expected Δ (conditional on spec 016b result)
 
+**016b result (2026-04-21):** proxy model (6L/256d, same pod A/B) → **97.0%** — lands in the 97–99% partial-tax bucket. Full 11L/512d overhead estimated ~1–2% (proxy amplifies). See `research/evaluations/016b-recur-alpha-throughput.md`.
+
 | 016b outcome | NA throughput vs JP 008 | Expected 017 margin over #1736 |
 |---|---|---|
 | ≥99% of 008 baseline (no tax) | likely matched-or-better | −0.0005 to −0.003 bpb better than #1736 (clear beat) |
-| 97-99% (partial tax) | mild NA variance | ±0.001 of #1736 (coinflip, needs 3-seed) |
+| **97-99% (partial tax) ← ACTUAL** | mild overhead (~1-2% at full model) | ±0.001 of #1736 (coinflip, needs 3-seed) |
 | <97% (architectural tax) | 016 genuinely slower | +0.001 to +0.002 worse than #1736 (miss at matched-wallclock; shelve) |
 
 **Note:** 017 runs **regardless** of 016b outcome. The diagnostic changes our expectation, not the plan. Even in the worst case (architectural tax), 017 provides:
