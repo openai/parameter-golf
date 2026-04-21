@@ -1,0 +1,56 @@
+{
+  "authors": [
+    {
+      "name": "Renqian Luo",
+      "github_id": "renqianluo"
+    }
+  ],
+  "description": "Three composable novel TTT-LoRA improvements on top of dexhunter's phased TTT pipeline: (1) standard alpha/rank LoRA scaling so rank can be raised without instability, (2) warm-start of LoRA A across batches to let feature directions accumulate, (3) raised weight decay (0.5 -> 1.0) that regularizes the warmed A and prevents cross-batch overfit. 3-seed mean 1.07266 BPB.",
+  "val_bpb": 1.07266105,
+  "seed_results": {
+    "1337": 1.07297641,
+    "42": 1.07297575,
+    "314": 1.07203098
+  },
+  "eval_time_seconds": {
+    "1337": 449.2,
+    "42": 448.3,
+    "314": 458.8
+  },
+  "train_time_seconds": {
+    "1337": 596.1,
+    "42": 596.2,
+    "314": 596.1
+  },
+  "artifact_size_bytes": {
+    "1337": 15934599,
+    "42": 15933292,
+    "314": 15935775
+  },
+  "methods": [
+    "Novel (1): alpha/rank scaling on BatchedLinearLoRA output. Standard LoRA formulation, absent in prior phased-TTT submissions. Decouples rank from effective LR so higher-rank LoRA stays stable.",
+    "Novel (2): warm-start of LoRA A across batches (only B is reset to zero between batch boundaries). Lets the A matrix accumulate feature directions across the phased-TTT schedule instead of being re-randomized each batch.",
+    "Novel (3): raised TTT weight decay from 0.5 to 1.0, chosen specifically to counteract the across-batch overfit that full warm-start A alone caused on seed 314. Without this change warm-start is net zero; with it, all three seeds improve or tie.",
+    "LoRA rank 128 (vs prior 96), alpha=96, now safely higher capacity thanks to change (1)",
+    "Inherits dexhunter's phased TTT + multi-phase global SGD + trimmed GPTQ + MATRIX_LR=0.026; samacqua's VarLen + Fused Triton MLP; bigbag's triple depth recurrence + parallel residuals"
+  ],
+  "attribution": {
+    "alpha_scaled_lora__warm_start_A__higher_wd": "Renqian Luo (this work)",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "phased_ttt_concept": "@romeerp (PR #1610)",
+    "multi_phase_global_sgd_trimmed_gptq": "@dexhunter",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  },
+  "legal_ttt": true,
+  "compliance": {
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}
