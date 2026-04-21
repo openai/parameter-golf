@@ -1,4 +1,7 @@
-====================================================================================================
+W0421 07:04:21.405000 35322 site-packages/torch/distributed/run.py:793] 
+W0421 07:04:21.405000 35322 site-packages/torch/distributed/run.py:793] *****************************************
+W0421 07:04:21.405000 35322 site-packages/torch/distributed/run.py:793] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0421 07:04:21.405000 35322 site-packages/torch/distributed/run.py:793] *****************************************
 Hyperparameters:
   adam_eps: 1e-08
   adam_wd: 0.02
@@ -47,7 +50,7 @@ Hyperparameters:
   lbfgs_slot_lr: 1.0
   ln_scale: True
   local_rank: 0
-  logfile: logs/C_frz0_s44.txt
+  logfile: logs/B5_validate_s44.txt
   logit_softcap: 30.0
   loop_end: 5
   loop_start: 3
@@ -87,7 +90,7 @@ Hyperparameters:
   rope_base: 10000.0
   rope_dims: 16
   rope_train_seq_len: 2048
-  run_id: C_frz0_s44
+  run_id: B5_validate_s44
   scalar_lr: 0.02
   seed: 44
   skip_gates_enabled: True
@@ -122,70 +125,8 @@ Hyperparameters:
   vocab_size: 8192
   warmdown_frac: 0.72
   warmup_steps: 20
-  wd_taper_final_mult: 1.0
-  wd_taper_start_frac: 1.0
   world_size: 8
   xsa_last_n: 11
-====================================================================================================
-Running Python 3.11.10 | packaged by conda-forge | (main, Oct 16 2024, 01:27:36) [GCC 13.3.0]
-Running PyTorch 2.5.1+cu124
-Tue Apr 21 02:33:10 2026       
-+-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
-+-----------------------------------------+------------------------+----------------------+
-| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
-|                                         |                        |               MIG M. |
-|=========================================+========================+======================|
-|   0  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
-| N/A   43C    P0            133W /  700W |    3410MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   1  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
-| N/A   33C    P0            122W /  700W |    3458MiB /  81559MiB |      6%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3F:00.0 Off |                    0 |
-| N/A   33C    P0            118W /  700W |    3458MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   3  NVIDIA H100 80GB HBM3          On  |   00000000:48:00.0 Off |                    0 |
-| N/A   44C    P0            132W /  700W |    3458MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   4  NVIDIA H100 80GB HBM3          On  |   00000000:87:00.0 Off |                    0 |
-| N/A   41C    P0            122W /  700W |    3458MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   5  NVIDIA H100 80GB HBM3          On  |   00000000:90:00.0 Off |                    0 |
-| N/A   33C    P0            122W /  700W |    3458MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BE:00.0 Off |                    0 |
-| N/A   32C    P0            120W /  700W |    3458MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-|   7  NVIDIA H100 80GB HBM3          On  |   00000000:C7:00.0 Off |                    0 |
-| N/A   42C    P0            128W /  700W |    3218MiB /  81559MiB |      0%      Default |
-|                                         |                        |             Disabled |
-+-----------------------------------------+------------------------+----------------------+
-
-+-----------------------------------------------------------------------------------------+
-| Processes:                                                                              |
-|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
-|        ID   ID                                                               Usage      |
-|=========================================================================================|
-|    0   N/A  N/A           52920      C   /opt/conda/bin/python3                 3400MiB |
-|    1   N/A  N/A           52921      C   /opt/conda/bin/python3                 3448MiB |
-|    2   N/A  N/A           52922      C   /opt/conda/bin/python3                 3448MiB |
-|    3   N/A  N/A           52923      C   /opt/conda/bin/python3                 3448MiB |
-|    4   N/A  N/A           52924      C   /opt/conda/bin/python3                 3448MiB |
-|    5   N/A  N/A           52925      C   /opt/conda/bin/python3                 3448MiB |
-|    6   N/A  N/A           52926      C   /opt/conda/bin/python3                 3448MiB |
-|    7   N/A  N/A           52927      C   /opt/conda/bin/python3                 3208MiB |
-+-----------------------------------------------------------------------------------------+
-
-====================================================================================================
 val_bpb:byte_sidecar:enabled
 train_shards: 80
 val_tokens: 47851520
@@ -209,81 +150,89 @@ loop_warmup_step: 6/20
 loop_warmup_step: 10/20
 loop_warmup_step: 20/20
 0/20000 val_loss: 9.0084 val_bpb: 4.1165
-1/20000 train_loss: 9.0109 train_time: 0.0m tok/s: 7826135
-2/20000 train_loss: 12.6527 train_time: 0.0m tok/s: 7637355
-3/20000 train_loss: 9.8863 train_time: 0.0m tok/s: 7546431
-4/20000 train_loss: 8.2451 train_time: 0.0m tok/s: 7516112
-5/20000 train_loss: 7.6743 train_time: 0.0m tok/s: 7490669
-500/20000 train_loss: 2.8899 train_time: 0.9m tok/s: 7296938
-1000/20000 train_loss: 2.8114 train_time: 1.8m tok/s: 7290604
-1500/20000 train_loss: 2.6531 train_time: 2.7m tok/s: 7287704
-layer_loop:enabled step:1907 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
-2000/20000 train_loss: 2.6415 train_time: 3.7m tok/s: 7124008
-2500/20000 train_loss: 2.6501 train_time: 5.0m tok/s: 6532085
-3000/20000 train_loss: 2.5351 train_time: 6.4m tok/s: 6187092
-3500/20000 train_loss: 2.3674 train_time: 7.7m tok/s: 5963463
-4000/20000 train_loss: 2.3752 train_time: 9.0m tok/s: 5806623
-4000/20000 val_loss: 2.4075 val_bpb: 1.1001
-4290/20000 val_loss: 2.3820 val_bpb: 1.0885
-stopping_early: wallclock_cap train_time: 588160ms step: 4290/20000
+1/20000 train_loss: 9.0109 train_time: 0.0m tok/s: 7829129
+2/20000 train_loss: 12.6527 train_time: 0.0m tok/s: 7658531
+3/20000 train_loss: 9.8863 train_time: 0.0m tok/s: 7561942
+4/20000 train_loss: 8.2451 train_time: 0.0m tok/s: 7509005
+5/20000 train_loss: 7.6744 train_time: 0.0m tok/s: 7485631
+500/20000 train_loss: 2.8897 train_time: 0.9m tok/s: 7263598
+1000/20000 train_loss: 2.8074 train_time: 1.8m tok/s: 7257910
+1500/20000 train_loss: 2.6563 train_time: 2.7m tok/s: 7254069
+layer_loop:enabled step:1898 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2000/20000 train_loss: 2.6384 train_time: 3.7m tok/s: 7074276
+2500/20000 train_loss: 2.6498 train_time: 5.0m tok/s: 6489385
+3000/20000 train_loss: 2.5360 train_time: 6.4m tok/s: 6151124
+3500/20000 train_loss: 2.3665 train_time: 7.7m tok/s: 5930004
+4000/20000 train_loss: 2.3749 train_time: 9.1m tok/s: 5774742
+4000/20000 val_loss: 2.4061 val_bpb: 1.0995
+4269/20000 val_loss: 2.3828 val_bpb: 1.0889
+stopping_early: wallclock_cap train_time: 588033ms step: 4269/20000
 peak memory allocated: 47293 MiB reserved: 48816 MiB
 ema:applying EMA weights
-pre-quantization post-ema val_loss:2.37946064 val_bpb:1.08732066 eval_time:10951ms
+pre-quantization post-ema val_loss:2.38036175 val_bpb:1.08773243 eval_time:10973ms
 prequant_ttt:start epochs=21 lr=0.001 freeze_blocks=0 wd=0.0 parallel=8gpus
 prequant_ttt:compiled forward pass
 prequant_ttt:epoch 1/21 chunk 1457/1461 lr=0.001000
-prequant_ttt:epoch 1/21 val_bpb=1.095235 lr=0.001000 time=60.4s
+prequant_ttt:epoch 1/21 val_bpb=1.095060 lr=0.001000 time=60.5s
 prequant_ttt:epoch 2/21 chunk 1457/1461 lr=0.000995
-prequant_ttt:epoch 2/21 val_bpb=1.089838 lr=0.000995 time=21.5s
+prequant_ttt:epoch 2/21 val_bpb=1.093415 lr=0.000995 time=21.5s
 prequant_ttt:epoch 3/21 chunk 1457/1461 lr=0.000980
-prequant_ttt:epoch 3/21 val_bpb=1.085080 lr=0.000980 time=22.3s
+prequant_ttt:epoch 3/21 val_bpb=1.086054 lr=0.000980 time=21.6s
 prequant_ttt:epoch 4/21 chunk 1457/1461 lr=0.000955
-prequant_ttt:epoch 4/21 val_bpb=1.084330 lr=0.000955 time=22.5s
+prequant_ttt:epoch 4/21 val_bpb=1.086114 lr=0.000955 time=21.6s
 prequant_ttt:epoch 5/21 chunk 1457/1461 lr=0.000922
-prequant_ttt:epoch 5/21 val_bpb=1.080316 lr=0.000922 time=21.6s
+prequant_ttt:epoch 5/21 val_bpb=1.081896 lr=0.000922 time=22.3s
 prequant_ttt:epoch 6/21 chunk 1457/1461 lr=0.000880
-prequant_ttt:epoch 6/21 val_bpb=1.072894 lr=0.000880 time=21.6s
+prequant_ttt:epoch 6/21 val_bpb=1.074455 lr=0.000880 time=22.5s
 prequant_ttt:epoch 7/21 chunk 1457/1461 lr=0.000831
-prequant_ttt:epoch 7/21 val_bpb=1.068104 lr=0.000831 time=21.6s
+prequant_ttt:epoch 7/21 val_bpb=1.070348 lr=0.000831 time=22.5s
 prequant_ttt:epoch 8/21 chunk 1457/1461 lr=0.000775
-prequant_ttt:epoch 8/21 val_bpb=1.064882 lr=0.000775 time=22.5s
+prequant_ttt:epoch 8/21 val_bpb=1.065149 lr=0.000775 time=22.4s
 prequant_ttt:epoch 9/21 chunk 1457/1461 lr=0.000714
-prequant_ttt:epoch 9/21 val_bpb=1.060133 lr=0.000714 time=21.6s
+prequant_ttt:epoch 9/21 val_bpb=1.061061 lr=0.000714 time=21.6s
 prequant_ttt:epoch 10/21 chunk 1457/1461 lr=0.000650
-prequant_ttt:epoch 10/21 val_bpb=1.055691 lr=0.000650 time=21.6s
+prequant_ttt:epoch 10/21 val_bpb=1.054115 lr=0.000650 time=21.6s
 prequant_ttt:epoch 11/21 chunk 1457/1461 lr=0.000584
-prequant_ttt:epoch 11/21 val_bpb=1.050319 lr=0.000584 time=21.6s
+prequant_ttt:epoch 11/21 val_bpb=1.049152 lr=0.000584 time=21.6s
 prequant_ttt:epoch 12/21 chunk 1457/1461 lr=0.000516
-prequant_ttt:epoch 12/21 val_bpb=1.044475 lr=0.000516 time=21.6s
+prequant_ttt:epoch 12/21 val_bpb=1.045202 lr=0.000516 time=21.6s
 prequant_ttt:epoch 13/21 chunk 1457/1461 lr=0.000450
-prequant_ttt:epoch 13/21 val_bpb=1.042109 lr=0.000450 time=21.6s
+prequant_ttt:epoch 13/21 val_bpb=1.040707 lr=0.000450 time=21.6s
 prequant_ttt:epoch 14/21 chunk 1457/1461 lr=0.000386
-prequant_ttt:epoch 14/21 val_bpb=1.033012 lr=0.000386 time=21.6s
+prequant_ttt:epoch 14/21 val_bpb=1.034726 lr=0.000386 time=21.6s
 prequant_ttt:epoch 15/21 chunk 1457/1461 lr=0.000325
-prequant_ttt:epoch 15/21 val_bpb=1.030174 lr=0.000325 time=21.6s
+prequant_ttt:epoch 15/21 val_bpb=1.029711 lr=0.000325 time=21.6s
 prequant_ttt:epoch 16/21 chunk 1457/1461 lr=0.000269
-prequant_ttt:epoch 16/21 val_bpb=1.025804 lr=0.000269 time=21.6s
+prequant_ttt:epoch 16/21 val_bpb=1.027572 lr=0.000269 time=21.6s
 prequant_ttt:epoch 17/21 chunk 1457/1461 lr=0.000220
-prequant_ttt:epoch 17/21 val_bpb=1.021707 lr=0.000220 time=21.6s
+prequant_ttt:epoch 17/21 val_bpb=1.023758 lr=0.000220 time=21.6s
 prequant_ttt:epoch 18/21 chunk 1457/1461 lr=0.000178
-prequant_ttt:epoch 18/21 val_bpb=1.018205 lr=0.000178 time=21.6s
+prequant_ttt:epoch 18/21 val_bpb=1.019149 lr=0.000178 time=21.6s
 prequant_ttt:epoch 19/21 chunk 1457/1461 lr=0.000145
-prequant_ttt:epoch 19/21 val_bpb=1.015355 lr=0.000145 time=21.6s
+prequant_ttt:epoch 19/21 val_bpb=1.015715 lr=0.000145 time=21.6s
 prequant_ttt:epoch 20/21 chunk 1457/1461 lr=0.000120
-prequant_ttt:epoch 20/21 val_bpb=1.012571 lr=0.000120 time=21.6s
+prequant_ttt:epoch 20/21 val_bpb=1.012901 lr=0.000120 time=21.6s
 prequant_ttt:epoch 21/21 chunk 1457/1461 lr=0.000105
-prequant_ttt:epoch 21/21 val_bpb=1.010316 lr=0.000105 time=21.6s
-prequant_ttt:done in 494.5s (8 gpus)
-post-prequant-ttt val_loss:2.21039032 val_bpb:1.01006212 eval_time:12013ms
+prequant_ttt:epoch 21/21 val_bpb=1.010591 lr=0.000105 time=21.6s
+prequant_ttt:done in 495.8s (8 gpus)
+post-prequant-ttt val_loss:2.21097809 val_bpb:1.01033071 eval_time:12023ms
 Serialized model: 135430628 bytes
-Code size: 24930 bytes
+Code size: 24893 bytes
 GPTQ:collecting Hessians from calibration data...
-GPTQ:collected 67 Hessians in 51.9s
+GPTQ:collected 67 Hessians in 51.0s
 Quantized weights:
   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
   gptq (int8): tok_emb.weight
   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
-Serialized model quantized+brotli: 15971655 bytes
-Total submission size quantized+brotli: 15996585 bytes
-quantized val_loss:2.26947482 val_bpb:1.03706143 eval_time:16764ms
-quantized_sliding_window val_loss:2.24908921 val_bpb:1.02774600 eval_time:110720ms
+Serialized model quantized+brotli: 15968542 bytes
+Total submission size quantized+brotli: 15993435 bytes
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+<string>:1628: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+quantized val_loss:2.27007204 val_bpb:1.03733433 eval_time:16870ms
+quantized_sliding_window val_loss:2.24991549 val_bpb:1.02812358 eval_time:111046ms
