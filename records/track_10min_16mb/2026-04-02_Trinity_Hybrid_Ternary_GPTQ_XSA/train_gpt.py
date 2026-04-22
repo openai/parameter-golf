@@ -218,6 +218,14 @@ class Hyperparameters:
     ngram_logistic_mix = bool(int(os.environ.get("NGRAM_LOGISTIC_MIX", "0")))  # 0=linear(v6), 1=logistic(PAQ)
     ngram_apm_enabled = bool(int(os.environ.get("NGRAM_APM_ENABLED", "0")))  # APM post-processing
     ngram_apm_lr = float(os.environ.get("NGRAM_APM_LR", 0.005))  # APM learning rate
+    # Legal N-gram (PR #1642 compliant)
+    ngram_legal = bool(int(os.environ.get("NGRAM_LEGAL", "0")))  # 0=hash(fast), 1=legal
+    ngram_legal_alpha = float(os.environ.get("NGRAM_LEGAL_ALPHA", 0.10))  # fixed alpha
+    ngram_legal_order = int(os.environ.get("NGRAM_LEGAL_ORDER", 4))  # max order
+    ngram_legal_delta = float(os.environ.get("NGRAM_LEGAL_DELTA", 0.5))  # add-delta smoothing
+    # Trinity experiments
+    slot_optimizer = os.environ.get("SLOT_OPTIMIZER", "adamw")  # adamw | lion
+    slot_phi_rank = bool(int(os.environ.get("SLOT_PHI_RANK", "0")))  # phi-rank softmax in SLOT eval
     # GPTQ damp factor
     gptq_damp_factor = float(os.environ.get("GPTQ_DAMP_FACTOR", 0.005))
 
@@ -243,6 +251,46 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 5, eps: float = 1e-7) ->
     if was_2d:
         X = X.squeeze(0)
     return X
+
+# --- Lion optimizer (Chen et al. 2023, arXiv:2302.06675) ---
+# sign-of-momentum update, ~50% memory vs AdamW
+
+class Lion(torch.optim.Optimizer):
+    """Lion optimizer — sign of momentum, no second moment.
+    update = sign(beta1 * m + (1 - beta1) * g)
+    m = beta2 * m + (1 - beta2) * g
+    """
+    def __init__(self, params, lr: float = 1e-4, betas=(0.9, 0.99), weight_decay: float = 0.0):
+        defaults = dict(lr=lr, betas=betas, weight_decay=weight_decay)
+        super().__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        for group in self.param_groups:
+            lr = group['lr']
+            beta1, beta2 = group['betas']
+            wd = group['weight_decay']
+            for p in group['params']:
+                if p.grad is None: continue
+                g = p.grad
+                state = self.state[p]
+                if 'exp_avg' not in state:
+                    state['exp_avg'] = torch.zeros_like(p)
+                m = state['exp_avg']
+                # Weight decay
+                if wd != 0:
+                    p.mul_(1 - lr * wd)
+                # Update: sign(beta1 * m + (1 - beta1) * g)
+                update = m.mul(beta1).add_(g, alpha=1 - beta1).sign_()
+                p.add_(update, alpha=-lr)
+                # Update momentum
+                m.mul_(beta2).add_(g, alpha=1 - beta2)
+        return loss
+
 
 # --- Parallel Muon optimizer ---
 
@@ -1549,6 +1597,115 @@ class BackoffNgramMixer:
         return torch.where(score_mask, nll, std_nll)
 
 
+# --- Legal N-gram Mixer (PR #1642 compliant) ---
+# Exact tuple keys (no hashing), full-vocab distribution, additive logit blend,
+# freeze/thaw snapshot, score-before-update. Passes all C1/C2/C3/C4 conditions.
+
+class LegalNgramMixer:
+    """Compliant causal N-gram mixer per PR #1642 rules.
+    - Exact context tuples as dict keys (no hash collisions)
+    - Full V-dim log-prob vector (normalized distribution over all tokens)
+    - Additive logit blend: softmax(neural_logits + alpha * ngram_log_p)
+    - Freeze/thaw snapshot: score from frozen state, update live state
+    - Backoff from order K to 2 (no unigram — noise vs neural model)
+    """
+
+    def __init__(self, vocab_size: int = 1024, max_order: int = 4,
+                 delta: float = 0.5, min_count: int = 2, alpha: float = 0.10,
+                 min_tokens: int = 5000, device: torch.device = None):
+        from collections import defaultdict, Counter
+        self.V = vocab_size
+        self.max_order = max_order
+        self.delta = delta  # add-delta smoothing
+        self.min_count = min_count
+        self.alpha = alpha  # fixed scalar blend weight
+        self.min_tokens = min_tokens
+        self.tokens_seen = 0
+        self.device = device or torch.device('cpu')
+        # Live counts: counts[k][context_tuple] = Counter({token: count})
+        self.counts = {k: defaultdict(Counter) for k in range(2, max_order + 1)}
+        self.totals = {k: defaultdict(int) for k in range(2, max_order + 1)}
+        # Frozen snapshot for score-before-update
+        self._frozen_counts = None
+        self._frozen_totals = None
+        self._context = []
+        self.freeze()  # start with empty frozen state
+
+    def freeze(self):
+        """Deep-copy live counts into frozen snapshot for scoring."""
+        import copy
+        self._frozen_counts = copy.deepcopy(self.counts)
+        self._frozen_totals = copy.deepcopy(self.totals)
+
+    def add_token(self, token: int):
+        """Add a token to live counts (NOT frozen — score uses frozen)."""
+        self._context.append(token)
+        self.tokens_seen += 1
+        for k in range(2, self.max_order + 1):
+            if len(self._context) >= k:
+                ctx = tuple(self._context[-k:-1])
+                self.counts[k][ctx][token] += 1
+                self.totals[k][ctx] += 1
+        if len(self._context) > self.max_order + 10:
+            self._context = self._context[-(self.max_order + 5):]
+
+    def _lookup_log_probs(self, context_tokens: list) -> torch.Tensor:
+        """Get full-vocab log-prob vector from FROZEN counts. Backoff max_order to 2."""
+        V = self.V
+        for k in range(self.max_order, 1, -1):
+            if len(context_tokens) >= k - 1:
+                ctx = tuple(context_tokens[-(k-1):])
+                total = self._frozen_totals[k].get(ctx, 0)
+                if total >= self.min_count:
+                    counter = self._frozen_counts[k].get(ctx)
+                    denom = total + self.delta * V
+                    log_p = torch.full((V,), math.log(self.delta / denom), dtype=torch.float32)
+                    if counter:
+                        for tok, c in counter.items():
+                            log_p[tok] = math.log((c + self.delta) / denom)
+                    return log_p
+        # No match — return uniform (no-op after softmax since it's additive)
+        return torch.full((V,), -math.log(V), dtype=torch.float32)
+
+    def batch_log_probs(self, x_batch: torch.Tensor) -> torch.Tensor:
+        """Full-vocab log-probs for a batch. Returns (bsz, seq_len, V)."""
+        bsz, seq_len = x_batch.shape
+        log_probs = torch.zeros(bsz, seq_len, self.V, dtype=torch.float32)
+        x_cpu = x_batch.cpu().tolist()
+        for b in range(bsz):
+            for t in range(seq_len):
+                ctx = x_cpu[b][max(0, t - self.max_order + 1):t + 1]
+                log_probs[b, t] = self._lookup_log_probs(ctx)
+        return log_probs
+
+    def score(self, logits: torch.Tensor, x_batch: torch.Tensor, y_batch: torch.Tensor,
+              score_mask: torch.Tensor) -> torch.Tensor:
+        """Legal scoring: additive logit blend + softmax + cross-entropy."""
+        bsz, seq_len = y_batch.shape
+        dev = logits.device
+
+        if self.tokens_seen < self.min_tokens or self.alpha == 0:
+            return F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1), reduction="none"
+            ).reshape(bsz, seq_len)
+
+        ngram_log_p = self.batch_log_probs(x_batch).to(dev)  # (bsz, seq_len, V)
+        blended_logits = logits.float() + self.alpha * ngram_log_p
+
+        nll = F.cross_entropy(
+            blended_logits.reshape(-1, self.V).float(),
+            y_batch.reshape(-1), reduction="none"
+        ).reshape(bsz, seq_len)
+
+        std_nll = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)).float(),
+            y_batch.reshape(-1), reduction="none"
+        ).reshape(bsz, seq_len)
+
+        return torch.where(score_mask, nll, std_nll)
+
+
 # --- Per-Sample SLOT v2 (Sample-specific Language Model Optimization at Test-time) ---
 # Based on arXiv:2505.12392 and PR #1329 (0.636 BPB).
 # Per-sample delta + logit_bias in hidden/logit space — model weights fully frozen.
@@ -1602,33 +1759,49 @@ def eval_val_slot_v2(
     for param in base_model.parameters():
         param.requires_grad = False
 
-    # Initialize N-gram mixer (PR #1430: Order-22, entropy-adaptive blending)
+    # Initialize N-gram mixer
     ngram_mixer = None
+    use_legal = getattr(args, 'ngram_legal', False)
     if getattr(args, 'ngram_enabled', False):
-        ngram_mixer = BackoffNgramMixer(
-            vocab_size=vocab_size, device=device,
-            num_buckets=getattr(args, 'ngram_buckets', 4_194_304),
-            max_order=getattr(args, 'ngram_order', 22),
-            min_count=getattr(args, 'ngram_min_count', 2),
-            min_tokens=getattr(args, 'ngram_min_tokens', 5000),
-            alpha_base=getattr(args, 'ngram_alpha_base', 0.20),
-            alpha_range=getattr(args, 'ngram_alpha_range', 0.55),
-            alpha_center=getattr(args, 'ngram_alpha_center', 2.5),
-            skip_thresh=getattr(args, 'ngram_skip_thresh', -1.0),
-            logistic_mix=getattr(args, 'ngram_logistic_mix', False),
-            apm_enabled=getattr(args, 'ngram_apm_enabled', False),
-            apm_lr=getattr(args, 'ngram_apm_lr', 0.005),
-        )
-        if rank == 0:
-            mem_mb = ngram_mixer.B * 2 * (ngram_mixer.max_order - 1) * 4 / 1024 / 1024
-            v7_feats = []
-            if ngram_mixer.skip_thresh > 0: v7_feats.append(f"skip@{ngram_mixer.skip_thresh}")
-            if ngram_mixer.logistic_mix: v7_feats.append("logistic")
-            if ngram_mixer.apm_enabled: v7_feats.append(f"apm@{ngram_mixer.apm_lr}")
-            v7_str = f" v7=[{','.join(v7_feats)}]" if v7_feats else ""
-            print(f"ngram_mixer: order={ngram_mixer.max_order} buckets={ngram_mixer.B} "
-                  f"alpha=[{ngram_mixer.alpha_base},{ngram_mixer.alpha_range},c={ngram_mixer.alpha_center}] "
-                  f"mem={mem_mb:.0f}MB{v7_str}")
+        if use_legal:
+            # PR #1642 compliant: exact tuple keys, full-vocab distribution, additive logit blend
+            ngram_mixer = LegalNgramMixer(
+                vocab_size=vocab_size, device=device,
+                max_order=getattr(args, 'ngram_legal_order', 4),
+                delta=getattr(args, 'ngram_legal_delta', 0.5),
+                min_count=getattr(args, 'ngram_min_count', 2),
+                alpha=getattr(args, 'ngram_legal_alpha', 0.10),
+                min_tokens=getattr(args, 'ngram_min_tokens', 5000),
+            )
+            if rank == 0:
+                print(f"ngram_mixer: LEGAL order={ngram_mixer.max_order} alpha={ngram_mixer.alpha} "
+                      f"delta={ngram_mixer.delta} min_count={ngram_mixer.min_count} (PR #1642 compliant)")
+        else:
+            # Original hash-based mixer (fast but non-compliant)
+            ngram_mixer = BackoffNgramMixer(
+                vocab_size=vocab_size, device=device,
+                num_buckets=getattr(args, 'ngram_buckets', 4_194_304),
+                max_order=getattr(args, 'ngram_order', 22),
+                min_count=getattr(args, 'ngram_min_count', 2),
+                min_tokens=getattr(args, 'ngram_min_tokens', 5000),
+                alpha_base=getattr(args, 'ngram_alpha_base', 0.20),
+                alpha_range=getattr(args, 'ngram_alpha_range', 0.55),
+                alpha_center=getattr(args, 'ngram_alpha_center', 2.5),
+                skip_thresh=getattr(args, 'ngram_skip_thresh', -1.0),
+                logistic_mix=getattr(args, 'ngram_logistic_mix', False),
+                apm_enabled=getattr(args, 'ngram_apm_enabled', False),
+                apm_lr=getattr(args, 'ngram_apm_lr', 0.005),
+            )
+            if rank == 0:
+                mem_mb = ngram_mixer.B * 2 * (ngram_mixer.max_order - 1) * 4 / 1024 / 1024
+                v7_feats = []
+                if ngram_mixer.skip_thresh > 0: v7_feats.append(f"skip@{ngram_mixer.skip_thresh}")
+                if ngram_mixer.logistic_mix: v7_feats.append("logistic")
+                if ngram_mixer.apm_enabled: v7_feats.append(f"apm@{ngram_mixer.apm_lr}")
+                v7_str = f" v7=[{','.join(v7_feats)}]" if v7_feats else ""
+                print(f"ngram_mixer: HASH order={ngram_mixer.max_order} buckets={ngram_mixer.B} "
+                      f"alpha=[{ngram_mixer.alpha_base},{ngram_mixer.alpha_range},c={ngram_mixer.alpha_center}] "
+                      f"mem={mem_mb:.0f}MB{v7_str}")
 
     # Try to compile forward_hidden for speed
     try:
@@ -1685,13 +1858,22 @@ def eval_val_slot_v2(
         # Flatten targets for loss computation
         targets_flat = y_batch.reshape(-1)  # (bsz * seq_len,)
 
-        # STEP 4: AdamW optimization on delta + logit_bias (PR #1430: aggressive LR + low betas)
+        # STEP 4: Optimizer on delta + logit_bias (AdamW default, Lion optional)
         slot_b1 = getattr(args, 'slot_beta1', 0.6)
         slot_b2 = getattr(args, 'slot_beta2', 0.5)
-        optimizer = torch.optim.AdamW(
-            [delta, logit_bias],
-            lr=slot_lr, weight_decay=1e-8, eps=1e-5, betas=(slot_b1, slot_b2),
-        )
+        slot_opt_name = getattr(args, 'slot_optimizer', 'adamw')
+        if slot_opt_name == 'lion':
+            # Lion: ~50% less memory, sign-momentum update (Trinity recommendation)
+            # Use slightly higher betas for Lion per Chen et al. 2023
+            optimizer = Lion(
+                [delta, logit_bias],
+                lr=slot_lr * 0.3, weight_decay=1e-8, betas=(slot_b1, 0.99),
+            )
+        else:
+            optimizer = torch.optim.AdamW(
+                [delta, logit_bias],
+                lr=slot_lr, weight_decay=1e-8, eps=1e-5, betas=(slot_b1, slot_b2),
+            )
         for step in range(slot_steps):
             # Cosine LR decay from slot_lr to lr_min
             t = step / max(slot_steps - 1, 1)
@@ -1723,8 +1905,27 @@ def eval_val_slot_v2(
             logits_proj_final = h_final @ lm_weight.t() + logit_bias
             logits_final = softcap * torch.tanh(logits_proj_final / softcap)
 
-            # N-gram blending: if mixer has seen enough tokens, blend neural+ngram probs
-            if ngram_mixer is not None and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
+            # Trinity: optional phi-rank softmax (content-agnostic rank-based weighting)
+            use_phi_rank = getattr(args, 'slot_phi_rank', False)
+            if use_phi_rank:
+                PHI = 1.6180339887498948
+                probs_std = torch.softmax(logits_final.float(), dim=-1)
+                # Sort descending; weights[k] = phi^(-k) / Z
+                sorted_probs, sort_idx = probs_std.sort(dim=-1, descending=True)
+                V = logits_final.size(-1)
+                ranks = torch.arange(V, device=logits_final.device, dtype=torch.float32)
+                phi_weights = PHI ** (-ranks)
+                phi_weights = phi_weights / phi_weights.sum()
+                # Blend: 0.5 phi-rank + 0.5 standard (conservative)
+                blended_sorted = 0.5 * sorted_probs + 0.5 * phi_weights.expand_as(sorted_probs)
+                probs_phi = torch.zeros_like(probs_std)
+                probs_phi.scatter_(-1, sort_idx, blended_sorted)
+                # Re-normalize (just in case)
+                probs_phi = probs_phi / probs_phi.sum(-1, keepdim=True).clamp(min=1e-10)
+                target_p = probs_phi.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
+                nll_final = -torch.log(target_p.clamp(min=1e-10))
+            elif ngram_mixer is not None and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
+                # N-gram blending: if mixer has seen enough tokens, blend neural+ngram probs
                 nll_final = ngram_mixer.score(logits_final.float(), x_batch, y_batch, score_mask.bool())
             else:
                 nll_final = F.cross_entropy(
@@ -1746,25 +1947,31 @@ def eval_val_slot_v2(
                 byte_count += tb.sum()
 
         # STEP 5b: Update N-gram table AFTER scoring (score-first protocol)
-        # v7 fix: per-sequence update to avoid dropping tokens from longer windows
         if ngram_mixer is not None:
-            # Fast path: if all windows are same length, do single batched update (v6 behavior)
-            wlen_min, wlen_max = min(wlens), max(wlens)
-            if wlen_min == wlen_max:
-                ngram_mixer.update(x_batch[:, :wlen_min].reshape(-1))
-            else:
-                # Slow path: per-sequence update for variable-length windows
+            if use_legal:
+                # Legal mixer: add_token per scored position, then freeze for next batch
+                x_cpu = x_batch.cpu().tolist()
                 for i in range(bsz):
                     wlen = wlens[i]
-                    if wlen > 0:
-                        ngram_mixer.update(x_batch[i, :wlen])
-            # Also update APM table with final mixed probabilities
-            if ngram_mixer.apm_enabled and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
-                with torch.no_grad():
-                    # Recompute mixed_p for APM update (lightweight)
-                    neural_p_apm = torch.softmax(logits_final.float(), dim=-1)
-                    target_p = neural_p_apm.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
-                    ngram_mixer.update_apm(target_p, y_batch, score_mask)
+                    for t in range(wlen):
+                        ngram_mixer.add_token(x_cpu[i][t])
+                ngram_mixer.freeze()  # commit updates for next batch
+            else:
+                # Hash mixer: batched update
+                wlen_min, wlen_max = min(wlens), max(wlens)
+                if wlen_min == wlen_max:
+                    ngram_mixer.update(x_batch[:, :wlen_min].reshape(-1))
+                else:
+                    for i in range(bsz):
+                        wlen = wlens[i]
+                        if wlen > 0:
+                            ngram_mixer.update(x_batch[i, :wlen])
+                # APM update (hash mixer only)
+                if hasattr(ngram_mixer, 'apm_enabled') and ngram_mixer.apm_enabled and ngram_mixer.tokens_seen >= ngram_mixer.min_tokens:
+                    with torch.no_grad():
+                        neural_p_apm = torch.softmax(logits_final.float(), dim=-1)
+                        target_p = neural_p_apm.gather(-1, y_batch.unsqueeze(-1)).squeeze(-1)
+                        ngram_mixer.update_apm(target_p, y_batch, score_mask)
 
         # STEP 6: Discard delta+bias (they go out of scope on next iteration)
         del delta, logit_bias, optimizer, hidden, h_final

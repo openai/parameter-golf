@@ -1,6 +1,9 @@
 data/tokenizers
 __pycache__/
 .DS_Store
+.secrets/
+.obsidian/
+cowork_transfer/
 modded-nanogpt/
 modded-nanogpt
 data/datasets

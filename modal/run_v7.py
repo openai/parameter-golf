@@ -31,7 +31,10 @@ image = image.add_local_file(LOCAL_TRAIN, remote_path="/root/train_gpt.py")
 def run_seed(seed: int, skip_thresh: float = -1.0, logistic_mix: bool = False,
              apm: bool = False, slot_batch: int = 128, slot_steps: int = 24,
              ngram_buckets: int = 4194304, alpha_base: float = 0.20,
-             alpha_range: float = 0.55, alpha_center: float = 2.5):
+             alpha_range: float = 0.55, alpha_center: float = 2.5,
+             legal: bool = False, legal_alpha: float = 0.10, legal_order: int = 4,
+             slot_optimizer: str = "adamw", slot_phi_rank: bool = False,
+             ngram_enabled: bool = True):
     import subprocess, shutil, sys
     shutil.copy("/root/train_gpt.py", "/root/pgolf/train_gpt.py")
 
@@ -52,7 +55,7 @@ def run_seed(seed: int, skip_thresh: float = -1.0, logistic_mix: bool = False,
         "SLOT_LR": "0.432", "SLOT_STEPS": str(slot_steps), "SLOT_STRIDE": "64",
         "SLOT_BETA1": "0.6", "SLOT_BETA2": "0.5", "SLOT_BATCH_SEQS": str(slot_batch),
         # N-gram base params
-        "NGRAM_ENABLED": "1", "NGRAM_ORDER": "22", "NGRAM_BUCKETS": str(ngram_buckets),
+        "NGRAM_ENABLED": "1" if ngram_enabled else "0", "NGRAM_ORDER": "22", "NGRAM_BUCKETS": str(ngram_buckets),
         "NGRAM_MIN_COUNT": "2", "NGRAM_MIN_TOKENS": "5000",
         # v7 NEW: configurable alpha
         "NGRAM_ALPHA_BASE": str(alpha_base),
@@ -65,6 +68,13 @@ def run_seed(seed: int, skip_thresh: float = -1.0, logistic_mix: bool = False,
         # v7 NEW: APM post-processing
         "NGRAM_APM_ENABLED": "1" if apm else "0",
         "NGRAM_APM_LR": "0.005",
+        # LEGAL N-gram (PR #1642 compliant)
+        "NGRAM_LEGAL": "1" if legal else "0",
+        "NGRAM_LEGAL_ALPHA": str(legal_alpha),
+        "NGRAM_LEGAL_ORDER": str(legal_order),
+        # Trinity experiments
+        "SLOT_OPTIMIZER": slot_optimizer,  # adamw | lion
+        "SLOT_PHI_RANK": "1" if slot_phi_rank else "0",
         # v7 NEW: FP16 embeddings + per-row GPTQ clip
         "EMBED_QUANT": "fp16",
         "GPTQ_PER_ROW_CLIP": "1",
@@ -115,8 +125,15 @@ def run_seed(seed: int, skip_thresh: float = -1.0, logistic_mix: bool = False,
 def main(seed: int = 42, skip_thresh: float = -1.0,
          logistic_mix: bool = False, apm: bool = False,
          slot_batch: int = 128, slot_steps: int = 24,
-         ngram_buckets: int = 4194304):
+         ngram_buckets: int = 4194304,
+         legal: bool = False, legal_alpha: float = 0.10, legal_order: int = 4,
+         slot_optimizer: str = "adamw", slot_phi_rank: bool = False,
+         ngram_enabled: bool = True):
     feats = []
+    if not ngram_enabled: feats.append("NO_NGRAM")
+    if slot_optimizer != "adamw": feats.append(f"opt={slot_optimizer}")
+    if slot_phi_rank: feats.append("phi_rank")
+    if legal: feats.append(f"LEGAL@{legal_alpha}(ord={legal_order})")
     if skip_thresh > 0: feats.append(f"skip@{skip_thresh}")
     if logistic_mix: feats.append("logistic")
     if apm: feats.append("apm")
@@ -126,7 +143,10 @@ def main(seed: int = 42, skip_thresh: float = -1.0,
     print(f"Running v7{feat_str} seed {seed} on Modal...")
     r = run_seed.remote(seed, skip_thresh=skip_thresh, logistic_mix=logistic_mix,
                         apm=apm, slot_batch=slot_batch, slot_steps=slot_steps,
-                        ngram_buckets=ngram_buckets)
+                        ngram_buckets=ngram_buckets,
+                        legal=legal, legal_alpha=legal_alpha, legal_order=legal_order,
+                        slot_optimizer=slot_optimizer, slot_phi_rank=slot_phi_rank,
+                        ngram_enabled=ngram_enabled)
     print(f"\nSeed {seed}: BPB={r['bpb']}")
     print(f"Config: {r['config']}")
     print(f"\n{r['log']}")
