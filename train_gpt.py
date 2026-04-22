@@ -85,6 +85,9 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    # GPTQ calibration
+    gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 16))
+    freq_gptq = bool(int(os.environ.get("FREQ_GPTQ", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -339,9 +342,13 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+def quantize_state_dict_int8(
+    state_dict: dict[str, Tensor],
+    hessians: dict[str, Tensor] | None = None,
+    freq_gptq: bool = False,
+):
     # Single supported clean-script export format:
-    # - per-row int8 for 2D float tensors
+    # - per-row int8 for 2D float tensors (optionally Hessian-aware via GPTQ/FreqGPTQ)
     # - per-tensor int8 for other float tensors
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
@@ -377,7 +384,11 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        H = hessians.get(name) if hessians is not None and t.ndim == 2 else None
+        if H is not None:
+            q, s = freq_gptq_quantize_weight(t, H) if freq_gptq else _gptq_quantize_weight(t, H)
+        else:
+            q, s = quantize_float_tensor(t)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -420,6 +431,130 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
             out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
         out[name] = out_t
     return out
+
+
+# -----------------------------
+# GPTQ + FreqGPTQ QUANTIZATION
+# -----------------------------
+#
+# GPTQ uses Hessian information (H = X^T X from calibration data) to apply
+# Cholesky-based error compensation when quantizing each weight column.
+# FreqGPTQ extends this by splitting the weight into low- and high-frequency
+# bands via rfft before running GPTQ, so each band gets its own independent
+# error-compensation pass.
+
+def _gptq_collect_hessians(
+    model: nn.Module,
+    val_tokens: Tensor,
+    device: torch.device,
+    seq_len: int,
+    num_batches: int,
+) -> dict[str, Tensor]:
+    """Collect input Hessians H = X^T X for every CastedLinear layer using
+    a slice of the validation tokens as calibration data."""
+    hessians: dict[str, Tensor] = {}
+    hooks: list = []
+    for name, module in model.named_modules():
+        if isinstance(module, CastedLinear):
+            key = name + ".weight"
+            cols = module.weight.shape[1]
+            hessians[key] = torch.zeros(cols, cols, dtype=torch.float32)
+            def make_hook(k: str):
+                def fn(m: nn.Module, inp: tuple, out: Tensor) -> None:
+                    x = inp[0].detach().float()
+                    if x.ndim == 3:
+                        x = x.reshape(-1, x.shape[-1])
+                    hessians[k].add_((x.T @ x).cpu())
+                return fn
+            hooks.append(module.register_forward_hook(make_hook(key)))
+    model.eval()
+    total_seqs = max((val_tokens.numel() - 1) // seq_len, 1)
+    with torch.inference_mode():
+        for i in range(num_batches):
+            s = (i * seq_len) % (total_seqs * seq_len)
+            tok = val_tokens[s : s + seq_len + 1].to(device=device, dtype=torch.int64)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                model(tok[:-1].unsqueeze(0), tok[1:].unsqueeze(0))
+    for h in hooks:
+        h.remove()
+    model.train()
+    for key in hessians:
+        H = hessians[key]
+        H /= num_batches
+        damp = 0.01 * H.diagonal().mean().clamp_min(1e-6)
+        H.diagonal().add_(damp)
+    return hessians
+
+
+def _gptq_quantize_weight(W: Tensor, H: Tensor, block_size: int = 128) -> tuple[Tensor, Tensor]:
+    """Hessian-aware int8 quantization (GPTQ) with Cholesky error compensation."""
+    t32 = W.float()
+    rows, cols = t32.shape
+    H = H.float().clone()
+    dead = H.diagonal() == 0
+    H[dead, dead] = 1
+    damp = 0.01 * H.diagonal().mean()
+    H.diagonal().add_(damp)
+    perm = torch.argsort(H.diagonal(), descending=True)
+    inv_perm = torch.argsort(perm)
+    Wp = t32[:, perm].clone()
+    Wp[:, dead[perm]] = 0
+    Hp = H[perm][:, perm]
+    Hinv = torch.linalg.cholesky(Hp)
+    Hinv = torch.cholesky_inverse(Hinv)
+    Hinv = torch.linalg.cholesky(Hinv, upper=True)
+    s = (t32.abs().amax(dim=1).clamp_min(1e-8) / 127.0).to(torch.float16)
+    sf = s.float()
+    Q = torch.zeros(rows, cols, dtype=torch.int8)
+    Ww = Wp.clone()
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        cnt = i2 - i1
+        W1 = Ww[:, i1:i2].clone()
+        Q1 = torch.zeros(rows, cnt, dtype=torch.int8)
+        E1 = torch.zeros(rows, cnt)
+        Hi = Hinv[i1:i2, i1:i2]
+        for i in range(cnt):
+            w = W1[:, i]
+            d = Hi[i, i]
+            q = torch.clamp(torch.round(w / sf), -127, 127).to(torch.int8)
+            Q1[:, i] = q
+            err = (w - q.float() * sf) / d
+            W1[:, i:] -= err.unsqueeze(1) * Hi[i, i:].unsqueeze(0)
+            E1[:, i] = err
+        Q[:, i1:i2] = Q1
+        if i2 < cols:
+            Ww[:, i2:] -= E1 @ Hinv[i1:i2, i2:]
+    return Q[:, inv_perm], s
+
+
+def freq_gptq_quantize_weight(W: Tensor, H: Tensor | None, block_size: int = 128) -> tuple[Tensor, Tensor]:
+    """FreqGPTQ: split W columns into low- and high-frequency bands via rfft,
+    then apply GPTQ independently to each band before recombining."""
+    t32 = W.float()
+    if H is None or t32.ndim != 2:
+        return quantize_float_tensor(t32)
+    rows, cols = t32.shape
+    # Transform each weight row to frequency domain
+    W_freq = torch.fft.rfft(t32, dim=-1)   # [rows, n_freq] complex
+    n_freq = W_freq.shape[1]
+    half = n_freq // 2
+    if half < 1:
+        return _gptq_quantize_weight(t32, H, block_size)
+    # Isolate bands and transform back to spatial domain
+    W_f_low = W_freq.clone()
+    W_f_low[:, half:] = 0
+    W_f_high = W_freq.clone()
+    W_f_high[:, :half] = 0
+    W_low = torch.fft.irfft(W_f_low, n=cols, dim=-1)   # low-frequency content
+    W_high = torch.fft.irfft(W_f_high, n=cols, dim=-1) # high-frequency content
+    # Each band is quantized with GPTQ using the full input Hessian H (both bands
+    # receive the same input x, so H = X^T X applies equally to both)
+    Q_low, s_low = _gptq_quantize_weight(W_low, H, block_size)
+    Q_high, s_high = _gptq_quantize_weight(W_high, H, block_size)
+    # Combine the two reconstructed bands and re-quantize to int8 for storage
+    W_combined = Q_low.float() * s_low.float()[:, None] + Q_high.float() * s_high.float()[:, None]
+    return quantize_float_tensor(W_combined)
 
 
 # -----------------------------
@@ -1073,7 +1208,21 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # Collect Hessians for GPTQ / FreqGPTQ if requested
+    hessians: dict[str, Tensor] | None = None
+    if args.gptq_calibration_batches > 0:
+        log0(
+            f"gptq:collecting hessians from {args.gptq_calibration_batches} calibration batches "
+            f"(freq_gptq={args.freq_gptq})..."
+        )
+        hessians = _gptq_collect_hessians(
+            base_model, val_tokens, device, args.train_seq_len, args.gptq_calibration_batches
+        )
+        log0(f"gptq:collected hessians for {len(hessians)} layers")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(
+        base_model.state_dict(), hessians=hessians, freq_gptq=args.freq_gptq
+    )
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()

@@ -92,6 +92,7 @@ class Hyperparameters:
     compressor = os.environ.get("COMPRESSOR", "brotli")
     gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 16))
     gptq_reserve_seconds = float(os.environ.get("GPTQ_RESERVE_SECONDS", 4.0))
+    freq_gptq = bool(int(os.environ.get("FREQ_GPTQ", "1")))
     phased_ttt_prefix_docs = int(os.environ.get("PHASED_TTT_PREFIX_DOCS", 2000))
     phased_ttt_num_phases = int(os.environ.get("PHASED_TTT_NUM_PHASES", 1))
     global_ttt_lr = float(os.environ.get("GLOBAL_TTT_LR", 0.001))
@@ -1872,6 +1873,37 @@ def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     return Q[:, invperm], s
 
 
+def freq_gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
+    """FreqGPTQ: split W columns into low- and high-frequency bands via rfft,
+    then apply GPTQ independently to each band before recombining.
+
+    This reduces quantization error bleed between smooth (low-frequency) and
+    fine-grained (high-frequency) components of the weight matrix.
+    """
+    t32 = w.float()
+    if H is None or t32.ndim != 2:
+        return gptq_quantize_weight(t32, H, clip_sigmas=clip_sigmas, clip_range=clip_range, block_size=block_size)
+    rows, cols = t32.shape
+    W_freq = torch.fft.rfft(t32, dim=-1)
+    n_freq = W_freq.shape[1]
+    half = n_freq // 2
+    if half < 1:
+        return gptq_quantize_weight(t32, H, clip_sigmas=clip_sigmas, clip_range=clip_range, block_size=block_size)
+    W_f_low = W_freq.clone()
+    W_f_low[:, half:] = 0
+    W_f_high = W_freq.clone()
+    W_f_high[:, :half] = 0
+    W_low = torch.fft.irfft(W_f_low, n=cols, dim=-1)
+    W_high = torch.fft.irfft(W_f_high, n=cols, dim=-1)
+    Q_low, s_low = gptq_quantize_weight(W_low, H, clip_sigmas=clip_sigmas, clip_range=clip_range, block_size=block_size)
+    Q_high, s_high = gptq_quantize_weight(W_high, H, clip_sigmas=clip_sigmas, clip_range=clip_range, block_size=block_size)
+    W_combined = (Q_low.float() * s_low.float()[:, None] + Q_high.float() * s_high.float()[:, None])
+    row_max = W_combined.abs().amax(dim=1).clamp_min(1e-10)
+    s = (row_max / clip_range).to(torch.float16)
+    q = torch.clamp(torch.round(W_combined / s.float()[:, None]), -clip_range, clip_range).to(torch.int8)
+    return q.contiguous(), s.contiguous()
+
+
 def _quantize_gate_int8_row(w):
     # Symmetric int8-per-row quantization for small gate tensors. w shape
     # (R, C) -> (R,) scales in fp16, int8 values in [-127, 127]. Single scale
@@ -1920,6 +1952,8 @@ def gptq_mixed_quantize(state_dict, hessians, h):
         bits = h.embed_bits if "tok_emb" in name else h.matrix_bits
         clip_range = 2 ** (bits - 1) - 1
         ret = gptq_quantize_weight(
+            t, hessians[name], clip_sigmas=cs, clip_range=clip_range
+        ) if not getattr(h, "freq_gptq", False) else freq_gptq_quantize_weight(
             t, hessians[name], clip_sigmas=cs, clip_range=clip_range
         )
         q, s = ret
