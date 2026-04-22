@@ -1,4 +1,4 @@
-# Idea: Match #1769 baseline (clip=12 + TTT on 008 model)
+# Idea: Match #1769 baseline (clip=12 + TTT on 008 model) — RESOLVED 2026-04-22
 
 ## Problem
 
@@ -62,3 +62,19 @@ clean baseline is actually ~1.064 (matching #1769), then:
 ## Cost
 
 ~$3 (eval-only, no training). Should be the first thing run before any further 8×H100 spend.
+
+## Resolution (2026-04-22)
+
+Diagnosed without running a new pod. Fetched #1769 per-seed diagnostics from submission.json.
+
+**Finding: the gap is entirely in training (seed quality), not GPTQ or TTT.**
+
+| Stage | #1769 mean | Spec 026 seed 42 |
+|---|---|---|
+| Float post-EMA | 1.06742 | 1.06893 |
+| GPTQ penalty | +0.00946 | +0.00934 (we're better) |
+| TTT gain | −0.01236 | −0.01245 (we're better) |
+
+Seed 42 (inherited from #1736) is a mediocre training seed. #1769 ran 7 seeds and submitted
+best 5 — their seed 314 floated at 1.06637. Fix: use seed 314 for spec 026 seed 2 run.
+No GPTQ or TTT code investigation needed.

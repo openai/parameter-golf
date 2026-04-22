@@ -4,7 +4,7 @@
 **Created:** 2026-04-22
 **Status:** READY
 **Branch:** `exp/recur-alpha-buffer`
-**Commit:** `d70888f` (025b shared-frozen + LoRA warm-start-A; see open question 1 re: 025c)
+**Commit:** `d70888f` (025c per-pass frozen + LoRA warm-start-A; builds on `414cbc3` not `950af24`)
 **Links to:** `research/specs/025b-cross-layer-carry-frozen.md`
 
 ## Hypothesis
@@ -30,20 +30,23 @@ Target to beat: 021e post-TTT **1.06622**.
 
 ## Accept criteria
 
+Benchmark: **#1769** (dexhunter, clip=12, 5-seed mean 1.06453, seed 314 = 1.06357).
+Seed 42 established 1.06582 — gap was entirely in training seed, not GPTQ/TTT.
+
 | post-TTT bpb | Bucket | Action |
 |---|---|---|
-| < 1.062 | Clear beat, >0.004 margin | 3-seed (42/43/44) same pod → submission |
-| [1.062, 1.066] | Beats 021e by 0–4 milli | 3-seed to confirm |
-| (1.066, 1.070] | Borderline / noise | Compare to 021e seed 43/44; decide |
-| > 1.070 | Cross-layer arc closed | Kill; fallback to 021e 3-seed |
+| < 1.062 | Beats #1769 seed 314 (1.06357) — clear new SOTA | Run seeds 2025 + 777 same pod → 3-seed submission |
+| [1.062, 1.065] | Matches #1769 mean, LoRA warm-start-A contributing | Run seeds 2025 + 777 to confirm mean |
+| (1.065, 1.068] | Seed 314 didn't help as expected | Debug: check val@4000 vs seed 42's 1.1128 |
+| > 1.068 | Regression vs seed 42 | Kill; investigate LoRA warm-start-A interaction |
 
 Early signal (step 4000, informational only — let full pipeline run):
 
 | val@4000 | Meaning |
 |---|---|
-| ≤ 1.105 | On track for clear beat |
-| 1.105–1.112 | Marginal |
-| > 1.112 | Off-track |
+| ≤ 1.108 | Seed 314 producing better float than seed 42 (1.1128) — on track |
+| 1.108–1.115 | Marginal improvement |
+| > 1.115 | Seed 314 not helping at training level |
 
 ## Config diff vs 025b mini
 
@@ -62,16 +65,22 @@ Commit: `d70888f` (adds LoRA warm-start-A on top of `950af24`).
 
 ## Hardware ladder
 
-**8×H100 AP-JP-1 required.** Do not substitute.
-Mini already validated at 4×H (025b, val@4000=1.1079). Skip mini rung.
-LoRA warm-start-A is TTT-only — no training-path code changes, no new mini required.
+**4×H100 JP screen first (seed 314 only), then 8×H100 JP full pipeline.**
+
+Architecture already validated at 4×H (025b). This screen is purely a seed check —
+confirm seed 314 produces a better float than seed 42 (1.06893) before spending $12 on
+the full pipeline. LoRA warm-start-A is TTT-only so does not affect the screen result.
 
 ## Seed plan
 
-Seed 42 first. **Seed 43/44 conditional on post-TTT ≤ 1.066** (matches or beats 021e).
+Seed 42 already run (post-TTT 1.06582 — seed 42 is a known mediocre training seed inherited
+from #1736). Next run: **seed 314** — dexhunter's best seed in #1769 (float 1.06637,
+post-TTT 1.06357). Seeds 2025 and 777 conditional on seed 314 result.
 Same pod, sequential.
 
 ## Run protocol
+
+### Screen (4×H100 JP) — seed 314 float check
 
 ```bash
 pip install --break-system-packages brotli
@@ -82,24 +91,70 @@ git fetch fork
 git checkout d70888f
 
 # Sanity verify
-grep "1.5973426" train_gpt.py                              # beta[L3]
-grep "\-0.34765625" train_gpt.py                           # alpha[L4,L4] self-subtract
-grep -c "recur_beta\[local_idx\]" train_gpt.py             # must be 4
-grep -c "recur_alpha\[local_idx, j\]" train_gpt.py         # must be 4
+grep "0.9453125" train_gpt.py
+grep "\-0.3046875" train_gpt.py
+grep "warm-start A" train_gpt.py
+
+mkdir -p /runpod/runs/026-cross-layer-carry-frozen-8xh/screen_seed_314
+mkdir -p /tmp/torch_inductor_cache_026_screen
+
+NCCL_NET=Socket DATA_DIR=/runpod/data \
+ARTIFACT_DIR=/runpod/runs/026-cross-layer-carry-frozen-8xh/screen_seed_314 \
+TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_026_screen \
+CASEOPS_ENABLED=1 \
+PHASED_TTT_ENABLED=0 \
+MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
+EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
+MATRIX_LR=0.026 \
+GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
+RECUR_ALPHA_ENABLED=1 \
+MAX_WALLCLOCK_SECONDS=1200 \
+TRAIN_LOG_EVERY=100 \
+SEED=314 \
+TORCH_LOGS=recompiles \
+torchrun --standalone --nproc_per_node=4 train_gpt.py \
+  > /runpod/runs/026-cross-layer-carry-frozen-8xh/screen_seed_314/train.log 2>&1
+```
+
+**Screen pass/fail** — compare against 025b (seed 42, 4×H, same architecture):
+
+| metric | 025b seed 42 (baseline) | seed 314 target | action if missed |
+|---|---|---|---|
+| val@4000 | 1.1079 | ≤ 1.105 | note but don't halt — float is the gate |
+| pre-quant EMA | 1.06917 | < 1.068 | try seed 2025 screen before 8×H |
+| steps | 4756 | ~4750–4870 | normal range |
+
+Pass → proceed to 8×H full pipeline. Fail → try seed 2025 screen (~$4) before committing to 8×H.
+
+### Full pipeline (8×H100 JP) — seed 314
+
+```bash
+pip install --break-system-packages brotli
+python -c "import brotli"
+
+cd /runpod/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+git fetch fork
+git checkout d70888f
+
+# Sanity verify (025c per-pass values + LoRA warm-start-A)
+grep "0.9453125" train_gpt.py                              # recur_beta[0,0] from 025c
+grep "\-0.3046875" train_gpt.py                            # recur_alpha self-subtract term
+grep -c "recur_beta\[pass_off, local_idx\]" train_gpt.py   # must be 4 (per-pass indexing)
+grep -c "recur_alpha\[pass_off, local_idx, j\]" train_gpt.py  # must be 4
 grep "recur_beta.*requires_grad\|recur_alpha.*requires_grad" train_gpt.py  # must be empty
 grep "warm-start A" train_gpt.py                           # must be present
 grep "_scale = alpha / rank" train_gpt.py                  # must be present
 
-mkdir -p /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_42
+mkdir -p /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_314
 mkdir -p /tmp/torch_inductor_cache_026_8h_jp
 
 nvidia-smi --query-gpu=timestamp,index,temperature.gpu,clocks.current.sm,power.draw,utilization.gpu,memory.used \
   --format=csv -l 1 \
-  > /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_42/diag_nvsmi.csv &
+  > /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_314/diag_nvsmi.csv &
 NVSMI_PID=$!
 
 NCCL_NET=Socket DATA_DIR=/runpod/data \
-ARTIFACT_DIR=/runpod/runs/026-cross-layer-carry-frozen-8xh/seed_42 \
+ARTIFACT_DIR=/runpod/runs/026-cross-layer-carry-frozen-8xh/seed_314 \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_026_8h_jp \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
@@ -111,10 +166,10 @@ GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 RECUR_ALPHA_ENABLED=1 \
 TTT_LORA_ALPHA=144 TTT_WEIGHT_DECAY=1.0 \
 TRAIN_LOG_EVERY=100 \
-SEED=42 \
+SEED=314 \
 TORCH_LOGS=recompiles \
 torchrun --standalone --nproc_per_node=8 train_gpt.py \
-  > /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_42/train.log 2>&1
+  > /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_314/train.log 2>&1
 
 kill $NVSMI_PID
 ```
@@ -137,19 +192,16 @@ kill $NVSMI_PID
 
 | item | cost |
 |---|---|
-| 8×H JP × ~25 min (compile + train + GPTQ + TTT) | ~$10 |
-| Conditional 3-seed × 2 | ~$20 |
-| **Max total** | **~$30** |
+| 4×H JP screen seed 314 (~25 min, no TTT) | ~$4 |
+| 8×H JP seed 314 full pipeline (conditional on screen pass) | ~$12 |
+| Conditional seeds 2025 + 777 × 8×H JP | ~$24 |
+| **Max total** | **~$40** |
 
 ## Open questions for executor interview
 
-1. **025c result available?** If 025c (per-pass frozen, commit `414cbc3`) has completed
-   with val@4000 < 1.1079 before this pod is provisioned, switch to commit `414cbc3` and
-   update ARTIFACT_DIR to `026-cross-layer-carry-frozen-per-pass-8xh`. The sanity verify
-   changes to: `grep -c "recur_beta\[pass_off, local_idx\]" train_gpt.py` must be 4.
-   Ask user before switching.
+1. **JP stock?** Provision with `--template-id y5cejece4j` (parameter-golf image).
+   Do not use other regions.
 
-2. **JP stock?** Last run used AP-JP-1. Provision with `--template-id y5cejece4j`
-   (parameter-golf image). Do not use other regions.
+2. **Monitoring cadence?** Ask user: poll every 30s or leave to notification?
 
-3. **Monitoring cadence?** Ask user: poll every 30s or leave to notification?
+_Note: 025c already ran and was shelved (025b beats it on all metrics). Commit stays `d70888f`._
