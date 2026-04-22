@@ -52,7 +52,7 @@ class Hyperparameters:
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
 
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 6000))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -91,7 +91,7 @@ class Hyperparameters:
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.03))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.02))
+    matrix_lr = float(os.environ.get("MAdTRIX_LR", 0.02))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -113,11 +113,11 @@ class Hyperparameters:
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
-    # Peaky-weight recipe + QuIP-style RHT + per-pass MoDR deltas on think block.
-    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.085))
-    muon_row_norm = bool(int(os.environ.get("MUON_ROW_NORM", "1")))
+    # QuIP-style randomised Hadamard rotation wrapping GPTQ — the real winner (int4 at int6 accuracy).
     use_rht = bool(int(os.environ.get("USE_RHT", "0")))
-    modr_rank = int(os.environ.get("MODR_RANK", 0))
+    # Peaky-weight recipe knobs. Empirically small wins in this setup; kept for experimentation.
+    muon_weight_decay = float(os.environ.get("MUON_WEIGHT_DECAY", 0.09))
+    muon_row_norm = bool(int(os.environ.get("MUON_ROW_NORM", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -309,8 +309,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,"
-        "skip_weight,skip_weights,delta_u,delta_v,delta_gain",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
     ).split(",")
     if pattern
 )
@@ -870,58 +869,6 @@ class Block(nn.Module):
         return x
 
 
-class ModulatedBlock(Block):
-    """Block with per-pass rank-r additive deltas: W_eff = W + gain_p·(U_p @ V_p.T).
-    gain init = 0, so at init the block is functionally identical to Block."""
-
-    _LINEAR_NAMES = ("q", "k", "v", "o", "fc", "mp")
-
-    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init, num_passes, rank):
-        super().__init__(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
-        self.num_passes, self.rank = int(num_passes), int(rank)
-        kv_dim = num_kv_heads * (dim // num_heads)
-        hidden = mlp_mult * dim
-        shapes = {"q": (dim, dim), "k": (kv_dim, dim), "v": (kv_dim, dim), "o": (dim, dim)}
-        if self.has_mlp:
-            shapes["fc"] = (hidden, dim)
-            shapes["mp"] = (dim, hidden)
-        for name, (out_f, in_f) in shapes.items():
-            setattr(self, f"delta_u_{name}", nn.Parameter(torch.zeros(self.num_passes, out_f, self.rank)))
-            setattr(self, f"delta_v_{name}", nn.Parameter(torch.randn(self.num_passes, in_f, self.rank) / max(in_f, 1) ** 0.5))
-            setattr(self, f"delta_gain_{name}", nn.Parameter(torch.zeros(self.num_passes)))
-
-    def _lin(self, x: Tensor, base_w: Tensor, p: int, name: str) -> Tensor:
-        dt = x.dtype
-        u = getattr(self, f"delta_u_{name}")[p].to(dt)
-        v = getattr(self, f"delta_v_{name}")[p].to(dt)
-        g = getattr(self, f"delta_gain_{name}")[p].to(dt)
-        return F.linear(x, base_w.to(dt) + g * (u @ v.T))
-
-    def forward(self, x: Tensor, x0: Tensor, pass_idx: int = 0) -> Tensor:
-        p = pass_idx
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        h = self.attn_norm(x)
-        bsz, seqlen, dim = h.shape
-        attn = self.attn
-        q = self._lin(h, attn.c_q.weight, p, "q").reshape(bsz, seqlen, attn.num_heads, attn.head_dim).transpose(1, 2)
-        k = self._lin(h, attn.c_k.weight, p, "k").reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
-        v = self._lin(h, attn.c_v.weight, p, "v").reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = attn.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin) * attn.q_gain.to(q.dtype)[None, :, None, None]
-        k = apply_rotary_emb(k, cos, sin)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=(attn.num_kv_heads != attn.num_heads))
-        y = self._lin(y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim), attn.proj.weight, p, "o")
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * y
-        if self.has_mlp:
-            mh = self.mlp_norm(x)
-            mh = F.leaky_relu(self._lin(mh, self.mlp.fc.weight, p, "fc"), negative_slope=0.5).square()
-            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self._lin(mh, self.mlp.proj.weight, p, "mp")
-        return x
-
-
 class GPT(nn.Module):
     def __init__(
         self,
@@ -942,7 +889,6 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
-        modr_rank: int = 0,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -955,7 +901,6 @@ class GPT(nn.Module):
         self.num_think_passes = num_think_passes
         self.active_think_passes = num_think_passes  # reduced by activate_passes() for progressive recurrence
         self.num_decoder_layers = num_decoder_layers
-        self.modr_rank = int(modr_rank)
 
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         block_args = dict(dim=model_dim, num_heads=num_heads, num_kv_heads=num_kv_heads,
@@ -964,9 +909,7 @@ class GPT(nn.Module):
             mlp_mult=think_mlp_mult, rope_base=rope_base, qk_gain_init=qk_gain_init)
         # ENCODE: unique front layers with U-Net skips, THINK: shared looped, DECODE: unique back layers.
         self.encoder_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_encoder_layers)])
-        mk_think = (lambda: ModulatedBlock(num_passes=num_think_passes, rank=self.modr_rank, **think_block_args)) \
-            if self.modr_rank > 0 and num_think_passes > 1 else (lambda: Block(**think_block_args))
-        self.think_blocks = nn.ModuleList([mk_think() for _ in range(num_think_layers)])
+        self.think_blocks = nn.ModuleList([Block(**think_block_args) for _ in range(num_think_layers)])
         self.pass_emb = nn.Embedding(num_think_passes, model_dim)
         self.decoder_blocks = nn.ModuleList([Block(**block_args) for _ in range(num_decoder_layers)])
 
@@ -1005,12 +948,11 @@ class GPT(nn.Module):
             x = block(x, x0)
             skips.append(x)
 
-        # ---- THINK: shared layers looped, optional per-pass MoDR delta ----
-        use_modr = self.modr_rank > 0 and self.num_think_passes > 1
+        # ---- THINK: shared layers looped ----
         for pass_idx in range(self.active_think_passes):
             x = x + self.pass_emb(torch.tensor(pass_idx, device=x.device))[None, None, :]
             for block in self.think_blocks:
-                x = block(x, x0, pass_idx) if use_modr else block(x, x0)
+                x = block(x, x0)
 
         # ---- DECODE: unique layers, consume skips in reverse ----
         for i, block in enumerate(self.decoder_blocks):
@@ -1147,7 +1089,6 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-        modr_rank=args.modr_rank,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1436,7 +1377,7 @@ def main() -> None:
 
     pre_quant = {n: t.detach().cpu().float().clone() for n, t in base_model.state_dict().items()}
     quant_obj, quant_stats = quantize_state_dict_int8(
-        base_model.state_dict(), tensor_bits=tensor_bits, hessians=hessians, use_rht=args.use_rht
+        base_model.state_dict(), tensor_bits=tensor_bits, hessians=hessians, use_rht=args.use_rht,
     )
     if master_process:
         # Roundtrip sanity: catches RHT/inverse bugs before paying eval cost.
