@@ -572,7 +572,46 @@ RUN_ID=redund_s1 SEED=216 ITERATIONS=1500 TRAIN_BATCH_TOKENS=8192 \
    WARMUP_STEPS=20 MAX_WALLCLOCK_SECONDS=0 WARMDOWN_ITERS=450 \
    TC_ENABLED=1 TC_LAMBDA=0.005 \
    python3 train_gpt_mlx.py
-
+                                                                                            
+❯ final_int8_zlib_roundtrip val_loss:3.2916 val_bpb:1.9495 eval_time:12591550ms              
+final_int8_zlib_roundtrip_exact val_loss:3.29159060 val_bpb:1.94946536                       
+                                                                                             
+⏺ That's a significant regression — 1.9495 vs 1.8866 baseline (+0.063 BPB). The regularizer  
+  is hurting model quality more than it helps compressibility.                               
+                                                                                             
+  TC_LAMBDA=0.005 is too aggressive. Options:                                                
+                                                                                             
+  1. Lower lambda — try TC_LAMBDA=0.001 or 0.0005                                            
+  2. Delayed start — only enable the regularizer after warmup (e.g., after iteration 500) so 
+  the model learns good representations first, then we compress them                         
+  3. Both — delayed start + lower lambda                          
+                                                                                             
+  Want me to implement a delayed start (e.g., a TC_START_STEP env var that keeps the         
+  regularizer off for the first N steps)?
+                                                                                             
+❯ Also the code took about 12x longer to run on the same machine                             
+                                                                                          
+⏺ That's a dealbreaker — the eigendecomposition on CPU is way too expensive, even with the   
+  single eigh fix. The 512-dim covariance matrix eigendecomposition per layer per step is  
+  killing throughput.                                                                        
+                                                                                             
+  Two problems to solve:                                                                     
+                                                                                             
+  1. Cost: Drop the eigendecomposition entirely. Use a cheaper redundancy fraction estimate, 
+  or just use the correlation Frobenius proxy alone (no DTC scaling) — it's still a novel    
+  regularizer targeting off-diagonal correlations.                                           
+  2. Strength: Lambda too high regardless.                        
+                                                                                             
+  Cheapest viable approach: Drop the non-differentiable DTC scaling entirely. Just penalize  
+  off-diagonal correlations directly with a much smaller lambda. This is:                    
+  - O(d²) matmul only, no eigendecomposition                                                 
+  - Still information-theoretically motivated (off-diagonal correlation energy ≈ TC for      
+  near-Gaussian)                                                                       
+  - Loses the "redundancy only" selectivity but avoids the 12x overhead                      
+                                                                       
+  Want me to simplify to the pure correlation proxy (no eigh at all) + lower lambda + delayed
+   start? That should have near-zero overhead.                                               
+                                                
 
 Metrics to Compare
 

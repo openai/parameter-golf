@@ -349,8 +349,8 @@ class BigramHashEmbedding(nn.Module):
 
 
 def correlation_regularizer(hidden_states: list[mx.array]) -> mx.array:
-    """Decorrelation regularizer: mean squared off-diagonal correlation in hidden states.
-    Normalized by d*(d-1) so the scale is O(1) regardless of hidden dim."""
+    """Decorrelation regularizer: penalizes off-diagonal correlations in hidden states.
+    ||R||^2_F - d is proportional to sum of squared pairwise mutual informations (Gaussian approx)."""
     reg_total = mx.array(0.0, dtype=mx.float32)
     for h in hidden_states:
         h_flat = h.reshape(-1, h.shape[-1])
@@ -360,9 +360,8 @@ def correlation_regularizer(hidden_states: list[mx.array]) -> mx.array:
         std = mx.sqrt(mx.diag(cov))
         corr = cov / (std[:, None] * std[None, :] + 1e-8)
         d = float(corr.shape[0])
-        off_diag_sq = mx.sum(corr * corr) - d
-        reg_total = reg_total + off_diag_sq / (d * (d - 1.0))
-    return reg_total / max(len(hidden_states), 1)
+        reg_total = reg_total + 0.5 * (mx.sum(corr * corr) - d)
+    return reg_total
 
 
 class CausalSelfAttention(nn.Module):
