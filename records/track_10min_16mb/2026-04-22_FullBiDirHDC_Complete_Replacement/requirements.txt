@@ -1,0 +1,5 @@
+numpy>=1.24
+torch>=2.0
+sentencepiece
+cupy-cuda12x
+zstandard
