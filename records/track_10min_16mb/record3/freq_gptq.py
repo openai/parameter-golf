@@ -4,7 +4,7 @@ FreqGPTQ — Frequency-aware GPTQ post-training quantization.
 FreqGPTQ works by decomposing each weight matrix W into low- and high-frequency
 bands (using a real-valued FFT along the column / input-feature dimension) before
 running the standard GPTQ error-compensation loop.  Each band gets an independent
-GPTQ pass, so quantisation error in the smooth (low-frequency) components does not
+GPTQ pass, so quantization error in the smooth (low-frequency) components does not
 contaminate the fine-grained (high-frequency) components and vice-versa.
 
 Usage
@@ -108,7 +108,7 @@ def gptq_quantize(
     block_size: int = 128,
     clip_range: int = 127,
 ) -> tuple[Tensor, Tensor]:
-    """Hessian-aware int8 quantisation using GPTQ with Cholesky error compensation.
+    """Hessian-aware int8 quantization using GPTQ with Cholesky error compensation.
 
     Parameters
     ----------
@@ -190,11 +190,11 @@ def freq_gptq_quantize(
         2-D weight matrix ``[out_features, in_features]``.
     H:
         Hessian ``[in_features, in_features]``.  When *None* or W is not 2-D,
-        falls back to plain per-row int8 quantisation.
+        falls back to plain per-row int8 quantization.
     block_size:
         GPTQ block size.
     clip_range:
-        Symmetric integer range for the final storage quantisation.
+        Symmetric integer range for the final storage quantization.
 
     Returns
     -------
@@ -253,7 +253,7 @@ def freq_gptq_quantize(
 # ---------------------------------------------------------------------------
 
 def _plain_int8_quantize(t32: Tensor) -> tuple[Tensor, Tensor]:
-    """Simple per-row int8 quantisation (fallback, no Hessian)."""
+    """Simple per-row int8 quantization (fallback, no Hessian)."""
     if t32.ndim == 2:
         clip_abs = t32.abs().amax(dim=1).clamp_min(1e-8)
         scale = (clip_abs / 127.0).to(torch.float16)
