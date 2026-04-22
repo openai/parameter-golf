@@ -284,35 +284,55 @@ def train_bidi_model(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Byte LUT helpers (same as reference train_gpt.py)
+# Byte LUT helpers (identical to reference train_gpt.py build_sentencepiece_luts)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_byte_luts(sp_model, vocab_size: int):
-    """Build base_bytes and has_leading_space LUTs from SentencePiece model.
+    """Build base_bytes, has_leading_space, and is_boundary_token LUTs.
 
-    Identical to the reference train_gpt.py byte counting logic.
+    Exactly mirrors reference train_gpt.py:180-204 (build_sentencepiece_luts).
+
+    The critical difference from the old version:
+      - is_boundary_token[tok] is True for control/unknown/unused tokens and
+        for any token_id >= sp_vocab_size.  The reference uses this to suppress
+        the leading-space byte when the *previous* token is a boundary token
+        (i.e. a sequence boundary), matching:
+            token_bytes += has_leading_space[tgt] & ~is_boundary_token[prev]
 
     Returns:
-        base_bytes        : (vocab_size,) int32 — UTF-8 byte length of each token
-        has_leading_space : (vocab_size,) bool  — True if token has leading space
+        base_bytes        : (table_size,) int16 — UTF-8 byte length of each token
+        has_leading_space : (table_size,) bool  — True if token has leading space
+        is_boundary_token : (table_size,) bool  — True for control/unknown/unused
     """
-    base_bytes        = np.ones(vocab_size, dtype=np.int32)
-    has_leading_space = np.zeros(vocab_size, dtype=bool)
+    sp_vocab_size = int(sp_model.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
 
-    for tok_id in range(vocab_size):
+    base_bytes        = np.zeros(table_size, dtype=np.int16)
+    has_leading_space = np.zeros(table_size, dtype=bool)
+    is_boundary_token = np.ones(table_size,  dtype=bool)   # default True
+
+    for tok_id in range(sp_vocab_size):
         try:
+            if (sp_model.is_control(tok_id) or
+                    sp_model.is_unknown(tok_id) or
+                    sp_model.is_unused(tok_id)):
+                continue  # leave is_boundary_token[tok_id] = True
+            is_boundary_token[tok_id] = False
+            if sp_model.is_byte(tok_id):
+                base_bytes[tok_id] = 1
+                continue
             piece = sp_model.id_to_piece(tok_id)
             if piece is None:
                 continue
-            # Leading space marker in SentencePiece
+            # Leading space marker in SentencePiece (▁ = U+2581)
             if piece.startswith('\u2581'):
                 has_leading_space[tok_id] = True
-                piece = piece[1:]  # strip the marker for byte counting
-            base_bytes[tok_id] = max(1, len(piece.encode('utf-8')))
+                piece = piece[1:]
+            base_bytes[tok_id] = len(piece.encode('utf-8'))
         except Exception:
             pass
 
-    return base_bytes, has_leading_space
+    return base_bytes, has_leading_space, is_boundary_token
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -350,7 +370,7 @@ def bidi_bpb(
         (bpb, val_loss) — bits per byte and nats per token
     """
     vocab_size = engine.cb.vocab_size
-    base_bytes, has_leading_space = _build_byte_luts(sp_model, vocab_size)
+    base_bytes, has_leading_space, is_boundary_token = _build_byte_luts(sp_model, vocab_size)
 
     total_bits  = 0.0
     total_bytes = 0
@@ -383,12 +403,14 @@ def bidi_bpb(
         p_correct = probs[np.arange(len(tgt_toks)), tgt_toks]  # (batch,)
         p_correct = np.clip(p_correct, 1e-30, 1.0)
 
-        # BPB accumulation (identical formula to reference)
-        # has_leading_space: add 1 byte for the leading space
-        tok_bytes = np.where(
-            has_leading_space[tgt_toks],
-            base_bytes[tgt_toks].astype(np.float64) + 1.0,
+        # BPB accumulation — identical to reference train_gpt.py:265-267:
+        #   token_bytes  = base_bytes_lut[tgt_ids]
+        #   token_bytes += has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+        # The leading-space byte is only counted when the previous token is NOT
+        # a boundary token (i.e. not a control/unknown/unused/pad token).
+        tok_bytes = (
             base_bytes[tgt_toks].astype(np.float64)
+            + (has_leading_space[tgt_toks] & ~is_boundary_token[prev_toks]).astype(np.float64)
         )
         tok_bytes = np.maximum(tok_bytes, 1.0)
 

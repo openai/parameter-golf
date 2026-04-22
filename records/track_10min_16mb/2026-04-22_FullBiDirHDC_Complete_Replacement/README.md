@@ -77,26 +77,37 @@ Eval waterfall (bidi_bpb):
 
 ---
 
-## BPB Formula Verification
+## BPB Formula
 
-The BPB formula is **identical** to the reference [`train_gpt.py`](../../../train_gpt.py):
+The BPB metric is computed identically to the reference [`train_gpt.py:265-278`](../../../train_gpt.py):
+
+```
+BPB = Σ(-log₂ p_correct) / Σ(utf8_bytes(token))
+```
+
+**Byte counting** mirrors [`build_sentencepiece_luts()`](../../../train_gpt.py) exactly
+(implemented in [`_bidi_train._build_byte_luts()`](_bidi_train.py)):
 
 ```python
-# Reference (train_gpt.py:275-278):
-bits_per_token = val_loss.item() / math.log(2.0)
-tokens_per_byte = val_token_count.item() / val_byte_count.item()
-return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+# Reference (train_gpt.py:265-267):
+token_bytes  = base_bytes_lut[tgt_ids]
+token_bytes += has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
 
-# This submission (_bidi_train.py):
-total_bits  += float(-np.log2(np.clip(p_correct, 1e-30, 1.0)).sum())
-total_bytes += int(tok_bytes.sum())
-return float(total_bits / total_bytes), float(total_nats / total_toks)
-# Algebraically identical: (Σ bits_i / N) × (N / Σ bytes_i) = Σ bits_i / Σ bytes_i
+# This submission (_bidi_train.py:411-413):
+tok_bytes = (
+    base_bytes[tgt_toks]
+    + (has_leading_space[tgt_toks] & ~is_boundary_token[prev_toks])
+)
 ```
+
+Key points:
+- `is_boundary_token[tok]` is `True` for control / unknown / unused tokens (sequence boundaries). The leading-space byte is **not** counted when the previous token is a boundary token — matching the reference exactly.
+- `base_bytes` is `0` for control tokens, `1` for byte-fallback tokens, and `len(piece.encode("utf-8"))` for normal tokens — matching the reference exactly.
+- The summation structure `Σ bits / Σ bytes` is algebraically equivalent to the reference `bits_per_token × tokens_per_byte`.
 
 The `[BiDirHDC BPB audit]` block printed at the end of each run shows:
 - `total_tokens` — number of val tokens evaluated
-- `total_utf8_bytes` — sum of UTF-8 byte lengths
+- `total_utf8_bytes` — sum of UTF-8 byte lengths (with boundary-gate applied)
 - `avg bytes/token` — `total_bytes / total_tokens`
 - `bits/token` — `total_bits / total_tokens`
 - `nats/token (loss)` — `total_nats / total_tokens`
