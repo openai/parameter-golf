@@ -1,0 +1,76 @@
+output/submission_sharev3_3seed/submission_seed2027_20260418_103507/20260418_103511.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+Architecture: Discrete N-Gram Hash (Max N=2)
+Architecture: StructuredGroupSignedBiFPN (groups=8, band=1)
+model_params:17390313
+world_size:1 grad_accum_steps:4
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:3600.000
+seed:2027
+Architecture Skip Mode: Symmetric U-Net
+Enhancement: Discrete N-Gram Hash (Max N=2)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+EMA Enabled: decay=0.997
+Scheduled Late QAT to start at step 2550 (last 15.0%)
+step:0/3000 val_loss:6.9310 val_bpb:4.1049 train_time:5ms step_avg:4.66ms
+step:1/3000 train_loss:6.9310 train_time:4328ms step_avg:4328.03ms
+step:2/3000 train_loss:6.7809 train_time:7824ms step_avg:3912.03ms
+step:3/3000 train_loss:6.3509 train_time:8434ms step_avg:2811.31ms
+step:4/3000 train_loss:6.0286 train_time:9048ms step_avg:2262.10ms
+step:5/3000 train_loss:5.8585 train_time:9663ms step_avg:1932.65ms
+step:6/3000 train_loss:5.7350 train_time:10276ms step_avg:1712.72ms
+step:7/3000 train_loss:5.6178 train_time:10890ms step_avg:1555.74ms
+step:8/3000 train_loss:5.5590 train_time:11507ms step_avg:1438.42ms
+step:9/3000 train_loss:5.4568 train_time:12123ms step_avg:1346.98ms
+step:10/3000 train_loss:5.3681 train_time:12735ms step_avg:1273.49ms
+step:200/3000 train_loss:2.7164 train_time:130023ms step_avg:650.12ms
+step:400/3000 train_loss:2.3737 train_time:253575ms step_avg:633.94ms
+step:600/3000 train_loss:2.4822 train_time:377129ms step_avg:628.55ms
+step:800/3000 train_loss:2.3391 train_time:500560ms step_avg:625.70ms
+step:1000/3000 train_loss:2.3517 train_time:624011ms step_avg:624.01ms
+step:1000/3000 val_loss:2.3286 val_bpb:1.3791 train_time:624012ms step_avg:624.01ms
+step:1200/3000 train_loss:2.2892 train_time:747509ms step_avg:622.92ms
+step:1400/3000 train_loss:2.3483 train_time:870940ms step_avg:622.10ms
+step:1600/3000 train_loss:2.2245 train_time:994295ms step_avg:621.43ms
+step:1800/3000 train_loss:2.2709 train_time:1117660ms step_avg:620.92ms
+step:2000/3000 train_loss:2.2152 train_time:1240992ms step_avg:620.50ms
+step:2000/3000 val_loss:2.2320 val_bpb:1.3219 train_time:1240994ms step_avg:620.50ms
+step:2200/3000 train_loss:2.1446 train_time:1364383ms step_avg:620.17ms
+step:2400/3000 train_loss:2.1720 train_time:1487687ms step_avg:619.87ms
+[Step 2550] Activating Late QAT — enabling branchless STE quantization.
+step:2600/3000 train_loss:2.2332 train_time:1610963ms step_avg:619.60ms
+step:2800/3000 train_loss:2.1837 train_time:1734230ms step_avg:619.37ms
+step:3000/3000 train_loss:2.1042 train_time:1857569ms step_avg:619.19ms
+step:3000/3000 val_loss:2.1537 val_bpb:1.2755 train_time:1857570ms step_avg:619.19ms
+peak memory allocated: 22182 MiB reserved: 24640 MiB
+Applying EMA weights for final evaluation...
+Serialized model: 67895209 bytes
+Code size: 126855 bytes
+Total submission size: 68022064 bytes
+Serialized model int8+zlib: 15846771 bytes (payload:17577610 raw_torch:17627197 payload_ratio:3.86x)
+Total submission size int8+zlib: 15973626 bytes
+final_int8_zlib_roundtrip val_loss:2.1565 val_bpb:1.2772 eval_time:18650ms
+final_int8_zlib_roundtrip_exact val_loss:2.15645243 val_bpb:1.27717259
