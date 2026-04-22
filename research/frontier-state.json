@@ -1,6 +1,6 @@
 {
-  "last_scan_utc": "2026-04-22T04:30:00Z",
-  "note": "Seeded from pt4 scan + 2026-04-20 incremental scan + 2026-04-21 incremental scans 2 and 3 + 2026-04-22 incremental scan. PRs below reflect verdicts established in those sessions.",
+  "last_scan_utc": "2026-04-22T12:00:00Z",
+  "note": "Seeded from pt4 scan + 2026-04-20 incremental scan + 2026-04-21 incremental scans 2 and 3 + 2026-04-22 incremental scans 1 and 2. PRs below reflect verdicts established in those sessions.",
   "prs": {
     "1493": {"verdict": "clean", "claimed_bpb": 1.0810, "sha": null, "note": "MERGED — official SOTA"},
     "1647": {"verdict": "other", "claimed_bpb": 1.0616, "sha": null, "builds_on": "1493", "trunk": "A", "legitimacy": "likely-illegal", "note": "SLOT-4 banned mechanism; underlying training ~1.089 (weaker than baseline)"},
@@ -62,6 +62,11 @@
     "1764": {"verdict": "other", "claimed_bpb": null, "sha": "023557c5e36004873d9a4a8ebb1b5643d80922cf", "builds_on": "unknown", "trunk": "unknown", "note": "non-record no-looping SOTA scaffold"},
     "1765": {"verdict": "clean", "claimed_bpb": 1.07266, "sha": "19af6db8b435f979aeeab5e4d2d66470f351bf0c", "builds_on": "1530, 1610, 1493, 1523", "trunk": "A", "legitimacy": "legal", "note": "intermediate ablation step (warm+WD=1.0, alpha=96); superseded by #1767; LoRA warm-start A lever flagged as novel idea"},
     "1766": {"verdict": "tokenizer-disputed", "claimed_bpb": null, "sha": "5f6b93ae6e9b98a61b1a8f998df2c1875e803bb2", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "Recur-Alpha (carry scalar, init=0) on #1736 stack; results pending 8xH100; mechanism = spec 021 recur-alpha-buffer already specced"},
-    "1767": {"verdict": "clean", "claimed_bpb": 1.07209, "sha": "30d01826a1280c7f4c68a0620f82d2a378cc7f61", "builds_on": "1530, 1610, 1493, 1523", "trunk": "A", "legitimacy": "legal", "note": "LoRA warm-start A + alpha/rank scaling + WD=1.0 on non-CaseOps stack; watch-level; novel TTT lever written to ideas/ttt-lora-warmstart-a.md"}
+    "1767": {"verdict": "clean", "claimed_bpb": 1.07209, "sha": "30d01826a1280c7f4c68a0620f82d2a378cc7f61", "builds_on": "1530, 1610, 1493, 1523", "trunk": "A", "legitimacy": "legal", "note": "LoRA warm-start A + alpha/rank scaling + WD=1.0 on non-CaseOps stack; watch-level; novel TTT lever written to ideas/ttt-lora-warmstart-a.md"},
+    "1768": {"verdict": "other", "claimed_bpb": 1.27916, "sha": "ba9b91daecf72a26b89c06c3c4263f3352846b21", "builds_on": "unknown", "trunk": "unknown", "legitimacy": "legal", "note": "non-record SP1024 ShareVLast3 3-seed submission; no extractable lever"},
+    "1769": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06453, "sha": "b4b6ddf9812c39c927460554d72b5b60c4f27ad3", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — MLPClip12 (GPTQ MLP σ-clip 10→12), single env-var; 7-seed mean 1.06477; idea file written to ideas/mlp-clip-sigmas-12.md"},
+    "1770": {"verdict": "clean", "claimed_bpb": 1.07960, "sha": "705f7798da8ba75fbcc221cf8b3d44e70a19ccbf", "builds_on": "1493", "trunk": "A", "legitimacy": "legal", "note": "watch — per-head V-Gate (gates V-proj input + head output scale); novel architecture lever; idea file written to ideas/v-gate.md"},
+    "1771": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06513, "sha": "0fc6ebb6586c8042c9f342eb8bb9bb45594e83aa", "builds_on": "1736, 1756, 1767, 1667", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — RecurDepthCurriculum + LoRA-TTT warm-start-A synthesis; std=0.00055 elevated; idea files already exist"},
+    "1773": {"verdict": "other", "claimed_bpb": null, "sha": "0197e28d560a46dcdcdbc33bfa0b14e22327fc8e", "builds_on": "1394, 1412, 1493", "trunk": "unknown", "legitimacy": "legal", "note": "non-record SDClip-matched FakeQuantize; 1xH100 Kaggle run; quant-absorbed in our context"}
   }
 }

@@ -7,8 +7,10 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
 ## TL;DR
 
 - **Only #1493 is merged.** It defines official SOTA = 1.0810.
-- Unmerged submissions have pushed to **1.0284** publicly (PR #1758, but prequant-TTT-disputed/likely-illegal), with
-  #1756 (romeerp) at **1.0651** being the best clean submission — below our baseline.
+- Unmerged submissions have pushed to **1.0284** publicly (PR #1758, but prequant-TTT-disputed/likely-illegal).
+- Best **clean** submission: **#1756** (romeerp) @ **1.06505** — below our baseline.
+- Best **tokenizer-disputed/likely-legal**: **#1769** (dexhunter) @ **1.06453** — now below our baseline 1.06549. Lever: single env-var GPTQ σ-clip retune.
+- **#1771** (bigbag) @ **1.06513** also below baseline via depth curriculum + LoRA-TTT warm-start-A synthesis.
 - Several sub-1.02 GatedDeltaNet PRs exist but are either closed or disputed on
   legality / artifact size. Treat those as "contested frontier," not baseline.
 - The community has split into **at least four code trunks**, each with its own
@@ -24,6 +26,7 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
  │
  ├─ #1552  open        Tanush1912    RecurLoRA v2 — off #1493 directly
  │                                   ↳ borrowed by #1530
+ ├─ #1770  open 1.0796  liujshi   +V-Gate (per-head gates V-proj input + head output scale)
  │
  └─ #1523  CLOSED 1.0778  EthanYangTW [superseded trunk — code survives]
      │    param banking, fused MLP, Muon 0.97, triple recurrence, bigram hash
@@ -39,10 +42,12 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
      │    ├─ #1586  open 1.0749  dexhunter  +per-layer GPTQ clip, int7 emb, MLR=0.026
      │    │   └─ #1626  open 1.0719  dexhunter  +multi-phase global-SGD TTT
      │    │        └─ #1729  open 1.0678  romeerp  +CaseOps tokenizer + late WD taper
-     │    └─ #1736  open 1.0655  dexhunter  +CaseOps (from #1729) + attn out-gate
+     │    └─ #1736  open 1.0655  dexhunter  +CaseOps (from #1729) + attn out-gate  [DISPUTED: tokenizer]
      │         ├─ #1755  open 1.07462  OE-GOD   #1493+CaseOps compose (above our baseline)
      │         ├─ #1756  open 1.06505  romeerp  Recurrence depth curriculum [1→3→4], eval depth=4 ← BELOW BASELINE
-     │         └─ #1766  open pending  tashapais  +Recur-Alpha (learned carry scalar per looped block)  [DISPUTED: tokenizer]
+     │         ├─ #1766  open pending  tashapais  +Recur-Alpha (learned carry scalar per looped block)  [DISPUTED: tokenizer]
+     │         ├─ #1769  open 1.06453  dexhunter  +MLPClip12 (GPTQ MLP σ-clip 10→12) ← BELOW BASELINE  [DISPUTED: tokenizer]
+     │         └─ #1771  open 1.06513  bigbag   +RecurDepthCurr + LoRA-TTT warm-start-A (synth #1756+#1767) ← BELOW BASELINE  [DISPUTED: tokenizer]
      │
      └─ #1667  open 1.0714  MarioPaerle  SmearGate + attn output gate
                                          (refs #1493, #1586; base unclear)
