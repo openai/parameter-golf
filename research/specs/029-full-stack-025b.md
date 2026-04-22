@@ -4,7 +4,7 @@
 **Created:** 2026-04-22
 **Status:** READY
 **Branch:** `exp/029-full-stack`
-**Commit:** `75722d3`
+**Commit:** `c3a99b3`
 **Links to:** `research/specs/026-cross-layer-carry-frozen-8xh.md`, `research/specs/027-lora-warmstart-depth-curriculum.md`
 
 ## Hypothesis
@@ -87,6 +87,7 @@ grep "loop_depth_upgrade_at" train_gpt.py                  # must be present
 grep "loop_depth:upgraded" train_gpt.py                    # must be present
 grep "warm-start A" train_gpt.py                           # must be present
 grep "_scale = alpha / rank" train_gpt.py                  # must be present
+grep "_decoder_alpha_info_int" train_gpt.py                # must be present (curriculum fix)
 
 mkdir -p /runpod/runs/029-full-stack-025b/mini_seed_314
 mkdir -p /tmp/torch_inductor_cache_029_mini
@@ -114,8 +115,9 @@ torchrun --standalone --nproc_per_node=2 train_gpt.py \
 **Mini checks:**
 1. `layer_loop:enabled` fires at ~10%
 2. `loop_depth:upgraded` fires at ~20% — **required; fail spec if absent**
-3. No NaN
-4. No unexpected recompiles (expect 3: initial + loop activation + depth upgrade)
+3. `loop_warmup:depth_upgraded` fires during startup warmup (before step 0)
+4. No NaN
+5. No mid-run recompiles — all 3 graph states pre-warmed before step 0; `TORCH_LOGS=recompiles` should show 0 recompiles after warmup
 
 ### 4×H screen (seed 314, no TTT)
 
