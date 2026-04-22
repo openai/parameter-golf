@@ -61,7 +61,7 @@ Commit `75722d3` vs `950af24` (026 seed 42): adds LoRA warm-start-A + depth curr
 
 ## Hardware ladder
 
-1. **2×H mini** (~$3, ~25 min) — validates depth curriculum fires with 025b architecture. Required (training-path change).
+1. **2×H mini** (~$1, ~7 min) — validates depth curriculum fires with 025b architecture. Required (training-path change). Stops at 400s: loop fires at ~40s, depth upgrade at ~80s, remainder confirms stability.
 2. **4×H screen seed 314** (~$4) — float check, no TTT. Pass if pre-quant EMA < 1.068.
 3. **8×H full pipeline seed 314** (~$12) — when available.
 4. **Seeds 2025 + 777** (~$24) — conditional on seed 314 post-TTT ≤ 1.064.
@@ -104,7 +104,7 @@ GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 RECUR_ALPHA_ENABLED=1 \
 NUM_LOOPS=3 LOOP_DEPTH_UPGRADE_AT=0.20 ENABLE_LOOPING_AT=0.10 \
 TTT_LORA_ALPHA=144 TTT_WEIGHT_DECAY=1.0 \
-MAX_WALLCLOCK_SECONDS=1200 \
+MAX_WALLCLOCK_SECONDS=400 \
 TRAIN_LOG_EVERY=100 \
 SEED=314 \
 TORCH_LOGS=recompiles \
@@ -189,11 +189,11 @@ kill $NVSMI_PID
 
 | item | cost |
 |---|---|
-| 2×H mini (~25 min) | ~$3 |
+| 2×H mini (~7 min) | ~$1 |
 | 4×H screen seed 314 (~25 min) | ~$4 |
 | 8×H seed 314 full pipeline (~28 min) | ~$12 |
 | Conditional 8×H seeds 2025 + 777 | ~$24 |
-| **Max total** | **~$43** |
+| **Max total** | **~$41** |
 
 ## Open questions for executor interview
 
