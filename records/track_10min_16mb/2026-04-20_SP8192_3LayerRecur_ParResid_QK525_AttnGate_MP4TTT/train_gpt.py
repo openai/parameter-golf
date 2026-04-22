@@ -16,7 +16,13 @@ def flash_attn_3_func(q, k, v, causal=True):
     q_t = q.transpose(1, 2)
     k_t = k.transpose(1, 2)
     v_t = v.transpose(1, 2)
-    y = F.scaled_dot_product_attention(q_t, k_t, v_t, attn_mask=None, is_causal=causal, enable_gqa=(k_t.size(1) != q_t.size(1)))
+    if k_t.size(1) != q_t.size(1):
+        if q_t.size(1) % k_t.size(1) != 0:
+            raise ValueError(f"num_heads={q_t.size(1)} must be divisible by num_kv_heads={k_t.size(1)}")
+        repeat = q_t.size(1) // k_t.size(1)
+        k_t = k_t.repeat_interleave(repeat, dim=1)
+        v_t = v_t.repeat_interleave(repeat, dim=1)
+    y = F.scaled_dot_product_attention(q_t, k_t, v_t, attn_mask=None, is_causal=causal)
     return y.transpose(1, 2).contiguous()
 
 
