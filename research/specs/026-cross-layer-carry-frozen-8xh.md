@@ -4,7 +4,7 @@
 **Created:** 2026-04-22
 **Status:** READY
 **Branch:** `exp/recur-alpha-buffer`
-**Commit:** `950af24` (025b shared-frozen; see open question 1 re: 025c)
+**Commit:** `d70888f` (025b shared-frozen + LoRA warm-start-A; see open question 1 re: 025c)
 **Links to:** `research/specs/025b-cross-layer-carry-frozen.md`
 
 ## Hypothesis
@@ -14,7 +14,9 @@
 every 4×H and 8×H run to date. The structural routing (L4 self-subtract, L5 pulls from
 L3+L4) baked in from step 0 eliminates the "discovery cost" learnable alpha pays in early
 training. At 8×H the full step budget amplifies this advantage, and phased TTT should extract
-the same ~−0.013 delta as 021e. Projection: post-TTT near **1.052–1.058**.
+the same ~−0.013 delta as 021e. Additionally, LoRA warm-start-A (keep A across batch resets,
+scale output by alpha/rank) improves TTT expressivity per renqianluo/#1767 and bigbag/#1771
+(Δ ~−0.001). Projection: post-TTT near **1.051–1.057**.
 
 ## Baselines
 
@@ -53,13 +55,16 @@ Early signal (step 4000, informational only — let full pipeline run):
 | PHASED_TTT_PREFIX_DOCS | — | 2000 |
 | PHASED_TTT_NUM_PHASES | — | 3 |
 | paths | /workspace | /runpod |
+| `TTT_LORA_ALPHA` | (absent, default 96) | **`144`** |
+| `TTT_WEIGHT_DECAY` | `0.5` | **`1.0`** |
 
-Commit unchanged: `950af24`.
+Commit: `d70888f` (adds LoRA warm-start-A on top of `950af24`).
 
 ## Hardware ladder
 
 **8×H100 AP-JP-1 required.** Do not substitute.
-Mini already validated at 4×H (025b, val@4000=1.1079). Skip 4×H rung.
+Mini already validated at 4×H (025b, val@4000=1.1079). Skip mini rung.
+LoRA warm-start-A is TTT-only — no training-path code changes, no new mini required.
 
 ## Seed plan
 
@@ -74,7 +79,7 @@ python -c "import brotli"
 
 cd /runpod/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git fetch fork
-git checkout 950af24
+git checkout d70888f
 
 # Sanity verify
 grep "1.5973426" train_gpt.py                              # beta[L3]
@@ -82,6 +87,8 @@ grep "\-0.34765625" train_gpt.py                           # alpha[L4,L4] self-s
 grep -c "recur_beta\[local_idx\]" train_gpt.py             # must be 4
 grep -c "recur_alpha\[local_idx, j\]" train_gpt.py         # must be 4
 grep "recur_beta.*requires_grad\|recur_alpha.*requires_grad" train_gpt.py  # must be empty
+grep "warm-start A" train_gpt.py                           # must be present
+grep "_scale = alpha / rank" train_gpt.py                  # must be present
 
 mkdir -p /runpod/runs/026-cross-layer-carry-frozen-8xh/seed_42
 mkdir -p /tmp/torch_inductor_cache_026_8h_jp
@@ -102,6 +109,7 @@ MATRIX_LR=0.026 \
 GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 RECUR_ALPHA_ENABLED=1 \
+TTT_LORA_ALPHA=144 TTT_WEIGHT_DECAY=1.0 \
 TRAIN_LOG_EVERY=100 \
 SEED=42 \
 TORCH_LOGS=recompiles \
