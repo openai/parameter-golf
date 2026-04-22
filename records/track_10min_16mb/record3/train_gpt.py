@@ -151,15 +151,11 @@ class Hyperparameters:
     _default_caseops_data = os.path.join(
         data_dir,
         "datasets",
-        "fineweb10B_sp8192_caseops",
-        "datasets",
         "datasets",
         "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved",
     )
     _default_caseops_tok = os.path.join(
         data_dir,
-        "datasets",
-        "fineweb10B_sp8192_caseops",
         "datasets",
         "tokenizers",
         "fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model",
@@ -167,6 +163,9 @@ class Hyperparameters:
     if caseops_enabled:
         datasets_dir = os.environ.get("DATA_PATH", _default_caseops_data)
         tokenizer_path = os.environ.get("TOKENIZER_PATH", _default_caseops_tok)
+        # Loop depth defaults for CaseOps runs (comma-separated layer indices).
+        loop_phase_depths = os.environ.get("TRAIN_LOOP_PHASE_DEPTHS", "1,3,4")
+        loop_prewarm_depths = os.environ.get("TRAIN_LOOP_PREWARM_DEPTHS", "3,4")
     else:
         datasets_dir = os.environ.get(
             "DATA_PATH",
@@ -176,6 +175,8 @@ class Hyperparameters:
             "TOKENIZER_PATH",
             os.path.join(data_dir, "tokenizers", f"fineweb_{vocab_size}_bpe.model"),
         )
+        loop_phase_depths = os.environ.get("TRAIN_LOOP_PHASE_DEPTHS", "")
+        loop_prewarm_depths = os.environ.get("TRAIN_LOOP_PREWARM_DEPTHS", "")
     train_files = os.path.join(datasets_dir, "fineweb_train_*.bin")
     val_files = os.path.join(datasets_dir, "fineweb_val_*.bin")
     val_bytes_files = os.path.join(datasets_dir, "fineweb_val_bytes_*.bin")
