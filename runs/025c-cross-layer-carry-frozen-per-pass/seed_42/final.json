@@ -1,0 +1,26 @@
+{
+  "spec": "025c-cross-layer-carry-frozen-per-pass",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1080,
+  "val_bpb_end": 1.0702,
+  "val_bpb_pre_quant_post_ema": 1.06968686,
+  "val_bpb_quantized": 1.07896916,
+  "final_step": 4749,
+  "stop_reason": "wallclock_cap",
+  "train_time_ms": 1196066,
+  "hardware": "4xH100",
+  "region": "US-NE-1",
+  "pod_id": "57phocn1ibgkha",
+  "git_commit": "414cbc31f1bca4a4bd29bc84cd6cdc58d907d8ff",
+  "checkpoints_emitted": [
+    "/workspace/runs/025c-cross-layer-carry-frozen-per-pass/seed_42/final_model.pt",
+    "/workspace/runs/025c-cross-layer-carry-frozen-per-pass/seed_42/final_model.int6.ptz"
+  ],
+  "env_overrides_vs_spec": {
+    "DATA_DIR": "/workspace/parameter-golf/data (spec had /workspace/data which doesn't exist)",
+    "TTT_ENABLED": "0 (screen mode addition on top of spec's PHASED_TTT_ENABLED=0)"
+  },
+  "notes": "Same pod as 025b (57phocn1ibgkha), same ~5% pod-slow variance. 025b and 025c tied on val@4000 (1.1079 vs 1.1080); 025b slightly ahead on pre-quant EMA (1.06917 vs 1.06969). Per-pass differentiation is NOT load-bearing — shared frozen routing (025b) is sufficient and simpler."
+}
