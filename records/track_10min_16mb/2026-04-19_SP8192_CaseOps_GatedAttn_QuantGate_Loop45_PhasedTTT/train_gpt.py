@@ -46,6 +46,8 @@ class Hyperparameters:
     loop_start = int(os.environ.get("LOOP_START", 3))
     loop_end = int(os.environ.get("LOOP_END", 5))
     enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.35))
+    direct_carry_mode = os.environ.get("DIRECT_CARRY_MODE", "off").lower()
+    direct_carry_lr_scale = float(os.environ.get("DIRECT_CARRY_LR_SCALE", 1.5))
     parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 8))
     parallel_final_lane = os.environ.get("PARALLEL_FINAL_LANE", "mean")
     min_lr = float(os.environ.get("MIN_LR", 0.0))
@@ -1019,6 +1021,60 @@ class GPT(nn.Module):
         self.parallel_resid_lambdas = nn.Parameter(
             torch.full((h.num_layers, 2), 1.1, dtype=torch.float32)
         )
+        self.direct_carry_mode = h.direct_carry_mode
+        if self.direct_carry_mode not in ("off", "edge_self", "edge_self_carrygate"):
+            raise ValueError(
+                f"DIRECT_CARRY_MODE must be one of off/edge_self/edge_self_carrygate, got {self.direct_carry_mode}"
+            )
+        self.direct_carry_enabled = self.direct_carry_mode != "off" and h.num_loops > 0
+        if self.direct_carry_enabled:
+            num_looped = h.loop_end - h.loop_start + 1
+            self.direct_carry_num_looped = num_looped
+            self.direct_carry_edges = nn.ParameterList(
+                [
+                    nn.Parameter(
+                        torch.zeros(
+                            num_looped, (pass_off + 1) * num_looped, dtype=torch.float32
+                        )
+                    )
+                    for pass_off in range(h.num_loops)
+                ]
+            )
+            self.direct_carry_self = nn.Parameter(
+                torch.ones(h.num_loops, num_looped, dtype=torch.float32)
+            )
+            self.direct_carry_gate = (
+                nn.Parameter(torch.ones(h.num_loops, num_looped, dtype=torch.float32))
+                if self.direct_carry_mode == "edge_self_carrygate"
+                else None
+            )
+
+            def _build_direct_carry_info(indices, visit_counts):
+                info = []
+                for i in indices:
+                    if h.loop_start <= i <= h.loop_end:
+                        local_idx = i - h.loop_start
+                        pass_idx = visit_counts[local_idx]
+                        visit_counts[local_idx] += 1
+                        info.append((pass_idx, local_idx))
+                    else:
+                        info.append(None)
+                return info
+
+            visit_counts = [0] * num_looped
+            self._encoder_direct_carry_info = _build_direct_carry_info(
+                self.encoder_indices, visit_counts
+            )
+            self._decoder_direct_carry_info = _build_direct_carry_info(
+                self.decoder_indices, visit_counts
+            )
+        else:
+            self.direct_carry_num_looped = 0
+            self.direct_carry_edges = nn.ParameterList()
+            self.direct_carry_self = None
+            self.direct_carry_gate = None
+            self._encoder_direct_carry_info = None
+            self._decoder_direct_carry_info = None
         # SmearGate (PR #1667 / modded-nanogpt @classiclarryd):
         #   x_t <- x_t + lam * sigmoid(W * x_t[:gate_window]) * x_{t-1}.
         # Per-token forward-1 smear of the embedding lane. W zero-init + lam=0 ->
@@ -1101,6 +1157,34 @@ class GPT(nn.Module):
             return lane0
         return 0.5 * (lane0 + lane1)
 
+    def _apply_direct_carry(self, x_new, pass_idx, local_idx, carry_history):
+        if (
+            not self.direct_carry_enabled
+            or pass_idx == 0
+            or carry_history is None
+        ):
+            return x_new
+        edge_weights = self.direct_carry_edges[pass_idx - 1][local_idx].to(dtype=x_new.dtype)
+        carry_mix = None
+        edge_idx = 0
+        for prior_pass in range(pass_idx):
+            for src_local_idx in range(self.direct_carry_num_looped):
+                if len(carry_history[src_local_idx]) <= prior_pass:
+                    raise RuntimeError(
+                        f"direct carry source missing for local_idx={src_local_idx} prior_pass={prior_pass}"
+                    )
+                term = edge_weights[edge_idx] * carry_history[src_local_idx][prior_pass]
+                carry_mix = term if carry_mix is None else carry_mix + term
+                edge_idx += 1
+        x = self.direct_carry_self[pass_idx - 1, local_idx].to(dtype=x_new.dtype) * x_new
+        if carry_mix is not None:
+            if self.direct_carry_gate is not None:
+                gate = self.direct_carry_gate[pass_idx - 1, local_idx].to(dtype=x_new.dtype)
+                x = x + gate * carry_mix
+            else:
+                x = x + carry_mix
+        return x
+
     def forward_logits(self, input_ids, cu_seqlens=None, max_seqlen=0):
         x = self.tok_emb(input_ids)
         # SmearGate (PR #1667). Inline gate compute with .contiguous() on the slice fed
@@ -1128,9 +1212,29 @@ class GPT(nn.Module):
                 self.num_encoder_layers + self.num_decoder_layers,
             )
         )
+        enc_direct_carry_info = (
+            self._encoder_direct_carry_info
+            if (self.direct_carry_enabled and self.looping_active)
+            else None
+        )
+        dec_direct_carry_info = (
+            self._decoder_direct_carry_info
+            if (self.direct_carry_enabled and self.looping_active)
+            else None
+        )
+        carry_history = (
+            [[] for _ in range(self.direct_carry_num_looped)]
+            if enc_direct_carry_info is not None
+            else None
+        )
         for i in enc_iter:
+            step_idx = len(skips)
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
             x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+            if enc_direct_carry_info is not None and enc_direct_carry_info[step_idx] is not None:
+                pass_idx, local_idx = enc_direct_carry_info[step_idx]
+                x = self._apply_direct_carry(x, pass_idx, local_idx, carry_history)
+                carry_history[local_idx].append(x.detach())
             skips.append(x)
         psl = self.parallel_start_layer
         lane0 = None
@@ -1165,6 +1269,10 @@ class GPT(nn.Module):
                     else:
                         x = x + scaled_skip
                 x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+                if dec_direct_carry_info is not None and dec_direct_carry_info[skip_idx] is not None:
+                    pass_idx, local_idx = dec_direct_carry_info[skip_idx]
+                    x = self._apply_direct_carry(x, pass_idx, local_idx, carry_history)
+                    carry_history[local_idx].append(x.detach())
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
         x = self.final_norm(x)
@@ -1210,11 +1318,30 @@ class GPT(nn.Module):
                 )
             )
         )
+        enc_direct_carry_info = (
+            self._encoder_direct_carry_info
+            if (self.direct_carry_enabled and self.looping_active)
+            else None
+        )
+        dec_direct_carry_info = (
+            self._decoder_direct_carry_info
+            if (self.direct_carry_enabled and self.looping_active)
+            else None
+        )
+        carry_history = (
+            [[] for _ in range(self.direct_carry_num_looped)]
+            if enc_direct_carry_info is not None
+            else None
+        )
         slot = 0
-        for i in enc_iter:
+        for step_idx, i in enumerate(enc_iter):
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
             x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
             slot += 1
+            if enc_direct_carry_info is not None and enc_direct_carry_info[step_idx] is not None:
+                pass_idx, local_idx = enc_direct_carry_info[step_idx]
+                x = self._apply_direct_carry(x, pass_idx, local_idx, carry_history)
+                carry_history[local_idx].append(x.detach())
             skips.append(x)
         psl = self.parallel_start_layer
         lane0 = None
@@ -1249,6 +1376,10 @@ class GPT(nn.Module):
                     else:
                         x = x + scaled_skip
                 x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
+                if dec_direct_carry_info is not None and dec_direct_carry_info[skip_idx] is not None:
+                    pass_idx, local_idx = dec_direct_carry_info[skip_idx]
+                    x = self._apply_direct_carry(x, pass_idx, local_idx, carry_history)
+                    carry_history[local_idx].append(x.detach())
             slot += 1
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
@@ -1666,6 +1797,12 @@ class Optimizers:
         if getattr(base_model, "smear_gate_enabled", False):
             scalar_params.append(base_model.smear_gate.weight)
             scalar_params.append(base_model.smear_lambda)
+        carry_params = []
+        if getattr(base_model, "direct_carry_enabled", False):
+            carry_params.extend(list(base_model.direct_carry_edges.parameters()))
+            carry_params.append(base_model.direct_carry_self)
+            if base_model.direct_carry_gate is not None:
+                carry_params.append(base_model.direct_carry_gate)
         token_lr = h.tied_embed_lr if h.tie_embeddings else h.embed_lr
         tok_params = [
             {"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}
@@ -1687,8 +1824,20 @@ class Optimizers:
         )
         for group in self.optimizer_muon.param_groups:
             group["base_lr"] = h.matrix_lr
+        scalar_param_groups = [
+            {"params": scalar_params, "lr": h.scalar_lr, "base_lr": h.scalar_lr}
+        ]
+        if carry_params:
+            direct_carry_lr = h.scalar_lr * h.direct_carry_lr_scale
+            scalar_param_groups.append(
+                {
+                    "params": carry_params,
+                    "lr": direct_carry_lr,
+                    "base_lr": direct_carry_lr,
+                }
+            )
         self.optimizer_scalar = torch.optim.AdamW(
-            [{"params": scalar_params, "lr": h.scalar_lr, "base_lr": h.scalar_lr}],
+            scalar_param_groups,
             betas=(h.beta1, h.beta2),
             eps=h.adam_eps,
             weight_decay=h.adam_wd,
@@ -1701,6 +1850,7 @@ class Optimizers:
         ]
         self.replicated_params = list(tok_params[0]["params"])
         self.replicated_params.extend(scalar_params)
+        self.replicated_params.extend(carry_params)
         self.replicated_large_params = []
         self.replicated_packed_params = []
         for p in self.replicated_params:
@@ -3162,6 +3312,57 @@ def train_model(h, device, val_data):
         for (name, t) in base_model.state_dict().items()
     }
     ema_decay = h.ema_decay
+    prev_direct_carry_snapshot = None
+
+    def log_direct_carry_snapshot(tag):
+        nonlocal prev_direct_carry_snapshot
+        if not getattr(base_model, "direct_carry_enabled", False):
+            return
+        edge_tensors = [p.detach().float().cpu() for p in base_model.direct_carry_edges]
+        self_tensor = base_model.direct_carry_self.detach().float().cpu()
+        gate_tensor = (
+            base_model.direct_carry_gate.detach().float().cpu()
+            if base_model.direct_carry_gate is not None
+            else None
+        )
+        edge_row_norms = [
+            t.norm(dim=1).tolist() for t in edge_tensors
+        ]
+        edge_max_abs = [float(t.abs().max().item()) for t in edge_tensors]
+        self_max_abs = float(self_tensor.abs().max().item())
+        drift_str = ""
+        if prev_direct_carry_snapshot is not None:
+            prev_edges, prev_self, prev_gate = prev_direct_carry_snapshot
+            edge_drifts = [
+                float((cur - prev).abs().max().item())
+                for cur, prev in zip(edge_tensors, prev_edges, strict=True)
+            ]
+            self_drift = float((self_tensor - prev_self).abs().max().item())
+            drift_str = (
+                f" edge_max_drift={edge_drifts}"
+                f" self_max_drift={self_drift:.6f}"
+            )
+            if gate_tensor is not None and prev_gate is not None:
+                gate_drift = float((gate_tensor - prev_gate).abs().max().item())
+                drift_str += f" gate_max_drift={gate_drift:.6f}"
+        log(
+            f"direct_carry_summary[{tag}]: mode={base_model.direct_carry_mode} "
+            f"edge_row_norms={edge_row_norms} edge_max_abs={edge_max_abs} "
+            f"self_max_abs={self_max_abs:.6f}{drift_str}"
+        )
+        gate_str = ""
+        if gate_tensor is not None:
+            gate_str = f" carry_gate={gate_tensor.tolist()}"
+        log(
+            f"direct_carry[{tag}]: self={self_tensor.tolist()} "
+            f"edges={[t.tolist() for t in edge_tensors]}{gate_str}"
+        )
+        prev_direct_carry_snapshot = (
+            [t.clone() for t in edge_tensors],
+            self_tensor.clone(),
+            None if gate_tensor is None else gate_tensor.clone(),
+        )
+
     training_time_ms = 0.0
     stop_after_step = None
     torch.cuda.synchronize()
@@ -3185,6 +3386,7 @@ def train_model(h, device, val_data):
             log(
                 f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}"
             )
+            log_direct_carry_snapshot(f"val_step_{step}")
             torch.cuda.synchronize()
             t0 = time.perf_counter()
         if last_step:
@@ -3221,6 +3423,7 @@ def train_model(h, device, val_data):
             log(
                 f"{step}/{h.iterations} train_loss: {train_loss.item():.4f} train_time: {approx_training_time_ms/60000:.1f}m tok/s: {tok_per_sec:.0f}"
             )
+            log_direct_carry_snapshot(f"train_step_{step}")
         reached_cap = (
             max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
         )
