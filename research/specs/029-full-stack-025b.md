@@ -44,7 +44,8 @@ Mini pass/fail:
 - No NaN; throughput ≥ 600 tok/s on 2×H
 
 4×H screen pass/fail (seed 314):
-- pre-quant EMA < 1.068 (beats 025b seed 42 baseline of 1.06917)
+- post-TTT bpb ≤ 1.064 (matches or beats #1769 mean 1.06453; advance to seeds 2025+777)
+- pre-quant EMA < 1.068 as secondary float gate
 - val@4000 ≤ 1.108
 
 ## Config diff vs 026 seed 42
@@ -62,7 +63,7 @@ Commit `75722d3` vs `950af24` (026 seed 42): adds LoRA warm-start-A + depth curr
 ## Hardware ladder
 
 1. **2×H mini** (~$1, ~7 min) — validates depth curriculum fires with 025b architecture. Required (training-path change). Stops at 400s: loop fires at ~40s, depth upgrade at ~80s, remainder confirms stability.
-2. **4×H screen seed 314** (~$4) — float check, no TTT. Pass if pre-quant EMA < 1.068.
+2. **4×H screen seed 314** (~$6) — full pipeline with TTT. Pass if post-TTT ≤ 1.064.
 3. **8×H full pipeline seed 314** (~$12) — when available.
 4. **Seeds 2025 + 777** (~$24) — conditional on seed 314 post-TTT ≤ 1.064.
 
@@ -129,7 +130,7 @@ NCCL_NET=Socket DATA_DIR=/runpod/data \
 ARTIFACT_DIR=/runpod/runs/029-full-stack-025b/screen_seed_314 \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_029_screen \
 CASEOPS_ENABLED=1 \
-PHASED_TTT_ENABLED=0 \
+PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
 EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 MATRIX_LR=0.026 \
@@ -137,6 +138,7 @@ GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
 RECUR_ALPHA_ENABLED=1 \
 NUM_LOOPS=3 LOOP_DEPTH_UPGRADE_AT=0.67 \
 TTT_LORA_ALPHA=144 TTT_WEIGHT_DECAY=1.0 \
+GPTQ_RESERVE_SECONDS=4 GPTQ_CALIBRATION_BATCHES=16 \
 MAX_WALLCLOCK_SECONDS=1200 \
 TRAIN_LOG_EVERY=100 \
 SEED=314 \
@@ -190,10 +192,10 @@ kill $NVSMI_PID
 | item | cost |
 |---|---|
 | 2×H mini (~7 min) | ~$1 |
-| 4×H screen seed 314 (~25 min) | ~$4 |
+| 4×H screen seed 314 (~35 min, full pipeline) | ~$6 |
 | 8×H seed 314 full pipeline (~28 min) | ~$12 |
 | Conditional 8×H seeds 2025 + 777 | ~$24 |
-| **Max total** | **~$41** |
+| **Max total** | **~$43** |
 
 ## Open questions for executor interview
 
