@@ -46,6 +46,7 @@ class Hyperparameters:
     loop_start = int(os.environ.get("LOOP_START", 3))
     loop_end = int(os.environ.get("LOOP_END", 5))
     enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.35))
+    recur_alpha_enabled = bool(int(os.environ.get("RECUR_ALPHA_ENABLED", "1")))
     parallel_start_layer = int(os.environ.get("PARALLEL_START_LAYER", 8))
     parallel_final_lane = os.environ.get("PARALLEL_FINAL_LANE", "mean")
     min_lr = float(os.environ.get("MIN_LR", 0.0))
@@ -938,6 +939,7 @@ class GPT(nn.Module):
             for i in range(max(0, h.num_layers - h.xsa_last_n), h.num_layers):
                 self.blocks[i].attn.use_xsa = True
         self.looping_active = False
+        self.recur_alpha_enabled = True
         if h.num_loops > 0:
             loop_seg = list(range(h.loop_start, h.loop_end + 1))
             all_indices = list(range(h.loop_start))
@@ -1085,7 +1087,7 @@ class GPT(nn.Module):
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
             x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
             if self.looping_active:
-                if i in carry:
+                if self.recur_alpha_enabled and i in carry:
                     x = x + self.blocks[i].recur_alpha.to(dtype=x.dtype) * carry[i]
                 carry[i] = x
             skips.append(x)
@@ -1122,7 +1124,7 @@ class GPT(nn.Module):
                     else:
                         x = x + scaled_skip
                 x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
-                if self.looping_active and i in carry:
+                if self.looping_active and self.recur_alpha_enabled and i in carry:
                     x = x + self.blocks[i].recur_alpha.to(dtype=x.dtype) * carry[i]
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
@@ -1175,7 +1177,7 @@ class GPT(nn.Module):
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
             x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
             if self.looping_active:
-                if i in carry:
+                if self.recur_alpha_enabled and i in carry:
                     x = x + self.blocks[i].recur_alpha.to(dtype=x.dtype) * carry[i]
                 carry[i] = x
             slot += 1
@@ -1213,7 +1215,7 @@ class GPT(nn.Module):
                     else:
                         x = x + scaled_skip
                 x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
-                if self.looping_active and i in carry:
+                if self.looping_active and self.recur_alpha_enabled and i in carry:
                     x = x + self.blocks[i].recur_alpha.to(dtype=x.dtype) * carry[i]
             slot += 1
         if lane0 is not None:
@@ -2757,6 +2759,11 @@ def timed_eval(label, fn, *args, **kwargs):
 def train_model(h, device, val_data):
     base_model = GPT(h).to(device).bfloat16()
     restore_fp32_params(base_model)
+    base_model.recur_alpha_enabled = h.recur_alpha_enabled
+    if not h.recur_alpha_enabled:
+        for b in base_model.blocks:
+            b.recur_alpha.requires_grad_(False)
+        log("recur_alpha:disabled (ablation mode — carry has no effect)")
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     compiled_forward_logits = torch.compile(
         base_model.forward_logits, dynamic=False, fullgraph=True
@@ -2924,10 +2931,16 @@ def train_model(h, device, val_data):
             and not base_model.looping_active
             and frac >= h.enable_looping_at
         ):
+            base_model.recur_alpha_enabled = h.recur_alpha_enabled
             base_model.looping_active = True
             log(
                 f"layer_loop:enabled step:{step} frac:{frac:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}"
             )
+            looped = list(range(h.loop_start, h.loop_end + 1))
+            alpha_str = " ".join(
+                f"[{i}]={base_model.blocks[i].recur_alpha.item():.4f}" for i in looped
+            )
+            log(f"recur_alpha at loop activation: {alpha_str}")
         train_loss = step_fn(step, scale)
         with torch.no_grad():
             for (name, t) in base_model.state_dict().items():
@@ -2956,6 +2969,12 @@ def train_model(h, device, val_data):
     log(
         f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB"
     )
+    if h.num_loops > 0 and h.recur_alpha_enabled:
+        looped = list(range(h.loop_start, h.loop_end + 1))
+        alpha_str = " ".join(
+            f"[{i}]={base_model.blocks[i].recur_alpha.item():.6f}" for i in looped
+        )
+        log(f"recur_alpha final: {alpha_str}")
     log("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {
