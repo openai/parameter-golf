@@ -4,10 +4,18 @@ import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as sp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
 
-try:
-    from flash_attn_interface import flash_attn_func as _flash_attn_impl
-except Exception:
-    _flash_attn_impl = None
+_flash_attn_impl = None
+_flash_attn_backend = "torch_sdpa"
+_flash_attn_import_error = None
+for _flash_attn_module in ("flash_attn_interface", "flash_attn.flash_attn_interface", "flash_attn"):
+    try:
+        _flash_attn_impl = getattr(__import__(_flash_attn_module, fromlist=["flash_attn_func"]), "flash_attn_func")
+        _flash_attn_backend = _flash_attn_module
+        break
+    except Exception as e:
+        _flash_attn_import_error = e
+if _flash_attn_impl is None:
+    _flash_attn_import_error = repr(_flash_attn_import_error)
 
 
 def flash_attn_3_func(q, k, v, causal=True):
@@ -65,6 +73,8 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get('LN_SCALE', '1')))
     qk_gain_init = float(os.environ.get('QK_GAIN_INIT', 5.0))
     attn_out_gate_enabled = bool(int(os.environ.get('ATTN_OUT_GATE_ENABLED', '1')))
+    require_flash_attn = bool(int(os.environ.get('REQUIRE_FLASH_ATTN', '0')))
+    attention_backend = _flash_attn_backend
     num_loops = int(os.environ.get('NUM_LOOPS', 2))
     loop_start = int(os.environ.get('LOOP_START', 3))
     loop_end = int(os.environ.get('LOOP_END', 5))
@@ -1452,6 +1462,11 @@ def main():
     if h.ttt_chunk_tokens % max(h.ttt_phases, 1) != 0:
         raise ValueError(f'TTT_CHUNK_TOKENS={h.ttt_chunk_tokens} must be divisible by TTT_PHASES={h.ttt_phases}')
     set_logging_hparams(h)
+    if h.require_flash_attn and _flash_attn_impl is None:
+        raise RuntimeError(
+            "REQUIRE_FLASH_ATTN=1 but FlashAttention was not importable. "
+            f"Tried flash_attn_interface, flash_attn.flash_attn_interface, and flash_attn. Last error: {_flash_attn_import_error}"
+        )
     if h.is_main_process:
         os.makedirs('logs', exist_ok=True)
         log(100 * '=', console=False)
@@ -1462,6 +1477,7 @@ def main():
         log('=' * 100, console=False)
         log(f'Running Python {sys.version}', console=False)
         log(f'Running PyTorch {torch.__version__}', console=False)
+        log(f'Attention backend: {h.attention_backend}', console=True)
         log(subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout, console=False)
         log('=' * 100, console=False)
     train_and_eval(h, device)
