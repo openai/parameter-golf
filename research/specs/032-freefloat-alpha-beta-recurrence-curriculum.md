@@ -3,8 +3,8 @@
 **Slug:** `freefloat-alpha-beta-recurrence-curriculum`
 **Created:** 2026-04-23
 **Status:** READY
-**Branch:** `exp/032-freefloat-alpha-beta-recurrence-curriculum`
-**Commit:** `bff18a4`
+**Branch:** `exp/032-freefloat-alpha-beta`
+**Commit:** `ec2a507`
 **Links to:** `research/ideas/032-freefloat-alpha-beta-recurrence-curriculum.md`, `research/specs/024b-cross-layer-carry-blend.md`, `research/specs/024c-cross-layer-carry-per-pass.md`, `research/specs/029-full-stack-025b.md`, `research/specs/031-direct-carry-freefloat-neutral.md`
 
 ## Hypothesis
@@ -192,6 +192,7 @@ In addition to normal metrics, emit:
 - full `beta` tensors at each val/log interval
 - full `alpha` tensors at each val/log interval
 - drift vs previous snapshot
+- append all carry snapshots to `carry_snapshots.jsonl` in the artifact dir so smoke/main can verify parameters even if stdout logging is incomplete
 - simple summaries:
   - max abs alpha
   - row norms
@@ -311,7 +312,7 @@ python -c "import brotli"
 
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git fetch fork
-git checkout bff18a4
+git checkout ec2a507
 
 # Sanity verify
 grep -n "DIRECT_CARRY_MODE" train_gpt.py
@@ -319,6 +320,7 @@ grep -n "alpha_beta" train_gpt.py
 grep -n "loop_depth_upgrade_at" train_gpt.py
 grep -n "loop_depth:upgraded" train_gpt.py
 grep -n "alpha_beta_summary" train_gpt.py
+grep -n "carry_snapshots.jsonl" train_gpt.py
 
 mkdir -p /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314
 mkdir -p /tmp/torch_inductor_cache_032_smoke
@@ -352,7 +354,7 @@ python -c "import brotli"
 
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git fetch fork
-git checkout bff18a4
+git checkout ec2a507
 
 # Sanity verify
 grep -n "DIRECT_CARRY_MODE" train_gpt.py
@@ -360,6 +362,7 @@ grep -n "alpha_beta" train_gpt.py
 grep -n "loop_depth_upgrade_at" train_gpt.py
 grep -n "loop_depth:upgraded" train_gpt.py
 grep -n "alpha_beta_summary" train_gpt.py
+grep -n "carry_snapshots.jsonl" train_gpt.py
 
 mkdir -p /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314
 mkdir -p /tmp/torch_inductor_cache_032_4h
@@ -399,6 +402,7 @@ kill $NVSMI_PID
 - `loop_depth:upgraded` appears
 - `alpha_beta_summary[...]` appears
 - `alpha_beta[...]` appears
+- `carry_snapshots.jsonl` is created and contains `alpha_beta` entries
 - no NaN / runtime error
 
 ## Main-run monitoring targets
@@ -415,6 +419,7 @@ kill $NVSMI_PID
 - missing `layer_loop:enabled` after the expected onset window → halt
 - missing `loop_depth:upgraded` by the expected later window → halt
 - no `alpha_beta_summary[...]` logs after recurrence activates → halt
+- missing `carry_snapshots.jsonl` or missing `alpha_beta` entries in it after recurrence activates → halt
 - obvious shape / missing-carry runtime error → halt
 
 ## Execution note
