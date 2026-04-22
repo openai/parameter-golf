@@ -5,6 +5,7 @@
 **Status:** DRAFT
 **Branch:** `exp/032-freefloat-alpha-beta`
 **Commit:** `TBD`
+**Current implementation draft:** `7efcff5`
 **Links to:** `research/ideas/032-freefloat-alpha-beta-recurrence-curriculum.md`, `research/specs/024b-cross-layer-carry-blend.md`, `research/specs/024c-cross-layer-carry-per-pass.md`, `research/specs/029-full-stack-025b.md`, `research/specs/031-direct-carry-freefloat-neutral.md`
 
 ## Hypothesis
