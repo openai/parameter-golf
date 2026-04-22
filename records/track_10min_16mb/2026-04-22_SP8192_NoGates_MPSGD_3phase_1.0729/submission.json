@@ -1,0 +1,9 @@
+{
+  "name": "SP8192 + No Gates + Multi-Phase Global SGD TTT (3-seed)",
+  "val_bpb": 1.07285,
+  "bytes_total": 15938268,
+  "blurb": "pr1667 MarioPaerle base architecture with SmearGate and AttnOutGate both disabled, and single-phase score-first TTT replaced by pr1626 dexhunter's Multi-Phase Global SGD TTT (3 phases, 2000 prefix docs). 3-seed mean val_bpb 1.07285, std 0.00051 across seeds 1337, 42, 0 on 8xH100 SXM. No tokenizer changes (vanilla SP8192). Compliant with all four conditions of Issue #1017 Track B.",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "date": "2026-04-22"
+}
