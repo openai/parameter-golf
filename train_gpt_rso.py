@@ -18,6 +18,8 @@ import time
 import uuid
 import zlib
 from pathlib import Path
+from typing import Union, Tuple
+from copy import deepcopy
 
 import numpy as np
 import sentencepiece as spm
@@ -26,6 +28,9 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+from peft import (get_peft_model,
+    TaskType,
+    LoraConfig,)
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -167,6 +172,132 @@ class Muon(torch.optim.Optimizer):
 
         return loss
 
+class RSOAdamW(torch.optim.Optimizer):
+    def __init__(
+            self,
+            named_params,
+            lr: Union[float, torch.Tensor] = 1e-3,
+            scaling_factor: float = 2.,
+            betas: Tuple[float, float] = (0.9, 0.999),
+            eps: float = 1e-8,
+            weight_decay: float = 0,
+            interval=100,
+            optimizer_states="reset",
+            device="cpu"
+    ):
+        names = []
+        params = []
+        for n, p in named_params:
+            names.append(n)
+            params.append(p)
+
+        self.interval = interval
+        self.optimizer_states = optimizer_states
+        self.device=device
+        defaults = dict(
+            lr=lr,
+            names=names,
+            scaling_factor=scaling_factor,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+        super().__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Perform a single optimization step.
+
+        Args:
+            closure (Callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        self._cuda_graph_capture_health_check()
+
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            beta1, beta2 = group["betas"]
+            scaling_factor = group["scaling_factor"]
+
+            g = torch.Generator(self.device)
+            param_list = []
+            param_dict = dict(zip(group["names"], group["params"]))
+            for n, p in param_dict.items():
+                if 'lora' in n:
+                    if 'lora_B' in n:
+                        size = param_dict[n].shape
+                    param_list.append(p)
+                    if len(param_list) == 2:
+                        base_name = n[: n.find('lora')]
+                        name = base_name + "base_layer.weight"
+                    else:
+                        continue
+                elif p.grad is None:
+                    continue
+                else:
+                    name = n
+                    size = p.shape
+
+                state = self.state[name]
+                # Lazy state initialization
+                if len(state) == 0:
+                    state["step"] = torch.tensor(0.0)
+
+                    # Exponential moving average of gradient values
+                    state["exp_avg"] = torch.zeros(size).to(p.device).to(p.dtype)
+
+                    # Exponential moving average of squared gradient values
+                    state["exp_avg_sq"] = torch.zeros(size).to(p.device).to(p.dtype)
+
+                if len(param_list) == 2:
+                    grad = param_list[1].grad / scaling_factor
+                else:
+                    grad = p.grad
+
+                exp_avg = state["exp_avg"]
+                exp_avg_sq = state["exp_avg_sq"]
+                state["step"] += 1
+
+                # Decay the first and second moment running average coefficient
+                # In-place operations to update the averages at the same time
+                exp_avg.lerp_(grad, 1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+                bias_correction1 = 1 - beta1 ** state["step"]
+                bias_correction2 = 1 - beta2 ** state["step"]
+                step_size = group['lr']
+                denom = (exp_avg_sq.sqrt() / bias_correction2 ** 0.5).add_(group['eps'])
+
+                if len(param_list) != 2:
+                    p.mul_(1 - group["weight_decay"] * group["lr"])
+                    p.addcdiv_(exp_avg / bias_correction1, denom, value=-step_size)
+                else:
+                    param_dict[name].mul_(1 - group["weight_decay"] * group["lr"])
+                    param_dict[name].add_(
+                        (exp_avg / bias_correction1 / denom).to(param_list[0].dtype) @ param_list[0],
+                        alpha=-step_size
+                    )
+                    if state['step'] % self.interval == 0:
+                        old_param = deepcopy(param_list[0])
+                        torch.nn.init.normal_(param_list[0], mean=0, std=1.0 / param_list[0].shape[0] ** 0.5,
+                                              generator=g)
+                        if 'exp_avg' in state:
+                            if self.optimizer_states == 'reset':
+                                torch.nn.init.zeros_(state['exp_avg'])
+                                torch.nn.init.zeros_(state['exp_avg_sq'])
+                            elif self.optimizer_states == 'transform':
+                                state['exp_avg'] = state['exp_avg'] @ old_param @ param_list[0].T * (
+                                        param_list[0].shape[0] / param_list[0].shape[1])
+                                # state['exp_avg_sq'] = state['exp_avg_sq'] @ old_param @ param_list[0].T
+                            elif self.optimizer_states == "unchanged":
+                                pass
+                    param_list = []
+
+        return loss
 
 # -----------------------------
 # TOKENIZER-AGNOSTIC EVALUATION SETUP 
@@ -246,7 +377,11 @@ def eval_val(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
-    model.eval()
+    if hasattr(model, '_orig_mod'):
+        eval_model = model._orig_mod
+    elif hasattr(model, 'module') and hasattr(model.module, '_orig_mod'):
+        eval_model = model.module._orig_mod
+    eval_model.eval()
     with torch.no_grad():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -256,7 +391,7 @@ def eval_val(
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.float32, enabled=True):
-                batch_loss = model(x, y).detach()
+                batch_loss = eval_model(x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -752,6 +887,7 @@ def main() -> None:
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
     device = torch.device("cuda", local_rank)
+    dtype=torch.float32
     torch.cuda.set_device(device)
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
@@ -835,12 +971,46 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-    ).to(device, dtype=torch.float32)
+    ).to(device, dtype=dtype)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
+
+    def create_RSO_model(model):
+        peft_config = LoraConfig(
+            # task_type=TaskType.CAUSAL_LM,
+            r=64,
+            lora_alpha=64,
+            lora_dropout=0.,
+            target_modules="all-linear",
+        )
+        model = get_peft_model(model, peft_config)
+
+        def orthonormal_gaussian_init(tensor, shape):
+            """ Initialize LoRA-A with a Gaussian matrix ensuring E[A^T A] = I """
+            # torch.nn.init.normal_(tensor, mean=0, std=1.0 / shape ** 0.5, generator=g)
+            torch.nn.init.kaiming_normal_(tensor, generator=g)
+            # torch.nn.init.orthogonal_(tensor, generator=g)
+
+        import random
+        g = torch.Generator(device=device)
+
+        # Make LoRA A matrices non-trainable
+        for name, param in model.named_parameters():
+            if "lora_A" in name:
+                param.requires_grad = False
+                orthonormal_gaussian_init(param, param.shape[0])
+        return model
+
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    base_model = create_RSO_model(base_model)
+    for k,v in base_model.named_parameters():
+        if "base_layer" in k or "lora_A" in k:
+            continue
+        v.requires_grad_(True)
+
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+    # compiled_model = base_model
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -850,7 +1020,7 @@ def main() -> None:
     # - vectors/scalars use SCALAR_LR via Adam
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
-        p
+        (name, p)
         for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
@@ -868,13 +1038,22 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizer_muon = Muon(
+    # optimizer_muon = Muon(
+    #     matrix_params,
+    #     lr=args.matrix_lr,
+    #     momentum=args.muon_momentum,
+    #     backend_steps=args.muon_backend_steps,
+    # )
+    optimizer_rso = RSOAdamW(
         matrix_params,
         lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
+        optimizer_states="transform",
+        betas=(args.beta1, args.beta2),
+        # scaling_factor=1,
+        eps=args.adam_eps,
+        device=device,
     )
-    for group in optimizer_muon.param_groups:
+    for group in optimizer_rso.param_groups:
         group["base_lr"] = args.matrix_lr
     optimizer_scalar = torch.optim.Adam(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
@@ -882,7 +1061,7 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_rso, optimizer_scalar]
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
@@ -944,7 +1123,7 @@ def main() -> None:
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with torch.autocast(device_type="cuda", dtype=torch.float32, enabled=True):
+                with torch.autocast(device_type="cuda", dtype=dtype, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
@@ -1012,16 +1191,16 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with torch.autocast(device_type="cuda", dtype=torch.float32, enabled=True):
+            with torch.autocast(device_type="cuda", dtype=dtype, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
 
-        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
-        for group in optimizer_muon.param_groups:
-            group["momentum"] = muon_momentum
+        # frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+        # muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        # for group in optimizer_muon.param_groups:
+        #     group["momentum"] = muon_momentum
 
         for opt in optimizers:
             for group in opt.param_groups:
