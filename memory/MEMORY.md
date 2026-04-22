@@ -1,0 +1,32 @@
+- [Timezone — user vs system](user_timezone.md) — user in US Central, system Asia/Shanghai, ~13h offset; convert before any scheduling
+- [Proposal-first collab style](feedback_collab_style.md) — survey → rated proposal → user picks → then write idea/spec files
+- [Spec 000 is the old project baseline](project_baseline_spec_000.md) — legacy; Δ vs spec-000 only for backward-compat sanity reruns
+- [Baseline switched to #1736 on 2026-04-20](project_baseline_1736.md) — rebased to #1736 (CaseOps + gates + phased TTT, ~1.0655); new specs 008+ stack on this
+- [Pod stop vs terminate policy](feedback_pod_stop_vs_terminate.md) — stop between sessions same-day, terminate at end of day
+- [Step-matched comparison, not wallclock](feedback_step_matched_comparison.md) — research Δ measured at matched steps; wallclock only for leaderboard attempts
+- [Screen via training-endpoint val_bpb](feedback_screen_via_training_endpoint_val.md) — compare at final-step val_bpb, kill on stopping_early, skip EMA/quant/sliding/TTT; saves ~$3-4/run
+- [SSH immediately — no waiting loops](feedback_ssh_directly.md) — after pod create, call `runpodctl ssh info <id>` and SSH immediately; no sleep, no polling, no waiting; retry once on failure max
+- [Stop pods by default](feedback_stop_pod_by_default.md) — end of any pod task → stop immediately, don't ask; only keep alive with a stated reason
+- [Kill detached scripts properly](feedback_kill_detached_scripts.md) — setsid/disown'd scripts survive parent kill; use `pkill -9 -f` and verify with pgrep
+- [Never delete checkpoints on rerun](feedback_never_delete_checkpoints.md) — on crash-rerun, only rename logs; NEVER `rm` `.pt`/`.ptz`/`.ckpt` from a prior attempt
+- [Preflight: deps + GPU clean](feedback_preflight_deps_and_gpu_clean.md) — grep ALL non-stdlib imports and pip-install before Phase 3; on crash verify 0 MiB GPU before relaunch (pod stop+start if needed)
+- [Always ask failure-case alongside happy-path](feedback_ask_failure_cases.md) — every AskUserQuestion before a consequential action must also ask "if X fails, do I halt/retry/fallback/escalate?"
+- [Use Parameter Golf pod template](feedback_pod_image_torch_version.md) — `--template-id y5cejece4j` (`runpod/parameter-golf:latest`); default pytorch 2.4 image breaks flash_attn_3 ABI
+- [Frontier-advancement pattern](project_frontier_advancement_pattern.md) — frontier PRs win via tokenizer + careful stacking, not incremental tuning; weight up Tap-In / composition / tokenizer, down single-author optimizer ports
+- [30s polling cadence during pod runs](feedback_polling_30s.md) — always poll train.log every 30s during live runs; never drift longer
+- [Interview user about monitoring per run](feedback_monitoring_interview.md) — always ask "what do you want me to monitor?" in the spec interview; don't infer silently
+- [JP volume mount path](reference_jp_volume_mount.md) — JP volume `jlxvxeiol4` mounts at `/runpod` not `/workspace`; substitute DATA_DIR/ARTIFACT_DIR/TORCHINDUCTOR_CACHE_DIR paths when on JP
+- [Use small proxy models for throughput tests](feedback_small_model_for_throughput.md) — throughput/fusion diagnostics run on 6L/256d at 2×H100 (signal amplified ~6×, cost ~10× cheaper); reserve 8×H100 full model for val_bpb/TTT measurements
+- [Prefer JP region for pods](feedback_prefer_jp_region.md) — always provision JP; don't propose NA as diagnostic vehicle; answer pod variance with multiple JP draws instead
+- [Don't substitute expensive hardware](feedback_dont_substitute_expensive_hardware.md) — if spec's target hardware unavailable, STOP and ask; never silently upgrade (e.g. 2×H100 $3/hr → 8×H100 $24/hr burned ~$20 for nothing)
+- [Throughput is step function not drift](project_throughput_step_function.md) — full-scale tok/s has 2 flat plateaus (pre/post loop activation); apparent drift is cumulative-average artifact; use interval rate formula; α tax only ~1.5%, loop activation is the 33% lever
+- [Pod probe cleanup bug](feedback_probe_cleanup_bug.md) — NEVER `runpodctl pod stop/remove ... > /dev/null 2>&1` in probe scan loops; capture output and verify with `pod list` after, else silent leaks burn $$$
+- [Always list pods](feedback_always_list_pods.md) — every pod operation/monitor poll must include `runpodctl pod list` with cost/hr; user can catch leaks within one cycle instead of after 25 min
+- [Preflight memory scaling](feedback_preflight_memory_scaling.md) — before running an N-GPU spec on K<N GPUs, multiply peak VRAM by N/K; if > 80 GiB on H100, OOM certain — reduce batch or wait
+- [Inductor cache must be on /tmp](feedback_inductor_cache_on_tmp.md) — never set TORCHINDUCTOR_CACHE_DIR to /workspace or /runpod (NFS FUSE) — triton compile workers race → Stale file handle, rank dies
+- [Smaller-H smoke before full trial](feedback_small_h_before_full_trial.md) — code-change variants: run on 2×H/4×H first against matched-H baseline before 8×H; spec 021 arc burned ~$20 skipping this
+- [Separate debug from submission](feedback_separate_debug_from_submission.md) — 3-rung hierarchy (proxy / full-model-small-H / full-model-full-H); proxy doesn't catch training dynamics; cache small-H baselines; run debug + submission in parallel on separate pods; pivot after 2 failed 8×H debug trials
+- [Verify commit before rerun](feedback_verify_commit_before_rerun.md) — before any baseline rerun, `git diff <original_commit>..<rerun_commit>`; the "019b" label referred to two different commits (e93d77d vs 9517a3b) that differ in blend algebra, cost us a false pod-variance finding
+- [Gap vs #1769 is in training seed, not GPTQ/TTT](project_gap_vs_1769_diagnosis.md) — entire ~0.0013 bpb gap vs #1769 mean is in float model quality (seed 42 lands ~1.069, their best seeds ~1.066); GPTQ and TTT efficiency are equal or better; fix is more seeds
+- [Always push after every commit](feedback_always_push.md) — `git push fork research` immediately after every commit; never leave commits local
+- [Dexhunter seed cherry-picking strategy](project_dexhunter_seed_strategy.md) — dexhunter's #1736→#1769 gain was entirely seed selection (new seeds 314/2025/777 produce ~0.002 better floats); clip=12 was already set; we are matched on techniques
