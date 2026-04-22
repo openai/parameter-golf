@@ -150,13 +150,13 @@ class Hyperparameters:
     # REPLACES the build_sentencepiece_luts byte-counting path entirely.
     caseops_enabled = bool(int(os.environ.get("CASEOPS_ENABLED", "0")))
     _default_caseops_data = os.path.join(
-        data_dir,
+        ".",
         "datasets",
         "datasets",
         "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved",
     )
     _default_caseops_tok = os.path.join(
-        data_dir,
+        ".",
         "datasets",
         "tokenizers",
         "fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model",
