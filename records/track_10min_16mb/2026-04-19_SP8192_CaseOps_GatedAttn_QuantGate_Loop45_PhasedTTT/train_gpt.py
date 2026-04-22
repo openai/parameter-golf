@@ -1,4 +1,4 @@
-import base64, collections, copy, fcntl, glob, hashlib, io, lzma, math, os
+import base64, collections, copy, fcntl, glob, hashlib, io, json, lzma, math, os
 from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
 from torch import nn
@@ -3421,6 +3421,18 @@ def train_model(h, device, val_data):
     ema_decay = h.ema_decay
     prev_direct_carry_snapshot = None
     prev_alpha_beta_snapshot = None
+    snapshot_path = (
+        os.path.join(h.artifact_dir, "carry_snapshots.jsonl")
+        if h.artifact_dir
+        else "carry_snapshots.jsonl"
+    )
+
+    def write_carry_snapshot(kind, tag, payload):
+        if not h.is_main_process:
+            return
+        record = {"kind": kind, "tag": tag, **payload}
+        with open(snapshot_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, sort_keys=True) + "\n")
 
     def log_direct_carry_snapshot(tag):
         nonlocal prev_direct_carry_snapshot
@@ -3465,6 +3477,28 @@ def train_model(h, device, val_data):
             f"direct_carry[{tag}]: self={self_tensor.tolist()} "
             f"edges={[t.tolist() for t in edge_tensors]}{gate_str}"
         )
+        write_carry_snapshot(
+            "direct_carry",
+            tag,
+            {
+                "mode": base_model.direct_carry_mode,
+                "edge_row_norms": edge_row_norms,
+                "edge_max_abs": edge_max_abs,
+                "self_max_abs": self_max_abs,
+                "edge_max_drift": edge_drifts if prev_direct_carry_snapshot is not None else None,
+                "self_max_drift": self_drift if prev_direct_carry_snapshot is not None else None,
+                "gate_max_drift": (
+                    gate_drift
+                    if prev_direct_carry_snapshot is not None
+                    and gate_tensor is not None
+                    and prev_gate is not None
+                    else None
+                ),
+                "self": self_tensor.tolist(),
+                "edges": [t.tolist() for t in edge_tensors],
+                "carry_gate": None if gate_tensor is None else gate_tensor.tolist(),
+            },
+        )
         prev_direct_carry_snapshot = (
             [t.clone() for t in edge_tensors],
             self_tensor.clone(),
@@ -3501,6 +3535,23 @@ def train_model(h, device, val_data):
             f"alpha_beta[{tag}]: beta={beta_tensor.tolist()} "
             f"alpha={alpha_tensor.tolist()}"
         )
+        write_carry_snapshot(
+            "alpha_beta",
+            tag,
+            {
+                "alpha_row_norms": alpha_row_norms,
+                "alpha_max_abs": alpha_max_abs,
+                "beta_max_abs": beta_max_abs,
+                "alpha_max_drift": (
+                    alpha_drift if prev_alpha_beta_snapshot is not None else None
+                ),
+                "beta_max_drift": (
+                    beta_drift if prev_alpha_beta_snapshot is not None else None
+                ),
+                "alpha": alpha_tensor.tolist(),
+                "beta": beta_tensor.tolist(),
+            },
+        )
         prev_alpha_beta_snapshot = (
             alpha_tensor.clone(),
             beta_tensor.clone(),
@@ -3511,6 +3562,15 @@ def train_model(h, device, val_data):
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     step = 0
+    log(
+        f"carry_status:init mode={base_model.direct_carry_mode} "
+        f"direct_enabled={getattr(base_model, 'direct_carry_enabled', False)} "
+        f"alpha_beta_enabled={getattr(base_model, 'alpha_beta_carry_enabled', False)} "
+        f"gate_present={getattr(base_model, 'direct_carry_gate', None) is not None} "
+        f"snapshot_path={snapshot_path}"
+    )
+    log_direct_carry_snapshot("init")
+    log_alpha_beta_snapshot("init")
     while True:
         last_step = (
             step == h.iterations
