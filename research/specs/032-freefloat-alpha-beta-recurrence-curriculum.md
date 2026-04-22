@@ -3,7 +3,7 @@
 **Slug:** `freefloat-alpha-beta-recurrence-curriculum`
 **Created:** 2026-04-23
 **Status:** READY
-**Branch:** `exp/032-freefloat-alpha-beta`
+**Branch:** `exp/032-freefloat-alpha-beta-recurrence-curriculum`
 **Commit:** `bff18a4`
 **Links to:** `research/ideas/032-freefloat-alpha-beta-recurrence-curriculum.md`, `research/specs/024b-cross-layer-carry-blend.md`, `research/specs/024c-cross-layer-carry-per-pass.md`, `research/specs/029-full-stack-025b.md`, `research/specs/031-direct-carry-freefloat-neutral.md`
 
@@ -134,25 +134,9 @@ Extend the usual screen by about **20%** so the learned `alpha/beta` values have
 
 ### Critical timing rule
 
-If runtime is extended, the onset ratio must be corrected so recurrence still activates at about the same absolute step.
+Important: in the current training code, `ENABLE_LOOPING_AT` is compared against wallclock fraction (`elapsed_ms / effective_wallclock_ms`), not raw step fraction. So the ratio must be calibrated from observed throughput, not just from an assumed total-step count.
 
-Target:
-
-- loop start around **step 2100**
-
-Rule:
-
-```text
-new_loop_start_ratio = 2100 / new_total_steps
-```
-
-If expected total steps are about `6000`, then:
-
-```text
-ENABLE_LOOPING_AT = 0.35
-```
-
-Do **not** leave the old ratio unchanged.
+The earlier `0.35` choice was shown by spec 031 to land too late in step space on the current healthy stack. On the measured 4×H100 throughput regime, a ratio around `0.27` is the right starting point for targeting loop activation near step `2100`.
 
 The purpose of the extension is to increase the **post-loop learning tail**, not to delay loop activation.
 
@@ -172,7 +156,7 @@ Reason:
 
 Pinned draft choice for `032`:
 
-- `ENABLE_LOOPING_AT = 0.35`
+- `ENABLE_LOOPING_AT = 0.272`
 - `LOOP_DEPTH_UPGRADE_AT = 0.50`
 
 Interpretation:
@@ -268,6 +252,7 @@ Do not skip the smoke rung. This spec touches both:
 - wallclock: `240s`
 - seed: `314`
 - `PHASED_TTT_ENABLED=0`
+- `TTT_ENABLED=0`
 - accelerate the phase boundaries so both transitions happen inside the smoke:
   - `ENABLE_LOOPING_AT=0.10`
   - `LOOP_DEPTH_UPGRADE_AT=0.20`
@@ -282,16 +267,19 @@ This rung is only to validate:
 
 Do **not** carry the smoke timing ratios into the real 4×H run.
 
+The smoke ratios (`0.10`, `0.20`) are only for forcing both transitions into a short validation window and should not be used to infer the main-run onset ratio.
+
 ### Main calibration rung
 
 - hardware: `4×H100`
 - wallclock: `1440s`
 - seed: `314`
 - `PHASED_TTT_ENABLED=0`
+- `TTT_ENABLED=0`
 - `NUM_LOOPS=3`
 - `DIRECT_CARRY_MODE=alpha_beta`
 - `DIRECT_CARRY_LR_SCALE=1.5`
-- `ENABLE_LOOPING_AT=0.35`
+- `ENABLE_LOOPING_AT=0.272`
 - `LOOP_DEPTH_UPGRADE_AT=0.50`
 
 Other pinned training envs match the current healthy stack:
@@ -335,11 +323,12 @@ grep -n "alpha_beta_summary" train_gpt.py
 mkdir -p /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314
 mkdir -p /tmp/torch_inductor_cache_032_smoke
 
-NCCL_NET=Socket DATA_DIR=/workspace/data \
+NCCL_NET=Socket DATA_DIR=/workspace/parameter-golf/data \
 ARTIFACT_DIR=/workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314 \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_032_smoke \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=0 \
+TTT_ENABLED=0 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
 EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 MATRIX_LR=0.026 \
@@ -380,11 +369,12 @@ nvidia-smi --query-gpu=timestamp,index,temperature.gpu,clocks.current.sm,power.d
   > /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314/diag_nvsmi.csv &
 NVSMI_PID=$!
 
-NCCL_NET=Socket DATA_DIR=/workspace/data \
+NCCL_NET=Socket DATA_DIR=/workspace/parameter-golf/data \
 ARTIFACT_DIR=/workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314 \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_032_4h \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=0 \
+TTT_ENABLED=0 \
 MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
 EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 MATRIX_LR=0.026 \
@@ -392,7 +382,7 @@ SCALAR_LR=0.02 \
 DIRECT_CARRY_MODE=alpha_beta \
 DIRECT_CARRY_LR_SCALE=1.5 \
 GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
-NUM_LOOPS=3 LOOP_START=3 LOOP_END=5 ENABLE_LOOPING_AT=0.35 LOOP_DEPTH_UPGRADE_AT=0.50 \
+NUM_LOOPS=3 LOOP_START=3 LOOP_END=5 ENABLE_LOOPING_AT=0.272 LOOP_DEPTH_UPGRADE_AT=0.50 \
 MAX_WALLCLOCK_SECONDS=1440 \
 TRAIN_LOG_EVERY=100 \
 SEED=314 \
