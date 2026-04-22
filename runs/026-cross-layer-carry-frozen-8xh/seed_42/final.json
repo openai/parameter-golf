@@ -1,0 +1,21 @@
+{
+  "spec": "026-cross-layer-carry-frozen-8xh",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1128,
+  "val_bpb_final": 1.0695,
+  "pre_quant_ema_val_bpb": 1.06893,
+  "quantized_val_bpb": 1.07827,
+  "post_ttt_val_bpb": 1.06582,
+  "steps": 4863,
+  "hardware": "8xH100",
+  "region": "AP-JP-1",
+  "wall_time_sec": 1800,
+  "cost_usd": 12.0,
+  "pod_id": "jqnj0zret8c13u",
+  "git_commit": "950af24",
+  "started_at": "2026-04-22T05:28:00Z",
+  "ended_at": "2026-04-22T05:58:00Z",
+  "checkpoints_emitted": ["final_model.pt", "final_model.int6.ptz"]
+}

@@ -1,0 +1,24 @@
+{
+  "spec": "009-spinquant-hotstart",
+  "mode": "baseline",
+  "spinquant_seed": 42,
+  "hotstart_ckpt": "/workspace/runs/026-cross-layer-carry-frozen-8xh/seed_42/final_model.pt",
+  "status": "ok",
+  "diagnostic_pre_quant_post_rotation": {
+    "val_loss": 2.904699638637283,
+    "val_bpb": 1.3272618526680287,
+    "eval_time_ms": 45056
+  },
+  "diagnostic_quantized": {
+    "val_loss": 2.364571079681437,
+    "val_bpb": 1.0804576659966065,
+    "eval_time_ms": 60974
+  },
+  "quantized_ttt_phased": {
+    "val_loss": 2.3355205625889224,
+    "val_bpb": 1.0672417571593427,
+    "eval_time_ms": 772649
+  },
+  "artifact_bytes": 15956658,
+  "quant_file_bytes": 15951688
+}

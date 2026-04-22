@@ -1,0 +1,53 @@
+{
+  "spec": "029-full-stack-025b",
+  "run_type": "screen",
+  "seed": 314,
+  "status": "completed_with_partial_ttt",
+  "reason": "screen gate missed; TTT killed by user after stalling in recompile loop",
+  "stopping_reason": "wallclock_cap",
+  "steps_completed": 4742,
+  "train_time_ms": 1196063,
+  "val_bpb_at_step_4000": 1.1128,
+  "val_bpb_final_step": 1.0704,
+  "val_bpb_pre_gptq_post_ema": 1.07006909,
+  "val_bpb_post_gptq": 1.07925671,
+  "val_bpb_post_ttt_partial_rb": 1.0811,
+  "ttt_batches_processed": 34,
+  "ttt_batches_total": 782,
+  "ttt_num_phases": 1,
+  "ttt_stopped_by_user": true,
+  "submission_size_bytes_brotli": 15981030,
+  "serialized_model_bytes": 135601725,
+  "screen_gate": {
+    "pre_quant_ema_threshold": 1.068,
+    "pre_quant_ema_observed": 1.07006909,
+    "result": "fail",
+    "miss_by": 0.00207
+  },
+  "curriculum_events": {
+    "loop_warmup_depth_upgraded_pre_step_0": true,
+    "layer_loop_enabled": {"step": 2243, "frac": 0.350, "depth": 3},
+    "loop_depth_upgraded":  {"step": 3614, "frac": 0.670, "depth": 4}
+  },
+  "mid_run_recompiles_during_training": 0,
+  "total_recompiles": 68,
+  "hardware": "4xH100_SXM",
+  "region": "US-NE-1",
+  "pod_id": "tbk3t7a9o5tifp",
+  "pod_cost_per_hr_usd": 11.96,
+  "pod_left_running_for_handoff": true,
+  "wall_time_sec_approx": 3000,
+  "cost_usd_approx": 10.0,
+  "git_commit": "c3a99b30589ef23fa313dd43e15c6010f33cd576",
+  "branch": "exp/029-full-stack",
+  "started_at": "2026-04-23T16:36:00Z",
+  "training_stopped_at": "2026-04-23T17:09:00Z",
+  "ttt_killed_at": "2026-04-23T17:24:00Z",
+  "decision": "do_not_proceed_to_8xh_per_spec_regression_criterion",
+  "comparisons": {
+    "vs_025b_seed_42_baseline_delta_pre_quant_ema": 0.00090,
+    "vs_026_screen_seed_314_delta_pre_quant_ema": 0.00237,
+    "vs_1769_seed_314_post_ttt_delta": "not_directly_comparable_partial_ttt"
+  },
+  "notes": "Depth curriculum fires correctly, zero mid-run recompiles — architecture works as designed. But endpoint pre-quant EMA regresses vs 025b baseline. Likely cause: alpha/beta converged by 024b at NUM_LOOPS=2 don't generalize to NUM_LOOPS=3 + depth=4 regime used here. TTT accidentally ran in slowest mode (num_phases=1 via PHASED_TTT_ENABLED=0 misreading) and stalled in Dynamo recompiles — killed after 34/782 batches with rb aggregate already converged at 1.0811. Per spec criterion, do not proceed to 8xH; candidate rework is learnable alpha or earlier depth upgrade."
+}
