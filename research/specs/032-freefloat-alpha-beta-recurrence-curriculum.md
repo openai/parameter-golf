@@ -2,10 +2,9 @@
 
 **Slug:** `freefloat-alpha-beta-recurrence-curriculum`
 **Created:** 2026-04-23
-**Status:** DRAFT
+**Status:** READY
 **Branch:** `exp/032-freefloat-alpha-beta`
 **Commit:** `TBD`
-**Current implementation draft:** `7efcff5`
 **Links to:** `research/ideas/032-freefloat-alpha-beta-recurrence-curriculum.md`, `research/specs/024b-cross-layer-carry-blend.md`, `research/specs/024c-cross-layer-carry-per-pass.md`, `research/specs/029-full-stack-025b.md`, `research/specs/031-direct-carry-freefloat-neutral.md`
 
 ## Hypothesis
@@ -252,29 +251,181 @@ This is a calibration spec, so acceptance is about usefulness of the learned car
 
 ## Hardware ladder
 
-1. **4×H100 calibration run**
-2. **Frozen follow-up spec** after inspecting learned values
+1. **2×H100 smoke** — 4 minutes, accelerated phase timings
+2. **4×H100 calibration run** — extended by about 20%
+3. **Frozen follow-up spec** after inspecting learned values
 
-Because this is a targeted carry-logic change in the real 3-loop regime, do not skip a smoke rung if the implementation diff becomes materially larger than expected.
+Do not skip the smoke rung. This spec touches both:
 
-## Open implementation questions
+- carry logic
+- recurrence depth schedule logic
 
-These need to be pinned before the spec becomes `READY`:
+## Pinned config
 
-1. exact code branch / commit that adds the new modern `alpha/beta` mode under the current codebase
-2. exact current recurrence-curriculum env var set to match the intended `029`-family regime
-3. exact expected total-step count after the 20% wallclock extension
-4. exact launch command under the current `/workspace/...` path convention
-5. whether the modern implementation should expose one dedicated env mode for this run or a small family of `alpha/beta` modes
+### Smoke rung
 
-Current draft schedule intent once code exists:
+- hardware: `2×H100`
+- wallclock: `240s`
+- seed: `314`
+- `PHASED_TTT_ENABLED=0`
+- accelerate the phase boundaries so both transitions happen inside the smoke:
+  - `ENABLE_LOOPING_AT=0.10`
+  - `LOOP_DEPTH_UPGRADE_AT=0.20`
 
+This rung is only to validate:
+
+- alpha/beta mode compiles and runs
+- loop activation fires
+- depth upgrade fires
+- logging is present
+- no NaN / shape issue
+
+Do **not** carry the smoke timing ratios into the real 4×H run.
+
+### Main calibration rung
+
+- hardware: `4×H100`
+- wallclock: `1440s`
+- seed: `314`
+- `PHASED_TTT_ENABLED=0`
 - `NUM_LOOPS=3`
 - `DIRECT_CARRY_MODE=alpha_beta`
 - `DIRECT_CARRY_LR_SCALE=1.5`
 - `ENABLE_LOOPING_AT=0.35`
 - `LOOP_DEPTH_UPGRADE_AT=0.50`
-- extended 4×H wallclock by about 20%
+
+Other pinned training envs match the current healthy stack:
+
+- `CASEOPS_ENABLED=1`
+- `MLP_CLIP_SIGMAS=12.0`
+- `ATTN_CLIP_SIGMAS=13.0`
+- `EMBED_BITS=7`
+- `EMBED_CLIP_SIGMAS=15.0`
+- `MATRIX_LR=0.026`
+- `SCALAR_LR=0.02`
+- `GATED_ATTN_ENABLED=1`
+- `GATED_ATTN_INIT_STD=0.005`
+- `GATED_ATTN_QUANT_GATE=1`
+- `TRAIN_LOG_EVERY=100`
+
+## Run protocol
+
+Both commands use:
+
+- `/workspace/...` paths
+- `/tmp` for `TORCHINDUCTOR_CACHE_DIR`
+- `PHASED_TTT_ENABLED=0`
+
+### 032 smoke — 2×H100, 4 minutes
+
+```bash
+python -c "import brotli"
+
+cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+git fetch fork
+git checkout <PINNED_COMMIT>
+
+# Sanity verify
+grep -n "DIRECT_CARRY_MODE" train_gpt.py
+grep -n "alpha_beta" train_gpt.py
+grep -n "loop_depth_upgrade_at" train_gpt.py
+grep -n "loop_depth:upgraded" train_gpt.py
+grep -n "alpha_beta_summary" train_gpt.py
+
+mkdir -p /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314
+mkdir -p /tmp/torch_inductor_cache_032_smoke
+
+NCCL_NET=Socket DATA_DIR=/workspace/data \
+ARTIFACT_DIR=/workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314 \
+TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_032_smoke \
+CASEOPS_ENABLED=1 \
+PHASED_TTT_ENABLED=0 \
+MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
+EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
+MATRIX_LR=0.026 \
+SCALAR_LR=0.02 \
+DIRECT_CARRY_MODE=alpha_beta \
+DIRECT_CARRY_LR_SCALE=1.5 \
+GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
+NUM_LOOPS=3 LOOP_START=3 LOOP_END=5 ENABLE_LOOPING_AT=0.10 LOOP_DEPTH_UPGRADE_AT=0.20 \
+MAX_WALLCLOCK_SECONDS=240 \
+TRAIN_LOG_EVERY=100 \
+SEED=314 \
+TORCH_LOGS=recompiles \
+torchrun --standalone --nproc_per_node=2 train_gpt.py \
+  > /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/smoke_seed_314/train.log 2>&1
+```
+
+### 032 main — 4×H100 calibration
+
+```bash
+python -c "import brotli"
+
+cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+git fetch fork
+git checkout <PINNED_COMMIT>
+
+# Sanity verify
+grep -n "DIRECT_CARRY_MODE" train_gpt.py
+grep -n "alpha_beta" train_gpt.py
+grep -n "loop_depth_upgrade_at" train_gpt.py
+grep -n "loop_depth:upgraded" train_gpt.py
+grep -n "alpha_beta_summary" train_gpt.py
+
+mkdir -p /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314
+mkdir -p /tmp/torch_inductor_cache_032_4h
+
+nvidia-smi --query-gpu=timestamp,index,temperature.gpu,clocks.current.sm,power.draw,utilization.gpu,memory.used \
+  --format=csv -l 1 \
+  > /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314/diag_nvsmi.csv &
+NVSMI_PID=$!
+
+NCCL_NET=Socket DATA_DIR=/workspace/data \
+ARTIFACT_DIR=/workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314 \
+TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_032_4h \
+CASEOPS_ENABLED=1 \
+PHASED_TTT_ENABLED=0 \
+MLP_CLIP_SIGMAS=12.0 ATTN_CLIP_SIGMAS=13.0 \
+EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
+MATRIX_LR=0.026 \
+SCALAR_LR=0.02 \
+DIRECT_CARRY_MODE=alpha_beta \
+DIRECT_CARRY_LR_SCALE=1.5 \
+GATED_ATTN_ENABLED=1 GATED_ATTN_INIT_STD=0.005 GATED_ATTN_QUANT_GATE=1 \
+NUM_LOOPS=3 LOOP_START=3 LOOP_END=5 ENABLE_LOOPING_AT=0.35 LOOP_DEPTH_UPGRADE_AT=0.50 \
+MAX_WALLCLOCK_SECONDS=1440 \
+TRAIN_LOG_EVERY=100 \
+SEED=314 \
+TORCH_LOGS=recompiles \
+torchrun --standalone --nproc_per_node=4 train_gpt.py \
+  > /workspace/runs/032-freefloat-alpha-beta-recurrence-curriculum/seed_314/train.log 2>&1
+
+kill $NVSMI_PID
+```
+
+## Smoke pass criteria
+
+- `layer_loop:enabled` appears
+- `loop_depth:upgraded` appears
+- `alpha_beta_summary[...]` appears
+- `alpha_beta[...]` appears
+- no NaN / runtime error
+
+## Main-run monitoring targets
+
+- `layer_loop:enabled` occurs near the intended onset
+- `loop_depth:upgraded` occurs at the earlier `0.50` phase
+- `alpha_beta` values move off init
+- late-stage drift is visibly lower than early drift
+- float trajectory is at least healthy enough that carry is not obviously broken
+
+## Stop-early criteria
+
+- NaN / inf → halt
+- missing `layer_loop:enabled` after the expected onset window → halt
+- missing `loop_depth:upgraded` by the expected later window → halt
+- no `alpha_beta_summary[...]` logs after recurrence activates → halt
+- obvious shape / missing-carry runtime error → halt
 
 ## Execution note
 
@@ -283,6 +434,18 @@ When this spec becomes ready, execution commands must use:
 - `/workspace/...` paths, not `/runpod/...`
 - `/tmp` for `TORCHINDUCTOR_CACHE_DIR`
 
-## Proposed next step
+## Cost estimate
 
-Implement a small modern `alpha/beta` carry mode in the current codepath, then freeze the exact branch, commit, and launch command here.
+- 2×H100 smoke (4 min): low single-digit dollars
+- 4×H100 calibration (24 min): roughly the same order as `031`, still cheap for a calibration run
+
+## Execution note
+
+The executioner should validate the command block against the real environment before launch:
+
+- branch/commit reachability
+- `/workspace/...` paths
+- env vars exist in the pinned code
+- output directories are writable
+
+Do not silently change the experiment if any of those checks fail.
