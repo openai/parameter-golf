@@ -1,0 +1,15 @@
+{
+  "mode": "port_1695",
+  "base_seed": 42,
+  "num_layers": 11,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "head_dim": 64,
+  "rotations": {
+    "strategy": "online+static via train_gpt.py machinery",
+    "hyperparameters": {
+      "spinquant_enabled": true,
+      "spinquant_seed": 42
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "spec": "024b-cross-layer-carry-blend",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1196,
+  "val_bpb_final": 1.0699,
+  "pre_quant_ema_val_bpb": 1.06960,
+  "quantized_val_bpb": 1.07907,
+  "steps": 5017,
+  "hardware": "4xH100",
+  "region": "NA-1",
+  "wall_time_sec": 1196,
+  "cost_usd": 3.98,
+  "pod_id": "88u8sha9h1cify",
+  "git_commit": "89367c5",
+  "started_at": "2026-04-22T04:02:13Z",
+  "ended_at": "2026-04-22T04:22:09Z",
+  "checkpoints_emitted": []
+}

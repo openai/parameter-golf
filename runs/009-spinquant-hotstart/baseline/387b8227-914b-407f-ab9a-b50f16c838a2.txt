@@ -1,0 +1,1 @@
+spinquant_hotstart: mode=baseline seed=42 ckpt=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt

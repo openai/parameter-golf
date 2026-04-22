@@ -1,0 +1,198 @@
+W0420 02:51:29.249000 396 torch/distributed/run.py:803] 
+W0420 02:51:29.249000 396 torch/distributed/run.py:803] *****************************************
+W0420 02:51:29.249000 396 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0420 02:51:29.249000 396 torch/distributed/run.py:803] *****************************************
+spinquant_hotstart: mode=baseline seed=42 ckpt=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank3]:     raise SystemExit(main())
+[rank3]:                      ^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank3]:     val_data = ValidationData(h, device)
+[rank3]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank3]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank3]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank3]:     return self.LoadFromFile(model_file)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank3]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank7]:     raise SystemExit(main())
+[rank7]:                      ^^^^^^
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank7]:     val_data = ValidationData(h, device)
+[rank7]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank7]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank7]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank7]:     return self.LoadFromFile(model_file)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank7]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank0]:     raise SystemExit(main())
+[rank0]:                      ^^^^^^
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank0]:     val_data = ValidationData(h, device)
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank0]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank0]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank0]:     return self.LoadFromFile(model_file)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank0]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank4]:     raise SystemExit(main())
+[rank4]:                      ^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank4]:     val_data = ValidationData(h, device)
+[rank4]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank4]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank4]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank4]:     return self.LoadFromFile(model_file)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank4]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank1]:     raise SystemExit(main())
+[rank1]:                      ^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank1]:     val_data = ValidationData(h, device)
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank1]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank1]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank1]:     return self.LoadFromFile(model_file)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank1]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank6]:     raise SystemExit(main())
+[rank6]:                      ^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank6]:     val_data = ValidationData(h, device)
+[rank6]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank6]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank6]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank6]:     return self.LoadFromFile(model_file)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank6]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank5]:     raise SystemExit(main())
+[rank5]:                      ^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank5]:     val_data = ValidationData(h, device)
+[rank5]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank5]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank5]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank5]:     return self.LoadFromFile(model_file)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank5]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 514, in <module>
+[rank2]:     raise SystemExit(main())
+[rank2]:                      ^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/spinquant_hotstart.py", line 409, in main
+[rank2]:     val_data = ValidationData(h, device)
+[rank2]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 219, in __init__
+[rank2]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank2]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank2]:     return self.LoadFromFile(model_file)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank2]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]: OSError: Not found: "./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank0]:[W420 02:51:42.638436956 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0420 02:51:42.923000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 465 closing signal SIGTERM
+W0420 02:51:42.925000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 466 closing signal SIGTERM
+W0420 02:51:42.928000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 467 closing signal SIGTERM
+W0420 02:51:42.932000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 468 closing signal SIGTERM
+W0420 02:51:42.935000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 469 closing signal SIGTERM
+W0420 02:51:42.938000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 470 closing signal SIGTERM
+W0420 02:51:42.942000 396 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 471 closing signal SIGTERM
+E0420 02:51:43.926000 396 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 464) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+spinquant_hotstart.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-20_02:51:42
+  host      : ea2cdc2af279
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 464)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

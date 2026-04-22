@@ -1,0 +1,19 @@
+  val_loss_every: 4000
+0/20000 val_loss: 9.0177 val_bpb: 4.1205
+1/20000 train_loss: 9.0245 train_time: 0.0m tok/s: 11992836
+2/20000 train_loss: 12.9292 train_time: 0.0m tok/s: 10730038
+3/20000 train_loss: 10.7740 train_time: 0.0m tok/s: 9472770
+4/20000 train_loss: 9.9150 train_time: 0.0m tok/s: 9022310
+5/20000 train_loss: 9.3765 train_time: 0.0m tok/s: 8753873
+500/20000 train_loss: 3.1894 train_time: 0.8m tok/s: 7996352
+1000/20000 train_loss: 3.3902 train_time: 1.6m tok/s: 7962164
+1500/20000 train_loss: 3.2335 train_time: 2.5m tok/s: 7952482
+2000/20000 train_loss: 3.2188 train_time: 3.3m tok/s: 7945875
+2500/20000 train_loss: 3.1397 train_time: 4.4m tok/s: 7414963
+3000/20000 train_loss: 3.1184 train_time: 5.6m tok/s: 6992850
+3500/20000 train_loss: 3.1116 train_time: 6.8m tok/s: 6720478
+4000/20000 train_loss: 2.9205 train_time: 8.0m tok/s: 6532337
+4000/20000 val_loss: 2.5699 val_bpb: 1.1743
+4500/20000 train_loss: 2.7418 train_time: 9.2m tok/s: 6394948
+4797/20000 val_loss: 2.4765 val_bpb: 1.1316
+stopping_early: wallclock_cap train_time: 596043ms step: 4797/20000

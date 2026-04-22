@@ -1,0 +1,62 @@
+{
+  "spec": "021-recur-alpha-buffer",
+  "seed": 42,
+  "date": "2026-04-21",
+  "git_commit": "cb5cd78",
+  "pod_id": "2seyx32eh5ggyv",
+  "hardware": "4xH100 SXM US-NE-1",
+  "hardware_substitution": "spec called for 8xH100 JP; JP and NE-1 8-GPU all SKUs were dry for ~4 hours; used 4xH100 NE-1 with doubled wallclock (1200s vs 600s) as step-matched substitute",
+  "status": "training_complete_gptq_failed",
+  "gptq_fail_reason": "ModuleNotFoundError: No module named 'brotli' at serialize()->_compress(). Training, pre-quant post-EMA val eval, and GPTQ quant all completed successfully; only the brotli compression in serialize() crashed. Same failure mode as spec 020b on NE-1.",
+
+  "config_changes_from_spec": {
+    "hardware": "4xH100 NE-1 (spec said 8xH100 JP)",
+    "MAX_WALLCLOCK_SECONDS": "1200 (doubled from default 600 to match total GPU-seconds of 8xH100 run)",
+    "ENABLE_LOOPING_AT": "0.35 (spec originally listed 0.17; corrected by user during launch to the code default)"
+  },
+
+  "training": {
+    "stopping_early": "wallclock_cap",
+    "final_step": 4736,
+    "train_time_ms": 1196017,
+    "loop_activation_step": 2112,
+    "loop_activation_frac": 0.350
+  },
+
+  "post_training": {
+    "val_bpb_at_step_4000": 1.1086,
+    "val_bpb_at_step_4736": 1.0714,
+    "val_bpb_pre_gptq_post_ema": 1.07094776,
+    "val_loss_pre_gptq_post_ema": 2.34375874,
+    "val_bpb_post_gptq": null,
+    "val_bpb_post_ttt": null,
+    "gptq_completed": "blocks int6, tok_emb int7 all quantized (see train.log); only brotli compression in serialize failed"
+  },
+
+  "throughput": {
+    "pre_loop_inst_tokps_M": 3.97,
+    "pre_loop_stability_pct": 0.5,
+    "post_loop_inst_tokps_M": 2.70,
+    "post_loop_stability_pct": 0.4,
+    "type_b_mystery_spikes": 0,
+    "post_val_recompile_cluster": 0
+  },
+
+  "baselines_for_comparison": {
+    "008_1736_reproduction": {
+      "hardware": "8xH100 JP",
+      "final_step": 4828,
+      "val_bpb_pre_gptq_post_ema": 1.06922,
+      "val_bpb_at_step_4000": 1.1110
+    },
+    "019_literal_alpha_constant": {
+      "hardware": "8xH100 JP",
+      "final_step": 4697,
+      "val_bpb_pre_gptq_post_ema": 1.07063,
+      "val_bpb_post_ttt": 1.06744,
+      "val_bpb_at_step_4000": 1.1071
+    }
+  },
+
+  "interpretation_summary": "Pre-quant post-EMA val_bpb on 4xH100 matched 8xH100 baseline family (0.00032 behind 019, 0.00173 behind 008). Hypothesis (buffer-alpha + earlier loop activation 0.35 vs 0.45) not confirmed as a net improvement given the batch-size tax of 4xH100 vs 8xH100 (~0.001-0.002 bpb). Needs 8xH100 rerun to isolate the buffer-alpha + early-loop effect from hardware."
+}

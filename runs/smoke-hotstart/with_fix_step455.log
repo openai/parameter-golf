@@ -1,0 +1,16 @@
+Loading checkpoint: /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step455.pt
+  Step: 455
+  Keys: ['step', 'model_state_dict', 'optimizer_states', 'ema_state']
+Recurrence set active by --looping_active (step=455)
+Fast-forwarding data loader 3640 batches (start_step=455, grad_accum=8)
+Loader fast-forward done in 6.1s
+Resuming from step 455 → 505
+Resume state: step=455 training_time_ms=70000 frac=0.1190 lr_scale=1.0000 warmdown_ckpt_saved=False
+step:460/505 train_loss:3.3822 time:75.7s
+step:470/505 train_loss:3.3652 time:87.1s
+step:480/505 train_loss:3.3516 time:98.4s
+step:490/505 train_loss:3.3270 time:109.7s
+step:500/505 train_loss:3.3077 time:121.1s
+step:505/505 train_loss:3.3408 time:126.8s
+Final (pre-EMA): val_loss=3.3117 val_bpb=1.2823
+Final (post-EMA): val_loss=4.1097 val_bpb=1.5913

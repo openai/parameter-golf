@@ -1,0 +1,221 @@
+W0421 22:30:25.906000 247 torch/distributed/run.py:803] 
+W0421 22:30:25.906000 247 torch/distributed/run.py:803] *****************************************
+W0421 22:30:25.906000 247 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0421 22:30:25.906000 247 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: /workspace/runs/021c-recur-alpha-param-frozen-mini/019b_ref_4h_ne1
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  data_dir: /workspace/data
+  datasets_dir: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gate_window: 12
+  gated_attn_enabled: True
+  gated_attn_init_std: 0.005
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 2
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: /workspace/runs/021c-recur-alpha-param-frozen-mini/019b_ref_4h_ne1/50eeba08-af20-4d52-b14c-51239c1ef746.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 1200.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/runs/021c-recur-alpha-param-frozen-mini/019b_ref_4h_ne1/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: /workspace/runs/021c-recur-alpha-param-frozen-mini/019b_ref_4h_ne1/final_model.int6.ptz
+  rank: 0
+  recur_alpha_enabled: True
+  recur_diag_p2p_cos: False
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 50eeba08-af20-4d52-b14c-51239c1ef746
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: False
+  spinquant_enabled: False
+  spinquant_seed: 42
+  spinquant_sites: attn_in,attn_proj_in,mlp_in,mlp_proj_in
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 4
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+model_params:35989658
+recur_alpha: enabled=True num_loops=2 loop_start=3 loop_end=5 diag_p2p_cos=False
+gptq:reserving 4s, effective=1196000ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3411, in train_and_eval
+[rank2]:     base_model, compiled_model, compiled_forward_logits = train_model(
+[rank2]:                                                           ^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3274, in train_model
+[rank2]:     step_fn(warmup_step, 1.0)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3233, in step_fn
+[rank2]:     optimizers.step(distributed=h.distributed)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 1882, in step
+[rank2]:     self.optimizer_muon.step()
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/optimizer.py", line 517, in wrapper
+[rank2]:     out = func(*args, **kwargs)
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+[rank2]:     return func(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 1728, in step
+[rank2]:     update = zeropower_via_newtonschulz5(update, steps=backend_steps)
+[rank2]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 845, in compile_wrapper
+[rank2]:     raise e.remove_dynamo_frames() from None  # see TORCHDYNAMO_VERBOSE=1
+[rank2]:     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py", line 990, in _compile_fx_inner
+[rank2]:     raise InductorError(e, currentframe()).with_traceback(
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py", line 974, in _compile_fx_inner
+[rank2]:     mb_compiled_graph = fx_codegen_and_compile(
+[rank2]:                         ^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py", line 1695, in fx_codegen_and_compile
+[rank2]:     return scheme.codegen_and_compile(gm, example_inputs, inputs_to_check, graph_kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_fx.py", line 1505, in codegen_and_compile
+[rank2]:     compiled_module = graph.compile_to_module()
+[rank2]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/graph.py", line 2319, in compile_to_module
+[rank2]:     return self._compile_to_module()
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/graph.py", line 2329, in _compile_to_module
+[rank2]:     mod = self._compile_to_module_lines(wrapper_code)
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/graph.py", line 2397, in _compile_to_module_lines
+[rank2]:     mod = PyCodeCache.load_by_key_path(
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 3548, in load_by_key_path
+[rank2]:     mod = _reload_python_module(key, path, set_sys_modules=in_toplevel)
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/runtime/compile_tasks.py", line 33, in _reload_python_module
+[rank2]:     exec(code, mod.__dict__, mod.__dict__)
+[rank2]:   File "/workspace/.torch_inductor_cache_021c_4h_ne1/fu/cfuc4tymnrmfwere77xylupcyegwgpqwqr4x2y4cj4vqtn773jhp.py", line 531, in <module>
+[rank2]:     async_compile.wait(globals())
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/async_compile.py", line 631, in wait
+[rank2]:     self._wait_futures(scope)
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/async_compile.py", line 651, in _wait_futures
+[rank2]:     kernel = result.result()
+[rank2]:              ^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/codecache.py", line 4289, in result
+[rank2]:     return self.result_fn()
+[rank2]:            ^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/async_compile.py", line 461, in get_result
+[rank2]:     raise e.with_name(kernel_name) from e
+[rank2]: torch._inductor.exc.InductorError: SubprocException: An exception occurred in a subprocess:
+
+[rank2]: Name=triton_red_fused_linalg_vector_norm_0
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 397, in do_job
+[rank2]:     result = job()
+[rank2]:              ^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/runtime/compile_tasks.py", line 66, in _worker_compile_triton
+[rank2]:     kernel.precompile(warm_cache_only=True)
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/runtime/triton_heuristics.py", line 439, in precompile
+[rank2]:     self._precompile_worker()
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/runtime/triton_heuristics.py", line 470, in _precompile_worker
+[rank2]:     compile_results.append(self._precompile_config(c))
+[rank2]:                            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/runtime/triton_heuristics.py", line 778, in _precompile_config
+[rank2]:     binary = triton.compile(*compile_args, **compile_kwargs)
+[rank2]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/triton/compiler/compiler.py", line 332, in compile
+[rank2]:     metadata_group[ir_filename] = fn_cache_manager.put(next_module, ir_filename)
+[rank2]:                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/triton/runtime/cache.py", line 112, in put
+[rank2]:     os.makedirs(temp_dir, exist_ok=True)
+[rank2]:   File "<frozen os>", line 225, in makedirs
+[rank2]: OSError: [Errno 116] Stale file handle: '/workspace/.torch_inductor_cache_021c_4h_ne1/triton/2/CHGHRROMQXFQOBGI44LFHIGCMXFMN6C62WGJDZPVV2NY33GIRRAQ/tmp.pid_845_21e3014b-0801-4149-a67c-ce93b58ec0d3'
+
+
+[rank2]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+

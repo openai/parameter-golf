@@ -1,0 +1,27 @@
+{
+  "spec": "025b-cross-layer-carry-frozen",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1079,
+  "val_bpb_end": 1.0697,
+  "val_bpb_pre_quant_post_ema": 1.06916585,
+  "val_bpb_quantized": 1.07848141,
+  "final_step": 4756,
+  "stop_reason": "wallclock_cap",
+  "train_time_ms": 1196049,
+  "hardware": "4xH100",
+  "region": "US-NE-1",
+  "pod_id": "57phocn1ibgkha",
+  "git_commit": "950af2404306d42567cde3e1aaa24e6d95e4ca4a",
+  "submission_size_bytes": 15977906,
+  "checkpoints_emitted": [
+    "/workspace/runs/025b-cross-layer-carry-frozen/seed_42/final_model.pt",
+    "/workspace/runs/025b-cross-layer-carry-frozen/seed_42/final_model.int6.ptz"
+  ],
+  "env_overrides_vs_spec": {
+    "DATA_DIR": "/workspace/parameter-golf/data (spec had /workspace/data which doesn't exist)",
+    "TTT_ENABLED": "0 (screen mode addition on top of spec's PHASED_TTT_ENABLED=0)"
+  },
+  "notes": "Pod variance: this NA-1 pod ran ~5% slower than 021c/024b's pods (3.98M vs 4.20M tok/s). Step count 4756 is pod-driven, not code-driven (frozen buffers = zero backward overhead). val_bpb metrics are step-indexed so unaffected."
+}

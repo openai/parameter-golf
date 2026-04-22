@@ -1,0 +1,20 @@
+{
+  "spec": "015-recur-alpha",
+  "rung": "smoke",
+  "seed": 42,
+  "status": "failed",
+  "reason": "alpha_grad_norm_zero_15x_consecutive; stop-early criterion triggered",
+  "val_bpb": null,
+  "hardware": "8xH100",
+  "region": "AP-JP-1",
+  "wall_time_sec": 540,
+  "cost_usd": 3.5,
+  "pod_id": "1wcixp96k29f0e",
+  "pod_state_after": "stopped",
+  "git_commit": "a9aa14184d6ba5f2f6ce8aea17c5fb9e27f60522",
+  "training_completed_iters": 500,
+  "nan_observed": false,
+  "alpha_values_final": "[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]",
+  "alpha_grad_norm_entries_all_zero": 15,
+  "secondary_failure": "pyminify missing on pod (post-training serialize crash) — unrelated to alpha bug"
+}

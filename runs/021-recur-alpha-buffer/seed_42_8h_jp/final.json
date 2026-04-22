@@ -1,0 +1,60 @@
+{
+  "spec": "021-recur-alpha-buffer",
+  "seed": 42,
+  "date": "2026-04-21",
+  "git_commit": "cb5cd78",
+  "pod_id": "b2bb9p8ux2fth7",
+  "hardware": "8xH100 SXM AP-JP-1",
+  "status": "completed",
+  "notes_on_run_location": "This is the 8xH JP run (authoritative). The earlier 4xH NE-1 run is at runs/021-recur-alpha-buffer/seed_42/ and was a partial-result step-matched attempt while we waited for JP availability.",
+
+  "training": {
+    "stopping_early": "wallclock_cap",
+    "final_step": 4883,
+    "train_time_ms": 596058,
+    "loop_activation_step": 2156,
+    "loop_activation_frac": 0.350
+  },
+
+  "post_training": {
+    "val_bpb_at_step_4000": 1.1136,
+    "val_bpb_at_step_4883": 1.0701,
+    "val_bpb_pre_gptq_post_ema": 1.06962760,
+    "val_loss_pre_gptq_post_ema": 2.34089367,
+    "val_bpb_post_gptq": 1.07913389,
+    "val_loss_post_gptq": 2.36169831,
+    "val_bpb_post_ttt": 1.06900441,
+    "val_loss_post_ttt": 2.33937789,
+    "ttt_eval_time_ms": 470697,
+    "ttt_compile_warmup_s": 133.6,
+    "submission_size_bytes": 15948394
+  },
+
+  "baselines_for_comparison": {
+    "008_1736_reproduction": {
+      "val_bpb_pre_gptq_post_ema": 1.06922,
+      "val_bpb_post_ttt": null,
+      "final_step": 4828
+    },
+    "017_recur_alpha_full": {
+      "val_bpb_pre_gptq_post_ema": 1.06733,
+      "val_bpb_post_ttt": 1.06733,
+      "final_step": 4697
+    },
+    "019_recur_alpha_constant_full": {
+      "val_bpb_pre_gptq_post_ema": 1.07063,
+      "val_bpb_post_gptq": 1.07989,
+      "val_bpb_post_ttt": 1.06744,
+      "final_step": 4697
+    },
+    "019b_recur_alpha_manual_constant_full": {
+      "val_bpb_post_ttt": 1.06628,
+      "final_step": 4824
+    },
+    "1736_reference_authors_claim": {
+      "val_bpb_post_ttt": 1.06610
+    }
+  },
+
+  "interpretation_summary": "021 achieved pre-quant post-EMA 1.06963 (beats 019's 1.07063) thanks to 55 extra training steps. But post-TTT 1.06900 loses to 019's 1.06744 because buffer-α's frozen α gave TTT less headroom to adapt (−0.01013 delta vs 019's −0.01245). Net: 021 does NOT beat #1736 (1.06610) or the existing recur-alpha family. Buffer-α hypothesis confirmed for throughput (0 Type B spikes) but is a mild *regression* on val_bpb endpoint vs literal-α at default loop activation."
+}

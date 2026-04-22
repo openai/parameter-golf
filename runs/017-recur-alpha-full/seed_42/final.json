@@ -1,0 +1,34 @@
+{
+  "spec": "017-recur-alpha-full",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb": 1.0691,
+  "val_bpb_pre_gptq_post_ema": 1.06861151,
+  "val_bpb_post_gptq": 1.07780687,
+  "val_bpb_post_ttt": 1.06733324,
+  "hardware": "8xH100",
+  "region": "AP-JP-1",
+  "wall_time_sec": 1130,
+  "cost_usd": 7.52,
+  "pod_id": "9crwq3fldt5tfj",
+  "git_commit": "4dd2d6377dae1d656184248bcb98075b67bb755e",
+  "started_at": "2026-04-21T02:47:51Z",
+  "ended_at": "2026-04-21T03:06:41Z",
+  "stopping_early_at_step": 4784,
+  "recur_alpha_final": [[1.078125, 1.2734375, 1.4296875], [1.015625, 0.97265625, 0.83203125]],
+  "checkpoints_emitted": [
+    "/workspace/runs/017-recur-alpha-full/seed_42/final_model.pt",
+    "/workspace/runs/017-recur-alpha-full/seed_42/final_model.int6.ptz"
+  ],
+  "toks_per_sec_snapshots": {
+    "100": 8347347,
+    "1000": 8092224,
+    "2000": 8069346,
+    "2200": 7950770,
+    "3000": 7044006,
+    "4000": 6534696,
+    "4500": 6386848,
+    "4784": 6300000
+  }
+}

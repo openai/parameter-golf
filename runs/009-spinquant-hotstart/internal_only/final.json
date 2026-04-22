@@ -1,0 +1,24 @@
+{
+  "spec": "009-spinquant-hotstart",
+  "mode": "internal_only",
+  "spinquant_seed": 42,
+  "hotstart_ckpt": "/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt",
+  "status": "ok",
+  "diagnostic_pre_quant_post_rotation": {
+    "val_loss": 2.6734588123355896,
+    "val_bpb": 1.2215870232601893,
+    "eval_time_ms": 9863
+  },
+  "diagnostic_quantized": {
+    "val_loss": 2.3637429898578888,
+    "val_bpb": 1.0800681684001865,
+    "eval_time_ms": 9663
+  },
+  "quantized_ttt_phased": {
+    "val_loss": 2.3356687255125115,
+    "val_bpb": 1.0673094618336023,
+    "eval_time_ms": 433735
+  },
+  "artifact_bytes": 15952691,
+  "quant_file_bytes": 15947721
+}

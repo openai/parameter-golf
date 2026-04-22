@@ -1,0 +1,19 @@
+{
+  "spec": "020-alpha-throughput-diag",
+  "pod": "pod1",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_pre_quant_post_ema": 1.11277034,
+  "val_bpb_post_gptq": 1.11931304,
+  "val_bpb_post_ttt": null,
+  "steps": 2036,
+  "hardware": "4xH100",
+  "region": "US-CA-2",
+  "wall_time_sec": 1293,
+  "pod_id": "3dfiavanfdayby",
+  "git_commit": "9bb1b019ab27bfa446d8b65ccae7bfde0cb7bea3",
+  "started_at": "2026-04-21T15:00:54Z",
+  "ended_at": "2026-04-21T15:22:27Z",
+  "notes": "4xH100 NA (not JP per spec). TTT_ENABLED=0. ENABLE_LOOPING_AT=0.17 (activation ~step 1023). CUDA per-phase events (-1.0) due to DDP stream mismatch. step_time_ms and dataloader_us working. diag_nvsmi.csv missing (sidecar bug). Spike count: 13 spikes >400ms across 2036 steps."
+}

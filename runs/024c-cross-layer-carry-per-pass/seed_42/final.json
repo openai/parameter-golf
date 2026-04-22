@@ -1,0 +1,20 @@
+{
+  "spec": "024c-cross-layer-carry-per-pass",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1205,
+  "val_bpb_final": 1.0704,
+  "pre_quant_ema_val_bpb": 1.06999,
+  "quantized_val_bpb": 1.07952,
+  "steps": 5030,
+  "hardware": "4xH100",
+  "region": "NA-1",
+  "wall_time_sec": 1196,
+  "cost_usd": 3.98,
+  "pod_id": "ekdxerdvv8ibde",
+  "git_commit": "ba957e1",
+  "started_at": "2026-04-22T04:27:00Z",
+  "ended_at": "2026-04-22T05:07:15Z",
+  "checkpoints_emitted": []
+}

@@ -1,0 +1,32 @@
+{
+  "spec": "020b-alpha-throughput-diag-buffer",
+  "date": "2026-04-21",
+  "hardware": "4xH100 SXM NA (US-CA-2 or similar)",
+  "seed": 42,
+  "commit": "3cfc372",
+  "status": "training_complete_gptq_failed",
+  "gptq_fail_reason": "ModuleNotFoundError: No module named 'brotli'",
+  "notes": "Training and diagnostics complete. GPTQ phase crashed on missing brotli dep. final_model.pt written (130MB). No int6 artifact.",
+  "stopping_early_at_step": 2193,
+  "layer_loop_enabled_at_step": 509,
+  "val_bpb_at_step_1500": 1.1671,
+  "val_bpb_pre_quant_post_ema": 1.10597839,
+  "throughput": {
+    "pre_loop_median_ms": 197.9,
+    "pre_loop_p99_ms": 215.1,
+    "post_loop_median_ms": 292.8,
+    "post_loop_p99_ms": 309.9,
+    "loop_overhead_pct": 47.9
+  },
+  "spike_analysis": {
+    "type_a_dataloader": 12,
+    "type_b_gpu_mystery": 0,
+    "val_spike": 1,
+    "post_val_recompile_cluster": 0,
+    "post_val_window_1501_1700_mean_ms": 293.8,
+    "post_val_window_1501_1700_max_ms": 378.6,
+    "steady_state_ms": 292.8
+  },
+  "hypothesis_result": "CONFIRMED: buffer-alpha eliminates Type B mystery spikes and post-val recompile cluster. All post-loop non-val spikes are Type A (dataloader at 127-step intervals). Post-val window indistinguishable from steady state.",
+  "decision": "LAUNCH spec 021 (8xH100 full pipeline) with high confidence"
+}

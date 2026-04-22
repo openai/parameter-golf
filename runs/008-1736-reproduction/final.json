@@ -1,0 +1,82 @@
+{
+  "spec": "008-1736-reproduction",
+  "status": "partial — primary deliverable met, accept-gate number not captured",
+  "seed": 42,
+  "commit": "154c9b85736fcddf49db4d54ecb21e87bd1406af",
+  "patch": "SAVE_PRE_GPTQ env-gated save inserted into train_gpt.py line 2080",
+  "pod_id": "xy1bfwkcfds0ax",
+  "pod_type": "8xH100 SXM AP-JP-1",
+  "pod_stopped": true,
+
+  "training": {
+    "stopping_early": "wallclock_cap",
+    "final_step": 4828,
+    "train_time_ms": 596136,
+    "tok_per_sec_final": 6445555,
+    "step4828_val_bpb": 1.0697
+  },
+
+  "post_training": {
+    "diagnostic_pre_quant_post_ema": {
+      "val_loss": 2.34001170,
+      "val_bpb": 1.06922460,
+      "eval_time_ms": 6795
+    },
+    "diagnostic_quantized": null,
+    "quantized_ttt_phased": null,
+    "reason_missing": "pod stopped at 'Total submission size' marker due to watcher-trigger bug; post-quant eval and TTT eval never ran"
+  },
+
+  "artifacts": {
+    "pre_gptq_pt": {
+      "size_bytes": 135595881,
+      "jp_path": "/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt",
+      "local_path": "runs/008-1736-reproduction/seed_42/pre_gptq.pt"
+    },
+    "final_model_int6_ptz": {
+      "size_bytes": 15946577,
+      "under_16mb_cap": true,
+      "local_path": "runs/008-1736-reproduction/seed_42/final_model.int6.ptz"
+    },
+    "train_log": {
+      "local_path": "runs/008-1736-reproduction/seed_42/train.log"
+    }
+  },
+
+  "reference_1736_seed42": {
+    "pre_quant_post_ema_val_bpb": 1.06906597,
+    "diagnostic_quantized_val_bpb": 1.07847179,
+    "quantized_ttt_phased_val_bpb": 1.06610085,
+    "artifact_bytes": 15978834,
+    "final_step": 4854
+  },
+
+  "matching": {
+    "pre_quant_post_ema_delta_vs_1736": 0.00016,
+    "artifact_size_delta_vs_1736": -32257,
+    "final_step_delta_vs_1736": -26,
+    "interpretation": "tight reproduction; pre-quant matches within bf16 cross-pod noise"
+  },
+
+  "projected_post_ttt_val_bpb": {
+    "value": 1.06626,
+    "derivation": "apply #1736's measured (post_ttt - pre_quant) delta of -0.00296 to our pre_quant 1.06922",
+    "gate_band": [1.06310, 1.06910],
+    "gate_projection": "PASS (inside band by ~0.003 margin)",
+    "empirical_confirmation": false
+  },
+
+  "accept_gate": {
+    "threshold": "post_ttt_val_bpb within \u00b10.003 of 1.06610",
+    "status": "PROJECTED PASS, EMPIRICAL CONFIRMATION MISSING",
+    "how_to_close": "eval-only rerun on saved final_model.int6.ptz (option a in notes.md), ~$3"
+  },
+
+  "cost_total_usd": 14.20,
+
+  "next_steps": [
+    "research: decide option (a) eval-only rerun (~$3) vs (b) full Phase 3 rerun (~$10) vs (c) ship as-is",
+    "research: evaluate, write evaluation file, append experiments.md row",
+    "execution: stand ready to run option (a) or (b) on confirmation"
+  ]
+}

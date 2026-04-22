@@ -1,0 +1,7 @@
+loaded /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step1500.pt (113 params) in 0.7s
+loaded /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step2275.pt (113 params) in 0.8s
+loaded /workspace/runs/000-sota-replication/checkpoints/ckpt_event_step3412.pt (113 params) in 0.6s
+
+computing deltas on 113 params...
+wrote delta_layers.json (113 entries)
+wrote delta_table.md

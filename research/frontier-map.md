@@ -1,4 +1,4 @@
-# Frontier dependency map — snapshot 2026-04-20
+# Frontier dependency map — snapshot 2026-04-22
 
 Record-track PRs on `openai/parameter-golf`, clustered by code lineage (not by
 date). Built from PR bodies' explicit "builds on" / "starts from" references.
@@ -7,8 +7,8 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
 ## TL;DR
 
 - **Only #1493 is merged.** It defines official SOTA = 1.0810.
-- Unmerged submissions have pushed to **1.0354** publicly (PR #1738), with a
-  still-open 1.0429 base (#1735) that doesn't use the #1523 trunk at all.
+- Unmerged submissions have pushed to **1.0284** publicly (PR #1758, but prequant-TTT-disputed/likely-illegal), with
+  #1756 (romeerp) at **1.0651** being the best clean submission — below our baseline.
 - Several sub-1.02 GatedDeltaNet PRs exist but are either closed or disputed on
   legality / artifact size. Treat those as "contested frontier," not baseline.
 - The community has split into **at least four code trunks**, each with its own
@@ -35,10 +35,14 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
      │    │   (also pulls orthogonally from #1552)
      │    │
      │    ├─ #1610  open 1.0728  romeerp    +phased global-SGD eval pass
+     │    │   └─ #1767  open 1.07209  renqianluo  +LoRA warm-start A + alpha/rank scaling + WD=1.0 (non-CaseOps stack)
      │    ├─ #1586  open 1.0749  dexhunter  +per-layer GPTQ clip, int7 emb, MLR=0.026
      │    │   └─ #1626  open 1.0719  dexhunter  +multi-phase global-SGD TTT
      │    │        └─ #1729  open 1.0678  romeerp  +CaseOps tokenizer + late WD taper
      │    └─ #1736  open 1.0655  dexhunter  +CaseOps (from #1729) + attn out-gate
+     │         ├─ #1755  open 1.07462  OE-GOD   #1493+CaseOps compose (above our baseline)
+     │         ├─ #1756  open 1.06505  romeerp  Recurrence depth curriculum [1→3→4], eval depth=4 ← BELOW BASELINE
+     │         └─ #1766  open pending  tashapais  +Recur-Alpha (learned carry scalar per looped block)  [DISPUTED: tokenizer]
      │
      └─ #1667  open 1.0714  MarioPaerle  SmearGate + attn output gate
                                          (refs #1493, #1586; base unclear)
@@ -63,6 +67,7 @@ is the original submission of this TTT regime.
      Fixed predictor — no eval-time adaptation
  │
  └─ #1738  open 1.03540  alertcat   +CaseOps Tokenizer V15  [current public frontier]
+       └─ #1758  open 1.02840  kilojoules  PreQuant TTT retune (LR→1e-3, unfreeze-all)  [DISPUTED: pre-quant TTT]
 ```
 
 This is a *different* TTT paradigm from Trunks A/B: AdamW on 8 GPUs in parallel

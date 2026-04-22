@@ -1,0 +1,29 @@
+spinquant_hotstart: mode=port_1695 seed=42 ckpt=/workspace/runs/008-1736-reproduction/seed_42/pre_gptq.pt
+val_tokens: 47851520
+spinquant_hotstart: applied mode=port_1695 rotations in 0.00s
+spinquant_hotstart: wrote rotation manifest -> /workspace/runs/010b-spinquant-sites/all/rotation_manifest.json
+diagnostic_pre_quant_post_rotation val_loss:2.67359195 val_bpb:1.22171690
+Serialized model: 135592891 bytes
+Code size (uncompressed): 20356 bytes
+Code size (compressed): 4970 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 5.9s
+spinquant:rotated_weights:66 hessians:66 missing_hessians:0 skipped_by_sites:0 active_sites:['attn_in', 'attn_proj_in', 'mlp_in', 'mlp_proj_in']
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+Serialized model quantized+brotli: 15963619 bytes
+Total submission size quantized+brotli: 15968589 bytes
+serialize done: total=15968589 quant_file=15963619
+spinquant:installed_rotations:22_modules seed:42 sites:['attn_in', 'attn_proj_in', 'mlp_in', 'mlp_proj_in'] model_dim:512 hidden_dim:2048
+spinquant:_sq_active=True (forward rotations armed)
+spinquant:installed_rotations:22_modules seed:42 sites:['attn_in', 'attn_proj_in', 'mlp_in', 'mlp_proj_in'] model_dim:512 hidden_dim:2048
+spinquant:_sq_active=True (forward rotations armed)
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (130.5s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:3 boundaries:[666, 1333, 2000]
+ttp: b782/782 bl:2.1588 bb:1.0222 rl:2.1588 rb:1.0222 dl:30339-97114 gd:0

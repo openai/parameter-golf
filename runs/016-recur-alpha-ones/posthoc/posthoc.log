@@ -1,0 +1,491 @@
+W0420 22:10:36.992000 410 torch/distributed/run.py:803] 
+W0420 22:10:36.992000 410 torch/distributed/run.py:803] *****************************************
+W0420 22:10:36.992000 410 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0420 22:10:36.992000 410 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: /workspace/runs/016-recur-alpha-ones/posthoc
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  data_dir: /workspace/data
+  datasets_dir: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gate_window: 12
+  gated_attn_enabled: True
+  gated_attn_init_std: 0.005
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: /workspace/runs/016-recur-alpha-ones/posthoc/2e911f82-d553-4a71-828d-82a00071e2d3.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/runs/016-recur-alpha-ones/posthoc/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: /workspace/runs/016-recur-alpha-ones/posthoc/final_model.int6.ptz
+  rank: 0
+  recur_alpha_enabled: True
+  recur_diag_p2p_cos: False
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 2e911f82-d553-4a71-828d-82a00071e2d3
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: False
+  spinquant_enabled: False
+  spinquant_seed: 42
+  spinquant_sites: attn_in,attn_proj_in,mlp_in,mlp_proj_in
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+EVAL_ONLY_BYPASS: loading /workspace/runs/016-recur-alpha-ones/seed_42/final_model.pt, skipping training
+EVAL_ONLY_BYPASS: model loaded, compiled, looping_active=True
+diagnostic pre-quantization post-ema val_loss:2.34351568 val_bpb:1.07082568 eval_time:72675ms
+Serialized model: 72002684 bytes
+pyminify unavailable (FileNotFoundError); skipping compressed-code-size measurement
+Code size (uncompressed): 155585 bytes
+Code size (compressed): 0 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 5.3s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, recur_alpha, skip_gates, skip_weights
+Serialized model quantized+brotli: 15938405 bytes
+Total submission size quantized+brotli: 15938405 bytes
+diagnostic quantized val_loss:2.36423518 val_bpb:1.08029307 eval_time:163635ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (203.0s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:3 boundaries:[666, 1333, 2000]
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3585, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3579, in main
+[rank5]:     train_and_eval(h, device)
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3514, in train_and_eval
+[rank5]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank5]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 2980, in eval_val_ttt_phased
+[rank5]:     per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+[rank5]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3477, in _fwd_ttt
+[rank5]:     return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3468, in _fwd_ttt_inner
+[rank5]:     def _fwd_ttt_inner(input_ids, target_ids, lora):
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/aot_autograd.py", line 1130, in forward
+[rank5]:     return compiled_fn(full_args)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 339, in runtime_wrapper
+[rank5]:     all_outs = call_func_at_runtime_with_args(
+[rank5]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank5]:     out = normalize_as_list(f(args))
+[rank5]:                             ^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 103, in g
+[rank5]:     return f(*args)
+[rank5]:            ^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 581, in apply
+[rank5]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2118, in forward
+[rank5]:     fw_outs = call_func_at_runtime_with_args(
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank5]:     out = normalize_as_list(f(args))
+[rank5]:                             ^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 526, in wrapper
+[rank5]:     return compiled_fn(runtime_args)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 724, in inner_fn
+[rank5]:     outs = compiled_fn(args)
+[rank5]:            ^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 613, in __call__
+[rank5]:     return self.current_callable(inputs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/utils.py", line 3017, in run
+[rank5]:     out = model(new_inputs)
+[rank5]:           ^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/.torch_inductor_cache/zb/czb5asqezzydskosii27fcjef2ri34v42jo6cvinpi6tz4war26o.py", line 10204, in call
+[rank5]:     buf1085 = empty_strided_cuda((64, s70, 8192), (8192*s70, 8192, 1), torch.bfloat16)
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.27 GiB. GPU 5 has a total capacity of 79.19 GiB of which 528.94 MiB is free. Process 300 has 37.49 GiB memory in use. Including non-PyTorch memory, this process has 41.17 GiB memory in use. Of the allocated memory 37.72 GiB is allocated by PyTorch, and 1.84 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3585, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3579, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3514, in train_and_eval
+[rank2]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank2]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3027, in eval_val_ttt_phased
+[rank2]:     cur_opt.step()
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/optimizer.py", line 517, in wrapper
+[rank2]:     out = func(*args, **kwargs)
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/optimizer.py", line 82, in _use_grad
+[rank2]:     ret = func(*args, **kwargs)
+[rank2]:           ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/adam.py", line 237, in step
+[rank2]:     has_complex = self._init_group(
+[rank2]:                   ^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/optim/adam.py", line 177, in _init_group
+[rank2]:     state["exp_avg"] = torch.zeros_like(
+[rank2]:                        ^^^^^^^^^^^^^^^^^
+[rank2]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 12.00 MiB. GPU 2 has a total capacity of 79.19 GiB of which 4.94 MiB is free. Including non-PyTorch memory, this process has 15.39 GiB memory in use. Process 480 has 63.77 GiB memory in use. Of the allocated memory 13.54 GiB is allocated by PyTorch, and 251.19 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3585, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3579, in main
+[rank6]:     train_and_eval(h, device)
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3514, in train_and_eval
+[rank6]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank6]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 2980, in eval_val_ttt_phased
+[rank6]:     per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+[rank6]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3477, in _fwd_ttt
+[rank6]:     return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3468, in _fwd_ttt_inner
+[rank6]:     def _fwd_ttt_inner(input_ids, target_ids, lora):
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/aot_autograd.py", line 1130, in forward
+[rank6]:     return compiled_fn(full_args)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 339, in runtime_wrapper
+[rank6]:     all_outs = call_func_at_runtime_with_args(
+[rank6]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank6]:     out = normalize_as_list(f(args))
+[rank6]:                             ^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 103, in g
+[rank6]:     return f(*args)
+[rank6]:            ^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 581, in apply
+[rank6]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2118, in forward
+[rank6]:     fw_outs = call_func_at_runtime_with_args(
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank6]:     out = normalize_as_list(f(args))
+[rank6]:                             ^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 526, in wrapper
+[rank6]:     return compiled_fn(runtime_args)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 724, in inner_fn
+[rank6]:     outs = compiled_fn(args)
+[rank6]:            ^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 613, in __call__
+[rank6]:     return self.current_callable(inputs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/utils.py", line 3017, in run
+[rank6]:     out = model(new_inputs)
+[rank6]:           ^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/.torch_inductor_cache/wo/cwo4lh67w2rh5v4a2blpc5l6jqupy23njdd3l5yuehrs5zs5cslc.py", line 10204, in call
+[rank6]:     buf1085 = empty_strided_cuda((64, s70, 8192), (8192*s70, 8192, 1), torch.bfloat16)
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 960.00 MiB. GPU 6 has a total capacity of 79.19 GiB of which 506.94 MiB is free. Including non-PyTorch memory, this process has 35.34 GiB memory in use. Process 484 has 43.34 GiB memory in use. Of the allocated memory 32.26 GiB is allocated by PyTorch, and 1.47 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3585, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3579, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3514, in train_and_eval
+[rank1]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank1]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 2980, in eval_val_ttt_phased
+[rank1]:     per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+[rank1]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3477, in _fwd_ttt
+[rank1]:     return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3468, in _fwd_ttt_inner
+[rank1]:     def _fwd_ttt_inner(input_ids, target_ids, lora):
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/aot_autograd.py", line 1130, in forward
+[rank1]:     return compiled_fn(full_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 339, in runtime_wrapper
+[rank1]:     all_outs = call_func_at_runtime_with_args(
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 103, in g
+[rank1]:     return f(*args)
+[rank1]:            ^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 581, in apply
+[rank1]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2118, in forward
+[rank1]:     fw_outs = call_func_at_runtime_with_args(
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 526, in wrapper
+[rank1]:     return compiled_fn(runtime_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 724, in inner_fn
+[rank1]:     outs = compiled_fn(args)
+[rank1]:            ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 613, in __call__
+[rank1]:     return self.current_callable(inputs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/utils.py", line 3017, in run
+[rank1]:     out = model(new_inputs)
+[rank1]:           ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/.torch_inductor_cache/ja/cjahu3hclrzhvlxtwkxbflrleu222u7s7mm6prcayr3d7w7pvdck.py", line 10204, in call
+[rank1]:     buf1085 = empty_strided_cuda((64, s70, 8192), (8192*s70, 8192, 1), torch.bfloat16)
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.36 GiB. GPU 1 has a total capacity of 79.19 GiB of which 810.94 MiB is free. Including non-PyTorch memory, this process has 43.25 GiB memory in use. Process 479 has 35.12 GiB memory in use. Of the allocated memory 39.33 GiB is allocated by PyTorch, and 2.31 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+W0420 22:21:53.544000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 295 closing signal SIGTERM
+W0420 22:21:53.547000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 296 closing signal SIGTERM
+W0420 22:21:53.552000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 297 closing signal SIGTERM
+W0420 22:21:53.555000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 298 closing signal SIGTERM
+W0420 22:21:53.559000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 299 closing signal SIGTERM
+W0420 22:21:53.562000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 301 closing signal SIGTERM
+W0420 22:21:53.564000 225 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 302 closing signal SIGTERM
+E0420 22:21:57.621000 225 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 5 (pid: 300) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-20_22:21:53
+  host      : a01a536853ef
+  rank      : 5 (local_rank: 5)
+  exitcode  : 1 (pid: 300)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3585, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3579, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3514, in train_and_eval
+[rank1]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank1]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 2980, in eval_val_ttt_phased
+[rank1]:     per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+[rank1]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3477, in _fwd_ttt
+[rank1]:     return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3468, in _fwd_ttt_inner
+[rank1]:     def _fwd_ttt_inner(input_ids, target_ids, lora):
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 1044, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/aot_autograd.py", line 1130, in forward
+[rank1]:     return compiled_fn(full_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 339, in runtime_wrapper
+[rank1]:     all_outs = call_func_at_runtime_with_args(
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 103, in g
+[rank1]:     return f(*args)
+[rank1]:            ^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 581, in apply
+[rank1]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2118, in forward
+[rank1]:     fw_outs = call_func_at_runtime_with_args(
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 129, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 526, in wrapper
+[rank1]:     return compiled_fn(runtime_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 724, in inner_fn
+[rank1]:     outs = compiled_fn(args)
+[rank1]:            ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/output_code.py", line 613, in __call__
+[rank1]:     return self.current_callable(inputs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_inductor/utils.py", line 3017, in run
+[rank1]:     out = model(new_inputs)
+[rank1]:           ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/.torch_inductor_cache/ja/cjahu3hclrzhvlxtwkxbflrleu222u7s7mm6prcayr3d7w7pvdck.py", line 10204, in call
+[rank1]:     buf1085 = empty_strided_cuda((64, s70, 8192), (8192*s70, 8192, 1), torch.bfloat16)
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 960.00 MiB. GPU 1 has a total capacity of 79.19 GiB of which 764.94 MiB is free. Process 296 has 43.25 GiB memory in use. Including non-PyTorch memory, this process has 35.17 GiB memory in use. Of the allocated memory 32.26 GiB is allocated by PyTorch, and 1.30 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+W0420 22:21:53.179000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 478 closing signal SIGTERM
+W0420 22:21:53.183000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 479 closing signal SIGTERM
+W0420 22:21:53.186000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 480 closing signal SIGTERM
+W0420 22:21:53.188000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 481 closing signal SIGTERM
+W0420 22:21:53.193000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 482 closing signal SIGTERM
+W0420 22:21:53.194000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 484 closing signal SIGTERM
+W0420 22:21:53.197000 410 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 485 closing signal SIGTERM
+E0420 22:21:56.384000 410 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 5 (pid: 483) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-20_22:21:53
+  host      : a01a536853ef
+  rank      : 5 (local_rank: 5)
+  exitcode  : 1 (pid: 483)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

@@ -1,0 +1,33 @@
+{
+  "spec": "024-learnable-alpha-detached-lerp",
+  "seed": 42,
+  "status": "completed",
+  "reason": null,
+  "val_bpb_at_4000": 1.1185,
+  "val_bpb_end": 1.0715,
+  "val_bpb_pre_quant_post_ema": 1.07106075,
+  "val_bpb_quantized": 1.08056736,
+  "train_loss_end": 2.3450,
+  "final_step": 4975,
+  "stop_reason": "wallclock_cap",
+  "train_time_ms": 1196263,
+  "hardware": "4xH100",
+  "region": "US-NE-1",
+  "wall_time_sec": 1750,
+  "cost_usd": 5.82,
+  "pod_id": "j8zv57omejsylr",
+  "git_commit": "613bc8ec4c1d9006a80c2a143957972996235c45",
+  "started_at": "2026-04-22T03:38:30Z",
+  "ended_at": "2026-04-22T04:08:09Z",
+  "submission_size_bytes": 15979588,
+  "checkpoints_emitted": [
+    "/workspace/runs/024-learnable-alpha-detached-lerp/seed_42/final_model.pt",
+    "/workspace/runs/024-learnable-alpha-detached-lerp/seed_42/final_model.int6.ptz"
+  ],
+  "env_overrides_vs_spec": {
+    "DATA_DIR": "/workspace/parameter-golf/data (spec had /workspace/data which doesn't exist)",
+    "MAX_WALLCLOCK_SECONDS": "1200 (added; spec run-block omitted it)",
+    "PHASED_TTT_ENABLED": "0 (screen mode; spec had 1)",
+    "TTT_ENABLED": "0 (screen mode; spec-default is 1)"
+  }
+}

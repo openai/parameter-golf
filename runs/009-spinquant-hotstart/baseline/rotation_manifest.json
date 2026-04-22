@@ -1,0 +1,9 @@
+{
+  "mode": "baseline",
+  "base_seed": 42,
+  "num_layers": 11,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "head_dim": 64,
+  "rotations": {}
+}
