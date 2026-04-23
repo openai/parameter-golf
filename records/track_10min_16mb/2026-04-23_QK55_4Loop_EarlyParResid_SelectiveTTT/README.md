@@ -1,6 +1,6 @@
 # QK-Gain 5.5 + 4-Loop Recurrence + Early Parallel Residuals + Selective TTT
 
-**val_bpb = 1.1716** (pre-quantization, 1×H100, 2000 steps) | In-progress submission
+**val_bpb = 1.1716** (pre-quantization, 1×H100 ablation) — 3-seed 8×H100 run pending compute credits
 
 ## Summary
 
