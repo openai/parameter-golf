@@ -153,9 +153,9 @@ def run_training(
     val_loss_every: int = 100,
     train_log_every: int = 50,
     recurrence_mode: str = "hard",
-    recurrence_ramp_start_frac: float = 0.44,
+    recurrence_ramp_start_frac: float = 0.485,
     recurrence_ramp_mid_frac: float = 0.50,
-    recurrence_ramp_end_frac: float = 0.56,
+    recurrence_ramp_end_frac: float = 0.515,
     enable_looping_at: float = 0.50,
 ) -> None:
     if hf_repo_id == "":
@@ -235,9 +235,9 @@ def main(
     val_loss_every: int = 100,
     train_log_every: int = 50,
     recurrence_mode: str = "hard",
-    recurrence_ramp_start_frac: float = 0.44,
+    recurrence_ramp_start_frac: float = 0.485,
     recurrence_ramp_mid_frac: float = 0.50,
-    recurrence_ramp_end_frac: float = 0.56,
+    recurrence_ramp_end_frac: float = 0.515,
     enable_looping_at: float = 0.50,
 ) -> None:
     run_training.remote(

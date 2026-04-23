@@ -71,9 +71,9 @@ class Hyperparameters():
     loop_start = int(os.environ.get('LOOP_START', 4))
     loop_end = int(os.environ.get('LOOP_END', 5))
     recurrence_mode = os.environ.get('RECURRENCE_MODE', 'hard').strip().lower()
-    recurrence_ramp_start_frac = float(os.environ.get('RECURRENCE_RAMP_START_FRAC', 0.44))
+    recurrence_ramp_start_frac = float(os.environ.get('RECURRENCE_RAMP_START_FRAC', 0.485))
     recurrence_ramp_mid_frac = float(os.environ.get('RECURRENCE_RAMP_MID_FRAC', 0.50))
-    recurrence_ramp_end_frac = float(os.environ.get('RECURRENCE_RAMP_END_FRAC', 0.56))
+    recurrence_ramp_end_frac = float(os.environ.get('RECURRENCE_RAMP_END_FRAC', 0.515))
     # Legacy threshold retained for parity with prior hard-switch runs.
     enable_looping_at = float(os.environ.get('ENABLE_LOOPING_AT', 0.5))
 
