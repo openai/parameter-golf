@@ -883,7 +883,14 @@ def _compress(data, compressor):
             import brotli
         except ImportError:
             import subprocess, sys
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'brotli', '--break-system-packages', '-q'])
+            for flags in (['-m', 'pip', 'install', 'brotli', '-q'],
+                          ['-m', 'pip', 'install', 'brotli', '--break-system-packages', '-q'],
+                          ['-m', 'pip', 'install', 'brotli', '--user', '-q']):
+                try:
+                    subprocess.check_call([sys.executable] + flags)
+                    break
+                except Exception:
+                    continue
             import brotli
         return brotli.compress(data, quality=11)
     raise ValueError(f"Unknown compressor: {compressor!r}")
@@ -897,7 +904,14 @@ def _decompress(data, compressor):
             import brotli
         except ImportError:
             import subprocess, sys
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'brotli', '--break-system-packages', '-q'])
+            for flags in (['-m', 'pip', 'install', 'brotli', '-q'],
+                          ['-m', 'pip', 'install', 'brotli', '--break-system-packages', '-q'],
+                          ['-m', 'pip', 'install', 'brotli', '--user', '-q']):
+                try:
+                    subprocess.check_call([sys.executable] + flags)
+                    break
+                except Exception:
+                    continue
             import brotli
         raw = brotli.decompress(data)
     else:

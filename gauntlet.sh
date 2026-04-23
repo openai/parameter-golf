@@ -18,7 +18,7 @@
 #
 # Output: gauntlet_results.txt with timestamped BPB for every run
 # ============================================================
-set -e
+# NOTE: do not use set -e — experiments are allowed to fail individually
 
 STEPS=2000
 VOCAB=1024
@@ -108,7 +108,7 @@ run_experiment() {
     DATA_DIR="$REPO_DIR/data" \
     ITERATIONS="$STEPS" \
     VAL_LOSS_EVERY=500 \
-    MAX_WALLCLOCK_SECONDS=0 \
+    MAX_WALLCLOCK_SECONDS=580 \
     SLIDING_WINDOW_ENABLED=1 \
     TRAIN_BATCH_TOKENS=786432 \
     $EXTRA_ENV \
