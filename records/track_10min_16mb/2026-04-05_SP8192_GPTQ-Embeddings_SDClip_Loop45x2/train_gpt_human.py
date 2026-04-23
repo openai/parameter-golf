@@ -71,9 +71,9 @@ class Hyperparameters():
     loop_start = int(os.environ.get('LOOP_START', 4))
     loop_end = int(os.environ.get('LOOP_END', 5))
     recurrence_mode = os.environ.get('RECURRENCE_MODE', 'hard').strip().lower()
-    recurrence_ramp_start_frac = float(os.environ.get('RECURRENCE_RAMP_START_FRAC', 0.30))
-    recurrence_ramp_mid_frac = float(os.environ.get('RECURRENCE_RAMP_MID_FRAC', 0.42))
-    recurrence_ramp_end_frac = float(os.environ.get('RECURRENCE_RAMP_END_FRAC', 0.55))
+    recurrence_ramp_start_frac = float(os.environ.get('RECURRENCE_RAMP_START_FRAC', 0.44))
+    recurrence_ramp_mid_frac = float(os.environ.get('RECURRENCE_RAMP_MID_FRAC', 0.50))
+    recurrence_ramp_end_frac = float(os.environ.get('RECURRENCE_RAMP_END_FRAC', 0.56))
     # Legacy threshold retained for parity with prior hard-switch runs.
     enable_looping_at = float(os.environ.get('ENABLE_LOOPING_AT', 0.5))
 
@@ -1408,12 +1408,12 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
     loss_history: list[float] = []
     step_ms_history: list[float] = []
     transition_markers: list[tuple[str, float]] = (
-        [("hard_start", h.enable_looping_at)]
+        [("full_on", h.enable_looping_at)]
         if h.recurrence_mode == "hard"
         else [
             ("ramp_start", h.recurrence_ramp_start_frac),
             ("ramp_mid", h.recurrence_ramp_mid_frac),
-            ("ramp_end", h.recurrence_ramp_end_frac),
+            ("full_on", h.recurrence_ramp_end_frac),
         ]
     )
     transition_logged: set[str] = set()
@@ -1426,11 +1426,20 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            elapsed_s = max(training_time_ms / 1000.0, 1e-9)
+            val_train_frac = training_frac(step, training_time_ms)
+            avg_step_ms = (
+                sum(rolling_step_ms) / len(rolling_step_ms)
+                if rolling_step_ms
+                else float("nan")
+            )
+            tok_per_sec = step * h.train_batch_tokens / elapsed_s if step > 0 else 0.0
             val_loss, val_bpb = eval_val(h, device, val_data, model)
             curr_alpha = base_model.recurrence_alpha
             log(
                 f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f} "
-                f"recurrence_alpha:{curr_alpha:.4f}"
+                f"train_frac:{val_train_frac:.4f} recurrence_alpha:{curr_alpha:.4f} "
+                f"step_ms_avg100:{avg_step_ms:.3f} tok/s:{tok_per_sec:.0f}"
             )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
@@ -1452,7 +1461,7 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         for label, target in transition_markers:
             if label not in transition_logged and frac >= target:
                 transition_logged.add(label)
-                log(f"recurrence_transition:{label} step:{step} frac:{frac:.3f} alpha:{alpha:.4f}")
+                log(f"layer_loop:{label} step:{step} frac:{frac:.3f} alpha:{alpha:.4f}")
         step_t0 = time.perf_counter()
         train_loss, grad_norm = step_fn(step, scale)
         step_ms = 1000.0 * (time.perf_counter() - step_t0)
@@ -1482,7 +1491,8 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
             log(
                 f"{step}/{h.iterations} train_loss: {train_loss.item():.4f} train_loss_avg100:{avg_loss:.4f} "
                 f"step_ms_avg100:{avg_step_ms:.3f} grad_norm_avg100:{avg_grad_norm:.4f} "
-                f"recurrence_alpha:{alpha:.4f} train_time: {approx_training_time_ms / 60000:.1f}m "
+                f"train_frac:{frac:.4f} recurrence_alpha:{alpha:.4f} "
+                f"train_time: {approx_training_time_ms / 60000:.1f}m "
                 f"tok/s: {tok_per_sec:.0f}"
             )
 
@@ -1526,7 +1536,8 @@ def train_and_eval(h: Hyperparameters, device: torch.device) -> None:
 
     base_model, compiled_model = train_model(h, device, val_data)
     torch._dynamo.reset()
-    timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
+    _, prequant_post_ema_val_bpb = timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
+    log(f"prequant_post_ema_val_bpb:{prequant_post_ema_val_bpb:.8f}")
 
     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
     if h.distributed:
