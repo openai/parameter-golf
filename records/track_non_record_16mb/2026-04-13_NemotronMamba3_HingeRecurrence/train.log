@@ -1,0 +1,77 @@
+logs/baseline_gptq.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/app/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=/app/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+attn_placement:even attn_indices:[4]
+depth_recurrence: layers=[3, 4] mode=block
+model_params:26216040
+world_size:1 grad_accum_steps:8
+mode:mamba3_hybrid num_attn_layers:1 attn_indices:[4]
+ssd: d_state:64 expand:2 headdim:64
+attn: num_heads:8 num_kv_heads:4 rope_base:10000.0
+num_layers:8 mlp_mult:3
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:4096 iterations:1000 warmup_steps:20 max_wallclock_seconds:0.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/1000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.01ms
+step:1/1000 train_loss:6.9356 train_time:458ms step_avg:458.05ms
+step:2/1000 train_loss:6.5663 train_time:916ms step_avg:458.24ms
+step:3/1000 train_loss:6.0412 train_time:1374ms step_avg:458.04ms
+step:4/1000 train_loss:5.8702 train_time:1832ms step_avg:458.07ms
+step:5/1000 train_loss:5.5853 train_time:2290ms step_avg:458.04ms
+step:6/1000 train_loss:5.3060 train_time:2748ms step_avg:458.07ms
+step:7/1000 train_loss:5.0688 train_time:3206ms step_avg:458.05ms
+step:8/1000 train_loss:4.8584 train_time:3664ms step_avg:458.03ms
+step:9/1000 train_loss:4.7453 train_time:4122ms step_avg:458.01ms
+step:10/1000 train_loss:4.6856 train_time:4580ms step_avg:458.03ms
+step:200/1000 train_loss:2.9027 train_time:91875ms step_avg:459.37ms
+depth_recurrence:enabled at step 350 frac=0.35 schedule=[0, 1, 2, 3, 4, 3, 4, 3, 4, 5, 6, 7]
+step:400/1000 train_loss:2.5676 train_time:195471ms step_avg:488.68ms
+late_qat:enabled bits=6 at step 476 scale=0.1497
+step:500/1000 val_loss:2.6478 val_bpb:1.5682 train_time:276969ms step_avg:553.94ms
+step:600/1000 train_loss:2.6001 train_time:346158ms step_avg:576.93ms
+step:800/1000 train_loss:2.3457 train_time:485299ms step_avg:606.62ms
+step:1000/1000 train_loss:2.4538 train_time:624107ms step_avg:624.11ms
+step:1000/1000 val_loss:2.3551 val_bpb:1.3948 train_time:624107ms step_avg:624.11ms
+peak memory allocated: 21397 MiB reserved: 21700 MiB
+ema:applying EMA weights
+Serialized model: 102806059 bytes
+Code size: 90450 bytes
+Total submission size: 102896509 bytes
+gptq:generating autoregressive calibration data...
+gptq:generated 32 seqs in 966.8s
+gptq:collecting hessians...
+gptq:collected hessians for 35 layers
+gptq:quantization complete in 993.9s total
+Serialized model int6+lzma-9: 8204688 bytes (payload:26989856 raw_torch:27033765 payload_ratio:3.81x)
+Total submission size int6+lzma-9: 8295138 bytes
+[rank0]:W0414 00:04:21.959000 9 site-packages/torch/_dynamo/convert_frame.py:1358] [13/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0414 00:04:21.959000 9 site-packages/torch/_dynamo/convert_frame.py:1358] [13/8]    function: 'forward' (/app/train_nemotron_hybrid.py:1102)
+[rank0]:W0414 00:04:21.959000 9 site-packages/torch/_dynamo/convert_frame.py:1358] [13/8]    last reason: 13/7: tensor 'self._modules['attn']._modules['rotary']._cos_cached' size mismatch at index 2. expected 4095, actual 4096
+[rank0]:W0414 00:04:21.959000 9 site-packages/torch/_dynamo/convert_frame.py:1358] [13/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0414 00:04:21.959000 9 site-packages/torch/_dynamo/convert_frame.py:1358] [13/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+final_int8_zlib_roundtrip val_loss:2.4930 val_bpb:1.4765 eval_mode:standard eval_time:40523ms
+final_int8_zlib_roundtrip_exact val_loss:2.49298788 val_bpb:1.47648785
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/yongkang-zou1999/main/ap-g38RYWF6UCTTyFVL8834tz

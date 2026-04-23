@@ -1,0 +1,12 @@
+{
+  "author": "Yongkang Zou",
+  "github_id": "inin-zou",
+  "name": "Nemotron-H Inspired Mamba-3 Hybrid + Hinge Point Depth Recurrence",
+  "blurb": "First Mamba depth recurrence in Parameter Golf: 7 Mamba-3 + 1 Attention hybrid with hinge-point multi-recurrence (12 virtual layers from 8 physical). Inspired by NVIDIA Nemotron-H architecture.",
+  "date": "2026-04-13T23:00:00Z",
+  "val_loss": 2.4930,
+  "val_bpb": 1.4765,
+  "bytes_total": 8295138,
+  "bytes_code": 90450,
+  "notes": "Run on 1xH100 (1000 steps). Pending OpenAI compute grant for full 8xH100 10-min run. Pre-quant val_bpb=1.3948, estimated 2000-step post-quant ~1.35."
+}
