@@ -1,48 +1,107 @@
-# QK-Gain 5.5 + 4-Loop Recurrence + Early Parallel Residuals + Selective TTT
+# val_bpb=1.1716 — 4-Loop Depth Recurrence + Early Parallel Residuals + Selective TTT
 
-**val_bpb = 1.1716** (pre-quantization, 1×H100 ablation) — 3-seed 8×H100 run pending compute credits
+**Author:** Ismail Haddou (@ismailntl)
+**Confirmed val_bpb:** 1.17158907 (1×H100, seed 1337)
+**3-seed 8×H100 run:** pending compute credits
 
-## Summary
+## Results
 
-Incremental improvements on the current SOTA (bigbag, PR #1493, 1.0810 bpb). Four orthogonal changes applied simultaneously on top of the SP8192+3LayerRecur+ParResid+QK525+LegalTTT stack:
+| step | val_bpb |
+|---|---|
+| 500 | 1.3673 |
+| 1000 | 1.2682 |
+| 1500 | 1.2188 |
+| 2000 | 1.1675 |
+| post-EMA | **1.17158907** |
 
-1. **QK-Gain 5.5** — increased from 5.25, monotonic improvement trend continues
-2. **NUM_LOOPS=3** (4 recurrence passes: 3→4→5→3→4→5→3→4→5→3) vs 2 loops — 19 virtual layers from 11 physical
-3. **Early Parallel Residuals** — GPT-J style parallel attention+MLP starting at layer 5 (was layer 7)
-4. **Selective TTT** — test-time training applied only on recurrent (loop) layers, reduced chunk size 24576 (was 32768), ttt_epochs=4 (was 3)
+Baseline (provided `train_gpt.py`) achieved 1.2977 at the same step count.
 
-## Results (1×H100 ablation run — 2000 steps)
+## What this submission does
 
-| Experiment | val_bpb @500 | val_bpb @1000 | val_bpb @1500 | val_bpb @2000 | Pre-quant |
-|--|--|--|--|--|--|
-| Baseline (train_gpt.py) | 1.4808 | 1.3748 | 1.3264 | 1.2964 | 1.2977 |
-| **incr_QK55_4loop** | **1.3673** | **1.2682** | **1.2188** | **1.1675** | **1.1716** |
+Four changes applied together:
 
-Delta vs baseline at 2000 steps: **-0.121 bpb** (-9.3% relative improvement)
+1. **QK-Gain 5.5** — attention key/query gain parameter tuned to 5.5
+2. **NUM_LOOPS=3** — 4 recurrence passes through layers 3-5, giving 19 virtual layer executions from 11 physical layers
+3. **Early Parallel Residuals** — GPT-J style parallel attention+MLP from layer 5 onward
+4. **Selective TTT** — test-time training restricted to recurrent layers only, chunk size 24576, 4 epochs per chunk
 
-> Note: Final quantized BPB on 8×H100 × 10 min pending. Brotli serialization was not available on the 1×H100 test pod.
+## Architecture
 
-## Architecture Changes from SOTA
+11L × 512d × 8H / 4KV, MLP 4×, LeakyReLU(0.5)², Partial RoPE (16/64 dims), tied embeddings, logit softcap=30.0. SP1024 BPE tokenizer. Depth recurrence on layers 3-5 (activates at step 700, frac=0.35). Skip gates (sigmoid-gated U-Net connections). GPTQ SDClip int6/int8 + Brotli-11 compression.
 
-```python
-# SOTA (bigbag PR #1493)            # This submission
-QK_GAIN_INIT = 5.25                  QK_GAIN_INIT = 5.5
-NUM_LOOPS = 2   # 3 passes           NUM_LOOPS = 3  # 4 passes → 19 virtual layers
-parallel_residual_start = 7          parallel_residual_start = 5
-ttt_selective = False                ttt_selective = True  # loop layers only
-ttt_chunk_tokens = 32768             ttt_chunk_tokens = 24576
-ttt_epochs = 3                       ttt_epochs = 4
+## How to run
+
+### Prerequisites
+
+```bash
+# Clone and enter repo
+git clone https://github.com/ismailntl/parameter-golf.git
+cd parameter-golf
+
+# Download sp1024 dataset (if not already present)
+python3 data/cached_challenge_fineweb.py --variant sp1024 --train-shards 10
 ```
 
-## Base Architecture (unchanged from SOTA)
+### Single run (1×H100, ablation)
 
-11L × 512d × 8H / 4KV, MLP 4×, LeakyReLU(0.5)², Partial RoPE (16/64 dims), layerwise LN scale, tied embeddings, logit softcap=30.0. SP1024 BPE tokenizer. Depth recurrence on layers 3-5 (activated at step frac=0.35). Skip gates (sigmoid-gated U-Net). GPTQ SDClip int6/int8 + Brotli-11 compression.
+```bash
+RUN_ID=qk55_4loop \
+DATA_DIR=./data \
+VOCAB_SIZE=1024 \
+ITERATIONS=2000 \
+MAX_WALLCLOCK_SECONDS=0 \
+SLIDING_WINDOW_ENABLED=1 \
+TRAIN_BATCH_TOKENS=786432 \
+torchrun --standalone --nproc_per_node=1 \
+  records/track_10min_16mb/2026-04-23_QK55_4Loop_EarlyParResid_SelectiveTTT/train_gpt.py
+```
 
-## Attribution
+### Official 8×H100 submission run (10-min cap enforced)
 
-- SP8192 + GPTQ SDClip: @clarkkev (PR #1394)
-- Depth recurrence: @dexhunter (PR #1331, #1437)
-- Parallel residuals: @Robby955 (PR #1412), @msisovic (PR #1204)
-- QK-Gain: @dexhunter (PR #1413)
-- Legal Score-First TTT: @abaybektursun (PR #549), @dexhunter (PR #1413)
-- Full SOTA stack: @bigbag (PR #1493)
+```bash
+RUN_ID=qk55_4loop_8gpu \
+DATA_DIR=./data \
+VOCAB_SIZE=1024 \
+ITERATIONS=2000 \
+MAX_WALLCLOCK_SECONDS=580 \
+SLIDING_WINDOW_ENABLED=1 \
+TRAIN_BATCH_TOKENS=786432 \
+torchrun --standalone --nproc_per_node=8 \
+  records/track_10min_16mb/2026-04-23_QK55_4Loop_EarlyParResid_SelectiveTTT/train_gpt.py
+```
+
+### Gauntlet runner (all experiments + ablations)
+
+```bash
+# Full gauntlet on 8×H100
+bash gauntlet.sh --vocab 1024 --gpus 8 --incr-only
+
+# Ablation on 1×H100
+bash gauntlet.sh --vocab 1024 --gpus 1 --incr-only
+```
+
+`MAX_WALLCLOCK_SECONDS=580` is set automatically by the gauntlet, leaving 20s for GPTQ serialization within the 10-minute window.
+
+### Additional experiments (in `experiments/`)
+
+```bash
+# DEQ Universal Transformer (1 physical block → fixed-point)
+torchrun --standalone --nproc_per_node=8 experiments/train_gpt_deq.py
+
+# Seed-LoRA (random linear map bases + stored LoRA adapters only)
+LORA_RANK_ATTN=8 LORA_RANK_MLP=4 \
+torchrun --standalone --nproc_per_node=8 experiments/train_gpt_seeds.py
+
+# Mixture of Depths (50% token routing → ~2× more training steps)
+MOD_CAPACITY=0.5 \
+torchrun --standalone --nproc_per_node=8 experiments/train_gpt_mod.py
+```
+
+## Files
+
+| File | Description |
+|---|---|
+| `train_gpt.py` | This submission's training script |
+| `train_log_seed1337.log` | Full training log (seed 1337, 1×H100) |
+| `train_log_baseline.log` | Baseline run log for comparison |
+| `submission.json` | Metadata |
