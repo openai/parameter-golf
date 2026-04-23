@@ -1,0 +1,4 @@
+  File "<stdin>", line 4
+    baseline_log = Path(/workspace/runs/034-frozen-direct-carry-from-031a/seed_314/train.log)
+                                        ^
+SyntaxError: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers

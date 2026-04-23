@@ -27,7 +27,7 @@ Use the corrected `034` line as the direct baseline:
 - `NUM_LOOPS=2`
 - `MAX_WALLCLOCK_SECONDS=1200`
 - `ENABLE_LOOPING_AT=0.35`
-- explicit 3-phase TTT
+- exact inherited TTT settings from the validated `034` artifact
 - exact code lineage from:
   - branch `exp/034-frozen-direct-carry-from-031a`
   - commit `c532aea`
@@ -80,9 +80,9 @@ Pinned intent:
 - `ENABLE_LOOPING_AT=0.35`
 - `TTT_ENABLED=1`
 - `PHASED_TTT_PREFIX_DOCS=2000`
-- `PHASED_TTT_NUM_PHASES=3`
+- `PHASED_TTT_NUM_PHASES=1`
 - `DATA_DIR=/workspace/parameter-golf/data`
-- `TORCHINDUCTOR_CACHE_DIR=/tmp/...`
+- `TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache`
 - persistent `ARTIFACT_DIR=/workspace/runs/034c-min-lr-on-034/<rung>/seed_<seed>`
 
 ## Hardware ladder
@@ -111,13 +111,13 @@ Pinned entrypoint pattern:
 
 ```bash
 cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
-TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor_034c_<rung> \
+TORCHINDUCTOR_CACHE_DIR=/workspace/.torch_inductor_cache \
 DATA_DIR=/workspace/parameter-golf/data \
 ARTIFACT_DIR=/workspace/runs/034c-min-lr-on-034/<rung>/seed_314 \
 MIN_LR=<value> \
 DIRECT_CARRY_MODE=frozen_edge_self \
 NUM_LOOPS=2 LOOP_START=3 LOOP_END=5 ENABLE_LOOPING_AT=0.35 \
-TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
+TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=1 \
 MAX_WALLCLOCK_SECONDS=1200 SEED=314 \
 torchrun --standalone --nproc_per_node=4 train_gpt.py
 ```

@@ -1,0 +1,186 @@
+W0423 14:46:07.960000 249 torch/distributed/run.py:803] 
+W0423 14:46:07.960000 249 torch/distributed/run.py:803] *****************************************
+W0423 14:46:07.960000 249 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0423 14:46:07.960000 249 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: /workspace/runs/034c-min-lr-on-034/034cB/seed_314
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: False
+  compressor: brotli
+  data_dir: /workspace/parameter-golf/data
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
+  direct_carry_lr_scale: 1.5
+  direct_carry_mode: frozen_edge_self
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 2
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: /workspace/runs/034c-min-lr-on-034/034cB/seed_314/034cB_seed314.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 1200.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 10.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/runs/034c-min-lr-on-034/034cB/seed_314/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: /workspace/runs/034c-min-lr-on-034/034cB/seed_314/final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 034cB_seed314
+  scalar_lr: 0.02
+  seed: 314
+  skip_gates_enabled: True
+  smear_gate_enabled: False
+  spinquant_enabled: False
+  spinquant_seed: 42
+  spinquant_sites: attn_in,attn_proj_in,mlp_in,mlp_proj_in
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 4
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40546304
+model_params:35944602
+gptq:reserving 4s, effective=1196000ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0075 val_bpb: 3.4875
+direct_carry_summary[val_step_0]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000
+direct_carry[val_step_0]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+1/20000 train_loss: 9.0066 train_time: 0.0m tok/s: 5740987
+direct_carry_summary[train_step_1]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_1]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+2/20000 train_loss: 12.2663 train_time: 0.0m tok/s: 5112048
+direct_carry_summary[train_step_2]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_2]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+3/20000 train_loss: 11.2130 train_time: 0.0m tok/s: 4815103
+direct_carry_summary[train_step_3]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_3]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+4/20000 train_loss: 9.6450 train_time: 0.0m tok/s: 4642153
+direct_carry_summary[train_step_4]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_4]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+5/20000 train_loss: 8.3192 train_time: 0.0m tok/s: 4569791
+direct_carry_summary[train_step_5]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_5]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+500/20000 train_loss: 3.3343 train_time: 1.5m tok/s: 4333313
+direct_carry_summary[train_step_500]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_500]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+1000/20000 train_loss: 3.2021 train_time: 3.0m tok/s: 4329212
+direct_carry_summary[train_step_1000]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_1000]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+1500/20000 train_loss: 3.1156 train_time: 4.5m tok/s: 4330327
+direct_carry_summary[train_step_1500]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_1500]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+2000/20000 train_loss: 3.0560 train_time: 6.1m tok/s: 4329154
+direct_carry_summary[train_step_2000]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_2000]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+layer_loop:enabled step:2304 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.1087 train_time: 7.9m tok/s: 4169265
+direct_carry_summary[train_step_2500]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_2500]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+3000/20000 train_loss: 2.9381 train_time: 10.1m tok/s: 3890558
+direct_carry_summary[train_step_3000]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_3000]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
+3500/20000 train_loss: 2.9510 train_time: 12.3m tok/s: 3714865
+direct_carry_summary[train_step_3500]: mode=frozen_edge_self edge_row_norms=[[0.3600262403488159, 0.39482513070106506, 0.5216634273529053], [0.8742358684539795, 0.4972509443759918, 0.2811824381351471]] edge_max_abs=[0.3828125, 0.59765625] self_max_abs=2.000000 edge_max_drift=[0.0, 0.0] self_max_drift=0.000000
+direct_carry[train_step_3500]: self=[[0.92578125, 1.5390625, 1.921875], [2.0, 2.0, 1.4296875]] edges=[[[0.349609375, 0.06005859375, 0.0615234375], [0.1337890625, -0.369140625, -0.04150390625], [-0.0247802734375, 0.3828125, -0.353515625]], [[0.55859375, -0.03515625, 0.3046875, -0.59765625, -0.027099609375, 0.0162353515625], [0.036376953125, -0.28125, -0.1123046875, 0.30078125, -0.251953125, 0.0164794921875], [0.052001953125, 0.1103515625, -0.01336669921875, 0.0576171875, 0.2353515625, -0.07275390625]]]
