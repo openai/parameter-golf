@@ -77,7 +77,7 @@ class Hyperparameters:
     warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.20))
     use_flash_attn_interface = bool(int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1")))
     qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.005))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
