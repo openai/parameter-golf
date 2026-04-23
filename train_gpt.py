@@ -734,7 +734,8 @@ class MLP(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.input(x))
-        return self.out(x * x)
+        x = x.square()
+        return self.out(x)
 
 
 class Block(nn.Module):
@@ -892,7 +893,6 @@ def main() -> None:
     import torch._inductor.config as inductor_config
     inductor_config.fx_graph_cache = True               # Caches compiled kernels to disk (saves 5+ minutes on restart)
     inductor_config.triton.unique_kernel_names = True   # Prevents Triton kernel namespace collisions in DDP
-    inductor_config.freezing = True                     # Aggressive constant-folding for inference/eval
 
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
@@ -982,7 +982,7 @@ def main() -> None:
         if isinstance(module, (nn.Linear, nn.Embedding)):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model)
+    compiled_model = torch.compile(base_model, mode="reduce-overhead", fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, gradient_as_bucket_view=True) if distributed else compiled_model
 
     # Optimizer split:
@@ -1090,6 +1090,7 @@ def main() -> None:
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
+            torch.compiler.cudagraph_mark_step_begin()
             for micro_step in range(grad_accum_steps):
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
@@ -1158,6 +1159,7 @@ def main() -> None:
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
+        torch.compiler.cudagraph_mark_step_begin()
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
