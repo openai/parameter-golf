@@ -723,13 +723,14 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: float):
         super().__init__()
-        hidden_dim = int(mlp_mult * dim // 64) * 64
-        self.input = nn.Linear(dim, hidden_dim, bias=False)
-        self.out = nn.Linear(hidden_dim, dim, bias=False)
+        self.hidden_dim = int(mlp_mult * 2/3 * dim // 64) * 64
+        self.c_fc = nn.Linear(dim, 2 * self.hidden_dim, bias=False)
+        self.c_proj = nn.Linear(self.hidden_dim, dim, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.input(x))
-        return self.out(x * x)
+        fused_x = self.c_fc(x)
+        gate, value = fused_x.chunk(2, dim=-1)
+        return self.c_proj(F.silu(gate) * value)
 
 
 class Block(nn.Module):
