@@ -1,7 +1,7 @@
-W0423 05:14:36.462000 35635 torch/distributed/run.py:803] 
-W0423 05:14:36.462000 35635 torch/distributed/run.py:803] *****************************************
-W0423 05:14:36.462000 35635 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-W0423 05:14:36.462000 35635 torch/distributed/run.py:803] *****************************************
+W0423 21:47:14.485000 35795 torch/distributed/run.py:803] 
+W0423 21:47:14.485000 35795 torch/distributed/run.py:803] *****************************************
+W0423 21:47:14.485000 35795 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0423 21:47:14.485000 35795 torch/distributed/run.py:803] *****************************************
 Hyperparameters:
   adam_eps: 1e-08
   adam_wd: 0.02
@@ -74,7 +74,7 @@ Hyperparameters:
   warmup_steps: 20
   world_size: 8
   xsa_last_n: 11
-train_shards: 2
+train_shards: 80
 val_tokens: 45508608
 model_params:34401371
 gptq:reserving 10s, effective=590000ms
@@ -87,35 +87,35 @@ warmup_step: 6/20
 warmup_step: 10/20
 warmup_step: 20/20
 0/20000 val_loss: 8.3169 val_bpb: 3.6144
-1/20000 train_loss: 8.3181 train_time: 0.0m tok/s: 8429260
-2/20000 train_loss: 12.2978 train_time: 0.0m tok/s: 8320135
-3/20000 train_loss: 10.8854 train_time: 0.0m tok/s: 8202938
-4/20000 train_loss: 9.0869 train_time: 0.0m tok/s: 8145183
-5/20000 train_loss: 7.8343 train_time: 0.0m tok/s: 8112911
-500/20000 train_loss: 2.9960 train_time: 0.8m tok/s: 7866348
-1000/20000 train_loss: 2.8766 train_time: 1.7m tok/s: 7863749
-1500/20000 train_loss: 2.8305 train_time: 2.5m tok/s: 7863881
-2000/20000 train_loss: 2.7841 train_time: 3.3m tok/s: 7864005
-2500/20000 train_loss: 2.7532 train_time: 4.2m tok/s: 7864145
-3000/20000 train_loss: 2.7044 train_time: 5.0m tok/s: 7862627
-3500/20000 train_loss: 2.5966 train_time: 5.8m tok/s: 7862843
-4000/20000 train_loss: 2.5910 train_time: 6.7m tok/s: 7863004
-4000/20000 val_loss: 2.7045 val_bpb: 1.1753
-4500/20000 train_loss: 2.6563 train_time: 7.5m tok/s: 7863111
-5000/20000 train_loss: 2.5434 train_time: 8.3m tok/s: 7863237
-5500/20000 train_loss: 2.4587 train_time: 9.2m tok/s: 7863324
-5900/20000 val_loss: 2.6621 val_bpb: 1.1569
-stopping_early: wallclock_cap train_time: 590074ms step: 5900/20000
+1/20000 train_loss: 8.3195 train_time: 0.0m tok/s: 8431812
+2/20000 train_loss: 12.3801 train_time: 0.0m tok/s: 8311698
+3/20000 train_loss: 10.8725 train_time: 0.0m tok/s: 8205569
+4/20000 train_loss: 9.0219 train_time: 0.0m tok/s: 8148269
+5/20000 train_loss: 7.8134 train_time: 0.0m tok/s: 8122147
+500/20000 train_loss: 2.9337 train_time: 0.8m tok/s: 7870638
+1000/20000 train_loss: 2.9095 train_time: 1.7m tok/s: 7856717
+1500/20000 train_loss: 2.9266 train_time: 2.5m tok/s: 7848927
+2000/20000 train_loss: 2.6613 train_time: 3.3m tok/s: 7851901
+2500/20000 train_loss: 2.7165 train_time: 4.2m tok/s: 7853800
+3000/20000 train_loss: 2.7636 train_time: 5.0m tok/s: 7855520
+3500/20000 train_loss: 2.7096 train_time: 5.8m tok/s: 7856849
+4000/20000 train_loss: 2.6494 train_time: 6.7m tok/s: 7857797
+4000/20000 val_loss: 2.6733 val_bpb: 1.1618
+4500/20000 train_loss: 2.6105 train_time: 7.5m tok/s: 7858406
+5000/20000 train_loss: 2.5666 train_time: 8.3m tok/s: 7859037
+5500/20000 train_loss: 2.5758 train_time: 9.2m tok/s: 7859521
+5897/20000 val_loss: 2.5458 val_bpb: 1.1064
+stopping_early: wallclock_cap train_time: 590041ms step: 5897/20000
 peak memory allocated: 25773 MiB reserved: 25882 MiB
 ema:applying EMA weights
-pre-quantization post-ema val_loss:2.63847124 val_bpb:1.14664921 eval_time:1734ms
+pre-quantization post-ema val_loss:2.54309633 val_bpb:1.10520037 eval_time:1731ms
 Serialized model: 132405827 bytes
-Code size: 72043 bytes
+Code size: 72829 bytes
 GPTQ:collecting Hessians from calibration data...
 GPTQ:collected 66 Hessians in 8.3s
 GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
-Serialized model int6+brotli: 15954646 bytes
-Total submission size int6+brotli: 16026689 bytes
-final_int6_roundtrip val_loss:2.67692098 val_bpb:1.16335902 eval_time:6682ms
-[ppm_mix] tokens=5000000 bytes=16419403 NN_sub=1.14053 mix=1.02006 Δ=-0.12047 NN_full=1.14520
-final_int6_sliding_window val_loss:2.63512700 val_bpb:1.02006055 eval_time:143455ms
+Serialized model int6+brotli: 15856855 bytes
+Total submission size int6+brotli: 15929684 bytes
+final_int6_roundtrip val_loss:2.56959416 val_bpb:1.11671602 eval_time:6639ms
+[ppm_mix] tokens=45508608 bytes=152570124 NN_byte=1.08755 mix=0.95214 Δ=-0.13541 NN_full=1.09832
+final_int6_sliding_window val_loss:2.52725872 val_bpb:0.95213621 eval_time:541682ms
