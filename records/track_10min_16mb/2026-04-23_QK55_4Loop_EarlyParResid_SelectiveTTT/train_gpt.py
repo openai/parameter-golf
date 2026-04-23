@@ -25,7 +25,13 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor, nn
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    try:
+        from flash_attn import flash_attn_func as flash_attn_3_func
+    except ImportError:
+        flash_attn_3_func = None
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +392,19 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        if flash_attn_3_func is not None:
+            # FA2 requires fp16 or bf16; cast if needed (FA3 accepts fp32 natively)
+            orig_dtype = q.dtype
+            if orig_dtype not in (torch.float16, torch.bfloat16):
+                y = flash_attn_3_func(q.bfloat16(), k.bfloat16(), v.bfloat16(), causal=True).to(orig_dtype)
+            else:
+                y = flash_attn_3_func(q, k, v, causal=True)
+        else:
+            # fallback to torch SDPA
+            q2 = q.transpose(1, 2)
+            k2 = k.transpose(1, 2)
+            v2 = v.transpose(1, 2)
+            y = F.scaled_dot_product_attention(q2, k2, v2, is_causal=True).transpose(1, 2)
         y = y.reshape(bsz, seqlen, dim)
         return self.proj(y)
 
