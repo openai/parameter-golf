@@ -661,25 +661,20 @@ class Rotary(nn.Module):
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     rotary_dim = cos.shape[-1] * 2
-    half_dim = rotary_dim // 2
+    x_ro = x[..., :rotary_dim]
+    x_pass = x[..., rotary_dim:] # Handles partial RoPE
     
-    # 1. Allocate the final tensor exactly once
-    out = torch.empty_like(x)
+    x1, x2 = x_ro.chunk(2, dim=-1)
     
-    # 2. View extraction (essentially zero cost)
-    x1 = x[..., :half_dim]
-    x2 = x[..., half_dim:rotary_dim]
+    # Use concatenation instead of slice assignment
+    rotated = torch.cat([
+        x1 * cos - x2 * sin,
+        x1 * sin + x2 * cos
+    ], dim=-1)
     
-    # 3. Write math directly into the output tensor's memory
-    out[..., :half_dim] = x1 * cos - x2 * sin
-    out[..., half_dim:rotary_dim] = x1 * sin + x2 * cos
-    
-    # 4. Copy pass-through features (if using partial RoPE)
-    if x.shape[-1] > rotary_dim:
-        out[..., rotary_dim:] = x[..., rotary_dim:]
-        
-    return out
-
+    if x_pass.numel() > 0:
+        return torch.cat([rotated, x_pass], dim=-1)
+    return rotated
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len=1024, use_rope=True, rope_proportion=0.5):
@@ -696,13 +691,13 @@ class CausalSelfAttention(nn.Module):
         self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, p=rope_proportion, base=rope_base)
         self.use_rope = use_rope
 
-    def forward(self, x_unnorm: Tensor, x_norm: Tensor, emb: Tensor) -> Tensor:
-        bsz, seqlen, dim = x_norm.shape
-        qk = self.c_qk(x_norm)
+    def forward(self, x: Tensor, emb: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        qk = self.c_qk(x)
         q, k = qk.split([dim, self.kv_dim], dim=-1)
 
         mix = self.v_mix[None, None, :]
-        v_input = (mix * x_unnorm) + ((1.0-mix) * emb)
+        v_input = (self.v_mix * x) + ((1.0 - self.v_mix) * emb)
         v = self.c_v(v_input)
 
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -716,7 +711,7 @@ class CausalSelfAttention(nn.Module):
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
 
-        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        q = q * self.q_gain.to(dtype=q.dtype).view(1, -1, 1, 1)
         y = F.scaled_dot_product_attention(
             q, k, v, 
             is_causal=True, 
@@ -734,8 +729,7 @@ class MLP(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.relu(self.input(x))
-        x = x.square()
-        return self.out(x)
+        return self.out(x * x)
 
 
 class Block(nn.Module):
@@ -761,12 +755,12 @@ class Block(nn.Module):
         self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(resid_scale))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.1))
 
+    # Inside Block.forward
     def forward(self, x: Tensor, emb: Tensor) -> Tensor:
-        attn_out = self.attn(x, self.attn_norm(x), emb)
-        mlp_out = self.mlp(self.mlp_norm(x))
-        
-        # Parallel residual additions folded mathematically using (1.0 + resid_scale)
-        return (1.0 + self.resid_scale[None, None, :]) * x + self.attn_scale[None, None, :] * attn_out + self.mlp_scale[None, None, :] * mlp_out
+        attn_out = self.attn(self.attn_norm(x), emb)
+        y = x + self.attn_scale * attn_out
+        return self.resid_scale * x + y + self.mlp_scale * self.mlp(self.mlp_norm(y))
+
 
 def get_linear_progression_kv_heads(layer_idx, total_layers, num_heads):
     # Progresses from 2 heads at layer 0 to num_heads at the final layer
@@ -893,6 +887,7 @@ def main() -> None:
     import torch._inductor.config as inductor_config
     inductor_config.fx_graph_cache = True               # Caches compiled kernels to disk (saves 5+ minutes on restart)
     inductor_config.triton.unique_kernel_names = True   # Prevents Triton kernel namespace collisions in DDP
+    inductor_config.freezing = True                     # Aggressive constant-folding for inference/eval
 
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
@@ -982,7 +977,7 @@ def main() -> None:
         if isinstance(module, (nn.Linear, nn.Embedding)):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, mode="reduce-overhead", fullgraph=True)
+    compiled_model = torch.compile(base_model, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, gradient_as_bucket_view=True) if distributed else compiled_model
 
     # Optimizer split:
@@ -1090,7 +1085,6 @@ def main() -> None:
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
-            torch.compiler.cudagraph_mark_step_begin()
             for micro_step in range(grad_accum_steps):
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
@@ -1159,7 +1153,6 @@ def main() -> None:
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
-        torch.compiler.cudagraph_mark_step_begin()
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
