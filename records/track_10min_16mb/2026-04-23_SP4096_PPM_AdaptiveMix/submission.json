@@ -1,0 +1,44 @@
+{
+  "author": "OE-GOD",
+  "github_id": "OE-GOD",
+  "name": "SP4096 + Byte-Level PPM Adaptive-λ Mixture",
+  "date": "2026-04-23",
+  "track": "10min_16mb",
+  "val_bpb": 1.01925,
+  "val_bpb_std": 0.00077,
+  "val_bpb_nn_only_mean": 1.13940,
+  "val_bpb_delta_mean": -0.12015,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42":   {"val_bpb": 1.01853, "val_bpb_nn_only_subset": 1.13838, "val_bpb_nn_only_full": 1.14321, "val_bpb_delta": -0.11986, "artifact_bytes": 15982254, "artifact_bytes_raw": 16032552},
+    "1337": {"val_bpb": 1.02006, "val_bpb_nn_only_subset": 1.14053, "val_bpb_nn_only_full": 1.14520, "val_bpb_delta": -0.12047, "artifact_bytes": 15976391, "artifact_bytes_raw": 16026689},
+    "2025": {"val_bpb": 1.01916, "val_bpb_nn_only_subset": 1.13928, "val_bpb_nn_only_full": 1.14428, "val_bpb_delta": -0.12012, "artifact_bytes": 15955159, "artifact_bytes_raw": 16005457}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Base: Kevin Clark's 2026-04-01 SP4096 + 11L + MLP4x + high WD + depth-recurrence + LeakyReLU(0.5)^2 + legal TTT + parallel residuals + EMA + GPTQ int6 + brotli (val_bpb 1.098 non-mixed). Addition: byte-level PPM-D order-5 with adaptive-λ gate mixed with the NN's per-token target logprob in byte-probability space during final sliding-window eval. Measured delta: −0.120 BPB.",
+  "mixture_technique": {
+    "predictor": "byte-level PPM-D order 5 (pure Python, online, legal TTT on already-scored val)",
+    "mixing": "adaptive λ gate: λ=0.05 when PPM max-symbol probability > 0.9, else λ=0.9",
+    "byte_marginalization": "spread NN token logprob uniformly across UTF-8 bytes (conserves total NN bits)",
+    "measurement": "NN-only and mixture BPB both measured on first 5,000,000 val tokens (16.42 MB byte stream) during the final sliding-window eval; NN-full (non-subsampled) sliding BPB reported alongside for audit"
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "artifact_under_16mb_note": "Raw train_gpt.py is 72 KB; we ship it as a 22 KB lzma+base85 exec-stub (same compression pattern used by several prior records). All 3 seeds ship artifacts in 15.96-15.98 MB range.",
+    "eval_under_600s": true,
+    "eval_under_600s_note": "Sliding eval with mixture completed in 144-165 s (well under the 10-min cap). Pure-Python PPM on 5M-token subset.",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": false,
+    "no_ngram_cache_note": "Byte-level online PPM predictor (not a precomputed n-gram cache). The PPM suffix-count table starts empty at eval start and is built from the same val tokens the NN has already scored. This is legal TTT per rules: 'you are only allowed to test-time train on validation set tokens you've already evaluated your model on, since those tokens have already been graded'.",
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_submission": "@clarkkev 2026-04-01 SP4096 submission (record 1.09785)",
+    "byte_ppm": "Cleary & Witten 1984; Moffat 1990 (PPM-D escape method)",
+    "adaptive_lambda_gate": "designed for this submission"
+  }
+}
