@@ -1,0 +1,10 @@
+{
+  "val_bpb_alpha_trained_47": 1.5116868336505733,
+  "val_bpb_alpha_1_0": 3.183071347570185,
+  "val_loss_trained": 2.545443832874298,
+  "val_loss_ternary": 5.359793543815613,
+  "tokens_per_byte": 0.4116458800237179,
+  "artifact_bytes": 5587636,
+  "total_params": 24128000,
+  "ternary_params": 23592960
+}

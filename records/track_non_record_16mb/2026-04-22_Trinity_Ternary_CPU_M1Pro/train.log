@@ -1,0 +1,558 @@
+=== Trinity Ternary CPU Trainer ===
+Device: cpu, threads: 10
+Model: 10L × 512d × 8h, vocab=1024, seq=512
+Params: 24,128,000 (92.0 MB fp32)
+Ternary-packed size estimate: 4.60 MB (5 trits/byte)
+
+=== Training started (max 24.0h or 100000 steps) ===
+  step 1/100000 loss=32.4180 alpha=0.00 rate=10512.04/s elapsed=0.0m eta=1440m
+  step 50/100000 loss=23.3185 alpha=0.00 rate=0.29/s elapsed=2.9m eta=1437m
+  step 100/100000 loss=14.0874 alpha=0.00 rate=0.29/s elapsed=5.7m eta=1434m
+  step 150/100000 loss=9.0810 alpha=0.00 rate=0.29/s elapsed=8.6m eta=1431m
+  step 200/100000 loss=6.7604 alpha=0.00 rate=0.29/s elapsed=11.4m eta=1429m
+  step 250/100000 loss=5.6159 alpha=0.00 rate=0.29/s elapsed=14.2m eta=1426m
+  step 300/100000 loss=4.9955 alpha=0.00 rate=0.29/s elapsed=17.0m eta=1423m
+  step 350/100000 loss=4.6451 alpha=0.00 rate=0.29/s elapsed=19.8m eta=1420m
+  step 400/100000 loss=4.4910 alpha=0.00 rate=0.29/s elapsed=22.6m eta=1417m
+  step 450/100000 loss=4.3269 alpha=0.00 rate=0.29/s elapsed=25.4m eta=1415m
+  step 500/100000 loss=4.1857 alpha=0.00 rate=0.29/s elapsed=28.3m eta=1412m
+  [VAL] step 500: val_loss=4.1812 val_bpb≈6.0322
+  step 550/100000 loss=4.0700 alpha=0.00 rate=0.29/s elapsed=31.4m eta=1409m
+  step 600/100000 loss=4.0080 alpha=0.00 rate=0.29/s elapsed=34.5m eta=1405m
+  step 650/100000 loss=3.9290 alpha=0.00 rate=0.29/s elapsed=37.7m eta=1402m
+  step 700/100000 loss=3.9180 alpha=0.00 rate=0.29/s elapsed=40.8m eta=1399m
+  step 750/100000 loss=3.9153 alpha=0.01 rate=0.28/s elapsed=43.9m eta=1396m
+  step 800/100000 loss=3.8482 alpha=0.01 rate=0.28/s elapsed=47.0m eta=1393m
+  step 850/100000 loss=3.7722 alpha=0.01 rate=0.28/s elapsed=50.1m eta=1390m
+  step 900/100000 loss=3.7234 alpha=0.01 rate=0.28/s elapsed=53.3m eta=1387m
+  step 950/100000 loss=3.6968 alpha=0.01 rate=0.28/s elapsed=56.4m eta=1384m
+  step 1000/100000 loss=3.6783 alpha=0.01 rate=0.28/s elapsed=59.5m eta=1380m
+  [VAL] step 1000: val_loss=3.5402 val_bpb≈5.1075
+  [CKPT] saved /tmp/trinity_ternary_ckpt_1007.pt
+  step 1050/100000 loss=3.6368 alpha=0.01 rate=0.28/s elapsed=62.7m eta=1377m
+  step 1100/100000 loss=3.5873 alpha=0.01 rate=0.28/s elapsed=65.8m eta=1374m
+  step 1150/100000 loss=3.5501 alpha=0.01 rate=0.28/s elapsed=68.9m eta=1371m
+  step 1200/100000 loss=3.5339 alpha=0.01 rate=0.28/s elapsed=72.1m eta=1368m
+  step 1250/100000 loss=3.5085 alpha=0.02 rate=0.28/s elapsed=75.2m eta=1365m
+  step 1300/100000 loss=3.4950 alpha=0.02 rate=0.28/s elapsed=78.4m eta=1362m
+  step 1350/100000 loss=3.5044 alpha=0.02 rate=0.28/s elapsed=81.5m eta=1359m
+  step 1400/100000 loss=3.4999 alpha=0.02 rate=0.28/s elapsed=84.6m eta=1355m
+  step 1450/100000 loss=3.4661 alpha=0.02 rate=0.28/s elapsed=87.7m eta=1352m
+  step 1500/100000 loss=3.4922 alpha=0.02 rate=0.28/s elapsed=90.9m eta=1349m
+  [VAL] step 1500: val_loss=3.4854 val_bpb≈5.0284
+  step 1550/100000 loss=3.4707 alpha=0.02 rate=0.27/s elapsed=94.0m eta=1346m
+  step 1600/100000 loss=3.4497 alpha=0.02 rate=0.27/s elapsed=97.2m eta=1343m
+  step 1650/100000 loss=3.4525 alpha=0.02 rate=0.27/s elapsed=100.3m eta=1340m
+  step 1700/100000 loss=3.3973 alpha=0.02 rate=0.27/s elapsed=103.4m eta=1337m
+  step 1750/100000 loss=3.3973 alpha=0.03 rate=0.27/s elapsed=106.6m eta=1333m
+  step 1800/100000 loss=3.3645 alpha=0.03 rate=0.27/s elapsed=109.7m eta=1330m
+  step 1850/100000 loss=3.3356 alpha=0.03 rate=0.27/s elapsed=112.8m eta=1327m
+  step 1900/100000 loss=3.3192 alpha=0.03 rate=0.27/s elapsed=116.0m eta=1324m
+  step 1950/100000 loss=3.3338 alpha=0.03 rate=0.27/s elapsed=119.1m eta=1321m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_1964.pt
+  step 2000/100000 loss=3.3324 alpha=0.03 rate=0.27/s elapsed=122.3m eta=1318m
+  [VAL] step 2000: val_loss=3.2928 val_bpb≈4.7505
+  step 2050/100000 loss=3.3145 alpha=0.03 rate=0.27/s elapsed=125.5m eta=1315m
+  step 2100/100000 loss=3.3100 alpha=0.03 rate=0.27/s elapsed=128.6m eta=1311m
+  step 2150/100000 loss=3.2930 alpha=0.03 rate=0.27/s elapsed=131.8m eta=1308m
+  step 2200/100000 loss=3.3119 alpha=0.03 rate=0.27/s elapsed=134.9m eta=1305m
+  step 2250/100000 loss=3.3047 alpha=0.04 rate=0.27/s elapsed=138.0m eta=1302m
+  step 2300/100000 loss=3.3284 alpha=0.04 rate=0.27/s elapsed=141.2m eta=1299m
+  step 2350/100000 loss=3.2940 alpha=0.04 rate=0.27/s elapsed=144.3m eta=1296m
+  step 2400/100000 loss=3.2846 alpha=0.04 rate=0.27/s elapsed=147.4m eta=1293m
+  step 2450/100000 loss=3.2573 alpha=0.04 rate=0.27/s elapsed=150.5m eta=1289m
+  step 2500/100000 loss=3.2519 alpha=0.04 rate=0.27/s elapsed=153.7m eta=1286m
+  [VAL] step 2500: val_loss=3.1691 val_bpb≈4.5720
+  step 2550/100000 loss=3.2382 alpha=0.04 rate=0.27/s elapsed=156.8m eta=1283m
+  step 2600/100000 loss=3.2362 alpha=0.04 rate=0.27/s elapsed=160.0m eta=1280m
+  step 2650/100000 loss=3.2158 alpha=0.04 rate=0.27/s elapsed=163.1m eta=1277m
+  step 2700/100000 loss=3.2033 alpha=0.04 rate=0.27/s elapsed=166.2m eta=1274m
+  step 2750/100000 loss=3.1979 alpha=0.05 rate=0.27/s elapsed=169.4m eta=1271m
+  step 2800/100000 loss=3.1793 alpha=0.05 rate=0.27/s elapsed=172.5m eta=1267m
+  step 2850/100000 loss=3.1669 alpha=0.05 rate=0.27/s elapsed=175.7m eta=1264m
+  step 2900/100000 loss=3.1653 alpha=0.05 rate=0.27/s elapsed=178.8m eta=1261m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_2920.pt
+  step 2950/100000 loss=3.1552 alpha=0.05 rate=0.27/s elapsed=181.9m eta=1258m
+  step 3000/100000 loss=3.1814 alpha=0.05 rate=0.27/s elapsed=185.1m eta=1255m
+  [VAL] step 3000: val_loss=3.0758 val_bpb≈4.4374
+  step 3050/100000 loss=3.2293 alpha=0.05 rate=0.27/s elapsed=188.3m eta=1252m
+  step 3100/100000 loss=3.2121 alpha=0.05 rate=0.27/s elapsed=191.4m eta=1249m
+  step 3150/100000 loss=3.1772 alpha=0.05 rate=0.27/s elapsed=194.6m eta=1245m
+  step 3200/100000 loss=3.1441 alpha=0.05 rate=0.27/s elapsed=197.7m eta=1242m
+  step 3250/100000 loss=3.1386 alpha=0.06 rate=0.27/s elapsed=200.8m eta=1239m
+  step 3300/100000 loss=3.1417 alpha=0.06 rate=0.27/s elapsed=203.9m eta=1236m
+  step 3350/100000 loss=3.1209 alpha=0.06 rate=0.27/s elapsed=207.1m eta=1233m
+  step 3400/100000 loss=3.1115 alpha=0.06 rate=0.27/s elapsed=210.2m eta=1230m
+  step 3450/100000 loss=3.0657 alpha=0.06 rate=0.27/s elapsed=213.3m eta=1227m
+  step 3500/100000 loss=3.0658 alpha=0.06 rate=0.27/s elapsed=216.4m eta=1224m
+  [VAL] step 3500: val_loss=3.0476 val_bpb≈4.3968
+  step 3550/100000 loss=3.0518 alpha=0.06 rate=0.27/s elapsed=219.6m eta=1220m
+  step 3600/100000 loss=3.0678 alpha=0.06 rate=0.27/s elapsed=222.7m eta=1217m
+  step 3650/100000 loss=3.0405 alpha=0.06 rate=0.27/s elapsed=225.8m eta=1214m
+  step 3700/100000 loss=3.0328 alpha=0.06 rate=0.27/s elapsed=228.8m eta=1211m
+  step 3750/100000 loss=3.0246 alpha=0.07 rate=0.27/s elapsed=231.9m eta=1208m
+  step 3800/100000 loss=3.0303 alpha=0.07 rate=0.27/s elapsed=234.9m eta=1205m
+  step 3850/100000 loss=3.0541 alpha=0.07 rate=0.27/s elapsed=238.0m eta=1202m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_3884.pt
+  step 3900/100000 loss=3.0607 alpha=0.07 rate=0.27/s elapsed=241.1m eta=1199m
+  step 3950/100000 loss=3.0353 alpha=0.07 rate=0.27/s elapsed=244.1m eta=1196m
+  step 4000/100000 loss=3.0099 alpha=0.07 rate=0.27/s elapsed=247.2m eta=1193m
+  [VAL] step 4000: val_loss=2.9474 val_bpb≈4.2522
+  step 4050/100000 loss=3.0179 alpha=0.07 rate=0.27/s elapsed=250.3m eta=1190m
+  step 4100/100000 loss=3.0180 alpha=0.07 rate=0.27/s elapsed=253.4m eta=1187m
+  step 4150/100000 loss=3.0234 alpha=0.07 rate=0.27/s elapsed=256.4m eta=1184m
+  step 4200/100000 loss=3.0279 alpha=0.07 rate=0.27/s elapsed=259.5m eta=1181m
+  step 4250/100000 loss=3.0065 alpha=0.08 rate=0.27/s elapsed=262.5m eta=1177m
+  step 4300/100000 loss=2.9837 alpha=0.08 rate=0.27/s elapsed=265.6m eta=1174m
+  step 4350/100000 loss=2.9596 alpha=0.08 rate=0.27/s elapsed=268.6m eta=1171m
+  step 4400/100000 loss=2.9465 alpha=0.08 rate=0.27/s elapsed=271.7m eta=1168m
+  step 4450/100000 loss=2.9230 alpha=0.08 rate=0.27/s elapsed=274.7m eta=1165m
+  step 4500/100000 loss=2.9189 alpha=0.08 rate=0.27/s elapsed=277.7m eta=1162m
+  [VAL] step 4500: val_loss=2.8429 val_bpb≈4.1014
+  step 4550/100000 loss=2.9657 alpha=0.08 rate=0.27/s elapsed=280.8m eta=1159m
+  step 4600/100000 loss=2.9554 alpha=0.08 rate=0.27/s elapsed=283.9m eta=1156m
+  step 4650/100000 loss=2.9879 alpha=0.08 rate=0.27/s elapsed=287.0m eta=1153m
+  step 4700/100000 loss=2.9617 alpha=0.08 rate=0.27/s elapsed=290.2m eta=1150m
+  step 4750/100000 loss=2.9599 alpha=0.09 rate=0.27/s elapsed=293.2m eta=1147m
+  step 4800/100000 loss=2.9528 alpha=0.09 rate=0.27/s elapsed=296.3m eta=1144m
+  step 4850/100000 loss=2.9487 alpha=0.09 rate=0.27/s elapsed=299.5m eta=1140m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_4860.pt
+  step 4900/100000 loss=2.9417 alpha=0.09 rate=0.27/s elapsed=302.6m eta=1137m
+  step 4950/100000 loss=2.9254 alpha=0.09 rate=0.27/s elapsed=305.7m eta=1134m
+  step 5000/100000 loss=2.9138 alpha=0.09 rate=0.27/s elapsed=308.9m eta=1131m
+  [VAL] step 5000: val_loss=2.8559 val_bpb≈4.1202
+  step 5050/100000 loss=2.8978 alpha=0.09 rate=0.27/s elapsed=312.1m eta=1128m
+  step 5100/100000 loss=2.8802 alpha=0.09 rate=0.27/s elapsed=315.5m eta=1125m
+  step 5150/100000 loss=2.8785 alpha=0.09 rate=0.27/s elapsed=318.8m eta=1121m
+  step 5200/100000 loss=2.8549 alpha=0.09 rate=0.27/s elapsed=322.1m eta=1118m
+  step 5250/100000 loss=2.8778 alpha=0.10 rate=0.27/s elapsed=325.2m eta=1115m
+  step 5300/100000 loss=2.9029 alpha=0.10 rate=0.27/s elapsed=328.2m eta=1112m
+  step 5350/100000 loss=2.9256 alpha=0.10 rate=0.27/s elapsed=331.2m eta=1109m
+  step 5400/100000 loss=2.8800 alpha=0.10 rate=0.27/s elapsed=334.2m eta=1106m
+  step 5450/100000 loss=2.8956 alpha=0.10 rate=0.27/s elapsed=337.1m eta=1103m
+  step 5500/100000 loss=2.9214 alpha=0.10 rate=0.27/s elapsed=340.1m eta=1100m
+  [VAL] step 5500: val_loss=2.8153 val_bpb≈4.0616
+  step 5550/100000 loss=2.8887 alpha=0.10 rate=0.27/s elapsed=343.1m eta=1097m
+  step 5600/100000 loss=2.8559 alpha=0.10 rate=0.27/s elapsed=346.1m eta=1094m
+  step 5650/100000 loss=2.8469 alpha=0.10 rate=0.27/s elapsed=349.0m eta=1091m
+  step 5700/100000 loss=2.8578 alpha=0.10 rate=0.27/s elapsed=352.0m eta=1088m
+  step 5750/100000 loss=2.8688 alpha=0.11 rate=0.27/s elapsed=355.0m eta=1085m
+  step 5800/100000 loss=2.8525 alpha=0.11 rate=0.27/s elapsed=358.0m eta=1082m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_5837.pt
+  step 5850/100000 loss=2.8612 alpha=0.11 rate=0.27/s elapsed=361.0m eta=1079m
+  step 5900/100000 loss=2.8495 alpha=0.11 rate=0.27/s elapsed=364.0m eta=1076m
+  step 5950/100000 loss=2.8468 alpha=0.11 rate=0.27/s elapsed=367.0m eta=1073m
+  step 6000/100000 loss=2.8494 alpha=0.11 rate=0.27/s elapsed=370.1m eta=1070m
+  [VAL] step 6000: val_loss=2.8493 val_bpb≈4.1107
+  step 6050/100000 loss=2.8345 alpha=0.11 rate=0.27/s elapsed=373.1m eta=1067m
+  step 6100/100000 loss=2.8467 alpha=0.11 rate=0.27/s elapsed=376.1m eta=1064m
+  step 6150/100000 loss=2.8404 alpha=0.11 rate=0.27/s elapsed=379.0m eta=1061m
+  step 6200/100000 loss=2.8544 alpha=0.11 rate=0.27/s elapsed=382.3m eta=1058m
+  step 6250/100000 loss=2.8776 alpha=0.12 rate=0.27/s elapsed=385.6m eta=1054m
+  step 6300/100000 loss=2.8641 alpha=0.12 rate=0.27/s elapsed=388.9m eta=1051m
+  step 6350/100000 loss=2.8459 alpha=0.12 rate=0.27/s elapsed=392.2m eta=1048m
+  step 6400/100000 loss=2.8113 alpha=0.12 rate=0.27/s elapsed=395.3m eta=1045m
+  step 6450/100000 loss=2.7994 alpha=0.12 rate=0.27/s elapsed=398.3m eta=1042m
+  step 6500/100000 loss=2.8177 alpha=0.12 rate=0.27/s elapsed=401.4m eta=1039m
+  [VAL] step 6500: val_loss=2.8300 val_bpb≈4.0829
+  step 6550/100000 loss=2.8223 alpha=0.12 rate=0.27/s elapsed=404.5m eta=1036m
+  step 6600/100000 loss=2.7961 alpha=0.12 rate=0.27/s elapsed=407.5m eta=1032m
+  step 6650/100000 loss=2.7842 alpha=0.12 rate=0.27/s elapsed=410.6m eta=1029m
+  step 6700/100000 loss=2.8010 alpha=0.12 rate=0.27/s elapsed=413.6m eta=1026m
+  step 6750/100000 loss=2.7963 alpha=0.13 rate=0.27/s elapsed=416.7m eta=1023m
+  step 6800/100000 loss=2.8199 alpha=0.13 rate=0.27/s elapsed=419.7m eta=1020m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_6808.pt
+  step 6850/100000 loss=2.8932 alpha=0.13 rate=0.27/s elapsed=422.8m eta=1017m
+  step 6900/100000 loss=2.8855 alpha=0.13 rate=0.27/s elapsed=425.8m eta=1014m
+  step 6950/100000 loss=2.8449 alpha=0.13 rate=0.27/s elapsed=428.9m eta=1011m
+  step 7000/100000 loss=2.8458 alpha=0.13 rate=0.27/s elapsed=431.9m eta=1008m
+  [VAL] step 7000: val_loss=2.8358 val_bpb≈4.0912
+  step 7050/100000 loss=2.8239 alpha=0.13 rate=0.27/s elapsed=435.0m eta=1005m
+  step 7100/100000 loss=2.8236 alpha=0.13 rate=0.27/s elapsed=438.1m eta=1002m
+  step 7150/100000 loss=2.7874 alpha=0.13 rate=0.27/s elapsed=441.1m eta=999m
+  step 7200/100000 loss=2.7850 alpha=0.13 rate=0.27/s elapsed=444.2m eta=996m
+  step 7250/100000 loss=2.7647 alpha=0.14 rate=0.27/s elapsed=447.3m eta=993m
+  step 7300/100000 loss=2.7513 alpha=0.14 rate=0.27/s elapsed=450.3m eta=990m
+  step 7350/100000 loss=2.7435 alpha=0.14 rate=0.27/s elapsed=453.4m eta=987m
+  step 7400/100000 loss=2.7416 alpha=0.14 rate=0.27/s elapsed=456.4m eta=984m
+  step 7450/100000 loss=2.7670 alpha=0.14 rate=0.27/s elapsed=459.5m eta=981m
+  step 7500/100000 loss=2.7820 alpha=0.14 rate=0.27/s elapsed=462.5m eta=977m
+  [VAL] step 7500: val_loss=2.7239 val_bpb≈3.9298
+  step 7550/100000 loss=2.7860 alpha=0.14 rate=0.27/s elapsed=465.6m eta=974m
+  step 7600/100000 loss=2.8126 alpha=0.14 rate=0.27/s elapsed=468.7m eta=971m
+  step 7650/100000 loss=2.7877 alpha=0.14 rate=0.27/s elapsed=471.7m eta=968m
+  step 7700/100000 loss=2.7881 alpha=0.14 rate=0.27/s elapsed=474.8m eta=965m
+  step 7750/100000 loss=2.8071 alpha=0.15 rate=0.27/s elapsed=477.8m eta=962m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_7791.pt
+  step 7800/100000 loss=2.7743 alpha=0.15 rate=0.27/s elapsed=480.8m eta=959m
+  step 7850/100000 loss=2.7857 alpha=0.15 rate=0.27/s elapsed=483.8m eta=956m
+  step 7900/100000 loss=2.7533 alpha=0.15 rate=0.27/s elapsed=486.9m eta=953m
+  step 7950/100000 loss=2.7301 alpha=0.15 rate=0.27/s elapsed=489.9m eta=950m
+  step 8000/100000 loss=2.7082 alpha=0.15 rate=0.27/s elapsed=493.0m eta=947m
+  [VAL] step 8000: val_loss=2.6801 val_bpb≈3.8665
+  step 8050/100000 loss=2.7493 alpha=0.15 rate=0.27/s elapsed=496.1m eta=944m
+  step 8100/100000 loss=2.7352 alpha=0.15 rate=0.27/s elapsed=499.1m eta=941m
+  step 8150/100000 loss=2.7242 alpha=0.15 rate=0.27/s elapsed=502.2m eta=938m
+  step 8200/100000 loss=2.7151 alpha=0.15 rate=0.27/s elapsed=505.2m eta=935m
+  step 8250/100000 loss=2.7094 alpha=0.16 rate=0.27/s elapsed=508.3m eta=932m
+  step 8300/100000 loss=2.7439 alpha=0.16 rate=0.27/s elapsed=511.4m eta=929m
+  step 8350/100000 loss=2.7418 alpha=0.16 rate=0.27/s elapsed=514.4m eta=926m
+  step 8400/100000 loss=2.7876 alpha=0.16 rate=0.27/s elapsed=517.5m eta=923m
+  step 8450/100000 loss=2.7621 alpha=0.16 rate=0.27/s elapsed=520.5m eta=919m
+  step 8500/100000 loss=2.7738 alpha=0.16 rate=0.27/s elapsed=523.6m eta=916m
+  [VAL] step 8500: val_loss=2.7209 val_bpb≈3.9254
+  step 8550/100000 loss=2.7493 alpha=0.16 rate=0.27/s elapsed=526.7m eta=913m
+  step 8600/100000 loss=2.7542 alpha=0.16 rate=0.27/s elapsed=529.7m eta=910m
+  step 8650/100000 loss=2.7458 alpha=0.16 rate=0.27/s elapsed=532.8m eta=907m
+  step 8700/100000 loss=2.7412 alpha=0.16 rate=0.27/s elapsed=535.8m eta=904m
+  step 8750/100000 loss=2.7145 alpha=0.17 rate=0.27/s elapsed=538.9m eta=901m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_8773.pt
+  step 8800/100000 loss=2.7139 alpha=0.17 rate=0.27/s elapsed=542.0m eta=898m
+  step 8850/100000 loss=2.7125 alpha=0.17 rate=0.27/s elapsed=545.3m eta=895m
+  step 8900/100000 loss=2.6988 alpha=0.17 rate=0.27/s elapsed=548.5m eta=892m
+  step 8950/100000 loss=2.6964 alpha=0.17 rate=0.27/s elapsed=551.6m eta=888m
+  step 9000/100000 loss=2.7031 alpha=0.17 rate=0.27/s elapsed=554.6m eta=885m
+  [VAL] step 9000: val_loss=2.6957 val_bpb≈3.8890
+  step 9050/100000 loss=2.6892 alpha=0.17 rate=0.27/s elapsed=557.6m eta=882m
+  step 9100/100000 loss=2.7237 alpha=0.17 rate=0.27/s elapsed=560.6m eta=879m
+  step 9150/100000 loss=2.7923 alpha=0.17 rate=0.27/s elapsed=563.7m eta=876m
+  step 9200/100000 loss=2.7665 alpha=0.17 rate=0.27/s elapsed=566.7m eta=873m
+  step 9250/100000 loss=2.7375 alpha=0.18 rate=0.27/s elapsed=569.7m eta=870m
+  step 9300/100000 loss=2.7245 alpha=0.18 rate=0.27/s elapsed=572.7m eta=867m
+  step 9350/100000 loss=2.7247 alpha=0.18 rate=0.27/s elapsed=575.8m eta=864m
+  step 9400/100000 loss=2.7178 alpha=0.18 rate=0.27/s elapsed=578.8m eta=861m
+  step 9450/100000 loss=2.7141 alpha=0.18 rate=0.27/s elapsed=581.8m eta=858m
+  step 9500/100000 loss=2.7230 alpha=0.18 rate=0.27/s elapsed=584.9m eta=855m
+  [VAL] step 9500: val_loss=2.6918 val_bpb≈3.8835
+  step 9550/100000 loss=2.6729 alpha=0.18 rate=0.27/s elapsed=588.0m eta=852m
+  step 9600/100000 loss=2.6786 alpha=0.18 rate=0.27/s elapsed=591.0m eta=849m
+  step 9650/100000 loss=2.6742 alpha=0.18 rate=0.27/s elapsed=594.1m eta=846m
+  step 9700/100000 loss=2.6921 alpha=0.18 rate=0.27/s elapsed=597.1m eta=843m
+  step 9750/100000 loss=2.6680 alpha=0.19 rate=0.27/s elapsed=600.2m eta=840m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_9753.pt
+  step 9800/100000 loss=2.6583 alpha=0.19 rate=0.27/s elapsed=603.2m eta=837m
+  step 9850/100000 loss=2.6682 alpha=0.19 rate=0.27/s elapsed=606.3m eta=834m
+  step 9900/100000 loss=2.6891 alpha=0.19 rate=0.27/s elapsed=609.3m eta=831m
+  step 9950/100000 loss=2.7060 alpha=0.19 rate=0.27/s elapsed=612.4m eta=828m
+  step 10000/100000 loss=2.7137 alpha=0.19 rate=0.27/s elapsed=615.4m eta=825m
+  [VAL] step 10000: val_loss=2.6855 val_bpb≈3.8743
+  step 10050/100000 loss=2.6937 alpha=0.19 rate=0.27/s elapsed=618.5m eta=822m
+  step 10100/100000 loss=2.6814 alpha=0.19 rate=0.27/s elapsed=621.5m eta=818m
+  step 10150/100000 loss=2.7066 alpha=0.19 rate=0.27/s elapsed=624.6m eta=815m
+  step 10200/100000 loss=2.7023 alpha=0.19 rate=0.27/s elapsed=627.6m eta=812m
+  step 10250/100000 loss=2.7264 alpha=0.20 rate=0.27/s elapsed=630.6m eta=809m
+  step 10300/100000 loss=2.7329 alpha=0.20 rate=0.27/s elapsed=633.7m eta=806m
+  step 10350/100000 loss=2.7102 alpha=0.20 rate=0.27/s elapsed=636.7m eta=803m
+  step 10400/100000 loss=2.6931 alpha=0.20 rate=0.27/s elapsed=639.8m eta=800m
+  step 10450/100000 loss=2.6677 alpha=0.20 rate=0.27/s elapsed=642.8m eta=797m
+  step 10500/100000 loss=2.6579 alpha=0.20 rate=0.27/s elapsed=645.8m eta=794m
+  [VAL] step 10500: val_loss=2.5476 val_bpb≈3.6755
+  step 10550/100000 loss=2.6321 alpha=0.20 rate=0.27/s elapsed=648.9m eta=791m
+  step 10600/100000 loss=2.6354 alpha=0.20 rate=0.27/s elapsed=652.0m eta=788m
+  step 10650/100000 loss=2.6867 alpha=0.20 rate=0.27/s elapsed=655.0m eta=785m
+  step 10700/100000 loss=2.6757 alpha=0.21 rate=0.27/s elapsed=658.1m eta=782m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_10738.pt
+  step 10750/100000 loss=2.6942 alpha=0.21 rate=0.27/s elapsed=661.1m eta=779m
+  step 10800/100000 loss=2.6834 alpha=0.21 rate=0.27/s elapsed=664.2m eta=776m
+  step 10850/100000 loss=2.6824 alpha=0.21 rate=0.27/s elapsed=667.2m eta=773m
+  step 10900/100000 loss=2.6902 alpha=0.21 rate=0.27/s elapsed=670.3m eta=770m
+  step 10950/100000 loss=2.6954 alpha=0.21 rate=0.27/s elapsed=673.3m eta=767m
+  step 11000/100000 loss=2.6929 alpha=0.21 rate=0.27/s elapsed=676.3m eta=764m
+  [VAL] step 11000: val_loss=2.7256 val_bpb≈3.9322
+  step 11050/100000 loss=2.6773 alpha=0.21 rate=0.27/s elapsed=679.4m eta=761m
+  step 11100/100000 loss=2.6686 alpha=0.21 rate=0.27/s elapsed=682.4m eta=758m
+  step 11150/100000 loss=2.6511 alpha=0.21 rate=0.27/s elapsed=685.4m eta=755m
+  step 11200/100000 loss=2.6346 alpha=0.22 rate=0.27/s elapsed=688.4m eta=752m
+  step 11250/100000 loss=2.6337 alpha=0.22 rate=0.27/s elapsed=691.4m eta=749m
+  step 11300/100000 loss=2.6169 alpha=0.22 rate=0.27/s elapsed=694.4m eta=746m
+  step 11350/100000 loss=2.6367 alpha=0.22 rate=0.27/s elapsed=697.4m eta=743m
+  step 11400/100000 loss=2.6664 alpha=0.22 rate=0.27/s elapsed=700.3m eta=740m
+  step 11450/100000 loss=2.6953 alpha=0.22 rate=0.27/s elapsed=703.3m eta=737m
+  step 11500/100000 loss=2.6475 alpha=0.22 rate=0.27/s elapsed=706.3m eta=734m
+  [VAL] step 11500: val_loss=2.7140 val_bpb≈3.9154
+  step 11550/100000 loss=2.6723 alpha=0.22 rate=0.27/s elapsed=709.4m eta=731m
+  step 11600/100000 loss=2.6927 alpha=0.22 rate=0.27/s elapsed=712.4m eta=728m
+  step 11650/100000 loss=2.6648 alpha=0.22 rate=0.27/s elapsed=715.4m eta=725m
+  step 11700/100000 loss=2.6454 alpha=0.23 rate=0.27/s elapsed=718.5m eta=722m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_11732.pt
+  step 11750/100000 loss=2.6231 alpha=0.23 rate=0.27/s elapsed=721.5m eta=719m
+  step 11800/100000 loss=2.6293 alpha=0.23 rate=0.27/s elapsed=724.5m eta=716m
+  step 11850/100000 loss=2.6499 alpha=0.23 rate=0.27/s elapsed=727.4m eta=713m
+  step 11900/100000 loss=2.6430 alpha=0.23 rate=0.27/s elapsed=730.4m eta=710m
+  step 11950/100000 loss=2.6549 alpha=0.23 rate=0.27/s elapsed=733.4m eta=707m
+  step 12000/100000 loss=2.6371 alpha=0.23 rate=0.27/s elapsed=736.4m eta=704m
+  [VAL] step 12000: val_loss=3.0323 val_bpb≈4.3747
+  step 12050/100000 loss=2.6405 alpha=0.23 rate=0.27/s elapsed=739.5m eta=701m
+  step 12100/100000 loss=2.6454 alpha=0.23 rate=0.27/s elapsed=742.4m eta=698m
+  step 12150/100000 loss=2.6193 alpha=0.23 rate=0.27/s elapsed=745.4m eta=695m
+  step 12200/100000 loss=2.6499 alpha=0.24 rate=0.27/s elapsed=748.4m eta=692m
+  step 12250/100000 loss=2.6468 alpha=0.24 rate=0.27/s elapsed=751.4m eta=689m
+  step 12300/100000 loss=2.6614 alpha=0.24 rate=0.27/s elapsed=754.4m eta=686m
+  step 12350/100000 loss=2.6806 alpha=0.24 rate=0.27/s elapsed=757.4m eta=683m
+  step 12400/100000 loss=2.6714 alpha=0.24 rate=0.27/s elapsed=760.4m eta=680m
+  step 12450/100000 loss=2.6597 alpha=0.24 rate=0.27/s elapsed=763.4m eta=677m
+  step 12500/100000 loss=2.6232 alpha=0.24 rate=0.27/s elapsed=766.4m eta=674m
+  [VAL] step 12500: val_loss=2.5344 val_bpb≈3.6563
+  step 12550/100000 loss=2.6150 alpha=0.24 rate=0.27/s elapsed=769.4m eta=671m
+  step 12600/100000 loss=2.6228 alpha=0.24 rate=0.27/s elapsed=772.4m eta=668m
+  step 12650/100000 loss=2.6433 alpha=0.24 rate=0.27/s elapsed=775.4m eta=665m
+  step 12700/100000 loss=2.6096 alpha=0.25 rate=0.27/s elapsed=778.3m eta=662m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_12735.pt
+  step 12750/100000 loss=2.5953 alpha=0.25 rate=0.27/s elapsed=781.3m eta=659m
+  step 12800/100000 loss=2.6136 alpha=0.25 rate=0.27/s elapsed=784.3m eta=656m
+  step 12850/100000 loss=2.6098 alpha=0.25 rate=0.27/s elapsed=787.3m eta=653m
+  step 12900/100000 loss=2.6374 alpha=0.25 rate=0.27/s elapsed=790.3m eta=650m
+  step 12950/100000 loss=2.6769 alpha=0.25 rate=0.27/s elapsed=793.3m eta=647m
+  step 13000/100000 loss=2.7045 alpha=0.25 rate=0.27/s elapsed=796.3m eta=644m
+  [VAL] step 13000: val_loss=2.5871 val_bpb≈3.7324
+  step 13050/100000 loss=2.6779 alpha=0.25 rate=0.27/s elapsed=799.3m eta=641m
+  step 13100/100000 loss=2.6743 alpha=0.25 rate=0.27/s elapsed=802.3m eta=638m
+  step 13150/100000 loss=2.6431 alpha=0.25 rate=0.27/s elapsed=805.3m eta=635m
+  step 13200/100000 loss=2.6682 alpha=0.26 rate=0.27/s elapsed=808.3m eta=632m
+  step 13250/100000 loss=2.6196 alpha=0.26 rate=0.27/s elapsed=811.3m eta=629m
+  step 13300/100000 loss=2.6235 alpha=0.26 rate=0.27/s elapsed=814.3m eta=626m
+  step 13350/100000 loss=2.6025 alpha=0.26 rate=0.27/s elapsed=817.3m eta=623m
+  step 13400/100000 loss=2.5868 alpha=0.26 rate=0.27/s elapsed=820.3m eta=620m
+  step 13450/100000 loss=2.5828 alpha=0.26 rate=0.27/s elapsed=823.3m eta=617m
+  step 13500/100000 loss=2.5747 alpha=0.26 rate=0.27/s elapsed=826.3m eta=614m
+  [VAL] step 13500: val_loss=2.6820 val_bpb≈3.8694
+  step 13550/100000 loss=2.6048 alpha=0.26 rate=0.27/s elapsed=829.3m eta=611m
+  step 13600/100000 loss=2.6183 alpha=0.26 rate=0.27/s elapsed=832.3m eta=608m
+  step 13650/100000 loss=2.6314 alpha=0.26 rate=0.27/s elapsed=835.3m eta=605m
+  step 13700/100000 loss=2.6607 alpha=0.27 rate=0.27/s elapsed=838.3m eta=602m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_13737.pt
+  step 13750/100000 loss=2.6253 alpha=0.27 rate=0.27/s elapsed=841.3m eta=599m
+  step 13800/100000 loss=2.6339 alpha=0.27 rate=0.27/s elapsed=844.2m eta=596m
+  step 13850/100000 loss=2.6501 alpha=0.27 rate=0.27/s elapsed=847.2m eta=593m
+  step 13900/100000 loss=2.6260 alpha=0.27 rate=0.27/s elapsed=850.2m eta=590m
+  step 13950/100000 loss=2.6333 alpha=0.27 rate=0.27/s elapsed=853.2m eta=587m
+  step 14000/100000 loss=2.6082 alpha=0.27 rate=0.27/s elapsed=856.2m eta=584m
+  [VAL] step 14000: val_loss=2.6767 val_bpb≈3.8617
+  step 14050/100000 loss=2.5780 alpha=0.27 rate=0.27/s elapsed=859.2m eta=581m
+  step 14100/100000 loss=2.5602 alpha=0.27 rate=0.27/s elapsed=862.2m eta=578m
+  step 14150/100000 loss=2.6142 alpha=0.27 rate=0.27/s elapsed=865.2m eta=575m
+  step 14200/100000 loss=2.5920 alpha=0.28 rate=0.27/s elapsed=868.2m eta=572m
+  step 14250/100000 loss=2.5891 alpha=0.28 rate=0.27/s elapsed=871.2m eta=569m
+  step 14300/100000 loss=2.5689 alpha=0.28 rate=0.27/s elapsed=874.2m eta=566m
+  step 14350/100000 loss=2.5641 alpha=0.28 rate=0.27/s elapsed=877.2m eta=563m
+  step 14400/100000 loss=2.5937 alpha=0.28 rate=0.27/s elapsed=880.2m eta=560m
+  step 14450/100000 loss=2.6055 alpha=0.28 rate=0.27/s elapsed=883.1m eta=557m
+  step 14500/100000 loss=2.6517 alpha=0.28 rate=0.27/s elapsed=886.1m eta=554m
+  [VAL] step 14500: val_loss=2.6235 val_bpb≈3.7849
+  step 14550/100000 loss=2.6207 alpha=0.28 rate=0.27/s elapsed=889.2m eta=551m
+  step 14600/100000 loss=2.6367 alpha=0.28 rate=0.27/s elapsed=892.2m eta=548m
+  step 14650/100000 loss=2.6176 alpha=0.28 rate=0.27/s elapsed=895.1m eta=545m
+  step 14700/100000 loss=2.6180 alpha=0.29 rate=0.27/s elapsed=898.1m eta=542m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_14740.pt
+  step 14750/100000 loss=2.6096 alpha=0.29 rate=0.27/s elapsed=901.1m eta=539m
+  step 14800/100000 loss=2.6088 alpha=0.29 rate=0.27/s elapsed=904.1m eta=536m
+  step 14850/100000 loss=2.5840 alpha=0.29 rate=0.27/s elapsed=907.1m eta=533m
+  step 14900/100000 loss=2.5863 alpha=0.29 rate=0.27/s elapsed=910.1m eta=530m
+  step 14950/100000 loss=2.5811 alpha=0.29 rate=0.27/s elapsed=913.0m eta=527m
+  step 15000/100000 loss=2.5702 alpha=0.29 rate=0.27/s elapsed=916.0m eta=524m
+  [VAL] step 15000: val_loss=2.6885 val_bpb≈3.8786
+  step 15050/100000 loss=2.5658 alpha=0.29 rate=0.27/s elapsed=919.0m eta=521m
+  step 15100/100000 loss=2.5784 alpha=0.29 rate=0.27/s elapsed=922.0m eta=518m
+  step 15150/100000 loss=2.5607 alpha=0.29 rate=0.27/s elapsed=924.9m eta=515m
+  step 15200/100000 loss=2.5932 alpha=0.30 rate=0.27/s elapsed=927.9m eta=512m
+  step 15250/100000 loss=2.6643 alpha=0.30 rate=0.27/s elapsed=930.9m eta=509m
+  step 15300/100000 loss=2.6331 alpha=0.30 rate=0.27/s elapsed=933.9m eta=506m
+  step 15350/100000 loss=2.6139 alpha=0.30 rate=0.27/s elapsed=936.8m eta=503m
+  step 15400/100000 loss=2.5939 alpha=0.30 rate=0.27/s elapsed=939.8m eta=500m
+  step 15450/100000 loss=2.6039 alpha=0.30 rate=0.27/s elapsed=942.8m eta=497m
+  step 15500/100000 loss=2.5904 alpha=0.30 rate=0.27/s elapsed=945.8m eta=494m
+  [VAL] step 15500: val_loss=2.5551 val_bpb≈3.6862
+  step 15550/100000 loss=2.5796 alpha=0.30 rate=0.27/s elapsed=948.9m eta=491m
+  step 15600/100000 loss=2.5986 alpha=0.30 rate=0.27/s elapsed=951.8m eta=488m
+  step 15650/100000 loss=2.5442 alpha=0.30 rate=0.27/s elapsed=954.8m eta=485m
+  step 15700/100000 loss=2.5521 alpha=0.31 rate=0.27/s elapsed=957.8m eta=482m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_15747.pt
+  step 15750/100000 loss=2.5522 alpha=0.31 rate=0.27/s elapsed=960.8m eta=479m
+  step 15800/100000 loss=2.5736 alpha=0.31 rate=0.27/s elapsed=963.7m eta=476m
+  step 15850/100000 loss=2.5488 alpha=0.31 rate=0.27/s elapsed=966.8m eta=473m
+  step 15900/100000 loss=2.5343 alpha=0.31 rate=0.27/s elapsed=969.7m eta=470m
+  step 15950/100000 loss=2.5390 alpha=0.31 rate=0.27/s elapsed=972.7m eta=467m
+  step 16000/100000 loss=2.5740 alpha=0.31 rate=0.27/s elapsed=975.7m eta=464m
+  [VAL] step 16000: val_loss=2.5955 val_bpb≈3.7445
+  step 16050/100000 loss=2.5852 alpha=0.31 rate=0.27/s elapsed=978.8m eta=461m
+  step 16100/100000 loss=2.5993 alpha=0.31 rate=0.27/s elapsed=981.8m eta=458m
+  step 16150/100000 loss=2.5853 alpha=0.31 rate=0.27/s elapsed=984.8m eta=455m
+  step 16200/100000 loss=2.5668 alpha=0.32 rate=0.27/s elapsed=987.8m eta=452m
+  step 16250/100000 loss=2.5911 alpha=0.32 rate=0.27/s elapsed=990.7m eta=449m
+  step 16300/100000 loss=2.5871 alpha=0.32 rate=0.27/s elapsed=993.7m eta=446m
+  step 16350/100000 loss=2.6163 alpha=0.32 rate=0.27/s elapsed=996.7m eta=443m
+  step 16400/100000 loss=2.6167 alpha=0.32 rate=0.27/s elapsed=999.7m eta=440m
+  step 16450/100000 loss=2.6063 alpha=0.32 rate=0.27/s elapsed=1002.7m eta=437m
+  step 16500/100000 loss=2.5863 alpha=0.32 rate=0.27/s elapsed=1005.7m eta=434m
+  [VAL] step 16500: val_loss=2.4642 val_bpb≈3.5551
+  step 16550/100000 loss=2.5649 alpha=0.32 rate=0.27/s elapsed=1008.7m eta=431m
+  step 16600/100000 loss=2.5559 alpha=0.32 rate=0.27/s elapsed=1011.7m eta=428m
+  step 16650/100000 loss=2.5294 alpha=0.32 rate=0.27/s elapsed=1014.7m eta=425m
+  step 16700/100000 loss=2.5237 alpha=0.33 rate=0.27/s elapsed=1017.7m eta=422m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_16748.pt
+  step 16750/100000 loss=2.5801 alpha=0.33 rate=0.27/s elapsed=1020.7m eta=419m
+  step 16800/100000 loss=2.5811 alpha=0.33 rate=0.27/s elapsed=1023.7m eta=416m
+  step 16850/100000 loss=2.5633 alpha=0.33 rate=0.27/s elapsed=1026.7m eta=413m
+  step 16900/100000 loss=2.5853 alpha=0.33 rate=0.27/s elapsed=1029.7m eta=410m
+  step 16950/100000 loss=2.5749 alpha=0.33 rate=0.27/s elapsed=1032.7m eta=407m
+  step 17000/100000 loss=2.5928 alpha=0.33 rate=0.27/s elapsed=1035.7m eta=404m
+  [VAL] step 17000: val_loss=2.5841 val_bpb≈3.7280
+  step 17050/100000 loss=2.5891 alpha=0.33 rate=0.27/s elapsed=1038.7m eta=401m
+  step 17100/100000 loss=2.5881 alpha=0.33 rate=0.27/s elapsed=1041.7m eta=398m
+  step 17150/100000 loss=2.5797 alpha=0.33 rate=0.27/s elapsed=1044.7m eta=395m
+  step 17200/100000 loss=2.5652 alpha=0.34 rate=0.27/s elapsed=1047.7m eta=392m
+  step 17250/100000 loss=2.5419 alpha=0.34 rate=0.27/s elapsed=1050.7m eta=389m
+  step 17300/100000 loss=2.5327 alpha=0.34 rate=0.27/s elapsed=1053.7m eta=386m
+  step 17350/100000 loss=2.5451 alpha=0.34 rate=0.27/s elapsed=1056.7m eta=383m
+  step 17400/100000 loss=2.5238 alpha=0.34 rate=0.27/s elapsed=1059.7m eta=380m
+  step 17450/100000 loss=2.5352 alpha=0.34 rate=0.27/s elapsed=1062.6m eta=377m
+  step 17500/100000 loss=2.5736 alpha=0.34 rate=0.27/s elapsed=1065.6m eta=374m
+  [VAL] step 17500: val_loss=2.6242 val_bpb≈3.7859
+  step 17550/100000 loss=2.6015 alpha=0.34 rate=0.27/s elapsed=1068.7m eta=371m
+  step 17600/100000 loss=2.5565 alpha=0.34 rate=0.27/s elapsed=1071.7m eta=368m
+  step 17650/100000 loss=2.5825 alpha=0.34 rate=0.27/s elapsed=1074.7m eta=365m
+  step 17700/100000 loss=2.6019 alpha=0.35 rate=0.27/s elapsed=1077.7m eta=362m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_17748.pt
+  step 17750/100000 loss=2.5731 alpha=0.35 rate=0.27/s elapsed=1080.7m eta=359m
+  step 17800/100000 loss=2.5524 alpha=0.35 rate=0.27/s elapsed=1083.7m eta=356m
+  step 17850/100000 loss=2.5254 alpha=0.35 rate=0.27/s elapsed=1086.7m eta=353m
+  step 17900/100000 loss=2.5376 alpha=0.35 rate=0.27/s elapsed=1089.7m eta=350m
+  step 17950/100000 loss=2.5518 alpha=0.35 rate=0.27/s elapsed=1092.7m eta=347m
+  step 18000/100000 loss=2.5563 alpha=0.35 rate=0.27/s elapsed=1095.7m eta=344m
+  [VAL] step 18000: val_loss=2.4406 val_bpb≈3.5210
+  step 18050/100000 loss=2.5598 alpha=0.35 rate=0.27/s elapsed=1098.7m eta=341m
+  step 18100/100000 loss=2.5454 alpha=0.35 rate=0.27/s elapsed=1101.7m eta=338m
+  step 18150/100000 loss=2.5512 alpha=0.35 rate=0.27/s elapsed=1104.7m eta=335m
+  step 18200/100000 loss=2.5540 alpha=0.36 rate=0.27/s elapsed=1107.7m eta=332m
+  step 18250/100000 loss=2.5269 alpha=0.36 rate=0.27/s elapsed=1110.7m eta=329m
+  step 18300/100000 loss=2.5618 alpha=0.36 rate=0.27/s elapsed=1113.7m eta=326m
+  step 18350/100000 loss=2.5661 alpha=0.36 rate=0.27/s elapsed=1116.7m eta=323m
+  step 18400/100000 loss=2.5750 alpha=0.36 rate=0.27/s elapsed=1119.7m eta=320m
+  step 18450/100000 loss=2.5964 alpha=0.36 rate=0.27/s elapsed=1122.7m eta=317m
+  step 18500/100000 loss=2.5861 alpha=0.36 rate=0.27/s elapsed=1126.0m eta=314m
+  [VAL] step 18500: val_loss=2.5345 val_bpb≈3.6565
+  step 18550/100000 loss=2.5785 alpha=0.36 rate=0.27/s elapsed=1129.2m eta=311m
+  step 18600/100000 loss=2.5457 alpha=0.36 rate=0.27/s elapsed=1132.4m eta=308m
+  step 18650/100000 loss=2.5276 alpha=0.36 rate=0.27/s elapsed=1135.7m eta=304m
+  step 18700/100000 loss=2.5373 alpha=0.37 rate=0.27/s elapsed=1138.7m eta=301m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_18732.pt
+  step 18750/100000 loss=2.5600 alpha=0.37 rate=0.27/s elapsed=1141.7m eta=298m
+  step 18800/100000 loss=2.5290 alpha=0.37 rate=0.27/s elapsed=1144.7m eta=295m
+  step 18850/100000 loss=2.5167 alpha=0.37 rate=0.27/s elapsed=1147.7m eta=292m
+  step 18900/100000 loss=2.5279 alpha=0.37 rate=0.27/s elapsed=1150.6m eta=289m
+  step 18950/100000 loss=2.5303 alpha=0.37 rate=0.27/s elapsed=1153.7m eta=286m
+  step 19000/100000 loss=2.5532 alpha=0.37 rate=0.27/s elapsed=1156.7m eta=283m
+  [VAL] step 19000: val_loss=2.6313 val_bpb≈3.7962
+  step 19050/100000 loss=2.5773 alpha=0.37 rate=0.27/s elapsed=1159.8m eta=280m
+  step 19100/100000 loss=2.6151 alpha=0.37 rate=0.27/s elapsed=1162.9m eta=277m
+  step 19150/100000 loss=2.6046 alpha=0.37 rate=0.27/s elapsed=1165.9m eta=274m
+  step 19200/100000 loss=2.5978 alpha=0.38 rate=0.27/s elapsed=1169.0m eta=271m
+  step 19250/100000 loss=2.5618 alpha=0.38 rate=0.27/s elapsed=1172.0m eta=268m
+  step 19300/100000 loss=2.5550 alpha=0.38 rate=0.27/s elapsed=1175.1m eta=265m
+  step 19350/100000 loss=2.5393 alpha=0.38 rate=0.27/s elapsed=1178.1m eta=262m
+  step 19400/100000 loss=2.5466 alpha=0.38 rate=0.27/s elapsed=1181.2m eta=259m
+  step 19450/100000 loss=2.5217 alpha=0.38 rate=0.27/s elapsed=1184.3m eta=256m
+  step 19500/100000 loss=2.5096 alpha=0.38 rate=0.27/s elapsed=1187.3m eta=253m
+  [VAL] step 19500: val_loss=2.5614 val_bpb≈3.6953
+  step 19550/100000 loss=2.5033 alpha=0.38 rate=0.27/s elapsed=1190.3m eta=250m
+  step 19600/100000 loss=2.5001 alpha=0.38 rate=0.27/s elapsed=1193.3m eta=247m
+  step 19650/100000 loss=2.5321 alpha=0.38 rate=0.27/s elapsed=1196.3m eta=244m
+  step 19700/100000 loss=2.5481 alpha=0.39 rate=0.27/s elapsed=1199.3m eta=241m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_19723.pt
+  step 19750/100000 loss=2.5606 alpha=0.39 rate=0.27/s elapsed=1202.3m eta=238m
+  step 19800/100000 loss=2.5984 alpha=0.39 rate=0.27/s elapsed=1205.3m eta=235m
+  step 19850/100000 loss=2.5507 alpha=0.39 rate=0.27/s elapsed=1208.4m eta=232m
+  step 19900/100000 loss=2.5631 alpha=0.39 rate=0.27/s elapsed=1211.4m eta=229m
+  step 19950/100000 loss=2.5733 alpha=0.39 rate=0.27/s elapsed=1214.5m eta=226m
+  step 20000/100000 loss=2.5511 alpha=0.39 rate=0.27/s elapsed=1217.5m eta=222m
+  [VAL] step 20000: val_loss=2.6637 val_bpb≈3.8429
+  step 20050/100000 loss=2.5615 alpha=0.39 rate=0.27/s elapsed=1220.6m eta=219m
+  step 20100/100000 loss=2.5345 alpha=0.39 rate=0.27/s elapsed=1223.7m eta=216m
+  step 20150/100000 loss=2.5072 alpha=0.39 rate=0.27/s elapsed=1226.7m eta=213m
+  step 20200/100000 loss=2.4897 alpha=0.40 rate=0.27/s elapsed=1229.8m eta=210m
+  step 20250/100000 loss=2.5464 alpha=0.40 rate=0.27/s elapsed=1232.8m eta=207m
+  step 20300/100000 loss=2.5188 alpha=0.40 rate=0.27/s elapsed=1235.9m eta=204m
+  step 20350/100000 loss=2.5220 alpha=0.40 rate=0.27/s elapsed=1239.0m eta=201m
+  step 20400/100000 loss=2.4999 alpha=0.40 rate=0.27/s elapsed=1242.0m eta=198m
+  step 20450/100000 loss=2.4952 alpha=0.40 rate=0.27/s elapsed=1245.1m eta=195m
+  step 20500/100000 loss=2.5189 alpha=0.40 rate=0.27/s elapsed=1248.1m eta=192m
+  [VAL] step 20500: val_loss=2.6022 val_bpb≈3.7542
+  step 20550/100000 loss=2.5428 alpha=0.40 rate=0.27/s elapsed=1251.2m eta=189m
+  step 20600/100000 loss=2.5833 alpha=0.40 rate=0.27/s elapsed=1254.3m eta=186m
+  step 20650/100000 loss=2.5501 alpha=0.41 rate=0.27/s elapsed=1257.3m eta=183m
+  step 20700/100000 loss=2.5630 alpha=0.41 rate=0.27/s elapsed=1260.4m eta=180m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_20706.pt
+  step 20750/100000 loss=2.5419 alpha=0.41 rate=0.27/s elapsed=1263.4m eta=177m
+  step 20800/100000 loss=2.5463 alpha=0.41 rate=0.27/s elapsed=1266.5m eta=174m
+  step 20850/100000 loss=2.5414 alpha=0.41 rate=0.27/s elapsed=1269.5m eta=170m
+  step 20900/100000 loss=2.5441 alpha=0.41 rate=0.27/s elapsed=1272.6m eta=167m
+  step 20950/100000 loss=2.5178 alpha=0.41 rate=0.27/s elapsed=1275.7m eta=164m
+  step 21000/100000 loss=2.5239 alpha=0.41 rate=0.27/s elapsed=1278.6m eta=161m
+  [VAL] step 21000: val_loss=2.4701 val_bpb≈3.5637
+  step 21050/100000 loss=2.5092 alpha=0.41 rate=0.27/s elapsed=1281.7m eta=158m
+  step 21100/100000 loss=2.5114 alpha=0.41 rate=0.27/s elapsed=1284.6m eta=155m
+  step 21150/100000 loss=2.5014 alpha=0.42 rate=0.27/s elapsed=1287.6m eta=152m
+  step 21200/100000 loss=2.5151 alpha=0.42 rate=0.27/s elapsed=1290.6m eta=149m
+  step 21250/100000 loss=2.4998 alpha=0.42 rate=0.27/s elapsed=1293.5m eta=146m
+  step 21300/100000 loss=2.5278 alpha=0.42 rate=0.27/s elapsed=1296.5m eta=143m
+  step 21350/100000 loss=2.5656 alpha=0.42 rate=0.27/s elapsed=1299.5m eta=140m
+  step 21400/100000 loss=2.5677 alpha=0.42 rate=0.27/s elapsed=1302.5m eta=138m
+  step 21450/100000 loss=2.5515 alpha=0.42 rate=0.27/s elapsed=1305.5m eta=135m
+  step 21500/100000 loss=2.5262 alpha=0.42 rate=0.27/s elapsed=1308.4m eta=132m
+  [VAL] step 21500: val_loss=2.6226 val_bpb≈3.7836
+  step 21550/100000 loss=2.5397 alpha=0.42 rate=0.27/s elapsed=1311.5m eta=129m
+  step 21600/100000 loss=2.5318 alpha=0.42 rate=0.27/s elapsed=1314.4m eta=126m
+  step 21650/100000 loss=2.5072 alpha=0.43 rate=0.27/s elapsed=1317.4m eta=123m
+  step 21700/100000 loss=2.5383 alpha=0.43 rate=0.27/s elapsed=1320.4m eta=120m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_21707.pt
+  step 21750/100000 loss=2.4794 alpha=0.43 rate=0.27/s elapsed=1323.4m eta=117m
+  step 21800/100000 loss=2.4820 alpha=0.43 rate=0.27/s elapsed=1326.3m eta=114m
+  step 21850/100000 loss=2.4885 alpha=0.43 rate=0.27/s elapsed=1329.3m eta=111m
+  step 21900/100000 loss=2.5193 alpha=0.43 rate=0.27/s elapsed=1332.3m eta=108m
+  step 21950/100000 loss=2.4974 alpha=0.43 rate=0.27/s elapsed=1335.3m eta=105m
+  step 22000/100000 loss=2.4790 alpha=0.43 rate=0.27/s elapsed=1338.3m eta=102m
+  [VAL] step 22000: val_loss=2.8966 val_bpb≈4.1788
+  step 22050/100000 loss=2.4794 alpha=0.43 rate=0.27/s elapsed=1341.3m eta=99m
+  step 22100/100000 loss=2.5125 alpha=0.43 rate=0.27/s elapsed=1344.3m eta=96m
+  step 22150/100000 loss=2.5240 alpha=0.44 rate=0.27/s elapsed=1347.2m eta=93m
+  step 22200/100000 loss=2.5405 alpha=0.44 rate=0.27/s elapsed=1350.2m eta=90m
+  step 22250/100000 loss=2.5256 alpha=0.44 rate=0.27/s elapsed=1353.2m eta=87m
+  step 22300/100000 loss=2.5117 alpha=0.44 rate=0.27/s elapsed=1356.1m eta=84m
+  step 22350/100000 loss=2.5383 alpha=0.44 rate=0.27/s elapsed=1359.1m eta=81m
+  step 22400/100000 loss=2.5216 alpha=0.44 rate=0.27/s elapsed=1362.1m eta=78m
+  step 22450/100000 loss=2.5647 alpha=0.44 rate=0.27/s elapsed=1365.1m eta=75m
+  step 22500/100000 loss=2.5638 alpha=0.44 rate=0.27/s elapsed=1368.0m eta=72m
+  [VAL] step 22500: val_loss=2.5588 val_bpb≈3.6916
+  step 22550/100000 loss=2.5509 alpha=0.44 rate=0.27/s elapsed=1371.0m eta=69m
+  step 22600/100000 loss=2.5373 alpha=0.44 rate=0.27/s elapsed=1373.9m eta=66m
+  step 22650/100000 loss=2.5115 alpha=0.45 rate=0.27/s elapsed=1376.8m eta=63m
+  step 22700/100000 loss=2.4928 alpha=0.45 rate=0.27/s elapsed=1379.7m eta=60m
+  [CKPT] saved /tmp/trinity_ternary_ckpt_22720.pt
+  step 22750/100000 loss=2.4768 alpha=0.45 rate=0.27/s elapsed=1382.6m eta=57m
+  step 22800/100000 loss=2.4695 alpha=0.45 rate=0.27/s elapsed=1385.5m eta=55m
+  step 22850/100000 loss=2.5212 alpha=0.45 rate=0.27/s elapsed=1388.4m eta=52m
+  step 22900/100000 loss=2.5366 alpha=0.45 rate=0.27/s elapsed=1391.3m eta=49m
+  step 22950/100000 loss=2.4904 alpha=0.45 rate=0.27/s elapsed=1394.2m eta=46m
+  step 23000/100000 loss=2.5248 alpha=0.45 rate=0.27/s elapsed=1397.0m eta=43m
+  [VAL] step 23000: val_loss=2.5943 val_bpb≈3.7427
+  step 23050/100000 loss=2.5146 alpha=0.45 rate=0.27/s elapsed=1399.9m eta=40m
+  step 23100/100000 loss=2.5395 alpha=0.45 rate=0.27/s elapsed=1402.7m eta=37m
+  step 23150/100000 loss=2.5380 alpha=0.46 rate=0.27/s elapsed=1405.5m eta=34m
+  step 23200/100000 loss=2.5370 alpha=0.46 rate=0.27/s elapsed=1408.4m eta=32m
+  step 23250/100000 loss=2.5245 alpha=0.46 rate=0.27/s elapsed=1411.2m eta=29m
+  step 23300/100000 loss=2.5172 alpha=0.46 rate=0.27/s elapsed=1414.0m eta=26m
+  step 23350/100000 loss=2.4932 alpha=0.46 rate=0.27/s elapsed=1416.8m eta=23m
+  step 23400/100000 loss=2.4749 alpha=0.46 rate=0.27/s elapsed=1419.6m eta=20m
+  step 23450/100000 loss=2.4845 alpha=0.46 rate=0.27/s elapsed=1422.5m eta=18m
+  step 23500/100000 loss=2.4765 alpha=0.46 rate=0.27/s elapsed=1425.3m eta=15m
+  [VAL] step 23500: val_loss=2.4463 val_bpb≈3.5293
+  step 23550/100000 loss=2.4793 alpha=0.46 rate=0.27/s elapsed=1428.2m eta=12m
+  step 23600/100000 loss=2.5245 alpha=0.46 rate=0.27/s elapsed=1431.0m eta=9m
+  step 23650/100000 loss=2.5547 alpha=0.47 rate=0.27/s elapsed=1433.8m eta=6m
+  step 23700/100000 loss=2.5026 alpha=0.47 rate=0.27/s elapsed=1436.6m eta=3m
+  step 23750/100000 loss=2.5308 alpha=0.47 rate=0.27/s elapsed=1439.5m eta=1m
+
+⏱ Wallclock limit 24.0h reached
+
+=== Training done. Final model saved to final_model.pt ===
+Total time: 24.00h, final loss: 2.5258
