@@ -27,7 +27,14 @@ from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 class Hyperparameters():
     # Experiment settings
-    data_dir = os.environ.get('DATA_DIR', './data/')
+    datasets_dir = os.environ.get(
+        'DATA_PATH',
+        './datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved',
+    )
+    tokenizer_path = os.environ.get(
+        'TOKENIZER_PATH',
+        './datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model',
+    )
     seed = int(os.environ.get('SEED', 1337))
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
 
@@ -105,10 +112,8 @@ class Hyperparameters():
     grad_accum_steps = 8 // world_size
 
     # Data paths
-    datasets_dir = os.path.join(data_dir, 'datasets', f'fineweb10B_sp{vocab_size}')
     train_files = os.path.join(datasets_dir, 'fineweb_train_*.bin')
     val_files = os.path.join(datasets_dir, 'fineweb_val_*.bin')
-    tokenizer_path = os.path.join(data_dir, 'tokenizers', f'fineweb_{vocab_size}_bpe.model')
 
     # Experiment files
     logfile = f"logs/{run_id}.txt"

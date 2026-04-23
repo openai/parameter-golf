@@ -4,7 +4,6 @@ RUN_ID=SEED_42 \
 SEED=42 \
 VOCAB_SIZE=8192 \
 CASEOPS_ENABLED=1 \
-DATA_DIR=./datasets \
 PPM_MIX_ENABLED=1 \
 TOKENIZER_PATH=${TOKENIZER_PATH:-./datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model} \
 DATA_PATH=${DATA_PATH:-./datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved} \
