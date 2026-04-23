@@ -2,9 +2,9 @@
 
 **Slug:** `direct-carry-freefloat-neutral`
 **Created:** 2026-04-23
-**Status:** DRAFT — commands pinned, awaiting code commit pin
+**Status:** READY
 **Branch:** `exp/031-direct-carry-freefloat`
-**Commit:** `TBD`
+**Commit:** `1cac69b`
 **Links to:** `research/ideas/direct-carry-freefloat-num-loops-3.md`, `research/specs/025b-cross-layer-carry-frozen.md`, `research/specs/025c-cross-layer-carry-frozen-per-pass.md`, `research/specs/030-025b-seed314-new-ttt.md`
 
 ## Hypothesis
@@ -259,7 +259,7 @@ Planned implementation shape:
   - one carry-gate row per later pass
 - initialize edges to zero and self / carry gates to one
 
-Exact commit hash to be filled after implementation.
+Pinned implementation commit: `1cac69b`
 
 ## Run protocol
 
@@ -281,20 +281,20 @@ This value is intentional. It is the corrected loop-start ratio to keep loop act
 ```bash
 python -c "import brotli"
 
-cd /runpod/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git fetch fork
-git checkout <PINNED_COMMIT>
+git checkout 1cac69b
 
-mkdir -p /runpod/runs/031-direct-carry-freefloat-neutral/031A
+mkdir -p /workspace/runs/031-direct-carry-freefloat-neutral/031A
 mkdir -p /tmp/torch_inductor_cache_031A
 
 nvidia-smi --query-gpu=timestamp,index,temperature.gpu,clocks.current.sm,power.draw,utilization.gpu,memory.used \
   --format=csv -l 1 \
-  > /runpod/runs/031-direct-carry-freefloat-neutral/031A/diag_nvsmi.csv &
+  > /workspace/runs/031-direct-carry-freefloat-neutral/031A/diag_nvsmi.csv &
 NVSMI_PID=$!
 
-NCCL_NET=Socket DATA_DIR=/runpod/data \
-ARTIFACT_DIR=/runpod/runs/031-direct-carry-freefloat-neutral/031A \
+NCCL_NET=Socket DATA_DIR=/workspace/data \
+ARTIFACT_DIR=/workspace/runs/031-direct-carry-freefloat-neutral/031A \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_031A \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=0 \
@@ -311,7 +311,7 @@ TRAIN_LOG_EVERY=100 \
 SEED=314 \
 TORCH_LOGS=recompiles \
 torchrun --standalone --nproc_per_node=4 train_gpt.py \
-  > /runpod/runs/031-direct-carry-freefloat-neutral/031A/train.log 2>&1
+  > /workspace/runs/031-direct-carry-freefloat-neutral/031A/train.log 2>&1
 
 kill $NVSMI_PID
 ```
@@ -323,20 +323,20 @@ Run only if 031A is healthy.
 ```bash
 python -c "import brotli"
 
-cd /runpod/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
+cd /workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT
 git fetch fork
-git checkout <PINNED_COMMIT>
+git checkout 1cac69b
 
-mkdir -p /runpod/runs/031-direct-carry-freefloat-neutral/031B
+mkdir -p /workspace/runs/031-direct-carry-freefloat-neutral/031B
 mkdir -p /tmp/torch_inductor_cache_031B
 
 nvidia-smi --query-gpu=timestamp,index,temperature.gpu,clocks.current.sm,power.draw,utilization.gpu,memory.used \
   --format=csv -l 1 \
-  > /runpod/runs/031-direct-carry-freefloat-neutral/031B/diag_nvsmi.csv &
+  > /workspace/runs/031-direct-carry-freefloat-neutral/031B/diag_nvsmi.csv &
 NVSMI_PID=$!
 
-NCCL_NET=Socket DATA_DIR=/runpod/data \
-ARTIFACT_DIR=/runpod/runs/031-direct-carry-freefloat-neutral/031B \
+NCCL_NET=Socket DATA_DIR=/workspace/data \
+ARTIFACT_DIR=/workspace/runs/031-direct-carry-freefloat-neutral/031B \
 TORCHINDUCTOR_CACHE_DIR=/tmp/torch_inductor_cache_031B \
 CASEOPS_ENABLED=1 \
 PHASED_TTT_ENABLED=0 \
@@ -353,7 +353,7 @@ TRAIN_LOG_EVERY=100 \
 SEED=314 \
 TORCH_LOGS=recompiles \
 torchrun --standalone --nproc_per_node=4 train_gpt.py \
-  > /runpod/runs/031-direct-carry-freefloat-neutral/031B/train.log 2>&1
+  > /workspace/runs/031-direct-carry-freefloat-neutral/031B/train.log 2>&1
 
 kill $NVSMI_PID
 ```

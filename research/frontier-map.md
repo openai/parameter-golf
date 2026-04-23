@@ -1,4 +1,4 @@
-# Frontier dependency map — snapshot 2026-04-22
+# Frontier dependency map — snapshot 2026-04-23
 
 Record-track PRs on `openai/parameter-golf`, clustered by code lineage (not by
 date). Built from PR bodies' explicit "builds on" / "starts from" references.
@@ -9,8 +9,9 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
 - **Only #1493 is merged.** It defines official SOTA = 1.0810.
 - Unmerged submissions have pushed to **1.0284** publicly (PR #1758, but prequant-TTT-disputed/likely-illegal).
 - Best **clean** submission: **#1756** (romeerp) @ **1.06505** — below our baseline.
-- Best **tokenizer-disputed/likely-legal**: **#1769** (dexhunter) @ **1.06453** — now below our baseline 1.06549. Lever: single env-var GPTQ σ-clip retune.
+- Best **tokenizer-disputed/likely-legal**: **#1779** (leon2k2k2k) @ **1.06421** — now the public leader below our baseline 1.06549. Lever: frozen recurrent alpha/beta carry blend + warm-start-A LoRA-TTT.
 - **#1771** (bigbag) @ **1.06513** also below baseline via depth curriculum + LoRA-TTT warm-start-A synthesis.
+- **#1779** (leon2k2k2k) @ **1.06421** is the first public below-baseline carry-blend result on top of the #1736 CaseOps stack.
 - Several sub-1.02 GatedDeltaNet PRs exist but are either closed or disputed on
   legality / artifact size. Treat those as "contested frontier," not baseline.
 - The community has split into **at least four code trunks**, each with its own
@@ -26,7 +27,10 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
  │
  ├─ #1552  open        Tanush1912    RecurLoRA v2 — off #1493 directly
  │                                   ↳ borrowed by #1530
+ ├─ #1774  open 1.0981  aruniyer  Shared-specific attention + 12L + MLP 4.5x
  ├─ #1770  open 1.0796  liujshi   +V-Gate (per-head gates V-proj input + head output scale)
+ ├─ #1776  open 1.08083  anmarhindi  pre-#1493 SP8192/QK5.25/LegalTTT re-port (lineage via #1394/#1413)
+ ├─ #1780  open 1.08061  wisebreadloaf  progressive recurrence schedule (lineage unclear)
  │
  └─ #1523  CLOSED 1.0778  EthanYangTW [superseded trunk — code survives]
      │    param banking, fused MLP, Muon 0.97, triple recurrence, bigram hash
@@ -47,9 +51,11 @@ Numbers are 3-seed mean `val_bpb` as claimed in each PR.
      │         ├─ #1756  open 1.06505  romeerp  Recurrence depth curriculum [1→3→4], eval depth=4 ← BELOW BASELINE
      │         ├─ #1766  open pending  tashapais  +Recur-Alpha (learned carry scalar per looped block)  [DISPUTED: tokenizer]
      │         ├─ #1769  open 1.06453  dexhunter  +MLPClip12 (GPTQ MLP σ-clip 10→12) ← BELOW BASELINE  [DISPUTED: tokenizer]
-     │         └─ #1771  open 1.06513  bigbag   +RecurDepthCurr + LoRA-TTT warm-start-A (synth #1756+#1767) ← BELOW BASELINE  [DISPUTED: tokenizer]
+     │         ├─ #1771  open 1.06513  bigbag   +RecurDepthCurr + LoRA-TTT warm-start-A (synth #1756+#1767) ← BELOW BASELINE  [DISPUTED: tokenizer]
+     │         └─ #1779  open 1.06421  leon2k2k2k  +Frozen recurrent alpha/beta + #1767 warm-start-A ← BELOW BASELINE  [DISPUTED: tokenizer]
      │
      └─ #1667  open 1.0714  MarioPaerle  SmearGate + attn output gate
+          └─ #1775  open 1.07285  dentity007  #1667 with both gates disabled + #1626 MP-SGD TTT
                                          (refs #1493, #1586; base unclear)
 ```
 
@@ -103,6 +109,7 @@ These are roughly additive across trunks:
 | TTT — phased global SGD | #1610, #1626, #1700, #1727 | ~–0.001 to –0.005 |
 | TTT — parallel pre-quant AdamW | #1735 | ~–0.02 (new paradigm) |
 | Quant — per-layer GPTQ clip + int7 emb | #1586 | ~–0.006 |
+| Recurrence carry — frozen alpha/beta blend | #1766, #1779 | ~–0.001-ish on strong CaseOps stack (still disputed) |
 | Gates — SmearGate / attn out-gate | #1667, #1736 | ~–0.002 |
 | Arch — richer parallel residuals | #1529 | ~–0.002 |
 | Arch — GatedDeltaNet | #1698 trunk | large but contested |

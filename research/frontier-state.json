@@ -1,5 +1,5 @@
 {
-  "last_scan_utc": "2026-04-22T12:00:00Z",
+  "last_scan_utc": "2026-04-23T03:30:00Z",
   "note": "Seeded from pt4 scan + 2026-04-20 incremental scan + 2026-04-21 incremental scans 2 and 3 + 2026-04-22 incremental scans 1 and 2. PRs below reflect verdicts established in those sessions.",
   "prs": {
     "1493": {"verdict": "clean", "claimed_bpb": 1.0810, "sha": null, "note": "MERGED — official SOTA"},
@@ -34,7 +34,7 @@
     "1733": {"verdict": "other", "claimed_bpb": 1.3262, "sha": null, "note": "non-record ternary quant"},
     "1734": {"verdict": "byte-bug-suspect", "claimed_bpb": null, "sha": null, "note": "GatedDeltaNet, byte-bug"},
     "1735": {"verdict": "prequant-ttt-disputed", "claimed_bpb": 1.0429, "sha": null, "legitimacy": "likely-illegal", "note": "pre-quant TTT, 100x over physics ceiling"},
-    "1736": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06549, "sha": "e100586d60b2a228c66f0e04b35654160b657c21", "legitimacy": "likely-legal", "builds_on": "1626, 1729", "trunk": "A", "note": "OUR BASELINE — CaseOps + gates + Loop45 + PhasedTTT"},
+    "1736": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06549, "sha": "8e67c8d7ca0aabb776ec9f5857676e288b0f1390", "legitimacy": "likely-legal", "builds_on": "1626, 1729", "trunk": "A", "note": "OUR BASELINE — CaseOps + gates + Loop45 + PhasedTTT"},
     "1737": {"verdict": "other", "claimed_bpb": null, "sha": null},
     "1738": {"verdict": "prequant-ttt-disputed", "claimed_bpb": 1.0354, "sha": null, "legitimacy": "likely-illegal", "note": "#1735 + CaseOps, double-disputed"},
     "1739": {"verdict": "other", "claimed_bpb": 1.1497, "sha": null},
@@ -44,7 +44,7 @@
     "1745": {"verdict": "other", "claimed_bpb": null, "sha": null, "note": "online data scheduler, invasive, no 8xH100 numbers"},
     "1746": {"verdict": "other", "claimed_bpb": null, "sha": null},
     "1747": {"verdict": "clean", "claimed_bpb": 1.0820, "sha": null, "note": "partial RoPE, not isolated"},
-    "1748": {"verdict": "other", "claimed_bpb": null, "sha": null, "note": "non-record, empty body"},
+    "1748": {"verdict": "other", "claimed_bpb": null, "sha": "f3553ad1adf203e4a2f71417f1ca0889b29c28b2", "note": "non-record, empty body"},
     "1749": {"verdict": "other", "claimed_bpb": 1.0996, "sha": null, "note": "non-record GDN, worse than baseline; per-tensor GPTQ clip sweep noted"},
     "1750": {"verdict": "clean", "claimed_bpb": 1.08090, "sha": "8fed8c91f7386d77f7bd0778832bbb1747cc14f7", "builds_on": "unknown", "trunk": "A", "legitimacy": "likely-legal", "note": "teslaeco SP8192 + QK5.25 + score-first TTT, above baseline"},
     "1751": {"verdict": "other", "claimed_bpb": 1.3565, "sha": "19a4ab30e6445b114d96339e50fb6b6d24318e45", "builds_on": "unknown", "trunk": "unknown", "note": "non-record SwiGLU+parallel-residual 11L, far above baseline"},
@@ -61,12 +61,19 @@
     "1763": {"verdict": "other", "claimed_bpb": null, "sha": "8f3d233c42768eb73f8d9fadde31aada41012c72", "builds_on": "unknown", "trunk": "unknown", "note": "non-record SP8192 proxy-stack 3-seed reproduction"},
     "1764": {"verdict": "other", "claimed_bpb": null, "sha": "023557c5e36004873d9a4a8ebb1b5643d80922cf", "builds_on": "unknown", "trunk": "unknown", "note": "non-record no-looping SOTA scaffold"},
     "1765": {"verdict": "clean", "claimed_bpb": 1.07266, "sha": "19af6db8b435f979aeeab5e4d2d66470f351bf0c", "builds_on": "1530, 1610, 1493, 1523", "trunk": "A", "legitimacy": "legal", "note": "intermediate ablation step (warm+WD=1.0, alpha=96); superseded by #1767; LoRA warm-start A lever flagged as novel idea"},
-    "1766": {"verdict": "tokenizer-disputed", "claimed_bpb": null, "sha": "5f6b93ae6e9b98a61b1a8f998df2c1875e803bb2", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "Recur-Alpha (carry scalar, init=0) on #1736 stack; results pending 8xH100; mechanism = spec 021 recur-alpha-buffer already specced"},
+    "1766": {"verdict": "tokenizer-disputed", "claimed_bpb": null, "sha": "6e19eeb3b3b55d999867932dc7186b693f4c7e12", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "Recur-Alpha (carry scalar, init=0) on #1736 stack; results pending 8xH100; mechanism = spec 021 recur-alpha-buffer already specced"},
     "1767": {"verdict": "clean", "claimed_bpb": 1.07209, "sha": "30d01826a1280c7f4c68a0620f82d2a378cc7f61", "builds_on": "1530, 1610, 1493, 1523", "trunk": "A", "legitimacy": "legal", "note": "LoRA warm-start A + alpha/rank scaling + WD=1.0 on non-CaseOps stack; watch-level; novel TTT lever written to ideas/ttt-lora-warmstart-a.md"},
     "1768": {"verdict": "other", "claimed_bpb": 1.27916, "sha": "ba9b91daecf72a26b89c06c3c4263f3352846b21", "builds_on": "unknown", "trunk": "unknown", "legitimacy": "legal", "note": "non-record SP1024 ShareVLast3 3-seed submission; no extractable lever"},
-    "1769": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06453, "sha": "b4b6ddf9812c39c927460554d72b5b60c4f27ad3", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — MLPClip12 (GPTQ MLP σ-clip 10→12), single env-var; 7-seed mean 1.06477; idea file written to ideas/mlp-clip-sigmas-12.md"},
+    "1769": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06453, "sha": "2929fb4958e122940591614aa7304296afac4c4a", "builds_on": "1736", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — MLPClip12 (GPTQ MLP σ-clip 10→12), single env-var; 7-seed mean 1.06477; idea file written to ideas/mlp-clip-sigmas-12.md"},
     "1770": {"verdict": "clean", "claimed_bpb": 1.07960, "sha": "705f7798da8ba75fbcc221cf8b3d44e70a19ccbf", "builds_on": "1493", "trunk": "A", "legitimacy": "legal", "note": "watch — per-head V-Gate (gates V-proj input + head output scale); novel architecture lever; idea file written to ideas/v-gate.md"},
     "1771": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06513, "sha": "0fc6ebb6586c8042c9f342eb8bb9bb45594e83aa", "builds_on": "1736, 1756, 1767, 1667", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — RecurDepthCurriculum + LoRA-TTT warm-start-A synthesis; std=0.00055 elevated; idea files already exist"},
-    "1773": {"verdict": "other", "claimed_bpb": null, "sha": "0197e28d560a46dcdcdbc33bfa0b14e22327fc8e", "builds_on": "1394, 1412, 1493", "trunk": "unknown", "legitimacy": "legal", "note": "non-record SDClip-matched FakeQuantize; 1xH100 Kaggle run; quant-absorbed in our context"}
+    "1773": {"verdict": "other", "claimed_bpb": null, "sha": "0197e28d560a46dcdcdbc33bfa0b14e22327fc8e", "builds_on": "1394, 1412, 1493", "trunk": "unknown", "legitimacy": "legal", "note": "non-record SDClip-matched FakeQuantize; 1xH100 Kaggle run; quant-absorbed in our context"},
+    "1774": {"verdict": "clean", "claimed_bpb": 1.0981, "sha": "e9960fcada8801503c40d5dbe2491f63fdb4db62", "builds_on": "1493", "trunk": "A", "legitimacy": "legal", "note": "Shared-specific attention to compress Q/K and buy room for 12L + MLP 4.5x; novel but far above frontier"},
+    "1775": {"verdict": "clean", "claimed_bpb": 1.07285, "sha": "882df25f6e4a3b3e955fb27716d1eaf014f16e96", "builds_on": "1667, 1626", "trunk": "A", "legitimacy": "legal", "note": "No-gates ablation of #1667 base plus #1626 multi-phase global-SGD TTT; combinatorial, above baseline"},
+    "1776": {"verdict": "clean", "claimed_bpb": 1.08083, "sha": "8fe421d01e2eb79c13747cd099f3a340c98d21eb", "builds_on": "1394, 1413", "trunk": "A", "legitimacy": "legal", "note": "Independent re-port of older SP8192/QK5.25/LegalTTT stack with FA3/SDPA portability shim; no new frontier lever"},
+    "1778": {"verdict": "other", "claimed_bpb": null, "sha": "ad200c220c2c2e33b1044e9132280cbf0bfa401f", "builds_on": "unknown", "trunk": "unknown", "legitimacy": "legal", "note": "Non-record text diffusion writeup; educational but not a record-track lever"},
+    "1779": {"verdict": "tokenizer-disputed", "claimed_bpb": 1.06421, "sha": "3d2e9f6c81f2e3326d701a9176d3d72f0ea22c7e", "builds_on": "1736, 1767", "trunk": "A", "legitimacy": "likely-legal", "note": "BELOW BASELINE — frozen recurrent alpha/beta carry blend on #1736 stack plus #1767 warm-start-A; public corroboration of our carry-blend line"},
+    "1780": {"verdict": "clean", "claimed_bpb": 1.08061140, "sha": "6116f0645546cbbf68e95944abce14d6c16ceda4", "builds_on": "unknown", "trunk": "A", "legitimacy": "legal", "note": "Progressive recurrence schedule (1 pass at frac 0.35, full recurrence at 0.55); already covered by our progressive-recurrence idea"},
+    "1781": {"verdict": "other", "claimed_bpb": null, "sha": "1d089927381702c102c9e2e3125b1af1f0c076e5", "builds_on": "unknown", "trunk": "unknown", "legitimacy": "legal", "note": "Non-record random subspace optimization; negative result only"}
   }
 }

@@ -70,8 +70,66 @@ The purpose of the extension is to create more **post-onset learning time** for 
 - whether the late-stage drift is low enough to justify freezing
 - whether the depth-upgraded portion of training changes the learned pattern materially
 
+## Observed difficulty
+
+This line turned out to be harder than `031` for a structural reason, not just an
+optimization reason.
+
+`032` is fitting `alpha/beta` across a regime change:
+
+- looping turns on
+- later the recurrence depth upgrades again
+
+So even if the run settles late, the learned tensor is being asked to span two
+different phases. That makes transfer awkward:
+
+- the late stable values may be good for the final regime
+- but one frozen tensor may still be mismatched to the earlier phase
+
+This makes `032` useful as a **measurement** run, but less clean as a
+straightforward “freeze one tensor and use it everywhere” line.
+
+The stable late snapshot does look real:
+
+- `beta`:
+
+```text
+[[1.0, 1.2109375, 1.265625],
+ [1.796875, 2.0, 1.5703125],
+ [2.0, 1.96875, 1.296875]]
+```
+
+- `alpha`:
+
+```text
+[[[0.220703125, -0.011962890625, 0.1357421875],
+  [0.09814453125, -0.216796875, -0.06396484375],
+  [0.091796875, 0.1875, -0.28515625]],
+
+ [[-0.11962890625, -0.04345703125, 0.1748046875],
+  [0.251953125, -0.65625, -0.1484375],
+  [0.05712890625, 0.20703125, -0.150390625]],
+
+ [[-0.0517578125, -0.05859375, 0.328125],
+  [0.1513671875, -0.189453125, -0.10595703125],
+  [0.041748046875, 0.11865234375, -0.01287841796875]]]
+```
+
+Late drift was low enough to call it settled:
+
+- `alpha_max_drift = 0.001220703125`
+- `beta_max_drift = 0.0`
+
+So the difficulty is not “did it converge?”
+
+The difficulty is:
+
+- how to transfer/freeze those values across the curriculum phase boundary
+
 ## Decision rule after calibration
 
 - if pass-specific rows/matrices are clearly different: freeze a per-pass version
 - if they are near-identical: freeze a shared version
 - if parameters are still drifting hard at the end: rerun longer before freezing
+- if curriculum transfer remains the main concern: prefer treating `032` as a
+  final-regime calibration artifact rather than a universal across-phase answer
