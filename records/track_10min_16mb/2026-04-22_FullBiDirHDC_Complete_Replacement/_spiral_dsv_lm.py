@@ -37,6 +37,14 @@ except ImportError:
     EigenSpiralBuilder = None   # type: ignore[assignment,misc]
     _EIGEN_SPIRAL_AVAILABLE = False
 
+# ── GPU acceleration (optional, graceful fallback to CPU) ─────────────────────
+try:
+    from _gpu import gpu_available, gpu_bilateral_confidence
+    _GPU_AVAILABLE = gpu_available()
+except ImportError:
+    _GPU_AVAILABLE = False
+    gpu_bilateral_confidence = None  # type: ignore[assignment]
+
 # ============================================================================
 # Module-level popcount lookup table
 # ============================================================================
@@ -472,19 +480,19 @@ class SpiralDSVLanguageModel:
     ) -> np.ndarray:
         """Bilateral confidence scores for all vocab tokens.
 
-        FIX #5: Replaces (batch, vocab, n_words) XOR + unpackbits with a
-        single BLAS matmul in pm1 space.
+        FIX #5 + GPU: Replaces (batch, vocab, n_words) XOR + unpackbits with a
+        single cuBLAS HGEMM in pm1 space (float16 tensor cores on H100).
 
         In pm1 space, cosine(a, b) = (a · b) / n_bits.
         The XOR-based confidence |cosine| = |hamming_distance - 0.5| × 2
         is equivalent to |dot(a_pm1, b_pm1)| / n_bits.
 
-        So:
+        GPU path (when CUDA available):
             conf_fwd[b, v] = |sem_fwd_pm1[prev_t[b]] · codebook_pm1[v]| / n_bits
-                           = |matmul(sem_fwd_pm1[prev_tokens], codebook_pm1.T)| / n_bits
+            Uses float16 tensor cores: ~300 TFLOPS on H100 vs ~2 TFLOPS CPU BLAS.
 
-        This is a single (batch, n_bits) × (n_bits, vocab) BLAS SGEMM,
-        replacing the (batch, vocab, n_words) XOR + unpackbits.
+        CPU fallback:
+            Same BLAS SGEMM as before (Fix #5).
 
         Args:
             prev_tokens : (batch,) int32 — previous token IDs
@@ -495,6 +503,16 @@ class SpiralDSVLanguageModel:
         # Ensure pm1 cache is built (lazy, one-time cost)
         self._ensure_pm1_cache()
 
+        # GPU fast path: dispatches both matmuls to cuBLAS HGEMM
+        if _GPU_AVAILABLE and gpu_bilateral_confidence is not None:
+            return gpu_bilateral_confidence(
+                sem_fwd_pm1  = self._sem_fwd_pm1,
+                sem_bwd_pm1  = self._sem_bwd_pm1,
+                codebook_pm1 = self._codebook_pm1,
+                prev_tokens  = prev_tokens,
+            )
+
+        # CPU fallback: BLAS SGEMM (Fix #5)
         # Forward: |sem_fwd_pm1[prev_tokens] @ codebook_pm1.T| / n_bits
         # (batch, n_bits) @ (n_bits, vocab) → (batch, vocab)
         sf_pm1 = self._sem_fwd_pm1[prev_tokens]          # (batch, n_bits)

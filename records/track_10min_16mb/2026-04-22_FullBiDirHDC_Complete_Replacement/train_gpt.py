@@ -182,8 +182,17 @@ def _run_bidi_hdc(args):
     tok_path   = os.environ.get("TOKENIZER_PATH", args.tokenizer_path)
 
     if _dist_is_main():
+        # ── GPU status report ─────────────────────────────────────────────
+        try:
+            from _gpu import gpu_available, _get_device
+            _gpu_on = gpu_available()
+            _dev    = _get_device() if _gpu_on else "cpu"
+        except Exception:
+            _gpu_on = False
+            _dev    = "cpu"
         print(f"\n{'='*60}")
         print(f"[BiDirHDC] FullBiDirHDC Parameter Golf Submission")
+        print(f"[BiDirHDC] GPU acceleration: {'ENABLED (' + str(_dev) + ')' if _gpu_on else 'DISABLED (CPU fallback)'}")
         print(f"[BiDirHDC] n_words={n_words} ({n_words*64:,} bits per HV)")
         print(f"[BiDirHDC] seed={seed}  (single seed — use different seeds for 3 independent runs)")
         print(f"[BiDirHDC] vocab_size={vocab_size}")
@@ -268,8 +277,8 @@ def _run_bidi_hdc(args):
 
     # ── Artifact size check ───────────────────────────────────────────────────
     code_bytes = os.path.getsize(os.path.abspath(__file__))
-    # Also count helper module sizes
-    for helper in ["_bidi_hdc_engine.py", "_bidi_train.py", "_spiral_dsv_lm.py"]:
+    # Also count helper module sizes (include _gpu.py)
+    for helper in ["_bidi_hdc_engine.py", "_bidi_train.py", "_spiral_dsv_lm.py", "_gpu.py"]:
         helper_path = os.path.join(_THIS_DIR, helper)
         if os.path.exists(helper_path):
             code_bytes += os.path.getsize(helper_path)

@@ -40,6 +40,20 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+# ── GPU acceleration (optional, graceful fallback to CPU) ─────────────────────
+try:
+    from _gpu import gpu_available, gpu_bincount_weighted, gpu_log_softmax_scores
+    _GPU_AVAILABLE = gpu_available()
+except ImportError:
+    _GPU_AVAILABLE = False
+    def gpu_bincount_weighted(idx, w, ml):  # type: ignore[misc]
+        return np.bincount(idx.astype(np.int64), weights=w.astype(np.float64), minlength=ml)
+    def gpu_log_softmax_scores(scores):     # type: ignore[misc]
+        scores = scores.astype(np.float32)
+        scores -= scores.max(axis=1, keepdims=True)
+        probs = np.exp(scores); probs /= probs.sum(axis=1, keepdims=True)
+        return probs
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Distributed helpers (same pattern as _hash_grad_train.py)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -120,15 +134,15 @@ def build_bigram_freq(
               f"(vocab={vocab_size}, N={len(tokens):,})...")
     t0 = time.time()
 
-    freq = np.zeros((vocab_size, vocab_size), dtype=np.float32)
-    t_prev = tokens[:-1].astype(np.int32)
-    t_next = tokens[1:].astype(np.int32)
+    t_prev = np.clip(tokens[:-1].astype(np.int32), 0, vocab_size - 1)
+    t_next = np.clip(tokens[1:].astype(np.int32),  0, vocab_size - 1)
 
-    # Clip to valid range
-    t_prev = np.clip(t_prev, 0, vocab_size - 1)
-    t_next = np.clip(t_next, 0, vocab_size - 1)
-
-    np.add.at(freq, (t_prev, t_next), 1.0)
+    # Flatten (a, b) → a * vocab + b, then GPU scatter_add (Fix #2 + GPU)
+    # This replaces the unbuffered np.add.at with a GPU-accelerated bincount.
+    flat_idx = t_prev.astype(np.int64) * vocab_size + t_next.astype(np.int64)
+    ones     = np.ones(len(flat_idx), dtype=np.float32)
+    flat_counts = gpu_bincount_weighted(flat_idx, ones, vocab_size * vocab_size)
+    freq = flat_counts.reshape(vocab_size, vocab_size).astype(np.float32)
 
     # Row-normalise
     row_sums = freq.sum(axis=1, keepdims=True)
@@ -137,7 +151,8 @@ def build_bigram_freq(
 
     elapsed = time.time() - t0
     if verbose:
-        print(f"[BiDirTrain] Bigram freq done in {elapsed:.1f}s")
+        print(f"[BiDirTrain] Bigram freq done in {elapsed:.1f}s "
+              f"({'GPU' if _GPU_AVAILABLE else 'CPU'})")
     return freq
 
 
@@ -417,9 +432,11 @@ def bidi_bpb(
         tgt_toks  = np.clip(tgt_toks,  0, vocab_size - 1)
 
         # Vectorised bilateral scoring: (batch, vocab_size) float32
+        # GPU path is used automatically inside vote_scores_vectorised()
         probs = engine.vote_scores_vectorised(prev_toks)  # (batch, vocab)
 
         # Optional SpiralDSV blend
+        # GPU path is used automatically inside vote_scores_all_vocab()
         if spiral_dsv is not None and spiral_blend_alpha > 0.0:
             p_spiral = spiral_dsv.vote_scores_all_vocab(prev_toks)  # (batch, vocab)
             probs = (1.0 - spiral_blend_alpha) * probs + spiral_blend_alpha * p_spiral

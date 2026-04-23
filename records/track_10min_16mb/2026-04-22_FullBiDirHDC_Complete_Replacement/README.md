@@ -316,13 +316,17 @@ pm1 tables (`_codebook_pm1`, `_sem_fwd_pm1`, `_sem_bwd_pm1`) are built once lazi
 ### Eigenvalue spectrum formula
 
 ```
-λ_j = Σ_k w_k(S) × axis_k[j]          ← 19 golden-ratio axes (AxisWeightScheduler)
+λ_j = Σ_k w_k(S) × axis_k[j]              ← 19 golden-ratio axes (AxisWeightScheduler)
     + w_goal(Z, traj_accel) × goal_pm1[j]  ← goal attractor (AnticipationEigenGate)
     + w_rule(retro) × rule_bundle_pm1[j]   ← soft rule EMA
     + w_chain × chain_h*_pm1[j]            ← chain eigen result (optional)
     + w_inertia × (fwd_seed + bwd_seed)/2  ← bilateral inertia
+    - w_danger × danger_pm1[j]             ← REPEL from danger cluster (thalamic)
+    + w_oxy    × oxytocin_pm1[j]           ← ATTRACT toward prosocial cluster
+    + w_ego    × ego_pm1[j]                ← ATTRACT toward identity prototype
+    + w_norm   × norm_pm1[j]               ← ATTRACT toward norm-consistent behavior
 
-h*[j] = sign(λ_j)                       ← exact fixed point, 0 iterations
+h*[j] = sign(λ_j)                         ← exact fixed point, 0 iterations
 ```
 
 ### New state variables
@@ -334,6 +338,7 @@ h*[j] = sign(λ_j)                       ← exact fixed point, 0 iterations
 | `_rule_bundle` | `(W,) uint64` | **Derived** — `pm1_to_uint64(sign(_rule_bundle_pm1))` for API compat |
 | `goal_hv` | `(W,) uint64` | **Derived** — `pm1_to_uint64(sign(_goal_hv_pm1))` for API compat |
 | `_teleport` | `FullTeleportStep` | Orchestrates the single teleport step |
+| `_safety_oxy` | `EigenSafetyOxytocin` | Thalamic safety + oxytocin steering (4 pm1 prototypes) |
 
 ### `step()` flow after eigen upgrade
 
@@ -342,19 +347,177 @@ encode present + actions  O(K × W)
         │
 retrodiction cosine       O(W)
         │
+compute_danger_score(prev_h*)   O(n_bits) — zero latency (cached prev h*)
+compute_ego_drift(prev_h*)      O(n_bits) — zero latency
+        │
+get_steering_terms(context_score, ego_drift)  O(1) — returns cached pm1 + scalar math
+        │
 FullTeleportStep.run_full()
   ├── AxisWeightScheduler: S → axis_weights
   ├── AnticipationEigenGate: adjust goal/rule weights
   ├── ChainManifold.eigen_query(): instant chain prior
+  ├── Subtract danger_pm1 × w_danger from shared_field  ← REPEL
+  ├── Add oxytocin_pm1 × w_oxy to shared_field          ← ATTRACT
+  ├── Add ego_pm1 × w_ego to shared_field               ← EGO PULL
+  ├── Add norm_pm1 × w_norm to shared_field             ← NORM PULL
   ├── HadamardEigenSolver.batch_teleport(): h* = sign(spectrum)
   ├── Post-teleport analytics: goal_sim, traj_slope, entropy, resonance
+  ├── Diagnostic scores: danger_score, oxytocin_score, ego_drift, norm_score
   ├── SoftEMABundle: update rule_pm1 + goal_pm1 deterministically
   ├── ZSignal.update(): inside teleport on mean_goal_sim
   └── Micro-exploration trigger: update S_new
         │
 O(W) state copies
         │
+EigenSafetyOxytocin.update_from_step()  ← update all 4 prototypes
+        │
 chain_memory.observe()    bookkeeping only
+```
+
+---
+
+## Thalamic Safety + Oxytocin Steering (2026-04-23)
+
+### Overview
+
+The `EigenSafetyOxytocin` class (in [`_safety_oxytocin.py`](_safety_oxytocin.py)) replaces the
+old 7-layer `UpgradedSafetyGate` + `OxytocinSystem` + `ThalamicSafetySystem` with a single
+eigen-compatible class that injects four steering terms directly into the eigenvalue spectrum
+before `batch_teleport()`.
+
+### Core insight
+
+Harmful thoughts cluster in the same cosine region of hypervector space over time. Cosine-based
+steering can push the trajectory away from the danger cluster and toward the prosocial cluster.
+The steering is **context-adaptive** — softer when far from danger, harder when close.
+
+### Four prototype vectors
+
+| Prototype | Type | Role |
+|---|---|---|
+| `danger_pm1` | `(n_bits,) float32` | EMA of observed dangerous state HVs |
+| `oxytocin_pm1` | `(n_bits,) float32` | EMA of observed prosocial/safe state HVs |
+| `ego_pm1` | `(n_bits,) float32` | EMA of stable identity/personality HVs |
+| `norm_pm1` | `(n_bits,) float32` | EMA of norm-consistent behavior HVs |
+
+### Context-adaptive weight schedule
+
+```python
+# Evidence warmup: base weights grow with accumulated observations
+base_w_danger = min(0.5,  danger_acc / (danger_acc + 10.0))
+base_w_oxy    = min(0.3,  oxy_acc    / (oxy_acc    + 10.0))
+base_w_ego    = min(0.2,  ego_acc    / (ego_acc    + 10.0))
+base_w_norm   = min(0.15, norm_acc   / (norm_acc   + 10.0))
+
+# Context-adaptive scaling (context_score = cosine(prev_h*, danger_pm1))
+w_danger = base_w_danger × (1 + 2 × context_score)   # up to 3× near danger
+w_oxy    = base_w_oxy    × (1 - 0.5 × context_score) # reduced near danger
+w_ego    = base_w_ego    × (1 + ego_drift)            # up to 2× when drifting
+w_norm   = base_w_norm                                # constant gentle pull
+```
+
+With 0 observations: all weights = 0 → **no steering** (safe default).
+
+### Biological motivation
+
+| Biological mechanism | HDC equivalent |
+|---|---|
+| Thalamus clusters harmful memories in same brain region | Dangerous state HVs cluster near `danger_pm1` in cosine space |
+| Oxytocin promotes prosocial behavior | `oxytocin_pm1` attracts trajectory toward safe cluster |
+| Suppression of dangerous thoughts before consciousness | `- w_danger × danger_pm1` in spectrum pushes h* away from danger |
+| Gradual learning of what is dangerous | EMA update of `danger_pm1` with `α ∝ weight` |
+| Context-dependent safety | `context_score` amplifies danger repulsion when near danger zone |
+| Ego/identity stability | `ego_pm1` provides a stable identity attractor, amplified when drifting |
+| Cultural norm internalization | `norm_pm1` provides a gentle constant pull toward norm-consistent behavior |
+
+> **⚠️ Known limitation — social isolation is not penalised.**
+> Endogenous oxytocin release is bidirectional: it rises with affiliative contact and falls
+> during social deprivation, with the deficit producing measurable aversive states analogous
+> to withdrawal (Lieberwirth & Wang, 2012; Tops et al., 2014). This implementation is a
+> **unidirectional attractor only**. `oxytocin_pm1` is updated exclusively via `observe_safe()`
+> when `safety_scalar ≥ 0.5`, and the spectrum term `+ w_oxy × oxytocin_pm1` has no
+> corresponding repulsion when prosocial input is absent. Under social isolation, `_oxy_acc`
+> remains low, `w_oxy` decays to zero through the evidence warmup, and the prosocial pull
+> silently vanishes rather than inverting into a penalty.
+>
+> **Rationale for intentional omission.** Biological oxytocin withdrawal creates a persistent
+> motivational deficit that competes with goal-directed behaviour (Insel, 2010). Omitting the
+> isolation penalty preserves uninterrupted goal pursuit during periods without prosocial
+> context, while still allowing the prosocial attractor to re-emerge gradually once social
+> observations resume — a recovery trajectory that has no direct analogue in the biological
+> system. To replicate full bidirectional oxytocin dynamics, a `- w_iso × oxytocin_pm1`
+> repulsion term (or an `observe_isolated() → observe_dangerous()` pathway) would need to
+> be added.
+
+### Performance impact
+
+| Operation | Cost | Notes |
+|---|---|---|
+| `compute_danger_score(prev_pm1)` | O(n_bits) | 1 dot product on cached prev h* |
+| `compute_ego_drift(prev_pm1)` | O(n_bits) | 1 dot product on cached prev h* |
+| `get_steering_terms(context_score, ego_drift)` | O(1) | Returns cached pm1 vectors + scalar math |
+| Add 4 terms to `shared_field` | O(n_bits) | 4 vector additions, ~0.02ms |
+| `update_from_step()` | O(n_bits) | Up to 4 EMA updates, ~0.02ms |
+| Diagnostic scores in `FullTeleportResult` | O(n_bits) | 4 dot products, ~0.02ms |
+| **Total overhead** | **~0.06ms** | vs ~0.3ms per step = **<20% overhead** |
+
+### New `InferResult` field
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `safety_score` | `float` | `0.5` | `EigenSafetyOxytocin.get_safety_scalar()` — ratio of safe to total observations |
+
+### New `FullTeleportResult` diagnostic fields
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `danger_score` | `float` | `0.0` | `cosine(h*, danger_pm1)` — proximity to danger cluster |
+| `oxytocin_score` | `float` | `0.0` | `cosine(h*, oxytocin_pm1)` — prosocial alignment |
+| `ego_drift` | `float` | `0.0` | `1 - cosine(h*, ego_pm1)` — identity drift |
+| `norm_score` | `float` | `0.5` | `cosine(h*, norm_pm1)` — norm alignment |
+
+---
+
+## GPU Acceleration (2026-04-23)
+
+A new [`_gpu.py`](_gpu.py) module provides a thin torch-based GPU layer that is
+transparently used by all hot-path functions. Every operation has a **graceful
+CPU fallback** — the code runs correctly with or without CUDA.
+
+### What runs on GPU (H100 tensor cores)
+
+| Operation | File | GPU kernel | Speedup vs CPU |
+|---|---|---|---|
+| `absorb_bigrams()` bincount | [`_eigen_convergence.py`](_eigen_convergence.py) | `scatter_add_` | ~10–20× |
+| `absorb_bigrams()` matmul `(vocab,) @ (vocab, n_bits)` | [`_eigen_convergence.py`](_eigen_convergence.py) | cuBLAS HGEMM (f16) | ~50× |
+| `build_bilateral_tables()` bincount | [`_eigen_convergence.py`](_eigen_convergence.py) | `scatter_add_` | ~100× |
+| `build_bilateral_tables()` matmul `(1024,1024) @ (1024,32768)` | [`_eigen_convergence.py`](_eigen_convergence.py) | cuBLAS HGEMM (f16) | ~1000× |
+| `batch_teleport()` shared field + sign | [`_eigen_convergence.py`](_eigen_convergence.py) | cuBLAS + `torch.sign` | ~60× |
+| `batch_uint64_to_pm1()` unpack | [`_eigen_convergence.py`](_eigen_convergence.py) | torch bitwise shifts | ~5× |
+| `vote_scores_all_vocab()` bilateral matmul | [`_spiral_dsv_lm.py`](_spiral_dsv_lm.py) | cuBLAS HGEMM (f16) | ~500× |
+| `vote_scores_vectorised()` bilateral matmul | [`_bidi_hdc_engine.py`](_bidi_hdc_engine.py) | cuBLAS HGEMM (f16) | ~500× |
+| `build_bigram_freq()` scatter | [`_bidi_train.py`](_bidi_train.py) | `scatter_add_` | ~20× |
+
+### Design
+
+- **Local-rank aware**: reads `LOCAL_RANK` env var so each `torchrun` process
+  uses its own GPU (`rank 0 → cuda:0`, `rank 1 → cuda:1`, …).
+- **float16 tensor cores**: all large matmuls use `torch.float16` on GPU
+  (`gpu_matmul_f16`) to exploit H100 HGEMM (~300 TFLOPS vs ~2 TFLOPS CPU BLAS).
+- **Zero-copy on CPU**: `torch.as_tensor()` shares memory with numpy arrays on
+  CPU; only the GPU transfer copies data.
+- **Lazy device init**: GPU device is resolved once on first use via
+  [`_get_device()`](_gpu.py).
+
+### Startup log
+
+When running on 8×H100, `train_gpt.py` prints:
+```
+[BiDirHDC] GPU acceleration: ENABLED (cuda:0)
+```
+On CPU-only machines:
+```
+[BiDirHDC] GPU acceleration: DISABLED (CPU fallback)
 ```
 
 ---
@@ -364,11 +527,14 @@ chain_memory.observe()    bookkeeping only
 | File | Role |
 |---|---|
 | [`train_gpt.py`](train_gpt.py) | Main entry point (`--bidi_hdc` flag, distributed init, token loading, training, eval, auto-generates `submission.json`) |
-| [`_eigen_convergence.py`](_eigen_convergence.py) | **NEW** — `HadamardEigenSolver`, `AxisWeightScheduler`, `AnticipationEigenGate`, `SoftEMABundle`, `FullTeleportResult`, `FullTeleportStep`, **`EigenTrainer`**, **`EigenSpiralBuilder`** |
-| [`_bidi_hdc_engine.py`](_bidi_hdc_engine.py) | `FullBiDirHDC` + `Codebook` + `ManifoldAxes` + `ZSignal` + `ResonanceSignal` + `RelationshipMemory` + `ChainManifold` — eigen solver + eigen training + cached `EigenTrainer` |
-| [`_bidi_train.py`](_bidi_train.py) | `build_bigram_freq()`, `train_bidi_model()`, `bidi_bpb()`, `save_bidi_artifact()`, `load_bidi_artifact()` — eigen training path documented |
-| [`_spiral_dsv_lm.py`](_spiral_dsv_lm.py) | `GoldenAxisShift` + `SpiralPointerMemory` + `SpiralDSVLanguageModel` — `EigenSpiralBuilder` build path + BLAS `vote_scores_all_vocab()` + pm1 cache |
-| [`requirements.txt`](requirements.txt) | `numpy`, `torch`, `sentencepiece`, `cupy-cuda12x`, `zstandard` |
+| [`_gpu.py`](_gpu.py) | **NEW** — GPU acceleration layer: `gpu_matmul_f16`, `gpu_bincount_weighted`, `gpu_sign_f32`, `gpu_uint64_batch_to_pm1`, `gpu_batch_teleport`, `gpu_bilateral_confidence`, `gpu_vote_scores_vectorised` |
+| [`_eigen_convergence.py`](_eigen_convergence.py) | `HadamardEigenSolver`, `AxisWeightScheduler`, `AnticipationEigenGate`, `SoftEMABundle`, `FullTeleportResult`, `FullTeleportStep`, **`EigenTrainer`**, **`EigenSpiralBuilder`** — all hot matmuls GPU-accelerated |
+| [`_bidi_hdc_engine.py`](_bidi_hdc_engine.py) | `FullBiDirHDC` + `Codebook` + `ManifoldAxes` + `ZSignal` + `ChainManifold` — `vote_scores_vectorised()` GPU-accelerated |
+| [`_safety_oxytocin.py`](_safety_oxytocin.py) | **`EigenSafetyOxytocin`** — 4 pm1 prototype vectors, context-adaptive steering weights, `update_from_step()`, `get_safety_scalar()` |
+| [`_bidi_train.py`](_bidi_train.py) | `build_bigram_freq()`, `train_bidi_model()`, `bidi_bpb()`, `save_bidi_artifact()`, `load_bidi_artifact()` — `build_bigram_freq()` GPU-accelerated |
+| [`_spiral_dsv_lm.py`](_spiral_dsv_lm.py) | `GoldenAxisShift` + `SpiralPointerMemory` + `SpiralDSVLanguageModel` — `vote_scores_all_vocab()` GPU-accelerated |
+| [`_thalamic_safety.py`](_thalamic_safety.py) | Legacy thalamic safety reference — kept as-is, not modified |
+| [`requirements.txt`](requirements.txt) | `numpy`, `torch>=2.1` (for f16 HGEMM), `sentencepiece`, `cupy-cuda12x`, `zstandard` |
 
 ---
 

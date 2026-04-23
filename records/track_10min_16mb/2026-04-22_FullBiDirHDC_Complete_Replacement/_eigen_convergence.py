@@ -52,6 +52,33 @@ from __future__ import annotations
 import numpy as np
 from typing import NamedTuple, Optional, Dict, Any
 
+# ── GPU acceleration (optional, graceful fallback to CPU) ─────────────────────
+try:
+    from _gpu import (
+        gpu_available,
+        gpu_matmul_f32,
+        gpu_matmul_f16,
+        gpu_batch_matmul_f32,
+        gpu_bincount_weighted,
+        gpu_sign_f32,
+        gpu_uint64_batch_to_pm1,
+        gpu_batch_teleport as _gpu_batch_teleport,
+    )
+    _GPU_AVAILABLE = gpu_available()
+except ImportError:
+    _GPU_AVAILABLE = False
+    def gpu_matmul_f32(a, b): return a.astype('float32') @ b.astype('float32')
+    def gpu_matmul_f16(a, b): return a.astype('float32') @ b.astype('float32')
+    def gpu_batch_matmul_f32(a, b): return a.astype('float32') @ b.astype('float32')
+    def gpu_bincount_weighted(idx, w, ml): return np.bincount(idx.astype(np.int64), weights=w.astype(np.float64), minlength=ml)
+    def gpu_sign_f32(a):
+        out = np.sign(a).astype(np.float32); out[out == 0.0] = 1.0; return out
+    def gpu_uint64_batch_to_pm1(hvs):
+        N, W = hvs.shape
+        bits = np.unpackbits(hvs.view(np.uint8).reshape(N, W * 8), axis=1, bitorder='little')
+        return bits.astype(np.float32) * 2.0 - 1.0
+    _gpu_batch_teleport = None
+
 # ─────────────────────────────────────────────────────────────────────────────
 EPS = 1e-8
 PHI_FRAC = 0.6180339887498949
@@ -73,6 +100,8 @@ def uint64_to_pm1(hv: np.ndarray) -> np.ndarray:
     return (bits.astype(np.float32) * 2.0 - 1.0)
 
 
+
+
 def pm1_to_uint64(pm1: np.ndarray) -> np.ndarray:
     """(W×64,) float32 → (W,) uint64.
 
@@ -83,7 +112,13 @@ def pm1_to_uint64(pm1: np.ndarray) -> np.ndarray:
 
 
 def batch_uint64_to_pm1(hvs: np.ndarray) -> np.ndarray:
-    """(N, W) uint64 → (N, W×64) float32 in {-1, +1}."""
+    """(N, W) uint64 → (N, W×64) float32 in {-1, +1}.
+
+    GPU-accelerated when CUDA is available (uses torch bitwise unpack).
+    Falls back to numpy unpackbits on CPU.
+    """
+    if _GPU_AVAILABLE:
+        return gpu_uint64_batch_to_pm1(hvs)
     N, W = hvs.shape
     bits = np.unpackbits(hvs.view(np.uint8).reshape(N, W * 8), axis=1, bitorder='little')
     return bits.astype(np.float32) * 2.0 - 1.0
@@ -223,16 +258,25 @@ class HadamardEigenSolver:
 
     def batch_teleport(
         self,
-        axes_pm1     : np.ndarray,   # (K, n_bits) float32 — axis HVs in pm1
-        axis_weights : np.ndarray,   # (K,) float32 — per-axis weights
-        goal_pm1     : np.ndarray,   # (n_bits,) float32 — goal HV in pm1
-        goal_weight  : float,        # scalar
-        rule_pm1     : np.ndarray,   # (n_bits,) float32 — rule bundle in pm1
-        rule_weight  : float,        # scalar
-        manifold_fwd : np.ndarray,   # (N, n_bits) float32 — fwd seeds in pm1
-        manifold_bwd : np.ndarray,   # (N, n_bits) float32 — bwd seeds in pm1
-        chain_pm1    : Optional[np.ndarray] = None,  # (n_bits,) float32
-        chain_weight : float = 0.0,
+        axes_pm1      : np.ndarray,   # (K, n_bits) float32 — axis HVs in pm1
+        axis_weights  : np.ndarray,   # (K,) float32 — per-axis weights
+        goal_pm1      : np.ndarray,   # (n_bits,) float32 — goal HV in pm1
+        goal_weight   : float,        # scalar
+        rule_pm1      : np.ndarray,   # (n_bits,) float32 — rule bundle in pm1
+        rule_weight   : float,        # scalar
+        manifold_fwd  : np.ndarray,   # (N, n_bits) float32 — fwd seeds in pm1
+        manifold_bwd  : np.ndarray,   # (N, n_bits) float32 — bwd seeds in pm1
+        chain_pm1     : Optional[np.ndarray] = None,  # (n_bits,) float32
+        chain_weight  : float = 0.0,
+        # ── Thalamic safety steering terms (optional) ─────────────────────
+        danger_pm1    : Optional[np.ndarray] = None,  # (n_bits,) float32 — REPEL
+        danger_weight : float = 0.0,
+        oxytocin_pm1  : Optional[np.ndarray] = None,  # (n_bits,) float32 — ATTRACT
+        oxytocin_weight: float = 0.0,
+        ego_pm1       : Optional[np.ndarray] = None,  # (n_bits,) float32 — EGO PULL
+        ego_weight    : float = 0.0,
+        norm_pm1      : Optional[np.ndarray] = None,  # (n_bits,) float32 — NORM PULL
+        norm_weight   : float = 0.0,
     ) -> tuple:
         """Compute h* = sign(spectrum) for all N hypotheses in one pass.
 
@@ -240,16 +284,24 @@ class HadamardEigenSolver:
         per-hypothesis inertia from the seed HVs.
 
         Args:
-            axes_pm1     : (K, n_bits) float32 — axis HVs
-            axis_weights : (K,) float32 — per-axis weights (sum to 1)
-            goal_pm1     : (n_bits,) float32 — goal attractor
-            goal_weight  : scalar weight for goal term
-            rule_pm1     : (n_bits,) float32 — rule bundle
-            rule_weight  : scalar weight for rule term
-            manifold_fwd : (N, n_bits) float32 — forward seed HVs
-            manifold_bwd : (N, n_bits) float32 — backward seed HVs
-            chain_pm1    : (n_bits,) float32 — chain prior (optional)
-            chain_weight : scalar weight for chain term
+            axes_pm1      : (K, n_bits) float32 — axis HVs
+            axis_weights  : (K,) float32 — per-axis weights (sum to 1)
+            goal_pm1      : (n_bits,) float32 — goal attractor
+            goal_weight   : scalar weight for goal term
+            rule_pm1      : (n_bits,) float32 — rule bundle
+            rule_weight   : scalar weight for rule term
+            manifold_fwd  : (N, n_bits) float32 — forward seed HVs
+            manifold_bwd  : (N, n_bits) float32 — backward seed HVs
+            chain_pm1     : (n_bits,) float32 — chain prior (optional)
+            chain_weight  : scalar weight for chain term
+            danger_pm1    : (n_bits,) float32 — danger cluster prototype (REPEL)
+            danger_weight : scalar weight for danger repulsion
+            oxytocin_pm1  : (n_bits,) float32 — prosocial cluster prototype (ATTRACT)
+            oxytocin_weight: scalar weight for oxytocin attraction
+            ego_pm1       : (n_bits,) float32 — identity prototype (EGO PULL)
+            ego_weight    : scalar weight for ego attraction
+            norm_pm1      : (n_bits,) float32 — norm-consistent prototype (NORM PULL)
+            norm_weight   : scalar weight for norm attraction
 
         Returns:
             (fwd_stars, bwd_stars, goal_sims)
@@ -257,6 +309,34 @@ class HadamardEigenSolver:
             bwd_stars : (N, n_bits) float32 — same as fwd_stars (bilateral)
             goal_sims : (N,) float32 — cosine(h*, goal_pm1)
         """
+        # ── GPU fast path: entire batch_teleport on GPU ───────────────────
+        if _GPU_AVAILABLE and _gpu_batch_teleport is not None:
+            gpu_result = _gpu_batch_teleport(
+                axes_pm1       = axes_pm1,
+                axis_weights   = axis_weights,
+                goal_pm1       = goal_pm1,
+                goal_weight    = goal_weight,
+                rule_pm1       = rule_pm1,
+                rule_weight    = rule_weight,
+                manifold_fwd   = manifold_fwd,
+                manifold_bwd   = manifold_bwd,
+                inertia        = self.inertia,
+                chain_pm1      = chain_pm1,
+                chain_weight   = chain_weight,
+                danger_pm1     = danger_pm1,
+                danger_weight  = danger_weight,
+                oxytocin_pm1   = oxytocin_pm1,
+                oxytocin_weight= oxytocin_weight,
+                ego_pm1        = ego_pm1,
+                ego_weight     = ego_weight,
+                norm_pm1       = norm_pm1,
+                norm_weight    = norm_weight,
+                EPS            = EPS,
+            )
+            if gpu_result is not None:
+                return gpu_result
+
+        # ── CPU fallback path ─────────────────────────────────────────────
         # ── Shared field (same for all N hypotheses) ──────────────────────
         # FIX #3: axis_weights @ axes_pm1 is a single BLAS matmul
         # (K,) @ (K, n_bits) → (n_bits,)  — replaces element-wise broadcast+sum
@@ -273,6 +353,17 @@ class HadamardEigenSolver:
         # chain term
         if chain_weight > EPS and chain_pm1 is not None:
             shared_field = shared_field + chain_weight * chain_pm1
+
+        # ── Thalamic safety steering: repel from danger, attract toward safe/ego/norm ──
+        # These four additions are the only change to the spectrum — zero architectural change.
+        if danger_weight > EPS and danger_pm1 is not None:
+            shared_field = shared_field - danger_weight * danger_pm1   # REPEL
+        if oxytocin_weight > EPS and oxytocin_pm1 is not None:
+            shared_field = shared_field + oxytocin_weight * oxytocin_pm1  # ATTRACT
+        if ego_weight > EPS and ego_pm1 is not None:
+            shared_field = shared_field + ego_weight * ego_pm1         # EGO PULL
+        if norm_weight > EPS and norm_pm1 is not None:
+            shared_field = shared_field + norm_weight * norm_pm1       # NORM PULL
 
         # ── FIX #4: Avoid materializing full (N, n_bits) float32 matrix ───
         # The spectrum for hypothesis i is:
@@ -457,6 +548,11 @@ class FullTeleportResult(NamedTuple):
     chain_hits               : int           # 1 if chain prior was injected
     mean_goal_sim            : float         # mean over all actions × hypotheses
     mean_entropy             : float         # mean over all actions × hypotheses
+    # Thalamic safety + oxytocin steering diagnostics (defaults for backward compat)
+    danger_score             : float = 0.0   # cosine(h*, danger_pm1) — proximity to danger
+    oxytocin_score           : float = 0.0   # cosine(h*, oxytocin_pm1) — prosocial alignment
+    ego_drift                : float = 0.0   # 1 - cosine(h*, ego_pm1) — identity drift
+    norm_score               : float = 0.5   # cosine(h*, norm_pm1) — norm alignment
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -568,6 +664,15 @@ class FullTeleportStep:
         step                    : int,
         z_signal,                               # ZSignal instance (mutated in-place)
         full_mask               : Optional[np.ndarray] = None,  # (W,) uint64
+        # ── Thalamic safety steering terms (optional, default = no steering) ──
+        danger_pm1              : Optional[np.ndarray] = None,  # (n_bits,) float32
+        danger_weight           : float = 0.0,
+        oxytocin_pm1            : Optional[np.ndarray] = None,  # (n_bits,) float32
+        oxytocin_weight         : float = 0.0,
+        ego_pm1                 : Optional[np.ndarray] = None,  # (n_bits,) float32
+        ego_weight              : float = 0.0,
+        norm_pm1                : Optional[np.ndarray] = None,  # (n_bits,) float32
+        norm_weight             : float = 0.0,
     ) -> FullTeleportResult:
         """Run the complete single-teleport step.
 
@@ -650,16 +755,24 @@ class FullTeleportStep:
 
         # ── Single teleport: h* = sign(spectrum) ─────────────────────────
         h_stars, _, goal_sims = self._eigen_solver.batch_teleport(
-            axes_pm1     = axes_pm1,
-            axis_weights = axis_weights,
-            goal_pm1     = goal_hv_pm1,
-            goal_weight  = goal_w_adj,
-            rule_pm1     = rule_bundle_pm1,
-            rule_weight  = rule_w_adj,
-            manifold_fwd = fwd_pm1,
-            manifold_bwd = bwd_pm1,
-            chain_pm1    = chain_pm1,
-            chain_weight = chain_weight,
+            axes_pm1        = axes_pm1,
+            axis_weights    = axis_weights,
+            goal_pm1        = goal_hv_pm1,
+            goal_weight     = goal_w_adj,
+            rule_pm1        = rule_bundle_pm1,
+            rule_weight     = rule_w_adj,
+            manifold_fwd    = fwd_pm1,
+            manifold_bwd    = bwd_pm1,
+            chain_pm1       = chain_pm1,
+            chain_weight    = chain_weight,
+            danger_pm1      = danger_pm1,
+            danger_weight   = danger_weight,
+            oxytocin_pm1    = oxytocin_pm1,
+            oxytocin_weight = oxytocin_weight,
+            ego_pm1         = ego_pm1,
+            ego_weight      = ego_weight,
+            norm_pm1        = norm_pm1,
+            norm_weight     = norm_weight,
         )
         # h_stars: (n_actions × H, n_bits) float32
 
@@ -781,6 +894,27 @@ class FullTeleportStep:
             chain_weight = chain_weight,
         )
 
+        # ── Thalamic safety diagnostic scores ────────────────────────────
+        # Compute 4 diagnostic scores from best h* (O(n_bits) each, ~0.02ms total)
+        _diag_danger_score   = 0.0
+        _diag_oxytocin_score = 0.0
+        _diag_ego_drift      = 0.0
+        _diag_norm_score     = 0.5
+        _n = float(self.n_bits)
+        if danger_pm1 is not None and danger_weight > EPS:
+            _dot = float(np.dot(best_h_star_pm1, danger_pm1)) / (_n + EPS)
+            _diag_danger_score = float(np.clip(0.5 + 0.5 * _dot, 0.0, 1.0))
+        if oxytocin_pm1 is not None and oxytocin_weight > EPS:
+            _dot = float(np.dot(best_h_star_pm1, oxytocin_pm1)) / (_n + EPS)
+            _diag_oxytocin_score = float(np.clip(0.5 + 0.5 * _dot, 0.0, 1.0))
+        if ego_pm1 is not None and ego_weight > EPS:
+            _dot = float(np.dot(best_h_star_pm1, ego_pm1)) / (_n + EPS)
+            _cosine_ego = float(np.clip(0.5 + 0.5 * _dot, 0.0, 1.0))
+            _diag_ego_drift = float(np.clip(1.0 - _cosine_ego, 0.0, 1.0))
+        if norm_pm1 is not None and norm_weight > EPS:
+            _dot = float(np.dot(best_h_star_pm1, norm_pm1)) / (_n + EPS)
+            _diag_norm_score = float(np.clip(0.5 + 0.5 * _dot, 0.0, 1.0))
+
         return FullTeleportResult(
             best_action             = best_act,
             joint_scores            = {aid: float(a_scores[i]) for i, aid in enumerate(action_ids)},
@@ -801,6 +935,10 @@ class FullTeleportStep:
             chain_hits              = chain_hits,
             mean_goal_sim           = mean_goal_sim,
             mean_entropy            = mean_entropy,
+            danger_score            = _diag_danger_score,
+            oxytocin_score          = _diag_oxytocin_score,
+            ego_drift               = _diag_ego_drift,
+            norm_score              = _diag_norm_score,
         )
 
 
@@ -951,9 +1089,15 @@ class EigenSpiralBuilder:
             fwd_idx = a_toks.astype(np.int64) * self.vocab_size + b_toks.astype(np.int64)
             bwd_idx = b_toks.astype(np.int64) * self.vocab_size + a_toks.astype(np.int64)
 
-            # np.bincount is ~100x faster than np.add.at for this case
-            fwd_flat += np.bincount(fwd_idx, minlength=self.vocab_size * self.vocab_size).astype(np.float32)
-            bwd_flat += np.bincount(bwd_idx, minlength=self.vocab_size * self.vocab_size).astype(np.float32)
+            # GPU scatter_add is ~100x faster than np.add.at for this case
+            fwd_flat += gpu_bincount_weighted(
+                fwd_idx, np.ones(len(fwd_idx), dtype=np.float32),
+                self.vocab_size * self.vocab_size
+            ).astype(np.float32)
+            bwd_flat += gpu_bincount_weighted(
+                bwd_idx, np.ones(len(bwd_idx), dtype=np.float32),
+                self.vocab_size * self.vocab_size
+            ).astype(np.float32)
 
             total_pairs += M
             if verbose:
@@ -971,14 +1115,14 @@ class EigenSpiralBuilder:
                   f"({self.vocab_size}×{self.n_bits})...")
 
         t_matmul = time.time()
-        sem_fwd_spectrum = fwd_w @ self.CB_pm1   # (vocab, n_bits)
-        sem_bwd_spectrum = bwd_w @ self.CB_pm1   # (vocab, n_bits)
+        # GPU matmul: (vocab, vocab) × (vocab, n_bits) → (vocab, n_bits)
+        # Uses float16 tensor cores on H100 for ~10× speedup over CPU BLAS
+        sem_fwd_spectrum = gpu_matmul_f16(fwd_w, self.CB_pm1)   # (vocab, n_bits)
+        sem_bwd_spectrum = gpu_matmul_f16(bwd_w, self.CB_pm1)   # (vocab, n_bits)
 
-        # Fixed point: sign(spectrum)
-        sem_fwd_pm1 = np.sign(sem_fwd_spectrum).astype(np.float32)
-        sem_bwd_pm1 = np.sign(sem_bwd_spectrum).astype(np.float32)
-        sem_fwd_pm1[sem_fwd_pm1 == 0.0] = 1.0
-        sem_bwd_pm1[sem_bwd_pm1 == 0.0] = 1.0
+        # Fixed point: sign(spectrum) — on GPU
+        sem_fwd_pm1 = gpu_sign_f32(sem_fwd_spectrum)
+        sem_bwd_pm1 = gpu_sign_f32(sem_bwd_spectrum)
 
         # Convert to uint64 for storage
         n_words = self.n_bits // 64
@@ -1137,22 +1281,22 @@ class EigenTrainer:
                         goal_hv_pm1=zero, goal_weight=0.0,
                         n_bigrams=0, n_goal_bigrams=0)
 
-        # ── FIX #1: np.bincount replaces np.add.at (10-20x faster) ───────
+        # ── FIX #1 + GPU: bincount then GPU matmul ────────────────────────
         # np.add.at is unbuffered (no SIMD). np.bincount with weights= is
         # a buffered O(N) operation — SIMD-friendly, ~10-20x faster.
+        # The subsequent matmul is dispatched to GPU (cuBLAS SGEMM / HGEMM).
         t_next_clipped = np.clip(t_next_arr, 0, self.vocab_size - 1)
 
-        # Step 1: Accumulate per-token reward sums via bincount
-        token_r = np.bincount(
-            t_next_clipped.astype(np.int64),
-            weights=rewards.astype(np.float64),
-            minlength=self.vocab_size,
+        # Step 1: Accumulate per-token reward sums via bincount (GPU scatter_add)
+        token_r = gpu_bincount_weighted(
+            t_next_clipped, rewards.astype(np.float32), self.vocab_size
         ).astype(np.float64)
 
-        # Step 2: Rule spectrum = token_r @ CB_pm1
-        rule_spectrum   = token_r.astype(np.float32) @ self.CB_pm1  # (n_bits,)
-        rule_bundle_pm1 = np.sign(rule_spectrum).astype(np.float32)
-        rule_bundle_pm1[rule_bundle_pm1 == 0.0] = 1.0
+        # Step 2: Rule spectrum = token_r @ CB_pm1  (GPU SGEMM / HGEMM)
+        rule_spectrum   = gpu_matmul_f16(
+            token_r.astype(np.float32)[None, :], self.CB_pm1
+        )[0]                                                          # (n_bits,)
+        rule_bundle_pm1 = gpu_sign_f32(rule_spectrum)
         rule_weight = float(token_r.sum())
 
         # Step 3: Goal spectrum — high-reward bigrams only
@@ -1160,17 +1304,16 @@ class EigenTrainer:
         n_goal = int(high_reward_mask.sum())
 
         if n_goal > 0:
-            t_next_goal = t_next_clipped[high_reward_mask]
-            r_goal      = rewards[high_reward_mask].astype(np.float64)
-            token_r_goal = np.bincount(
-                t_next_goal.astype(np.int64),
-                weights=r_goal,
-                minlength=self.vocab_size,
+            t_next_goal  = t_next_clipped[high_reward_mask]
+            r_goal       = rewards[high_reward_mask].astype(np.float32)
+            token_r_goal = gpu_bincount_weighted(
+                t_next_goal, r_goal, self.vocab_size
             ).astype(np.float64)
-            goal_spectrum = token_r_goal.astype(np.float32) @ self.CB_pm1
-            goal_pm1      = np.sign(goal_spectrum).astype(np.float32)
-            goal_pm1[goal_pm1 == 0.0] = 1.0
-            goal_weight   = float(token_r_goal.sum())
+            goal_spectrum = gpu_matmul_f16(
+                token_r_goal.astype(np.float32)[None, :], self.CB_pm1
+            )[0]
+            goal_pm1    = gpu_sign_f32(goal_spectrum)
+            goal_weight = float(token_r_goal.sum())
         else:
             goal_pm1    = np.zeros(self.n_bits, dtype=np.float32)
             goal_weight = 0.0
@@ -1228,18 +1371,15 @@ class EigenTrainer:
         for chunk_start in range(0, N, chunk_size):
             chunk_end = min(chunk_start + chunk_size, N)
             tn  = t_next_clipped[chunk_start:chunk_end]
-            rw  = rewards[chunk_start:chunk_end].astype(np.float64)
+            rw  = rewards[chunk_start:chunk_end].astype(np.float32)
 
-            # FIX #1 (chunked): np.bincount replaces np.add.at
-            token_r += np.bincount(
-                tn.astype(np.int64), weights=rw, minlength=self.vocab_size
-            )
+            # FIX #1 + GPU (chunked): gpu_bincount_weighted (scatter_add on GPU)
+            token_r += gpu_bincount_weighted(tn, rw, self.vocab_size)
 
             high = rw >= self.goal_threshold
             if high.any():
-                token_r_goal += np.bincount(
-                    tn[high].astype(np.int64), weights=rw[high],
-                    minlength=self.vocab_size
+                token_r_goal += gpu_bincount_weighted(
+                    tn[high], rw[high], self.vocab_size
                 )
                 n_goal += int(high.sum())
 
@@ -1249,18 +1389,20 @@ class EigenTrainer:
                 print(f"[EigenTrainer] {chunk_end:,}/{N:,} ({pct:.1f}%) "
                       f"elapsed={elapsed:.1f}s")
 
-        # Single matmul for rule bundle
-        rule_spectrum   = token_r.astype(np.float32) @ self.CB_pm1
-        rule_bundle_pm1 = np.sign(rule_spectrum).astype(np.float32)
-        rule_bundle_pm1[rule_bundle_pm1 == 0.0] = 1.0
+        # Single GPU matmul for rule bundle (cuBLAS HGEMM)
+        rule_spectrum   = gpu_matmul_f16(
+            token_r.astype(np.float32)[None, :], self.CB_pm1
+        )[0]
+        rule_bundle_pm1 = gpu_sign_f32(rule_spectrum)
         rule_weight = float(token_r.sum())
 
-        # Single matmul for goal HV
+        # Single GPU matmul for goal HV
         if n_goal > 0:
-            goal_spectrum = token_r_goal.astype(np.float32) @ self.CB_pm1
-            goal_pm1      = np.sign(goal_spectrum).astype(np.float32)
-            goal_pm1[goal_pm1 == 0.0] = 1.0
-            goal_weight   = float(token_r_goal.sum())
+            goal_spectrum = gpu_matmul_f16(
+                token_r_goal.astype(np.float32)[None, :], self.CB_pm1
+            )[0]
+            goal_pm1    = gpu_sign_f32(goal_spectrum)
+            goal_weight = float(token_r_goal.sum())
         else:
             goal_pm1    = np.zeros(self.n_bits, dtype=np.float32)
             goal_weight = 0.0

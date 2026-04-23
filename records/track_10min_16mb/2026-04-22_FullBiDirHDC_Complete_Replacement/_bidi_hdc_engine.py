@@ -19,10 +19,6 @@ Eigen Convergence upgrade (2026-04-23):
   - _bundle_rule() / _update_goal() stochastic XOR → deterministic soft EMA
   - step() = encode → 2 cosines → 1 teleport → state copies
   - Per-step latency: ~10–15ms → ~0.3ms
-
-All original HDC logic preserved as dead fallback:
-  Codebook, ManifoldAxes, ZSignal/ZState, ResonanceSignal,
-  RelationshipMemory, ChainManifold, FullBiDirHDC, InferResult
 """
 
 from __future__ import annotations
@@ -32,25 +28,21 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
 try:
-    from _spiral_dsv_lm import SpiralPointerMemory, GOLDEN_AXES
+    from _spiral_dsv_lm import SpiralPointerMemory
 except ImportError:
     SpiralPointerMemory = None  # type: ignore[assignment,misc]
-    GOLDEN_AXES = None          # type: ignore[assignment]
 
 # ── Eigen Convergence import ──────────────────────────────────────────────────
 try:
     from _eigen_convergence import (
         HadamardEigenSolver,
         AxisWeightScheduler,
-        AnticipationEigenGate,
-        SoftEMABundle,
         FullTeleportResult,
         FullTeleportStep,
         EigenTrainer,
         uint64_to_pm1,
         pm1_to_uint64,
         batch_uint64_to_pm1,
-        batch_pm1_to_uint64,
     )
     _EIGEN_AVAILABLE = True
 except ImportError:
@@ -58,6 +50,22 @@ except ImportError:
     HadamardEigenSolver = None   # type: ignore[assignment,misc]
     FullTeleportStep    = None   # type: ignore[assignment,misc]
     EigenTrainer        = None   # type: ignore[assignment,misc]
+
+# ── EigenSafetyOxytocin import ────────────────────────────────────────────────
+try:
+    from _safety_oxytocin import EigenSafetyOxytocin
+    _SAFETY_OXY_AVAILABLE = True
+except ImportError:
+    EigenSafetyOxytocin       = None   # type: ignore[assignment,misc]
+    _SAFETY_OXY_AVAILABLE     = False
+
+# ── GPU acceleration (optional, graceful fallback to CPU) ─────────────────────
+try:
+    from _gpu import gpu_available, gpu_vote_scores_vectorised as _gpu_vote_scores
+    _GPU_AVAILABLE = gpu_available()
+except ImportError:
+    _GPU_AVAILABLE = False
+    _gpu_vote_scores = None  # type: ignore[assignment]
 
 # ─────────────────────────────────────────────────────────────────────────────
 PHI_FRAC = 0.6180339887498949
@@ -68,7 +76,6 @@ ACCEL_THRESHOLD   = 0.02
 RETRO_THRESHOLD   = 0.55
 FORWARD_THRESHOLD = 0.60
 CHAIN_MAX_RULES   = 256
-CHAIN_JACCARD_THRESHOLD = 0.70
 
 # Fast byte-level popcount lookup
 POPCOUNT_TABLE = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
@@ -85,19 +92,6 @@ def _cosine_batch(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.float32(0.5 + 0.5 * (1.0 - 2.0 * hamming))
 
 
-def _jaccard_batch(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    inter = _popcount_2d(np.bitwise_and(a, b)).astype(np.float32)
-    union = _popcount_2d(np.bitwise_or(a, b)).astype(np.float32)
-    return np.where(union > 0, inter / union, np.float32(0.0))
-
-
-def _entropy_batch(arr: np.ndarray) -> np.ndarray:
-    p = _popcount_2d(arr) / (arr.shape[1] * 64)
-    p = np.clip(p, EPS, 1.0 - EPS)
-    h = -(p * np.log2(p) + (1 - p) * np.log2(1 - p))
-    return h.astype(np.float32)
-
-
 def _cosine_single(a: np.ndarray, b: np.ndarray) -> float:
     return float(_cosine_batch(a[np.newaxis], b[np.newaxis])[0])
 
@@ -108,13 +102,13 @@ class Codebook:
     """Universal token ↔ HV mapping via XOR bundle.
 
     encode([a, b, c]) = CB[a] ⊕ CB[b] ⊕ CB[c]
-    decode via cosine nearest-neighbour.
     """
 
     def __init__(self, vocab_size: int, n_words: int, seed: int = 42):
         rng = np.random.default_rng(seed)
         self.vocab_size = vocab_size
         self.W = n_words
+        self.seed = seed
         self.vecs: np.ndarray = rng.integers(
             0, np.iinfo(np.uint64).max,
             size=(vocab_size, n_words), dtype=np.uint64
@@ -125,18 +119,6 @@ class Codebook:
         for t in tokens:
             hv = np.bitwise_xor(hv, self.vecs[t % self.vocab_size])
         return hv
-
-    def decode(self, hv: np.ndarray, top_k: int = 1) -> list:
-        sims = _cosine_batch(
-            np.tile(hv, (self.vocab_size, 1)),
-            self.vecs
-        )
-        return list(np.argsort(sims)[::-1][:top_k])
-
-    def relationship_strength(self, tok_a: int, tok_b: int) -> float:
-        a = self.vecs[tok_a % self.vocab_size][np.newaxis]
-        b = self.vecs[tok_b % self.vocab_size][np.newaxis]
-        return float(_jaccard_batch(a, b)[0])
 
 
 class ManifoldAxes:
@@ -162,22 +144,6 @@ class ManifoldAxes:
             else:
                 proto[word_idx] ^= np.uint64(1 << bit_idx)
         return compass, proto
-
-    def step_mask(self, S: float) -> np.ndarray:
-        if S == 0.0:
-            return np.bitwise_xor(self.compass_mask, self.proto_mask)
-        rng  = np.random.default_rng()
-        pick = rng.random(self.W) < abs(S)
-        if S < 0:
-            return np.where(pick, self.compass_mask, self.proto_mask).astype(np.uint64)
-        else:
-            return np.where(pick, self.proto_mask, self.compass_mask).astype(np.uint64)
-
-    def extend(self, new_n: int):
-        self.compass_mask, self.proto_mask = self._build_masks(
-            new_n, self.W * 64, self.axis_offset
-        )
-        self.n_axes = new_n
 
     def all_axes_hv(self) -> np.ndarray:
         """Return (n_axes, W) uint64 array of all individual axis HVs.
@@ -240,69 +206,6 @@ class ZSignal:
         s.history.clear()
 
 
-class ResonanceSignal:
-    def __init__(self, lam: float = 0.05):
-        self.lam = lam
-
-    def compute(
-        self,
-        mag      : float,
-        saliency : float,
-        trust    : float,
-        entropy  : float,
-        dt       : int,
-        safety   : float = 1.0,
-    ) -> float:
-        decay = np.exp(-self.lam * dt)
-        return float(
-            (mag * saliency)
-            * (trust / (entropy + EPS))
-            * decay
-            * safety
-        )
-
-
-class RelationshipMemory:
-    def __init__(self, n_words: int, max_rules: int = 512):
-        self.W         = n_words
-        self.max_rules = max_rules
-        self._rules    : list = []
-        self._weights  : list = []
-        self._action_ids: list = []
-
-    def store(self, action_id: int, rule_hv: np.ndarray, weight: float):
-        self._rules.append(rule_hv.copy())
-        self._weights.append(weight)
-        self._action_ids.append(action_id)
-        if len(self._rules) > self.max_rules:
-            worst = int(np.argmin(self._weights))
-            self._rules.pop(worst)
-            self._weights.pop(worst)
-            self._action_ids.pop(worst)
-
-    def query_effect(self, action_id: int, context_hv: np.ndarray) -> Optional[np.ndarray]:
-        idxs = [i for i, a in enumerate(self._action_ids) if a == action_id]
-        if not idxs:
-            return None
-        rules   = np.stack([self._rules[i] for i in idxs])
-        context = np.tile(context_hv, (len(idxs), 1))
-        sims    = _cosine_batch(rules, context)
-        weights = np.array([self._weights[i] for i in idxs]) * sims
-        if weights.sum() < EPS:
-            return rules[0]
-        idx_sorted = np.argsort(weights)[::-1][:8]
-        bundle = np.zeros(self.W, dtype=np.uint64)
-        for i in idx_sorted:
-            p = weights[i] / weights[idx_sorted].sum()
-            flip = np.random.random(self.W) < p
-            bundle = np.where(flip, np.bitwise_xor(bundle, rules[i]), bundle).astype(np.uint64)
-        return bundle
-
-    def jaccard_similarity(self, hv_a: np.ndarray, hv_b: np.ndarray) -> float:
-        a, b = hv_a[np.newaxis], hv_b[np.newaxis]
-        return float(_jaccard_batch(a, b)[0])
-
-
 class ChainManifold:
     """Mini joint manifold for (A→B) bigram storage and retrieval."""
 
@@ -320,7 +223,6 @@ class ChainManifold:
         self.max_iters  = max_iters
         self.noise_rate = noise_rate
         self.manifold      = ManifoldAxes(n_axes, self.W)
-        self.rel_mem       = RelationshipMemory(self.W, max_rules=CHAIN_MAX_RULES)
         self._rule_bundle  = np.zeros(self.W, dtype=np.uint64)
         self._rule_weight  = 0.0
         self._n_stored     = 0
@@ -347,92 +249,7 @@ class ChainManifold:
             flip, np.bitwise_xor(self._rule_bundle, rule_hv), self._rule_bundle
         ).astype(np.uint64)
         self._rule_weight += weight
-        self.rel_mem.store(action_b_id, rule_hv, weight)
         self._n_stored += 1
-
-    def query(
-        self,
-        action_a_hv: np.ndarray,
-        candidate_action_ids: list,
-        action_token_map: dict,
-        S: float = 0.0,
-    ) -> tuple:
-        if not candidate_action_ids or self._rule_weight < EPS:
-            return None, 0.0, -1
-
-        n   = len(candidate_action_ids)
-        rng = np.random.default_rng()
-        full_mask = np.bitwise_xor(self.manifold.compass_mask, self.manifold.proto_mask)
-        fwd = np.empty((n * self.H, self.W), dtype=np.uint64)
-        bwd = np.empty((n * self.H, self.W), dtype=np.uint64)
-
-        for i, aid in enumerate(candidate_action_ids):
-            act_hv = self.cb.encode(action_token_map.get(aid, [aid]))
-            fwd_s  = np.bitwise_xor(action_a_hv, act_hv)
-            bwd_s  = np.bitwise_xor(action_a_hv, np.bitwise_xor(act_hv, full_mask))
-            fb     = np.tile(fwd_s, (self.H, 1))
-            bb     = np.tile(bwd_s, (self.H, 1))
-            noise_m = rng.random((self.H, self.W)) < self.noise_rate
-            noise_v = rng.integers(0, np.iinfo(np.uint64).max, (self.H, self.W), dtype=np.uint64)
-            fwd[i*self.H:(i+1)*self.H] = np.where(noise_m, np.bitwise_xor(fb, noise_v), fb).astype(np.uint64)
-            bwd[i*self.H:(i+1)*self.H] = np.where(noise_m, np.bitwise_xor(bb, noise_v), bb).astype(np.uint64)
-
-        if self._rule_weight > 0:
-            blend  = min(0.5, self._rule_weight / (self._rule_weight + 20.0))
-            rule_t = np.tile(self._rule_bundle, (n * self.H, 1))
-            bm     = rng.random((n * self.H, self.W)) < blend
-            fwd    = np.where(bm, np.bitwise_xor(fwd, rule_t), fwd).astype(np.uint64)
-
-        active  = np.ones(n * self.H, dtype=bool)
-        prev_pc = np.zeros(n * self.H, dtype=np.float32)
-        for _ in range(self.max_iters):
-            if not active.any():
-                break
-            mask = self.manifold.step_mask(S)
-            fwd[active] = np.bitwise_xor(fwd[active], mask)
-            cur_pc = _popcount_2d(fwd[active]).astype(np.float32)
-            delta  = np.abs(cur_pc - prev_pc[active])
-            done   = delta < 1.0
-            idxs   = np.where(active)[0]
-            active[idxs[done]] = False
-            prev_pc[active]    = cur_pc[~done]
-
-        bwd_active  = np.ones(n * self.H, dtype=bool)
-        bwd_prev_pc = np.zeros(n * self.H, dtype=np.float32)
-        for _ in range(self.max_iters):
-            if not bwd_active.any():
-                break
-            mask = self.manifold.step_mask(-S)
-            bwd[bwd_active] = np.bitwise_xor(bwd[bwd_active], mask)
-            cur_pc = _popcount_2d(bwd[bwd_active]).astype(np.float32)
-            delta  = np.abs(cur_pc - bwd_prev_pc[bwd_active])
-            done   = delta < 1.0
-            idxs   = np.where(bwd_active)[0]
-            bwd_active[idxs[done]] = False
-            bwd_prev_pc[bwd_active] = cur_pc[~done]
-
-        fwd_r = fwd.reshape(n, self.H, self.W)
-        bwd_r = bwd.reshape(n, self.H, self.W)
-        fwd_f = fwd_r.reshape(n * self.H, self.W)
-        bwd_f = bwd_r.reshape(n * self.H, self.W)
-        consistency = _cosine_batch(fwd_f, bwd_f).reshape(n, self.H)
-
-        if self._rule_weight > 0:
-            rb_tile    = np.tile(self._rule_bundle, (n * self.H, 1))
-            rule_align = _cosine_batch(fwd_f, rb_tile).reshape(n, self.H)
-        else:
-            rule_align = np.full((n, self.H), 0.5, dtype=np.float32)
-
-        joint    = 0.6 * consistency + 0.4 * rule_align
-        best_h   = joint.argmax(axis=1)
-        a_scores = joint[np.arange(n), best_h]
-        best_a   = int(a_scores.argmax())
-        best_hv  = int(best_h[best_a])
-
-        prior_hv    = fwd_r[best_a, best_hv].copy()
-        chain_score = float(a_scores[best_a])
-        best_aid    = candidate_action_ids[best_a]
-        return prior_hv, chain_score, best_aid
 
     def eigen_query(
         self,
@@ -541,6 +358,7 @@ class InferResult:
     retrodiction_accuracy : float = 0.5
     traj_accel            : float = 0.0
     chain_hits            : int   = 0
+    safety_score          : float = 0.5   # from EigenSafetyOxytocin.get_safety_scalar()
 
 
 class FullBiDirHDC:
@@ -553,7 +371,6 @@ class FullBiDirHDC:
 
     Eigen Convergence upgrade (2026-04-23):
     - step() = encode → 2 cosines → 1 teleport → state copies
-    - _propagate() / _score_joint() / _parity_correct() kept as dead fallback
     - _rule_bundle_pm1 / _goal_hv_pm1 are the primary float32 soft-bundle state
     - uint64 versions (_rule_bundle, goal_hv) derived from sign(pm1) for API compat
     """
@@ -586,8 +403,6 @@ class FullBiDirHDC:
 
         self.manifold   = ManifoldAxes(n_axes, self.W, axis_offset=axis_offset)
         self.z_signal   = ZSignal()
-        self.resonance  = ResonanceSignal()
-        self.rel_mem    = RelationshipMemory(self.W)
 
         # ── Primary state: float32 soft bundles (eigen convergence) ──────
         n_bits = self.W * 64
@@ -607,9 +422,6 @@ class FullBiDirHDC:
         self.goal_hv       : Optional[np.ndarray] = None
         self._goal_weight  : float = 0.0
         self._base_goal_weight: float = 0.0
-
-        self._corr_buf     : list = []
-        self._buf_max      = 8
 
         self._step         = 0
         self._last_S       = 0.0
@@ -631,15 +443,6 @@ class FullBiDirHDC:
             noise_rate = noise_rate,
         )
 
-        if SpiralPointerMemory is not None:
-            self.spiral_mem: Optional[SpiralPointerMemory] = SpiralPointerMemory(
-                n_words=self.W, n_levels=4
-            )
-        else:
-            self.spiral_mem = None
-
-        self._spiral_addr_counter: int = 0
-
         # ── Eigen teleport engine ─────────────────────────────────────────
         if _EIGEN_AVAILABLE:
             self._teleport = FullTeleportStep(
@@ -652,39 +455,19 @@ class FullBiDirHDC:
         else:
             self._teleport = None
 
+        # ── EigenSafetyOxytocin: thalamic safety + oxytocin steering ─────
+        if _SAFETY_OXY_AVAILABLE and EigenSafetyOxytocin is not None:
+            self._safety_oxy: Optional[object] = EigenSafetyOxytocin(
+                n_bits = self.W * 64
+            )
+        else:
+            self._safety_oxy = None
+
     def _encode(self, tokens: list) -> np.ndarray:
         hv = self.cb.encode(tokens)
         if self.pointer_mask is not None:
             hv = np.bitwise_xor(hv, self.pointer_mask).astype(np.uint64)
         return hv
-
-    def observe(
-        self,
-        before_tokens : list,
-        action_id     : int,
-        after_tokens  : list,
-        reward        : float = 0.0,
-    ) -> None:
-        before_hv  = self._encode(before_tokens)
-        action_hv  = self._encode([action_id])
-        after_hv   = self._encode(after_tokens)
-        rule_hv    = np.bitwise_xor(np.bitwise_xor(before_hv, action_hv), after_hv)
-
-        res = self.resonance.compute(
-            mag=1.0, saliency=1.0, trust=1.0,
-            entropy=0.5, dt=1, safety=1.0,
-        )
-        self._bundle_rule(rule_hv, weight=res + abs(reward))
-        self.rel_mem.store(action_id, rule_hv, weight=res + abs(reward))
-
-        if reward > 0.0:
-            self._update_goal(after_hv, weight=1.0 + reward * 5.0)
-
-        if self.spiral_mem is not None and reward >= 10.0:
-            try:
-                self.store_spiral(after_hv)
-            except Exception:
-                pass
 
     def train_on_tokens(
         self,
@@ -780,12 +563,17 @@ class FullBiDirHDC:
                 rw = rewards[chunk_start:chunk_end]
 
                 for i in range(len(tp)):
-                    self.observe(
-                        before_tokens=[int(tp[i])],
-                        action_id=int(tp[i]),
-                        after_tokens=[int(tn[i])],
-                        reward=float(rw[i]),
-                    )
+                    before_hv  = self._encode([int(tp[i])])
+                    action_hv  = self._encode([int(tp[i])])
+                    after_hv   = self._encode([int(tn[i])])
+                    rule_hv    = np.bitwise_xor(np.bitwise_xor(before_hv, action_hv), after_hv)
+                    weight     = float(rw[i])
+                    alpha = weight / (self._rule_weight + weight + EPS)
+                    flip  = np.random.random(self.W) < alpha
+                    self._rule_bundle = np.where(
+                        flip, np.bitwise_xor(self._rule_bundle, rule_hv), self._rule_bundle
+                    ).astype(np.uint64)
+                    self._rule_weight += weight
 
                 if verbose:
                     pct = 100.0 * chunk_end / (N - 1)
@@ -796,6 +584,14 @@ class FullBiDirHDC:
         prev_tokens: np.ndarray,
     ) -> np.ndarray:
         """Vectorised bilateral scoring for all vocab tokens.
+
+        GPU path (when CUDA available):
+            Dispatches to gpu_vote_scores_vectorised() which uses float16
+            tensor cores (cuBLAS HGEMM) for the bilateral matmuls.
+            ~500× faster than the (batch, vocab, n_words) XOR + unpackbits.
+
+        CPU fallback:
+            Same (batch, vocab, n_words) XOR + unpackbits as before.
 
         For each prev_token t:
             query_hv = codebook[t] XOR rule_bundle
@@ -810,9 +606,17 @@ class FullBiDirHDC:
         Returns:
             (batch, vocab_size) float32 — probability distribution over next tokens
         """
+        # GPU fast path: float16 tensor cores on H100
+        if _GPU_AVAILABLE and _gpu_vote_scores is not None:
+            return _gpu_vote_scores(
+                codebook_vecs = self.cb.vecs,
+                rule_bundle   = self._rule_bundle,
+                prev_tokens   = prev_tokens,
+            )
+
+        # CPU fallback: (batch, vocab, n_words) XOR + unpackbits
         cb   = self.cb.vecs                          # (vocab_size, n_words) uint64
         rb   = self._rule_bundle                     # (n_words,) uint64
-        batch = len(prev_tokens)
         vocab_size, n_words = cb.shape
         half = float(n_words * 32)                   # n_words × 64 / 2
 
@@ -848,9 +652,7 @@ class FullBiDirHDC:
     ) -> "InferResult":
         """Single step: encode → 2 cosines → 1 teleport → state copies.
 
-        When _EIGEN_AVAILABLE, uses HadamardEigenSolver for instant fixed-point
-        (replaces 40-iter _propagate loops). Falls back to iterative propagation
-        if eigen module is not available.
+        Uses HadamardEigenSolver for instant fixed-point.
         """
         self._step += 1
 
@@ -858,7 +660,6 @@ class FullBiDirHDC:
         present_hv = self._encode(present_tokens)
         action_hvs = {aid: self._encode(toks) for aid, toks in action_token_map.items()}
         action_ids = list(action_hvs.keys())
-        n_actions  = len(action_ids)
 
         # ── 2. Retrodiction + surprise (O(W) cosine — unavoidable) ───────
         retrodiction_accuracy = 0.5
@@ -874,149 +675,90 @@ class FullBiDirHDC:
 
         self._prev_present_hv = present_hv.copy()
 
-        # ── 3. SINGLE TELEPORT (eigen path) or iterative fallback ────────
-        if self._teleport is not None:
-            full_mask = np.bitwise_xor(self.manifold.compass_mask, self.manifold.proto_mask)
-            result = self._teleport.run_full(
-                present_hv              = present_hv,
-                action_hvs              = action_hvs,
-                action_ids              = action_ids,
-                axes_hv                 = self.manifold.all_axes_hv(),
-                goal_hv_pm1             = self._goal_hv_pm1,
-                rule_bundle_pm1         = self._rule_bundle_pm1,
-                chain_memory            = self.chain_memory,
-                S                       = self._last_S,
-                Z_current               = self._last_Z,
-                base_goal_weight        = self._base_goal_weight,
-                accumulated_goal_weight = self._goal_weight,
-                rule_weight             = self._rule_weight,
-                prev_traj_slope         = self._prev_traj_slope,
-                retrodiction_accuracy   = retrodiction_accuracy,
-                surprise                = surprise,
-                trust                   = trust,
-                safety                  = safety,
-                n_hyp                   = self.H,
-                noise_rate              = self.noise_rate,
-                step                    = self._step,
-                z_signal                = self.z_signal,
-                full_mask               = full_mask,
+        # ── 3. SINGLE TELEPORT (eigen path) ──────────────────────────────
+        full_mask = np.bitwise_xor(self.manifold.compass_mask, self.manifold.proto_mask)
+
+        # ── Thalamic safety: compute context_score + ego_drift from prev h* ──
+        # Zero latency — uses cached _prev_fwd_hv from last step
+        _context_score = 0.0
+        _ego_drift_val = 0.0
+        if self._safety_oxy is not None and self._prev_fwd_hv is not None:
+            _prev_pm1 = uint64_to_pm1(self._prev_fwd_hv)
+            _context_score = self._safety_oxy.compute_danger_score(_prev_pm1)
+            _ego_drift_val = self._safety_oxy.compute_ego_drift(_prev_pm1)
+
+        # ── Get all 4 steering terms with context-adaptive weights ────
+        _steering = (
+            self._safety_oxy.get_steering_terms(
+                context_score = _context_score,
+                ego_drift     = _ego_drift_val,
             )
-
-            # ── 4. Store state (O(W) copies — unavoidable) ───────────────
-            self._last_S              = result.S_new
-            self._last_Z              = result.Z_new
-            self._prev_traj_slope     = result.traj_slope
-            self._prev_bwd_hv         = result.best_bwd_hv.copy()
-            self._prev_fwd_hv         = result.best_fwd_hv.copy()
-            self._last_consistency    = result.consistency
-            self._last_action_id      = result.best_action
-            self._last_action_tokens  = action_token_map.get(result.best_action,
-                                                              [result.best_action])
-            # Update soft bundles (primary state)
-            self._goal_hv_pm1         = result.updated_goal_hv_pm1
-            self._goal_weight         = result.updated_goal_weight
-            self._rule_bundle_pm1     = result.updated_rule_bundle_pm1
-            self._rule_weight         = result.updated_rule_weight
-            # Keep uint64 versions in sync for external API compatibility
-            self.goal_hv              = pm1_to_uint64(np.sign(result.updated_goal_hv_pm1))
-            self._rule_bundle         = pm1_to_uint64(np.sign(result.updated_rule_bundle_pm1))
-            self._corr_buf.append(result.best_fwd_hv)
-            if len(self._corr_buf) > self._buf_max:
-                self._corr_buf.pop(0)
-
-            # ── 5. Chain memory validation gate (post-hoc bookkeeping) ───
-            if (self._last_action_id is not None and
-                    self._prev_fwd_hv is not None and
-                    actual_hv is not None):
-                forward_acc = 1.0 - surprise
-                if (forward_acc > FORWARD_THRESHOLD and
-                        retrodiction_accuracy > RETRO_THRESHOLD and
-                        self._last_consistency > 0.65):
-                    action_a_hv = self.cb.encode(self._last_action_tokens)
-                    self.chain_memory.observe(
-                        action_a_hv  = action_a_hv,
-                        action_b_id  = result.best_action,
-                        world_fwd_hv = result.best_fwd_hv,
-                        weight       = result.resonance,
-                    )
-
-            traj_accel = result.traj_slope - self._prev_traj_slope
-
-            return InferResult(
-                best_action           = result.best_action,
-                joint_scores          = result.joint_scores,
-                consistency           = result.consistency,
-                goal_sim              = result.goal_sim,
-                traj_slope            = result.traj_slope,
-                surprise              = surprise,
-                entropy               = result.entropy,
-                resonance             = result.resonance,
-                Z                     = result.Z_new,
-                S                     = result.S_new,
-                best_fwd_hv           = result.best_fwd_hv,
-                best_bwd_hv           = result.best_bwd_hv,
-                retrodiction_accuracy = retrodiction_accuracy,
-                traj_accel            = traj_accel,
-                chain_hits            = result.chain_hits,
-            )
-
-        # ── Iterative fallback (when _EIGEN_AVAILABLE=False) ─────────────
-        fwd_seeds, bwd_seeds = self._build_seeds(present_hv, action_hvs, action_ids)
-
-        S = self._last_S
-        fwd_f, fwd_i, fwd_sim_hist, _chain_hits = self._propagate(fwd_seeds, direction=+1, S=S)
-        bwd_f, bwd_i, _, _                       = self._propagate(bwd_seeds, direction=-1, S=S)
-
-        fwd_f = fwd_f.reshape(n_actions, self.H, self.W)
-        bwd_f = bwd_f.reshape(n_actions, self.H, self.W)
-        fwd_i = fwd_i.reshape(n_actions, self.H)
-        bwd_i = bwd_i.reshape(n_actions, self.H)
-        T_sim = fwd_sim_hist.shape[1] if fwd_sim_hist.ndim == 2 else 1
-        fwd_sim_hist = fwd_sim_hist.reshape(n_actions, self.H, T_sim)
-
-        joint, details = self._score_joint(fwd_f, bwd_f, fwd_i, bwd_i, fwd_sim_hist)
-
-        best_h   = joint.argmax(axis=1)
-        a_scores = joint[np.arange(n_actions), best_h]
-        best_a   = int(a_scores.argmax())
-        best_act = action_ids[best_a]
-        best_hv  = int(best_h[best_a])
-
-        best_fwd  = fwd_f[best_a, best_hv]
-        best_bwd  = bwd_f[best_a, best_hv]
-        b_consist = float(details['consistency'][best_a, best_hv])
-        b_gsim    = float(details['goal_sim']   [best_a, best_hv])
-        b_slope   = float(details['traj_slope'] [best_a, best_hv])
-        b_ent     = float(details['entropy']    [best_a, best_hv])
-
-        Y      = float(np.mean(details['goal_sim']))
-        H_mean = float(np.mean(details['entropy']))
-        S_new  = self.z_signal.update(Y, H_mean, self._step)
-        self._last_Z = self.z_signal.state.Z_current
-
-        traj_accel = b_slope - self._prev_traj_slope
-        self._prev_traj_slope = b_slope
-
-        if (traj_accel < -ACCEL_THRESHOLD) or \
-           (traj_accel < 0.0 and retrodiction_accuracy < RETRO_THRESHOLD):
-            S_new = -abs(S_new)
-
-        self._last_S = S_new
-
-        mag = float(np.abs(b_slope)) + surprise
-        res = self.resonance.compute(
-            mag=mag, saliency=b_consist, trust=trust,
-            entropy=b_ent, dt=1, safety=safety,
+            if self._safety_oxy is not None
+            else {}
         )
 
-        rule_hv = np.bitwise_xor(best_fwd, best_bwd)
-        self._bundle_rule(rule_hv, weight=res)
-        self.rel_mem.store(best_act, rule_hv, weight=res)
+        result = self._teleport.run_full(
+            present_hv              = present_hv,
+            action_hvs              = action_hvs,
+            action_ids              = action_ids,
+            axes_hv                 = self.manifold.all_axes_hv(),
+            goal_hv_pm1             = self._goal_hv_pm1,
+            rule_bundle_pm1         = self._rule_bundle_pm1,
+            chain_memory            = self.chain_memory,
+            S                       = self._last_S,
+            Z_current               = self._last_Z,
+            base_goal_weight        = self._base_goal_weight,
+            accumulated_goal_weight = self._goal_weight,
+            rule_weight             = self._rule_weight,
+            prev_traj_slope         = self._prev_traj_slope,
+            retrodiction_accuracy   = retrodiction_accuracy,
+            surprise                = surprise,
+            trust                   = trust,
+            safety                  = safety,
+            n_hyp                   = self.H,
+            noise_rate              = self.noise_rate,
+            step                    = self._step,
+            z_signal                = self.z_signal,
+            full_mask               = full_mask,
+            danger_pm1              = _steering.get('danger_pm1'),
+            danger_weight           = _steering.get('w_danger', 0.0),
+            oxytocin_pm1            = _steering.get('oxytocin_pm1'),
+            oxytocin_weight         = _steering.get('w_oxy', 0.0),
+            ego_pm1                 = _steering.get('ego_pm1'),
+            ego_weight              = _steering.get('w_ego', 0.0),
+            norm_pm1                = _steering.get('norm_pm1'),
+            norm_weight             = _steering.get('w_norm', 0.0),
+        )
 
-        if b_consist > 0.65:
-            self._update_goal(best_fwd, weight=res)
+        # ── 4. Store state (O(W) copies — unavoidable) ───────────────
+        self._last_S              = result.S_new
+        self._last_Z              = result.Z_new
+        self._prev_traj_slope     = result.traj_slope
+        self._prev_bwd_hv         = result.best_bwd_hv.copy()
+        self._prev_fwd_hv         = result.best_fwd_hv.copy()
+        self._last_consistency    = result.consistency
+        self._last_action_id      = result.best_action
+        self._last_action_tokens  = action_token_map.get(result.best_action,
+                                                          [result.best_action])
+        # Update soft bundles (primary state)
+        self._goal_hv_pm1         = result.updated_goal_hv_pm1
+        self._goal_weight         = result.updated_goal_weight
+        self._rule_bundle_pm1     = result.updated_rule_bundle_pm1
+        self._rule_weight         = result.updated_rule_weight
+        # Keep uint64 versions in sync for external API compatibility
+        self.goal_hv              = pm1_to_uint64(np.sign(result.updated_goal_hv_pm1))
+        self._rule_bundle         = pm1_to_uint64(np.sign(result.updated_rule_bundle_pm1))
 
-        current_action_tokens = action_token_map.get(best_act, [best_act])
+        # ── 4b. Update EigenSafetyOxytocin prototypes from step result ──
+        if self._safety_oxy is not None:
+            _best_h_pm1 = uint64_to_pm1(result.best_fwd_hv)
+            self._safety_oxy.update_from_step(
+                h_star_pm1    = _best_h_pm1,
+                safety_scalar = safety,
+                resonance     = result.resonance,
+            )
+
+        # ── 5. Chain memory validation gate (post-hoc bookkeeping) ───
         if (self._last_action_id is not None and
                 self._prev_fwd_hv is not None and
                 actual_hv is not None):
@@ -1027,71 +769,38 @@ class FullBiDirHDC:
                 action_a_hv = self.cb.encode(self._last_action_tokens)
                 self.chain_memory.observe(
                     action_a_hv  = action_a_hv,
-                    action_b_id  = best_act,
-                    world_fwd_hv = best_fwd,
-                    weight       = res,
+                    action_b_id  = result.best_action,
+                    world_fwd_hv = result.best_fwd_hv,
+                    weight       = result.resonance,
                 )
 
-        self._prev_bwd_hv      = best_bwd.copy()
-        self._last_consistency = b_consist
-        self._last_action_id   = best_act
-        self._last_action_tokens = current_action_tokens
+        traj_accel = result.traj_slope - self._prev_traj_slope
 
-        self._corr_buf.append(best_fwd)
-        if len(self._corr_buf) > self._buf_max:
-            self._corr_buf.pop(0)
-        self._prev_fwd_hv = best_fwd
-
-        return InferResult(
-            best_action   = best_act,
-            joint_scores  = {aid: float(a_scores[i]) for i, aid in enumerate(action_ids)},
-            consistency   = b_consist,
-            goal_sim      = b_gsim,
-            traj_slope    = b_slope,
-            surprise      = surprise,
-            entropy       = b_ent,
-            resonance     = res,
-            Z             = self.z_signal.state.Z_current,
-            S             = S_new,
-            best_fwd_hv   = best_fwd,
-            best_bwd_hv   = best_bwd,
-            retrodiction_accuracy = retrodiction_accuracy,
-            traj_accel            = traj_accel,
-            chain_hits            = _chain_hits,
+        # Compute safety_score from EigenSafetyOxytocin (O(1) — cached scalar)
+        _safety_score = (
+            self._safety_oxy.get_safety_scalar()
+            if self._safety_oxy is not None
+            else 0.5
         )
 
-    def decode_output(self, hv: np.ndarray, top_k: int = 1) -> list:
-        return self.cb.decode(hv, top_k=top_k)
-
-    def store_spiral(
-        self,
-        item_hv: np.ndarray,
-        address: Optional[Tuple[int, ...]] = None,
-    ) -> Tuple[int, ...]:
-        if self.spiral_mem is None:
-            raise RuntimeError("SpiralPointerMemory not available")
-        if address is None:
-            D = self.spiral_mem.D
-            n = self._spiral_addr_counter
-            self._spiral_addr_counter += 1
-            if self.axis_offset > 0:
-                k0 = self.axis_offset
-                k1 = n % D
-                k2 = (n // D) % D
-                k3 = (n // (D * D)) % D
-            else:
-                k0 = n % D
-                k1 = (n // D) % D
-                k2 = (n // (D * D)) % D
-                k3 = (n // (D * D * D)) % D
-            address = (k0, k1, k2, k3)
-        self.spiral_mem.store(item_hv, address)
-        return address
-
-    def retrieve_spiral(self, address: Tuple[int, ...]) -> np.ndarray:
-        if self.spiral_mem is None:
-            raise RuntimeError("SpiralPointerMemory not available")
-        return self.spiral_mem.retrieve(address)
+        return InferResult(
+            best_action           = result.best_action,
+            joint_scores          = result.joint_scores,
+            consistency           = result.consistency,
+            goal_sim              = result.goal_sim,
+            traj_slope            = result.traj_slope,
+            surprise              = surprise,
+            entropy               = result.entropy,
+            resonance             = result.resonance,
+            Z                     = result.Z_new,
+            S                     = result.S_new,
+            best_fwd_hv           = result.best_fwd_hv,
+            best_bwd_hv           = result.best_bwd_hv,
+            retrodiction_accuracy = retrodiction_accuracy,
+            traj_accel            = traj_accel,
+            chain_hits            = result.chain_hits,
+            safety_score          = _safety_score,
+        )
 
     def reset_level(self):
         self.z_signal.reset()
@@ -1108,186 +817,3 @@ class FullBiDirHDC:
         n_bits = self.W * 64
         self._rule_bundle_pm1 = np.zeros(n_bits, dtype=np.float32)
         self._goal_hv_pm1     = np.zeros(n_bits, dtype=np.float32)
-
-    def _build_seeds(self, present_hv, action_hvs, action_ids):
-        n   = len(action_ids)
-        rng = np.random.default_rng()
-        fwd = np.empty((n * self.H, self.W), dtype=np.uint64)
-        bwd = np.empty((n * self.H, self.W), dtype=np.uint64)
-        full_mask = np.bitwise_xor(self.manifold.compass_mask, self.manifold.proto_mask)
-        for i, aid in enumerate(action_ids):
-            eff   = action_hvs[aid]
-            fwd_s = np.bitwise_xor(present_hv, eff)
-            bwd_s = np.bitwise_xor(present_hv, np.bitwise_xor(eff, full_mask))
-            fb    = np.tile(fwd_s, (self.H, 1))
-            bb    = np.tile(bwd_s, (self.H, 1))
-            noise_m = rng.random((self.H, self.W)) < self.noise_rate
-            noise_v = rng.integers(0, np.iinfo(np.uint64).max, (self.H, self.W), dtype=np.uint64)
-            fwd[i*self.H:(i+1)*self.H] = np.where(noise_m, np.bitwise_xor(fb, noise_v), fb).astype(np.uint64)
-            bwd[i*self.H:(i+1)*self.H] = np.where(noise_m, np.bitwise_xor(bb, noise_v), bb).astype(np.uint64)
-        return fwd, bwd
-
-    def _propagate(self, tensor, direction, S):
-        N       = tensor.shape[0]
-        active  = np.ones(N, dtype=bool)
-        iters   = np.full(N, self.max_iters, dtype=np.float32)
-        prev_pc = np.zeros(N, dtype=np.float32)
-        sim_hist= []
-
-        rule_tile = np.tile(self._rule_bundle, (N, 1)) if self._rule_weight > 0 else None
-        goal_tile = np.tile(self.goal_hv, (N, 1)) if self.goal_hv is not None else None
-
-        chain_hits = 0
-        if direction == 1 and self._last_action_id is not None and self._last_action_tokens:
-            action_a_hv = self.cb.encode(self._last_action_tokens)
-            candidate_ids = list(set(self.chain_memory.rel_mem._action_ids))
-            if candidate_ids:
-                cand_token_map = {aid: [aid] for aid in candidate_ids}
-                prior_hv, chain_score, _ = self.chain_memory.query(
-                    action_a_hv          = action_a_hv,
-                    candidate_action_ids = candidate_ids,
-                    action_token_map     = cand_token_map,
-                    S                    = S,
-                )
-                if prior_hv is not None and chain_score > 0.55:
-                    chain_blend = min(0.3, self.chain_memory._rule_weight /
-                                      (self.chain_memory._rule_weight + 10.0))
-                    if chain_blend > 0.0:
-                        cp_tile = np.tile(prior_hv, (N, 1))
-                        bm = np.random.random((N, self.W)) < chain_blend
-                        tensor = np.where(bm, np.bitwise_xor(tensor, cp_tile), tensor).astype(np.uint64)
-                        chain_hits = 1
-
-        for t in range(self.max_iters):
-            if not active.any():
-                break
-            mask = self.manifold.step_mask(S if direction == 1 else -S)
-            tensor[active] = np.bitwise_xor(tensor[active], mask)
-
-            if rule_tile is not None and self._rule_weight > 0:
-                blend = min(0.5, self._rule_weight / (self._rule_weight + 20.0))
-                bm    = np.random.random((active.sum(), self.W)) < blend
-                idx   = np.where(active)[0]
-                tensor[idx] = np.where(
-                    bm,
-                    np.bitwise_xor(tensor[idx], rule_tile[idx]),
-                    tensor[idx]
-                ).astype(np.uint64)
-
-            if goal_tile is not None:
-                sim_t = _cosine_batch(tensor, goal_tile)
-                sim_hist.append(sim_t)
-
-            if t % 4 == 3:
-                tensor = self._parity_correct(tensor, active)
-
-            cur_pc = _popcount_2d(tensor[active]).astype(np.float32)
-            delta  = np.abs(cur_pc - prev_pc[active])
-            done   = delta < 1.0
-            idxs   = np.where(active)[0]
-            iters[idxs[done]] = t
-            active[idxs[done]] = False
-            prev_pc[active]    = cur_pc[~done]
-
-        sim_array = np.stack(sim_hist, axis=1) if sim_hist else np.zeros((N, 1))
-        return tensor, iters, sim_array, chain_hits
-
-    def _score_joint(self, fwd, bwd, fi, bi, sim_hist):
-        n, H, W = fwd.shape
-        fwd_flat = fwd.reshape(n * H, W)
-        bwd_flat = bwd.reshape(n * H, W)
-
-        consistency = _cosine_batch(fwd_flat, bwd_flat).reshape(n, H)
-
-        if self.goal_hv is not None:
-            g_tile   = np.tile(self.goal_hv, (n * H, 1))
-            goal_sim = _cosine_batch(fwd_flat, g_tile).reshape(n, H)
-        else:
-            goal_sim = np.full((n, H), 0.5, dtype=np.float32)
-
-        if sim_hist.ndim == 3 and sim_hist.shape[2] >= 2:
-            slope = (sim_hist[:, :, -1] - sim_hist[:, :, 0])
-            slope = np.clip(0.5 + slope, 0.0, 1.0).astype(np.float32)
-        else:
-            slope = np.full((n, H), 0.5, dtype=np.float32)
-
-        entropy    = _entropy_batch(fwd_flat).reshape(n, H)
-        confidence = np.float32(1.0) - entropy
-        conv       = np.float32(1.0) - (fi + bi) / (np.float32(2.0) * self.max_iters)
-        rule_conf  = np.float32(self._rule_weight / (self._rule_weight + 10.0))
-
-        joint = (
-              np.float32(self.W_CONSISTENCY) * consistency
-            + np.float32(self.W_GOAL_SIM)    * goal_sim
-            + np.float32(self.W_TRAJ_SLOPE)  * slope
-            + np.float32(self.W_ENTROPY)      * confidence
-            + np.float32(self.W_RESONANCE)    * rule_conf
-        )
-
-        return joint, dict(
-            consistency = consistency,
-            goal_sim    = goal_sim,
-            traj_slope  = slope - 0.5,
-            entropy     = entropy,
-            conv_speed  = conv,
-        )
-
-    def _bundle_rule(self, rule_hv, weight):
-        """Stochastic XOR-blend update (iterative fallback path).
-
-        Also updates _rule_bundle_pm1 (soft EMA) to keep eigen state in sync.
-        """
-        alpha = weight / (self._rule_weight + weight + EPS)
-        flip  = np.random.random(self.W) < alpha
-        self._rule_bundle = np.where(
-            flip, np.bitwise_xor(self._rule_bundle, rule_hv), self._rule_bundle
-        ).astype(np.uint64)
-        self._rule_weight += weight
-        # Keep soft pm1 bundle in sync (deterministic EMA equivalent)
-        if _EIGEN_AVAILABLE:
-            rule_pm1 = uint64_to_pm1(rule_hv)
-            self._rule_bundle_pm1 = (
-                (1.0 - alpha) * self._rule_bundle_pm1 + alpha * rule_pm1
-            ).astype(np.float32)
-
-    def _update_goal(self, fwd_hv, weight):
-        """Stochastic XOR-blend goal update (iterative fallback path).
-
-        Also updates _goal_hv_pm1 (soft EMA) to keep eigen state in sync.
-        """
-        if self.goal_hv is None:
-            self.goal_hv           = fwd_hv.copy()
-            self._goal_weight      = weight
-            self._base_goal_weight = weight
-            if _EIGEN_AVAILABLE:
-                self._goal_hv_pm1 = uint64_to_pm1(fwd_hv).astype(np.float32)
-        else:
-            dynamic_weight   = self._base_goal_weight * (1.0 + self._last_Z)
-            effective_weight = max(self._goal_weight, dynamic_weight)
-            alpha = weight / (effective_weight + weight + EPS)
-            flip  = np.random.random(self.W) < alpha
-            self.goal_hv = np.where(
-                flip, np.bitwise_xor(self.goal_hv, fwd_hv), self.goal_hv
-            ).astype(np.uint64)
-            self._goal_weight = effective_weight + weight
-            # Keep soft pm1 goal in sync
-            if _EIGEN_AVAILABLE:
-                fwd_pm1 = uint64_to_pm1(fwd_hv)
-                self._goal_hv_pm1 = (
-                    (1.0 - alpha) * self._goal_hv_pm1 + alpha * fwd_pm1
-                ).astype(np.float32)
-
-    def _parity_correct(self, tensor, active):
-        if not active.any() or not self._corr_buf:
-            return tensor
-        sub     = tensor[active]
-        bits    = np.unpackbits(sub.view(np.uint8).reshape(sub.shape[0], -1), axis=-1)
-        balance = bits.mean(axis=-1)
-        bad     = (balance < 0.3) | (balance > 0.7)
-        if bad.any():
-            median = np.median(
-                np.stack(self._corr_buf).view(np.int64), axis=0
-            ).astype(np.uint64)
-            sub[bad] = median
-            tensor[active] = sub
-        return tensor
