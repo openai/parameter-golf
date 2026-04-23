@@ -1,0 +1,31 @@
+{
+  "author": "Ismail Haddou",
+  "github_id": "ismailntl",
+  "name": "QK-Gain 5.5 + 4-Loop Recurrence + Early Parallel Residuals + Selective TTT",
+  "date": "2026-04-23",
+  "track": "10min_16mb",
+  "val_bpb": 1.17158907,
+  "val_bpb_std": null,
+  "seeds": [],
+  "seed_results": {},
+  "hardware": "1xH100 80GB HBM3 (ablation run, 2000 steps)",
+  "pytorch_version": "2.x+cu128",
+  "technique_summary": "QK-Gain 5.5 + NUM_LOOPS=3 (4 recurrence passes, 19 virtual layers) + Early Parallel Residuals (layer 5+) + Selective TTT on loop layers + smaller TTT chunk (24576) + more TTT epochs (4) on the SP1024+GPTQ+Brotli stack",
+  "status": "in-progress",
+  "notes": "Pre-quantization bpb on 1xH100 ablation. Full 8xH100 10-min run pending. Brotli serialization failed on test pod (missing package). Final submission bpb TBD.",
+  "compliance": {
+    "train_under_600s": null,
+    "artifact_under_16mb": null,
+    "eval_under_600s": null,
+    "no_slot": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "sp1024_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain": "@dexhunter (PR #1413)",
+    "legal_score_first_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "full_sota_stack": "@bigbag (PR #1493)"
+  }
+}
