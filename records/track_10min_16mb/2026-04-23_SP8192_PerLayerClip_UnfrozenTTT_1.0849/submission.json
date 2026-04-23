@@ -1,0 +1,33 @@
+{
+  "name": "2026-04-23_SP8192_PerLayerClip_UnfrozenTTT_1.0849",
+  "track": "10min_16mb",
+  "hardware": "8xH100 SXM",
+  "score_bpb_mean": 1.084884,
+  "score_bpb_std": 0.000224,
+  "seeds": {
+    "4": 1.084628,
+    "30": 1.085041,
+    "2026": 1.084983
+  },
+  "artifact_bytes": {
+    "4": 15961223,
+    "30": 15963763,
+    "2026": 15963896
+  },
+  "dependencies": ["torch", "sentencepiece", "brotli", "flash_attn (optional)"],
+  "training_time_seconds": 600,
+  "eval_time_seconds": 600,
+  "env_vars": {
+    "SPINQUANT_ENABLED": "1",
+    "EMBED_BITS": "7",
+    "EMBED_CLIP_SIGMAS": "15",
+    "MLP_CLIP_SIGMAS": "12.0",
+    "ATTN_CLIP_SIGMAS": "13.5",
+    "TTT_ENABLED": "1",
+    "TTT_EPOCHS": "5",
+    "TTT_FREEZE_BLOCKS": "0",
+    "TTT_LR": "0.010",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MAX_EVAL_SECONDS": "600"
+  }
+}
