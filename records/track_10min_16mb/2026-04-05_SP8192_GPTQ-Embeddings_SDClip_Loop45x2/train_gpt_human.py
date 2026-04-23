@@ -594,9 +594,10 @@ class GPT(nn.Module):
             x = self.embed_proj(x)
         x0 = x
         skips: list[Tensor] = []
-        use_recurrence = self.looping_active and self.recurrence_alpha > 0.0
+        # Keep control flow stable for torch.compile: gate recurrence by a boolean
+        # mode switch, and apply alpha only as tensor arithmetic.
+        use_recurrence = self.looping_active
         alpha = self.recurrence_alpha_buf.to(dtype=x.dtype)
-        alpha_is_full = self.recurrence_alpha >= 1.0 - 1e-8
         if use_recurrence:
             enc_iter = self.encoder_indices
             dec_iter = self.decoder_indices
@@ -608,7 +609,7 @@ class GPT(nn.Module):
             enc_mask = [False] * self.num_encoder_layers
             dec_mask = [False] * self.num_decoder_layers
         for idx, i in enumerate(enc_iter):
-            if enc_mask[idx] and not alpha_is_full:
+            if enc_mask[idx]:
                 y = self.blocks[i](x, x0)
                 x = x + alpha * (y - x)
             else:
@@ -622,7 +623,7 @@ class GPT(nn.Module):
                     x = torch.lerp(scaled_skip, x, g)
                 else:
                     x = x + scaled_skip
-            if dec_mask[skip_idx] and not alpha_is_full:
+            if dec_mask[skip_idx]:
                 y = self.blocks[i](x, x0)
                 x = x + alpha * (y - x)
             else:
