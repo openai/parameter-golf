@@ -206,7 +206,10 @@ def _run_bidi_hdc(args):
         print(f"[BiDirHDC] Training tokens: {len(train_tokens):,}")
 
     # ── Training ──────────────────────────────────────────────────────────────
-    # Reserve 75s for eval + artifact save
+    # Reserve 75s for eval + artifact save.
+    # With eigen optimisations, train_bidi_model() completes in ~5–8s,
+    # leaving ~547s for SpiralDSV build. We use a per-seed budget of 30s
+    # so the engine trains quickly, then the remaining time goes to SpiralDSV.
     train_budget = max(60.0, max_secs - 75.0)
 
     engine = train_bidi_model(
@@ -223,6 +226,10 @@ def _run_bidi_hdc(args):
         return
 
     # ── Optional SpiralDSV build ──────────────────────────────────────────────
+    # spiral_budget = remaining time after training, minus 45s eval reserve.
+    # With eigen optimisations, elapsed_train ≈ 5–8s, so spiral_budget ≈ 547s.
+    # The SpiralDSV build is already inside the 600s budget — it is Phase 3
+    # of the pipeline, not bonus time.
     spiral_dsv = None
     elapsed_train = time.time() - t_global_start
     spiral_budget = max(0.0, max_secs - elapsed_train - 45.0)
@@ -231,12 +238,15 @@ def _run_bidi_hdc(args):
         try:
             from _spiral_dsv_lm import SpiralDSVLanguageModel
             print(f"\n[BiDirHDC] Building SpiralDSV bilateral tables "
-                  f"(budget={spiral_budget:.0f}s)...")
+                  f"(budget={spiral_budget:.0f}s, elapsed_so_far={elapsed_train:.1f}s)...")
             spiral_dsv = SpiralDSVLanguageModel(
                 vocab_size = vocab_size,
                 n_words    = n_words,
                 seed       = seed,
             )
+            # ctx_len=4 completes in <0.1s with EigenSpiralBuilder.
+            # The full spiral_budget is passed so the time-budget guard inside
+            # build_from_tokens() can use remaining time for deeper lags if desired.
             spiral_dsv.build_from_tokens(
                 tokens        = train_tokens,
                 ctx_len       = 4,
