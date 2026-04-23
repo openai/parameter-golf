@@ -60,6 +60,7 @@ from lossless_caps import encode_lossless_caps_v2  # noqa: E402
 SHARD_MAGIC = 20240520
 SHARD_VERSION = 1
 SHARD_TOKENS = 10_000_000  # tokens per shard — matches the main pipeline
+BOS_ID = 1  # SP model's <s> control token; train_gpt.py:_find_docs requires BOS per doc
 
 
 def _write_shard(out_path: pathlib.Path, arr: np.ndarray) -> None:
@@ -154,12 +155,13 @@ def main() -> None:
 
     for text in _iter_docs(args.docs):
         transformed = encode_lossless_caps_v2(text)
-        token_ids = sp.encode(transformed, out_type=int)
+        token_ids = [BOS_ID] + sp.encode(transformed, out_type=int)
         if n_docs < args.val_docs:
             # Validation doc — also compute byte sidecar
             byte_counts = _token_original_byte_counts(sp, text, transformed)
             val_buf_tokens.extend(token_ids)
-            val_buf_bytes.extend(int(b) for b in byte_counts[:len(token_ids)])
+            val_buf_bytes.append(0)  # BOS contributes 0 original bytes
+            val_buf_bytes.extend(int(b) for b in byte_counts)
             if len(val_buf_tokens) >= SHARD_TOKENS:
                 _write_shard(train_out / f"fineweb_val_{val_written:06d}.bin",
                              np.array(val_buf_tokens[:SHARD_TOKENS], dtype=np.uint16))

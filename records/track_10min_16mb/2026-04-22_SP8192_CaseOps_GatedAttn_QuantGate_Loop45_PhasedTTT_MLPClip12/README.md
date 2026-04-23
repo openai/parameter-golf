@@ -137,6 +137,24 @@ data/datasets/fineweb10B_sp8192_caseops/datasets/
     fineweb_val_bytes_000000.bin
 ```
 
+### Reproduction sanity check (run after step 2)
+
+Each shard must contain `BOS_ID=1` at the start of every document — `train_gpt.py`'s phased TTT eval path (`_find_docs`) requires it. Quick check on the first val shard:
+
+```python
+python3 -c "
+import numpy as np
+d = np.fromfile('data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_000000.bin', dtype=np.uint16)
+# First 256 uint16 slots are the shard header; tokens start after.
+tokens = d[512:]
+bos_count = int((tokens == 1).sum())
+print(f'BOS markers in val shard: {bos_count}  (must be > 0)')
+assert bos_count > 0, 'prepare_caseops_data.py is broken — re-run with BOS prepend'
+"
+```
+
+If `bos_count == 0`, the prep script is out of date — pull the latest `prepare_caseops_data.py` from this folder (the SP tokenizer reserves IDs 0–7 for special + CaseOps operator tokens, so the prep script must explicitly prepend `BOS_ID=1` to each doc; the eval path's `_find_docs` has no fallback for missing BOS markers).
+
 ## Run command (5-seed reproduction)
 
 ```bash
