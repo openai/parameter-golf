@@ -23,7 +23,7 @@ from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 try:
-    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+    from flash_attn import flash_attn_func as flash_attn_3_func
 except ImportError:
     flash_attn_3_func = None
 
@@ -35,15 +35,15 @@ class Hyperparameters:
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_4096_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 42))
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 100000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 96))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
-    iterations = int(os.environ.get("ITERATIONS", 35000))
+    iterations = int(os.environ.get("ITERATIONS", 50000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5))
@@ -61,8 +61,8 @@ class Hyperparameters:
     head_lrgit = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.032))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.032))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.025))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
