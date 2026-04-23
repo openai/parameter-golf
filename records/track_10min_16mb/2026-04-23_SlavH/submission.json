@@ -1,0 +1,7 @@
+{
+    "name": "Nairi-Micro TTT",
+    "github_id": "SlavH",
+    "model_size_bytes": 13800000,
+    "val_bpb": 0.9982,
+    "train_time_seconds": 580
+}
