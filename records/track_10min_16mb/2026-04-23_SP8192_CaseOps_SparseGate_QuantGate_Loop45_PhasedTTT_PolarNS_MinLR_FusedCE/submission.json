@@ -1,0 +1,24 @@
+{
+  "author": "nprime06",
+  "github_id": "nprime06",
+  "name": "PR #1736 + Polar Express NS + MIN_LR + Sparse Attention Gate + Fused CE",
+  "blurb": "Stacks four orthogonal wins on top of #1736: Polar Express per-iteration Newton-Schulz coefficients for Muon (from PR #1344), a narrow sparse attention head-output gate (modded-nanogpt-style, 96 params/layer vs dense 4096), a Triton fused softcapped cross-entropy kernel on the training forward, and a LR warmdown floor (MIN_LR=0.10). Plus three polish tweaks: tight GPTQ_RESERVE_SECONDS=0.5, disabled mid-training val, and widened attn_gate_w quant-route to int8-per-row. All four wins were ablation-validated on top of stock #1736 seed 0 before stacking.",
+  "date": "2026-04-23",
+  "track": "10min_16mb",
+  "val_loss": 2.32794,
+  "val_bpb": 1.06378,
+  "val_bpb_std": 0.00058,
+  "val_loss_std": 0.00128,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_loss": 2.32939, "val_bpb": 1.06444, "artifact_bytes": 15940380, "steps": 4961, "train_time_s": 599.46, "ttt_eval_time_s": 511.3},
+    "0":    {"val_loss": 2.32740, "val_bpb": 1.06353, "artifact_bytes": 15939508, "steps": 4957, "train_time_s": 599.56, "ttt_eval_time_s": 440.9},
+    "1234": {"val_loss": 2.32703, "val_bpb": 1.06336, "artifact_bytes": 15939918, "steps": 4964, "train_time_s": 599.57, "ttt_eval_time_s": 412.8}
+  },
+  "artifact_bytes_mean": 15939935,
+  "artifact_bytes_max": 15940380,
+  "train_time_s_mean": 599.53,
+  "eval_time_s_mean": 455.0,
+  "hardware": "8xH100 80GB SXM",
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize CaseOps-transformed FineWeb + emit per-token byte sidecar, then run train_gpt.py per seed as documented in README.md. Identical tokenizer and data layout to PR #1736."
+}
