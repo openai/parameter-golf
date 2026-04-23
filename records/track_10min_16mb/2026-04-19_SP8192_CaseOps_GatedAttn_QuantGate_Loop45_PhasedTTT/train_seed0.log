@@ -13,8 +13,8 @@ Hyperparameters:
   beta2: 0.95
   caseops_enabled: True
   compressor: brotli
-  data_dir: /home/dex/parameter-golf-with-cc/data
-  datasets_dir: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  data_dir: ./data
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
   distributed: True
   ema_decay: 0.9965
   embed_bits: 7
@@ -87,9 +87,9 @@ Hyperparameters:
   tie_embeddings: True
   tied_embed_init_std: 0.005
   tied_embed_lr: 0.03
-  tokenizer_path: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  tokenizer_path: ./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
   train_batch_tokens: 786432
-  train_files: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
   train_log_every: 500
   train_seq_len: 2048
   ttt_batch_size: 64
@@ -108,9 +108,9 @@ Hyperparameters:
   ttt_optimizer: adam
   ttt_weight_decay: 0.5
   val_batch_tokens: 524288
-  val_bytes_files: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_bytes_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
   val_doc_fraction: 1.0
-  val_files: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
   val_loss_every: 4000
   vocab_size: 8192
   warmdown_frac: 0.75
