@@ -1238,8 +1238,9 @@ def deserialize(h: Hyperparameters, device: torch.device) -> GPT:
 # ----------------------------------------
 
 # PPM byte mixture (adaptive-λ). Byte-level PPM-D order 5, online TTT on scored val.
-# Vectorized byte-stream + NN-spread for full-val throughput; PPM kernel in tight Python.
-def _ppm_mixture_bpb(tgt_np, lp_np, sp, O=5, H=0.9, L_=0.05, T=0.9):
+# Gate is keyed on max_count/total at the used context — outcome-independent
+# (does NOT depend on the realized byte). See PR discussion re: gate legality.
+def _ppm_mixture_bpb(tgt_np, lp_np, sp, O=4, H=0.9, L_=0.05, T=0.9):
     V = sp.vocab_size()
     piece_bytes = [None]*V; piece_lens = np.zeros(V, dtype=np.int32)
     for i in range(V):
@@ -1253,7 +1254,7 @@ def _ppm_mixture_bpb(tgt_np, lp_np, sp, O=5, H=0.9, L_=0.05, T=0.9):
     rep_lp = np.repeat(lp_np.astype(np.float64), per_tok_len)
     rep_len = np.repeat(per_tok_len.astype(np.float64), per_tok_len)
     nlp = np.where(rep_len > 0, rep_lp / rep_len, 0.0)
-    # PPM-D
+    # PPM-D tables: each entry = [total, max_count, counts_dict]
     tabs = [dict() for _ in range(O+1)]
     plp = np.empty(N, dtype=np.float64); cf = np.empty(N, dtype=np.float64)
     LN256 = math.log(1/256); log = math.log
@@ -1264,26 +1265,40 @@ def _ppm_mixture_bpb(tgt_np, lp_np, sp, O=5, H=0.9, L_=0.05, T=0.9):
             plp[i] = LN256; cf[i] = 1/256
         else:
             esc = 1.0; pf = 0.0
+            # cf is computed independent of x: max_count/total at the DEEPEST context
+            # with any data (first e we encounter while descending orders). Does NOT
+            # depend on whether the observed byte matches at that context.
+            cf_mx = 0; cf_tot = 256; cf_seen = False
             lim = O if i > O else i
             for o in range(lim, -1, -1):
                 k = h[-o:] if o else b""
                 e = tabs[o].get(k)
                 if e is None: continue
-                tot = e[0]; d = e[1]; c = d.get(x, 0)
+                if not cf_seen:
+                    cf_mx = e[1]; cf_tot = e[0]; cf_seen = True
+                tot = e[0]; d = e[2]
+                c = d.get(x, 0)
                 if c > 0:
                     pf = esc * (2*c - 1) / (2*tot); break
                 esc *= len(d) / (2*tot)
             else:
                 pf = esc / 256
             if pf < 1e-20: pf = 1e-20
-            plp[i] = log(pf); cf[i] = pf
+            plp[i] = log(pf)
+            # Strict-legal: cf = max/total at deepest seen context, prefix-only.
+            cf[i] = (cf_mx / cf_tot) if cf_seen else 1/256
+        # Update all orders; maintain max_count incrementally
         for o in range(O+1):
             k = h[-o:] if o else b""
             e = tabs[o].get(k)
             if e is None:
-                tabs[o][k] = [1, {x: 1}]
+                tabs[o][k] = [1, 1, {x: 1}]
             else:
-                e[0] += 1; d = e[1]; d[x] = d.get(x, 0) + 1
+                e[0] += 1
+                d = e[2]
+                cnt = d.get(x, 0) + 1
+                d[x] = cnt
+                if cnt > e[1]: e[1] = cnt
         h = (h + bytes([x]))[-O:]
     lam = np.where(cf > T, L_, H)
     pm = lam*np.exp(nlp) + (1-lam)*np.exp(plp)

@@ -1,7 +1,7 @@
-W0423 22:15:34.031000 37080 torch/distributed/run.py:803] 
-W0423 22:15:34.031000 37080 torch/distributed/run.py:803] *****************************************
-W0423 22:15:34.031000 37080 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-W0423 22:15:34.031000 37080 torch/distributed/run.py:803] *****************************************
+W0424 08:33:33.009000 34684 torch/distributed/run.py:803] 
+W0424 08:33:33.009000 34684 torch/distributed/run.py:803] *****************************************
+W0424 08:33:33.009000 34684 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0424 08:33:33.009000 34684 torch/distributed/run.py:803] *****************************************
 Hyperparameters:
   adam_eps: 1e-08
   adam_wd: 0.02
@@ -87,35 +87,35 @@ warmup_step: 6/20
 warmup_step: 10/20
 warmup_step: 20/20
 0/20000 val_loss: 8.3157 val_bpb: 3.6139
-1/20000 train_loss: 8.3179 train_time: 0.0m tok/s: 8408044
-2/20000 train_loss: 12.3827 train_time: 0.0m tok/s: 8285200
-3/20000 train_loss: 10.8875 train_time: 0.0m tok/s: 8185272
-4/20000 train_loss: 9.0416 train_time: 0.0m tok/s: 8135610
-5/20000 train_loss: 7.8092 train_time: 0.0m tok/s: 8099886
-500/20000 train_loss: 2.9326 train_time: 0.8m tok/s: 7867458
-1000/20000 train_loss: 2.9024 train_time: 1.7m tok/s: 7857849
-1500/20000 train_loss: 2.9197 train_time: 2.5m tok/s: 7858915
-2000/20000 train_loss: 2.6646 train_time: 3.3m tok/s: 7860451
-2500/20000 train_loss: 2.7164 train_time: 4.2m tok/s: 7858666
-3000/20000 train_loss: 2.7611 train_time: 5.0m tok/s: 7859735
-3500/20000 train_loss: 2.7064 train_time: 5.8m tok/s: 7860388
-4000/20000 train_loss: 2.6483 train_time: 6.7m tok/s: 7860863
-4000/20000 val_loss: 2.6716 val_bpb: 1.1611
-4500/20000 train_loss: 2.6061 train_time: 7.5m tok/s: 7861174
-5000/20000 train_loss: 2.5630 train_time: 8.3m tok/s: 7861611
-5500/20000 train_loss: 2.5709 train_time: 9.2m tok/s: 7862096
-5899/20000 val_loss: 2.5443 val_bpb: 1.1057
-stopping_early: wallclock_cap train_time: 590063ms step: 5899/20000
+1/20000 train_loss: 8.3179 train_time: 0.0m tok/s: 8443969
+2/20000 train_loss: 12.3827 train_time: 0.0m tok/s: 8330337
+3/20000 train_loss: 10.8875 train_time: 0.0m tok/s: 8235402
+4/20000 train_loss: 9.0415 train_time: 0.0m tok/s: 8184470
+5/20000 train_loss: 7.8092 train_time: 0.0m tok/s: 8148913
+500/20000 train_loss: 2.9303 train_time: 0.8m tok/s: 7914420
+1000/20000 train_loss: 2.9041 train_time: 1.7m tok/s: 7893471
+1500/20000 train_loss: 2.9240 train_time: 2.5m tok/s: 7887029
+2000/20000 train_loss: 2.6656 train_time: 3.3m tok/s: 7885197
+2500/20000 train_loss: 2.7162 train_time: 4.2m tok/s: 7886059
+3000/20000 train_loss: 2.7626 train_time: 5.0m tok/s: 7887279
+3500/20000 train_loss: 2.7068 train_time: 5.8m tok/s: 7888543
+4000/20000 train_loss: 2.6493 train_time: 6.6m tok/s: 7889698
+4000/20000 val_loss: 2.6723 val_bpb: 1.1613
+4500/20000 train_loss: 2.6076 train_time: 7.5m tok/s: 7891698
+5000/20000 train_loss: 2.5676 train_time: 8.3m tok/s: 7893580
+5500/20000 train_loss: 2.5731 train_time: 9.1m tok/s: 7895404
+5925/20000 val_loss: 2.5437 val_bpb: 1.1055
+stopping_early: wallclock_cap train_time: 590077ms step: 5925/20000
 peak memory allocated: 25773 MiB reserved: 25882 MiB
 ema:applying EMA weights
-pre-quantization post-ema val_loss:2.54157766 val_bpb:1.10454037 eval_time:1730ms
+pre-quantization post-ema val_loss:2.54102937 val_bpb:1.10430209 eval_time:1715ms
 Serialized model: 132405827 bytes
-Code size: 72829 bytes
+Code size: 73651 bytes
 GPTQ:collecting Hessians from calibration data...
 GPTQ:collected 66 Hessians in 8.3s
 GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
-Serialized model int6+brotli: 15857795 bytes
-Total submission size int6+brotli: 15930624 bytes
-final_int6_roundtrip val_loss:2.56743953 val_bpb:1.11577965 eval_time:6619ms
-[ppm_mix] tokens=45508608 bytes=152570124 NN_byte=1.08675 mix=0.95135 Δ=-0.13540 NN_full=1.09751
-final_int6_sliding_window val_loss:2.52540642 val_bpb:0.95134764 eval_time:540903ms
+Serialized model int6+brotli: 15851046 bytes
+Total submission size int6+brotli: 15924697 bytes
+final_int6_roundtrip val_loss:2.56702280 val_bpb:1.11559854 eval_time:6603ms
+[ppm_mix] tokens=45508608 bytes=152570124 NN_byte=1.08652 mix=1.01226 Δ=-0.07426 NN_full=1.09728
+final_int6_sliding_window val_loss:2.52487437 val_bpb:1.01226190 eval_time:485453ms

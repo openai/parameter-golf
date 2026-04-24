@@ -1,73 +1,87 @@
-# Record: SP4096 + Byte-Level PPM Adaptive-λ Mixture — val_bpb 0.95165 (full val)
+# Record: SP4096 + Byte-Level PPM Adaptive-λ Mixture (strict-legal gate) — val_bpb 1.01252
 
-**val_bpb: 0.95165** (3-seed mean, std=0.00036, full FineWeb val)
+**val_bpb: 1.01252** (3-seed mean, std=0.00044, full FineWeb val, **strict-legal outcome-independent gate**)
 
-| Seed | NN-only (sliding, token-BPB, full val) | NN-only byte-BPB | **Mix BPB (byte-level, full val)** | Δ | Artifact | Eval |
-|-|-|-|-|-|-|-|
-| 42   | 1.09745 | 1.08669 | **0.95145** | −0.13524 | 15,960,029 | 9:35 |
-| 1337 | 1.09832 | 1.08755 | **0.95214** | −0.13541 | 15,929,684 | 9:02 |
-| 2025 | 1.09751 | 1.08675 | **0.95135** | −0.13540 | 15,930,624 | 9:01 |
-| **Mean** | **1.09776** | **1.08699** | **0.95165** | **−0.13535** | 15,940,112 | 9:13 |
+| Seed | NN_full (sliding, token-BPB, full val) | Mix BPB (byte-level, full val) | Δ | Artifact | Eval |
+|-|-|-|-|-|-|
+| 42   | 1.09740 | **1.01228** | −0.07436 | 15,953,442 | 521s |
+| 1337 | 1.09823 | **1.01303** | −0.07443 | 15,921,608 | 506s |
+| 2025 | 1.09728 | **1.01226** | −0.07426 | 15,924,697 | 485s |
+| **Mean** | **1.09764** | **1.01252** | **−0.07435** | 15,933,249 | 504s |
 
-This beats the current record of **1.06453** (PR #1769 3-seed mean) by **0.11288** BPB on the same full-val basis — t-stat ≈ 513 on the 0.005-nat bar.
+Beats current record **1.06453** (PR #1769) by **0.05201** BPB — t-stat ≈ 107 on the 0.005-nat bar.
 
-Our NN-only mean **1.09776 matches @clarkkev's 2026-04-01 record of 1.09785** within seed noise (std 0.00036 vs clarkkev's 0.0004). The entire NN stack is unchanged from PR #1334 / the 2026-04-01 record; the gain comes from the byte-level PPM mixture applied at eval time.
+Our NN-only mean **1.09764 matches @clarkkev's 2026-04-01 record of 1.09785** within seed noise. The entire NN stack is unchanged from PR #1334 / the 2026-04-01 record; the gain comes from a byte-level PPM adaptive-λ mixture applied at eval time.
 
-## This is a revised PR replacing an earlier version
+## This PR supersedes an earlier (now-invalidated) attempt
 
-This PR supersedes the earlier submission in this branch. The earlier version had three concrete issues raised by reviewers:
+The earlier version of this submission (on branch `record-sp4096-ppm-adaptive-mix`, PR #1795 at commit `07d20c3`, claiming val_bpb 0.95165) used a **target-conditioned gate** — `cf[i] = P_PPM(observed_byte)` — which made the reported score depend on the realized byte value. This was correctly flagged by @nprime06 in the PR comments as not a valid scoring rule, and that number is retracted.
 
-1. **Mixture BPB was measured on a 5M-token subset**, not full val → **FIXED**: mixture now runs on all 45.5M val tokens / 152.6MB byte stream, same basis as all merged records.
-2. **NN-only BPB (1.144) was 0.054 BPB worse than clarkkev's base (1.098)** because training used only 2 SP4096 shards → **FIXED**: full SP4096 dataset downloaded (80+ shards), NN now trains to 1.09776 matching clarkkev exactly.
-3. **Artifact was 32KB over the 16MB cap** → **FIXED**: all 3 seeds ship at 15.93–15.96 MB with the full readable source (no lzma-compressed stub needed).
+The revised gate in this version is **strictly a function of the prefix and PPM state, frozen before the observed byte is looked up**. See the next section.
 
-All three blockers resolved.
+## The mixture, and why the gate is now outcome-independent
 
-## What exactly changed vs @clarkkev 2026-04-01
+The scoring model is a byte-level two-predictor mixture:
 
-Source-level diff: one new function (`_ppm_mixture_bpb`, ~30 lines) plus ~30 lines of gather/mix logic inside `eval_val_sliding`. Everything else is untouched.
+`q_mix(b) = λ·q_NN_byte(b) + (1−λ)·q_PPM_byte(b)`
 
-1. **`_ppm_mixture_bpb(tgt, lp, sp, order=5, λ_high=0.9, λ_low=0.05, thr=0.9)`** — byte-level PPM-D order 5 with PPM-D escape. Streams val bytes, emits per-byte log-prob and confidence (= PPM's in-context probability of the observed byte). Mixture in byte-probability space: `q_mix(b) = λ·q_NN(b) + (1−λ)·q_PPM(b)`, with `λ = λ_low if conf > thr else λ_high`. NN log-prob spread uniformly across UTF-8 bytes of each token (conserves total NN bits — byte-level NN BPB 1.08699 equals token-level NN BPB 1.09776 scaled by bytes/token).
-    - Vectorized byte-stream construction (`np.repeat` + `b"".join`) and vectorized NN spread keep the full-val mixture under 6 min of PPM CPU time on pod.
-2. **Mixture hook inside `eval_val_sliding`** — collects per-token target log-probs (= −scored_nll) and target IDs on each rank, all-gathers to rank 0, pads uneven shards, runs `_ppm_mixture_bpb` on the full gathered stream, returns mixture BPB as the function's reported val_bpb. Non-rank-0 ranks return NN-only BPB (only rank 0's number is logged). No dist.broadcast of the mixture value — avoids the NCCL watchdog timing out during the single-threaded PPM pass.
+where:
 
-Everything else (11L/SP4096/MLP4, sliding eval, EMA, GPTQ int6+brotli, legal TTT, parallel residuals, LeakyReLU², depth recurrence, wallclock cap) is unchanged from 2026-04-01. Same env vars as clarkkev's run (`RUN_ID`, `SEED`) plus one that gates the mixture (`PPM_MIX_ENABLED=1`).
+- **`q_NN_byte`** — NN's SentencePiece-token distribution, spread uniformly across UTF-8 bytes of each token. Conserves total NN bits (byte-BPB of NN alone equals token-BPB scaled by bytes/token).
+- **`q_PPM_byte`** — byte-level PPM-D order 4 predictor. Builds its suffix-count table online from val bytes the NN has already graded in the same sliding pass. Zero precomputed state ships in the 16MB artifact.
+- **`λ`** (the gate) — adaptive: `λ = 0.05 if cf > 0.9 else 0.9`, where `cf = max_count / total` at the **deepest context with any data**, computed from the PPM state and the prefix **before any lookup of the observed byte**.
 
-## The submission's scoring model is a byte-level two-predictor mixture
+The key code:
 
-Following reviewer feedback (Condition 2 framing): this submission's effective scoring model is **not** the NN alone. It is the byte-level mixture `q_mix = λ·q_NN_byte + (1−λ)·q_PPM_byte` where:
-- `q_NN_byte` is derived from the NN's SentencePiece-token distribution by spreading the token log-prob uniformly across its UTF-8 bytes (a bit-conserving byte marginalization — a formally weaker-than-optimal lower bound on what a proper byte-level NN marginalization would emit).
-- `q_PPM_byte` is emitted by a byte-level PPM-D order 5 predictor trained online on already-scored val bytes (zero bytes of pre-computed state ship in the artifact).
+```python
+cf_mx = 0; cf_tot = 256; cf_seen = False
+for o in range(lim, -1, -1):
+    k = h[-o:] if o else b""        # context key: prefix only
+    e = tabs[o].get(k)               # lookup: prefix only
+    if e is None: continue
+    if not cf_seen:                  # first context found = deepest with data
+        cf_mx = e[1]                 # max_count, frozen HERE
+        cf_tot = e[0]                # total, frozen HERE
+        cf_seen = True               # — BEFORE any d.get(x) below
+    tot = e[0]; d = e[2]
+    c = d.get(x, 0)                  # now uses x — but cf already frozen
+    if c > 0:
+        pf = esc * (2*c - 1) / (2*tot); break
+    esc *= len(d) / (2*tot)
+cf[i] = (cf_mx / cf_tot) if cf_seen else 1/256
+```
 
-The headline `val_bpb = 0.95165` is the byte-level BPB of this mixture, measured on full val. For audit, we also log the NN-alone token-level BPB (1.09776) — the number directly comparable to clarkkev's 2026-04-01 record — and the NN-alone byte-level BPB (1.08699).
+**Formal property:** for any two possible next-bytes `x_a`, `x_b` at the same position (same prefix `h`, same PPM state `tabs`), `cf[i]` is bitwise identical between the two cases. Therefore `λ[i] = np.where(cf > T, L_, H)` is identical. Only `q_NN(x)` and `q_PPM(x)` depend on `x` — which is correct for predictor scores.
 
-## Why the mixture works on top of an already-strong NN
+This answers @nprime06's specific concern on PR #1795 mechanically, not rhetorically.
 
-The adaptive-mix Δ stays in a tight −0.12 to −0.14 range across 5 different NN qualities, measured during development:
+## What changed vs @clarkkev 2026-04-01
 
-| NN (byte, sliding) | Family | Δ adaptive |
-|---:|---|---:|
-| 2.540 | MLX SP1024 9L weak | −0.694 |
-| 1.354 | torch SP1024 9L | −0.126 |
-| 1.258 | torch SP1024 9L | −0.123 |
-| 1.211 | torch SP8192 11L MLP4 | −0.137 |
-| **1.087** | **This submission (SP4096 11L MLP4, record-quality)** | **−0.135** |
+Source-level diff: one new function (`_ppm_mixture_bpb`, ~55 lines including the strict-legal gate tracking) plus ~30 lines of gather/mix logic inside `eval_val_sliding`. Everything else is unchanged from the 2026-04-01 record:
 
-The gain does not shrink with NN quality because it specifically targets rare-repeat byte patterns — a property of the FineWeb val distribution (URLs, code identifiers, wiki boilerplate, tokenization-spanning repeats), not of the NN. The high-gain bytes (≥10 bits saved per byte at λ≈0.5) require eval-time exact-match memorization, which is what PPM does and what any finite-context finite-parameter NN cannot do.
+- 11 layers, SP4096, MLP mult 4, depth recurrence, sliding-window eval, EMA, GPTQ int6 + brotli, LeakyReLU², parallel residuals, legal TTT framework
+- Same env vars (`RUN_ID`, `SEED`), plus one gating the mixture (`PPM_MIX_ENABLED=1`)
+- Same wallclock cap, same train pipeline, same GPTQ calibration
 
-## Compliance (per the 5 reviewer questions)
+## Compliance
 
-- **(1) Full-val measurement** ✅ 45,508,608 tokens / 152,570,124 bytes, same basis as every merged record.
-- **(2) PPM-as-TTT legality** ⚠️ **Request organizer ruling.** Our PPM counters update per byte in strict score-before-update order: at byte `i`, we (a) score `byte_i` using counters accumulated from bytes `0..i-1`, (b) then add `byte_i` to the counters for future bytes. By the letter of the rule ("test-time training on validation set tokens you've already evaluated your model on"), this qualifies: every PPM update uses only already-scored bytes. Per-byte granularity is finer than the chunk-level score-first TTT Issue #1017 was written for; we'd welcome explicit organizer guidance on whether this class of online streaming predictor qualifies. If the ruling is "no," the submission is withdrawn.
-- **(3) Byte-level vs token-level BPB** ✅ Both logged. NN-alone token-BPB: 1.09776 (= clarkkev's metric). NN-alone byte-BPB: 1.08699 (bit-conserving spread). Mixture byte-BPB: 0.95165. The submission's leaderboard number is the mixture byte-BPB because the mixture is the scoring object; the NN-alone token-BPB is provided for direct comparability with existing records.
-- **(4) NN regression vs @clarkkev** ✅ Resolved. NN-only mean 1.09776 vs clarkkev 1.09785. Stack and env vars unchanged; training runs on full SP4096 data.
-- **(5) Condition 2 framing** ✅ The scoring model is explicitly framed as a byte-level two-predictor mixture (see section above).
+- **Train under 600s** ✅ all 3 seeds stopped at 590s wallclock cap (steps 5898–5901)
+- **Artifact under 16 MB** ✅ 15.92–15.95 MB natively (no lzma-compressed stub needed)
+- **Eval under 600s** ✅ all 3 seeds 485–521s (using PPM order 4 — order 5 was 15s over cap due to max_count tracking overhead; benchmarking showed order 4 only 0.02 BPB worse in mix)
+- **No SLOT, no pre-quant TTT on val, no ETLB** ✅ inherited from base, unchanged
+- **3 seeds, p ≪ 1e-10 on the 0.005-nat bar** ✅ (t-stat ≈ 107)
+- **`no_ngram_cache: false`** — byte-level online PPM predictor built from empty counters during sliding eval. **Per-byte semantics: score byte_i using counters from bytes 0..i-1 (score-before-update), then add byte_i to counters for future bytes.** All PPM state is constructed from val tokens the NN has already graded, consistent with the rule text "test-time training on validation set tokens you've already evaluated your model on". **Organizer ruling explicitly requested** (see @nprime06 and @dexhunter review comments on PR #1795) on whether this class of online streaming predictor qualifies as legal score-first TTT — if ruled no, submission withdrawn.
 
-Other compliance from 2026-04-01 base, unchanged:
-- Train ≤ 600s ✅ (all 3 seeds stopped at 590s wallclock cap, steps 5898–5901)
-- Artifact ≤ 16 MB ✅ (15.93-15.96 MB, no lzma stub needed)
-- Eval ≤ 600s ✅ (sliding+full-val mixture 540-575s)
-- No SLOT, no pre-quant TTT on val, no ETLB (inherited from base)
+## Reviewer concerns from PR #1795 (status)
+
+| # | Concern | Status |
+|---|---|---|
+| 1 | Full-val measurement (not 5M subset) | ✅ RESOLVED — 45.5M tokens / 152.6 MB bytes |
+| 2 | PPM-as-TTT class legality | ⚠️ Organizer ruling requested (category question) |
+| 3 | Byte-level vs token-level BPB | ✅ BOTH logged (NN_token=1.098, NN_byte=1.087, mix=1.013) |
+| 4 | NN regression vs clarkkev | ✅ RESOLVED — 1.0976 mean matches 1.0978 |
+| 5 | Condition 2 framing (scoring model is a mixture) | ✅ Explicit in README above |
+| **@nprime06**: target-conditioned gate | ✅ RESOLVED — strict-legal outcome-independent gate, see code |
 
 ## Reproduction
 
@@ -83,8 +97,8 @@ The reported val_bpb is the `final_int6_sliding_window val_bpb:` line, which equ
 
 ## Credits
 
-- **@clarkkev** — entire SP4096 + 11L + MLP4 + depth-recurrence + EMA + GPTQ + sliding + brotli stack (PR #1334 / the 2026-04-01 record). All of the NN contribution here is his work; the 1.097 NN-only column is exactly his measurement.
-- **Cleary & Witten 1984; Moffat 1990** — PPM-D with the escape method used here.
-- **This submission** — the byte-probability-space two-predictor mixture construction and the adaptive-λ gate keyed on PPM's in-context confidence.
+- **@clarkkev** — entire 2026-04-01 SP4096 + 11L + MLP4 + depth-recurrence + EMA + GPTQ + sliding + brotli stack (PR #1334, #1419, #1445). All of the NN contribution (1.098 BPB) is his work.
+- **Cleary & Witten 1984; Moffat 1990** — PPM-D.
+- **This submission** — the byte-probability-space two-predictor mixture construction with an **outcome-independent** adaptive-λ gate keyed on PPM's state-only max-count ratio.
 
-Neither predictor alone reaches this BPB: clarkkev's NN at 1.098, and byte-PPM alone is ~2.7 at full val. The mixture at 0.95 captures bit-saves on the minority of bytes where PPM strictly dominates (rare exact-repeat sequences) while leaving the majority to the NN.
+Neither predictor alone reaches this BPB: clarkkev's NN is at 1.098, byte-PPM alone ≈2.5 on full val. The mixture at 1.013 captures the bits PPM strictly wins on (rare exact-repeat bytes — URLs, code identifiers, cross-doc duplicates) while leaving the rest to the NN. The −0.074 Δ is smaller than the retracted illegal-gate claim (−0.135) but is **mechanically defensible**: no function of the observed byte enters the gate.
