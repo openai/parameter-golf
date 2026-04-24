@@ -15,3 +15,10 @@ logs/
 # Trained model artifacts produced by local runs
 final_model.pt
 final_model.int8.ptz
+
+# Autoresearch harness: experiments/ is agent-owned per-run state, not committed
+# unless the human is promoting a specific win (use `git add -f` if needed).
+experiments/
+
+# Ephemeral scratch space the agent uses for derivations, profiling, etc.
+scratch/
