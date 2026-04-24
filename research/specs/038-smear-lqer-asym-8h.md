@@ -4,7 +4,7 @@
 **Created:** 2026-04-24
 **Status:** READY
 **Branch:** `exp/038-smear-lqer-8h-promotion`
-**Commit:** `TBD after final spec pin`
+**Commit:** `9636d34`
 **Links to:** `research/specs/037-fullfloat-sparse-updated-alpha-beta-8h.md`, `research/specs/035e-sparse-gate-on-1779-family.md`, `runs/035-series-report.md`
 
 ## Hypothesis
