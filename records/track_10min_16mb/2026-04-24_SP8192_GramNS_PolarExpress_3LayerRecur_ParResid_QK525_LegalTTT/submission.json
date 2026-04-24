@@ -1,0 +1,39 @@
+{
+  "author": "PranavViswanath",
+  "github_id": "PranavViswanath",
+  "name": "SP8192 + Gram-NS + Polar Express + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal Score-First TTT",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.07996,
+  "val_bpb_std": 0.00032,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.07960, "artifact_bytes": 16024793},
+    "314": {"val_bpb": 1.08020, "artifact_bytes": 16024488},
+    "999": {"val_bpb": 1.08008, "artifact_bytes": 16024128}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + Gram-NS (Gram-matrix Newton-Schulz for rectangular weights) + Polar Express per-iteration minimax NS coefficients + 4 NS steps + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + Score-First TTT (SGD 3ep) + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445, #1471)",
+    "qk_gain": "@bigbag (PR #1493)",
+    "gram_ns": "Zhang, Amsel, Chen & Dao — Dao AI Lab (2026)",
+    "polar_express": "You Jiacheng — arXiv:2505.16932 (ICLR 2026)"
+  }
+}
