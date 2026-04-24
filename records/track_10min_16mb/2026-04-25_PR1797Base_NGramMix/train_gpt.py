@@ -615,6 +615,103 @@ class NGramMixer:
         self.uni_total += int(tgt_ids.numel())
 
 
+class BatchUnigramMixer:
+    """Per-slot unigram mixture for eval_val_ttt_phased.
+
+    Unlike NGramMixer (above), this mixer tracks state PER BATCH SLOT because
+    eval_val_ttt_phased processes documents out of natural-stream order
+    (length-sorted). Carrying bigram state across slots would cross-pollute
+    information from docs at different stream positions — a Condition 1
+    violation. Per-slot state keeps each doc independent.
+
+    Legality argument — conditions C1-C4:
+
+      C1 (causal): slot b's state at chunk ci contains counts from tokens
+         scored at chunks 0..ci-1 of the same doc at slot b. No cross-slot,
+         no cross-doc, no future info.
+
+      C2 (normalized): same as NGramMixer.
+
+      C3 (score-before-update): mix_nll is called on chunk-ci's logits,
+         returning per-token NLL. update_chunk is called strictly after,
+         with the tokens from chunk ci's scored region.
+
+      C4 (single pass): chunks within a doc are processed in order; state
+         grows monotonically per slot. reset_slots() is called when a new
+         batch (new set of docs) begins.
+
+    Design is unigram-only to keep memory tractable:
+       bsz=64 × V=8192 × int32 = 2 MB per rank. Bigram would be 8 GB.
+    Bigram TTT-path integration is deferred.
+    """
+
+    def __init__(self, bsz, vocab_size, device, alpha, beta, scale):
+        self.bsz = int(bsz)
+        self.V = int(vocab_size)
+        self.device = device
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+        self.scale = float(scale)
+        self.uni = torch.zeros((self.bsz, self.V), dtype=torch.int32, device=device)
+        self.uni_total = torch.zeros((self.bsz,), dtype=torch.int64, device=device)
+
+    def reset_slots(self):
+        self.uni.zero_()
+        self.uni_total.zero_()
+
+    @torch.no_grad()
+    def mix_nll_chunk(self, tgt_ids, nll_nn, chunk_offsets, chunk_lens):
+        """Compute per-slot, per-position mixed NLL.
+
+        tgt_ids:       (bsz, T) int64.
+        nll_nn:        (bsz, T) float.
+        chunk_offsets: (bsz,) int64, start of scored region in the ctx dim.
+        chunk_lens:    (bsz,) int64, length of scored region.
+
+        Returns nll_mix: (bsz, T) float with the same dtype as nll_nn.
+        The mix is a no-op outside the scored region, since eval_val_ttt's
+        _accumulate_bpb already masks those positions out by chunk_lens.
+        """
+        bsz, T = tgt_ids.shape
+        V = self.V
+        # Per-slot unigram. q_uni(a | slot) = (uni[slot, a] + scale*1/V) / (total[slot] + scale)
+        uni_f = self.uni.to(torch.float32)                         # (bsz, V)
+        totals = self.uni_total.to(torch.float32)                  # (bsz,)
+        inv_V = 1.0 / V
+        q_uni_at_tgt = uni_f.gather(1, tgt_ids)                    # (bsz, T)
+        q_mix_at_tgt = (q_uni_at_tgt + self.scale * inv_V) / (totals.unsqueeze(1) + self.scale)
+        log_q_bi = torch.log(q_mix_at_tgt.clamp_min(1e-30))        # (bsz, T)
+
+        # lambda gate on per-slot total count (broadcast across T)
+        logit = self.alpha + self.beta * torch.log1p(totals)       # (bsz,)
+        log_lambda = F.logsigmoid(logit).unsqueeze(1)              # (bsz, 1)
+        log_1m_lambda = F.logsigmoid(-logit).unsqueeze(1)
+
+        a = log_lambda + (-nll_nn.to(torch.float32))
+        b = log_1m_lambda + log_q_bi
+        log_p_mix = torch.logaddexp(a, b)
+        return (-log_p_mix).to(nll_nn.dtype)
+
+    @torch.no_grad()
+    def update_chunk(self, tgt_ids, chunk_offsets, chunk_lens):
+        """Accumulate unigram counts from the scored region of each slot.
+
+        Call AFTER mix_nll_chunk has returned. Only tokens inside
+        [chunk_offsets[b], chunk_offsets[b]+chunk_lens[b]) are counted for
+        slot b — matches the region that will be credited as "scored" by
+        _accumulate_bpb.
+        """
+        bsz, T = tgt_ids.shape
+        pos = torch.arange(T, device=self.device, dtype=torch.int64).unsqueeze(0)  # (1, T)
+        mask = (pos >= chunk_offsets.unsqueeze(1)) & (pos < (chunk_offsets + chunk_lens).unsqueeze(1))  # (bsz, T)
+        ones32 = torch.ones_like(tgt_ids, dtype=torch.int32)
+        # Zero out contributions outside the scored mask.
+        contrib = torch.where(mask, ones32, torch.zeros_like(ones32))
+        # scatter_add_: self.uni[b, tgt_ids[b, t]] += contrib[b, t]
+        self.uni.scatter_add_(1, tgt_ids, contrib)
+        self.uni_total += mask.sum(dim=1).to(torch.int64)
+
+
 def build_sentencepiece_luts(sp, vocab_size, device):
     sp_vocab_size = int(sp.vocab_size())
     assert (
@@ -3096,6 +3193,16 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
         num_chunks_t = torch.tensor(num_chunks, dtype=torch.int64, device=device)
+        # Per-batch n-gram mixer (unigram-only for TTT path). Reset at batch
+        # start because each slot hosts a new doc from here onward; cross-doc
+        # state would violate Condition 1 given length-sorted batching.
+        batch_mixer = None
+        if getattr(h, "ngram_mix_enabled", False):
+            batch_mixer = BatchUnigramMixer(
+                bsz=bsz, vocab_size=h.vocab_size, device=device,
+                alpha=h.ngram_mix_alpha, beta=h.ngram_mix_beta,
+                scale=h.ngram_mix_scale,
+            )
         for ci in range(max_nc):
             active = [ci < nc for nc in num_chunks]
             needs_train = any(ci < nc - 1 for nc in num_chunks)
@@ -3132,7 +3239,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             y = torch.where(valid, gathered_gpu[:, 1 : context_size + 1], 0)
             ctx_pos = torch.arange(context_size, device=device, dtype=torch.int64)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+                per_tok_loss_nn = forward_ttt_train(x, y, lora=cur_lora)
             # CaseOps sidecar-driven byte budget. Mirror the index pattern
             # used to build y from all_tokens: y[b, j] corresponds to the
             # token at global position tok_starts[b] + 1 + j (when valid).
@@ -3152,9 +3259,18 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                 y_bytes_arg = torch.where(
                     valid, y_bytes_arg, torch.zeros_like(y_bytes_arg)
                 )
+            # Mixed NLL for scoring. LoRA training below still uses the
+            # unmixed neural NLL so the adapter learns the neural component
+            # without the n-gram's contribution leaking into gradient.
+            if batch_mixer is not None:
+                per_tok_loss_for_bpb = batch_mixer.mix_nll_chunk(
+                    y, per_tok_loss_nn, chunk_offsets, chunk_lens,
+                )
+            else:
+                per_tok_loss_for_bpb = per_tok_loss_nn
             with torch.no_grad():
                 _accumulate_bpb(
-                    per_tok_loss,
+                    per_tok_loss_for_bpb,
                     x,
                     y,
                     chunk_offsets,
@@ -3168,20 +3284,24 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                     token_count,
                     y_bytes=y_bytes_arg,
                 )
+                # Score-before-update: state advances only after BPB is booked.
+                if batch_mixer is not None:
+                    batch_mixer.update_chunk(y, chunk_offsets, chunk_lens)
             if needs_train:
                 activate_chunk_mask = (num_chunks_t - 1 > ci).float()
                 for gi in range(h.ttt_grad_steps):
                     if gi > 0:
                         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                            per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
-                    per_doc = per_tok_loss[
+                            per_tok_loss_nn = forward_ttt_train(x, y, lora=cur_lora)
+                    per_doc = per_tok_loss_nn[
                         :, chunk_offset : chunk_offset + chunk_size
                     ].mean(dim=-1)
                     cur_opt.zero_grad(set_to_none=True)
                     (per_doc * activate_chunk_mask).sum().backward()
                     cur_opt.step()
             else:
-                del per_tok_loss
+                del per_tok_loss_nn
+                del per_tok_loss_for_bpb
         batch_num = orig_batch_idx + 1
         doc_lens = [dl for _, dl in batch]
         should_report = batch_num in eval_batch_set if eval_batch_set is not None else True

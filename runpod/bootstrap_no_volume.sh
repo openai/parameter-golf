@@ -7,7 +7,7 @@
 #   - HF_HOME env var pointing to /workspace/hf (already set by RunPod PG image)
 #   - One of:
 #       (a) HF_TOKEN env exported so we can pull the private processed SP8192
-#           CaseOps shards from hf://Fija/parameter-golf-sp8192-caseops, OR
+#           CaseOps shards from hf://FijaEE/parameter-golf-sp8192-caseops, OR
 #       (b) Plain docs_selected.jsonl + our copy of prepare_caseops_data.py +
 #           tokenizer (slower: ~45 min CPU on the 8xH100 box == $18 wasted).
 #
@@ -43,7 +43,7 @@ export TRITON_CACHE_DIR=/workspace/triton
 export HF_HOME=${HF_HOME:-/workspace/hf}
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR" "$TRITON_CACHE_DIR" "$HF_HOME"
 
-HF_DATASET_PRETOK="${HF_DATASET_PRETOK:-Fija/parameter-golf-sp8192-caseops}"
+HF_DATASET_PRETOK="${HF_DATASET_PRETOK:-FijaEE/parameter-golf-sp8192-caseops}"
 
 echo "[$(date)] attempting to pull pre-tokenized shards from $HF_DATASET_PRETOK"
 python3 - <<PY || TOKENIZE_FROM_SCRATCH=1

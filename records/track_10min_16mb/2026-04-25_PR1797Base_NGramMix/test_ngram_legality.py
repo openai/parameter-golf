@@ -32,6 +32,7 @@ end = src.index("def build_sentencepiece_luts(")
 ns = {"torch": torch, "F": F}
 exec(src[start:end], ns)
 NGramMixer = ns["NGramMixer"]
+BatchUnigramMixer = ns["BatchUnigramMixer"]
 
 
 def _fresh_mixer(V=64, seed=0, alpha=2.0, beta=-0.25, scale=8.0, use_uni_prior=True):
@@ -198,6 +199,65 @@ def test_mixture_reduces_to_ngram_when_zero():
     return ok, "Mixture reduces to -log q_bi when lambda=0 (sanity)"
 
 
+def _fresh_batch_mixer(bsz=4, V=32, alpha=2.0, beta=-0.25, scale=8.0):
+    return BatchUnigramMixer(bsz=bsz, vocab_size=V, device=torch.device("cpu"),
+                             alpha=alpha, beta=beta, scale=scale)
+
+
+def test_batch_c1_slot_isolation():
+    """BatchUnigramMixer: state in slot b must not depend on tokens from slot b' != b."""
+    bsz, V, T = 4, 32, 16
+    m = _fresh_batch_mixer(bsz=bsz, V=V)
+    # Warm slot 0 heavily; other slots stay empty.
+    tgt0 = torch.randint(0, V, (1, 64), dtype=torch.int64)
+    offsets = torch.zeros(1, dtype=torch.int64)
+    lens = torch.tensor([64], dtype=torch.int64)
+    # Need bsz=1 mixer for slot-0 warmup; easier: directly mutate.
+    m.uni[0, :16] = torch.arange(16, dtype=torch.int32) * 3 + 1
+    m.uni_total[0] = int(m.uni[0].sum().item())
+    # Score slot 1 — its unigram should STILL be uniform (no cross-slot leakage).
+    prev = torch.randint(0, V, (bsz, T), dtype=torch.int64)
+    tgt = torch.randint(0, V, (bsz, T), dtype=torch.int64)
+    nll = torch.rand(bsz, T)
+    off = torch.zeros(bsz, dtype=torch.int64)
+    lens_ = torch.tensor([T] * bsz, dtype=torch.int64)
+    s0 = m.mix_nll_chunk(tgt, nll, off, lens_).clone()
+    # Zero slot 0 and re-score. Slots 1-3 scores must not change.
+    m.uni[0].zero_(); m.uni_total[0] = 0
+    s1 = m.mix_nll_chunk(tgt, nll, off, lens_)
+    ok_isolation = torch.allclose(s0[1:], s1[1:], atol=0, rtol=0)
+    return ok_isolation, "BatchUnigramMixer slot isolation (slot 0 state changes do not leak to other slots)"
+
+
+def test_batch_c3_update_respects_mask():
+    """BatchUnigramMixer.update_chunk must only count tokens inside the scored mask."""
+    bsz, V, T = 2, 16, 8
+    m = _fresh_batch_mixer(bsz=bsz, V=V)
+    tgt = torch.arange(bsz * T, dtype=torch.int64).reshape(bsz, T) % V
+    # Slot 0: score region [2, 5). Slot 1: score region [0, 4).
+    off = torch.tensor([2, 0], dtype=torch.int64)
+    lens = torch.tensor([3, 4], dtype=torch.int64)
+    m.update_chunk(tgt, off, lens)
+    # Slot 0 should have total = 3 (positions 2,3,4); slot 1 should have total = 4.
+    ok = (m.uni_total[0].item() == 3) and (m.uni_total[1].item() == 4)
+    return ok, "BatchUnigramMixer.update_chunk obeys chunk_offsets / chunk_lens mask"
+
+
+def test_batch_c3_no_mutation_in_mix():
+    """BatchUnigramMixer.mix_nll_chunk must not mutate state."""
+    bsz, V, T = 2, 16, 8
+    m = _fresh_batch_mixer(bsz=bsz, V=V)
+    m.uni[0, 0] = 5; m.uni_total[0] = 5
+    tgt = torch.randint(0, V, (bsz, T), dtype=torch.int64)
+    nll = torch.rand(bsz, T)
+    off = torch.zeros(bsz, dtype=torch.int64)
+    lens = torch.full((bsz,), T, dtype=torch.int64)
+    snap = m.uni.clone(), m.uni_total.clone()
+    _ = m.mix_nll_chunk(tgt, nll, off, lens)
+    ok = torch.equal(m.uni, snap[0]) and torch.equal(m.uni_total, snap[1])
+    return ok, "BatchUnigramMixer.mix_nll_chunk does not mutate state"
+
+
 def main():
     tests = [
         test_c1_future_invariance,
@@ -207,6 +267,9 @@ def main():
         test_c4_monotonic_counts,
         test_mixture_reduces_to_nn_when_uniform,
         test_mixture_reduces_to_ngram_when_zero,
+        test_batch_c1_slot_isolation,
+        test_batch_c3_update_respects_mask,
+        test_batch_c3_no_mutation_in_mix,
     ]
     all_ok = True
     for t in tests:
