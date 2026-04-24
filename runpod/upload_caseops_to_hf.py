@@ -14,7 +14,7 @@ import os
 import sys
 from pathlib import Path
 
-from huggingface_hub import HfApi, HfFolder
+from huggingface_hub import HfApi
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     ap.add_argument("--private", action="store_true", default=True)
     args = ap.parse_args()
 
-    token = os.environ.get("HF_TOKEN") or HfFolder.get_token()
+    token = os.environ.get("HF_TOKEN")
     if not token:
         print("ERROR: HF_TOKEN not set", file=sys.stderr)
         sys.exit(1)
@@ -41,15 +41,15 @@ def main():
 
     print(f"uploading {args.src} -> hf://datasets/{args.repo}")
 
-    # HfApi.upload_folder handles multi-file resumable upload and tolerates
-    # re-running safely.
-    api.upload_folder(
+    # upload_large_folder is HF's recommended path for multi-GB datasets.
+    # It chunks, resumes, and runs multiple upload workers in parallel.
+    api.upload_large_folder(
         folder_path=str(args.src),
-        path_in_repo="",
         repo_id=args.repo,
         repo_type="dataset",
         allow_patterns=["**/*.bin", "**/*.json", "**/*.txt"],
-        commit_message="Upload SP8192 CaseOps tokenized shards",
+        num_workers=16,
+        print_report=True,
     )
     print("done")
 
