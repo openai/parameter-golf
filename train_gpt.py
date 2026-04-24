@@ -58,6 +58,9 @@ class Hyperparameters:
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    # Linear LR warmup applied in lr_mul(). Distinct from warmup_steps, which
+    # primes compile/kernel paths via a dry-run reset-to-init.
+    lr_warmup_steps = int(os.environ.get("LR_WARMUP_STEPS", 0))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -949,6 +952,7 @@ def main() -> None:
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"lr_warmup_steps:{args.lr_warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
@@ -966,6 +970,11 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
+        # Linear LR warmup over the first lr_warmup_steps. `step` is 0-indexed
+        # at the moment of the optimizer call, so (step + 1) / N gives a ramp
+        # of 1/N, 2/N, ..., 1.0 across N steps. Default N=0 disables warmup.
+        if args.lr_warmup_steps > 0 and step < args.lr_warmup_steps:
+            return (step + 1) / args.lr_warmup_steps
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
