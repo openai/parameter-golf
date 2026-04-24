@@ -1,0 +1,38 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "SP8192 + Polar Express NS + Multi-Phase Global TTT",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.07713,
+  "val_bpb_std": 0.00045,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.07700, "artifact_bytes": 15992539},
+    "314": {"val_bpb": 1.07676, "artifact_bytes": 15993299},
+    "999": {"val_bpb": 1.07763, "artifact_bytes": 15990992}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Polar Express Newton-Schulz coefficients + MIN_LR 0.10 warmdown floor + Multi-Phase Global TTT (3 phases, SGD lr=0.015) on the PR #1493 SOTA stack",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack": "@bigbag (PR #1493)",
+    "polar_express_ns": "PR #1344, @leloykun",
+    "min_lr_warmdown": "PR #1787",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  }
+}
