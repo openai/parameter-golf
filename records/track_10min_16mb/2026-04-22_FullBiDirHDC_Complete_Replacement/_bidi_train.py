@@ -108,221 +108,78 @@ def _dist_all_reduce_sum_numpy(arr: np.ndarray) -> np.ndarray:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Phase 1: Bigram frequency table
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_bigram_freq(
-    tokens: np.ndarray,
-    vocab_size: int,
-    verbose: bool = True,
-) -> np.ndarray:
-    """Build normalised bigram probability table P[a, b] = P(b | a).
-
-    O(N) pass over tokens. Returns (vocab_size, vocab_size) float32.
-    Row-normalised: each row sums to 1.0 (or 0.0 for unseen tokens).
-
-    Args:
-        tokens     : (N,) int array of token IDs
-        vocab_size : Vocabulary size
-        verbose    : Print progress
-
-    Returns:
-        (vocab_size, vocab_size) float32 — P(next_token | prev_token)
-    """
-    if verbose:
-        print(f"[BiDirTrain] Building bigram freq table "
-              f"(vocab={vocab_size}, N={len(tokens):,})...")
-    t0 = time.time()
-
-    t_prev = np.clip(tokens[:-1].astype(np.int32), 0, vocab_size - 1)
-    t_next = np.clip(tokens[1:].astype(np.int32),  0, vocab_size - 1)
-
-    # Flatten (a, b) → a * vocab + b, then GPU scatter_add (Fix #2 + GPU)
-    # Pass weights=None: gpu_bincount_weighted creates only a small per-chunk
-    # ones tensor on GPU instead of a 32 GB numpy ones array in host RAM.
-    flat_idx = t_prev.astype(np.int64) * vocab_size + t_next.astype(np.int64)
-    flat_counts = gpu_bincount_weighted(flat_idx, None, vocab_size * vocab_size)
-    freq = flat_counts.reshape(vocab_size, vocab_size).astype(np.float32)
-
-    # Row-normalise
-    row_sums = freq.sum(axis=1, keepdims=True)
-    row_sums = np.maximum(row_sums, 1.0)
-    freq /= row_sums
-
-    elapsed = time.time() - t0
-    if verbose:
-        print(f"[BiDirTrain] Bigram freq done in {elapsed:.1f}s "
-              f"({'GPU' if _GPU_AVAILABLE else 'CPU'})")
-    return freq
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 2: Distributed training
+# Engine initialisation
 # ─────────────────────────────────────────────────────────────────────────────
 
 def train_bidi_model(
-    tokens: np.ndarray,
+    tokens: np.ndarray,           # kept for API compat — corpus not scanned here
     vocab_size: int,
     n_words: int,
     seeds: List[int],
-    time_budget_s: float = 480.0,
+    time_budget_s: float = 480.0, # kept for API compat — not used
     n_axes: int = 19,
     n_hyp: int = 200,
     max_iters: int = 40,
-    chunk_size: int = 500_000,
+    chunk_size: int = 500_000,    # kept for API compat — not used
     verbose: bool = True,
 ) -> "FullBiDirHDC":  # type: ignore[name-defined]
-    """Full distributed training pipeline with eigen-absorbed training.
+    """Initialise a FullBiDirHDC engine.
 
-    Steps:
-    1. Build bigram_freq (rank 0 only, ~2s for 500M tokens)
-    2. Broadcast bigram_freq to all ranks (~1s, 4 MB)
-    3. Shard tokens across ranks (N/world_size tokens per rank)
-    4. Each rank: engine.train_on_tokens(shard, bigram_freq)
-       → EigenTrainer.absorb_bigrams(): single matmul replaces Python loop
-       → ~1–3s per rank instead of ~190–310s
-    5. dist.all_reduce(SUM) on rule_bundle (4 KB, <0.1s)
-    6. Multi-seed merge (XOR majority vote across seeds)
-    7. Return trained engine
+    rule_bundle is derived from SpiralDSV sem_fwd_pm1 in train_gpt.py after
+    build_from_tokens() completes:
+        rule_bundle* = sign(unigram_freq @ sem_fwd_pm1)
 
-    Eigen training performance
-    ──────────────────────────
-    Before: ~190–310 s per rank (Python for-loop, 62.5M bigrams)
-    After:  ~1–3 s per rank (np.add.at + vocab×n_bits matmul)
-
-    The fixed point absorbed:
-        rule_bundle_pm1* = sign( token_reward_sums @ CB_pm1 )
-        goal_hv_pm1*     = sign( high_reward_sums  @ CB_pm1 )
+    This is architecturally cleaner than a separate training scan because:
+      * sem_fwd_pm1 already encodes the bilateral co-occurrence structure
+        (GoldenAxisShift, 4 lags) — a strict superset of lag-1 bigrams
+      * derivation is O(V x n_bits) matmul — zero extra corpus scan
+      * uses full-corpus statistics (8B tokens) not a per-rank shard
 
     Args:
-        tokens        : (N,) int array of training tokens
+        tokens        : (N,) int array — not scanned; kept for API compat
         vocab_size    : Vocabulary size
-        n_words       : HV width in uint64 words (n_words × 64 bits)
-        seeds         : List of random seeds for multi-seed merge
-        time_budget_s : Total time budget in seconds
+        n_words       : HV width in uint64 words (n_words x 64 bits)
+        seeds         : seeds[0] used for Codebook RNG; rest ignored
+        time_budget_s : kept for API compat — not used
         n_axes        : Number of golden-ratio axes
         n_hyp         : Hypotheses per action
         max_iters     : Manifold propagation cap
-        chunk_size    : Training chunk size for progress reporting
-        verbose       : Print progress
+        chunk_size    : kept for API compat — not used
+        verbose       : Print status
 
     Returns:
-        Trained FullBiDirHDC engine (on rank 0; other ranks return None)
+        Initialised FullBiDirHDC engine (rank 0) or None (other ranks).
     """
     from _bidi_hdc_engine import Codebook, FullBiDirHDC
 
-    rank       = _dist_rank()
-    world_size = _dist_world_size()
-    t_start    = time.time()
+    seed = seeds[0] if seeds else 42
 
     if verbose and _dist_is_main():
         print(f"\n{'='*60}")
-        print(f"[BiDirTrain] FullBiDirHDC Training")
-        print(f"[BiDirTrain] vocab_size={vocab_size}, n_words={n_words}")
-        print(f"[BiDirTrain] seeds={seeds}, world_size={world_size}")
-        print(f"[BiDirTrain] HV bits={n_words*64:,}, budget={time_budget_s:.0f}s")
+        print(f"[BiDirTrain] FullBiDirHDC engine init (seed={seed})")
+        print(f"[BiDirTrain] vocab_size={vocab_size}, n_words={n_words}, "
+              f"n_bits={n_words*64:,}")
+        print(f"[BiDirTrain] rule_bundle derived from SpiralDSV after bilateral build.")
         print(f"{'='*60}\n")
 
-    # Phase 1: Build bigram freq (rank 0 only — fast, no need to distribute)
-    bigram_freq = None
-    if _dist_is_main():
-        bigram_freq = build_bigram_freq(tokens, vocab_size, verbose=verbose)
-
-    # Broadcast bigram_freq to all ranks
-    if world_size > 1:
-        try:
-            import torch
-            import torch.distributed as _dist_mod
-            if _dist_mod.is_available() and _dist_mod.is_initialized():
-                local_rank = int(os.environ.get("LOCAL_RANK", 0))
-                device = torch.device(f"cuda:{local_rank}") if torch.cuda.is_available() else torch.device("cpu")
-                if bigram_freq is None:
-                    bigram_freq = np.zeros((vocab_size, vocab_size), dtype=np.float32)
-                t = torch.from_numpy(bigram_freq).to(device)
-                _dist_mod.broadcast(t, src=0)
-                bigram_freq = t.cpu().numpy()
-        except Exception as e:
-            if verbose:
-                print(f"[BiDirTrain] Bigram broadcast failed ({e}), using local copy")
-            if bigram_freq is None:
-                bigram_freq = build_bigram_freq(tokens, vocab_size, verbose=False)
-
-    if bigram_freq is None:
-        bigram_freq = build_bigram_freq(tokens, vocab_size, verbose=False)
-
-    # Phase 2: Shard tokens across ranks
-    N = len(tokens)
-    shard_start = rank * N // world_size
-    shard_end   = (rank + 1) * N // world_size
-    shard = tokens[shard_start:shard_end]
-
-    if verbose:
-        print(f"[BiDirTrain] Rank {rank}: shard [{shard_start:,}, {shard_end:,}) "
-              f"= {len(shard):,} tokens")
-
-    # Per-seed training budget
-    elapsed_so_far = time.time() - t_start
-    per_seed_budget = max(30.0, (time_budget_s - elapsed_so_far - 30.0) / len(seeds))
-
-    # Phase 3: Train each seed, merge rule bundles
-    merged_rule_bundle = np.zeros(n_words, dtype=np.uint64)
-    primary_engine = None
-
-    for seed_idx, seed in enumerate(seeds):
-        if time.time() - t_start > time_budget_s - 30:
-            if verbose and _dist_is_main():
-                print(f"[BiDirTrain] Time budget reached at seed {seed_idx}/{len(seeds)}")
-            break
-
-        if verbose and _dist_is_main():
-            print(f"\n[BiDirTrain] Training seed {seed} ({seed_idx+1}/{len(seeds)})...")
-
-        cb = Codebook(vocab_size=vocab_size, n_words=n_words, seed=seed)
-        engine = FullBiDirHDC(
-            codebook  = cb,
-            n_axes    = n_axes,
-            n_hyp     = n_hyp,
-            max_iters = max_iters,
-        )
-
-        engine.train_on_tokens(
-            tokens      = shard,
-            bigram_freq = bigram_freq,
-            chunk_size  = chunk_size,
-            verbose     = verbose and _dist_is_main(),
-        )
-
-        # All-reduce rule_bundle across ranks
-        local_bundle = engine._rule_bundle.copy()
-        merged = _dist_all_reduce_sum_numpy(local_bundle.astype(np.int64))
-        # Majority vote: bit is 1 if sum > world_size/2
-        engine._rule_bundle = (merged > (world_size // 2)).astype(np.uint64)
-
-        # XOR merge across seeds (majority vote)
-        merged_rule_bundle = np.bitwise_xor(merged_rule_bundle, engine._rule_bundle)
-
-        if seed_idx == 0:
-            primary_engine = engine
-
-        if verbose and _dist_is_main():
-            elapsed = time.time() - t_start
-            print(f"[BiDirTrain] Seed {seed} done. Elapsed: {elapsed:.1f}s")
-
-    # Apply merged rule bundle to primary engine
-    if primary_engine is not None:
-        primary_engine._rule_bundle = merged_rule_bundle
+    cb     = Codebook(vocab_size=vocab_size, n_words=n_words, seed=seed)
+    engine = FullBiDirHDC(
+        codebook  = cb,
+        n_axes    = n_axes,
+        n_hyp     = n_hyp,
+        max_iters = max_iters,
+    )
 
     _dist_barrier()
 
-    # Non-main ranks return None after barrier
     if not _dist_is_main():
         return None  # type: ignore[return-value]
 
-    elapsed = time.time() - t_start
     if verbose:
-        print(f"\n[BiDirTrain] Training complete in {elapsed:.1f}s")
+        print(f"[BiDirTrain] Engine initialised. Awaiting SpiralDSV build...")
 
-    return primary_engine
+    return engine
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

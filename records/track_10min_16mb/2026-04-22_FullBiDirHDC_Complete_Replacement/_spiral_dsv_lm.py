@@ -325,6 +325,8 @@ class SpiralDSVLanguageModel:
         time_budget_s: float = 30.0,
         chunk_size: int = 8_000_000,
         verbose: bool = True,
+        dist_rank: int = 0,
+        dist_world_size: int = 1,
     ) -> None:
         """Build bilateral tables from token sequence via eigen fixed-point solve.
 
@@ -394,7 +396,13 @@ class SpiralDSVLanguageModel:
                 chunk_size       = 2_000_000,
                 verbose          = verbose,
                 time_budget_s    = time_budget_s,
+                dist_rank        = dist_rank,
+                dist_world_size  = dist_world_size,
             )
+
+            # Non-main ranks return None tables — skip storage
+            if result.get('sem_fwd_u64') is None:
+                return  # non-main rank: histograms contributed, nothing to store
 
             # Apply fixed-point results: uint64 tables (same keys as before)
             self.sem_fwd = result['sem_fwd_u64']   # (vocab, n_words) uint64

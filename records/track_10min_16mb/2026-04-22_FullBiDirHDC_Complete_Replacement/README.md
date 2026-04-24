@@ -678,6 +678,114 @@ Total per eval chunk                            ~1.3 ms   (vs ~50 ms CPU BLAS)
 
 ---
 
+## PMI-Centered Bilateral Histograms — Simultaneous Positive & Negative Correlation (2026-04-24)
+
+### The insight
+
+The bilateral scan in [`build_bilateral_from_tokens()`](_eigen_convergence.py:1428) already accumulates everything needed to derive **both** positive and negative token correlations from the same matrix — no second pass, no extra tracking:
+
+```
+fwd_hist[a, (c-1)×V + b] = count(b follows a at lag c)
+```
+
+After the all-reduce, each row `fwd_hist[a, :]` is the conditional frequency vector of token `a`. Its own **marginals** encode the independence baseline:
+
+```
+expected[a, (c-1)×V + b] = row_sum[a] × col_sum[(c-1)×V + b] / total
+```
+
+Subtracting the expected count from the observed count gives a signed, PMI-style matrix — derived entirely from the histogram's own row sums and column sums, with no extra corpus scan or separate storage:
+
+```python
+# After accumulating fwd_hist_2d (V, C×V) and all-reduce:
+fwd_row = fwd_hist_2d.sum(axis=1, keepdims=True)   # (V, 1)
+fwd_col = fwd_hist_2d.sum(axis=0, keepdims=True)   # (1, C×V)
+fwd_hist_2d -= (fwd_row × fwd_col) / total         # in-place signed centering
+```
+
+The final matmul and `sign()` are **identical** to before — only the histogram values going in have changed:
+
+| Entry sign | Meaning | Effect on `sem_fwd[a]` |
+|---|---|---|
+| **Positive** | b follows a MORE than chance | `sem_fwd[a]` pulls *toward* `CB[b]` |
+| **Negative** | b follows a LESS than chance | `sem_fwd[a]` pushes *away from* `CB[b]` |
+| **Zero** | b follows a at exactly chance rate | No contribution |
+
+The bilateral consistency gate at inference (`consistency = (fwd + bwd) / 2 → softmax`) now reflects true positive *and* negative co-occurrence signal: anti-correlated pairs get suppressed below the uniform baseline rather than being indistinguishable from uncorrelated pairs.
+
+### Implementation — [`_eigen_convergence.py:1629`](_eigen_convergence.py:1629)
+
+Inserted between the reshape and the final matmul call — no extra corpus scan, no extra storage:
+
+```python
+# After fwd_hist_2d = fwd_hist_flat.reshape(V, C * V) and all-reduce:
+fwd_row = fwd_hist_2d.sum(axis=1, keepdims=True)   # (V, 1)  — total successors per "a"
+fwd_col = fwd_hist_2d.sum(axis=0, keepdims=True)   # (1, C×V) — total times each (lag,b) seen
+fwd_hist_2d -= (fwd_row * fwd_col) / total          # subtract independence expectation
+# same for bwd_hist_2d
+```
+
+[`gpu_matmul_f16(fwd_hist_2d, CB_composite_pm1)`](_eigen_convergence.py:1640) and [`gpu_sign_f32`](_eigen_convergence.py:1643) are completely unchanged — only the histogram values going in have been centered. `sem_fwd_pm1` and `sem_bwd_pm1` now carry genuine anti-correlation signal: at inference, the bilateral consistency gate `(fwd_scores + bwd_scores) / 2 → softmax` actively suppresses anti-correlated token pairs below the uniform baseline rather than leaving them at neutral zero.
+
+### Cost
+
+| Step | Before | After |
+|---|---|---|
+| Histogram scan | O(N × ctx_len) — unchanged | Unchanged |
+| All-reduce | 32 MB — unchanged | Unchanged |
+| PMI centering | — | Two O(V × C×V) sums + outer product: ~0 ms |
+| Peak RAM delta | — | +16 MB (one `(V, C×V)` temp, freed immediately) |
+| Final matmul | Unchanged shape `(V, C×V) @ (C×V, D)` | Unchanged |
+
+### Why count-threshold filtering and confidence-gated early-exit are not needed separately
+
+Two other improvements were considered and are already subsumed by the combination of PMI centering and existing model components:
+
+**Count-threshold filtering** — zeroing entries with raw `count < min_count` before the matmul is unnecessary. A singleton `fwd_hist[a,b] = 1` for two common tokens produces `signed ≈ 1 − expected ≈ −(expected − 1)` — a large negative value correctly signalling anti-correlation. For rare-token pairs it produces `signed ≈ 1 − ε ≈ +1` — a correctly small positive signal above chance. PMI centering is the principled noise filter; a hard count threshold would discard valid signals.
+
+**Confidence-gated early exit** — skipping the bilateral HGEMM for "low-confidence" positions is already handled structurally. When `sem_fwd[prev_tok]` has weak signal (near-zero pm1 values because the predecessor token has mixed associations), `fwd_scores` and `bwd_scores` are near zero for all `v`, producing a near-uniform softmax — the same result the goal-prior fallback would give. The existing 10% [`_goal_scores_cache`](_bidi_hdc_engine.py:419) blend then provides the frequency prior for those positions automatically.
+
+---
+
+## Distributed Shard Loading — Memory Thrashing Fix (2026-04-24)
+
+### Problem
+
+The original [`_load_tokens()`](train_gpt.py) was called unconditionally on **all 8 ranks**
+with no rank-awareness, so every process loaded the **entire** training corpus into RAM.
+On an 8×H100 node with 80 training shards this caused:
+
+- **8× memory overhead** — each rank held a full copy of the corpus while only ever processing 1/8 of token positions in the downstream `build_from_tokens()` scatter
+- **Memory thrashing** — competing loads for the same pages across processes
+
+### Fix — four targeted changes in [`train_gpt.py`](train_gpt.py)
+
+| # | Location | Change |
+|---|---|---|
+| 1 | `_load_tokens()` signature | Added `rank: int = 0` and `world_size: int = 1` params |
+| 2 | `_load_tokens()` body | For the `"train"` split, uses interleaved stride `shard_files[rank::world_size]` so rank `r` loads shards `r, r+W, r+2W, …` |
+| 3 | `_run_bidi_hdc()` call-site | Forwards `rank` and `world_size` (from `_init_distributed()`) into `_load_tokens` |
+| 4 | Before non-main ranks exit | All ranks compute their local `np.bincount` on their shard subset; `_dist_all_reduce_sum_numpy()` sums them into `_global_unigram`; `train_tokens` is freed; rank 0 uses `_global_unigram` for the `rule_bundle` derivation |
+
+The validation split (`"val"`) is unaffected — it is loaded in full only by rank 0 after all other ranks have returned, using the unchanged default `rank=0, world_size=1`.
+
+### Why there is zero accuracy loss
+
+| Data path | Before | After |
+|---|---|---|
+| `train_bidi_model()` | Receives full corpus; **does not scan it** (API-compat param only) | Same — no change to engine init |
+| `build_from_tokens()` histogram scan | All ranks scan full corpus; slice positions internally via `dist_rank/dist_world_size`; `all_reduce` sums histograms | Each rank scans its shard subset (already unique positions); `all_reduce` sums histograms → **same final result** |
+| Unigram counts for `rule_bundle` | Rank 0 rebinnedcounts from full `train_tokens` | All ranks bincount their shard, `all_reduce` sums → **identical full-corpus counts** on rank 0 |
+
+### Memory impact
+
+| Configuration | Per-rank token RAM (before) | Per-rank token RAM (after) |
+|---|---|---|
+| 8 ranks, 80 shards | 100% corpus | ~12.5% corpus (8× reduction) |
+| 1 rank (single-GPU smoke test) | 100% corpus | 100% corpus (unchanged — `world_size=1` path) |
+
+---
+
 ## Submission Checklist
 
 - [ ] 3 independent run logs (`train_seed42.log`, `train_seed7.log`, `train_seed1337.log`)

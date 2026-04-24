@@ -1436,6 +1436,8 @@ class EigenTrainer:
         chunk_size       : int   = 2_000_000,
         verbose          : bool  = True,
         time_budget_s    : float = 600.0,
+        dist_rank        : int   = 0,           # this process's rank in distributed group
+        dist_world_size  : int   = 1,           # total number of ranks in the group
     ) -> dict:
         """Build bilateral context tables via single-pass chunked scan + matmul.
 
@@ -1529,7 +1531,7 @@ class EigenTrainer:
                 print(f"[EigenBilateral] CB_composite ({C}×{V}, {D}): {mb} MB "
                       f"(no axis shifts — _CB_uint64 not stored or axis_word_shifts=None)")
 
-        # ── Step 2: Chunked composite histogram scan ──────────────────────────
+        # ── Step 2: Chunked composite histogram scan (distributed) ──────────
         # Accumulators: (V × C × V) flat ← reshaped to (V, C*V) for matmul.
         fwd_hist_flat = np.zeros(V * C * V, dtype=np.float32)
         bwd_hist_flat = np.zeros(V * C * V, dtype=np.float32)
@@ -1538,7 +1540,13 @@ class EigenTrainer:
         # Precompute lag column offsets: lag c maps to columns (c-1)*V..(c)*V-1
         c_offsets = np.arange(C, dtype=np.int64) * V  # (C,)
 
-        for start in range(0, N_valid, chunk_size):
+        # Distributed shard: rank r processes positions [shard_start, shard_end)
+        # Each position i still reads tokens[i+1..i+ctx_len] from the FULL array
+        # so no boundary overlap issue — all lags are always valid.
+        shard_start = dist_rank * N_valid // dist_world_size
+        shard_end   = min((dist_rank + 1) * N_valid // dist_world_size, N_valid)
+
+        for start in range(shard_start, shard_end, chunk_size):
             if time.time() - t0 > time_budget_s * 0.90:
                 if verbose:
                     print(f"[EigenBilateral] Time budget reached at pos {start:,}")
@@ -1580,13 +1588,83 @@ class EigenTrainer:
 
             if verbose:
                 elapsed = time.time() - t0
-                pct     = 100.0 * end / N_valid
-                print(f"[EigenBilateral] {end:,}/{N_valid:,} ({pct:.1f}%) "
+                pct     = 100.0 * end / shard_end
+                print(f"[EigenBilateral] {end:,}/{shard_end:,} ({pct:.1f}%) "
                       f"pairs={total_pairs:,}  elapsed={elapsed:.2f}s")
 
-        # ── Step 3: Single matmul → sem_fwd / sem_bwd ────────────────────────
+        # ── Distributed all-reduce: sum histograms across all ranks ──────────
+        # fwd_hist_flat and bwd_hist_flat are additive — zero ordering dependency.
+        # All-reduce merges each rank's partial counts into the full-corpus totals.
+        # Transfer: 2 × 16 MB = 32 MB on NVLink — ~100ms, negligible vs scan time.
+        if dist_world_size > 1:
+            import os as _os
+            try:
+                import torch as _torch
+                import torch.distributed as _td
+                if _td.is_available() and _td.is_initialized():
+                    _lr   = int(_os.environ.get('LOCAL_RANK', dist_rank))
+                    _dev  = _torch.device(f'cuda:{_lr}') if _torch.cuda.is_available() else _torch.device('cpu')
+                    t_fwd = _torch.from_numpy(fwd_hist_flat).to(_dev)
+                    _td.all_reduce(t_fwd, op=_td.ReduceOp.SUM)
+                    fwd_hist_flat = t_fwd.cpu().numpy()
+                    t_bwd = _torch.from_numpy(bwd_hist_flat).to(_dev)
+                    _td.all_reduce(t_bwd, op=_td.ReduceOp.SUM)
+                    bwd_hist_flat = t_bwd.cpu().numpy()
+                    t_p = _torch.tensor([total_pairs], dtype=_torch.int64, device=_dev)
+                    _td.all_reduce(t_p, op=_td.ReduceOp.SUM)
+                    total_pairs = int(t_p.item())
+                    if verbose and dist_rank == 0:
+                        print(f"[EigenBilateral] All-reduce complete "
+                              f"(world_size={dist_world_size}, total_pairs={total_pairs:,})")
+            except Exception as _e:
+                if verbose and dist_rank == 0:
+                    print(f"[EigenBilateral] All-reduce skipped ({_e})")
+
+        # Non-main ranks: histograms merged — matmul not needed on non-zero ranks
+        if dist_rank > 0:
+            return dict(sem_fwd_pm1=None, sem_bwd_pm1=None,
+                        sem_fwd_u64=None, sem_bwd_u64=None,
+                        total_pairs=total_pairs)
+
+        # ── Step 3: Single matmul → sem_fwd / sem_bwd (rank 0 only) ─────────
         fwd_hist_2d = fwd_hist_flat.reshape(V, C * V)   # (V, C*V) float32
         bwd_hist_2d = bwd_hist_flat.reshape(V, C * V)   # (V, C*V) float32
+
+        # ── PMI-style centering: negative correlations from the same histogram ─
+        # The bilateral scan already collected fwd_hist[a, (c-1)*V + b] =
+        # count(b follows a at lag c).  Subtracting the independence baseline
+        # (outer product of row & column marginals ÷ grand total) produces a
+        # signed, mean-centred matrix where:
+        #   positive entry → b follows a MORE than chance  (positive correlation)
+        #   negative entry → b follows a LESS than chance  (anti-correlation)
+        #
+        # The sign() in the subsequent matmul cleanly separates the two:
+        # sem_fwd[a] now actively *opposes* CB[b] for anti-correlated pairs.
+        #
+        # Cost: two O(V × C×V) outer products — ~0 ms vs the matmul itself.
+        # Peak RAM: one additional (V, C×V) float32 temp = 16 MB — acceptable
+        # since fwd_hist_2d already occupies 16 MB.
+        # No extra corpus scan.  Derived entirely from the histogram's own totals.
+        _fwd_total = float(fwd_hist_2d.sum())
+        if _fwd_total > 0.0:
+            _fwd_row = fwd_hist_2d.sum(axis=1, keepdims=True)   # (V, 1)
+            _fwd_col = fwd_hist_2d.sum(axis=0, keepdims=True)   # (1, C*V)
+            fwd_hist_2d = fwd_hist_2d - (_fwd_row * _fwd_col) / _fwd_total
+            # After centering, del temporaries immediately to free 16 MB
+            del _fwd_row, _fwd_col
+
+        _bwd_total = float(bwd_hist_2d.sum())
+        if _bwd_total > 0.0:
+            _bwd_row = bwd_hist_2d.sum(axis=1, keepdims=True)   # (V, 1)
+            _bwd_col = bwd_hist_2d.sum(axis=0, keepdims=True)   # (1, C*V)
+            bwd_hist_2d = bwd_hist_2d - (_bwd_row * _bwd_col) / _bwd_total
+            del _bwd_row, _bwd_col
+
+        if verbose:
+            elapsed = time.time() - t0
+            print(f"[EigenBilateral] PMI centering done — "
+                  f"bilateral histograms now encode positive AND negative correlations "
+                  f"(elapsed={elapsed:.2f}s)")
 
         if verbose:
             elapsed = time.time() - t0
@@ -1595,6 +1673,9 @@ class EigenTrainer:
 
         t_mm = time.time()
         # fp16 tensor cores: (V, C*V) @ (C*V, D) → (V, D)
+        # fwd_hist_2d and bwd_hist_2d are now PMI-centered — the sign() below
+        # maps positive PMI entries to +1 (correlates) and negative PMI entries
+        # to -1 (anti-correlates) in sem_fwd / sem_bwd.
         sem_fwd_spectrum = gpu_matmul_f16(fwd_hist_2d, CB_composite_pm1)
         sem_bwd_spectrum = gpu_matmul_f16(bwd_hist_2d, CB_composite_pm1)
 
