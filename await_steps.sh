@@ -2,33 +2,95 @@
 # Usage: ./await_steps.sh <experiment_dir> [n=10]
 #
 # Blocks until <experiment_dir>/run.log contains N training-step log lines, then
-# prints them. Exits early (printing whatever's there) if the python training
-# process dies before reaching N — so we don't hang the full timeout on crashes.
+# prints them. Used to gate on a healthy trajectory before committing to wait
+# the full ~5 minutes for a run to finish, and also to peek mid-run at any
+# threshold the agent cares about (e.g. "show me steps through 100").
 #
-# Use this immediately after launching `run_experiment.sh` in the background, to
-# inspect the trajectory before committing to wait the full ~5 minutes.
+# Robustness:
+#   - If the log file doesn't exist yet (script called before run_experiment.sh
+#     has started writing), waits up to MAX_WAIT_SECONDS for it to appear.
+#   - Exits early if the python training process dies before reaching N
+#     (pgrep "python train_gpt.py").
+#   - Exits early if the log file goes stale for >LOG_STALE_SECONDS (process
+#     hung, or pgrep matched the wrong python — defense in depth).
+#   - Hard ceiling of MAX_WAIT_SECONDS (default 600) so the script never hangs
+#     a Bash background task forever.
+#
+# Override defaults via env vars: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
 
 set -uo pipefail
 
 EXP_DIR="${1:-}"
 N="${2:-10}"
+MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-600}"
+LOG_STALE_SECONDS="${LOG_STALE_SECONDS:-60}"
 
-if [[ -z "$EXP_DIR" || ! -d "$EXP_DIR" ]]; then
-  echo "Usage: $0 <experiment_dir> [n=10]" >&2
+if [[ -z "$EXP_DIR" || "$EXP_DIR" == "-h" || "$EXP_DIR" == "--help" ]]; then
+  cat <<EOF
+Usage: $0 <experiment_dir> [n=10]
+
+Blocks until <experiment_dir>/run.log contains N training-step log lines, then
+prints them. Useful for gating on a healthy trajectory before committing to a
+full ~5 min wait, and also for peeking mid-run at any step threshold (e.g.
+n=100 to inspect through step 100).
+
+Exits early on:
+  - python process gone (pgrep "python train_gpt.py")
+  - log mtime stale > LOG_STALE_SECONDS (default 60) — handles hung Python
+  - hard timeout > MAX_WAIT_SECONDS (default 600)
+
+Env overrides: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
+EOF
+  exit 0
+fi
+if [[ ! -d "$EXP_DIR" ]]; then
+  echo "Error: experiment dir not found: $EXP_DIR" >&2
   exit 1
 fi
 
 LOG="${EXP_DIR}/run.log"
+START_EPOCH=$(date +%s)
 
+# Portable log-mtime helper (BSD stat on macOS, GNU stat on Linux).
+log_mtime() {
+  stat -f %m "$LOG" 2>/dev/null || stat -c %Y "$LOG" 2>/dev/null || echo 0
+}
+elapsed() { echo $(( $(date +%s) - START_EPOCH )); }
+
+# Phase 1: wait for the log file to be created.
+while [[ ! -f "$LOG" ]]; do
+  if (( $(elapsed) > MAX_WAIT_SECONDS )); then
+    echo "(timed out after ${MAX_WAIT_SECONDS}s waiting for ${LOG} to be created)" >&2
+    exit 2
+  fi
+  sleep 0.5
+done
+
+# Phase 2: wait until we have N step lines, or the run is clearly done/stuck.
 while true; do
   count=$(grep -cE '^step:[0-9]+/[0-9]+ train_loss:' "$LOG" 2>/dev/null || echo 0)
   if (( count >= N )); then break; fi
+
+  # Crash signal 1: python process gone.
   if ! pgrep -f "python train_gpt.py" > /dev/null; then
-    # Python no longer running and we don't have N steps. Print what we have
-    # (which might be 0 lines if it crashed during init) and exit.
-    echo "(python process exited before reaching N=${N} steps; printing ${count} available lines)" >&2
+    echo "(python exited before reaching N=${N}; ${count} step lines so far)" >&2
     break
   fi
+
+  # Crash signal 2: log not growing — process hung or pgrep is matching the
+  # wrong python.
+  log_age=$(( $(date +%s) - $(log_mtime) ))
+  if (( log_age > LOG_STALE_SECONDS )); then
+    echo "(log idle for ${log_age}s — assuming run is hung; ${count} step lines so far)" >&2
+    break
+  fi
+
+  # Hard ceiling.
+  if (( $(elapsed) > MAX_WAIT_SECONDS )); then
+    echo "(hard timeout ${MAX_WAIT_SECONDS}s reached; ${count}/${N} steps logged)" >&2
+    break
+  fi
+
   sleep 1
 done
 

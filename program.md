@@ -206,9 +206,20 @@ Bash(
 )
 ```
 
-`await_steps.sh` blocks until 10 `step:N/N train_loss:...` lines exist in `run.log`, then prints them — and exits early if the python process dies first (so a crash during init shows up immediately instead of waiting 2 min). When the notification arrives, the captured stdout *is* the trajectory.
+`await_steps.sh <exp_dir> [N=10]` blocks until N `step:N/N train_loss:...` lines exist in `run.log`, then prints them. It exits early if the python process dies, the log goes stale (hung), or it hits a hard `MAX_WAIT_SECONDS` ceiling. When the notification arrives, the captured stdout *is* the trajectory.
 
 Judge health: step 1 ≈ ln(vocab) ≈ 6.93, monotonic descent from step 2, step 2 within ~2× of step 1. If it looks off, `TaskStop(RUN)`, fix, re-launch — saves ~4 min of bad compute.
+
+### Optional: mid-run check-ins
+
+Same script, larger N. Useful when you suspect something will go wrong later (e.g. you've seen NaN around step 175 historically and want to confirm a fix held to step 100):
+
+```python
+Bash(run_in_background=True, timeout=300000,
+     command="./await_steps.sh experiments/NNNN_slug 100")
+```
+
+The script returns when 100 step lines exist (or earlier if the run dies/stalls), and the captured stdout is the trajectory through step 100. Stack as many of these as you like — the run keeps going underneath.
 
 ### 3. Wait for completion
 
