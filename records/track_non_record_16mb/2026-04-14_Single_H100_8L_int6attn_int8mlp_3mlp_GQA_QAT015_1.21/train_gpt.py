@@ -37,7 +37,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 100000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 96))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
     iterations = int(os.environ.get("ITERATIONS", 50000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
@@ -74,13 +74,13 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 8))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 7))
     warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.2))
     use_flash_attn_interface = bool(
         int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1"))
     )
     qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lr = float(os.environ.get("TTT_LR", 0.005))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
@@ -528,7 +528,7 @@ INT6_NAME_PATTERNS = tuple(
         pattern
         for pattern in os.environ.get(
             "INT6_NAME_PATTERNS",
-            "blocks.0.attn.,blocks.1.attn.,blocks.2.attn.,blocks.3.attn.",
+            "blocks.0.attn.,blocks.1.attn.,blocks.2.attn.",
         ).split(",")
         if pattern
     )
