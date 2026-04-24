@@ -54,7 +54,7 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 512))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 192))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -71,12 +71,12 @@ class Hyperparameters:
     rope_base = float(os.environ.get("ROPE_BASE", 4096.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.03))
-    head_lr = float(os.environ.get("HEAD_LR", 0.03))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.25))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.05))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.03))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.025))
+    head_lr = float(os.environ.get("HEAD_LR", 0.025))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.0125))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.125))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.015))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
