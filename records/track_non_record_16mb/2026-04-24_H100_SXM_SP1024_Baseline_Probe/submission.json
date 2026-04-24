@@ -1,0 +1,9 @@
+{
+  "name": "H100 SXM SP1024 baseline probe",
+  "val_bpb": 1.3188541,
+  "bytes_total": 14061665,
+  "blurb": "Single-seed 1x H100 SXM SP1024 baseline smoke using 10 train shards and full validation. This is a non-record reproducibility probe for development-grant evidence, not a leaderboard attempt.",
+  "author": "Ian MacDonald",
+  "github_id": "icpmacdo",
+  "date": "2026-04-24"
+}
