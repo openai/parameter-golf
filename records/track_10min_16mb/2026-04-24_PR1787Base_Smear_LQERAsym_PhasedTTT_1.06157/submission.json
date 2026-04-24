@@ -1,0 +1,65 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "PR1787Base + SmearGate + LQER Asymmetric + Phased TTT",
+  "blurb": "PR #1787 (nprime06) native base stack (CaseOps + SparseAttnGate + PolarNS + MIN_LR + FusedCE + TTT warm-A) with our orthogonal Smear gate over the last 12 residual tokens and inline LQER asymmetric rank-4 post-GPTQ correction (int4 factors, per-group-64 asymmetric scaling). 3-seed mean 1.06157 BPB beats PR #1736 (1.06549) by -0.00392 BPB (≈0.01011 nats/token, ≈2× the 0.005-nat record bar inflection).",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_loss": 2.32312,
+  "val_loss_std": 0.00145,
+  "val_bpb": 1.06157,
+  "val_bpb_std": 0.00066,
+  "seeds": [
+    314,
+    42,
+    1234
+  ],
+  "seed_results": {
+    "314": {
+      "val_loss": 2.32148179,
+      "val_bpb": 1.06082659,
+      "artifact_bytes": 15951189,
+      "steps": 4954,
+      "train_time_s": 599.474,
+      "eval_time_s": 494.8,
+      "pre_ttt_val_bpb": 1.07371255,
+      "post_ema_val_bpb": 1.06484369,
+      "ttt_gain_bpb": -0.01288596
+    },
+    "42": {
+      "val_loss": 2.32363002,
+      "val_bpb": 1.06180824,
+      "artifact_bytes": 15953178,
+      "steps": 4948,
+      "train_time_s": 599.587,
+      "eval_time_s": 451.9,
+      "pre_ttt_val_bpb": 1.07459883,
+      "post_ema_val_bpb": 1.06534676,
+      "ttt_gain_bpb": -0.01279059
+    },
+    "1234": {
+      "val_loss": 2.32424213,
+      "val_bpb": 1.06208795,
+      "artifact_bytes": 15953718,
+      "steps": 4948,
+      "train_time_s": 599.643,
+      "eval_time_s": 423.3,
+      "pre_ttt_val_bpb": 1.07499138,
+      "post_ema_val_bpb": 1.06600839,
+      "ttt_gain_bpb": -0.01290343
+    }
+  },
+  "artifact_bytes_mean": 15952695,
+  "artifact_bytes_max": 15953718,
+  "train_time_s_mean": 599.568,
+  "eval_time_s_mean": 456.67,
+  "hardware": "8xH100 80GB SXM",
+  "base_submission": "PR #1787 (nprime06) + PR #1736 (ours, 2026-04-19) lineage",
+  "base_val_bpb": 1.06549,
+  "delta_vs_base_bpb": -0.00392,
+  "delta_vs_base_loss_nats": -0.00856,
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize the CaseOps-transformed FineWeb into the expected shards and per-token byte sidecar, then run train_gpt.py per seed as documented in README.md. Env vars in the Run Command enable PR #1787 base (SPARSE_ATTN_GATE_ENABLED=1 + MIN_LR=0.1 + FUSED_CE_ENABLED=1 + TTT_WARM_START_A=1), our Smear gate (SMEAR_GATE_ENABLED=1), and our LQER asymmetric correction (LQER_ENABLED=1 LQER_ASYM_ENABLED=1).",
+  "val_loss_nats": 2.32312,
+  "val_loss_nats_std": 0.00145,
+  "bytes_total": 15952695
+}
