@@ -29,8 +29,8 @@ All 3 seeds clear both 600s budgets (train + eval) and the 16,000,000-byte decim
 This submission combines three components on top of the PR #1787 (nprime06) upstream base:
 
 1. **Native PR #1787 base stack** (CaseOps + SparseAttnGate + PolarNS + MIN_LR + FusedCE + PR #1767-style TTT with `TTT_WARM_START_A=1`). The SparseAttnGate (`SPARSE_ATTN_GATE_ENABLED=1`) is PR #1787's replacement for the earlier QuantGate — it's a sparse per-head multiplicative gate applied inside attention.
-2. **Smear gate** (`SMEAR_GATE_ENABLED=1`, `GATE_WINDOW=12`): a lightweight content-conditioned gate over the last 12 tokens of the residual stream. Orthogonal to SparseAttnGate because it operates on the residual (not on attention outputs) and uses causal local context, not the full attention window.
-3. **LQER asymmetric rank-k correction** (`LQER_ENABLED=1`, `LQER_RANK=4`, `LQER_TOP_K=3`, `LQER_FACTOR_BITS=4`, `LQER_ASYM_ENABLED=1`, `LQER_ASYM_GROUP=64`): inline post-GPTQ asymmetric low-rank error compensation. For the top-K output columns of each quantized MLP weight row the int6 quantization residual is factored as `W - W_q ≈ U Σ Vᵀ` with rank 4 and per-group (group size 64) asymmetric scaling on the factor side. Factors are stored int4 (4 bits/element) and Brotli-compressed with the model. Recovers ≈0.009 BPB of the int6 quantization tax at a ≈30 KB artifact cost.
+2. **Smear gate** (`SMEAR_GATE_ENABLED=1`, `GATE_WINDOW=12`): a lightweight content-conditioned gate over the **first `GATE_WINDOW=12` feature dimensions** of the current-token residual, modulating a **1-token causal lookback** `x_t ← x_t + λ · sigmoid(W · x_t[:12]) · x_{t-1}`. Orthogonal to SparseAttnGate because it operates on the residual (not on attention outputs) and uses only the previous token, not the full attention window.
+3. **LQER asymmetric rank-k correction** (`LQER_ENABLED=1`, `LQER_RANK=4`, `LQER_TOP_K=3`, `LQER_ASYM_ENABLED=1`, `LQER_ASYM_GROUP=64`): inline post-GPTQ asymmetric low-rank error compensation. The **top-K entire weight tensors (K=3)** are selected globally by Frobenius norm of the quantization residual `E = W - W_q`; each selected tensor is factored as `E ≈ A · B` via rank-4 SVD. In asymmetric mode, `A` is stored as **INT2 per-matrix (single fp16 scalar scale)** and `B` as **INT4 per-group-64**; both are Brotli-compressed with the model. Recovers ≈0.009 BPB of the int6 quantization tax at a ≈30 KB artifact cost. (`LQER_FACTOR_BITS=4` is consumed only by the symmetric fallback path and is unused here.)
 
 ### Mechanism stack
 
@@ -38,8 +38,8 @@ This submission combines three components on top of the PR #1787 (nprime06) upst
 |-----------|--------|------|
 | CaseOps bijective case transform | PR #1729 (romeerp) / PR #1736 (ours) | ~1.5% token savings, full byte-level bijection |
 | SparseAttnGate | PR #1787 (nprime06) | sparse per-head gate inside attention |
-| Smear gate | this submission | causal content-conditioned gate over last 12 residual tokens |
-| LQER asymmetric rank-4 correction | this submission | post-GPTQ int6 residual recovery, int4 factors |
+| Smear gate | this submission | causal content-conditioned gate on first 12 residual dims, adding 1-token lookback |
+| LQER asymmetric rank-4 correction | this submission | post-GPTQ int6 residual recovery, INT2/INT4 asym factors on top-3 tensors |
 | Phased TTT (score-first, 3 phases, 2000-doc prefix) | PR #1394 / PR #1736 | per-document LoRA adapter, score-before-update |
 | Int6 GPTQ + Brotli compressor | PR #1019 / PR #1530 | fits int6 model + factors + code under 16,000,000 bytes |
 
@@ -84,7 +84,7 @@ Net on 3-seed mean: **−0.00392 BPB / −0.00856 val_loss (nats/token)** vs PR 
 | parallel_start_layer | 8 |
 | eval_seq_len / eval_stride | 2048 / 64 |
 | matrix_bits / embed_bits | 6 / 7 |
-| LQER rank / top-K / factor bits / asym group | 4 / 3 / 4 / 64 |
+| LQER rank / top-K / A-bits / B-bits / asym group | 4 / 3 / 2 / 4 / 64 |
 | smear gate window | 12 |
 | compressor | brotli |
 
@@ -93,7 +93,7 @@ Net on 3-seed mean: **−0.00392 BPB / −0.00856 val_loss (nats/token)** vs PR 
 - **Artifact ≤ 16,000,000 bytes DECIMAL**: all 3 seeds 15,951,189–15,953,718 bytes (~46–49 KB headroom).
 - **train_time ≤ 600s**: all 3 seeds 599.47–599.64s (`stopping_early: wallclock_cap`).
 - **total_eval_time ≤ 600s**: all 3 seeds 423.3–494.8s.
-- **Issue #1017 Condition 1 (causal dependence)**: (a) SparseAttnGate and Smear gate are pure functions of previous-token context (the smear window is strictly `tokens[t-GATE_WINDOW:t]`). (b) Phased TTT updates the per-document LoRA adapter AFTER scoring every chunk; no position-t prediction is ever conditioned on y_t or on positions > t.
+- **Issue #1017 Condition 1 (causal dependence)**: (a) SparseAttnGate and Smear gate are pure functions of previous-token context (the Smear gate reads only the current token's prefix `x_t[:GATE_WINDOW]` and the immediately previous token `x_{t-1}`). (b) Phased TTT updates the per-document LoRA adapter AFTER scoring every chunk; no position-t prediction is ever conditioned on y_t or on positions > t.
 - **Issue #1017 Condition 2 (full normalized distribution)**: CE over the full 8192-token softmax at each position; no x_t-dependent restriction of Σ.
 - **Issue #1017 Condition 3 (score-before-update)**: the TTT path snapshots the pre-update per-chunk logits and scores them BEFORE the adapter SGD step. Per-document LoRA reset (`reusable_lora.reset()`) prevents cross-document leakage.
 - **Issue #1017 Condition 4 (single left-to-right pass)**: eval is one left-to-right pass with sliding stride 64; no rescore/selection.
