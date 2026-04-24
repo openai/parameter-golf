@@ -1,0 +1,41 @@
+{
+  "author": "davie2009kh",
+  "github_id": "davie2009kh",
+  "name": "SP8192 + 3-Epoch Parallel Pre-Quant TTT + Huber WD Muon (SDPA-friendly)",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.07037,
+  "val_bpb_std": 0.00027,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 1.07013, "artifact_bytes": 15857678},
+    "42":   {"val_bpb": 1.07065, "artifact_bytes": 15858437},
+    "2025": {"val_bpb": 1.07033, "artifact_bytes": 15862994}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "attention_backend": "torch.nn.functional.scaled_dot_product_attention (SDPA)",
+  "technique_summary": "SP8192 + CaseOps tokenizer + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + Muon WD 0.095 (Huber variant) + 3-epoch 8-GPU Parallel Pre-Quant AdamW TTT (LR 1e-3, epoch-level cosine 1e-3 -> 1e-4, freeze_blocks=0, odd-epoch diagnostic eval) + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt_leakage": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "legal_ttt_only": true,
+    "three_seeds": true,
+    "fixed_predictor": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip_brotli": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain_5.25_and_legal_ttt_stack": "@bigbag (PR #1493)",
+    "pre_quant_adamw_ttt_concept": "@stukenov (PR #1364)",
+    "parallel_pre_quant_ttt_8gpu": "@AjAnubolu (PR #1735)",
+    "caseops_tokenizer_and_byte_sidecar": "@romeerp (PR #1729), @alertcat (PR #1738)",
+    "ttt_lr_tuning_reference": "kilojoules (unmerged PR on #1738, lr=1e-3 freeze=0 defaults)"
+  }
+}
