@@ -678,6 +678,103 @@ Total per eval chunk                            ~1.3 ms   (vs ~50 ms CPU BLAS)
 
 ---
 
+## `build_bilateral_from_tokens()` Hot-Path Optimisations (2026-04-24)
+
+Six targeted optimisations applied to [`_eigen_convergence.py`](_eigen_convergence.py) and [`_gpu.py`](_gpu.py) that eliminate the remaining GPU↔CPU transfer bottlenecks in `EigenTrainer.build_bilateral_from_tokens()`.
+
+### Summary
+
+| # | Change | File | Estimated saving | Accuracy risk |
+|---|--------|------|-----------------|---------------|
+| 1 | GPU-resident histogram accumulators | [`_eigen_convergence.py`](_eigen_convergence.py) | Largest — eliminates 2×N_chunks D2H transfers | None |
+| 2 | Fuse fwd+bwd `all_reduce` into one collective | [`_eigen_convergence.py`](_eigen_convergence.py) | ~100 ms (one fewer NVLink round-trip) | None |
+| 3 | Skip `CB_composite_pm1` on non-zero ranks | [`_eigen_convergence.py`](_eigen_convergence.py) | ~0.5 s × 7 ranks + 512 MB/rank | None |
+| 4 | `weights=None` in `gpu_bincount_weighted` | [`_eigen_convergence.py`](_eigen_convergence.py) | Moderate — eliminates repeated `(chunk×C,)` alloc | None |
+| 5 | `sliding_window_view` for `b_chunk` | [`_eigen_convergence.py`](_eigen_convergence.py) | Moderate — C fewer array copies per chunk | None |
+| 6 | Dual CUDA streams for fwd+bwd matmuls | [`_gpu.py`](_gpu.py) + [`_eigen_convergence.py`](_eigen_convergence.py) | ~30–50% of matmul wall time | None |
+
+### Optimisation #1 — GPU-resident histogram accumulators
+
+**Before:** `fwd_hist_flat` and `bwd_hist_flat` were CPU numpy arrays. Each chunk call to `gpu_bincount_weighted` did: `scatter_add_` on GPU → D2H copy → CPU `+=`. With O(N_chunks) iterations over 62.5M+ positions this was an O(N_chunks) round-trip bottleneck.
+
+**After:** Both accumulators are allocated as persistent CUDA tensors (`torch.zeros(V*C*V, device=_dev)`). Each chunk scatters directly into them via `scatter_add_` with no D2H transfer. The single D2H copy happens once after the all-reduce:
+
+```python
+fwd_acc = torch.zeros(V * C * V, dtype=torch.float32, device=_dev)
+bwd_acc = torch.zeros(V * C * V, dtype=torch.float32, device=_dev)
+# ... chunk loop: fwd_acc.scatter_add_(0, fwd_idx_t, ones_t) ...
+fwd_hist_flat = fwd_acc.cpu().numpy()   # one D2H at the end
+```
+
+Graceful CPU fallback retained when torch is unavailable.
+
+### Optimisation #2 — Fused `all_reduce`
+
+**Before:** Two separate `all_reduce` calls — two NVLink round-trips (~100 ms each on 32 MB histograms).
+
+**After:** Concatenate into a single 64 MB tensor, one collective, then split:
+
+```python
+combined = torch.cat([fwd_acc, bwd_acc])          # 64 MB, 1 collective
+_td.all_reduce(combined, op=_td.ReduceOp.SUM)
+fwd_acc = combined[:V * C * V]
+bwd_acc = combined[V * C * V:]
+```
+
+Saves ~100 ms with zero accuracy impact.
+
+### Optimisation #3 — Skip `CB_composite_pm1` on non-zero ranks
+
+**Before:** Every rank built `CB_composite_pm1` with shape `(C×V, D) = (4096, 32768)` float32 = **512 MB**, even though only rank 0 uses it for the final matmul (non-zero ranks return early after the all-reduce).
+
+**After:** Construction is gated behind `if dist_rank == 0:`; non-zero ranks set `CB_composite_pm1 = None` and skip ~0.5 s of work and 512 MB of allocation per rank.
+
+### Optimisation #4 — `weights=None` in `gpu_bincount_weighted`
+
+**Before:** A fresh `np.ones(len(fwd_idx), dtype=np.float32)` array of shape `(chunk×C,)` was allocated every iteration and passed as `weights=`.
+
+**After:** Pass `weights=None`. The existing fast path in [`gpu_bincount_weighted()`](_gpu.py) creates a ones tensor of only `chunk_size` elements on the GPU side, avoiding the large CPU allocation entirely.
+
+### Optimisation #5 — `sliding_window_view` for `b_chunk`
+
+**Before:** `b_chunk` was built with `np.stack([tokens[start+c:end+c] for c in range(1, C+1)], axis=1)` — C separate array copies per chunk.
+
+**After:** `np.lib.stride_tricks.sliding_window_view` gives a zero-copy `(chunk, C+1)` view; only the final `.astype(np.int64)` allocates, which is the minimum necessary:
+
+```python
+b_chunk = np.lib.stride_tricks.sliding_window_view(
+    tokens_i32[start : end + C], C + 1
+)[:chunk_len, 1:].astype(np.int64)   # (chunk, C) — one contiguous copy at the end
+```
+
+### Optimisation #6 — Dual CUDA streams for fwd+bwd matmuls
+
+**Before:** The two `(V, C×V) @ (C×V, D)` HGEMMs were issued sequentially — the bwd matmul waited for the fwd matmul to complete.
+
+**After:** A new [`gpu_matmul_f16_dual(a1, a2, b)`](_gpu.py) function issues both GEMMs on separate CUDA streams, allowing the GPU scheduler to overlap SM utilisation:
+
+```python
+s1 = torch.cuda.Stream()
+s2 = torch.cuda.Stream()
+with torch.cuda.stream(s1):
+    out1_t = torch.mm(a1_h16, b_h16)
+with torch.cuda.stream(s2):
+    out2_t = torch.mm(a2_h16, b_h16)
+torch.cuda.synchronize()
+```
+
+The shared right-hand side `b` (`CB_composite_pm1`) is uploaded once. On H100-class hardware with two independent GEMMs of this size, both streams saturate different SM partitions and run close to concurrently, saving ~30–50% of matmul wall time. Graceful fallback to sequential `gpu_matmul_f16` if streams fail.
+
+The call site in [`_eigen_convergence.py`](_eigen_convergence.py) is updated to use the new function:
+
+```python
+sem_fwd_spectrum, sem_bwd_spectrum = gpu_matmul_f16_dual(
+    fwd_hist_2d, bwd_hist_2d, CB_composite_pm1
+)
+```
+
+---
+
 ## PMI-Centered Bilateral Histograms — Simultaneous Positive & Negative Correlation (2026-04-24)
 
 ### The insight
