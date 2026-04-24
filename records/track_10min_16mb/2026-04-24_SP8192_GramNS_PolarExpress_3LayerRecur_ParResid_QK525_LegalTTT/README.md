@@ -115,3 +115,13 @@ Replace `SEED=42` with `SEED=314` and `SEED=999` for the other two seeds.
 - `train_seed314.log`
 - `train_seed999.log`
 
+## Acknowledgements
+
+Thanks to OpenAI for running this challenge -- it's a genuinely fun format and I learned a huge amount about optimizer math and quantization I wouldn't have touched otherwise.
+
+Big thanks to the Gram-Newton-Schulz team (Zhang, Amsel, Chen & Dao) and You Jiacheng for publishing their work openly. Building on solid, recent research made a real difference here.
+
+And thanks to everyone in the parameter golf community who shared PRs and kept the leaderboard moving -- @clarkkev, @dexhunter, @abaybektursun, @Robby955, @msisovic, @X-Abhishek-X, @bigbag, and all the others. The collaborative spirit here is something special.
+
+I'm an undergrad at Georgia Tech and have been funding my own compute to participate. I've submitted a compute credit request through OpenAI's official form and would be really grateful if it comes through -- there's a lot more I'd love to explore with this. Thank you for making this kind of research possible.
+
