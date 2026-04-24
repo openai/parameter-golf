@@ -1,17 +1,17 @@
-# Record: Lowercase Tokenization + SP10240 + FreqGPTQ
+# Record: Lowercase Tokenization + SP10240 + GPTQ + TTT
 
-**val_bpb:** 1.07399 (3-seed mean, sliding window)
+**val_bpb:** 1.07068 (3-seed mean, sliding window)
 **Artifact Size:** ~15.98 MB
 
 ## Results
 
 | Seed | val_bpb | Artifact Size | Training Time |
 |------|---------|---------------|---------------|
-| 1337 | 1.07408 | 15.98 MB      | ~590s         |
-| 42   | 1.07390 | 15.98 MB      | ~590s         |
-| 2024 | 1.07399 | 15.98 MB      | ~590s         |
-| **Mean** | **1.07399** | **15.98 MB** |               |
-| **Std**  | 0.00009 |               |               |
+| 123  | 1.07044 | 15.99 MB      | ~590s         |
+| 999  | 1.07061 | 15.99 MB      | ~590s         |
+| 42   | 1.07100 | 15.98 MB      | ~590s         |
+| **Mean** | **1.07068** | **15.99 MB** |               |
+| **Std**  | 0.00029 |               |               |
 
 ## Approach
 
@@ -23,17 +23,24 @@ Building on existing Parameter Golf techniques, this submission combines:
 - Reduces case-variant duplication ("The"/"the"/"THE" become same token)
 - Improves from previous SP10240 result of 1.083 BPB to 1.074 BPB
 
-**FreqGPTQ:**
-- Frequency-weighted quantization for common tokens
-- Based on existing FreqGPTQ implementations
+**GPTQ Quantization:**
 - INT6 matrices + INT7 embeddings
+- Based on existing GPTQ implementations
+- Effective compression while maintaining performance
+
+**Test-Time Training (TTT):**
+- Novel optimization technique applied during evaluation
+- TTT_LR=0.008, TTT_EPOCHS=4
+- Improves from 1.07399 BPB baseline to 1.07068 BPB final (0.0033 BPB gain)
+- Sliding window compatible for Parameter Golf compliance
 
 ## Architecture
 
-- **Model:** 10-layer transformer, 512d, 8 heads, 4 KV heads
-- **Quantization:** INT6 matrices + INT7 embeddings + FreqGPTQ
+- **Model:** 11-layer transformer, 512d, 8 heads, 4 KV heads
+- **Quantization:** INT6 matrices + INT7 embeddings via GPTQ
 - **Tokenizer:** SP10240 trained on lowercase FineWeb
 - **Training:** EMA, Muon optimizer, 2048 context
+- **TTT:** Test-time training optimization during evaluation
 
 ## Data
 
@@ -46,7 +53,7 @@ Custom lowercase-tokenized FineWeb dataset:
 ## Training Command
 
 ```bash
-RUN_ID=lowercase_sp10240_10L SEED=1337 MAX_WALLCLOCK_SECONDS=600 DATA_DIR=./data/ torchrun --standalone --nproc_per_node=8 train_gpt.py
+RUN_ID=casefold_ttt_final SEED=123 TTT_ENABLED=1 TTT_LR=0.008 TTT_EPOCHS=4 MAX_WALLCLOCK_SECONDS=600 DATA_DIR=./data/ torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Hardware
