@@ -290,7 +290,7 @@ For honesty: a list of popular techniques I tried and rejected, or just never go
 
 **Test-Time Training (TTT).** Tried in `v5_ttt_killer` locally, didn't get to a working run. The code has a LoRA scaffold but it never gave stable results for me.
 
-**Depth recurrence.** Tried (experiment 010 in the non-record track), gave +0.05 bpb over baseline. Doubling depth via weight reuse halves the number of training steps in the same wall-clock time, which outweighs any capacity gain.
+**Depth recurrence.** Didn't try myself. An upstream non-record submission tested it and reported +0.05 bpb over baseline. Doubling depth via weight reuse halves the number of training steps in the same wall-clock time, which outweighs any capacity gain. Good to know before spending a run on it.
 
 ## Sources
 
