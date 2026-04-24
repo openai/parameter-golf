@@ -1,0 +1,21 @@
+sudo apt install -y python3 python3-pip python3-venv git
+git clone https://github.com/adityasasidhar/parameter-golf.git
+cd parameter-golf
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install --upgrade pip
+pip install torch --index-url https://download.pytorch.org/whl/cu130
+pip install --no-cache-dir \
+  "https://download.pytorch.org/whl/cu130/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
+pip install -r requirements.txt
+
+
+rm -f data/manifest.json
+MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \
+  python3 data/cached_challenge_fineweb.py --variant sp4096 --train-shards 30
+
+RUN_ID=baseline_sp4096 \
+torchrun --standalone --nproc_per_node=1 \
+  records/track_non_record_16mb/2026-04-14_Single_H100_8L_int6attn_int8mlp_3mlp_GQA_QAT015_1.21/train_gpt.py
