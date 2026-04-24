@@ -139,9 +139,13 @@ def _load_tokens(data_path: str, split: str, max_shards: int = 80) -> np.ndarray
     if split == "train":
         shard_files = shard_files[:max_shards]
 
+    # Each shard has a 1024-byte header: 256 × int32
+    # (magic=0x134D888, version, n_tokens, …).  Skip it before reading tokens.
+    _HEADER_BYTES = 256 * 4   # 1024 bytes = 512 uint16 words
+
     all_tokens = []
     for shard_path in shard_files:
-        tokens = np.fromfile(shard_path, dtype=np.uint16)
+        tokens = np.fromfile(shard_path, dtype=np.uint16)[_HEADER_BYTES // 2:]
         all_tokens.append(tokens)
         if _dist_is_main():
             total = sum(len(t) for t in all_tokens)

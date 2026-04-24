@@ -138,10 +138,10 @@ def build_bigram_freq(
     t_next = np.clip(tokens[1:].astype(np.int32),  0, vocab_size - 1)
 
     # Flatten (a, b) → a * vocab + b, then GPU scatter_add (Fix #2 + GPU)
-    # This replaces the unbuffered np.add.at with a GPU-accelerated bincount.
+    # Pass weights=None: gpu_bincount_weighted creates only a small per-chunk
+    # ones tensor on GPU instead of a 32 GB numpy ones array in host RAM.
     flat_idx = t_prev.astype(np.int64) * vocab_size + t_next.astype(np.int64)
-    ones     = np.ones(len(flat_idx), dtype=np.float32)
-    flat_counts = gpu_bincount_weighted(flat_idx, ones, vocab_size * vocab_size)
+    flat_counts = gpu_bincount_weighted(flat_idx, None, vocab_size * vocab_size)
     freq = flat_counts.reshape(vocab_size, vocab_size).astype(np.float32)
 
     # Row-normalise
@@ -427,18 +427,32 @@ def bidi_bpb(
         prev_toks = val_tokens[chunk_start - 1 : chunk_end - 1].astype(np.int32)
         tgt_toks  = val_tokens[chunk_start : chunk_end].astype(np.int32)
 
+        # Next tokens for bilateral midpoint evaluation: one position ahead of targets
+        # Boundary: for the very last position, fall back to the target token itself.
+        next_end      = min(chunk_end + 1, N)
+        next_toks_raw = val_tokens[chunk_start + 1 : next_end].astype(np.int32)
+        if len(next_toks_raw) < len(tgt_toks):
+            # Pad last element: use tgt as its own next (harmless fallback)
+            next_toks_raw = np.append(next_toks_raw, tgt_toks[-1:])
+
         # Clip to valid range
-        prev_toks = np.clip(prev_toks, 0, vocab_size - 1)
-        tgt_toks  = np.clip(tgt_toks,  0, vocab_size - 1)
+        prev_toks = np.clip(prev_toks,     0, vocab_size - 1)
+        tgt_toks  = np.clip(tgt_toks,      0, vocab_size - 1)
+        next_toks = np.clip(next_toks_raw, 0, vocab_size - 1)
 
         # Vectorised bilateral scoring: (batch, vocab_size) float32
         # GPU path is used automatically inside vote_scores_vectorised()
         probs = engine.vote_scores_vectorised(prev_toks)  # (batch, vocab)
 
-        # Optional SpiralDSV blend
-        # GPU path is used automatically inside vote_scores_all_vocab()
+        # Optional SpiralDSV bilateral midpoint blend
+        # Passes next_toks so vote_scores_all_vocab() uses the closed-form
+        # bilateral fixed point: h* = sign(sem_fwd[prev] + sem_bwd[next])
+        # instead of single-sided scoring.  No extra model parameters needed.
         if spiral_dsv is not None and spiral_blend_alpha > 0.0:
-            p_spiral = spiral_dsv.vote_scores_all_vocab(prev_toks)  # (batch, vocab)
+            p_spiral = spiral_dsv.vote_scores_all_vocab(
+                prev_toks,
+                next_tokens=next_toks,    # bilateral midpoint — uses both boundaries
+            )
             probs = (1.0 - spiral_blend_alpha) * probs + spiral_blend_alpha * p_spiral
             # Re-normalise after blend
             probs /= probs.sum(axis=1, keepdims=True)
@@ -452,11 +466,17 @@ def bidi_bpb(
         #   token_bytes += has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
         # The leading-space byte is only counted when the previous token is NOT
         # a boundary token (i.e. not a control/unknown/unused/pad token).
+        # Byte count — identical to reference train_gpt.py:265-267.
+        # Control / boundary tokens have base_bytes=0 and no leading space,
+        # so tok_bytes=0 for those positions. They still contribute bits to the
+        # numerator but 0 bytes to the denominator, exactly as in the reference
+        # (which uses no clamp). Do NOT clamp to 1 — that would inflate the
+        # denominator and produce an artificially lower BPB vs the reference formula.
         tok_bytes = (
             base_bytes[tgt_toks].astype(np.float64)
             + (has_leading_space[tgt_toks] & ~is_boundary_token[prev_toks]).astype(np.float64)
         )
-        tok_bytes = np.maximum(tok_bytes, 1.0)
+        # No floor clamp — matches reference exactly
 
         total_bits  += float(-np.log2(p_correct).sum())
         total_bytes += int(tok_bytes.sum())

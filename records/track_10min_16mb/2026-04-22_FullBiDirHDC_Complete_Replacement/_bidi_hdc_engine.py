@@ -414,6 +414,9 @@ class FullBiDirHDC:
         # so this is safe to cache permanently.
         self._cb_pm1         : Optional[np.ndarray] = None   # (vocab, n_bits) float32
         self._eigen_trainer  : Optional[object]     = None   # EigenTrainer instance
+        # Goal-HV frequency prior: pre-computed per-vocab cosine with goal_hv_pm1.
+        # Lazily filled on first vote_scores_vectorised() call; cached for all subsequent.
+        self._goal_scores_cache: Optional[np.ndarray] = None  # (vocab,) float32 softmax
 
         # ── Derived uint64 state (kept for external API compatibility) ────
         self._rule_bundle  = np.zeros(self.W, dtype=np.uint64)
@@ -608,38 +611,63 @@ class FullBiDirHDC:
         """
         # GPU fast path: float16 tensor cores on H100
         if _GPU_AVAILABLE and _gpu_vote_scores is not None:
-            return _gpu_vote_scores(
+            probs = _gpu_vote_scores(
                 codebook_vecs = self.cb.vecs,
                 rule_bundle   = self._rule_bundle,
                 prev_tokens   = prev_tokens,
             )
+        else:
+            # CPU fallback: (batch, vocab, n_words) XOR + unpackbits
+            cb   = self.cb.vecs                          # (vocab_size, n_words) uint64
+            rb   = self._rule_bundle                     # (n_words,) uint64
+            vocab_size, n_words = cb.shape
+            half = float(n_words * 32)                   # n_words × 64 / 2
 
-        # CPU fallback: (batch, vocab, n_words) XOR + unpackbits
-        cb   = self.cb.vecs                          # (vocab_size, n_words) uint64
-        rb   = self._rule_bundle                     # (n_words,) uint64
-        vocab_size, n_words = cb.shape
-        half = float(n_words * 32)                   # n_words × 64 / 2
+            # Forward: query_hv = codebook[prev_t] XOR rule_bundle
+            query_hvs = cb[prev_tokens] ^ rb[None, :]    # (batch, n_words)
 
-        # Forward: query_hv = codebook[prev_t] XOR rule_bundle
-        query_hvs = cb[prev_tokens] ^ rb[None, :]    # (batch, n_words)
+            # fwd_scores[b, v] = cosine(query_hvs[b], cb[v])
+            xor_fwd = query_hvs[:, None, :] ^ cb[None, :, :]  # (batch, vocab, n_words)
+            pc_fwd  = np.unpackbits(xor_fwd.view(np.uint8), axis=2).sum(axis=2).astype(np.float32)
+            fwd_scores = (half - pc_fwd) / half              # (batch, vocab)
 
-        # fwd_scores[b, v] = cosine(query_hvs[b], cb[v])
-        xor_fwd = query_hvs[:, None, :] ^ cb[None, :, :]  # (batch, vocab, n_words)
-        pc_fwd  = np.unpackbits(xor_fwd.view(np.uint8), axis=2).sum(axis=2).astype(np.float32)
-        fwd_scores = (half - pc_fwd) / half              # (batch, vocab)
+            # Backward: bwd_hv[v] = codebook[v] XOR rule_bundle
+            bwd_hvs = cb ^ rb[None, :]                       # (vocab, n_words)
+            # bwd_scores[b, v] = cosine(bwd_hvs[v], codebook[prev_t])
+            xor_bwd = bwd_hvs[None, :, :] ^ cb[prev_tokens][:, None, :]  # (batch, vocab, n_words)
+            pc_bwd  = np.unpackbits(xor_bwd.view(np.uint8), axis=2).sum(axis=2).astype(np.float32)
+            bwd_scores = (half - pc_bwd) / half              # (batch, vocab)
 
-        # Backward: bwd_hv[v] = codebook[v] XOR rule_bundle
-        bwd_hvs = cb ^ rb[None, :]                       # (vocab, n_words)
-        # bwd_scores[b, v] = cosine(bwd_hvs[v], codebook[prev_t])
-        xor_bwd = bwd_hvs[None, :, :] ^ cb[prev_tokens][:, None, :]  # (batch, vocab, n_words)
-        pc_bwd  = np.unpackbits(xor_bwd.view(np.uint8), axis=2).sum(axis=2).astype(np.float32)
-        bwd_scores = (half - pc_bwd) / half              # (batch, vocab)
+            # Bilateral consistency → softmax
+            consistency = (fwd_scores + bwd_scores) / 2.0   # (batch, vocab_size)
+            consistency -= consistency.max(axis=1, keepdims=True)
+            probs = np.exp(consistency)
+            probs /= probs.sum(axis=1, keepdims=True)
 
-        # Bilateral consistency → softmax
-        consistency = (fwd_scores + bwd_scores) / 2.0   # (batch, vocab_size)
-        consistency -= consistency.max(axis=1, keepdims=True)
-        probs = np.exp(consistency)
-        probs /= probs.sum(axis=1, keepdims=True)
+        # ── Goal_hv sharpened frequency prior ─────────────────────────────────
+        # goal_hv_pm1 = sign(Σ_{r≥10} r × CB_pm1[t_next]) — high-reward bigram attractor.
+        # As a blended mixture weight (0.1), it acts as a frequency prior that
+        # boosts common completions, complementing the context-specific engine scores.
+        # The per-vocab goal cosines are computed once and cached (O(vocab × n_bits)).
+        goal_hv_pm1 = self._goal_hv_pm1
+        if goal_hv_pm1 is not None and goal_hv_pm1.any():
+            if self._goal_scores_cache is None:
+                # Unpack codebook to pm1 space — O(vocab × n_words × 8 bytes)
+                cb_vecs = self.cb.vecs                                    # (vocab, n_words) uint64
+                v, w    = cb_vecs.shape
+                cb_u8   = cb_vecs.view(np.uint8).reshape(v, w * 8)
+                cb_pm1  = np.unpackbits(cb_u8, axis=1, bitorder='little').astype(np.float32) * 2.0 - 1.0
+                n_bits  = w * 64
+                raw     = (cb_pm1 @ goal_hv_pm1) / n_bits                # (vocab,) cosine scores
+                raw    -= raw.max()                                        # numerical stability
+                goal_p  = np.exp(raw).astype(np.float32)
+                goal_p /= goal_p.sum()
+                self._goal_scores_cache = goal_p                          # (vocab,) cached forever
+
+            # Blend 10% goal prior into probability distribution, then renormalise
+            probs = probs + 0.1 * self._goal_scores_cache[None, :]       # (batch, vocab)
+            probs /= probs.sum(axis=1, keepdims=True)
+
         return probs.astype(np.float32)
 
     def step(

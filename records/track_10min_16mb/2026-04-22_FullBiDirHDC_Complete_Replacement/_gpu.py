@@ -169,25 +169,47 @@ def gpu_batch_matmul_f32(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def gpu_bincount_weighted(
-    indices: np.ndarray,   # (N,) int
-    weights: np.ndarray,   # (N,) float
+    indices: np.ndarray,          # (N,) int
+    weights,                       # (N,) float  OR  None for uniform count
     minlength: int,
+    chunk_size: int = 50_000_000,  # 50 M per chunk → ≤600 MB GPU per chunk
 ) -> np.ndarray:
     """Weighted bincount on GPU, return numpy float64.
 
     Uses torch.zeros + scatter_add_ which is fully parallelised on CUDA.
     Falls back to numpy.bincount if GPU unavailable.
+
+    Pass weights=None for a pure integer count (avoids allocating a large
+    ones-array in the caller — the GPU chunk then creates a ones tensor of
+    only chunk_size elements rather than N elements all at once).
+
+    Processes in chunks to avoid GPU OOM for large inputs (e.g. 8 B tokens).
     """
     if not gpu_available():
+        if weights is None:
+            return np.bincount(
+                indices.astype(np.int64), minlength=minlength
+            ).astype(np.float64)
         return np.bincount(
             indices.astype(np.int64), weights=weights.astype(np.float64),
             minlength=minlength
         )
     device = _get_device()
-    idx_t = torch.as_tensor(indices.astype(np.int64, copy=False), device=device)
-    w_t   = torch.as_tensor(weights.astype(np.float32, copy=False), device=device)
-    out   = torch.zeros(minlength, dtype=torch.float32, device=device)
-    out.scatter_add_(0, idx_t, w_t)
+    out = torch.zeros(minlength, dtype=torch.float32, device=device)
+    N = len(indices)
+    for start in range(0, N, chunk_size):
+        end = min(start + chunk_size, N)
+        idx_chunk = torch.as_tensor(
+            indices[start:end].astype(np.int64, copy=False), device=device
+        )
+        if weights is None:
+            w_chunk = torch.ones(end - start, dtype=torch.float32, device=device)
+        else:
+            w_chunk = torch.as_tensor(
+                weights[start:end].astype(np.float32, copy=False), device=device
+            )
+        out.scatter_add_(0, idx_chunk, w_chunk)
+        del idx_chunk, w_chunk
     return out.double().cpu().numpy()
 
 
@@ -310,6 +332,72 @@ def gpu_bilateral_confidence(
     consistency = (conf_fwd + conf_bwd) * 0.5
     out = torch.clamp(0.5 + 0.49 * consistency, 1e-30, 0.99)
     return to_cpu_f32(out)
+
+
+def gpu_bilateral_midpoint_scores(
+    sem_fwd_pm1 : np.ndarray,   # (vocab, n_bits) float32
+    sem_bwd_pm1 : np.ndarray,   # (vocab, n_bits) float32
+    codebook_pm1: np.ndarray,   # (vocab, n_bits) float32
+    prev_tokens : np.ndarray,   # (batch,) int32 — preceding token IDs
+    next_tokens : np.ndarray,   # (batch,) int32 — following token IDs
+) -> np.ndarray:
+    """Bilateral midpoint convergence scores on GPU (cuBLAS HGEMM, fp16 tensor cores).
+
+    Implements the closed-form bilateral fixed point:
+
+        h*(b) = sign(sem_fwd_pm1[prev[b]] + sem_bwd_pm1[next[b]])
+        score(b, v) = h*(b) · codebook_pm1[v] / n_bits
+
+    h* is the unique token-HV equidistant between the forward trajectory of
+    prev and the backward trajectory of next — no iteration needed.
+
+    GPU path:
+        Gather: sf[prev], sb[next]              ← torch index on CUDA
+        Sum:    h_sum = sf_batch + sb_batch     ← elementwise, fp32
+        Sign:   h_star = sign(h_sum)            ← fp32 (ties → +1)
+        Matmul: score = h_star @ CB.T / n_bits  ← fp16 tensor cores (HGEMM)
+        Normalise: row softmax → probability    ← fp32 clamp + divison
+
+    Returns (batch, vocab) float32 row-normalised probability distribution.
+    Falls back to numpy BLAS if GPU unavailable.
+    """
+    n_bits = codebook_pm1.shape[1]
+
+    if not gpu_available():
+        # NumPy BLAS fallback
+        sf    = sem_fwd_pm1[prev_tokens]                              # (batch, n_bits)
+        sb    = sem_bwd_pm1[next_tokens]                              # (batch, n_bits)
+        h_sum = sf + sb
+        h_star = np.sign(h_sum).astype(np.float32)
+        h_star[h_star == 0.0] = 1.0
+        raw   = (h_star @ codebook_pm1.T) / n_bits                   # (batch, vocab)
+        probs = np.clip(0.5 + 0.49 * raw, 1e-30, 0.99).astype(np.float32)
+        probs /= probs.sum(axis=1, keepdims=True)
+        return probs
+
+    device   = _get_device()
+    sf_t     = to_gpu_f16(sem_fwd_pm1)      # (vocab, n_bits) f16
+    sb_t     = to_gpu_f16(sem_bwd_pm1)      # (vocab, n_bits) f16
+    cb_t     = to_gpu_f16(codebook_pm1)     # (vocab, n_bits) f16
+    prev_idx = to_gpu_i64(prev_tokens)      # (batch,)
+    next_idx = to_gpu_i64(next_tokens)      # (batch,)
+
+    # Gather bilateral pair rows from GPU tables
+    sf_batch = sf_t[prev_idx]               # (batch, n_bits) f16 — forward context
+    sb_batch = sb_t[next_idx]               # (batch, n_bits) f16 — backward context
+
+    # Float32 sum then sign: avoids fp16 overflow on ±1 valued vectors
+    h_sum  = sf_batch.float() + sb_batch.float()   # (batch, n_bits) f32
+    h_star = torch.sign(h_sum)                       # (batch, n_bits) f32
+    h_star[h_star == 0.0] = 1.0                      # ties → +1
+
+    # fp16 HGEMM: (batch, n_bits) @ (n_bits, vocab) → (batch, vocab)
+    raw = torch.mm(h_star.half(), cb_t.T).float() / n_bits   # (batch, vocab) f32
+
+    # Row-normalise to probability distribution
+    probs = torch.clamp(0.5 + 0.49 * raw, 1e-30, 0.99)
+    probs = probs / probs.sum(dim=1, keepdim=True)
+    return to_cpu_f32(probs)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

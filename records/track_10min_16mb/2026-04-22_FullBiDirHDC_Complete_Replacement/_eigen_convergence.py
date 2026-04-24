@@ -1235,7 +1235,11 @@ class EigenTrainer:
             axis=1, bitorder='little'
         )
         cb_pm1 = bits.astype(np.float32) * 2.0 - 1.0  # (vocab_size, n_bits)
-        return cls(cb_pm1, goal_threshold=goal_threshold)
+        obj = cls(cb_pm1, goal_threshold=goal_threshold)
+        # Preserve uint64 codebook so build_bilateral_from_tokens() can apply
+        # per-lag GoldenAxisShift rotations without re-converting from pm1.
+        obj._CB_uint64 = codebook_vecs.astype(np.uint64)
+        return obj
 
     def absorb_bigrams(
         self,
@@ -1419,4 +1423,198 @@ class EigenTrainer:
             goal_weight     = goal_weight,
             n_bigrams       = N,
             n_goal_bigrams  = n_goal,
+        )
+
+    def build_bilateral_from_tokens(
+        self,
+        tokens           : np.ndarray,         # (N,) int32/int64 — full token sequence
+        ctx_len          : int   = 4,
+        axis_word_shifts : Optional[list] = None,
+        # axis_word_shifts: [(word_shift, bit_shift) for lag c in 1..ctx_len]
+        # Provide GOLDEN_AXES._word_shifts/._bit_shifts for correct spiral encoding.
+        # If None: all lags use the unrotated codebook (no axis differentiation).
+        chunk_size       : int   = 2_000_000,
+        verbose          : bool  = True,
+        time_budget_s    : float = 600.0,
+    ) -> dict:
+        """Build bilateral context tables via single-pass chunked scan + matmul.
+
+        Replaces EigenSpiralBuilder.build_bilateral_tables() with an approach that:
+          1. Correctly applies per-lag GoldenAxisShift rotations (restores quality)
+          2. Uses exact integer-ID row addressing (zero retrieval error)
+          3. Reduces atomic contention: chunk×ctx_len elements into V×ctx_len×V
+             buckets (E/B ≈ 1) vs original 8B elements into V² buckets (E/B ≈ 8000)
+          4. Single final matmul: (V, ctx_len×V) @ (ctx_len×V, n_bits) → (V, n_bits)
+
+        Algorithm
+        ─────────
+        For each chunk of positions, stack all ctx_len lag b-tokens simultaneously
+        and compute composite flat indices into a (V, ctx_len×V) accumulator:
+
+            fwd_idx = a * (ctx_len×V) + (c-1)*V + b   for each lag c
+            bwd_idx = b * (ctx_len×V) + (c-1)*V + a
+
+        This is vectorised over all ctx_len lags in a single numpy stack operation.
+        Then a single gpu_bincount_weighted call per chunk (fwd and bwd) accumulates
+        into the (V×ctx_len×V) flat histogram — one call with chunk×ctx_len elements
+        into V×ctx_len×V buckets.
+
+        Final step:
+            CB_composite_pm1 = concat([roll_c(CB_pm1) for c in 1..ctx_len])
+                             shape: (ctx_len×V, n_bits)
+            sem_fwd_pm1 = sign(fwd_hist_2d @ CB_composite_pm1)
+            sem_bwd_pm1 = sign(bwd_hist_2d @ CB_composite_pm1)
+
+        Memory: (V × ctx_len × V) float32 = (1024 × 4 × 1024) × 4B = 16 MB per table
+        CB_composite: (ctx_len × V, n_bits) float16 = (4096 × 32768) × 2B = 256 MB
+
+        Args:
+            tokens           : (N,) token sequence (full training set, not per-rank shard)
+            ctx_len          : Number of lags (context depth)
+            axis_word_shifts : List of (word_shift, bit_shift) tuples for each lag.
+                               Pass GOLDEN_AXES._word_shifts/._bit_shifts[1..ctx_len].
+                               If None: use unrotated CB (no per-lag differentiation).
+            chunk_size       : Positions per outer loop iteration (default 2M)
+            verbose          : Print progress
+            time_budget_s    : Stop early if exceeded (for time-constrained runs)
+
+        Returns dict with same keys as EigenSpiralBuilder.build_bilateral_tables():
+            sem_fwd_pm1  : (vocab_size, n_bits) float32
+            sem_bwd_pm1  : (vocab_size, n_bits) float32
+            sem_fwd_u64  : (vocab_size, n_words) uint64
+            sem_bwd_u64  : (vocab_size, n_words) uint64
+            total_pairs  : int
+        """
+        import time
+        t0 = time.time()
+
+        V  = self.vocab_size
+        D  = self.n_bits
+        C  = ctx_len
+        N  = len(tokens)
+        N_valid = max(0, N - C)   # positions i where tokens[i+1..i+C] all exist
+
+        tokens_i32 = np.clip(tokens.astype(np.int32), 0, V - 1)
+
+        # ── Step 1: Build CB_composite_pm1 (ctx_len×V, n_bits) ───────────────
+        # Each of the ctx_len blocks is CB_pm1 with bits cyclically rotated by
+        # the golden-ratio offset for that lag.  This is O(ctx_len × V × n_words).
+        CB_uint64 = getattr(self, '_CB_uint64', None)
+        n_words   = D // 64
+
+        if axis_word_shifts is not None and CB_uint64 is not None and len(axis_word_shifts) >= C:
+            parts = []
+            for c_idx in range(C):
+                word_shift, bit_shift = axis_word_shifts[c_idx]
+                rolled = np.roll(CB_uint64, word_shift, axis=1)  # (V, n_words) uint64
+                if bit_shift > 0:
+                    bs  = np.uint64(bit_shift)
+                    ibs = np.uint64(64 - bit_shift)
+                    rolled = ((rolled << bs) | (rolled >> ibs)).astype(np.uint64)
+                bits_c = np.unpackbits(
+                    rolled.view(np.uint8).reshape(V, n_words * 8),
+                    axis=1, bitorder='little',
+                )
+                parts.append(bits_c.astype(np.float32) * 2.0 - 1.0)  # (V, D)
+            CB_composite_pm1 = np.concatenate(parts, axis=0)  # (C*V, D)
+            if verbose:
+                mb = CB_composite_pm1.nbytes // 1_000_000
+                print(f"[EigenBilateral] CB_composite ({C}×{V}, {D}): {mb} MB "
+                      f"(with GoldenAxisShift per lag)")
+        else:
+            # No axis shifts available — tile the unrotated CB.
+            CB_composite_pm1 = np.tile(self.CB_pm1, (C, 1))  # (C*V, D)
+            if verbose:
+                mb = CB_composite_pm1.nbytes // 1_000_000
+                print(f"[EigenBilateral] CB_composite ({C}×{V}, {D}): {mb} MB "
+                      f"(no axis shifts — _CB_uint64 not stored or axis_word_shifts=None)")
+
+        # ── Step 2: Chunked composite histogram scan ──────────────────────────
+        # Accumulators: (V × C × V) flat ← reshaped to (V, C*V) for matmul.
+        fwd_hist_flat = np.zeros(V * C * V, dtype=np.float32)
+        bwd_hist_flat = np.zeros(V * C * V, dtype=np.float32)
+        total_pairs   = 0
+
+        # Precompute lag column offsets: lag c maps to columns (c-1)*V..(c)*V-1
+        c_offsets = np.arange(C, dtype=np.int64) * V  # (C,)
+
+        for start in range(0, N_valid, chunk_size):
+            if time.time() - t0 > time_budget_s * 0.90:
+                if verbose:
+                    print(f"[EigenBilateral] Time budget reached at pos {start:,}")
+                break
+
+            end       = min(start + chunk_size, N_valid)
+            chunk_len = end - start
+
+            a_chunk = tokens_i32[start:end].astype(np.int64)       # (chunk,)
+
+            # Stack all ctx_len lag b-tokens simultaneously: (chunk, C)
+            b_chunk = np.stack(
+                [tokens_i32[start + c : end + c].astype(np.int64)
+                 for c in range(1, C + 1)],
+                axis=1,
+            )  # (chunk, C)
+
+            # Composite indices (chunk, C) → ravel to (chunk*C,)
+            # fwd: row=a, col=(c-1)*V + b  →  flat = a*(C*V) + col
+            fwd_idx = (
+                a_chunk[:, None] * (C * V) + c_offsets[None, :] + b_chunk
+            ).ravel()
+
+            # bwd: row=b, col=(c-1)*V + a  →  flat = b*(C*V) + col
+            bwd_idx = (
+                b_chunk * (C * V) + c_offsets[None, :] + a_chunk[:, None]
+            ).ravel()
+
+            ones = np.ones(len(fwd_idx), dtype=np.float32)
+
+            fwd_hist_flat += gpu_bincount_weighted(
+                fwd_idx, ones, V * C * V
+            ).astype(np.float32)
+            bwd_hist_flat += gpu_bincount_weighted(
+                bwd_idx, ones, V * C * V
+            ).astype(np.float32)
+
+            total_pairs += chunk_len * C
+
+            if verbose:
+                elapsed = time.time() - t0
+                pct     = 100.0 * end / N_valid
+                print(f"[EigenBilateral] {end:,}/{N_valid:,} ({pct:.1f}%) "
+                      f"pairs={total_pairs:,}  elapsed={elapsed:.2f}s")
+
+        # ── Step 3: Single matmul → sem_fwd / sem_bwd ────────────────────────
+        fwd_hist_2d = fwd_hist_flat.reshape(V, C * V)   # (V, C*V) float32
+        bwd_hist_2d = bwd_hist_flat.reshape(V, C * V)   # (V, C*V) float32
+
+        if verbose:
+            elapsed = time.time() - t0
+            print(f"[EigenBilateral] Computing bilateral matmuls "
+                  f"({V}×{C*V}) × ({C*V}×{D})... elapsed={elapsed:.2f}s")
+
+        t_mm = time.time()
+        # fp16 tensor cores: (V, C*V) @ (C*V, D) → (V, D)
+        sem_fwd_spectrum = gpu_matmul_f16(fwd_hist_2d, CB_composite_pm1)
+        sem_bwd_spectrum = gpu_matmul_f16(bwd_hist_2d, CB_composite_pm1)
+
+        sem_fwd_pm1 = gpu_sign_f32(sem_fwd_spectrum)   # (V, D) float32 {-1,+1}
+        sem_bwd_pm1 = gpu_sign_f32(sem_bwd_spectrum)
+
+        # Pack back to uint64 for on-disk storage and inference XOR ops
+        sem_fwd_u64 = batch_pm1_to_uint64(sem_fwd_pm1)   # (V, n_words) uint64
+        sem_bwd_u64 = batch_pm1_to_uint64(sem_bwd_pm1)
+
+        elapsed  = time.time() - t0
+        mm_t     = time.time() - t_mm
+        if verbose:
+            print(f"[EigenBilateral] Matmul done in {mm_t:.2f}s")
+            print(f"[EigenBilateral] Total: {total_pairs:,} pairs in {elapsed:.2f}s")
+
+        return dict(
+            sem_fwd_pm1  = sem_fwd_pm1,
+            sem_bwd_pm1  = sem_bwd_pm1,
+            sem_fwd_u64  = sem_fwd_u64,
+            sem_bwd_u64  = sem_bwd_u64,
+            total_pairs  = total_pairs,
         )

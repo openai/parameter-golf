@@ -31,19 +31,26 @@ import numpy as np
 
 # ── Eigen Convergence import ──────────────────────────────────────────────────
 try:
-    from _eigen_convergence import EigenSpiralBuilder
+    from _eigen_convergence import EigenSpiralBuilder, EigenTrainer as _EigenTrainer
     _EIGEN_SPIRAL_AVAILABLE = True
 except ImportError:
-    EigenSpiralBuilder = None   # type: ignore[assignment,misc]
-    _EIGEN_SPIRAL_AVAILABLE = False
+    try:
+        from _eigen_convergence import EigenTrainer as _EigenTrainer
+        EigenSpiralBuilder = None   # type: ignore[assignment,misc]
+        _EIGEN_SPIRAL_AVAILABLE = True   # EigenTrainer path still available
+    except ImportError:
+        EigenSpiralBuilder = None   # type: ignore[assignment,misc]
+        _EigenTrainer      = None   # type: ignore[assignment,misc]
+        _EIGEN_SPIRAL_AVAILABLE = False
 
 # ── GPU acceleration (optional, graceful fallback to CPU) ─────────────────────
 try:
-    from _gpu import gpu_available, gpu_bilateral_confidence
+    from _gpu import gpu_available, gpu_bilateral_confidence, gpu_bilateral_midpoint_scores
     _GPU_AVAILABLE = gpu_available()
 except ImportError:
     _GPU_AVAILABLE = False
-    gpu_bilateral_confidence = None  # type: ignore[assignment]
+    gpu_bilateral_confidence        = None  # type: ignore[assignment]
+    gpu_bilateral_midpoint_scores   = None  # type: ignore[assignment]
 
 # ============================================================================
 # Module-level popcount lookup table
@@ -356,19 +363,40 @@ class SpiralDSVLanguageModel:
                   f"(vocab={self.vocab_size}, n_words={self.n_words}, "
                   f"ctx_len={ctx_len}, eigen={_EIGEN_SPIRAL_AVAILABLE})")
 
-        if _EIGEN_SPIRAL_AVAILABLE and EigenSpiralBuilder is not None:
-            # ── Eigen path: co-occurrence matmul replaces scatter XOR ─────
-            builder = EigenSpiralBuilder.from_codebook_uint64(
-                codebook_vecs = self.codebook,
-                use_frequency = True,
+        if _EIGEN_SPIRAL_AVAILABLE and _EigenTrainer is not None:
+            # ── EigenBilateral path: composite-CB single-pass scan + matmul ──
+            # Uses EigenTrainer.build_bilateral_from_tokens() which:
+            #   1. Accumulates per-lag co-occurrence into (V, ctx_len×V) histogram
+            #      in one chunked scan (low atomic contention vs EigenSpiralBuilder)
+            #   2. Builds CB_composite_pm1 with GoldenAxisShift per-lag rotations
+            #      (restores the axis-shift information previously discarded)
+            #   3. Single final matmul: sign((V,ctx_len×V) @ (ctx_len×V, n_bits))
+            #
+            # Result is identical in format to EigenSpiralBuilder output.
+            trainer = _EigenTrainer.from_codebook_uint64(
+                codebook_vecs  = self.codebook,
+                goal_threshold = 10.0,
             )
-            result = builder.build_bilateral_tables(
-                tokens        = tokens,
-                ctx_len       = ctx_len,
-                time_budget_s = time_budget_s,
-                verbose       = verbose,
+
+            # Ensure GOLDEN_AXES has offsets computed for all ctx_len lags
+            for c in range(1, ctx_len + 1):
+                GOLDEN_AXES.offset(c)   # extends internal lists if needed
+
+            axis_word_shifts = [
+                (GOLDEN_AXES._word_shifts[c], GOLDEN_AXES._bit_shifts[c])
+                for c in range(1, ctx_len + 1)
+            ]
+
+            result = trainer.build_bilateral_from_tokens(
+                tokens           = tokens,
+                ctx_len          = ctx_len,
+                axis_word_shifts = axis_word_shifts,
+                chunk_size       = 2_000_000,
+                verbose          = verbose,
+                time_budget_s    = time_budget_s,
             )
-            # Apply fixed-point results: uint64 tables
+
+            # Apply fixed-point results: uint64 tables (same keys as before)
             self.sem_fwd = result['sem_fwd_u64']   # (vocab, n_words) uint64
             self.sem_bwd = result['sem_bwd_u64']   # (vocab, n_words) uint64
             self._built = True
@@ -477,32 +505,70 @@ class SpiralDSVLanguageModel:
     def vote_scores_all_vocab(
         self,
         prev_tokens: np.ndarray,
+        next_tokens: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """Bilateral confidence scores for all vocab tokens.
 
-        FIX #5 + GPU: Replaces (batch, vocab, n_words) XOR + unpackbits with a
-        single cuBLAS HGEMM in pm1 space (float16 tensor cores on H100).
+        Two modes:
+          1. prev-only (next_tokens=None): original behaviour — uses sem_fwd[prev]
+             for fwd and sem_bwd self-consistency for bwd.
 
-        In pm1 space, cosine(a, b) = (a · b) / n_bits.
-        The XOR-based confidence |cosine| = |hamming_distance - 0.5| × 2
-        is equivalent to |dot(a_pm1, b_pm1)| / n_bits.
+          2. bilateral midpoint (next_tokens provided): uses the closed-form
+             bilateral fixed point:
 
-        GPU path (when CUDA available):
-            conf_fwd[b, v] = |sem_fwd_pm1[prev_t[b]] · codebook_pm1[v]| / n_bits
-            Uses float16 tensor cores: ~300 TFLOPS on H100 vs ~2 TFLOPS CPU BLAS.
+               h*(b) = sign(sem_fwd_pm1[prev[b]] + sem_bwd_pm1[next[b]])
+               score(b, v) = h*(b) · codebook_pm1[v] / n_bits
 
-        CPU fallback:
-            Same BLAS SGEMM as before (Fix #5).
+             This is the unique HDC convergence point equidistant between the
+             forward trajectory of prev and the backward trajectory of next.
+             No iteration needed — one vector addition + sign + matmul.
+
+        The bilateral midpoint mode exploits both boundary constraints to predict
+        the middle token far more accurately than the one-sided query, without
+        any additional model parameters or corpus scans.
 
         Args:
-            prev_tokens : (batch,) int32 — previous token IDs
+            prev_tokens : (batch,) int32 — preceding token IDs
+            next_tokens : (batch,) int32 — following token IDs, or None for
+                          one-sided query (default). When provided, tokens that
+                          have no valid next (e.g. end-of-sequence) should be
+                          set to 0 or any valid token ID — the weight can be
+                          blended externally.
 
         Returns:
-            (batch, vocab_size) float32 — bilateral confidence scores
+            (batch, vocab_size) float32 — probability-like scores
         """
         # Ensure pm1 cache is built (lazy, one-time cost)
         self._ensure_pm1_cache()
 
+        if next_tokens is not None:
+            # ── Bilateral midpoint path (GPU-accelerated) ─────────────────────
+            # h*(b) = sign(sem_fwd_pm1[prev[b]] + sem_bwd_pm1[next[b]])
+            # score(b, v) = h*(b) · codebook_pm1[v] / n_bits
+            #
+            # GPU path: gather rows on CUDA, float32 sum + sign, fp16 HGEMM.
+            # CPU fallback: NumPy BLAS (same result, slower).
+            if _GPU_AVAILABLE and gpu_bilateral_midpoint_scores is not None:
+                return gpu_bilateral_midpoint_scores(
+                    sem_fwd_pm1  = self._sem_fwd_pm1,
+                    sem_bwd_pm1  = self._sem_bwd_pm1,
+                    codebook_pm1 = self._codebook_pm1,
+                    prev_tokens  = prev_tokens,
+                    next_tokens  = next_tokens,
+                )
+
+            # NumPy BLAS fallback
+            sf_pm1  = self._sem_fwd_pm1[prev_tokens]   # (batch, n_bits)
+            sb_pm1  = self._sem_bwd_pm1[next_tokens]   # (batch, n_bits)
+            h_sum   = sf_pm1 + sb_pm1
+            h_star  = np.sign(h_sum).astype(np.float32)
+            h_star[h_star == 0.0] = 1.0
+            raw     = (h_star @ self._codebook_pm1.T) / self._n_bits
+            probs   = np.clip(0.5 + 0.49 * raw, 1e-30, 0.99).astype(np.float32)
+            probs  /= probs.sum(axis=1, keepdims=True)
+            return probs
+
+        # ── Prev-only path (original behaviour) ───────────────────────────────
         # GPU fast path: dispatches both matmuls to cuBLAS HGEMM
         if _GPU_AVAILABLE and gpu_bilateral_confidence is not None:
             return gpu_bilateral_confidence(

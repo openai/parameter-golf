@@ -1,0 +1,108 @@
+W0423 16:42:19.822000 133217172226688 torch/distributed/run.py:779] 
+W0423 16:42:19.822000 133217172226688 torch/distributed/run.py:779] *****************************************
+W0423 16:42:19.822000 133217172226688 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0423 16:42:19.822000 133217172226688 torch/distributed/run.py:779] *****************************************
+
+============================================================
+[BiDirHDC] FullBiDirHDC Parameter Golf Submission
+[BiDirHDC] GPU acceleration: ENABLED (cuda:0)
+[BiDirHDC] n_words=512 (32,768 bits per HV)
+[BiDirHDC] seed=7  (single seed — use different seeds for 3 independent runs)
+[BiDirHDC] vocab_size=1024
+[BiDirHDC] max_wallclock=600s
+[BiDirHDC] timestamp=20260423T164227
+============================================================
+
+[BiDirHDC] Tokeniser loaded: ./data/tokenizers/fineweb_1024_bpe.model (vocab=1024)
+[BiDirHDC] Loading training tokens from ./data/datasets/fineweb10B_sp1024...
+[TokenLoad] Loaded 100,000,512 tokens from fineweb_train_000000.bin
+[TokenLoad] Loaded 200,001,024 tokens from fineweb_train_000001.bin
+[TokenLoad] Loaded 300,001,536 tokens from fineweb_train_000002.bin
+[TokenLoad] Loaded 400,002,048 tokens from fineweb_train_000003.bin
+[TokenLoad] Loaded 500,002,560 tokens from fineweb_train_000004.bin
+[TokenLoad] Loaded 600,003,072 tokens from fineweb_train_000005.bin
+[TokenLoad] Loaded 700,003,584 tokens from fineweb_train_000006.bin
+[TokenLoad] Loaded 800,004,096 tokens from fineweb_train_000007.bin
+[TokenLoad] Loaded 900,004,608 tokens from fineweb_train_000008.bin
+[TokenLoad] Loaded 1,000,005,120 tokens from fineweb_train_000009.bin
+[TokenLoad] Loaded 1,100,005,632 tokens from fineweb_train_000010.bin
+[TokenLoad] Loaded 1,200,006,144 tokens from fineweb_train_000011.bin
+[TokenLoad] Loaded 1,300,006,656 tokens from fineweb_train_000012.bin
+[TokenLoad] Loaded 1,400,007,168 tokens from fineweb_train_000013.bin
+[TokenLoad] Loaded 1,500,007,680 tokens from fineweb_train_000014.bin
+[TokenLoad] Loaded 1,600,008,192 tokens from fineweb_train_000015.bin
+[TokenLoad] Loaded 1,700,008,704 tokens from fineweb_train_000016.bin
+[TokenLoad] Loaded 1,800,009,216 tokens from fineweb_train_000017.bin
+[TokenLoad] Loaded 1,900,009,728 tokens from fineweb_train_000018.bin
+[TokenLoad] Loaded 2,000,010,240 tokens from fineweb_train_000019.bin
+[TokenLoad] Loaded 2,100,010,752 tokens from fineweb_train_000020.bin
+[TokenLoad] Loaded 2,200,011,264 tokens from fineweb_train_000021.bin
+[TokenLoad] Loaded 2,300,011,776 tokens from fineweb_train_000022.bin
+[TokenLoad] Loaded 2,400,012,288 tokens from fineweb_train_000023.bin
+[TokenLoad] Loaded 2,500,012,800 tokens from fineweb_train_000024.bin
+[TokenLoad] Loaded 2,600,013,312 tokens from fineweb_train_000025.bin
+[TokenLoad] Loaded 2,700,013,824 tokens from fineweb_train_000026.bin
+[TokenLoad] Loaded 2,800,014,336 tokens from fineweb_train_000027.bin
+[TokenLoad] Loaded 2,900,014,848 tokens from fineweb_train_000028.bin
+[TokenLoad] Loaded 3,000,015,360 tokens from fineweb_train_000029.bin
+[TokenLoad] Loaded 3,100,015,872 tokens from fineweb_train_000030.bin
+[TokenLoad] Loaded 3,200,016,384 tokens from fineweb_train_000031.bin
+[TokenLoad] Loaded 3,300,016,896 tokens from fineweb_train_000032.bin
+[TokenLoad] Loaded 3,400,017,408 tokens from fineweb_train_000033.bin
+[TokenLoad] Loaded 3,500,017,920 tokens from fineweb_train_000034.bin
+[TokenLoad] Loaded 3,600,018,432 tokens from fineweb_train_000035.bin
+[TokenLoad] Loaded 3,700,018,944 tokens from fineweb_train_000036.bin
+[TokenLoad] Loaded 3,800,019,456 tokens from fineweb_train_000037.bin
+[TokenLoad] Loaded 3,900,019,968 tokens from fineweb_train_000038.bin
+[TokenLoad] Loaded 4,000,020,480 tokens from fineweb_train_000039.bin
+[TokenLoad] Loaded 4,100,020,992 tokens from fineweb_train_000040.bin
+[TokenLoad] Loaded 4,200,021,504 tokens from fineweb_train_000041.bin
+[TokenLoad] Loaded 4,300,022,016 tokens from fineweb_train_000042.bin
+[TokenLoad] Loaded 4,400,022,528 tokens from fineweb_train_000043.bin
+[TokenLoad] Loaded 4,500,023,040 tokens from fineweb_train_000044.bin
+[TokenLoad] Loaded 4,600,023,552 tokens from fineweb_train_000045.bin
+[TokenLoad] Loaded 4,700,024,064 tokens from fineweb_train_000046.bin
+[TokenLoad] Loaded 4,800,024,576 tokens from fineweb_train_000047.bin
+[TokenLoad] Loaded 4,900,025,088 tokens from fineweb_train_000048.bin
+[TokenLoad] Loaded 5,000,025,600 tokens from fineweb_train_000049.bin
+[TokenLoad] Loaded 5,100,026,112 tokens from fineweb_train_000050.bin
+[TokenLoad] Loaded 5,200,026,624 tokens from fineweb_train_000051.bin
+[TokenLoad] Loaded 5,300,027,136 tokens from fineweb_train_000052.bin
+[TokenLoad] Loaded 5,400,027,648 tokens from fineweb_train_000053.bin
+[TokenLoad] Loaded 5,500,028,160 tokens from fineweb_train_000054.bin
+[TokenLoad] Loaded 5,600,028,672 tokens from fineweb_train_000055.bin
+[TokenLoad] Loaded 5,700,029,184 tokens from fineweb_train_000056.bin
+[TokenLoad] Loaded 5,800,029,696 tokens from fineweb_train_000057.bin
+[TokenLoad] Loaded 5,900,030,208 tokens from fineweb_train_000058.bin
+[TokenLoad] Loaded 6,000,030,720 tokens from fineweb_train_000059.bin
+[TokenLoad] Loaded 6,100,031,232 tokens from fineweb_train_000060.bin
+[TokenLoad] Loaded 6,200,031,744 tokens from fineweb_train_000061.bin
+[TokenLoad] Loaded 6,300,032,256 tokens from fineweb_train_000062.bin
+[TokenLoad] Loaded 6,400,032,768 tokens from fineweb_train_000063.bin
+[TokenLoad] Loaded 6,500,033,280 tokens from fineweb_train_000064.bin
+[TokenLoad] Loaded 6,600,033,792 tokens from fineweb_train_000065.bin
+[TokenLoad] Loaded 6,700,034,304 tokens from fineweb_train_000066.bin
+[TokenLoad] Loaded 6,800,034,816 tokens from fineweb_train_000067.bin
+[TokenLoad] Loaded 6,900,035,328 tokens from fineweb_train_000068.bin
+[TokenLoad] Loaded 7,000,035,840 tokens from fineweb_train_000069.bin
+[TokenLoad] Loaded 7,100,036,352 tokens from fineweb_train_000070.bin
+[TokenLoad] Loaded 7,200,036,864 tokens from fineweb_train_000071.bin
+[TokenLoad] Loaded 7,300,037,376 tokens from fineweb_train_000072.bin
+[TokenLoad] Loaded 7,400,037,888 tokens from fineweb_train_000073.bin
+[TokenLoad] Loaded 7,500,038,400 tokens from fineweb_train_000074.bin
+[TokenLoad] Loaded 7,600,038,912 tokens from fineweb_train_000075.bin
+[TokenLoad] Loaded 7,700,039,424 tokens from fineweb_train_000076.bin
+[TokenLoad] Loaded 7,800,039,936 tokens from fineweb_train_000077.bin
+[TokenLoad] Loaded 7,900,040,448 tokens from fineweb_train_000078.bin
+[TokenLoad] Loaded 8,000,040,960 tokens from fineweb_train_000079.bin
+[BiDirHDC] Training tokens: 8,000,040,960
+
+============================================================
+[BiDirTrain] FullBiDirHDC Training
+[BiDirTrain] vocab_size=1024, n_words=512
+[BiDirTrain] seeds=[7], world_size=8
+[BiDirTrain] HV bits=32,768, budget=525s
+============================================================
+
+[BiDirTrain] Building bigram freq table (vocab=1024, N=8,000,040,960)...
+[BiDirTrain] Bigram freq done in 88.3s (GPU)
