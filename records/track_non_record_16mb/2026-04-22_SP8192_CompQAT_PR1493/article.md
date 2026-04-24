@@ -470,10 +470,10 @@ That is what I set out to do. Not what I hoped to do.
 
 ## Reproduction
 
-- **Parameter Golf research repo**: [github.com/&lt;username&gt;/parameter-golf-comp-qat](https://github.com/) *(add actual URL)*
+- **Parameter Golf research repo**: [github.com/yevh/parameter-golf](https://github.com/yevh/parameter-golf/tree/compqat-sp8192-submission)
 - **Quantization crate**: [github.com/3DCF-Labs/model-compress](https://github.com/3DCF-Labs/model-compress) — MIT-licensed
 - **Sibling project** (doc2dataset, source of the Rust infrastructure): [github.com/3DCF-Labs/doc2dataset](https://github.com/3DCF-Labs/doc2dataset)
-- **Submission PR**: [github.com/openai/parameter-golf/pull/&lt;TBD&gt;](https://github.com/openai/parameter-golf/pulls) *(after submission)*
+- **Submission PR**: [github.com/openai/parameter-golf/pull/1805](https://github.com/openai/parameter-golf/pull/1805)
 - **Reproduction recipe**: `REPRODUCE.md` in the research repo
 - **Per-phase results**: `phase{2,3,4,5}_results.md`
 
