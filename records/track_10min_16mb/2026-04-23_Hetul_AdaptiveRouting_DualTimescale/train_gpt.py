@@ -4,7 +4,7 @@ import random,re,subprocess,sys,time,uuid,numpy as np,sentencepiece as spm,torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor,nn
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
-class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));adaptive_recurrence_routing=bool(int(os.environ.get('ADAPTIVE_RECURRENCE_ROUTING','0')));routing_entropy_threshold=float(os.environ.get('ROUTING_ENTROPY_THRESHOLD',3.6));routing_novelty_threshold=float(os.environ.get('ROUTING_NOVELTY_THRESHOLD',.78));dual_timescale_state=bool(int(os.environ.get('DUAL_TIMESCALE_STATE','0')));dts_slow_decay=float(os.environ.get('DTS_SLOW_DECAY',.985));dts_blend=float(os.environ.get('DTS_BLEND',.15));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
+class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));adaptive_recurrence_routing=bool(int(os.environ.get('ADAPTIVE_RECURRENCE_ROUTING','0')));routing_entropy_threshold=float(os.environ.get('ROUTING_ENTROPY_THRESHOLD',3.6));routing_novelty_threshold=float(os.environ.get('ROUTING_NOVELTY_THRESHOLD',.78));dual_timescale_state=bool(int(os.environ.get('DUAL_TIMESCALE_STATE','0')));dts_slow_decay=float(os.environ.get('DTS_SLOW_DECAY',.985));dts_blend=float(os.environ.get('DTS_BLEND',.15));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));confidence_gated_ttt=bool(int(os.environ.get('CONFIDENCE_GATED_TTT','0')));ttt_entropy_threshold=float(os.environ.get('TTT_ENTROPY_THRESHOLD',3.6));ttt_low_conf_lr_scale=float(os.environ.get('TTT_LOW_CONF_LR_SCALE',1.0));ttt_high_conf_lr_scale=float(os.environ.get('TTT_HIGH_CONF_LR_SCALE',.25));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
 _logger_hparams=None
 def set_logging_hparams(h):global _logger_hparams;_logger_hparams=h
 def log(msg,console=True):
@@ -144,30 +144,36 @@ class GPT(nn.Module):
 	def forward_logits(self,input_ids):
 		x=self.tok_emb(input_ids);x=F.rms_norm(x,(x.size(-1),))
 		if self.embed_proj is not None:x=self.embed_proj(x)
-		x0=x;skips=[];use_looping=self.looping_active
-		if use_looping and self.adaptive_recurrence_routing:
+		x0=x
+		def run_path(x_in,x_base,enc_iter,dec_iter):
+			x_local=x_in;skips=[];slow_state=x_local if self.dual_timescale_state else None
+			for i in enc_iter:
+				x_local=self.blocks[i](x_local,x_base);skips.append(x_local)
+				if slow_state is not None:
+					slow_state=self.dts_slow_decay*slow_state+(1.-self.dts_slow_decay)*x_local
+					x_local=(1.-self.dts_blend)*x_local+self.dts_blend*slow_state
+			for(skip_idx,i)in enumerate(dec_iter):
+				if skip_idx<self.num_skip_weights and skips:
+					scaled_skip=self.skip_weights[skip_idx].to(dtype=x_local.dtype)[None,None,:]*skips.pop()
+					if self.skip_gates is not None:g=torch.sigmoid(self.skip_gates[skip_idx].to(dtype=x_local.dtype))[None,None,:];x_local=torch.lerp(scaled_skip,x_local,g)
+					else:x_local=x_local+scaled_skip
+				x_local=self.blocks[i](x_local,x_base)
+				if slow_state is not None:
+					slow_state=self.dts_slow_decay*slow_state+(1.-self.dts_slow_decay)*x_local
+					x_local=(1.-self.dts_blend)*x_local+self.dts_blend*slow_state
+			return x_local
+		if self.looping_active and self.adaptive_recurrence_routing:
 			token_novelty=(input_ids[:,1:]!=input_ids[:,:-1]).float().mean()
 			entropy_hidden=x[:,-1,:]
 			if self.head_proj is not None:entropy_hidden=self.head_proj(entropy_hidden)
 			probs=F.softmax(F.linear(entropy_hidden,self.tok_emb.weight).float(),dim=-1)
 			predictive_entropy=(-(probs*torch.log(probs.clamp_min(1e-09))).sum(dim=-1)).mean()
-			use_looping=bool(token_novelty.item()>=self.routing_novelty_threshold or predictive_entropy.item()>=self.routing_entropy_threshold)
-		enc_iter=self.encoder_indices if use_looping else range(self.num_encoder_layers);dec_iter=self.decoder_indices if use_looping else range(self.num_encoder_layers,self.num_encoder_layers+self.num_decoder_layers)
-		slow_state=x if self.dual_timescale_state else None
-		for i in enc_iter:
-			x=self.blocks[i](x,x0);skips.append(x)
-			if slow_state is not None:
-				slow_state=self.dts_slow_decay*slow_state+(1.-self.dts_slow_decay)*x
-				x=(1.-self.dts_blend)*x+self.dts_blend*slow_state
-		for(skip_idx,i)in enumerate(dec_iter):
-			if skip_idx<self.num_skip_weights and skips:
-				scaled_skip=self.skip_weights[skip_idx].to(dtype=x.dtype)[None,None,:]*skips.pop()
-				if self.skip_gates is not None:g=torch.sigmoid(self.skip_gates[skip_idx].to(dtype=x.dtype))[None,None,:];x=torch.lerp(scaled_skip,x,g)
-				else:x=x+scaled_skip
-			x=self.blocks[i](x,x0)
-			if slow_state is not None:
-				slow_state=self.dts_slow_decay*slow_state+(1.-self.dts_slow_decay)*x
-				x=(1.-self.dts_blend)*x+self.dts_blend*slow_state
+			novelty_gate=(token_novelty>=self.routing_novelty_threshold).to(dtype=x.dtype)
+			entropy_gate=(predictive_entropy>=self.routing_entropy_threshold).to(dtype=x.dtype)
+			route_gate=torch.maximum(novelty_gate,entropy_gate).view(1,1,1)
+			x_loop=run_path(x,x0,self.encoder_indices,self.decoder_indices);x_no_loop=run_path(x,x0,range(self.num_encoder_layers),range(self.num_encoder_layers,self.num_encoder_layers+self.num_decoder_layers));x=route_gate*x_loop+(1.-route_gate)*x_no_loop
+		else:
+			use_looping=self.looping_active;enc_iter=self.encoder_indices if use_looping else range(self.num_encoder_layers);dec_iter=self.decoder_indices if use_looping else range(self.num_encoder_layers,self.num_encoder_layers+self.num_decoder_layers);x=run_path(x,x0,enc_iter,dec_iter)
 		x=self.final_norm(x)
 		if self.head_proj is not None:x=self.head_proj(x)
 		if self.tie_embeddings:logits_proj=F.linear(x,self.tok_emb.weight)
@@ -279,7 +285,7 @@ def gptq_mixed_quantize(state_dict,hessians,h):
 	categories=collections.defaultdict(set)
 	for(name,cat)in meta.items():short=re.sub('\\.\\d+$','',re.sub('blocks\\.\\d+','blocks',name));categories[cat].add(short)
 	log('Quantized weights:')
-	for cat in sorted(categories):log(f"  {cat}: {", ".join(sorted(categories[cat]))}")
+	for cat in sorted(categories):log(f"  {cat}: {', '.join(sorted(categories[cat]))}")
 	return result,meta
 def dequantize_mixed(result,meta,template_sd):
 	out={}
@@ -374,7 +380,20 @@ def eval_val_ttt(h,device,val_data,base_model,batch_seqs=32):
 		if not is_last_chunk and h.ttt_epochs>0:
 			base_model.train();chunk_seqs=(chunk_end-chunk_start)//seq_len
 			if chunk_seqs>0:
-				cos_lr=h.ttt_lr*.5*(1.+math.cos(math.pi*ci/max(num_chunks-1,1)))
+				lr_scale=1.
+				if h.confidence_gated_ttt:
+					entropy_sum=torch.zeros((),device=device,dtype=torch.float64);entropy_count=torch.zeros((),device=device,dtype=torch.float64)
+					my_seq_s=chunk_seqs*rank//world_size;my_seq_e=chunk_seqs*(rank+1)//world_size
+					if my_seq_e>my_seq_s:
+						start_tok=chunk_start+my_seq_s*seq_len;end_tok=chunk_start+my_seq_e*seq_len+1;local=val_data.val_tokens[start_tok:end_tok].to(device=device,dtype=torch.int64)
+						x_entropy=local[:-1].reshape(-1,seq_len)
+						with torch.no_grad():
+							with torch.autocast(device_type='cuda',dtype=torch.bfloat16):entropy_logits=compiled_logits(x_entropy)
+							entropy_probs=F.softmax(entropy_logits.float(),dim=-1);entropy_vals=-(entropy_probs*torch.log(entropy_probs.clamp_min(1e-09))).sum(dim=-1)
+						entropy_sum+=entropy_vals.to(torch.float64).sum();entropy_count+=float(entropy_vals.numel())
+					if dist.is_available()and dist.is_initialized():dist.all_reduce(entropy_sum,op=dist.ReduceOp.SUM);dist.all_reduce(entropy_count,op=dist.ReduceOp.SUM)
+					mean_entropy=(entropy_sum/entropy_count.clamp_min(1.)).to(torch.float32);low_conf=(mean_entropy>=h.ttt_entropy_threshold).to(torch.float32);lr_scale=low_conf*h.ttt_low_conf_lr_scale+(1.-low_conf)*h.ttt_high_conf_lr_scale
+				cos_lr=h.ttt_lr*.5*(1.+math.cos(math.pi*ci/max(num_chunks-1,1)))*lr_scale
 				for pg in optimizer.param_groups:pg['lr']=cos_lr
 				my_seq_s=chunk_seqs*rank//world_size;my_seq_e=chunk_seqs*(rank+1)//world_size;my_chunk_seqs=my_seq_e-my_seq_s
 				for _ep in range(h.ttt_epochs):
@@ -453,7 +472,7 @@ def train_model(h,device,val_data):
 		if stop_after_step is None and reached_cap:stop_after_step=step
 	log(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=True);return base_model,compiled_model
 def train_and_eval(h,device):
-	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob('fineweb_train_*.bin')))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
 	if h.distributed:dist.barrier()
 	eval_model=deserialize(h,device)
 	if h.num_loops>0:eval_model.looping_active=True
