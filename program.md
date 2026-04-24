@@ -202,18 +202,11 @@ RUN = Bash(
 ```python
 Bash(
   run_in_background=True, timeout=120000,
-  command=(
-    "until [[ $(grep -cE '^step:[0-9]+/[0-9]+ train_loss:' "
-    "experiments/NNNN_slug/run.log 2>/dev/null) -ge 10 ]]; do sleep 1; done"
-  ),
+  command="./await_steps.sh experiments/NNNN_slug",
 )
 ```
 
-When that notifies, read the trajectory:
-
-```python
-Bash("grep -E '^step:[0-9]+/[0-9]+ train_loss:' experiments/NNNN_slug/run.log | head -10")
-```
+`await_steps.sh` blocks until 10 `step:N/N train_loss:...` lines exist in `run.log`, then prints them — and exits early if the python process dies first (so a crash during init shows up immediately instead of waiting 2 min). When the notification arrives, the captured stdout *is* the trajectory.
 
 Judge health: step 1 ≈ ln(vocab) ≈ 6.93, monotonic descent from step 2, step 2 within ~2× of step 1. If it looks off, `TaskStop(RUN)`, fix, re-launch — saves ~4 min of bad compute.
 
