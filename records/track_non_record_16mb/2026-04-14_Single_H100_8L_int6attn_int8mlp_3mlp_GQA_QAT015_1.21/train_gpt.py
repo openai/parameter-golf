@@ -485,7 +485,7 @@ INT6_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "INT6_NAME_PATTERNS",
-        "attn.",
+        "attn.,blocks.0.mlp.,blocks.1.mlp.,blocks.2.mlp.",
     ).split(",")
     if pattern
 )
