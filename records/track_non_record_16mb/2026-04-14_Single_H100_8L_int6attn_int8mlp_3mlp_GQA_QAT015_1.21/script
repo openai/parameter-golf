@@ -13,7 +13,7 @@ pip install -r requirements.txt
 
 rm -f data/manifest.json
 MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \
-python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 128
+python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 40
 
 RUN_ID=baseline_sp8192 \
 torchrun --standalone --nproc_per_node=1 \

@@ -1638,8 +1638,10 @@ def main() -> None:
             or stop_after_step is not None
         )
         if should_log_train:
+            step_avg_ms = approx_training_time_ms / step
+            tok_per_sec = (args.train_batch_tokens * 1000.0) / step_avg_ms if step_avg_ms > 0 else 0
             log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} train_time:{approx_training_time_ms:.0f}ms step_avg:{step_avg_ms:.2f}ms tok/s:{tok_per_sec:.0f}"
             )
         reached_cap = (
             max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms

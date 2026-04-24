@@ -44,7 +44,7 @@ To setup the dataset and the sp4096 tokenizer, run the following:
 ```bash
 rm -f data/manifest.json
 MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \
-python3 data/cached_challenge_fineweb.py --variant sp4096 --train-shards 143
+python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 128
 ```
 
 Then, you can reproduce the results using:
