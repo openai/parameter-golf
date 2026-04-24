@@ -2,8 +2,7 @@ sudo apt install -y python3 python3-pip python3-venv git
 git clone https://github.com/adityasasidhar/parameter-golf.git
 cd parameter-golf
 
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 
 pip install --upgrade pip
 pip install torch --index-url https://download.pytorch.org/whl/cu130
@@ -14,8 +13,72 @@ pip install -r requirements.txt
 
 rm -f data/manifest.json
 MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \
-  python3 data/cached_challenge_fineweb.py --variant sp4096 --train-shards 30
+python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 128
 
-RUN_ID=baseline_sp4096 \
+RUN_ID=baseline_sp8192 \
 torchrun --standalone --nproc_per_node=1 \
   records/track_non_record_16mb/2026-04-14_Single_H100_8L_int6attn_int8mlp_3mlp_GQA_QAT015_1.21/train_gpt.py
+
+
+late_qat_int8_patterns:attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight,mlp.fc.weight,mlp.proj.weight
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/50000 val_loss:9.0068 val_bpb:3.4868 train_time:0ms step_avg:0.01ms
+step:1/50000 train_loss:9.0060 train_time:366ms step_avg:365.85ms
+step:2/50000 train_loss:15.1451 train_time:733ms step_avg:366.52ms
+step:3/50000 train_loss:10.8001 train_time:1100ms step_avg:366.78ms
+step:4/50000 train_loss:8.8117 train_time:1473ms step_avg:368.14ms
+step:5/50000 train_loss:8.3407 train_time:1843ms step_avg:368.57ms
+step:6/50000 train_loss:8.4635 train_time:2214ms step_avg:368.96ms
+step:7/50000 train_loss:8.2854 train_time:2585ms step_avg:369.27ms
+step:8/50000 train_loss:8.0301 train_time:2956ms step_avg:369.51ms
+step:9/50000 train_loss:7.6724 train_time:3327ms step_avg:369.67ms
+step:10/50000 train_loss:7.3467 train_time:3699ms step_avg:369.91ms
+step:100/50000 train_loss:4.7282 train_time:37176ms step_avg:371.76ms
+step:200/50000 train_loss:3.9453 train_time:74239ms step_avg:371.20ms
+step:300/50000 train_loss:3.6607 train_time:111163ms step_avg:370.54ms
+step:400/50000 train_loss:3.6373 train_time:148061ms step_avg:370.15ms
+step:500/50000 train_loss:3.4510 train_time:184946ms step_avg:369.89ms
+step:600/50000 train_loss:3.4658 train_time:221744ms step_avg:369.57ms
+step:700/50000 train_loss:3.2996 train_time:258577ms step_avg:369.40ms
+step:800/50000 train_loss:3.3793 train_time:295420ms step_avg:369.27ms
+step:900/50000 train_loss:3.3437 train_time:332247ms step_avg:369.16ms
+step:1000/50000 train_loss:3.2921 train_time:369105ms step_avg:369.10ms
+step:1100/50000 train_loss:3.3089 train_time:405997ms step_avg:369.09ms
+step:1200/50000 train_loss:3.3677 train_time:442889ms step_avg:369.07ms
+step:1300/50000 train_loss:3.3567 train_time:479779ms step_avg:369.06ms
+late_qat:enabled step:1382/50000 train_time:510081ms frac:0.150
+step:1400/50000 train_loss:3.2428 train_time:516731ms step_avg:369.09ms
+step:1500/50000 train_loss:3.1981 train_time:553657ms step_avg:369.10ms
+step:1600/50000 train_loss:3.2870 train_time:590580ms step_avg:369.11ms
+step:1626/50000 val_loss:3.1430 val_bpb:1.2167 train_time:600175ms step_avg:369.11ms
+stopping_early: wallclock_cap train_time:600175ms step:1626/50000
+peak memory allocated: 11777 MiB reserved: 12802 MiB
+Serialized model: 83990413 bytes
+Code size: 63494 bytes
+Total submission size: 84053907 bytes
+Serialized model mixed-quant+lzma: 15988196 bytes (payload:20408504 raw_torch:20460919 payload_ratio:4.11x)
+Total submission size mixed-quant+lzma: 16051690 bytes
+final_mixed_quant_lzma_roundtrip val_loss:3.1624 val_bpb:1.2243 eval_time:8795ms
+final_mixed_quant_lzma_roundtrip_exact val_loss:3.16243348 val_bpb:1.22427655
+final_mixed_quant_lzma_sliding_window val_loss:3.1229 val_bpb:1.2090 stride:96 eval_time:570628ms
+final_mixed_quant_lzma_sliding_window_exact val_loss:3.12289453 val_bpb:1.20897127

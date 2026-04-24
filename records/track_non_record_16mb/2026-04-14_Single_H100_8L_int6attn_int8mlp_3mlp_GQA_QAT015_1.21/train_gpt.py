@@ -55,7 +55,7 @@ class Hyperparameters:
     rope_dims = int(os.environ.get("ROPE_DIMS", 32))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 26.0))
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lrgit = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.04))
@@ -538,7 +538,7 @@ INT8_QAT_NAME_PATTERNS = tuple(
         pattern
         for pattern in os.environ.get(
             "INT8_QAT_NAME_PATTERNS",
-            "attn.c_q.weight,attn.c_k.weight,attn.c_v.weight,attn.proj.weight,mlp.fc.weight,mlp.proj.weight",
+            "mlp.fc.weight,mlp.proj.weight",
         ).split(",")
         if pattern
     )
@@ -828,13 +828,15 @@ class RMSNorm(nn.Module):
 
 
 class CastedLinear(nn.Linear):
-    _qat_enabled: bool = False
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._qat_enabled: bool = False
+        self._qat_bits: int = 0
 
     def forward(self, x: Tensor) -> Tensor:
         w = self.weight
-        qat_bits = getattr(self, "_qat_bits", 0)
-        if self.training and CastedLinear._qat_enabled and qat_bits:
-            w = fake_quantize_ste(w, bits=qat_bits)
+        if self.training and self._qat_enabled and self._qat_bits:
+            w = fake_quantize_ste(w, bits=self._qat_bits)
         bias = self.bias.to(x.dtype) if self.bias is not None else None
         return F.linear(x, w.to(x.dtype), bias)
 
@@ -1227,6 +1229,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
             module._qat_bits = 0
+            module._qat_enabled = False
     for name, module in base_model.named_modules():
         if isinstance(module, CastedLinear):
             param_name = f"{name}.weight"
@@ -1234,8 +1237,11 @@ def main() -> None:
                 module._qat_bits = 6
             elif any((pattern in param_name for pattern in INT8_QAT_NAME_PATTERNS)):
                 module._qat_bits = 8
+    if rank == 0:
+        for name, module in base_model.named_modules():
+            if isinstance(module, CastedLinear) and module._qat_bits > 0:
+                print(f"  qat_assign: {name}.weight -> int{module._qat_bits}")
     restore_low_dim_params_to_fp32(base_model)
-    CastedLinear._qat_enabled = False
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = (
         DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
@@ -1463,7 +1469,9 @@ def main() -> None:
                     1.0 - args.qat_last_frac
                 )
             if late_qat_enabled:
-                CastedLinear._qat_enabled = True
+                for m in base_model.modules():
+                    if isinstance(m, CastedLinear):
+                        m._qat_enabled = True
                 log0(
                     f"late_qat:enabled step:{step}/{args.iterations} train_time:{elapsed_ms:.0f}ms frac:{args.qat_last_frac:.3f}"
                 )
@@ -1522,7 +1530,9 @@ def main() -> None:
     log0(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
-    CastedLinear._qat_enabled = False
+    for m in base_model.modules():
+        if isinstance(m, CastedLinear):
+            m._qat_enabled = False
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
