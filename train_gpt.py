@@ -27,7 +27,6 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from tqdm import tqdm
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -263,7 +262,7 @@ def eval_val(
     model.eval()
     with torch.inference_mode():
         batch_starts = range(seq_start, seq_end, local_batch_seqs)
-        for batch_seq_start in tqdm(batch_starts, desc="eval", disable=rank != 0, leave=False):
+        for batch_seq_start in batch_starts:
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * args.train_seq_len
             raw_end = batch_seq_end * args.train_seq_len + 1
@@ -817,7 +816,7 @@ def main() -> None:
         if not master_process:
             return
         if console:
-            tqdm.write(msg)
+            print(msg, flush=True)
         if logfile is not None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
@@ -991,7 +990,7 @@ def main() -> None:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
-        for warmup_step in tqdm(range(args.warmup_steps), desc="warmup", disable=not master_process, leave=False):
+        for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 if distributed:
@@ -1023,7 +1022,6 @@ def main() -> None:
     t0 = time.perf_counter()
 
     step = 0
-    pbar = tqdm(total=args.iterations, desc="train", disable=not master_process, leave=True)
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
@@ -1057,7 +1055,6 @@ def main() -> None:
                     f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
                     f"step:{step}/{args.iterations}"
                 )
-            pbar.close()
             break
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1091,8 +1088,6 @@ def main() -> None:
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
-        pbar.update(1)
-        pbar.set_postfix_str(f"loss={train_loss.item():.4f} step_avg={approx_training_time_ms / step:.0f}ms")
         should_log_train = (
             args.train_log_every > 0
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)

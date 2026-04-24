@@ -1,7 +1,1 @@
 id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_violation	status	description
-0001_debug_mps_nan	canonical	2.74837861	2.7488	-0.000421	0.0	1234.25	false	false	TODO	TODO
-0002_seed42_probe	canonical	3.50580154	3.5070	-0.001198	0.0	1257.24	false	false	TODO	TODO
-0004_muon_off	canonical	3.55825925	3.5582	5.9e-05	0.0	1240.92	false	false	TODO	TODO
-0005_all_frozen	canonical	4.06111200	4.0589	0.002212	0.0	1304.68	false	false	TODO	TODO
-0006_tok_only	canonical	3.62721916	3.6276	-0.000381	0.0	1256.28	false	false	TODO	TODO
-0007_lr_warmup_probe	canonical	2.92317764	2.9223	0.000878	0.0	1300.81	false	false	TODO	TODO

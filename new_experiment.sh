@@ -104,6 +104,10 @@ export VAL_TOKENS=16384
 # Linear LR warmup: required on MPS to avoid first-step Adam overshoot.
 # See program.md "MPS stability" and the git log of train_gpt.py for rationale.
 export LR_WARMUP_STEPS=10
+# Dense training-step logs (canonical default of 200 would only print step 1-10
+# and step 200 — no visibility into mid-run divergence). Every 5 steps is a
+# good compromise: ~40 lines for a 200-step smoke, enough to catch NaN onset.
+export TRAIN_LOG_EVERY=5
 # Experiment-specific overrides go below:
 EOF
 
