@@ -26,6 +26,15 @@ Output is JSON with `lut_status` (CORRECT/BUGGY/OBFUSCATED/UNKNOWN), `lut_bug_de
 ```bash
 python -m pytest tests/ -q   # 20 tests; 3 skip gracefully if PR #1727's canonical train_gpt.py is not present locally
 ```
+To run all 20 tests including the canonical-file tests, fetch PR #1727's canonical `train_gpt.py` first:
+
+```bash
+git fetch upstream pull/1727/head:pr-1727
+git checkout pr-1727 -- records/track_10min_16mb/2026-04-18_SP8192_MPSGD_QKGain525/train_gpt.py
+```
+
+Then return to this branch (`git checkout audit-1698-lineage-bpb-bytecount`) and re-run pytest.
+
 
 ## Full writeup
 See `writeup.md` for the full PR body, `methodology.md` for canonical BPB derivation and the three-bug classifier, `results.md` for per-PR inspection notes, `corrected_leaderboard.md` for the summary table.
