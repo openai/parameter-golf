@@ -85,6 +85,14 @@ while true; do
   count=$(grep -cE '^step:[0-9]+/[0-9]+ train_loss:' "$LOG" 2>/dev/null || echo 0)
   if (( count >= N )); then break; fi
 
+  # Cap N at the run's actual iteration count: if training has already logged
+  # its final step, count won't grow further. Caller asked for more steps
+  # than the run does — give them everything we have and bail out.
+  if training_done; then
+    echo "(training finished at step ${count}; N=${N} > iterations, returning ${count})" >&2
+    break
+  fi
+
   # Crash signal 1: python process gone. Match the script name only (not the
   # binary), case-insensitive, so we catch both .../Python and .../python and
   # any pyenv/uv variant.
@@ -94,14 +102,14 @@ while true; do
   fi
 
   # Crash signal 2: log not growing — process hung or pgrep is matching the
-  # wrong python. Skipped during eval (post-final-training-step), since
-  # eval_val legitimately runs for minutes without incremental logging.
-  if ! training_done; then
-    log_age=$(( $(date +%s) - $(log_mtime) ))
-    if (( log_age > LOG_STALE_SECONDS )); then
-      echo "(log idle for ${log_age}s — assuming run is hung; ${count} step lines so far)" >&2
-      break
-    fi
+  # wrong python. Suppressed during eval (post-final-training-step) since
+  # eval_val runs for minutes without incremental logging — but training_done
+  # is already an exit condition above, so this branch only runs during the
+  # training phase where the log is expected to grow steadily.
+  log_age=$(( $(date +%s) - $(log_mtime) ))
+  if (( log_age > LOG_STALE_SECONDS )); then
+    echo "(log idle for ${log_age}s — assuming run is hung; ${count} step lines so far)" >&2
+    break
   fi
 
   # Hard ceiling.
