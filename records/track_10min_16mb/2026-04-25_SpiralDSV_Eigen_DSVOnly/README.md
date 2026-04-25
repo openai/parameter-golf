@@ -11,7 +11,31 @@
 > 4. Byte-count formula uses the exact official pattern:
 >    `tok_bytes = base_bytes[tgt] + (has_leading_space[tgt] & ~is_boundary_token[prev])`
 
-**Track:** `10min_16mb`  
+> **Architecture note — two hashes, not one (2026-04-25):**
+> The April 7 design contained two distinct "hashes" that are easy to conflate:
+>
+> 1. **Rolling hash (`precompute_g_states()` / FMIX64) → NMF bucket.**
+>    Entirely NMF-specific. The DSV never uses it. Removed in this submission with no
+>    effect on DSV correctness.
+>
+> 2. **Fibonacci-hash codebook (`vocab × EMBED_DIM` uint64 table).**
+>    Used by the DSV, but carries **no inherent semantic structure**. It is simply a
+>    deterministic, reproducible way to assign a pseudo-random hypervector to each
+>    token ID (golden-ratio mixing instead of `random.seed()`). The codebook is a
+>    projection basis, not a meaning store.
+>
+>    Semantic relationships live entirely in the **XOR-bundle accumulation**:
+>    ```
+>    sem_fwd[T] = XOR of codebook[B] for every B that followed T in training data
+>    ```
+>    The meaning comes from *which tokens were bundled together* from the corpus, not
+>    from the codebook structure itself. Any set of sufficiently spread hypervectors
+>    would capture the same co-occurrence statistics. This is why swapping the
+>    Fibonacci-hash codebook for `GoldenAxisShift` with PMI centering leaves the DSV
+>    semantically coherent — the codebook is interchangeable; `sem_fwd`/`sem_bwd` are
+>    what carry the learned signal.
+
+**Track:** `10min_16mb`
 **Date:** 2026-04-25  
 **Author:** Ashley Klimpel (`viasky657`)
 
