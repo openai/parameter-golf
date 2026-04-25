@@ -1,1 +1,2 @@
 id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_violation	status	description
+0001_baseline_repro	canonical	2.31407318	2.3144	-0.000327	11.424	1460.51	false	false	keep	MPS baseline anchor (warmup10 + scalar_lr0.01 + grad_clip1)
