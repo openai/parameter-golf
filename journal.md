@@ -2,8 +2,9 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.3686** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4_seq_2048_batch_16k`, exp 0012). Stacked seq_len=2048 + batch_tokens=16384 onto the mlp4 winner. Artifact 11.69 MB (4.3 MB cap headroom). Δ=+0.023 vs 0008 prior winner. **Confounded** — both seq_len and batch_tokens doubled; 0013 will run batch-only control to decompose.
-- Prior winner: 2.3913 (exp 0008). Stacked 0005 schedule with `MLP_MULT=4`.
+- **Best so far: 2.3096** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4_batch_16k`, exp 0013, confirmed by SEED=42 in 0014 at 2.31199). TRAIN_BATCH_TOKENS=16384 with seq=1024 on the mlp4 winner. Artifact 11.75 MB.
+- Prior winners (still in `winners/` as history): 0012 (2.3686, batch=16k AND seq=2048; later found that the seq=2048 *hurt* by ~0.06, so 0012 was a confounded promotion), 0008 (2.3913, mlp4 alone), 0005 (2.4052, schedule alone).
+- **Important [transfer:high] finding**: at this regime, seq=1024 is strictly better than seq=2048 — see exp 0013 decomposition. Don't extend seq_len beyond what the model can use.
 - Prior winner: 2.4052 (exp 0005, schedule-only). Schedule change confirmed by SEED=42 in 0006 at 2.40272 — cross-seed Δ 0.0024.
 - The lr_mul formula in `train_gpt.py` is `(iterations−step)/warmdown_iters` after warmup. With ITERATIONS=200, the canonical default `WARMDOWN_ITERS=1200` gives lr_mul peaking at 0.167 (avg 0.083) — extremely attenuated. The 0005 schedule (warmup_10 + warmdown_600) doubles avg lr_mul to 0.178; tested up to and through a brief one-step lr_mul=1.0 spike at the warmup peak (recoverable). Further-aggressive schedules NOT yet tested.
 - Capacity (MLP_MULT, exp 0002) and attention temperature (QK_GAIN_INIT, exp 0003) showed only Δ≈+0.002 each under the canonical schedule — noise-band. Hypothesis: their effects are MASKED by the under-training. Both should be re-tested ON TOP OF the new schedule.
@@ -13,6 +14,31 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0013 + 0014 · batch=16384 is the real lever; seq=2048 hurts
+
+**Question**: 0012 doubled both seq_len (1024→2048) and batch_tokens (8192→16384) and gained Δ=+0.023. Decomposed by running batch=16384 with seq=1024 (0013) and SEED=42 confirm (0014).
+
+**Result**:
+- 0013 (batch=16k, seq=1024, SEED=1337): val_bpb 2.30956 → Δ=+0.0818 vs 0008.
+- 0014 (SEED=42 confirm): 2.31199. Cross-seed Δ=0.00243 — matches 0005/0006 variance precisely.
+- Mean: 2.31077. Mean Δ vs 0008 = +0.0806; mean Δ vs 0012 = +0.0578.
+- Both deltas above the +0.050 "suspicious" threshold but reproduce tightly.
+
+**Decomposition**:
+- 0008 (8k batch, 1024 seq): 2.39135 — anchor.
+- 0013 (16k batch, 1024 seq): 2.30956 → batch effect at fixed seq = +0.0818.
+- 0012 (16k batch, 2048 seq): 2.36857 → seq effect at fixed batch = −0.0590 (vs 0013).
+
+**Conclusion** [VERIFIED across 2 seeds]:
+1. **Doubling batch tokens is the dominant lever** at the 200-step regime. Bigger batches give more gradient signal per step; under a fixed warmup+warmdown schedule, the effective parameter motion per step doesn't grow proportionally so the optimizer is more stable, less noisy.
+2. **Longer seq_len HURTS** at sp1024 / d=512 / 9L / 200 steps. Hypothesis [LIKELY]: with grad_accum_steps=8 fixed, seq=2048 gives 1 sequence per micro-step (vs 2 at seq=1024), halving sequence diversity per optimizer step. Most useful patterns at this scale are short-range; the 2× attention compute is wasted.
+3. The 0012 promotion was *correct at the time* (it beat 0008) but ultimately got superseded by 0013's clean, stronger result. winners/ keeps both as history.
+4. **[transfer:high]** for 0013 — batch scaling is the most universally robust lever; H100 evaluator near-certainly uses larger batches than our smoke, so this finding should hold.
+
+Cumulative stack vs canonical baseline (2.5212): schedule (+0.116) + capacity (+0.014) + batch_16k (+0.082, includes the −0.059 cost we now know to avoid) ≈ **+0.212 total**. Best post-quant val_bpb: 2.3096.
+
+Followups in queue: TRAIN_BATCH_TOKENS=32768 (further batch scaling), WARMDOWN_400_WARMUP_20 (schedule push at the new batch size), LR_WARMUP_STEPS=20 (smoother warmup, no step-9 spike).
 
 ## 2026-04-25 · exp 0009 + 0010 + 0011 + 0012 · capacity ceiling, qk_gain reversal, seq+batch win
 

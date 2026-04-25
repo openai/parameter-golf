@@ -1,0 +1,26 @@
+{
+  "id": "0013_batch_16k_on_winner",
+  "parent": "canonical",
+  "created_at": "2026-04-25T04:29:38Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.3059,
+    "val_bpb_post_quant": 2.30956354,
+    "val_loss_pre_quant": 3.9411,
+    "val_loss_post_quant": 3.94734728,
+    "quant_tax": 0.003664,
+    "step_avg_ms": 2577.98,
+    "num_steps": 200.0,
+    "artifact_bytes": 11753298.0,
+    "artifact_mb": 11.753,
+    "code_bytes": 50110.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}

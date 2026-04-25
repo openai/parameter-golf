@@ -10,3 +10,5 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0010_mlp_mult_5_on_winner_seed42	canonical	2.39114494	2.3877	0.003445	13.509	1463.85	false	false	discard	MLP_MULT=5 SEED=42; pre-quant 2.3877 worse than 0008 mlp4 (2.3864). Capacity ceiling at mlp_mult=4
 0011_qk_gain_5_on_winner	canonical	2.41938153	2.4137	0.005682	11.904	1347.42	false	false	discard	QK_GAIN=5 on winner: Δ=-0.028 (HURTS); schedule-masking hid a real negative effect
 0012_seq_len_2048_on_winner	canonical	2.36856787	2.3654	0.003168	11.69	3431.67	false	false	keep	seq_len=2048 + batch_tokens=16384 on mlp4 winner, Δ=+0.023 (CONFOUNDED — needs 0013 batch-only control to decompose) [transfer:high]
+0013_batch_16k_on_winner	canonical	2.30956354	2.3059	0.003664	11.753	2577.98	false	false	keep	TRAIN_BATCH_TOKENS=16384 (seq=1024) on mlp4 winner; Δ=+0.082 vs 0008, +0.058 vs 0012. Decomposes 0012: batch was the lever, seq=2048 hurt. [transfer:high]
+0014_batch_16k_on_winner_seed42	canonical	2.31198893	2.3065	0.005489	11.732	2478.72	false	false	keep	SEED=42 confirms 0013 (cross-seed Δ=0.0024) [transfer:high]
