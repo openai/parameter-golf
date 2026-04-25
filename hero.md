@@ -121,6 +121,16 @@ weight_tying: YES — embedding and output projection share weights
 lookahead: FORBIDDEN — any attention pattern requiring future tokens is a violation
 no_lookahead_enforcement: strict
 
+### Time Budget (per submission run, 8×H100 SXM)
+
+training_wallclock_target: 600s
+eval_wallclock_target: 600s
+combined_run_budget: 1200s
+
+Source: README §194 — "We won't accept submissions that take more than 10 minutes on 8xH100 to evaluate (Note: This limit is in addition to the 10 minutes of training time allowed!)"
+
+Both budgets are independent hard ceilings; exceeding either disqualifies the run. Watchdog Golf Barrier MUST enforce both, not training alone. Eval cost is dominated by FineWeb validation pass — any architecture choice that inflates eval-time inference (e.g., depth recurrence at inference, multi-pass refinement, large beam search) trades against this budget directly.
+
 Preferred architecture patterns (priority order):
 1. Weight tying — free parameter reduction
 2. LoRA-TTT rank 4–8 on Q, V only
