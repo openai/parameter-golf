@@ -25,6 +25,46 @@
 
 ## Entries (newest first)
 
+## 2026-04-25 · session summary · 43 experiments, +0.395 from canonical baseline, env-var search exhausted
+
+**Final state**: Best `winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05` (exp 0036) at val_bpb_post_quant **2.12603**. Cumulative gain vs canonical baseline (2.5212): **+0.395** post-quant.
+
+**Confirmed-paying axes (in order of contribution)**:
+| Axis | Δ | Notes |
+|---|---|---|
+| LR schedule rewrite (warmup10+warmdown600) | +0.116 | exp 0005/0006. The biggest single lever — canonical schedule was 5x too attenuated for 200 steps. [transfer:low] |
+| batch_tokens 8k → 16k | +0.082 | exp 0013/0014. Bigger gradient signal per step. [transfer:high] |
+| schedule push 1 (warmup20+warmdown400) | +0.055 | exp 0015/0016. 20-step warmup eliminates the step-9 spike of 10-step. [transfer:low] |
+| batch_tokens 16k → 24k + LR 0.06 → 0.045 | +0.045 | exp 0036. Bigger batch with proportionally lower LR. [transfer:high] |
+| schedule push 2 (warmup30+warmdown300) | +0.029 | exp 0020. Diminishing returns. [transfer:low] |
+| TIED_EMBED_INIT_STD 0.005 → 0.05 | +0.038 | exp 0023+0024. Canonical init was 10x too small. [transfer:high] |
+| MATRIX_LR 0.04 → 0.06 (at batch=16k) | +0.016 | exp 0021. LR scaling separate from schedule shape. [transfer:med] |
+| MLP_MULT 2 → 4 | +0.014 | exp 0008. Capacity scales monotonically up to 4 only. [transfer:high] |
+
+**Dead axes (no signal or hurt)** at the explored config: NUM_LAYERS=11, MLP_MULT=5+, QK_GAIN, LOGIT_SOFTCAP, MUON_MOMENTUM, BETA1, BETA2, ROPE_BASE, GRAD_CLIP_NORM, TIED_EMBED_LR scale-up, SCALAR_LR scale-up, ORTHO_INIT, TRAIN_SEQ_LEN=2048, TRAIN_BATCH_TOKENS=32768.
+
+**Cross-experiment lessons** (each validated by dedicated experiments, not just intuition):
+1. **The canonical schedule was the dominant under-training factor at 200 steps.** Three confirmed schedule pushes (0005/0015/0020) gave +0.200 cumulative. Evidence: avg lr_mul went 0.083 → 0.318. The lr_mul=1.0 spike at warmup peak is brief enough on MPS bf16 to recover (stronger guard with longer warmup).
+2. **Schedule-masking can hide both real positives AND negatives.** QK_GAIN=5 looked like noise (+0.002) under the canonical schedule but actively HURT (-0.028) on the 0005 schedule. Pre-promote architectural ablations should always re-test on the current winner schedule.
+3. **Capacity at 200 steps caps quickly.** MLP_MULT=4 wins (+0.014); MLP_MULT=5 plateaus (refuted by SEED=42); NUM_LAYERS=11 plateaus. The records' use of these at H100 20k-step doesn't transfer to the smoke regime — those paths need step-budget to be useful.
+4. **batch+LR are coupled, not separate axes.** batch=32k+LR=0.06 mode-collapses (0018, train_loss 0.55 with val 4.43); batch=24k+LR=0.045 wins (+0.045, 0036). The 0018 framing as "batch ceiling" was wrong — it was an LR-coupling failure. Bigger batch + proportionally smaller LR keeps paying. Why batch=32k still failed at LR=0.03 (0037) is unclear; possibly the 4-sequences-per-microstep configuration loses critical stochasticity.
+5. **Init scale 0.005 → 0.05 was a hidden bug.** Canonical init severely under-initialized embeddings; bigger init gave +0.038 across two experiments. Optimum is precise: 0.05 wins, 0.07 hurts (-0.058), 0.04 ties (noise), 0.1 catastrophic (-0.096).
+6. **Most env-var axes are genuinely flat at this regime.** Of ~25 unique knobs explored, only 5 produced robust wins. The rest (optimizer momentums/betas, rope, softcap, grad-clip, embed/scalar LR scaling, ortho-init) yielded noise or harm.
+7. **Quant_tax behavior is informative.** Anomalously low quant_tax (≤0.001) is a red flag for mode-collapse-like degeneracy (seen in 0018 mass-collapse, 0009 mlp5 quant-tax-noise that didn't reproduce, 0032 BETA2 freak). Healthy runs have quant_tax 0.002-0.005.
+
+**Cross-seed variance baseline**: 0.0024-0.0027 for typical configs (0005/0006, 0013/0014, 0015/0016). Larger cross-seed Δ (0.008-0.015) is a marker of an outlier run, not the true effect.
+
+**For H100 20k-step transfer**: most reliable wins are [transfer:high] — batch (0013), capacity (0008), init (0023/0024), seq_len-do-not-extend (0013 decomposition). The schedule wins are [transfer:low] (200-step specific). MATRIX_LR is [transfer:med].
+
+**State of the search**: env-var space largely drawn. Next tier of gains likely requires code-level changes outside the protocol's env-var lane:
+- SwiGLU activation (well-grounded but artifact-tight at our cap usage)
+- Sliding-window attention (records use it heavily)
+- Parallel residuals
+- Different normalization / different residual scheme
+- EMA over weights
+
+A single env-var-only code-change attempt (ortho-init in 0041) hurt by 0.022 — confirming the canonical kaiming + Muon + ReLU² is well-balanced.
+
 ## 2026-04-25 · exp 0037-0040 · batch=32k still hard-fails; init/clip retest on 0036 confirms saturation
 
 After 0036 unlocked the batch+LR-coupling axis, four more experiments tried to keep stacking:

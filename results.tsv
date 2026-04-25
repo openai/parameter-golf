@@ -38,3 +38,6 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0038_grad_clip_1_on_winner	canonical	2.12336631	2.1208	0.002566	14.412	3680.62	false	false	discard	GRAD_CLIP_NORM=1.0 (vs 0=disabled); Δ=+0.003 vs 0036 (noise). Not a meaningful axis.
 0039_init_07_on_24k_winner	canonical	2.18360348	2.1810	0.002603	14.819	3645.53	false	false	discard	TIED_EMBED_INIT_STD=0.07 on 24k winner; Δ=-0.058 (HURTS). Init optimum stays near 0.05 even on new batch=24k regime.
 0040_init_04_on_24k_winner	canonical	2.12769478	2.1235	0.004195	14.478	3643.37	false	false	discard	TIED_EMBED_INIT_STD=0.04 on 24k winner; Δ=-0.002 (noise). Init=0.05 confirmed as optimum on new regime too.
+0041_ortho_init_on_winner	canonical	2.14813002	2.1450	0.00313	14.73	3638.06	false	false	discard	ORTHO_INIT=1 (code change: orthogonal init for non-zero-init Linear); Δ=-0.022 vs 0036 (HURTS). Default kaiming + Muon + ReLU² better here.
+0042_matrix_lr_05_24k_winner	canonical	2.11792500	2.1158	0.002125	14.986	3645.81	false	false	discard	MATRIX_LR=0.05 SEED=1337 Δ=+0.008; refuted by 0043 SEED=42 (Δ=+0.0001). Mean Δ +0.004 — sub-noise. LR=0.045 was at optimum.
+0043_matrix_lr_05_24k_seed42	canonical	2.12596808	2.1250	0.000968	15.002	3641.11	false	false	discard	SEED=42 of 0042; cross-seed Δ 0.008 — disconfirms MATRIX_LR=0.05. LR=0.045 at batch=24k is optimum.
