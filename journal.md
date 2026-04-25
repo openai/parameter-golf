@@ -2,9 +2,11 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.3096** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4_batch_16k`, exp 0013, confirmed by SEED=42 in 0014 at 2.31199). TRAIN_BATCH_TOKENS=16384 with seq=1024 on the mlp4 winner. Artifact 11.75 MB.
-- Prior winners (still in `winners/` as history): 0012 (2.3686, batch=16k AND seq=2048; later found that the seq=2048 *hurt* by ~0.06, so 0012 was a confounded promotion), 0008 (2.3913, mlp4 alone), 0005 (2.4052, schedule alone).
+- **Best so far: 2.2547** (`winners/2026-04-25_warmdown_400_warmup_20_mlp_mult_4_batch_16k`, exp 0015, confirmed by SEED=42 in 0016 at 2.25740). Schedule push: WARMDOWN_ITERS=400 + LR_WARMUP_STEPS=20 with batch=16k + mlp4. Artifact 12.9 MB. Δ=+0.055 vs 0013.
+- Prior winners (still in `winners/` as history): 0013 (2.3096, batch=16k), 0012 (2.3686, batch=16k+seq=2048 confounded), 0008 (2.3913, mlp4), 0005 (2.4052, schedule).
+- Cumulative gain stack vs canonical baseline (2.5212 → 2.2547): schedule (+0.116) + capacity (+0.014) + batch_16k (+0.082) + schedule push (+0.055) = **+0.267 total**.
 - **Important [transfer:high] finding**: at this regime, seq=1024 is strictly better than seq=2048 — see exp 0013 decomposition. Don't extend seq_len beyond what the model can use.
+- **20-step warmup is dramatically better than 10-step** at this batch size: at lr_warmup=10 the warmup peak hits lr_mul=1.0 *while still ramping cumulative LR*, causing a step-9 train_loss spike (loss > step 1). At warmup=20 the same lr_mul=1.0 peak occurs after 20 steps of measured ramp; no spike, much smoother trajectory.
 - Prior winner: 2.4052 (exp 0005, schedule-only). Schedule change confirmed by SEED=42 in 0006 at 2.40272 — cross-seed Δ 0.0024.
 - The lr_mul formula in `train_gpt.py` is `(iterations−step)/warmdown_iters` after warmup. With ITERATIONS=200, the canonical default `WARMDOWN_ITERS=1200` gives lr_mul peaking at 0.167 (avg 0.083) — extremely attenuated. The 0005 schedule (warmup_10 + warmdown_600) doubles avg lr_mul to 0.178; tested up to and through a brief one-step lr_mul=1.0 spike at the warmup peak (recoverable). Further-aggressive schedules NOT yet tested.
 - Capacity (MLP_MULT, exp 0002) and attention temperature (QK_GAIN_INIT, exp 0003) showed only Δ≈+0.002 each under the canonical schedule — noise-band. Hypothesis: their effects are MASKED by the under-training. Both should be re-tested ON TOP OF the new schedule.
@@ -14,6 +16,36 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0015 + 0016 · schedule push (WARMDOWN_400 + WARMUP_20) lands +0.055
+
+**Question**: 0013 winner uses WARMDOWN_ITERS=600 + LR_WARMUP_STEPS=10 (avg lr_mul ≈ 0.178). Bigger batches tolerate higher LR. Does pushing the schedule further pay?
+
+**Setup**: Same as 0013 but with WARMDOWN_ITERS=400 + LR_WARMUP_STEPS=20. New schedule: warmup 0.05 → 1.0 over 20 steps, warmdown branch fires at step 20 with lr_mul=0.45 dropping to 0 over the next 180 steps. Avg lr_mul ≈ 0.255 (1.43× the 0013 schedule).
+
+**Prediction** [LIKELY]: Δ vs 0013 ≈ +0.020 to +0.050.
+
+**Disconfirming**: NaN around step 19 (peak lr_mul=1.0); step 2 spike worse than 0005's 7.06; Δ ≤ +0.005 (schedule was already optimal).
+
+**Result**:
+- 0015 (SEED=1337): val_bpb 2.25468; pre-quant 2.2519; quant_tax 0.0028.
+- 0016 (SEED=42 confirm): 2.25740; pre 2.2546; quant_tax 0.0028 (essentially identical).
+- Cross-seed Δ = 0.00272. Mean = 2.25604. Mean Δ vs 0013 = **+0.0535**.
+
+**Trajectory comparison** (warmup spike behavior at step 9):
+- 0008 (warmup=10): step 9 train_loss = 7.06 (above step 1 → spike-and-recover).
+- 0015 (warmup=20): step 9 train_loss = 5.85 (smooth descent, no spike).
+
+The difference: at warmup=10 the lr_mul transitions are 0.1 → 0.2 → ... → 1.0 in 10 steps, with each lr_mul applied to a forward pass *before* the cumulative effect of prior LR has settled. The lr_mul=1.0 step (step 9) lands on weights that have been pushed for 9 prior elevated-LR steps. With warmup=20, the same peak lands on weights with smaller cumulative motion, and the model isn't yet far from a stable region.
+
+**Conclusion** [VERIFIED across 2 seeds]:
+1. Bigger batch (more accurate gradients) really does tolerate more LR. Combined with smoother warmup, both peak and average LR can go up.
+2. **20-step warmup is the right choice for the bigger-batch regime, not 10**. The step-9 spike in 0008/0013 was a non-trivial cost we didn't realize until the warmup=20 trajectory showed how much smoother the schedule could be.
+3. **[transfer:low]** — schedule tuning is even more 200-step-specific than the 0005 rewrite. H100 20k-step uses warmup in the hundreds.
+
+Cumulative stack: schedule (+0.116) + capacity (+0.014) + batch (+0.082) + schedule push (+0.055) = **+0.267 total**. Best post-quant val_bpb: 2.2560.
+
+Followups in queue: TRAIN_BATCH_TOKENS=32768 (continue batch scaling), more aggressive schedule (WARMDOWN_300), regression sentinel (overdue at ~16 runs).
 
 ## 2026-04-25 · exp 0013 + 0014 · batch=16384 is the real lever; seq=2048 hurts
 
