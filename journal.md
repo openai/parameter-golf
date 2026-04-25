@@ -2,7 +2,7 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.12603** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05`, exp 0036). batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 init winner. Δ=+0.045 vs 0024. Bigger batch at *lower* LR works.
+- **Best so far: 2.12603** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05`, exp 0036). batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 init winner. Single-seed Δ=+0.045 vs 0024; SEED=42 confirm in 0047 at 2.14045 — **mean Δ=+0.038** (cross-seed Δ 0.014 — larger variance than the typical 0.0024 we've seen for confirmed configs). Win is real but smaller than the SEED=1337 number alone suggested.
 - **Crucial revision**: the 0018 batch=32k mode-collapse was an LR-coupling issue, not a batch ceiling. Bigger batch + smaller LR (LR×batch held ~constant) is the correct scaling.
 - Prior winner: 2.17103 (exp 0024, init=0.05).
 - Cumulative gain vs canonical baseline (2.5212): +0.395 → 2.1260.
@@ -24,6 +24,16 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0047 · SEED=42 of 0036 — winner real but cross-seed variance higher than typical
+
+The 0036 single-seed Δ=+0.045 was just below the +0.050 mandatory-confirm threshold so I direct-promoted it without a SEED=42. Belated confirmation now: SEED=42 gives val_bpb 2.14045. Cross-seed Δ from 0036 = 0.014 — about 5x the 0.0024 typical for our confirmed configs (0005/0006, 0013/0014, 0015/0016).
+
+Mean across both seeds: 2.13324. Mean Δ vs 0024 (the prior winner): **+0.038** (not the +0.045 claimed from the single seed).
+
+**Implication**: 0036 stays as the winner — the averaged +0.038 is well above the +0.010 noise floor. But the magnitudes I reported throughout the journal/results.tsv from single-seed comparisons were probably slight overstatements at the upper end. Future sessions should treat the journal numbers as "single-seed estimates" rather than "averaged true effect" unless explicitly noted otherwise. The cross-seed-confirmed wins (0005, 0013, 0015) are the most reliable; the single-seed-confirmed wins (0008, 0021, 0023, 0024, 0036) likely have ~10-20% error bars.
+
+The pattern of high cross-seed variance specifically at 0036 is curious: same model size and structure as 0024, just bigger batch + lower LR. Possibly the 24k-batch configuration's particular sequence-ordering at SEED=1337 happened to be slightly more favorable than at SEED=42.
 
 ## 2026-04-25 · exp 0044-0046 · SwiGLU works but doesn't fit cap
 
