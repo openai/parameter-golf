@@ -2,7 +2,8 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.12285** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05_muon_backend_10`, exp 0049). MUON_BACKEND_STEPS=10 (vs 5) on the 0036 winner. SEED=42 confirms in 0050 at 2.13047 — same-seed Δ averaged +0.0066 vs 0036/0047 (judgment-zone advance). More Newton-Schulz iterations give closer-to-orthogonal Muon updates.
+- **Best so far: 2.10971** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05_muon_backend_15`, exp 0051). MUON_BACKEND_STEPS=15 on top of 0049. Δ=+0.013 vs 0049 (direct promote, above noise floor). Newton-Schulz iterations keep paying past 10.
+- Prior winner: 2.12285 (exp 0049, MUON_BACKEND_STEPS=10).
 - Prior winner: 2.12603 (exp 0036). SEED=42 confirm in 0047; mean=2.13324 (cross-seed Δ 0.014 — larger than typical 0.0024).
 - **Crucial revision**: the 0018 batch=32k mode-collapse was an LR-coupling issue, not a batch ceiling. Bigger batch + smaller LR (LR×batch held ~constant) is the correct scaling.
 - Prior winner: 2.17103 (exp 0024, init=0.05).
