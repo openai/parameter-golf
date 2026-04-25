@@ -1,0 +1,26 @@
+{
+  "id": "0057_swiglu_recur_3x3",
+  "parent": "0056_depth_recur_3x3",
+  "created_at": "2026-04-25T18:09:55Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.1004,
+    "val_bpb_post_quant": 2.10275295,
+    "val_loss_pre_quant": 3.5898,
+    "val_loss_post_quant": 3.59388083,
+    "quant_tax": 0.002353,
+    "step_avg_ms": 3721.11,
+    "num_steps": 200.0,
+    "artifact_bytes": 5998424.0,
+    "artifact_mb": 5.998,
+    "code_bytes": 52642.0,
+    "compression_ratio": 3.87
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
