@@ -2,7 +2,8 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.3913** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4`, exp 0008). Stacked the 0005 schedule with `MLP_MULT=4`. Artifact 11.77 MB (4.2 MB cap headroom remaining).
+- **Best so far: 2.3686** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4_seq_2048_batch_16k`, exp 0012). Stacked seq_len=2048 + batch_tokens=16384 onto the mlp4 winner. Artifact 11.69 MB (4.3 MB cap headroom). Δ=+0.023 vs 0008 prior winner. **Confounded** — both seq_len and batch_tokens doubled; 0013 will run batch-only control to decompose.
+- Prior winner: 2.3913 (exp 0008). Stacked 0005 schedule with `MLP_MULT=4`.
 - Prior winner: 2.4052 (exp 0005, schedule-only). Schedule change confirmed by SEED=42 in 0006 at 2.40272 — cross-seed Δ 0.0024.
 - The lr_mul formula in `train_gpt.py` is `(iterations−step)/warmdown_iters` after warmup. With ITERATIONS=200, the canonical default `WARMDOWN_ITERS=1200` gives lr_mul peaking at 0.167 (avg 0.083) — extremely attenuated. The 0005 schedule (warmup_10 + warmdown_600) doubles avg lr_mul to 0.178; tested up to and through a brief one-step lr_mul=1.0 spike at the warmup peak (recoverable). Further-aggressive schedules NOT yet tested.
 - Capacity (MLP_MULT, exp 0002) and attention temperature (QK_GAIN_INIT, exp 0003) showed only Δ≈+0.002 each under the canonical schedule — noise-band. Hypothesis: their effects are MASKED by the under-training. Both should be re-tested ON TOP OF the new schedule.
@@ -12,6 +13,27 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0009 + 0010 + 0011 + 0012 · capacity ceiling, qk_gain reversal, seq+batch win
+
+Compressed multi-experiment summary (all building on the 0008 mlp4 winner):
+
+**0009 + 0010 — MLP_MULT=5 capacity ceiling test** [discard, discard]:
+- 0009 (SEED=1337): val_bpb 2.38468, suspiciously low quant_tax 0.0020. Δ=+0.007 looked promising but the gain was suspect (pre-quant Δ only +0.0037).
+- 0010 (SEED=42 confirm): val_bpb 2.39114, quant_tax 0.0034 (typical). Pre-quant 2.3877 actually *worse* than 0008 mlp4 (2.3864).
+- **Conclusion** [VERIFIED]: Capacity ceiling at mlp_mult=4 for sp1024/9L/d=512/200steps. The mlp_mult=5 apparent gain was quant-tax variance, not capacity. Useful precedent: when most of an apparent gain comes from a single odd quant_tax value, demand SEED=42 to confirm.
+
+**0011 — QK_GAIN_INIT=5 on winner schedule** [discard]:
+- val_bpb 2.41938 vs 0008 winner 2.39135 → Δ=-0.028 (clear regression).
+- **Lesson** [VERIFIED]: schedule-masking can hide a real *negative* effect, not just a positive one. Under the canonical schedule (0003) QK_GAIN=5 looked like noise (+0.002); under healthy training, it actively hurts. The records' qk-gain ∈ [5, 5.25] usage is mostly sp4096/sp8192; at sp1024 it's the wrong knob.
+
+**0012 — TRAIN_SEQ_LEN=2048 on winner** [keep, promoted, CONFOUNDED]:
+- First attempt crashed: hardcoded `grad_accum_steps=8` plus `TRAIN_BATCH_TOKENS=8192` give per-microstep token count of 1024, can't reshape to seq_len=2048. eval_val has an explicit assertion for the same. Fixed env-var-only by also doubling TRAIN_BATCH_TOKENS to 16384 (and VAL_BATCH_SIZE to match) — confounds the experiment.
+- val_bpb 2.36857 vs 0008 winner 2.39135 → **Δ=+0.0228**, well above noise floor. Pre-quant Δ=+0.021. Quant tax stays clean (0.0032). step_avg 3432 ms (2.5× slower per step from attention² + 2× batch).
+- Promoted as `winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4_seq_2048_batch_16k`.
+- **Confounding**: doubled both seq_len and batch_tokens. 0013 will run batch=16384 + seq=1024 to decompose. Pure-context test would need a code change to make grad_accum_steps configurable.
+
+Cumulative stack vs canonical baseline (2.5212): schedule (+0.116) + capacity (+0.014) + seq_len/batch (+0.023) ≈ **+0.153 total**. Best post-quant val_bpb: 2.3686.
 
 ## 2026-04-25 · exp 0007 + 0008 · capacity scaling on the new schedule (mlp2 → mlp4)
 
