@@ -2,9 +2,11 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.2259** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_16k`, exp 0020). Another schedule push: WARMDOWN_ITERS=300 + LR_WARMUP_STEPS=30, batch=16k, mlp4. Artifact 13.7 MB. Δ=+0.029 vs 0015.
-- Schedule push diminishing returns: 0005 (+0.116) → 0015 (+0.055) → 0020 (+0.029). Next push (warmdown_250) predicted ~+0.015.
-- Prior winner: 2.2547 (exp 0015), schedule push #1.
+- **Best so far: 2.2099** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_16k_matrix_lr_06`, exp 0021). MATRIX_LR=0.06 (1.5× canonical) on top of 0020 schedule. Artifact 15.25 MB (0.75 MB cap headroom). Δ=+0.016 vs 0020.
+- LR scaling is a separable lever from schedule shape: schedule pushes change *shape*, MATRIX_LR scaling changes *magnitude*. Both pay; combined gives the current win.
+- Schedule push diminishing returns: 0005 (+0.116) → 0015 (+0.055) → 0020 (+0.029).
+- Cumulative vs canonical: +0.311 (2.5212 → 2.2099).
+- Prior winner: 2.2259 (exp 0020).
 - Prior winners (still in `winners/` as history): 0013 (2.3096, batch=16k), 0012 (2.3686, batch=16k+seq=2048 confounded), 0008 (2.3913, mlp4), 0005 (2.4052, schedule).
 - Cumulative gain stack vs canonical baseline (2.5212 → 2.2547): schedule (+0.116) + capacity (+0.014) + batch_16k (+0.082) + schedule push (+0.055) = **+0.267 total**.
 - **Important [transfer:high] finding**: at this regime, seq=1024 is strictly better than seq=2048 — see exp 0013 decomposition. Don't extend seq_len beyond what the model can use.
