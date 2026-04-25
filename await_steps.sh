@@ -71,8 +71,10 @@ while true; do
   count=$(grep -cE '^step:[0-9]+/[0-9]+ train_loss:' "$LOG" 2>/dev/null || echo 0)
   if (( count >= N )); then break; fi
 
-  # Crash signal 1: python process gone.
-  if ! pgrep -f "python train_gpt.py" > /dev/null; then
+  # Crash signal 1: python process gone. Match the script name only (not the
+  # binary), case-insensitive, so we catch both .../Python and .../python and
+  # any pyenv/uv variant.
+  if ! pgrep -if "train_gpt.py" > /dev/null; then
     echo "(python exited before reaching N=${N}; ${count} step lines so far)" >&2
     break
   fi
