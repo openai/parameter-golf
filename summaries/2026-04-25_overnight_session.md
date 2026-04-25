@@ -244,6 +244,56 @@ These are the runs where I edited `train_gpt.py` inside the experiment folder ra
 6. **Lower-LR direction for embedding/scalar params.** TIED_EMBED_LR=0.04 and SCALAR_LR=0.03 are untested. The 1.5× scale-ups both hurt; the optimum might be DOWN, not at-canonical.
 7. **Investigate batch=32k failure mode directly.** Read out gradient norms/variances during training to confirm the "Adam variance saturation" hypothesis vs the alternate "grad_accum=8 micro-batch loses stochasticity" hypothesis.
 
+## Reflections — what went well, what didn't, lessons for the next agent
+
+### What went well
+
+- **The schedule rewrite (exp 0005)** broke the search wide open. Before that I had two flat results (0002, 0003) and was about to declare those axes dead. The journal entry I wrote at the time — "the previous architectural ablations were likely false negatives — capacity (0002) and qk_gain (0003) should be re-tested on the new schedule" — turned out to be a [VERIFIED] insight after 0008 and 0011 came back with very different signs. Pre-committing to that retest plan in writing was probably the single best methodology decision of the session.
+- **Cross-seed confirmation discipline.** I followed the +0.005 / +0.010 / +0.050 thresholds basically as written, which caught at least three "freaks" (0009 mlp5, 0027 schedule push #4, 0032 BETA2). Each looked like a marginal win on SEED=1337 and got refuted by SEED=42. Without that discipline I'd have promoted noise and blocked future progress on top of bad foundations.
+- **Quant_tax as a sanity signal.** Not in the program.md spec — I picked this up from the 0009 anomaly (mlp5 had quant_tax=0.002 vs typical 0.005). Very-low quant_tax was a leading indicator for mode-collapse (0018), freak runs (0032), and "real but cap-violating" gains (0044). Worth formalizing in protocol.
+- **The LR-batch coupling diagnosis (exp 0036).** The 0018 mode-collapse looked like "batch=32k is just too big" and I initially journaled it that way. Re-reading the journal a few days (in-session) later, I noticed I'd hand-waved the mechanism and wrote a more careful conjecture: bigger batch → lower gradient variance → Adam adaptive scaling produces effectively-larger per-dim updates. That conjecture predicted exactly the fix (scale LR DOWN with batch), and 0036 verified it cleanly with +0.045. Slow rigorous re-derivation paid off where fast intuition would have left "batch ceiling at 16k" as a wrong final answer.
+
+### What I did wrong / could have done better
+
+1. **Direct-promoted single-seed wins at the upper Δ boundary.** Several keep promotions (0008, 0021, 0023, 0024, 0036, 0051) used the rule "Δ ≥ +0.010 → likely real, advance" without SEED=42 confirm. The 0036 belated SEED=42 confirm in 0047 showed the single-seed Δ overstated the true mean by ~15% (and cross-seed variance was ~5× the typical 0.0024). The journal numbers I was citing ("+0.045") were probably ~10–20% inflated for any direct-promoted single-seed Δ. **Fix**: direct-promote, but always run SEED=42 within ~5 experiments. Don't let the magnitude claim go uncorrected.
+
+2. **Premature "saturation" calls.** I declared the env-var search exhausted at least three times during the session: after 0035 (rope_base flat), after 0040 (init=0.04 noise), and after 0048 (LeakyReLU² noise). Each time, going one more experiment in the right direction unlocked a real win (0036, 0049/0051, etc.). The single biggest find of the late session — `MUON_BACKEND_STEPS=15` adding +0.023 vs canonical — came at experiment 49, well past my "saturation" declarations. **Lesson**: "I'm out of ideas" is a feeling, not a finding. The actual evidence for saturation is a sweep over an axis showing flat results — not just "I tested a lot and most were flat." Before declaring saturation, the agent should re-grep the source for `os.environ.get` to enumerate genuinely-untested env-vars.
+
+3. **Inconsistent application of the schedule-masking framework.** I established it after 0011 (qk_gain real-negative on winner schedule, hidden as noise on canonical). But I never went back and re-tested 0002 (MLP_MULT=3, +0.002 noise on canonical schedule) on the winner schedule. The schedule-masking framework predicts that retest would either (a) replicate the noise or (b) reveal a positive or negative effect. Even just running it would have provided a useful data point. There may be other discards in the early-session sweep that have the same structure. **Fix**: when a meta-framework like schedule-masking gets [VERIFIED], re-run the top-3 most-recently-discarded changes through the new lens before continuing.
+
+4. **Spent too long on dead axes (BETA1, BETA2, MUON_MOMENTUM, ROPE_BASE, GRAD_CLIP_NORM) in the 0029–0035 stretch.** Each was a single-experiment env-var test with marginal Δ. They were cheap individually (~12 min each) but collectively were ~70 min of compute that produced 0 promoted wins and ~0 lessons. Could have pivoted to the SwiGLU code change or batch=24k+LR retry sooner. **Fix**: when several env-var attempts in a row come back as noise, the prior over remaining env-var hits drops; pivot to higher-EV moves (code changes, deeper analysis of working axes) faster.
+
+5. **Didn't fully diagnose the batch=32k regime change.** I have a strong hypothesis (Adam variance saturation in the very-low-noise gradient regime) but no direct evidence. A focused experiment that reads out per-step gradient variance during training, or one that tests batch=24k with grad_accum_steps=4 (smaller batch per micro-step at same total batch) would have isolated the per-microstep-stochasticity hypothesis from the LR-coupling hypothesis. Both 0018 and 0037 confirmed the failure but didn't explain it. **Fix**: when a phenomenon is replicated but not explained, design an experiment that *isolates* the candidate mechanism rather than just reproducing the failure.
+
+6. **Didn't try sliding-window attention.** Records use it heavily; it's the obvious next code-change after SwiGLU. I justified skipping it as "needs subagent" but the session had time for it. The actual reason was probably that I was anchored on env-var territory and treated subagent invocation as a higher-friction operation than it is. **Fix**: when env-vars saturate, use a subagent to implement the most record-validated code change (sliding-window in this case) rather than trying small one-line edits and calling it done.
+
+7. **Over-cautious with cap-violating SwiGLU (0044).** The result (val_bpb 2.11489 at 16.46 MB) was clearly directional — SwiGLU is a real win that's just artifact-tight. I tried two reductions (mlp=2, lower LR) but didn't try the most natural fix: NUM_LAYERS=8 + SwiGLU(mlp=3). 8 layers × 2.36M (per SwiGLU(3) MLP) ≈ 21M MLP params, vs 9 × 2.10M ≈ 18.9M in current — close enough that artifact would be ~14–15 MB, possibly fitting. **Fix**: when a code-level change shows a real gain that's only blocked by artifact constraints, try one architectural reduction to compensate before discarding.
+
+### Higher-level patterns
+
+- **The most surprising findings were "hidden defaults that were wrong for this regime"**: WARMDOWN_ITERS=1200 (5× too long for 200 steps), TIED_EMBED_INIT_STD=0.005 (10× too small), MUON_BACKEND_STEPS=5 (under-converged for d=512 matrices on MPS bf16). Each was a parameter where the canonical default was carried over from a different regime (20k-step training, smaller models, CUDA float dynamics). **Lesson**: when starting a new agent run, the highest-prior-probability axes are the env-vars whose defaults match the *original* design context, not the current testbed. Worth scanning all `os.environ.get(..., DEFAULT)` calls and asking "is this default appropriate for our scale and step count?"
+
+- **Cumulative gain was ~30% from schedule alone, ~50% from batch+schedule, ~80% from those plus init+capacity, last ~20% from MUON details and LR fine-tuning.** The Pareto-front of session value was the first ~10 experiments. Everything after experiment 25 was marginal returns — useful data but small Δs. If wall-clock budget were limited, focus on schedule + batch + init in any new session before anything else.
+
+- **The `[transfer:low]` tag covers ~half my wins.** Schedule constants for 200-step compute-starved training do not transfer to 20k-step H100. The H100 evaluator should treat the schedule constants in the winner config as scaffolding for the smoke, not recommendations. The non-schedule wins (init, capacity, MUON, batch coupling) are the ones that should be carried forward.
+
+- **The two seeds (1337 and 42) gave different cross-seed variance on different config classes.** Stable configs converged to ~0.0024 cross-seed Δ; marginal configs to 0.008–0.015. This wasn't predicted up-front — I noticed it in the 0036/0047 comparison. Cross-seed variance itself is a regime-dependent quantity worth tracking. **Lesson**: report cross-seed variance whenever doing a SEED=42 confirm; treat unusually-high variance as a signal that the config is at a sensitivity boundary.
+
+### What a future agent should do first
+
+If the next agent reads only this section: **run SEED=42 for exp 0051 first** (the current winner). Direct-promoted single-seed; the +0.412 cumulative claim depends on it.
+
+After that, in priority order:
+1. Sliding-window attention via subagent (record-validated, untested).
+2. SwiGLU(mlp_mult=3) + NUM_LAYERS=8 — combine the two code-changes I tried separately.
+3. Re-test 0002 (MLP_MULT=3 baseline) on the 0051 winner schedule, applying the schedule-masking framework consistently.
+4. The MATRIX_LR fine-tune (0.042, 0.048) at batch=24k.
+5. TIED_EMBED_LR=0.04 and SCALAR_LR=0.03 (untested DOWN direction).
+
+The non-submittable best (SwiGLU, val_bpb 2.115) is your best signal that there's still room beyond 2.10. Don't give up on subagent-mediated code changes just because env-vars saturated.
+
+---
+
 ## File pointers for the next agent
 
 - `journal.md` — narrative of every promote, with **Question/Setup/Prediction/Disconfirming/Result/Conclusion** structure.
