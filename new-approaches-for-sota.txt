@@ -1,0 +1,852 @@
+ ▐▛███▜▌   Claude Code v2.1.119
+▝▜█████▛▘  Opus 4.6 · Claude Max
+  ▘▘ ▝▝    ~/coding-mess/parameter-golf
+
+✻ Conversation compacted (ctrl+o for history)
+
+
+❯ /compact                                                                      
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Referenced file train_gpt_swa.py
+  ⎿  Referenced file swa_experiment.md
+  ⎿  Read run_swa_modal.py (154 lines)
+
+❯ /effort                                                                       
+  ⎿  Set effort level to max (this session only): Maximum capability with
+     deepest reasoning
+
+❯ fetch the latest changes to the repo and analyze what has changed in the      
+  leaderboard and what changes we can pick from those into ours. be critical    
+  and extremely detailed.                                                       
+
+● I'll fetch the latest upstream changes and analyze what's been merged into the
+   leaderboard.
+
+● Bash(git remote -v)
+  ⎿  mine       git@github.com:Itssshikhar/parameter-golf.git (fetch)
+     mine       git@github.com:Itssshikhar/parameter-golf.git (push)
+     origin     org-14957082@github.com:openai/parameter-golf.git (fetch)
+     origin     org-14957082@github.com:openai/parameter-golf.git (push)
+
+● Bash(git log --oneline -20)
+  ⎿  3cca46c Bank QAT on all F.linear weights: 3-seed mean 1.1117 BPB (beat
+     s #1 by 0.003)
+     070fff5 Document sparse attention gate results + quantization wall ana
+     … +18 lines (ctrl+o to expand)
+
+● Bash(git branch -a)
+  ⎿    main
+     * shikhar
+       remotes/mine/HEAD -> mine/main
+     … +14 lines (ctrl+o to expand)
+
+● Bash(git fetch origin 2>&1 | tail -20)
+  ⎿  From github.com:openai/parameter-golf
+      * [new branch]      codex/update-april-leaderboard-readme -> origin/c
+     odex/update-april-leaderboard-readme
+     … +3 lines (ctrl+o to expand)
+
+● Bash(git log --oneline origin/main ^main -50 2>/dev/null | head -60)
+  ⎿  8b148a0 Record: Scylla + Full GPTQ + XSA-all + FA3 — val_bpb 0.9485 (3
+     -seed mean) (#1184)
+     f56ef88 Record: 1.1122 BPB — Coprime-Stride Loader + Full GPTQ + XSA-a
+     … +43 lines (ctrl+o to expand)
+
+● Bash(git log --oneline main..origin/main 2>&1 | head -60)
+  ⎿  8b148a0 Record: Scylla + Full GPTQ + XSA-all + FA3 — val_bpb 0.9485 (3
+     -seed mean) (#1184)
+     f56ef88 Record: 1.1122 BPB — Coprime-Stride Loader + Full GPTQ + XSA-a
+     … +43 lines (ctrl+o to expand)
+
+● Massive news — SOTA jumped to 0.9485 via "Scylla" (PR #1184). Let me analyze
+  the new leaderboard.
+
+● Bash(git show origin/main:README.md 2>&1 | head -200)
+  ⎿  <img width="3840" height="1280" alt="1920x640-discord" src="https://gi
+     thub.com/user-attachments/assets/90607b26-171f-476a-90ae-69b9dbb7cb30"
+      />
+     … +302 lines (ctrl+o to expand)
+
+● The README leaderboard top is 1.0810 but I see newer merges — Scylla at
+  0.9485. Let me pull them up.
+
+● Bash(git show --stat 8b148a0 2>&1 | head -60)
+  ⎿  commit 8b148a090d683ccf4f7fb2b773a82f1e1cb0faa3
+     Author: icryo <amarck@amarck.com>
+     Date:   Thu Apr 23 17:03:27 2026 -0500
+     … +19 lines (ctrl+o to expand)
+
+● Bash(git show --stat f56ef88 2>&1 | head -40)
+  ⎿  commit f56ef885ba73660181f715e2504f05e51ecb4787
+     Author: Dex <dex@weco.ai>
+     Date:   Fri Apr 24 06:03:13 2026 +0800
+     … +22 lines (ctrl+o to expand)
+
+● Bash(git show --stat 2bd7916 2>&1 | head -40)
+  ⎿  commit 2bd79161a30861be65d25c4f3e4c84642e27dcd0
+     Author: Aamod Bhatt <140950374+aamodbhatt@users.noreply.github.com>
+     Date:   Fri Apr 24 03:33:06 2026 +0530
+     … +19 lines (ctrl+o to expand)
+
+● Let me set up task tracking and dig into the Scylla submission — that's a
+  massive jump from 1.0810 to 0.9485.
+● Bash(git ls-tree -r origin/main records/track_10min_16mb/ 2>&1 | awk -F'/'
+      '{print $3}' | sort -u | tail -40)
+  ⎿  2026-03-17_LoRA_TTT
+     2026-03-17_NaiveBaseline
+     2026-03-18_FP16Embed_WD3600
+     … +20 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-31_Scylla_FullGPTQ_
+      XSA11_FA3_0.9485/README.md 2>&1)
+  ⎿  # Record: Scylla Tokenizer + Full GPTQ + XSA-all + FA3
+
+     **val_bpb: 0.9485** (3-seed mean, std 0.0008) | **~15.6 MB** | 8×H100
+     … +53 lines (ctrl+o to expand)
+
+● Scylla is a tokenizer change, not an architecture change. Let me read the
+  train_gpt.py and look at the other records in parallel.
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-31_Scylla_FullGPTQ_
+      XSA11_FA3_0.9485/train_gpt.py | wc -l)
+  ⎿  2173
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-29_Loader_FullGPTQ_
+      XSA11_BigramHash2816/README.md 2>&1 | head -150)
+  ⎿  # Record: Coprime-Stride Loader + Full Hessian GPTQ + XSA-all (val_bpb
+      1.1122)
+     … +72 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-09_SP8192_3LayerRec
+      ur_ParResid_QK525_LegalTTT/README.md 2>&1 | head -200)
+  ⎿  # Record: SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5
+     .25 + Legal TTT
+     … +70 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-28_MuonTTT_EntropyA
+      daptive_11L_8xH100/README.md 2>&1 | head -200)
+  ⎿  # 11L Muon TTT + Entropy-Adaptive Epochs
+
+     **val_bpb: 1.1179** (3-seed mean, std 0.0002) | **~15.9 MB** | 8xH100
+     … +83 lines (ctrl+o to expand)
+
+● Let me get detailed reads on the other key records in parallel.
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-08_SP8192_ParallelR
+      esid_ScoreFirstTTT/README.md 2>&1 | head -180)
+  ⎿  # Record: SP8192 + Parallel Residuals + Score-First TTT — val_bpb 1.08
+     22 (3-seed mean)
+     … +29 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-06_SP8192_QK5_Legal
+      TTT_1.0828/README.md 2>&1 | head -180)
+  ⎿  # Record: SP8192 + QK-Gain 5 + Legal Score-First TTT — val_bpb 1.08279
+      (3-seed mean)
+     … +109 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-05_SP8192_GPTQ-Embe
+      ddings_SDClip_Loop45x2/README.md 2>&1 | head -200)
+  ⎿  # Record: SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SDC
+     lip + Simplifications — val_bpb 1.08563
+     … +143 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-06_SP8192_HessianSD
+      Clip_ProgressiveRecurrence/README.md 2>&1 | head -180)
+  ⎿  # Non-record: Parallel Residuals + Hessian-Aware SDClip (3-seed mean 1
+     .08354 BPB)
+     … +82 lines (ctrl+o to expand)
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-04_SP4096_DepthRecu
+      rrence_ParallelResid_MuonEqR/README.md 2>&1 | head -200)
+  ⎿  # Record: SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R —
+     val_bpb 1.0897 (3-seed mean)
+     … +32 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-03_MuonEqR_DepthRec
+      urrence_WD090_AllInt6/README.md 2>&1 | head -200)
+  ⎿  ## Record: MuonEq-R + Depth Recurrence + WD=0.090 + All-Int6 GPTQ (val
+     _bpb: 1.0912)
+     … +82 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-31_ParallelResidual
+      s_MiniDepthRecurrence/README.md 2>&1 | head -200)
+  ⎿  # Record: Parallel Residuals + Mini Depth Recurrence
+
+     **val_bpb: 1.1063** (3-seed mean, std 0.0017) | **1.8679 nats** | **~1
+     … +92 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-01_Vocab4096_MLPMul
+      t4_WD085/README.md 2>&1 | head -200)
+  ⎿  # Record: 4096-Vocab + Larger Model + High WD + Simplifications — val_
+     bpb 1.09785
+     … +85 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-29_Loader_FullGPTQ_
+      XSA11_BigramHash2816/train_gpt.py 2>&1 | wc -l)
+  ⎿  2051
+
+● Bash(git ls-tree -r origin/main
+      records/track_10min_16mb/2026-03-29_Loader_FullGPTQ_XSA11_BigramHash2816/
+      2>&1)
+  ⎿  100644 blob
+     464e01826d510befa114c3edd48a2564c71f52df   records/track_10mi
+     n_16mb/2026-03-29_Loader_FullGPTQ_XSA11_BigramHash2816/README.md
+     100644 blob
+     0906b9b630d9993c1e7969dadfc380167dd73db0   records/track_10mi
+     … +12 lines (ctrl+o to expand)
+
+● Bash(git ls-tree -r origin/main
+      records/track_10min_16mb/2026-03-31_Scylla_FullGPTQ_XSA11_FA3_0.9485/
+      2>&1)
+  ⎿  100644 blob
+     ac177659afc661438dc80d4bf9d595c2ce89e074   records/track_10mi
+     n_16mb/2026-03-31_Scylla_FullGPTQ_XSA11_FA3_0.9485/README.md
+     100644 blob
+     580a1e39e538effabf4bebdc78998ad14fdbb388   records/track_10mi
+     … +13 lines (ctrl+o to expand)
+
+● Bash(cd /tmp && mkdir -p scylla_compare && cd scylla_compare && git -C
+      /home/raven/coding-mess/parameter-golf show
+      origin/main:records/track_10min_16mb/2026-03-31_Sc…)
+  ⎿  --- pr1060.py      2026-04-25 01:28:36.979820782 +0530
+     +++ scylla.py      2026-04-25 01:28:36.977820762 +0530
+     @@ -87,6 +87,8 @@
+     … +117 lines (ctrl+o to expand)
+  ⎿  Shell cwd was reset to /home/raven/coding-mess/parameter-golf
+
+  Searched for 9 patterns, read 1 file (ctrl+o to expand)
+
+● Bash(sed -n '1310,1370p'
+      /home/raven/coding-mess/parameter-golf/train_gpt_swa.py)
+  ⎿      q = torch.clamp(torch.round(t32 / scale.float()), -clip_range, cli
+     p_range).to(torch.int8)
+         return q, scale
+     … +34 lines (ctrl+o to expand)
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Bash(sed -n '170,260p'
+      /home/raven/coding-mess/parameter-golf/train_gpt_swa.py)
+  ⎿                  self._bank_meta.append({
+                         'p': p,
+                         'B': B,
+     … +49 lines (ctrl+o to expand)
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Bash(sed -n '500,570p'
+      /home/raven/coding-mess/parameter-golf/train_gpt_swa.py)
+  ⎿          raise ValueError(f"Shard size mismatch for {file}: expected {e
+     xpected_size} bytes")
+         tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offse
+     … +44 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lit
+      e_warmdown3500_QAT015_1.1233/README.md 2>&1 | head -100)
+  ⎿  ## Record: 11L EMA + GPTQ-lite + warmdown3500 + QAT@0.15 (val_bpb: 1.1
+     233)
+     … +43 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-03-23_LeakyReLU_LegalT
+      TT_ParallelMuon/README.md 2>&1 | head -100)
+  ⎿  # LeakyReLU² + Legal Score-First TTT + Parallel Muon
+
+     **val_bpb: 1.1194** (3-seed mean, std 0.0006) | **~15.95 MB** | 8×H100
+     … +55 lines (ctrl+o to expand)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-03_MuonEqR_DepthRec
+      urrence_WD090_AllInt6/train_gpt.py | grep -n -iE
+      "muoneq|row_norm|row.*rms|normalize.*r…)  ⎿  (No output)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-05_SP8192_GPTQ-Embe
+      ddings_SDClip_Loop45x2/train_gpt.py | grep -n -iE "row_std|std\(.*dim|def
+      quantize|def…)
+  ⎿  (No output)
+
+● Bash(git show origin/main:records/track_10min_16mb/2026-04-05_SP8192_GPTQ-Embe
+      ddings_SDClip_Loop45x2/train_gpt.py | wc -l)
+  ⎿  2
+
+● Bash(git ls-tree origin/main records/track_10min_16mb/2026-04-05_SP8192_GPTQ-E
+      mbeddings_SDClip_Loop45x2/ 2>&1)
+  ⎿  100644 blob
+     4ee5078c0f874d16039f8cd06931d27d4ec8ea8f   records/track_10mi
+     n_16mb/2026-04-05_SP8192_GPTQ-Embeddings_SDClip_Loop45x2/README.md
+     100644 blob
+     774dae7efc742e556cd0c90cb679e424f599e619   records/track_10mi
+     … +18 lines (ctrl+o to expand)
+
+● Bash(git ls-tree origin/main
+      records/track_10min_16mb/2026-04-03_MuonEqR_DepthRecurrence_WD090_AllInt6/
+       2>&1)
+  ⎿  100644 blob
+     9140317d24a8de71f5aa99d0e7c0abd9137b48b5   records/track_10mi
+     n_16mb/2026-04-03_MuonEqR_DepthRecurrence_WD090_AllInt6/README.md
+     100644 blob
+     21d61689a0fdcd24694a75b13fdb4ffae5b1c2a6   records/track_10mi
+     … +12 lines (ctrl+o to expand)
+
+● Bash(git -C /home/raven/coding-mess/parameter-golf show
+      origin/main:records/track_10min_16mb/2026-04-03_MuonEqR_DepthRecurrence_WD
+      090_AllInt6/train_gpt.py > /tmp/pr1…)
+  ⎿  209 /tmp/pr1285.py
+
+● Bash(git -C /home/raven/coding-mess/parameter-golf show
+      origin/main:records/track_10min_16mb/2026-04-05_SP8192_GPTQ-Embeddings_SDC
+      lip_Loop45x2/train_gpt_human.py > /…)
+  ⎿  1408 /tmp/pr1394_human.py
+     105:    matrix_clip_sigmas = float(os.environ.get('MATRIX_CLIP_SIGMAS'
+     , 12.85))
+     … +10 lines (ctrl+o to expand)
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Bash(sed -n '485,530p' /tmp/pr1394_human.py)
+  ⎿          self.lm_head = None if h.tie_embeddings else CastedLinear(h.em
+     bedding_dim, h.vocab_size, bias=False)
+             if self.lm_head is not None:
+     … +31 lines (ctrl+o to expand)
+
+● Bash(sed -n '620,660p' /tmp/pr1394_human.py)
+  ⎿                      g = p.grad
+                         state = self.state[p]
+                         if "momentum_buffer" not in state:
+     … +22 lines (ctrl+o to expand)
+
+● Bash(sed -n '60,115p' /tmp/pr1394_human.py)
+  ⎿      skip_gates_enabled = bool(int(os.environ.get('SKIP_GATES_ENABLED',
+      '1')))
+         tie_embeddings = bool(int(os.environ.get('TIE_EMBEDDINGS', '1')))
+     … +40 lines (ctrl+o to expand)
+
+● Bash(sed -n '525,580p' /tmp/pr1394_human.py)
+  ⎿          x = F.rms_norm(x, (x.size(-1),))
+             if self.embed_proj is not None:
+                 x = self.embed_proj(x)
+     … +30 lines (ctrl+o to expand)
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Bash(git -C /home/raven/coding-mess/parameter-golf show
+      origin/main:records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResi
+      d_QK525_LegalTTT/train_gpt.py | wc…)
+  ⎿  2
+
+● I have everything I need. Let me save some key findings to memory and write
+  the analysis.
+
+  Recalled 1 memory, wrote 2 memories (ctrl+o to expand)
+
+● Now the detailed analysis.
+
+  ---
+  Leaderboard analysis — what has changed upstream and what to steal
+
+  1. The leaderboard moved a lot while we were on SP1024
+
+  git fetch origin pulled three new record merges that haven't made it into the
+  README table yet. The README top still shows 1.0810 BPB (SP8192 + 3-Layer 
+  Recurrence, PR #1493), but three newer merges reorder the board:
+
+  ┌──────┬──────────┬───────┬──────────────────────────────────┬────────────┐
+  │ Rank │   BPB    │  PR   │              Title               │   Merged   │
+  │      │ (3-seed) │       │                                  │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 1    │ 0.9485   │ #1184 │ Scylla + Full GPTQ + XSA-all +   │ 2026-04-23 │
+  │      │          │       │ FA3                              │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │      │          │       │ SP8192 + 3-Layer Recurrence +    │            │
+  │ 2    │ 1.0810   │ #1493 │ Parallel Residuals + QK-Gain     │ 2026-04-09 │
+  │      │          │       │ 5.25 + Legal TTT                 │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 3    │ 1.0822   │ #1477 │ SP8192 + Parallel Residuals +    │ 2026-04-08 │
+  │      │          │       │ Score-First TTT                  │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 4    │ 1.0828   │ #1413 │ SP8192 + QK-Gain 5 + Legal       │ 2026-04-06 │
+  │      │          │       │ Score-First TTT                  │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 5    │ 1.0856   │ #1394 │ SP8192 + GPTQ Embeddings +       │ 2026-04-05 │
+  │      │          │       │ SDClip + Loop45x2                │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 6    │ 1.0897   │ #1334 │ SP4096 + Depth Recurrence +      │ 2026-04-04 │
+  │      │          │       │ Parallel Residuals + MuonEq-R    │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 7    │ 1.0912   │ #1285 │ MuonEq-R + Depth Recurrence +    │ 2026-04-03 │
+  │      │          │       │ WD=0.090 + All-Int6              │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 8    │ 1.0979   │ #1218 │ 4096-Vocab + MLP4x + High WD     │ 2026-04-01 │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 9    │ 1.1063   │ #1204 │ Parallel Residuals + Mini Depth  │ 2026-03-31 │
+  │      │          │       │ Recurrence                       │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 10   │ 1.1105   │ #1179 │ Split-LR + BigramHash(2816×160)  │ 2026-03-28 │
+  │      │          │       │ + Full GPTQ + Brotli             │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 11   │ 1.1122   │ #1060 │ Coprime-Stride Loader + Full     │ 2026-03-29 │
+  │      │          │       │ GPTQ + XSA-all (SP1024)          │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 12   │ 1.1147   │ #1019 │ AR Self-Gen GPTQ + XSA +         │ 2026-03-25 │
+  │      │          │       │ BigramHash 3072×112 (SP1024)     │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 13   │ 1.1179   │ #1148 │ 11L Muon TTT + Entropy-Adaptive  │ 2026-04-23 │
+  │      │          │       │ Epochs (SP1024)                  │            │
+  ├──────┼──────────┼───────┼──────────────────────────────────┼────────────┤
+  │ 14   │ 1.1194   │ #549  │ LeakyReLU² + Legal TTT +         │ —          │
+  │      │          │       │ Parallel Muon (SP1024)           │            │
+  └──────┴──────────┴───────┴──────────────────────────────────┴────────────┘
+
+  Our 1.1117 is currently #10 on a strict mean basis — above PR #1060 by 0.0005
+  and below PR #1179 by 0.0012. So the "competitive SP1024 only" frontier is
+  basically where we are. The 0.21 BPB gap to SOTA is almost entirely from
+  things we are not doing.
+
+  2. The Scylla result is less magical than it looks
+
+  I diffed records/track_10min_16mb/2026-03-31_Scylla_FullGPTQ_XSA11_FA3_0.9485/
+  train_gpt.py against PR #1060's train_gpt.py. The only code delta is
+  tokenizer-metadata loading (.meta.npz file + a load_tokenizer_luts helper that
+   understands non-SentencePiece vocabs). No architecture change. No new op, no
+  new block, no new quantization, no new scheduler.
+
+  The submission just swaps the tokenizer from SP1024 (PR #1060) to a 998-token
+  TokenMonster vocab (candidate.vocab) that was pre-trained externally (pruned
+  from TokenMonster's english-1024-clean-v1). The score jumps 1.1122 → 0.9485 =
+  −0.1637 BPB from tokenizer alone.
+
+  There are two reasons this is less of a "jump" than it looks:
+
+  1. BPB is mechanical — BPB = CE_nats / bytes_per_token / ln 2. A tokenizer
+  that packs more bytes per token lowers BPB proportionally, even at identical
+  cross-entropy. TokenMonster's "ungreedy multi-branch" tokenization achieves
+  higher bytes-per-token than SentencePiece BPE at similar vocab sizes. The
+  model doesn't get "smarter"; each mistake just costs fewer bits per byte.
+  2. The tokenizer was trained with external compute (TokenMonster's vocab
+  construction is an offline optimization over a large corpus). This is allowed
+  under the challenge rules for tokenizer artifacts but it's very clearly a case
+   of spending training compute elsewhere.
+
+  So the right question isn't "can we match Scylla." It's: how much cheap BPB 
+  can we buy with an SP4096 or SP8192 tokenizer swap (which is pedestrian,
+  documented, and already done by #1218/#1394/#1493), and separately, should we
+  invest in producing our own TokenMonster-class vocab before the 2026-04-30
+  deadline (5 days left).
+
+  3. Our 1.1117 stack vs the upstream frontier — technique-by-technique diff
+
+  I walked train_gpt_swa.py against the union of PR #1060, #1394, #1493, #1285
+  and compared defaults line-by-line. Present=✅, absent=❌, half-there=⚠️.
+
+  Technique: Tokenizer vocab
+  Upstream default: SP8192 (k records), Scylla 998
+  Ours: SP1024
+  Notes: Biggest lever we haven't pulled
+  ────────────────────────────────────────
+  Technique: MLP multiplier
+  Upstream default: 4×
+  Ours: 3×
+  Notes: PR #1218 showed bigger MLP + higher WD dominates
+  ────────────────────────────────────────
+  Technique: Weight decay (matrices)
+  Upstream default: 0.085–0.090
+  Ours: 0.04
+  Notes: Higher WD shrinks weight magnitude → ~5% smaller brotli artifact → room
+
+    to keep all layers int6
+  ────────────────────────────────────────
+  Technique: Weight decay (embeddings)
+  Upstream default: 0.085
+  Ours: 0 (no embed WD)
+  Notes: Matches the above logic for embeddings
+  ────────────────────────────────────────
+  Technique: QK-Gain init
+  Upstream default: 5.0–5.25
+  Ours: 2.5
+  Notes: Monotonic improvement to ~5.25 per PR #1493's sweeps
+  ────────────────────────────────────────
+  Technique: Muon row-normalize (MuonEq-R)
+  Upstream default: ✅
+  Ours: ❌
+  Notes: g /= g.float().norm(dim=-1, keepdim=True) before NS5 — ~10 lines
+  ────────────────────────────────────────
+  Technique: Newton-Schulz steps
+  Upstream default: 5
+  Ours: 5
+  Notes: Same
+  ────────────────────────────────────────
+  Technique: Parameter Banking + Parallel Muon
+  Upstream default: ✅ (#549 origin)
+  Ours: ✅
+  Notes: Good
+  ────────────────────────────────────────
+  Technique: Full Hessian GPTQ (Cholesky)
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Our quantize_int6_gptq is the same algorithm
+  ────────────────────────────────────────
+  Technique: GPTQ clip selection
+  Upstream default: SDClip: c = k · std(row), k=12.85 matrices / k=20 embeddings
+  Ours: Percentile search over [0.999, 0.9995, …, 1.0]
+  Notes: Our search is slower AND less principled; it doesn't account for
+    compressed size, only recon MSE
+  ────────────────────────────────────────
+  Technique: Embedding quantization
+  Upstream default: int8 with SDClip k=20
+  Ours: int8 with percentile 99.99984
+  Notes: Close but non-principled; no explicit clip control
+  ────────────────────────────────────────
+  Technique: AR self-gen GPTQ calibration
+  Upstream default: some use training data, some AR
+  Ours: ✅ (AR, 64×2048 tokens)
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: Compression
+  Upstream default: Brotli-11 + byte-shuffle
+  Ours: LZMA preset 9
+  Notes: PR #1089/#1179 show byte-shuffle+brotli beats LZMA on quantized int6
+    tensors
+  ────────────────────────────────────────
+  Technique: Depth recurrence (layers 4,5 × 2)
+  Upstream default: ✅ (PR #1334 on, activation at 50%)
+  Ours: ❌
+  Notes: Gives virtual 13-layer from 11 physical, ~0.003 BPB
+  ────────────────────────────────────────
+  Technique: Parallel residuals from layer 7
+  Upstream default: ✅ (PR #1412/#1477)
+  Ours: ❌
+  Notes: Attention+MLP read same input, write to split lanes; ~0.002 BPB
+  ────────────────────────────────────────
+  Technique: Skip gates (sigmoid-gated U-Net)
+  Upstream default: ✅
+  Ours: ⚠️ (we have skip_weights but no gates I saw)
+  Notes: Minor
+  ────────────────────────────────────────
+  Technique: XSA on all 11 layers
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Good
+  ────────────────────────────────────────
+  Technique: BigramHash
+  Upstream default: 2816×112 or 3072×112
+  Ours: 3072×112
+  Notes: Ours is on the larger side — slight edge
+  ────────────────────────────────────────
+  Technique: SmearGate
+  Upstream default: ✅
+  Ours: ✅ (optional)
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: LeakyReLU(0.5)²
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: Partial RoPE 16/64
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: LN Scale 1/√(l+1)
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: Logit softcap 30
+  Upstream default: ✅
+  Ours: ✅
+  Notes: Fine
+  ────────────────────────────────────────
+  Technique: Coprime-stride loader
+  Upstream default: ✅ (#726→#1060), or simpler ShuffledSequenceLoader (#1394)
+  Ours: ❌ (sequential)
+  Notes: Our loader walks shards in order; PR #1394's human version calls this
+    "sequential loading → less batch diversity"
+  ────────────────────────────────────────
+  Technique: Sliding Window Attention w=256 + 5 full
+  Upstream default: —
+  Ours: ✅
+  Notes: We are ahead of upstream here. None of the top records use SWA during
+    training; they use full causal for the whole sequence
+  ────────────────────────────────────────
+  Technique: Seq length
+  Upstream default: 2048 (most), some 4096
+  Ours: 4096
+  Notes: Similar to PR #1493, good
+  ────────────────────────────────────────
+  Technique: Bank QAT (fake int6 STE on bank weights)
+  Upstream default: ❌
+  Ours: ✅
+  Notes: We are unique here. Upstream QAT only covers CastedLinear outputs
+  ────────────────────────────────────────
+  Technique: Legal score-first TTT
+  Upstream default: ✅ (most top records)
+  Ours: ❌
+  Notes: ~0.002–0.004 BPB gain at 300–400s eval cost
+  ────────────────────────────────────────
+  Technique: Muon TTT (NS-3 in inner loop)
+  Upstream default: ✅ (#1148)
+  Ours: ❌
+  Notes: Replaces SGD inner loop with zeropower_via_newtonschulz5 — we already
+    have the helper
+  ────────────────────────────────────────
+  Technique: Entropy-adaptive TTT epochs (2/3/4)
+  Upstream default: ✅ (#1148)
+  Ours: ❌
+  Notes: Gate 2/3/4 epochs on globally-synced chunk NLL
+
+  4. Adoption priority — ranked by marginal BPB per engineering hour
+
+  Working from our 1.1117 baseline with 5 days until 2026-04-30. Each item is a
+  delta we can isolate from the upstream record logs.
+
+  Tier 1 — cheap, documented, high expected gain
+
+  A. Tokenizer swap to SP4096 or SP8192.
+  - PR #1218 (SP4096) → 1.0979 from 1.1194 baseline on the same architecture =
+  −0.0215 BPB.
+  - PR #1394 (SP8192) → 1.0856, which is −0.033 BPB over our 1.1117.
+  - Cost: retokenizing FineWeb once (~60–90 min on a single H100), + ~50KB in
+  the tokenizer model in the 16MB budget. Use
+  data/download_hf_docs_and_tokenize.py with vocab_size=4096 or 8192, or
+  download @clarkkev's pre-tokenized dataset from kevclark/parameter-golf on HF.
+   The infrastructure works today; PR #1218 documents it fully.
+  - Risk: embedding matrix grows from (1024, 512) to (4096/8192, 512), eating
+  ~3MB of 16MB. Both top records solve this by GPTQ-quantizing the embedding at
+  int8.
+  - Expected at our stack: somewhere in −0.015 to −0.030 BPB, probably landing
+  us around 1.08–1.09 before any other change.
+
+  B. MuonEq-R (row-normalize gradients before Newton-Schulz).
+  - Implementation: 2 lines in Muon.step, right before
+  zeropower_via_newtonschulz5(...):
+  row_norms = g.float().norm(dim=-1, keepdim=True).clamp_min(1e-7)
+  g = g / row_norms.to(g.dtype)
+  - Gated by a row_normalize=True flag on the Muon param groups.
+  - Quoted cost per PR #1285: "Zero-byte cost, ~0.001 BPB improvement." Per PR
+  #1334 composition: part of −0.008 BPB over PR #1218.
+  - Expected at our stack: −0.001 to −0.002 BPB, no risk.
+
+  C. SDClip replaces percentile search.
+  - Our quantize_int6_gptq currently sweeps [0.999, 0.9995, 0.9999, 0.99999, 
+  1.0] per matrix picking min MSE. PR #1394 replaces this with clip = k · 
+  std(row) where k=12.85 for int6 matrices and k=20 for int8 embeddings. The k
+  values are tuned once so the artifact lands close to 16MB; they don't need
+  per-run search.
+  - Gain: the PR's mathematical justification (H(q) ≈ b - log₂(k) + const) shows
+   increasing k is equivalent to dropping a bit — so choosing k to target a
+  specific compressed size is principled and gives better recon-per-byte than
+  per-row MSE search.
+  - Cost: saves the percentile-search inner loop (our code runs GPTQ once per
+  candidate, wasting ~4× the budget). Faster, simpler, and directly controls
+  artifact size.
+  - Expected at our stack: −0.001 BPB from better quantization + more artifact
+  headroom to keep every layer at int6 (relevant to item E below).
+
+  D. Brotli-11 + byte-shuffle instead of LZMA-9.
+  - PR #1089 (original), PR #1179 (merged), PR #1218 (confirmed). Byte-shuffle
+  reorders the int6 tensor bytes such that high-order bits are contiguous,
+  improving the entropy profile Brotli sees.
+  - Cost: ~50 lines of Python; pip install brotli; decoder is ~10 lines in the
+  self-extracting wrapper.
+  - Gain quoted: ~5% smaller artifact vs LZMA on int6-quantized tensors. That's
+  ~800KB of headroom we can spend on something else (bigger embeddings, more
+  layers int6 instead of int5).
+  - Expected at our stack: indirect — on its own maybe −0.001 BPB, but enables
+  (E) below.
+
+  E. All-layer int6 via higher WD + SDClip + Brotli headroom.
+  - PR #1285's insight: bumping WD from 0.085 → 0.090 shrinks matrix L2 norms →
+  shrinks brotli size ~5% → artifact headroom lets you keep all 66 layers at
+  int6 (vs 60–61 int6 with 5–6 int5 demotions). Quoted gain: 1.0917 → 1.0912 =
+  −0.0005 BPB, small but free once (A)+(C)+(D) are in.
+  - Expected at our stack: probably not measurable alone; stacks with (A)(C)(D).
+
+  F. QK-Gain init 2.5 → 5.0 (or 5.25).
+  - Single env var. PR #1493 reports monotonic improvement from 4.0 → 5.25 on
+  their stack. PR #1413 attributes ~−0.003 BPB to jumping 4.0 → 5.0.
+  - Caveat: the optimum depends on the overall stack; at our SP1024 setup, 2.5
+  was tuned. But 2.5 looks too conservative compared to the wider community
+  consensus of 5.0. Worth a 3-seed sweep at {2.5, 4.0, 5.0, 5.25}.
+  - Expected at our stack: −0.001 to −0.003 BPB.
+
+  Tier 2 — structural but small, well-documented patches
+
+  G. MLP multiplier 3× → 4× (+ WD 0.085).
+  - PR #1218's headline change: simplifies everything else (removes TTT, QAT,
+  gated attention, value residuals, hash embeddings, smear gate) and the
+  remaining bigger-model-with-higher-WD goes from 1.1194 → 1.0979 = −0.0215 BPB.
+   Chunk of this is the SP4096 swap, but even in-domain the MLP 4x change is
+  non-negative.
+  - Cost: config change, but doubles MLP parameters and may push artifact over
+  16MB without (C)(D)(E). Do this after tokenizer + SDClip + Brotli.
+  - Expected at our stack: −0.005 to −0.010 BPB assuming it fits.
+
+  H. Depth recurrence on layers 4–5 (× 2) activated at 50%.
+  - PR #1285 and #1334 wire this through encoder_indices/decoder_indices lists
+  built at model init. The forward pass toggles between linear and looped
+  iteration at step = enable_looping_at * total_iterations. Shares the
+  MLP+attention weights but the recurrence is only on layers 4,5 (and PR #1493
+  extends to 3,4,5 for the 3-layer version).
+  - Trade-off: each recurrence pass adds a full block-time; PR #1204 reports
+  that recurring 3 layers already loses to step-time penalty.
+  - Gain: PR #1285 reports "~0.003 BPB improvement" for layers 4,5 looped once.
+  PR #1493's 3-layer variant is ~−0.002 BPB on top of 2-layer.
+  - Implementation cost: ~40 lines in GPT.__init__ + forward_logits + a
+  scheduler hook. Our train_gpt_swa.py:839-900 has a flat block iteration —
+  refactor to drive by encoder_indices/decoder_indices.
+  - Expected at our stack: −0.002 to −0.004 BPB.
+
+  I. Parallel residuals from layer 7.
+  - Two variants:
+    - PR #1412 (simpler, non-record but well-tested): same input to both attn
+  and MLP, both add to same residual.
+    - PR #1204/#1477 (more capacity): separate residual lanes with learnable
+  lane_merge init 0.5.
+  - Gain per PR #1204: ~0.002 BPB. Per PR #1477: this + score-first TTT composes
+   additively.
+  - Implementation: ~20 lines in Block.forward conditional on layer_idx >= 
+  PARALLEL_START_LAYER.
+  - Expected at our stack: −0.001 to −0.003 BPB.
+
+  Tier 3 — bigger ROI but heavier integration cost
+
+  J. Legal score-first TTT.
+  - The protocol across PR #549, #1413, #1493, #1148 is identical: 32K-token
+  chunks, score each chunk under torch.inference_mode(), then SGD/Muon update
+  the model on the already-scored chunk before moving to the next. Total eval
+  time grows from ~80s sliding to ~480s.
+  - Gain quoted:
+    - SGD TTT (PR #549): −0.0025 BPB over sliding.
+    - Muon TTT (PR #1148): −0.0037 BPB over sliding.
+    - Entropy-adaptive Muon TTT (PR #1148): −0.0037 BPB, but concentrates budget
+   on hard chunks.
+  - Implementation: ~150 lines for the TTT loop + hyperparameter config; reuses
+  our existing zeropower_via_newtonschulz5.
+  - Risk: 2026-04-30 hard deadline; testing eats compute. Our eval
+  infrastructure would need a score-first two-phase loop. Adds ~400s to eval.
+  - Expected at our stack: −0.003 to −0.004 BPB if the rest of the stack is
+  still underperforming (bigger gain on weaker model).
+
+  K. Coprime-stride multi-shard loader.
+  - PR #1060 / PR #726 style. Walks multiple shards at coprime strides so
+  consecutive batches come from different documents.
+  - Gain: not isolable in the records but @clarkkev's PR #1218 credits it with
+  part of the jump. "Zero step time overhead" per PR #1060.
+  - Implementation: ~60 lines replacing DistributedTokenLoader. Risk low; shards
+   are pre-tokenized, no training change.
+  - Expected at our stack: −0.001 to −0.002 BPB. Worth bundling with tokenizer
+  swap.
+
+  Tier 4 — gatekept by 5-day budget or other constraints
+
+  L. Scylla-class TokenMonster tokenizer (our own).
+  - Would require: running TokenMonster vocab construction on FineWeb (hours to
+  days of CPU), retokenizing all training shards (90 min), adjusting our loader
+  to read non-SentencePiece token IDs with a LUT similar to load_tokenizer_luts.
+   Upside: could match or surpass 0.9485. Downside: the setup time is real, and
+  we might end up with a worse tokenizer than candidate.vocab — picking good
+  TokenMonster training corpora/hyperparameters isn't free.
+  - Expected at our stack: potentially −0.10 to −0.15 BPB, but only if execution
+   works in <4 days.
+
+  M. Hessian-aware SDClip (PR #1412 non-record).
+  - Modulates SDClip k per row by Hessian diagonal importance with λ=0.175.
+  Reported gain ~−0.001 BPB and it's a non-record (self-admitted too few seeds).
+   Low priority.
+
+  5. What not to carry over
+
+  - Our SWA w=256 + 5 full is actually a differentiator at seq_len=4096. None of
+   the top records use SWA during training — they run full-attention for the
+  whole seq_len. Our SWA lowers step time enough to afford longer seq_len or
+  more steps; keep it.
+  - Bank QAT is also our differentiator. 3-seed data showed it doesn't hurt at
+  our LR schedule (QAT only triggers at LR-scale < 0.15, giving ~560 steps).
+  Upstream doesn't have this on bank weights — keep it and hope it stacks.
+  - Don't revert QK-Gain 2.5 → 1.5 (the older nanogpt default). The direction of
+   travel is higher, not lower.
+  - Don't add SmearGate back if we already removed it. PR #1218 explicitly
+  removed it when going to SP4096 and it didn't hurt.
+  - Don't adopt SGD-only TTT if we adopt TTT. Muon TTT (PR #1148) dominates SGD
+  TTT on identical wallclock.
+
+  6. Recommended 5-day plan
+
+  Given 2026-04-30 cutoff and our current 1.1117:
+
+  Day 1–2 — tokenizer + quantization overhaul (highest expected gain per day).
+  1. Retokenize FineWeb with SP4096 (safer) or SP8192 (bigger win). Use
+  data/download_hf_docs_and_tokenize.py; bump embedding width to handle
+  vocab_size=4096 or 8192.
+  2. Replace _quantize_int6_percentile inner loop with SDClip c = k · std(row),
+  k=12.85 int6 / k=20 int8 embeddings.
+  3. Swap LZMA for byte-shuffle + Brotli-11. Verify artifact size < 16MB.
+  4. Bump muon_wd 0.04 → 0.085, add embed_wd = 0.085.
+  5. Bump mlp_mult 3 → 4 if artifact fits.
+  6. 3-seed run. Expected landing: 1.07–1.08 BPB.
+
+  Day 3 — optimizer + architecture shims.
+  7. Add MuonEq-R row-normalize flag on the bank Muon.
+  8. Bump QK_GAIN_INIT 2.5 → 5.0.
+  9. Wire depth recurrence on layers 4,5 with activation at 50% of training.
+  10. 3-seed run. Expected landing: 1.06–1.07 BPB.
+
+  Day 4 — parallel residuals, optional.
+  11. Add parallel residuals from layer 7 with learned lane_merge.
+  12. 3-seed run. Expected landing: slight additional −0.002 BPB.
+
+  Day 5 — TTT if time remains.
+  13. Legal score-first Muon TTT, 32K chunks, NS=3, LR=0.002, 2/3/4
+  entropy-adaptive epochs.
+  14. Final 3-seed run, submit.
+
+  If only 2 days remain, skip to Day 1–2 only. Tokenizer + SDClip + Brotli + WD
+  gives the largest per-day jump and is the lowest-risk cluster.
+
+  ---
+  7. Critical/dissenting notes
+
+  1. The 0.9485 Scylla record is a tokenizer result, not an ML result. It
+  compounds the PR #1060 stack with external tokenizer compute. If the user's
+  goal is to understand what's architecturally new, ignore Scylla's BPB headline
+   and focus on #1493 (the top "ML" submission).
+  2. Our 1.1117 is a legitimate non-record submission for SP1024. On a
+  like-for-like basis (same tokenizer), we sit 0.0005 below PR #1060 and 0.0002
+  above PR #1148. If we never touch the tokenizer, our ceiling is probably ~1.10
+   with MuonEq-R + SDClip + Brotli + higher WD, which would be a meaningful
+  SP1024 record but non-competitive vs SP8192.
+  3. The leaderboard README is stale. The top line still says 1.0810. Scylla at
+  0.9485 merged two days ago and #1060/#1148 merged on the same day. Expect the
+  README to catch up this week; the challenge ends 2026-04-30. This means:
+  submitting against 1.0810 may still be evaluated if the reviewer hasn't
+  processed Scylla yet, but do not assume that.
+  4. TTT protocols are contested. Issue #1017 defines 4 conditions (causality,
+  normalized distribution, score-before-update, single-pass). Every new TTT
+  record cites them. If we add TTT, the eval code must structurally satisfy all
+  4 — we cannot bolt it on casually.
+  5. Bank QAT's benefit was not clearly demonstrated in our 3-seed data — it ran
+   for only ~560 steps at LR-scale < 0.15 and left the quant gap unchanged. If
+  it's not paying rent on top of the new stack, delete it to save artifact bytes
+   for SDClip/Brotli/bigger embeddings.
+
+  Summary
+
+  Our stack was competitive on SP1024 as of 2026-03-29 but the leaderboard has
+  moved decisively to larger vocabs + MuonEq-R + SDClip + Brotli + depth
+  recurrence + parallel residuals + Muon TTT. The Scylla 0.9485 headline is
+  tokenizer engineering, not a new architecture. With 5 days left, the
+  highest-ROI path is: SP4096/SP8192 tokenizer + SDClip + Brotli + WD 0.085 + 
+  MLP 4× + MuonEq-R + QK-Gain 5.0 + depth recurrence, which should land around
+  1.06–1.07 BPB without TTT. Legal score-first Muon TTT is the last 0.003–0.004
+  BPB on top if time allows.
+
+✻ Cogitated for 8m 29s
+
+❯ yeah, so we have full 5 days left. let's focus on the most imp changes first  
+  that will close the biggest gap. document everything in a markdown file       
+
+● Your account does not have access to Claude Code. Please run /login.
+
+❯ /login                                                                        
+  ⎿  Login interrupted
+
+❯ /login                                                                        
+  ⎿  Login interrupted
