@@ -10,11 +10,15 @@
 #   - If the log file doesn't exist yet (script called before run_experiment.sh
 #     has started writing), waits up to MAX_WAIT_SECONDS for it to appear.
 #   - Exits early if the python training process dies before reaching N
-#     (pgrep "python train_gpt.py").
-#   - Exits early if the log file goes stale for >LOG_STALE_SECONDS (process
-#     hung, or pgrep matched the wrong python — defense in depth).
+#     (pgrep "train_gpt.py", case-insensitive).
+#   - Exits early if the log file goes stale for >LOG_STALE_SECONDS, BUT only
+#     while training is still in progress. Once the final training step
+#     (step:M/M train_loss:...) has been logged, the stale-mtime check is
+#     suppressed because eval_val runs as a single computation that doesn't
+#     log incrementally — minutes of legitimate silence then.
 #   - Hard ceiling of MAX_WAIT_SECONDS (default 600) so the script never hangs
-#     a Bash background task forever.
+#     a Bash background task forever. Override if you need to wait through a
+#     full-val eval (which can take >10 min on MPS).
 #
 # Override defaults via env vars: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
 
@@ -35,9 +39,12 @@ full ~5 min wait, and also for peeking mid-run at any step threshold (e.g.
 n=100 to inspect through step 100).
 
 Exits early on:
-  - python process gone (pgrep "python train_gpt.py")
-  - log mtime stale > LOG_STALE_SECONDS (default 60) — handles hung Python
-  - hard timeout > MAX_WAIT_SECONDS (default 600)
+  - python process gone (pgrep "train_gpt.py")
+  - log mtime stale > LOG_STALE_SECONDS (default 60) — handles hung Python.
+    Suppressed once the final training step has been logged, because eval_val
+    is a single long computation that doesn't log incrementally.
+  - hard timeout > MAX_WAIT_SECONDS (default 600). Bump this if you're
+    waiting through a full-val eval (>10 min on MPS).
 
 Env overrides: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
 EOF
@@ -56,6 +63,13 @@ log_mtime() {
   stat -f %m "$LOG" 2>/dev/null || stat -c %Y "$LOG" 2>/dev/null || echo 0
 }
 elapsed() { echo $(( $(date +%s) - START_EPOCH )); }
+
+# Did training finish? Final-step line has the form `step:M/M train_loss:...`
+# where the iteration index equals the iteration total. After that, eval can
+# run silently for minutes and that's expected.
+training_done() {
+  grep -qE '^step:([0-9]+)/\1 train_loss:' "$LOG" 2>/dev/null
+}
 
 # Phase 1: wait for the log file to be created.
 while [[ ! -f "$LOG" ]]; do
@@ -80,11 +94,14 @@ while true; do
   fi
 
   # Crash signal 2: log not growing — process hung or pgrep is matching the
-  # wrong python.
-  log_age=$(( $(date +%s) - $(log_mtime) ))
-  if (( log_age > LOG_STALE_SECONDS )); then
-    echo "(log idle for ${log_age}s — assuming run is hung; ${count} step lines so far)" >&2
-    break
+  # wrong python. Skipped during eval (post-final-training-step), since
+  # eval_val legitimately runs for minutes without incremental logging.
+  if ! training_done; then
+    log_age=$(( $(date +%s) - $(log_mtime) ))
+    if (( log_age > LOG_STALE_SECONDS )); then
+      echo "(log idle for ${log_age}s — assuming run is hung; ${count} step lines so far)" >&2
+      break
+    fi
   fi
 
   # Hard ceiling.
