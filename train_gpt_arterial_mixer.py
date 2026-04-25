@@ -122,6 +122,8 @@ class Hyperparameters:
     artery_embed_init_std = float(os.environ.get("ARTERY_EMBED_INIT_STD", 0.0))
     mixer_unet_residual_kv = bool(int(os.environ.get("MIXER_UNET_RESIDUAL_KV", "0")))
     mixer_unet_residual_xsa_only = bool(int(os.environ.get("MIXER_UNET_RESIDUAL_XSA_ONLY", "0")))
+    mixer_slot_rope = bool(int(os.environ.get("MIXER_SLOT_ROPE", "0")))
+    mixer_slot_rope_base = float(os.environ.get("MIXER_SLOT_ROPE_BASE", os.environ.get("ROPE_BASE", 10000.0)))
     val_logit_merge = os.environ.get("VAL_LOGIT_MERGE", "mean")
     train_head_loss_weight = float(os.environ.get("TRAIN_HEAD_LOSS_WEIGHT", "1.0"))
     ortho_embed_scale = float(os.environ.get("ORTHO_EMBED_SCALE", os.environ.get("TIED_EMBED_INIT_STD", 0.005)))
@@ -840,6 +842,13 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
+def apply_rotary_emb_positions(x: Tensor, cos_table: Tensor, sin_table: Tensor, positions: Tensor) -> Tensor:
+    cos = cos_table[0, 0, positions, :].to(dtype=x.dtype)
+    sin = sin_table[0, 0, positions, :].to(dtype=x.dtype)
+    view_shape = (1,) * (x.ndim - 2) + cos.shape
+    return apply_rotary_emb(x, cos.view(view_shape), sin.view(view_shape))
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -1062,6 +1071,8 @@ class ArteryMixer(nn.Module):
         mixer_dim: int,
         mixer_heads: int,
         mixer_scale_init: float,
+        mixer_slot_rope: bool,
+        mixer_slot_rope_base: float,
     ):
         super().__init__()
         if mixer_dim <= 0:
@@ -1077,6 +1088,8 @@ class ArteryMixer(nn.Module):
         self.proj = CastedLinear(mixer_dim, artery_dim, bias=False)
         self.proj._zero_init = True
         self.mixer_scale = nn.Parameter(torch.full((artery_dim,), mixer_scale_init, dtype=torch.float32))
+        self.mixer_slot_rope = mixer_slot_rope
+        self.slot_rotary = Rotary(self.head_dim, base=mixer_slot_rope_base) if mixer_slot_rope else None
 
     def forward(
         self,
@@ -1100,6 +1113,15 @@ class ArteryMixer(nn.Module):
         v = v.transpose(2, 3)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
+        if self.mixer_slot_rope:
+            slot_positions = torch.zeros((source_count,), dtype=torch.long, device=x.device)
+            if residual_kv is not None:
+                slot_positions[arteries:] = 1
+            slot_count = 2 if residual_kv is not None else 1
+            cos, sin = self.slot_rotary(slot_count, x.device, q.dtype)
+            q_positions = torch.zeros((arteries,), dtype=torch.long, device=x.device)
+            q = apply_rotary_emb_positions(q, cos, sin, q_positions)
+            k = apply_rotary_emb_positions(k, cos, sin, slot_positions)
         scores = (q @ k.transpose(-1, -2)) * (self.head_dim ** -0.5)
         route = F.elu(scores)
         mixed = (route @ v) / max(source_count, 1)
@@ -1130,6 +1152,8 @@ class ArterialLayer(nn.Module):
         mixer_heads: int,
         mixer_scale_init: float,
         artery_embed_init_std: float,
+        mixer_slot_rope: bool,
+        mixer_slot_rope_base: float,
     ):
         super().__init__()
         self.arteries = nn.ModuleList(
@@ -1159,6 +1183,8 @@ class ArterialLayer(nn.Module):
                 mixer_dim,
                 mixer_heads,
                 mixer_scale_init,
+                mixer_slot_rope,
+                mixer_slot_rope_base,
             )
             if use_mixer and num_arteries > 1
             else None
@@ -1208,6 +1234,8 @@ class GPT(nn.Module):
         artery_embed_init_std: float,
         mixer_unet_residual_kv: bool,
         mixer_unet_residual_xsa_only: bool,
+        mixer_slot_rope: bool,
+        mixer_slot_rope_base: float,
         val_logit_merge: str,
         train_head_loss_weight: float,
         ortho_embed_scale: float,
@@ -1322,6 +1350,8 @@ class GPT(nn.Module):
                     mixer_heads,
                     mixer_scale_init,
                     artery_embed_init_std,
+                    mixer_slot_rope,
+                    mixer_slot_rope_base,
                 )
                 for i in range(num_layers)
             ]
@@ -1337,14 +1367,9 @@ class GPT(nn.Module):
 
     @staticmethod
     def build_unet_residual_sources(num_layers: int) -> dict[int, int]:
-        if num_layers != 8:
-            raise ValueError("MIXER_UNET_RESIDUAL_KV currently expects NUM_LAYERS=8")
-        return {
-            4: 3,
-            5: 2,
-            6: 1,
-            7: 0,
-        }
+        split = num_layers // 2
+        decoder_len = num_layers - split
+        return {split + i: split - 1 - i for i in range(decoder_len) if split - 1 - i >= 0}
 
     def _init_weights(self) -> None:
         if self.tie_embeddings and self.num_arteries == 1:
@@ -1600,6 +1625,8 @@ def main() -> None:
         artery_embed_init_std=args.artery_embed_init_std,
         mixer_unet_residual_kv=args.mixer_unet_residual_kv,
         mixer_unet_residual_xsa_only=args.mixer_unet_residual_xsa_only,
+        mixer_slot_rope=args.mixer_slot_rope,
+        mixer_slot_rope_base=args.mixer_slot_rope_base,
         val_logit_merge=args.val_logit_merge,
         train_head_loss_weight=args.train_head_loss_weight,
         ortho_embed_scale=args.ortho_embed_scale,
