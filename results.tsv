@@ -51,3 +51,4 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0051_muon_backend_steps_15	canonical	2.10971211	2.1084	0.001312	15.18	3836.02	false	false	keep	MUON_BACKEND_STEPS=15 (vs 10); Δ=+0.013 vs 0049 (direct promote). Newton-Schulz keeps improving with more iterations. [transfer:med]
 0052_muon_backend_steps_20	canonical	2.11804372	2.1162	0.001844	15.245	3940.53	false	false	discard	MUON_BACKEND_STEPS=20; Δ=-0.008 vs 0051 (15 steps). Orthogonalization saturates between 15 and 20. 0051 is near optimum.
 0053_muon_backend_steps_12	canonical	2.11943984	2.1171	0.00234	15.24	3775.97	false	false	discard	MUON_BACKEND_STEPS=12; Δ=-0.010 vs 0051 (15). Confirms 15 as optimum (5/10/12/15/20 sweep complete).
+0054_matrix_lr_04_muon_15	canonical	2.12467781	2.1226	0.002078	14.812	3891.02	false	false	discard	MATRIX_LR=0.04 + MUON=15; Δ=-0.015 vs 0051. LR=0.045 stays optimal.
