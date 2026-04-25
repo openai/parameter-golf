@@ -21,3 +21,4 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0021_matrix_lr_06_on_winner	canonical	2.20995664	2.2087	0.001257	15.25	2559.46	false	false	keep	MATRIX_LR=0.06 (1.5x baseline) on 0020 winner; Δ=+0.016 vs 0020, clean. Artifact 15.25 MB (tight). [transfer:med]
 0022_tied_embed_lr_075_on_winner	canonical	2.22164414	2.2205	0.001144	15.186	2488.20	false	false	discard	TIED_EMBED_LR=0.075 (1.5x); Δ=-0.012 (HURTS). Embedding LR more sensitive than matrix LR.
 0023_tied_embed_init_std_02_on_winner	canonical	2.19846699	2.1969	0.001567	15.42	2461.66	false	false	keep	TIED_EMBED_INIT_STD=0.02 (4x baseline) on 0021 winner; Δ=+0.011 (just over noise floor); clean pre/post match [transfer:high]
+0024_tied_embed_init_std_05_on_winner	canonical	2.17102542	2.1703	0.000725	15.592	2547.36	false	false	keep	TIED_EMBED_INIT_STD=0.05 (10x baseline); Δ=+0.027 vs 0023, clean. Init still paying. [transfer:high]

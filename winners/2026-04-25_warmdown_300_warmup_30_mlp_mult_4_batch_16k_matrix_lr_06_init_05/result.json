@@ -1,0 +1,26 @@
+{
+  "id": "0024_tied_embed_init_std_05_on_winner",
+  "parent": "canonical",
+  "created_at": "2026-04-25T06:31:01Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.1703,
+    "val_bpb_post_quant": 2.17102542,
+    "val_loss_pre_quant": 3.7093,
+    "val_loss_post_quant": 3.71056743,
+    "quant_tax": 0.000725,
+    "step_avg_ms": 2547.36,
+    "num_steps": 200.0,
+    "artifact_bytes": 15591865.0,
+    "artifact_mb": 15.592,
+    "code_bytes": 50110.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}

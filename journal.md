@@ -2,7 +2,9 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.1985** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_16k_matrix_lr_06_init_02`, exp 0023). TIED_EMBED_INIT_STD=0.02 (4× baseline). Artifact 15.42 MB (0.58 MB cap headroom). Δ=+0.011 vs 0021.
+- **Best so far: 2.17103** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_16k_matrix_lr_06_init_05`, exp 0024). TIED_EMBED_INIT_STD=0.05 (10× baseline). Δ=+0.027 vs 0023.
+- Init scaling has accelerating returns: 0.005→0.02 gave +0.011, 0.02→0.05 gave +0.027 (bigger gain on smaller multiplier). The canonical init=0.005 was substantially under-initialized for this regime. Try 0.1 next.
+- Prior winner: 2.19847 (exp 0023, init=0.02).
 - TIED_EMBED_LR=0.075 (0022) HURT by 0.012 — embedding LR is more sensitive than matrix LR. But TIED_EMBED_INIT_STD=0.02 (0023) HELPED by 0.011 — bigger init is a separable, complementary lever.
 - LR scaling is a separable lever from schedule shape: schedule changes *shape*, MATRIX_LR changes *magnitude* across the curve.
 - Schedule push diminishing returns: 0005 (+0.116) → 0015 (+0.055) → 0020 (+0.029).
