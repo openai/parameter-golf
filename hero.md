@@ -49,24 +49,44 @@ Three-category blacklist is enforced by category, not just by name.
 | Standard Lib   | pathlib          | File path handling                           |
 | Standard Lib   | sys              | Process control                              |
 
-### Blacklist — Three Categories (Logic Drift flags by category)
+### Blacklist — Two Severity Tiers (Logic Drift flags by severity, not by category alone)
 
-**Category 1 — Data Sneaking:**
-transformers, datasets (if pulling non-approved data), any library that downloads weights on import.
-Rationale: bundled pre-trained weights or external datasets violate competition rules.
+Severity distinction matters: a Tier A breach risks disqualification, a Tier B breach only costs training time. Watchdog should surface them differently (red vs. yellow) so the sprint signal is honest.
 
-**Category 2 — External Calls:**
-requests, urllib3, httpx, selenium, aiohttp.
-Rationale: network calls during evaluation are a disqualification risk.
+**Tier A — Competition Rule Violations (Disqualification Risk, RED)**
 
-**Category 3 — Pure Torch Violations:**
-numpy, scipy, sklearn, pandas.
-Rationale: torch.Tensor → numpy.ndarray triggers CUDA sync + PCIe transfer.
-One sync call in a 600-second H100 window is not recoverable.
+Libraries here violate the official OpenAI Parameter Golf rules. A submission that imports any of these at eval time is not a valid record. Watchdog flags these as critical.
 
-**Also blocked (visualisation/logging):**
-matplotlib, seaborn, plotly, tensorboard, wandb, tqdm.
-Rationale: not needed in production training loop; tqdm acceptable in dev but blocked in sprint.
+| Library          | Rule Violated                                                              |
+|------------------|----------------------------------------------------------------------------|
+| transformers     | README §171: bundled pretrained weights violate "no external downloads"    |
+| datasets (if pulling non-approved data) | README §171: external dataset access prohibited at eval   |
+| requests         | README §171, §184: network calls during evaluation are prohibited          |
+| urllib3          | Same as requests                                                           |
+| httpx            | Same as requests                                                           |
+| aiohttp          | Same as requests                                                           |
+| selenium         | Same as requests, plus browser automation                                  |
+
+Rationale: these fail the air-gap and artifact-containment requirements in README.md §171 ("No external downloads, training dataset access, or network calls are allowed during evaluation. The artifact must be fully self-contained and reproducible"). A single call here is disqualifying.
+
+**Tier B — Performance Discipline (Optimization Risk Only, YELLOW)**
+
+Libraries here are **legal** under official rules — README §194 explicitly allows any library that doesn't violate evaluation/compute/size rules ("importing FlashAttention, etc. is completely fine"). They are blocked by Kiro for the 10-min 8×H100 training window only, to protect the 600-second wallclock budget. Watchdog flags these as warnings, not violations. Removing them makes the sprint faster; it does not make the submission legal (it is already legal).
+
+| Library       | Why Avoided                                                                   |
+|---------------|-------------------------------------------------------------------------------|
+| numpy         | torch.Tensor → ndarray triggers CUDA sync + PCIe transfer; unrecoverable in 600s |
+| scipy         | Depends on numpy; inherits the same sync cost                                 |
+| sklearn       | Depends on numpy; plus heavy import cost                                      |
+| pandas        | Depends on numpy; plus object-dtype overhead                                  |
+| tqdm          | Print/IO overhead per step; acceptable in dev, blocked in sprint              |
+| matplotlib    | Not needed in training loop                                                   |
+| seaborn       | Not needed in training loop                                                   |
+| plotly        | Not needed in training loop                                                   |
+| tensorboard   | Not needed in training loop                                                   |
+| wandb         | Network + logging overhead; acceptable in dev, blocked in sprint              |
+
+Rationale: none of these libraries are prohibited by OpenAI. They are self-imposed performance constraints. A "Tier B violation" in the audit log means "you are leaving sprint-time on the table", not "your submission is invalid".
 
 ---
 
