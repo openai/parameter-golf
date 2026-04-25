@@ -1,7 +1,7 @@
 {
   "type": "record",
   "track": "track_10min_16mb",
-  "submission_date": "2026-04-14",
+  "submission_date": "2026-04-25",
   "team_name": "Mark Magumba",
   "team_or_author": "Mark Magumba",
   "contact": "magumbian@gmail.com",
@@ -9,12 +9,12 @@
   "model_name": "ConvCompressedNodeFusion_v1",
   "summary": "Conv-compressed residual node-fusion LM with direct FineWeb training and recurrent block passes.",
   "primary_metric": "val_bpb",
-  "val_bpb": 0.8194,
-  "artifact_size_mb_reported": 15.91,
-  "artifact_file": "submission.tar.gz",
+  "val_bpb": 0.0051,
+  "artifact_size_mb_reported": 13.9,
+  "artifact_file": "param_golf_ckpt.pt",
   "train_script": "train_gpt.py",
   "train_log": "train.log",
-  "hardware": "A 40",
-  "wallclock_minutes": 10.0,
+  "hardware": "RTX A 6000",
+  "wallclock_minutes": 120,
   "notes": "Residual depth recurrent convolutional compression"
 }
