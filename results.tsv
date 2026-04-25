@@ -22,3 +22,15 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0022_tied_embed_lr_075_on_winner	canonical	2.22164414	2.2205	0.001144	15.186	2488.20	false	false	discard	TIED_EMBED_LR=0.075 (1.5x); Δ=-0.012 (HURTS). Embedding LR more sensitive than matrix LR.
 0023_tied_embed_init_std_02_on_winner	canonical	2.19846699	2.1969	0.001567	15.42	2461.66	false	false	keep	TIED_EMBED_INIT_STD=0.02 (4x baseline) on 0021 winner; Δ=+0.011 (just over noise floor); clean pre/post match [transfer:high]
 0024_tied_embed_init_std_05_on_winner	canonical	2.17102542	2.1703	0.000725	15.592	2547.36	false	false	keep	TIED_EMBED_INIT_STD=0.05 (10x baseline); Δ=+0.027 vs 0023, clean. Init still paying. [transfer:high]
+0025_tied_embed_init_std_1_on_winner	canonical	2.26673757	2.2658	0.000938	15.913	2454.23	false	false	discard	TIED_EMBED_INIT_STD=0.1 (20x baseline); Δ=-0.096 vs 0024 (overshoots). Init optimum is near 0.05.
+0026_logit_softcap_15_on_winner	canonical	2.21480550	2.2128	0.002006	15.534	2454.63	false	false	discard	LOGIT_SOFTCAP=15 (vs default 30); Δ=-0.044 (HURTS). Tighter cap clips useful signal.
+0027_warmdown_250_warmup_35	canonical	2.16212926	2.1605	0.001629	15.964	2450.56	false	false	discard	WARMDOWN=250+WARMUP=35 SEED=1337 Δ=+0.009; refuted by 0028 SEED=42 (Δ=+0.001). Mean Δ 0.005 — schedule plateau.
+0028_warmdown_250_warmup_35_seed42	canonical	2.17008886	2.1696	0.000489	15.964	2462.94	false	false	discard	SEED=42 of 0027; Δ=+0.001 (noise). Disconfirms 0027 marginal gain. Schedule push axis done.
+0029_muon_momentum_09	canonical	2.16772949	2.1658	0.001929	15.512	2453.08	false	false	discard	MUON_MOMENTUM=0.9 (vs 0.95); Δ=+0.003 (noise band).
+0030_muon_momentum_085	canonical	2.16829174	2.1669	0.001392	15.438	2455.19	false	false	discard	MUON_MOMENTUM=0.85; Δ=+0.003 (noise). Same magnitude as 0029 — momentum not a meaningful axis here.
+0031_scalar_lr_06_on_winner	canonical	2.18277135	2.1813	0.001471	15.582	2550.40	false	false	discard	SCALAR_LR=0.06 (1.5x); Δ=-0.012 (HURTS). Like TIED_EMBED_LR — small-param-count LRs are sensitive; only MATRIX_LR scales up.
+0032_beta2_099_on_winner	canonical	2.16153893	2.1612	0.000339	15.587	2454.68	false	false	discard	BETA2=0.99 SEED=1337 Δ=+0.010; refuted by 0033 SEED=42 (Δ=-0.006). Cross-seed Δ 0.015 — freak.
+0033_beta2_099_on_winner_seed42	canonical	2.17668594	2.1746	0.002086	15.59	2457.87	false	false	discard	SEED=42 of 0032; Δ=-0.006 vs 0024. Disconfirms BETA2=0.99 effect.
+0034_beta1_095_on_winner	canonical	2.19509351	2.1937	0.001394	15.588	2454.45	false	false	discard	BETA1=0.95 (vs 0.9 default); Δ=-0.024 (HURTS). Adam beta1 default is correct.
+0035_rope_base_20k_on_winner	canonical	2.16856078	2.1663	0.002261	15.595	2453.33	false	false	discard	ROPE_BASE=20000 (vs 10000 default); Δ=+0.0025 (noise). RoPE base not a meaningful axis at seq=1024.
+0036_batch_24k_lr_045	canonical	2.12602891	2.1233	0.002729	14.619	3642.25	false	false	keep	batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 winner; Δ=+0.045 vs 0024. Bigger batch at *lower* LR works — refutes 0018 batch-ceiling hypothesis. [transfer:high]

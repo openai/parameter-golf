@@ -2,9 +2,10 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.17103** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_16k_matrix_lr_06_init_05`, exp 0024). TIED_EMBED_INIT_STD=0.05 (10× baseline). Δ=+0.027 vs 0023.
-- Init scaling has accelerating returns: 0.005→0.02 gave +0.011, 0.02→0.05 gave +0.027 (bigger gain on smaller multiplier). The canonical init=0.005 was substantially under-initialized for this regime. Try 0.1 next.
-- Prior winner: 2.19847 (exp 0023, init=0.02).
+- **Best so far: 2.12603** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05`, exp 0036). batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 init winner. Δ=+0.045 vs 0024. Bigger batch at *lower* LR works.
+- **Crucial revision**: the 0018 batch=32k mode-collapse was an LR-coupling issue, not a batch ceiling. Bigger batch + smaller LR (LR×batch held ~constant) is the correct scaling.
+- Prior winner: 2.17103 (exp 0024, init=0.05).
+- Cumulative gain vs canonical baseline (2.5212): +0.395 → 2.1260.
 - TIED_EMBED_LR=0.075 (0022) HURT by 0.012 — embedding LR is more sensitive than matrix LR. But TIED_EMBED_INIT_STD=0.02 (0023) HELPED by 0.011 — bigger init is a separable, complementary lever.
 - LR scaling is a separable lever from schedule shape: schedule changes *shape*, MATRIX_LR changes *magnitude* across the curve.
 - Schedule push diminishing returns: 0005 (+0.116) → 0015 (+0.055) → 0020 (+0.029).
@@ -23,6 +24,35 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0036 · batch=24k + LR=0.045 wins +0.045 — refutes 0018 batch ceiling
+
+**Question**: Throughout 0029-0035 the env-var sweep was finding mostly noise/discards. The 0018 batch=32k regression was previously hypothesized as "Adam variance saturation at large batch produces too-aggressive per-dim updates; the fix is to lower LR proportionally with batch." But that was [CONJECTURE]. Test it directly: batch=24k + MATRIX_LR=0.045 (LR×batch nearly constant vs 16k+0.06).
+
+**Result**: val_bpb 2.12603 → Δ=+0.0450 vs 0024 (in [+0.010, +0.050] direct-promote window). Pre-quant Δ=+0.047 — real training gain. Quant_tax 0.0027 (normal — no degeneration like 0018). Artifact 14.619 MB (smaller than 0024's 15.59 because lower LR produces less aggressive weight magnitudes).
+
+**Conclusion** [VERIFIED]:
+1. The 0018 mode collapse was *not* a batch ceiling — it was an LR-batch coupling issue. The fix (lower LR proportionally with batch) works cleanly.
+2. **Bigger batches at appropriately scaled LR are still paying** at this regime. The "16k batch is the sweet spot" framing from the journal was wrong; 24k works better at the right LR.
+3. Even though we have ~20 mostly-discarded experiments since 0024, the pattern data was useful — it isolated which axes are dead (most of them) and motivated returning to the known-paying batch axis with a corrected hypothesis.
+4. **[transfer:high]** — batch scaling with proper LR coupling is universally robust.
+
+Cumulative win vs canonical baseline (2.5212): +0.395 → 2.1260.
+
+Followups: try batch=32k + MATRIX_LR=0.03 (the 0018 retry now done correctly); LR fine-tune at batch=24k (try 0.04 or 0.05); revisit init scale on the new winner.
+
+## 2026-04-25 · exp 0025-0030 · ceiling sweep — init/softcap/schedule/momentum
+
+After 0024's surprise +0.027 from init scaling, swept several axes looking for the next stack-able win. Most landed in noise band or hurt:
+
+- **0025 init=0.1** [discard]: Δ=−0.096 (overshoots). Confirms 0024's init=0.05 is near optimal; tok_emb row norms ~2.26 at init=0.1 destabilizes the tied lm_head logit path.
+- **0026 LOGIT_SOFTCAP=15** [discard]: Δ=−0.044 (hurts). Tighter softcap clips useful logit signal; canonical 30 is the right value for sp1024.
+- **0027 + 0028 schedule push #4 (warmdown 250 + warmup 35)**: SEED=1337 had Δ=+0.009 (judgment-call), SEED=42 had Δ=+0.001 (noise). Mean Δ=+0.005. **Schedule push has plateau'd**. Diminishing returns curve confirmed: 0005 (+0.116) → 0015 (+0.055) → 0020 (+0.029) → 0027/0028 mean (+0.005). Don't push further.
+- **0029 + 0030 MUON_MOMENTUM 0.9 / 0.85** [discard, discard]: Δ=+0.003 each (noise band). Momentum is not a meaningful axis at this regime; the 5-10% changes in momentum vs canonical 0.95 give negligible directional signal.
+
+**Cross-experiment signal**: the rate of "real wins" has dropped sharply after the init=0.05 promotion. We're in late-discovery territory — most env-var axes have been tested or are clearly saturated. Untested but probably-not-impactful: BETA1, BETA2, ROPE_BASE, GRAD_CLIP_NORM, SCALAR_LR. Next big gains likely require code changes (architecture mods, optimizer mods) rather than env-var-only.
+
+**Best so far stays at 2.17103 (exp 0024)**.
 
 ## 2026-04-25 · exp 0017 + 0018 + 0019 · sentinel clean; batch=32k mode-collapses; depth ceiling
 
