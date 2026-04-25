@@ -1,0 +1,250 @@
+{
+  "actual_steps": 360,
+  "artifact_bytes": 15317495,
+  "artifact_rank0_only": true,
+  "brotli_quality": 11,
+  "caseops_raw_utf8_bytes": null,
+  "caseops_roundtrip_ok": null,
+  "caseops_sidecar_utf8_bytes": null,
+  "caseops_zero_byte_token_count": null,
+  "checkpoint_eval_time_ms_total": 12289.581279736012,
+  "checkpoint_step": 360,
+  "checkpoint_to_pre_quant_bpb_gap": 0.14192551402525577,
+  "checkpoint_val_bpb": 1.332750700534359,
+  "checkpoint_val_loss": 3.378047175705433,
+  "code_bytes": 181984,
+  "comparison_metric_priority": [
+    "ttt_val_bpb",
+    "sliding_val_bpb",
+    "post_quant_val_bpb",
+    "pre_quant_val_bpb"
+  ],
+  "compressor": "brotli",
+  "elapsed_sec": 37.65974275814369,
+  "ema_applied": false,
+  "ema_enabled": false,
+  "eval_stride": 512,
+  "final_artifact_bytes_estimate": 15155511,
+  "final_eval_mode": "official",
+  "final_score_mode": "legal_ttt_only",
+  "final_train_loss": 3.4684839248657227,
+  "gptq_calibration_batches": 64,
+  "gptq_calibration_time_ms": 8430.678659118712,
+  "gptq_compress_time_ms": 66644.65503627434,
+  "gptq_quantize_time_ms": 9406.296387780458,
+  "last_step_ms": 103.43647887930274,
+  "last_val_bpb": 1.332750700534359,
+  "last_val_loss": 3.378047175705433,
+  "legal_ttt_val_bpb": 1.3915172403965905,
+  "num_eval_windows": 4093,
+  "phase_time_breakdown": {
+    "checkpoint_eval_time_ms_total": 12289.581279736012,
+    "gptq_calibration_time_ms": 8430.678659118712,
+    "gptq_compress_time_ms": 66644.65503627434,
+    "gptq_quantize_time_ms": 9406.296387780458,
+    "post_quant_eval_time_ms": null,
+    "post_ttt_prequant_eval_time_ms_loop_active": 362.9465033300221,
+    "post_ttt_prequant_eval_time_ms_loop_inactive": 245.68466423079371,
+    "pre_quant_ttt_wall_ms": null,
+    "pre_ttt_eval_time_ms": 311.2640702165663,
+    "sliding_eval_time_ms": null,
+    "train_step_time_ms_total": 37409.09855207428,
+    "ttt_eval_time_ms": 47685.00332720578
+  },
+  "post_quant_eval_enabled": false,
+  "post_quant_eval_time_ms": null,
+  "post_quant_val_bpb": null,
+  "post_quant_val_bpb_loop_active": null,
+  "post_quant_val_loss": null,
+  "post_ttt_postquant_val_bpb": null,
+  "post_ttt_postquant_val_loss": null,
+  "post_ttt_prequant_eval_time_ms": 362.9465033300221,
+  "post_ttt_prequant_eval_time_ms_loop_active": 362.9465033300221,
+  "post_ttt_prequant_eval_time_ms_loop_inactive": 245.68466423079371,
+  "post_ttt_prequant_val_bpb": 1.4746762145596148,
+  "post_ttt_prequant_val_bpb_loop_active": 1.4746762145596148,
+  "post_ttt_prequant_val_bpb_loop_inactive": 1.333093487278167,
+  "post_ttt_prequant_val_loss": 3.737777680158615,
+  "post_ttt_prequant_val_loss_loop_active": 3.737777680158615,
+  "post_ttt_prequant_val_loss_loop_inactive": 3.3789160177111626,
+  "pre_quant_eval_time_ms": 362.9465033300221,
+  "pre_quant_ttt_anchor_lambda": 0.0,
+  "pre_quant_ttt_chunk_tokens": 32768,
+  "pre_quant_ttt_enabled": false,
+  "pre_quant_ttt_epochs": 21,
+  "pre_quant_ttt_files": "./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+  "pre_quant_ttt_freeze_blocks": 0,
+  "pre_quant_ttt_grad_clip_norm": 1.0,
+  "pre_quant_ttt_loop_mode": "inactive",
+  "pre_quant_ttt_lr": 0.001,
+  "pre_quant_ttt_min_lr": 0.0001,
+  "pre_quant_ttt_qnoise_enabled": false,
+  "pre_quant_ttt_qnoise_prob": 0.5,
+  "pre_quant_ttt_qnoise_scale_mult": 0.5,
+  "pre_quant_ttt_qnoise_start_epoch": 2,
+  "pre_quant_ttt_selection": null,
+  "pre_quant_ttt_selection_mode": "contiguous",
+  "pre_quant_ttt_shard_limit": 0,
+  "pre_quant_ttt_source": "val",
+  "pre_quant_ttt_weight_decay": 0.0,
+  "pre_quant_val_bpb": 1.4746762145596148,
+  "pre_quant_val_loss": 3.737777680158615,
+  "pre_ttt_eval_time_ms": 311.2640702165663,
+  "pre_ttt_val_bpb": 1.333093487278167,
+  "pre_ttt_val_loss": 3.3789160177111626,
+  "quant_bits_by_group": {
+    "embed": 8,
+    "matrix": 6
+  },
+  "quant_clip_sigma_by_group": {
+    "embed": 20.0,
+    "matrix": 15.0
+  },
+  "quant_diagnostics_path": "/workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/quant_diagnostics.json",
+  "quant_gap_bpb": null,
+  "quant_gap_bpb_loop_active": null,
+  "quant_only_checkpoint_path": null,
+  "quant_only_checkpoint_sha256": null,
+  "quant_only_from_post_ttt": false,
+  "quant_only_origin_method": null,
+  "quant_only_origin_post_quant_val_bpb": null,
+  "quant_only_origin_post_ttt_prequant_val_bpb": null,
+  "quant_only_origin_run_id": null,
+  "quant_pipeline_enabled": true,
+  "quant_top_layer_error": [
+    {
+      "name": "blocks.2.attn.proj.weight",
+      "value": 0.18331842239846913
+    },
+    {
+      "name": "blocks.5.attn.proj.weight",
+      "value": 0.17781556192859913
+    },
+    {
+      "name": "blocks.3.attn.proj.weight",
+      "value": 0.17725965577620859
+    },
+    {
+      "name": "blocks.1.attn.proj.weight",
+      "value": 0.17651644522872104
+    },
+    {
+      "name": "blocks.4.attn.proj.weight",
+      "value": 0.1755930490887339
+    },
+    {
+      "name": "blocks.10.attn.proj.weight",
+      "value": 0.17348334647070912
+    },
+    {
+      "name": "blocks.0.attn.proj.weight",
+      "value": 0.17308166170828704
+    },
+    {
+      "name": "blocks.6.attn.proj.weight",
+      "value": 0.16931648731760726
+    }
+  ],
+  "quant_top_zero_fraction": [
+    {
+      "name": "blocks.10.attn.c_v.weight",
+      "value": 0.205963134765625
+    },
+    {
+      "name": "blocks.9.attn.c_v.weight",
+      "value": 0.20536041259765625
+    },
+    {
+      "name": "blocks.9.attn.proj.weight",
+      "value": 0.19959259033203125
+    },
+    {
+      "name": "blocks.1.attn.c_v.weight",
+      "value": 0.1995849609375
+    },
+    {
+      "name": "blocks.8.attn.c_v.weight",
+      "value": 0.1995697021484375
+    },
+    {
+      "name": "blocks.8.attn.c_k.weight",
+      "value": 0.19953155517578125
+    },
+    {
+      "name": "blocks.6.attn.proj.weight",
+      "value": 0.19928741455078125
+    },
+    {
+      "name": "blocks.7.attn.proj.weight",
+      "value": 0.19915771484375
+    }
+  ],
+  "quantized_model_bytes": 15135511,
+  "raw_model_bytes": 135431033,
+  "rolling_tokens_per_sec": 7572528.473624253,
+  "run_peak_alloc_mb": 38956,
+  "run_peak_reserved_mb": 38996,
+  "run_wallclock_total_ms": 288522.3573241383,
+  "save_post_ttt_checkpoint": false,
+  "sliding_eval_enabled": false,
+  "sliding_eval_time_ms": null,
+  "sliding_val_bpb": null,
+  "sliding_val_loss": null,
+  "status": "success",
+  "tokenizer_kind": "sentencepiece_bpe",
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "tokenizer_sha256": "0518df93315eaff6bc75ad4d9711b01c1b5e9ac32e8b3da603c040d8653f7f03",
+  "tokenizer_vocab_size": 8192,
+  "tokens_per_sec": 7517818.590212489,
+  "tokens_seen": 283115520,
+  "train_step_time_ms_total": 37409.09855207428,
+  "ttt_epoch_stats": null,
+  "ttt_eval_enabled": true,
+  "ttt_eval_time_ms": 47685.00332720578,
+  "ttt_looping_active_end": null,
+  "ttt_looping_active_start": null,
+  "ttt_multi_pass_rescore": false,
+  "ttt_score_before_update": true,
+  "ttt_score_ms_total": 36908.96938741207,
+  "ttt_single_left_to_right_pass": true,
+  "ttt_strict_causal_prefix_only": true,
+  "ttt_trainable_param_count": null,
+  "ttt_update_ms_total": 10715.721818618476,
+  "ttt_val_bpb": 1.3915172403965905,
+  "ttt_val_loss": 3.5269993720374235,
+  "ttt_wall_ms": null,
+  "ttt_wall_time_ms_total": 47624.69120603055,
+  "validation_selection": {
+    "requested_token_limit": 2097152,
+    "selected_end_offset_tokens": 2097152,
+    "selected_offset_tokens": 0,
+    "selected_seq_len": 2048,
+    "selected_token_limit": 2097152,
+    "selection_mode": "subset",
+    "stream_pattern": "./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+    "stream_shards": [
+      {
+        "index": 0,
+        "name": "000000",
+        "path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+        "size_bytes": 81082630,
+        "token_count": 40540803
+      }
+    ],
+    "usable_tokens": 40540160,
+    "val_pattern": "./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+    "val_shards": [
+      {
+        "index": 0,
+        "name": "000000",
+        "path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+        "size_bytes": 81082630,
+        "token_count": 40540803
+      }
+    ]
+  },
+  "wallclock_budget_seconds": 600.0,
+  "wallclock_margin_ms": 311477.6426758617,
+  "wallclock_over_budget": false,
+  "wrapper_code_bytes_estimate": 20000
+}
