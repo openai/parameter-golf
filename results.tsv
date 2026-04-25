@@ -34,3 +34,7 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0034_beta1_095_on_winner	canonical	2.19509351	2.1937	0.001394	15.588	2454.45	false	false	discard	BETA1=0.95 (vs 0.9 default); Δ=-0.024 (HURTS). Adam beta1 default is correct.
 0035_rope_base_20k_on_winner	canonical	2.16856078	2.1663	0.002261	15.595	2453.33	false	false	discard	ROPE_BASE=20000 (vs 10000 default); Δ=+0.0025 (noise). RoPE base not a meaningful axis at seq=1024.
 0036_batch_24k_lr_045	canonical	2.12602891	2.1233	0.002729	14.619	3642.25	false	false	keep	batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 winner; Δ=+0.045 vs 0024. Bigger batch at *lower* LR works — refutes 0018 batch-ceiling hypothesis. [transfer:high]
+0037_batch_32k_lr_03	canonical	2.56784625	2.5664	0.001446	11.832	4855.28	false	false	discard	batch=32k+LR=0.03 still collapses (Δ=-0.442). Lower LR didn't save 32k. batch=32k specifically is too big.
+0038_grad_clip_1_on_winner	canonical	2.12336631	2.1208	0.002566	14.412	3680.62	false	false	discard	GRAD_CLIP_NORM=1.0 (vs 0=disabled); Δ=+0.003 vs 0036 (noise). Not a meaningful axis.
+0039_init_07_on_24k_winner	canonical	2.18360348	2.1810	0.002603	14.819	3645.53	false	false	discard	TIED_EMBED_INIT_STD=0.07 on 24k winner; Δ=-0.058 (HURTS). Init optimum stays near 0.05 even on new batch=24k regime.
+0040_init_04_on_24k_winner	canonical	2.12769478	2.1235	0.004195	14.478	3643.37	false	false	discard	TIED_EMBED_INIT_STD=0.04 on 24k winner; Δ=-0.002 (noise). Init=0.05 confirmed as optimum on new regime too.

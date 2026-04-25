@@ -25,6 +25,24 @@
 
 ## Entries (newest first)
 
+## 2026-04-25 · exp 0037-0040 · batch=32k still hard-fails; init/clip retest on 0036 confirms saturation
+
+After 0036 unlocked the batch+LR-coupling axis, four more experiments tried to keep stacking:
+
+- **0037 batch=32k + MATRIX_LR=0.03** [discard, mode-collapse]: Δ=-0.442 vs 0036. Even with proportional LR scale-down (product=960, same as the original batch=16k+LR=0.06 winner), batch=32k still collapses. The batch=32k regime change is *not* purely about LR; something else changes at that batch size — possibly the 4-sequences-per-microstep structure (vs 3 at batch=24k, 2 at batch=16k) provides too little stochasticity for Adam-style gradient variance estimates to remain useful.
+- **0038 GRAD_CLIP_NORM=1.0** [discard]: Δ=+0.003 (noise). Gradient clipping isn't a meaningful axis at this LR/batch.
+- **0039 init=0.07 on 0036** [discard]: Δ=-0.058. Slight push above 0.05 hurts. Init optimum stays at 0.05 even in the new batch=24k regime.
+- **0040 init=0.04 on 0036** [discard]: Δ=-0.002 (noise). Slight push below 0.05 is tied. The init=0.05 point is robust.
+
+**Cross-experiment pattern**: with the 0036 batch=24k discovery exhausting the major axes, marginal env-var tuning is mostly noise or harmful. The map is largely drawn:
+- Working axes (gave real wins): schedule (3 levels of push), MLP capacity (mlp4), batch (8k → 16k → 24k with appropriate LR), MATRIX_LR scaling, embedding init scale (0.005 → 0.05).
+- Dead axes (no signal or harmful at this regime): qk_gain, num_layers, mlp_mult>4, seq_len>1024, batch>24k, LOGIT_SOFTCAP, MUON_MOMENTUM, BETA1, BETA2, ROPE_BASE, GRAD_CLIP_NORM, TIED_EMBED_LR scale-up, SCALAR_LR scale-up, init outside [0.04, 0.05].
+- Saturated axes (incremental tuning doesn't help): schedule beyond warmdown_300, init around 0.05.
+
+**Best so far stays at 2.12603 (exp 0036)**. Cumulative gain vs canonical baseline (2.5212): **+0.395**.
+
+To unlock further wins, env-var exploration is exhausted. Next direction would need code changes (architectural / optimizer / init scheme) — a different scope.
+
 ## 2026-04-25 · exp 0036 · batch=24k + LR=0.045 wins +0.045 — refutes 0018 batch ceiling
 
 **Question**: Throughout 0029-0035 the env-var sweep was finding mostly noise/discards. The 0018 batch=32k regression was previously hypothesized as "Adam variance saturation at large batch produces too-aggressive per-dim updates; the fix is to lower LR proportionally with batch." But that was [CONJECTURE]. Test it directly: batch=24k + MATRIX_LR=0.045 (LR×batch nearly constant vs 16k+0.06).
