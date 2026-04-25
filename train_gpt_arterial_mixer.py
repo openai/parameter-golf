@@ -1314,7 +1314,10 @@ class GPT(nn.Module):
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = 0
-        self.skip_weights = nn.Parameter(torch.empty(0, num_arteries, self.artery_dim, dtype=torch.float32))
+        self.skip_weights = nn.Parameter(
+            torch.empty(0, num_arteries, self.artery_dim, dtype=torch.float32),
+            requires_grad=False,
+        )
         explicit_mixer_layers = {
             int(part)
             for part in mixer_layers.split(",")
