@@ -25,6 +25,19 @@
 
 ## Entries (newest first)
 
+## 2026-04-25 · exp 0044-0046 · SwiGLU works but doesn't fit cap
+
+After the env-var summary (0043), tried SwiGLU as a code-level change. Three experiments:
+
+- **0044 SwiGLU(mlp=3) + LR=0.045** [parked, size_violation]: val_bpb_post 2.11489, **Δ=+0.011 vs 0036** (real gain, above noise floor). BUT artifact 16.46 MB > 16 MB cap = INVALID submission. Demonstrates SwiGLU's gating mechanism genuinely helps at this regime, but the 3-matrix structure pushes us over the cap.
+  - Curious step 1 train_loss anomaly: 20.67 (vs expected ~6.93). Recovers to 6.4 by step 10 and continues normally. Likely a numerical artifact specific to SwiGLU + the kaiming-default init for `w_gate`/`w_up`. Cause not fully diagnosed; the recovery suggests it's a benign init-time spike rather than a training-stability issue.
+- **0045 SwiGLU(mlp=2) + LR=0.045** [discard]: val_bpb 2.12347, Δ=+0.003 vs 0036 (noise). Smaller hidden dim (1024 vs 1536) gives 12.7 MB artifact (well under cap) but loses the gating advantage. SwiGLU is per-param more efficient than relu² (similar val at fewer MLP params: 1.57M/MLP vs 2.10M/MLP), but no net gain on val_bpb.
+- **0046 SwiGLU(mlp=3) + LR=0.035** [discard]: tried lowering MATRIX_LR to shrink artifact below cap. Artifact 15.72 MB (fits) but val_bpb 2.14454 — Δ=-0.019 vs 0036. The reduced LR sacrifices enough training that the SwiGLU advantage is wiped out.
+
+**Implication**: at the d=512, 9L architecture, SwiGLU's gain (~+0.011) is real but not extractable within the 16 MB artifact constraint at any LR setting. To realize SwiGLU here would require either (a) reducing parameter count elsewhere — e.g. lowering num_layers and using SwiGLU(mlp=3) — or (b) a different cap-friendly variant like GeGLU.
+
+**Final session state**: 46 experiments. Submittable best stays at **2.12603 (exp 0036)**. Cumulative gain vs canonical baseline (2.5212): **+0.395**. SwiGLU(mlp=3) at 2.11489 is the best non-submittable result (size_violation), Δ=+0.011 over 0036.
+
 ## 2026-04-25 · session summary · 43 experiments, +0.395 from canonical baseline, env-var search exhausted
 
 **Final state**: Best `winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05` (exp 0036) at val_bpb_post_quant **2.12603**. Cumulative gain vs canonical baseline (2.5212): **+0.395** post-quant.
