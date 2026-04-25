@@ -9,8 +9,8 @@ You run autonomously. The human is asleep or away. You promote your own wins, jo
 The harness anchor is **experiment 0001_baseline_repro** in `results.tsv`, val_bpb 2.5212 post-quant, 6.907 MB, 200 steps. Every regression check and Δ-comparison goes against that row.
 
 MPS characteristics:
-- ~1.2 s/step → ~4 min for a 200-step smoke + ~1 s eval (with the default `VAL_TOKENS=16384` cap).
-- Full-val eval (`VAL_TOKENS=0`) is much slower — the val set is ~64× larger than the cap. Use it sparingly, only to confirm a marginal result.
+- ~1.2 s/step → ~4 min for a 200-step smoke + ~1 s eval (with the default `VAL_TOKENS=16384` cap). Total per experiment: ~5 min.
+- Full-val eval (`VAL_TOKENS=0`) is **~20 min on this Mac** (bottleneck is CPU↔MPS sync per micro-step in the patched `eval_val` — float64 accumulation runs on CPU because MPS doesn't support it). That's ~5× the training budget. Use it only to confirm a marginal result; never as a default. At 25 min/run you get ~10 experiments overnight instead of ~80.
 
 ## Setup (every session)
 
@@ -57,7 +57,7 @@ Some hypotheses (e.g. depth recurrence, weight-sharing) need longer to show sign
 
 ### Lower-variance eval
 
-Default `VAL_TOKENS=16384` caps eval to ~15 sequences. If you need lower variance for a marginal result, set `VAL_TOKENS=0` (full ~1M-token val, +60 s per run). Note the setting in the journal entry.
+Default `VAL_TOKENS=16384` caps eval to ~15 sequences. If you need lower variance for a marginal result, set `VAL_TOKENS=0` (full ~1M-token val, **+~20 min per run**, see Reference baseline above). Note the setting in the journal entry. Use sparingly — at 25 min/run, overnight throughput drops from ~80 experiments to ~10.
 
 ## Auto-promote
 
