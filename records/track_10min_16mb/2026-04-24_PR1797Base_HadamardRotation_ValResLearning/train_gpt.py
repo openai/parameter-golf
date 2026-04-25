@@ -1,4 +1,4 @@
-import base64, collections, copy, fcntl, glob, io, lzma, math, os
+import base64, collections, copy, fcntl, glob, hashlib, io, lzma, math, os
 from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
 from torch import Tensor, nn
@@ -358,6 +358,28 @@ class Hyperparameters:
     sparse_attn_gate_enabled = bool(int(os.environ.get("SPARSE_ATTN_GATE_ENABLED", "0")))
     sparse_attn_gate_init_std = float(os.environ.get("SPARSE_ATTN_GATE_INIT_STD", 0.0))
     sparse_attn_gate_scale = float(os.environ.get("SPARSE_ATTN_GATE_SCALE", 1.0))
+    # Random-sign Hadamard incoherence preprocessing (QuIP#/QuaRot/QTIP family).
+    # Before GPTQ, rotate the input axis of each large weight W by an orthogonal matrix
+    # R := diag(signs) @ H_n / sqrt(n), H_n = n x n Hadamard. This makes weight columns
+    # approximately iid Gaussian, which reduces scalar-quantization distortion at fixed
+    # bitrate. R is regenerated deterministically from a hash of the weight name, so NO
+    # per-matrix rotation storage is needed. Dequant re-rotates out before LQER error
+    # is computed and before the model is reloaded, so the stored reconstruction is in
+    # the ORIGINAL weight space -- zero changes to inference forward, no kernel fusion.
+    # Requires cols to be a power of 2 (512 and 2048 in this stack; asserted at build).
+    # A single deterministic version tag lets us regenerate R at dequant time without
+    # storing per-matrix data; changing the tag invalidates older serialized models.
+    hadamard_rotation_enabled = bool(int(os.environ.get("HADAMARD_ROTATION_ENABLED", "0")))
+    hadamard_rotation_seed = int(os.environ.get("HADAMARD_ROTATION_SEED", "0xc0ffee", 0))
+    # Value Residual Learning / ResFormer (Zhou et al. ACL 2025, arXiv:2410.17897).
+    # Mix layer-0's value tensor V1 into every subsequent layer's V via a learnable
+    # per-layer sigmoid lambda: v_i <- sigmoid(lam_i) * v_i + (1 - sigmoid(lam_i)) * V1.
+    # Param `vres_lambda` lives on CausalSelfAttention (ndim=0 -> scalar AdamW via the
+    # ndim<2 clause in Optimizers). Init at +4.0 so sigmoid(4.0) ~= 0.982, i.e. nearly
+    # transparent at init (~1.8% of v_1 mixed in). Layer-0 attention skips mixing
+    # (v_1 IS its own v) and no lambda is used -- captured but not modified.
+    value_resid_enabled = bool(int(os.environ.get("VALUE_RESID_ENABLED", "0")))
+    value_resid_lambda_init = float(os.environ.get("VALUE_RESID_LAMBDA_INIT", 4.0))
     # LQER asymmetric rank-k correction on top-K quant-error tensors (PR #1530 v2 port).
     # Computes SVD of E = W_fp - W_quant, packs top-r A,B as INT2/INT4 (asym) or INTk (sym).
     lqer_enabled = bool(int(os.environ.get("LQER_ENABLED", "1")))
@@ -943,6 +965,7 @@ class CausalSelfAttention(nn.Module):
         attn_out_gate=False, attn_out_gate_src="proj", gate_window=12,
         gated_attn=False, gated_attn_init_std=0.01,
         sparse_attn_gate=False, sparse_attn_gate_init_std=0.0, sparse_attn_gate_scale=1.0,
+        value_resid=False, value_resid_lambda_init=4.0,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -998,6 +1021,15 @@ class CausalSelfAttention(nn.Module):
             else:
                 nn.init.zeros_(W)
             self.attn_gate_w = nn.Parameter(W)
+        # ResFormer v-residual (arXiv:2410.17897). Zero-dim scalar param per layer:
+        # mixing fraction = sigmoid(vres_lambda). Init large (+4.0) so sigmoid~=0.982
+        # and layer-0 V contribution is near-zero at start -- transparent init.
+        # Layer 0 itself never consumes v1 (it IS v1) so its lambda is unused.
+        self.value_resid = value_resid
+        if value_resid:
+            self.vres_lambda = nn.Parameter(
+                torch.tensor(float(value_resid_lambda_init), dtype=torch.float32)
+            )
 
     def _xsa_efficient(self, y, v):
         B, T, H, D = y.shape
@@ -1008,7 +1040,7 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x, q_w, k_w, v_w, out_w, cu_seqlens=None, max_seqlen=0):
+    def forward(self, x, q_w, k_w, v_w, out_w, cu_seqlens=None, max_seqlen=0, v1=None):
         bsz, seqlen, dim = x.shape
         # q_raw kept around as a tap point for attn_out_gate_src='q' (post-projection,
         # pre-reshape, pre-RoPE).
@@ -1016,6 +1048,13 @@ class CausalSelfAttention(nn.Module):
         q = q_raw.reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = F.linear(x, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = F.linear(x, v_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # ResFormer: mix layer-0's V into this layer's V. v1 is None for layer 0 (nothing
+        # to mix), in which case the post-projection `v` here IS v1 and is returned as-is.
+        # For layers > 0, blend toward v1 by (1 - sigmoid(vres_lambda)).
+        if self.value_resid and v1 is not None:
+            mix = torch.sigmoid(self.vres_lambda.to(dtype=v.dtype))
+            v = mix * v + (1.0 - mix) * v1
+        v_out = v  # captured for downstream layers (only layer 0's value is ever consumed)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -1065,7 +1104,7 @@ class CausalSelfAttention(nn.Module):
             y = y * g[..., None]
         y = y.reshape(bsz, seqlen, dim)
         self._last_proj_input = y.detach() if getattr(self, "_calib", False) else None
-        return F.linear(y, out_w.to(x.dtype))
+        return F.linear(y, out_w.to(x.dtype)), v_out
 
 
 class MLP(nn.Module):
@@ -1102,6 +1141,8 @@ class Block(nn.Module):
         sparse_attn_gate=False,
         sparse_attn_gate_init_std=0.0,
         sparse_attn_gate_scale=1.0,
+        value_resid=False,
+        value_resid_lambda_init=4.0,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1113,6 +1154,8 @@ class Block(nn.Module):
             sparse_attn_gate=sparse_attn_gate,
             sparse_attn_gate_init_std=sparse_attn_gate_init_std,
             sparse_attn_gate_scale=sparse_attn_gate_scale,
+            value_resid=value_resid,
+            value_resid_lambda_init=value_resid_lambda_init,
         )
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -1122,20 +1165,21 @@ class Block(nn.Module):
         )
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
 
-    def forward(self, x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=None, max_seqlen=0):
+    def forward(self, x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=None, max_seqlen=0, v1=None):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(
+        attn_out, v_out = self.attn(
             self.attn_norm(x_in) * self.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
+            v1=v1,
         )
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[
             None, None, :
         ] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w)
-        return x_out
+        return x_out, v_out
 
 class GPT(nn.Module):
     def __init__(self, h):
@@ -1178,6 +1222,8 @@ class GPT(nn.Module):
                     sparse_attn_gate=h.sparse_attn_gate_enabled,
                     sparse_attn_gate_init_std=h.sparse_attn_gate_init_std,
                     sparse_attn_gate_scale=h.sparse_attn_gate_scale,
+                    value_resid=h.value_resid_enabled,
+                    value_resid_lambda_init=h.value_resid_lambda_init,
                 )
                 for i in range(h.num_layers)
             ]
@@ -1290,15 +1336,16 @@ class GPT(nn.Module):
     def _parallel_block(
         self, block_idx, lane0, lane1, x0,
         q_w, k_w, v_w, out_w, up_w, down_w,
-        cu_seqlens=None, max_seqlen=0,
+        cu_seqlens=None, max_seqlen=0, v1=None,
     ):
         block = self.blocks[block_idx]
         mix = block.resid_mix.to(dtype=lane0.dtype)
         attn_read = mix[0][None, None, :] * lane0 + mix[1][None, None, :] * x0
-        attn_out = block.attn(
+        attn_out, _v_out_unused = block.attn(
             block.attn_norm(attn_read) * block.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens, max_seqlen=max_seqlen,
+            v1=v1,
         )
         attn_out = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
         mlp_read = lane1
@@ -1335,6 +1382,11 @@ class GPT(nn.Module):
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
+        # ResFormer v-residual (arXiv:2410.17897): capture v from the first attention
+        # layer (encoder_indices[0], always block 0 in this stack) and pass it to all
+        # subsequent layers. When value_resid is disabled, v1 stays None and every
+        # block.forward call takes the v1=None fast path.
+        v1 = None
         skips = []
         enc_iter = (
             self.encoder_indices
@@ -1351,7 +1403,9 @@ class GPT(nn.Module):
         )
         for i in enc_iter:
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
-            x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+            x, v_out = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1)
+            if v1 is None:
+                v1 = v_out
             skips.append(x)
         psl = self.parallel_start_layer
         lane0 = None
@@ -1372,7 +1426,7 @@ class GPT(nn.Module):
                         lane0 = lane0 + w * skip
                 lane0, lane1 = self._parallel_block(
                     i, lane0, lane1, x0, q_w, k_w, v_w, out_w, up_w, down_w,
-                    cu_seqlens=cu_seqlens, max_seqlen=max_seqlen,
+                    cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1,
                 )
             else:
                 if skip_idx < self.num_skip_weights and skips:
@@ -1385,7 +1439,7 @@ class GPT(nn.Module):
                         x = torch.lerp(scaled_skip, x, g)
                     else:
                         x = x + scaled_skip
-                x = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
+                x, _v_out_unused = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1)
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
         x = self.final_norm(x)
@@ -1432,6 +1486,8 @@ class GPT(nn.Module):
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
+        # ResFormer v-residual capture (TTT path) -- mirrors _forward_hidden semantics.
+        v1 = None
         skips = []
         enc_iter = (
             self.encoder_indices
@@ -1451,7 +1507,9 @@ class GPT(nn.Module):
         slot = 0
         for i in enc_iter:
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
-            x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
+            x, v_out = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
+            if v1 is None:
+                v1 = v_out
             slot += 1
             skips.append(x)
         psl = self.parallel_start_layer
@@ -1473,7 +1531,7 @@ class GPT(nn.Module):
                         lane0 = lane0 + w * skip
                 lane0, lane1 = self._parallel_block_with_lora(
                     i, lane0, lane1, x0, lora, slot,
-                    q_w, k_w, v_w, out_w, up_w, down_w,
+                    q_w, k_w, v_w, out_w, up_w, down_w, v1=v1,
                 )
             else:
                 if skip_idx < self.num_skip_weights and skips:
@@ -1486,7 +1544,7 @@ class GPT(nn.Module):
                         x = torch.lerp(scaled_skip, x, g)
                     else:
                         x = x + scaled_skip
-                x = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w)
+                x, _v_out_unused = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
             slot += 1
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
@@ -1502,7 +1560,7 @@ class GPT(nn.Module):
             logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none"
         ).reshape(bsz, sl)
 
-    def _block_with_lora(self, block, x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w):
+    def _block_with_lora(self, block, x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=None):
         mix = block.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         n = block.attn_norm(x_in) * block.ln_scale_factor
@@ -1518,6 +1576,14 @@ class GPT(nn.Module):
         v = (F.linear(n, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
             bsz, seqlen, attn.num_kv_heads, attn.head_dim
         )
+        # ResFormer v-residual (TTT path) -- mirror eval/train path semantics exactly.
+        # Mix layer-0's V into this layer's V via sigmoid(vres_lambda). v1=None on the
+        # first layer (this layer IS v1); subsequent layers blend. v_out captures this
+        # layer's (post-mix for non-first) V for the decoder to consume.
+        if attn.value_resid and v1 is not None:
+            mix_v = torch.sigmoid(attn.vres_lambda.to(dtype=v.dtype))
+            v = mix_v * v + (1.0 - mix_v) * v1
+        v_out = v
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = attn.rotary(seqlen, n.device, q.dtype)
@@ -1559,11 +1625,11 @@ class GPT(nn.Module):
         if lora.mlp_loras is not None:
             mlp_out = mlp_out + lora.mlp_loras[slot](mlp_n)
         x_out = x_out + block.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * mlp_out
-        return x_out
+        return x_out, v_out
 
     def _parallel_block_with_lora(
         self, block_idx, lane0, lane1, x0, lora, slot,
-        q_w, k_w, v_w, out_w, up_w, down_w,
+        q_w, k_w, v_w, out_w, up_w, down_w, v1=None,
     ):
         block = self.blocks[block_idx]
         mix = block.resid_mix.to(dtype=lane0.dtype)
@@ -1580,6 +1646,12 @@ class GPT(nn.Module):
         v = (F.linear(n, v_w.to(n.dtype)) + lora.v_loras[slot](n)).reshape(
             bsz, seqlen, attn.num_kv_heads, attn.head_dim
         )
+        # ResFormer v-residual (TTT parallel path) -- keep exact parity with eval path.
+        # Decoder/parallel layers are by construction not layer 0, so v1 will always be
+        # a valid tensor when value_resid is enabled.
+        if attn.value_resid and v1 is not None:
+            mix_v = torch.sigmoid(attn.vres_lambda.to(dtype=v.dtype))
+            v = mix_v * v + (1.0 - mix_v) * v1
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = attn.rotary(seqlen, n.device, q.dtype)
@@ -2138,6 +2210,39 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
     return hessians
 
 
+def _hadamard_rotation(n, seed):
+    """Return an (n, n) orthogonal rotation R = diag(s) @ H_n / sqrt(n).
+
+    H_n is built by recursive doubling (Sylvester construction), requires n to be a
+    power of 2. s is a deterministic +/-1 vector of length n derived from `seed`.
+    The returned R is its own inverse-transpose in the mathematical sense, but we
+    keep matrix math explicit: W' = W @ R.T ; W = W' @ R. Regenerating R from seed
+    gives bit-exact reproducibility across serialize/deserialize. CPU/fp32; small.
+    """
+    if n <= 0 or (n & (n - 1)) != 0:
+        raise ValueError(f"Hadamard rotation requires power-of-2 dim, got {n}")
+    # Sylvester-Hadamard: H_{2n} = [[H_n, H_n], [H_n, -H_n]]. Start from H_1 = [[1]].
+    H = torch.ones(1, 1, dtype=torch.float32)
+    while H.size(0) < n:
+        H = torch.cat(
+            [torch.cat([H, H], dim=1), torch.cat([H, -H], dim=1)],
+            dim=0,
+        )
+    H = H / math.sqrt(float(n))
+    g = torch.Generator(device="cpu")
+    g.manual_seed(int(seed) & 0x7FFFFFFFFFFFFFFF)
+    # +/-1 signs drawn deterministically from `seed`; clamp below zero to -1 else +1.
+    rnd = torch.rand((n,), generator=g, dtype=torch.float32)
+    signs = torch.where(rnd < 0.5, -torch.ones(n), torch.ones(n)).to(torch.float32)
+    return signs.view(-1, 1) * H
+
+
+def _rotation_seed_for(name, base_seed):
+    """Derive a stable 64-bit seed for the rotation applied to weight `name`."""
+    h = hashlib.blake2b(name.encode("utf-8"), digest_size=8).digest()
+    return (int.from_bytes(h, "big") ^ int(base_seed)) & 0x7FFFFFFFFFFFFFFF
+
+
 def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=128):
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
@@ -2252,17 +2357,50 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             cs = h.matrix_clip_sigmas
         bits = h.embed_bits if "tok_emb" in name else h.matrix_bits
         clip_range = 2 ** (bits - 1) - 1
-        ret = gptq_quantize_weight(
-            t, hessians[name], clip_sigmas=cs, clip_range=clip_range
+        # Random-sign Hadamard incoherence preprocessing. Input-axis rotation only,
+        # so cols=t.shape[1] must be a power of 2. Skip tok_emb (vocab -> embed; its
+        # "input" axis is a one-hot and rotating columns would require matching
+        # post-embedding rotation on the residual stream). Skip if cols not 2^k.
+        cols = t.shape[1]
+        hadamard_on = (
+            bool(getattr(h, "hadamard_rotation_enabled", False))
+            and "tok_emb" not in name
+            and cols > 1
+            and (cols & (cols - 1)) == 0
         )
-        q, s = ret
-        result[name + ".q"] = q
-        result[name + ".scale"] = s
-        meta[name] = f"gptq (int{bits})"
-        if lqer_on:
-            W_q = q.float() * s.float().view(-1, 1)
-            E = t.float() - W_q
-            lqer_cands[name] = (E, float(E.norm()))
+        if hadamard_on:
+            seed = _rotation_seed_for(name, h.hadamard_rotation_seed)
+            R = _hadamard_rotation(cols, seed)
+            # Rotate inputs: W' = W @ R.T ; H' = R @ H @ R.T. Use fp32 throughout.
+            t_rot = (t.float() @ R.T).to(t.dtype)
+            H_rot = R @ hessians[name].float() @ R.T
+            ret = gptq_quantize_weight(
+                t_rot, H_rot, clip_sigmas=cs, clip_range=clip_range
+            )
+            q, s = ret
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = f"gptq (int{bits})+had"
+            if lqer_on:
+                # Dequant in rotated space, then un-rotate to compute LQER error in
+                # the ORIGINAL weight space (so the LQER correction is applied to the
+                # un-rotated dequantized weight downstream).
+                W_q_rot = q.float() * s.float().view(-1, 1)
+                W_q = W_q_rot @ R
+                E = t.float() - W_q
+                lqer_cands[name] = (E, float(E.norm()))
+        else:
+            ret = gptq_quantize_weight(
+                t, hessians[name], clip_sigmas=cs, clip_range=clip_range
+            )
+            q, s = ret
+            result[name + ".q"] = q
+            result[name + ".scale"] = s
+            meta[name] = f"gptq (int{bits})"
+            if lqer_on:
+                W_q = q.float() * s.float().view(-1, 1)
+                E = t.float() - W_q
+                lqer_cands[name] = (E, float(E.norm()))
     if lqer_on and lqer_cands:
         top = sorted(lqer_cands.items(), key=lambda kv: -kv[1][1])[: h.lqer_top_k]
         asym_on = bool(getattr(h, "lqer_asym_enabled", False))
@@ -2295,7 +2433,7 @@ def gptq_mixed_quantize(state_dict, hessians, h):
         log(f"  {cat}: {', '.join(sorted(categories[cat]))}")
     return result, meta
 
-def dequantize_mixed(result, meta, template_sd):
+def dequantize_mixed(result, meta, template_sd, hadamard_seed=None):
     out = {}
     for (name, orig) in template_sd.items():
         info = meta.get(name)
@@ -2321,6 +2459,15 @@ def dequantize_mixed(result, meta, template_sd):
             W = q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
         else:
             W = q.float() * float(s.item())
+        # LQER correction is stored in ORIGINAL (un-rotated) weight space -- applied
+        # AFTER the Hadamard un-rotation below so it lands on the right basis.
+        had_on = "+had" in info and hadamard_seed is not None
+        if had_on:
+            cols = W.shape[1]
+            if cols > 1 and (cols & (cols - 1)) == 0:
+                seed = _rotation_seed_for(name, hadamard_seed)
+                R = _hadamard_rotation(cols, seed)
+                W = W @ R  # un-rotate back to original weight space
         if "lqer_asym" in info:
             qA_t = result[name + ".lqA_a"]
             sA_t = result[name + ".lqAs_a"]
@@ -2511,7 +2658,10 @@ def deserialize(h, device):
     quant_state = torch.load(
         io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
     )
-    deq_flat = dequantize_mixed(quant_state["w"], quant_state["m"], flat_template)
+    deq_flat = dequantize_mixed(
+        quant_state["w"], quant_state["m"], flat_template,
+        hadamard_seed=(h.hadamard_rotation_seed if h.hadamard_rotation_enabled else None),
+    )
     head_dim = h.model_dim // h.num_heads
     kv_dim = h.num_kv_heads * head_dim
     hidden_dim = int(h.mlp_mult * h.model_dim)
