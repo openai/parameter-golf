@@ -1,0 +1,26 @@
+{
+  "id": "0062_swiglu_recur_3x3_mlp8",
+  "parent": "0057_swiglu_recur_3x3",
+  "created_at": "2026-04-25T19:56:07Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0844,
+    "val_bpb_post_quant": 2.08686717,
+    "val_loss_pre_quant": 3.5624,
+    "val_loss_post_quant": 3.56672994,
+    "quant_tax": 0.002467,
+    "step_avg_ms": 5395.78,
+    "num_steps": 200.0,
+    "artifact_bytes": 12241662.0,
+    "artifact_mb": 12.242,
+    "code_bytes": 52642.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
