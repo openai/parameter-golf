@@ -2,7 +2,8 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.12603** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05`, exp 0036). batch=24k + MATRIX_LR=0.045 (down from 0.06) on 0024 init winner. Single-seed Δ=+0.045 vs 0024; SEED=42 confirm in 0047 at 2.14045 — **mean Δ=+0.038** (cross-seed Δ 0.014 — larger variance than the typical 0.0024 we've seen for confirmed configs). Win is real but smaller than the SEED=1337 number alone suggested.
+- **Best so far: 2.12285** (`winners/2026-04-25_warmdown_300_warmup_30_mlp_mult_4_batch_24k_matrix_lr_045_init_05_muon_backend_10`, exp 0049). MUON_BACKEND_STEPS=10 (vs 5) on the 0036 winner. SEED=42 confirms in 0050 at 2.13047 — same-seed Δ averaged +0.0066 vs 0036/0047 (judgment-zone advance). More Newton-Schulz iterations give closer-to-orthogonal Muon updates.
+- Prior winner: 2.12603 (exp 0036). SEED=42 confirm in 0047; mean=2.13324 (cross-seed Δ 0.014 — larger than typical 0.0024).
 - **Crucial revision**: the 0018 batch=32k mode-collapse was an LR-coupling issue, not a batch ceiling. Bigger batch + smaller LR (LR×batch held ~constant) is the correct scaling.
 - Prior winner: 2.17103 (exp 0024, init=0.05).
 - Cumulative gain vs canonical baseline (2.5212): +0.395 → 2.1260.
@@ -24,6 +25,22 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0049 + 0050 · MUON_BACKEND_STEPS 5→10 lands marginal +0.0066
+
+After several env-var sweeps yielded noise/discards (0048 LeakyReLU² noise, etc), one genuinely untested env-var: `MUON_BACKEND_STEPS` (Newton-Schulz iteration count for Muon's matrix-orthogonalization), default 5. Tried 10.
+
+**Result**:
+- 0049 (SEED=1337, MUON=10): val_bpb 2.12285 (Δ=+0.00318 vs 0036 same-seed).
+- 0050 (SEED=42, MUON=10): val_bpb 2.13047 (Δ=+0.00998 vs 0047 same-seed).
+- Mean Δ across seed comparisons: **+0.0066**, in [+0.005, +0.010] judgment-call zone. Both seed-pairs show positive direction → advance per protocol.
+- Pre-quant Δ also +0.0059 mean. Quant_tax marginally cleaner. Real, small training improvement.
+
+**Conclusion** [LIKELY]: more Newton-Schulz steps produce closer-to-orthogonal Muon updates, which are slightly more effective. The marginal magnitude reflects that the canonical 5 was already close to converged orthogonalization for our matrix sizes (d=512, 2048 hidden); adding 5 more steps refines but doesn't dramatically change the update direction. Compute cost: ~3% slower step_avg (3739 vs 3642 ms).
+
+**[transfer:med]**: orthogonal-update quality should help across H100 too, but the marginal effect at any specific batch/LR depends on optimizer/schedule.
+
+Cumulative gain vs canonical baseline (2.5212): +0.398 single-seed (or +0.394 mean-vs-mean).
 
 ## 2026-04-25 · exp 0047 · SEED=42 of 0036 — winner real but cross-seed variance higher than typical
 
