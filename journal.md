@@ -17,6 +17,18 @@
 
 ## Entries (newest first)
 
+## 2026-04-25 · exp 0017 + 0018 + 0019 · sentinel clean; batch=32k mode-collapses; depth ceiling
+
+**0017 regression sentinel** [sentinel]: canonical baseline run with no overrides. val_bpb 2.52115777 — *bit-exact* match to 0001's 2.52115777. Harness is healthy after 16 prior runs; no thermal/MPS drift detected.
+
+**0018 batch=32k** [discard, surprise]: Pushed `TRAIN_BATCH_TOKENS=16384 → 32768` on the 0015 winner. **Catastrophic regression**: val_bpb 2.59031 (Δ=−0.336 vs 0015), even worse than canonical baseline. Pre-quant val 2.5900, quant_tax 0.0003 (basically zero — signature of degenerate weights). Trajectory anomaly: step 1 train_loss=4.27 (expected ~6.93 for fresh init at vocab=1024), step 3 already at 1.10, step 200 at 0.55 *while val_loss=4.43*. Classic mode-collapse: model learned to predict a small set of high-frequency tokens (space/the/etc.) that scores well on training-batch statistics but doesn't generalize. **Hypothesis** [LIKELY]: at batch=32k the gradient variance drops far enough that Adam's `m_hat / sqrt(v_hat)` saturates near unit per-dim → effective per-step movement under MATRIX_LR=0.04 + lr_mul=1.0 is much larger than at batch=16k (where gradient noise dampened the per-dim update). The 8k → 16k jump worked because we were still in the noise-dominated regime; 16k → 32k crosses into the regime where LR needs to be scaled DOWN to compensate (counterintuitive: bigger batch usually allows LARGER LR, but with adaptive optimizers and very low gradient variance, the standard heuristic flips). **Implication**: the batch axis is not free; the current 16k-batch + WARMDOWN_400_WARMUP_20 schedule is a coupled sweet spot. To push batch further would require lowering MATRIX_LR/TIED_EMBED_LR proportionally — separate experiment if desired.
+
+**0019 NUM_LAYERS=11** [discard]: 11L is a recurring records pattern (e.g. 11L_EMA_GPTQ-lite at 1.1228). val_bpb 2.25217 (Δ=+0.0025 vs 0015 — noise). Pre-quant Δ=+0.0004 (basically zero). Quant tax suspiciously low (0.0007) — most of the tiny post-quant gain is from cleaner quantization, not better training. Cost: +5.8M params, 15.7 MB artifact (tight against 16 MB cap), step_avg +27%. **Conclusion** [VERIFIED with mlp_mult=5 precedent]: at 200 steps + sp1024 + d=512, *additional architectural capacity beyond mlp_mult=4 / 9L doesn't help*. Records use 11L at H100 20k-step where deeper composition has time to express; at 200 steps the new layers are under-trained. Both 11L and mlp5 mode-of-failure: low quant_tax + flat pre-quant, suggesting the new params end up small/structureless.
+
+**Cross-experiment pattern**: at 200 steps, capacity scaling (mlp_mult, num_layers) tops out very quickly. Schedule and batch are the dominant levers — until both saturate, where saturation looks like:
+- batch saturation = mode collapse (very low train, normal val) at 32k+
+- capacity saturation = low quant_tax + zero pre-quant Δ
+
 ## 2026-04-25 · exp 0015 + 0016 · schedule push (WARMDOWN_400 + WARMUP_20) lands +0.055
 
 **Question**: 0013 winner uses WARMDOWN_ITERS=600 + LR_WARMUP_STEPS=10 (avg lr_mul ≈ 0.178). Bigger batches tolerate higher LR. Does pushing the schedule further pay?
