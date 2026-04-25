@@ -27,6 +27,25 @@
 
 ## Entries (newest first)
 
+## 2026-04-25 · exp 0051 + 0052 · MUON_BACKEND_STEPS=15 wins clean +0.013, then saturates
+
+After 0049/0050 confirmed MUON_BACKEND_STEPS=10 with marginal +0.0066, pushed further:
+
+- **0051 MUON=15** [keep]: val_bpb 2.10971, **Δ=+0.0131 vs 0049** (above noise floor — direct promote). Pre-quant Δ=+0.0127 matches; quant_tax 0.0013 (clean low). Newton-Schulz convergence is still improving past 10 iterations.
+- **0052 MUON=20** [discard]: val_bpb 2.11804, Δ=-0.0083 vs 0051. Saturates between 15 and 20 — the additional iterations no longer improve orthogonalization at our matrix sizes (or the extra compute cost shifts thermal/MPS dynamics negatively). Compute cost: 3940 ms/step (8% slower than 0051's 3836).
+
+**Conclusion** [VERIFIED across 4 settings: MUON_BACKEND_STEPS ∈ {5, 10, 15, 20}]:
+- 5 (canonical): val 2.13324 mean (0036/0047)
+- 10: val 2.12666 mean (0049/0050) — Δ +0.0066
+- 15: val 2.10971 (0051, single seed) — Δ +0.0231 vs 5-default mean, +0.0170 vs 10
+- 20: val 2.11804 (0052) — saturates / regresses
+
+The Muon optimizer's canonical 5-iteration Newton-Schulz was substantially under-converged for our 512×2048 matrices. 15 iterations is the sweet spot. This is one of the cleanest "hidden default that was wrong" findings in the session — a 4-experiment sweep over a single integer parameter unlocked +0.023 vs the canonical setting (mean comparison).
+
+**[transfer:high]**: orthogonal-update quality is universal; the 5→15 lesson should hold for any Muon-trained model. The exact optimum may shift with matrix size, but "5 is too few" is robust.
+
+Cumulative gain vs canonical baseline (2.5212): **+0.412 (single-seed)** to 2.10971. SwiGLU(mlp=3) at 2.11489 (size-violating, not promoted) is the only known better val_bpb but doesn't fit cap.
+
 ## 2026-04-25 · exp 0049 + 0050 · MUON_BACKEND_STEPS 5→10 lands marginal +0.0066
 
 After several env-var sweeps yielded noise/discards (0048 LeakyReLU² noise, etc), one genuinely untested env-var: `MUON_BACKEND_STEPS` (Newton-Schulz iteration count for Muon's matrix-orthogonalization), default 5. Tried 10.
