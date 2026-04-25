@@ -7,7 +7,7 @@ Run examples:
     python train_gpt.py --max_steps 2000 --batch_size 16
 
   Multi-GPU (Runpod / 8xH100):
-    torchrun --standalone --nproc_per_node=8 param_golf.py --max_steps 8000 --batch_size 8 --grad_accum 8
+    torchrun --standalone --nproc_per_node=8 train_gpt.py --max_steps 8000 --batch_size 8 --grad_accum 8
 """
 
 import argparse
