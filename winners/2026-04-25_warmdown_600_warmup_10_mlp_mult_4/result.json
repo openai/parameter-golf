@@ -1,0 +1,26 @@
+{
+  "id": "0008_mlp_mult_4_on_winner",
+  "parent": "canonical",
+  "created_at": "2026-04-25T03:47:39Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.3864,
+    "val_bpb_post_quant": 2.39134802,
+    "val_loss_pre_quant": 4.0787,
+    "val_loss_post_quant": 4.08712769,
+    "quant_tax": 0.004948,
+    "step_avg_ms": 1360.36,
+    "num_steps": 200.0,
+    "artifact_bytes": 11773991.0,
+    "artifact_mb": 11.774,
+    "code_bytes": 50110.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}

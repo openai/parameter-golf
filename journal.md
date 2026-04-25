@@ -2,7 +2,8 @@
 
 ## Current threads
 - Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons still reference this row.
-- **Best so far: 2.4052** (`winners/2026-04-25_warmdown_600_warmup_10`, exp 0005, confirmed by SEED=42 in 0006 at 2.40272). Schedule change only (`LR_WARMUP_STEPS=10`, `WARMDOWN_ITERS=600`); +1.2 MB artifact (still 8.1 MB / 16 MB cap).
+- **Best so far: 2.3913** (`winners/2026-04-25_warmdown_600_warmup_10_mlp_mult_4`, exp 0008). Stacked the 0005 schedule with `MLP_MULT=4`. Artifact 11.77 MB (4.2 MB cap headroom remaining).
+- Prior winner: 2.4052 (exp 0005, schedule-only). Schedule change confirmed by SEED=42 in 0006 at 2.40272 — cross-seed Δ 0.0024.
 - The lr_mul formula in `train_gpt.py` is `(iterations−step)/warmdown_iters` after warmup. With ITERATIONS=200, the canonical default `WARMDOWN_ITERS=1200` gives lr_mul peaking at 0.167 (avg 0.083) — extremely attenuated. The 0005 schedule (warmup_10 + warmdown_600) doubles avg lr_mul to 0.178; tested up to and through a brief one-step lr_mul=1.0 spike at the warmup peak (recoverable). Further-aggressive schedules NOT yet tested.
 - Capacity (MLP_MULT, exp 0002) and attention temperature (QK_GAIN_INIT, exp 0003) showed only Δ≈+0.002 each under the canonical schedule — noise-band. Hypothesis: their effects are MASKED by the under-training. Both should be re-tested ON TOP OF the new schedule.
 - Quant tax actually IMPROVED in 0005 (0.0029 vs baseline 0.0055) — better-trained weights quantize cleaner. Means architectural + schedule improvements are likely additive in post-quant terms.
@@ -11,6 +12,30 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-04-25 · exp 0007 + 0008 · capacity scaling on the new schedule (mlp2 → mlp4)
+
+**Question**: 0005's schedule rewrite (avg lr_mul 0.083 → 0.178) was framed as "the previous architectural ablations were likely false negatives — capacity (0002) and qk_gain (0003) should be re-tested on the new schedule." Does MLP capacity scaling produce real Δ now?
+
+**Setup**: Forked from canonical, env-vars only:
+- 0007: schedule + `MLP_MULT=3` (one capacity step above canonical mlp_mult=2)
+- 0008: schedule + `MLP_MULT=4`
+
+**Prediction** [LIKELY]: Δ vs winner ≈ +0.012 to +0.025 for mlp_mult=4. mlp_mult=3 was framed as a midpoint test.
+
+**Disconfirming**: Δ ≤ +0.005 for mlp_mult=4 → capacity is NOT a real lever even with healthy LR; the 0002 zero was structural, not schedule-masked.
+
+**Result**:
+- 0007 (MLP_MULT=3): val_bpb_post 2.39927, Δ=+0.0059 vs 0005 (judgment-call zone). Initially parked.
+- 0008 (MLP_MULT=4): val_bpb_post 2.39135, **Δ=+0.0138** vs 0005 — over the noise floor, no SEED=42 needed.
+- Capacity scaling is monotonic: mlp2 2.4052 > mlp3 2.3993 > mlp4 2.3913. 0007's marginal +0.006 was real signal at half this capacity bump; superseded by 0008.
+- Quant tax climbs slowly with capacity (0.0029 → 0.0039 → 0.0049) but stays well under the 0.020 fragility threshold.
+- Artifact: 8.1 → 9.97 → 11.77 MB. 4.2 MB headroom for further capacity (mlp_mult=5 likely fits at ~13.5 MB; mlp_mult=6 risks the cap).
+
+**Conclusion** [VERIFIED] (capacity scaling is well-known; the new fact is the schedule-masking story):
+1. The 0002 zero-result really was schedule-masking. Future architectural ablations (init scale, attention temperature, depth, sequence) under the canonical schedule produce noise; they all need to be re-tested on top of the 0005 winner schedule.
+2. Capacity scaling at sp1024 / 9L / d=512 is monotonic out to mlp_mult=4 at least. Records (Apr-01 mlp_mult=4 at 0.9979) suggest scaling further is productive at H100 scales; whether it scales further on the 200-step smoke is the next question (test mlp_mult=5).
+3. Stacking is additive: schedule (Δ +0.116) + capacity (Δ +0.014) ≈ Δ +0.130 vs canonical baseline. **[transfer:high]** — capacity wins are the most robust class of improvements; this layer should hold at 20k-step H100 too.
 
 ## 2026-04-25 · exp 0005 + 0006 · schedule rewrite — first big win (Δ +0.116)
 
