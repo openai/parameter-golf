@@ -10,7 +10,7 @@ The harness anchor is **experiment 0001_baseline_repro** in `results.tsv`, val_b
 
 MPS characteristics:
 - ~1.2 s/step → ~4 min for a 200-step smoke + ~1 s eval (with the default `VAL_TOKENS=16384` cap).
-- Full-val eval (`VAL_TOKENS=0`) adds ~60 s; use it to confirm a marginal result.
+- Full-val eval (`VAL_TOKENS=0`) is much slower — the val set is ~64× larger than the cap. Use it sparingly, only to confirm a marginal result.
 
 ## Setup (every session)
 
@@ -31,11 +31,10 @@ You CAN:
 - **Search the web for credible technical docs** when you're stuck on a specific bug or library detail. Prefer the official PyTorch / Apple docs, GitHub issues on the relevant repo, and arxiv. Don't browse open-ended; use search to find a source, read it, and move on.
 
 You CANNOT:
-- Modify the canonical `train_gpt.py` at the repo root (only your promotion process does that, via `winners/<date>_<slug>/train_gpt.py` snapshots).
+- Modify the canonical `train_gpt.py` at the repo root.
 - Modify `data/`, `records/`, `train_gpt_mlx.py`, `requirements.txt`, `.envrc`.
 - Modify the eval harness inside `train_gpt.py` (`eval_val`, `build_sentencepiece_luts`, the quantization functions).
 - Install new packages.
-- Trigger RunPod or H100 runs.
 
 ## The experiment loop
 
@@ -54,7 +53,7 @@ For each experiment:
 
 ### Extended smoke (>200 steps)
 
-Some hypotheses (depth recurrence, weight-sharing) need longer to show signal. Set `ITERATIONS=1000 WARMDOWN_ITERS=1000 MAX_WALLCLOCK_SECONDS=2400` in `env.sh` (note `WARMDOWN_ITERS=ITERATIONS` per the MPS-stability note below). Justify the extended budget in `plan.md` — generic "more data = more signal" is not enough; the hypothesis must specifically predict that 200 steps would mis-rank.
+Some hypotheses (e.g. depth recurrence, weight-sharing) need longer to show signal. Set `ITERATIONS=1000 WARMDOWN_ITERS=1000 MAX_WALLCLOCK_SECONDS=2400` in `env.sh` — keep `WARMDOWN_ITERS ≥ ITERATIONS` (env.sh's existing comment explains why). Justify the extended budget in `plan.md`; generic "more data = more signal" is not enough — the hypothesis must specifically predict that 200 steps would mis-rank.
 
 ### Lower-variance eval
 
@@ -68,10 +67,9 @@ When an experiment's `val_bpb_post_quant` beats the current best in `winners/` (
 mkdir -p winners
 DEST="winners/$(date +%Y-%m-%d)_<slug>"
 cp -r experiments/NNNN_<slug> "$DEST"
-rm -f "$DEST"/final_model.pt        # too big to commit
-rm -rf "$DEST"/logs/                # redundant with run.log
+rm -f "$DEST"/final_model.pt        # too big to commit; .int8.ptz stays
 # Edit journal.md: add an entry; update Current threads to record the new best.
-# Edit results.tsv: change this row's status from TODO/keep to keep, fill the description.
+# Edit results.tsv: change this row's status to keep, fill the description.
 git add winners/ journal.md results.tsv
 git commit -m "Promote NNNN_<slug>: val_bpb X (was Y)"
 ```
@@ -106,14 +104,6 @@ Almost nothing should be `[VERIFIED]`.
 - Empirical (no substitute): whether a technique improves loss, optimal hyperparameters, interaction effects, long-horizon dynamics.
 
 When in doubt, do the math first.
-
-## MPS stability — known constraint
-
-Canonical `MATRIX_LR=0.04` and `TIED_EMBED_LR=0.05` work on H100 (FlashAttention-3 fused kernels, tighter bf16 guard bits). On MPS bf16 they NaN at full LR — `tok_emb` blows up at step 2, `skip_weights` blows up around step 165.
-
-The env.sh template defaults `WARMDOWN_ITERS=1200` while `ITERATIONS=200`, which makes `lr_mul`'s step-based warmdown active from step 0 (`warmdown_start = max(200 − 1200, 0) = 0`). Effective LR multiplier is `(1200 − step) / 1200`: 0.167 at step 0 decaying to ~0 by step 200. This implicit attenuation is what keeps training stable on MPS. **Don't drop `WARMDOWN_ITERS=1200` without compensating** — either keep it, or set explicit `LR_WARMUP_STEPS=10–20` if you specifically need full canonical LR.
-
-If you see `tok_emb` or `skip_weights` go NaN, this is the first thing to check.
 
 ## Logging formats
 
@@ -267,6 +257,6 @@ If you run out of ideas:
 
 Each experiment is ~5 min. Overnight ≈ 80–100 experiments. Even a 1-in-5 hit rate is significant progress. Keep going.
 
-## When the human returns
+## When the human returns and explicitly asks you to STOP
 
 Finish the current experiment cleanly (don't leave a half-written `plan.md` or unrun folder). Resuming next session is trivial: read `journal.md` → `results.tsv` → `winners/` → continue.
