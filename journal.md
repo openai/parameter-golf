@@ -1,29 +1,32 @@
 # Journal
 
 ## Current threads
-- Anchor baseline established: exp `0001_baseline_repro` at val_bpb 2.3141, 11.42 MB, 200 steps. All sentinels and noise-floor comparisons reference this.
-- MPS stability is built on three knobs in env.sh: `LR_WARMUP_STEPS=10`, `SCALAR_LR=0.01`, `GRAD_CLIP_NORM=1.0`. Don't disable any without a reason logged here.
+- Anchor baseline: exp `0001_baseline_repro` at val_bpb 2.5212 (post-quant int8+zlib), 6.907 MB. Bit-reproduces the Apr-18 reference run. All sentinels and noise-floor comparisons reference this row.
+- Best so far: 2.5212 (the baseline). Promote any experiment whose val_bpb is meaningfully lower (Δ ≥ +0.010 — see noise floor).
+- MPS bf16 numerics can't tolerate the full canonical LR; the env.sh default `WARMDOWN_ITERS=1200` (≥ ITERATIONS=200) gives an effective LR ramp of (1200−step)/1200 across the run, which is what makes training stable. Don't drop this default without setting an explicit `LR_WARMUP_STEPS`.
 
 ---
 
 ## Entries (newest first)
 
-## 2026-04-24 · exp 0001_baseline_repro · MPS stabilizer stack
+## 2026-04-25 · exp 0001_baseline_repro · canonical baseline reproduced
 
-**Question**: Can we run a full 200-step smoke on MPS today without NaN?
+**Question**: Can we run a stable 200-step smoke on MPS that bit-reproduces the Apr-18 reference (val_bpb 2.5540)?
 
-**Setup**: Default canonical `train_gpt.py` + autoresearch env.sh. Three stabilizers active vs. the historical Apr-18 reference: 10-step linear LR warmup, `SCALAR_LR=0.01` (down from 0.04), `GRAD_CLIP_NORM=1.0`, and `MAX_WALLCLOCK_SECONDS=0` so step-based warmdown actually triggers (the wallclock-based warmdown formula doesn't fire for short smokes).
+**Setup**: Canonical `train_gpt.py`. env.sh sets `WARMDOWN_ITERS=1200` so the step-based warmdown is active from step 0 (`warmdown_start = max(200−1200, 0) = 0`), giving LR multiplier 0.167 at step 0 decaying to ~0 by step 200. Otherwise canonical hyperparameters: `WARMUP_STEPS=0`, `MAX_WALLCLOCK_SECONDS=0`, `TIED_EMBED_LR=0.05`, `MATRIX_LR=0.04`, `SCALAR_LR=0.04`, `GRAD_CLIP_NORM=0`. `VAL_TOKENS=16384` (vs Apr-18's full val).
 
-**Prediction** [LIKELY]: 200 steps clean, val_bpb ~2.3.
+**Prediction** [LIKELY]: step 2 = 6.7505 (matches Apr-18 log), final val_bpb in [2.4, 2.7].
 
-**Disconfirming**: any NaN, any step-2 spike >2× step 1, val_bpb outside [2.2, 2.5].
+**Disconfirming**: any deviation from the Apr-18 trajectory (would mean MPS or some env state had drifted), or NaN.
 
-**Result**: val_bpb_post_quant 2.31407318, artifact_mb 11.424, no NaN, no crash, no size violation. step_avg ~1.18 s on MPS. Trajectory: step 1 = 6.94, smooth descent through warmup ramp, hits 4.0 by step 100, ends at train_loss 4.10 with val_loss 3.96.
+**Result**: bit-exact reproduction of Apr-18 through step 200. step 1=6.9379 ✓, step 2=6.7505 ✓, step 200 train_loss=4.4196 ✓, artifact_mb=6.907 (Apr-18: 6.906), val_bpb_post_quant=2.5212 (Apr-18: 2.5540 — the gap is VAL_TOKENS=16384 vs Apr-18's full ~1M-token eval). No NaN.
 
-**Conclusion** [VERIFIED]: The default stabilizer stack works. Three findings worth carrying forward:
+**Conclusion** [VERIFIED]: The earlier "Apr-18 was a non-reproducible MPS lucky draw" framing was wrong. The schedule was deterministically attenuated — `lr_mul` with `WARMDOWN_ITERS=1200` and `ITERATIONS=200` makes `warmdown_start = max(200−1200, 0) = 0`, so warmdown is active from step 0 and the effective LR multiplier is `(1200 − step) / 1200`. Apr-18 was running at ~17% LR throughout, decaying to ~0% by step 200. This is what kept training stable. Full canonical LR is too aggressive for MPS bf16 numerics (NaN around step 165), and that's what was happening when the env.sh template incorrectly set `WARMDOWN_ITERS=40`.
 
-1. **Apr-18's reference baseline of 2.5540 was a lucky MPS draw.** Same code, same PyTorch, same seed, same data — today's MPS deterministically NaNs around step 165 with the canonical config, while Apr-18 produced smooth descent. PyTorch MPS is documented as nondeterministic across runs ([pytorch#97236](https://github.com/pytorch/pytorch/issues/97236)). Apr-18 was a single non-reproducible draw. *Do not chase reproducing 2.5540 — chase reproducing 0001_baseline_repro at 2.31.*
+Three lessons worth carrying forward:
 
-2. **The first NaN tracer (`torch.isnan` per param after `opt.step()`) localizes blame to `skip_weights` at step 162.** That's the U-Net skip-connection scaling, optimized by Adam at canonical `SCALAR_LR=0.04`. The default LR is too high for that param's gradient regime — Adam's bias-corrected first-moment denominator can hit a small-`v` underflow, producing a single update large enough to NaN the param. 4× smaller LR keeps the update in range. **`skip_weights` is the first place to look if late-training NaN returns.**
+1. **`WARMDOWN_ITERS=1200` is the canonical default** for short MPS smokes. Keep it. Override only when the experiment specifically wants full canonical LR — and pair with explicit `LR_WARMUP_STEPS=10–20` if so.
 
-3. **bf16 matmul + Newton-Schulz in Muon was *not* the culprit** despite the natural suspicion. With `MATRIX_LR=0` (Muon frozen), the step-2 spike that occurred at canonical `LR_WARMUP_STEPS=0` was still present — confirming it's the Adam first-step on `tok_emb` (lr=0.05, init std=0.005, ratio 10:1 → catastrophic single update) that drives the early divergence. LR warmup alone fixes that. The late NaN is independent (skip_weights overshoot, see point 2).
+2. **MPS bf16 has tighter LR tolerance than CUDA bf16.** Canonical `MATRIX_LR=0.04` + `TIED_EMBED_LR=0.05` work on H100 with FlashAttention-3 fused kernels and tighter bf16 guard bits. On MPS they NaN at full LR. The implicit warmdown attenuation hides this; if you remove it without warmup, expect `tok_emb` to NaN at step 2 and `skip_weights` to NaN around step 165.
+
+3. **When you can't reproduce a "lucky" baseline, examine the schedule before suspecting nondeterminism.** PyTorch MPS *is* documented as nondeterministic across runs, but the failure mode of being unable to repro a known-good config is much more often a config delta than a kernel-level RNG difference. Diagnose via `lr_mul` math first, and verify the values that go into it.

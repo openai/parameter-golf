@@ -94,33 +94,28 @@ export TOKENIZER_PATH="../../data/tokenizers/fineweb_1024_bpe.model"
 export VOCAB_SIZE=1024
 export ITERATIONS=200
 export WARMUP_STEPS=0
-export WARMDOWN_ITERS=40
-# Wallclock cap disabled so lr_mul() uses the step-based warmdown branch.
-# With MAX_WALLCLOCK > 0, the wallclock-based warmdown formula needs the
-# remaining wallclock to drop below WARMDOWN_ITERS*step_ms to trigger; for
-# a 200-step / 600 s cap that never happens, so LR stays constant the whole
-# run and training NaNs around step 170-180. 0 disables the cap; agents
-# manually monitor runs that may hang.
+# WARMDOWN_ITERS >= ITERATIONS triggers the step-based warmdown from step 0,
+# yielding an effective LR ramp of (1200 - step) / 1200 across the whole run
+# (0.167 at step 0, ~0 by step 200). This is the regime the Apr-18 reference
+# baseline ran in (ITERATIONS=200, WARMDOWN_ITERS unset → defaulted to 1200),
+# and it's what our smoke needs: full canonical LR (warmdown_iters << iterations)
+# is too aggressive for MPS bf16 numerics and NaNs around step 165.
+# To run an experiment at full canonical LR, override per-experiment with a
+# small WARMDOWN_ITERS plus an explicit LR_WARMUP_STEPS (10–20).
+export WARMDOWN_ITERS=1200
+# Wallclock cap disabled so lr_mul uses the step-based warmdown branch (the
+# wallclock branch's formula doesn't fire for short smokes — see git log).
 export MAX_WALLCLOCK_SECONDS=0
-# Gradient clipping as a numerical safety net (off by default in canonical).
-export GRAD_CLIP_NORM=1.0
 export TRAIN_BATCH_TOKENS=8192
 export TRAIN_SEQ_LEN=1024
 export VAL_BATCH_SIZE=8192
 export VAL_LOSS_EVERY=0
+# 16384-token val cap keeps eval ~1 s instead of ~60 s. Override to 0 (full
+# val) when you want a low-variance reading on a marginal result.
 export VAL_TOKENS=16384
-# Linear LR warmup: required on MPS to avoid first-step Adam overshoot.
-# See program.md "MPS stability" and the git log of train_gpt.py for rationale.
-export LR_WARMUP_STEPS=10
-# Dense training-step logs (canonical default of 200 would only print step 1-10
-# and step 200 — no visibility into mid-run divergence). Every 5 steps is a
-# good compromise: ~40 lines for a 200-step smoke, enough to catch NaN onset.
+# Dense step logs to catch divergence early; default 200 prints only steps
+# 1–10 and step 200, leaving the bulk of training invisible.
 export TRAIN_LOG_EVERY=5
-# SCALAR_LR for skip_weights and other 1D control params. Default 0.04 NaNs
-# skip_weights via Adam first-moment overshoot around step 160 on MPS today
-# (verified via per-param NaN trace). 0.01 holds 200 steps stably and
-# converges to a comparable val_bpb. See journal entry for the trace details.
-export SCALAR_LR=0.01
 # Experiment-specific overrides go below:
 EOF
 

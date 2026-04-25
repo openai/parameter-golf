@@ -16,8 +16,8 @@ logs/
 final_model.pt
 final_model.int8.ptz
 
-# Autoresearch harness: experiments/ is agent-owned per-run state, not committed
-# unless the human is promoting a specific win (use `git add -f` if needed).
+# Autoresearch harness: experiments/ is per-run scratch state, not committed.
+# The agent promotes wins to winners/ instead (see program.md).
 experiments/
 
 # Ephemeral scratch space the agent uses for derivations, profiling, etc.
