@@ -19,3 +19,5 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0019_num_layers_11_on_winner	canonical	2.25217348	2.2515	0.000673	15.672	3135.08	false	false	discard	NUM_LAYERS=11 on winner: Δ=+0.0025 (noise) post-quant, +0.0004 pre-quant. Depth ceiling at 200 steps — like mlp5 ceiling.
 0020_warmdown_300_warmup_30	canonical	2.22594746	2.2228	0.003147	13.711	2570.84	false	false	keep	WARMDOWN=300+WARMUP=30+batch=16k+mlp4; Δ=+0.029 vs 0015; clean (pre/post Δ match, normal quant_tax) [transfer:low]
 0021_matrix_lr_06_on_winner	canonical	2.20995664	2.2087	0.001257	15.25	2559.46	false	false	keep	MATRIX_LR=0.06 (1.5x baseline) on 0020 winner; Δ=+0.016 vs 0020, clean. Artifact 15.25 MB (tight). [transfer:med]
+0022_tied_embed_lr_075_on_winner	canonical	2.22164414	2.2205	0.001144	15.186	2488.20	false	false	discard	TIED_EMBED_LR=0.075 (1.5x); Δ=-0.012 (HURTS). Embedding LR more sensitive than matrix LR.
+0023_tied_embed_init_std_02_on_winner	canonical	2.19846699	2.1969	0.001567	15.42	2461.66	false	false	keep	TIED_EMBED_INIT_STD=0.02 (4x baseline) on 0021 winner; Δ=+0.011 (just over noise floor); clean pre/post match [transfer:high]
