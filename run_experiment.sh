@@ -57,9 +57,11 @@ STEP_AVG_MS=$(grep -oE 'step:[0-9]+/[0-9]+ train_loss:[0-9.a-z]+ train_time:[0-9
 NUM_STEPS=$(grep -oE '^step:[0-9]+/[0-9]+ train_loss:' "$STRUCTURED_LOG" | tail -1 | grep -oE 'step:[0-9]+' | cut -d: -f2 || echo "")
 
 # Artifact: decimal MB (1_000_000 bytes), per challenge spec.
-ARTIFACT_BYTES=$(grep -oE 'Total submission size int8\+zlib: [0-9]+ bytes' "$STRUCTURED_LOG" | tail -1 | grep -oE '[0-9]+' | head -1 || echo "")
-CODE_BYTES=$(grep -oE 'Code size: [0-9]+ bytes' "$STRUCTURED_LOG" | tail -1 | grep -oE '[0-9]+' | head -1 || echo "")
-COMPRESSION_RATIO=$(grep -oE 'payload_ratio:[0-9.]+x' "$STRUCTURED_LOG" | tail -1 | grep -oE '[0-9.]+' || echo "")
+# Extract the number that follows the colon-space, so that "int8" in the
+# log line doesn't pollute the match (its trailing 8 was being captured before).
+ARTIFACT_BYTES=$(grep -oE 'Total submission size int8\+zlib: [0-9]+ bytes' "$STRUCTURED_LOG" | tail -1 | sed -E 's/.*: ([0-9]+) bytes/\1/' || echo "")
+CODE_BYTES=$(grep -oE 'Code size: [0-9]+ bytes' "$STRUCTURED_LOG" | tail -1 | sed -E 's/.*: ([0-9]+) bytes/\1/' || echo "")
+COMPRESSION_RATIO=$(grep -oE 'payload_ratio:[0-9.]+x' "$STRUCTURED_LOG" | tail -1 | sed -E 's/.*:([0-9.]+)x/\1/' || echo "")
 
 # NaN detection: a numeric extractor above may have captured "nan" as a string.
 # Treat any nan/inf as crashed regardless of exit code.

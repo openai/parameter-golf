@@ -95,7 +95,15 @@ export VOCAB_SIZE=1024
 export ITERATIONS=200
 export WARMUP_STEPS=0
 export WARMDOWN_ITERS=40
-export MAX_WALLCLOCK_SECONDS=600
+# Wallclock cap disabled so lr_mul() uses the step-based warmdown branch.
+# With MAX_WALLCLOCK > 0, the wallclock-based warmdown formula needs the
+# remaining wallclock to drop below WARMDOWN_ITERS*step_ms to trigger; for
+# a 200-step / 600 s cap that never happens, so LR stays constant the whole
+# run and training NaNs around step 170-180. 0 disables the cap; agents
+# manually monitor runs that may hang.
+export MAX_WALLCLOCK_SECONDS=0
+# Gradient clipping as a numerical safety net (off by default in canonical).
+export GRAD_CLIP_NORM=1.0
 export TRAIN_BATCH_TOKENS=8192
 export TRAIN_SEQ_LEN=1024
 export VAL_BATCH_SIZE=8192
@@ -108,6 +116,11 @@ export LR_WARMUP_STEPS=10
 # and step 200 — no visibility into mid-run divergence). Every 5 steps is a
 # good compromise: ~40 lines for a 200-step smoke, enough to catch NaN onset.
 export TRAIN_LOG_EVERY=5
+# SCALAR_LR for skip_weights and other 1D control params. Default 0.04 NaNs
+# skip_weights via Adam first-moment overshoot around step 160 on MPS today
+# (verified via per-param NaN trace). 0.01 holds 200 steps stably and
+# converges to a comparable val_bpb. See journal entry for the trace details.
+export SCALAR_LR=0.01
 # Experiment-specific overrides go below:
 EOF
 
