@@ -110,8 +110,9 @@ export TRAIN_BATCH_TOKENS=8192
 export TRAIN_SEQ_LEN=1024
 export VAL_BATCH_SIZE=8192
 export VAL_LOSS_EVERY=0
-# 16384-token val cap keeps eval ~1 s instead of ~60 s. Override to 0 (full
-# val) when you want a low-variance reading on a marginal result.
+# 16384-token val cap keeps eval ~1 s. Do NOT set to 0 — full val on MPS
+# takes 60-120 min per experiment (eval is called twice: pre-quant + post-
+# int8-quant). Use SEED=42 re-run for marginal-result confirmation instead.
 export VAL_TOKENS=16384
 # Dense step logs to catch divergence early; default 200 prints only steps
 # 1–10 and step 200, leaving the bulk of training invisible.

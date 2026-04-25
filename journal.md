@@ -40,3 +40,15 @@ Bottleneck: the patched `eval_val` accumulates `val_loss_sum` / `val_token_count
 Why fp64 at all: eval reports val_bpb to 8 decimals (`val_bpb:2.52115777`), and summing ~1M token-loss contributions in fp32 would lose ~4-5 of those decimals (relative epsilon ~1e-7 × 1023 batches × ~7 nat per batch ≈ 1e-3 absolute drift). Canonical chose fp64 to keep the summation noise below the reported precision; we don't modify the eval harness.
 
 Decision: keep `VAL_TOKENS=16384` as the autoresearch default. `VAL_TOKENS=0` stays available for confirming a marginal result, with the cost (~5× the smoke budget) documented in `program.md`.
+
+## 2026-04-25 · note · fp32+full eval is also forbidden; full-val is just too slow on MPS
+
+Tried again with a modified `eval_val` that accumulates in fp32 on the MPS device (no CPU round-trip). Hypothesis: the bottleneck was CPU↔MPS sync per batch, so keeping everything on-device should make full-val tractable.
+
+It didn't. Run hit 66 min and was still going when killed. Pre-quant val_bpb 2.5274 was logged on the way (vs Apr-18's fp64+full 2.5485 — gap ~0.02, partly fp32 accumulation noise, partly MPS run-to-run training drift visible at step 2: 6.7507 today vs 6.7505 Apr-18).
+
+Why fp32-on-MPS didn't help: per-batch dispatch latency dominates over CPU↔MPS sync. ~8 MPS ops per batch × 1023 batches × ~50–100 ms dispatch each is its own multi-minute tax, separate from the sync. Forward pass on a 17M-param 1024-token batch on MPS is also surprisingly slow (~0.3 s/batch wallclock), making the floor ~5 min just for forward passes — and that's only the *first* eval. **`eval_val` is called twice** (pre-quant and post-int8-quant), so any full-val approach doubles. Total realistic best case ~15 min, observed >60 min.
+
+Updated `program.md` and `env.sh` template to forbid `VAL_TOKENS=0`. Marginal-result confirmation is now done by re-running with `SEED=42` instead. The 16K-cap sample is enough at the 0.010 noise floor — sampling error cancels in same-seed Δ comparisons, which is what ranking actually needs.
+
+The fp32 eval modification itself is reverted; the experiment folder is gone. The canonical eval harness stays untouched (rule preserved).
