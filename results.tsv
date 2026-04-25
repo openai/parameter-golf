@@ -17,3 +17,4 @@ id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_v
 0017_regression_check_001	canonical	2.52115777	2.5157	0.005458	6.907	1144.06	false	false	sentinel	bit-exact match to 0001 baseline (val_bpb 2.52115777); harness healthy
 0018_batch_32k_on_winner	canonical	2.59031539	2.5900	0.000315	11.565	4998.01	false	false	discard	batch=32k regressed badly (Δ=-0.336 vs 0015): mode collapse (train_loss 0.55, val 4.43); 32k+current LR is too aggressive; would need LR re-tune
 0019_num_layers_11_on_winner	canonical	2.25217348	2.2515	0.000673	15.672	3135.08	false	false	discard	NUM_LAYERS=11 on winner: Δ=+0.0025 (noise) post-quant, +0.0004 pre-quant. Depth ceiling at 200 steps — like mlp5 ceiling.
+0020_warmdown_300_warmup_30	canonical	2.22594746	2.2228	0.003147	13.711	2570.84	false	false	keep	WARMDOWN=300+WARMUP=30+batch=16k+mlp4; Δ=+0.029 vs 0015; clean (pre/post Δ match, normal quant_tax) [transfer:low]
