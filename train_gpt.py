@@ -654,38 +654,42 @@ class RecurrentLM(nn.Module):
             logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         return logits
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor, noisy_qat: bool = False) -> Tensor:
-        """Return mean cross-entropy loss (scalar).
-
-        When noisy_qat=True (training only), temporarily perturbs each block
-        Linear weight with uniform noise scaled to its int8 quantization step
-        size. This teaches the model to be robust to int8 rounding, closing the
-        train→quantized bpb gap without any additional parameters.
-        """
-        if noisy_qat and self.training:
-            # Collect all bias-free Linear weights in the block (Muon params).
-            linear_weights = [
-                m.weight for m in self.block.modules() if isinstance(m, nn.Linear)
-            ]
-            noises: list[Tensor] = []
-            with torch.no_grad():
-                for w in linear_weights:
-                    # Per-row int8 step size: amax / 127
-                    step = w.float().abs().amax(dim=1, keepdim=True).clamp_min(1e-8) / 127.0
-                    noise = (torch.rand_like(w) - 0.5) * step.to(w.dtype)
-                    w.add_(noise)
-                    noises.append(noise)
-            logits = self.forward_logits(input_ids)
-            with torch.no_grad():
-                for w, noise in zip(linear_weights, noises):
-                    w.sub_(noise)
-        else:
-            logits = self.forward_logits(input_ids)
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        """Return mean cross-entropy loss (scalar)."""
+        logits = self.forward_logits(input_ids)
         return F.cross_entropy(
             logits.reshape(-1, logits.size(-1)).float(),
             target_ids.reshape(-1),
             reduction="mean",
         )
+
+# -----------------------------
+# NOISY QAT HELPERS
+# -----------------------------
+
+def _qat_apply(block: nn.Module) -> list[tuple[Tensor, Tensor]]:
+    """Perturb each Linear weight in block with per-row int8-scale noise.
+
+    Returns a list of (weight, noise) pairs so the caller can restore them
+    after the backward pass. Must be called OUTSIDE torch.compile scope to
+    avoid in-place mutation issues with AOT Autograd / DDP.
+    """
+    pairs: list[tuple[Tensor, Tensor]] = []
+    with torch.no_grad():
+        for m in block.modules():
+            if isinstance(m, nn.Linear):
+                step = m.weight.float().abs().amax(dim=1, keepdim=True).clamp_min(1e-8) / 127.0
+                noise = (torch.rand_like(m.weight) - 0.5) * step.to(m.weight.dtype)
+                m.weight.add_(noise)
+                pairs.append((m.weight, noise))
+    return pairs
+
+
+def _qat_restore(pairs: list[tuple[Tensor, Tensor]]) -> None:
+    """Undo the noise applied by _qat_apply."""
+    with torch.no_grad():
+        for w, noise in pairs:
+            w.sub_(noise)
 
 # -----------------------------
 # TRAINING
@@ -922,10 +926,14 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            # Apply QAT noise to base_model weights (shared with compiled model)
+            # OUTSIDE the compiled forward to avoid torch.compile in-place mutation issues.
+            qat_pairs = _qat_apply(base_model.block) if args.noisy_qat else []
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = model(x, y, noisy_qat=args.noisy_qat)
+                loss = model(x, y)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
+            _qat_restore(qat_pairs)
         train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
