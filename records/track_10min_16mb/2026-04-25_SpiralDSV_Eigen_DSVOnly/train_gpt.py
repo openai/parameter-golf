@@ -1,61 +1,57 @@
-"""FullBiDirHDC Parameter Golf Submission — Main Entry Point.
+"""SpiralDSV + Eigen — DSV-Only Parameter Golf Submission.
 
-Complete replacement of the hash-addressed NMF + DirectionalSemanticVec pipeline
-with the FullBiDirHDC joint manifold engine from the ARC-AGI-3 submission.
-
-Each independent leaderboard run uses a SINGLE seed (for statistical variance
-across the 3 required independent runs). The seed is set via the SEED env var.
+Replaces the entire 2026-04-07 NMF + DSV pipeline with a DSV-only system:
+  - Removes all NMF phases (0–5, 8–9): no embed, no W_out, no Hadamard codebook
+  - Keeps only Phase 6: EigenTrainer.build_bilateral_from_tokens()
+    with GoldenAxisShift per-lag codebook rotation + PMI centering
+  - Budget reallocation: 16 MB freed from NMF → 8 MB sem_fwd + 8 MB sem_bwd
+  - n_words=1024 → 65,536 bits per token (64× increase from 1,024 bits)
+  - Artifact: HGZ3 format, LZMA9 compressed (~2–4 MB on disk)
 
 Usage (8×H100 SXM, leaderboard — standard contest invocation):
     # Run 1 (seed 42):
-    RUN_ID=bidi_hdc N_WORDS=512 SEED=42 \\
+    RUN_ID=spiral_dsv N_WORDS=1024 SEED=42 \\
     DATA_PATH=./data/datasets/fineweb10B_sp1024 \\
     TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
     VOCAB_SIZE=1024 \\
     torchrun --standalone --nproc_per_node=8 train_gpt.py
 
     # Run 2 (seed 7):
-    RUN_ID=bidi_hdc N_WORDS=512 SEED=7 \\
+    RUN_ID=spiral_dsv N_WORDS=1024 SEED=7 \\
     DATA_PATH=./data/datasets/fineweb10B_sp1024 \\
     TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
     VOCAB_SIZE=1024 \\
     torchrun --standalone --nproc_per_node=8 train_gpt.py
 
     # Run 3 (seed 1337):
-    RUN_ID=bidi_hdc N_WORDS=512 SEED=1337 \\
+    RUN_ID=spiral_dsv N_WORDS=1024 SEED=1337 \\
     DATA_PATH=./data/datasets/fineweb10B_sp1024 \\
     TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
     VOCAB_SIZE=1024 \\
     torchrun --standalone --nproc_per_node=8 train_gpt.py
 
-Convenience: run all 3 seeds sequentially (leaderboard verification):
-    for seed in 42 7 1337; do
-      RUN_ID=bidi_hdc N_WORDS=512 SEED=$seed \\
-      DATA_PATH=./data/datasets/fineweb10B_sp1024 \\
-      TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
-      VOCAB_SIZE=1024 \\
-      torchrun --standalone --nproc_per_node=8 train_gpt.py
-    done
-
-Usage (single GPU, smoke test):
-    N_WORDS=16 SEED=42 \\
+Usage (single GPU, smoke test with reduced n_words):
+    N_WORDS=128 SEED=42 \\
     DATA_PATH=./data/datasets/fineweb10B_sp1024 \\
     TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \\
     python train_gpt.py
 
 Environment variables:
-    N_WORDS              : HV width in uint64 words (default 512 → 32,768 bits)
+    N_WORDS              : HV width in uint64 words (default 1024 → 65,536 bits)
+                           Use 128 for RTX 4090, 16 for CPU smoke test
     SEED                 : Single random seed for this run (default 42)
     MAX_WALLCLOCK_SECONDS: Training time cap in seconds (default 600)
     DATA_PATH            : Path to fineweb10B_sp1024/ directory
     TOKENIZER_PATH       : Path to fineweb_1024_bpe.model
     VOCAB_SIZE           : Vocabulary size (default 1024)
-    RUN_ID               : Run identifier for artifact naming (default "bidi_hdc")
+    RUN_ID               : Run identifier for artifact naming (default "spiral_dsv")
+    W_COHERENCE          : Coherence gating weight (default 0.3, 0.0 = disabled)
+    CTX_LEN              : Context depth / number of lags (default 4)
 
 Each run auto-generates:
-    bidi_hdc_seed{SEED}_{TIMESTAMP}.bdhgz  — compressed model artifact
+    spiral_dsv_seed{SEED}_{TIMESTAMP}.hgz  — compressed model artifact
     train_{TIMESTAMP}.log                   — training log (via shell redirect)
-    submission.json                         — updated with actual val_bpb, val_loss, etc.
+    submission.json                         — updated with actual val_bpb, val_loss
 
 BPB formula (identical to reference train_gpt.py):
     BPB = Σ(-log₂ p_correct) / Σ(utf8_bytes(token))
@@ -66,7 +62,6 @@ import argparse
 import datetime
 import glob
 import json
-import math
 import os
 import sys
 import time
@@ -112,6 +107,16 @@ def _dist_rank() -> int:
     return 0
 
 
+def _dist_world_size() -> int:
+    try:
+        import torch.distributed as dist
+        if dist.is_available() and dist.is_initialized():
+            return dist.get_world_size()
+    except Exception:
+        pass
+    return 1
+
+
 def _dist_is_main() -> bool:
     return _dist_rank() == 0
 
@@ -134,8 +139,8 @@ def _load_tokens(
     …).  This reduces per-rank peak memory by world_size× while guaranteeing
     that the union of all ranks' shards covers the full corpus — exactly as if
     every rank had loaded everything.  Histograms built from these partial
-    corpora are summed via all_reduce in the callers, so the final statistics
-    are identical to the single-rank baseline.
+    corpora are summed via all_reduce in EigenTrainer.build_bilateral_from_tokens(),
+    so the final statistics are identical to the single-rank baseline.
 
     The validation split is always loaded in full (only rank 0 uses it).
 
@@ -172,27 +177,41 @@ def _load_tokens(
         all_tokens.append(tokens)
         if _dist_is_main():
             total = sum(len(t) for t in all_tokens)
-            print(f"[TokenLoad] Loaded {total:,} tokens from {os.path.basename(shard_path)}")
+            print(f"[TokenLoad] Loaded {total:,} tokens from "
+                  f"{os.path.basename(shard_path)}")
 
     return np.concatenate(all_tokens)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main training pipeline
+# Main DSV-only pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run_bidi_hdc(args):
-    """Main FullBiDirHDC training and evaluation pipeline.
+def _run_spiral_dsv(args):
+    """Main SpiralDSV + Eigen DSV-only training and evaluation pipeline.
 
-    Each independent run uses a SINGLE seed for statistical variance.
-    The 3 required leaderboard runs use seeds 42, 7, and 1337 respectively.
+    Pipeline (Phase 6 only — all NMF phases removed):
+      1. Load 500M training tokens (sharded per rank)
+      2. Build SpiralDSV bilateral tables via EigenTrainer (all ranks)
+         - GoldenAxisShift per-lag codebook rotation (lags 1..ctx_len)
+         - PMI centering (encodes anti-correlations)
+         - GPU-accelerated dual HGEMM matmul
+         - Distributed all-reduce across all ranks
+      3. Non-zero ranks exit after all-reduce
+      4. Rank 0: save artifact (HGZ3 format, LZMA9 compressed)
+      5. Rank 0: load val tokens, compute BPB
+      6. Rank 0: print audit block + write submission.json
     """
-    from _bidi_train import (
-        train_bidi_model,
-        bidi_bpb,
-        save_bidi_artifact,
+    from _semantic_layer import (
+        build_spiral_dsv,
+        eval_spiral_dsv_bpb,
+        save_spiral_dsv_artifact,
         check_artifact_size,
+        build_token_byte_arrays,
         ARTIFACT_LIMIT,
+        N_WORDS_H100,
+        N_WORDS_4090,
+        N_WORDS_TEST,
     )
 
     t_global_start = time.time()
@@ -200,13 +219,17 @@ def _run_bidi_hdc(args):
 
     # ── Configuration ────────────────────────────────────────────────────────
     n_words    = int(os.environ.get("N_WORDS",    args.n_words))
-    # Single seed per run (for statistical variance across 3 independent runs)
-    seed       = int(os.environ.get("SEED", args.seed))
+    seed       = int(os.environ.get("SEED",       args.seed))
     max_secs   = int(os.environ.get("MAX_WALLCLOCK_SECONDS", args.max_wallclock_seconds))
     vocab_size = int(os.environ.get("VOCAB_SIZE", args.vocab_size))
-    run_id     = os.environ.get("RUN_ID", args.run_id)
-    data_path  = os.environ.get("DATA_PATH", args.data_path)
+    run_id     = os.environ.get("RUN_ID",         args.run_id)
+    data_path  = os.environ.get("DATA_PATH",      args.data_path)
     tok_path   = os.environ.get("TOKENIZER_PATH", args.tokenizer_path)
+    w_coh      = float(os.environ.get("W_COHERENCE", args.w_coherence))
+    ctx_len    = int(os.environ.get("CTX_LEN",    args.ctx_len))
+
+    rank       = _dist_rank()
+    world_size = _dist_world_size()
 
     if _dist_is_main():
         # ── GPU status report ─────────────────────────────────────────────
@@ -217,32 +240,33 @@ def _run_bidi_hdc(args):
         except Exception:
             _gpu_on = False
             _dev    = "cpu"
-        print(f"\n{'='*60}")
-        print(f"[BiDirHDC] FullBiDirHDC Parameter Golf Submission")
-        print(f"[BiDirHDC] GPU acceleration: {'ENABLED (' + str(_dev) + ')' if _gpu_on else 'DISABLED (CPU fallback)'}")
-        print(f"[BiDirHDC] n_words={n_words} ({n_words*64:,} bits per HV)")
-        print(f"[BiDirHDC] seed={seed}  (single seed — use different seeds for 3 independent runs)")
-        print(f"[BiDirHDC] vocab_size={vocab_size}")
-        print(f"[BiDirHDC] max_wallclock={max_secs}s")
-        print(f"[BiDirHDC] timestamp={timestamp}")
-        print(f"{'='*60}\n")
+
+        n_bits = n_words * 64
+        sem_mb = 2 * vocab_size * n_words * 8 / 1_000_000
+
+        print(f"\n{'='*65}")
+        print(f"[SpiralDSV] DSV-Only Parameter Golf Submission")
+        print(f"[SpiralDSV] GPU: {'ENABLED (' + str(_dev) + ')' if _gpu_on else 'DISABLED (CPU fallback)'}")
+        print(f"[SpiralDSV] n_words={n_words} ({n_bits:,} bits per HV)")
+        print(f"[SpiralDSV] sem_fwd+sem_bwd budget: {sem_mb:.1f} MB")
+        print(f"[SpiralDSV] seed={seed}  ctx_len={ctx_len}  vocab_size={vocab_size}")
+        print(f"[SpiralDSV] max_wallclock={max_secs}s  W_COHERENCE={w_coh}")
+        print(f"[SpiralDSV] world_size={world_size}  timestamp={timestamp}")
+        print(f"{'='*65}\n")
 
     # ── Load tokeniser ────────────────────────────────────────────────────────
     import sentencepiece as spm
     sp = spm.SentencePieceProcessor()
     sp.Load(tok_path)
     if _dist_is_main():
-        print(f"[BiDirHDC] Tokeniser loaded: {tok_path} (vocab={sp.GetPieceSize()})")
+        print(f"[SpiralDSV] Tokeniser loaded: {tok_path} "
+              f"(vocab={sp.GetPieceSize()})")
 
     # ── Load training tokens (sharded per rank) ───────────────────────────────
-    # Each rank loads only its interleaved slice of shard files so the total
-    # in-memory footprint is reduced world_size× (8× on 8-GPU runs).
-    # build_from_tokens() and the unigram all_reduce below combine the partial
-    # results, giving identical final statistics to the single-rank baseline.
     if _dist_is_main():
-        print(f"[BiDirHDC] Loading training tokens from {data_path}...")
-        print(f"[BiDirHDC] (Distributed shard loading: each of {world_size} rank(s) "
-              f"loads ~1/{world_size} of shards to avoid memory thrashing)")
+        print(f"[SpiralDSV] Loading training tokens from {data_path}...")
+        print(f"[SpiralDSV] (Distributed shard loading: each of {world_size} "
+              f"rank(s) loads ~1/{world_size} of shards)")
     train_tokens = _load_tokens(
         data_path,
         split="train",
@@ -250,185 +274,126 @@ def _run_bidi_hdc(args):
         world_size=world_size,
     )
     if _dist_is_main():
-        print(f"[BiDirHDC] Training tokens (this rank): {len(train_tokens):,}")
+        print(f"[SpiralDSV] Training tokens (this rank): {len(train_tokens):,}")
 
-    # ── Training ──────────────────────────────────────────────────────────────
-    # Reserve 75s for eval + artifact save.
-    # With eigen optimisations, train_bidi_model() completes in ~5–8s,
-    # leaving ~547s for SpiralDSV build. We use a per-seed budget of 30s
-    # so the engine trains quickly, then the remaining time goes to SpiralDSV.
-    train_budget = max(60.0, max_secs - 75.0)
+    # ── Phase 6: Build bilateral DSV tables (all ranks participate) ───────────
+    # Reserve 60s for eval + artifact save.
+    build_budget = max(60.0, max_secs - 60.0)
 
-    engine = train_bidi_model(
-        tokens        = train_tokens,
-        vocab_size    = vocab_size,
-        n_words       = n_words,
-        seeds         = [seed],   # single seed per run for statistical variance
-        time_budget_s = train_budget,
-        verbose       = _dist_is_main(),
+    model = build_spiral_dsv(
+        tokens          = train_tokens,
+        vocab_size      = vocab_size,
+        n_words         = n_words,
+        ctx_len         = ctx_len,
+        seed            = seed,
+        time_budget_s   = build_budget,
+        dist_rank       = rank,
+        dist_world_size = world_size,
+        verbose         = _dist_is_main(),
     )
 
-    # ── Distributed SpiralDSV build — ALL 8 ranks participate ────────────────
-    # Each rank processes 1/8 of the token positions; all_reduce sums the
-    # histograms.  This is an ~8× speedup vs a single-rank scan with zero
-    # accuracy loss (fwd_hist and bwd_hist are additive, order-independent).
-    #
-    # spiral_budget = remaining time after engine init, minus 45s eval reserve.
-    spiral_dsv = None
-    elapsed_train = time.time() - t_global_start
-    spiral_budget = max(0.0, max_secs - elapsed_train - 45.0)
+    # Free per-rank training tokens — no longer needed
+    del train_tokens
 
-    # Determine dist group info for all ranks
-    _dist_rank_id   = _dist_rank()
-    try:
-        import torch.distributed as _td_info
-        _dist_ws = _td_info.get_world_size() if (_td_info.is_available() and _td_info.is_initialized()) else 1
-    except Exception:
-        _dist_ws = 1
-
-    if spiral_budget > 5.0:
-        try:
-            from _spiral_dsv_lm import SpiralDSVLanguageModel
-            if _dist_is_main():
-                print(f"\n[BiDirHDC] Building SpiralDSV bilateral tables "
-                      f"(distributed: {_dist_ws} ranks, budget={spiral_budget:.0f}s, "
-                      f"elapsed={elapsed_train:.1f}s)...")
-            spiral_dsv = SpiralDSVLanguageModel(
-                vocab_size = vocab_size,
-                n_words    = n_words,
-                seed       = seed,
-            )
-            spiral_dsv.build_from_tokens(
-                tokens          = train_tokens,
-                ctx_len         = 4,
-                time_budget_s   = spiral_budget,
-                verbose         = _dist_is_main(),
-                dist_rank       = _dist_rank_id,
-                dist_world_size = _dist_ws,
-            )
-        except Exception as e:
-            if _dist_is_main():
-                print(f"[BiDirHDC] SpiralDSV build failed ({e}) — skipping")
-            spiral_dsv = None
-
-    # ── All-reduce unigram counts so rank 0 has full-corpus statistics ────────
-    # Each rank has only a 1/world_size subset of the training shards.  We
-    # gather the per-rank bincount totals and sum them before the non-main
-    # ranks exit, so the rule_bundle derivation (rank 0 only) uses the same
-    # full-corpus unigram distribution it would have seen without sharding.
-    # This step is O(vocab_size) and negligible compared to the corpus scan.
-    _local_unigram = np.bincount(
-        np.clip(train_tokens.astype(np.int32), 0, vocab_size - 1),
-        minlength=vocab_size,
-    ).astype(np.float32)
-
-    from _bidi_train import _dist_all_reduce_sum_numpy as _allreduce
-    _global_unigram: np.ndarray = _allreduce(_local_unigram)
-
-    # Free the per-rank shard — no longer referenced below
-    del train_tokens, _local_unigram
-
-    # Non-main ranks contributed to the bilateral scan — exit now
+    # Non-zero ranks: histograms contributed via all-reduce — exit now
     if not _dist_is_main():
         return
 
-    # ── Derive rule_bundle + goal_hv from SpiralDSV sem_fwd (no extra scan) ──
-    # rule_bundle* = sign(unigram_freq @ sem_fwd_pm1)
-    #
-    # This replaces the separate train_on_tokens() scan and is BETTER because:
-    #   • Uses full corpus bilateral structure (GoldenAxisShift, 4 lags)
-    #   • rule_bundle = "where language goes next, on average in HDC space"
-    #   • Derived in O(V × n_bits) matmul — zero extra corpus scan
-    if spiral_dsv is not None and getattr(spiral_dsv, '_built', False) and engine is not None:
-        try:
-            spiral_dsv._ensure_pm1_cache()
-            if spiral_dsv._sem_fwd_pm1 is not None:
-                # _global_unigram was all_reduced across ranks above —
-                # full-corpus statistics, zero accuracy loss vs loading all
-                # tokens on every rank.
-                unigram_counts = _global_unigram
-                unigram_freq = unigram_counts / max(float(unigram_counts.sum()), 1.0)
+    # ── Rank 0 only from here ─────────────────────────────────────────────────
 
-                # rule_bundle*: frequency-weighted forward semantic centroid
-                rule_spectrum = unigram_freq @ spiral_dsv._sem_fwd_pm1    # (n_bits,)
-                from _bidi_hdc_engine import pm1_to_uint64
-                engine._rule_bundle_pm1 = np.sign(rule_spectrum).astype(np.float32)
-                engine._rule_bundle     = pm1_to_uint64(engine._rule_bundle_pm1)
-
-                # goal_hv*: high-frequency tokens only (P > 1% — sharpened attractor)
-                top_mask = unigram_freq >= 0.01
-                n_top    = int(top_mask.sum())
-                if n_top > 0:
-                    top_freq      = np.where(top_mask, unigram_freq, 0.0).astype(np.float32)
-                    goal_spectrum = top_freq @ spiral_dsv._sem_fwd_pm1
-                    engine._goal_hv_pm1 = np.sign(goal_spectrum).astype(np.float32)
-                    engine.goal_hv      = pm1_to_uint64(engine._goal_hv_pm1)
-
-                print(f"[BiDirHDC] rule_bundle derived from SpiralDSV sem_fwd "
-                      f"(full corpus, {n_top} goal tokens, P>1%)")
-        except Exception as e:
-            print(f"[BiDirHDC] rule_bundle derivation failed ({e}) — using default")
+    if not getattr(model, '_built', False):
+        print(f"[SpiralDSV] ERROR: model not built — aborting")
+        return
 
     # ── Save artifact ─────────────────────────────────────────────────────────
-    artifact_path = os.path.join(_THIS_DIR, f"{run_id}_seed{seed}_{timestamp}.bdhgz")
-    compressed_size = save_bidi_artifact(
-        engine     = engine,
-        path       = artifact_path,
-        spiral_dsv = spiral_dsv,
-        verbose    = True,
+    artifact_path = os.path.join(
+        _THIS_DIR, f"{run_id}_seed{seed}_{timestamp}.hgz"
+    )
+    compressed_size = save_spiral_dsv_artifact(
+        model   = model,
+        path    = artifact_path,
+        verbose = True,
     )
 
     # ── Artifact size check ───────────────────────────────────────────────────
-    code_bytes = os.path.getsize(os.path.abspath(__file__))
-    # Also count helper module sizes (include _gpu.py)
-    for helper in ["_bidi_hdc_engine.py", "_bidi_train.py", "_spiral_dsv_lm.py", "_gpu.py"]:
+    code_bytes = 0
+    for helper in [
+        "train_gpt.py",
+        "_semantic_layer.py",
+        "_spiral_dsv_lm.py",
+        "_eigen_convergence.py",
+        "_gpu.py",
+    ]:
         helper_path = os.path.join(_THIS_DIR, helper)
         if os.path.exists(helper_path):
             code_bytes += os.path.getsize(helper_path)
 
-    total_artifact, passes = check_artifact_size(artifact_path, code_bytes)
+    total_artifact, passes = check_artifact_size(
+        artifact_path, code_bytes, verbose=True
+    )
 
     # ── Load validation tokens ────────────────────────────────────────────────
-    print(f"\n[BiDirHDC] Running BPB evaluation on validation set...")
+    print(f"\n[SpiralDSV] Loading validation tokens from {data_path}...")
     val_tokens = _load_tokens(data_path, split="val")
-    print(f"[BiDirHDC] Validation tokens: {len(val_tokens):,}")
+    print(f"[SpiralDSV] Validation tokens: {len(val_tokens):,}")
+
+    # ── Build per-token byte arrays from tokeniser ────────────────────────────
+    base_bytes, has_leading_space, is_boundary_token = build_token_byte_arrays(
+        sp_model   = sp,
+        vocab_size = vocab_size,
+    )
 
     # ── BPB Evaluation ────────────────────────────────────────────────────────
-    bpb, val_loss = bidi_bpb(
-        val_tokens         = val_tokens,
-        engine             = engine,
-        sp_model           = sp,
-        spiral_dsv         = spiral_dsv,
-        chunk_size         = 4096,
-        spiral_blend_alpha = 0.3 if spiral_dsv is not None else 0.0,
-        verbose            = True,
+    bpb, val_loss = eval_spiral_dsv_bpb(
+        val_tokens        = val_tokens,
+        model             = model,
+        base_bytes        = base_bytes,
+        has_leading_space = has_leading_space,
+        is_boundary_token = is_boundary_token,
+        batch_size        = 500_000,
+        W_COHERENCE       = w_coh,
+        verbose           = True,
     )
 
     # ── Final results (same format as existing submissions) ───────────────────
     elapsed = time.time() - t_global_start
+
+    print(f"\n[HashGrad BPB audit]")
+    print(f"  val_bpb  = {bpb:.6f}")
+    print(f"  val_loss = {val_loss:.6f}")
+    print(f"  elapsed  = {elapsed:.1f}s")
+    print(f"  n_words  = {n_words}  ({n_words*64:,} bits)")
+    print(f"  seed     = {seed}")
+    print(f"  artifact = {os.path.basename(artifact_path)}")
+    print(f"  artifact_bytes = {compressed_size:,}")
+    print(f"  code_bytes     = {code_bytes:,}")
+    print(f"  total_bytes    = {total_artifact:,}")
+    print(f"  size_check     = {'PASS' if passes else 'FAIL'}")
+
     print(f"\n[TensorCore] FINAL RESULTS")
     print(f"BPB: {bpb:.4f}  |  Val Loss: {val_loss:.4f}  |  Time: {elapsed:.1f}s")
-    print(f"Code size: {code_bytes:,} bytes  |  Total artifact: {total_artifact:,} bytes")
+    print(f"Code size: {code_bytes:,} bytes  |  "
+          f"Total artifact: {total_artifact:,} bytes")
     print(f"Artifact size check: {'PASS' if passes else 'FAIL'} "
           f"(limit: {ARTIFACT_LIMIT:,} bytes)")
 
     # ── Auto-generate submission.json ─────────────────────────────────────────
-    # Each run overwrites submission.json with the latest results.
-    # The leaderboard submission uses the best result across 3 seeds.
     submission = {
         "track": "10min_16mb",
         "date": datetime.datetime.utcnow().strftime("%Y-%m-%d"),
-        "name": "FullBiDirHDC Complete Replacement — Bilateral Joint Manifold Engine",
+        "name": "SpiralDSV + Eigen — DSV-Only (no NMF)",
         "author": "Ashley Klimpel",
         "github_id": "viasky657",
         "val_loss": float(val_loss),
         "val_bpb": float(bpb),
         "artifact_bytes": int(total_artifact),
         "code_bytes": int(code_bytes),
-        "world_size": int(os.environ.get("WORLD_SIZE", 1)),
+        "world_size": int(world_size),
         "n_words": n_words,
         "hv_bits": n_words * 64,
+        "ctx_len": ctx_len,
         "seed": seed,
+        "w_coherence": w_coh,
         "elapsed_s": float(elapsed),
         "timestamp": timestamp,
         "artifact_path": os.path.basename(artifact_path),
@@ -437,7 +402,7 @@ def _run_bidi_hdc(args):
     submission_path = os.path.join(_THIS_DIR, "submission.json")
     with open(submission_path, "w") as f:
         json.dump(submission, f, indent=2)
-    print(f"[BiDirHDC] submission.json written: {submission_path}")
+    print(f"[SpiralDSV] submission.json written: {submission_path}")
 
     return bpb, val_loss, total_artifact, elapsed
 
@@ -448,48 +413,68 @@ def _run_bidi_hdc(args):
 
 def _parse_args():
     parser = argparse.ArgumentParser(
-        description="FullBiDirHDC Parameter Golf Submission"
+        description="SpiralDSV + Eigen DSV-Only Parameter Golf Submission"
     )
-    # All configuration is driven by environment variables (contest standard).
-    # Command-line args are optional overrides for convenience.
     parser.add_argument(
         "--data_path",
-        default=os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024"),
-        help="Path to fineweb10B_sp1024/ directory"
+        default=os.environ.get(
+            "DATA_PATH", "./data/datasets/fineweb10B_sp1024"
+        ),
+        help="Path to fineweb10B_sp1024/ directory",
     )
     parser.add_argument(
         "--tokenizer_path",
-        default=os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model"),
-        help="Path to SentencePiece model file"
+        default=os.environ.get(
+            "TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model"
+        ),
+        help="Path to SentencePiece model file",
     )
     parser.add_argument(
         "--n_words",
         type=int,
-        default=int(os.environ.get("N_WORDS", 512)),
-        help="HV width in uint64 words (default 512 → 32,768 bits)"
+        default=int(os.environ.get("N_WORDS", 1024)),
+        help=(
+            "HV width in uint64 words "
+            "(default 1024 → 65,536 bits for H100; "
+            "use 128 for RTX 4090, 16 for CPU smoke test)"
+        ),
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=int(os.environ.get("SEED", 42)),
-        help="Single random seed for this run (default 42). Use different seeds for 3 independent runs."
+        help="Single random seed for this run (default 42). "
+             "Use different seeds for 3 independent runs.",
     )
     parser.add_argument(
         "--vocab_size",
         type=int,
         default=int(os.environ.get("VOCAB_SIZE", 1024)),
-        help="Vocabulary size (default 1024)"
+        help="Vocabulary size (default 1024)",
     )
     parser.add_argument(
         "--max_wallclock_seconds",
         type=int,
         default=int(os.environ.get("MAX_WALLCLOCK_SECONDS", 600)),
-        help="Maximum wallclock time in seconds (default 600)"
+        help="Maximum wallclock time in seconds (default 600)",
     )
     parser.add_argument(
         "--run_id",
-        default=os.environ.get("RUN_ID", "bidi_hdc"),
-        help="Run identifier for artifact naming (default 'bidi_hdc')"
+        default=os.environ.get("RUN_ID", "spiral_dsv"),
+        help="Run identifier for artifact naming (default 'spiral_dsv')",
+    )
+    parser.add_argument(
+        "--w_coherence",
+        type=float,
+        default=float(os.environ.get("W_COHERENCE", 0.3)),
+        help="Coherence gating weight (default 0.3, 0.0 = disabled). "
+             "Biases predictions toward tokens coherent with the document topic.",
+    )
+    parser.add_argument(
+        "--ctx_len",
+        type=int,
+        default=int(os.environ.get("CTX_LEN", 4)),
+        help="Context depth / number of lags (default 4)",
     )
     return parser.parse_args()
 
@@ -504,7 +489,7 @@ if __name__ == "__main__":
 
     args = _parse_args()
 
-    # Run the FullBiDirHDC pipeline unconditionally — this is the sole pipeline
-    # for this submission. No flag required; matches contest standard invocation:
+    # Run the DSV-only pipeline unconditionally.
+    # Matches contest standard invocation:
     #   torchrun --standalone --nproc_per_node=8 train_gpt.py
-    _run_bidi_hdc(args)
+    _run_spiral_dsv(args)

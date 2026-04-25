@@ -1,0 +1,19 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-25",
+  "name": "SpiralDSV + Eigen — DSV-Only (no NMF)",
+  "author": "Ashley Klimpel",
+  "github_id": "viasky657",
+  "val_loss": null,
+  "val_bpb": null,
+  "artifact_bytes": null,
+  "code_bytes": null,
+  "world_size": 8,
+  "n_words": 1024,
+  "hv_bits": 65536,
+  "ctx_len": 4,
+  "seed": "42/7/1337 (3 independent runs)",
+  "w_coherence": 0.3,
+  "elapsed_s": null,
+  "notes": "Results to be filled after leaderboard runs. submission.json is auto-updated by train_gpt.py at the end of each run. DSV-only architecture: removes all NMF phases, reallocates 16 MB to sem_fwd+sem_bwd (n_words=1024, 65536 bits per token)."
+}
