@@ -1,2 +1,6 @@
 id	parent	val_bpb	pre_quant_bpb	quant_tax	artifact_mb	step_avg_ms	crashed	size_violation	status	description
 0001_baseline_repro	canonical	2.52115777	2.5157	0.005458	6.907	1210.22	false	false	keep	canonical baseline; bit-reproduces Apr-18 reference
+0002_mlp_mult_3	canonical	2.51903467	2.5111	0.007935	8.404	1265.77	false	false	discard	MLP_MULT 2->3, +1.5MB artifact, Δ=+0.002 noise
+0003_qk_gain_5	canonical	2.51947665	2.5144	0.005077	7.01	1185.76	false	false	discard	QK_GAIN_INIT 1.5->5.0, Δ=+0.002 noise
+0005_warmdown_600_warmup_10	canonical	2.40516607	2.4023	0.002866	8.105	1183.74	false	false	keep	warmup10+warmdown600, 2x avg LR, Δ=+0.116 [transfer:low]
+0006_warmdown_600_warmup_10_seed42	canonical	2.40271652	2.3996	0.003117	8.117	1200.28	false	false	keep	SEED=42 confirms 0005 (Δ between seeds 0.0024) [transfer:low]

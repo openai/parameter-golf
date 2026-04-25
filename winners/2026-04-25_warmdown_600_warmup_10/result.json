@@ -1,0 +1,26 @@
+{
+  "id": "0005_warmdown_600_warmup_10",
+  "parent": "canonical",
+  "created_at": "2026-04-25T03:28:37Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.4023,
+    "val_bpb_post_quant": 2.40516607,
+    "val_loss_pre_quant": 4.1059,
+    "val_loss_post_quant": 4.11074454,
+    "quant_tax": 0.002866,
+    "step_avg_ms": 1183.74,
+    "num_steps": 200.0,
+    "artifact_bytes": 8104932.0,
+    "artifact_mb": 8.105,
+    "code_bytes": 50110.0,
+    "compression_ratio": 3.91
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
