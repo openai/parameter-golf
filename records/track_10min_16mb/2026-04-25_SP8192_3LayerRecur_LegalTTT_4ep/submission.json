@@ -1,0 +1,41 @@
+{
+  "author": "Ethan Ning",
+  "github_id": "EthanNing",
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Score-First TTT (4 epochs) + Tuned MLP WD",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_bpb": 1.07290246,
+  "val_bpb_std": 0.00015869,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.07303003, "artifact_bytes": 15995398, "train_s": 600.1, "eval_s": 577.5},
+    "314": {"val_bpb": 1.07272475, "artifact_bytes": 15999207, "train_s": 600.1, "eval_s": 575.7},
+    "999": {"val_bpb": 1.07295259, "artifact_bytes": 15995751, "train_s": 600.1, "eval_s": 586.4}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 (bifurcated) + Per-head Attn Output Gate + XSA on all 11 layers + EMA 0.9965 + Split MLP WD (mlp 0.115 / attn 0.095) + Score-First TTT (SGD 4 epochs/chunk) + GPTQ SDClip int6 (matrix) / int8 (embed) + Brotli-11 byte-shuffle",
+  "delta_vs_prior_record": {
+    "prior_record": "2026-04-09 SP8192_3LayerRecur_ParResid_QK525_LegalTTT (val_bpb 1.0810, std 0.0002)",
+    "improvement_nats": 0.00810,
+    "welch_t": -54.93,
+    "welch_df": 3.80,
+    "welch_p_one_sided": "<1e-7"
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "built_on": "@bigbag's 2026-04-09 record SP8192_3LayerRecur_ParResid_QK525_LegalTTT (val_bpb 1.0810)",
+    "this_record_delta": "TTT epochs 3 -> 4, split MLP weight decay (mlp 0.115 / attn 0.095); all other components inherited from @bigbag's stack",
+    "upstream_chain": "see @bigbag's README at records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/README.md"
+  }
+}
