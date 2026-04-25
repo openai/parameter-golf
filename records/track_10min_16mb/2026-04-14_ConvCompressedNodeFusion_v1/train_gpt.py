@@ -11,24 +11,23 @@ Run examples:
 """
 
 import argparse
+import glob
 import json
 import math
 import os
 import random
 import time
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, Optional
+from pathlib import Path
 
+import numpy as np
+import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, IterableDataset
-
-
-BYTE_VOCAB_SIZE = 257  # 0-255 byte values + EOS=256
-EOS_TOKEN_ID = 256
+DEFAULT_VOCAB_SIZE = 1024
 
 
 def seed_everything(seed: int) -> None:
@@ -208,7 +207,7 @@ class NodeFusion(nn.Module):
 
 @dataclass
 class ModelConfig:
-    vocab_size: int = BYTE_VOCAB_SIZE
+    vocab_size: int = DEFAULT_VOCAB_SIZE
     seq_len: int = 512
     d_model: int = 384
     d_attn: int = 128
@@ -282,44 +281,67 @@ class ParameterGolfLM(nn.Module):
         return logits
 
 
-class FineWebByteChunks(IterableDataset):
-    """
-    Streams FineWeb text and emits fixed-length byte token chunks.
-    """
+def load_data_shard(file: Path) -> torch.Tensor:
+    header_bytes = 256 * np.dtype("<i4").itemsize
+    token_bytes = np.dtype("<u2").itemsize
+    header = np.fromfile(file, dtype="<i4", count=256)
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+        raise ValueError(f"Unexpected shard header for {file}")
+    num_tokens = int(header[2])
+    expected_size = header_bytes + num_tokens * token_bytes
+    if file.stat().st_size != expected_size:
+        raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
+    if tokens_np.size != num_tokens:
+        raise ValueError(f"Short read for {file}")
+    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
 
-    def __init__(self, hf_iterable: Iterable[Dict], seq_len: int):
-        super().__init__()
-        self.hf_iterable = hf_iterable
-        self.seq_len = seq_len
 
-    def __iter__(self):
-        buf: list[int] = []
-        cursor = 0
-        chunk_len = self.seq_len + 1
-        trim_threshold = 1_000_000
+class TokenStream:
+    def __init__(self, pattern: str):
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.file_idx = 0
+        self.tokens = load_data_shard(self.files[0])
+        self.pos = 0
 
-        for ex in self.hf_iterable:
-            text = ex.get("text", "")
-            if not text:
+    def _advance_file(self) -> None:
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = 0
+
+    def take(self, n: int) -> torch.Tensor:
+        chunks: list[torch.Tensor] = []
+        remaining = n
+        while remaining > 0:
+            avail = self.tokens.numel() - self.pos
+            if avail <= 0:
+                self._advance_file()
                 continue
-            raw = text.encode("utf-8", errors="ignore")
-            if not raw:
-                continue
-            buf.extend(raw)
-            buf.append(EOS_TOKEN_ID)
-
-            while (len(buf) - cursor) >= chunk_len:
-                chunk = buf[cursor : cursor + chunk_len]
-                cursor += chunk_len
-                yield torch.tensor(chunk, dtype=torch.long)
-
-            if cursor > trim_threshold:
-                buf = buf[cursor:]
-                cursor = 0
+            k = min(remaining, avail)
+            chunks.append(self.tokens[self.pos : self.pos + k])
+            self.pos += k
+            remaining -= k
+        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
 
 
-def collate_stack(batch: list[torch.Tensor]) -> torch.Tensor:
-    return torch.stack(batch, dim=0)
+class DistributedTokenLoader:
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+        self.rank = rank
+        self.world_size = world_size
+        self.device = device
+        self.stream = TokenStream(pattern)
+
+    def next_batch(self, batch_size: int, seq_len: int) -> tuple[torch.Tensor, torch.Tensor]:
+        local_tokens = batch_size * seq_len
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+        x = local[:-1].reshape(batch_size, seq_len)
+        y = local[1:].reshape(batch_size, seq_len)
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 
 def count_parameters(model: nn.Module) -> int:
@@ -346,84 +368,135 @@ def cosine_lr(step: int, total_steps: int, warmup_steps: int, max_lr: float, min
     return min_lr + cosine * (max_lr - min_lr)
 
 
-def bpb_stats_from_logits(logits: torch.Tensor, targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Returns (nll_bits_sum, byte_count) for tokenizer-agnostic BPB.
-    In this byte-level setup, each non-EOS target token represents one byte.
-    """
-    nll_nats = F.cross_entropy(
-        logits.reshape(-1, logits.size(-1)),
-        targets.reshape(-1),
-        reduction="none",
-    ).reshape_as(targets)
-    byte_mask = (targets != EOS_TOKEN_ID).to(nll_nats.dtype)
-    nll_bits_sum = (nll_nats * byte_mask).sum() / math.log(2.0)
-    byte_count = byte_mask.sum()
-    return nll_bits_sum, byte_count
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+
+def load_validation_tokens(pattern: str, seq_len: int) -> torch.Tensor:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if not files:
+        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    usable = ((tokens.numel() - 1) // seq_len) * seq_len
+    if usable <= 0:
+        raise ValueError(f"Validation split too short for seq_len={seq_len}")
+    return tokens[: usable + 1]
 
 
 @torch.no_grad()
 def evaluate_bpb(
     model: nn.Module,
-    data_iter: Iterable[torch.Tensor],
+    rank: int,
+    world_size: int,
     device: torch.device,
-    eval_batches: int,
+    seq_len: int,
+    val_batch_tokens: int,
+    val_tokens: torch.Tensor,
+    base_bytes_lut: torch.Tensor,
+    has_leading_space_lut: torch.Tensor,
+    is_boundary_token_lut: torch.Tensor,
     use_bf16: bool,
-) -> float:
+) -> tuple[float, float]:
     was_training = model.training
     model.eval()
     amp_dtype = torch.bfloat16 if use_bf16 else torch.float16
 
-    bits_sum = torch.zeros(1, device=device, dtype=torch.float64)
-    bytes_sum = torch.zeros(1, device=device, dtype=torch.float64)
+    local_batch_tokens = val_batch_tokens // world_size
+    if local_batch_tokens < seq_len:
+        raise ValueError(
+            f"VAL_BATCH_TOKENS too small: {val_batch_tokens} for world_size={world_size}, seq_len={seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // seq_len
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
 
-    for _ in range(eval_batches):
-        batch = next(data_iter).to(device, non_blocking=True)
-        inp = batch[:, :-1]
-        tgt = batch[:, 1:]
+    nll_nats_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+        batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+        raw_start = batch_seq_start * seq_len
+        raw_end = batch_seq_end * seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        inp = local[:-1].reshape(-1, seq_len)
+        tgt = local[1:].reshape(-1, seq_len)
         with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=(device.type == "cuda")):
             logits = model(inp)
-        nll_bits, byte_count = bpb_stats_from_logits(logits.float(), tgt)
-        bits_sum += nll_bits.to(torch.float64)
-        bytes_sum += byte_count.to(torch.float64)
+        nll_nats = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)),
+            tgt.reshape(-1),
+            reduction="none",
+        )
+        nll_nats_sum += nll_nats.to(torch.float64).sum()
+        token_count += float(tgt.numel())
+
+        prev_ids = inp.reshape(-1)
+        tgt_ids = tgt.reshape(-1)
+        token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+        token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+        byte_count += token_bytes.to(torch.float64).sum()
 
     if is_dist():
-        dist.all_reduce(bits_sum, op=dist.ReduceOp.SUM)
-        dist.all_reduce(bytes_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(nll_nats_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
 
-    bpb = (bits_sum / bytes_sum.clamp(min=1.0)).item()
+    val_loss = (nll_nats_sum / token_count.clamp(min=1.0)).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = (token_count / byte_count.clamp(min=1.0)).item()
+    bpb = bits_per_token * tokens_per_byte
     if was_training:
         model.train()
-    return bpb
-
-
-def maybe_load_fineweb(name: str, config_name: Optional[str], split: str, seed: int, shuffle_buffer: int, rank: int, world_size: int):
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise ImportError(
-            "Missing dependency `datasets`. Install with: pip install datasets"
-        ) from exc
-
-    kwargs = dict(split=split, streaming=True)
-    if config_name:
-        ds = load_dataset(name, name=config_name, **kwargs)
-    else:
-        ds = load_dataset(name, **kwargs)
-    if shuffle_buffer > 0:
-        ds = ds.shuffle(seed=seed, buffer_size=shuffle_buffer)
-    if world_size > 1:
-        ds = ds.shard(num_shards=world_size, index=rank)
-    return ds
+    return float(val_loss), float(bpb)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Parameter Golf direct-training script")
-    p.add_argument("--dataset_name", type=str, default="HuggingFaceFW/fineweb")
-    p.add_argument("--dataset_config", type=str, default="sample-10BT")
-    p.add_argument("--train_split", type=str, default="train")
-    p.add_argument("--val_split", type=str, default="validation")
-    p.add_argument("--shuffle_buffer", type=int, default=10000)
+    p.add_argument("--data_path", type=str, default="./data/datasets/fineweb10B_sp1024")
+    p.add_argument(
+        "--train_files_pattern",
+        type=str,
+        default="",
+        help="Optional explicit glob for train token shards. Defaults to <data_path>/fineweb_train_*.bin",
+    )
+    p.add_argument(
+        "--val_files_pattern",
+        type=str,
+        default="",
+        help="Optional explicit glob for val token shards. Defaults to <data_path>/fineweb_val_*.bin",
+    )
+    p.add_argument(
+        "--tokenizer_path",
+        type=str,
+        default="./data/tokenizers/fineweb_1024_bpe.model",
+        help="SentencePiece model used to compute tokenizer-agnostic BPB.",
+    )
+    p.add_argument("--vocab_size", type=int, default=DEFAULT_VOCAB_SIZE)
 
     p.add_argument("--seq_len", type=int, default=512)
     p.add_argument("--d_model", type=int, default=384)
@@ -451,8 +524,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--no_bf16", action="store_false", dest="bf16")
     p.add_argument("--compile", action="store_true", default=False)
     p.add_argument("--log_every", type=int, default=20)
-    p.add_argument("--eval_every_updates", type=int, default=100)
-    p.add_argument("--eval_batches", type=int, default=20)
+    p.add_argument(
+        "--eval_every_updates",
+        type=int,
+        default=0,
+        help="Deprecated: periodic validation is disabled; one full validation pass runs at the end.",
+    )
+    p.add_argument("--val_batch_tokens", type=int, default=524_288)
     p.add_argument("--save_best", action="store_true", default=True, help="Save checkpoint when val_bpb improves.")
     p.add_argument("--no_save_best", action="store_false", dest="save_best")
 
@@ -474,7 +552,7 @@ def main() -> None:
     torch.set_float32_matmul_precision("high")
 
     cfg = ModelConfig(
-        vocab_size=BYTE_VOCAB_SIZE,
+        vocab_size=args.vocab_size,
         seq_len=args.seq_len,
         d_model=args.d_model,
         d_attn=args.d_attn,
@@ -497,69 +575,22 @@ def main() -> None:
     if is_main_process():
         print(f"params={param_count:,} est_fp16_artifact={est_fp16_mb:.2f}MB")
 
-    train_stream = maybe_load_fineweb(
-        args.dataset_name,
-        args.dataset_config if args.dataset_config else None,
-        args.train_split,
-        args.seed + rank,
-        args.shuffle_buffer,
-        rank,
-        world_size,
+    train_pattern = args.train_files_pattern or os.path.join(args.data_path, "fineweb_train_*.bin")
+    val_pattern = args.val_files_pattern or os.path.join(args.data_path, "fineweb_val_*.bin")
+    train_loader = DistributedTokenLoader(train_pattern, rank=rank, world_size=world_size, device=device)
+
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"--vocab_size={args.vocab_size} does not match tokenizer vocab size {int(sp.vocab_size())}"
+        )
+    val_tokens = load_validation_tokens(val_pattern, args.seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
     )
-    train_ds = FineWebByteChunks(train_stream, seq_len=args.seq_len)
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=args.batch_size,
-        num_workers=0,
-        pin_memory=(device.type == "cuda"),
-        collate_fn=collate_stack,
-    )
-    val_iter = None
-    if args.eval_every_updates > 0 and args.eval_batches > 0:
-        try:
-            val_stream = maybe_load_fineweb(
-                args.dataset_name,
-                args.dataset_config if args.dataset_config else None,
-                args.val_split,
-                args.seed + 11_111 + rank,
-                max(1000, args.shuffle_buffer // 10),
-                rank,
-                world_size,
-            )
-            val_ds = FineWebByteChunks(val_stream, seq_len=args.seq_len)
-            val_loader = DataLoader(
-                val_ds,
-                batch_size=args.batch_size,
-                num_workers=0,
-                pin_memory=(device.type == "cuda"),
-                collate_fn=collate_stack,
-            )
-            val_iter = iter(val_loader)
-        except Exception as exc:
-            try:
-                if is_main_process():
-                    print(f"Validation split='{args.val_split}' unavailable ({exc}); falling back to train split.")
-                val_stream = maybe_load_fineweb(
-                    args.dataset_name,
-                    args.dataset_config if args.dataset_config else None,
-                    args.train_split,
-                    args.seed + 22_222 + rank,
-                    max(1000, args.shuffle_buffer // 10),
-                    rank,
-                    world_size,
-                )
-                val_ds = FineWebByteChunks(val_stream, seq_len=args.seq_len)
-                val_loader = DataLoader(
-                    val_ds,
-                    batch_size=args.batch_size,
-                    num_workers=0,
-                    pin_memory=(device.type == "cuda"),
-                    collate_fn=collate_stack,
-                )
-                val_iter = iter(val_loader)
-            except Exception as exc2:
-                if is_main_process():
-                    print(f"Validation disabled after fallback attempt: {exc2}")
+    if is_main_process():
+        print(f"train_loader pattern={train_pattern}")
+        print(f"val_loader pattern={val_pattern} tokens={val_tokens.numel() - 1}")
 
     fused_ok = device.type == "cuda"
     try:
@@ -619,11 +650,7 @@ def main() -> None:
     start_time = time.time()
     time_limit_sec = args.time_limit_minutes * 60.0
 
-    # Dataloader for iterable datasets does not naturally end; stop by max_steps/time.
-    data_iter = iter(train_loader)
-    log_bits_sum = 0.0
-    log_bytes_sum = 0.0
-    log_token_loss_sum = 0.0
+    log_loss_sum = 0.0
     log_updates = 0
     while global_step < target_global_step:
         elapsed = time.time() - start_time
@@ -632,15 +659,7 @@ def main() -> None:
                 print(f"Stopping due to time limit at micro_step={global_step}, update_step={update_step}")
             break
 
-        try:
-            batch = next(data_iter)
-        except StopIteration:
-            data_iter = iter(train_loader)
-            batch = next(data_iter)
-
-        batch = batch.to(device, non_blocking=True)
-        inp = batch[:, :-1]
-        tgt = batch[:, 1:]
+        inp, tgt = train_loader.next_batch(batch_size=args.batch_size, seq_len=args.seq_len)
 
         use_bf16 = args.bf16 and device.type == "cuda" and torch.cuda.is_bf16_supported()
         amp_dtype = torch.bfloat16 if use_bf16 else torch.float16
@@ -650,10 +669,7 @@ def main() -> None:
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), tgt.reshape(-1))
             loss = loss / args.grad_accum
         with torch.no_grad():
-            nll_bits, byte_count = bpb_stats_from_logits(logits.float(), tgt)
-            log_bits_sum += nll_bits.item()
-            log_bytes_sum += byte_count.item()
-            log_token_loss_sum += (loss.item() * args.grad_accum)
+            log_loss_sum += loss.item() * args.grad_accum
 
         loss.backward()
         global_step += 1
@@ -675,66 +691,59 @@ def main() -> None:
                 tok_per_step = args.batch_size * args.seq_len * args.grad_accum * world_size
                 if is_dist():
                     reduced = torch.tensor(
-                        [log_bits_sum, log_bytes_sum, log_token_loss_sum, float(log_updates)],
+                        [log_loss_sum, float(log_updates)],
                         device=device,
                         dtype=torch.float64,
                     )
                     dist.all_reduce(reduced, op=dist.ReduceOp.SUM)
-                    bits_global = reduced[0].item()
-                    bytes_global = reduced[1].item()
-                    token_loss_global = reduced[2].item()
-                    updates_global = max(1.0, reduced[3].item())
+                    loss_global = reduced[0].item()
+                    updates_global = max(1.0, reduced[1].item())
                 else:
-                    bits_global = log_bits_sum
-                    bytes_global = log_bytes_sum
-                    token_loss_global = log_token_loss_sum
+                    loss_global = log_loss_sum
                     updates_global = float(max(1, log_updates))
 
-                avg_token_loss = token_loss_global / max(1.0, updates_global * args.grad_accum)
-                avg_train_bpb = bits_global / max(1.0, bytes_global)
+                avg_token_loss = loss_global / max(1.0, updates_global)
                 if is_main_process():
                     print(
                         f"u={update_step} g={global_step} "
-                        f"loss={avg_token_loss:.4f} train_bpb={avg_train_bpb:.4f} "
+                        f"loss={avg_token_loss:.4f} "
                         f"lr={lr:.6g} tok/step={tok_per_step}"
                     )
-                log_bits_sum = 0.0
-                log_bytes_sum = 0.0
-                log_token_loss_sum = 0.0
+                log_loss_sum = 0.0
                 log_updates = 0
 
-            if val_iter is not None and (update_step % args.eval_every_updates == 0):
-                try:
-                    val_bpb = evaluate_bpb(
-                        model=model,
-                        data_iter=val_iter,
-                        device=device,
-                        eval_batches=args.eval_batches,
-                        use_bf16=use_bf16,
-                    )
-                    if is_main_process():
-                        print(f"eval u={update_step} val_bpb={val_bpb:.4f} batches={args.eval_batches}")
-                        if args.save_best and (val_bpb < best_val_bpb):
-                            best_val_bpb = val_bpb
-                            best_update_step = update_step
-                            best_model = model.module if isinstance(model, DDP) else model
-                            best_path = f"{args.out_path}.best.pt"
-                            best_obj = {
-                                "model_config": asdict(cfg),
-                                "state_dict": {k: v.detach().cpu().half() for k, v in best_model.state_dict().items()},
-                                "global_step": global_step,
-                                "update_step": update_step,
-                                "best_val_bpb": best_val_bpb,
-                                "args": vars(args),
-                            }
-                            torch.save(best_obj, best_path)
-                            best_mb = os.path.getsize(best_path) / (1024 * 1024)
-                            print(
-                                f"saved best checkpoint: {best_path} ({best_mb:.2f} MB, val_bpb={best_val_bpb:.4f})"
-                            )
-                except StopIteration:
-                    # Recreate iterator if backend exhausts unexpectedly.
-                    val_iter = iter(val_loader)  # type: ignore[name-defined]
+    use_bf16 = args.bf16 and device.type == "cuda" and torch.cuda.is_bf16_supported()
+    val_loss, val_bpb = evaluate_bpb(
+        model=model,
+        rank=rank,
+        world_size=world_size,
+        device=device,
+        seq_len=args.seq_len,
+        val_batch_tokens=args.val_batch_tokens,
+        val_tokens=val_tokens,
+        base_bytes_lut=base_bytes_lut,
+        has_leading_space_lut=has_leading_space_lut,
+        is_boundary_token_lut=is_boundary_token_lut,
+        use_bf16=use_bf16,
+    )
+    if is_main_process():
+        print(f"final_eval u={update_step} g={global_step} val_loss={val_loss:.4f} val_bpb={val_bpb:.4f}")
+        if args.save_best and (val_bpb < best_val_bpb):
+            best_val_bpb = val_bpb
+            best_update_step = update_step
+            best_model = model.module if isinstance(model, DDP) else model
+            best_path = f"{args.out_path}.best.pt"
+            best_obj = {
+                "model_config": asdict(cfg),
+                "state_dict": {k: v.detach().cpu().half() for k, v in best_model.state_dict().items()},
+                "global_step": global_step,
+                "update_step": update_step,
+                "best_val_bpb": best_val_bpb,
+                "args": vars(args),
+            }
+            torch.save(best_obj, best_path)
+            best_mb = os.path.getsize(best_path) / (1024 * 1024)
+            print(f"saved best checkpoint: {best_path} ({best_mb:.2f} MB, val_bpb={best_val_bpb:.4f})")
 
     if is_dist():
         dist.barrier()

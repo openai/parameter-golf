@@ -1,190 +1,1546 @@
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-params=8,317,532 est_fp16_artifact=15.86MB
-Validation split='validation' unavailable (Bad split: validation. Available splits: ['train']); falling back to train split.
-training window: start_g=0 target_g=100000000 run_update_budget=12500000
-u=1 g=8 loss=5.5472 train_bpb=8.0028 lr=2e-06 tok/step=8192
-u=10 g=80 loss=5.5397 train_bpb=7.9920 lr=2e-05 tok/step=8192
-u=20 g=160 loss=5.5007 train_bpb=7.9358 lr=4e-05 tok/step=8192
-u=30 g=240 loss=5.4512 train_bpb=7.8644 lr=6e-05 tok/step=8192
-u=40 g=320 loss=5.4109 train_bpb=7.8060 lr=8e-05 tok/step=8192
-eval u=40 val_bpb=7.7829 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.7829)
-u=50 g=400 loss=5.3845 train_bpb=7.7680 lr=0.0001 tok/step=8192
-u=60 g=480 loss=5.3504 train_bpb=7.7190 lr=0.00012 tok/step=8192
-u=70 g=560 loss=5.3131 train_bpb=7.6654 lr=0.00014 tok/step=8192
-u=80 g=640 loss=5.2694 train_bpb=7.6022 lr=0.00016 tok/step=8192
-eval u=80 val_bpb=7.5712 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.5712)
-u=90 g=720 loss=5.2211 train_bpb=7.5323 lr=0.00018 tok/step=8192
-u=100 g=800 loss=5.1675 train_bpb=7.4546 lr=0.0002 tok/step=8192
-u=110 g=880 loss=5.1021 train_bpb=7.3607 lr=0.00022 tok/step=8192
-u=120 g=960 loss=5.0288 train_bpb=7.2548 lr=0.00024 tok/step=8192
-eval u=120 val_bpb=7.2079 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=7.2079)
-u=130 g=1040 loss=4.9494 train_bpb=7.1402 lr=0.00026 tok/step=8192
-u=140 g=1120 loss=4.8985 train_bpb=7.0666 lr=0.00028 tok/step=8192
-u=150 g=1200 loss=4.7987 train_bpb=6.9227 lr=0.0003 tok/step=8192
-u=160 g=1280 loss=4.7079 train_bpb=6.7916 lr=0.0003 tok/step=8192
-eval u=160 val_bpb=6.7428 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=6.7428)
-u=170 g=1360 loss=4.6397 train_bpb=6.6932 lr=0.0003 tok/step=8192
-u=180 g=1440 loss=4.5642 train_bpb=6.5848 lr=0.0003 tok/step=8192
-u=190 g=1520 loss=4.4493 train_bpb=6.4186 lr=0.0003 tok/step=8192
-u=200 g=1600 loss=4.3782 train_bpb=6.3154 lr=0.0003 tok/step=8192
-eval u=200 val_bpb=6.3098 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=6.3098)
-u=210 g=1680 loss=4.2948 train_bpb=6.1951 lr=0.0003 tok/step=8192
-u=220 g=1760 loss=4.2067 train_bpb=6.0685 lr=0.0003 tok/step=8192
-u=230 g=1840 loss=4.1668 train_bpb=6.0107 lr=0.0003 tok/step=8192
-u=240 g=1920 loss=4.0873 train_bpb=5.8954 lr=0.0003 tok/step=8192
-eval u=240 val_bpb=5.8357 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.8357)
-u=250 g=2000 loss=4.0264 train_bpb=5.8081 lr=0.0003 tok/step=8192
-u=260 g=2080 loss=3.9314 train_bpb=5.6707 lr=0.0003 tok/step=8192
-u=270 g=2160 loss=3.9148 train_bpb=5.6472 lr=0.0003 tok/step=8192
-u=280 g=2240 loss=3.8612 train_bpb=5.5692 lr=0.0003 tok/step=8192
-eval u=280 val_bpb=5.4986 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.4986)
-u=290 g=2320 loss=3.7760 train_bpb=5.4464 lr=0.0003 tok/step=8192
-u=300 g=2400 loss=3.7359 train_bpb=5.3892 lr=0.0003 tok/step=8192
-u=310 g=2480 loss=3.7136 train_bpb=5.3567 lr=0.0003 tok/step=8192
-u=320 g=2560 loss=3.5781 train_bpb=5.1614 lr=0.0003 tok/step=8192
-eval u=320 val_bpb=5.2672 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=5.2672)
-u=330 g=2640 loss=3.6266 train_bpb=5.2308 lr=0.0003 tok/step=8192
-u=340 g=2720 loss=3.5727 train_bpb=5.1528 lr=0.0003 tok/step=8192
-u=350 g=2800 loss=3.5160 train_bpb=5.0711 lr=0.0003 tok/step=8192
-u=360 g=2880 loss=3.4787 train_bpb=5.0179 lr=0.0003 tok/step=8192
-eval u=360 val_bpb=4.9914 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.9914)
-u=370 g=2960 loss=3.4175 train_bpb=4.9294 lr=0.0003 tok/step=8192
-u=380 g=3040 loss=3.4163 train_bpb=4.9279 lr=0.0003 tok/step=8192
-u=390 g=3120 loss=3.4108 train_bpb=4.9192 lr=0.0003 tok/step=8192
-u=400 g=3200 loss=3.3896 train_bpb=4.8887 lr=0.0003 tok/step=8192
-eval u=400 val_bpb=4.8602 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.8602)
-u=410 g=3280 loss=3.3734 train_bpb=4.8660 lr=0.0003 tok/step=8192
-u=420 g=3360 loss=3.3207 train_bpb=4.7886 lr=0.0003 tok/step=8192
-u=430 g=3440 loss=3.3227 train_bpb=4.7922 lr=0.0003 tok/step=8192
-u=440 g=3520 loss=3.3041 train_bpb=4.7652 lr=0.0003 tok/step=8192
-eval u=440 val_bpb=4.7758 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.7758)
-u=450 g=3600 loss=3.2306 train_bpb=4.6592 lr=0.0003 tok/step=8192
-u=460 g=3680 loss=3.2173 train_bpb=4.6405 lr=0.0003 tok/step=8192
-u=470 g=3760 loss=3.1624 train_bpb=4.5608 lr=0.0003 tok/step=8192
-u=480 g=3840 loss=3.1181 train_bpb=4.4975 lr=0.0003 tok/step=8192
-eval u=480 val_bpb=4.4456 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.4456)
-u=490 g=3920 loss=3.0825 train_bpb=4.4458 lr=0.0003 tok/step=8192
-u=500 g=4000 loss=3.0542 train_bpb=4.4051 lr=0.0003 tok/step=8192
-u=510 g=4080 loss=2.9940 train_bpb=4.3188 lr=0.0003 tok/step=8192
-u=520 g=4160 loss=3.0024 train_bpb=4.3302 lr=0.0003 tok/step=8192
-eval u=520 val_bpb=4.2294 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.2294)
-u=530 g=4240 loss=2.9791 train_bpb=4.2972 lr=0.0003 tok/step=8192
-u=540 g=4320 loss=2.9523 train_bpb=4.2581 lr=0.0003 tok/step=8192
-u=550 g=4400 loss=2.8556 train_bpb=4.1190 lr=0.0003 tok/step=8192
-u=560 g=4480 loss=2.8008 train_bpb=4.0397 lr=0.0003 tok/step=8192
-eval u=560 val_bpb=4.0467 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=4.0467)
-u=570 g=4560 loss=2.7771 train_bpb=4.0050 lr=0.0003 tok/step=8192
-u=580 g=4640 loss=2.7545 train_bpb=3.9731 lr=0.0003 tok/step=8192
-u=590 g=4720 loss=2.7025 train_bpb=3.8972 lr=0.0003 tok/step=8192
-u=600 g=4800 loss=2.6323 train_bpb=3.7961 lr=0.0003 tok/step=8192
-eval u=600 val_bpb=3.7638 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.7638)
-u=610 g=4880 loss=2.6030 train_bpb=3.7537 lr=0.0003 tok/step=8192
-u=620 g=4960 loss=2.5718 train_bpb=3.7089 lr=0.0003 tok/step=8192
-u=630 g=5040 loss=2.5035 train_bpb=3.6106 lr=0.0003 tok/step=8192
-u=640 g=5120 loss=2.4932 train_bpb=3.5954 lr=0.0003 tok/step=8192
-eval u=640 val_bpb=3.5600 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.5600)
-u=650 g=5200 loss=2.4602 train_bpb=3.5477 lr=0.0003 tok/step=8192
-u=660 g=5280 loss=2.3810 train_bpb=3.4338 lr=0.0003 tok/step=8192
-u=670 g=5360 loss=2.3608 train_bpb=3.4044 lr=0.0003 tok/step=8192
-u=680 g=5440 loss=2.3064 train_bpb=3.3259 lr=0.0003 tok/step=8192
-eval u=680 val_bpb=3.2877 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.2877)
-u=690 g=5520 loss=2.3357 train_bpb=3.3681 lr=0.0003 tok/step=8192
-u=700 g=5600 loss=2.2417 train_bpb=3.2321 lr=0.0003 tok/step=8192
-u=710 g=5680 loss=2.1748 train_bpb=3.1363 lr=0.0003 tok/step=8192
-u=720 g=5760 loss=2.2811 train_bpb=3.2894 lr=0.0003 tok/step=8192
-eval u=720 val_bpb=3.1043 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=3.1043)
-u=730 g=5840 loss=2.1146 train_bpb=3.0502 lr=0.0003 tok/step=8192
-u=740 g=5920 loss=2.0599 train_bpb=2.9709 lr=0.0003 tok/step=8192
-u=750 g=6000 loss=2.0630 train_bpb=2.9751 lr=0.0003 tok/step=8192
-u=760 g=6080 loss=1.9713 train_bpb=2.8429 lr=0.0003 tok/step=8192
-eval u=760 val_bpb=2.8775 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.8775)
-u=770 g=6160 loss=1.9488 train_bpb=2.8103 lr=0.0003 tok/step=8192
-u=780 g=6240 loss=1.9384 train_bpb=2.7946 lr=0.0003 tok/step=8192
-u=790 g=6320 loss=1.8620 train_bpb=2.6848 lr=0.0003 tok/step=8192
-u=800 g=6400 loss=1.8339 train_bpb=2.6442 lr=0.0003 tok/step=8192
-eval u=800 val_bpb=2.6227 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.6227)
-u=810 g=6480 loss=1.7721 train_bpb=2.5546 lr=0.0003 tok/step=8192
-u=820 g=6560 loss=1.7185 train_bpb=2.4779 lr=0.0003 tok/step=8192
-u=830 g=6640 loss=1.6835 train_bpb=2.4271 lr=0.0003 tok/step=8192
-u=840 g=6720 loss=1.6918 train_bpb=2.4389 lr=0.0003 tok/step=8192
-eval u=840 val_bpb=2.3597 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.3597)
-u=850 g=6800 loss=1.6077 train_bpb=2.3181 lr=0.0003 tok/step=8192
-u=860 g=6880 loss=1.5965 train_bpb=2.3015 lr=0.0003 tok/step=8192
-u=870 g=6960 loss=1.5473 train_bpb=2.2299 lr=0.0003 tok/step=8192
-u=880 g=7040 loss=1.5028 train_bpb=2.1661 lr=0.0003 tok/step=8192
-eval u=880 val_bpb=2.1131 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=2.1131)
-u=890 g=7120 loss=1.4705 train_bpb=2.1196 lr=0.0003 tok/step=8192
-u=900 g=7200 loss=1.4179 train_bpb=2.0443 lr=0.0003 tok/step=8192
-u=910 g=7280 loss=1.3872 train_bpb=2.0003 lr=0.0003 tok/step=8192
-u=920 g=7360 loss=1.3920 train_bpb=2.0062 lr=0.0003 tok/step=8192
-eval u=920 val_bpb=1.9525 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.9525)
-u=930 g=7440 loss=1.3489 train_bpb=1.9443 lr=0.0003 tok/step=8192
-u=940 g=7520 loss=1.3107 train_bpb=1.8896 lr=0.0003 tok/step=8192
-u=950 g=7600 loss=1.2325 train_bpb=1.7761 lr=0.0003 tok/step=8192
-u=960 g=7680 loss=1.1865 train_bpb=1.7101 lr=0.0003 tok/step=8192
-eval u=960 val_bpb=1.8233 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.8233)
-u=970 g=7760 loss=1.1590 train_bpb=1.6702 lr=0.0003 tok/step=8192
-u=980 g=7840 loss=1.1271 train_bpb=1.6243 lr=0.0003 tok/step=8192
-u=990 g=7920 loss=1.1146 train_bpb=1.6058 lr=0.0003 tok/step=8192
-u=1000 g=8000 loss=1.0511 train_bpb=1.5149 lr=0.0003 tok/step=8192
-eval u=1000 val_bpb=1.5069 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.5069)
-u=1010 g=8080 loss=1.1528 train_bpb=1.6625 lr=0.0003 tok/step=8192
-u=1020 g=8160 loss=1.0731 train_bpb=1.5470 lr=0.0003 tok/step=8192
-u=1030 g=8240 loss=0.9897 train_bpb=1.4260 lr=0.0003 tok/step=8192
-u=1040 g=8320 loss=0.9994 train_bpb=1.4399 lr=0.0003 tok/step=8192
-eval u=1040 val_bpb=1.3915 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.3915)
-u=1050 g=8400 loss=0.8647 train_bpb=1.2467 lr=0.0003 tok/step=8192
-u=1060 g=8480 loss=0.9526 train_bpb=1.3726 lr=0.0003 tok/step=8192
-u=1070 g=8560 loss=0.9343 train_bpb=1.3457 lr=0.0003 tok/step=8192
-u=1080 g=8640 loss=0.8462 train_bpb=1.2198 lr=0.0003 tok/step=8192
-eval u=1080 val_bpb=1.2945 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.2945)
-u=1090 g=8720 loss=0.8037 train_bpb=1.1578 lr=0.0003 tok/step=8192
-u=1100 g=8800 loss=0.8125 train_bpb=1.1699 lr=0.0003 tok/step=8192
-u=1110 g=8880 loss=0.7427 train_bpb=1.0705 lr=0.0003 tok/step=8192
-u=1120 g=8960 loss=0.7622 train_bpb=1.0979 lr=0.0003 tok/step=8192
-eval u=1120 val_bpb=1.0888 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=1.0888)
-u=1130 g=9040 loss=0.7098 train_bpb=1.0228 lr=0.0003 tok/step=8192
-u=1140 g=9120 loss=0.7640 train_bpb=1.1012 lr=0.0003 tok/step=8192
-u=1150 g=9200 loss=0.6456 train_bpb=0.9296 lr=0.0003 tok/step=8192
-u=1160 g=9280 loss=0.6520 train_bpb=0.9390 lr=0.0003 tok/step=8192
-eval u=1160 val_bpb=0.9397 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=0.9397)
-u=1170 g=9360 loss=0.6166 train_bpb=0.8878 lr=0.0003 tok/step=8192
-u=1180 g=9440 loss=0.5927 train_bpb=0.8530 lr=0.0003 tok/step=8192
-u=1190 g=9520 loss=0.6767 train_bpb=0.9748 lr=0.0003 tok/step=8192
-u=1200 g=9600 loss=0.5732 train_bpb=0.8255 lr=0.0003 tok/step=8192
-eval u=1200 val_bpb=0.8187 batches=100
-saved best checkpoint: /root/runs/cap16_fresh.pt.best.pt (15.91 MB, val_bpb=0.8187)
-u=1210 g=9680 loss=0.5339 train_bpb=0.7685 lr=0.0003 tok/step=8192
-u=1220 g=9760 loss=0.5442 train_bpb=0.7827 lr=0.0003 tok/step=8192
-Stopping due to time limit at micro_step=9776, update_step=1222
-Saved checkpoint: /root/runs/cap16_fresh.pt (15.91 MB)
-Wrote metadata: /root/runs/cap16_fresh.pt.meta.json
+params=7,311,756 est_fp16_artifact=13.95MB
+train_loader pattern=./data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens=62021632
+training window: start_g=0 target_g=1000000000 run_update_budget=125000000
+u=1 g=8 loss=55.4500 lr=1.5e-06 tok/step=32768
+u=20 g=160 loss=55.4201 lr=3e-05 tok/step=32768
+u=40 g=320 loss=55.2552 lr=6e-05 tok/step=32768
+u=60 g=480 loss=55.0374 lr=9e-05 tok/step=32768
+u=80 g=640 loss=54.7648 lr=0.00012 tok/step=32768
+u=100 g=800 loss=54.4233 lr=0.00015 tok/step=32768
+u=120 g=960 loss=54.0115 lr=0.00018 tok/step=32768
+u=140 g=1120 loss=53.5466 lr=0.00021 tok/step=32768
+u=160 g=1280 loss=53.0155 lr=0.00024 tok/step=32768
+u=180 g=1440 loss=52.4605 lr=0.00027 tok/step=32768
+u=200 g=1600 loss=51.8842 lr=0.0003 tok/step=32768
+u=220 g=1760 loss=51.2803 lr=0.0003 tok/step=32768
+u=240 g=1920 loss=50.7034 lr=0.0003 tok/step=32768
+u=260 g=2080 loss=49.5582 lr=0.0003 tok/step=32768
+u=280 g=2240 loss=48.7375 lr=0.0003 tok/step=32768
+u=300 g=2400 loss=47.9102 lr=0.0003 tok/step=32768
+u=320 g=2560 loss=47.1820 lr=0.0003 tok/step=32768
+u=340 g=2720 loss=46.4776 lr=0.0003 tok/step=32768
+u=360 g=2880 loss=45.8172 lr=0.0003 tok/step=32768
+u=380 g=3040 loss=45.2013 lr=0.0003 tok/step=32768
+u=400 g=3200 loss=44.5996 lr=0.0003 tok/step=32768
+u=420 g=3360 loss=43.9901 lr=0.0003 tok/step=32768
+u=440 g=3520 loss=43.3690 lr=0.0003 tok/step=32768
+u=460 g=3680 loss=42.7604 lr=0.0003 tok/step=32768
+u=480 g=3840 loss=42.1665 lr=0.0003 tok/step=32768
+u=500 g=4000 loss=41.7156 lr=0.0003 tok/step=32768
+u=520 g=4160 loss=41.1266 lr=0.0003 tok/step=32768
+u=540 g=4320 loss=40.6026 lr=0.0003 tok/step=32768
+u=560 g=4480 loss=39.9894 lr=0.0003 tok/step=32768
+u=580 g=4640 loss=39.4466 lr=0.0003 tok/step=32768
+u=600 g=4800 loss=38.9422 lr=0.0003 tok/step=32768
+u=620 g=4960 loss=38.3898 lr=0.0003 tok/step=32768
+u=640 g=5120 loss=37.7937 lr=0.0003 tok/step=32768
+u=660 g=5280 loss=37.3083 lr=0.0003 tok/step=32768
+u=680 g=5440 loss=36.6732 lr=0.0003 tok/step=32768
+u=700 g=5600 loss=36.0703 lr=0.0003 tok/step=32768
+u=720 g=5760 loss=35.5580 lr=0.0003 tok/step=32768
+u=740 g=5920 loss=34.8948 lr=0.0003 tok/step=32768
+u=760 g=6080 loss=34.3507 lr=0.0003 tok/step=32768
+u=780 g=6240 loss=33.8839 lr=0.0003 tok/step=32768
+u=800 g=6400 loss=33.3107 lr=0.0003 tok/step=32768
+u=820 g=6560 loss=32.8559 lr=0.0003 tok/step=32768
+u=840 g=6720 loss=32.3746 lr=0.0003 tok/step=32768
+u=860 g=6880 loss=31.7733 lr=0.0003 tok/step=32768
+u=880 g=7040 loss=31.2481 lr=0.0003 tok/step=32768
+u=900 g=7200 loss=30.7764 lr=0.0003 tok/step=32768
+u=920 g=7360 loss=30.1829 lr=0.0003 tok/step=32768
+u=940 g=7520 loss=29.7491 lr=0.0003 tok/step=32768
+u=960 g=7680 loss=29.2343 lr=0.0003 tok/step=32768
+u=980 g=7840 loss=28.7783 lr=0.0003 tok/step=32768
+u=1000 g=8000 loss=28.2317 lr=0.0003 tok/step=32768
+u=1020 g=8160 loss=27.6054 lr=0.0003 tok/step=32768
+u=1040 g=8320 loss=27.2535 lr=0.0003 tok/step=32768
+u=1060 g=8480 loss=26.7819 lr=0.0003 tok/step=32768
+u=1080 g=8640 loss=26.3314 lr=0.0003 tok/step=32768
+u=1100 g=8800 loss=25.7918 lr=0.0003 tok/step=32768
+u=1120 g=8960 loss=25.2214 lr=0.0003 tok/step=32768
+u=1140 g=9120 loss=24.7904 lr=0.0003 tok/step=32768
+u=1160 g=9280 loss=24.3355 lr=0.0003 tok/step=32768
+u=1180 g=9440 loss=24.0425 lr=0.0003 tok/step=32768
+u=1200 g=9600 loss=23.6272 lr=0.0003 tok/step=32768
+u=1220 g=9760 loss=23.1758 lr=0.0003 tok/step=32768
+u=1240 g=9920 loss=22.7429 lr=0.0003 tok/step=32768
+u=1260 g=10080 loss=22.4183 lr=0.0003 tok/step=32768
+u=1280 g=10240 loss=21.8078 lr=0.0003 tok/step=32768
+u=1300 g=10400 loss=21.5154 lr=0.0003 tok/step=32768
+u=1320 g=10560 loss=21.1275 lr=0.0003 tok/step=32768
+u=1340 g=10720 loss=20.6619 lr=0.0003 tok/step=32768
+u=1360 g=10880 loss=20.3890 lr=0.0003 tok/step=32768
+u=1380 g=11040 loss=19.8829 lr=0.0003 tok/step=32768
+u=1400 g=11200 loss=19.5559 lr=0.0003 tok/step=32768
+u=1420 g=11360 loss=19.1878 lr=0.0003 tok/step=32768
+u=1440 g=11520 loss=18.7979 lr=0.0003 tok/step=32768
+u=1460 g=11680 loss=18.4240 lr=0.0003 tok/step=32768
+u=1480 g=11840 loss=18.0108 lr=0.0003 tok/step=32768
+u=1500 g=12000 loss=17.6810 lr=0.0003 tok/step=32768
+u=1520 g=12160 loss=17.2968 lr=0.0003 tok/step=32768
+u=1540 g=12320 loss=16.9353 lr=0.0003 tok/step=32768
+u=1560 g=12480 loss=16.5757 lr=0.0003 tok/step=32768
+u=1580 g=12640 loss=16.2321 lr=0.0003 tok/step=32768
+u=1600 g=12800 loss=15.9887 lr=0.0003 tok/step=32768
+u=1620 g=12960 loss=15.6490 lr=0.0003 tok/step=32768
+u=1640 g=13120 loss=15.3982 lr=0.0003 tok/step=32768
+u=1660 g=13280 loss=15.1309 lr=0.0003 tok/step=32768
+u=1680 g=13440 loss=14.6570 lr=0.0003 tok/step=32768
+u=1700 g=13600 loss=14.5222 lr=0.0003 tok/step=32768
+u=1720 g=13760 loss=14.1148 lr=0.0003 tok/step=32768
+u=1740 g=13920 loss=13.8458 lr=0.0003 tok/step=32768
+u=1760 g=14080 loss=13.5625 lr=0.0003 tok/step=32768
+u=1780 g=14240 loss=13.2468 lr=0.0003 tok/step=32768
+u=1800 g=14400 loss=12.9691 lr=0.0003 tok/step=32768
+u=1820 g=14560 loss=12.7083 lr=0.0003 tok/step=32768
+u=1840 g=14720 loss=12.4354 lr=0.0003 tok/step=32768
+u=1860 g=14880 loss=12.0818 lr=0.0003 tok/step=32768
+u=1880 g=15040 loss=11.8807 lr=0.0003 tok/step=32768
+u=1900 g=15200 loss=11.4683 lr=0.0003 tok/step=32768
+u=1920 g=15360 loss=11.1361 lr=0.0003 tok/step=32768
+u=1940 g=15520 loss=10.9447 lr=0.0003 tok/step=32768
+u=1960 g=15680 loss=10.5608 lr=0.0003 tok/step=32768
+u=1980 g=15840 loss=10.4081 lr=0.0003 tok/step=32768
+u=2000 g=16000 loss=10.1745 lr=0.0003 tok/step=32768
+u=2020 g=16160 loss=9.9562 lr=0.0003 tok/step=32768
+u=2040 g=16320 loss=9.6577 lr=0.0003 tok/step=32768
+u=2060 g=16480 loss=9.4109 lr=0.0003 tok/step=32768
+u=2080 g=16640 loss=9.1963 lr=0.0003 tok/step=32768
+u=2100 g=16800 loss=8.9375 lr=0.0003 tok/step=32768
+u=2120 g=16960 loss=8.6152 lr=0.0003 tok/step=32768
+u=2140 g=17120 loss=8.4183 lr=0.0003 tok/step=32768
+u=2160 g=17280 loss=8.1956 lr=0.0003 tok/step=32768
+u=2180 g=17440 loss=8.3340 lr=0.0003 tok/step=32768
+u=2200 g=17600 loss=7.8351 lr=0.0003 tok/step=32768
+u=2220 g=17760 loss=7.8862 lr=0.0003 tok/step=32768
+u=2240 g=17920 loss=7.4152 lr=0.0003 tok/step=32768
+u=2260 g=18080 loss=7.1568 lr=0.0003 tok/step=32768
+u=2280 g=18240 loss=6.9565 lr=0.0003 tok/step=32768
+u=2300 g=18400 loss=6.6530 lr=0.0003 tok/step=32768
+u=2320 g=18560 loss=6.4521 lr=0.0003 tok/step=32768
+u=2340 g=18720 loss=6.3537 lr=0.0003 tok/step=32768
+u=2360 g=18880 loss=6.1260 lr=0.0003 tok/step=32768
+u=2380 g=19040 loss=5.9332 lr=0.0003 tok/step=32768
+u=2400 g=19200 loss=5.8193 lr=0.0003 tok/step=32768
+u=2420 g=19360 loss=5.6607 lr=0.0003 tok/step=32768
+u=2440 g=19520 loss=5.4499 lr=0.0003 tok/step=32768
+u=2460 g=19680 loss=5.4121 lr=0.0003 tok/step=32768
+u=2480 g=19840 loss=5.4589 lr=0.0003 tok/step=32768
+u=2500 g=20000 loss=5.0529 lr=0.0003 tok/step=32768
+u=2520 g=20160 loss=4.7995 lr=0.0003 tok/step=32768
+u=2540 g=20320 loss=4.6730 lr=0.0003 tok/step=32768
+u=2560 g=20480 loss=4.5459 lr=0.0003 tok/step=32768
+u=2580 g=20640 loss=4.4038 lr=0.0003 tok/step=32768
+u=2600 g=20800 loss=4.2433 lr=0.0003 tok/step=32768
+u=2620 g=20960 loss=4.1218 lr=0.0003 tok/step=32768
+u=2640 g=21120 loss=4.0502 lr=0.0003 tok/step=32768
+u=2660 g=21280 loss=3.9637 lr=0.0003 tok/step=32768
+u=2680 g=21440 loss=3.7436 lr=0.0003 tok/step=32768
+u=2700 g=21600 loss=3.5724 lr=0.0003 tok/step=32768
+u=2720 g=21760 loss=3.5173 lr=0.0003 tok/step=32768
+u=2740 g=21920 loss=3.3974 lr=0.0003 tok/step=32768
+u=2760 g=22080 loss=3.2778 lr=0.0003 tok/step=32768
+u=2780 g=22240 loss=3.1452 lr=0.0003 tok/step=32768
+u=2800 g=22400 loss=3.0078 lr=0.0003 tok/step=32768
+u=2820 g=22560 loss=2.9533 lr=0.0003 tok/step=32768
+u=2840 g=22720 loss=2.7628 lr=0.0003 tok/step=32768
+u=2860 g=22880 loss=2.7270 lr=0.0003 tok/step=32768
+u=2880 g=23040 loss=2.6877 lr=0.0003 tok/step=32768
+u=2900 g=23200 loss=2.6161 lr=0.0003 tok/step=32768
+u=2920 g=23360 loss=2.4683 lr=0.0003 tok/step=32768
+u=2940 g=23520 loss=2.4310 lr=0.0003 tok/step=32768
+u=2960 g=23680 loss=2.3159 lr=0.0003 tok/step=32768
+u=2980 g=23840 loss=2.2416 lr=0.0003 tok/step=32768
+u=3000 g=24000 loss=2.2847 lr=0.0003 tok/step=32768
+u=3020 g=24160 loss=2.0388 lr=0.0003 tok/step=32768
+u=3040 g=24320 loss=2.0592 lr=0.0003 tok/step=32768
+u=3060 g=24480 loss=1.9096 lr=0.0003 tok/step=32768
+u=3080 g=24640 loss=1.9382 lr=0.0003 tok/step=32768
+u=3100 g=24800 loss=1.7996 lr=0.0003 tok/step=32768
+u=3120 g=24960 loss=1.7966 lr=0.0003 tok/step=32768
+u=3140 g=25120 loss=1.7219 lr=0.0003 tok/step=32768
+u=3160 g=25280 loss=1.8091 lr=0.0003 tok/step=32768
+u=3180 g=25440 loss=1.5992 lr=0.0003 tok/step=32768
+u=3200 g=25600 loss=1.4697 lr=0.0003 tok/step=32768
+u=3220 g=25760 loss=1.4003 lr=0.0003 tok/step=32768
+u=3240 g=25920 loss=1.3724 lr=0.0003 tok/step=32768
+u=3260 g=26080 loss=1.3946 lr=0.0003 tok/step=32768
+u=3280 g=26240 loss=1.3770 lr=0.0003 tok/step=32768
+u=3300 g=26400 loss=1.2452 lr=0.0003 tok/step=32768
+u=3320 g=26560 loss=1.1731 lr=0.0003 tok/step=32768
+u=3340 g=26720 loss=1.0874 lr=0.0003 tok/step=32768
+u=3360 g=26880 loss=1.0665 lr=0.0003 tok/step=32768
+u=3380 g=27040 loss=1.0482 lr=0.0003 tok/step=32768
+u=3400 g=27200 loss=0.9859 lr=0.0003 tok/step=32768
+u=3420 g=27360 loss=1.0515 lr=0.0003 tok/step=32768
+u=3440 g=27520 loss=0.9460 lr=0.0003 tok/step=32768
+u=3460 g=27680 loss=0.8886 lr=0.0003 tok/step=32768
+u=3480 g=27840 loss=0.9999 lr=0.0003 tok/step=32768
+u=3500 g=28000 loss=1.0158 lr=0.0003 tok/step=32768
+u=3520 g=28160 loss=0.8105 lr=0.0003 tok/step=32768
+u=3540 g=28320 loss=0.7897 lr=0.0003 tok/step=32768
+u=3560 g=28480 loss=0.7706 lr=0.0003 tok/step=32768
+u=3580 g=28640 loss=0.6792 lr=0.0003 tok/step=32768
+u=3600 g=28800 loss=0.8193 lr=0.0003 tok/step=32768
+u=3620 g=28960 loss=0.6570 lr=0.0003 tok/step=32768
+u=3640 g=29120 loss=0.6505 lr=0.0003 tok/step=32768
+u=3660 g=29280 loss=0.6552 lr=0.0003 tok/step=32768
+u=3680 g=29440 loss=0.6386 lr=0.0003 tok/step=32768
+u=3700 g=29600 loss=0.6021 lr=0.0003 tok/step=32768
+u=3720 g=29760 loss=0.5551 lr=0.0003 tok/step=32768
+u=3740 g=29920 loss=0.5313 lr=0.0003 tok/step=32768
+u=3760 g=30080 loss=0.6914 lr=0.0003 tok/step=32768
+u=3780 g=30240 loss=0.6463 lr=0.0003 tok/step=32768
+u=3800 g=30400 loss=0.4717 lr=0.0003 tok/step=32768
+u=3820 g=30560 loss=0.5228 lr=0.0003 tok/step=32768
+u=3840 g=30720 loss=0.4409 lr=0.0003 tok/step=32768
+u=3860 g=30880 loss=0.5109 lr=0.0003 tok/step=32768
+u=3880 g=31040 loss=0.4207 lr=0.0003 tok/step=32768
+u=3900 g=31200 loss=0.3899 lr=0.0003 tok/step=32768
+u=3920 g=31360 loss=0.3980 lr=0.0003 tok/step=32768
+u=3940 g=31520 loss=0.3524 lr=0.0003 tok/step=32768
+u=3960 g=31680 loss=0.3411 lr=0.0003 tok/step=32768
+u=3980 g=31840 loss=0.3428 lr=0.0003 tok/step=32768
+u=4000 g=32000 loss=0.3242 lr=0.0003 tok/step=32768
+u=4020 g=32160 loss=0.3143 lr=0.0003 tok/step=32768
+u=4040 g=32320 loss=0.3367 lr=0.0003 tok/step=32768
+u=4060 g=32480 loss=0.2739 lr=0.0003 tok/step=32768
+u=4080 g=32640 loss=0.3204 lr=0.0003 tok/step=32768
+u=4100 g=32800 loss=0.3197 lr=0.0003 tok/step=32768
+u=4120 g=32960 loss=0.3022 lr=0.0003 tok/step=32768
+u=4140 g=33120 loss=0.2833 lr=0.0003 tok/step=32768
+u=4160 g=33280 loss=0.2552 lr=0.0003 tok/step=32768
+u=4180 g=33440 loss=0.2746 lr=0.0003 tok/step=32768
+u=4200 g=33600 loss=0.2900 lr=0.0003 tok/step=32768
+u=4220 g=33760 loss=0.2496 lr=0.0003 tok/step=32768
+u=4240 g=33920 loss=0.3162 lr=0.0003 tok/step=32768
+u=4260 g=34080 loss=0.3029 lr=0.0003 tok/step=32768
+u=4280 g=34240 loss=0.2460 lr=0.0003 tok/step=32768
+u=4300 g=34400 loss=0.2381 lr=0.0003 tok/step=32768
+u=4320 g=34560 loss=0.2187 lr=0.0003 tok/step=32768
+u=4340 g=34720 loss=0.2484 lr=0.0003 tok/step=32768
+u=4360 g=34880 loss=0.2051 lr=0.0003 tok/step=32768
+u=4380 g=35040 loss=0.2409 lr=0.0003 tok/step=32768
+u=4400 g=35200 loss=0.2806 lr=0.0003 tok/step=32768
+u=4420 g=35360 loss=0.6826 lr=0.0003 tok/step=32768
+u=4440 g=35520 loss=0.3475 lr=0.0003 tok/step=32768
+u=4460 g=35680 loss=0.2129 lr=0.0003 tok/step=32768
+u=4480 g=35840 loss=0.3002 lr=0.0003 tok/step=32768
+u=4500 g=36000 loss=0.1919 lr=0.0003 tok/step=32768
+u=4520 g=36160 loss=0.2417 lr=0.0003 tok/step=32768
+u=4540 g=36320 loss=0.1795 lr=0.0003 tok/step=32768
+u=4560 g=36480 loss=0.1661 lr=0.0003 tok/step=32768
+u=4580 g=36640 loss=0.1735 lr=0.0003 tok/step=32768
+u=4600 g=36800 loss=0.1540 lr=0.0003 tok/step=32768
+u=4620 g=36960 loss=0.1675 lr=0.0003 tok/step=32768
+u=4640 g=37120 loss=0.1836 lr=0.0003 tok/step=32768
+u=4660 g=37280 loss=0.1584 lr=0.0003 tok/step=32768
+u=4680 g=37440 loss=0.1657 lr=0.0003 tok/step=32768
+u=4700 g=37600 loss=0.1754 lr=0.0003 tok/step=32768
+u=4720 g=37760 loss=0.2825 lr=0.0003 tok/step=32768
+u=4740 g=37920 loss=0.2216 lr=0.0003 tok/step=32768
+u=4760 g=38080 loss=0.1434 lr=0.0003 tok/step=32768
+u=4780 g=38240 loss=0.1566 lr=0.0003 tok/step=32768
+u=4800 g=38400 loss=0.2788 lr=0.0003 tok/step=32768
+u=4820 g=38560 loss=0.1990 lr=0.0003 tok/step=32768
+u=4840 g=38720 loss=0.1871 lr=0.0003 tok/step=32768
+u=4860 g=38880 loss=0.1681 lr=0.0003 tok/step=32768
+u=4880 g=39040 loss=0.1546 lr=0.0003 tok/step=32768
+u=4900 g=39200 loss=0.1775 lr=0.0003 tok/step=32768
+u=4920 g=39360 loss=0.1621 lr=0.0003 tok/step=32768
+u=4940 g=39520 loss=0.4186 lr=0.0003 tok/step=32768
+u=4960 g=39680 loss=0.2565 lr=0.0003 tok/step=32768
+u=4980 g=39840 loss=0.2443 lr=0.0003 tok/step=32768
+u=5000 g=40000 loss=0.1540 lr=0.0003 tok/step=32768
+u=5020 g=40160 loss=0.1223 lr=0.0003 tok/step=32768
+u=5040 g=40320 loss=0.1410 lr=0.0003 tok/step=32768
+u=5060 g=40480 loss=0.1490 lr=0.0003 tok/step=32768
+u=5080 g=40640 loss=0.2251 lr=0.0003 tok/step=32768
+u=5100 g=40800 loss=0.3516 lr=0.0003 tok/step=32768
+u=5120 g=40960 loss=0.1459 lr=0.0003 tok/step=32768
+u=5140 g=41120 loss=0.1220 lr=0.0003 tok/step=32768
+u=5160 g=41280 loss=0.1211 lr=0.0003 tok/step=32768
+u=5180 g=41440 loss=0.1495 lr=0.0003 tok/step=32768
+u=5200 g=41600 loss=0.1252 lr=0.0003 tok/step=32768
+u=5220 g=41760 loss=0.1331 lr=0.0003 tok/step=32768
+u=5240 g=41920 loss=0.1303 lr=0.0003 tok/step=32768
+u=5260 g=42080 loss=0.2429 lr=0.0003 tok/step=32768
+u=5280 g=42240 loss=0.2130 lr=0.0003 tok/step=32768
+u=5300 g=42400 loss=0.1322 lr=0.0003 tok/step=32768
+u=5320 g=42560 loss=0.2047 lr=0.0003 tok/step=32768
+u=5340 g=42720 loss=0.1913 lr=0.0003 tok/step=32768
+u=5360 g=42880 loss=0.1248 lr=0.0003 tok/step=32768
+u=5380 g=43040 loss=0.1296 lr=0.0003 tok/step=32768
+u=5400 g=43200 loss=0.1168 lr=0.0003 tok/step=32768
+u=5420 g=43360 loss=0.1348 lr=0.0003 tok/step=32768
+u=5440 g=43520 loss=0.1225 lr=0.0003 tok/step=32768
+u=5460 g=43680 loss=0.1113 lr=0.0003 tok/step=32768
+u=5480 g=43840 loss=0.2101 lr=0.0003 tok/step=32768
+u=5500 g=44000 loss=0.1368 lr=0.0003 tok/step=32768
+u=5520 g=44160 loss=0.1333 lr=0.0003 tok/step=32768
+u=5540 g=44320 loss=0.1084 lr=0.0003 tok/step=32768
+u=5560 g=44480 loss=0.1312 lr=0.0003 tok/step=32768
+u=5580 g=44640 loss=0.1099 lr=0.0003 tok/step=32768
+u=5600 g=44800 loss=0.1091 lr=0.0003 tok/step=32768
+u=5620 g=44960 loss=0.1067 lr=0.0003 tok/step=32768
+u=5640 g=45120 loss=0.1450 lr=0.0003 tok/step=32768
+u=5660 g=45280 loss=0.1616 lr=0.0003 tok/step=32768
+u=5680 g=45440 loss=0.1334 lr=0.0003 tok/step=32768
+u=5700 g=45600 loss=0.1147 lr=0.0003 tok/step=32768
+u=5720 g=45760 loss=0.1142 lr=0.0003 tok/step=32768
+u=5740 g=45920 loss=0.1160 lr=0.0003 tok/step=32768
+u=5760 g=46080 loss=0.1112 lr=0.0003 tok/step=32768
+u=5780 g=46240 loss=0.1119 lr=0.0003 tok/step=32768
+u=5800 g=46400 loss=0.1838 lr=0.0003 tok/step=32768
+u=5820 g=46560 loss=0.1546 lr=0.0003 tok/step=32768
+u=5840 g=46720 loss=0.1286 lr=0.0003 tok/step=32768
+u=5860 g=46880 loss=0.1189 lr=0.0003 tok/step=32768
+u=5880 g=47040 loss=0.1099 lr=0.0003 tok/step=32768
+u=5900 g=47200 loss=0.1201 lr=0.0003 tok/step=32768
+u=5920 g=47360 loss=0.1258 lr=0.0003 tok/step=32768
+u=5940 g=47520 loss=0.0997 lr=0.0003 tok/step=32768
+u=5960 g=47680 loss=0.0948 lr=0.0003 tok/step=32768
+u=5980 g=47840 loss=0.1231 lr=0.0003 tok/step=32768
+u=6000 g=48000 loss=0.0980 lr=0.0003 tok/step=32768
+u=6020 g=48160 loss=0.0936 lr=0.0003 tok/step=32768
+u=6040 g=48320 loss=0.1461 lr=0.0003 tok/step=32768
+u=6060 g=48480 loss=0.1066 lr=0.0003 tok/step=32768
+u=6080 g=48640 loss=0.1162 lr=0.0003 tok/step=32768
+u=6100 g=48800 loss=0.1138 lr=0.0003 tok/step=32768
+u=6120 g=48960 loss=0.0909 lr=0.0003 tok/step=32768
+u=6140 g=49120 loss=0.1060 lr=0.0003 tok/step=32768
+u=6160 g=49280 loss=0.0998 lr=0.0003 tok/step=32768
+u=6180 g=49440 loss=0.1142 lr=0.0003 tok/step=32768
+u=6200 g=49600 loss=0.0984 lr=0.0003 tok/step=32768
+u=6220 g=49760 loss=0.1049 lr=0.0003 tok/step=32768
+u=6240 g=49920 loss=0.0961 lr=0.0003 tok/step=32768
+u=6260 g=50080 loss=0.1191 lr=0.0003 tok/step=32768
+u=6280 g=50240 loss=0.1034 lr=0.0003 tok/step=32768
+u=6300 g=50400 loss=0.1714 lr=0.0003 tok/step=32768
+u=6320 g=50560 loss=0.1203 lr=0.0003 tok/step=32768
+u=6340 g=50720 loss=0.1540 lr=0.0003 tok/step=32768
+u=6360 g=50880 loss=0.1229 lr=0.0003 tok/step=32768
+u=6380 g=51040 loss=0.1043 lr=0.0003 tok/step=32768
+u=6400 g=51200 loss=0.0910 lr=0.0003 tok/step=32768
+u=6420 g=51360 loss=0.2655 lr=0.0003 tok/step=32768
+u=6440 g=51520 loss=0.1105 lr=0.0003 tok/step=32768
+u=6460 g=51680 loss=0.1023 lr=0.0003 tok/step=32768
+u=6480 g=51840 loss=0.0919 lr=0.0003 tok/step=32768
+u=6500 g=52000 loss=0.1009 lr=0.0003 tok/step=32768
+u=6520 g=52160 loss=0.1028 lr=0.0003 tok/step=32768
+u=6540 g=52320 loss=0.5132 lr=0.0003 tok/step=32768
+u=6560 g=52480 loss=0.1292 lr=0.0003 tok/step=32768
+u=6580 g=52640 loss=0.1183 lr=0.0003 tok/step=32768
+u=6600 g=52800 loss=0.1053 lr=0.0003 tok/step=32768
+u=6620 g=52960 loss=0.0979 lr=0.0003 tok/step=32768
+u=6640 g=53120 loss=0.1134 lr=0.0003 tok/step=32768
+u=6660 g=53280 loss=0.1352 lr=0.0003 tok/step=32768
+u=6680 g=53440 loss=0.0947 lr=0.0003 tok/step=32768
+u=6700 g=53600 loss=0.1017 lr=0.0003 tok/step=32768
+u=6720 g=53760 loss=0.1090 lr=0.0003 tok/step=32768
+u=6740 g=53920 loss=0.0898 lr=0.0003 tok/step=32768
+u=6760 g=54080 loss=0.0974 lr=0.0003 tok/step=32768
+u=6780 g=54240 loss=0.1211 lr=0.0003 tok/step=32768
+u=6800 g=54400 loss=0.1049 lr=0.0003 tok/step=32768
+u=6820 g=54560 loss=0.0921 lr=0.0003 tok/step=32768
+u=6840 g=54720 loss=0.0925 lr=0.0003 tok/step=32768
+u=6860 g=54880 loss=0.1111 lr=0.0003 tok/step=32768
+u=6880 g=55040 loss=0.0862 lr=0.0003 tok/step=32768
+u=6900 g=55200 loss=0.1026 lr=0.0003 tok/step=32768
+u=6920 g=55360 loss=0.0904 lr=0.0003 tok/step=32768
+u=6940 g=55520 loss=0.1032 lr=0.0003 tok/step=32768
+u=6960 g=55680 loss=0.1181 lr=0.0003 tok/step=32768
+u=6980 g=55840 loss=0.0893 lr=0.0003 tok/step=32768
+u=7000 g=56000 loss=0.0902 lr=0.0003 tok/step=32768
+u=7020 g=56160 loss=0.0916 lr=0.0003 tok/step=32768
+u=7040 g=56320 loss=0.0985 lr=0.0003 tok/step=32768
+u=7060 g=56480 loss=0.0981 lr=0.0003 tok/step=32768
+u=7080 g=56640 loss=0.1268 lr=0.0003 tok/step=32768
+u=7100 g=56800 loss=0.0879 lr=0.0003 tok/step=32768
+u=7120 g=56960 loss=0.1372 lr=0.0003 tok/step=32768
+u=7140 g=57120 loss=0.1480 lr=0.0003 tok/step=32768
+u=7160 g=57280 loss=0.1006 lr=0.0003 tok/step=32768
+u=7180 g=57440 loss=0.0987 lr=0.0003 tok/step=32768
+u=7200 g=57600 loss=0.0927 lr=0.0003 tok/step=32768
+u=7220 g=57760 loss=0.1654 lr=0.0003 tok/step=32768
+u=7240 g=57920 loss=0.0996 lr=0.0003 tok/step=32768
+u=7260 g=58080 loss=0.1089 lr=0.0003 tok/step=32768
+u=7280 g=58240 loss=0.0839 lr=0.0003 tok/step=32768
+u=7300 g=58400 loss=0.0832 lr=0.0003 tok/step=32768
+u=7320 g=58560 loss=0.0860 lr=0.0003 tok/step=32768
+u=7340 g=58720 loss=0.0888 lr=0.0003 tok/step=32768
+u=7360 g=58880 loss=0.0845 lr=0.0003 tok/step=32768
+u=7380 g=59040 loss=0.0895 lr=0.0003 tok/step=32768
+u=7400 g=59200 loss=0.0879 lr=0.0003 tok/step=32768
+u=7420 g=59360 loss=0.1068 lr=0.0003 tok/step=32768
+u=7440 g=59520 loss=0.1175 lr=0.0003 tok/step=32768
+u=7460 g=59680 loss=0.0942 lr=0.0003 tok/step=32768
+u=7480 g=59840 loss=0.0859 lr=0.0003 tok/step=32768
+u=7500 g=60000 loss=0.1647 lr=0.0003 tok/step=32768
+u=7520 g=60160 loss=0.1104 lr=0.0003 tok/step=32768
+u=7540 g=60320 loss=0.0845 lr=0.0003 tok/step=32768
+u=7560 g=60480 loss=0.0878 lr=0.0003 tok/step=32768
+u=7580 g=60640 loss=0.0916 lr=0.0003 tok/step=32768
+u=7600 g=60800 loss=0.0879 lr=0.0003 tok/step=32768
+u=7620 g=60960 loss=0.1941 lr=0.0003 tok/step=32768
+u=7640 g=61120 loss=0.1290 lr=0.0003 tok/step=32768
+u=7660 g=61280 loss=0.2023 lr=0.0003 tok/step=32768
+u=7680 g=61440 loss=0.0978 lr=0.0003 tok/step=32768
+u=7700 g=61600 loss=0.0879 lr=0.0003 tok/step=32768
+u=7720 g=61760 loss=0.0850 lr=0.0003 tok/step=32768
+u=7740 g=61920 loss=0.0800 lr=0.0003 tok/step=32768
+u=7760 g=62080 loss=0.0861 lr=0.0003 tok/step=32768
+u=7780 g=62240 loss=0.0829 lr=0.0003 tok/step=32768
+u=7800 g=62400 loss=0.0947 lr=0.0003 tok/step=32768
+u=7820 g=62560 loss=0.1071 lr=0.0003 tok/step=32768
+u=7840 g=62720 loss=0.0892 lr=0.0003 tok/step=32768
+u=7860 g=62880 loss=0.0826 lr=0.0003 tok/step=32768
+u=7880 g=63040 loss=0.0869 lr=0.0003 tok/step=32768
+u=7900 g=63200 loss=0.0958 lr=0.0003 tok/step=32768
+u=7920 g=63360 loss=0.0857 lr=0.0003 tok/step=32768
+u=7940 g=63520 loss=0.0913 lr=0.0003 tok/step=32768
+u=7960 g=63680 loss=0.0937 lr=0.0003 tok/step=32768
+u=7980 g=63840 loss=0.0833 lr=0.0003 tok/step=32768
+u=8000 g=64000 loss=0.0831 lr=0.0003 tok/step=32768
+u=8020 g=64160 loss=0.0968 lr=0.0003 tok/step=32768
+u=8040 g=64320 loss=0.0825 lr=0.0003 tok/step=32768
+u=8060 g=64480 loss=0.0872 lr=0.0003 tok/step=32768
+u=8080 g=64640 loss=0.1247 lr=0.0003 tok/step=32768
+u=8100 g=64800 loss=0.1147 lr=0.0003 tok/step=32768
+u=8120 g=64960 loss=0.0925 lr=0.0003 tok/step=32768
+u=8140 g=65120 loss=0.1113 lr=0.0003 tok/step=32768
+u=8160 g=65280 loss=0.0810 lr=0.0003 tok/step=32768
+u=8180 g=65440 loss=0.0789 lr=0.0003 tok/step=32768
+u=8200 g=65600 loss=0.1018 lr=0.0003 tok/step=32768
+u=8220 g=65760 loss=0.1523 lr=0.0003 tok/step=32768
+u=8240 g=65920 loss=0.0819 lr=0.0003 tok/step=32768
+u=8260 g=66080 loss=0.1043 lr=0.0003 tok/step=32768
+u=8280 g=66240 loss=0.0911 lr=0.0003 tok/step=32768
+u=8300 g=66400 loss=0.0878 lr=0.0003 tok/step=32768
+u=8320 g=66560 loss=0.0792 lr=0.0003 tok/step=32768
+u=8340 g=66720 loss=0.1278 lr=0.0003 tok/step=32768
+u=8360 g=66880 loss=0.0963 lr=0.0003 tok/step=32768
+u=8380 g=67040 loss=0.0964 lr=0.0003 tok/step=32768
+u=8400 g=67200 loss=0.0830 lr=0.0003 tok/step=32768
+u=8420 g=67360 loss=0.1649 lr=0.0003 tok/step=32768
+u=8440 g=67520 loss=0.1019 lr=0.0003 tok/step=32768
+u=8460 g=67680 loss=0.0947 lr=0.0003 tok/step=32768
+u=8480 g=67840 loss=0.0991 lr=0.0003 tok/step=32768
+u=8500 g=68000 loss=0.0948 lr=0.0003 tok/step=32768
+u=8520 g=68160 loss=0.0867 lr=0.0003 tok/step=32768
+u=8540 g=68320 loss=0.0845 lr=0.0003 tok/step=32768
+u=8560 g=68480 loss=0.1002 lr=0.0003 tok/step=32768
+u=8580 g=68640 loss=0.0979 lr=0.0003 tok/step=32768
+u=8600 g=68800 loss=0.1209 lr=0.0003 tok/step=32768
+u=8620 g=68960 loss=0.0805 lr=0.0003 tok/step=32768
+u=8640 g=69120 loss=0.1003 lr=0.0003 tok/step=32768
+u=8660 g=69280 loss=0.0782 lr=0.0003 tok/step=32768
+u=8680 g=69440 loss=0.0865 lr=0.0003 tok/step=32768
+u=8700 g=69600 loss=0.1020 lr=0.0003 tok/step=32768
+u=8720 g=69760 loss=0.0794 lr=0.0003 tok/step=32768
+u=8740 g=69920 loss=0.0785 lr=0.0003 tok/step=32768
+u=8760 g=70080 loss=0.0793 lr=0.0003 tok/step=32768
+u=8780 g=70240 loss=0.0777 lr=0.0003 tok/step=32768
+u=8800 g=70400 loss=0.0791 lr=0.0003 tok/step=32768
+u=8820 g=70560 loss=0.0819 lr=0.0003 tok/step=32768
+u=8840 g=70720 loss=0.0862 lr=0.0003 tok/step=32768
+u=8860 g=70880 loss=0.0869 lr=0.0003 tok/step=32768
+u=8880 g=71040 loss=0.0828 lr=0.0003 tok/step=32768
+u=8900 g=71200 loss=0.0888 lr=0.0003 tok/step=32768
+u=8920 g=71360 loss=0.0867 lr=0.0003 tok/step=32768
+u=8940 g=71520 loss=0.0817 lr=0.0003 tok/step=32768
+u=8960 g=71680 loss=0.1989 lr=0.0003 tok/step=32768
+u=8980 g=71840 loss=0.1018 lr=0.0003 tok/step=32768
+u=9000 g=72000 loss=0.0943 lr=0.0003 tok/step=32768
+u=9020 g=72160 loss=0.1076 lr=0.0003 tok/step=32768
+u=9040 g=72320 loss=0.0817 lr=0.0003 tok/step=32768
+u=9060 g=72480 loss=0.2065 lr=0.0003 tok/step=32768
+u=9080 g=72640 loss=0.0818 lr=0.0003 tok/step=32768
+u=9100 g=72800 loss=0.0784 lr=0.0003 tok/step=32768
+u=9120 g=72960 loss=0.0775 lr=0.0003 tok/step=32768
+u=9140 g=73120 loss=0.0796 lr=0.0003 tok/step=32768
+u=9160 g=73280 loss=0.0849 lr=0.0003 tok/step=32768
+u=9180 g=73440 loss=0.0796 lr=0.0003 tok/step=32768
+u=9200 g=73600 loss=0.0798 lr=0.0003 tok/step=32768
+u=9220 g=73760 loss=0.0813 lr=0.0003 tok/step=32768
+u=9240 g=73920 loss=0.0768 lr=0.0003 tok/step=32768
+u=9260 g=74080 loss=0.0771 lr=0.0003 tok/step=32768
+u=9280 g=74240 loss=0.1153 lr=0.0003 tok/step=32768
+u=9300 g=74400 loss=0.0832 lr=0.0003 tok/step=32768
+u=9320 g=74560 loss=0.0804 lr=0.0003 tok/step=32768
+u=9340 g=74720 loss=0.0976 lr=0.0003 tok/step=32768
+u=9360 g=74880 loss=0.0834 lr=0.0003 tok/step=32768
+u=9380 g=75040 loss=0.0799 lr=0.0003 tok/step=32768
+u=9400 g=75200 loss=0.0805 lr=0.0003 tok/step=32768
+u=9420 g=75360 loss=0.1497 lr=0.0003 tok/step=32768
+u=9440 g=75520 loss=0.0985 lr=0.0003 tok/step=32768
+u=9460 g=75680 loss=0.0800 lr=0.0003 tok/step=32768
+u=9480 g=75840 loss=0.0823 lr=0.0003 tok/step=32768
+u=9500 g=76000 loss=0.1761 lr=0.0003 tok/step=32768
+u=9520 g=76160 loss=0.0946 lr=0.0003 tok/step=32768
+u=9540 g=76320 loss=0.0760 lr=0.0003 tok/step=32768
+u=9560 g=76480 loss=0.0770 lr=0.0003 tok/step=32768
+u=9580 g=76640 loss=0.0825 lr=0.0003 tok/step=32768
+u=9600 g=76800 loss=0.0770 lr=0.0003 tok/step=32768
+u=9620 g=76960 loss=0.0792 lr=0.0003 tok/step=32768
+u=9640 g=77120 loss=0.0823 lr=0.0003 tok/step=32768
+u=9660 g=77280 loss=0.0806 lr=0.0003 tok/step=32768
+u=9680 g=77440 loss=0.0873 lr=0.0003 tok/step=32768
+u=9700 g=77600 loss=0.0784 lr=0.0003 tok/step=32768
+u=9720 g=77760 loss=0.0878 lr=0.0003 tok/step=32768
+u=9740 g=77920 loss=0.0774 lr=0.0003 tok/step=32768
+u=9760 g=78080 loss=0.0807 lr=0.0003 tok/step=32768
+u=9780 g=78240 loss=0.0787 lr=0.0003 tok/step=32768
+u=9800 g=78400 loss=0.0758 lr=0.0003 tok/step=32768
+u=9820 g=78560 loss=0.1020 lr=0.0003 tok/step=32768
+u=9840 g=78720 loss=0.0816 lr=0.0003 tok/step=32768
+u=9860 g=78880 loss=0.0953 lr=0.0003 tok/step=32768
+u=9880 g=79040 loss=0.0810 lr=0.0003 tok/step=32768
+u=9900 g=79200 loss=0.0828 lr=0.0003 tok/step=32768
+u=9920 g=79360 loss=0.0893 lr=0.0003 tok/step=32768
+u=9940 g=79520 loss=0.0796 lr=0.0003 tok/step=32768
+u=9960 g=79680 loss=0.0832 lr=0.0003 tok/step=32768
+u=9980 g=79840 loss=0.0746 lr=0.0003 tok/step=32768
+u=10000 g=80000 loss=0.0783 lr=0.0003 tok/step=32768
+u=10020 g=80160 loss=0.0768 lr=0.0003 tok/step=32768
+u=10040 g=80320 loss=0.0762 lr=0.0003 tok/step=32768
+u=10060 g=80480 loss=0.0749 lr=0.0003 tok/step=32768
+u=10080 g=80640 loss=0.0785 lr=0.0003 tok/step=32768
+u=10100 g=80800 loss=0.0779 lr=0.0003 tok/step=32768
+u=10120 g=80960 loss=0.0923 lr=0.0003 tok/step=32768
+u=10140 g=81120 loss=0.0919 lr=0.0003 tok/step=32768
+u=10160 g=81280 loss=0.0885 lr=0.0003 tok/step=32768
+u=10180 g=81440 loss=0.0826 lr=0.0003 tok/step=32768
+u=10200 g=81600 loss=0.0821 lr=0.0003 tok/step=32768
+u=10220 g=81760 loss=0.0762 lr=0.0003 tok/step=32768
+u=10240 g=81920 loss=0.0764 lr=0.0003 tok/step=32768
+u=10260 g=82080 loss=0.0750 lr=0.0003 tok/step=32768
+u=10280 g=82240 loss=0.0796 lr=0.0003 tok/step=32768
+u=10300 g=82400 loss=0.0831 lr=0.0003 tok/step=32768
+u=10320 g=82560 loss=0.0809 lr=0.0003 tok/step=32768
+u=10340 g=82720 loss=0.0896 lr=0.0003 tok/step=32768
+u=10360 g=82880 loss=0.0944 lr=0.0003 tok/step=32768
+u=10380 g=83040 loss=0.0816 lr=0.0003 tok/step=32768
+u=10400 g=83200 loss=0.0792 lr=0.0003 tok/step=32768
+u=10420 g=83360 loss=0.0757 lr=0.0003 tok/step=32768
+u=10440 g=83520 loss=0.0753 lr=0.0003 tok/step=32768
+u=10460 g=83680 loss=0.0971 lr=0.0003 tok/step=32768
+u=10480 g=83840 loss=0.0751 lr=0.0003 tok/step=32768
+u=10500 g=84000 loss=0.0748 lr=0.0003 tok/step=32768
+u=10520 g=84160 loss=0.0761 lr=0.0003 tok/step=32768
+u=10540 g=84320 loss=0.0760 lr=0.0003 tok/step=32768
+u=10560 g=84480 loss=0.0842 lr=0.0003 tok/step=32768
+u=10580 g=84640 loss=0.0766 lr=0.0003 tok/step=32768
+u=10600 g=84800 loss=0.0734 lr=0.0003 tok/step=32768
+u=10620 g=84960 loss=0.0755 lr=0.0003 tok/step=32768
+u=10640 g=85120 loss=0.0771 lr=0.0003 tok/step=32768
+u=10660 g=85280 loss=0.0748 lr=0.0003 tok/step=32768
+u=10680 g=85440 loss=0.0768 lr=0.0003 tok/step=32768
+u=10700 g=85600 loss=0.0849 lr=0.0003 tok/step=32768
+u=10720 g=85760 loss=0.0779 lr=0.0003 tok/step=32768
+u=10740 g=85920 loss=0.0932 lr=0.0003 tok/step=32768
+u=10760 g=86080 loss=0.0832 lr=0.0003 tok/step=32768
+u=10780 g=86240 loss=0.0756 lr=0.0003 tok/step=32768
+u=10800 g=86400 loss=0.0790 lr=0.0003 tok/step=32768
+u=10820 g=86560 loss=0.0852 lr=0.0003 tok/step=32768
+u=10840 g=86720 loss=0.0840 lr=0.0003 tok/step=32768
+u=10860 g=86880 loss=0.0774 lr=0.0003 tok/step=32768
+u=10880 g=87040 loss=0.0778 lr=0.0003 tok/step=32768
+u=10900 g=87200 loss=0.0743 lr=0.0003 tok/step=32768
+u=10920 g=87360 loss=0.0758 lr=0.0003 tok/step=32768
+u=10940 g=87520 loss=0.0742 lr=0.0003 tok/step=32768
+u=10960 g=87680 loss=0.0754 lr=0.0003 tok/step=32768
+u=10980 g=87840 loss=0.0858 lr=0.0003 tok/step=32768
+u=11000 g=88000 loss=0.0758 lr=0.0003 tok/step=32768
+u=11020 g=88160 loss=0.1439 lr=0.0003 tok/step=32768
+u=11040 g=88320 loss=0.0822 lr=0.0003 tok/step=32768
+u=11060 g=88480 loss=0.0858 lr=0.0003 tok/step=32768
+u=11080 g=88640 loss=0.0750 lr=0.0003 tok/step=32768
+u=11100 g=88800 loss=0.0728 lr=0.0003 tok/step=32768
+u=11120 g=88960 loss=0.0725 lr=0.0003 tok/step=32768
+u=11140 g=89120 loss=0.0742 lr=0.0003 tok/step=32768
+u=11160 g=89280 loss=0.0738 lr=0.0003 tok/step=32768
+u=11180 g=89440 loss=0.0756 lr=0.0003 tok/step=32768
+u=11200 g=89600 loss=0.0787 lr=0.0003 tok/step=32768
+u=11220 g=89760 loss=0.0823 lr=0.0003 tok/step=32768
+u=11240 g=89920 loss=0.0834 lr=0.0003 tok/step=32768
+u=11260 g=90080 loss=0.0778 lr=0.0003 tok/step=32768
+u=11280 g=90240 loss=0.0776 lr=0.0003 tok/step=32768
+u=11300 g=90400 loss=0.0801 lr=0.0003 tok/step=32768
+u=11320 g=90560 loss=0.1308 lr=0.0003 tok/step=32768
+u=11340 g=90720 loss=0.0848 lr=0.0003 tok/step=32768
+u=11360 g=90880 loss=0.0761 lr=0.0003 tok/step=32768
+u=11380 g=91040 loss=0.0777 lr=0.0003 tok/step=32768
+u=11400 g=91200 loss=0.0753 lr=0.0003 tok/step=32768
+u=11420 g=91360 loss=0.0734 lr=0.0003 tok/step=32768
+u=11440 g=91520 loss=0.0774 lr=0.0003 tok/step=32768
+u=11460 g=91680 loss=0.0864 lr=0.0003 tok/step=32768
+u=11480 g=91840 loss=0.0779 lr=0.0003 tok/step=32768
+u=11500 g=92000 loss=0.0771 lr=0.0003 tok/step=32768
+u=11520 g=92160 loss=0.0743 lr=0.0003 tok/step=32768
+u=11540 g=92320 loss=0.0751 lr=0.0003 tok/step=32768
+u=11560 g=92480 loss=0.0731 lr=0.0003 tok/step=32768
+u=11580 g=92640 loss=0.0772 lr=0.0003 tok/step=32768
+u=11600 g=92800 loss=0.0854 lr=0.0003 tok/step=32768
+u=11620 g=92960 loss=0.0746 lr=0.0003 tok/step=32768
+u=11640 g=93120 loss=0.0715 lr=0.0003 tok/step=32768
+u=11660 g=93280 loss=0.0892 lr=0.0003 tok/step=32768
+u=11680 g=93440 loss=0.0776 lr=0.0003 tok/step=32768
+u=11700 g=93600 loss=0.0799 lr=0.0003 tok/step=32768
+u=11720 g=93760 loss=0.0736 lr=0.0003 tok/step=32768
+u=11740 g=93920 loss=0.0775 lr=0.0003 tok/step=32768
+u=11760 g=94080 loss=0.0741 lr=0.0003 tok/step=32768
+u=11780 g=94240 loss=0.0741 lr=0.0003 tok/step=32768
+u=11800 g=94400 loss=0.0775 lr=0.0003 tok/step=32768
+u=11820 g=94560 loss=0.0780 lr=0.0003 tok/step=32768
+u=11840 g=94720 loss=0.0750 lr=0.0003 tok/step=32768
+u=11860 g=94880 loss=0.1524 lr=0.0003 tok/step=32768
+u=11880 g=95040 loss=0.0914 lr=0.0003 tok/step=32768
+u=11900 g=95200 loss=0.0870 lr=0.0003 tok/step=32768
+u=11920 g=95360 loss=0.0741 lr=0.0003 tok/step=32768
+u=11940 g=95520 loss=0.0730 lr=0.0003 tok/step=32768
+u=11960 g=95680 loss=0.0745 lr=0.0003 tok/step=32768
+u=11980 g=95840 loss=0.0735 lr=0.0003 tok/step=32768
+u=12000 g=96000 loss=0.0951 lr=0.0003 tok/step=32768
+u=12020 g=96160 loss=0.0746 lr=0.0003 tok/step=32768
+u=12040 g=96320 loss=0.0798 lr=0.0003 tok/step=32768
+u=12060 g=96480 loss=0.0803 lr=0.0003 tok/step=32768
+u=12080 g=96640 loss=0.0731 lr=0.0003 tok/step=32768
+u=12100 g=96800 loss=0.0735 lr=0.0003 tok/step=32768
+u=12120 g=96960 loss=0.0737 lr=0.0003 tok/step=32768
+u=12140 g=97120 loss=0.0741 lr=0.0003 tok/step=32768
+u=12160 g=97280 loss=0.0754 lr=0.0003 tok/step=32768
+u=12180 g=97440 loss=0.0731 lr=0.0003 tok/step=32768
+u=12200 g=97600 loss=0.0753 lr=0.0003 tok/step=32768
+u=12220 g=97760 loss=0.0771 lr=0.0003 tok/step=32768
+u=12240 g=97920 loss=0.0756 lr=0.0003 tok/step=32768
+u=12260 g=98080 loss=0.0727 lr=0.0003 tok/step=32768
+u=12280 g=98240 loss=0.0735 lr=0.0003 tok/step=32768
+u=12300 g=98400 loss=0.0716 lr=0.0003 tok/step=32768
+u=12320 g=98560 loss=0.0732 lr=0.0003 tok/step=32768
+u=12340 g=98720 loss=0.0728 lr=0.0003 tok/step=32768
+u=12360 g=98880 loss=0.0745 lr=0.0003 tok/step=32768
+u=12380 g=99040 loss=0.0725 lr=0.0003 tok/step=32768
+u=12400 g=99200 loss=0.0749 lr=0.0003 tok/step=32768
+u=12420 g=99360 loss=0.0740 lr=0.0003 tok/step=32768
+u=12440 g=99520 loss=0.0739 lr=0.0003 tok/step=32768
+u=12460 g=99680 loss=0.0772 lr=0.0003 tok/step=32768
+u=12480 g=99840 loss=0.0738 lr=0.0003 tok/step=32768
+u=12500 g=100000 loss=0.0794 lr=0.0003 tok/step=32768
+u=12520 g=100160 loss=0.0776 lr=0.0003 tok/step=32768
+u=12540 g=100320 loss=0.0728 lr=0.0003 tok/step=32768
+u=12560 g=100480 loss=0.0805 lr=0.0003 tok/step=32768
+u=12580 g=100640 loss=0.0747 lr=0.0003 tok/step=32768
+u=12600 g=100800 loss=0.0760 lr=0.0003 tok/step=32768
+u=12620 g=100960 loss=0.0722 lr=0.0003 tok/step=32768
+u=12640 g=101120 loss=0.0775 lr=0.0003 tok/step=32768
+u=12660 g=101280 loss=0.0764 lr=0.0003 tok/step=32768
+u=12680 g=101440 loss=0.0742 lr=0.0003 tok/step=32768
+u=12700 g=101600 loss=0.0729 lr=0.0003 tok/step=32768
+u=12720 g=101760 loss=0.0849 lr=0.0003 tok/step=32768
+u=12740 g=101920 loss=0.0845 lr=0.0003 tok/step=32768
+u=12760 g=102080 loss=0.0835 lr=0.0003 tok/step=32768
+u=12780 g=102240 loss=0.0741 lr=0.0003 tok/step=32768
+u=12800 g=102400 loss=0.1001 lr=0.0003 tok/step=32768
+u=12820 g=102560 loss=0.0867 lr=0.0003 tok/step=32768
+u=12840 g=102720 loss=0.0776 lr=0.0003 tok/step=32768
+u=12860 g=102880 loss=0.0729 lr=0.0003 tok/step=32768
+u=12880 g=103040 loss=0.0723 lr=0.0003 tok/step=32768
+u=12900 g=103200 loss=0.0722 lr=0.0003 tok/step=32768
+u=12920 g=103360 loss=0.0707 lr=0.0003 tok/step=32768
+u=12940 g=103520 loss=0.0729 lr=0.0003 tok/step=32768
+u=12960 g=103680 loss=0.0858 lr=0.0003 tok/step=32768
+u=12980 g=103840 loss=0.0872 lr=0.0003 tok/step=32768
+u=13000 g=104000 loss=0.0732 lr=0.0003 tok/step=32768
+u=13020 g=104160 loss=0.0717 lr=0.0003 tok/step=32768
+u=13040 g=104320 loss=0.0715 lr=0.0003 tok/step=32768
+u=13060 g=104480 loss=0.0717 lr=0.0003 tok/step=32768
+u=13080 g=104640 loss=0.0754 lr=0.0003 tok/step=32768
+u=13100 g=104800 loss=0.0762 lr=0.0003 tok/step=32768
+u=13120 g=104960 loss=0.0735 lr=0.0003 tok/step=32768
+u=13140 g=105120 loss=0.0723 lr=0.0003 tok/step=32768
+u=13160 g=105280 loss=0.0721 lr=0.0003 tok/step=32768
+u=13180 g=105440 loss=0.0785 lr=0.0003 tok/step=32768
+u=13200 g=105600 loss=0.0754 lr=0.0003 tok/step=32768
+u=13220 g=105760 loss=0.0722 lr=0.0003 tok/step=32768
+u=13240 g=105920 loss=0.0768 lr=0.0003 tok/step=32768
+u=13260 g=106080 loss=0.0758 lr=0.0003 tok/step=32768
+u=13280 g=106240 loss=0.0799 lr=0.0003 tok/step=32768
+u=13300 g=106400 loss=0.0751 lr=0.0003 tok/step=32768
+u=13320 g=106560 loss=0.0733 lr=0.0003 tok/step=32768
+u=13340 g=106720 loss=0.0710 lr=0.0003 tok/step=32768
+u=13360 g=106880 loss=0.0744 lr=0.0003 tok/step=32768
+u=13380 g=107040 loss=0.0740 lr=0.0003 tok/step=32768
+u=13400 g=107200 loss=0.0738 lr=0.0003 tok/step=32768
+u=13420 g=107360 loss=0.0792 lr=0.0003 tok/step=32768
+u=13440 g=107520 loss=0.0724 lr=0.0003 tok/step=32768
+u=13460 g=107680 loss=0.0725 lr=0.0003 tok/step=32768
+u=13480 g=107840 loss=0.0743 lr=0.0003 tok/step=32768
+u=13500 g=108000 loss=0.0741 lr=0.0003 tok/step=32768
+u=13520 g=108160 loss=0.0713 lr=0.0003 tok/step=32768
+u=13540 g=108320 loss=0.0727 lr=0.0003 tok/step=32768
+u=13560 g=108480 loss=0.0730 lr=0.0003 tok/step=32768
+u=13580 g=108640 loss=0.0731 lr=0.0003 tok/step=32768
+u=13600 g=108800 loss=0.0740 lr=0.0003 tok/step=32768
+u=13620 g=108960 loss=0.0725 lr=0.0003 tok/step=32768
+u=13640 g=109120 loss=0.0732 lr=0.0003 tok/step=32768
+u=13660 g=109280 loss=0.0730 lr=0.0003 tok/step=32768
+u=13680 g=109440 loss=0.0724 lr=0.0003 tok/step=32768
+u=13700 g=109600 loss=0.0718 lr=0.0003 tok/step=32768
+u=13720 g=109760 loss=0.0705 lr=0.0003 tok/step=32768
+u=13740 g=109920 loss=0.0751 lr=0.0003 tok/step=32768
+u=13760 g=110080 loss=0.0745 lr=0.0003 tok/step=32768
+u=13780 g=110240 loss=0.0727 lr=0.0003 tok/step=32768
+u=13800 g=110400 loss=0.0789 lr=0.0003 tok/step=32768
+u=13820 g=110560 loss=0.0698 lr=0.0003 tok/step=32768
+u=13840 g=110720 loss=0.0730 lr=0.0003 tok/step=32768
+u=13860 g=110880 loss=0.0713 lr=0.0003 tok/step=32768
+u=13880 g=111040 loss=0.0752 lr=0.0003 tok/step=32768
+u=13900 g=111200 loss=0.0724 lr=0.0003 tok/step=32768
+u=13920 g=111360 loss=0.0766 lr=0.0003 tok/step=32768
+u=13940 g=111520 loss=0.0767 lr=0.0003 tok/step=32768
+u=13960 g=111680 loss=0.0760 lr=0.0003 tok/step=32768
+u=13980 g=111840 loss=0.0778 lr=0.0003 tok/step=32768
+u=14000 g=112000 loss=0.0946 lr=0.0003 tok/step=32768
+u=14020 g=112160 loss=0.0792 lr=0.0003 tok/step=32768
+u=14040 g=112320 loss=0.0728 lr=0.0003 tok/step=32768
+u=14060 g=112480 loss=0.0962 lr=0.0003 tok/step=32768
+u=14080 g=112640 loss=0.0735 lr=0.0003 tok/step=32768
+u=14100 g=112800 loss=0.0727 lr=0.0003 tok/step=32768
+u=14120 g=112960 loss=0.0759 lr=0.0003 tok/step=32768
+u=14140 g=113120 loss=0.0726 lr=0.0003 tok/step=32768
+u=14160 g=113280 loss=0.0795 lr=0.0003 tok/step=32768
+u=14180 g=113440 loss=0.0798 lr=0.0003 tok/step=32768
+u=14200 g=113600 loss=0.0830 lr=0.0003 tok/step=32768
+u=14220 g=113760 loss=0.0735 lr=0.0003 tok/step=32768
+u=14240 g=113920 loss=0.0731 lr=0.0003 tok/step=32768
+u=14260 g=114080 loss=0.0731 lr=0.0003 tok/step=32768
+u=14280 g=114240 loss=0.0727 lr=0.0003 tok/step=32768
+u=14300 g=114400 loss=0.0718 lr=0.0003 tok/step=32768
+u=14320 g=114560 loss=0.0704 lr=0.0003 tok/step=32768
+u=14340 g=114720 loss=0.0708 lr=0.0003 tok/step=32768
+u=14360 g=114880 loss=0.0739 lr=0.0003 tok/step=32768
+u=14380 g=115040 loss=0.0727 lr=0.0003 tok/step=32768
+u=14400 g=115200 loss=0.0717 lr=0.0003 tok/step=32768
+u=14420 g=115360 loss=0.0702 lr=0.0003 tok/step=32768
+u=14440 g=115520 loss=0.0738 lr=0.0003 tok/step=32768
+u=14460 g=115680 loss=0.0745 lr=0.0003 tok/step=32768
+u=14480 g=115840 loss=0.0741 lr=0.0003 tok/step=32768
+u=14500 g=116000 loss=0.0735 lr=0.0003 tok/step=32768
+u=14520 g=116160 loss=0.0736 lr=0.0003 tok/step=32768
+u=14540 g=116320 loss=0.0729 lr=0.0003 tok/step=32768
+u=14560 g=116480 loss=0.0731 lr=0.0003 tok/step=32768
+u=14580 g=116640 loss=0.0713 lr=0.0003 tok/step=32768
+u=14600 g=116800 loss=0.0723 lr=0.0003 tok/step=32768
+u=14620 g=116960 loss=0.0719 lr=0.0003 tok/step=32768
+u=14640 g=117120 loss=0.0713 lr=0.0003 tok/step=32768
+u=14660 g=117280 loss=0.0732 lr=0.0003 tok/step=32768
+u=14680 g=117440 loss=0.0736 lr=0.0003 tok/step=32768
+u=14700 g=117600 loss=0.0733 lr=0.0003 tok/step=32768
+u=14720 g=117760 loss=0.0737 lr=0.0003 tok/step=32768
+u=14740 g=117920 loss=0.0711 lr=0.0003 tok/step=32768
+u=14760 g=118080 loss=0.0736 lr=0.0003 tok/step=32768
+u=14780 g=118240 loss=0.0729 lr=0.0003 tok/step=32768
+u=14800 g=118400 loss=0.0764 lr=0.0003 tok/step=32768
+u=14820 g=118560 loss=0.0742 lr=0.0003 tok/step=32768
+u=14840 g=118720 loss=0.0720 lr=0.0003 tok/step=32768
+u=14860 g=118880 loss=0.0720 lr=0.0003 tok/step=32768
+u=14880 g=119040 loss=0.0726 lr=0.0003 tok/step=32768
+u=14900 g=119200 loss=0.0712 lr=0.0003 tok/step=32768
+u=14920 g=119360 loss=0.0700 lr=0.0003 tok/step=32768
+u=14940 g=119520 loss=0.0736 lr=0.0003 tok/step=32768
+u=14960 g=119680 loss=0.0716 lr=0.0003 tok/step=32768
+u=14980 g=119840 loss=0.0738 lr=0.0003 tok/step=32768
+u=15000 g=120000 loss=0.0721 lr=0.0003 tok/step=32768
+u=15020 g=120160 loss=0.0724 lr=0.0003 tok/step=32768
+u=15040 g=120320 loss=0.0718 lr=0.0003 tok/step=32768
+u=15060 g=120480 loss=0.0879 lr=0.0003 tok/step=32768
+u=15080 g=120640 loss=0.0714 lr=0.0003 tok/step=32768
+u=15100 g=120800 loss=0.0705 lr=0.0003 tok/step=32768
+u=15120 g=120960 loss=0.0853 lr=0.0003 tok/step=32768
+u=15140 g=121120 loss=0.0728 lr=0.0003 tok/step=32768
+u=15160 g=121280 loss=0.0707 lr=0.0003 tok/step=32768
+u=15180 g=121440 loss=0.0715 lr=0.0003 tok/step=32768
+u=15200 g=121600 loss=0.0761 lr=0.0003 tok/step=32768
+u=15220 g=121760 loss=0.0714 lr=0.0003 tok/step=32768
+u=15240 g=121920 loss=0.0707 lr=0.0003 tok/step=32768
+u=15260 g=122080 loss=0.0703 lr=0.0003 tok/step=32768
+u=15280 g=122240 loss=0.0715 lr=0.0003 tok/step=32768
+u=15300 g=122400 loss=0.0810 lr=0.0003 tok/step=32768
+u=15320 g=122560 loss=0.0722 lr=0.0003 tok/step=32768
+u=15340 g=122720 loss=0.0722 lr=0.0003 tok/step=32768
+u=15360 g=122880 loss=0.0698 lr=0.0003 tok/step=32768
+u=15380 g=123040 loss=0.0776 lr=0.0003 tok/step=32768
+u=15400 g=123200 loss=0.0710 lr=0.0003 tok/step=32768
+u=15420 g=123360 loss=0.0761 lr=0.0003 tok/step=32768
+u=15440 g=123520 loss=0.0723 lr=0.0003 tok/step=32768
+u=15460 g=123680 loss=0.0728 lr=0.0003 tok/step=32768
+u=15480 g=123840 loss=0.0740 lr=0.0003 tok/step=32768
+u=15500 g=124000 loss=0.0708 lr=0.0003 tok/step=32768
+u=15520 g=124160 loss=0.0714 lr=0.0003 tok/step=32768
+u=15540 g=124320 loss=0.0710 lr=0.0003 tok/step=32768
+u=15560 g=124480 loss=0.0719 lr=0.0003 tok/step=32768
+u=15580 g=124640 loss=0.0708 lr=0.0003 tok/step=32768
+u=15600 g=124800 loss=0.0710 lr=0.0003 tok/step=32768
+u=15620 g=124960 loss=0.0713 lr=0.0003 tok/step=32768
+u=15640 g=125120 loss=0.0712 lr=0.0003 tok/step=32768
+u=15660 g=125280 loss=0.0707 lr=0.0003 tok/step=32768
+u=15680 g=125440 loss=0.0753 lr=0.0003 tok/step=32768
+u=15700 g=125600 loss=0.0726 lr=0.0003 tok/step=32768
+u=15720 g=125760 loss=0.0725 lr=0.0003 tok/step=32768
+u=15740 g=125920 loss=0.0723 lr=0.0003 tok/step=32768
+u=15760 g=126080 loss=0.0726 lr=0.0003 tok/step=32768
+u=15780 g=126240 loss=0.0726 lr=0.0003 tok/step=32768
+u=15800 g=126400 loss=0.0747 lr=0.0003 tok/step=32768
+u=15820 g=126560 loss=0.0732 lr=0.0003 tok/step=32768
+u=15840 g=126720 loss=0.0714 lr=0.0003 tok/step=32768
+u=15860 g=126880 loss=0.0717 lr=0.0003 tok/step=32768
+u=15880 g=127040 loss=0.0728 lr=0.0003 tok/step=32768
+u=15900 g=127200 loss=0.0815 lr=0.0003 tok/step=32768
+u=15920 g=127360 loss=0.0704 lr=0.0003 tok/step=32768
+u=15940 g=127520 loss=0.0726 lr=0.0003 tok/step=32768
+u=15960 g=127680 loss=0.0755 lr=0.0003 tok/step=32768
+u=15980 g=127840 loss=0.0742 lr=0.0003 tok/step=32768
+u=16000 g=128000 loss=0.0745 lr=0.0003 tok/step=32768
+u=16020 g=128160 loss=0.0693 lr=0.0003 tok/step=32768
+u=16040 g=128320 loss=0.0713 lr=0.0003 tok/step=32768
+u=16060 g=128480 loss=0.0770 lr=0.0003 tok/step=32768
+u=16080 g=128640 loss=0.0713 lr=0.0003 tok/step=32768
+u=16100 g=128800 loss=0.0695 lr=0.0003 tok/step=32768
+u=16120 g=128960 loss=0.0793 lr=0.0003 tok/step=32768
+u=16140 g=129120 loss=0.0729 lr=0.0003 tok/step=32768
+u=16160 g=129280 loss=0.0709 lr=0.0003 tok/step=32768
+u=16180 g=129440 loss=0.0705 lr=0.0003 tok/step=32768
+u=16200 g=129600 loss=0.0712 lr=0.0003 tok/step=32768
+u=16220 g=129760 loss=0.0708 lr=0.0003 tok/step=32768
+u=16240 g=129920 loss=0.0713 lr=0.0003 tok/step=32768
+u=16260 g=130080 loss=0.0689 lr=0.0003 tok/step=32768
+u=16280 g=130240 loss=0.0724 lr=0.0003 tok/step=32768
+u=16300 g=130400 loss=0.0745 lr=0.0003 tok/step=32768
+u=16320 g=130560 loss=0.0762 lr=0.0003 tok/step=32768
+u=16340 g=130720 loss=0.0708 lr=0.0003 tok/step=32768
+u=16360 g=130880 loss=0.0723 lr=0.0003 tok/step=32768
+u=16380 g=131040 loss=0.0716 lr=0.0003 tok/step=32768
+u=16400 g=131200 loss=0.0710 lr=0.0003 tok/step=32768
+u=16420 g=131360 loss=0.0720 lr=0.0003 tok/step=32768
+u=16440 g=131520 loss=0.0717 lr=0.0003 tok/step=32768
+u=16460 g=131680 loss=0.0714 lr=0.0003 tok/step=32768
+u=16480 g=131840 loss=0.0750 lr=0.0003 tok/step=32768
+u=16500 g=132000 loss=0.0713 lr=0.0003 tok/step=32768
+u=16520 g=132160 loss=0.0703 lr=0.0003 tok/step=32768
+u=16540 g=132320 loss=0.0697 lr=0.0003 tok/step=32768
+u=16560 g=132480 loss=0.0698 lr=0.0003 tok/step=32768
+u=16580 g=132640 loss=0.0733 lr=0.0003 tok/step=32768
+u=16600 g=132800 loss=0.0717 lr=0.0003 tok/step=32768
+u=16620 g=132960 loss=0.0704 lr=0.0003 tok/step=32768
+u=16640 g=133120 loss=0.0693 lr=0.0003 tok/step=32768
+u=16660 g=133280 loss=0.0717 lr=0.0003 tok/step=32768
+u=16680 g=133440 loss=0.0994 lr=0.0003 tok/step=32768
+u=16700 g=133600 loss=0.0720 lr=0.0003 tok/step=32768
+u=16720 g=133760 loss=0.0707 lr=0.0003 tok/step=32768
+u=16740 g=133920 loss=0.0709 lr=0.0003 tok/step=32768
+u=16760 g=134080 loss=0.0690 lr=0.0003 tok/step=32768
+u=16780 g=134240 loss=0.0747 lr=0.0003 tok/step=32768
+u=16800 g=134400 loss=0.0733 lr=0.0003 tok/step=32768
+u=16820 g=134560 loss=0.0700 lr=0.0003 tok/step=32768
+u=16840 g=134720 loss=0.0708 lr=0.0003 tok/step=32768
+u=16860 g=134880 loss=0.0716 lr=0.0003 tok/step=32768
+u=16880 g=135040 loss=0.0720 lr=0.0003 tok/step=32768
+u=16900 g=135200 loss=0.0707 lr=0.0003 tok/step=32768
+u=16920 g=135360 loss=0.0702 lr=0.0003 tok/step=32768
+u=16940 g=135520 loss=0.0704 lr=0.0003 tok/step=32768
+u=16960 g=135680 loss=0.0705 lr=0.0003 tok/step=32768
+u=16980 g=135840 loss=0.0715 lr=0.0003 tok/step=32768
+u=17000 g=136000 loss=0.0694 lr=0.0003 tok/step=32768
+u=17020 g=136160 loss=0.0717 lr=0.0003 tok/step=32768
+u=17040 g=136320 loss=0.0707 lr=0.0003 tok/step=32768
+u=17060 g=136480 loss=0.0700 lr=0.0003 tok/step=32768
+u=17080 g=136640 loss=0.0722 lr=0.0003 tok/step=32768
+u=17100 g=136800 loss=0.0699 lr=0.0003 tok/step=32768
+u=17120 g=136960 loss=0.0701 lr=0.0003 tok/step=32768
+u=17140 g=137120 loss=0.0685 lr=0.0003 tok/step=32768
+u=17160 g=137280 loss=0.0677 lr=0.0003 tok/step=32768
+u=17180 g=137440 loss=0.0705 lr=0.0003 tok/step=32768
+u=17200 g=137600 loss=0.0707 lr=0.0003 tok/step=32768
+u=17220 g=137760 loss=0.0701 lr=0.0003 tok/step=32768
+u=17240 g=137920 loss=0.0718 lr=0.0003 tok/step=32768
+u=17260 g=138080 loss=0.0709 lr=0.0003 tok/step=32768
+u=17280 g=138240 loss=0.0714 lr=0.0003 tok/step=32768
+u=17300 g=138400 loss=0.0695 lr=0.0003 tok/step=32768
+u=17320 g=138560 loss=0.0711 lr=0.0003 tok/step=32768
+u=17340 g=138720 loss=0.0713 lr=0.0003 tok/step=32768
+u=17360 g=138880 loss=0.0695 lr=0.0003 tok/step=32768
+u=17380 g=139040 loss=0.0719 lr=0.0003 tok/step=32768
+u=17400 g=139200 loss=0.0707 lr=0.0003 tok/step=32768
+u=17420 g=139360 loss=0.0692 lr=0.0003 tok/step=32768
+u=17440 g=139520 loss=0.0717 lr=0.0003 tok/step=32768
+u=17460 g=139680 loss=0.0712 lr=0.0003 tok/step=32768
+u=17480 g=139840 loss=0.0729 lr=0.0003 tok/step=32768
+u=17500 g=140000 loss=0.0689 lr=0.0003 tok/step=32768
+u=17520 g=140160 loss=0.0725 lr=0.0003 tok/step=32768
+u=17540 g=140320 loss=0.0717 lr=0.0003 tok/step=32768
+u=17560 g=140480 loss=0.0699 lr=0.0003 tok/step=32768
+u=17580 g=140640 loss=0.0700 lr=0.0003 tok/step=32768
+u=17600 g=140800 loss=0.0689 lr=0.0003 tok/step=32768
+u=17620 g=140960 loss=0.0713 lr=0.0003 tok/step=32768
+u=17640 g=141120 loss=0.0975 lr=0.0003 tok/step=32768
+u=17660 g=141280 loss=0.0715 lr=0.0003 tok/step=32768
+u=17680 g=141440 loss=0.0777 lr=0.0003 tok/step=32768
+u=17700 g=141600 loss=0.0686 lr=0.0003 tok/step=32768
+u=17720 g=141760 loss=0.0677 lr=0.0003 tok/step=32768
+u=17740 g=141920 loss=0.0684 lr=0.0003 tok/step=32768
+u=17760 g=142080 loss=0.0696 lr=0.0003 tok/step=32768
+u=17780 g=142240 loss=0.0710 lr=0.0003 tok/step=32768
+u=17800 g=142400 loss=0.0725 lr=0.0003 tok/step=32768
+u=17820 g=142560 loss=0.0709 lr=0.0003 tok/step=32768
+u=17840 g=142720 loss=0.0709 lr=0.0003 tok/step=32768
+u=17860 g=142880 loss=0.0692 lr=0.0003 tok/step=32768
+u=17880 g=143040 loss=0.0725 lr=0.0003 tok/step=32768
+u=17900 g=143200 loss=0.0698 lr=0.0003 tok/step=32768
+u=17920 g=143360 loss=0.0723 lr=0.0003 tok/step=32768
+u=17940 g=143520 loss=0.0714 lr=0.0003 tok/step=32768
+u=17960 g=143680 loss=0.0691 lr=0.0003 tok/step=32768
+u=17980 g=143840 loss=0.0687 lr=0.0003 tok/step=32768
+u=18000 g=144000 loss=0.0740 lr=0.0003 tok/step=32768
+u=18020 g=144160 loss=0.0713 lr=0.0003 tok/step=32768
+u=18040 g=144320 loss=0.0678 lr=0.0003 tok/step=32768
+u=18060 g=144480 loss=0.0719 lr=0.0003 tok/step=32768
+u=18080 g=144640 loss=0.0797 lr=0.0003 tok/step=32768
+u=18100 g=144800 loss=0.0701 lr=0.0003 tok/step=32768
+u=18120 g=144960 loss=0.0697 lr=0.0003 tok/step=32768
+u=18140 g=145120 loss=0.0674 lr=0.0003 tok/step=32768
+u=18160 g=145280 loss=0.0688 lr=0.0003 tok/step=32768
+u=18180 g=145440 loss=0.0761 lr=0.0003 tok/step=32768
+u=18200 g=145600 loss=0.0737 lr=0.0003 tok/step=32768
+u=18220 g=145760 loss=0.0704 lr=0.0003 tok/step=32768
+u=18240 g=145920 loss=0.0709 lr=0.0003 tok/step=32768
+u=18260 g=146080 loss=0.0694 lr=0.0003 tok/step=32768
+u=18280 g=146240 loss=0.0692 lr=0.0003 tok/step=32768
+u=18300 g=146400 loss=0.0678 lr=0.0003 tok/step=32768
+u=18320 g=146560 loss=0.0705 lr=0.0003 tok/step=32768
+u=18340 g=146720 loss=0.0706 lr=0.0003 tok/step=32768
+u=18360 g=146880 loss=0.0702 lr=0.0003 tok/step=32768
+u=18380 g=147040 loss=0.0706 lr=0.0003 tok/step=32768
+u=18400 g=147200 loss=0.0685 lr=0.0003 tok/step=32768
+u=18420 g=147360 loss=0.0698 lr=0.0003 tok/step=32768
+u=18440 g=147520 loss=0.0690 lr=0.0003 tok/step=32768
+u=18460 g=147680 loss=0.0697 lr=0.0003 tok/step=32768
+u=18480 g=147840 loss=0.0704 lr=0.0003 tok/step=32768
+u=18500 g=148000 loss=0.0700 lr=0.0003 tok/step=32768
+u=18520 g=148160 loss=0.0698 lr=0.0003 tok/step=32768
+u=18540 g=148320 loss=0.0707 lr=0.0003 tok/step=32768
+u=18560 g=148480 loss=0.0698 lr=0.0003 tok/step=32768
+u=18580 g=148640 loss=0.0697 lr=0.0003 tok/step=32768
+u=18600 g=148800 loss=0.0705 lr=0.0003 tok/step=32768
+u=18620 g=148960 loss=0.0704 lr=0.0003 tok/step=32768
+u=18640 g=149120 loss=0.0709 lr=0.0003 tok/step=32768
+u=18660 g=149280 loss=0.0685 lr=0.0003 tok/step=32768
+u=18680 g=149440 loss=0.0702 lr=0.0003 tok/step=32768
+u=18700 g=149600 loss=0.0702 lr=0.0003 tok/step=32768
+u=18720 g=149760 loss=0.0684 lr=0.0003 tok/step=32768
+u=18740 g=149920 loss=0.0690 lr=0.0003 tok/step=32768
+u=18760 g=150080 loss=0.0784 lr=0.0003 tok/step=32768
+u=18780 g=150240 loss=0.0703 lr=0.0003 tok/step=32768
+u=18800 g=150400 loss=0.0681 lr=0.0003 tok/step=32768
+u=18820 g=150560 loss=0.0699 lr=0.0003 tok/step=32768
+u=18840 g=150720 loss=0.0678 lr=0.0003 tok/step=32768
+u=18860 g=150880 loss=0.0678 lr=0.0003 tok/step=32768
+u=18880 g=151040 loss=0.0676 lr=0.0003 tok/step=32768
+u=18900 g=151200 loss=0.0680 lr=0.0003 tok/step=32768
+u=18920 g=151360 loss=0.0691 lr=0.0003 tok/step=32768
+u=18940 g=151520 loss=0.0699 lr=0.0003 tok/step=32768
+u=18960 g=151680 loss=0.0695 lr=0.0003 tok/step=32768
+u=18980 g=151840 loss=0.0673 lr=0.0003 tok/step=32768
+u=19000 g=152000 loss=0.0709 lr=0.0003 tok/step=32768
+u=19020 g=152160 loss=0.0691 lr=0.0003 tok/step=32768
+u=19040 g=152320 loss=0.0695 lr=0.0003 tok/step=32768
+u=19060 g=152480 loss=0.0881 lr=0.0003 tok/step=32768
+u=19080 g=152640 loss=0.0692 lr=0.0003 tok/step=32768
+u=19100 g=152800 loss=0.0705 lr=0.0003 tok/step=32768
+u=19120 g=152960 loss=0.0703 lr=0.0003 tok/step=32768
+u=19140 g=153120 loss=0.0706 lr=0.0003 tok/step=32768
+u=19160 g=153280 loss=0.0693 lr=0.0003 tok/step=32768
+u=19180 g=153440 loss=0.0689 lr=0.0003 tok/step=32768
+u=19200 g=153600 loss=0.0688 lr=0.0003 tok/step=32768
+u=19220 g=153760 loss=0.0691 lr=0.0003 tok/step=32768
+u=19240 g=153920 loss=0.0692 lr=0.0003 tok/step=32768
+u=19260 g=154080 loss=0.0685 lr=0.0003 tok/step=32768
+u=19280 g=154240 loss=0.0738 lr=0.0003 tok/step=32768
+u=19300 g=154400 loss=0.0733 lr=0.0003 tok/step=32768
+u=19320 g=154560 loss=0.0698 lr=0.0003 tok/step=32768
+u=19340 g=154720 loss=0.0675 lr=0.0003 tok/step=32768
+u=19360 g=154880 loss=0.0692 lr=0.0003 tok/step=32768
+u=19380 g=155040 loss=0.0697 lr=0.0003 tok/step=32768
+u=19400 g=155200 loss=0.0694 lr=0.0003 tok/step=32768
+u=19420 g=155360 loss=0.0689 lr=0.0003 tok/step=32768
+u=19440 g=155520 loss=0.0682 lr=0.0003 tok/step=32768
+u=19460 g=155680 loss=0.0679 lr=0.0003 tok/step=32768
+u=19480 g=155840 loss=0.0704 lr=0.0003 tok/step=32768
+u=19500 g=156000 loss=0.0680 lr=0.0003 tok/step=32768
+u=19520 g=156160 loss=0.0694 lr=0.0003 tok/step=32768
+u=19540 g=156320 loss=0.0775 lr=0.0003 tok/step=32768
+u=19560 g=156480 loss=0.0684 lr=0.0003 tok/step=32768
+u=19580 g=156640 loss=0.0692 lr=0.0003 tok/step=32768
+u=19600 g=156800 loss=0.0695 lr=0.0003 tok/step=32768
+u=19620 g=156960 loss=0.0702 lr=0.0003 tok/step=32768
+u=19640 g=157120 loss=0.0674 lr=0.0003 tok/step=32768
+u=19660 g=157280 loss=0.0690 lr=0.0003 tok/step=32768
+u=19680 g=157440 loss=0.0683 lr=0.0003 tok/step=32768
+u=19700 g=157600 loss=0.0692 lr=0.0003 tok/step=32768
+u=19720 g=157760 loss=0.0699 lr=0.0003 tok/step=32768
+u=19740 g=157920 loss=0.0690 lr=0.0003 tok/step=32768
+u=19760 g=158080 loss=0.0680 lr=0.0003 tok/step=32768
+u=19780 g=158240 loss=0.0681 lr=0.0003 tok/step=32768
+u=19800 g=158400 loss=0.0695 lr=0.0003 tok/step=32768
+u=19820 g=158560 loss=0.0694 lr=0.0003 tok/step=32768
+u=19840 g=158720 loss=0.0688 lr=0.0003 tok/step=32768
+u=19860 g=158880 loss=0.0673 lr=0.0003 tok/step=32768
+u=19880 g=159040 loss=0.0673 lr=0.0003 tok/step=32768
+u=19900 g=159200 loss=0.0680 lr=0.0003 tok/step=32768
+u=19920 g=159360 loss=0.0694 lr=0.0003 tok/step=32768
+u=19940 g=159520 loss=0.0683 lr=0.0003 tok/step=32768
+u=19960 g=159680 loss=0.0704 lr=0.0003 tok/step=32768
+u=19980 g=159840 loss=0.0734 lr=0.0003 tok/step=32768
+u=20000 g=160000 loss=0.0686 lr=0.0003 tok/step=32768
+u=20020 g=160160 loss=0.0696 lr=0.0003 tok/step=32768
+u=20040 g=160320 loss=0.0692 lr=0.0003 tok/step=32768
+u=20060 g=160480 loss=0.0752 lr=0.0003 tok/step=32768
+u=20080 g=160640 loss=0.0705 lr=0.0003 tok/step=32768
+u=20100 g=160800 loss=0.0701 lr=0.0003 tok/step=32768
+u=20120 g=160960 loss=0.0693 lr=0.0003 tok/step=32768
+u=20140 g=161120 loss=0.0695 lr=0.0003 tok/step=32768
+u=20160 g=161280 loss=0.0697 lr=0.0003 tok/step=32768
+u=20180 g=161440 loss=0.0684 lr=0.0003 tok/step=32768
+u=20200 g=161600 loss=0.0691 lr=0.0003 tok/step=32768
+u=20220 g=161760 loss=0.0711 lr=0.0003 tok/step=32768
+u=20240 g=161920 loss=0.0672 lr=0.0003 tok/step=32768
+u=20260 g=162080 loss=0.0697 lr=0.0003 tok/step=32768
+u=20280 g=162240 loss=0.0692 lr=0.0003 tok/step=32768
+u=20300 g=162400 loss=0.0690 lr=0.0003 tok/step=32768
+u=20320 g=162560 loss=0.0679 lr=0.0003 tok/step=32768
+u=20340 g=162720 loss=0.0680 lr=0.0003 tok/step=32768
+u=20360 g=162880 loss=0.0689 lr=0.0003 tok/step=32768
+u=20380 g=163040 loss=0.0679 lr=0.0003 tok/step=32768
+u=20400 g=163200 loss=0.0692 lr=0.0003 tok/step=32768
+u=20420 g=163360 loss=0.0693 lr=0.0003 tok/step=32768
+u=20440 g=163520 loss=0.0695 lr=0.0003 tok/step=32768
+u=20460 g=163680 loss=0.0698 lr=0.0003 tok/step=32768
+u=20480 g=163840 loss=0.0686 lr=0.0003 tok/step=32768
+u=20500 g=164000 loss=0.0674 lr=0.0003 tok/step=32768
+u=20520 g=164160 loss=0.0685 lr=0.0003 tok/step=32768
+u=20540 g=164320 loss=0.0680 lr=0.0003 tok/step=32768
+u=20560 g=164480 loss=0.0684 lr=0.0003 tok/step=32768
+u=20580 g=164640 loss=0.0685 lr=0.0003 tok/step=32768
+u=20600 g=164800 loss=0.0690 lr=0.0003 tok/step=32768
+u=20620 g=164960 loss=0.0695 lr=0.0003 tok/step=32768
+u=20640 g=165120 loss=0.0681 lr=0.0003 tok/step=32768
+u=20660 g=165280 loss=0.0704 lr=0.0003 tok/step=32768
+u=20680 g=165440 loss=0.0701 lr=0.0003 tok/step=32768
+u=20700 g=165600 loss=0.0688 lr=0.0003 tok/step=32768
+u=20720 g=165760 loss=0.0704 lr=0.0003 tok/step=32768
+u=20740 g=165920 loss=0.0713 lr=0.0003 tok/step=32768
+u=20760 g=166080 loss=0.0682 lr=0.0003 tok/step=32768
+u=20780 g=166240 loss=0.0678 lr=0.0003 tok/step=32768
+u=20800 g=166400 loss=0.0681 lr=0.0003 tok/step=32768
+u=20820 g=166560 loss=0.0794 lr=0.0003 tok/step=32768
+u=20840 g=166720 loss=0.0709 lr=0.0003 tok/step=32768
+u=20860 g=166880 loss=0.0702 lr=0.0003 tok/step=32768
+u=20880 g=167040 loss=0.0692 lr=0.0003 tok/step=32768
+u=20900 g=167200 loss=0.0666 lr=0.0003 tok/step=32768
+u=20920 g=167360 loss=0.0693 lr=0.0003 tok/step=32768
+u=20940 g=167520 loss=0.0697 lr=0.0003 tok/step=32768
+u=20960 g=167680 loss=0.0694 lr=0.0003 tok/step=32768
+u=20980 g=167840 loss=0.0702 lr=0.0003 tok/step=32768
+u=21000 g=168000 loss=0.0705 lr=0.0003 tok/step=32768
+u=21020 g=168160 loss=0.0670 lr=0.0003 tok/step=32768
+u=21040 g=168320 loss=0.0681 lr=0.0003 tok/step=32768
+u=21060 g=168480 loss=0.0673 lr=0.0003 tok/step=32768
+u=21080 g=168640 loss=0.0688 lr=0.0003 tok/step=32768
+u=21100 g=168800 loss=0.0692 lr=0.0003 tok/step=32768
+u=21120 g=168960 loss=0.0690 lr=0.0003 tok/step=32768
+u=21140 g=169120 loss=0.0686 lr=0.0003 tok/step=32768
+u=21160 g=169280 loss=0.0693 lr=0.0003 tok/step=32768
+u=21180 g=169440 loss=0.0692 lr=0.0003 tok/step=32768
+u=21200 g=169600 loss=0.0681 lr=0.0003 tok/step=32768
+u=21220 g=169760 loss=0.0697 lr=0.0003 tok/step=32768
+u=21240 g=169920 loss=0.0686 lr=0.0003 tok/step=32768
+u=21260 g=170080 loss=0.0704 lr=0.0003 tok/step=32768
+u=21280 g=170240 loss=0.0679 lr=0.0003 tok/step=32768
+u=21300 g=170400 loss=0.0692 lr=0.0003 tok/step=32768
+u=21320 g=170560 loss=0.0679 lr=0.0003 tok/step=32768
+u=21340 g=170720 loss=0.0693 lr=0.0003 tok/step=32768
+u=21360 g=170880 loss=0.0679 lr=0.0003 tok/step=32768
+u=21380 g=171040 loss=0.0687 lr=0.0003 tok/step=32768
+u=21400 g=171200 loss=0.0673 lr=0.0003 tok/step=32768
+u=21420 g=171360 loss=0.0691 lr=0.0003 tok/step=32768
+u=21440 g=171520 loss=0.0663 lr=0.0003 tok/step=32768
+u=21460 g=171680 loss=0.0670 lr=0.0003 tok/step=32768
+u=21480 g=171840 loss=0.0707 lr=0.0003 tok/step=32768
+u=21500 g=172000 loss=0.0694 lr=0.0003 tok/step=32768
+u=21520 g=172160 loss=0.0675 lr=0.0003 tok/step=32768
+u=21540 g=172320 loss=0.0669 lr=0.0003 tok/step=32768
+u=21560 g=172480 loss=0.0677 lr=0.0003 tok/step=32768
+u=21580 g=172640 loss=0.0676 lr=0.0003 tok/step=32768
+u=21600 g=172800 loss=0.0673 lr=0.0003 tok/step=32768
+u=21620 g=172960 loss=0.0677 lr=0.0003 tok/step=32768
+u=21640 g=173120 loss=0.0683 lr=0.0003 tok/step=32768
+u=21660 g=173280 loss=0.0676 lr=0.0003 tok/step=32768
+u=21680 g=173440 loss=0.0684 lr=0.0003 tok/step=32768
+u=21700 g=173600 loss=0.0667 lr=0.0003 tok/step=32768
+u=21720 g=173760 loss=0.0696 lr=0.0003 tok/step=32768
+u=21740 g=173920 loss=0.0693 lr=0.0003 tok/step=32768
+u=21760 g=174080 loss=0.0698 lr=0.0003 tok/step=32768
+u=21780 g=174240 loss=0.0684 lr=0.0003 tok/step=32768
+u=21800 g=174400 loss=0.0680 lr=0.0003 tok/step=32768
+u=21820 g=174560 loss=0.0679 lr=0.0003 tok/step=32768
+u=21840 g=174720 loss=0.0690 lr=0.0003 tok/step=32768
+u=21860 g=174880 loss=0.0685 lr=0.0003 tok/step=32768
+u=21880 g=175040 loss=0.0682 lr=0.0003 tok/step=32768
+u=21900 g=175200 loss=0.0693 lr=0.0003 tok/step=32768
+u=21920 g=175360 loss=0.0674 lr=0.0003 tok/step=32768
+u=21940 g=175520 loss=0.0676 lr=0.0003 tok/step=32768
+u=21960 g=175680 loss=0.0663 lr=0.0003 tok/step=32768
+u=21980 g=175840 loss=0.0670 lr=0.0003 tok/step=32768
+u=22000 g=176000 loss=0.0683 lr=0.0003 tok/step=32768
+u=22020 g=176160 loss=0.0671 lr=0.0003 tok/step=32768
+u=22040 g=176320 loss=0.0682 lr=0.0003 tok/step=32768
+u=22060 g=176480 loss=0.0726 lr=0.0003 tok/step=32768
+u=22080 g=176640 loss=0.0689 lr=0.0003 tok/step=32768
+u=22100 g=176800 loss=0.0676 lr=0.0003 tok/step=32768
+u=22120 g=176960 loss=0.0674 lr=0.0003 tok/step=32768
+u=22140 g=177120 loss=0.0679 lr=0.0003 tok/step=32768
+u=22160 g=177280 loss=0.0703 lr=0.0003 tok/step=32768
+u=22180 g=177440 loss=0.0684 lr=0.0003 tok/step=32768
+u=22200 g=177600 loss=0.0673 lr=0.0003 tok/step=32768
+u=22220 g=177760 loss=0.0669 lr=0.0003 tok/step=32768
+u=22240 g=177920 loss=0.0687 lr=0.0003 tok/step=32768
+u=22260 g=178080 loss=0.0676 lr=0.0003 tok/step=32768
+u=22280 g=178240 loss=0.0696 lr=0.0003 tok/step=32768
+u=22300 g=178400 loss=0.0682 lr=0.0003 tok/step=32768
+u=22320 g=178560 loss=0.0690 lr=0.0003 tok/step=32768
+u=22340 g=178720 loss=0.0672 lr=0.0003 tok/step=32768
+u=22360 g=178880 loss=0.0683 lr=0.0003 tok/step=32768
+u=22380 g=179040 loss=0.0707 lr=0.0003 tok/step=32768
+u=22400 g=179200 loss=0.0685 lr=0.0003 tok/step=32768
+u=22420 g=179360 loss=0.0693 lr=0.0003 tok/step=32768
+u=22440 g=179520 loss=0.0684 lr=0.0003 tok/step=32768
+u=22460 g=179680 loss=0.0687 lr=0.0003 tok/step=32768
+u=22480 g=179840 loss=0.0703 lr=0.0003 tok/step=32768
+u=22500 g=180000 loss=0.0673 lr=0.0003 tok/step=32768
+u=22520 g=180160 loss=0.0831 lr=0.0003 tok/step=32768
+u=22540 g=180320 loss=0.0687 lr=0.0003 tok/step=32768
+u=22560 g=180480 loss=0.0677 lr=0.0003 tok/step=32768
+u=22580 g=180640 loss=0.0674 lr=0.0003 tok/step=32768
+u=22600 g=180800 loss=0.0670 lr=0.0003 tok/step=32768
+u=22620 g=180960 loss=0.0679 lr=0.0003 tok/step=32768
+u=22640 g=181120 loss=0.0697 lr=0.0003 tok/step=32768
+u=22660 g=181280 loss=0.0680 lr=0.0003 tok/step=32768
+u=22680 g=181440 loss=0.0682 lr=0.0003 tok/step=32768
+u=22700 g=181600 loss=0.0691 lr=0.0003 tok/step=32768
+u=22720 g=181760 loss=0.0693 lr=0.0003 tok/step=32768
+u=22740 g=181920 loss=0.0694 lr=0.0003 tok/step=32768
+u=22760 g=182080 loss=0.0685 lr=0.0003 tok/step=32768
+u=22780 g=182240 loss=0.0733 lr=0.0003 tok/step=32768
+u=22800 g=182400 loss=0.0704 lr=0.0003 tok/step=32768
+u=22820 g=182560 loss=0.0674 lr=0.0003 tok/step=32768
+u=22840 g=182720 loss=0.0671 lr=0.0003 tok/step=32768
+u=22860 g=182880 loss=0.0689 lr=0.0003 tok/step=32768
+u=22880 g=183040 loss=0.0677 lr=0.0003 tok/step=32768
+u=22900 g=183200 loss=0.0666 lr=0.0003 tok/step=32768
+u=22920 g=183360 loss=0.0685 lr=0.0003 tok/step=32768
+u=22940 g=183520 loss=0.0696 lr=0.0003 tok/step=32768
+u=22960 g=183680 loss=0.0683 lr=0.0003 tok/step=32768
+u=22980 g=183840 loss=0.0665 lr=0.0003 tok/step=32768
+u=23000 g=184000 loss=0.0672 lr=0.0003 tok/step=32768
+u=23020 g=184160 loss=0.0673 lr=0.0003 tok/step=32768
+u=23040 g=184320 loss=0.0697 lr=0.0003 tok/step=32768
+u=23060 g=184480 loss=0.0665 lr=0.0003 tok/step=32768
+u=23080 g=184640 loss=0.0666 lr=0.0003 tok/step=32768
+u=23100 g=184800 loss=0.0692 lr=0.0003 tok/step=32768
+u=23120 g=184960 loss=0.0682 lr=0.0003 tok/step=32768
+u=23140 g=185120 loss=0.0677 lr=0.0003 tok/step=32768
+u=23160 g=185280 loss=0.0679 lr=0.0003 tok/step=32768
+u=23180 g=185440 loss=0.0688 lr=0.0003 tok/step=32768
+u=23200 g=185600 loss=0.0683 lr=0.0003 tok/step=32768
+u=23220 g=185760 loss=0.0686 lr=0.0003 tok/step=32768
+u=23240 g=185920 loss=0.0688 lr=0.0003 tok/step=32768
+u=23260 g=186080 loss=0.0690 lr=0.0003 tok/step=32768
+u=23280 g=186240 loss=0.0684 lr=0.0003 tok/step=32768
+u=23300 g=186400 loss=0.0736 lr=0.0003 tok/step=32768
+u=23320 g=186560 loss=0.0679 lr=0.0003 tok/step=32768
+u=23340 g=186720 loss=0.0677 lr=0.0003 tok/step=32768
+u=23360 g=186880 loss=0.0685 lr=0.0003 tok/step=32768
+u=23380 g=187040 loss=0.0727 lr=0.0003 tok/step=32768
+u=23400 g=187200 loss=0.0751 lr=0.0003 tok/step=32768
+u=23420 g=187360 loss=0.0683 lr=0.0003 tok/step=32768
+u=23440 g=187520 loss=0.0657 lr=0.0003 tok/step=32768
+u=23460 g=187680 loss=0.1017 lr=0.0003 tok/step=32768
+u=23480 g=187840 loss=0.0694 lr=0.0003 tok/step=32768
+u=23500 g=188000 loss=0.0673 lr=0.0003 tok/step=32768
+u=23520 g=188160 loss=0.0692 lr=0.0003 tok/step=32768
+u=23540 g=188320 loss=0.0691 lr=0.0003 tok/step=32768
+u=23560 g=188480 loss=0.0679 lr=0.0003 tok/step=32768
+u=23580 g=188640 loss=0.0658 lr=0.0003 tok/step=32768
+u=23600 g=188800 loss=0.0669 lr=0.0003 tok/step=32768
+u=23620 g=188960 loss=0.0664 lr=0.0003 tok/step=32768
+u=23640 g=189120 loss=0.0680 lr=0.0003 tok/step=32768
+u=23660 g=189280 loss=0.0679 lr=0.0003 tok/step=32768
+u=23680 g=189440 loss=0.0668 lr=0.0003 tok/step=32768
+u=23700 g=189600 loss=0.0707 lr=0.0003 tok/step=32768
+u=23720 g=189760 loss=0.0699 lr=0.0003 tok/step=32768
+u=23740 g=189920 loss=0.0679 lr=0.0003 tok/step=32768
+u=23760 g=190080 loss=0.0673 lr=0.0003 tok/step=32768
+u=23780 g=190240 loss=0.0700 lr=0.0003 tok/step=32768
+u=23800 g=190400 loss=0.0709 lr=0.0003 tok/step=32768
+u=23820 g=190560 loss=0.0676 lr=0.0003 tok/step=32768
+u=23840 g=190720 loss=0.0674 lr=0.0003 tok/step=32768
+u=23860 g=190880 loss=0.0678 lr=0.0003 tok/step=32768
+u=23880 g=191040 loss=0.0677 lr=0.0003 tok/step=32768
+u=23900 g=191200 loss=0.0679 lr=0.0003 tok/step=32768
+u=23920 g=191360 loss=0.0686 lr=0.0003 tok/step=32768
+u=23940 g=191520 loss=0.0670 lr=0.0003 tok/step=32768
+u=23960 g=191680 loss=0.0682 lr=0.0003 tok/step=32768
+u=23980 g=191840 loss=0.0684 lr=0.0003 tok/step=32768
+u=24000 g=192000 loss=0.0657 lr=0.0003 tok/step=32768
+u=24020 g=192160 loss=0.0670 lr=0.0003 tok/step=32768
+u=24040 g=192320 loss=0.0672 lr=0.0003 tok/step=32768
+u=24060 g=192480 loss=0.0694 lr=0.0003 tok/step=32768
+u=24080 g=192640 loss=0.0674 lr=0.0003 tok/step=32768
+u=24100 g=192800 loss=0.0668 lr=0.0003 tok/step=32768
+u=24120 g=192960 loss=0.0694 lr=0.0003 tok/step=32768
+u=24140 g=193120 loss=0.0684 lr=0.0003 tok/step=32768
+u=24160 g=193280 loss=0.0689 lr=0.0003 tok/step=32768
+u=24180 g=193440 loss=0.0677 lr=0.0003 tok/step=32768
+u=24200 g=193600 loss=0.0671 lr=0.0003 tok/step=32768
+u=24220 g=193760 loss=0.0695 lr=0.0003 tok/step=32768
+u=24240 g=193920 loss=0.0678 lr=0.0003 tok/step=32768
+u=24260 g=194080 loss=0.0695 lr=0.0003 tok/step=32768
+u=24280 g=194240 loss=0.0670 lr=0.0003 tok/step=32768
+u=24300 g=194400 loss=0.0672 lr=0.0003 tok/step=32768
+u=24320 g=194560 loss=0.0674 lr=0.0003 tok/step=32768
+u=24340 g=194720 loss=0.0663 lr=0.0003 tok/step=32768
+u=24360 g=194880 loss=0.0670 lr=0.0003 tok/step=32768
+u=24380 g=195040 loss=0.0690 lr=0.0003 tok/step=32768
+u=24400 g=195200 loss=0.0657 lr=0.0003 tok/step=32768
+u=24420 g=195360 loss=0.0663 lr=0.0003 tok/step=32768
+u=24440 g=195520 loss=0.0652 lr=0.0003 tok/step=32768
+u=24460 g=195680 loss=0.0671 lr=0.0003 tok/step=32768
+u=24480 g=195840 loss=0.0691 lr=0.0003 tok/step=32768
+u=24500 g=196000 loss=0.0690 lr=0.0003 tok/step=32768
+u=24520 g=196160 loss=0.0711 lr=0.0003 tok/step=32768
+u=24540 g=196320 loss=0.0729 lr=0.0003 tok/step=32768
+u=24560 g=196480 loss=0.0680 lr=0.0003 tok/step=32768
+u=24580 g=196640 loss=0.0665 lr=0.0003 tok/step=32768
+u=24600 g=196800 loss=0.0682 lr=0.0003 tok/step=32768
+u=24620 g=196960 loss=0.0659 lr=0.0003 tok/step=32768
+u=24640 g=197120 loss=0.0672 lr=0.0003 tok/step=32768
+u=24660 g=197280 loss=0.0674 lr=0.0003 tok/step=32768
+u=24680 g=197440 loss=0.0699 lr=0.0003 tok/step=32768
+u=24700 g=197600 loss=0.0678 lr=0.0003 tok/step=32768
+u=24720 g=197760 loss=0.0711 lr=0.0003 tok/step=32768
+u=24740 g=197920 loss=0.0660 lr=0.0003 tok/step=32768
+u=24760 g=198080 loss=0.0656 lr=0.0003 tok/step=32768
+u=24780 g=198240 loss=0.0696 lr=0.0003 tok/step=32768
+u=24800 g=198400 loss=0.0698 lr=0.0003 tok/step=32768
+u=24820 g=198560 loss=0.0668 lr=0.0003 tok/step=32768
+u=24840 g=198720 loss=0.0691 lr=0.0003 tok/step=32768
+u=24860 g=198880 loss=0.0662 lr=0.0003 tok/step=32768
+u=24880 g=199040 loss=0.0669 lr=0.0003 tok/step=32768
+u=24900 g=199200 loss=0.0669 lr=0.0003 tok/step=32768
+u=24920 g=199360 loss=0.0659 lr=0.0003 tok/step=32768
+u=24940 g=199520 loss=0.0670 lr=0.0003 tok/step=32768
+u=24960 g=199680 loss=0.0675 lr=0.0003 tok/step=32768
+u=24980 g=199840 loss=0.0676 lr=0.0003 tok/step=32768
+u=25000 g=200000 loss=0.0695 lr=0.0003 tok/step=32768
+u=25020 g=200160 loss=0.0676 lr=0.0003 tok/step=32768
+u=25040 g=200320 loss=0.0680 lr=0.0003 tok/step=32768
+u=25060 g=200480 loss=0.0655 lr=0.0003 tok/step=32768
+u=25080 g=200640 loss=0.0669 lr=0.0003 tok/step=32768
+u=25100 g=200800 loss=0.0668 lr=0.0003 tok/step=32768
+u=25120 g=200960 loss=0.0686 lr=0.0003 tok/step=32768
+u=25140 g=201120 loss=0.0666 lr=0.0003 tok/step=32768
+u=25160 g=201280 loss=0.0685 lr=0.0003 tok/step=32768
+u=25180 g=201440 loss=0.0667 lr=0.0003 tok/step=32768
+u=25200 g=201600 loss=0.0690 lr=0.0003 tok/step=32768
+u=25220 g=201760 loss=0.0670 lr=0.0003 tok/step=32768
+u=25240 g=201920 loss=0.0658 lr=0.0003 tok/step=32768
+u=25260 g=202080 loss=0.0679 lr=0.0003 tok/step=32768
+u=25280 g=202240 loss=0.0667 lr=0.0003 tok/step=32768
+u=25300 g=202400 loss=0.0675 lr=0.0003 tok/step=32768
+u=25320 g=202560 loss=0.0682 lr=0.0003 tok/step=32768
+u=25340 g=202720 loss=0.0748 lr=0.0003 tok/step=32768
+u=25360 g=202880 loss=0.0670 lr=0.0003 tok/step=32768
+u=25380 g=203040 loss=0.0678 lr=0.0003 tok/step=32768
+u=25400 g=203200 loss=0.0678 lr=0.0003 tok/step=32768
+u=25420 g=203360 loss=0.0665 lr=0.0003 tok/step=32768
+u=25440 g=203520 loss=0.0676 lr=0.0003 tok/step=32768
+u=25460 g=203680 loss=0.0670 lr=0.0003 tok/step=32768
+u=25480 g=203840 loss=0.0665 lr=0.0003 tok/step=32768
+u=25500 g=204000 loss=0.0673 lr=0.0003 tok/step=32768
+u=25520 g=204160 loss=0.0680 lr=0.0003 tok/step=32768
+u=25540 g=204320 loss=0.0684 lr=0.0003 tok/step=32768
+u=25560 g=204480 loss=0.0649 lr=0.0003 tok/step=32768
+u=25580 g=204640 loss=0.0673 lr=0.0003 tok/step=32768
+u=25600 g=204800 loss=0.0673 lr=0.0003 tok/step=32768
+u=25620 g=204960 loss=0.0662 lr=0.0003 tok/step=32768
+u=25640 g=205120 loss=0.0676 lr=0.0003 tok/step=32768
+u=25660 g=205280 loss=0.0678 lr=0.0003 tok/step=32768
+u=25680 g=205440 loss=0.0671 lr=0.0003 tok/step=32768
+u=25700 g=205600 loss=0.0690 lr=0.0003 tok/step=32768
+u=25720 g=205760 loss=0.0685 lr=0.0003 tok/step=32768
+u=25740 g=205920 loss=0.0672 lr=0.0003 tok/step=32768
+u=25760 g=206080 loss=0.0660 lr=0.0003 tok/step=32768
+u=25780 g=206240 loss=0.0670 lr=0.0003 tok/step=32768
+u=25800 g=206400 loss=0.0657 lr=0.0003 tok/step=32768
+u=25820 g=206560 loss=0.0684 lr=0.0003 tok/step=32768
+u=25840 g=206720 loss=0.0667 lr=0.0003 tok/step=32768
+u=25860 g=206880 loss=0.0678 lr=0.0003 tok/step=32768
+u=25880 g=207040 loss=0.0663 lr=0.0003 tok/step=32768
+u=25900 g=207200 loss=0.0668 lr=0.0003 tok/step=32768
+u=25920 g=207360 loss=0.0665 lr=0.0003 tok/step=32768
+u=25940 g=207520 loss=0.0657 lr=0.0003 tok/step=32768
+u=25960 g=207680 loss=0.0667 lr=0.0003 tok/step=32768
+u=25980 g=207840 loss=0.0665 lr=0.0003 tok/step=32768
+u=26000 g=208000 loss=0.0656 lr=0.0003 tok/step=32768
+u=26020 g=208160 loss=0.0670 lr=0.0003 tok/step=32768
+u=26040 g=208320 loss=0.0674 lr=0.0003 tok/step=32768
+u=26060 g=208480 loss=0.0678 lr=0.0003 tok/step=32768
+u=26080 g=208640 loss=0.0673 lr=0.0003 tok/step=32768
+u=26100 g=208800 loss=0.0676 lr=0.0003 tok/step=32768
+u=26120 g=208960 loss=0.0663 lr=0.0003 tok/step=32768
+u=26140 g=209120 loss=0.0657 lr=0.0003 tok/step=32768
+u=26160 g=209280 loss=0.0668 lr=0.0003 tok/step=32768
+u=26180 g=209440 loss=0.0674 lr=0.0003 tok/step=32768
+u=26200 g=209600 loss=0.0668 lr=0.0003 tok/step=32768
+u=26220 g=209760 loss=0.0673 lr=0.0003 tok/step=32768
+u=26240 g=209920 loss=0.0656 lr=0.0003 tok/step=32768
+u=26260 g=210080 loss=0.0673 lr=0.0003 tok/step=32768
+u=26280 g=210240 loss=0.0675 lr=0.0003 tok/step=32768
+u=26300 g=210400 loss=0.0668 lr=0.0003 tok/step=32768
+u=26320 g=210560 loss=0.0664 lr=0.0003 tok/step=32768
+u=26340 g=210720 loss=0.0649 lr=0.0003 tok/step=32768
+u=26360 g=210880 loss=0.0663 lr=0.0003 tok/step=32768
+u=26380 g=211040 loss=0.0684 lr=0.0003 tok/step=32768
+u=26400 g=211200 loss=0.0667 lr=0.0003 tok/step=32768
+u=26420 g=211360 loss=0.0667 lr=0.0003 tok/step=32768
+u=26440 g=211520 loss=0.0664 lr=0.0003 tok/step=32768
+u=26460 g=211680 loss=0.0654 lr=0.0003 tok/step=32768
+u=26480 g=211840 loss=0.0682 lr=0.0003 tok/step=32768
+u=26500 g=212000 loss=0.0672 lr=0.0003 tok/step=32768
+u=26520 g=212160 loss=0.0660 lr=0.0003 tok/step=32768
+u=26540 g=212320 loss=0.0681 lr=0.0003 tok/step=32768
+u=26560 g=212480 loss=0.0686 lr=0.0003 tok/step=32768
+u=26580 g=212640 loss=0.0672 lr=0.0003 tok/step=32768
+u=26600 g=212800 loss=0.0665 lr=0.0003 tok/step=32768
+u=26620 g=212960 loss=0.0660 lr=0.0003 tok/step=32768
+u=26640 g=213120 loss=0.0675 lr=0.0003 tok/step=32768
+u=26660 g=213280 loss=0.0670 lr=0.0003 tok/step=32768
+u=26680 g=213440 loss=0.0674 lr=0.0003 tok/step=32768
+u=26700 g=213600 loss=0.0669 lr=0.0003 tok/step=32768
+u=26720 g=213760 loss=0.0658 lr=0.0003 tok/step=32768
+u=26740 g=213920 loss=0.0673 lr=0.0003 tok/step=32768
+u=26760 g=214080 loss=0.0674 lr=0.0003 tok/step=32768
+u=26780 g=214240 loss=0.0663 lr=0.0003 tok/step=32768
+u=26800 g=214400 loss=0.0803 lr=0.0003 tok/step=32768
+u=26820 g=214560 loss=0.0669 lr=0.0003 tok/step=32768
+u=26840 g=214720 loss=0.0695 lr=0.0003 tok/step=32768
+u=26860 g=214880 loss=0.0653 lr=0.0003 tok/step=32768
+u=26880 g=215040 loss=0.0650 lr=0.0003 tok/step=32768
+u=26900 g=215200 loss=0.0663 lr=0.0003 tok/step=32768
+u=26920 g=215360 loss=0.0666 lr=0.0003 tok/step=32768
+u=26940 g=215520 loss=0.0675 lr=0.0003 tok/step=32768
+u=26960 g=215680 loss=0.0657 lr=0.0003 tok/step=32768
+u=26980 g=215840 loss=0.0690 lr=0.0003 tok/step=32768
+u=27000 g=216000 loss=0.0670 lr=0.0003 tok/step=32768
+u=27020 g=216160 loss=0.0649 lr=0.0003 tok/step=32768
+u=27040 g=216320 loss=0.0689 lr=0.0003 tok/step=32768
+u=27060 g=216480 loss=0.0669 lr=0.0003 tok/step=32768
+u=27080 g=216640 loss=0.0671 lr=0.0003 tok/step=32768
+u=27100 g=216800 loss=0.0657 lr=0.0003 tok/step=32768
+u=27120 g=216960 loss=0.0666 lr=0.0003 tok/step=32768
+u=27140 g=217120 loss=0.0667 lr=0.0003 tok/step=32768
+u=27160 g=217280 loss=0.0659 lr=0.0003 tok/step=32768
+u=27180 g=217440 loss=0.0667 lr=0.0003 tok/step=32768
+u=27200 g=217600 loss=0.0665 lr=0.0003 tok/step=32768
+u=27220 g=217760 loss=0.0673 lr=0.0003 tok/step=32768
+u=27240 g=217920 loss=0.0664 lr=0.0003 tok/step=32768
+u=27260 g=218080 loss=0.0667 lr=0.0003 tok/step=32768
+u=27280 g=218240 loss=0.0662 lr=0.0003 tok/step=32768
+u=27300 g=218400 loss=0.0651 lr=0.0003 tok/step=32768
+u=27320 g=218560 loss=0.0683 lr=0.0003 tok/step=32768
+u=27340 g=218720 loss=0.0666 lr=0.0003 tok/step=32768
+u=27360 g=218880 loss=0.0650 lr=0.0003 tok/step=32768
+u=27380 g=219040 loss=0.0690 lr=0.0003 tok/step=32768
+u=27400 g=219200 loss=0.0717 lr=0.0003 tok/step=32768
+u=27420 g=219360 loss=0.0658 lr=0.0003 tok/step=32768
+u=27440 g=219520 loss=0.0662 lr=0.0003 tok/step=32768
+u=27460 g=219680 loss=0.0655 lr=0.0003 tok/step=32768
+u=27480 g=219840 loss=0.0673 lr=0.0003 tok/step=32768
+u=27500 g=220000 loss=0.0662 lr=0.0003 tok/step=32768
+u=27520 g=220160 loss=0.0664 lr=0.0003 tok/step=32768
+u=27540 g=220320 loss=0.0706 lr=0.0003 tok/step=32768
+u=27560 g=220480 loss=0.0662 lr=0.0003 tok/step=32768
+u=27580 g=220640 loss=0.0667 lr=0.0003 tok/step=32768
+u=27600 g=220800 loss=0.0677 lr=0.0003 tok/step=32768
+u=27620 g=220960 loss=0.0715 lr=0.0003 tok/step=32768
+u=27640 g=221120 loss=0.0648 lr=0.0003 tok/step=32768
+u=27660 g=221280 loss=0.0664 lr=0.0003 tok/step=32768
+u=27680 g=221440 loss=0.0659 lr=0.0003 tok/step=32768
+u=27700 g=221600 loss=0.0662 lr=0.0003 tok/step=32768
+u=27720 g=221760 loss=0.0660 lr=0.0003 tok/step=32768
+u=27740 g=221920 loss=0.0666 lr=0.0003 tok/step=32768
+u=27760 g=222080 loss=0.0660 lr=0.0003 tok/step=32768
+u=27780 g=222240 loss=0.0673 lr=0.0003 tok/step=32768
+u=27800 g=222400 loss=0.0669 lr=0.0003 tok/step=32768
+u=27820 g=222560 loss=0.0689 lr=0.0003 tok/step=32768
+u=27840 g=222720 loss=0.0679 lr=0.0003 tok/step=32768
+u=27860 g=222880 loss=0.0662 lr=0.0003 tok/step=32768
+u=27880 g=223040 loss=0.0661 lr=0.0003 tok/step=32768
+u=27900 g=223200 loss=0.0690 lr=0.0003 tok/step=32768
+u=27920 g=223360 loss=0.0688 lr=0.0003 tok/step=32768
+u=27940 g=223520 loss=0.0687 lr=0.0003 tok/step=32768
+u=27960 g=223680 loss=0.0677 lr=0.0003 tok/step=32768
+u=27980 g=223840 loss=0.0678 lr=0.0003 tok/step=32768
+u=28000 g=224000 loss=0.0651 lr=0.0003 tok/step=32768
+u=28020 g=224160 loss=0.0669 lr=0.0003 tok/step=32768
+u=28040 g=224320 loss=0.0671 lr=0.0003 tok/step=32768
+u=28060 g=224480 loss=0.0675 lr=0.0003 tok/step=32768
+u=28080 g=224640 loss=0.0663 lr=0.0003 tok/step=32768
+u=28100 g=224800 loss=0.0677 lr=0.0003 tok/step=32768
+u=28120 g=224960 loss=0.0672 lr=0.0003 tok/step=32768
+u=28140 g=225120 loss=0.0656 lr=0.0003 tok/step=32768
+u=28160 g=225280 loss=0.0666 lr=0.0003 tok/step=32768
+u=28180 g=225440 loss=0.0655 lr=0.0003 tok/step=32768
+u=28200 g=225600 loss=0.0658 lr=0.0003 tok/step=32768
+u=28220 g=225760 loss=0.0664 lr=0.0003 tok/step=32768
+u=28240 g=225920 loss=0.0661 lr=0.0003 tok/step=32768
+u=28260 g=226080 loss=0.0680 lr=0.0003 tok/step=32768
+u=28280 g=226240 loss=0.0661 lr=0.0003 tok/step=32768
+u=28300 g=226400 loss=0.0675 lr=0.0003 tok/step=32768
+u=28320 g=226560 loss=0.0661 lr=0.0003 tok/step=32768
+u=28340 g=226720 loss=0.0686 lr=0.0003 tok/step=32768
+u=28360 g=226880 loss=0.0696 lr=0.0003 tok/step=32768
+u=28380 g=227040 loss=0.0657 lr=0.0003 tok/step=32768
+u=28400 g=227200 loss=0.0667 lr=0.0003 tok/step=32768
+u=28420 g=227360 loss=0.0676 lr=0.0003 tok/step=32768
+u=28440 g=227520 loss=0.0661 lr=0.0003 tok/step=32768
+u=28460 g=227680 loss=0.0665 lr=0.0003 tok/step=32768
+u=28480 g=227840 loss=0.0651 lr=0.0003 tok/step=32768
+u=28500 g=228000 loss=0.0666 lr=0.0003 tok/step=32768
+u=28520 g=228160 loss=0.0657 lr=0.0003 tok/step=32768
+u=28540 g=228320 loss=0.0653 lr=0.0003 tok/step=32768
+u=28560 g=228480 loss=0.0660 lr=0.0003 tok/step=32768
+u=28580 g=228640 loss=0.0672 lr=0.0003 tok/step=32768
+u=28600 g=228800 loss=0.0676 lr=0.0003 tok/step=32768
+u=28620 g=228960 loss=0.0673 lr=0.0003 tok/step=32768
+u=28640 g=229120 loss=0.0671 lr=0.0003 tok/step=32768
+u=28660 g=229280 loss=0.0663 lr=0.0003 tok/step=32768
+u=28680 g=229440 loss=0.0676 lr=0.0003 tok/step=32768
+u=28700 g=229600 loss=0.0658 lr=0.0003 tok/step=32768
+u=28720 g=229760 loss=0.0666 lr=0.0003 tok/step=32768
+u=28740 g=229920 loss=0.0660 lr=0.0003 tok/step=32768
+u=28760 g=230080 loss=0.0672 lr=0.0003 tok/step=32768
+u=28780 g=230240 loss=0.0645 lr=0.0003 tok/step=32768
+u=28800 g=230400 loss=0.0649 lr=0.0003 tok/step=32768
+u=28820 g=230560 loss=0.0666 lr=0.0003 tok/step=32768
+u=28840 g=230720 loss=0.0674 lr=0.0003 tok/step=32768
+u=28860 g=230880 loss=0.0671 lr=0.0003 tok/step=32768
+u=28880 g=231040 loss=0.0656 lr=0.0003 tok/step=32768
+u=28900 g=231200 loss=0.0679 lr=0.0003 tok/step=32768
+u=28920 g=231360 loss=0.0683 lr=0.0003 tok/step=32768
+u=28940 g=231520 loss=0.0665 lr=0.0003 tok/step=32768
+u=28960 g=231680 loss=0.0650 lr=0.0003 tok/step=32768
+u=28980 g=231840 loss=0.0657 lr=0.0003 tok/step=32768
+u=29000 g=232000 loss=0.0659 lr=0.0003 tok/step=32768
+u=29020 g=232160 loss=0.0660 lr=0.0003 tok/step=32768
+u=29040 g=232320 loss=0.0649 lr=0.0003 tok/step=32768
+u=29060 g=232480 loss=0.0659 lr=0.0003 tok/step=32768
+u=29080 g=232640 loss=0.0673 lr=0.0003 tok/step=32768
+u=29100 g=232800 loss=0.0674 lr=0.0003 tok/step=32768
+u=29120 g=232960 loss=0.0663 lr=0.0003 tok/step=32768
+u=29140 g=233120 loss=0.0674 lr=0.0003 tok/step=32768
+u=29160 g=233280 loss=0.0649 lr=0.0003 tok/step=32768
+u=29180 g=233440 loss=0.0662 lr=0.0003 tok/step=32768
+u=29200 g=233600 loss=0.0653 lr=0.0003 tok/step=32768
+u=29220 g=233760 loss=0.0663 lr=0.0003 tok/step=32768
+u=29240 g=233920 loss=0.0665 lr=0.0003 tok/step=32768
+u=29260 g=234080 loss=0.0668 lr=0.0003 tok/step=32768
+u=29280 g=234240 loss=0.0667 lr=0.0003 tok/step=32768
+u=29300 g=234400 loss=0.0648 lr=0.0003 tok/step=32768
+u=29320 g=234560 loss=0.0665 lr=0.0003 tok/step=32768
+u=29340 g=234720 loss=0.0653 lr=0.0003 tok/step=32768
+u=29360 g=234880 loss=0.0664 lr=0.0003 tok/step=32768
+u=29380 g=235040 loss=0.0653 lr=0.0003 tok/step=32768
+u=29400 g=235200 loss=0.0673 lr=0.0003 tok/step=32768
+u=29420 g=235360 loss=0.0656 lr=0.0003 tok/step=32768
+u=29440 g=235520 loss=0.0722 lr=0.0003 tok/step=32768
+u=29460 g=235680 loss=0.0676 lr=0.0003 tok/step=32768
+u=29480 g=235840 loss=0.0667 lr=0.0003 tok/step=32768
+u=29500 g=236000 loss=0.0653 lr=0.0003 tok/step=32768
+u=29520 g=236160 loss=0.0670 lr=0.0003 tok/step=32768
+u=29540 g=236320 loss=0.0656 lr=0.0003 tok/step=32768
+u=29560 g=236480 loss=0.0657 lr=0.0003 tok/step=32768
+u=29580 g=236640 loss=0.0674 lr=0.0003 tok/step=32768
+u=29600 g=236800 loss=0.0675 lr=0.0003 tok/step=32768
+u=29620 g=236960 loss=0.0655 lr=0.0003 tok/step=32768
+u=29640 g=237120 loss=0.0658 lr=0.0003 tok/step=32768
+u=29660 g=237280 loss=0.0672 lr=0.0003 tok/step=32768
+u=29680 g=237440 loss=0.0656 lr=0.0003 tok/step=32768
+u=29700 g=237600 loss=0.0673 lr=0.0003 tok/step=32768
+u=29720 g=237760 loss=0.0650 lr=0.0003 tok/step=32768
+u=29740 g=237920 loss=0.0654 lr=0.0003 tok/step=32768
+u=29760 g=238080 loss=0.0663 lr=0.0003 tok/step=32768
+u=29780 g=238240 loss=0.0671 lr=0.0003 tok/step=32768
+u=29800 g=238400 loss=0.0659 lr=0.0003 tok/step=32768
+u=29820 g=238560 loss=0.0674 lr=0.0003 tok/step=32768
+u=29840 g=238720 loss=0.0655 lr=0.0003 tok/step=32768
+u=29860 g=238880 loss=0.0641 lr=0.0003 tok/step=32768
+u=29880 g=239040 loss=0.0647 lr=0.0003 tok/step=32768
+u=29900 g=239200 loss=0.0640 lr=0.0003 tok/step=32768
+u=29920 g=239360 loss=0.0649 lr=0.0003 tok/step=32768
+u=29940 g=239520 loss=0.0654 lr=0.0003 tok/step=32768
+u=29960 g=239680 loss=0.0654 lr=0.0003 tok/step=32768
+u=29980 g=239840 loss=0.0642 lr=0.0003 tok/step=32768
+u=30000 g=240000 loss=0.0657 lr=0.0003 tok/step=32768
+u=30020 g=240160 loss=0.0667 lr=0.0003 tok/step=32768
+u=30040 g=240320 loss=0.0662 lr=0.0003 tok/step=32768
+u=30060 g=240480 loss=0.0644 lr=0.0003 tok/step=32768
+u=30080 g=240640 loss=0.0659 lr=0.0003 tok/step=32768
+u=30100 g=240800 loss=0.0665 lr=0.0003 tok/step=32768
+u=30120 g=240960 loss=0.0677 lr=0.0003 tok/step=32768
+u=30140 g=241120 loss=0.0653 lr=0.0003 tok/step=32768
+u=30160 g=241280 loss=0.0662 lr=0.0003 tok/step=32768
+u=30180 g=241440 loss=0.0667 lr=0.0003 tok/step=32768
+u=30200 g=241600 loss=0.0662 lr=0.0003 tok/step=32768
+u=30220 g=241760 loss=0.0674 lr=0.0003 tok/step=32768
+u=30240 g=241920 loss=0.0658 lr=0.0003 tok/step=32768
+u=30260 g=242080 loss=0.0672 lr=0.0003 tok/step=32768
+u=30280 g=242240 loss=0.0660 lr=0.0003 tok/step=32768
+u=30300 g=242400 loss=0.0662 lr=0.0003 tok/step=32768
+u=30320 g=242560 loss=0.0656 lr=0.0003 tok/step=32768
+u=30340 g=242720 loss=0.0663 lr=0.0003 tok/step=32768
+u=30360 g=242880 loss=0.0643 lr=0.0003 tok/step=32768
+u=30380 g=243040 loss=0.0671 lr=0.0003 tok/step=32768
+u=30400 g=243200 loss=0.0653 lr=0.0003 tok/step=32768
+u=30420 g=243360 loss=0.0640 lr=0.0003 tok/step=32768
+u=30440 g=243520 loss=0.0663 lr=0.0003 tok/step=32768
+u=30460 g=243680 loss=0.0670 lr=0.0003 tok/step=32768
+u=30480 g=243840 loss=0.0662 lr=0.0003 tok/step=32768
+u=30500 g=244000 loss=0.0663 lr=0.0003 tok/step=32768
+u=30520 g=244160 loss=0.0663 lr=0.0003 tok/step=32768
+u=30540 g=244320 loss=0.0661 lr=0.0003 tok/step=32768
+u=30560 g=244480 loss=0.0654 lr=0.0003 tok/step=32768
+u=30580 g=244640 loss=0.0661 lr=0.0003 tok/step=32768
+u=30600 g=244800 loss=0.0648 lr=0.0003 tok/step=32768
+u=30620 g=244960 loss=0.0663 lr=0.0003 tok/step=32768
+u=30640 g=245120 loss=0.0666 lr=0.0003 tok/step=32768
+u=30660 g=245280 loss=0.0659 lr=0.0003 tok/step=32768
+u=30680 g=245440 loss=0.0666 lr=0.0003 tok/step=32768
+u=30700 g=245600 loss=0.0644 lr=0.0003 tok/step=32768
+u=30720 g=245760 loss=0.0641 lr=0.0003 tok/step=32768
+Stopping due to time limit at micro_step=245775, update_step=30721
+final_eval u=30721 g=245775 val_loss=0.0083 val_bpb=0.0049
+saved best checkpoint: param_golf_ckpt.pt.best.pt (13.99 MB, val_bpb=0.0049)
+Saved checkpoint: param_golf_ckpt.pt (13.99 MB)
+Wrote metadata: param_golf_ckpt.pt.meta.json
