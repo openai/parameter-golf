@@ -4,7 +4,8 @@ Self-contained training + evaluation script for the Parameter Golf competition.
 Architecture: RecurrentLM — a single transformer block applied `recur_steps`
 times (weight tying across depth) with parallel residual connections and
 tied input/output embeddings. Features: RMSNorm, RoPE (no learned pos emb),
-LeakyReLU² MLP activation, logit softcap, SDClip int8 quantization.
+LeakyReLU² MLP activation, logit softcap, SDClip int8 quantization,
+Noisy QAT (int8 noise injection during training), TTT on norm scales (SGD).
 
 Launch:
     RUN_ID=baseline_sp1024 \
@@ -79,6 +80,13 @@ class Hyperparameters:
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     sdclip_std_mult = float(os.environ.get("SDCLIP_STD_MULT", 2.5))
+    # Noisy QAT: inject uniform noise scaled to int8 step size during training.
+    # Helps close the quantization gap, especially important for recurrent models.
+    noisy_qat = os.environ.get("NOISY_QAT", "1").strip().lower() not in ("0", "false", "no")
+    # TTT (Test-Time Training): SGD on norm scales only, score-before-update.
+    # ttt_steps=0 disables TTT. ttt_lr must be tuned carefully for recurrent models.
+    ttt_steps = int(os.environ.get("TTT_STEPS", 1))
+    ttt_lr = float(os.environ.get("TTT_LR", 5e-4))
 
 # -----------------------------
 # MUON OPTIMIZER
@@ -248,6 +256,96 @@ def eval_val(
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def eval_val_ttt(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """TTT evaluation: SGD on norm scales only, score-before-update protocol.
+
+    Adapts only ln_f.weight and block.norm.weight (384 or dim total parameters)
+    per chunk. The score-before-update protocol avoids data leakage: each chunk
+    is scored with the model state from the previous chunk's update.
+    Weights are fully restored after evaluation.
+    """
+    if args.ttt_steps <= 0:
+        return eval_val(
+            args, model, rank, world_size, device, grad_accum_steps,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+        )
+
+    # Identify the norm parameters that TTT will adapt (safe for recurrent models).
+    ttt_params = list(base_model.ln_f.parameters()) + list(base_model.block.norm.parameters())
+    frozen_state = {id(p): p.data.clone() for p in ttt_params}
+
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    local_batch_seqs = max(local_batch_tokens // args.train_seq_len, 1)
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    ttt_opt = torch.optim.SGD(ttt_params, lr=args.ttt_lr)
+
+    for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+        batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+        raw_start = batch_seq_start * args.train_seq_len
+        raw_end = batch_seq_end * args.train_seq_len + 1
+        local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+        x = local[:-1].reshape(-1, args.train_seq_len)
+        y = local[1:].reshape(-1, args.train_seq_len)
+
+        # 1. SCORE (inference mode — uses current adapted weights)
+        base_model.eval()
+        with torch.inference_mode():
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = base_model(x, y).detach()
+        batch_token_count = float(y.numel())
+        val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+        val_token_count += batch_token_count
+        prev_ids = x.reshape(-1)
+        tgt_ids = y.reshape(-1)
+        token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+        token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+        val_byte_count += token_bytes.to(torch.float64).sum()
+
+        # 2. UPDATE (gradient on same chunk, after scoring)
+        base_model.train()
+        for _ in range(args.ttt_steps):
+            ttt_opt.zero_grad(set_to_none=True)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                adapt_loss = base_model(x, y)
+            adapt_loss.backward()
+            ttt_opt.step()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    # Restore original weights
+    with torch.no_grad():
+        for p in ttt_params:
+            p.data.copy_(frozen_state[id(p)])
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    base_model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 # -----------------------------
@@ -556,9 +654,33 @@ class RecurrentLM(nn.Module):
             logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         return logits
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        """Return mean cross-entropy loss (scalar)."""
-        logits = self.forward_logits(input_ids)
+    def forward(self, input_ids: Tensor, target_ids: Tensor, noisy_qat: bool = False) -> Tensor:
+        """Return mean cross-entropy loss (scalar).
+
+        When noisy_qat=True (training only), temporarily perturbs each block
+        Linear weight with uniform noise scaled to its int8 quantization step
+        size. This teaches the model to be robust to int8 rounding, closing the
+        train→quantized bpb gap without any additional parameters.
+        """
+        if noisy_qat and self.training:
+            # Collect all bias-free Linear weights in the block (Muon params).
+            linear_weights = [
+                m.weight for m in self.block.modules() if isinstance(m, nn.Linear)
+            ]
+            noises: list[Tensor] = []
+            with torch.no_grad():
+                for w in linear_weights:
+                    # Per-row int8 step size: amax / 127
+                    step = w.float().abs().amax(dim=1, keepdim=True).clamp_min(1e-8) / 127.0
+                    noise = (torch.rand_like(w) - 0.5) * step.to(w.dtype)
+                    w.add_(noise)
+                    noises.append(noise)
+            logits = self.forward_logits(input_ids)
+            with torch.no_grad():
+                for w, noise in zip(linear_weights, noises):
+                    w.sub_(noise)
+        else:
+            logits = self.forward_logits(input_ids)
         return F.cross_entropy(
             logits.reshape(-1, logits.size(-1)).float(),
             target_ids.reshape(-1),
@@ -707,7 +829,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"seed:{args.seed}")
+    log0(f"seed:{args.seed} noisy_qat:{args.noisy_qat} ttt_steps:{args.ttt_steps} ttt_lr:{args.ttt_lr}")
 
     # --- Data loader & warmup ---
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
@@ -801,7 +923,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                loss = model(x, y)
+                loss = model(x, y, noisy_qat=args.noisy_qat)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -874,18 +996,21 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(
+        io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu", weights_only=False,
+    )
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args, model, rank, world_size, device, grad_accum_steps,
+    q_val_loss, q_val_bpb = eval_val_ttt(
+        args, base_model, model, rank, world_size, device, grad_accum_steps,
         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    eval_ms = 1000.0 * (time.perf_counter() - t_qeval)
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"eval_time:{eval_ms:.0f}ms ttt_steps:{args.ttt_steps} ttt_lr:{args.ttt_lr}"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
