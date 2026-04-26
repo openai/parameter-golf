@@ -1,0 +1,15 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-08",
+  "name": "XSA-11 + Parallel Residual (L7+) + Depth Recurrence (layers 4,5) — 1×H100",
+  "author": "angela231005",
+  "github_id": "angela231005",
+  "seeds": [42],
+  "val_bpb_sliding_window": 1.10562,
+  "val_bpb_roundtrip": 1.12955,
+  "val_loss": 1.9072,
+  "bytes_total": 15652295,
+  "hardware": "1×H100 80GB",
+  "steps": 6927,
+  "ttt_enabled": false
+}
