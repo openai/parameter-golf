@@ -2,7 +2,9 @@
 
 ## Headline result
 
-**SSM-hybrid + BigramHash BEATS transformer-best by 0.005 BPB on a 3-seed mean** (val_bpb 2.0820 vs 2.0869, σ ≈ 0.001 → ~5σ at family floor). Architecture: S4D-Lin + 2 of 3 unique blocks attention (positions 0,2 sandwich) + K=3 L=3 depth recurrence + SwiGLU MLP=8 + BigramHash(4096, 64) recall augmentation. PROMOTED to `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`.
+**SSM-hybrid + BigramHash BEATS transformer-best by 0.005 BPB on a 3-seed mean** (val_bpb 2.0820 vs 2.0869). Architecture: S4D-Lin + 2 of 3 unique blocks attention (positions 0,2 sandwich) + K=3 L=3 depth recurrence + SwiGLU MLP=8 + BigramHash(4096, 64) recall augmentation. PROMOTED to `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`.
+
+**Statistical caveat**: with n=3 seeds, the σ estimate has its own ~50% relative uncertainty (95% CI roughly [0.5σ, 3σ]). The 3-seed sample σ ≈ 0.001 is the *point estimate*; true population σ could be 0.0005-0.003. Δ=0.005 is multiple σ at any reading (1.7-10σ at 3-seed mean), so the win is robust regardless. Headline "5σ at family floor" should be read as "multiple σ at our 3-seed precision."
 
 Without BigramHash (2:1 hybrid only) the 2-seed mean lands at 2.0880, statistically tied with the all-attention transformer-best 2.0869.
 

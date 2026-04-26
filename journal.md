@@ -17,6 +17,12 @@
   ```
   Update or replace this bullet as SSM measurements suggest different starting points; remove it once an SSM-native env.sh is established. **Exception: regression-sentinel uses canonical defaults** (warmdown=1200, warmup=0, batch=8192, init=0.005, muon_steps=5) — its job is harness-drift detection against 0001_baseline_repro, which was recorded on canonical.
 - **S4D-Lin noise floor**: σ=0.0031 (4 seeds: 1337/42/2024/31337 → 2.23394/2.22747/2.22749/2.22879; mean 2.22942; spread 0.00646), measured 2026-04-26 exp 0002 + 0003-0005 sentinels. Advance Δ ≥ 3σ ≈ **0.010**; judgment-call window [1.5σ, 3σ] ≈ **[0.005, 0.010]**; noise < 0.005. Essentially identical to the transformer floor (0.0024) — S4D-Lin is LTI so the Mamba LR-cliff hazard from primer §4.2 doesn't apply. **For Mamba-family (selective) blocks, the floor is not yet characterized — re-run the noise-floor-sentinel skill when introducing selectivity.** Promote rule for S4D-Lin family inherits transformer's 0.010 advance / 0.005 judgment thresholds.
+- **Variance regularization observation [SPECULATIVE]**: across the recur+SwiGLU+S4D family hierarchy, σ tracks attention presence:
+  - 0006/0008 (recur+SwiGLU+S4D, NO attention): cross-seed Δ 0.017 → σ ≈ 0.012 — WIDEST.
+  - 0009/0011 (1:2 ratio attention): cross-seed Δ 0.003 → σ ≈ 0.002.
+  - 0012/0014 (2:1 sandwich attention): cross-seed Δ 0.002 → σ ≈ 0.001.
+  - 0018/0019/0020 (2:1 + BigramHash, 3 seeds): σ ≈ 0.001.
+  Pattern: adding attention drops σ ~6×. Hypothesis: SwiGLU's gated multiplication amplifies init noise nonlinearly through 3 unique blocks × 3 loops; attention's softmax-bounded outputs short-circuit some of that amplification. Worth verifying — 4-seed sentinel for the no-attn 0006/0008 config would tighten the σ_no_attn estimate. With n=2 the σ has ~50-100% relative uncertainty. **Caveat**: 3-seed σ estimate has its own ~50% relative uncertainty; "σ ≈ 0.001" could be 0.0005-0.003 in true population terms. The promote claim is robust regardless (Δ=0.005 is multiple σ at any reading) but headline σ figures shouldn't be over-interpreted.
 - **Primer is internally inconsistent**: main body argues SSM is "almost certainly wrong" for parameter golf; the "Another agent's feedback" section disagrees on (a) whether to quantize the SSM (the `CONTROL_TENSOR_NAME_PATTERNS` env var makes "don't quantize" one line), (b) whether BigramHash closes the recall gap, (c) the probability of an interesting result. Treat both as research opinions; verify empirical claims with measurement; log empirical updates as `Empirical update to primer §X: ...` in entries.
 - **MPS reality** [CONJECTURE]: ~5 min per experiment for transformer-speed blocks (S4D-Lin FFT-conv likely lands here); ~15-25 min for sequential `selective_scan` (Mamba-1). Characterize in your first 2-3 experiments. CUDA kernels (mamba-ssm, causal-conv1d, Triton) unavailable — use vendored `references/mamba_minimal_model.py`.
 - **Tokenizer is locked at sp1024**.
@@ -33,6 +39,7 @@
 
 - **D_STATE = 32** vs 16 (0013, single seed on 0009 base): Δ −0.001 (noise). Larger SSM state-dim is not a meaningful axis at our regime + N=16 baseline. Re-test only if a different config (e.g. larger d_inner via expand=2) might benefit from more state.
 - **BIGRAM_VOCAB_SIZE = 8192** vs 4096 (0021, single seed on 0018 base): Δ +0.004 (HURTS). At 200 steps × 24576 tokens, doubling buckets dilutes per-bucket signal (~600 tokens/bucket vs ~1200/bucket at 4096). 4096 is at/above optimum at our token budget. May be different at H100 20k-step regime where buckets get more samples.
+- **BIGRAM_DIM = 128** vs 64 (0022, single seed on 0018 base): Δ +0.006 (HURTS). Same diagnosis as VOCAB axis — extra parameters per bucket dilute the per-bucket training signal at 200 steps. (vocab=4096, dim=64) is the joint optimum at our regime. Both directions on each axis hurt.
 
 ## Open questions (next session priorities)
 
