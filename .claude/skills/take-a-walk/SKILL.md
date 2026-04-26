@@ -1,6 +1,6 @@
 ---
 name: take-a-walk
-description: Step away from the desk to generate the next bold experiment. No code execution, no experiments, no journal entries — only thinking and a walk note. Invoke when the hourly check-in suggests it, or whenever you're about to repeat an axis that's already been swept. The walk's only job is to surface the next big push; come back with the boldest concrete first step.
+description: Step away from the desk for free reflection. No code execution, no experiments, no journal entries — only thinking and a walk note. Invoke when the hourly check-in suggests it, or whenever the work feels stuck, anchored, or oddly mechanical. The walk is generative; the desk is for rigor. Come back with whatever the walk produced — a refined plan for the current thread, a pivot to a new axis, or a small refinement — your call.
 ---
 
 # Take a Walk
@@ -47,14 +47,16 @@ These are prompts, not a checklist. Wander through them in any order, skip what 
 
 ## Coming back
 
-When you're done walking, the note is your agenda. The next experiment, or the next several, should connect to something you wrote. Pick the boldest item that has a concrete first step and start there — when in doubt, the bigger code change beats the env-var sweep, and subagent-handoff is exactly the friction-reducer for that.
+When you're done walking, the note is your agenda. The next experiment, or the next several, should connect to something you wrote. Pick the highest-EV item that has a concrete first step and start there. If you're equally torn between a small env-var tweak and a bigger code change, lean toward the code change — `subagent-handoff` is the friction-reducer for that.
 
-If your stroll didn't surface anything new, walk longer or use a different prompt. The walk's job is to *generate*; coming back empty means the walk wasn't long enough or didn't dig wide enough.
+Be careful with what prior walks concluded: if the previous walk's note said "stop launching" or "the session is done," that's that walk's conclusion in its moment, not a fact about the session. This walk gets to disagree freely. Self-confirming chains across multiple walks (each one building on the last's "should stop" reasoning rather than questioning it) are the most common failure mode. The session ends only when the human stops it; everything else is a movable judgment.
 
 Eureka moments come back to the desk as hypotheses, not as commitments. Tag them and verify them like any other claim:
 - `[SPECULATIVE]` — a story, no evidence yet
 - `[WORTH_DERIVING]` — should be checked with math in `scratch/` before any experiment
 - `[WORTH_TESTING]` — concrete enough to design an experiment
+
+If the walk surfaced little, you can either walk longer with different prompts, or invoke the `outside-eyes` skill to get fresh perspective from a subagent that hasn't seen your thinking. Either is a valid response to a quiet walk.
 
 ## Format for the walk note
 
@@ -81,5 +83,5 @@ One paragraph: what's the next move? Which item from above am I picking up first
 
 After your walk, go to the `pull-out` skill back at your desk. That is where you organize, research, verify, and plan.
 
-That's it. Go for the walk. Come back ready to push the boldest idea from the walk into a concrete next experiment.
+That's it. Go for the walk. Come back and continue the work — whether that means pushing the boldest new idea, sharpening the current thread, or correcting course on something that's been off.
 
