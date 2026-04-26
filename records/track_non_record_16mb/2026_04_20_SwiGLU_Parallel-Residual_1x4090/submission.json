@@ -1,0 +1,9 @@
+{
+"author": "Pravin",
+"github_id": "Pravin-dev06",
+"track": "non_record_16mb",
+"date": "2026-04-20",
+"name": "Parallel-Residual + SwiGLU on 1x4090",
+"val_bpb": "1.2193",
+"val_loss": "2.0587"
+}
