@@ -1,0 +1,16 @@
+{
+  "name": "Parameter Golf Participant",
+  "github_id": "parameter-golfer",
+  "val_bpb": "1.1400",
+  "artifact_size_bytes": 15999999,
+  "train_time_seconds": 580,
+  "techniques": [
+    "Int6 Native Emulation",
+    "SmearGate",
+    "BigramHash",
+    "Orthogonal Init",
+    "Muon Weight Decay",
+    "10 Layers",
+    "3x MLP"
+  ]
+}
