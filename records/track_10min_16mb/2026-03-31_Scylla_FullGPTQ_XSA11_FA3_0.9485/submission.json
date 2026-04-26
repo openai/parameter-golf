@@ -1,9 +1,0 @@
-{
-  "name": "Scylla tokenizer + Full GPTQ + XSA-all + FA3",
-  "val_bpb": 0.9485,
-  "bytes_total": 15600000,
-  "blurb": "Scylla TokenMonster tokenizer (998 tokens) + PR #1060 stack (Full Hessian GPTQ, XSA on all 11 layers, coprime-stride loader) + FA3 Hopper attention. 3-seed mean 0.9485 bpb (std 0.0008). No TTT needed. 87.9ms/step, 6716 steps.",
-  "author": "icryo",
-  "github_id": "icryo",
-  "date": "2026-03-31"
-}
