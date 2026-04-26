@@ -1,0 +1,154 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /workspace/parameter-golf/data
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp1024
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 2000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/gauntlet_incr_QK55_4loop_015227.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 0.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 3
+  parallel_residual_start: 5
+  qk_gain_init: 5.5
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: gauntlet_incr_QK55_4loop_015227
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 24576
+  ttt_enabled: False
+  ttt_epochs: 4
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  ttt_selective: True
+  val_batch_tokens: 524288
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
+  val_loss_every: 500
+  vocab_size: 1024
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 1
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Thu Apr 23 01:52:32 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:87:00.0 Off |                    0 |
+| N/A   40C    P0             94W /  700W |    1185MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            8807      C   /usr/local/bin/python                  1176MiB |
++-----------------------------------------------------------------------------------------+
+
+train_shards: 5
+val_tokens: 62021632
+model_params: 32276568
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup: enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4, 5, 3] decoder:[4, 5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/2000 val_loss: 6.9384 val_bpb: 4.1093
+1/2000 train_loss: 6.9345 train_time: 0.0m tok/s: 1200803
+2/2000 train_loss: 12.1271 train_time: 0.0m tok/s: 1189039
+3/2000 train_loss: 9.9963 train_time: 0.0m tok/s: 1178249
+4/2000 train_loss: 7.8728 train_time: 0.0m tok/s: 1174070
+5/2000 train_loss: 6.5889 train_time: 0.1m tok/s: 1171437
+500/2000 train_loss: 2.3018 train_time: 5.7m tok/s: 1146850
+500/2000 val_loss: 2.3087 val_bpb: 1.3673
+layer_loop: enabled step:700 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4, 5, 3] decoder:[4, 5, 3, 4, 5, 6, 7, 8, 9, 10]
+1000/2000 train_loss: 2.1383 train_time: 14.1m tok/s: 927822
+1000/2000 val_loss: 2.1413 val_bpb: 1.2682
+1500/2000 train_loss: 2.0394 train_time: 24.3m tok/s: 808192
+1500/2000 val_loss: 2.0580 val_bpb: 1.2188
+2000/2000 train_loss: 1.9188 train_time: 34.5m tok/s: 758935
+2000/2000 val_loss: 1.9713 val_bpb: 1.1675
+peak memory allocated: 39808 MiB reserved: 39916 MiB
+ema: applying EMA weights
+pre-quantization post-ema val_loss:1.97817906 val_bpb:1.17158907 eval_time:33143ms
+Serialized model: 128099193 bytes
+Code size: 65269 bytes
+GPTQ: collecting Hessians from calibration data...
+GPTQ: collected 67 Hessians in 17.3s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
