@@ -31,7 +31,8 @@
 
 ## Dead axes (verified — don't re-test without changing other levers)
 
-(empty — populated as SSM dead axes are verified. Transformer-axis dead-axes from prior session are NOT auto-transferred to SSM regime; verify before assuming.)
+- **D_STATE = 32** vs 16 (0013, single seed on 0009 base): Δ −0.001 (noise). Larger SSM state-dim is not a meaningful axis at our regime + N=16 baseline. Re-test only if a different config (e.g. larger d_inner via expand=2) might benefit from more state.
+- **BIGRAM_VOCAB_SIZE = 8192** vs 4096 (0021, single seed on 0018 base): Δ +0.004 (HURTS). At 200 steps × 24576 tokens, doubling buckets dilutes per-bucket signal (~600 tokens/bucket vs ~1200/bucket at 4096). 4096 is at/above optimum at our token budget. May be different at H100 20k-step regime where buckets get more samples.
 
 ## Open questions (next session priorities)
 
