@@ -9,3 +9,12 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Local experiment and artifact outputs
+checkpoints_v4/
+experiment_lab_smoke/
+model.zip
+model_check.pt
+submission.tar.gz
+*.pt
+*.tar.gz

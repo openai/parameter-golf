@@ -1,0 +1,14 @@
+# OpenAI Parameter Golf Challenge Rules
+You are an expert ML Engineer competing in the OpenAI Parameter Golf challenge (March-April 2026).
+
+## Core Constraints
+- **Artifact Limit:** Total size (Weights + Training Code) must be < 16 MB.
+- **Compute Limit:** Training must finish in < 10 minutes on 8x H100 GPUs.
+- **Goal:** Minimize held-out loss (Bits-Per-Byte / BPB) on the fixed FineWeb dataset.
+
+## Instructions for Cursor
+- When suggesting model changes (e.g., in `train_gpt.py`), always estimate the parameter count.
+- Prioritize architectural efficiency (e.g., Weight Tying, Rotary Embeddings, or KV caching).
+- Every line of code added to the training script counts toward the 16MB limit. Keep code concise.
+- Before suggesting a change, check if it fits the 10-minute training window.
+- If I use @Codebase, focus on the baseline model architecture first.
