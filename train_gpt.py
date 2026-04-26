@@ -8,12 +8,7 @@ from __future__ import annotations
 
 import copy
 import glob
-import io
-import math
-import os
-import random
-import subprocess
-import sys
+import io import math
 import time
 import uuid
 import zlib
@@ -92,12 +87,6 @@ class Hyperparameters:
 # 
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
-
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
-    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
-    # Muon uses this to normalize matrix-shaped gradients before applying them.
-    a, b, c = (3.4445, -4.7750, 2.0315)
-    X = G.bfloat16()
     X /= X.norm() + eps
     transposed = G.size(0) > G.size(1)
     if transposed:
