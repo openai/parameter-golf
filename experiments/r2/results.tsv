@@ -1,0 +1,6 @@
+experiment	fp32_bpb	int6_bpb	int8_bpb	artifact_bytes	description
+base	1.3987	1.4157	N/A	12763289	R1 winner baseline (10L/3xMLP/LeakyReLU/cosine) + int6
+exp4_ema_qat	1.3986	1.6196	N/A	10269953	+ EMA (decay=0.997) + Late QAT (STE)
+exp5_smear_bigram	1.4241	1.7297	N/A	11541159	+ SmearGate + BigramHash (2048 buckets)
+exp11_1000iter	1.3254	1.3296	N/A	16106805	1000 iterations (same config, 2x training)
+exp12_early_qat_1000	1.3253	1.3296	N/A	16101864	1000 iterations + early QAT (step 200)

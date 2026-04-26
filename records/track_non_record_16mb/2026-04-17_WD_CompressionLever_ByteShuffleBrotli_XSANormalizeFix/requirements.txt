@@ -1,0 +1,5 @@
+torch>=2.4.0
+numpy
+sentencepiece
+huggingface_hub
+brotli
