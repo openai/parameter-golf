@@ -1,0 +1,185 @@
+pipeline_stage_start:train command:torchrun --standalone --nproc_per_node=8 /workspace/parameter-golf-remote/train_gpt_cuda_blessed_depth9_bigram10240_v1.py
+pipeline_stage_env:train RUN_ID=train OUT_DIR=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages NPROC=1
+[train] W0425 20:03:54.634000 1183 torch/distributed/run.py:803]
+[train] W0425 20:03:54.634000 1183 torch/distributed/run.py:803] *****************************************
+[train] W0425 20:03:54.634000 1183 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+[train] W0425 20:03:54.634000 1183 torch/distributed/run.py:803] *****************************************
+[train] run_id:train
+[train] val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf-remote/data/tokenizers/fineweb_1024_bpe.model
+[train] train_loader:dataset:fineweb10B_sp1024 train_shards:55
+[train] train_loader:shards pattern=/workspace/parameter-golf-remote/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin start_index:2
+[train] train_loader_prefetch:cuda_pinned_double_buffer
+[train] val_loader:shards pattern=/workspace/parameter-golf-remote/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+[train] compile_model:enabled fullgraph:True
+[train] model_params:25544265
+[train] world_size:8 grad_accum_steps:1
+[train] sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+[train] attention_mode:gqa num_heads:8 num_kv_heads:8
+[train] train_batch_tokens:524288 train_seq_len:1024 iterations:8000 warmup_steps:5 max_wallclock_seconds:600.000
+[train] blessed_stack:leaky_relu(0.5)^2 smeargate(init=0.00) bigram_vocab:10240 bigram_dim:128 bigram_proj:orthogonal/0.0200 bigram_scale:0.0500
+[train] optimizer:muonw+adamw matrix_lr:0.02 scalar_lr:0.02 embed_lr:0.03 muon_wd:0.04 adam_wd:0.01 decoder_lr_mult:2.0 grad_clip_norm:0.3
+[train] late_qat:enabled:1 threshold:0.4000 attn_bits:6 mlp_bits:5 bigram_proj_bits:0 modules:55 bit_plan:logs/h100_blessed/p43a_e0_full_best_recipe_train600_quant_gptq_eval_compile_8gpu/stages/quant/final_bit_plan.json
+[train] distill:enabled:0 teacher=<none> alpha=0.3000 temperature=2.0000
+[train] swa:enabled:0 start_frac:0.4000 every:50 swa_aware_qat:0 project_qat_grid:0
+[train] resume_from_checkpoint:<none>
+[train] ddp_tuning:static_graph:0 gradient_as_bucket_view:0 wallclock_sync_guard_s:5.0
+[train] warmup_step:1/5
+[train] warmup_step:2/5
+[train] warmup_step:3/5
+[train] warmup_step:4/5
+[train] warmup_step:5/5
+[train] step:1/8000 train_loss:6.9182 train_time:111ms step_avg:110.92ms tok_s:4742726.1 lr_mul:1.0000
+[train] step:2/8000 train_loss:7.4049 train_time:148ms step_avg:73.86ms tok_s:14461071.1 lr_mul:1.0000
+[train] step:3/8000 train_loss:7.3483 train_time:200ms step_avg:66.72ms tok_s:14748390.2 lr_mul:1.0000
+[train] step:4/8000 train_loss:7.2344 train_time:252ms step_avg:63.07ms tok_s:14834923.4 lr_mul:1.0000
+[train] step:5/8000 train_loss:7.2604 train_time:305ms step_avg:60.92ms tok_s:14836870.5 lr_mul:1.0000
+[train] step:6/8000 train_loss:7.2195 train_time:357ms step_avg:59.47ms tok_s:14844729.5 lr_mul:1.0000
+[train] step:7/8000 train_loss:6.9459 train_time:409ms step_avg:58.44ms tok_s:14855855.4 lr_mul:1.0000
+[train] step:8/8000 train_loss:6.5823 train_time:461ms step_avg:57.64ms tok_s:14886282.7 lr_mul:1.0000
+[train] step:9/8000 train_loss:6.3994 train_time:514ms step_avg:57.08ms tok_s:14894505.5 lr_mul:1.0000
+[train] step:10/8000 train_loss:6.1597 train_time:566ms step_avg:56.64ms tok_s:14699373.7 lr_mul:1.0000
+[train] step:200/8000 train_loss:2.6719 train_time:10475ms step_avg:52.37ms tok_s:10240893.8 lr_mul:1.0000
+[train] step:400/8000 train_loss:2.4232 train_time:21314ms step_avg:53.28ms tok_s:9749379.6 lr_mul:1.0000
+[train] step:600/8000 train_loss:2.4878 train_time:31785ms step_avg:52.98ms tok_s:10080631.7 lr_mul:1.0000
+[train] step:800/8000 train_loss:2.2188 train_time:42302ms step_avg:52.88ms tok_s:9929580.7 lr_mul:1.0000
+[train] step:1000/8000 train_loss:2.1371 train_time:52863ms step_avg:52.86ms tok_s:10072307.7 lr_mul:1.0000
+[train] step:1200/8000 train_loss:2.4387 train_time:63437ms step_avg:52.86ms tok_s:9871543.0 lr_mul:1.0000
+[train] step:1400/8000 train_loss:2.2418 train_time:74023ms step_avg:52.87ms tok_s:9973419.1 lr_mul:1.0000
+[train] step:1600/8000 train_loss:2.3251 train_time:84616ms step_avg:52.89ms tok_s:9709497.0 lr_mul:1.0000
+[train] step:1800/8000 train_loss:2.2374 train_time:95203ms step_avg:52.89ms tok_s:10028726.3 lr_mul:1.0000
+[train] step:2000/8000 train_loss:2.2639 train_time:105789ms step_avg:52.89ms tok_s:9964666.7 lr_mul:1.0000
+[train] step:2200/8000 train_loss:2.1642 train_time:116369ms step_avg:52.90ms tok_s:9952809.9 lr_mul:1.0000
+[train] step:2400/8000 train_loss:2.1409 train_time:126942ms step_avg:52.89ms tok_s:10055004.8 lr_mul:1.0000
+[train] step:2600/8000 train_loss:2.1425 train_time:137503ms step_avg:52.89ms tok_s:10081196.1 lr_mul:1.0000
+[train] step:2800/8000 train_loss:2.2718 train_time:148064ms step_avg:52.88ms tok_s:10062317.2 lr_mul:1.0000
+[train] step:3000/8000 train_loss:2.1238 train_time:158628ms step_avg:52.88ms tok_s:10040175.5 lr_mul:1.0000
+[train] step:3200/8000 train_loss:2.1962 train_time:169190ms step_avg:52.87ms tok_s:10021847.3 lr_mul:1.0000
+[train] step:3400/8000 train_loss:2.1452 train_time:179745ms step_avg:52.87ms tok_s:10043057.8 lr_mul:1.0000
+[train] step:3600/8000 train_loss:2.3725 train_time:190294ms step_avg:52.86ms tok_s:10118643.7 lr_mul:1.0000
+[train] step:3800/8000 train_loss:2.1439 train_time:200840ms step_avg:52.85ms tok_s:10001977.3 lr_mul:1.0000
+[train] step:4000/8000 train_loss:2.1202 train_time:211387ms step_avg:52.85ms tok_s:10038587.8 lr_mul:1.0000
+[train] step:4200/8000 train_loss:2.1610 train_time:221972ms step_avg:52.85ms tok_s:10162091.9 lr_mul:1.0000
+[train] step:4400/8000 train_loss:2.1014 train_time:232504ms step_avg:52.84ms tok_s:10122200.4 lr_mul:0.9983
+[train] step:4600/8000 train_loss:2.0764 train_time:243052ms step_avg:52.84ms tok_s:9991172.8 lr_mul:0.9848
+[train] step:4800/8000 train_loss:2.2918 train_time:253580ms step_avg:52.83ms tok_s:10123958.8 lr_mul:0.9580
+[train] step:5000/8000 train_loss:2.1281 train_time:264120ms step_avg:52.82ms tok_s:9910166.3 lr_mul:0.9188
+[train] step:5200/8000 train_loss:2.1956 train_time:274644ms step_avg:52.82ms tok_s:9990428.0 lr_mul:0.8682
+[train] step:5400/8000 train_loss:2.1497 train_time:285181ms step_avg:52.81ms tok_s:9949056.2 lr_mul:0.8078
+[train] step:5600/8000 train_loss:2.0902 train_time:295794ms step_avg:52.82ms tok_s:10017925.3 lr_mul:0.7392
+[train] step:5800/8000 train_loss:2.0863 train_time:306324ms step_avg:52.81ms tok_s:10018401.2 lr_mul:0.6645
+[train] step:6000/8000 train_loss:2.0827 train_time:316843ms step_avg:52.81ms tok_s:10110000.6 lr_mul:0.5857
+[train] step:6200/8000 train_loss:2.1206 train_time:327371ms step_avg:52.80ms tok_s:9951002.3 lr_mul:0.5052
+[train] step:6400/8000 train_loss:2.1472 train_time:337895ms step_avg:52.80ms tok_s:10131646.6 lr_mul:0.4253
+[train] late_qat:enabled step:6464 lr_mul:0.3999 attn_bits:6 mlp_bits:5
+[train] step:6600/8000 train_loss:2.2214 train_time:348414ms step_avg:52.79ms tok_s:10128142.0 lr_mul:0.3483
+[train] step:6800/8000 train_loss:2.0418 train_time:358934ms step_avg:52.78ms tok_s:10012748.5 lr_mul:0.2763
+[train] step:7000/8000 train_loss:1.9617 train_time:369460ms step_avg:52.78ms tok_s:9992437.5 lr_mul:0.2115
+[train] step:7200/8000 train_loss:2.1366 train_time:379987ms step_avg:52.78ms tok_s:10031433.9 lr_mul:0.1557
+[train] step:7400/8000 train_loss:2.0308 train_time:390502ms step_avg:52.77ms tok_s:10009949.8 lr_mul:0.1105
+[train] step:7600/8000 train_loss:2.0071 train_time:401023ms step_avg:52.77ms tok_s:10016134.5 lr_mul:0.0773
+[train] step:7800/8000 train_loss:1.8632 train_time:411549ms step_avg:52.76ms tok_s:10289653.9 lr_mul:0.0569
+[train] step:8000/8000 train_loss:2.0559 train_time:422073ms step_avg:52.76ms tok_s:10067227.5 lr_mul:0.0500
+[train] step:8000/8000 val_loss:1.9936 val_bpb:1.1807 train_time:422091ms step_avg:52.76ms
+[train] peak memory allocated:12244MiB reserved:12314MiB
+[train] Serialized raw model: 98548221 bytes
+[train] Code size: 76808 bytes
+[train] Raw submission size proxy: 98625029 bytes
+pipeline_stage_done:train returncode:0 duration_s:518.128 elapsed_s:518.128
+pipeline_stage_start:quant command:torchrun --standalone --nproc_per_node=1 /workspace/parameter-golf-remote/tools/quantize_blessed_checkpoint.py
+pipeline_stage_env:quant RUN_ID=quant OUT_DIR=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages NPROC=1
+[quant] tokenizer_loaded:path=/workspace/parameter-golf-remote/data/tokenizers/fineweb_1024_bpe.model vocab_size=1024
+[quant] validation_tokens_loaded:tokens=62021632
+[quant] sentencepiece_luts_ready
+[quant] distributed_eval:enabled:0 world_size:1 local_rank:0 eval_batch_seqs_per_rank:32 effective_eval_batch_seqs_total:32
+[quant] checkpoint_model_build:start skip_blessed_init=1
+[quant] checkpoint_model_build:done
+[quant] checkpoint_load:start path=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages/train/final_model.pt
+[quant] checkpoint_load:done
+[quant] compile_model:disabled
+[quant] prequant_reference:loaded summary=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages/train/summary.json val_loss:1.99363855 val_bpb:1.18074504
+[quant] quant_config: impl:budgeted_v2 mode:q1_int5_mlp_int6_attn_fp16_embed_lastk fixed_bit_plan:logs/h100_blessed/p43a_e0_full_best_recipe_train600_quant_gptq_eval_compile_8gpu/stages/quant/final_bit_plan.json packing_scheme:interleaved compressor:lzma clip_percentile:99.99984 keep_float_max_numel:8192 keep_float_store_dtype:float16 per_row_scale_dtype:float16 zlib_level:9 use_zstd:1 zstd_level:22 lzma_preset:9 lzma_extreme:1 bz2_level:9 keep_late_k_layers:2 magnitude_prune_frac:0.0 outlier_topk:0 keep_bigram_embed_float:1 keep_bigram_proj_float:1 keep_float_patterns:attn_scale,mlp_scale,mlp.scale,mlp.bias,resid_mix,q_gain,skip_weight,skip_weights,skip_gate,skip_gates,smear,bigram.scale,attn_scales,mlp_scales,resid_mixes target_total_submission_bytes:15999950 calibration_tokens:65536 calibration_seq_len:1024 sensitivity_topk:48 refine_topk:20 bigram_proj_recovery_outlier_topk:<none> budgeted_seed_profile:size_q1 grouped_scales:1
+[quant] calibration_sequences_ready source:train_tokens num_sequences:64 seq_len:1024
+[quant] fixed_bit_plan:loaded path=/workspace/parameter-golf-remote/logs/h100_blessed/p43a_e0_full_best_recipe_train600_quant_gptq_eval_compile_8gpu/stages/quant/final_bit_plan.json tensors=115
+[quant] gptq:targets:55 damping:0.1 block_size:128
+[quant] gptq:capture_hessians targets:55 batch_size:8
+[quant] gptq:bigram.proj.weight bits:6 pre:7.003557e+00 post:6.761986e+00 ratio:0.9655
+[quant] gptq:blocks.0.attn.c_k.weight bits:6 pre:7.028180e+00 post:4.041674e+00 ratio:0.5751
+[quant] gptq:blocks.0.attn.c_q.weight bits:6 pre:7.391638e+00 post:4.275216e+00 ratio:0.5784
+[quant] gptq:blocks.0.attn.c_v.weight bits:6 pre:6.537695e+00 post:3.759471e+00 ratio:0.5750
+[quant] gptq:blocks.0.attn.proj.weight bits:6 pre:2.095835e+01 post:1.152034e+01 ratio:0.5497
+[quant] gptq:blocks.0.mlp.fc.weight bits:4 pre:4.454566e+02 post:2.211185e+02 ratio:0.4964
+[quant] gptq:blocks.0.mlp.proj.weight bits:5 pre:1.057415e+04 post:5.452039e+03 ratio:0.5156
+[quant] gptq:blocks.1.attn.c_k.weight bits:6 pre:7.161855e+00 post:2.632817e+00 ratio:0.3676
+[quant] gptq:blocks.1.attn.c_q.weight bits:6 pre:6.917141e+00 post:2.638273e+00 ratio:0.3814
+[quant] gptq:blocks.1.attn.c_v.weight bits:6 pre:7.491055e+00 post:2.743987e+00 ratio:0.3663
+[quant] gptq:blocks.1.attn.proj.weight bits:6 pre:2.417736e+01 post:1.168617e+01 ratio:0.4834
+[quant] gptq:blocks.1.mlp.fc.weight bits:5 pre:1.079336e+02 post:4.322752e+01 ratio:0.4005
+[quant] gptq:blocks.1.mlp.proj.weight bits:5 pre:3.298885e+03 post:1.911303e+03 ratio:0.5794
+[quant] gptq:blocks.2.attn.c_k.weight bits:6 pre:7.285964e+00 post:2.593605e+00 ratio:0.3560
+[quant] gptq:blocks.2.attn.c_q.weight bits:5 pre:3.087664e+01 post:1.107143e+01 ratio:0.3586
+[quant] gptq:blocks.2.attn.c_v.weight bits:6 pre:7.473380e+00 post:2.880550e+00 ratio:0.3854
+[quant] gptq:blocks.2.attn.proj.weight bits:5 pre:6.485355e+01 post:2.863712e+01 ratio:0.4416
+[quant] gptq:blocks.2.mlp.fc.weight bits:4 pre:4.415893e+02 post:1.802823e+02 ratio:0.4083
+[quant] gptq:blocks.2.mlp.proj.weight bits:5 pre:3.618413e+03 post:2.030602e+03 ratio:0.5612
+[quant] gptq:blocks.3.attn.c_k.weight bits:5 pre:2.539065e+01 post:9.766506e+00 ratio:0.3846
+[quant] gptq:blocks.3.attn.c_q.weight bits:5 pre:2.706749e+01 post:1.035548e+01 ratio:0.3826
+[quant] gptq:blocks.3.attn.c_v.weight bits:6 pre:7.532724e+00 post:3.004080e+00 ratio:0.3988
+[quant] gptq:blocks.3.attn.proj.weight bits:5 pre:8.744270e+01 post:3.944159e+01 ratio:0.4511
+[quant] gptq:blocks.3.mlp.fc.weight bits:5 pre:1.066595e+02 post:4.346904e+01 ratio:0.4075
+[quant] gptq:blocks.3.mlp.proj.weight bits:5 pre:3.996140e+03 post:2.157985e+03 ratio:0.5400
+[quant] gptq:blocks.4.attn.c_k.weight bits:5 pre:3.568686e+01 post:1.390025e+01 ratio:0.3895
+[quant] gptq:blocks.4.attn.c_q.weight bits:5 pre:3.626139e+01 post:1.412234e+01 ratio:0.3895
+[quant] gptq:blocks.4.attn.c_v.weight bits:6 pre:1.053704e+01 post:4.302549e+00 ratio:0.4083
+[quant] gptq:blocks.4.attn.proj.weight bits:5 pre:2.031701e+02 post:9.806918e+01 ratio:0.4827
+[quant] gptq:blocks.4.mlp.fc.weight bits:5 pre:1.445448e+02 post:5.284072e+01 ratio:0.3656
+[quant] gptq:blocks.4.mlp.proj.weight bits:4 pre:3.551139e+04 post:1.726010e+04 ratio:0.4860
+[quant] gptq:blocks.5.attn.c_k.weight bits:5 pre:4.111178e+01 post:1.730314e+01 ratio:0.4209
+[quant] gptq:blocks.5.attn.c_q.weight bits:5 pre:3.863405e+01 post:1.707100e+01 ratio:0.4419
+[quant] gptq:blocks.5.attn.c_v.weight bits:6 pre:1.217592e+01 post:5.173777e+00 ratio:0.4249
+[quant] gptq:blocks.5.attn.proj.weight bits:6 pre:5.379217e+01 post:1.913710e+01 ratio:0.3558
+[quant] gptq:blocks.5.mlp.fc.weight bits:5 pre:1.541601e+02 post:5.204461e+01 ratio:0.3376
+[quant] gptq:blocks.5.mlp.proj.weight bits:4 pre:2.799482e+04 post:1.720732e+04 ratio:0.6147
+[quant] gptq:blocks.6.attn.c_k.weight bits:6 pre:2.258248e+01 post:1.054358e+01 ratio:0.4669
+[quant] gptq:blocks.6.attn.c_q.weight bits:5 pre:3.690630e+01 post:1.710824e+01 ratio:0.4636
+[quant] gptq:blocks.6.attn.c_v.weight bits:6 pre:2.094573e+01 post:9.581395e+00 ratio:0.4574
+[quant] gptq:blocks.6.attn.proj.weight bits:5 pre:1.283152e+02 post:4.552466e+01 ratio:0.3548
+[quant] gptq:blocks.6.mlp.fc.weight bits:4 pre:5.966536e+02 post:2.109760e+02 ratio:0.3536
+[quant] gptq:blocks.6.mlp.proj.weight bits:4 pre:1.838143e+04 post:1.043266e+04 ratio:0.5676
+[quant] gptq:blocks.7.attn.c_k.weight bits:5 pre:4.419057e+01 post:1.835753e+01 ratio:0.4154
+[quant] gptq:blocks.7.attn.c_q.weight bits:5 pre:3.609241e+01 post:1.505493e+01 ratio:0.4171
+[quant] gptq:blocks.7.attn.c_v.weight bits:6 pre:1.228861e+01 post:5.216610e+00 ratio:0.4245
+[quant] gptq:blocks.7.attn.proj.weight bits:5 pre:7.952090e+01 post:2.561914e+01 ratio:0.3222
+[quant] gptq:blocks.7.mlp.fc.weight bits:4 pre:5.832203e+02 post:1.819458e+02 ratio:0.3120
+[quant] gptq:blocks.7.mlp.proj.weight bits:4 pre:1.177200e+04 post:7.005941e+03 ratio:0.5951
+[quant] gptq:blocks.8.attn.c_k.weight bits:6 pre:1.015168e+01 post:4.297988e+00 ratio:0.4234
+[quant] gptq:blocks.8.attn.c_q.weight bits:5 pre:3.851080e+01 post:1.688881e+01 ratio:0.4385
+[quant] gptq:blocks.8.attn.c_v.weight bits:6 pre:1.281718e+01 post:5.468649e+00 ratio:0.4267
+[quant] gptq:blocks.8.attn.proj.weight bits:5 pre:1.163902e+02 post:3.184368e+01 ratio:0.2736
+[quant] gptq:blocks.8.mlp.fc.weight bits:5 pre:1.451635e+02 post:4.353289e+01 ratio:0.2999
+[quant] gptq:blocks.8.mlp.proj.weight bits:5 pre:8.388965e+03 post:3.001250e+03 ratio:0.3578
+[quant] gptq:done tensors:55 avg_ratio:0.4436
+[quant] bit_plan:exported path=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages/quant/final_bit_plan.json tensors=115
+[quant] serialized_model_mixed_quant:15415044 bytes compressor:lzma payload:16378146 raw_pickle:16397751 total_submission_bytes:15749867
+[quant] peak memory allocated:358MiB reserved:452MiB
+pipeline_stage_done:quant returncode:0 duration_s:17.122 elapsed_s:535.253
+pipeline_stage_start:eval command:torchrun --standalone --nproc_per_node=8 /workspace/parameter-golf-remote/tools/quantize_blessed_checkpoint.py
+pipeline_stage_env:eval RUN_ID=eval OUT_DIR=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages NPROC=1
+[eval] W0425 20:12:49.880000 21989 torch/distributed/run.py:803]
+[eval] W0425 20:12:49.880000 21989 torch/distributed/run.py:803] *****************************************
+[eval] W0425 20:12:49.880000 21989 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+[eval] W0425 20:12:49.880000 21989 torch/distributed/run.py:803] *****************************************
+[eval] tokenizer_loaded:path=/workspace/parameter-golf-remote/data/tokenizers/fineweb_1024_bpe.model vocab_size=1024
+[eval] validation_tokens_loaded:tokens=62021632
+[eval] sentencepiece_luts_ready
+[eval] distributed_eval:enabled:1 world_size:8 local_rank:0 eval_batch_seqs_per_rank:32 effective_eval_batch_seqs_total:256
+[eval] checkpoint_model_build:start skip_blessed_init=1
+[eval] checkpoint_model_build:done
+[eval] checkpoint_load:start path=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages/train/final_model.pt
+[eval] checkpoint_load:done
+[eval] compile_model:enabled fullgraph:True
+[eval] final_prequant_exact val_loss:1.99282253 val_bpb:1.18026176
+[eval] eval_only_artifact:path=/workspace/parameter-golf-remote/logs/h100_blessed/p43e_e0_full8000_lateqat_fixedplan_traincalib_gptq_compile_8gpu/stages/quant/final_model.budgeted_v2.lzma.ptz quant_impl:budgeted_v2 compressor:lzma artifact_bytes:15415044 total_submission_bytes:15716141
+[eval] final_mixed_quant_roundtrip_exact val_loss:2.01256136 val_bpb:1.19195220 eval_time:2660ms quant_gap_bpb:0.01169045
+[eval] peak memory allocated:268MiB reserved:296MiB
+pipeline_stage_done:eval returncode:0 duration_s:53.384 elapsed_s:588.641
+pipeline_done: total_s:588.643 over_budget:0 val_bpb:1.1919522011324903 total_submission_bytes:15716141
