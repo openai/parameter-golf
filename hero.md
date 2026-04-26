@@ -114,20 +114,35 @@ Thresholds (applied to total artifact = code + compressed weights):
 
 sprint_id: SPRINT-002
 sprint_kind: ablation_study
-target_baseline: upstream SOTA at commit 8b148a0 (Scylla + Full GPTQ-6bit + XSA-all + FA3) — val_bpb 0.9485, 3-seed mean
+target_baseline: upstream SOTA at commit 8b148a0 — val_bpb 0.9485, 3-seed mean
+
+### Naming reconciliation (commit-message labels → code-grounded labels)
+
+Upstream commit messages use names like "Scylla", "GPTQ-6bit", "XSA-all", "FA3". A direct read of `train_gpt.py` shows these labels do not map to discrete swappable modules:
+
+| Upstream label | What's actually in the code |
+|----------------|-----------------------------|
+| GPTQ-6bit      | INT8 per-row quantization in `quantize_state_dict_int8` (no GPTQ machinery, no 6-bit) |
+| XSA-all        | Grouped Query Attention via `F.scaled_dot_product_attention(..., enable_gqa=True)` (no sliding window) |
+| FA3            | PyTorch SDPA dispatcher with `enable_flash_sdp(True)` (no FA3 import) |
+| Scylla         | Single `Block` class with `RMSNorm` + `attn_scale` + `mlp_scale` + learnable `resid_mix` (no separate Scylla module) |
+| Muon (unlabelled in upstream commit msg) | The actual distinguishing optimizer choice — borrowed from modded-nanogpt |
+
+The matrix below uses the code-grounded labels. The upstream label is kept in parentheses as the bridge term for the paper's Related Work section.
 
 ### Ablation Matrix
 
-| Row | Components                              | Seeds | Purpose                                    |
-|-----|------------------------------------------|-------|--------------------------------------------|
-| B0  | Scylla + GPTQ-6bit + XSA-all + FA3       | 5     | Replicate baseline; tighten CI vs upstream |
-| A1  | B0 minus GPTQ (full precision weights)   | 3     | Quantization contribution to BPB           |
-| A2  | B0 minus XSA-all (vanilla SWA)           | 3     | Sparse-attention contribution              |
-| A3  | B0 minus FA3 (PyTorch SDPA)              | 3     | Kernel-level contribution                  |
-| A4  | B0 minus Scylla (vanilla GPT block)      | 3     | Architecture contribution                  |
-| A5  | B0 with GPTQ-4bit (vs 6-bit)             | 3     | Precision-axis frontier within GPTQ        |
-| C1  | B0 minus {GPTQ, XSA}                     | 3     | Quant × sparse-attn interaction            |
-| C2  | B0 minus {XSA, FA3}                      | 3     | Sparse-attn × kernel interaction           |
+| Row | Toggle (env var)                  | Default         | Component (upstream label)            | Seeds |
+|-----|-----------------------------------|-----------------|---------------------------------------|-------|
+| B0  | (none — all defaults)             | —               | Baseline replication                  | 5     |
+| A1  | `QUANTIZE_WEIGHTS=none`           | `int8`          | INT8 quantization (≈ "GPTQ")          | 3     |
+| A2  | `NUM_KV_HEADS=8`                  | `4`             | GQA 4:1 KV sharing (≈ "XSA")          | 3     |
+| A3  | `SDPA_BACKEND=math`               | `flash`         | FlashAttention SDPA backend (≈ "FA3") | 3     |
+| A4  | `OPTIMIZER=adamw`                 | `muon`          | Muon optimizer                        | 3     |
+| A5  | `QUANT_SCHEME=per_tensor`         | `per_row`       | Per-row scale within INT8 (≈ "GPTQ-4bit precision frontier") | 3     |
+| A6  | `TIE_EMBEDDINGS=0`                | `1`             | Embedding tying                       | 3     |
+| C1  | `QUANTIZE_WEIGHTS=none` + `NUM_KV_HEADS=8` | —      | Quant × GQA interaction               | 3     |
+| C2  | `NUM_KV_HEADS=8` + `SDPA_BACKEND=math`     | —      | GQA × kernel interaction              | 3     |
 
 significance_threshold: p < 0.05 against B0 (Welch's t-test, two-sided)
 output_per_run: structured JSON {bpb, train_s, eval_s, artifact_bytes, seed, config_hash}
@@ -137,9 +152,10 @@ output_aggregate: ablation summary table for paper Section 4
 
 - Single-component changes only per row; no compounded edits within an individual ablation.
 - Both wallclock budgets (training 600s, eval 600s) enforced — exceeding either disqualifies the row.
-- All ablations must be flag-toggleable in train_gpt.py (no separate forks of the source). Flags: `--gptq-bits`, `--no-xsa`, `--no-fa3`, `--no-scylla`.
-- No new dependencies introduced; ablations swap to alternatives already importable (PyTorch SDPA replaces FA3, vanilla SWA replaces XSA, vanilla GPT block replaces Scylla).
-- A5 (GPTQ-4bit) preserves the post-training quantization paradigm; BitNet/ternary training-time quantization is explicitly out-of-scope for Sprint 002.
+- All ablations are env-var toggleable in `train_gpt.py` (no forks). The Hyperparameters class already reads env vars via `os.environ.get(...)`; new toggles follow the same pattern.
+- No new dependencies introduced. Each toggle resolves to an alternative already importable: `QUANTIZE_WEIGHTS=none` → bf16/zlib raw passthrough, `NUM_KV_HEADS=8` → MHA via existing GQA path, `SDPA_BACKEND=math` → math kernel via `enable_math_sdp(True)`, `OPTIMIZER=adamw` → `torch.optim.AdamW` for matrix params.
+- A5 (per-row vs per-tensor INT8 scale) preserves the post-training quantization paradigm; lower-bit quantization (4-bit/2-bit/ternary/BitNet) is explicitly out-of-scope for Sprint 002 — reserved as the Q3 paper proposal.
+- A4 isolates the Muon contribution honestly. The Block-level architectural ablation upstream calls "Scylla minus" was dropped: there is no clean swap for the `resid_mix`/`attn_scale`/`mlp_scale` triplet that doesn't compound multiple changes.
 
 ### Time Budget (per submission run, 8×H100 SXM)
 

@@ -319,7 +319,12 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
-    if t32.ndim == 2:
+    # Sprint 002 ablation harness: QUANT_SCHEME={per_row|per_tensor}. Default per_row.
+    # per_tensor forces all 2D matrices through the per-tensor branch (A5 ablation).
+    quant_scheme = os.environ.get("QUANT_SCHEME", "per_row").lower()
+    if quant_scheme not in {"per_row", "per_tensor"}:
+        raise ValueError(f"QUANT_SCHEME must be per_row or per_tensor, got {quant_scheme!r}")
+    if t32.ndim == 2 and quant_scheme == "per_row":
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
@@ -333,6 +338,7 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
+    # Also taken when QUANT_SCHEME=per_tensor for 2D matrices (A5 ablation).
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
@@ -767,10 +773,14 @@ def main() -> None:
     torch.backends.cudnn.allow_tf32 = True
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-    enable_cudnn_sdp(False)
-    enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    # Sprint 002 ablation harness: SDPA_BACKEND={flash|math|cudnn|mem_efficient}. Default flash.
+    sdpa_backend = os.environ.get("SDPA_BACKEND", "flash").lower()
+    if sdpa_backend not in {"flash", "math", "cudnn", "mem_efficient"}:
+        raise ValueError(f"SDPA_BACKEND must be one of flash/math/cudnn/mem_efficient, got {sdpa_backend!r}")
+    enable_cudnn_sdp(sdpa_backend == "cudnn")
+    enable_flash_sdp(sdpa_backend == "flash")
+    enable_mem_efficient_sdp(sdpa_backend == "mem_efficient")
+    enable_math_sdp(sdpa_backend == "math")
 
     logfile = None
     if master_process:
@@ -871,12 +881,26 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-    )
+    # Sprint 002 ablation harness: OPTIMIZER={muon|adamw}. Default muon.
+    # AdamW path runs matrix_params through fused AdamW at the same matrix_lr,
+    # leaving Adam-trained tok_emb / lm_head / scalar groups untouched.
+    optimizer_choice = os.environ.get("OPTIMIZER", "muon").lower()
+    if optimizer_choice not in {"muon", "adamw"}:
+        raise ValueError(f"OPTIMIZER must be muon or adamw, got {optimizer_choice!r}")
+    if optimizer_choice == "muon":
+        optimizer_muon = Muon(
+            matrix_params,
+            lr=args.matrix_lr,
+            momentum=args.muon_momentum,
+            backend_steps=args.muon_backend_steps,
+        )
+    else:
+        optimizer_muon = torch.optim.AdamW(
+            [{"params": matrix_params, "lr": args.matrix_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
     optimizer_scalar = torch.optim.Adam(
@@ -1021,10 +1045,11 @@ def main() -> None:
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
 
-        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
-        for group in optimizer_muon.param_groups:
-            group["momentum"] = muon_momentum
+        if optimizer_choice == "muon":
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+            muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+            for group in optimizer_muon.param_groups:
+                group["momentum"] = muon_momentum
 
         for opt in optimizers:
             for group in opt.param_groups:
@@ -1076,30 +1101,57 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    # Sprint 002 ablation harness: QUANTIZE_WEIGHTS={int8|none}. Default int8.
+    # `none` (A1 ablation) skips INT8 quantization entirely and serializes the
+    # raw state_dict (model's native dtypes preserved) compressed with zlib.
+    # Eval roundtrip below is symmetric: load the same artifact, dequant only if int8.
+    quantize_weights = os.environ.get("QUANTIZE_WEIGHTS", "int8").lower()
+    if quantize_weights not in {"int8", "none"}:
+        raise ValueError(f"QUANTIZE_WEIGHTS must be int8 or none, got {quantize_weights!r}")
+    if quantize_weights == "int8":
+        quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+        artifact_path = "final_model.int8.ptz"
+        artifact_label = "int8+zlib"
+    else:
+        cpu_sd = {k: v.detach().to("cpu").contiguous() for k, v in base_model.state_dict().items()}
+        baseline_bytes = sum(tensor_nbytes(t) for t in cpu_sd.values())
+        quant_obj = {"__quant_format__": "raw_native_dtype_v1", "passthrough": cpu_sd}
+        quant_stats = {
+            "param_count": sum(int(t.numel()) for t in cpu_sd.values()),
+            "num_tensors": len(cpu_sd),
+            "num_float_tensors": sum(1 for t in cpu_sd.values() if t.is_floating_point()),
+            "num_nonfloat_tensors": sum(1 for t in cpu_sd.values() if not t.is_floating_point()),
+            "baseline_tensor_bytes": baseline_bytes,
+            "int8_payload_bytes": baseline_bytes,
+        }
+        artifact_path = "final_model.raw.ptz"
+        artifact_label = "raw+zlib"
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open(artifact_path, "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize(artifact_path)
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"Serialized model {artifact_label}: {quant_file_bytes} bytes "
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size {artifact_label}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open(artifact_path, "rb") as f:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    if quantize_weights == "int8":
+        base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    else:
+        base_model.load_state_dict(quant_state["passthrough"], strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1116,10 +1168,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_{artifact_label.replace('+', '_')}_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_{artifact_label.replace('+', '_')}_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
