@@ -1,0 +1,4 @@
+sentencepiece
+brotli
+# A100: FA2 optional, falls back to PyTorch SDP (flash backend) if unavailable.
+# pip install flash-attn --no-build-isolation
