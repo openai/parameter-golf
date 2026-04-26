@@ -1,0 +1,4 @@
+variant,target_family,steps,aux_alpha,final_train_lm_loss,final_train_aux_loss,baseline_avg_before_mismatch,baseline_avg_after_mismatch,gate_v2_avg_before_mismatch,gate_v2_avg_after_mismatch,gate_v2_effect_dist,gate_v2_audit_dist,gate_v2_negative_flags
+train_baseline_minimal,none,120,0.0,2.196310043334961,0.0,6.666666666666667,6.666666666666667,6.666666666666667,1.8333333333333333,"{""stable_redirect"": 5, ""none"": 1}","{""right_place"": 4, ""held"": 2}",{}
+train_aux_probe_v0,zone_classification_v0,120,0.1,2.205490827560425,1.0256942510604858,6.0,6.0,6.0,1.8333333333333333,"{""stable_redirect"": 5, ""none"": 1}","{""right_place"": 4, ""held"": 2}",{}
+train_aux_probe_v1,decision_shape_v1,120,0.1,2.223755359649658,1.3070014715194702,6.333333333333333,6.333333333333333,6.333333333333333,1.8333333333333333,"{""stable_redirect"": 5, ""none"": 1}","{""right_place"": 4, ""held"": 2}",{}

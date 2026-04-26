@@ -1,0 +1,18 @@
+{
+  "goal": "test whether governance-sensitive signals have measurable usefulness as an inference-time cheap gate and whether harm can be reduced without losing persist_2 usefulness",
+  "checkpoint": "/Users/seryn/Documents/Parameter_Golf/repo/three_layer_prototype_builder_assets/minimal_real_cael_checkpoint_300steps.pt",
+  "device": "mps",
+  "arms": [
+    "baseline",
+    "cheap_gate_v0",
+    "cheap_gate_v1a",
+    "cheap_gate_v1b",
+    "cheap_gate_v2_candidate"
+  ],
+  "trigger_priority": [
+    "persist_2",
+    "low_top_gap",
+    "high_uncertainty"
+  ],
+  "shared_rollout_budget": 16
+}

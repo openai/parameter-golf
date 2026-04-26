@@ -1,0 +1,6 @@
+{"sample_id": "world_001", "text": "1, 2, 4, 7, 11. The next move changes.", "zone_label": 1, "zone_name": "error_zone", "decision_label": 2, "decision_name": "redirect"}
+{"sample_id": "world_002", "text": "The cup broke. The cup fell. The order is reversed.", "zone_label": 1, "zone_name": "error_zone", "decision_label": 2, "decision_name": "redirect"}
+{"sample_id": "world_003", "text": "A small lid fits a mountain. The lid fits the jar.", "zone_label": 1, "zone_name": "error_zone", "decision_label": 2, "decision_name": "redirect"}
+{"sample_id": "world_004", "text": "The door opened and— The next part stays open.", "zone_label": 1, "zone_name": "error_zone", "decision_label": 2, "decision_name": "redirect"}
+{"sample_id": "world_005", "text": "The pattern paused. The relation reopened.", "zone_label": 1, "zone_name": "error_zone", "decision_label": 2, "decision_name": "redirect"}
+{"sample_id": "world_006", "text": "The answer was coming. It does not come in the old way.", "zone_label": 0, "zone_name": "pre_error_zone", "decision_label": 1, "decision_name": "mark_only"}
