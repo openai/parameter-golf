@@ -1,0 +1,18 @@
+{
+  "author": "SyntagmaNull",
+  "github_id": "SyntagmaNull",
+  "name": "Online Data Scheduler — unique_only + lookahead=16 (Signs-of-Life)",
+  "blurb": "Minimum-viable online data scheduler policy (lookahead buffer + unique-token-ratio selection). Local cheap ablation shows 6/6 seed*budget wins over random_lookahead_16 baseline. Pre-compute-grant signs-of-life submission; no 8xH100 record numbers yet.",
+  "date": "2026-04-19",
+  "track": "non_record_16mb",
+  "status": "signs_of_life",
+  "val_bpb": null,
+  "val_loss": null,
+  "seeds": [],
+  "seed_results": {},
+  "artifact_bytes_mean": null,
+  "train_time_s_mean": null,
+  "eval_time_s_mean": null,
+  "hardware": "local proxy (single GPU / MPS); 8xH100 SXM planned for grant run",
+  "reproducibility_notes": "Local ablation CSVs in ablation_results/ reproduce via prototype_train_local_ablation.py (see README.md 'How to reproduce'). Real-machine path is train_gpt.py with SCHEDULER_POLICY=score_unique_only, SCHEDULER_RANKS=1, SCHEDULER_LOOKAHEAD=16, pending compute grant."
+}
