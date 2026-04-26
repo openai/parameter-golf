@@ -1,0 +1,38 @@
+{
+  "author": "ghrua",
+  "github_id": "ghrua",
+  "name": "NgramRes + Sliding-Window Attention + Legal Score-First TTT",
+  "date": "2026-04-26",
+  "track": "10min_16mb",
+  "val_bpb": 1.08034,
+  "val_bpb_std": 0.00034,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.08039, "artifact_bytes": 15986346},
+    "314": {"val_bpb": 1.08064, "artifact_bytes": 15987299},
+    "999": {"val_bpb": 1.07997, "artifact_bytes": 15991099}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu128",
+  "technique_summary": "Apr-9 backbone (SP8192 + 3-Layer Depth Recurrence + Parallel Residuals + LegalTTT) + NgramRes 3-gram head (alpha=0.3, NGRAM_TIE_OUTPUT=1) + Sliding-Window Attention on layers 0-3 (window=512) + ROPE_BASE=10000 + GPTQ int6/int8 SDClip + Brotli. Trained directly from the LZMA+base85 stub (Apr-9 record style); val_bpb / artifact_bytes pending rerun.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "ngramres_head_and_swa_stack": "@ghrua (this build)",
+    "sp8192_3layerrecur_parresid_qk525_legalttt": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)"
+  }
+}
