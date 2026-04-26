@@ -680,10 +680,10 @@ Pull-out tells you to use scratch/ ("compute the parameter count, sketch the mat
 - [x] Wrote `references/INDEX.md` per §3.3, with the einops-replacement note added.
 
 ### Phase C — add new skills
-- [ ] `mkdir -p .claude/skills/noise-floor-sentinel/`
-- [ ] Write `.claude/skills/noise-floor-sentinel/SKILL.md` per §3.5.
-- [ ] `mkdir -p .claude/skills/derive-and-verify/`
-- [ ] Write `.claude/skills/derive-and-verify/SKILL.md` per §3.10.
+- [x] `mkdir -p .claude/skills/noise-floor-sentinel/`
+- [x] Wrote `.claude/skills/noise-floor-sentinel/SKILL.md` per §3.5. Verified loaded by harness (appears in available-skills list).
+- [x] `mkdir -p .claude/skills/derive-and-verify/`
+- [x] Wrote `.claude/skills/derive-and-verify/SKILL.md` per §3.10.
 
 ### Phase D — content edits in place
 - [ ] Edit `program.md` per §3.1: replace title block + "From Previous Session" block; replace "Reference baseline" section; insert "SSM-specific harness facts" section; edit "Setup (every session)" steps; replace "Reference materials" section. Preserve all other sections verbatim.
