@@ -30,8 +30,6 @@ Happy training!
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
-| Scylla Tokenizer + Full GPTQ + XSA-all + FA3 | 0.9485 | icryo | On PR #1184: Scylla TokenMonster tokenizer from PR #1143 + the PR #1060 Full GPTQ/XSA-all/coprime-loader stack + FA3 | 2026-03-31 | [info](records/track_10min_16mb/2026-03-31_Scylla_FullGPTQ_XSA11_FA3_0.9485/README.md) |
-| Scylla Tokenizer + Legal Score-First TTT | 1.0806 | simon-marcus | On PR #1143: TokenMonster-derived Scylla tokenizer, retokenized FineWeb, metadata byte accounting, and legal score-first TTT | 2026-03-30 | [info](https://github.com/openai/parameter-golf/pull/1143) |
 | SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT | 1.0810 | bigbag | On PR #1493: 3-layer recurrence, parallel residuals, QK-Gain 5.25, and legal score-first TTT on the PR #1394 stack | 2026-04-09 | [info](records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/README.md) |
 | SP8192 + Parallel Residuals + Score-First TTT | 1.0822 | aryanbhosale | On PR #1477: parallel residuals on the PR #1413 SP8192 + legal score-first TTT stack | 2026-04-08 | [info](records/track_10min_16mb/2026-04-08_SP8192_ParallelResid_ScoreFirstTTT/README.md) |
 | SP8192 + QK-Gain 5 + Legal Score-First TTT | 1.0828 | dexhunter | On PR #1413: QK-Gain 5.0 + legal score-first TTT on the PR #1394 SP8192 stack | 2026-04-06 | [info](records/track_10min_16mb/2026-04-06_SP8192_QK5_LegalTTT_1.0828/README.md) |
@@ -44,8 +42,6 @@ Happy training!
 | Rascal | 1.1099 | newjordan | On PR #1120: XSA-all + Parallel Muon + coprime loader + Bigram2048/RoPE16 + SWA/late QAT without GPTQ | 2026-03-30 | [info](https://github.com/openai/parameter-golf/pull/1120) |
 | Coprime-Stride Loader + Full GPTQ + XSA-all | 1.1122 | dexhunter | On PR #1060: coprime multi-shard loader + Full Hessian GPTQ + XSA on all layers + BigramHash(2816x112) | 2026-03-29 | [info](records/track_10min_16mb/2026-03-29_Loader_FullGPTQ_XSA11_BigramHash2816/README.md) |
 | 11L AR Self-Gen GPTQ + XSA | 1.1147 | abaybektursun | On PR #1019: Self-Generated GPTQ Calibration Data + all-layer XSA on the PR #549 stack | 2026-03-25 | [info](records/track_10min_16mb/2026-03-25_ValCalib_GPTQ_XSA_BigramHash3072/README.md) |
-| 11L Muon TTT + Entropy-Adaptive Epochs | 1.1179 | aamodbhatt | On PR #1148: Muon-style Newton-Schulz TTT updates + entropy-adaptive 2/3/4 epoch selection on the PR #549 stack | 2026-03-28 | [info](records/track_10min_16mb/2026-03-28_MuonTTT_EntropyAdaptive_11L_8xH100/README.md) |
-| LeakyReLU(0.75)^2 + Legal TTT + Parallel Muon | 1.1185 | michaelwinczuk | On PR #1031: LeakyReLU negative_slope 0.75 with tuned matrix LR and warmdown on the PR #549 stack | 2026-03-27 | [info](https://github.com/openai/parameter-golf/pull/1031) |
 | LeakyReLU² + Legal Score-First TTT + Parallel Muon | 1.1194 | abaybektursun | On PR #549: LeakyReLU(0.5)^2 + TTT + Parallel Muon on the PR #414 stack | 2026-03-23 | [info](records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md) |
 | 11L EMA + GPTQ-lite + warmdown3500 | 1.1228 | signalrush | On PR #374: GPTQ-lite clip search + EMA, plus warmdown3500 and QAT@0.15 | 2026-03-22 | [info](records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md) |
 | 11L Partial RoPE + LN Scale + EMA + XSA4 | 1.1248 | jfprincz | On PR #287: Partial RoPE (16/64) + layerwise LN scale | 2026-03-21 | [info](records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md) |
