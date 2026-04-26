@@ -1,0 +1,11 @@
+{
+  "author": "Ryan Estes",
+  "github_id": "estesryan",
+  "name": "HybridSSM SparseAttention MixedQuant",
+  "blurb": "Hybrid Transformer-SSM submission using final-layer SSM replacement, selective attention removal, heterogeneous feedforward allocation, and mixed int8/int6 quantized export under a strict artifact budget.",
+  "date": "2026-04-26T08:11:00Z",
+  "val_loss": 2.40983531,
+  "val_bpb": 1.20473575,
+  "bytes_total": 15571318,
+  "bytes_code": 60510
+}
