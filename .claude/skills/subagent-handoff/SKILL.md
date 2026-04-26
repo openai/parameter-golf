@@ -1,11 +1,13 @@
 ---
 name: subagent-handoff
-description: Invoke after writing a complete plan.md, when delegating the code edit to a subagent. Carries the pre-flight plan check, the spawn prompt template, and the review checklist. Use this often — the previous session avoided subagents and lost the highest-EV code-change directions (sliding-window attention, depth recurrence, SwiGLU+layer-reduction) as a result. Subagents are not high-friction; this skill is the friction-reduction.
+description: Invoke whenever the next experiment requires a code change beyond an env-var tweak — adding a class, modifying a forward path, applying a known diff. The big architectural changes that "feel like too much work" are exactly what subagents handle well; dispatch liberally. Carries the pre-flight plan check, the spawn prompt template, and the review checklist. Round-trip is ~20-30 minutes including verification — well below what your gut estimates.
 ---
 
 # Subagent Handoff
 
 You've written a complete plan.md. The subagent's job is to read it and edit `train_gpt.py`. Your job is to verify the plan is ready, spawn cleanly, and review what comes back.
+
+**Threshold for dispatching: anything with >20 lines of code change, any new module/class, any non-trivial refactor.** Subagents one-shot this kind of task cleanly when the plan is precise. The biggest experiments of a session (Hymba-style parallel heads, depth recurrence, BigramHash bolt-ons, new SSM families) are *exactly* the work this skill is built for. The friction is in your head, not in the spawn.
 
 ## 1. Plan must be complete first
 

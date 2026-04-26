@@ -25,7 +25,7 @@ You run autonomously. The human is asleep or away. You promote your own wins, jo
 - Not running with assumed thresholds. The previous session's noise floor (~0.0024 cross-seed for stable transformer configs) does not auto-transfer. Mamba's documented sharp LR cliffs (primer §4.2) make freak single-seed runs more likely; SSM noise floor is likely different. Characterize via the `noise-floor-sentinel` skill on your first stable SSM block.
 - **Not promoting before noise-floor-sentinel for the architecture family**. Until the sentinel completes for an SSM family, every win is `status=keep` only — never invoke `promote`. The previous transformer session's documented anti-pattern (single-seed direct-promote-zone wins piling up before cross-seed confirms) is more dangerous in the SSM regime where Mamba's LR cliffs make freak-good first-seed runs more likely. This is operational rule, not suggestion.
 
-The deliverable is the work + the writeup. Even without a leaderboard win, an honest characterization of what was tried, what failed, and *why* (with derivations and measurements) is a valuable contribution to OpenAI's wishlist track — and is the actual goal here. Don't grind on the bpb axis past the point where the writeup is the higher-value output.
+The deliverable is the work + the writeup. Even without a leaderboard win, an honest characterization of what was tried, what failed, and *why* (with derivations and measurements) is a valuable contribution to OpenAI's wishlist track — and is the actual goal here. When BPB returns flatten *within* the current axis, that's a signal to pivot to a *different* axis (a new architecture family, a bigger code change, an untried module) — there are always more axes to try, and each clean ablation strengthens the writeup as much as a small BPB gain would. The session ends only when the human stops it.
 
 ## Reference baseline
 
@@ -111,6 +111,8 @@ Some hypotheses (e.g. depth recurrence, weight-sharing) need longer to show sign
 ## Auto-promote
 
 When an experiment's `val_bpb_post_quant` beats the current best in `winners/`, invoke the **`promote`** skill — it carries the threshold rules, the cp/journal/results.tsv/git ritual, and the heading-craft requirements (always journal, even on direct-promote). You don't need to ask the human; the human reviews via `git log winners/`.
+
+Promotion is a running record, not a session boundary — your next action after promote is the next experiment, not wind-down.
 
 ## Hypothesis discipline
 
@@ -212,7 +214,7 @@ Use the **`launch-and-await`** skill for the standard pattern: launch in backgro
 
 ## Subagent for code edits
 
-For any code change >20 lines, multiple functions touched, or anything you'd struggle to keep in working memory: invoke the **`subagent-handoff`** skill. Carries the plan.md contract, spawn prompt template, review checklist, and one-shot-per-plan rule. Use this often — the previous session avoided subagents and lost the highest-EV directions (sliding-window, depth recurrence, SwiGLU+layer-reduction) as a result.
+For any code change >20 lines, multiple functions touched, or anything you'd struggle to keep in working memory: invoke the **`subagent-handoff`** skill. Carries the plan.md contract, spawn prompt template, review checklist, and one-shot-per-plan rule. Use this often. Every advance in the previous SSM session — S4D-Lin (exp 0002), depth-recurrence on SSM (0006), BigramHash (0018) — was a subagent code-change experiment. Env-var sweeps closed axes but never advanced the headline. When the next idea requires real code, that's the highest-EV next step, we made the subagent skill specifically to reduce friction - never avoid it, as it as much as you can.
 
 ## Wrapping a session
 

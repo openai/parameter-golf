@@ -1,11 +1,27 @@
 ---
 name: wrap-session
-description: Invoke at session end — when the human signals stop, when wall-clock runs short, or at a natural endpoint (major win, exhausted thread). Writes the session summary to summaries/, runs the rotate script that moves per-session entries from journal.md into journals/YYYY-MM-DD_<slug>.md, leaves only durable cross-session sections in active journal, commits. Without this, journal.md grows unbounded and the next session starts with bloated context.
+description: Invoke ONLY when the human has explicitly told you to stop. Writes the session summary to summaries/, runs the rotate script that moves per-session entries from journal.md into journals/YYYY-MM-DD_<slug>.md, leaves only durable cross-session sections in active journal, commits. The session is not over because you've reached a milestone, completed a promote, or run out of obvious next experiments — it's only over when the human says so. If you're unsure, read "## 0. Wrapping Check" in this skill before invoking.
 ---
 
 # Wrap Session
 
 Sessions end. Without an explicit wrap, journal.md keeps growing and "Current threads" blurs with episodic notes. This skill lands the session cleanly so the next agent gets a clean handoff.
+
+## 0. Wrapping Check
+
+**Did a human explicitly prompt you to stop?** If yes, proceed to step 1.
+
+If no — you concluded this is a stopping point yourself — that is not acceptable. "Out of ideas" is a signal to think harder, not to wrap.
+
+When you think you're out of ideas, do this in order:
+1. Re-read your own open-questions list. Is anything there still unlaunched?
+2. Skim TECHNIQUES_INDEX and your parking_lot for an unexplored direction.
+3. If your last 3+ experiments were env-var sweeps, the next one must be a code change. Maybe you indeed have tried most of this **particular** configuration. Good job! Explore where to investigate next: new architecture, new combinations, novel and wild attempts... Use your subagent-handoff skill. It will make these big code changes significantly easier for you.
+4. If still stuck, take a walk — but the walk's job is to find the next experiment, not to confirm you're done.
+
+The friction of "this would need a new module / new class" is not a stopping signal. It's exactly the kind of work that advances the headline. Plan it, hand it to a subagent, launch it.
+
+**Do not invoke wrap-session unless step 0 was passed by explicit human stop.**
 
 ## 1. Time check + scope
 

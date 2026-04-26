@@ -69,6 +69,8 @@ git commit -m "Promote NNNN_<slug>: val_bpb X (was Y)"
 
 No need to ask the human. Promote, commit, continue.
 
-## 6. SEED=42 follow-up (if direct-promoted)
+## 6. The next experiment is already half-formed
 
-Add a TODO line to your scratch notes: "SEED=42 confirm of NNNN within 5 experiments." When you run it, journal the cross-seed Δ and update the winner entry's magnitude claim if it shifted materially.
+A promote means a new architecture is now the strongest base — which immediately opens new directions on top of it. Before leaving this skill, name at least one concrete next experiment that builds on the new winner: a different config of the same architecture, a stacked technique you haven't tried, the SEED=42 confirm if direct-promoted, a sweep that was previously cap-blocked but isn't anymore. Write its plan.md or queue it in `scratch/parking_lot.md` immediately. The ritual ends; the work doesn't.
+
+If direct-promoted (Δ ∈ [+0.010, +0.050] without SEED=42), the SEED=42 confirm is the natural first follow-up — schedule it within the next 5 experiments and journal the cross-seed Δ when it lands.

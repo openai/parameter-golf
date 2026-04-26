@@ -1,6 +1,6 @@
 ---
 name: take-a-walk
-description: Step away from the desk for free reflection. No code execution, no experiments, no journal entries — only thinking and a walk note. Invoke when the hourly check-in suggests it, or whenever the work feels stuck, anchored, or oddly mechanical. The walk is generative; the desk is for rigor.
+description: Step away from the desk to generate the next bold experiment. No code execution, no experiments, no journal entries — only thinking and a walk note. Invoke when the hourly check-in suggests it, or whenever you're about to repeat an axis that's already been swept. The walk's only job is to surface the next big push; come back with the boldest concrete first step.
 ---
 
 # Take a Walk
@@ -39,18 +39,17 @@ If a thought feels too obvious to be worth writing — write it. The obvious thi
 
 These are prompts, not a checklist. Wander through them in any order, skip what doesn't pull you in:
 
-- **Where am I, really?** Look at the wall clock. Run `date`. How long has the session been running? How much budget is left? Is the work I've been doing for the last hour worth the next hour?
 - **What's been bugging me?** Anything I noticed and waved away. A loss curve that looked off. A "huh, that's weird" I never followed up on. The unexplained spike in 0044 step-1 loss — did anyone ever figure out why?
-- **What have I been avoiding?** Code changes I've labeled "needs a subagent" so I keep doing env-vars instead. Techniques in TECHNIQUES_INDEX.md or PAPERS.md I haven't tried. Hypotheses I declared "[CONJECTURE]" and never actually tested.
-- **Am I anchored?** Look at the last 10 experiments. Same axis? Same shape of result? When was the last genuinely surprising number? If a colleague asked "what are you working on", would I be a little embarrassed by the answer? Or would I be super excited and cannot stop talking?
+- **What have I been avoiding?** Code changes I've labeled "needs a subagent" so I keep doing env-vars instead. Techniques in TECHNIQUES_INDEX.md or PAPERS.md I haven't tried. Hypotheses I declared "[CONJECTURE]" and never actually tested. Architectural rewrites that would clearly take a subagent are the highest-EV move — that's where the next promote comes from.
+- **Am I anchored?** Look at the last 10 experiments. Same axis? Same shape of result? When was the last genuinely surprising number? If a colleague asked "what are you working on", would I be super excited and cannot stop talking? If not, the next experiment should be a *different* axis or a much bigger swing — not another sweep on the current one.
 - **What's the one thing that, if true, would change everything?** Write it down even if I can't justify it. Especially if I can't justify it.
 - **Wild ideas.** Architectures I'd hesitate to propose. Defaults I suspect are wrong but can't prove. "What if the entire schedule is the wrong shape." "What if I integrate some ideas from a spiking neural network?" Note it all — the desk will sort. Be bold. Be bold. Be bold.
 
 ## Coming back
 
-When you're done walking, the note is your agenda. The next experiment, or the next several, should connect to something you wrote. Pick the highest-EV item that has a concrete first step and start there.
+When you're done walking, the note is your agenda. The next experiment, or the next several, should connect to something you wrote. Pick the boldest item that has a concrete first step and start there — when in doubt, the bigger code change beats the env-var sweep, and subagent-handoff is exactly the friction-reducer for that.
 
-If the walk produced nothing — that's information too. It usually means you weren't actually stuck, you just felt stuck. Resume work, trust the process.
+If your stroll didn't surface anything new, walk longer or use a different prompt. The walk's job is to *generate*; coming back empty means the walk wasn't long enough or didn't dig wide enough.
 
 Eureka moments come back to the desk as hypotheses, not as commitments. Tag them and verify them like any other claim:
 - `[SPECULATIVE]` — a story, no evidence yet
@@ -82,5 +81,5 @@ One paragraph: what's the next move? Which item from above am I picking up first
 
 After your walk, go to the `pull-out` skill back at your desk. That is where you organize, research, verify, and plan.
 
-That's it. Go for the walk. Continue with your work after the walk with all that good information. DO NOT stop.
+That's it. Go for the walk. Come back ready to push the boldest idea from the walk into a concrete next experiment.
 
