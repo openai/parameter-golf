@@ -11,6 +11,9 @@ Toggles covered:
   A5  QUANT_SCHEME={per_row|per_tensor}   (exercises quantize_float_tensor directly)
   A6  TIE_EMBEDDINGS                      (Hyperparameters field)
 
+Also verifies record_run.py can parse the log shape that train_gpt.py emits
+(against a synthesized log fragment, so we catch regressions before H100 spend).
+
 What this smoke does NOT do:
   - launch CUDA training (those toggles are exercised end-to-end on the burst H100)
   - validate numerical equivalence between roundtrips
@@ -191,6 +194,62 @@ def check_momentum_warmup_gated() -> None:
     _ok("momentum warmup ramp gated correctly")
 
 
+def check_record_run_parser() -> None:
+    """Round-trip a synthesized train_gpt.py log through record_run.py --dry-run.
+    Fails if record_run can't extract bpb/train_s/eval_s/artifact_bytes/world_size."""
+    print("[7/7] record_run.py parses synthesized log shape ...")
+    import json
+    import subprocess
+    import tempfile
+
+    record_script = REPO / "record_run.py"
+    if not record_script.exists():
+        _fail(f"missing {record_script}")
+        sys.exit(8)
+
+    # Mimics the lines train_gpt.py actually emits (see lines 924, 1073, 1144, 1171).
+    fake_log = (
+        "world_size:8 grad_accum_steps:1\n"
+        "step:200/20000 train_loss:7.2143 train_time:9852ms step_avg:49.26ms\n"
+        "step:20000/20000 train_loss:3.2917 train_time:597432ms step_avg:29.87ms\n"
+        "Serialized model int8+zlib: 14823104 bytes (payload:14400000 raw_torch:15000000 payload_ratio:1.05x)\n"
+        "Total submission size int8+zlib: 15123104 bytes\n"
+        "final_int8_zlib_roundtrip val_loss:3.2917 val_bpb:0.9485 eval_time:412350ms\n"
+        "final_int8_zlib_roundtrip_exact val_loss:3.29170000 val_bpb:0.94850000\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        log_path = Path(tmp) / "b0_seed1337.txt"
+        log_path.write_text(fake_log, encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(record_script), str(log_path),
+             "--row", "B0", "--dry-run"],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+    if result.returncode != 0:
+        _fail(f"record_run.py exited {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+        sys.exit(8)
+    try:
+        row = json.loads(result.stdout.strip().splitlines()[-1])
+    except (json.JSONDecodeError, IndexError) as e:
+        _fail(f"could not parse record_run.py stdout as JSON: {e}\nraw:\n{result.stdout}")
+        sys.exit(8)
+
+    expected = {"bpb": 0.9485, "val_loss": 3.2917, "eval_s": 412.35,
+                "train_s": 597.432, "artifact_bytes": 15123104, "world_size": 8,
+                "stopped_early": False, "row": "B0", "seed": 1337,
+                "config": {}, "run_id": "b0_seed1337"}
+    for k, v in expected.items():
+        if row.get(k) != v:
+            _fail(f"record_run.py row[{k!r}] = {row.get(k)!r}, expected {v!r}")
+            sys.exit(8)
+    if "config_hash" not in row or len(row["config_hash"]) != 12:
+        _fail(f"config_hash malformed: {row.get('config_hash')!r}")
+        sys.exit(8)
+    _ok(f"parsed bpb={row['bpb']} train_s={row['train_s']:.1f} eval_s={row['eval_s']:.1f} "
+        f"size={row['artifact_bytes']:,} world_size={row['world_size']}")
+    _ok(f"row schema complete: {sorted(row.keys())}")
+
+
 def main() -> int:
     print("=" * 60)
     print("Sprint 002 smoke: ablation harness toggle verification")
@@ -202,6 +261,7 @@ def main() -> int:
     check_main_inline_validators()
     check_artifact_path_branch()
     check_momentum_warmup_gated()
+    check_record_run_parser()
     print("=" * 60)
     print(f"ALL CHECKS PASSED in {time.perf_counter() - t0:.2f}s")
     print("=" * 60)
