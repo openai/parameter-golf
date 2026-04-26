@@ -1,0 +1,30 @@
+{
+  "author": "Gershon Bialer",
+  "github_id": "gersh",
+  "name": "Emergent Weight Symmetry in QO Projections + Learnable SymMix",
+  "blurb": "Layers 6-8 O projections converge to exact symmetry (W=W^T, sym_energy=0.999998) during training. SymMix (W + tanh(beta)*W^T with learnable beta) is loss-neutral. Research finding on weight structure in parameter-constrained transformers.",
+  "date": "2026-04-01",
+  "track": "non_record_16mb",
+  "val_bpb": 1.1688,
+  "val_loss": 1.9734,
+  "hardware": "4xH100 80GB SXM",
+  "base_pr": 1019,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.9734,
+      "val_bpb": 1.1688,
+      "artifact_bytes": 14798568,
+      "steps": 3551,
+      "step_avg_ms": 169.03
+    }
+  },
+  "baseline_comparison": {
+    "val_bpb": 1.1687,
+    "val_loss": 1.9733,
+    "artifact_bytes": 14816496,
+    "steps": 3565,
+    "step_avg_ms": 168.32,
+    "note": "Same script with SYMMIX_ENABLED=0"
+  }
+}
