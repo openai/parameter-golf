@@ -11,8 +11,12 @@ Toggles covered:
   A5  QUANT_SCHEME={per_row|per_tensor}   (exercises quantize_float_tensor directly)
   A6  TIE_EMBEDDINGS                      (Hyperparameters field)
 
-Also verifies record_run.py can parse the log shape that train_gpt.py emits
-(against a synthesized log fragment, so we catch regressions before H100 spend).
+Also verifies:
+  - record_run.py can parse the log shape that train_gpt.py emits
+    (against a synthesized log fragment, so we catch regressions before H100 spend).
+  - aggregate.py reads runs.jsonl + computes per-row stats + Welch's t correctly
+    (against a synthesized 6-row JSONL, so the paper-table generator is validated
+    end-to-end before any real seeds land).
 
 What this smoke does NOT do:
   - launch CUDA training (those toggles are exercised end-to-end on the burst H100)
@@ -56,7 +60,7 @@ def _reload_train_gpt():
 
 def check_source_tokens() -> None:
     """Cheap sanity check that the four new toggles still appear in source."""
-    print("[1/6] source-level toggle presence ...")
+    print("[1/8] source-level toggle presence ...")
     src = TRAIN_GPT_SRC.read_text(encoding="utf-8")
     expected = [
         ('os.environ.get("QUANTIZE_WEIGHTS"', "A1 QUANTIZE_WEIGHTS"),
@@ -73,7 +77,7 @@ def check_source_tokens() -> None:
 
 def check_hyperparameters_a2_a6() -> None:
     """A2 (NUM_KV_HEADS) and A6 (TIE_EMBEDDINGS) flip Hyperparameters fields directly."""
-    print("[2/6] Hyperparameters env-var resolution (A2, A6) ...")
+    print("[2/8] Hyperparameters env-var resolution (A2, A6) ...")
 
     # Default.
     for k in ("NUM_KV_HEADS", "TIE_EMBEDDINGS", "NUM_HEADS"):
@@ -108,7 +112,7 @@ def check_hyperparameters_a2_a6() -> None:
 
 def check_quant_scheme_a5() -> None:
     """A5: exercise quantize_float_tensor directly under both schemes."""
-    print("[3/6] QUANT_SCHEME branch in quantize_float_tensor (A5) ...")
+    print("[3/8] QUANT_SCHEME branch in quantize_float_tensor (A5) ...")
     import torch
 
     os.environ.pop("QUANT_SCHEME", None)
@@ -156,7 +160,7 @@ def check_main_inline_validators() -> None:
     """A1 (QUANTIZE_WEIGHTS), A3 (SDPA_BACKEND), A4 (OPTIMIZER) are validated
     inline in main(). We can't run main without CUDA, but we can scan the source
     to confirm the fail-fast `not in {...}` guards exist for each."""
-    print("[4/6] inline validator presence for A1, A3, A4 ...")
+    print("[4/8] inline validator presence for A1, A3, A4 ...")
     src = TRAIN_GPT_SRC.read_text(encoding="utf-8")
     patterns = [
         (r'QUANTIZE_WEIGHTS.*?{[^}]*"int8"[^}]*"none"[^}]*}', "A1 QUANTIZE_WEIGHTS={int8,none}"),
@@ -172,7 +176,7 @@ def check_main_inline_validators() -> None:
 
 def check_artifact_path_branch() -> None:
     """A1 changes the artifact filename. Confirm both candidates appear in source."""
-    print("[5/6] artifact path branch (A1) ...")
+    print("[5/8] artifact path branch (A1) ...")
     src = TRAIN_GPT_SRC.read_text(encoding="utf-8")
     if "final_model.int8.ptz" not in src:
         _fail("int8 artifact path missing")
@@ -185,7 +189,7 @@ def check_artifact_path_branch() -> None:
 
 def check_momentum_warmup_gated() -> None:
     """A4: Muon momentum warmup ramp must be gated on optimizer_choice == 'muon'."""
-    print("[6/6] Muon momentum-warmup ramp gated on optimizer_choice (A4) ...")
+    print("[6/8] Muon momentum-warmup ramp gated on optimizer_choice (A4) ...")
     src = TRAIN_GPT_SRC.read_text(encoding="utf-8")
     pattern = r'if optimizer_choice == "muon":\s*\n\s*frac = min\(step / args\.muon_momentum_warmup_steps'
     if not re.search(pattern, src):
@@ -197,7 +201,7 @@ def check_momentum_warmup_gated() -> None:
 def check_record_run_parser() -> None:
     """Round-trip a synthesized train_gpt.py log through record_run.py --dry-run.
     Fails if record_run can't extract bpb/train_s/eval_s/artifact_bytes/world_size."""
-    print("[7/7] record_run.py parses synthesized log shape ...")
+    print("[7/8] record_run.py parses synthesized log shape ...")
     import json
     import subprocess
     import tempfile
@@ -250,6 +254,141 @@ def check_record_run_parser() -> None:
     _ok(f"row schema complete: {sorted(row.keys())}")
 
 
+def check_aggregate() -> None:
+    """Round-trip a synthesized 6-row JSONL through aggregate.py.
+
+    Synthesizes 3 B0 seeds + 3 A1 seeds with deliberate separation so Welch's t
+    is significant, then asserts (a) the JSON dump shape, (b) computed means,
+    (c) Welch's t direction + finite p, (d) markdown rendering doesn't crash.
+    """
+    print("[8/8] aggregate.py reads runs.jsonl + computes per-row stats ...")
+    import json
+    import subprocess
+    import tempfile
+
+    aggregate_script = REPO / "aggregate.py"
+    if not aggregate_script.exists():
+        _fail(f"missing {aggregate_script}")
+        sys.exit(9)
+
+    # Synthesize 3 B0 seeds (mean bpb 0.9485) and 3 A1 seeds (mean bpb 0.9620,
+    # i.e. removing INT8 quant hurts compression). Variance kept small so t is
+    # deterministically large and p < 0.01 — the test's job is to catch broken
+    # math, not exercise edge cases.
+    b0_seeds = [(0.9482, 3.2914), (0.9487, 3.2920), (0.9486, 3.2917)]
+    a1_seeds = [(0.9618, 3.3415), (0.9622, 3.3420), (0.9620, 3.3418)]
+
+    def fake_row(row, seed, bpb, val_loss, config, train_s, eval_s, bytes_):
+        return {
+            "row": row, "run_id": f"{row.lower()}_seed{seed}", "seed": seed,
+            "config": config, "config_hash": "deadbeefcafe"[:12],
+            "bpb": bpb, "val_loss": val_loss,
+            "train_s": train_s, "eval_s": eval_s, "artifact_bytes": bytes_,
+            "world_size": 8, "stopped_early": False,
+            "git_commit": "abc123" * 6, "log_path": f"logs/{row.lower()}_seed{seed}.txt",
+            "recorded_at": "2026-04-26T12:00:00+00:00",
+        }
+
+    rows: list[dict] = []
+    for i, (bpb, vl) in enumerate(b0_seeds, 1):
+        rows.append(fake_row("B0", 1337 * i, bpb, vl, {}, 597.4, 412.3, 15_123_104))
+    for i, (bpb, vl) in enumerate(a1_seeds, 1):
+        rows.append(fake_row("A1", 1337 * i, bpb, vl,
+                             {"QUANTIZE_WEIGHTS": "none"}, 595.1, 410.8, 30_240_000))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        jsonl_path = Path(tmp) / "runs.jsonl"
+        with jsonl_path.open("w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+        # 1. JSON output round-trip.
+        result = subprocess.run(
+            [sys.executable, str(aggregate_script), "--input", str(jsonl_path), "--json"],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+        if result.returncode != 0:
+            _fail(f"aggregate.py --json exited {result.returncode}\n"
+                  f"stderr:\n{result.stderr}")
+            sys.exit(9)
+
+        try:
+            agg = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            _fail(f"aggregate.py --json output not parseable: {e}\nraw:\n{result.stdout}")
+            sys.exit(9)
+
+        if agg.get("baseline") != "B0" or agg.get("metric") != "bpb":
+            _fail(f"unexpected header: {agg.get('baseline')} / {agg.get('metric')}")
+            sys.exit(9)
+        if set(agg["rows"].keys()) != {"B0", "A1"}:
+            _fail(f"expected rows={{B0,A1}}, got {sorted(agg['rows'].keys())}")
+            sys.exit(9)
+
+        b0 = agg["rows"]["B0"]
+        a1 = agg["rows"]["A1"]
+        # Means within 5e-4 of expected.
+        b0_expected = sum(s[0] for s in b0_seeds) / 3
+        a1_expected = sum(s[0] for s in a1_seeds) / 3
+        if abs(b0["bpb_mean"] - b0_expected) > 5e-4:
+            _fail(f"B0 bpb_mean off: got {b0['bpb_mean']}, expected ~{b0_expected}")
+            sys.exit(9)
+        if abs(a1["bpb_mean"] - a1_expected) > 5e-4:
+            _fail(f"A1 bpb_mean off: got {a1['bpb_mean']}, expected ~{a1_expected}")
+            sys.exit(9)
+        if b0.get("n") != 3 or a1.get("n") != 3:
+            _fail(f"expected n=3 each, got B0={b0.get('n')} A1={a1.get('n')}")
+            sys.exit(9)
+        if b0.get("welch_t_vs_baseline") is not None:
+            _fail("baseline row should have welch_t_vs_baseline=None")
+            sys.exit(9)
+
+        wt = a1.get("welch_t_vs_baseline")
+        if wt is None or wt.get("p_two_sided") is None:
+            _fail(f"A1 welch_t_vs_baseline malformed: {wt}")
+            sys.exit(9)
+        # A1 has higher BPB than B0 (worse compression without quantization),
+        # so delta should be positive and t should be positive too.
+        if not (wt["delta"] > 0):
+            _fail(f"expected positive Δ (A1 worse than B0), got {wt['delta']}")
+            sys.exit(9)
+        if not (wt["t"] > 0):
+            _fail(f"expected positive t (A1 mean > B0 mean), got {wt['t']}")
+            sys.exit(9)
+        if not (0.0 < wt["p_two_sided"] < 0.05):
+            _fail(f"expected p<0.05 with this synthetic separation, got {wt['p_two_sided']}")
+            sys.exit(9)
+        _ok(f"B0 mean={b0['bpb_mean']:.4f}, A1 mean={a1['bpb_mean']:.4f}, "
+            f"Δ={wt['delta']:+.4f}, t={wt['t']:+.2f}, df={wt['df']:.1f}, "
+            f"p={wt['p_two_sided']:.4g}")
+
+        # 2. Markdown render (must not crash, must contain the row labels).
+        md = subprocess.run(
+            [sys.executable, str(aggregate_script), "--input", str(jsonl_path), "--markdown"],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+        if md.returncode != 0:
+            _fail(f"aggregate.py --markdown exited {md.returncode}\nstderr:\n{md.stderr}")
+            sys.exit(9)
+        if "| B0 |" not in md.stdout or "| A1 |" not in md.stdout:
+            _fail(f"markdown output missing row rows:\n{md.stdout}")
+            sys.exit(9)
+        _ok("markdown render contains both B0 and A1 rows")
+
+        # 3. Plain-text render (default mode, must not crash).
+        txt = subprocess.run(
+            [sys.executable, str(aggregate_script), "--input", str(jsonl_path)],
+            capture_output=True, text=True, cwd=str(REPO),
+        )
+        if txt.returncode != 0:
+            _fail(f"aggregate.py default exited {txt.returncode}\nstderr:\n{txt.stderr}")
+            sys.exit(9)
+        if "B0" not in txt.stdout or "A1" not in txt.stdout:
+            _fail("plain-text render missing rows")
+            sys.exit(9)
+        _ok("plain-text render contains both B0 and A1 rows")
+
+
 def main() -> int:
     print("=" * 60)
     print("Sprint 002 smoke: ablation harness toggle verification")
@@ -262,6 +401,7 @@ def main() -> int:
     check_artifact_path_branch()
     check_momentum_warmup_gated()
     check_record_run_parser()
+    check_aggregate()
     print("=" * 60)
     print(f"ALL CHECKS PASSED in {time.perf_counter() - t0:.2f}s")
     print("=" * 60)
