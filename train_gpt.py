@@ -1022,6 +1022,18 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
+    # --- Machine-readable summary (used for log comparison across seeds) ---
+    total_elapsed_s = (training_time_ms + eval_ms) / 1000.0
+    if master_process:
+        log0("")
+        log0("# SUMMARY")
+        log0(f"seed={args.seed} val_bpb={q_val_bpb:.8f} val_loss={q_val_loss:.8f} "
+             f"steps={step} step_avg_ms={training_time_ms/max(step,1):.2f} "
+             f"elapsed_s={total_elapsed_s:.1f}")
+        log0(f"recur_steps={args.recur_steps} dim={args.model_dim} heads={args.num_heads} "
+             f"ttt_steps={args.ttt_steps} ttt_lr={args.ttt_lr} "
+             f"artifact_bytes={quant_file_bytes + code_bytes}")
+
     if distributed:
         dist.destroy_process_group()
 
