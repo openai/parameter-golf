@@ -20,12 +20,17 @@ You run autonomously. The human is asleep or away. You promote your own wins, jo
 
 ## What you are NOT doing
 
-- Not optimizing the existing transformer config. The previous session got val_bpb 2.087 (exp 0062, K=3 L=3 + SwiGLU mlp=8) on the MPS smoke; that is your *comparison anchor*, not a starting fork to tune.
-- Not trying to set leaderboard SOTA. Realistic targets at our regime per `SSM_PRIMER.md` §4.7: beat naive baseline (val_bpb < 2.521 on this MPS smoke), match transformer best (< 2.087), produce an honest non-record submission for OpenAI's wishlist track. Beating 0062 substantively is aspirational — the primer's main body estimates <2% probability in any short budget; its critique section disagrees (~30-40% probability of an "interesting result" that beats 1.18 BPB on H100). Both are research opinions; see journal.md Current threads.
+- Not optimizing the existing transformer config. MPS smoke baselines (canonical 2.521; prior transformer-best 2.087) are *correctness ledger*, not the target. The real comparison anchor is **H100 SP1024 1.1063 BPB** (Mar 31, 2026 — `records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence`). MPS 200-step val_bpb is a *ranking signal* for architectural deltas, not a leaderboard number.
+- Not chasing "honest non-record" as a charity classification. Non-record exists for submissions that violate strict record rules (SLOT, ETLB, pre-quant TTT) — NOT for "we omitted standard techniques." Don't hide a weak number there.
 - Not running with assumed thresholds. The previous session's noise floor (~0.0024 cross-seed for stable transformer configs) does not auto-transfer. Mamba's documented sharp LR cliffs (primer §4.2) make freak single-seed runs more likely; SSM noise floor is likely different. Characterize via the `noise-floor-sentinel` skill on your first stable SSM block.
-- **Not promoting before noise-floor-sentinel for the architecture family**. Until the sentinel completes for an SSM family, every win is `status=keep` only — never invoke `promote`. The previous transformer session's documented anti-pattern (single-seed direct-promote-zone wins piling up before cross-seed confirms) is more dangerous in the SSM regime where Mamba's LR cliffs make freak-good first-seed runs more likely. This is operational rule, not suggestion.
+- **Not promoting before multi-seed confirm of the architecture**. Single-seed exploration is fine for triage of new families/blocks; multi-seed confirms gate promotion. Promote discipline does not loosen — direct-promotes inflate Δ by 10-20%; the SEED=42 confirm reins it back. The previous transformer session's documented anti-pattern (single-seed direct-promote-zone wins piling up) is more dangerous in the SSM regime where Mamba's LR cliffs make freak-good first-seed runs more likely.
+- **Not porting the standard stack until you know what you're carrying.** Tier-1 ports (sliding-window eval, parallel residuals, EMA, Brotli, warmdown=3000, WD≈0.05) and Tier-2 (AR self-gen GPTQ int6) take 1-2 overnight sessions. Port them ONLY around a confirmed novel mechanism — porting blind is leaderboard catch-up dressed as research.
 
-The deliverable is the work + the writeup. Even without a leaderboard win, an honest characterization of what was tried, what failed, and *why* (with derivations and measurements) is a valuable contribution to OpenAI's wishlist track — and is the actual goal here. When BPB returns flatten *within* the current axis, that's a signal to pivot to a *different* axis (a new architecture family, a bigger code change, an untried module) — there are always more axes to try, and each clean ablation strengthens the writeup as much as a small BPB gain would. The session ends only when the human stops it.
+**The deliverable is `train_gpt.py` for H100 20k-step.** It must include: (i) architecture + ported standard stack, (ii) the SSM contribution measured in isolation by toggling architecture positions against the same stack (mechanism ablation), (iii) predicted H100 landing zone with honest uncertainty bands. MPS numbers are a correctness ledger — they catch implementation bugs and rank deltas, but the writeup-quoted numbers are H100. When BPB returns flatten *within* the current axis, that's a signal to pivot to a *different* axis. The session ends only when the human stops it.
+
+**Mechanism ablations come BEFORE stack porting.** A val_bpb gain at MPS 200-step can be (A) the mechanism actually working, (B) parameter capacity, (C) just-trains-faster-early under under-training. Without distinguishing these, the writeup is "we used a thing and it worked" — leaderboard work, not a wishlist contribution. For any architectural win you'd quote in the writeup, run the selectivity-killed / param-matched / d_state-stripped ablation that decomposes which mechanism is load-bearing. Single-seed each, ~25 min, decisive.
+
+**Breadth-first, depth-second.** Patterns transfer MPS→H100; precise deltas don't. Single-seed is fine for triage of a new family or block class. Reserve multi-seed confirms for promote candidates and writeup-quoted numbers. If your last ~5 experiments are mostly confirms within one family, scan something new before the next confirm.
 
 ## Reference baseline
 
@@ -72,7 +77,7 @@ If the human gave a wrap-time, treat it as a soft horizon, not a hard deadline. 
 ## Permissions
 
 You CAN:
-- Edit `train_gpt.py` *inside an experiment folder* (`experiments/NNNN_<slug>/train_gpt.py`).
+- Edit `train_gpt.py` *inside an experiment folder* (`experiments/NNNN_<slug>/train_gpt.py`). Single-file is preferred, but clarity matters; if a huge change genuinely doesn't fit, or if you found it difficult navigating train_gpt.py as it has grown, additional files MUST live in `experiments/NNNN_<slug>/modules/` — that subdirectory is the only path `new_experiment.sh` carries forward when a child experiment forks from this one. Anything outside of `train_gpt.py`, `env.sh`, and `modules/` will be silently dropped on the next fork. See `train_gpt.py` header.
 - Set environment variables in the experiment's `env.sh`.
 - Read any file in the repo.
 - Create files in `scratch/` (gitignored, ephemeral).
@@ -215,6 +220,8 @@ Use the **`launch-and-await`** skill for the standard pattern: launch in backgro
 ## Subagent for code edits
 
 For any code change >20 lines, multiple functions touched, or anything you'd struggle to keep in working memory: invoke the **`subagent-handoff`** skill. Carries the plan.md contract, spawn prompt template, review checklist, and one-shot-per-plan rule. Use this often. Every advance in the previous SSM session — S4D-Lin (exp 0002), depth-recurrence on SSM (0006), BigramHash (0018) — was a subagent code-change experiment. Env-var sweeps closed axes but never advanced the headline. When the next idea requires real code, that's the highest-EV next step, we made the subagent skill specifically to reduce friction - never avoid it, as it as much as you can.
+
+Subagent code changes target files inside the experiment folder. Single-file is preferred, but clarity matters. If a change genuinely needs more than `train_gpt.py`, instruct the subagent to put extra files under `experiments/NNNN_<slug>/modules/` — that subdir is what `new_experiment.sh` carries forward on the next fork; files placed elsewhere are silently dropped.
 
 ## Wrapping a session
 

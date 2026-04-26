@@ -3,8 +3,10 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (PROMOTED 2026-04-26 16:48)**: exp 0032/0034 2-seed mean **val_bpb 2.06016** (cross-seed σ_pair=0.0022), K=3 L=3 + SwiGLU(mlp=8) + ATTN at positions 0,2 + Mamba-2/SSD chunkwise selective at position 1 + BigramHash(4096,64). Beats prior SSM-best 2.0839 by **0.0237 BPB (~7.2σ at joint precision)**. Beats transformer-best 2.0869 by 0.027 BPB. Path: `winners/2026-04-26_mamba2_ssd_recur3x3_swiglu_mlp8_2attn_bigramhash/`. The Mamba-2 chunkwise selective scan (per primer §2.2 / arXiv:2405.21060) was MPS-feasible where Mamba-1's sequential scan was not (cf 0028). Open: 3rd seed for σ estimate; multi-position Mamba-2; pure-Mamba-2 saturation row. [transfer:high]
-- **Prior best (superseded)**: exp 0018/0019/0020/0024 4-seed mean **val_bpb 2.08389** (σ=0.0038), K=3 L=3 + SwiGLU(mlp=8) + 2-of-3 attention (positions 0,2 sandwich) + S4D-Lin + BigramHash(4096,64). Path: `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`. Headline note: "5σ"-style framing in the original writeup is too strong; 4-seed σ-multiple was actually 1.6σ vs transformer-best.
+- **Current best (PROMOTED 2026-04-26 17:30)**: exp 0035/0036 2-seed mean **val_bpb 2.04171** (cross-seed σ_pair=0.0036), K=3 L=3 + SwiGLU(mlp=8) + Mamba-2/SSD selective at positions 0,1 + ATTN at position 2 + BigramHash(4096,64). Beats prior SSM-best 2.06016 by **0.0185 BPB (~5.3σ at joint precision)**. Beats transformer-best 2.0869 by **0.045 BPB**. Path: `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. The compound trend: each Mamba-2 position adds ~0.02 BPB (0→1: -0.024; 1→2: -0.018). [transfer:high — but mechanism not yet decomposed; 0038 selectivity-kill ablation is the deciding test]
+- **Superseded** (kept for trace): 
+  - 0032/0034 (Mamba-2 1 of 3): 2-seed mean 2.06016. `winners/2026-04-26_mamba2_ssd_recur3x3_swiglu_mlp8_2attn_bigramhash/`
+  - 0018-0024 (S4D-Lin sandwich + BigramHash): 4-seed mean 2.08389. `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`. Original "5σ" headline was overstated; 4-seed σ-multiple was 1.6σ vs transformer-best.
 - **Prior transformer-best (now superseded)**: exp 0062 val_bpb 2.08687 at `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Architecture is comparison-only (don't inherit recur+SwiGLU directly); schedule/optimizer/init defaults ARE inherited — see "Starting env.sh" bullet. Hybrid-composition details: grep `summaries/_archive_transformer/2026-04-25_overnight_session.md`.
 
 - **Starting env.sh for SSM experiments** (architecture-independent transformer wins, [transfer:high] in archive). Set these for any SSM experiment to avoid running on canonical defaults that under-train at 200 steps:
@@ -366,4 +368,95 @@ Cross-seed Δ = 0.0021 — tight (similar to other recur+SwiGLU+S4D 2-seed famil
 1. Multi-position Mamba-2 (Mamba-2 at 2 of 3 unique blocks): does the win compound?
 2. Pure-Mamba-2 (all 3 unique blocks = Mamba-2, no attention): completes the family-comparison saturation row.
 3. d_state sweep on Mamba-2 (parking-lot from walk note).
+
+## 2026-04-26 17:10 EDT · exp 0035 · multi-position Mamba-2 COMPOUNDS — val 2.0399 single-seed
+
+**Question**: Does the Mamba-2/SSD win compound at MORE positions? Replace ATTN at position 0 with Mamba-2; pattern becomes Mamba2-Mamba2-ATTN looped ×3 = 6 Mamba-2 + 3 attn effective layers.
+
+**Setup**: env-var-only change vs 0032 (ATTN_LAYER_POSITIONS=2, MAMBA2_LAYER_POSITIONS=0,1). Same code, same schedule, same BigramHash.
+
+**Prediction** [CONJECTURE]: val ∈ [2.030, 2.090]. Compound win < 2.045 (30%); saturate (50%); loss > 2.075 (20%).
+
+**Result**: val_bpb_post_quant = **2.0399** — DECISIVE compound win, well into "compound" zone.
+
+| Mamba-2 positions | val_bpb (single-seed unless noted) | Δ vs prior best |
+|---|---|---|
+| None (0024 BigramHash 4-seed mean, S4D-Lin sandwich) | 2.0839 | — |
+| 1 of 3 (0032/0034 2-seed mean, position 1) | 2.0602 | **−0.0237** |
+| **2 of 3 (0035 single seed, positions 0,1)** | **2.0399** | **−0.0203** |
+| 3 of 3 (pure Mamba-2, untested) | ? | ? |
+
+**Per-position incremental gain**: 0→1 = -0.024; 1→2 = -0.020. Roughly linear. Pure-Mamba-2 (3 of 3) extrapolates to ~2.020 if linearity continues, but possibly worse if zero-attention loses recall (cf 0006/0008 no-attn pattern at S4D-Lin where val was 2.16 — ~0.07 worse than S4D-attn hybrid).
+
+**Step time**: 5.65 s/step (vs 0032's 5.59s — basically same). The compound win is essentially **free of compute cost**.
+
+**Artifact**: 13.27 MB. Quant tax 0.0024 (normal).
+
+**Conclusion** [CONJECTURE — single seed]: at our 200-step regime, replacing 2 of 3 unique blocks with Mamba-2/SSD beats the 1-of-3 sandwich by 0.02 BPB. The selective-SSM contribution scales with position count up to at least 2 of 3. SEED=42 confirm needed before promote.
+
+**Algebraic frame** (from 16:41 walk note): Mamba-2's diagonal-commutative dynamics are matmul-friendly AND scale with layer-count up to ~2 of 3 effective layers. The 0035 result strengthens the "selectivity > attention at our regime" claim.
+
+**Next**: SEED=42 confirm of 0035 (= 0036). If confirms, promote. Then pure-Mamba-2 (3 of 3, no attention).
+
+## 2026-04-26 17:30 EDT · exp 0036 · Mamba-2 2-of-3 CONFIRMED — 2-seed mean 2.0417, PROMOTED (supersedes 0032/0034)
+
+**Question**: SEED=42 confirm of 0035 (Mamba-2 at 2 of 3 positions, val 2.0399 single-seed).
+
+**Result**: val_bpb_post_quant = **2.04349** (vs 0035 SEED=1337 = 2.03994). Cross-seed Δ = 0.0036, tight. **2-seed mean = 2.04171.**
+
+**Conclusion** [VERIFIED at 2-seed]:
+- Δ vs 0032/0034 prior promote (2.06016) = **−0.01845 BPB** at 2-seed precision.
+- Joint σ_mean ≈ 0.0035 (assuming similar σ for both pairs). Δ/σ_joint ≈ **5.3σ** — clearly significant.
+- Compound trend confirmed: each added Mamba-2 position contributes ~0.02 BPB. 0→1: -0.024 BPB; 1→2: -0.018 BPB.
+
+**Promote ritual executed**:
+- Created `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/` from 0035.
+- Updated Current Threads — 0032/0034 explicitly marked superseded with trace pointer.
+- Removed pycache, final_model.pt.
+
+**Architecture (writeup-ready)**:
+- K=3 unique blocks looped L=3 (effective depth 9)
+- Mamba-2/SSD at positions 0, 1 (per K=3 group) → 6 effective Mamba-2 layers after looping
+- ATTN at position 2 → 3 effective attention layers
+- SwiGLU MLP=8
+- BigramHash(4096, 64) recall augmentation
+- Inherited transformer schedule (warmdown=300, init=0.05, batch=24576, matrix_lr=0.045, muon_steps=15, lr_warmup=30)
+
+**The mechanism question (NOT YET DECOMPOSED)**:
+
+The 0.045 BPB improvement vs transformer-best could be:
+- (A) Selectivity is load-bearing — input-dep dt/B/C
+- (B) Parameter capacity — Mamba-2 block is bigger than attention block
+- (C) Auxiliary structure — conv1d, gate via z, etc.
+
+**Without 0038 (selectivity-kill ablation, prepped and verified), the writeup cannot claim "selectivity helps."** It can only claim "the Mamba-2 hybrid lands here." The mechanism ablation is the next experiment per program.md update.
+
+**Next**: launch 0038 selectivity-killed Mamba-2 (already verified — FFT-conv duality 1.96e-8, param Δ +0.0077%). Then per the user's strategic update: param-matched transformer, then 0029 transformer+BigramHash (lower priority but still useful).
+
+## 2026-04-26 17:14 EDT · directive update · novelty triage > more architecture exploration
+
+**User strategic reset arrived while 0036 was running**. Multiple framing shifts:
+
+1. **Target anchor**: NOT transformer-best 2.087 MPS (smoke-test number), but **H100 SP1024 ceiling 1.1063 BPB** (records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence). MPS = correctness ledger, not target.
+2. **Differentiation audit**: at the SP1024 frontier, our stack differs in exactly ONE row — SSM block in the recurrence loop. Everything else (depth recurrence, BigramHash, SwiGLU) is shared OR we're behind. The SSM contribution we've claimed must be measured against transformer + BigramHash (0029, never run).
+3. **"Honest non-record track" is NOT a charity classification** — non-record exists for SLOT/ETLB/TTT violations, not "we omitted standard techniques."
+4. **Triage novelty axes single-seed before stack porting**:
+   - 0029 transformer + BigramHash — settles whether SSM contribution exists at all
+   - 0028 Mamba-1 (already done, MPS-infeasible)
+   - MLP=10 sandwich+BigramHash — "spend SSM cap savings" from 1519 walk
+   - Mamba-2/SSD — already done with strong signal (compound win 2.04 single-seed)
+5. **Stack porting AFTER novelty confirmation**: sliding-window eval, parallel residuals, EMA, Brotli, warmdown=3000, WD≈0.05. Tier-1 are correctness-verifiable on MPS.
+6. **Promote discipline kept**: multi-seed-before-promote stays. Change is in EXPLORATION allocation only.
+
+**Reset's stale state**: it referenced 0030 still running (was killed) and 0029 not launched (correct). Did not yet account for 0035's compound win (val 2.0399 single seed). The "0.003 BPB at 4-seed precision" framing is now 0.047 BPB at single-seed (vs transformer-best). But the differentiation question remains: the entire 0.047 could be BigramHash if BigramHash transfers to all-attention. **0029 settles this.**
+
+**Adjusted plan from this point**:
+1. Let 0036 finish (running, ~17 min) — it's the 2-seed promote confirm for 0035, which is keep-discipline.
+2. After 0036: if confirms, promote 0035/0036. Do NOT run more sandwich seeds.
+3. Skip 0037 pure-Mamba-2 (was next).
+4. Launch 0029 transformer+BigramHash IMMEDIATELY after promote step.
+5. Then MLP=10 sandwich+BigramHash.
+6. Then evaluate: does Mamba-2 differentiation survive the BigramHash baseline? If yes → port standard stack. If no → honest "Pareto-equivalent" framing.
+
+**The deliverable redefinition**: train_gpt.py for H100 20k-step + (i) ported stack + (ii) SSM contribution measured in isolation by toggling positions against same stack + (iii) predicted H100 landing zone with honest uncertainty bands.
 
