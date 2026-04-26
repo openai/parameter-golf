@@ -225,7 +225,7 @@ When the human signals stop, when wall-clock runs short, or at a natural endpoin
 - `TECHNIQUES_INDEX.md` — SSM technique families at top; transformer-records summary below for hybrid composition.
 - `references/INDEX.md` — vendored mamba-minimal + selective_scan_ref + curl-on-demand pointers. Vendored code in `references/` is licensed for adaptation (with attribution headers preserved); adapt freely.
 - `records/` — transformer leaderboard records. Read for *categories of techniques* (BigramHash, GPTQ, EMA, depth recurrence) — **do not copy code**. These are active leaderboard submissions under their own licenses; plagiarism defeats the point.
-- `winners/` — prior session's transformer wins. Snapshot of exp 0062 (val_bpb 2.087) is `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Read for context, not as starting forks (unless explicitly building a hybrid).
+- `winners/` — two architectural-endpoint transformer wins kept live: `2026-04-25_recur_3x3_swiglu_mlp3/` and `2026-04-25_recur_3x3_swiglu_mlp8/` (the latter is the val_bpb 2.087 comparison anchor). Twelve schedule-tuning intermediates are archived under `winners/_archive_transformer/`; their findings are already in journal.md Current threads. Read live winners for hybrid-composition context, not as starting forks.
 
 ## NEVER STOP
 

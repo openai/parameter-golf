@@ -38,6 +38,10 @@
 ### Surveys
 - A Survey on State Space Models — arxiv:2404.09516
 
+### Cool Exploration (you should take a look when you have time)
+
+- Differentiable Finite State Machines: https://google-research.github.io/self-organising-systems/2022/diff-fsm/
+
 ## Transformer/optimizer techniques retained (for hybrid composition)
 
 Reference list. Read selectively when grounding a hypothesis. Fetch with `curl https://arxiv.org/pdf/<id>` only when you specifically need it. **Do not browse the web freely.**
