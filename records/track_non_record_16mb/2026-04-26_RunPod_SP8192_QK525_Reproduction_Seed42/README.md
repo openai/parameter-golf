@@ -36,7 +36,13 @@ TorchDynamo import issue.
 - `README.md` - this file.
 - `submission.json` - metadata for this non-record reproduction bundle.
 - `requirements.txt` - missing runtime dependencies observed during the run.
-- `train_gpt.py` - runnable reproduction script.
+- `train_gpt.py` - runnable reproduction script, stored as the compressed
+  LZMA/base85 wrapper used by the source record.
+- `train_gpt_unpacked.py` - audit-only unpacked source extracted from
+  `train_gpt.py`.
+- `train_gpt_unpacked.sha256` - SHA-256 digest for the unpacked source.
+- `verify_unpacked_source.py` - verifies that the unpacked source matches the
+  compressed wrapper payload and hash.
 - `train_seed42_runpod.log` - original 8xH100 training log.
 - `pack_seed42_recovery.log` - checkpoint packaging and partial eval log.
 
@@ -69,6 +75,14 @@ Run on 8xH100:
 ```bash
 SEED=42 QK_GAIN_INIT=5.25 TTT_ENABLED=1 TTT_LR=0.005 TTT_EPOCHS=3 \
   torchrun --standalone --nproc_per_node=8 train_gpt.py
+```
+
+`train_gpt.py` is intentionally the compressed two-line LZMA/base85 wrapper from
+the source record, so it executes the decompressed payload directly. For review,
+inspect `train_gpt_unpacked.py` instead. To verify it matches the wrapper:
+
+```bash
+python3 verify_unpacked_source.py
 ```
 
 ## Why This Is Non-Record
