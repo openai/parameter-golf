@@ -112,14 +112,34 @@ Thresholds (applied to total artifact = code + compressed weights):
 
 ## Section 4 — Architectural Constraints (Current Sprint)
 
-sprint_id: SPRINT-001
-quantization_target: 6-bit (via auto-gptq or autoawq)
-lora_rank: 4 (applied to Q, V projections only)
-attention_type: sliding_window
-sliding_window_size: TBD — set at sprint start
-weight_tying: YES — embedding and output projection share weights
-lookahead: FORBIDDEN — any attention pattern requiring future tokens is a violation
-no_lookahead_enforcement: strict
+sprint_id: SPRINT-002
+sprint_kind: ablation_study
+target_baseline: upstream SOTA at commit 8b148a0 (Scylla + Full GPTQ-6bit + XSA-all + FA3) — val_bpb 0.9485, 3-seed mean
+
+### Ablation Matrix
+
+| Row | Components                              | Seeds | Purpose                                    |
+|-----|------------------------------------------|-------|--------------------------------------------|
+| B0  | Scylla + GPTQ-6bit + XSA-all + FA3       | 5     | Replicate baseline; tighten CI vs upstream |
+| A1  | B0 minus GPTQ (full precision weights)   | 3     | Quantization contribution to BPB           |
+| A2  | B0 minus XSA-all (vanilla SWA)           | 3     | Sparse-attention contribution              |
+| A3  | B0 minus FA3 (PyTorch SDPA)              | 3     | Kernel-level contribution                  |
+| A4  | B0 minus Scylla (vanilla GPT block)      | 3     | Architecture contribution                  |
+| A5  | B0 with GPTQ-4bit (vs 6-bit)             | 3     | Precision-axis frontier within GPTQ        |
+| C1  | B0 minus {GPTQ, XSA}                     | 3     | Quant × sparse-attn interaction            |
+| C2  | B0 minus {XSA, FA3}                      | 3     | Sparse-attn × kernel interaction           |
+
+significance_threshold: p < 0.05 against B0 (Welch's t-test, two-sided)
+output_per_run: structured JSON {bpb, train_s, eval_s, artifact_bytes, seed, config_hash}
+output_aggregate: ablation summary table for paper Section 4
+
+### Sprint 002 Discipline
+
+- Single-component changes only per row; no compounded edits within an individual ablation.
+- Both wallclock budgets (training 600s, eval 600s) enforced — exceeding either disqualifies the row.
+- All ablations must be flag-toggleable in train_gpt.py (no separate forks of the source). Flags: `--gptq-bits`, `--no-xsa`, `--no-fa3`, `--no-scylla`.
+- No new dependencies introduced; ablations swap to alternatives already importable (PyTorch SDPA replaces FA3, vanilla SWA replaces XSA, vanilla GPT block replaces Scylla).
+- A5 (GPTQ-4bit) preserves the post-training quantization paradigm; BitNet/ternary training-time quantization is explicitly out-of-scope for Sprint 002.
 
 ### Time Budget (per submission run, 8×H100 SXM)
 
@@ -148,3 +168,4 @@ Preferred architecture patterns (priority order):
 | watchdog.py            | 0567086f431b163485a301cfa3f41ef9                 | 2026-04-24 |
 | requirements.txt       | 084fe1fc84c2fc35c08497947a45dfff                 | 2026-04-24 |
 | .kiro/skills/parameter-golf.md | 823d5ddcd0a5b91a4daccfa8c79a51d2                 | 2026-04-24 |
+                                                                                                                                                      
