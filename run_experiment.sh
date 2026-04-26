@@ -16,6 +16,30 @@ if [[ ! -f result.json || ! -f train_gpt.py || ! -f env.sh ]]; then
   exit 1
 fi
 
+if [[ ! -f plan.md ]]; then
+  echo "Error: plan.md missing. Fill Question / Hypothesis / Change / Disconfirming before running." >&2
+  exit 1
+fi
+
+UNFILLED_PATTERNS=(
+  '<!-- What are you actually asking'
+  '<!-- Predicted direction and magnitude'
+  '<!-- Exact env vars'
+  '<!-- What outcome would falsify'
+)
+UNFILLED_COUNT=0
+for pat in "${UNFILLED_PATTERNS[@]}"; do
+  if grep -qF "$pat" plan.md; then
+    UNFILLED_COUNT=$((UNFILLED_COUNT + 1))
+  fi
+done
+if (( UNFILLED_COUNT > 0 )); then
+  echo "Error: plan.md has ${UNFILLED_COUNT} unfilled template section(s)." >&2
+  echo "Fill Question, Hypothesis, Change, and Disconfirming with real content before running." >&2
+  echo "(Replace the <!-- ... --> placeholders, don't just append below them.)" >&2
+  exit 1
+fi
+
 EXPERIMENT_ID=$(basename "$(pwd)")
 REPO_ROOT="$(cd ../.. && pwd)"
 
@@ -31,7 +55,7 @@ STRUCTURED_LOG="logs/${RUN_ID}.txt"
 
 echo "Running ${EXPERIMENT_ID}..."
 set +e
-python train_gpt.py > run.log 2>&1
+"${REPO_ROOT}/.venv/bin/python" train_gpt.py > run.log 2>&1
 RUN_RC=$?
 set -e
 

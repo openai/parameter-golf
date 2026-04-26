@@ -1,0 +1,80 @@
+logs/0018_recur3x3_swiglu_2attn_bigramhash.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=../../data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=../../data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:15360
+[GPT] Depth-recurrence ENABLED: K=3 unique blocks, L=3 loops, effective depth K*L=9. U-Net skip-weights DISABLED.
+model_params:21830673
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.045 scalar_lr:0.04
+train_batch_tokens:24576 train_seq_len:1024 iterations:200 warmup_steps:0 lr_warmup_steps:30 max_wallclock_seconds:0.000
+seed:1337
+/Users/tonyliu/Desktop/projects/parameter-golf-ssm/experiments/0018_recur3x3_swiglu_2attn_bigramhash/train_gpt.py:697: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [3, 512, 1025]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  Uf = torch.fft.rfft(u_t, n=nfft)
+/Users/tonyliu/Desktop/projects/parameter-golf-ssm/experiments/0018_recur3x3_swiglu_2attn_bigramhash/train_gpt.py:698: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [512, 1025]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  Kf = torch.fft.rfft(K, n=nfft)  # (D, nfft//2+1)
+/Users/tonyliu/Desktop/projects/parameter-golf-ssm/experiments/0018_recur3x3_swiglu_2attn_bigramhash/train_gpt.py:700: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [3, 512, 2048]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  y = torch.fft.irfft(Yf, n=nfft)[..., :L]  # (B, d_inner, L)
+/Users/tonyliu/Desktop/projects/parameter-golf/.venv/lib/python3.14/site-packages/torch/autograd/graph.py:869: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [3, 512, 1025]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+step:1/200 train_loss:20.6979 train_time:5509ms step_avg:5509.10ms
+step:2/200 train_loss:20.3279 train_time:10376ms step_avg:5187.85ms
+step:3/200 train_loss:19.4446 train_time:15277ms step_avg:5092.43ms
+step:4/200 train_loss:18.2303 train_time:20191ms step_avg:5047.80ms
+step:5/200 train_loss:16.3950 train_time:25103ms step_avg:5020.55ms
+step:6/200 train_loss:14.0161 train_time:30032ms step_avg:5005.27ms
+step:7/200 train_loss:11.1718 train_time:34986ms step_avg:4998.06ms
+step:8/200 train_loss:8.3943 train_time:39892ms step_avg:4986.45ms
+step:9/200 train_loss:6.6180 train_time:44818ms step_avg:4979.79ms
+step:10/200 train_loss:5.8753 train_time:49728ms step_avg:4972.79ms
+step:15/200 train_loss:5.8451 train_time:74422ms step_avg:4961.46ms
+step:20/200 train_loss:5.5874 train_time:98943ms step_avg:4947.14ms
+step:25/200 train_loss:5.0384 train_time:123421ms step_avg:4936.85ms
+step:30/200 train_loss:4.8079 train_time:147887ms step_avg:4929.57ms
+step:35/200 train_loss:4.5979 train_time:172388ms step_avg:4925.38ms
+step:40/200 train_loss:4.4961 train_time:196856ms step_avg:4921.40ms
+step:45/200 train_loss:4.4100 train_time:221310ms step_avg:4918.00ms
+step:50/200 train_loss:4.3593 train_time:245783ms step_avg:4915.66ms
+step:55/200 train_loss:4.2604 train_time:270241ms step_avg:4913.46ms
+step:60/200 train_loss:4.3143 train_time:294710ms step_avg:4911.83ms
+step:65/200 train_loss:4.2907 train_time:319198ms step_avg:4910.74ms
+step:70/200 train_loss:4.1164 train_time:343665ms step_avg:4909.50ms
+step:75/200 train_loss:4.0752 train_time:368162ms step_avg:4908.82ms
+step:80/200 train_loss:4.0528 train_time:392636ms step_avg:4907.95ms
+step:85/200 train_loss:3.8686 train_time:417120ms step_avg:4907.29ms
+step:90/200 train_loss:3.9021 train_time:441584ms step_avg:4906.49ms
+step:95/200 train_loss:3.9071 train_time:466053ms step_avg:4905.82ms
+step:100/200 train_loss:3.7810 train_time:490549ms step_avg:4905.49ms
+step:105/200 train_loss:3.7672 train_time:515047ms step_avg:4905.21ms
+step:110/200 train_loss:3.8623 train_time:539571ms step_avg:4905.19ms
+step:115/200 train_loss:3.6603 train_time:564038ms step_avg:4904.67ms
+step:120/200 train_loss:3.9288 train_time:588519ms step_avg:4904.33ms
+step:125/200 train_loss:3.7587 train_time:613004ms step_avg:4904.03ms
+step:130/200 train_loss:3.6127 train_time:637483ms step_avg:4903.71ms
+step:135/200 train_loss:3.7446 train_time:661975ms step_avg:4903.52ms
+step:140/200 train_loss:3.7133 train_time:686438ms step_avg:4903.13ms
+step:145/200 train_loss:3.6925 train_time:710912ms step_avg:4902.84ms
+step:150/200 train_loss:3.7068 train_time:735406ms step_avg:4902.71ms
+step:155/200 train_loss:3.5736 train_time:759858ms step_avg:4902.31ms
+step:160/200 train_loss:3.6682 train_time:784337ms step_avg:4902.11ms
+step:165/200 train_loss:3.5166 train_time:808811ms step_avg:4901.88ms
+step:170/200 train_loss:3.5700 train_time:833268ms step_avg:4901.58ms
+step:175/200 train_loss:3.5504 train_time:857749ms step_avg:4901.42ms
+step:180/200 train_loss:3.3791 train_time:882203ms step_avg:4901.13ms
+step:185/200 train_loss:3.4036 train_time:906694ms step_avg:4901.05ms
+step:190/200 train_loss:3.4481 train_time:931184ms step_avg:4900.97ms
+step:195/200 train_loss:3.3499 train_time:955669ms step_avg:4900.86ms
+step:200/200 train_loss:3.4843 train_time:980146ms step_avg:4900.73ms
+/Users/tonyliu/Desktop/projects/parameter-golf-ssm/experiments/0018_recur3x3_swiglu_2attn_bigramhash/train_gpt.py:697: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [1, 512, 1025]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  Uf = torch.fft.rfft(u_t, n=nfft)
+/Users/tonyliu/Desktop/projects/parameter-golf-ssm/experiments/0018_recur3x3_swiglu_2attn_bigramhash/train_gpt.py:700: UserWarning: An output with one or more elements was resized since it had shape [], which does not match the required output shape [1, 512, 2048]. This behavior is deprecated, and in a future PyTorch release outputs will not be resized unless they have zero elements. You can explicitly reuse an out tensor t by resizing it, inplace, to zero elements with t.resize_(0). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/Resize.cpp:38.)
+  y = torch.fft.irfft(Yf, n=nfft)[..., :L]  # (B, d_inner, L)
+step:200/200 val_loss:3.5562 val_bpb:2.0807 train_time:980225ms step_avg:4901.12ms
+Serialized model: 85764259 bytes
+Code size: 58866 bytes
+Total submission size: 85823125 bytes
+Serialized model int8+zlib: 12207393 bytes (payload:22053954 raw_torch:22072748 payload_ratio:3.89x)
+Total submission size int8+zlib: 12266259 bytes
+final_int8_zlib_roundtrip val_loss:3.5603 val_bpb:2.0831 eval_time:1260ms
+final_int8_zlib_roundtrip_exact val_loss:3.56034781 val_bpb:2.08313304

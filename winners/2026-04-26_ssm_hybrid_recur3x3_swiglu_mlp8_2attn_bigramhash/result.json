@@ -1,0 +1,26 @@
+{
+  "id": "0018_recur3x3_swiglu_2attn_bigramhash",
+  "parent": "0012_recur3x3_swiglu_2attn_1s4d",
+  "created_at": "2026-04-26T09:18:51Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0807,
+    "val_bpb_post_quant": 2.08313304,
+    "val_loss_pre_quant": 3.5562,
+    "val_loss_post_quant": 3.56034781,
+    "quant_tax": 0.002433,
+    "step_avg_ms": 4900.73,
+    "num_steps": 200.0,
+    "artifact_bytes": 12266259.0,
+    "artifact_mb": 12.266,
+    "code_bytes": 58866.0,
+    "compression_ratio": 3.89
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
