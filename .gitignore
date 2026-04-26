@@ -9,3 +9,47 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Claude Code local
+.claude/
+CLAUDE.local.md
+
+# Large model artifacts (exceed GitHub size limits)
+*.pt
+*.ptz
+*.bin
+*.safetensors
+
+# Archives / PDFs
+*.zip
+*.pdf
+
+# Python
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+env/
+
+# OS / editors
+Thumbs.db
+.vscode/
+.idea/
+
+# Runs
+*.log
+runs/
+wandb/
+outputs/
+checkpoints/
+
+# Credentials (defensive)
+.env
+.env.*
+*.key
+*.pem
+*.p12
+credentials*
+*_secret*
+*_secrets*
+secrets.*
