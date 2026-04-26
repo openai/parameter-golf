@@ -1,6 +1,0 @@
-numpy>=1.24
-torch>=2.1          # required for float16 tensor-core matmul (H100 HGEMM)
-sentencepiece
-cupy-cuda12x        # optional — _gpu.py uses torch CUDA, not cupy directly
-zstandard
-huggingface_hub     # Required for the dataset download
