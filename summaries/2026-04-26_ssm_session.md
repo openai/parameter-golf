@@ -84,6 +84,34 @@ Final K=3 L=3 + recur + SwiGLU + S4D-Lin saturation table (all means over 2 seed
 - **Wider seed sweep for 0012/0014 (4-6 seeds)**: would tighten the +0.001 BPB tie claim with transformer-best.
 - **MLP=11 in 2:1 hybrid**: cap math suggests this would bust 16 MB; verify before parking.
 
+## Recall-gap decomposition vs primer §4.5
+
+Primer §4.5 said "82% of the SSM↔attention perplexity gap is associative recall." At our regime:
+
+| Lever added | val_bpb | Cumulative recovery vs gap (0.103 BPB) |
+|---|---|---|
+| Pure S4D-Lin (0002) | 2.229 | 0% (full gap remaining) |
+| + 1 attn at 1:8 ratio (0007) | 2.222 | 7% |
+| + 1:2 ratio attention (0009) | 2.098 | 64% |
+| + 2:1 sandwich attention (0012) | 2.088 | 74% |
+| + BigramHash recall (0018) | 2.082 | 79%-100% (matches/beats transformer 2.087) |
+
+So **at our regime, BigramHash (a pure recall mechanism) accounts for only ~5-10% of the closed gap**. Most of the gap (60-75%) is attention's specific contribution beyond recall — q/k/v parallel structure, softmax-bounded outputs, qk-norm, multi-head, etc. The "82% recall" framing is too coarse for our scale.
+
+## Variance regularization observation
+
+Cross-seed σ tracks attention presence in the recur+SwiGLU+S4D family:
+
+| Family | n_seeds | Implied σ |
+|---|---|---|
+| Pure S4D-Lin | 4 | 0.0031 |
+| Recur+SwiGLU+S4D (no attn) | 2 | ≈ 0.012 |
+| 1:2 hybrid | 2 | ≈ 0.002 |
+| 2:1 hybrid | 2 | ≈ 0.001 |
+| 2:1 + BigramHash | 3 | 0.001 |
+
+Adding attention drops σ ~6×. Hypothesis: SwiGLU's gated multiplication amplifies init noise nonlinearly across 9 effective layers; attention's softmax-bounded outputs short-circuit the amplification. Worth verifying with a 4-seed sentinel of the no-attn config in a future session.
+
 ## Setup notes (unblocking gotchas)
 
 - **Worktree had no `.venv` and no `.envrc`**: parent transformer worktree's `.venv` was symlinked into this worktree, and `run_experiment.sh` line 58 was edited from bare `python` to `"${REPO_ROOT}/.venv/bin/python"`. One-line change; no other harness modifications.
