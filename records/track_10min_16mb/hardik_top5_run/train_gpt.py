@@ -49,7 +49,22 @@ try:
 except ImportError:
     def flash_attn_3_func(q: Tensor, k: Tensor, v: Tensor, causal: bool = True) -> Tensor:
         scale = 1.0 / math.sqrt(q.size(-1))
-        return F.scaled_dot_product_attention(q, k, v, is_causal=causal, scale=scale)
+        q_sdpa = q.transpose(1, 2)
+        k_sdpa = k.transpose(1, 2)
+        v_sdpa = v.transpose(1, 2)
+        if q_sdpa.size(1) != k_sdpa.size(1):
+            if q_sdpa.size(1) % k_sdpa.size(1) != 0:
+                raise ValueError(
+                    f"Incompatible attention head counts for fallback SDPA: "
+                    f"q has {q_sdpa.size(1)} heads, k/v have {k_sdpa.size(1)} heads."
+                )
+            repeat_factor = q_sdpa.size(1) // k_sdpa.size(1)
+            k_sdpa = k_sdpa.repeat_interleave(repeat_factor, dim=1)
+            v_sdpa = v_sdpa.repeat_interleave(repeat_factor, dim=1)
+        out = F.scaled_dot_product_attention(
+            q_sdpa, k_sdpa, v_sdpa, is_causal=causal, scale=scale
+        )
+        return out.transpose(1, 2)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
