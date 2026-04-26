@@ -1,0 +1,15 @@
+{
+    "name": "Hymba: Hybrid Attention + Mamba SSM",
+    "github_id": "mkenney2",
+    "val_bpb": 1.1828,
+    "description": "7L hybrid attention+Mamba SSM with fused projections, learned merge, int6+zstd-22, cosine warmdown, GPTQ-lite, sliding window eval. First competitive non-transformer architecture.",
+    "is_record": false,
+    "hardware": "8xH100",
+    "training_time_seconds": 600,
+    "eval_time_seconds": 172,
+    "artifact_bytes": 15179444,
+    "num_parameters": 27161151,
+    "num_layers": 7,
+    "model_dim": 512,
+    "architecture": "hymba"
+}
