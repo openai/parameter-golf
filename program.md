@@ -31,18 +31,7 @@ The deliverable is the work + the writeup. Even without a leaderboard win, an ho
 
 The harness anchor is **experiment 0001_baseline_repro** in `results.tsv`, val_bpb 2.5212 post-quant, 6.907 MB, 200 steps. Every regression check and Δ-comparison goes against that row.
 
-The previous session's transformer best (val_bpb 2.08687, exp 0062, K=3 L=3 + SwiGLU mlp=8, path `winners/2026-04-25_recur_3x3_swiglu_mlp8/`) is a comparison anchor only. **Do not inherit the architecture** (recurrence + SwiGLU MLP=8) — that defeats the SSM exploration goal. **Do inherit the schedule/optimizer/init defaults** — they're architecture-independent ([transfer:high] in the archive) and tuned for the 200-step MPS regime. Set these in every SSM experiment's env.sh:
-
-```
-WARMDOWN_ITERS=300
-LR_WARMUP_STEPS=30
-TIED_EMBED_INIT_STD=0.05
-MUON_BACKEND_STEPS=15
-TRAIN_BATCH_TOKENS=24576
-MATRIX_LR=0.045
-```
-
-Canonical (warmdown=1200, warmup=0, batch=8192, init=0.005, muon_steps=5) is the pre-fix regime; running an SSM block on canonical confounds architecture signal with under-training. **Exception: regression-sentinel uses canonical defaults** — its job is harness-drift detection against 0001_baseline_repro, which was recorded on canonical. For hybrid-composition details beyond env.sh, grep `summaries/_archive_transformer/2026-04-25_overnight_session.md` for "Recommendations" or "Stack of confirmed wins".
+The previous session's transformer best (val_bpb 2.08687, exp 0062, K=3 L=3 + SwiGLU mlp=8, path `winners/2026-04-25_recur_3x3_swiglu_mlp8/`) is a comparison anchor only. **Do not inherit the architecture** (recurrence + SwiGLU MLP=8) — that defeats the SSM exploration goal. **Do inherit the schedule/optimizer/init defaults** ([transfer:high] in the archive) — they're architecture-independent and tuned for the 200-step MPS regime. The current values live in journal.md Current threads → "Starting env.sh for SSM experiments" so the agent can evolve them as SSM-specific findings land. Canonical (warmdown=1200, warmup=0, batch=8192, init=0.005, muon_steps=5) is the pre-fix regime; running an SSM block on canonical confounds architecture signal with under-training. **Exception: regression-sentinel uses canonical defaults** — its job is harness-drift detection against 0001_baseline_repro, which was recorded on canonical. For hybrid-composition details beyond env.sh, grep `summaries/_archive_transformer/2026-04-25_overnight_session.md` for "Recommendations" or "Stack of confirmed wins".
 
 MPS characteristics:
 - Transformer step: ~1.2 s/step → ~5 min per experiment, ~80 overnight.
