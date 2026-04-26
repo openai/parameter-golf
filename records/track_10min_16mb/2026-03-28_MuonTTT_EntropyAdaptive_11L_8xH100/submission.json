@@ -1,9 +1,0 @@
-{
-  "name": "Record: 11L Muon TTT + Entropy-Adaptive Epochs",
-  "val_bpb": 1.1179,
-  "bytes_total": 15944410,
-  "blurb": "Two novel TTT innovations on SOTA base (PR #399 + PR #414 + PR #461 stack): (1) Muon-style Newton-Schulz orthogonalized gradient updates replace SGD in the TTT loop (NS=3 steps per matrix parameter per epoch) -- more stable and effective test-time adaptation; (2) Entropy-adaptive epoch selection -- per-chunk NLL (globally synced across DDP ranks) gates between 2/3/4 TTT epochs, concentrating adaptation budget on harder content. 3-seed mean: 1.1179 (std 0.0002). All artifacts under 16MB, all eval under 10 min.",
-  "author": "Aamod Bhatt",
-  "github_id": "aamodbhatt",
-  "date": "2026-03-28"
-}
