@@ -3,18 +3,7 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Inherited transformer best (comparison anchor only)**: exp 0062 val_bpb 2.08687, K=3 L=3 + SwiGLU(mlp=8). Path: `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Reference for "what an optimized transformer at our regime achieves." **Do not inherit the architecture** (recurrence + SwiGLU MLP=8) — that defeats the SSM exploration goal. **Do inherit the schedule/optimizer/init defaults** below (architecture-independent, [transfer:high]). For full hybrid composition details, grep `summaries/_archive_transformer/2026-04-25_overnight_session.md` for "Recommendations" or "Stack of confirmed wins".
-
-- **Starting env.sh for SSM experiments** (architecture-independent transformer wins, [transfer:high] in archive). Set these in your env.sh for any SSM experiment to avoid running on canonical defaults that under-train at 200 steps:
-  ```
-  WARMDOWN_ITERS=300
-  LR_WARMUP_STEPS=30
-  TIED_EMBED_INIT_STD=0.05
-  MUON_BACKEND_STEPS=15
-  TRAIN_BATCH_TOKENS=24576
-  MATRIX_LR=0.045
-  ```
-  Canonical (warmdown=1200, warmup=0, batch=8192, init=0.005, muon_steps=5) is the pre-fix regime; running an SSM block on canonical confounds architecture signal with under-training. **Exception: regression-sentinel uses canonical defaults** — its job is harness-drift detection against 0001_baseline_repro, which was recorded on canonical.
+- **Inherited transformer best (comparison anchor only)**: exp 0062 val_bpb 2.08687, K=3 L=3 + SwiGLU(mlp=8). Path: `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Reference for "what an optimized transformer at our regime achieves." Architecture is comparison-only (do not inherit recurrence + SwiGLU); schedule/optimizer/init defaults ARE inherited — see `program.md` "Reference baseline" for the env.sh values and rationale. For hybrid-composition details, grep `summaries/_archive_transformer/2026-04-25_overnight_session.md`.
 - **SSM-family noise floor: UNCHARACTERIZED**. The transformer floor of ~0.0024 cross-seed does not auto-transfer. Run the `noise-floor-sentinel` skill on your first stable SSM block. **Until the sentinel completes for an architecture family, do NOT invoke `promote` on any SSM-family experiment in that family — treat any apparent win as informational only.** Mamba's sharp LR cliffs (primer §4.2) make freak-good first-seed runs more likely; the previous transformer session's documented anti-pattern (single-seed direct-promote-zone wins piling up before cross-seed confirms — see `summaries/_archive_transformer/2026-04-25_overnight_session.md` "methodology debt") is the exact failure mode this guardrail prevents. Update this bullet with measured σ and adjusted thresholds when sentinel completes — e.g., "S4D-Lin noise floor: σ=X measured 2026-04-26 exp NNNN-NNNN; advance threshold Δ ≥ 3σ; judgment-call window [2σ, 3σ]."
 - **Primer is internally inconsistent**: main body argues SSM is "almost certainly wrong" for parameter golf; the "Another agent's feedback" section disagrees on (a) whether to quantize the SSM (the `CONTROL_TENSOR_NAME_PATTERNS` env var makes "don't quantize" one line), (b) whether BigramHash closes the recall gap, (c) the probability of an interesting result. Treat both as research opinions; verify empirical claims with measurement; log empirical updates as `Empirical update to primer §X: ...` in entries.
 - **MPS reality** [CONJECTURE]: ~5 min per experiment for transformer-speed blocks (S4D-Lin FFT-conv likely lands here); ~15-25 min for sequential `selective_scan` (Mamba-1). Characterize in your first 2-3 experiments. CUDA kernels (mamba-ssm, causal-conv1d, Triton) unavailable — use vendored `references/mamba_minimal_model.py`.
