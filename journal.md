@@ -433,6 +433,30 @@ The 0.045 BPB improvement vs transformer-best could be:
 
 **Next**: launch 0038 selectivity-killed Mamba-2 (already verified — FFT-conv duality 1.96e-8, param Δ +0.0077%). Then per the user's strategic update: param-matched transformer, then 0029 transformer+BigramHash (lower priority but still useful).
 
+## 2026-04-26 17:35 EDT · session paused (laptop closing) — resume notes
+
+Human is closing laptop and going. I killed 0038 mid-run (was at step 10/200, healthy trajectory) since MPS won't run reliably with the laptop closed. NOT a session-end — human said "I will resume later when I am back," so no wrap-session ritual. Just leaving state ready for resumption.
+
+**State for resumption**:
+- **Current best (PROMOTED)**: 0035/0036 Mamba-2 2-of-3 hybrid, 2-seed mean **2.04171**. `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`
+- **Next experiment to run** (highest priority, math-verified, prepped): **0038 selectivity-killed Mamba-2**. Just `cd experiments/0038_mamba2_kill_selectivity && ../../run_experiment.sh` to resume. Verifier passed all 7 checks including FFT-conv duality 1.96e-8.
+- **Queued plans (next several)**:
+  - 0037 pure Mamba-2 3 of 3 (env.sh ready, plan written, not launched).
+  - 0038 selectivity-kill (just discussed).
+  - Param-matched transformer (not yet drafted) — bump d_ff or d_model to match Mamba-2 block param count, run as transformer-only baseline.
+  - 0029 transformer + BigramHash (env.sh + plan ready) — lower priority since Mamba-2 dwarfs the BigramHash-only effect, but still useful as a clean differentiation row for the writeup.
+  - Long-sequence test (env-var seq_len=2048) — does Mamba-2's advantage grow at longer context? Tests recall-mechanism story for H100 transfer.
+  - d_state sweep on Mamba-2 base (env-var only) — only if 0038 shows selectivity matters.
+
+**Open mechanism question** (decisive for the writeup):
+The 0.045 BPB improvement vs transformer-best could be (A) selectivity, (B) parameter capacity, (C) auxiliary structure. **Without 0038's result, the writeup cannot claim "selectivity helps."** Run 0038 FIRST when laptop is back open.
+
+**Math verified for 0038**:
+- Selectivity-killed Mamba-2 collapses d_state to scalar κ = ⟨B_const, C_const⟩.
+- α_h = exp(A_h · softplus(dt_bias_h)) ∈ [0.94, 0.999] — stable, in unit disk.
+- Chunkwise SSD output matches FFT-conv kernel form to 1.96e-8 abs diff.
+- Param Δ vs full Mamba-2: +128 per block (+0.0077%) — apples-to-apples.
+- See `scratch/mamba2_kill_selectivity_derivation.md` for full derivation.
 ## 2026-04-26 17:14 EDT · directive update · novelty triage > more architecture exploration
 
 **User strategic reset arrived while 0036 was running**. Multiple framing shifts:
