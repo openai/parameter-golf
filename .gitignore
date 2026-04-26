@@ -22,3 +22,6 @@ experiments/
 
 # Ephemeral scratch space the agent uses for derivations, profiling, etc.
 scratch/
+
+# Curl-on-demand vendoring of upstream SSM repos (see references/INDEX.md)
+references/_external/
