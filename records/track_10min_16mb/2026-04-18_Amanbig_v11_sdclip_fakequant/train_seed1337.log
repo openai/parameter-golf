@@ -1,0 +1,79 @@
+============================================================
+PARAMETER GOLF v11: Top-Stack Recipe + SDClip QAT + TTT
+============================================================
+Dataset cached: 11 files
+Val tokens: 40,539,648
+
+Model: 40.51M params | 11L × 512 × MLP 4x LeakyReLU(0.5)²
+SmearGate: True | BigramHash: 4096
+Recurse: layers (3, 4, 5) x2 @ 35%
+ValueEmb: True pairs=((0, 10), (1, 9)) dim=64
+QK-Gain: 5.25 | PartialRoPE: 16/64
+ParResid: layer 7+ (4 parallel of 11)
+MuonEq-R WD=0.095 lr=0.022 | EMA: 0.9965 from 50%
+QAT: MLP int5 / Attn int6 from 80%
+Warmdown: 2880/4000 (72%)
+Legal TTT: enabled=True lr=0.005 mom=0.9 epochs=3
+Budget: 16,000,000 bytes (decimal), reserve 200,000 for code
+
+MuonEq-R: 31.75M (WD=0.095) | Scalar: 37.0K
+
+[speed] torch.compile(default) enabled
+
+Warmup...
+  warmup 5/20
+  warmup 10/20
+  warmup 15/20
+  warmup 20/20
+Warmup done!
+
+>>> step:1 val_loss:9.0041 val_bpb:3.4858 best:3.4858 time:0.0s
+
+Training:  12%|█▏        | 499/4000 [05:39<31:34,  1.85step/s] loss=3.4218, lr=0.02200, bsz=510K, time=270s
+>>> step:500 val_loss:3.4858 val_bpb:1.3495 best:1.3495 time:270.0s
+
+Training:  25%|██▍       | 999/4000 [10:44<27:06,  1.85step/s] loss=3.2283, lr=0.02200, bsz=510K, time=541s
+>>> step:1000 val_loss:3.2848 val_bpb:1.2717 best:1.2717 time:540.9s
+
+Training:  35%|███▍      | 1399/4000 [14:21<23:29,  1.85step/s] loss=3.1912, lr=0.01515, bsz=510K, time=758s
+>>> 3-layer depth recurrence (L(3, 4, 5)) enabled at step 1400
+
+Training:  50%|████▉     | 1999/4000 [25:27<19:30,  1.71step/s] loss=3.1613, lr=0.00985, bsz=510K, time=1348s, Rec=ON
+>>> step:2000 val_loss:3.1019 val_bpb:1.2008 best:1.2008 time:1348.3s
+
+>>> EMA started at step 2000
+
+Training:  62%|██████▏   | 2499/4000 [30:58<14:39,  1.71step/s] loss=3.0123, lr=0.00678, bsz=510K, time=1642s, Rec=ON
+>>> step:2500 val_loss:3.0514 val_bpb:1.1813 best:1.1813 time:1642.0s
+
+Training:  75%|███████▍  | 2999/4000 [36:28<09:48,  1.70step/s] loss=3.0014, lr=0.00423, bsz=510K, time=1935s, Rec=ON
+>>> step:3000 val_loss:3.0042 val_bpb:1.1630 best:1.1630 time:1935.5s
+
+Training:  80%|███████▉  | 3199/4000 [38:25<07:47,  1.71step/s] loss=3.0049, lr=0.00331, bsz=510K, time=2052s, Rec=ON
+>>> QAT mixed int5/int6 enabled at step 3200
+
+Training:  87%|████████▋ | 3499/4000 [42:57<04:52,  1.71step/s] loss=3.1953, lr=0.00200, bsz=510K, time=2286s, QAT=ON, Rec=ON
+>>> step:3500 val_loss:3.1320 val_bpb:1.2125 best:1.1630 time:2285.7s
+
+Training: 100%|██████████| 4000/4000 [49:15<00:00,  1.70s/step] loss=2.9844, lr=0.00001, bsz=510K, time=2630s, QAT=ON, Rec=ON
+>>> step:4000 val_loss:3.0665 val_bpb:1.1872 best:1.1630 time:2630.0s
+
+Non-EMA val_bpb: 1.1872
+EMA val_bpb: 1.1920
+Using non-EMA weights
+
+Pre-quant Final val_loss:3.0665 val_bpb:1.1872 time:2630.0s
+Peak VRAM: 48831 MiB
+
+[Quant] Mixed int5 MLP / int6 attn / int8 embed (k=12.85/20.0)...
+
+Artifact (brotli-shuffle): model=15,980,000 code=15,000 total=15,995,000 / budget 16,000,000 (YES)
+Roundtrip val_bpb:1.2313 (degradation: +0.0441)
+
+[Legal TTT] Score-first: SGD lr=0.005 mom=0.9 epochs=3...
+TTT val_bpb:1.2087 (vs no-TTT 1.2313, Δ -0.0226)
+
+Saved: final_model_v11.ptz (15,980,000 bytes)
+Final reported BPB: 1.2087
+============================================================
+DONE!
