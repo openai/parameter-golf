@@ -1,0 +1,68 @@
+# RunPod training, 1×H100 SXM 80GB, seed=2025
+# MuonTTT WeightTied Recurrence — SP8192 + RoPE + RMSNorm + LeakyReLU²
+# RECUR_STEPS=4  MODEL_DIM=512  NUM_HEADS=8  VOCAB_SIZE=8192  TRAIN_SEQ_LEN=1024
+# NOISY_QAT=0  TTT_STEPS=3  TTT_LR=3e-4  MAX_WALLCLOCK_SECONDS=600
+
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40540160
+model_params:7341056
+world_size:1 grad_accum_steps:8
+recur_steps:4 dim:512 heads:8 embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 logit_softcap:30.0 sdclip_std_mult:2.5
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:2025 noisy_qat:False ttt_steps:3 ttt_lr:0.0003
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.9225 val_bpb:3.8385 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.9222 train_time:943ms step_avg:942.75ms
+step:2/20000 train_loss:12.5477 train_time:1411ms step_avg:705.68ms
+step:3/20000 train_loss:12.3009 train_time:1408ms step_avg:469.43ms
+step:4/20000 train_loss:11.3172 train_time:1905ms step_avg:476.15ms
+step:5/20000 train_loss:13.7062 train_time:2403ms step_avg:480.58ms
+step:6/20000 train_loss:11.6553 train_time:2901ms step_avg:483.55ms
+step:7/20000 train_loss:10.7930 train_time:3401ms step_avg:485.79ms
+step:8/20000 train_loss:9.9859 train_time:3808ms step_avg:475.95ms
+step:9/20000 train_loss:9.6513 train_time:4311ms step_avg:478.97ms
+step:10/20000 train_loss:8.9379 train_time:4802ms step_avg:480.20ms
+step:200/20000 train_loss:4.3314 train_time:97602ms step_avg:488.01ms
+step:400/20000 train_loss:3.9722 train_time:195500ms step_avg:488.75ms
+step:600/20000 train_loss:3.8162 train_time:292900ms step_avg:488.17ms
+step:800/20000 train_loss:3.7231 train_time:390805ms step_avg:488.51ms
+step:1000/20000 train_loss:3.6336 train_time:488800ms step_avg:488.80ms
+step:1000/20000 val_loss:3.6835 val_bpb:1.4260 train_time:488809ms step_avg:488.81ms
+step:1200/20000 train_loss:3.7003 train_time:586847ms step_avg:489.04ms
+step:1227/20000 val_loss:3.6461 val_bpb:1.4115 train_time:600080ms step_avg:489.06ms
+stopping_early: wallclock_cap train_time:600080ms step:1227/20000
+peak memory allocated: 9509 MiB reserved: 9712 MiB
+Serialized model: 29368240 bytes
+Code size: 44575 bytes
+Total submission size (raw): 29412815 bytes
+Serialized model int8+zlib: 10413266 bytes (payload:11578368 raw_torch:11583904 payload_ratio:3.99x)
+Total submission size int8+zlib: 10457841 bytes
+final_int8_zlib_roundtrip val_loss:3.6952 val_bpb:1.4305 eval_time:159605ms ttt_steps:3 ttt_lr:0.0003
+final_int8_zlib_roundtrip_exact val_loss:3.69518071 val_bpb:1.43051961
+
+# SUMMARY
+seed=2025 val_bpb=1.43051961 val_loss=3.69518071 steps=1227 step_avg_ms=489.06 elapsed_s=759.7
+recur_steps=4 dim=512 heads=8 vocab_size=8192 ttt_steps=3 ttt_lr=0.0003 artifact_bytes=10457841
+
+# NOTE: Seeds 1337 and 42 pending with SP8192. Run with:
+# SEED=1337 (or 42) + same env vars above to complete the 3-seed set.
