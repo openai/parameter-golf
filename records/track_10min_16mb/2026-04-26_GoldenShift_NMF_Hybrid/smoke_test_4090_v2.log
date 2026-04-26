@@ -1,0 +1,178 @@
+
+=================================================================
+[Hybrid] GoldenShift_NMF_Hybrid Submission
+[Hybrid] GPU: ENABLED (cuda:0)
+[Hybrid] NMF: TABLE_BITS=16 (65,536 buckets)  EMBED_DIM=16  (2.1 MB uncompressed)
+[Hybrid] DSV: n_words=128 (8,192 bits)  (1.0 MB uncompressed)
+[Hybrid] seed=42  ctx_len=4  vocab_size=1024
+[Hybrid] W_COHERENCE=0.0  use_freq_weights=True
+[Hybrid] max_wallclock=600s  world_size=1
+[Hybrid] timestamp=20260426T183606
+=================================================================
+
+[Hybrid] Tokeniser loaded: vocab=1024
+[Hybrid] Loading training tokens from /workspace/parameter-golf-hdc/data/datasets/fineweb10B_sp1024...
+[TokenLoad] Loaded 100,000,000 tokens from fineweb_train_000000.bin
+[TokenLoad] Loaded 200,000,000 tokens from fineweb_train_000001.bin
+[Hybrid] Training tokens (this rank): 200,000,000
+[Hybrid] Computing G[p] rolling hash states...
+[Hybrid] g_states done in 105.8s  (1.60 GB)
+
+[Hybrid] === Phase 3: NMF Hash Table (budget=180s) ===
+
+[NMF] Building NMF hash table  TABLE_BITS=16 TABLE_SIZE=65,536  EMBED_DIM=16  max_iter=1
+[NMF Prior] Building frozen prior from first 2,000,000 tokens…
+[NMF Prior GPU] Uploaded 0.03 GB in 0.01s — processing 2,000,000 tokens…
+[NMF Prior GPU] 2,000,000/2,000,000 (100.0%) — 10.0M tok/s
+[NMF Prior GPU] Done in 2.4s — 65,536/65,536 buckets filled (100.0%)
+[NMF Prior] Done — 65,536/65,536 prior buckets filled
+[NMF Phase2 GPU] Uploaded 3.20 GB in 1.59s — processing 199,999,999 tokens…
+[NMF Phase2 GPU] 100,000,000/199,999,999 (50.0%) — 48691.7M tok/s
+[NMF Phase2 GPU] 199,999,999/199,999,999 (100.0%) — 87903.3M tok/s
+[NMF Phase2 GPU] Done in 2.2s — 65,536/65,536 buckets filled (100.0%)
+[NMF XORReg] No sparse buckets (count < 5) — skipping
+[NMF KL GPU] Active buckets: 65,536/65,536
+[NMF KL GPU] iter    0/1  KL=6.931472  t=1.60s
+[NMF KL GPU] Done — best KL=6.931472 in 1.60s
+[NMF Prune] Zeroed 0/65,536 unfilled buckets
+[NMF] Done in 10.8s  embed=2.1 MB  W_out=0.033 MB  fingerprint=0.07 MB
+
+[Hybrid] === Phase 6: GoldenAxisShift DSV (budget=360s) ===
+
+[Hybrid-DSV] Building GoldenAxisShift sem_fwd (Tier 2 fallback)
+[Hybrid-DSV] vocab=1024, n_words=128, n_bits=8,192, ctx_len=4
+[Hybrid-DSV] sem_fwd budget: 1.0 MB
+[Hybrid-DSV] 1/freq weighting: ENABLED
+[Hybrid-DSV] dist: rank=0/1, budget=360s
+[Hybrid-DSV] freq_table: total=200000128, min=1, max=4273196
+[GoldenShiftDSV] 1/freq weighting: min_freq=1, max_inv_freq=1.00000
+[GoldenShiftDSV] Lag bit offsets: [632, 241, 874, 483]
+[GoldenShiftDSV] 2,000,000/199,999,996 (1.0%) pairs=8,000,000  elapsed=1.49s
+[GoldenShiftDSV] 4,000,000/199,999,996 (2.0%) pairs=16,000,000  elapsed=1.98s
+[GoldenShiftDSV] 6,000,000/199,999,996 (3.0%) pairs=24,000,000  elapsed=2.39s
+[GoldenShiftDSV] 8,000,000/199,999,996 (4.0%) pairs=32,000,000  elapsed=2.89s
+[GoldenShiftDSV] 10,000,000/199,999,996 (5.0%) pairs=40,000,000  elapsed=3.30s
+[GoldenShiftDSV] 12,000,000/199,999,996 (6.0%) pairs=48,000,000  elapsed=3.78s
+[GoldenShiftDSV] 14,000,000/199,999,996 (7.0%) pairs=56,000,000  elapsed=4.20s
+[GoldenShiftDSV] 16,000,000/199,999,996 (8.0%) pairs=64,000,000  elapsed=4.69s
+[GoldenShiftDSV] 18,000,000/199,999,996 (9.0%) pairs=72,000,000  elapsed=5.19s
+[GoldenShiftDSV] 20,000,000/199,999,996 (10.0%) pairs=80,000,000  elapsed=5.60s
+[GoldenShiftDSV] 22,000,000/199,999,996 (11.0%) pairs=88,000,000  elapsed=6.10s
+[GoldenShiftDSV] 24,000,000/199,999,996 (12.0%) pairs=96,000,000  elapsed=6.59s
+[GoldenShiftDSV] 26,000,000/199,999,996 (13.0%) pairs=104,000,000  elapsed=7.10s
+[GoldenShiftDSV] 28,000,000/199,999,996 (14.0%) pairs=112,000,000  elapsed=7.58s
+[GoldenShiftDSV] 30,000,000/199,999,996 (15.0%) pairs=120,000,000  elapsed=8.08s
+[GoldenShiftDSV] 32,000,000/199,999,996 (16.0%) pairs=128,000,000  elapsed=8.50s
+[GoldenShiftDSV] 34,000,000/199,999,996 (17.0%) pairs=136,000,000  elapsed=8.99s
+[GoldenShiftDSV] 36,000,000/199,999,996 (18.0%) pairs=144,000,000  elapsed=9.39s
+[GoldenShiftDSV] 38,000,000/199,999,996 (19.0%) pairs=152,000,000  elapsed=10.08s
+[GoldenShiftDSV] 40,000,000/199,999,996 (20.0%) pairs=160,000,000  elapsed=10.60s
+[GoldenShiftDSV] 42,000,000/199,999,996 (21.0%) pairs=168,000,000  elapsed=11.10s
+[GoldenShiftDSV] 44,000,000/199,999,996 (22.0%) pairs=176,000,000  elapsed=11.50s
+[GoldenShiftDSV] 46,000,000/199,999,996 (23.0%) pairs=184,000,000  elapsed=12.19s
+[GoldenShiftDSV] 48,000,000/199,999,996 (24.0%) pairs=192,000,000  elapsed=12.69s
+[GoldenShiftDSV] 50,000,000/199,999,996 (25.0%) pairs=200,000,000  elapsed=13.09s
+[GoldenShiftDSV] 52,000,000/199,999,996 (26.0%) pairs=208,000,000  elapsed=13.49s
+[GoldenShiftDSV] 54,000,000/199,999,996 (27.0%) pairs=216,000,000  elapsed=14.08s
+[GoldenShiftDSV] 56,000,000/199,999,996 (28.0%) pairs=224,000,000  elapsed=14.59s
+[GoldenShiftDSV] 58,000,000/199,999,996 (29.0%) pairs=232,000,000  elapsed=15.00s
+[GoldenShiftDSV] 60,000,000/199,999,996 (30.0%) pairs=240,000,000  elapsed=15.40s
+[GoldenShiftDSV] 62,000,000/199,999,996 (31.0%) pairs=248,000,000  elapsed=15.89s
+[GoldenShiftDSV] 64,000,000/199,999,996 (32.0%) pairs=256,000,000  elapsed=16.38s
+[GoldenShiftDSV] 66,000,000/199,999,996 (33.0%) pairs=264,000,000  elapsed=16.79s
+[GoldenShiftDSV] 68,000,000/199,999,996 (34.0%) pairs=272,000,000  elapsed=17.18s
+[GoldenShiftDSV] 70,000,000/199,999,996 (35.0%) pairs=280,000,000  elapsed=17.69s
+[GoldenShiftDSV] 72,000,000/199,999,996 (36.0%) pairs=288,000,000  elapsed=18.20s
+[GoldenShiftDSV] 74,000,000/199,999,996 (37.0%) pairs=296,000,000  elapsed=18.78s
+[GoldenShiftDSV] 76,000,000/199,999,996 (38.0%) pairs=304,000,000  elapsed=19.28s
+[GoldenShiftDSV] 78,000,000/199,999,996 (39.0%) pairs=312,000,000  elapsed=19.88s
+[GoldenShiftDSV] 80,000,000/199,999,996 (40.0%) pairs=320,000,000  elapsed=20.40s
+[GoldenShiftDSV] 82,000,000/199,999,996 (41.0%) pairs=328,000,000  elapsed=20.99s
+[GoldenShiftDSV] 84,000,000/199,999,996 (42.0%) pairs=336,000,000  elapsed=21.48s
+[GoldenShiftDSV] 86,000,000/199,999,996 (43.0%) pairs=344,000,000  elapsed=22.00s
+[GoldenShiftDSV] 88,000,000/199,999,996 (44.0%) pairs=352,000,000  elapsed=22.59s
+[GoldenShiftDSV] 90,000,000/199,999,996 (45.0%) pairs=360,000,000  elapsed=23.09s
+[GoldenShiftDSV] 92,000,000/199,999,996 (46.0%) pairs=368,000,000  elapsed=23.59s
+[GoldenShiftDSV] 94,000,000/199,999,996 (47.0%) pairs=376,000,000  elapsed=24.19s
+[GoldenShiftDSV] 96,000,000/199,999,996 (48.0%) pairs=384,000,000  elapsed=24.80s
+[GoldenShiftDSV] 98,000,000/199,999,996 (49.0%) pairs=392,000,000  elapsed=25.29s
+[GoldenShiftDSV] 100,000,000/199,999,996 (50.0%) pairs=400,000,000  elapsed=25.69s
+[GoldenShiftDSV] 102,000,000/199,999,996 (51.0%) pairs=408,000,000  elapsed=26.19s
+[GoldenShiftDSV] 104,000,000/199,999,996 (52.0%) pairs=416,000,000  elapsed=26.69s
+[GoldenShiftDSV] 106,000,000/199,999,996 (53.0%) pairs=424,000,000  elapsed=27.09s
+[GoldenShiftDSV] 108,000,000/199,999,996 (54.0%) pairs=432,000,000  elapsed=27.49s
+[GoldenShiftDSV] 110,000,000/199,999,996 (55.0%) pairs=440,000,000  elapsed=28.18s
+[GoldenShiftDSV] 112,000,000/199,999,996 (56.0%) pairs=448,000,000  elapsed=28.60s
+[GoldenShiftDSV] 114,000,000/199,999,996 (57.0%) pairs=456,000,000  elapsed=29.50s
+[GoldenShiftDSV] 116,000,000/199,999,996 (58.0%) pairs=464,000,000  elapsed=29.99s
+[GoldenShiftDSV] 118,000,000/199,999,996 (59.0%) pairs=472,000,000  elapsed=30.59s
+[GoldenShiftDSV] 120,000,000/199,999,996 (60.0%) pairs=480,000,000  elapsed=31.18s
+[GoldenShiftDSV] 122,000,000/199,999,996 (61.0%) pairs=488,000,000  elapsed=31.68s
+[GoldenShiftDSV] 124,000,000/199,999,996 (62.0%) pairs=496,000,000  elapsed=32.09s
+[GoldenShiftDSV] 126,000,000/199,999,996 (63.0%) pairs=504,000,000  elapsed=32.68s
+[GoldenShiftDSV] 128,000,000/199,999,996 (64.0%) pairs=512,000,000  elapsed=33.20s
+[GoldenShiftDSV] 130,000,000/199,999,996 (65.0%) pairs=520,000,000  elapsed=33.79s
+[GoldenShiftDSV] 132,000,000/199,999,996 (66.0%) pairs=528,000,000  elapsed=34.29s
+[GoldenShiftDSV] 134,000,000/199,999,996 (67.0%) pairs=536,000,000  elapsed=34.90s
+[GoldenShiftDSV] 136,000,000/199,999,996 (68.0%) pairs=544,000,000  elapsed=35.50s
+[GoldenShiftDSV] 138,000,000/199,999,996 (69.0%) pairs=552,000,000  elapsed=36.09s
+[GoldenShiftDSV] 140,000,000/199,999,996 (70.0%) pairs=560,000,000  elapsed=36.59s
+[GoldenShiftDSV] 142,000,000/199,999,996 (71.0%) pairs=568,000,000  elapsed=37.29s
+[GoldenShiftDSV] 144,000,000/199,999,996 (72.0%) pairs=576,000,000  elapsed=37.99s
+[GoldenShiftDSV] 146,000,000/199,999,996 (73.0%) pairs=584,000,000  elapsed=38.50s
+[GoldenShiftDSV] 148,000,000/199,999,996 (74.0%) pairs=592,000,000  elapsed=39.00s
+[GoldenShiftDSV] 150,000,000/199,999,996 (75.0%) pairs=600,000,000  elapsed=39.59s
+[GoldenShiftDSV] 152,000,000/199,999,996 (76.0%) pairs=608,000,000  elapsed=40.20s
+[GoldenShiftDSV] 154,000,000/199,999,996 (77.0%) pairs=616,000,000  elapsed=40.70s
+[GoldenShiftDSV] 156,000,000/199,999,996 (78.0%) pairs=624,000,000  elapsed=41.18s
+[GoldenShiftDSV] 158,000,000/199,999,996 (79.0%) pairs=632,000,000  elapsed=41.60s
+[GoldenShiftDSV] 160,000,000/199,999,996 (80.0%) pairs=640,000,000  elapsed=42.10s
+[GoldenShiftDSV] 162,000,000/199,999,996 (81.0%) pairs=648,000,000  elapsed=42.59s
+[GoldenShiftDSV] 164,000,000/199,999,996 (82.0%) pairs=656,000,000  elapsed=42.99s
+[GoldenShiftDSV] 166,000,000/199,999,996 (83.0%) pairs=664,000,000  elapsed=43.48s
+[GoldenShiftDSV] 168,000,000/199,999,996 (84.0%) pairs=672,000,000  elapsed=43.90s
+[GoldenShiftDSV] 170,000,000/199,999,996 (85.0%) pairs=680,000,000  elapsed=44.38s
+[GoldenShiftDSV] 172,000,000/199,999,996 (86.0%) pairs=688,000,000  elapsed=44.78s
+[GoldenShiftDSV] 174,000,000/199,999,996 (87.0%) pairs=696,000,000  elapsed=45.28s
+[GoldenShiftDSV] 176,000,000/199,999,996 (88.0%) pairs=704,000,000  elapsed=45.70s
+[GoldenShiftDSV] 178,000,000/199,999,996 (89.0%) pairs=712,000,000  elapsed=46.19s
+[GoldenShiftDSV] 180,000,000/199,999,996 (90.0%) pairs=720,000,000  elapsed=46.59s
+[GoldenShiftDSV] 182,000,000/199,999,996 (91.0%) pairs=728,000,000  elapsed=47.09s
+[GoldenShiftDSV] 184,000,000/199,999,996 (92.0%) pairs=736,000,000  elapsed=47.58s
+[GoldenShiftDSV] 186,000,000/199,999,996 (93.0%) pairs=744,000,000  elapsed=48.00s
+[GoldenShiftDSV] 188,000,000/199,999,996 (94.0%) pairs=752,000,000  elapsed=48.48s
+[GoldenShiftDSV] 190,000,000/199,999,996 (95.0%) pairs=760,000,000  elapsed=48.90s
+[GoldenShiftDSV] 192,000,000/199,999,996 (96.0%) pairs=768,000,000  elapsed=49.40s
+[GoldenShiftDSV] 194,000,000/199,999,996 (97.0%) pairs=776,000,000  elapsed=49.88s
+[GoldenShiftDSV] 196,000,000/199,999,996 (98.0%) pairs=784,000,000  elapsed=50.30s
+[GoldenShiftDSV] 198,000,000/199,999,996 (99.0%) pairs=792,000,000  elapsed=50.89s
+[GoldenShiftDSV] 199,999,996/199,999,996 (100.0%) pairs=799,999,984  elapsed=51.48s
+[GoldenShiftDSV] Computing sem_fwd: 4 x (V=1024,V) @ (V,n_bits=8192) + circular output shift per lag... elapsed=51.49s
+[GoldenShiftDSV] Matmul done in 2.61s
+[GoldenShiftDSV] Total: 799,999,984 pairs in 54.10s
+[Hybrid-DSV] Build complete: 799,999,984 pairs in 56.89s
+[Hybrid-DSV] sem_fwd: 1,048,576 bytes
+[Hybrid] Artifact saved: /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-04-26_GoldenShift_NMF_Hybrid/gs_nmf_hyb_seed42_20260426T183606.hgz
+[Hybrid] Uncompressed: 3.24 MB  Compressed (LZMA9): 2.89 MB  (2,889,332 bytes)
+[Hybrid]   embed: 2.10 MB  W_out: 32.8 KB  fp: 65.5 KB  sem_fwd: 1.05 MB
+
+[Hybrid] Artifact size check:
+  Artifact :    2,889,332 bytes  (2.889 MB)
+  Code     :      126,780 bytes  (0.127 MB)
+  Total    :    3,016,112 bytes  (3.016 MB)
+  Limit    :   16,000,000 bytes  (16.000 MB)
+  Result   : PASS
+
+[Hybrid] Loading validation tokens...
+[TokenLoad] Loaded 62,021,846 tokens from fineweb_val_000000.bin
+[Hybrid] Validation tokens: 62,021,846
+[Hybrid] Computing val G[p] rolling hash...
+[Hybrid] Val g_states done in 3.4s
+
+[Hybrid-Eval] Evaluating BPB on 62,021,846 tokens  (TABLE_BITS=16  W_COHERENCE=0.0)
+[Hybrid-Eval] Precomputing (1024,1024) DSV score table...
+[Hybrid-Eval] DSV score table ready in 0.10s  (4.2 MB)
+[Hybrid-Eval] 500,001/62,021,846 (0.8%)  running_bpb=4.1689  tier1=100.0%  elapsed=12.3s
+[Hybrid-Eval] 1,000,001/62,021,846 (1.6%)  running_bpb=4.1512  tier1=100.0%  elapsed=24.8s
+[Hybrid-Eval] 1,500,001/62,021,846 (2.4%)  running_bpb=4.1443  tier1=100.0%  elapsed=37.5s
+[Hybrid-Eval] 2,000,001/62,021,846 (3.2%)  running_bpb=4.1503  tier1=100.0%  elapsed=49.0s

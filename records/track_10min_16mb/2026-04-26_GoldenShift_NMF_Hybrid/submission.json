@@ -1,0 +1,23 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-26",
+  "name": "GoldenShift_NMF_Hybrid (NMF Tier1 + GoldenAxisShift DSV Tier2)",
+  "author": "Ashley Klimpel",
+  "github_id": "viasky657",
+  "val_loss": 6.931816173074887,
+  "val_bpb": 4.102456570025694,
+  "artifact_bytes": 3015240,
+  "code_bytes": 125900,
+  "world_size": 1,
+  "table_bits": 16,
+  "embed_dim": 16,
+  "n_words": 128,
+  "ctx_len": 4,
+  "seed": 42,
+  "w_coherence": 0.0,
+  "use_freq_weights": true,
+  "elapsed_s": 132.88558340072632,
+  "timestamp": "20260426T182712",
+  "artifact_path": "gs_nmf_hyb_seed42_20260426T182712.hgz",
+  "artifact_size_check": "PASS"
+}

@@ -1,8 +1,0 @@
-numpy>=1.24
-torch>=2.1          # required for float16 tensor-core matmul (H100 HGEMM)
-sentencepiece
-zstandard
-huggingface_hub     # Required for the dataset download
-# cupy-cuda12x removed: _gpu.py uses torch CUDA (not cupy) for all GPU ops.
-# The old cp.bitwise_xor.reduceat path in the original _semantic_layer.py
-# was the only cupy dependency — that path is removed in this submission.
