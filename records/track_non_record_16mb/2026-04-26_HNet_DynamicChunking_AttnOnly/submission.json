@@ -1,0 +1,11 @@
+{
+  "author": "Azura Whiston",
+  "github_id": "Azura-Whiston",
+  "name": "H-Net Dynamic Chunking — Path B (Attention-Only)",
+  "blurb": "Single-stage H-Net (Hwang/Wang/Gu 2025, arxiv:2507.07955) with Mamba-2 layers replaced by pre-norm Transformer blocks to isolate the dynamic-chunking contribution. 16.27M params, byte-level vocab 260, 300MB FineWeb-Edu, ~100 min on 1xA6000. EMA + asymmetric STE per paper Eq. 5/6/7, identity-init routing, target_ratio = 1/6. Int8 + zlib weights = 9.49MB; total submission ~9.52MB.",
+  "date": "2026-04-26T05:30:00Z",
+  "val_loss": 1.3057,
+  "val_bpb": 1.8838,
+  "bytes_total": 9518267,
+  "bytes_code": 26499
+}

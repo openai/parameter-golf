@@ -1,0 +1,119 @@
+run_id:hnet_real device:cuda
+data_path:./data/datasets/fineweb10B_byte260
+val_tokens:999425
+model_params:16,207,360
+shape: d_enc=256 d_main=512 n_enc=3 n_main=6 n_dec=3 heads=8
+target_ratio:0.16666666666666666 ratio_alpha:0.03
+step:1/10000 ar:5.9513 ratio:1.1550 lr:6.00e-07 elapsed:1.4s
+step:100/10000 ar:2.9520 ratio:0.8569 lr:6.00e-05 elapsed:55.5s
+step:200/10000 ar:2.5991 ratio:1.0588 lr:1.20e-04 elapsed:117.6s
+step:300/10000 ar:2.4614 ratio:1.0819 lr:1.80e-04 elapsed:180.2s
+step:400/10000 ar:2.3934 ratio:1.0729 lr:2.40e-04 elapsed:241.8s
+step:500/10000 ar:2.2915 ratio:1.1291 lr:3.00e-04 elapsed:303.0s
+step:600/10000 ar:2.3054 ratio:1.0753 lr:3.00e-04 elapsed:364.2s
+step:700/10000 ar:2.2937 ratio:1.0837 lr:3.00e-04 elapsed:425.9s
+step:800/10000 ar:2.2813 ratio:1.1021 lr:2.99e-04 elapsed:486.8s
+step:900/10000 ar:2.2760 ratio:1.0741 lr:2.99e-04 elapsed:548.7s
+step:1000/10000 ar:2.1875 ratio:1.1224 lr:2.98e-04 elapsed:610.9s
+step:1000 val_loss:2.2101 val_bpb:3.1885
+step:1100/10000 ar:2.1763 ratio:1.0884 lr:2.97e-04 elapsed:684.6s
+step:1200/10000 ar:2.1559 ratio:1.0466 lr:2.96e-04 elapsed:747.3s
+step:1300/10000 ar:2.0636 ratio:1.0933 lr:2.95e-04 elapsed:810.0s
+step:1400/10000 ar:2.1348 ratio:1.0812 lr:2.93e-04 elapsed:872.9s
+step:1500/10000 ar:2.1762 ratio:1.0834 lr:2.92e-04 elapsed:936.2s
+step:1600/10000 ar:2.1819 ratio:1.1606 lr:2.90e-04 elapsed:999.7s
+step:1700/10000 ar:2.0977 ratio:1.1068 lr:2.88e-04 elapsed:1062.9s
+step:1800/10000 ar:2.0663 ratio:1.0730 lr:2.86e-04 elapsed:1125.5s
+step:1900/10000 ar:1.9469 ratio:1.0762 lr:2.84e-04 elapsed:1186.6s
+step:2000/10000 ar:1.9616 ratio:1.0510 lr:2.82e-04 elapsed:1247.1s
+step:2000 val_loss:2.0267 val_bpb:2.9240
+step:2100/10000 ar:1.8734 ratio:1.0371 lr:2.80e-04 elapsed:1318.2s
+step:2200/10000 ar:1.9251 ratio:1.0531 lr:2.77e-04 elapsed:1378.0s
+step:2300/10000 ar:1.7951 ratio:1.0382 lr:2.74e-04 elapsed:1437.8s
+step:2400/10000 ar:1.8345 ratio:1.0204 lr:2.71e-04 elapsed:1497.1s
+step:2500/10000 ar:1.7009 ratio:1.0345 lr:2.68e-04 elapsed:1556.4s
+step:2600/10000 ar:1.7182 ratio:1.0330 lr:2.65e-04 elapsed:1615.9s
+step:2700/10000 ar:2.1248 ratio:1.0200 lr:2.62e-04 elapsed:1675.1s
+step:2800/10000 ar:1.5461 ratio:1.0294 lr:2.59e-04 elapsed:1734.4s
+step:2900/10000 ar:1.6854 ratio:1.0318 lr:2.55e-04 elapsed:1793.1s
+step:3000/10000 ar:1.5622 ratio:1.0291 lr:2.52e-04 elapsed:1852.3s
+step:3000 val_loss:1.6078 val_bpb:2.3195
+step:3100/10000 ar:1.7196 ratio:1.0071 lr:2.48e-04 elapsed:1921.9s
+step:3200/10000 ar:1.6254 ratio:1.0240 lr:2.44e-04 elapsed:1980.9s
+step:3300/10000 ar:1.5080 ratio:1.0414 lr:2.40e-04 elapsed:2039.7s
+step:3400/10000 ar:1.5699 ratio:1.0233 lr:2.36e-04 elapsed:2098.8s
+step:3500/10000 ar:1.4908 ratio:1.0119 lr:2.32e-04 elapsed:2157.9s
+step:3600/10000 ar:1.6707 ratio:1.0335 lr:2.28e-04 elapsed:2216.8s
+step:3700/10000 ar:1.5724 ratio:1.0281 lr:2.24e-04 elapsed:2275.9s
+step:3800/10000 ar:1.4987 ratio:1.0101 lr:2.19e-04 elapsed:2335.0s
+step:3900/10000 ar:1.5002 ratio:1.0258 lr:2.15e-04 elapsed:2394.0s
+step:4000/10000 ar:1.4109 ratio:1.0311 lr:2.10e-04 elapsed:2452.8s
+step:4000 val_loss:1.4641 val_bpb:2.1123
+step:4100/10000 ar:1.2063 ratio:0.9887 lr:2.06e-04 elapsed:2522.5s
+step:4200/10000 ar:1.5407 ratio:1.0169 lr:2.01e-04 elapsed:2581.3s
+step:4300/10000 ar:1.4647 ratio:1.0392 lr:1.96e-04 elapsed:2640.2s
+step:4400/10000 ar:1.4407 ratio:1.0154 lr:1.92e-04 elapsed:2698.8s
+step:4500/10000 ar:1.4304 ratio:1.0151 lr:1.87e-04 elapsed:2757.1s
+step:4600/10000 ar:1.4556 ratio:1.0201 lr:1.82e-04 elapsed:2815.5s
+step:4700/10000 ar:1.3528 ratio:1.0256 lr:1.77e-04 elapsed:2874.0s
+step:4800/10000 ar:1.4351 ratio:1.0330 lr:1.72e-04 elapsed:2932.4s
+step:4900/10000 ar:1.3769 ratio:1.0273 lr:1.67e-04 elapsed:2991.2s
+step:5000/10000 ar:1.4616 ratio:1.0255 lr:1.62e-04 elapsed:3049.5s
+step:5000 val_loss:1.4007 val_bpb:2.0208
+step:5100/10000 ar:1.3855 ratio:1.0170 lr:1.57e-04 elapsed:3118.3s
+step:5200/10000 ar:1.4544 ratio:1.0418 lr:1.53e-04 elapsed:3176.7s
+step:5300/10000 ar:1.3683 ratio:1.0278 lr:1.48e-04 elapsed:3234.5s
+step:5400/10000 ar:1.3544 ratio:1.0156 lr:1.43e-04 elapsed:3292.6s
+step:5500/10000 ar:1.7021 ratio:1.0577 lr:1.38e-04 elapsed:3351.1s
+step:5600/10000 ar:1.3580 ratio:1.0207 lr:1.33e-04 elapsed:3409.3s
+step:5700/10000 ar:1.4027 ratio:1.0215 lr:1.28e-04 elapsed:3467.3s
+step:5800/10000 ar:1.2368 ratio:1.0107 lr:1.23e-04 elapsed:3525.2s
+step:5900/10000 ar:1.3203 ratio:1.0253 lr:1.18e-04 elapsed:3583.4s
+step:6000/10000 ar:1.2483 ratio:1.0219 lr:1.13e-04 elapsed:3641.5s
+step:6000 val_loss:1.3610 val_bpb:1.9635
+step:6100/10000 ar:1.3413 ratio:1.0271 lr:1.08e-04 elapsed:3709.8s
+step:6200/10000 ar:1.3333 ratio:1.0174 lr:1.04e-04 elapsed:3768.2s
+step:6300/10000 ar:1.3345 ratio:1.0245 lr:9.90e-05 elapsed:3826.9s
+step:6400/10000 ar:1.3906 ratio:1.0139 lr:9.44e-05 elapsed:3885.6s
+step:6500/10000 ar:1.2670 ratio:1.0391 lr:8.98e-05 elapsed:3944.5s
+step:6600/10000 ar:1.2316 ratio:1.0035 lr:8.53e-05 elapsed:4003.7s
+step:6700/10000 ar:1.3863 ratio:1.0120 lr:8.08e-05 elapsed:4062.4s
+step:6800/10000 ar:1.3345 ratio:1.0269 lr:7.65e-05 elapsed:4121.0s
+step:6900/10000 ar:1.3545 ratio:1.0374 lr:7.22e-05 elapsed:4180.1s
+step:7000/10000 ar:1.3612 ratio:1.0427 lr:6.80e-05 elapsed:4239.2s
+step:7000 val_loss:1.3379 val_bpb:1.9302
+step:7100/10000 ar:1.2992 ratio:1.0215 lr:6.39e-05 elapsed:4309.6s
+step:7200/10000 ar:1.4948 ratio:1.0354 lr:5.99e-05 elapsed:4369.1s
+step:7300/10000 ar:1.3773 ratio:1.0454 lr:5.60e-05 elapsed:4428.5s
+step:7400/10000 ar:1.2852 ratio:1.0256 lr:5.21e-05 elapsed:4487.7s
+step:7500/10000 ar:1.2609 ratio:1.0277 lr:4.84e-05 elapsed:4546.9s
+step:7600/10000 ar:1.2841 ratio:1.0103 lr:4.48e-05 elapsed:4606.2s
+step:7700/10000 ar:1.2595 ratio:1.0146 lr:4.14e-05 elapsed:4665.3s
+step:7800/10000 ar:1.3027 ratio:1.0239 lr:3.80e-05 elapsed:4724.5s
+step:7900/10000 ar:1.0431 ratio:0.9904 lr:3.48e-05 elapsed:4783.8s
+step:8000/10000 ar:1.3243 ratio:1.0325 lr:3.17e-05 elapsed:4842.7s
+step:8000 val_loss:1.3174 val_bpb:1.9007
+step:8100/10000 ar:1.3068 ratio:1.0198 lr:2.87e-05 elapsed:4912.7s
+step:8200/10000 ar:1.3000 ratio:1.0334 lr:2.58e-05 elapsed:4971.4s
+step:8300/10000 ar:1.2294 ratio:1.0179 lr:2.31e-05 elapsed:5029.6s
+step:8400/10000 ar:1.2348 ratio:1.0405 lr:2.05e-05 elapsed:5087.8s
+step:8500/10000 ar:1.2245 ratio:1.0255 lr:1.81e-05 elapsed:5146.2s
+step:8600/10000 ar:1.2468 ratio:1.0182 lr:1.58e-05 elapsed:5204.2s
+step:8700/10000 ar:1.2672 ratio:1.0295 lr:1.37e-05 elapsed:5262.3s
+step:8800/10000 ar:1.3610 ratio:1.0276 lr:1.17e-05 elapsed:5320.9s
+step:8900/10000 ar:1.2986 ratio:1.0259 lr:9.83e-06 elapsed:5379.1s
+step:9000/10000 ar:1.3823 ratio:1.0467 lr:8.14e-06 elapsed:5437.1s
+step:9000 val_loss:1.3029 val_bpb:1.8796
+step:9100/10000 ar:1.2411 ratio:1.0201 lr:6.61e-06 elapsed:5505.2s
+step:9200/10000 ar:1.3845 ratio:1.0318 lr:5.23e-06 elapsed:5563.1s
+step:9300/10000 ar:1.3786 ratio:1.0401 lr:4.01e-06 elapsed:5621.0s
+step:9400/10000 ar:1.3988 ratio:1.0272 lr:2.95e-06 elapsed:5679.1s
+step:9500/10000 ar:1.2339 ratio:1.0286 lr:2.05e-06 elapsed:5737.7s
+step:9600/10000 ar:1.2787 ratio:1.0322 lr:1.32e-06 elapsed:5796.3s
+step:9700/10000 ar:1.3168 ratio:1.0367 lr:7.42e-07 elapsed:5854.6s
+step:9800/10000 ar:1.2727 ratio:1.0243 lr:3.31e-07 elapsed:5912.8s
+step:9900/10000 ar:1.2522 ratio:1.0197 lr:8.37e-08 elapsed:5971.4s
+step:10000/10000 ar:1.4634 ratio:1.0604 lr:8.20e-12 elapsed:6029.9s
+step:10000 val_loss:1.3001 val_bpb:1.8756
+final step:10000 val_loss:1.3001 val_bpb:1.8756
+saved:logs/hnet_real_final.pt

@@ -1,0 +1,5 @@
+torch>=2.4
+numpy
+huggingface-hub
+datasets
+tqdm
