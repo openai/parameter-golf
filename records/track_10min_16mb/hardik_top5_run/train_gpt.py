@@ -411,7 +411,7 @@ class Muon(torch.optim.Optimizer):
                 # [5] MuonEq-R: normalize to unit Frobenius then re-scale
                 if do_eq:
                     fro = update.norm(dim=(-2, -1), keepdim=True).clamp_min(1e-8)
-                    target = m['eq_scale'] ** 0.5   # sqrt(sqrt(M*N)) ≈ balanced scale
+                    target = m['eq_scale']   # target Frobenius norm is sqrt(M*N)
                     update = update * (target / fro)
 
                 if sharded:
