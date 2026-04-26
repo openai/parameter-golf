@@ -1,0 +1,11 @@
+{
+  "author": "Hardik Bhalekar",
+  "github_id": "hardik-bhalekar",
+  "name": "Hardik Top5 Run",
+  "blurb": "Draft packaging of the current local SP8192 + recurrence + parallel residual + Muon / TTT stack. Update val_loss, val_bpb, bytes_total, and wording after running the packaged script and attaching real logs.",
+  "date": "2026-04-26T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": 97310
+}
