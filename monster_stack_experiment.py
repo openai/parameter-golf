@@ -273,8 +273,10 @@ def gptq_quantize_weight(w,H,clip_sigmas=3.,clip_range=63,block_size=128):
 	return Q[:,invperm],s
 def gptq_mixed_quantize(state_dict,hessians,h):
 	result={};meta={}
+	omit=[p for p in os.environ.get('OMIT_STATE_PATTERNS','').split(',')if p]
 	for(name,tensor)in state_dict.items():
 		t=tensor.detach().cpu().contiguous()
+		if any(p in name for p in omit):meta[name]='init';continue
 		if not t.is_floating_point()or t.numel()<=65536:result[name]=t.to(torch.float16)if t.is_floating_point()else t;meta[name]='passthrough (float16)';continue
 		cs=h.embed_clip_sigmas if'tok_emb'in name else h.matrix_clip_sigmas;bits=h.embed_bits if'tok_emb'in name else h.matrix_bits;q,s=gptq_quantize_weight(t,hessians[name],clip_sigmas=cs,clip_range=2**(bits-1)-1);result[name+'.q']=q;result[name+'.scale']=s;meta[name]=f"gptq (int{bits})"
 	categories=collections.defaultdict(set)
@@ -288,6 +290,9 @@ def dequantize_mixed(result,meta,template_sd):
 		info=meta.get(name)
 		if info is None:continue
 		orig_dtype=orig.dtype
+		if'init'in info:
+			out[name]=orig
+			continue
 		if'passthrough'in info:
 			t=result[name]
 			if t.dtype==torch.float16 and orig_dtype in(torch.float32,torch.bfloat16):t=t.to(orig_dtype)
