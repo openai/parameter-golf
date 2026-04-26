@@ -1,0 +1,11 @@
+{
+    "author": "Farcas Antonio Matei",
+    "github_id": "5en5e1",
+    "name": "SP8192 ETD Hybrid (3 enc + 3x3 think + 4 dec) + Int5 GPTQ + MuonEqR + U-Net",
+    "blurb": "Hybrid Encode-Think-Decode transformer: 3 unique encoder layers, 3 shared think layers looped x3, 4 unique decoder layers, with U-Net skips. SP8192 BPE, 33M params, GPTQ int5 matrices + int8 embeddings + Brotli-11. Single-seed 8xH100 run reaches 1.1169 BPB at 15.87 MB without TTT or seed selection.",
+    "date": "2026-04-26T00:00:00Z",
+    "val_loss": 2.88515687,
+    "val_bpb": 1.11693413,
+    "bytes_total": 15865354,
+    "bytes_code": 63022
+}
