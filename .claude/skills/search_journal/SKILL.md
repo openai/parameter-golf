@@ -7,22 +7,36 @@ description: Quick reference for searching past journals and summaries. Three mo
 
 Three modes for finding past work. Pick the one that matches what you know:
 
-- **Browse** — you don't have a specific target, want to scan what exists:
+- **Browse** — TOC across active sessions:
   ```
-  grep "^## " journal.md journals/*.md summaries/*.md
+  grep "^## " journal.md journals/[!_]*.md summaries/[!_]*.md
   ```
-  Headings only, TOC view across all sessions.
+  The `[!_]` glob skips files starting with underscore — i.e., excludes `_archive_transformer/` content. Default browse focuses on the current research arc.
 
-- **Search** — you know the topic (e.g. "sliding-window", "32k batch", "qk_gain"):
+- **Search** — topic across active sessions:
   ```
-  grep -i "<topic>" journal.md journals/*.md summaries/*.md
+  grep -i "<topic>" journal.md journals/[!_]*.md summaries/[!_]*.md
   ```
   Full content. Use this when the topic might be discussed inside an entry whose heading doesn't name it.
 
-- **Drill** — you have a heading and want the section's full content:
+- **Drill** — full content of a known heading:
   ```
-  mdq '# "<keyword>"' journal.md journals/*.md
+  mdq '# "<keyword>"' journal.md journals/[!_]*.md
   ```
   `#` matches any heading at any depth (single hash regardless of `##` / `###`). Quoted substring match.
 
-  That's it. If a query returns nothing or too much, switch modes — usually browse/search → drill, narrowing each time.
+If a query returns nothing or too much, switch modes — usually browse/search → drill, narrowing each time.
+
+## Searching archives explicitly (opt-in)
+
+Archived transformer-session journals/summaries/walks live in `journals/_archive_transformer/`, `summaries/_archive_transformer/`, `walks/_archive_transformer/`. They contain ~65 experiments of transformer-axis history. Default search excludes them. To search archives:
+
+```
+# Browse archive headings:
+grep "^## " journals/_archive_transformer/*.md summaries/_archive_transformer/*.md
+
+# Search archive contents:
+grep -i "<topic>" journals/_archive_transformer/*.md summaries/_archive_transformer/*.md
+```
+
+When in doubt about whether an archive search is warranted: usually it isn't. The transferable lessons most relevant to a hybrid (TIED_EMBED_INIT_STD=0.05, MUON_BACKEND_STEPS=15, batch=24k+matrix_lr=0.045, etc.) live in `summaries/_archive_transformer/2026-04-25_overnight_session.md`.

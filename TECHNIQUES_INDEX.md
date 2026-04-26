@@ -1,4 +1,19 @@
-# Techniques Index
+# Techniques index
+
+## SSM technique families (current focus)
+
+One-liner each; drill via PAPERS.md or references/INDEX.md.
+
+- **S4 / S4D / DSS** — diagonal state-space, FFT-conv parallel training, RNN inference. Two-line init from HiPPO; LTI (no input-dependence). Debug-friendliest starting point.
+- **Mamba-1** — selective scan with input-dependent (A̅, B̅, C, Δ). Sequential on MPS; vendored at `references/mamba_minimal_model.py`. Sharp LR cliffs documented (primer §4.2).
+- **Mamba-2 / SSD** — scalar-per-time A_t, allows much larger N (state dim 64-256). Matmul-only, MPS-compatible. Less expressive per state but parallel-friendly.
+- **GLA** — data-dependent diagonal gate, chunkwise matmul-friendly. Concurrent with SSD.
+- **Hyena** — implicit long convolution via small FFN, FFT-conv. Different family but same "linear sequence modeling" goal.
+- **RetNet / GateLoop** — special cases / concurrent variants in the SSD family.
+- **Hybrid (Jamba/Zamba/Samba/Hymba)** — mix attention + SSM. On parameter golf leaderboard, Hymba (1.1828) and S4D-Lin hybrid (1.1682) both lost to contemporaneous transformers by 0.06–0.10 BPB. Cautious-known-losing has low upside; consider less-tried families too.
+- **BigramHash** — adds effective vocabulary at near-zero cap cost. Record-validated. Per primer §4.5, candidate remedy for SSM's associative recall gap (Zoology shows 82% of the gap is recall).
+
+## Records-validated transformer techniques (for hybrid composition with SSM blocks)
 
 Each leaderboard submission is in `records/track_10min_16mb/<date>_<slug>/` (or `records/track_non_record_16mb/` for unlimited-compute experiments). Read the README inside each record for technique detail. **Do not copy code** — only learn categories of techniques. This file is your idea menu, not a substitute for reading the source.
 

@@ -9,6 +9,8 @@ A new winner just landed. This skill carries the full ritual so promotions are c
 
 ## 1. Decide if it's actually a win
 
+**Hard rule for SSM-family experiments**: do NOT promote any SSM-family win before the `noise-floor-sentinel` skill has completed for that architecture family. Treat apparent wins as informational only until you have the family's measured σ. The thresholds below were calibrated to the transformer noise floor (~0.0024 cross-seed; advance=0.010 ≈ 4.17σ); for SSM, replace them with σ-anchored thresholds using the same shape (advance Δ ≥ Y where Y = ≥3σ; judgment-call [Y/2, Y]; noise <Y/2) once the sentinel completes. The judgment-low = advance/2 ratio matches the transformer rule. Document the adjusted Y and σ in journal.md Current threads.
+
 Compare the new `val_bpb_post_quant` against the current best in `winners/` (lower is better). The Δ rules:
 
 - **Δ ≥ +0.010** → likely real, advance.

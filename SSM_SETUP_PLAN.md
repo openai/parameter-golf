@@ -686,22 +686,22 @@ Pull-out tells you to use scratch/ ("compute the parameter count, sketch the mat
 - [x] Wrote `.claude/skills/derive-and-verify/SKILL.md` per §3.10.
 
 ### Phase D — content edits in place
-- [ ] Edit `program.md` per §3.1: replace title block + "From Previous Session" block; replace "Reference baseline" section; insert "SSM-specific harness facts" section; edit "Setup (every session)" steps; replace "Reference materials" section. Preserve all other sections verbatim.
-- [ ] Reset `journal.md` Current threads + Open questions per §3.2. Clear Stack of confirmed wins and Dead axes content (keep their headings, leave empty placeholder content). Leave the existing `## Entries (newest first)` marker (current line 56) untouched.
-- [ ] Prepend SSM section to `PAPERS.md` per §3.8; wrap existing content under `## Transformer/optimizer techniques retained (for hybrid composition)`.
-- [ ] Prepend SSM section to `TECHNIQUES_INDEX.md` per §3.9; wrap existing records content under `## Records-validated transformer techniques (for hybrid composition with SSM blocks)`.
-- [ ] Light edit `.claude/skills/search_journal/SKILL.md` per §3.7.
-- [ ] Light edit `.claude/skills/promote/SKILL.md` per §3.6 (one-sentence caveat in "Decide if it's actually a win" section).
+- [x] Edited `program.md` per §3.1. Title block + "From Previous Session" block replaced. "Reference baseline" section expanded. New "SSM-specific harness facts" section inserted. "Setup (every session)" rewritten. Noise floor pointer sentence added. "Reference materials" section replaced. All other sections preserved verbatim. Final line count: 246 (slightly under §3.1's 280-310 target — see Phase E note below; sectional grep confirms all 18 expected top-level sections present in the right order).
+- [x] Reset `journal.md` Current threads + Open questions per §3.2. Stack of confirmed wins and Dead axes cleared (headings kept with empty placeholder content). `## Entries (newest first)` marker preserved at the bottom.
+- [x] Prepended SSM section to `PAPERS.md` per §3.8; wrapped existing content under `## Transformer/optimizer techniques retained (for hybrid composition)`.
+- [x] Prepended SSM section to `TECHNIQUES_INDEX.md` per §3.9; wrapped existing records content under `## Records-validated transformer techniques (for hybrid composition with SSM blocks)`.
+- [x] Light edit `.claude/skills/search_journal/SKILL.md` per §3.7. `[!_]` glob patterns now exclude `_archive_transformer/` from default search; added "Searching archives explicitly" section.
+- [x] Light edit `.claude/skills/promote/SKILL.md` per §3.6 (SSM-family caveat paragraph added at top of "Decide if it's actually a win").
 
 ### Phase E — verification
-- [ ] grep for stale paths: `grep -rn "State-space models for parameter golf" --include="*.md" .` should return zero matches (the long-named primer was renamed).
-- [ ] grep for `docs/` references: `grep -rn "docs/" --include="*.md" .` should return zero matches in tracked content.
-- [ ] `grep -E "^##" SSM_PRIMER.md` — sanity-check primer section structure intact.
-- [ ] `git status` — confirm move/add/delete pattern matches §2.
-- [ ] `wc -l program.md` — target ~290 lines (was ~225; growth from "What you are NOT doing" + "SSM-specific harness facts" + Setup-step expansion + Reference-materials rewrite + Reference-baseline expansion). Don't panic at 280-310; do reconsider if <260 (sections may have been silently lost) or >340 (verbatim sections may have been duplicated).
-- [ ] **Verify all top-level sections present in program.md**: `grep "^## " program.md`. Expected sections (in order): "What you are NOT doing", "Reference baseline", "SSM-specific harness facts", "Setup (every session)", "Time budget", "Permissions", "The experiment loop", "Auto-promote", "Hypothesis discipline", "Logging formats", "Soft constraints", "Regression sentinel", "Running experiments", "Subagent for code edits", "Wrapping a session", "Reference materials", "NEVER STOP", "When the human returns and explicitly asks you to STOP". If any are missing, the sectional Edit calls displaced a verbatim-preserved section — recover from `git diff program.md` before continuing.
-- [ ] All new artifacts present: `ls references/INDEX.md references/mamba_minimal_model.py references/selective_scan_ref.py .claude/skills/noise-floor-sentinel/SKILL.md .claude/skills/derive-and-verify/SKILL.md`.
-- [ ] All archives populated: `ls summaries/_archive_transformer/ journals/_archive_transformer/ walks/_archive_transformer/` (3, 3, 2 files respectively).
+- [x] grep for stale paths: only matches are inside `SSM_SETUP_PLAN.md` itself (describes the rename) and the primer's own H1 title `# State-space models for parameter golf: a first-principles primer` (unchanged content, file is now `SSM_PRIMER.md`). No stale path *references* in tracked working content.
+- [x] grep for `docs/` references: only inside `SSM_SETUP_PLAN.md` (describes the decision not to create one). No stale `docs/` references elsewhere.
+- [x] Primer section structure intact: Layer 1-5 + conclusion all present.
+- [x] git status — move/add/delete pattern matches §2; staged for commit below.
+- [x] `wc -l program.md` = 246. **Below the plan's 260 lower bound** but section grep below confirms nothing is missing. The plan's 280-310 estimate appears to have been generous; the actual content fit in fewer lines because (a) original program.md was 226 not the plan-cited 225, (b) "From Previous Session" removal saved more lines than the new "What you are NOT doing" added, (c) the primer-related additions are dense single-paragraph items rather than bulleted lists. Flagging in commit message; user can review.
+- [x] All top-level sections present in program.md (18 expected, 18 found, in expected order). The extra `## YYYY-MM-DD · exp NNNN_<slug> · short-title` match in grep output is the example heading inside the journal-entry skeleton code block in "Logging formats" — not a real section.
+- [x] All new artifacts present.
+- [x] Archives populated: 3 / 3 / 2 as expected.
 
 ### Phase F — wrap
 - [ ] Final review of this plan doc; confirm all checkboxes in Phases A–E are ticked.
