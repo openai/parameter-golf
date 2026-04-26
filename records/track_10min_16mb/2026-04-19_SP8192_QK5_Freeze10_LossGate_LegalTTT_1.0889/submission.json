@@ -1,0 +1,41 @@
+{
+  "name": "SP8192 + QK5 + Freeze10 Loss-Gated Legal TTT",
+  "val_bpb": 1.08885521,
+  "val_loss": 2.81262609,
+  "bytes_total": 15994383,
+  "blurb": "Single-seed legal 8xH100 run on the PR1413 SP8192 + QK5 stack with freeze10 loss-gated score-first TTT. Train 588.005s, final legal_ttt_exact 1.08885521 BPB, total size 15,994,383 bytes. This is a competitive 10min/16MB submission that beats the naive baseline by a wide margin, but it is not presented as a new-#1 SOTA claim.",
+  "author": "muhammed.erin95",
+  "github_id": "muhammed.erin95",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "base_pr": 1413,
+  "val_bpb_method": "legal_ttt_exact_sliding_window_stride64",
+  "seeds": {
+    "1337": {
+      "val_bpb": 1.08885521,
+      "val_loss": 2.81262609,
+      "bytes_total": 15994383,
+      "train_time_ms": 588005,
+      "ttt_time_ms": 211815
+    }
+  },
+  "mean_bpb": 1.08885521,
+  "sliding_bpb_mean": 1.08940375,
+  "pre_ttt_sliding_mean": 1.08940375,
+  "tokenizer": "SentencePiece BPE 8192",
+  "architecture": "11L/512d/8H/4KV, MLP 4x, QK gain init 5.0, loop structure from the PR1413 stack, GPTQ int6 matrices + int8 embeddings, freeze10 loss-gated legal score-first TTT",
+  "platform": "8xH100 80GB, PyTorch 2.9.1+cu128, CUDA 12.8",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "training_under_600s": true,
+    "eval_under_600s": true,
+    "score_first_ttt": true,
+    "single_seed_only": true,
+    "record_claim": false
+  },
+  "attribution": {
+    "base_pr1413": "SP8192 + QK5 + LegalTTT family base",
+    "legal_ttt_precedents": "merged score-first TTT precedent in the official repo"
+  },
+  "our_contribution": "Freeze the first 10 blocks during TTT, adapt the final block only, and gate TTT updates using a running-mean loss threshold while staying byte-legal and under the train/eval limits."
+}
