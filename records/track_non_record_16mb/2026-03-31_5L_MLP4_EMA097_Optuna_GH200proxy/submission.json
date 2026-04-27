@@ -1,0 +1,14 @@
+{
+  "author": "pzydron",
+  "github_id": "Okropniak",
+  "name": "5L MLP\u00d74 EMA=0.97 Optuna v1 \u2014 GH200 MIG proxy",
+  "blurb": "Proxy-scale submission (GH200 MIG 3g.48gb, 600s). 5-layer 512-dim GQA+XSA transformer with MLP\u00d74, Bigram-4096+1024dim bypass layer, EMA=0.97, Optuna v1 TPE optimizer tuning (25 trials). val_bpb=1.3246 (float, post-EMA) / 1.3069 (int6+zlib, stride=64). Not a SOTA record \u2014 proxy hardware. Requesting H100 access for full competition run.",
+  "date": "2026-03-31",
+  "track": "non_record_16mb",
+  "val_loss": 2.2066,
+  "val_bpb": 1.3069,
+  "bytes_total": 13212714,
+  "bytes_code": 70494,
+  "hardware": "GH200 MIG 3g.48gb (proxy \u2014 not 8\u00d7H100)",
+  "technique_summary": "5-layer 512-dim GQA+XSA, MLP\u00d74, Bigram-4096+1024dim, EMA=0.97, Optuna v1 TPE (25 trials), int6+zlib"
+}
