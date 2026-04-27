@@ -1,0 +1,26 @@
+{
+  "id": "0046_0046_kill_mamba2_middle_parallel",
+  "parent": "0042_kill_no_bigram",
+  "created_at": "2026-04-27T04:28:55Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0103,
+    "val_bpb_post_quant": 2.01250732,
+    "val_loss_pre_quant": 3.4359,
+    "val_loss_post_quant": 3.43963919,
+    "quant_tax": 0.002207,
+    "step_avg_ms": 6937.72,
+    "num_steps": 200.0,
+    "artifact_bytes": 14218782.0,
+    "artifact_mb": 14.219,
+    "code_bytes": 78381.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
