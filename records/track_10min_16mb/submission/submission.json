@@ -1,0 +1,31 @@
+{
+    "name": "YOUR_NAME_HERE",
+    "github_id": "YOUR_GITHUB_ID_HERE",
+    "val_bpb": null,
+    "val_loss": null,
+    "artifact_bytes": null,
+    "code_bytes": null,
+    "total_bytes": null,
+    "num_seeds": 3,
+    "seeds": [1337, 42, 2025],
+    "hardware": "8xH100 SXM",
+    "training_time_s": 600,
+    "techniques": [
+        "11 layers",
+        "MLP 3x (relu²)",
+        "SmearGate + BigramHash(2048) + OrthoInit",
+        "XSA on last 4 layers",
+        "EMA (decay=0.997)",
+        "Partial RoPE (16/64 dims)",
+        "LN Scale (1/sqrt(layer+1))",
+        "Late QAT (STE final 15%)",
+        "GPTQ-lite post-quant",
+        "Tight SWA",
+        "Value Residual (ResFormer)",
+        "Gated Attention",
+        "Int6 + zstd-22",
+        "FP16 tied embedding",
+        "Sliding window eval (stride=64)",
+        "Muon WD=0.04"
+    ]
+}
