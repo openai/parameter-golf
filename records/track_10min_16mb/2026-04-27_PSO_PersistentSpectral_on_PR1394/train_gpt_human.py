@@ -94,6 +94,9 @@ class Hyperparameters():
     pso_residual = float(os.environ.get('PSO_RESIDUAL', 0.1))
     pso_renormalize = bool(int(os.environ.get('PSO_RENORMALIZE', '1')))
     pso_eps = float(os.environ.get('PSO_EPS', 1e-8))
+    pso_layers = int(os.environ.get('PSO_LAYERS', 4))
+    pso_attn_only = bool(int(os.environ.get('PSO_ATTN_ONLY', '1')))
+    pso_enabled = bool(int(os.environ.get('PSO_ENABLED', '1')))
     beta1 = float(os.environ.get('BETA1', 0.9))
     beta2 = float(os.environ.get('BETA2', 0.95))
     adam_eps = float(os.environ.get('ADAM_EPS', 1e-8))
@@ -640,12 +643,71 @@ def _pso_refresh_basis(mat: Tensor, U, V, *, rank: int, power_iters: int, eps: f
 
 
 class Muon(torch.optim.Optimizer):
-    """PersistentSpectralOptimizer dressed in the Muon API.
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int,
+                 nesterov: bool = True, weight_decay: float = 0.0,
+                 row_normalize: bool = False, **_unused):
+        super().__init__(
+            params,
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps,
+                 nesterov=nesterov, weight_decay=weight_decay,
+                 row_normalize=row_normalize),
+        )
 
-    Replaces Newton-Schulz polar projection with a noise-aware soft-polar
-    transform applied in a slowly-varying low-rank persistent basis (U, V),
-    plus an optional RMS-normalized residual path outside the basis.
-    Distributed shard-by-rank protocol mirrors the original Muon.
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+            lr = group["lr"]
+            momentum = group["momentum"]
+            backend_steps = group["backend_steps"]
+            nesterov = group["nesterov"]
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+            curr = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank and p.grad is not None:
+                    g = p.grad
+                    state = self.state[p]
+                    if "momentum_buffer" not in state:
+                        state["momentum_buffer"] = torch.zeros_like(g)
+                    buf = state["momentum_buffer"]
+                    buf.mul_(momentum).add_(g)
+                    if nesterov:
+                        g = g.add(buf, alpha=momentum)
+                    if group.get("row_normalize", False):
+                        row_norms = g.float().norm(dim=-1, keepdim=True).clamp_min(1e-07)
+                        g = g / row_norms.to(g.dtype)
+                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                    updates_flat[curr : curr + p.numel()] = g.reshape(-1)
+                curr += p.numel()
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+            wd = group.get("weight_decay", 0.0)
+            curr = 0
+            for p in params:
+                if wd > 0.0:
+                    p.data.mul_(1.0 - lr * wd)
+                g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                p.add_(g, alpha=-lr)
+                curr += p.numel()
+        return loss
+
+
+class MuonPSO(torch.optim.Optimizer):
+    """PersistentSpectralOptimizer with Muon API. Replaces Newton-Schulz polar
+    projection with a noise-aware soft-polar transform applied in a slowly-
+    varying low-rank persistent basis (U, V), plus optional RMS-normalized
+    residual path outside the basis. Distributed shard-by-rank like Muon.
     """
     def __init__(self, params, lr: float, momentum: float, backend_steps: int,
                  nesterov: bool = True, weight_decay: float = 0.0,
@@ -770,20 +832,34 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 )
 
 
+def _is_pso_param(name: str, h: Hyperparameters) -> bool:
+    if not h.pso_enabled:
+        return False
+    m = re.match(r"(\d+)\.", name)
+    if m is None:
+        return False
+    layer_idx = int(m.group(1))
+    if layer_idx < h.num_layers - h.pso_layers:
+        return False
+    if h.pso_attn_only and ".mlp." in name:
+        return False
+    return True
+
+
 class Optimizers():
     def __init__(self, h: Hyperparameters, base_model: GPT):
         block_named_params = list(base_model.blocks.named_parameters())
-        matrix_params = [
-            p
-            for name, p in block_named_params
-            if p.ndim == 2 and not any(pattern in name for pattern in
-                                       CONTROL_TENSOR_NAME_PATTERNS)
+        matrix_named = [
+            (name, p) for name, p in block_named_params
+            if p.ndim == 2 and not any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
         ]
+        pso_params = [p for name, p in matrix_named if _is_pso_param(name, h)]
+        polar_params = [p for name, p in matrix_named if not _is_pso_param(name, h)]
+        self._pso_names = [name for name, _ in matrix_named if _is_pso_param(name, h)]
+        self._polar_names = [name for name, _ in matrix_named if not _is_pso_param(name, h)]
         scalar_params = [
-            p
-            for name, p in block_named_params
-            if p.ndim < 2 or any(pattern in name for pattern in
-                                 CONTROL_TENSOR_NAME_PATTERNS)
+            p for name, p in block_named_params
+            if p.ndim < 2 or any(pat in name for pat in CONTROL_TENSOR_NAME_PATTERNS)
         ]
         if base_model.skip_weights.numel() > 0:
             scalar_params.append(base_model.skip_weights)
@@ -793,45 +869,41 @@ class Optimizers():
         token_lr = h.tied_embed_lr if h.tie_embeddings else h.embed_lr
         tok_params = [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}]
         self.optimizer_tok = torch.optim.AdamW(
-            tok_params,
-            betas=(h.beta1, h.beta2),
-            eps=h.adam_eps,
-            weight_decay=h.embed_wd,
-            fused=True,
+            tok_params, betas=(h.beta1, h.beta2), eps=h.adam_eps,
+            weight_decay=h.embed_wd, fused=True,
         )
         self.optimizer_muon = Muon(
-            matrix_params,
-            lr=h.matrix_lr,
-            momentum=h.muon_momentum,
-            backend_steps=h.muon_backend_steps,
-            weight_decay=h.muon_wd,
+            polar_params, lr=h.matrix_lr, momentum=h.muon_momentum,
+            backend_steps=h.muon_backend_steps, weight_decay=h.muon_wd,
             row_normalize=h.muon_row_normalize,
-            pso_rank=h.pso_rank,
-            pso_basis_freq=h.pso_basis_freq,
-            pso_power_iters=h.pso_power_iters,
-            pso_beta2=h.pso_beta2,
-            pso_noise_weight=h.pso_noise_weight,
-            pso_soft_tau=h.pso_soft_tau,
-            pso_residual=h.pso_residual,
-            pso_renormalize=h.pso_renormalize,
-            pso_eps=h.pso_eps,
         )
         for group in self.optimizer_muon.param_groups:
             group["base_lr"] = h.matrix_lr
+        self.optimizer_pso = None
+        if pso_params:
+            self.optimizer_pso = MuonPSO(
+                pso_params, lr=h.matrix_lr, momentum=h.muon_momentum,
+                backend_steps=h.muon_backend_steps, weight_decay=h.muon_wd,
+                row_normalize=h.muon_row_normalize,
+                pso_rank=h.pso_rank, pso_basis_freq=h.pso_basis_freq,
+                pso_power_iters=h.pso_power_iters, pso_beta2=h.pso_beta2,
+                pso_noise_weight=h.pso_noise_weight, pso_soft_tau=h.pso_soft_tau,
+                pso_residual=h.pso_residual, pso_renormalize=h.pso_renormalize,
+                pso_eps=h.pso_eps,
+            )
+            for group in self.optimizer_pso.param_groups:
+                group["base_lr"] = h.matrix_lr
         self.optimizer_scalar = torch.optim.AdamW(
             [{"params": scalar_params, "lr": h.scalar_lr, "base_lr": h.scalar_lr}],
-            betas=(h.beta1, h.beta2),
-            eps=h.adam_eps,
-            weight_decay=h.adam_wd,
-            fused=True,
+            betas=(h.beta1, h.beta2), eps=h.adam_eps, weight_decay=h.adam_wd, fused=True,
         )
         self.optimizers = [self.optimizer_tok, self.optimizer_muon, self.optimizer_scalar]
+        if self.optimizer_pso is not None:
+            self.optimizers.insert(2, self.optimizer_pso)
         if base_model.lm_head is not None:
             self.optimizer_head = torch.optim.Adam(
                 [{"params": [base_model.lm_head.weight], "lr": h.head_lr, "base_lr": h.head_lr}],
-                betas=(h.beta1, h.beta2),
-                eps=h.adam_eps,
-                fused=True,
+                betas=(h.beta1, h.beta2), eps=h.adam_eps, fused=True,
             )
             self.optimizers.insert(1, self.optimizer_head)
         else:
@@ -1295,6 +1367,8 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
 
     # Set up optimizer and load train data
     optimizers = Optimizers(h, base_model)
+    log(f"pso_params:{len(optimizers._pso_names)} polar_params:{len(optimizers._polar_names)}")
+    log(f"pso_param_names:{optimizers._pso_names[:8]}{'...' if len(optimizers._pso_names) > 8 else ''}")
     train_loader = ShuffledSequenceLoader(h, device)
 
     # Helper functions for training
@@ -1332,6 +1406,9 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         muon_momentum = (1 - frac) * h.muon_momentum_warmup_start + frac * h.muon_momentum
         for group in optimizers.optimizer_muon.param_groups:
             group["momentum"] = muon_momentum
+        if optimizers.optimizer_pso is not None:
+            for group in optimizers.optimizer_pso.param_groups:
+                group["momentum"] = muon_momentum
 
         for opt in optimizers:
             for group in opt.param_groups:
