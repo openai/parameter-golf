@@ -1,0 +1,12 @@
+{
+  "val_bpb_alpha_1_0_trained": 1.5042150187814474,
+  "val_bpb_alpha_0_0_fp32_baseline": 5.1940197491578095,
+  "val_loss_ternary": 2.5479268169403078,
+  "val_loss_fp32": 8.745915651321411,
+  "tokens_per_byte": 0.4092120669605214,
+  "artifact_bytes": 5525048,
+  "total_params": 24128000,
+  "ternary_params": 23592960,
+  "training_hours": 72.04,
+  "final_alpha": 1.0
+}

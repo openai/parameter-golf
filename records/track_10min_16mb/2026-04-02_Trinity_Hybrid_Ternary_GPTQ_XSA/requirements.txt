@@ -1,0 +1,3 @@
+flash-attn>=2.5.0
+sentencepiece
+numpy
