@@ -1,0 +1,66 @@
+name: docker-mcp
+
+on:
+  push:
+    branches:
+      - main
+      - feat/mcp-rust-rmcp-20
+    paths:
+      - "Dockerfile.mcp"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "bin/**"
+      - ".github/workflows/docker-mcp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase repo owner
+        id: owner
+        run: |
+          echo "value=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          set -euo pipefail
+          OWNER='${{ steps.owner.outputs.value }}'
+          IMG="ghcr.io/${OWNER}/trios-railway-mcp"
+          SHA='${{ github.sha }}'
+          SHORT="${SHA:0:7}"
+          REF='${{ github.ref_name }}'
+          REF_SAFE=$(echo "${REF}" | tr '/' '-')
+          {
+            echo "image=${IMG}"
+            echo "sha=${SHORT}"
+            echo "ref=${REF_SAFE}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.image }}:latest
+            ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.sha }}
+            ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.ref }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

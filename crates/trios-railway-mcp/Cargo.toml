@@ -1,0 +1,33 @@
+[package]
+name        = "trios-railway-mcp"
+description = "Public Streamable-HTTP MCP server exposing tri-railway control surface (issue #20)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow      = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tokio       = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "fs", "io-util"] }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono      = { workspace = true }
+
+axum        = "0.8"
+schemars    = "1.0"
+rmcp        = { version = "0.8", features = ["server", "macros", "transport-streamable-http-server"] }
+
+trios-railway-core       = { path = "../trios-railway-core" }
+trios-railway-experience = { path = "../trios-railway-experience" }
+trios-railway-audit      = { path = "../trios-railway-audit" }
+
+[[bin]]
+name = "trios-railway-mcp"
+path = "src/main.rs"

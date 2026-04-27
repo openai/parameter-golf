@@ -4,6 +4,7 @@ members = [
     "crates/trios-railway-core",
     "crates/trios-railway-audit",
     "crates/trios-railway-experience",
+    "crates/trios-railway-mcp",
     "bin/tri-railway",
 ]
 
@@ -24,6 +25,9 @@ serde_json  = "1.0"
 tokio       = { version = "1", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tracing     = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum        = "0.8"
+schemars    = "1.0"
+rmcp        = { version = "0.8", features = ["server", "macros", "transport-streamable-http-server"] }
 uuid        = { version = "1.10", features = ["v4", "serde"] }
 chrono      = { version = "0.4", features = ["serde"] }
 reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
