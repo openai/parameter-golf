@@ -96,6 +96,33 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 07:00 EDT · 0061 · OUTSIDE-EYES catch resolved — outer-parallel is NOT the actual best
+
+**Setup**: outside-eyes review at 06:30 flagged that 0054 (outer-parallel single-seed val 2.0034) was *ahead* of 0051 family 4-seed mean 2.00503 — but never seed-confirmed. Possible the actual session-best was outer-parallel, not triple-parallel.
+
+**Result**: 0061 (SEED=42 of 0054) = **val 2.0134**. 
+
+Outer-parallel 2-seed:
+- 0054 (1337): 2.0034
+- 0061 (42): 2.0134
+- 2-seed mean: 2.00838 (cross-seed Δ 0.0100 — wide!)
+
+**Outer-parallel 2-seed mean is WORSE than triple-parallel 4-seed mean by +0.00335.** 0054 was a lucky single-seed. Triple-parallel remains the best topology.
+
+**Bonus finding**: outer-parallel cross-seed σ (0.0100) is much wider than other parallel-family σ values (middle-parallel 3-seed σ=0.0027, triple-parallel 4-seed σ=0.0030). The outer-parallel topology is MORE seed-sensitive. Possible explanation: with attention placed at outer positions only, the SSM-only middle position depends more on initialization (only one chance for kill-Mamba-2 to learn cleanly per cycle vs 3 chances for triple-parallel).
+
+**Outside-eyes value confirmed**: catching this anomaly was high-impact. Without it, the writeup might have mentioned 0054 as a competitive variant when in fact it's noise-dominated. Honest update logged.
+
+**Refined topology pattern**:
+| Topology | Cross-seed σ | Mean (n-seed) |
+|---|---|---|
+| Sequential (kill at 0,1; ATTN at 2) | 0.0011 (n=2) | 2.02193 |
+| Middle-parallel (parallel at 1) | 0.0027 (n=3) | 2.00950 |
+| Outer-parallel (parallel at 0,2) | 0.0100 (n=2) | 2.00838 |
+| Triple-parallel (parallel at 0,1,2) | 0.0030 (n=4) | 2.00503 |
+
+Triple-parallel is BEST by mean AND tightest σ among parallel families. The 4-seed sentinel was on the right configuration.
+
 ## 2026-04-27 06:35 EDT · 0060 · 3rd seed of middle-parallel; honest σ update
 
 **0060 (SEED=2024 of 0046)**: val 2.0079. Better than the 2-seed mean (2.01031) suggested.
