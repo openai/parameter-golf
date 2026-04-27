@@ -1,0 +1,20 @@
+{
+  "name": "8L + BigramHash(12288, dim=128) + Batch Scaling + Systematic HyperOpt (1xH100, 129 experiments)",
+  "val_bpb": 1.2392,
+  "val_loss": 2.0923,
+  "bytes_total": 15873726,
+  "author": "CrimsonSithira",
+  "github_id": "CrimsonSithria",
+  "date": "2026-03-22",
+  "blurb": "8 layers, 4x MLP (relu^2), BigramHash 12288 with dim=128 projection. 129 systematic experiments mapping hyperparameter scaling laws for throughput-constrained training. Key: batch size scaling (131K tokens), WD as artifact compression knob (WD=0.048 -> 15.9MB). 1x H100 SXM, 10min.",
+  "eval_method": "sliding_window",
+  "eval_stride": 512,
+  "quantization": "int8",
+  "compression": "zlib-9",
+  "artifact_size_bytes": 15873726,
+  "train_steps": 4486,
+  "train_time_seconds": 600,
+  "hardware": "1xH100-80GB-SXM",
+  "seed": 1337,
+  "techniques": ["BigramHash Projection", "Batch Size Scaling", "Muon Weight Decay", "Overtone Init", "Phase-Transition Resid Mix", "FP16 Tied Embeddings"]
+}
