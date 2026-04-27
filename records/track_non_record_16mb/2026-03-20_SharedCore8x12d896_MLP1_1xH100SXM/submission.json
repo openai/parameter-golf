@@ -1,0 +1,17 @@
+{
+  "author": "Quincy",
+  "github_id": "Janksuu",
+  "name": "Shared-Core 8/12 @ 896 (1xH100 SXM)",
+  "blurb": "Non-record 16MB track: a repeated sub-2.0 bpb shared-core checkpoint on 1xH100 SXM, under the 16MB cap, prepared for later 8xH100 validation.",
+  "date": "2026-03-20T06:24:36Z",
+  "track": "non-record-16mb",
+  "val_loss": 3.37650478,
+  "val_bpb": 1.99975632,
+  "pre_quant_val_loss": 3.3188,
+  "pre_quant_val_bpb": 1.9656,
+  "step_stop": 200,
+  "wallclock_seconds": 37.555,
+  "bytes_total": 12960324,
+  "bytes_model_int8_zlib": 12902422,
+  "bytes_code": 57902
+}
