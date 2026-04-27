@@ -1,0 +1,26 @@
+{
+  "id": "0045_0045_kill_no_bigram_seed42",
+  "parent": "0042_kill_no_bigram",
+  "created_at": "2026-04-27T04:14:11Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0199,
+    "val_bpb_post_quant": 2.02138982,
+    "val_loss_pre_quant": 3.4522,
+    "val_loss_post_quant": 3.45482055,
+    "quant_tax": 0.00149,
+    "step_avg_ms": 5904.42,
+    "num_steps": 200.0,
+    "artifact_bytes": 13261880.0,
+    "artifact_mb": 13.262,
+    "code_bytes": 74618.0,
+    "compression_ratio": 3.93
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
