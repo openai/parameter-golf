@@ -1,0 +1,11 @@
+{
+  "author": "Hector Andrade",
+  "github_id": "hectorandrade",
+  "name": "SwiGLU dim=576 + Sliding Window Eval + Muon WD + FP16 Embed",
+  "blurb": "Wider model (dim=576, 7 layers, SwiGLU mult=2) with Muon decoupled weight decay 0.02, FP16 embedding passthrough, wallclock-based warmdown at 60%, and sliding window evaluation (stride=64). Architecture found through 111 automated experiments on RTX 3090. Weight decay reduces artifact size by 0.5MB and improves both training quality and quantization robustness.",
+  "date": "2026-03-20",
+  "val_loss": 2.10004755,
+  "val_bpb": 1.20906502,
+  "bytes_total": 13235184,
+  "bytes_code": 47476
+}
