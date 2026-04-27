@@ -1,0 +1,31 @@
+{
+    "name": "XSA-all + Soft-Round QAT + Full GPTQ + MLP 3.5x + AdamW TTT",
+    "author": "senstar-hsoleimani",
+    "github_id": "senstar-hsoleimani",
+    "val_bpb": null,
+    "date": "2026-03-24",
+    "track": "10min_16mb",
+    "description": "Combines XSA on all 11 layers, Soft-Round QAT (tanh-based differentiable rounding), Full GPTQ with Hessian-aware error compensation, MHA 8/8 with MLP 3.5x (1792 hidden), BigramHash(8192), selective magnitude pruning, and AdamW-based legal score-first TTT with cosine LR. Built on the LeakyReLU² + Parallel Muon + EMA stack.",
+    "base_pr": "#549, #606, #609",
+    "hardware": "8xH100 SXM",
+    "training_time_seconds": 600,
+    "artifact_bytes": null,
+    "techniques": [
+        "XSA-all (11 layers)",
+        "Soft-Round QAT (tanh alpha 1->16)",
+        "Full GPTQ (Hessian-aware column reordering)",
+        "MHA 8/8 (no GQA)",
+        "MLP 3.5x (1792 hidden)",
+        "BigramHash(8192)",
+        "Selective ±1 magnitude pruning",
+        "AdamW TTT (cosine LR, 131K chunks)",
+        "LeakyReLU(0.5)²",
+        "Parallel Muon",
+        "EMA 0.997 + Tight SWA",
+        "Partial RoPE 16/64",
+        "LN Scale",
+        "VE128 shared (layers 9-10)",
+        "U-Net skip connections",
+        "LZMA compression"
+    ]
+}
