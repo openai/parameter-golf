@@ -1,0 +1,111 @@
+﻿logs/modal_autoprecision_nonrecord_1xh100_v1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25517137
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:150 warmup_steps:20 max_wallclock_seconds:60.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/150 train_loss:6.9334 train_time:822ms step_avg:822.24ms
+step:2/150 train_loss:8.1796 train_time:1509ms step_avg:754.37ms
+step:3/150 train_loss:8.1744 train_time:2194ms step_avg:731.35ms
+step:4/150 train_loss:8.1194 train_time:2882ms step_avg:720.40ms
+step:5/150 train_loss:8.0174 train_time:3571ms step_avg:714.21ms
+step:6/150 train_loss:7.9515 train_time:4260ms step_avg:709.96ms
+step:7/150 train_loss:7.8315 train_time:4949ms step_avg:707.07ms
+step:8/150 train_loss:7.7282 train_time:5634ms step_avg:704.30ms
+step:9/150 train_loss:7.5965 train_time:6324ms step_avg:702.64ms
+step:10/150 train_loss:7.4754 train_time:7010ms step_avg:700.98ms
+swa:start step:50
+step:87/150 val_loss:5.5614 val_bpb:3.2938 train_time:60025ms step_avg:689.94ms
+stopping_early: wallclock_cap train_time:60025ms step:87/150
+peak memory allocated: 19146 MiB reserved: 19218 MiB
+Serialized model: 98437419 bytes
+Code size: 65258 bytes
+Total submission size: 98502677 bytes
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084380
+auto_precision:baseline calib_loss:5.536725 calib_bpb:3.084380 bytes:15311264
+auto_precision:skip name:tok_emb.weight to:fp16 reason:bytes
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084405
+auto_precision:candidate name:bigram.proj.weight to:fp16 calib_bpb:3.084405 delta:-0.000026 bytes:15563919 added:+252655
+auto_precision:skip name:bigram.embed.weight to:fp16 reason:bytes
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084367
+auto_precision:candidate name:blocks.6.attn.c_k.weight to:int8 calib_bpb:3.084367 delta:+0.000013 bytes:15578627 added:+267363
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084387
+auto_precision:candidate name:blocks.6.attn.c_v.weight to:int8 calib_bpb:3.084387 delta:-0.000007 bytes:15379754 added:+68490
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084398
+auto_precision:candidate name:blocks.7.attn.c_k.weight to:int8 calib_bpb:3.084398 delta:-0.000018 bytes:15601520 added:+290256
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084509
+auto_precision:candidate name:blocks.7.attn.c_v.weight to:int8 calib_bpb:3.084509 delta:-0.000129 bytes:15551702 added:+240438
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084394
+auto_precision:candidate name:blocks.8.attn.c_k.weight to:int8 calib_bpb:3.084394 delta:-0.000014 bytes:15313844 added:+2580
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084388
+auto_precision:candidate name:blocks.8.attn.c_v.weight to:int8 calib_bpb:3.084388 delta:-0.000008 bytes:15595099 added:+283835
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084368
+auto_precision:candidate name:blocks.9.attn.c_k.weight to:int8 calib_bpb:3.084368 delta:+0.000012 bytes:15358594 added:+47330
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084384
+auto_precision:candidate name:blocks.9.attn.c_v.weight to:int8 calib_bpb:3.084384 delta:-0.000004 bytes:15641180 added:+329916
+auto_precision:selected name:blocks.9.attn.c_k.weight to:int8 calib_bpb:3.084368 bytes:15358594
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084363
+auto_precision:candidate name:blocks.6.attn.c_k.weight to:int8 calib_bpb:3.084363 delta:+0.000005 bytes:15703326 added:+344732
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084399
+auto_precision:candidate name:blocks.6.attn.c_v.weight to:int8 calib_bpb:3.084399 delta:-0.000031 bytes:15504375 added:+145781
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084378
+auto_precision:candidate name:blocks.7.attn.c_k.weight to:int8 calib_bpb:3.084378 delta:-0.000010 bytes:15532550 added:+173956
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084493
+auto_precision:candidate name:blocks.7.attn.c_v.weight to:int8 calib_bpb:3.084493 delta:-0.000125 bytes:15505742 added:+147148
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084380
+auto_precision:candidate name:blocks.8.attn.c_k.weight to:int8 calib_bpb:3.084380 delta:-0.000012 bytes:15504094 added:+145500
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084378
+auto_precision:candidate name:blocks.8.attn.c_v.weight to:int8 calib_bpb:3.084378 delta:-0.000010 bytes:15610359 added:+251765
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084360
+auto_precision:candidate name:blocks.9.attn.c_v.weight to:int8 calib_bpb:3.084360 delta:+0.000008 bytes:15836818 added:+478224
+auto_precision:selected name:blocks.9.attn.c_v.weight to:int8 calib_bpb:3.084360 bytes:15836818
+auto_precision:sync_path logs/modal_autoprecision_nonrecord_1xh100_v1_auto_precision_policy.pt
+auto_precision:final calib_bpb:3.084360 bytes:15836818 fp16:[] int8:[blocks.9.attn.c_k.weight,blocks.9.attn.c_v.weight]
+Serialized model mixed+zstd: 15771560 bytes
+Total submission size int8+zlib: 15836818 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32 max_windows:16
+sliding_eval_config rank:0 world_size:1 total_windows:16 local_windows:16 max_windows:16
+  sliding_eval [100.0%] 16/16 windows running_bpb=3.084360
+final_int8_zlib_roundtrip val_loss:5.5367 val_bpb:3.0844 eval_time:139ms
+final_int8_zlib_roundtrip_exact val_loss:5.53668879 val_bpb:3.08435975
