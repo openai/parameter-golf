@@ -1,0 +1,69 @@
+{
+  "author": "pablinga19",
+  "github_id": "pablinga19",
+  "name": "SP8192 + 3-Layer Recurrence + Hard Onset",
+  "blurb": "3-layer depth recurrence on layers 3-5 with hard onset at step 3000, no mid-training validation. GPTQ int6+brotli, EMA 0.9965, SDClip 12.85.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": 2.80540487,
+  "val_bpb": 1.08625,
+  "val_bpb_std": 0.0023,
+  "seeds": [314, 1337, 42],
+  "seed_results": {
+    "314": {
+      "val_loss": 2.80020987,
+      "val_bpb": 1.08424,
+      "val_bpb_prequant": 1.08438,
+      "val_bpb_roundtrip": 1.10124,
+      "artifact_bytes": 15998501,
+      "steps": 5258,
+      "wallclock_seconds": 600,
+      "eval_method": "int6_sliding_stride64"
+    },
+    "1337": {
+      "val_loss": 2.80430163,
+      "val_bpb": 1.08582,
+      "val_bpb_prequant": 1.08536,
+      "val_bpb_roundtrip": 1.10271,
+      "artifact_bytes": 15857563,
+      "steps": 5247,
+      "wallclock_seconds": 600,
+      "eval_method": "int6_sliding_stride64"
+    },
+    "42": {
+      "val_loss": 2.81168312,
+      "val_bpb": 1.08868,
+      "val_bpb_prequant": 1.08683,
+      "val_bpb_roundtrip": 1.10559,
+      "artifact_bytes": 15974578,
+      "steps": 5033,
+      "wallclock_seconds": 600,
+      "eval_method": "int6_sliding_stride64"
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 15943547,
+  "bytes_code": 132898,
+  "config": {
+    "vocab_size": 8192,
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4,
+    "recur_layers": "3,4,5",
+    "recur_start_step": 3000,
+    "recur_homotopy": false,
+    "ema_decay": 0.9965,
+    "sdclip_k": 12.85,
+    "sdclip_k_embed": 20.0,
+    "gptq_calibration_batches": 64,
+    "compressor": "brotli",
+    "val_loss_every": 99999,
+    "warmdown_frac": 0.72,
+    "qk_gain_init": 5.25,
+    "train_seq_len": 2048,
+    "train_batch_tokens": 786432,
+    "max_wallclock_seconds": 600
+  }
+}
