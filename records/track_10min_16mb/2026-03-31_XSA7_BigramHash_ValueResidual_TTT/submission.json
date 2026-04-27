@@ -1,0 +1,11 @@
+{
+  "author": "Aditya Krishnan Mohan",
+  "github_id": "adityakm24",
+  "name": "XSA7 BigramHash ValueResidual TTT 1.1227",
+  "blurb": "11-layer parameter-banking GPT with XSA on 7 layers, BigramHash(2048)+TrigramHash(1024), ValueResidual, ValueEmbedding at layers 5/9/10, int6+lzma compression, and legal score-first TTT (4 epochs); 3-seed mean legal_ttt_val_bpb=1.12327 under 16MB artifact cap.",
+  "date": "2026-03-31T14:00:00Z",
+  "val_loss": 1.89554977,
+  "val_bpb": 1.12265432,
+  "bytes_total": 15944685,
+  "bytes_code": 91881
+}
