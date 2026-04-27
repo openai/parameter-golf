@@ -1,0 +1,7 @@
+{
+  "name": "SP8192 + 4-Layer Depth Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT",
+  "github_id": "tashapais",
+  "val_bpb": null,
+  "date": "2026-04-16",
+  "notes": "Extends SOTA 3-layer depth recurrence to 4 layers (loop_end=6). Results pending on 8xA100s."
+}
