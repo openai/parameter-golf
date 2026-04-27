@@ -1,0 +1,10 @@
+{
+    "author": "ibarrajo",
+    "github_id": "ibarrajo",
+    "name": "TurboQuant-Guided Mixed Precision (V@int3, QK@int5, boundary@int5)",
+    "blurb": "Mixed precision quantization guided by TurboQuant+ findings: V/O projections and MLP at int3 in middle layers, Q/K at int5 everywhere, boundary layers (first 2 + last 2) at int5. Per-tensor QAT alignment. Based on ICLR 2026 findings that V compression is free and all quality loss comes from K compression.",
+    "date": "2026-03-31",
+    "val_bpb": 0.0,
+    "val_loss": 0.0,
+    "bytes_total": 0
+}
