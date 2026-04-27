@@ -1,0 +1,18 @@
+{
+  "author": "Scott Cui",
+  "github_id": "scottcui-georgian",
+  "name": "Legal TTT + Muon+ + QK Gain 4.0",
+  "blurb": "In-progress non-record submission generated with arc/autoresearch from the ValCalib GPTQ + XSA-all base. Adds Muon+ row-wise update normalization, higher QK gain init (4.0), and legal score-first TTT. Single-seed exact result: 1.11314283 BPB / 1.87949504 nats, but current artifact is 17,347,791 bytes so the run is over the 16MB limit and not yet submittable as a record entry.",
+  "date": "2026-04-15",
+  "track": "non_record_16mb",
+  "val_loss": 1.87949504,
+  "val_bpb": 1.11314283,
+  "pre_quant_val_loss": 1.9165,
+  "pre_quant_val_bpb": 1.1350,
+  "step_stop": 6722,
+  "wallclock_seconds": 600.1,
+  "bytes_total": 17347791,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": 109539,
+  "gpu": "8xH100"
+}
