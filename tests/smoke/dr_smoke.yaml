@@ -1,0 +1,302 @@
+# DR Smoke Sequence — ground-truth contract for railway_dr_* tools
+#
+# Anchor: phi^2 + phi^-2 = 3.
+#
+# Used by:
+#   - c4 integration tests in #17 (read this YAML, assert against MCP responses)
+#   - operator chat-verification after c2/c3 merge
+#   - regression checks if any DR tool ever changes signature
+#
+# Schema:
+#   smoke_id:        unique snake_case identifier
+#   tool:            MCP tool name being exercised
+#   description:     one-line summary
+#   input:           literal JSON to pass as Parameters<T>
+#   requires_human:  true => skip in CI, requires explicit operator approval
+#   expected:
+#     status:        ok | safety_gate_error | invalid_params_error | timeout_error
+#     return_keys:   exhaustive list (extra keys fail; missing keys fail)
+#     invariants:    list of one-line assertions in pseudo-jq, evaluated AND
+#     forbidden_invariants: list that must NOT hold (regression guards)
+#     side_effects:  filesystem / repo / Railway state expected after success
+
+version: "1.0.0"
+anchor: "phi^2 + phi^-2 = 3"
+
+# ─────────────────────────────────────────────────────────────────
+# 001 — Snapshot smoke (autoCI-safe)
+# ─────────────────────────────────────────────────────────────────
+smokes:
+  - smoke_id: dr_snapshot_smoke_001
+    tool: railway_dr_snapshot
+    description: |
+      Trigger fleet-snapshot.yml with no commit, expect a 25-services
+      baseline (post-#14 cleanup) and a clean drift {added:[], removed:[]}.
+    input:
+      commit: false
+      experience_root: "/tmp/dr-smoke-001"
+    requires_human: false
+    expected:
+      status: ok
+      return_keys:
+        - services
+        - drift
+        - run_id
+        - commit_sha
+        - html_url
+        - triplet
+        - experience_path
+      invariants:
+        # Baseline range: 15 Acc1 + 6 Acc2 + (4 Acc2/RP + 1 Acc1/AB if probed)
+        # Conservative window:
+        - "services >= 21"
+        - "services <= 30"
+        # On a quiet baseline with --commit=false the workflow either
+        # commits a no-diff snapshot (then drift.added==[]) or skips.
+        - 'drift.added | length <= 5'
+        - 'drift.removed | length <= 5'
+        # Identifier shapes
+        - 'run_id | tostring | test("^\\d{10,12}$")'
+        - 'commit_sha | test("^[0-9a-f]{40}$")'
+        - 'html_url | test("^https://github\\.com/gHashTag/trios-railway/actions/runs/\\d+$")'
+        # Triplet format: "<verb> <8c-project>:<8c-service|->:<sha8>:<rfc3339>"
+        # Server uses RailwayHash::seal("dr_snapshot", IGLA_PID, None, token_fp).
+        - 'triplet | test("^dr_snapshot e4fe33bb:-:[0-9a-f]{8}:")'
+        # Experience path lives where caller asked.
+        - 'experience_path | test("^/tmp/dr-smoke-001/.trinity/experience/[0-9]{8}\\.trinity$")'
+      forbidden_invariants:
+        # No accidental sensitive data in return.
+        - 'tostring | test("github_pat_")'
+        - 'tostring | test("RAILWAY_TOKEN")'
+      side_effects:
+        - kind: file_exists
+          path: "/tmp/dr-smoke-001/.trinity/experience/{utc_date_yyyymmdd}.trinity"
+        - kind: file_contains
+          path: "/tmp/dr-smoke-001/.trinity/experience/{utc_date_yyyymmdd}.trinity"
+          substring: "dr_snapshot e4fe33bb:-:"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 002a — Restore dry-run (autoCI-safe; no actual provisioning)
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_dry_run_smoke_002a
+    tool: railway_dr_restore
+    description: |
+      Validate the full safety chain (PHI confirm + target_account in
+      {acc2,acc3}) but never dispatch the workflow. Returns the planned
+      inputs verbatim so the operator can review.
+    input:
+      target_account: "acc3"
+      confirm: "PHI"
+      project_name: "IGLA-DR-smoke"
+      dry_run: true
+      experience_root: "/tmp/dr-smoke-002a"
+    requires_human: false
+    expected:
+      status: ok
+      return_keys:
+        - dry_run
+        - would_dispatch
+        - triplet
+        - experience_path
+      invariants:
+        - 'dry_run == true'
+        - 'would_dispatch.workflow == "deploy-from-template.yml"'
+        - 'would_dispatch.inputs.account_alias == "acc3"'
+        - 'would_dispatch.inputs.project_name == "IGLA-DR-smoke"'
+        - 'would_dispatch.inputs.confirm == "PHI"'
+        - 'triplet | test("^dr_restore e4fe33bb:-:[0-9a-f]{8}:")'
+      forbidden_invariants:
+        # Dry-run MUST NOT contain a run_id (no workflow dispatched).
+        - 'has("run_id")'
+        - 'has("html_url")'
+      side_effects:
+        - kind: file_exists
+          path: "/tmp/dr-smoke-002a/.trinity/experience/{utc_date_yyyymmdd}.trinity"
+        # CRITICAL: no GitHub Actions run was created.
+        - kind: github_run_not_created
+          workflow: deploy-from-template.yml
+          since_ts_marker_inserted_before_call: true
+
+  # ─────────────────────────────────────────────────────────────────
+  # 002b — Real restore against fresh acc3 (REQUIRES_HUMAN)
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_real_smoke_002b
+    tool: railway_dr_restore
+    description: |
+      Live provisioning of 6 services on acc3. Skipped in CI; run by hand
+      once a quarter as a DR drill. Operator must have RAILWAY_TOKEN_ACC3
+      set in repo Actions Secrets and a fresh empty Railway account.
+    input:
+      target_account: "acc3"
+      confirm: "PHI"
+      project_name: "IGLA-DR-drill"
+      dry_run: false
+    requires_human: true
+    expected:
+      status: ok
+      return_keys:
+        - deployed_services
+        - template_url
+        - run_id
+        - html_url
+        - triplet
+        - experience_path
+      invariants:
+        - 'deployed_services | length == 6'
+        - 'deployed_services | map(.name) | contains(["trios-mcp-public"])'
+        - 'deployed_services | map(.name) | contains(["igla-final-seed-42","igla-final-seed-43","igla-final-seed-44"])'
+        - 'template_url == "https://railway.com/template/igla-fleet"'
+        - 'run_id | tostring | test("^\\d{10,12}$")'
+        - 'html_url | test("^https://github\\.com/gHashTag/trios-railway/actions/runs/\\d+$")'
+      side_effects:
+        - kind: github_file_present
+          repo: gHashTag/trios-railway
+          path: disaster-recovery/last-restore.json
+          contains: '"alias":"acc3"'
+
+  # ─────────────────────────────────────────────────────────────────
+  # 003 — Safety gate: non-PHI confirm
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_safety_gate_smoke_003
+    tool: railway_dr_restore
+    description: |
+      Any confirm value other than the literal "PHI" must fail-fast with
+      SafetyGate. No workflow dispatched, no triplet sealed.
+    input:
+      target_account: "acc3"
+      confirm: "phi"            # lowercase, deliberately wrong
+      project_name: "IGLA-DR-bad"
+    requires_human: false
+    expected:
+      status: invalid_params_error
+      error_substring: "SafetyGate: confirm must be exactly the string \"PHI\""
+      return_keys: []
+      forbidden_invariants:
+        - 'has("run_id")'
+        - 'has("triplet")'
+        - 'has("experience_path")'
+      side_effects:
+        - kind: github_run_not_created
+          workflow: deploy-from-template.yml
+          since_ts_marker_inserted_before_call: true
+        - kind: file_not_created
+          path_pattern: "/tmp/dr-smoke-003/.trinity/**"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 003b — Safety gate: empty confirm
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_empty_confirm_smoke_003b
+    tool: railway_dr_restore
+    description: |
+      Missing/empty confirm field is the most common operator mistake.
+      Must fail with the same SafetyGate error.
+    input:
+      target_account: "acc3"
+      confirm: ""
+    requires_human: false
+    expected:
+      status: invalid_params_error
+      error_substring: "SafetyGate"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 004 — acc1 redirect
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_acc1_redirect_smoke_004
+    tool: railway_dr_restore
+    description: |
+      target_account=acc1 is forbidden (would clobber the live IGLA fleet).
+      The error must redirect the caller to the per-service tools.
+    input:
+      target_account: "acc1"
+      confirm: "PHI"
+    requires_human: false
+    expected:
+      status: invalid_params_error
+      error_substring: "SafetyGate: target_account=acc1 is forbidden"
+      error_must_also_contain: "railway_service_"
+      return_keys: []
+      side_effects:
+        - kind: github_run_not_created
+          workflow: deploy-from-template.yml
+          since_ts_marker_inserted_before_call: true
+
+  # ─────────────────────────────────────────────────────────────────
+  # 005 — acc4 / unknown alias
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_restore_unknown_account_smoke_005
+    tool: railway_dr_restore
+    description: |
+      Any target_account outside {acc2,acc3} is invalid_params. acc1 has
+      its own dedicated message (smoke_004); other aliases get the generic
+      one.
+    input:
+      target_account: "acc4"
+      confirm: "PHI"
+    requires_human: false
+    expected:
+      status: invalid_params_error
+      error_substring: "target_account must be one of: acc2, acc3"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 006 — Missing TRIOS_REPO_PAT
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_snapshot_missing_pat_smoke_006
+    tool: railway_dr_snapshot
+    description: |
+      With TRIOS_REPO_PAT unset in process env, the workflow_runner cannot
+      dispatch. The error must point the operator at where to generate the
+      PAT — not just say "auth failed".
+    input:
+      commit: false
+    requires_human: false
+    setup:
+      unset_env: ["TRIOS_REPO_PAT"]
+    expected:
+      status: invalid_params_error
+      error_must_also_contain: "settings/personal-access-tokens"
+      error_must_also_contain: "actions:write"
+      forbidden_invariants:
+        - 'has("run_id")'
+
+  # ─────────────────────────────────────────────────────────────────
+  # 007 — Timeout surfacing
+  # ─────────────────────────────────────────────────────────────────
+  - smoke_id: dr_snapshot_timeout_smoke_007
+    tool: railway_dr_snapshot
+    description: |
+      When the workflow exceeds 600s wall-clock, the tool returns a
+      timeout error that still includes run_id and html_url so the
+      operator can keep watching the run on the GitHub UI.
+    input:
+      commit: false
+    requires_human: false   # mocked at the workflow_runner level
+    mock:
+      workflow_completion_delay_seconds: 700   # > 600s timeout
+      fake_run_id: 99999999999
+    expected:
+      status: timeout_error
+      error_must_also_contain: "run_id=99999999999"
+      error_must_also_contain: "html_url=https://github.com/gHashTag/trios-railway/actions/runs/99999999999"
+      forbidden_invariants:
+        - 'has("services")'    # no partial success
+        - 'has("drift")'
+
+  # ─────────────────────────────────────────────────────────────────
+  # Notes for c4 implementer
+  # ─────────────────────────────────────────────────────────────────
+  # 1. CI default: run all `requires_human: false` smokes; skip 002b.
+  #    Smoke 007 needs a wiremock that simulates a never-completing run.
+  # 2. Place fixtures under tests/smoke/fixtures/. Each fixture is the
+  #    GraphQL response octocrab would receive — record one with
+  #    `gh api` once, replay with wiremock.
+  # 3. The `since_ts_marker_inserted_before_call: true` flag means the
+  #    test must call `octo.workflows().list_all_runs().created("> ts")`
+  #    AFTER the tool call to confirm no new run appeared on the live
+  #    repo. For mocked tests, just assert the dispatch mock got 0 hits.
+  # 4. {utc_date_yyyymmdd} placeholder: replace with `chrono::Utc::now().format("%Y%m%d")`
+  #    in the test harness.
+  # 5. The triplet regex matches the seal format I expect from
+  #    RailwayHash::seal(verb, project_id, None, token_fp). If your
+  #    actual seal output differs, send me one example string from c2
+  #    smoke output and I'll relax the regex (but keep verb + project
+  #    prefix bound).
