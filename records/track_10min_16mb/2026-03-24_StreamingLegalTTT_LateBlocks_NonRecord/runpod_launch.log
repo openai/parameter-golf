@@ -1,0 +1,3 @@
+verified train_shards=80 val_shards=1
+verified tokenizer=/tmp/parameter-golf-data/tokenizers/fineweb_1024_bpe.model
+started streamttt_stream_late4 data_root_mode=tmp pid=1510 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-24_StreamingTTT_Candidate/runpod_tmp_stream_late4/train.log
