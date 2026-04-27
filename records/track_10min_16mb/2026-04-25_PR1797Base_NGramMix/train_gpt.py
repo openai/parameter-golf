@@ -330,6 +330,14 @@ class Hyperparameters:
     # Unigram-prior weight inside the Dirichlet smoothing (q_bi prior = q_uni).
     # Disabled for V1 (uniform prior). Re-enable if warmup cost is hurting.
     ngram_mix_use_uni_prior = bool(int(os.environ.get("NGRAM_MIX_USE_UNI_PRIOR", "1")))
+    # Prefix-only running-NLL conditional temperature scaling (V2 knob, eval-only).
+    # T_t = T_base * exp(beta * (running_NLL_avg - REF_NLL)).  Disabled at T_BASE=1
+    # & BETA=0 (math identity).  See class TemperatureScaler for legality proof.
+    temp_scale_enabled = bool(int(os.environ.get("TEMP_SCALE_ENABLED", "0")))
+    temp_base = float(os.environ.get("TEMP_BASE", "1.0"))
+    temp_beta = float(os.environ.get("TEMP_BETA", "0.0"))
+    temp_ref_nll = float(os.environ.get("TEMP_REF_NLL", "2.4"))
+    temp_warmup_tokens = int(os.environ.get("TEMP_WARMUP_TOKENS", "64"))
     matrix_bits = int(os.environ.get("MATRIX_BITS", 6))
     embed_bits = int(os.environ.get("EMBED_BITS", 8))
     matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
@@ -613,6 +621,87 @@ class NGramMixer:
         ones32 = torch.ones_like(tgt_ids, dtype=torch.int32)
         self.uni.scatter_add_(0, tgt_ids, ones32)
         self.uni_total += int(tgt_ids.numel())
+
+
+class TemperatureScaler:
+    """Per-rank prefix-only running-NLL conditional temperature scaling.
+
+    Maintains a running average of NLLs of already-scored tokens.  At each new
+    position, the model's logits are scaled by 1/T where
+
+        T = T_base * exp(beta * (running_NLL_avg - REF_NLL))
+
+    ``REF_NLL`` is a fixed reference value (typically the unconditional model's
+    expected per-token NLL on FineWeb val, ~2.4).  beta controls direction:
+        beta > 0:   T grows when running_NLL > REF (model struggling) → smoother
+        beta < 0:   T shrinks when running_NLL > REF → sharper / more confident
+        T_base, beta = 1, 0:  identity (no scaling) — sanity anchor.
+
+    Legality (Issue #1017 conditions):
+
+      C1 (causal): T_t depends only on the running_NLL_avg over tokens
+         x_{0..t-1} which have already been scored.  No future tokens enter
+         the gate; reset() is invoked between ranks (each rank's stream is a
+         contiguous causal prefix of the natural validation order).
+
+      C2 (full normalized distribution): log_softmax(logits / T) is a valid
+         distribution over Σ for any T > 0.  No x_t-contingent renormalization;
+         the partition function depends on logits and T only.
+
+      C3 (score-before-update): get_temperature() reads only state from prior
+         updates; apply_at_targets computes the scored NLL at x_t; only after
+         that NLL is fixed does update() append it to the running stat.  The
+         current symbol cannot influence its own assigned probability.
+
+      C4 (single left-to-right pass): running_NLL is monotonically extended;
+         no second pass, no rewinding, no per-token retrospective T change.
+    """
+
+    def __init__(self, t_base, beta, ref_nll, warmup_tokens=64):
+        self.t_base = float(t_base)
+        self.beta = float(beta)
+        self.ref_nll = float(ref_nll)
+        self.warmup = int(warmup_tokens)
+        self.nll_sum = 0.0
+        self.count = 0
+
+    def reset(self):
+        self.nll_sum = 0.0
+        self.count = 0
+
+    def get_temperature(self):
+        """Return the current temperature based on already-scored NLL stats."""
+        if self.count == 0 or self.count < self.warmup:
+            return self.t_base
+        avg = self.nll_sum / self.count
+        # exp(beta * delta), clipped to [0.5, 2.0] for numerical safety.
+        ratio = math.exp(self.beta * (avg - self.ref_nll))
+        ratio = max(0.5, min(2.0, ratio))
+        return self.t_base * ratio
+
+    @torch.no_grad()
+    def apply_at_targets(self, logits_2d, tgt_ids, nll_unscaled):
+        """Compute NLL under the temperature-scaled distribution at x_t.
+
+        logits_2d: (T, V) float32 model logits (already softcap-applied).
+        tgt_ids:   (T,)  int64 realized targets.
+        nll_unscaled: (T,) float pre-temp NLL (model's natural confidence).
+                      Used only as a fallback when T == 1 (math identity).
+
+        Returns nll_scaled: (T,) float, same dtype as nll_unscaled.
+        """
+        T = self.get_temperature()
+        if abs(T - 1.0) < 1e-9:
+            return nll_unscaled
+        log_p = F.log_softmax(logits_2d / T, dim=-1)
+        nll = -log_p.gather(-1, tgt_ids.unsqueeze(-1)).squeeze(-1)
+        return nll.to(nll_unscaled.dtype)
+
+    @torch.no_grad()
+    def update(self, nll_batch):
+        """Accumulate already-scored NLLs into the running stat."""
+        self.nll_sum += float(nll_batch.sum().item())
+        self.count += int(nll_batch.numel())
 
 
 class BatchUnigramMixer:
@@ -2780,6 +2869,17 @@ def _maybe_build_ngram_mixer(h, device):
     )
 
 
+def _maybe_build_temp_scaler(h):
+    if not getattr(h, "temp_scale_enabled", False):
+        return None
+    return TemperatureScaler(
+        t_base=h.temp_base,
+        beta=h.temp_beta,
+        ref_nll=h.temp_ref_nll,
+        warmup_tokens=h.temp_warmup_tokens,
+    )
+
+
 def eval_val(h, device, val_data, model, forward_logits_fn=None):
     seq_len = h.eval_seq_len
     local_batch_tokens = h.val_batch_tokens // (h.world_size * h.grad_accum_steps)
@@ -2810,6 +2910,8 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
     # V1 n-gram mixer: per-rank, accumulates across entire rank stream. Legal
     # because each rank's stream is a contiguous causal prefix. See NGramMixer.
     ngram_mixer = _maybe_build_ngram_mixer(h, device)
+    # V2 temperature scaler: per-rank prefix-only NLL gate. Identity at T=1, beta=0.
+    temp_scaler = _maybe_build_temp_scaler(h)
     with torch.no_grad():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -2833,6 +2935,17 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
                 y.reshape(-1),
                 reduction="none",
             )
+            # Apply temperature scaling first (eval-time prefix-only). When
+            # composed with the n-gram mixer below, the mixer sees the
+            # T-scaled per-token NLL as p_nn — which is correct: temperature
+            # is a post-model recalibration before the mixture.
+            if temp_scaler is not None:
+                logits_2d = logits.reshape(-1, logits.size(-1)).float()
+                per_token_loss = temp_scaler.apply_at_targets(
+                    logits_2d, y.reshape(-1), per_token_loss,
+                )
+                # update with the scored (post-temperature) NLL
+                temp_scaler.update(per_token_loss)
             if ngram_mixer is not None:
                 # Score-before-update: compute mixture NLL first (uses snapshot
                 # state from prior batches), then extend state with this batch.

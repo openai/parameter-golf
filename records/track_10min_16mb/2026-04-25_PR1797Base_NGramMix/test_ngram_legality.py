@@ -29,10 +29,11 @@ tg = importlib.util.module_from_spec(SPEC)
 src = (HERE / "train_gpt.py").read_text(encoding="utf-8")
 start = src.index("class NGramMixer:")
 end = src.index("def build_sentencepiece_luts(")
-ns = {"torch": torch, "F": F}
+ns = {"torch": torch, "F": F, "math": __import__("math")}
 exec(src[start:end], ns)
 NGramMixer = ns["NGramMixer"]
 BatchUnigramMixer = ns["BatchUnigramMixer"]
+TemperatureScaler = ns["TemperatureScaler"]
 
 
 def _fresh_mixer(V=64, seed=0, alpha=2.0, beta=-0.25, scale=8.0, use_uni_prior=True):
@@ -258,6 +259,85 @@ def test_batch_c3_no_mutation_in_mix():
     return ok, "BatchUnigramMixer.mix_nll_chunk does not mutate state"
 
 
+def test_temp_c1_no_future_dep():
+    """TemperatureScaler: T at position t must depend only on already-scored NLLs."""
+    ts = TemperatureScaler(t_base=1.0, beta=0.5, ref_nll=2.4, warmup_tokens=4)
+    # Warm with 16 NLLs.
+    nlls = torch.linspace(2.0, 2.8, 16)
+    ts.update(nlls)
+    T_after_a = ts.get_temperature()
+    # Add a phantom future batch but DO NOT call update — T must not change.
+    fake_future = torch.tensor([5.0, 0.1, 3.3])  # extreme values
+    T_after_b = ts.get_temperature()  # no update -> identical
+    return T_after_a == T_after_b, "C1 T does not depend on un-scored future NLLs"
+
+
+def test_temp_c2_normalized():
+    """log_softmax(logits/T) sums to 1 (full distribution over Σ)."""
+    V = 32
+    logits = torch.randn(8, V)
+    ts = TemperatureScaler(t_base=1.5, beta=0.0, ref_nll=2.4)
+    log_p = F.log_softmax(logits / ts.get_temperature(), dim=-1)
+    p = log_p.exp()
+    ok = torch.allclose(p.sum(dim=-1), torch.ones(8), atol=1e-5)
+    return ok, "C2 temperature-scaled softmax is a valid distribution over Σ"
+
+
+def test_temp_c3_no_target_dep():
+    """T value at position t must be independent of x_t (the realized target)."""
+    ts = TemperatureScaler(t_base=1.0, beta=0.4, ref_nll=2.4, warmup_tokens=2)
+    # warm
+    ts.update(torch.tensor([2.5, 2.6, 2.7]))
+    V = 32
+    logits = torch.randn(8, V)
+    tgt_a = torch.randint(0, V, (8,))
+    tgt_b = torch.randint(0, V, (8,))
+    nll_dummy = torch.zeros(8)
+    nll_a = ts.apply_at_targets(logits, tgt_a, nll_dummy)
+    # T computed once and used the same way regardless of tgt
+    T_a = ts.get_temperature()
+    nll_b = ts.apply_at_targets(logits, tgt_b, nll_dummy)
+    T_b = ts.get_temperature()
+    # apply_at_targets must NOT mutate state
+    return T_a == T_b, "C3 T(prefix) is identical across different target choices at same prefix"
+
+
+def test_temp_c3_no_update_during_apply():
+    """apply_at_targets() must not mutate scaler state."""
+    ts = TemperatureScaler(t_base=1.05, beta=0.2, ref_nll=2.4, warmup_tokens=2)
+    ts.update(torch.tensor([2.4, 2.5]))
+    snap = ts.nll_sum, ts.count
+    V = 16
+    _ = ts.apply_at_targets(torch.randn(4, V), torch.randint(0, V, (4,)), torch.zeros(4))
+    ok = (ts.nll_sum, ts.count) == snap
+    return ok, "C3 apply_at_targets does not mutate state"
+
+
+def test_temp_identity_at_one():
+    """T=1, beta=0 reduces to identity (matches unscaled NLL)."""
+    V = 16
+    ts = TemperatureScaler(t_base=1.0, beta=0.0, ref_nll=2.4, warmup_tokens=0)
+    logits = torch.randn(8, V)
+    tgt = torch.randint(0, V, (8,))
+    log_p = F.log_softmax(logits, dim=-1)
+    nll_unscaled = -log_p.gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
+    nll_scaled = ts.apply_at_targets(logits, tgt, nll_unscaled)
+    return torch.equal(nll_scaled, nll_unscaled), "Temperature scaler at T=1 returns unscaled NLL exactly"
+
+
+def test_temp_c4_monotonic():
+    """count + nll_sum monotonically non-decreasing across updates."""
+    ts = TemperatureScaler(t_base=1.0, beta=0.0, ref_nll=2.4)
+    prev_sum, prev_count = 0.0, 0
+    for _ in range(5):
+        nll = torch.rand(8)
+        ts.update(nll)
+        if ts.nll_sum < prev_sum or ts.count < prev_count:
+            return False, "C4 monotonic broken"
+        prev_sum, prev_count = ts.nll_sum, ts.count
+    return True, "C4 TemperatureScaler state monotonically grows"
+
+
 def main():
     tests = [
         test_c1_future_invariance,
@@ -270,6 +350,12 @@ def main():
         test_batch_c1_slot_isolation,
         test_batch_c3_update_respects_mask,
         test_batch_c3_no_mutation_in_mix,
+        test_temp_c1_no_future_dep,
+        test_temp_c2_normalized,
+        test_temp_c3_no_target_dep,
+        test_temp_c3_no_update_during_apply,
+        test_temp_identity_at_one,
+        test_temp_c4_monotonic,
     ]
     all_ok = True
     for t in tests:

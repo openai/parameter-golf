@@ -34,6 +34,9 @@ export HF_HOME=$WS/cache/hf
 export TOKENIZERS_PARALLELISM=false
 export HF_HUB_DISABLE_PROGRESS_BARS=1
 
+# python-minifier provides the 'pyminify' CLI used by train_gpt.py:serialize.
+pip install --quiet --break-system-packages python-minifier brotli zstandard 2>&1 | tail -2 || true
+
 # One-time repo clone. If already there, just pull.
 REPO=$WS/repo/parameter-golf
 if [ ! -d "$REPO/.git" ]; then

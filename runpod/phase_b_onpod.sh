@@ -24,7 +24,9 @@ export HF_HUB_DISABLE_PROGRESS_BARS=0
 mkdir -p /workspace/runs $TORCHINDUCTOR_CACHE_DIR $TRITON_CACHE_DIR $HF_HOME
 
 # ---------- 1. bootstrap ----------
-pip install --quiet --break-system-packages brotli zstandard pyminify 2>&1 | tail -2 || true
+pip install --quiet --break-system-packages brotli zstandard python-minifier 2>&1 | tail -2 || true
+# sanity-check pyminify CLI is installed (provided by python-minifier, NOT pyminify)
+which pyminify || { echo "FATAL: pyminify CLI missing — python-minifier install failed"; exit 1; }
 
 REPO=/workspace/parameter-golf
 if [ ! -d "$REPO/.git" ]; then

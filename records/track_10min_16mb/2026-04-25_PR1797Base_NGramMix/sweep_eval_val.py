@@ -42,19 +42,24 @@ spec.loader.exec_module(tg)
 
 
 DEFAULT_GRID = [
-    {"name": "off_sanity", "enabled": False},
-    # Extreme anchors
-    {"name": "full_nn",  "enabled": True, "alpha": 1e9, "beta": 0.0},
-    {"name": "full_bi",  "enabled": True, "alpha": -1e9, "beta": 0.0},
-    # 3x3 grid
-    {"name": "a10_b010", "enabled": True, "alpha": 1.0, "beta": -0.10},
-    {"name": "a10_b025", "enabled": True, "alpha": 1.0, "beta": -0.25},
-    {"name": "a10_b040", "enabled": True, "alpha": 1.0, "beta": -0.40},
-    {"name": "a20_b010", "enabled": True, "alpha": 2.0, "beta": -0.10},
-    {"name": "a20_b025", "enabled": True, "alpha": 2.0, "beta": -0.25},
-    {"name": "a20_b040", "enabled": True, "alpha": 2.0, "beta": -0.40},
-    {"name": "a30_b025", "enabled": True, "alpha": 3.0, "beta": -0.25},
-    {"name": "a30_b040", "enabled": True, "alpha": 3.0, "beta": -0.40},
+    # Sanity anchors
+    {"name": "off_sanity", "kind": "ngram", "enabled": False},
+    {"name": "temp_id",    "kind": "temp",  "enabled": True, "t_base": 1.0, "beta": 0.0},
+    # Pure temperature scaling: fixed T (beta=0)
+    {"name": "T_096_b00",  "kind": "temp", "enabled": True, "t_base": 0.96, "beta": 0.0},
+    {"name": "T_098_b00",  "kind": "temp", "enabled": True, "t_base": 0.98, "beta": 0.0},
+    {"name": "T_099_b00",  "kind": "temp", "enabled": True, "t_base": 0.99, "beta": 0.0},
+    {"name": "T_100_b00",  "kind": "temp", "enabled": True, "t_base": 1.00, "beta": 0.0},  # exact dup of identity
+    {"name": "T_101_b00",  "kind": "temp", "enabled": True, "t_base": 1.01, "beta": 0.0},
+    {"name": "T_102_b00",  "kind": "temp", "enabled": True, "t_base": 1.02, "beta": 0.0},
+    {"name": "T_104_b00",  "kind": "temp", "enabled": True, "t_base": 1.04, "beta": 0.0},
+    # Adaptive: vary beta (running-NLL gain)
+    {"name": "T_100_b+10", "kind": "temp", "enabled": True, "t_base": 1.00, "beta": +0.10},
+    {"name": "T_100_b+20", "kind": "temp", "enabled": True, "t_base": 1.00, "beta": +0.20},
+    {"name": "T_100_b-10", "kind": "temp", "enabled": True, "t_base": 1.00, "beta": -0.10},
+    {"name": "T_100_b-20", "kind": "temp", "enabled": True, "t_base": 1.00, "beta": -0.20},
+    {"name": "T_098_b+10", "kind": "temp", "enabled": True, "t_base": 0.98, "beta": +0.10},
+    {"name": "T_102_b-10", "kind": "temp", "enabled": True, "t_base": 1.02, "beta": -0.10},
 ]
 
 
@@ -118,13 +123,23 @@ def main():
 
     for cfg in grid:
         name = cfg.get("name", "?")
-        h.ngram_mix_enabled = bool(cfg.get("enabled", False))
-        if h.ngram_mix_enabled:
+        kind = cfg.get("kind", "ngram")
+        # reset both knobs to OFF, then enable the one this cfg specifies.
+        h.ngram_mix_enabled = False
+        h.temp_scale_enabled = False
+        if kind == "ngram" and cfg.get("enabled", False):
+            h.ngram_mix_enabled = True
             h.ngram_mix_alpha = float(cfg.get("alpha", 2.0))
             h.ngram_mix_beta = float(cfg.get("beta", -0.25))
             h.ngram_mix_scale = float(cfg.get("scale", 8.0))
             h.ngram_mix_use_uni_prior = bool(cfg.get("use_uni_prior", True))
-        tg.log(f"=== sweep '{name}' enabled={h.ngram_mix_enabled} alpha={getattr(h,'ngram_mix_alpha',None)} beta={getattr(h,'ngram_mix_beta',None)} ===")
+        elif kind == "temp" and cfg.get("enabled", False):
+            h.temp_scale_enabled = True
+            h.temp_base = float(cfg.get("t_base", 1.0))
+            h.temp_beta = float(cfg.get("beta", 0.0))
+            h.temp_ref_nll = float(cfg.get("ref_nll", 2.4))
+            h.temp_warmup_tokens = int(cfg.get("warmup", 64))
+        tg.log(f"=== sweep '{name}' kind={kind} ngram={h.ngram_mix_enabled} temp={h.temp_scale_enabled} ===")
         t0 = time.perf_counter()
         v_loss, v_bpb = tg.eval_val(h, device, val_data, compiled_model, compiled_forward_logits)
         elapsed = time.perf_counter() - t0
@@ -133,10 +148,13 @@ def main():
             with out_path.open("a") as fh:
                 fh.write(json.dumps({
                     "config": name,
-                    "enabled": h.ngram_mix_enabled,
-                    "alpha": getattr(h, "ngram_mix_alpha", None),
-                    "beta": getattr(h, "ngram_mix_beta", None),
-                    "scale": getattr(h, "ngram_mix_scale", None),
+                    "kind": kind,
+                    "ngram_enabled": h.ngram_mix_enabled,
+                    "temp_enabled": h.temp_scale_enabled,
+                    "ngram_alpha": getattr(h, "ngram_mix_alpha", None) if h.ngram_mix_enabled else None,
+                    "ngram_beta": getattr(h, "ngram_mix_beta", None) if h.ngram_mix_enabled else None,
+                    "t_base": getattr(h, "temp_base", None) if h.temp_scale_enabled else None,
+                    "temp_beta": getattr(h, "temp_beta", None) if h.temp_scale_enabled else None,
                     "val_loss": float(v_loss),
                     "val_bpb": float(v_bpb),
                     "elapsed_s": round(elapsed, 2),
