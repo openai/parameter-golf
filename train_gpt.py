@@ -941,10 +941,11 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # fullgraph=False: RandomLinearAdapter._make_R creates a torch.Generator() each
-    # forward pass (Python-level object), which causes a graph break under fullgraph=True.
-    # We still get kernel fusion and most compile benefits with fullgraph=False.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=False)
+    # fullgraph=True is now safe: the old _make_R created a torch.Generator() in forward
+    # (Python-level object causing graph breaks). Since R is now a pre-computed register_buffer,
+    # the forward graph is fully static and fuseable. This is the key performance lever:
+    # without fullgraph, each of the ~300 F.linear calls per step is a separate kernel launch.
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split (RLMA architecture):
