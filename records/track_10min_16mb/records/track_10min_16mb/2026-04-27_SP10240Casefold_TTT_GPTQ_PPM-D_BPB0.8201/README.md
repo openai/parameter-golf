@@ -25,6 +25,7 @@ This submission adds a byte-level PPM-D (Prediction by Partial Matching) mixture
 | 999  | 0.81999601 |
 | 42   | 0.82019110 |
 | **Mean** | **0.82005771** |
+Std0.00011563
 
 **Improvement over PR #1707: −0.25063 BPB**
 
