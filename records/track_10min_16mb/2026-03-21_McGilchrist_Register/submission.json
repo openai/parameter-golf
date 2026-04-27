@@ -1,0 +1,12 @@
+{
+  "author": "Aram Dovlatyan",
+  "github_id": "aramdov",
+  "name": "McGilchrist Register Token",
+  "blurb": "Causal cumulative mean + FiLM conditioning per block — a 'right hemisphere' global context signal inspired by McGilchrist's hemispheric asymmetry thesis. The running mean is a holistic document summary; FiLM projects it into per-dimension scale+shift to modulate each block output. Zero-initialized so training starts identical to SOTA. Non-record: artifact 16.86MB > 16MB limit due to untied lm_head addition; v4 removes that.",
+  "date": "2026-03-28",
+  "val_loss": 1.96646608,
+  "val_bpb": 1.16465346,
+  "bytes_total": 16855808,
+  "bytes_code": 55529,
+  "notes": "Three runs to resolve bugs: (1) zstd fell back to zlib [fixed: pip install zstandard on pod cold start], (2) 2x batch tokens halved step count to 2304 [fixed: reverted to 786K], (3) untied embeddings inflated artifact by ~855KB [to fix in v4]. Final run: 4505 steps at 133ms/step, zstd-22 active, 24.9GB VRAM/GPU. Per-step mechanism works — artifact overage is untied lm_head, not the register mechanism."
+}
