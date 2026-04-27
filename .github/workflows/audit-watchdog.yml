@@ -90,7 +90,10 @@ jobs:
           if [[ ! -s /tmp/acc1.json ]]; then
             echo '{"error":"no JSON line in audit run output","verdict":"DRIFT","exit_code":1,"services":0,"events":[],"ledger_rows":0,"target":'"$TARGET"',"project":"'"$ACC1_PROJECT"'","project_name":"unknown"}' > /tmp/acc1.json
           fi
-          jq -r '.verdict // "?"' /tmp/acc1.json >> "$GITHUB_OUTPUT" 2>/dev/null || true
+          V=$(jq -r '.verdict // "?"' /tmp/acc1.json 2>/dev/null || echo '?')
+          # GitHub Actions outputs need key=value (no spaces in value
+          # without explicit format), so encode the verdict.
+          printf 'verdict=%s\n' "${V// /_}" >> "$GITHUB_OUTPUT"
 
       - name: Audit Acc2 / IGLA-MIRROR-2
         id: acc2
@@ -112,7 +115,8 @@ jobs:
           if [[ ! -s /tmp/acc2.json ]]; then
             echo '{"error":"no JSON line in audit run output","verdict":"DRIFT","exit_code":1,"services":0,"events":[],"ledger_rows":0,"target":'"$TARGET"',"project":"'"$ACC2_PROJECT"'","project_name":"unknown"}' > /tmp/acc2.json
           fi
-          jq -r '.verdict // "?"' /tmp/acc2.json >> "$GITHUB_OUTPUT" 2>/dev/null || true
+          V=$(jq -r '.verdict // "?"' /tmp/acc2.json 2>/dev/null || echo '?')
+          printf 'verdict=%s\n' "${V// /_}" >> "$GITHUB_OUTPUT"
 
       - name: Build digest comment
         id: digest
