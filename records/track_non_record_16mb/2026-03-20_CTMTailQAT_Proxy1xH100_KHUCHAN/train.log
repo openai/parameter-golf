@@ -1,0 +1,235 @@
+logs/ctm_causal_salience_error_skip_tailqat_sp1024_1xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+data_strategy raw_prep_mode:off curriculum_mode:none curriculum_progress_mode:step curriculum_seq_lens:[128, 256, 512, 1024] doc_aware_probs:[1.0, 0.75, 0.5, 0.0] kd_mode:none kd_alpha:0.000 kd_hard_fraction:0.050
+model_params:17132636
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4 unique_layers:9
+ctm_bridge slots:4 dim:64 novelty_gain:1.00 salience_gain:0.50 share_read:0
+skip_gate_mode:error
+block_gate_mode:none
+ctm_decoder_refresh_every:0
+late_group_gate_mode:none late_group_size:0
+qat_mode:export_int8 qat_start_frac:0.70
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:131072 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:1200.000
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+warmup_step:1/20 seq_len:1024
+warmup_step:2/20 seq_len:1024
+warmup_step:3/20 seq_len:1024
+warmup_step:4/20 seq_len:1024
+warmup_step:5/20 seq_len:1024
+warmup_step:6/20 seq_len:1024
+warmup_step:7/20 seq_len:1024
+warmup_step:8/20 seq_len:1024
+warmup_step:9/20 seq_len:1024
+warmup_step:10/20 seq_len:1024
+warmup_step:11/20 seq_len:1024
+warmup_step:12/20 seq_len:1024
+warmup_step:13/20 seq_len:1024
+warmup_step:14/20 seq_len:1024
+warmup_step:15/20 seq_len:1024
+warmup_step:16/20 seq_len:1024
+warmup_step:17/20 seq_len:1024
+warmup_step:18/20 seq_len:1024
+warmup_step:19/20 seq_len:1024
+warmup_step:20/20 seq_len:1024
+step:1/20000 train_loss:6.9366 train_time:192ms step_avg:191.97ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2/20000 train_loss:16.8294 train_time:415ms step_avg:207.72ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3/20000 train_loss:8.3657 train_time:673ms step_avg:224.25ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4/20000 train_loss:6.6647 train_time:961ms step_avg:240.29ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:5/20000 train_loss:6.9279 train_time:1260ms step_avg:251.92ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:6/20000 train_loss:6.8718 train_time:1563ms step_avg:260.54ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:7/20000 train_loss:6.5825 train_time:1857ms step_avg:265.29ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:8/20000 train_loss:6.3723 train_time:2195ms step_avg:274.41ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:9/20000 train_loss:6.1554 train_time:2528ms step_avg:280.84ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:10/20000 train_loss:5.9909 train_time:2730ms step_avg:273.03ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:50/20000 train_loss:4.0777 train_time:9107ms step_avg:182.14ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:100/20000 train_loss:3.7263 train_time:17494ms step_avg:174.94ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:150/20000 train_loss:3.3468 train_time:26006ms step_avg:173.37ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:200/20000 train_loss:3.1062 train_time:34311ms step_avg:171.55ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:250/20000 train_loss:2.9092 train_time:42620ms step_avg:170.48ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:300/20000 train_loss:2.8732 train_time:50915ms step_avg:169.72ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:350/20000 train_loss:2.7326 train_time:59273ms step_avg:169.35ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:400/20000 train_loss:2.8142 train_time:67478ms step_avg:168.70ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:450/20000 train_loss:2.6392 train_time:75516ms step_avg:167.81ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:500/20000 train_loss:2.7339 train_time:83457ms step_avg:166.91ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:550/20000 train_loss:2.6560 train_time:91267ms step_avg:165.94ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:600/20000 train_loss:2.6804 train_time:100116ms step_avg:166.86ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:650/20000 train_loss:2.5932 train_time:109052ms step_avg:167.77ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:700/20000 train_loss:2.4375 train_time:117454ms step_avg:167.79ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:750/20000 train_loss:2.5769 train_time:125615ms step_avg:167.49ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:800/20000 train_loss:2.5642 train_time:134427ms step_avg:168.03ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:850/20000 train_loss:2.6110 train_time:143625ms step_avg:168.97ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:900/20000 train_loss:2.5536 train_time:152568ms step_avg:169.52ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:950/20000 train_loss:2.5305 train_time:161483ms step_avg:169.98ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1000/20000 train_loss:2.4885 train_time:170332ms step_avg:170.33ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1050/20000 train_loss:2.5276 train_time:179254ms step_avg:170.72ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1100/20000 train_loss:2.4885 train_time:187406ms step_avg:170.37ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1150/20000 train_loss:2.3901 train_time:196553ms step_avg:170.92ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1200/20000 train_loss:2.4379 train_time:205718ms step_avg:171.43ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1250/20000 train_loss:2.4394 train_time:214932ms step_avg:171.95ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1300/20000 train_loss:2.4656 train_time:223898ms step_avg:172.23ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1350/20000 train_loss:2.4981 train_time:233245ms step_avg:172.77ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1400/20000 train_loss:2.4209 train_time:242461ms step_avg:173.19ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1450/20000 train_loss:2.4072 train_time:251669ms step_avg:173.57ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1500/20000 train_loss:2.4234 train_time:260758ms step_avg:173.84ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1550/20000 train_loss:2.4209 train_time:275551ms step_avg:177.77ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1600/20000 train_loss:2.2501 train_time:284824ms step_avg:178.01ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1650/20000 train_loss:2.4109 train_time:294234ms step_avg:178.32ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1700/20000 train_loss:2.3884 train_time:302934ms step_avg:178.20ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1750/20000 train_loss:2.3236 train_time:311585ms step_avg:178.05ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1800/20000 train_loss:2.4385 train_time:320335ms step_avg:177.96ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1850/20000 train_loss:2.3802 train_time:329171ms step_avg:177.93ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1900/20000 train_loss:2.3643 train_time:338002ms step_avg:177.90ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:1950/20000 train_loss:2.4095 train_time:346668ms step_avg:177.78ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2000/20000 train_loss:2.4445 train_time:355343ms step_avg:177.67ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2050/20000 train_loss:2.2657 train_time:363794ms step_avg:177.46ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2100/20000 train_loss:2.4909 train_time:371935ms step_avg:177.11ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2150/20000 train_loss:2.2814 train_time:380870ms step_avg:177.15ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2200/20000 train_loss:2.1995 train_time:389782ms step_avg:177.17ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2250/20000 train_loss:2.3781 train_time:398616ms step_avg:177.16ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2300/20000 train_loss:2.3260 train_time:410550ms step_avg:178.50ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2350/20000 train_loss:2.2888 train_time:419278ms step_avg:178.42ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2400/20000 train_loss:2.4273 train_time:427471ms step_avg:178.11ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2450/20000 train_loss:2.3943 train_time:435577ms step_avg:177.79ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2500/20000 train_loss:2.4086 train_time:444268ms step_avg:177.71ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2550/20000 train_loss:2.3986 train_time:452871ms step_avg:177.60ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2600/20000 train_loss:2.1956 train_time:461547ms step_avg:177.52ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2650/20000 train_loss:2.3018 train_time:470180ms step_avg:177.43ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2700/20000 train_loss:2.1957 train_time:478665ms step_avg:177.28ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2750/20000 train_loss:2.3082 train_time:486610ms step_avg:176.95ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2800/20000 train_loss:2.4474 train_time:495166ms step_avg:176.85ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2850/20000 train_loss:2.3062 train_time:503750ms step_avg:176.75ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2900/20000 train_loss:2.4484 train_time:512684ms step_avg:176.79ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:2950/20000 train_loss:2.2982 train_time:521455ms step_avg:176.76ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3000/20000 train_loss:2.2321 train_time:530183ms step_avg:176.73ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3050/20000 train_loss:2.2387 train_time:538654ms step_avg:176.61ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3100/20000 train_loss:2.5151 train_time:549440ms step_avg:177.24ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3150/20000 train_loss:2.3287 train_time:558439ms step_avg:177.28ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3200/20000 train_loss:2.3021 train_time:567327ms step_avg:177.29ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3250/20000 train_loss:2.2256 train_time:576266ms step_avg:177.31ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3300/20000 train_loss:2.3789 train_time:585041ms step_avg:177.29ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3350/20000 train_loss:2.3297 train_time:593309ms step_avg:177.11ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3400/20000 train_loss:2.3747 train_time:601620ms step_avg:176.95ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3450/20000 train_loss:2.2809 train_time:609749ms step_avg:176.74ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3500/20000 train_loss:2.2733 train_time:618376ms step_avg:176.68ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3550/20000 train_loss:2.2081 train_time:627155ms step_avg:176.66ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3600/20000 train_loss:2.3553 train_time:635684ms step_avg:176.58ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3650/20000 train_loss:2.2022 train_time:644338ms step_avg:176.53ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3700/20000 train_loss:2.3367 train_time:652935ms step_avg:176.47ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3750/20000 train_loss:2.2804 train_time:661455ms step_avg:176.39ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3800/20000 train_loss:2.3107 train_time:669864ms step_avg:176.28ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3850/20000 train_loss:2.2844 train_time:680372ms step_avg:176.72ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3900/20000 train_loss:2.2973 train_time:688860ms step_avg:176.63ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:3950/20000 train_loss:2.3581 train_time:697434ms step_avg:176.57ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4000/20000 train_loss:2.2824 train_time:706057ms step_avg:176.51ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4050/20000 train_loss:2.3053 train_time:714637ms step_avg:176.45ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4100/20000 train_loss:2.4667 train_time:722675ms step_avg:176.26ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4150/20000 train_loss:2.3270 train_time:730722ms step_avg:176.08ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4200/20000 train_loss:2.3274 train_time:739035ms step_avg:175.96ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4250/20000 train_loss:2.2499 train_time:747545ms step_avg:175.89ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4300/20000 train_loss:2.3078 train_time:756174ms step_avg:175.85ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4350/20000 train_loss:2.2802 train_time:764973ms step_avg:175.86ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4400/20000 train_loss:2.2095 train_time:773538ms step_avg:175.80ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4450/20000 train_loss:2.3742 train_time:782084ms step_avg:175.75ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4500/20000 train_loss:2.2813 train_time:790269ms step_avg:175.62ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4550/20000 train_loss:2.3864 train_time:798818ms step_avg:175.56ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4600/20000 train_loss:2.2225 train_time:807093ms step_avg:175.46ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4650/20000 train_loss:2.3511 train_time:816112ms step_avg:175.51ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4700/20000 train_loss:2.2475 train_time:824504ms step_avg:175.43ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4750/20000 train_loss:2.3285 train_time:832866ms step_avg:175.34ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4800/20000 train_loss:2.2674 train_time:841021ms step_avg:175.21ms seq_len:1024 doc_prob:0.00 qat_mix:0.00
+step:4850/20000 train_loss:2.1734 train_time:850038ms step_avg:175.27ms seq_len:1024 doc_prob:0.00 qat_mix:0.03
+step:4900/20000 train_loss:2.2418 train_time:859246ms step_avg:175.36ms seq_len:1024 doc_prob:0.00 qat_mix:0.05
+step:4950/20000 train_loss:2.2371 train_time:868491ms step_avg:175.45ms seq_len:1024 doc_prob:0.00 qat_mix:0.08
+step:5000/20000 train_loss:2.1939 train_time:877635ms step_avg:175.53ms seq_len:1024 doc_prob:0.00 qat_mix:0.10
+step:5050/20000 train_loss:2.3473 train_time:886905ms step_avg:175.62ms seq_len:1024 doc_prob:0.00 qat_mix:0.13
+step:5100/20000 train_loss:2.1337 train_time:896382ms step_avg:175.76ms seq_len:1024 doc_prob:0.00 qat_mix:0.16
+step:5150/20000 train_loss:2.3184 train_time:905321ms step_avg:175.79ms seq_len:1024 doc_prob:0.00 qat_mix:0.18
+step:5200/20000 train_loss:2.1974 train_time:914153ms step_avg:175.80ms seq_len:1024 doc_prob:0.00 qat_mix:0.21
+step:5250/20000 train_loss:2.2857 train_time:923358ms step_avg:175.88ms seq_len:1024 doc_prob:0.00 qat_mix:0.23
+step:5300/20000 train_loss:2.2721 train_time:932561ms step_avg:175.95ms seq_len:1024 doc_prob:0.00 qat_mix:0.26
+step:5350/20000 train_loss:2.1553 train_time:941780ms step_avg:176.03ms seq_len:1024 doc_prob:0.00 qat_mix:0.28
+step:5400/20000 train_loss:2.1902 train_time:950857ms step_avg:176.08ms seq_len:1024 doc_prob:0.00 qat_mix:0.31
+step:5450/20000 train_loss:2.3044 train_time:959896ms step_avg:176.13ms seq_len:1024 doc_prob:0.00 qat_mix:0.33
+step:5500/20000 train_loss:2.2154 train_time:968662ms step_avg:176.12ms seq_len:1024 doc_prob:0.00 qat_mix:0.36
+step:5550/20000 train_loss:2.2577 train_time:977636ms step_avg:176.15ms seq_len:1024 doc_prob:0.00 qat_mix:0.38
+step:5600/20000 train_loss:2.2500 train_time:986765ms step_avg:176.21ms seq_len:1024 doc_prob:0.00 qat_mix:0.41
+step:5650/20000 train_loss:2.1308 train_time:996129ms step_avg:176.31ms seq_len:1024 doc_prob:0.00 qat_mix:0.43
+step:5700/20000 train_loss:2.3728 train_time:1005416ms step_avg:176.39ms seq_len:1024 doc_prob:0.00 qat_mix:0.46
+step:5750/20000 train_loss:2.2456 train_time:1014446ms step_avg:176.43ms seq_len:1024 doc_prob:0.00 qat_mix:0.48
+step:5800/20000 train_loss:2.2458 train_time:1023300ms step_avg:176.43ms seq_len:1024 doc_prob:0.00 qat_mix:0.51
+step:5850/20000 train_loss:2.2374 train_time:1032192ms step_avg:176.44ms seq_len:1024 doc_prob:0.00 qat_mix:0.53
+step:5900/20000 train_loss:2.1014 train_time:1041358ms step_avg:176.50ms seq_len:1024 doc_prob:0.00 qat_mix:0.56
+step:5950/20000 train_loss:2.2712 train_time:1050476ms step_avg:176.55ms seq_len:1024 doc_prob:0.00 qat_mix:0.58
+step:6000/20000 train_loss:2.1966 train_time:1059671ms step_avg:176.61ms seq_len:1024 doc_prob:0.00 qat_mix:0.61
+step:6050/20000 train_loss:2.2223 train_time:1068953ms step_avg:176.69ms seq_len:1024 doc_prob:0.00 qat_mix:0.64
+step:6100/20000 train_loss:2.2176 train_time:1077999ms step_avg:176.72ms seq_len:1024 doc_prob:0.00 qat_mix:0.66
+step:6150/20000 train_loss:2.1319 train_time:1087741ms step_avg:176.87ms seq_len:1024 doc_prob:0.00 qat_mix:0.69
+step:6200/20000 train_loss:3.3724 train_time:1096959ms step_avg:176.93ms seq_len:1024 doc_prob:0.00 qat_mix:0.71
+step:6250/20000 train_loss:2.2000 train_time:1106227ms step_avg:177.00ms seq_len:1024 doc_prob:0.00 qat_mix:0.74
+step:6300/20000 train_loss:2.1789 train_time:1115399ms step_avg:177.05ms seq_len:1024 doc_prob:0.00 qat_mix:0.76
+step:6350/20000 train_loss:2.2803 train_time:1124690ms step_avg:177.12ms seq_len:1024 doc_prob:0.00 qat_mix:0.79
+step:6400/20000 train_loss:2.2232 train_time:1134026ms step_avg:177.19ms seq_len:1024 doc_prob:0.00 qat_mix:0.82
+step:6450/20000 train_loss:2.1218 train_time:1143165ms step_avg:177.23ms seq_len:1024 doc_prob:0.00 qat_mix:0.84
+step:6500/20000 train_loss:2.1530 train_time:1152088ms step_avg:177.24ms seq_len:1024 doc_prob:0.00 qat_mix:0.87
+step:6550/20000 train_loss:2.2164 train_time:1161440ms step_avg:177.32ms seq_len:1024 doc_prob:0.00 qat_mix:0.89
+step:6600/20000 train_loss:2.2324 train_time:1170659ms step_avg:177.37ms seq_len:1024 doc_prob:0.00 qat_mix:0.92
+step:6650/20000 train_loss:2.1947 train_time:1179975ms step_avg:177.44ms seq_len:1024 doc_prob:0.00 qat_mix:0.94
+step:6700/20000 train_loss:2.1571 train_time:1189048ms step_avg:177.47ms seq_len:1024 doc_prob:0.00 qat_mix:0.97
+step:6750/20000 train_loss:2.1704 train_time:1198348ms step_avg:177.53ms seq_len:1024 doc_prob:0.00 qat_mix:0.99
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step:6759/20000 val_loss:2.1809 val_bpb:1.2917 train_time:1200062ms step_avg:177.55ms
+stopping_early: wallclock_cap train_time:1200062ms step:6759/20000
+peak memory allocated: 3508 MiB reserved: 4614 MiB
+Serialized model: 67520039 bytes
+Code size: 67788 bytes
+Total submission size: 67587827 bytes
+Serialized model int8+zlib: 15941743 bytes (payload:17329512 raw_torch:17378369 payload_ratio:3.89x)
+Total submission size int8+zlib: 16009531 bytes
+final_int8_zlib_roundtrip val_loss:2.1809 val_bpb:1.2917 eval_time:13353ms
+final_int8_zlib_roundtrip_exact val_loss:2.18094572 val_bpb:1.29167890
