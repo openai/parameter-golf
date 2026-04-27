@@ -1,0 +1,23 @@
+{
+  "author": "quietsmile",
+  "github_id": "quietsmile",
+  "name": "Fine-Grained N-gram Cache + LeakyReLU(0.9)\u00b2 + GPTQ-Int5",
+  "blurb": "Order-9 N-gram backoff cache with 65K-token chunk updates (vs 1M in prior work). Entropy-adaptive alpha with per-order multipliers. 11L 512d GQA 8/4, MLP 3.0x, XSA-4, LeakyReLU(0.9)\u00b2, BigramHash(4096), GPTQ int5, LZMA. No TTT. Mean of 3 seeds: val_bpb 0.2873 (std 0.0001). Fully legal: no pre-eval TTT, score-first N-gram only. Training 600s on 8xH100 SXM, eval ~400s.",
+  "date": "2026-03-26",
+  "val_loss": 0.4852,
+  "val_bpb": 0.2873,
+  "val_loss_std": 0.0002,
+  "val_bpb_std": 0.0001,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_loss": 0.48500408, "val_bpb": 0.28724673},
+    "42": {"val_loss": 0.48493125, "val_bpb": 0.28720360},
+    "2024": {"val_loss": 0.48532938, "val_bpb": 0.28743939}
+  },
+  "pre_quant_val_bpb": 1.1404,
+  "step_stop": 7050,
+  "wallclock_seconds": 600.0,
+  "eval_time_seconds": 405.0,
+  "bytes_total": 13400000,
+  "bytes_code": 180967
+}
