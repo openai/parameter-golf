@@ -1,0 +1,21 @@
+350 Fix grammar in README
+269 Restore train_gpt.py before bd2463a
+255 Update README.md
+180 Record: 10L Int5-MLP + BigramHash(10240) + SWA(0.4) + WD=0.04 (val_bpb=1.1428, mean 3 seeds)
+162 Record: Int6 MLP3x + SmearGate + BigramHash + MuonWD + SWA (mean val_bpb=1.1483)
+124 Fix: score final partial window in sliding window eval
+105 Update README.md
+100 Use eager mx.eval() to fix running train script on 16GB Mac devices
+86 Update: 11L MLP3x + WD=0.04 + zstd-22 (val_bpb 1.1502)
+77 [record bpb=1.195] sliding window + LoRA TTT
+73 Non-record: SwiGLU + warmdown fix + quarter batch (1x5090, 1.3281 bpb)
+65 Record: Mixed Quant Int6/FP16 + SmearGate + OrthoInit + MLP 3x + Sliding Window, val_bpb=1.1556
+63 Record: 10L Int6 QAT + Zstd MLP2.6x Muon0.99 Sliding Window (val_bpb 1.1598)
+61 warmdown-quantization val_bpb = 1.2154 
+60 Record: Sliding Window + FP16 Embed + 10L + Muon WD + Overtone Init (val_bpb=1.1748)
+52 New SOTA attempt (val_bpb=1.2014)
+50 Record: Sliding Window Eval (stride=64), val_bpb=1.1925
+49 SOTA attempt (val_bpb=1.2064)
+42 fp16 tied embedding + warmdown/LR tuning (val_bpb 1.2197)
+39 Record: 10L Mixed Precision: val_bpb=1.2147 (10 layers + int6 middle layers)
+35 Update README.md
