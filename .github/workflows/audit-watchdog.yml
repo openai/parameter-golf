@@ -45,9 +45,12 @@ jobs:
       # Cross-repo writes: prefer the user-provided fine-grained PAT
       # (TRIOS_REPO_PAT, scoped issues:write on gHashTag/trios). Fall back
       # to the workflow's GITHUB_TOKEN, which can only post to the current
-      # repo. The comment / close steps are guarded with `if:` so missing
-      # PAT yields a green run with a clear log line, not a failure.
+      # repo. The comment / close steps are guarded via the HAS_PAT env
+      # bridge so missing PAT yields a green run with a clear log line.
+      # NB: GitHub Actions does not allow `secrets.*` directly in `if:`
+      # expressions; route the boolean through env first.
       GH_TOKEN:              ${{ secrets.TRIOS_REPO_PAT || secrets.GITHUB_TOKEN }}
+      HAS_PAT:               ${{ secrets.TRIOS_REPO_PAT != '' }}
       TRIOS_REPO:            gHashTag/trios
       ISSUE:                 "143"
 
@@ -163,12 +166,10 @@ jobs:
 
       - name: Comment on trios#143
         if: ${{ inputs.skip_comment != 'true' && env.HAS_PAT == 'true' }}
-        env:
-          HAS_PAT: ${{ secrets.TRIOS_REPO_PAT != '' }}
         run: gh issue comment "$ISSUE" --repo "$TRIOS_REPO" --body-file /tmp/comment.md
 
       - name: Skip comment (no cross-repo PAT)
-        if: ${{ inputs.skip_comment != 'true' && secrets.TRIOS_REPO_PAT == '' }}
+        if: ${{ inputs.skip_comment != 'true' && env.HAS_PAT != 'true' }}
         run: |
           echo '::warning::TRIOS_REPO_PAT not set; cannot post to gHashTag/trios#143.'
           echo '::warning::Add a fine-grained PAT with issues:write on gHashTag/trios as TRIOS_REPO_PAT.'
@@ -176,7 +177,7 @@ jobs:
           cat /tmp/comment.md
 
       - name: Close #143 on GATE-2 PASS
-        if: ${{ steps.digest.outputs.combined == '0' && inputs.skip_comment != 'true' && secrets.TRIOS_REPO_PAT != '' }}
+        if: ${{ steps.digest.outputs.combined == '0' && inputs.skip_comment != 'true' && env.HAS_PAT == 'true' }}
         run: |
           gh issue close "$ISSUE" --repo "$TRIOS_REPO" \
               --reason completed \
