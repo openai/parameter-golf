@@ -1,0 +1,11 @@
+{
+  "author": "XilongZhu",
+  "github_id": "sicauzxl",
+  "name": "SMM FineWeb Smoke",
+  "blurb": "Single-H100 non-record FineWeb smoke run for a minimal structured-memory branch inside the official train_gpt.py path. Uses final_int8_zlib_roundtrip_exact val_bpb as the comparable metric and stays well under the 16MB artifact cap.",
+  "date": "2026-03-20T08:30:00Z",
+  "val_loss": 2.93367972,
+  "val_bpb": 1.73749038,
+  "bytes_total": 5760489,
+  "bytes_code": 69377
+}
