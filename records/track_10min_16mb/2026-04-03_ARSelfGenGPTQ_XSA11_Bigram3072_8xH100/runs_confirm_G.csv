@@ -1,0 +1,4 @@
+run_id,seed,val_bpb,val_loss,pre_bpb,eval_ms,train_steps,total_size_bytes,gptq_gen_s,train_cap_s,status
+Gc_seed42,42,1.1151,1.8827,1.1346,78405,6759,15852402,201.7,590,ok
+Gc_seed1337,1337,1.1161,1.8845,1.1356,78188,6765,15856186,207.4,590,ok
+Gc_seed2025,2025,1.1155,1.8834,1.1350,77997,6767,15847666,201.9,590,ok
