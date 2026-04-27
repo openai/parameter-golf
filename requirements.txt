@@ -8,3 +8,9 @@ typing-extensions==4.15.0
 datasets
 tiktoken
 sentencepiece
+einops
+psutil
+wheel
+packaging
+ninja
+zstandard
