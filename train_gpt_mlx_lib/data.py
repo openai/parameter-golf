@@ -11,6 +11,16 @@ import sentencepiece as spm
 
 
 def load_data_shard(path: Path) -> np.ndarray:
+    # Training shards use the same compact binary layout as the non-MLX script:
+    # a fixed-width int32 header followed by uint16 token ids. This loader is
+    # intentionally strict about the magic/version/size checks because silent
+    # misreads here would poison the whole run with nonsense tokens and be much
+    # harder to debug later. Failing fast is preferable to trying to recover
+    # from partially compatible shard formats.
+    #
+    # Possible improvement: define the shard header as an explicit schema object
+    # or named struct so the on-disk contract is not scattered across integer
+    # positions in this function.
     header_bytes = 256 * np.dtype("<i4").itemsize
     token_bytes = np.dtype("<u2").itemsize
     header = np.fromfile(path, dtype="<i4", count=256)
@@ -32,6 +42,12 @@ class TokenStream:
         log_fn: Callable[[str], None] | None = None,
         dataset_name: str = "",
     ):
+        # The stream walks shards sequentially and treats the set of files as one
+        # long token tape. That is intentionally simple and deterministic: this
+        # baseline cares more about stable throughput and reproducibility than
+        # about sophisticated shard-level sampling. A future upgrade could add
+        # prefetching or randomized shard order, but the current version keeps
+        # data movement obvious and easy to inspect.
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
@@ -43,6 +59,12 @@ class TokenStream:
         self.pos = 0
 
     def next_file(self) -> None:
+        # Epoch accounting only advances when we wrap back to the first shard.
+        # Logging on that boundary keeps stdout/log files quiet during normal
+        # streaming while still making it obvious when a small local subset is
+        # cycling faster than expected. This is especially useful when new train
+        # shards may still be arriving and "epoch" is more about observability
+        # than a true static dataset pass.
         self.file_idx = (self.file_idx + 1) % len(self.files)
         if self.file_idx == 0:
             self.epoch += 1
@@ -55,6 +77,11 @@ class TokenStream:
         self.pos = 0
 
     def take(self, n: int) -> np.ndarray:
+        # `take` intentionally abstracts away shard boundaries so callers can ask
+        # for a token count without worrying about where one file ends and the
+        # next begins. Concatenating across shards is a reasonable baseline for
+        # autoregressive next-token training, though a more advanced loader could
+        # also inject document-boundary awareness or asynchronous refill.
         chunks: list[np.ndarray] = []
         left = n
         while left > 0:
@@ -77,6 +104,11 @@ class TokenLoader:
         self.stream = TokenStream(pattern, log_fn=log_fn, dataset_name=dataset_name)
 
     def next_batch(self, batch_tokens: int, seq_len: int) -> tuple[mx.array, mx.array]:
+        # We round the token budget down to a whole number of sequences because
+        # the model expects dense `[batch, seq]` blocks. The extra `+ 1` token is
+        # the standard next-token-prediction shift: inputs use tokens `t..t+n-1`
+        # and targets use `t+1..t+n`. It is a tiny detail, but it is one of the
+        # places where the data pipeline silently defines the training objective.
         usable = (batch_tokens // seq_len) * seq_len
         if usable <= 0:
             raise ValueError(f"token budget too small for seq_len={seq_len}")
@@ -89,6 +121,15 @@ class TokenLoader:
 def build_sentencepiece_luts(
     sp: spm.SentencePieceProcessor, vocab_size: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # Validation reports bytes-per-byte (bpb), which requires cheaply estimating
+    # how many UTF-8 bytes each predicted token contributes. Precomputing lookup
+    # tables turns that repeated tokenizer inspection into simple array indexing
+    # during evaluation. This is much faster than asking SentencePiece about each
+    # token on every validation pass.
+    #
+    # Possible improvement: if the project later adds multiple tokenizer backends
+    # or richer token metadata, this logic would likely deserve its own typed
+    # helper module instead of living inline in the training data utilities.
     sp_vocab_size = int(sp.vocab_size())
     table_size = max(sp_vocab_size, vocab_size)
     base_bytes_lut = np.zeros((table_size,), dtype=np.int16)
@@ -113,6 +154,13 @@ def validate_dataset_tokenizer_pair(data_path: str, tokenizer_path: str) -> tupl
     # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
     # decode bytes with the exact tokenizer that produced the shards. The manifest
     # lets the training script fail fast on accidental dataset/tokenizer mismatches.
+    #
+    # This function is intentionally conservative: it does not try to "best
+    # effort" continue when metadata disagrees, because a mismatch here can make
+    # metrics look valid while being semantically wrong. The current contract is
+    # light-weight JSON inspection rather than full schema validation; if the
+    # dataset pipeline becomes more complex, a stronger manifest schema and more
+    # explicit error reporting would be worthwhile.
     dataset_dir = Path(data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     if len(dataset_dir.parents) < 2:
@@ -151,6 +199,11 @@ def load_validation_tokens(pattern: str, seq_len: int) -> np.ndarray:
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
+    # We load the full validation tape eagerly because validation is expected to
+    # be deterministic and relatively infrequent compared to training. Holding it
+    # in memory simplifies the runner and makes repeat evaluation cheap. If the
+    # validation set grows substantially, the obvious next step would be a
+    # streamed evaluator that reuses the same shard abstraction as training.
     tokens = np.ascontiguousarray(np.concatenate([load_data_shard(file) for file in files], axis=0))
     usable = ((tokens.size - 1) // seq_len) * seq_len
     if usable <= 0:

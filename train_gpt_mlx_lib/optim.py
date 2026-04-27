@@ -12,6 +12,11 @@ from .model import GPT
 
 
 def token_chunks(total_tokens: int, seq_len: int, max_chunk_tokens: int) -> list[int]:
+    # Split a token budget into sequence-aligned chunks. This is purely a memory
+    # control mechanism: the caller still processes the same effective number of
+    # tokens, just in smaller pieces that are safer for MLX's lazy execution and
+    # unified-memory pressure. The rounding logic deliberately preserves whole
+    # sequences so later reshape operations stay simple.
     usable_total = (total_tokens // seq_len) * seq_len
     if usable_total <= 0:
         raise ValueError(f"token budget too small for seq_len={seq_len}")
@@ -30,6 +35,11 @@ def accumulate_flat_grads(
     grads_tree: dict,
     scale: float,
 ) -> dict[str, mx.array]:
+    # MLX model state is naturally flattened when applying grouped optimizer
+    # updates, so gradient accumulation follows the same representation. That
+    # avoids repeatedly rebuilding nested trees during inner-loop accumulation.
+    # A future refactor could wrap this in a small gradient-buffer object for
+    # better type clarity, but the flat dict keeps the hot path easy to inspect.
     flat = dict(tree_flatten(grads_tree))
     if accum is None:
         return {k: g * scale for k, g in flat.items()}
@@ -66,6 +76,9 @@ class Muon:
         self.buffers = {k: mx.zeros_like(params[k]) for k in keys}
 
     def step(self, params: dict[str, mx.array], grads: dict[str, mx.array], step: int, lr_mul: float) -> dict[str, mx.array]:
+        # Momentum warmup is handled inside Muon rather than by the outer runner
+        # because it is specific to this optimizer family. Embedding/scalar Adam
+        # groups do not share the same notion of warmup here.
         if self.args.muon_momentum_warmup_steps:
             t = min(step / self.args.muon_momentum_warmup_steps, 1.0)
             momentum = (1.0 - t) * self.args.muon_momentum_warmup_start + t * self.args.muon_momentum
@@ -76,6 +89,11 @@ class Muon:
         for k in self.keys:
             p = params[k]
             g = grads[k]
+            # Only matrix-shaped parameters come through Muon. The baseline treats
+            # them as the part of the model that most benefits from momentum +
+            # orthogonalized updates, while smaller control tensors are left on
+            # simpler Adam dynamics. It works well in practice, though the string-
+            # and-shape-based partitioning is an obvious candidate for cleanup.
             buf = momentum * self.buffers[k] + g
             self.buffers[k] = buf
             g_eff = g + momentum * buf
@@ -94,6 +112,12 @@ class SplitOptimizers:
         self.args = args
         params = dict(tree_flatten(model.parameters()))
         self.embed_key = "tok_emb.weight"
+        # Parameter grouping is intentionally explicit and local: we inspect the
+        # flattened model state once, then derive the three optimizer groups from
+        # tensor names and ranks. That keeps the training script compact, but it
+        # also means the optimizer knows a fair amount about model naming.
+        # Possible improvement: let model parameters carry semantic tags so the
+        # optimizer partition does not depend on substring matching.
         self.matrix_keys = [
             k
             for k, p in params.items()
@@ -124,6 +148,10 @@ class SplitOptimizers:
         grads = dict(tree_flatten(grads_tree))
         updated = dict(params)
 
+        # Each optimizer group returns updated tensors into the same flat mapping,
+        # and only after all groups have written their slice do we rebuild the
+        # nested state tree for `model.update`. This centralizes the state merge
+        # and makes it obvious which optimizer owns which parameters.
         updated.update(self.muon.step(params, grads, step=step, lr_mul=lr_mul))
 
         self.adam_embed.learning_rate = self.args.tied_embed_lr * lr_mul
@@ -143,6 +171,10 @@ class SplitOptimizers:
 
 
 def _np_float32(arr: mx.array) -> np.ndarray:
+    # NumPy is used here as a dependable host-side reduction path for clip-norm
+    # computation. MLX could in principle do this too, but the extra conversion
+    # cost is minor compared to the clarity and numerical predictability of
+    # accumulating the norm in float64 on the CPU.
     return np.array(arr.astype(mx.float32), dtype=np.float32, copy=False)
 
 
@@ -150,6 +182,11 @@ def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
     if max_norm <= 0:
         return grads_tree
     flat = dict(tree_flatten(grads_tree))
+    # We compute the global norm in host NumPy rather than piecing it together
+    # from per-group optimizer internals. That keeps clipping orthogonal to the
+    # optimizer split, at the cost of a bit of extra host/device traffic. If
+    # clipping becomes performance-sensitive, this is a reasonable place to
+    # revisit with a more MLX-native reduction.
     total_sq = 0.0
     for grad in flat.values():
         total_sq += float(np.sum(np.square(_np_float32(grad)), dtype=np.float64))

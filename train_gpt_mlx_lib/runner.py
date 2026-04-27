@@ -31,6 +31,14 @@ def loss_and_grad_chunked(
     train_loader: TokenLoader,
     compiled_loss_and_grad,
 ) -> tuple[mx.array, dict]:
+    # One logical microbatch may still be too large for a comfortable MLX graph
+    # on smaller-memory Macs, so we split it again into sequence-aligned chunks.
+    # The important invariant is that the returned loss/gradients are still the
+    # average over the full logical microbatch. This helper changes execution
+    # shape, not training semantics.
+    #
+    # Possible improvement: teach the runner to autotune these chunk sizes based
+    # on observed memory pressure instead of relying on a static token budget.
     chunk_sizes = token_chunks(args.microbatch_tokens, args.train_seq_len, args.mlx_max_microbatch_tokens)
     total_tokens = float(sum(chunk_sizes))
     loss_value = mx.array(0.0, dtype=mx.float32)
@@ -38,6 +46,8 @@ def loss_and_grad_chunked(
     for chunk_tokens in chunk_sizes:
         x, y = train_loader.next_batch(chunk_tokens, args.train_seq_len)
         loss, grads = compiled_loss_and_grad(x, y)
+        # Weight each chunk by its token count so the final result matches the
+        # full-microbatch mean loss/gradient even when the last chunk is smaller.
         scale = float(y.size) / total_tokens
         loss_value = loss_value + loss.astype(mx.float32) * scale
         grad_accum = accumulate_flat_grads(grad_accum, grads, scale)
@@ -58,6 +68,11 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    #
+    # `val_bpb` is derived from token cross-entropy plus a tokenizer-specific
+    # estimate of bytes represented by each target token. This is why the runner
+    # insists on validating the dataset/tokenizer pair up front: otherwise the
+    # conversion from token loss to byte-level metric would be meaningless.
     val_batch_tokens = args.val_batch_size // args.grad_accum_steps
     if val_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -83,6 +98,8 @@ def eval_val(
         chunk_token_count = float(y.size)
         batch_loss = compiled_loss(x, y).astype(mx.float32)
         mx.eval(batch_loss)
+        # Accumulate loss as token-weighted sums so odd-sized final batches still
+        # contribute proportionally.
         total_loss_sum += float(batch_loss.item()) * chunk_token_count
         prev_ids = x_np.reshape(-1)
         tgt_ids = y_np.reshape(-1)
@@ -103,6 +120,13 @@ def eval_val(
 
 
 def _source_snapshot() -> str:
+    # Persist the exact source text used for the run into the log file. This is
+    # a low-tech but effective provenance mechanism: when experimenting quickly,
+    # it is often more useful to have the executed code embedded in the training
+    # log than to rely on remembering which local edits were present.
+    #
+    # Possible improvement: move this toward a richer metadata record including
+    # git revision, dirty-worktree state, and structured config serialization.
     paths = []
     argv_path = Path(sys.argv[0])
     if argv_path.exists():
@@ -130,6 +154,11 @@ def _source_snapshot() -> str:
 
 
 def main() -> None:
+    # `main` currently orchestrates the entire run: config loading, logging,
+    # dataset/tokenizer validation, model/optimizer construction, warmup,
+    # training, validation, checkpointing, and compressed-checkpoint QA. That
+    # is convenient for a compact script, but it is also the clearest candidate
+    # for future structural decomposition if this MLX path grows more features.
     args = Hyperparameters()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -137,6 +166,10 @@ def main() -> None:
     print(logfile)
 
     def log(msg: str, console: bool = True) -> None:
+        # Keep logging deliberately simple and append-only. The primary consumer
+        # is a human reading the log after a run, not a metrics backend. If this
+        # runner later needs machine-readable reporting, this helper could emit a
+        # structured sidecar format without changing the rest of the loop.
         if console:
             print(msg)
         with logfile.open("a", encoding="utf-8") as f:
@@ -149,6 +182,8 @@ def main() -> None:
     log(f"Running MLX {mx.__version__}", console=False)
     log("=" * 100, console=False)
 
+    # The current MLX baseline intentionally keeps some contracts narrow. Rather
+    # than partially supporting many modes, it fails early on unsupported ones.
     if not args.tie_embeddings:
         raise NotImplementedError("train_gpt_mlx.py only supports tied embeddings")
     if not args.tokenizer_path.endswith(".model"):
@@ -168,6 +203,8 @@ def main() -> None:
         sp, args.vocab_size
     )
 
+    # Seed once before constructing the model so parameter initialization is
+    # reproducible for a given environment/config pair.
     mx.random.seed(args.seed)
 
     train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
@@ -187,6 +224,11 @@ def main() -> None:
     )
     opt = SplitOptimizers(model, args)
 
+    # Compile the pure loss path and the loss+grad path separately because
+    # training and validation have different needs. Validation only needs the
+    # forward loss, while training needs gradients and stateful parameter
+    # outputs. Keeping them separate avoids mixing those concerns in one compiled
+    # function signature.
     compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
     compiled_loss_and_grad = mx.compile(
         nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
@@ -241,6 +283,11 @@ def main() -> None:
         # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
         # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
         # the loader so measured training still starts from the true init and token window.
+        #
+        # This is a good example of the file favoring "practical experimental
+        # ergonomics" over architectural purity. A larger training framework
+        # might have an explicit compile/warmup stage object, but here the
+        # behavior is kept close to the loop it is preparing.
         for warmup_step in range(args.warmup_steps):
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
@@ -253,6 +300,8 @@ def main() -> None:
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
+        # Validation is also warmed once so the first real eval does not absorb
+        # compile/allocation costs that would distort measured training time.
         val_batch_tokens = args.val_batch_size // args.grad_accum_steps
         if val_batch_tokens < args.train_seq_len:
             raise ValueError(
@@ -276,6 +325,11 @@ def main() -> None:
     t0 = time.perf_counter()
     step = 0
     while True:
+        # Validation runs either on the requested cadence or on the final step.
+        # We stop the train-time clock around validation so `train_time_ms`
+        # reflects optimizer-step time rather than "wall clock since process
+        # start". That keeps the warmdown heuristic closer to actual training
+        # progress.
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
             train_time_ms += 1000.0 * (time.perf_counter() - t0)
@@ -299,6 +353,10 @@ def main() -> None:
                 log(f"stopping_early: wallclock_cap train_time:{train_time_ms:.0f}ms step:{step}/{args.iterations}")
             break
 
+        # Learning-rate warmdown is based on accumulated train time plus the
+        # current in-flight step. This gives the scheduler a better estimate of
+        # where we are in the wall-clock budget without having to synchronize
+        # after every tiny piece of work.
         lr_mul = args.lr_mul(step, train_time_ms + 1000.0 * (time.perf_counter() - t0))
         step_t0 = time.perf_counter()
 
@@ -313,6 +371,8 @@ def main() -> None:
                 mx.eval(train_loss, accum)  # materialize each microbatch to cap peak memory
 
         grads = tree_unflatten(list(accum.items()))
+        # Gradient clipping happens after accumulation so the norm reflects the
+        # effective optimizer batch, not each smaller accumulation fragment.
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
         opt.step(model, grads, step=step, lr_mul=lr_mul)
@@ -332,9 +392,20 @@ def main() -> None:
 
     out_path = out_dir / f"{args.run_id}_mlx_model.npz"
     flat_state = {k: v for k, v in tree_flatten(model.state)}
+    # Save a straightforward full-precision-ish MLX checkpoint first. This is
+    # the "ground truth" artifact for the run and is useful even if the compact
+    # export path changes later.
     mx.savez(str(out_path), **flat_state)
     log(f"saved_model:{out_path} bytes:{out_path.stat().st_size}")
 
+    # Then produce a compressed int8 artifact and immediately evaluate it after a
+    # dequantization round-trip. The point is not merely to save space, but to
+    # answer "what quality do we lose if we ship the compact form?" while the
+    # freshly trained model and validation set are already in memory.
+    #
+    # Possible improvement: checkpointing and post-training evaluation could be
+    # split into their own helper layer so the main loop does less serialization
+    # work directly.
     quant_obj, quant_stats = quantize_state_dict_int8(flat_state)
     quant_raw = pickle.dumps(quant_obj, protocol=pickle.HIGHEST_PROTOCOL)
     quant_blob = zlib.compress(quant_raw, level=9)
@@ -352,6 +423,9 @@ def main() -> None:
     with quant_path.open("rb") as f:
         quant_blob_disk = f.read()
     quant_flat = dequantize_state_dict_int8(pickle.loads(zlib.decompress(quant_blob_disk)))
+    # Reusing the same compiled validation loss after `model.update(...)` keeps
+    # the comparison honest: the only thing that changed is the checkpoint
+    # round-trip, not the evaluation codepath.
     model.update(tree_unflatten(list(quant_flat.items())))
     q_t0 = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
