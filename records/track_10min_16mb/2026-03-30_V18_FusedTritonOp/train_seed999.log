@@ -1,0 +1,105 @@
+W0331 03:07:47.307000 97232 torch/distributed/run.py:803] 
+W0331 03:07:47.307000 97232 torch/distributed/run.py:803] *****************************************
+W0331 03:07:47.307000 97232 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0331 03:07:47.307000 97232 torch/distributed/run.py:803] *****************************************
+logs/a736232f-96c1-46af-9453-31869b3bd615.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:30666843
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=True flash=True mem_efficient=True math=True
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+muon:post_norm:row_col embed_beta1:0.7 head_beta1:0.7
+seed:999
+gptq:reserving 9000ms from training budget (effective cap: 591000ms)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9309 train_time:652ms step_avg:652.43ms
+step:2/20000 train_loss:8.4451 train_time:692ms step_avg:346.16ms
+step:3/20000 train_loss:7.2380 train_time:793ms step_avg:264.39ms
+step:4/20000 train_loss:8.3873 train_time:895ms step_avg:223.75ms
+step:5/20000 train_loss:8.4942 train_time:997ms step_avg:199.36ms
+step:6/20000 train_loss:7.8448 train_time:1100ms step_avg:183.29ms
+step:7/20000 train_loss:7.1675 train_time:1203ms step_avg:171.79ms
+step:8/20000 train_loss:6.6310 train_time:1303ms step_avg:162.92ms
+step:9/20000 train_loss:6.2091 train_time:1405ms step_avg:156.10ms
+step:10/20000 train_loss:5.7519 train_time:1506ms step_avg:150.60ms
+step:500/20000 train_loss:2.3331 train_time:52256ms step_avg:104.51ms
+step:1000/20000 train_loss:2.2237 train_time:104447ms step_avg:104.45ms
+step:1500/20000 train_loss:2.1744 train_time:156696ms step_avg:104.46ms
+step:2000/20000 train_loss:2.0222 train_time:208829ms step_avg:104.41ms
+step:2500/20000 train_loss:2.1198 train_time:260951ms step_avg:104.38ms
+step:3000/20000 train_loss:2.1015 train_time:313062ms step_avg:104.35ms
+step:3500/20000 train_loss:2.1102 train_time:365127ms step_avg:104.32ms
+step:4000/20000 train_loss:1.8988 train_time:417173ms step_avg:104.29ms
+step:4500/20000 train_loss:2.0438 train_time:469180ms step_avg:104.26ms
+swa:start step:5000
+step:5000/20000 train_loss:2.0165 train_time:521172ms step_avg:104.23ms
+late_qat:enabled step:5145 scale:0.1499 soft_round=True est_steps:524
+step:5500/20000 train_loss:1.9289 train_time:573152ms step_avg:104.21ms
+step:5672/20000 train_time:591082ms step_avg:104.21ms
+stopping_early: wallclock_cap train_time:591082ms step:5672/20000
+peak memory allocated: 24756 MiB reserved: 24854 MiB
+swa:applying averaged 14 checkpoints (source=raw)
+Serialized model: 119281399 bytes
+Code size: 130434 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:calibrating with 64 batches...
+gptq:collected hessians for 68 layers
+gptq:budget_check train:591015ms + gptq:7682ms = 598697ms (budget:600000ms)
+mixed_precision:estimate base=15.33MB + promoted=0.19MB = 15.52MB (budget=16.0MB, headroom=320KB, prune_room=+158729B)
+mixed_precision: layer.0.mlp -> int5 (sensitivity=3.3350e+07)
+mixed_precision: layer.1.mlp -> int5 (sensitivity=2.3080e+06)
+mixed_precision: layer.2.mlp -> int5 (sensitivity=1.7590e+06)
+mixed_precision: layer.3.mlp -> int5 (sensitivity=6.5708e+05)
+mixed_precision: layer.4.mlp -> int5 (sensitivity=3.8841e+05)
+mixed_precision: layer.5.mlp -> int5 (sensitivity=3.5902e+05)
+mixed_precision: layer.6.mlp -> int5 (sensitivity=3.5574e+05)
+mixed_precision: layer.1.attn -> int6 (sensitivity=1.6027e+05)
+mixed_precision: layer.0.attn -> int5 (sensitivity=1.5045e+05)
+mixed_precision: layer.7.mlp -> int5 (sensitivity=1.2484e+05)
+mixed_precision: layer.3.attn -> int5 (sensitivity=8.4910e+04)
+mixed_precision: layer.2.attn -> int5 (sensitivity=8.2695e+04)
+mixed_precision: layer.4.attn -> int5 (sensitivity=8.1111e+04)
+mixed_precision: layer.5.attn -> int5 (sensitivity=5.9694e+04)
+mixed_precision: layer.8.mlp -> int5 (sensitivity=5.5861e+04)
+mixed_precision: layer.7.attn -> int5 (sensitivity=4.6659e+04)
+mixed_precision: layer.6.attn -> int5 (sensitivity=3.8782e+04)
+mixed_precision: layer.9.mlp -> int5 (sensitivity=3.0594e+04)
+mixed_precision: layer.10.mlp -> int5 (sensitivity=2.2785e+04)
+mixed_precision: layer.8.attn -> int5 (sensitivity=1.6645e+04)
+mixed_precision: layer.10.attn -> int5 (sensitivity=1.5905e+04)
+mixed_precision: layer.9.attn -> int5 (sensitivity=1.5543e+04)
+mixed_precision: int5:62 int6:4 (1 groups promoted)
+selective_prune: 12311794 +/-1,+/-2 candidates, unpruned=15.28MB target=16.00MB
+selective_prune: full prune=10.93MB
+selective_prune: fast/real ratio=1.286 fast_target=17.87MB
+selective_prune: pruning 105390/12311794 values (0.9%) to fit 16.00MB
+Serialized model int6+brotli: 15855478 bytes
+Total submission size int6+brotli: 15985912 bytes
+final_int6_roundtrip val_loss:1.9189 val_bpb:1.1365 eval_time:7536ms
+final_int6_roundtrip_exact val_loss:1.91889254 val_bpb:1.13647625
+final_int6_sliding_window val_loss:1.8790 val_bpb:1.1129 stride:64 eval_time:98091ms
+final_int6_sliding_window_exact val_loss:1.87899921 val_bpb:1.11285212
