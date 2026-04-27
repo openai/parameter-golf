@@ -1,0 +1,17 @@
+{
+  "author": "Gustav Welinder",
+  "github_id": "gwelinder",
+  "name": "Stacked Hyperparameter Tuning + Eval2048",
+  "blurb": "Non-record (RTX 5090, 20 train shards): Stacked 5 hyperparameter fixes on the baseline 9x512 architecture. Key finding: WARMDOWN_ITERS=1200 is broken at 600s wallclock (fires from step 1); fix to 3000 plus MATRIX_LR=0.06, LOGIT_SOFTCAP=15, MUON_MOMENTUM=0.99, quarter-batch 131K tokens, and EVAL_SEQ_LEN=2048 together bring val_bpb from 1.362 to 1.336. Also tested butterfly MLP factorization, reservoir random MLPs, depth recurrence, and 6 alternative iso-byte shapes — none beat the tuned 9x512 baseline. 40+ total experiments via autonomous autoresearch loop.",
+  "date": "2026-03-19T14:00:00Z",
+  "track": "non-record-rtx5090-20shards",
+  "val_loss": 2.25686,
+  "val_bpb": 1.33577074,
+  "pre_quant_val_loss": 2.2308,
+  "pre_quant_val_bpb": 1.3205,
+  "step_stop": 2800,
+  "wallclock_seconds": 600.0,
+  "bytes_total": 15794837,
+  "bytes_model_int8_zlib": 15742808,
+  "bytes_code": 52029
+}
