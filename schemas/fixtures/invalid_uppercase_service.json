@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "project": { "name": "uppercase-svc" },
+  "image": "ghcr.io/example/trainer:latest",
+  "services": [
+    { "name": "BadName_With_Underscore" }
+  ]
+}

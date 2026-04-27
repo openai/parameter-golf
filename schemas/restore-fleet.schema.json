@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gHashTag/trios-railway/blob/main/schemas/restore-fleet.schema.json",
+  "title": "RestoreFleetManifest",
+  "description": "Single source of truth for the IGLA Railway fleet shape. Consumed by `tri railway restore` (RW-DR-01) to rebuild from a clean account after a ban. Versioned via top-level `version`. Anchor: phi^2 + phi^-2 = 3. Refs #25, #26, #28.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "image", "services"],
+  "properties": {
+    "$schema": {
+      "description": "Optional pointer to this schema for editor autocomplete.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Manifest schema version. Bump with breaking changes.",
+      "type": "integer",
+      "const": 1
+    },
+    "anchor": {
+      "description": "Constitutional anchor. Cosmetic; readers must not rely on its value.",
+      "type": "string",
+      "default": "phi^2 + phi^-2 = 3"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "Railway project name to create or reuse.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "description": {
+          "description": "Optional human-readable project description shown in the Railway UI.",
+          "type": "string",
+          "maxLength": 512
+        },
+        "default_environment": {
+          "description": "Environment name to upsert variables and trigger deploys against.",
+          "type": "string",
+          "default": "production",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "image": {
+      "description": "Container image used by every service unless `services[].image_override` is set. Either a bare reference (resolved to `:latest` at restore time) or a fully-qualified pin including a tag or `@sha256:` digest.",
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "ghcr.io/ghashtag/trios-trainer-igla",
+        "ghcr.io/ghashtag/trios-trainer-igla:latest",
+        "ghcr.io/ghashtag/trios-trainer-igla@sha256:97a69d772941adc4d7240314dfa7963986c8bff6"
+      ]
+    },
+    "shared_vars": {
+      "description": "Variables upserted on every service before its first deploy. Use `${secret:NAME}` to reference an env-var the operator must provide at restore time (resolved by `tri railway restore`, never written to git).",
+      "type": "array",
+      "default": [],
+      "items": { "$ref": "#/$defs/KeyValue" },
+      "uniqueItems": true
+    },
+    "services": {
+      "description": "List of services to create. Order is preserved; duplicates by `name` are forbidden.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Service" }
+    },
+    "post_restore": {
+      "description": "Optional automation hooks executed after every service has been deployed.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "neon_ddl": {
+          "description": "Shell command piped into psql against $NEON_DATABASE_URL. Recommended: `tri-railway audit migrate-sql`.",
+          "type": "string"
+        },
+        "embargo_check": {
+          "description": "Shell command that exits 0 if the embargo SHA list is intact. Refs R9.",
+          "type": "string"
+        },
+        "experience_line": {
+          "description": "Template for the L7 experience triplet sealed after restore. Supports `${project_uuid_8c}`, `${git_sha_8c}`, `${rfc3339}` placeholders.",
+          "type": "string"
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "KeyValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "POSIX env-var name."
+        },
+        "value": {
+          "type": "string",
+          "description": "Literal value, or `${secret:NAME}` to interpolate from process env / GitHub Secrets at restore time. Secrets are NEVER written to git."
+        }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "Service name as it will appear in Railway. Must match `^[a-z0-9][a-z0-9-]{0,62}$` to satisfy Railway DNS rules.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "kind": {
+          "description": "Free-form classifier consumed by tooling. Common values: `trainer`, `mcp`, `agent`, `sidecar`.",
+          "type": "string",
+          "default": "trainer",
+          "enum": ["trainer", "mcp", "agent", "sidecar"]
+        },
+        "image_override": {
+          "description": "Per-service override of the top-level `image`. Same format rules.",
+          "type": "string",
+          "minLength": 1
+        },
+        "vars": {
+          "description": "Variables specific to this service. Merged on top of `shared_vars`; per-service keys win on conflict.",
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/KeyValue" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

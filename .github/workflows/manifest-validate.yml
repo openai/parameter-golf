@@ -1,0 +1,77 @@
+name: Validate restore-fleet manifest schema
+
+# Closes the schema half of #26 by guaranteeing that
+#   - restore-fleet.json always validates against schemas/restore-fleet.schema.json
+#   - the schema itself stays JSON-Schema-Draft-2020-12-conformant
+#   - all positive/negative fixtures in schemas/fixtures/ behave as labelled
+#
+# Anchor: phi^2 + phi^-2 = 3.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "restore-fleet.json"
+      - "schemas/restore-fleet.schema.json"
+      - "schemas/fixtures/**"
+      - ".github/workflows/manifest-validate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "restore-fleet.json"
+      - "schemas/restore-fleet.schema.json"
+      - "schemas/fixtures/**"
+      - ".github/workflows/manifest-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --quiet 'jsonschema>=4.21'
+      - name: Validate manifest + fixtures
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          from jsonschema import Draft202012Validator
+
+          schema = json.load(open("schemas/restore-fleet.schema.json"))
+          # 1. Self-check: the schema is itself valid Draft 2020-12.
+          Draft202012Validator.check_schema(schema)
+          v = Draft202012Validator(schema)
+
+          # 2. Live manifest must validate.
+          live = json.load(open("restore-fleet.json"))
+          errs = list(v.iter_errors(live))
+          if errs:
+              print("::error file=restore-fleet.json::live manifest fails schema:")
+              for e in errs:
+                  print(f"  {'.'.join(map(str, e.path)) or '<root>'}: {e.message}")
+              sys.exit(1)
+          print(f"OK live: {len(live['services'])} services, version={live['version']}")
+
+          # 3. Fixtures: filename prefix is the source of truth.
+          fix_dir = pathlib.Path("schemas/fixtures")
+          if fix_dir.is_dir():
+              for f in sorted(fix_dir.iterdir()):
+                  if f.suffix != ".json":
+                      continue
+                  data = json.load(f.open())
+                  errs = list(v.iter_errors(data))
+                  passed = (len(errs) == 0)
+                  expected_pass = f.name.startswith("valid_")
+                  if passed != expected_pass:
+                      label = "passed" if passed else f"failed ({errs[0].message})"
+                      print(f"::error file={f}::expected {'pass' if expected_pass else 'fail'}, got {label}")
+                      sys.exit(1)
+                  print(f"  ok: {f.name} ({'pass' if passed else 'fail-as-expected'})")
+          print("all fixtures behave as labelled")
+          PY

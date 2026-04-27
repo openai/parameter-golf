@@ -1,0 +1,6 @@
+{
+  "version": 0,
+  "project": { "name": "wrong-version" },
+  "image": "ghcr.io/example/trainer:latest",
+  "services": [{ "name": "x" }]
+}

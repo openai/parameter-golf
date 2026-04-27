@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "project": { "name": "empty" },
+  "image": "ghcr.io/example/trainer:latest",
+  "services": []
+}

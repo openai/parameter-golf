@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "project": { "name": "minimal" },
+  "image": "ghcr.io/example/trainer:latest",
+  "services": [
+    { "name": "minimal-svc-1" }
+  ]
+}
