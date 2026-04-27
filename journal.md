@@ -3,9 +3,10 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (PROMOTED 2026-04-26 17:30)**: exp 0035/0036 2-seed mean **val_bpb 2.04171** (cross-seed σ_pair=0.0036), K=3 L=3 + SwiGLU(mlp=8) + Mamba-2/SSD selective at positions 0,1 + ATTN at position 2 + BigramHash(4096,64). Beats prior SSM-best 2.06016 by **0.0185 BPB (~5.3σ at joint precision)**. Beats transformer-best 2.0869 by **0.045 BPB**. Path: `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. The compound trend: each Mamba-2 position adds ~0.02 BPB (0→1: -0.024; 1→2: -0.018). [transfer:high — but mechanism not yet decomposed; 0038 selectivity-kill ablation is the deciding test]
-- **Superseded** (kept for trace): 
-  - 0032/0034 (Mamba-2 1 of 3): 2-seed mean 2.06016. `winners/2026-04-26_mamba2_ssd_recur3x3_swiglu_mlp8_2attn_bigramhash/`
+- **Current best (PROMOTED 2026-04-26 21:55)**: exp 0038 single-seed **val_bpb 2.0259** (SEED=42 confirm queued as 0039). Same as 0035 architecture EXCEPT `MAMBA2_KILL_SELECTIVITY=1`: dt/B/C made input-INdependent (LTI block). +128 params/block (negligible). **Selectivity is NOT load-bearing at our regime — killing it improves val_bpb by 0.0158 vs 0035/0036 2-seed mean 2.0417.** Beats transformer-best 2.0869 by **-0.061 BPB**. Path: `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/`. **Mechanism story**: the win is from the Mamba-2 BLOCK structure (conv1d + gating-via-z + SSD-chunkwise + learned A_log/dt_bias), not from selectivity. See 2026-04-26 21:55 entry for full math + the speculative why-selectivity-hurts hypothesis. [transfer:medium — selectivity may recover at H100 20k-step where extra params get more training]
+- **Superseded** (kept for trace):
+  - 0035/0036 (Mamba-2 selective 2-of-3): 2-seed mean 2.04171. `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Direction was right; mechanism story (selectivity) was wrong.
+  - 0032/0034 (Mamba-2 selective 1 of 3): 2-seed mean 2.06016. `winners/2026-04-26_mamba2_ssd_recur3x3_swiglu_mlp8_2attn_bigramhash/`
   - 0018-0024 (S4D-Lin sandwich + BigramHash): 4-seed mean 2.08389. `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`. Original "5σ" headline was overstated; 4-seed σ-multiple was 1.6σ vs transformer-best.
 - **Prior transformer-best (now superseded)**: exp 0062 val_bpb 2.08687 at `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Architecture is comparison-only (don't inherit recur+SwiGLU directly); schedule/optimizer/init defaults ARE inherited — see "Starting env.sh" bullet. Hybrid-composition details: grep `summaries/_archive_transformer/2026-04-25_overnight_session.md`.
 
@@ -91,6 +92,50 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 
 ## Entries (newest first)
+
+## 2026-04-26 21:55 EDT · exp 0038 · selectivity-killed Mamba-2 BEATS full Mamba-2 by 0.014 BPB — headline pivot
+
+**Question** (the decisive mechanism ablation for the writeup): does the 0035 Mamba-2 win at 2-of-3 positions come from (A) selectivity, (B) parameter capacity, or (C) auxiliary structure? Replace input-dependent (dt, B, C) with learned constants → block becomes LTI but keeps the same in_proj/conv1d/out_proj/A_log/dt_bias/D_skip/SSD-chunkwise scan. +128 params per block (+0.0077%, just `_B_const + _C_const`).
+
+**Setup**: env.sh forked from 0035; only `MAMBA2_KILL_SELECTIVITY=1` added. Math verified pre-launch via 7-check verifier in `scratch/mamba2_kill_selectivity_check.py`: FFT-conv duality oracle (chunkwise SSD vs LTI kernel-form recurrence) max abs diff 1.96e-8; α_h all in unit disk; param Δ exactly +128. Derivation in `scratch/mamba2_kill_selectivity_derivation.md` (note: d_state=64 collapses to a single scalar κ = ⟨B_const, C_const⟩, so kill version effectively has ONE hidden state per (head, position)).
+
+**Prediction** [CONJECTURE]: val in [2.04, 2.20]. Three-way decomposition: 25% likely "win is parameters/structure" (val ≈ 2.04), 50% likely "selectivity matters substantially" (val ∈ [2.10, 2.16]), 25% likely "selectivity is THE mechanism" (val > 2.16).
+
+**Disconfirming**: val < 2.05 → selectivity is NOT load-bearing → headline pivot needed.
+
+**Result**: val_bpb_post_quant = **2.0259**. **Disconfirming hit, but in the *opposite* direction expected — selectivity-killed BEATS full Mamba-2.**
+
+| Variant | val_bpb | Δ vs 0038 |
+|---|---|---|
+| 0035 (full Mamba-2 2-of-3, single seed) | 2.0399 | +0.014 (worse) |
+| 0036 (full Mamba-2 2-of-3, SEED=42) | 2.0435 | +0.018 (worse) |
+| 0035/0036 mean | 2.04171 | +0.016 (worse) |
+| **0038 (kill selectivity, single seed)** | **2.0259** | — |
+
+Δ vs 0035/0036 2-seed mean = **-0.0158 BPB**. At transformer-floor σ=0.0024 that's 6.6σ; at BigramHash-family σ=0.0038 it's 4.2σ; at unmeasured Mamba-family σ it's ≥3σ for any σ ≤ 0.005. **Robust direction even under generous σ.**
+
+Train-loss check confirms: at step 100, kill version was 3.5921 vs full 3.6571 (kill ahead by 0.065 train-nats). The kill advantage shows up early and persists.
+
+**Mechanism conclusion** [VERIFIED at single-seed; SEED=42 confirm queued as 0039]:
+- (A) Selectivity-as-load-bearing: **DISCONFIRMED**. Killing input-dependence on (dt, B, C) *improves* the result at our regime. The ~5.3σ "Mamba-2 wins" claim from 0035 was correct, but the *mechanism story* is wrong: it's not selectivity.
+- (B) Parameter capacity: **WEAKLY SUPPORTED**. Kill version has +128 params (negligible) over full, so the architecture-level param diff is essentially zero. Yet kill > full. So pure-param-count doesn't explain the gain.
+- (C) Auxiliary structure (conv1d, gating-via-z, in_proj heads, SSD chunkwise scan, learned A_log, learned dt_bias): **STRONGLY SUPPORTED**. Kill version retains all of these and beats full. The win is the BLOCK STRUCTURE; selectivity is at best decorative, at worst (at our regime) anti-load-bearing.
+
+**Why might selectivity HURT at 200 steps?** [SPECULATIVE — possibly the most interesting research question of the session]:
+- in_proj produces (z, x, B, C, dt) at the same total output size whether killed or not. In the full version, 144 of the 2192 in_proj output dims (~6.5%) feed into per-token (B, C, dt). At 200 × 24576 = ~5M tokens of training, those 144 dims may be *under-trained* — adding noise to dynamics rather than signal.
+- The kill version *throws away* those 144 dims (they're computed and discarded), letting the remaining 2048 dims focus on (z, x). Effectively a regularization-by-truncation.
+- LTI dynamics with constant κ may be enough at our short context (L=1024) — the recurrence's information bottleneck binds before selectivity has anything useful to add.
+- This predicts selectivity becomes useful at LONGER training (selectivity gradients accumulate enough signal) AND/OR LONGER context (where dynamic gating actually pays off). H100 20k-step regime should test (1).
+
+**Implications for writeup**:
+- Headline mechanism rewrites: "Mamba-2 BLOCK STRUCTURE (without selectivity) gives the best SSM result. Killing selectivity at 200-step regime improves val_bpb by 0.014. The win is conv1d-and-gating-and-LTI-recurrence, not input-dependent dynamics."
+- This is a *more interesting* writeup than "selectivity wins" — it's a non-obvious empirical inversion of the conventional Mamba narrative for short-budget regimes.
+- Open question for H100: does selectivity recover at 20k steps? If yes, the mechanism is regime-specific. If no, selectivity is anti-load-bearing more broadly. **Specific prediction for H100 20k-step**: full Mamba-2 will close some of the gap to LTI Mamba-2 but will likely not exceed it (only 100× more steps; selectivity needs probably *much* more data to stop being noise on a 1024-token context).
+
+**Promote decision**: Δ=0.0158 vs prior promote (well above advance threshold +0.010). **Direct-promoting** to `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/`. SEED=42 confirm queued as 0039 (within 5-experiment window per direct-promote rule). After confirm, will also try 3-of-3 LTI Mamba-2 (0037 was 3-of-3 with selectivity → preempted by this finding).
+
+**Conclusion** [VERIFIED single-seed, story-pivot acknowledged]: selectivity is NOT the load-bearing mechanism in the Mamba-2 wins at our regime. The 0035 promote was correct on direction but wrong on mechanism. The new SSM-best is **0038: LTI-Mamba-2 + 2-of-3 + recur+SwiGLU+BigramHash + ATTN-at-pos-2 → val_bpb 2.0259** (single-seed, SEED=42 confirm pending). Δ vs prior transformer-best 2.0869 = **-0.061 BPB** (was -0.045).
+
 
 ## 2026-04-26 13:51 EDT · session resume · plan
 
