@@ -1,0 +1,4 @@
+[smoke] command: RUN_ID=vita_smoke ITERATIONS=200 VAL_LOSS_EVERY=0 python3 train_gpt_mlx.py
+[smoke] (command intentionally not auto-executed here; uncomment if desired)
+[smoke] command: RUN_ID=vita_smoke ITERATIONS=200 VAL_LOSS_EVERY=0 python3 train_gpt_mlx.py
+[smoke] (command intentionally not auto-executed here; uncomment if desired)

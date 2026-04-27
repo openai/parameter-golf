@@ -1,0 +1,88 @@
+{
+  "created_at": "2026-03-24T15:57:24.835064+00:00",
+  "run_tag": "090-c2-benchmark-attempt-01",
+  "status": "attempt01_baseline_locked_non_claiming",
+  "benchmark_track": "parameter-golf",
+  "non_claiming": true,
+  "claims_allowed": false,
+  "source": {
+    "o2_results_json": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/reports/o2_results.json",
+    "source_repo_id": "090",
+    "source_config_id": "C2",
+    "o2_reported_winner": "C2",
+    "source_config_metrics": {
+      "train_final_test_accuracy_percent": 87.28,
+      "sweep_accuracy_percent": {
+        "0.4": 87.33,
+        "0.5": 87.37,
+        "0.6": 87.32,
+        "0.7": 87.27
+      },
+      "max_prune_ratio_passing_floor": 0.7,
+      "accuracy_at_max_passing_ratio": 87.27,
+      "mean_accuracy_0_4_to_0_7": 87.3225,
+      "confirm_ratio": 0.5,
+      "confirm_accuracy_percent": 87.37,
+      "confirm_matches_sweep_at_ratio": true
+    },
+    "source_config_artifacts": {
+      "train_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_train.log",
+      "sweep_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_sweep.log",
+      "confirm_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_confirm_p05.log"
+    }
+  },
+  "benchmark_execution": {
+    "hardware": "RunPod/H100-template-primary",
+    "primary_paths": {
+      "sanity": "local-smoke",
+      "first_real_candidate": "target-gpu-template"
+    },
+    "pipeline_executed": true,
+    "training_executed": true,
+    "evaluation_executed": true,
+    "final_metric_extracted": true,
+    "artifact_size_verified": true,
+    "attempt01": {
+      "label": "baseline",
+      "delta_description": "no leaderboard-inspired delta",
+      "final_val_bpb": 1.23814533,
+      "final_val_loss": 2.09055653,
+      "metric_file": "evidence/metric_8gpu_attempt01.txt",
+      "train_log": "evidence/train_8gpu_attempt01.log",
+      "artifact_summary": "evidence/artifact_summary_8gpu_attempt01.txt",
+      "locked_at": "2026-03-24T18:07:13.213140Z"
+    },
+    "attempt02": {
+      "label": "single-delta",
+      "delta_description": "WARMDOWN_ITERS=3500",
+      "final_val_bpb": 1.23641511,
+      "delta_vs_attempt01_bpb": -0.00173022,
+      "decision": "keep",
+      "metric_file": "evidence/metric_8gpu_attempt02_warmdown3500.txt",
+      "train_log": "evidence/train_8gpu_attempt02_warmdown3500.log",
+      "artifact_summary": "evidence/artifact_summary_8gpu_attempt02_warmdown3500.txt",
+      "source": "operator-reported; ensure evidence files are synced"
+    },
+    "current_best": {
+      "attempt": "attempt02",
+      "final_val_bpb": 1.23641511
+    },
+    "next_planned_attempt": {
+      "attempt": "attempt03",
+      "base": "attempt02",
+      "single_delta": "EMA",
+      "status": "planned"
+    }
+  },
+  "blockers": [
+    "Gap to naive baseline (1.2244) remains; continue single-delta iterations.",
+    "Ensure attempt02 evidence files are synced locally before claim-gate review."
+  ],
+  "expected_evidence_files": [
+    "evidence/train.log",
+    "evidence/eval.log",
+    "evidence/submission.json",
+    "evidence/artifact_sizes.json",
+    "evidence/environment.json"
+  ]
+}
