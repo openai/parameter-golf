@@ -1,0 +1,16 @@
+{
+  "author": "Warren Reed Baum",
+  "github_id": "delistish",
+  "name": "Autoresearch 8L 512d — RTX 4090",
+  "blurb": "Non-record submission: 8-layer, 512d model with value embeddings, SSSL sliding window attention, 8192 BPE vocab. Autoresearch framework (nanochat). Achieved 1.3718 bpb on single RTX 4090 in ~5 min wallclock (107 steps, 300s training budget). Value embeddings (16.7M params) + wider vocab beat deeper stacking and MLP3x at this scale.",
+  "date": "2026-03-27T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_bpb": 1.3718,
+  "num_steps": 107,
+  "num_params_M": 50.3,
+  "training_seconds": 301.9,
+  "total_seconds": 386.4,
+  "peak_vram_mb": 11843.2,
+  "mfu_percent": 4.07,
+  "gpu": "1xRTX 4090 24GB"
+}
