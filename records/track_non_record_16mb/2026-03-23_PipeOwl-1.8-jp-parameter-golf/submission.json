@@ -1,0 +1,15 @@
+{
+  "author": "WangKaiLin",
+  "github_id": "galaxy4552",
+  "name": "PipeOwl-1.8-jp-parameter-golf",
+  "blurb": "An experimental field-based language model that replaces pairwise attention with a linear-time interaction mechanism (PipeOwl). Focuses on embedding compression and alternative representation instead of SOTA performance.",
+  "date": "2026-03-23",
+  "track": "non-record-16mb",
+  "vocab_size": 26155,
+  "embedding_dim": 256,
+  "bytes_total": 13889536,
+  "notes": "This submission explores a non-transformer architecture using field representation, Δfield interaction, and fallback channels. Not optimized for benchmark score; intended as a conceptual and structural experiment.",
+  "files": {
+    "weights": "https://huggingface.co/WangKaiLin/PipeOwl-1.8-jp-parameter-golf"
+  }
+}
