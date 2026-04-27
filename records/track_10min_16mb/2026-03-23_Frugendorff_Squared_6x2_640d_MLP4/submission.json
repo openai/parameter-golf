@@ -1,0 +1,11 @@
+{
+  "author": "frosty40",
+  "github_id": "newjordan",
+  "model_name": "Frugendorff_Squared",
+  "description": "6 unique layers x 2 fractal loops = 12 effective depth, dim=640, MLP 4x, EMA + distillation + int6+zstd (val_bpb: 1.1478)",
+  "val_loss": 1.93804623,
+  "val_bpb": 1.14782318,
+  "bytes_total": 15154098,
+  "track": "10min_16mb",
+  "seed": 1337
+}
