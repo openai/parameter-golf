@@ -1,0 +1,132 @@
+W0327 17:58:36.212000 26143 torch/distributed/run.py:803] 
+W0327 17:58:36.212000 26143 torch/distributed/run.py:803] *****************************************
+W0327 17:58:36.212000 26143 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0327 17:58:36.212000 26143 torch/distributed/run.py:803] *****************************************
+logs/1383fe84-c0d2-4b80-bace-c3e540019ea5.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16696465
+world_size:8 grad_accum_steps:1
+ssm_mode:gated_deltanet head_dim:64 expand_v:1 conv_size:4
+muon_matrix_params:84 scalar_params:133
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1692: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1598: UserWarning: Dynamo does not know how to trace the builtin `cuda_utils.get_device_properties.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9397 val_bpb:4.1101 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9390 train_time:105ms step_avg:104.98ms
+step:2/20000 train_loss:13.5187 train_time:220ms step_avg:109.76ms
+step:3/20000 train_loss:7.3600 train_time:329ms step_avg:109.54ms
+step:4/20000 train_loss:6.5288 train_time:440ms step_avg:110.01ms
+step:5/20000 train_loss:7.1797 train_time:553ms step_avg:110.70ms
+step:6/20000 train_loss:7.7192 train_time:680ms step_avg:113.26ms
+step:7/20000 train_loss:6.8302 train_time:792ms step_avg:113.09ms
+step:8/20000 train_loss:6.4844 train_time:901ms step_avg:112.61ms
+step:9/20000 train_loss:6.1430 train_time:1014ms step_avg:112.71ms
+step:10/20000 train_loss:5.9402 train_time:1127ms step_avg:112.71ms
+step:200/20000 train_loss:3.0126 train_time:26024ms step_avg:130.12ms
+step:400/20000 train_loss:2.4688 train_time:50029ms step_avg:125.07ms
+step:600/20000 train_loss:2.6238 train_time:75334ms step_avg:125.56ms
+step:800/20000 train_loss:2.3780 train_time:100527ms step_avg:125.66ms
+step:1000/20000 train_loss:2.4362 train_time:125053ms step_avg:125.05ms
+step:1000/20000 val_loss:2.4046 val_bpb:1.4242 train_time:125082ms step_avg:125.08ms
+step:1200/20000 train_loss:2.4495 train_time:149916ms step_avg:124.93ms
+step:1400/20000 train_loss:2.4885 train_time:173594ms step_avg:124.00ms
+step:1600/20000 train_loss:2.1701 train_time:197752ms step_avg:123.60ms
+step:1800/20000 train_loss:2.2549 train_time:221459ms step_avg:123.03ms
+step:2000/20000 train_loss:2.2926 train_time:244662ms step_avg:122.33ms
+step:2000/20000 val_loss:2.2975 val_bpb:1.3607 train_time:244678ms step_avg:122.34ms
+step:2200/20000 train_loss:2.3958 train_time:268182ms step_avg:121.90ms
+step:2400/20000 train_loss:2.4160 train_time:291807ms step_avg:121.59ms
+step:2600/20000 train_loss:2.2711 train_time:316215ms step_avg:121.62ms
+step:2800/20000 train_loss:2.2236 train_time:339404ms step_avg:121.22ms
+step:3000/20000 train_loss:3.2170 train_time:363239ms step_avg:121.08ms
+step:3000/20000 val_loss:2.2566 val_bpb:1.3365 train_time:363271ms step_avg:121.09ms
+step:3200/20000 train_loss:2.3146 train_time:388629ms step_avg:121.45ms
+step:3400/20000 train_loss:2.1550 train_time:412554ms step_avg:121.34ms
+step:3600/20000 train_loss:2.2590 train_time:437314ms step_avg:121.48ms
+step:3800/20000 train_loss:2.1992 train_time:460246ms step_avg:121.12ms
+step:4000/20000 train_loss:2.3095 train_time:483135ms step_avg:120.78ms
+step:4000/20000 val_loss:2.2141 val_bpb:1.3113 train_time:483165ms step_avg:120.79ms
+step:4200/20000 train_loss:2.2480 train_time:509215ms step_avg:121.24ms
+step:4400/20000 train_loss:2.1901 train_time:532889ms step_avg:121.11ms
+step:4600/20000 train_loss:2.2092 train_time:555910ms step_avg:120.85ms
+step:4800/20000 train_loss:2.1383 train_time:578929ms step_avg:120.61ms
+step:4962/20000 val_loss:2.1581 val_bpb:1.2781 train_time:600056ms step_avg:120.93ms
+stopping_early: wallclock_cap train_time:600056ms step:4962/20000
+peak memory allocated: 14837 MiB reserved: 15304 MiB
+Serialized model: 47882833 bytes
+Code size: 53144 bytes
+Total submission size: 47935977 bytes
+Serialized model int8+zlib: 15737500 bytes (payload:17110594 raw_torch:17206745 payload_ratio:2.79x)
+Total submission size int8+zlib: 15790644 bytes
+final_int8_zlib_roundtrip val_loss:2.1793 val_bpb:1.2907 eval_time:3876ms
+final_int8_zlib_roundtrip_exact val_loss:2.17933402 val_bpb:1.29072436
