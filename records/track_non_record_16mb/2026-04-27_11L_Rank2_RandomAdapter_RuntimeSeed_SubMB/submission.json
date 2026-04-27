@@ -1,0 +1,11 @@
+{
+  "author": "Ishan Godawatta",
+  "github_id": "IshanG97",
+  "name": "11L Rank-2 Random-Adapter Networks — sub-1 MB submission via runtime-seeded random base + LoRA",
+  "blurb": "Replace every nn.Linear-equivalent in an 11L 512d transformer with W = W_random(seed) + U V^T, where W_random is regenerated at runtime from a 32-bit seed (zero artifact bytes) and U V^T is a rank-2 trainable adapter. 695,896 trainable params; full int8+zlib submission artefact 898,236 bytes (5.6% of the 16 MB cap). 3-seed mean post-quant val_bpb 2.13131 +/- 0.00465 on Runpod 1xH100 SXM (sp1024, 200 steps x 65,536 tokens). Pareto-shatters the 9L rank=8 reference (-172 mbpb / -41% bytes, ~33 sigma). Implements the README 'Requests for PRs' item: 'Learning adapters on random linear maps'.",
+  "date": "2026-04-27T20:00:00Z",
+  "val_loss": 3.59862087,
+  "val_bpb": 2.13130598,
+  "bytes_total": 898236,
+  "bytes_code": 51341
+}
