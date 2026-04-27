@@ -1,0 +1,26 @@
+{
+  "id": "0051_0051_triple_parallel",
+  "parent": "0046_kill_mamba2_middle_parallel",
+  "created_at": "2026-04-27T05:27:32Z",
+  "metrics": {
+    "val_bpb_pre_quant": 1.9993,
+    "val_bpb_post_quant": 2.00170354,
+    "val_loss_pre_quant": 3.4171,
+    "val_loss_post_quant": 3.42117411,
+    "quant_tax": 0.002404,
+    "step_avg_ms": 8172.0,
+    "num_steps": 200.0,
+    "artifact_bytes": 15182178.0,
+    "artifact_mb": 15.182,
+    "code_bytes": 78381.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}

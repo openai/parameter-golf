@@ -3,8 +3,9 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (PROMOTED 2026-04-27 02:00, 2-seed CONFIRMED)**: exp 0046/0050 2-seed mean **val_bpb 2.01031** (cross-seed σ_pair=0.0022). Architecture: K=3 L=3 + SwiGLU(mlp=8) + cross-class hybrid topology = pos 0: kill-Mamba-2 (LTI), pos 1: PARALLEL ATTN || kill-Mamba-2, pos 2: kill-Mamba-2 (LTI). NO BigramHash. The "middle-parallel" pattern (from 0027) compounds with the kill-Mamba-2 finding. Path: `winners/2026-04-27_kill_mamba2_middle_parallel_no_bigram_recur3x3_swiglu_mlp8/`. Δ vs prior promote (0042/0045 mean 2.02193) = -0.01162 BPB (~5σ at 2-seed precision). Beats transformer-best 2.0869 by **-0.077 BPB**. Step time 6.94 s/step. Artifact 14.22 MB. [transfer:high]
+- **Current best (DIRECT-PROMOTED 2026-04-27 02:30, single-seed; 0053 SEED=42 confirm running)**: exp 0051 single-seed **val_bpb 2.0017** — TRIPLE-PARALLEL topology (every K=3 unique block is PARALLEL ATTN || kill-Mamba-2). Δ vs 0046/0050 mean (2.01031) = -0.0086 single-seed. Δ vs transformer-best 2.0869 = **-0.085 BPB**. Architecture: K=3 L=3 + SwiGLU(mlp=8) + 3× PARALLEL (ATTN || kill-Mamba-2), no-BG. Refutes 0025 Hymba-strict-failure pattern (which used full-Mamba-2 + BG); kill+no-BG combination changes the parallel-everywhere outcome. Path: `winners/2026-04-27_triple_parallel_kill_mamba2_no_bigram_recur3x3/`. Step time 8.17 s/step. Artifact 15.18 MB (cap-tight). [transfer:high]
 - **Superseded** (kept for trace):
+  - 0046/0050 (cross-class middle-parallel + kill-Mamba-2): 2-seed mean 2.01031. `winners/2026-04-27_kill_mamba2_middle_parallel_no_bigram_recur3x3_swiglu_mlp8/`. Triple-parallel (0051) wins by -0.0086 at single-seed.
   - 0042/0045 (kill-Mamba-2 + no-BG): 2-seed mean 2.02193. `winners/2026-04-27_kill_mamba2_no_bigram_2of3_recur3x3_swiglu_mlp8/`. Cross-class middle-parallel hybrid (0046) wins by -0.0094.
   - 0038/0039 (kill-Mamba-2 + BG): 2-seed mean 2.02723. `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Removing BG improves by 0.005 (0042/0045 mean 2.02193).
   - 0035/0036 (Mamba-2 selective 2-of-3): 2-seed mean 2.04171. `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Direction was right; mechanism story (selectivity) was wrong — kill version wins by 0.014 BPB.
@@ -94,6 +95,32 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 
 ## Entries (newest first)
+
+## 2026-04-27 02:30 EDT · exp 0051 · TRIPLE-PARALLEL WINS — every position parallel ATTN||kill-Mamba-2 → val 2.0017
+
+**Question**: does 0046's middle-parallel pattern generalize to all positions? Test triple-parallel topology: every K=3 unique block is PARALLEL ATTN||kill-Mamba-2.
+
+**Result**: val_bpb 2.0017 — Δ vs 0046/0050 mean (2.01031) = -0.0086. NEW SSM-BEST single-seed. Δ vs transformer-best = -0.085 BPB.
+
+**Cap-tight win**: artifact 15.18 MB (vs 16 MB cap). 8.17 s/step. The earlier "Hymba-strict failed" finding (0025/0026 with full-Mamba-2 + BG) does NOT generalize to the kill+no-BG operating point. Topology is interactive with the SSM family + BG choice.
+
+**Direct-promoted**, SEED=42 confirm running as 0053 (~26 min).
+
+**Walk-22:22's prediction "diverse-mechanism mixing in parallel beats sequential composition" is now strongly supported**: the cross-class hybrid topology compounds further when extended from 1-of-3 to 3-of-3 placements.
+
+**Next experiments queued**:
+- 0053 (running): SEED=42 confirm.
+- 0052 (drafted): full-selective Mamba-2 in 0046's topology (test "selectivity-in-parallel" hypothesis).
+
+**Stack so far** (cumulative path canonical → current best):
+1. Schedule + recur+SwiGLU+mlp=8 (transformer-best 2.0869)
+2. + Mamba-2 BLOCK at 2-of-3: 2.0417 [-0.044]
+3. + Kill selectivity (LTI): 2.02723 [-0.014]
+4. + Remove BigramHash: 2.02193 [-0.005]
+5. + Middle-parallel topology: 2.01031 [-0.012]
+6. + **Triple-parallel topology**: 2.0017 single-seed [-0.009]
+
+Total -0.085 BPB vs transformer-best at single-seed. With 0053 confirm, this becomes the formal 2-seed promote.
 
 ## 2026-04-27 02:00 EDT · exp 0050 · SEED=42 confirms 0046 (2-seed mean 2.01031, BETTER than first seed)
 
