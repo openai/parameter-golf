@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+env \
+  RUN_ID="${RUN_ID:-extreme_accum}" \
+  ITERATIONS="${ITERATIONS:-1}" \
+  WARMUP_STEPS="${WARMUP_STEPS:-0}" \
+  TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-262144}" \
+  TRAIN_MICROBATCH_TOKENS="${TRAIN_MICROBATCH_TOKENS:-4096}" \
+  VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}" \
+  VAL_TOKEN_LIMIT="${VAL_TOKEN_LIMIT:-2048}" \
+  VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-2048}" \
+  python3 train_gpt.py
