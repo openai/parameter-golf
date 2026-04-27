@@ -381,9 +381,14 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             stats["int8_payload_bytes"] += tensor_nbytes(t)
             continue
 
+        # Adapter matrices must always be int8-quantized regardless of element count.
+        # Without this: adapter_B (16×2048 = 32768 elems) falls under INT8_KEEP_FLOAT_MAX_NUMEL
+        # and is kept as fp16 → all 96 adapter matrices cost ~7.8 MB fp16 vs ~3.9 MB int8.
+        force_quantize = any(pat in name for pat in ADAPTER_PARAM_PATTERNS)
+
         # Small float tensors are cheap enough to keep directly. We still downcast
         # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
-        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL and not force_quantize:
             kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
             passthrough[name] = kept
             stats["int8_payload_bytes"] += tensor_nbytes(kept)
@@ -616,23 +621,22 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
-
-
 class RandomLinearAdapter(nn.Module):
     """
     Random Linear Map Adapter: y = R·x + A·(B·x)
 
-    R  – fixed fp16 random matrix, regenerated from `seed` each forward pass.
-         He-scaled as R/sqrt(in_features). Never updated, never stored in state_dict.
+    R  – fixed fp16 random matrix, computed ONCE at init from `seed` and stored as a
+         non-persistent GPU buffer. persistent=False means R is NOT saved in state_dict
+         (the seed in _rlma_seed() is a deterministic function of layer/proj name, so R
+         can always be regenerated). This eliminates the original design's per-step
+         re-generation which caused 96× dynamo recompilation and ~100ms/step overhead.
     A  – (out_features × rank) learned parameter, initialised to zero.
-         Because A=0 at init → effective weight is pure R → loss starts at ln(vocab_size).
-    B  – (rank × in_features) learned parameter, initialised from N(0, 1/sqrt(rank)).
+         At init A=0 → effective weight is pure R → loss starts near ln(vocab_size).
+    B  – (rank × in_features) learned parameter, init N(0, 1/sqrt(rank)).
 
-    Gradient equations:
-        dL/dA = dL/dy · (Bx)ᵀ   (clean, no R involved)
-        dL/dB = Aᵀ · dL/dy · xᵀ (clean, no R involved)
-    R appears in the *value* of the forward pass but NOT in any gradient, which is
-    intentional: the random matrix is a fixed computational substrate.
+    Gradient equations (R does not appear):
+        dL/dA = dL/dy · (Bx)ᵀ
+        dL/dB = Aᵀ · dL/dy · xᵀ
     """
 
     def __init__(self, in_features: int, out_features: int, rank: int, seed: int):
@@ -640,27 +644,20 @@ class RandomLinearAdapter(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.rank = rank
-        self.seed = seed
-        # A initialised to zeros so the adapter starts as a zero perturbation.
+        # A: zero-init so adapter starts as a zero correction to R.
         self.adapter_A = nn.Parameter(torch.zeros(out_features, rank))
-        # B initialised with small normal so B·x gives a reasonable-scale signal from day 1.
+        # B: non-zero init so B·x is a non-trivial signal from step 0.
         self.adapter_B = nn.Parameter(torch.randn(rank, in_features) / math.sqrt(rank))
-
-    def _make_R(self, device: torch.device, dtype: torch.dtype) -> Tensor:
-        # Deterministically regenerate the fixed random matrix from the seed.
-        # Using a CPU generator and moving to device is more portable than a CUDA generator.
+        # Precompute R from seed and register as non-persistent buffer (not in state_dict).
+        # persistent=False: survives .to(device) and .half() calls, but is never serialized.
         rng = torch.Generator()
-        rng.manual_seed(self.seed)
-        R = torch.randn(self.out_features, self.in_features, generator=rng)
-        R = R * (self.in_features ** -0.5)   # He-style scale
-        return R.to(device=device, dtype=dtype)
+        rng.manual_seed(seed)
+        R = torch.randn(out_features, in_features, generator=rng) * (in_features ** -0.5)
+        self.register_buffer("R", R.half(), persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        # x: (..., in_features)
-        R = self._make_R(x.device, x.dtype)
-        # Random projection: large matrix multiply with no grad required (R is not a Parameter).
-        Rx = F.linear(x, R)
-        # Low-rank learned adapter: two small matrix multiplies.
+        # R is a buffer on the same device; cast to x's dtype for bf16 autocast compatibility.
+        Rx  = F.linear(x, self.R.to(x.dtype))
         ABx = F.linear(F.linear(x, self.adapter_B), self.adapter_A)
         return Rx + ABx
 
