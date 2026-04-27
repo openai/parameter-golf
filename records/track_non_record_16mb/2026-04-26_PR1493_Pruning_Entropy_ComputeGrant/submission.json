@@ -1,0 +1,38 @@
+{
+  "author": "VedantKmr0",
+  "github_id": "VedantKmr0",
+  "name": "Draft PR1493 pruning + q-symbol entropy coding compute-grant checkpoint",
+  "date": "2026-04-26",
+  "track": "track_non_record_16mb",
+  "status": "draft_non_record_compute_grant_checkpoint",
+  "hardware": "8xH100 80GB SXM for reference capture run",
+  "dataset": "fineweb10B_sp8192",
+  "tokenizer": "fineweb_8192_bpe.model",
+  "world_size": 8,
+  "val_bpb": 1.08502253,
+  "val_loss": 2.80272589,
+  "technique_summary": "PR1493-style 8xH100 run with structured MLP channel pruning experiments and static arithmetic/rANS q-symbol entropy coding estimates. Capped pruning spreads MLP channel removals across blocks; soft-cap pruning blends within-block and global channel ranks with a relaxed per-block cap.",
+  "training_run_results": {
+    "pre_quantization_post_ema": {"val_loss": 2.82175375, "val_bpb": 1.09238881, "eval_time_ms": 6776},
+    "raw_serialized_model_bytes": 135431033,
+    "code_size_bytes": 59270,
+    "quantized_brotli_model_bytes": 15975480,
+    "total_submission_size_quantized_brotli_bytes": 16034750,
+    "quantized": {"val_loss": 2.84964269, "val_bpb": 1.10318549, "eval_time_ms": 25077},
+    "quantized_sliding_window": {"val_loss": 2.80624420, "val_bpb": 1.08638458, "eval_time_ms": 128040},
+    "quantized_ttt": {"val_loss": 2.80272589, "val_bpb": 1.08502253, "eval_time_ms": 339862, "ttt_chunks": 1238, "ttt_lr": 0.005, "ttt_epochs": 3}
+  },
+  "draft_results": {
+    "baseline_for_pruning": {"checkpoint": "final_ema_fp.pt", "val_bpb": 1.09238693, "val_loss": 2.82174889},
+    "capped_pruning": {
+      "1pct": {"val_bpb": 1.09673307, "delta_bpb": 0.00434614, "estimated_int6_packed_bytes_saved": 172800},
+      "2pct": {"val_bpb": 1.10103679, "delta_bpb": 0.00864986, "estimated_int6_packed_bytes_saved": 346400},
+      "5pct": {"val_bpb": 1.11593685, "delta_bpb": 0.02354992, "estimated_int6_packed_bytes_saved": 864800},
+      "8pct": {"val_bpb": 1.13440505, "delta_bpb": 0.04201812, "estimated_int6_packed_bytes_saved": 1380000}
+    },
+    "uncapped_global_pruning_delta_bpb": {"1pct": 0.007035, "2pct": 0.015820, "5pct": 0.057837, "8pct": 0.135241}
+  },
+  "compression_results": {"original_brotli_bytes": 15975480, "arithmetic_q_per_tensor_bytes": 15681130, "arithmetic_q_class_model_bytes": 15674853, "raw_q_bytes": 35913728},
+  "compliance": {"draft_non_record": true, "artifact_under_16mb_claimed_final": false, "train_under_600s_claimed_final": false, "eval_under_600s_claimed_final": false, "three_seeds": false, "requires_additional_compute": true},
+  "included_files": ["README.md", "submission.json", "train_gpt.py", "train_gpt_pr1493.py", "grant_generate_mlp_cap_masks.py", "grant_generate_mlp_softcap_masks.py", "grant_eval_mlp_zero_ablation.py", "grant_estimate_q_entropy.py", "train_pr1493_capture.log"]
+}

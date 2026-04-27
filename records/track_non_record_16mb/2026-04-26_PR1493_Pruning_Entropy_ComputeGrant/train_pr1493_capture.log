@@ -1,0 +1,21 @@
+Draft compute-grant checkpoint log pointer
+========================================
+
+This records folder is intentionally a draft / non-record checkpoint.  It does
+not include the full 8xH100 capture logs or bulky generated JSON result files.
+Those artifacts are expected to live outside this PR folder, under the local
+capture directory used in the README examples:
+
+  artifacts/vast_8xh100_pr1493_capture_20260425_r3
+
+Reference metrics from the final EMA checkpoint used for the pruning experiments:
+
+  val_bpb  = 1.09238693
+  val_loss = 2.82174889
+  world_size = 8
+  dataset = fineweb10B_sp8192
+  tokenizer = fineweb_8192_bpe.model
+
+This file exists so the draft non-record folder has an explicit log/status
+pointer matching the README.  Full final logs should be regenerated and included
+once the approach becomes a final submission candidate.
