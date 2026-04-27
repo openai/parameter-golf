@@ -1,0 +1,9 @@
+{
+  "name": "Poly5 Softcap + BigramHash(3072) + Wider GPTQ-lite + Temperature Scaling + Z-Loss + Legal TTT",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Builds on LeakyReLU²+TTT+ParallelMuon SOTA with 6 targeted improvements: (1) Poly-5 softcap replaces tanh for better torch.compile kernel fusion and gradient flow, (2) BigramHash(3072) from ablation-proven expansion, (3) Wider GPTQ-lite percentile search (9 candidates vs 5) for lower quantization error, (4) Temperature scaling (T=0.95) at eval, (5) Z-loss regularization (1e-4) for training stability, (6) LZMA preset 9 for better compression. All other techniques preserved: 11L 512d, XSA4, Partial RoPE 16/64, LN Scale, EMA(0.997)+SWA, LeakyReLU(0.5)², Legal Score-First TTT, Parallel Muon.",
+  "author": "jimliu741523",
+  "github_id": "jimliu741523",
+  "date": "2026-03-26"
+}
