@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-os.environ.setdefault("RUN_ID", "rascal_4k_12L_brotli_mixed_8x_seed444_" + time.strftime("%Y%m%d_%H%M%S"))
+os.environ.setdefault("RUN_ID", "mikey_8x_seed444_" + time.strftime("%Y%m%d_%H%M%S"))
 
 try:
     import triton
@@ -31,7 +31,7 @@ try:
     from flash_attn_interface import flash_attn_func as flash_attn_3_func
 except ImportError:
     flash_attn_3_func = None
-# Compression: brotli-11 + byte-shuffle is the salvage_v2 preferred path (PR #1493 recipe).
+# Compression: brotli-11 + byte-shuffle.
 # Falls back to zstd then zlib so this file still runs if brotli isn't installed.
 _brotli_module = None
 _zstandard_module = None
@@ -55,7 +55,7 @@ if _zstandard_module is not None:
     zstandard = _zstandard_module
 if _zlib_module is None:
     import zlib as _zlib_module  # always available; used by zlib fallback path
-# --- Byte-shuffle (de-interleave) wrapper from PR #1493: improves brotli ratio on quantized payloads. ---
+# --- Byte-shuffle (de-interleave) wrapper: improves brotli ratio on quantized payloads. ---
 _BSHF_MAGIC = b"BSHF"
 def _byte_shuffle(data: bytes, stride: int = 2) -> bytes:
     if stride <= 1 or len(data) < stride:
@@ -186,6 +186,11 @@ class Hyperparameters:
     ngram_eval_max_seconds = float(os.environ.get("NGRAM_EVAL_MAX_SECONDS", 0.0))
     ngram_entropy_shift = bool(int(os.environ.get("NGRAM_ENTROPY_SHIFT", "0")))
     ngram_order_mults_str = os.environ.get("NGRAM_ORDER_MULTS", "")
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.005))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
     cubric_cadence = int(os.environ.get("CUBRIC_CADENCE", 0))
     skip_final_eval = bool(int(os.environ.get("SKIP_FINAL_EVAL", "0")))
     post_ema_diagnostic = bool(int(os.environ.get("POST_EMA_DIAGNOSTIC", "1")))
@@ -768,14 +773,12 @@ def _classify_param_fine(name: str) -> str:
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
         return "attn_other"
     return "other"
-# salvage_v2 mixed-int policy (applied at the Tensor level via _classify_param_fine):
-#   - mlp_down_bank (mlp_proj, MOST quant-tolerant per 11-day collate) -> int5  (clip_range 15)
-#   - mlp_up_bank   (mlp_fc, also tolerant)                            -> int5
+# Mixed-int policy (applied at the Tensor level via _classify_param_fine):
+#   - mlp_down_bank (mlp_proj, most quant-tolerant) -> int5  (clip_range 15)
+#   - mlp_up_bank   (mlp_fc, also tolerant)         -> int5
 #   - qo_bank, kv_bank (attention; LEAST quant-tolerant)               -> int6  (clip_range 31)
-#   - tok_emb / lm_head (embed)                                        -> int6  (matches seed; keeping
-#                                                                                 attn/embed at int6 for
-#                                                                                 quant safety on this
-#                                                                                 first salvage attempt)
+#   - tok_emb / lm_head (embed)                                        -> int6  (attn/embed at int6 for
+#                                                                                 quant safety)
 # Bytes savings: int5 keeps the int8 storage container (no bit-packing) but the high 3 bits are
 # forced zero, giving brotli a compressible pattern. Combined with the byte-shuffle wrapper,
 # expected savings vs uniform-int6+zstd is roughly the int5 bit ratio (5/6 = -17%) APPLIED only
@@ -791,7 +794,7 @@ def mixed_quantize_int6_gptq(state_dict: dict[str, Tensor], int6_cats: set[str],
     (qo, kv, mlp_up, mlp_down, attn_other, mlp_other, aux, embed). For backwards-compat with
     the old uniform-int6 caller, the legacy coarse names {'mlp','attn','aux','embed'} are also
     accepted in `int6_cats` and expand to their fine-grained children. `int5_cats` always uses
-    fine names. If `int5_cats` is None, defaults to DEFAULT_INT5_CATS (the salvage_v2 policy)."""
+    fine names. If `int5_cats` is None, defaults to DEFAULT_INT5_CATS."""
     if int5_cats is None:
         int5_cats = set(DEFAULT_INT5_CATS)
     # Expand legacy coarse names so the existing call signature keeps working.
@@ -1653,7 +1656,7 @@ def eval_val_sliding_hashed_ngram(
     batch_seqs: int = 128,
     eval_seq_len: int | None = None,
 ) -> tuple[float, float, float]:
-    """Score-first sliding eval with chunk-based SHARED n-gram tables + cubric.
+    """Sliding eval with chunk-based SHARED n-gram tables + cubric.
 
     Key design: all ranks share identical n-gram tables via bulk chunk updates.
     Each chunk's windows are distributed across ranks for scoring, then ALL ranks
@@ -2035,6 +2038,130 @@ def eval_val_sliding(
     return val_loss, bits_per_token * tokens_per_byte
 
 
+def eval_val_ttt(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+) -> tuple[float, float]:
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    ttt_chunk = args.ttt_chunk_tokens
+    context_size = seq_len - stride
+    window_starts = [ws for ws in range(0, total_tokens, stride)
+                     if ws + context_size < total_tokens]
+    num_chunks = (total_tokens + ttt_chunk - 1) // ttt_chunk
+    chunk_windows: list[list[int]] = [[] for _ in range(num_chunks)]
+    for ws in window_starts:
+        s = 0 if ws == 0 else context_size
+        scored_start = ws + s
+        ci = min(scored_start // ttt_chunk, num_chunks - 1)
+        chunk_windows[ci].append(ws)
+    compiled_logits = maybe_compile(
+        base_model.forward_logits,
+        enabled=args.compile_enabled,
+        fullgraph=args.compile_fullgraph,
+    )
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    ttt_params = [p for p in base_model.parameters()]
+    for p in ttt_params:
+        p.requires_grad_(True)
+    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    for ci in range(num_chunks):
+        windows = chunk_windows[ci]
+        if not windows:
+            continue
+        chunk_start = ci * ttt_chunk
+        chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
+        my_s = (len(windows) * rank) // world_size
+        my_e = (len(windows) * (rank + 1)) // world_size
+        my_windows = windows[my_s:my_e]
+        base_model.eval()
+        with torch.no_grad():
+            for bi in range(0, len(my_windows), batch_seqs):
+                batch_ws = my_windows[bi:bi + batch_seqs]
+                bsz = len(batch_ws)
+                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                wlens: list[int] = []
+                for i, ws in enumerate(batch_ws):
+                    end = min(ws + seq_len, total_tokens)
+                    wlen = end - ws
+                    wlens.append(wlen)
+                    chunk_tok = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                    x_batch[i, :wlen] = chunk_tok[:-1]
+                    y_batch[i, :wlen] = chunk_tok[1:]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits = compiled_logits(x_batch)
+                nll = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y_batch.reshape(-1),
+                    reduction="none",
+                ).reshape(bsz, seq_len)
+                for i, ws in enumerate(batch_ws):
+                    wlen = wlens[i]
+                    s = 0 if ws == 0 else context_size
+                    scored_nll = nll[i, s:wlen].to(torch.float64)
+                    loss_sum += scored_nll.sum()
+                    token_count += float(wlen - s)
+                    tgt = y_batch[i, s:wlen]
+                    prev = x_batch[i, s:wlen]
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
+        is_last_chunk = ci == num_chunks - 1
+        if not is_last_chunk and args.ttt_epochs > 0:
+            base_model.train()
+            chunk_seqs = (chunk_end - chunk_start) // seq_len
+            if chunk_seqs > 0:
+                cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+                for pg in optimizer.param_groups:
+                    pg["lr"] = cos_lr
+                my_seq_s = (chunk_seqs * rank) // world_size
+                my_seq_e = (chunk_seqs * (rank + 1)) // world_size
+                my_chunk_seqs = my_seq_e - my_seq_s
+                for _ep in range(args.ttt_epochs):
+                    for bs in range(0, my_chunk_seqs, batch_seqs):
+                        be = min(bs + batch_seqs, my_chunk_seqs)
+                        actual_bs = my_seq_s + bs
+                        start_tok = chunk_start + actual_bs * seq_len
+                        end_tok = chunk_start + (my_seq_s + be) * seq_len + 1
+                        if end_tok > val_tokens.numel():
+                            continue
+                        local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
+                        x = local[:-1].reshape(-1, seq_len)
+                        y = local[1:].reshape(-1, seq_len)
+                        optimizer.zero_grad(set_to_none=True)
+                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                            loss = base_model(x, y)
+                        loss.backward()
+                        if world_size > 1 and dist.is_available() and dist.is_initialized():
+                            for p in ttt_params:
+                                if p.grad is not None:
+                                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                        torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
+                        optimizer.step()
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+    val_loss = (loss_sum / token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    base_model.eval()
+    return val_loss, bits_per_token * tokens_per_byte
+
+
 # --- Training ---
 
 def main() -> None:
@@ -2047,8 +2174,8 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size != 8:
         raise ValueError(
-            f"Rascal 4k 12L brotli+mixed 8x requires WORLD_SIZE=8, got {world_size}. "
-            "Launch with: torchrun --standalone --nproc_per_node=8 4k_vocab_rascal_12l_brotli_mixed/train_gpt_4K_12L_brotli_mixed_8xgpu.py"
+            f"Mikey 8x requires WORLD_SIZE=8, got {world_size}. "
+            "Launch with: torchrun --standalone --nproc_per_node=8 Mikey/train_gpt_8xgpu.py"
         )
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
@@ -2082,10 +2209,6 @@ def main() -> None:
                 print(msg, file=f)
     log0(code, console=False)
     log0("=" * 100, console=False)
-    log0("condition_id:rascal_4k_12L_brotli_mixed_8x_seed444")
-    log0("run_label:salvage_v2 source_record:rascal_4k_8x_seed444_run20260427 axis:depth_12L+brotli+mixed_int")
-    log0("changed_fields:num_layers (11->12), compression (zstd->brotli+bshf), quant_policy (uniform_int6->mixed_int5_int6_int8)")
-    log0("expected_metric:final_sliding_window_exact comparator:0.8672_4k_8x_oversize_run prior_size:17766043_target:<16000000")
     log0(f"condition:DATA_PATH={args.data_path}")
     log0(f"condition:TOKENIZER_PATH={args.tokenizer_path}")
     log0(f"condition:VOCAB_SIZE={args.vocab_size}")
@@ -2095,6 +2218,11 @@ def main() -> None:
     log0(f"condition:COPRIME_MAX_LOADED_SHARDS={args.coprime_max_loaded_shards}")
     log0(f"condition:COPRIME_SHARDS_PER_BATCH={args.coprime_shards_per_batch}")
     log0(f"condition:COPRIME_SHARD_HOLD_STEPS={args.coprime_shard_hold_steps}")
+    log0(f"condition:TTT_ENABLED={int(args.ttt_enabled)}")
+    log0(f"condition:TTT_LR={args.ttt_lr}")
+    log0(f"condition:TTT_EPOCHS={args.ttt_epochs}")
+    log0(f"condition:TTT_MOMENTUM={args.ttt_momentum}")
+    log0(f"condition:TTT_CHUNK_TOKENS={args.ttt_chunk_tokens}")
     log0(f"condition:SKIP_GPTQ={os.environ.get('SKIP_GPTQ', '1')}")
     log0(f"condition:TRIGRAM={int(args.trigram_enabled)}")
     log0(f"condition:NGRAM_EVAL_ORDER={args.ngram_eval_order}")
@@ -2507,9 +2635,9 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
     sd_cpu = {k: v.detach().cpu() for k, v in export_sd.items()}
     # GPTQ quantization using Hessians collected from training data.
-    # salvage_v2 mixed-int policy: int5 for mlp_up_bank/mlp_down_bank (most quant-tolerant per
-    # 11-day collate), int6 for qo_bank/kv_bank/embed (attention + token embed kept at int6 for
-    # quant safety; matches seed for embed). See `mixed_quantize_int6_gptq` docstring.
+    # Mixed-int policy: int5 for mlp_up_bank/mlp_down_bank (most quant-tolerant),
+    # int6 for qo_bank/kv_bank/embed (attention + token embed kept at int6 for
+    # quant safety). See `mixed_quantize_int6_gptq` docstring.
     quant_result, quant_meta = mixed_quantize_int6_gptq(
         sd_cpu,
         int6_cats={"qo", "kv", "attn_other", "mlp_other", "aux", "embed"},
@@ -2567,8 +2695,6 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int6_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-    del eval_model, deq_state, quant_state, sd_cpu
-    torch.cuda.empty_cache()
     sw_seq_len = effective_eval_seq_len
     if args.skip_final_eval:
         log0("final_eval:skipped sliding/ngram by SKIP_FINAL_EVAL=1")
@@ -2577,7 +2703,7 @@ def main() -> None:
             torch.cuda.synchronize()
             t_slide = time.perf_counter()
             sw_val_loss, sw_val_bpb = eval_val_sliding(
-                args, base_model, rank, world_size, device,
+                args, eval_model, rank, world_size, device,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                 stride=args.eval_stride,
                 eval_seq_len=sw_seq_len,
@@ -2592,7 +2718,7 @@ def main() -> None:
             torch.cuda.synchronize()
             t_slide64 = time.perf_counter()
             sw64_val_loss, sw64_val_bpb = eval_val_sliding(
-                args, base_model, rank, world_size, device,
+                args, eval_model, rank, world_size, device,
                 val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
                 stride=64,
                 eval_seq_len=sw_seq_len,
@@ -2610,7 +2736,7 @@ def main() -> None:
             t_ng = time.perf_counter()
             ng_loss, ng_bpb, ng_coverage = eval_val_sliding_hashed_ngram(
                 args,
-                base_model,
+                eval_model,
                 rank,
                 world_size,
                 device,
@@ -2649,16 +2775,33 @@ def main() -> None:
                     )
             if distributed:
                 dist.barrier()
+        if args.ttt_enabled and args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+            if distributed:
+                dist.barrier()
+            torch.cuda.synchronize()
+            t_ttt = time.perf_counter()
+            log0(f"ttt:start chunks:{(val_tokens.numel() - 1 + args.ttt_chunk_tokens - 1) // args.ttt_chunk_tokens} ttt_lr:{args.ttt_lr} ttt_epochs:{args.ttt_epochs} chunk_tokens:{args.ttt_chunk_tokens}")
+            ttt_val_loss, ttt_val_bpb = eval_val_ttt(
+                args, eval_model, rank, world_size, device,
+                val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                stride=args.eval_stride,
+                eval_seq_len=sw_seq_len,
+            )
+            torch.cuda.synchronize()
+            log0(
+                f"final_sliding_window_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
+                f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+            )
+            log0(f"final_sliding_window_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
+            if distributed:
+                dist.barrier()
+    del eval_model, deq_state, quant_state, sd_cpu
+    torch.cuda.empty_cache()
     if distributed:
         dist.destroy_process_group()
 if __name__ == "__main__":
     main()
-
 ====================================================================================================
-condition_id:rascal_4k_12L_brotli_mixed_8x_seed444
-run_label:salvage_v2 source_record:rascal_4k_8x_seed444_run20260427 axis:depth_12L+brotli+mixed_int
-changed_fields:num_layers (11->12), compression (zstd->brotli+bshf), quant_policy (uniform_int6->mixed_int5_int6_int8)
-expected_metric:final_sliding_window_exact comparator:0.8672_4k_8x_oversize_run prior_size:17766043_target:<16000000
 condition:DATA_PATH=./data/datasets/fineweb10B_sp4096
 condition:TOKENIZER_PATH=./data/tokenizers/fineweb_4096_bpe.model
 condition:VOCAB_SIZE=4096
@@ -2668,49 +2811,54 @@ condition:LOADER_MODE=coprime
 condition:COPRIME_MAX_LOADED_SHARDS=143
 condition:COPRIME_SHARDS_PER_BATCH=1
 condition:COPRIME_SHARD_HOLD_STEPS=64
+condition:TTT_ENABLED=1
+condition:TTT_LR=0.005
+condition:TTT_EPOCHS=3
+condition:TTT_MOMENTUM=0.9
+condition:TTT_CHUNK_TOKENS=32768
 condition:SKIP_GPTQ=1
 condition:TRIGRAM=0
 condition:NGRAM_EVAL_ORDER=0
 Running Python 3.12.13 | packaged by conda-forge | (main, Mar  5 2026, 16:50:00) [GCC 14.3.0]
 Running PyTorch 2.11.0+cu130
-Mon Apr 27 03:41:14 2026       
+Mon Apr 27 15:21:20 2026       
 +-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
 +-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
-|   0  NVIDIA H100 80GB HBM3          On  |   00000000:04:00.0 Off |                    0 |
-| N/A   41C    P0            117W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
+| N/A   36C    P0            122W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   1  NVIDIA H100 80GB HBM3          On  |   00000000:05:00.0 Off |                    0 |
-| N/A   36C    P0            118W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   32C    P0            120W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   2  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
-| N/A   40C    P0            119W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3F:00.0 Off |                    0 |
+| N/A   33C    P0            121W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   3  NVIDIA H100 80GB HBM3          On  |   00000000:0B:00.0 Off |                    0 |
-| N/A   36C    P0            120W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:48:00.0 Off |                    0 |
+| N/A   36C    P0            122W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   4  NVIDIA H100 80GB HBM3          On  |   00000000:84:00.0 Off |                    0 |
-| N/A   39C    P0            117W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:87:00.0 Off |                    0 |
+| N/A   36C    P0            121W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   5  NVIDIA H100 80GB HBM3          On  |   00000000:85:00.0 Off |                    0 |
-| N/A   34C    P0            116W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:90:00.0 Off |                    0 |
+| N/A   32C    P0            118W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   6  NVIDIA H100 80GB HBM3          On  |   00000000:8A:00.0 Off |                    0 |
-| N/A   38C    P0            121W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:BE:00.0 Off |                    0 |
+| N/A   32C    P0            120W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
-|   7  NVIDIA H100 80GB HBM3          On  |   00000000:8B:00.0 Off |                    0 |
-| N/A   35C    P0            117W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:C7:00.0 Off |                    0 |
+| N/A   36C    P0            122W /  700W |    1505MiB /  81559MiB |      0%      Default |
 |                                         |                        |             Disabled |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -2719,7 +2867,14 @@ Mon Apr 27 03:41:14 2026
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|  No running processes found                                                             |
+|    0   N/A  N/A            3021      C   /venv/main/bin/python3                 1496MiB |
+|    1   N/A  N/A            3022      C   /venv/main/bin/python3                 1496MiB |
+|    2   N/A  N/A            3023      C   /venv/main/bin/python3                 1496MiB |
+|    3   N/A  N/A            3024      C   /venv/main/bin/python3                 1496MiB |
+|    4   N/A  N/A            3025      C   /venv/main/bin/python3                 1496MiB |
+|    5   N/A  N/A            3026      C   /venv/main/bin/python3                 1496MiB |
+|    6   N/A  N/A            3027      C   /venv/main/bin/python3                 1496MiB |
+|    7   N/A  N/A            3028      C   /venv/main/bin/python3                 1496MiB |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
@@ -2761,41 +2916,44 @@ warmup_step:19/20
 warmup_step:20/20
 loader_reset:loader:coprime shards:143 blocks:6967965 seq_len:2048 shards_per_batch:1 cache:143 batch_stride:9 hold_steps:64
 step:0/20000 val_loss:8.3101 val_bpb:2.8334 train_time:0ms step_avg:0.01ms tok/s:0
-step:1/20000 train_loss:8.3103 train_time:356ms step_avg:355.82ms tok/s:2210168
-step:2/20000 train_loss:9.5390 train_time:407ms step_avg:203.42ms tok/s:3866108
-step:3/20000 train_loss:8.8566 train_time:508ms step_avg:169.26ms tok/s:4646338
-step:4/20000 train_loss:8.1436 train_time:610ms step_avg:152.38ms tok/s:5161001
-step:5/20000 train_loss:8.0018 train_time:711ms step_avg:142.29ms tok/s:5526982
-step:6/20000 train_loss:8.0293 train_time:813ms step_avg:135.49ms tok/s:5804497
-step:7/20000 train_loss:7.8916 train_time:915ms step_avg:130.71ms tok/s:6016846
-step:8/20000 train_loss:7.7694 train_time:1017ms step_avg:127.12ms tok/s:6186402
-step:9/20000 train_loss:7.5519 train_time:1119ms step_avg:124.29ms tok/s:6327601
-step:10/20000 train_loss:7.4294 train_time:1220ms step_avg:122.02ms tok/s:6445305
-step:500/20000 train_loss:3.1321 train_time:52909ms step_avg:105.82ms tok/s:7431948
-step:1000/20000 train_loss:2.9502 train_time:105802ms step_avg:105.80ms tok/s:7433032
-step:1500/20000 train_loss:2.8720 train_time:158682ms step_avg:105.79ms tok/s:7434016
-step:2000/20000 train_loss:2.8296 train_time:211642ms step_avg:105.82ms tok/s:7431713
-step:2500/20000 train_loss:2.7596 train_time:264621ms step_avg:105.85ms tok/s:7429786
-step:3000/20000 train_loss:2.6616 train_time:317371ms step_avg:105.79ms tok/s:7433875
-step:3500/20000 train_loss:2.7652 train_time:370413ms step_avg:105.83ms tok/s:7430917
-step:4000/20000 train_loss:2.7392 train_time:423442ms step_avg:105.86ms tok/s:7428947
-step:4000/20000 val_loss:2.6776 val_bpb:0.9130 train_time:423496ms step_avg:105.87ms tok/s:7428002
-step:4500/20000 train_loss:2.5911 train_time:476437ms step_avg:105.87ms tok/s:7427930
-swa:start step:5000
-step:5000/20000 train_loss:2.5953 train_time:529462ms step_avg:105.89ms tok/s:7426704
-late_qat:enabled step:5138 scale:0.1499
-step:5500/20000 train_loss:2.5660 train_time:583115ms step_avg:106.02ms tok/s:7417709
-step:5656/20000 val_loss:2.5812 val_bpb:0.8801 train_time:600149ms step_avg:106.11ms tok/s:7411597
-stopping_early: wallclock_cap train_time:600149ms step:5656/20000
-peak memory allocated: 25252 MiB reserved: 25750 MiB
+step:1/20000 train_loss:8.3103 train_time:382ms step_avg:381.50ms tok/s:2061406
+step:2/20000 train_loss:9.5390 train_time:434ms step_avg:217.24ms tok/s:3620088
+step:3/20000 train_loss:8.8728 train_time:536ms step_avg:178.64ms tok/s:4402315
+step:4/20000 train_loss:8.1470 train_time:638ms step_avg:159.38ms tok/s:4934464
+step:5/20000 train_loss:7.9047 train_time:739ms step_avg:147.80ms tok/s:5320960
+step:6/20000 train_loss:7.9601 train_time:840ms step_avg:140.08ms tok/s:5614244
+step:7/20000 train_loss:7.8922 train_time:942ms step_avg:134.57ms tok/s:5843962
+step:8/20000 train_loss:7.8392 train_time:1044ms step_avg:130.49ms tok/s:6026625
+step:9/20000 train_loss:7.6415 train_time:1146ms step_avg:127.29ms tok/s:6178393
+step:10/20000 train_loss:7.5231 train_time:1247ms step_avg:124.75ms tok/s:6304280
+step:500/20000 train_loss:3.1399 train_time:52985ms step_avg:105.97ms tok/s:7421266
+step:1000/20000 train_loss:2.9554 train_time:106291ms step_avg:106.29ms tok/s:7398890
+step:1500/20000 train_loss:2.8761 train_time:159735ms step_avg:106.49ms tok/s:7385049
+step:2000/20000 train_loss:2.8274 train_time:213190ms step_avg:106.59ms tok/s:7377772
+step:2500/20000 train_loss:2.7613 train_time:266640ms step_avg:106.66ms tok/s:7373528
+step:3000/20000 train_loss:2.6630 train_time:319828ms step_avg:106.61ms tok/s:7376771
+step:3500/20000 train_loss:2.7620 train_time:373297ms step_avg:106.66ms tok/s:7373515
+step:4000/20000 train_loss:2.7378 train_time:426639ms step_avg:106.66ms tok/s:7373276
+step:4000/20000 val_loss:2.6772 val_bpb:0.9128 train_time:426693ms step_avg:106.67ms tok/s:7372349
+step:4500/20000 train_loss:2.5934 train_time:480029ms step_avg:106.67ms tok/s:7372352
+swa:start step:4950
+step:5000/20000 train_loss:2.5953 train_time:533610ms step_avg:106.72ms tok/s:7368978
+late_qat:enabled step:5096 scale:0.1500
+step:5500/20000 train_loss:2.5692 train_time:587573ms step_avg:106.83ms tok/s:7361421
+step:5614/20000 val_loss:2.5832 val_bpb:0.8808 train_time:600090ms step_avg:106.89ms tok/s:7357278
+stopping_early: wallclock_cap train_time:600090ms step:5614/20000
+peak memory allocated: 25263 MiB reserved: 25784 MiB
 gptq:SKIPPED (SKIP_GPTQ=1) — will use naive int6
 ema:applying EMA weights
-DIAGNOSTIC post_ema val_loss:2.5786 val_bpb:0.8792 eval_time:1713ms
+DIAGNOSTIC post_ema val_loss:2.5806 val_bpb:0.8799 eval_time:1729ms
 Serialized model: 119539322 bytes
-Code size: 128464 bytes
-Serialized model mixed_int5_int6_int8+brotli: 15511273 bytes
-Total submission size mixed_int5_int6_int8+brotli: 15639737 bytes
-final_int6_roundtrip val_loss:2.6638 val_bpb:0.9082 eval_time:5035ms
-final_int6_roundtrip_exact val_loss:2.66376216 val_bpb:0.90824024
-final_sliding_window val_loss:2.5371 val_bpb:0.8650 stride:64 eval_time:65261ms
-final_sliding_window_exact val_loss:2.53706469 val_bpb:0.86503709
+Code size: 136521 bytes
+Serialized model mixed_int5_int6_int8+brotli: 15489943 bytes
+Total submission size mixed_int5_int6_int8+brotli: 15626464 bytes
+final_int6_roundtrip val_loss:2.6648 val_bpb:0.9086 eval_time:5025ms
+final_int6_roundtrip_exact val_loss:2.66482791 val_bpb:0.90860363
+final_sliding_window val_loss:2.6217 val_bpb:0.8939 stride:64 eval_time:73078ms
+final_sliding_window_exact val_loss:2.62167670 val_bpb:0.89388638
+ttt:start chunks:1389 ttt_lr:0.005 ttt_epochs:3 chunk_tokens:32768
+final_sliding_window_ttt val_loss:2.5808 val_bpb:0.8799 stride:64 eval_time:272950ms
+final_sliding_window_ttt_exact val_loss:2.58078745 val_bpb:0.87994906

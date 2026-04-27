@@ -4,13 +4,13 @@
   "name": "Mikey",
   "date": "2026-04-27",
   "track": "10min_16mb",
-  "val_bpb": 0.86547636,
-  "val_bpb_std": 0.00109,
+  "val_bpb": 0.87980336,
+  "val_bpb_std": 0.00112,
   "seeds": [42, 300, 444],
   "seed_results": {
-    "42":  {"val_bpb": 0.86503709, "artifact_bytes": 15639737},
-    "300": {"val_bpb": 0.86698133, "artifact_bytes": 15594375},
-    "444": {"val_bpb": 0.86441066, "artifact_bytes": 15653512}
+    "42":  {"val_bpb": 0.87994906, "artifact_bytes": 15626464},
+    "300": {"val_bpb": 0.88084235, "artifact_bytes": 15601472},
+    "444": {"val_bpb": 0.87861866, "artifact_bytes": 15671210}
   },
   "hardware": "8xH100 80GB SXM",
   "pytorch_version": "2.11.0+cu130",
