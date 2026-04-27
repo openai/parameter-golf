@@ -1,0 +1,10 @@
+torch>=2.9.0
+numpy
+tqdm
+huggingface-hub
+datasets
+tiktoken
+sentencepiece
+zstandard
+flash-attn>=2.8.3
+wandb
