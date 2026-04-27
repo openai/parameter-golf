@@ -1,0 +1,7 @@
+{
+  "blurb": "11L SOTA base + multi-order n-gram backoff (2-7) with entropy-adaptive alpha. Legal score-first eval. 3-seed mean 0.6678.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 1.12757285,
+  "val_bpb": 0.66781392,
+  "bytes_total": 15025238
+}
