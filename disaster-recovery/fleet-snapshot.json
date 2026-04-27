@@ -1,6 +1,6 @@
 {
   "anchor": "phi^2 + phi^-2 = 3",
-  "generated_at": "2026-04-27T16:16:50Z",
+  "generated_at": "2026-04-27T16:32:15Z",
   "generator": "tri-railway snapshot fleet",
   "version": "1.0.0",
   "accounts": [
@@ -44,19 +44,9 @@
           "name": "trios-train-seed-47"
         },
         {
-          "createdAt": "2026-04-26T14:04:28.033Z",
-          "id": "789f8d93-c999-4d82-a32b-93ea1bc5c066",
-          "name": "trios-train-seed-44"
-        },
-        {
           "createdAt": "2026-04-27T11:12:28.986Z",
           "id": "7941c83a-deba-4958-a658-754ddfeda2ab",
           "name": "igla-trainer-seed-102"
-        },
-        {
-          "createdAt": "2026-04-26T14:04:43.559Z",
-          "id": "82924ac0-2279-494f-8a1d-d51a5b02bf08",
-          "name": "trios-train-seed-45"
         },
         {
           "createdAt": "2026-04-27T11:12:29.101Z",
@@ -79,11 +69,6 @@
           "name": "trios-train-seed-101"
         },
         {
-          "createdAt": "2026-04-26T14:03:56.760Z",
-          "id": "93f4a6bd-36a9-4c1b-99e7-308cdd862d2b",
-          "name": "trios-train-seed-43"
-        },
-        {
           "createdAt": "2026-04-27T10:43:32.798Z",
           "id": "cb10efd7-9bdb-44c3-91c3-a81a6ac38dbe",
           "name": "trios-train-seed-48"
@@ -104,24 +89,18 @@
           "name": "igla-trainer-seed-43"
         }
       ],
-      "service_count": 18
+      "service_count": 15
     },
     {
       "alias": "acc1",
       "project_label": "artistic-beauty",
       "email": "rumbodzalaclhdv0@hotmail.com",
       "token_secret": "RAILWAY_TOKEN_ACC1",
-      "project_id": "e6f02957-4703-45b1-bfbd-cbc04bbca149",
-      "project_name": "artistic-beauty",
+      "project_id": null,
+      "project_name": null,
       "environments": [],
-      "services": [
-        {
-          "createdAt": "2026-04-04T16:18:11.800Z",
-          "id": "2637f94c-dd87-413e-a659-b7d309e327c9",
-          "name": "t27"
-        }
-      ],
-      "service_count": 1
+      "services": [],
+      "service_count": 0
     },
     {
       "alias": "acc2",
@@ -201,6 +180,6 @@
   "totals": {
     "accounts": 2,
     "projects": 4,
-    "services": 29
+    "services": 25
   }
 }
