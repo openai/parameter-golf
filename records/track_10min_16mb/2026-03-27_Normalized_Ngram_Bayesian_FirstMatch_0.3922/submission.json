@@ -1,0 +1,17 @@
+{
+  "author": "Idanr",
+  "github_id": "idan3011",
+  "name": "Normalized N-gram + Bayesian First-Match + Pre-Enrichment + XSA",
+  "blurb": "Honest rerun after fixing the normalization denominator in eval_val_sliding. The normalized n-gram path scores 1.5134 BPB, worse than the 1.1474 sliding neural baseline.",
+  "date": "2026-03-27T15:30:00Z",
+  "val_loss": 1.93735148,
+  "val_bpb": 1.51343368,
+  "pre_quant_val_loss": 1.9654,
+  "pre_quant_val_bpb": 1.1640,
+  "step_stop": 9286,
+  "wallclock_seconds": 600.074,
+  "eval_time_seconds": 198.246,
+  "bytes_total": 14941134,
+  "bytes_model_int6_lzma": 14875584,
+  "bytes_code": 65550
+}
