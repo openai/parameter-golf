@@ -1,0 +1,26 @@
+{
+  "id": "0050_0050_middle_parallel_seed42",
+  "parent": "0046_kill_mamba2_middle_parallel",
+  "created_at": "2026-04-27T04:59:56Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0057,
+    "val_bpb_post_quant": 2.00811915,
+    "val_loss_pre_quant": 3.4279,
+    "val_loss_post_quant": 3.43213924,
+    "quant_tax": 0.002419,
+    "step_avg_ms": 6621.69,
+    "num_steps": 200.0,
+    "artifact_bytes": 14233297.0,
+    "artifact_mb": 14.233,
+    "code_bytes": 78381.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}

@@ -3,7 +3,7 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (DIRECT-PROMOTED 2026-04-27 01:30, single-seed; 0050 SEED=42 confirm running)**: exp 0046 single-seed **val_bpb 2.0125**. Δ vs prior promote (0042/0045 2-seed mean 2.02193) = -0.0094 — at advance threshold (~9σ at family floor σ_pair=0.0011). Architecture: K=3 L=3 + SwiGLU(mlp=8) + cross-class hybrid topology = pos 0: kill-Mamba-2 (LTI), pos 1: PARALLEL ATTN || kill-Mamba-2, pos 2: kill-Mamba-2 (LTI). NO BigramHash. The "middle-parallel" pattern (from 0027) compounds with the kill-Mamba-2 finding. Path: `winners/2026-04-27_kill_mamba2_middle_parallel_no_bigram_recur3x3_swiglu_mlp8/`. Beats transformer-best 2.0869 by **-0.074 BPB**. Step time 6.94 s/step (slower than 0042's 5.88 due to attn at parallel position). Artifact 14.22 MB. [transfer:high]
+- **Current best (PROMOTED 2026-04-27 02:00, 2-seed CONFIRMED)**: exp 0046/0050 2-seed mean **val_bpb 2.01031** (cross-seed σ_pair=0.0022). Architecture: K=3 L=3 + SwiGLU(mlp=8) + cross-class hybrid topology = pos 0: kill-Mamba-2 (LTI), pos 1: PARALLEL ATTN || kill-Mamba-2, pos 2: kill-Mamba-2 (LTI). NO BigramHash. The "middle-parallel" pattern (from 0027) compounds with the kill-Mamba-2 finding. Path: `winners/2026-04-27_kill_mamba2_middle_parallel_no_bigram_recur3x3_swiglu_mlp8/`. Δ vs prior promote (0042/0045 mean 2.02193) = -0.01162 BPB (~5σ at 2-seed precision). Beats transformer-best 2.0869 by **-0.077 BPB**. Step time 6.94 s/step. Artifact 14.22 MB. [transfer:high]
 - **Superseded** (kept for trace):
   - 0042/0045 (kill-Mamba-2 + no-BG): 2-seed mean 2.02193. `winners/2026-04-27_kill_mamba2_no_bigram_2of3_recur3x3_swiglu_mlp8/`. Cross-class middle-parallel hybrid (0046) wins by -0.0094.
   - 0038/0039 (kill-Mamba-2 + BG): 2-seed mean 2.02723. `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Removing BG improves by 0.005 (0042/0045 mean 2.02193).
@@ -94,6 +94,30 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 
 ## Entries (newest first)
+
+## 2026-04-27 02:00 EDT · exp 0050 · SEED=42 confirms 0046 (2-seed mean 2.01031, BETTER than first seed)
+
+**Question**: SEED=42 confirm of 0046's surprise hybrid win.
+
+**Result**: val_bpb 2.0081 — *better* than 0046's 2.0125 (+0.0044 cross-seed Δ favors SEED=42).
+
+| Variant | SEED=1337 | SEED=42 | 2-seed mean | Cross-seed Δ |
+|---|---|---|---|---|
+| 0046/0050 (cross-class hybrid) | 2.0125 | 2.0081 | **2.01031** | 0.0044 |
+| 0042/0045 (kill, no-BG, plain) | 2.0225 | 2.0214 | 2.02193 | 0.0011 |
+| **Family-mean Δ** | -0.01000 | -0.01330 | **-0.01162** | — |
+
+At 2-seed precision (σ_pair=0.0022 from 0046/0050), Δ -0.0116 = ~5.3σ. **Robust**. PROMOTED.
+
+**Now the strongest single finding of the session**: cross-class middle-parallel hybrid wins -0.077 BPB vs transformer-best (2.0103 vs 2.0869). The compound stack:
+1. Schedule + recur+SwiGLU+mlp=8 (transformer-best at 2.0869)
+2. Add S4D-Lin sandwich + BG: 2.0839 (4-seed mean)
+3. Replace S4D with full Mamba-2 at 2-of-3: 2.0417 (2-seed mean) [-0.044]
+4. Kill Mamba-2's selectivity (LTI): 2.02723 (2-seed mean) [-0.014]
+5. Remove BigramHash: 2.02193 (2-seed mean) [-0.005]
+6. **Middle-parallel topology (cross-class hybrid)**: 2.01031 (2-seed mean) **[-0.012]**
+
+Conclusion [VERIFIED 2-seed]: cross-class hybrid is the strongest individual lever after kill-Mamba-2. The session's "be bold pivot" paid off in a big way.
 
 ## 2026-04-27 01:30 EDT · exp 0046 · CROSS-CLASS HYBRID WINS — middle-parallel + kill-Mamba-2 → val 2.0125 (-0.0094 vs prior best)
 
