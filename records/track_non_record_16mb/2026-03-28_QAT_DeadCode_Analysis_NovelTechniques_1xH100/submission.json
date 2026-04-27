@@ -1,0 +1,18 @@
+{
+    "author": "wfproc",
+    "github_id": "wfproc",
+    "name": "QAT Dead-Code Analysis + Novel Technique Sweep (1xH100)",
+    "blurb": "Non-record research submission. Found that torch.compile constant-folds Late QAT in #315-derived code (confirmed in SOTA #549). Tested a fix via tensor-scale STE, but working QAT actually made the int6 gap worse. Also swept 7 untried techniques from recent papers (Muon-VS, Deep Delta Learning, Thinking Deeper recurrence, anti-layer removal, NS step reduction, spectral SVD compression, wider models). All negative on 1xH100. Key finding: at 83ms/step, each 1ms of overhead costs about 0.007 bpb.",
+    "date": "2026-03-28T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.3041,
+    "val_bpb": 1.3646,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": 1.3646,
+    "step_stop": 943,
+    "wallclock_seconds": 600,
+    "bytes_total": 7303141,
+    "bytes_model_int6_lzma": 7200188,
+    "bytes_code": 102953,
+    "gpu": "1xH100-80GB-SXM"
+}
