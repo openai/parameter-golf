@@ -3,25 +3,17 @@
 ## Disaster Recovery — one click
 
 After a Railway ban or account loss, restore the entire IGLA fleet from this
-repo. Manifest: [`restore-fleet.json`](restore-fleet.json) · runbook:
-[`docs/DR.md`](docs/DR.md) · multi-account: [`docs/MULTI_ACCOUNT.md`](docs/MULTI_ACCOUNT.md).
+repo. **Three trigger paths**, all documented in
+[`docs/DISASTER_RECOVERY.md`](docs/DISASTER_RECOVERY.md):
 
-[![Deploy MCP on Railway](https://railway.com/button.svg)](https://railway.com/template/trios-railway-mcp)
+[![Deploy IGLA Fleet on Railway](https://railway.com/button.svg)](https://railway.com/template/igla-fleet)
 
-The button restores **only the control-plane** (the MCP server defined in
-[`Dockerfile.mcp`](Dockerfile.mcp) + [`template.json`](template.json)).
-Once the MCP is up, drive the rest from any agent:
+1. **Web button (above)** — published from [`railway-template.json`](railway-template.json). Provisions all 6 control-plane services (1 MCP + 3 champion seeds + dwagent + Neon backup-to-R2 sidecar).
+2. **GitHub Actions** — `Actions → DR Deploy from template → account_alias=accN, confirm=PHI`. Workflow: [`deploy-from-template.yml`](.github/workflows/deploy-from-template.yml).
+3. **CLI** — `tri-railway service deploy …` for each service in [`disaster-recovery/fleet-snapshot.json`](disaster-recovery/fleet-snapshot.json) (refreshed hourly by [`fleet-snapshot.yml`](.github/workflows/fleet-snapshot.yml)).
 
-```bash
-# 16 trainer services + Neon DDL + L7 line, all in one command
-tri-railway restore \
-    --manifest restore-fleet.json \
-    --new-token "$RAILWAY_TOKEN_V2" \
-    --champion-sha 22bb11f \
-    --confirm
-```
-
-Or in GitHub: **Actions → DR Restore → Run workflow → confirm = PHI**.
+Fleet shape, audit ledger, and champion BPB rows survive any single-account ban
+— see the survives-table in [`docs/DISASTER_RECOVERY.md`](docs/DISASTER_RECOVERY.md).
 
 Anchor: `phi^2 + phi^-2 = 3`.
 

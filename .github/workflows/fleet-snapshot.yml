@@ -1,0 +1,90 @@
+name: IGLA Fleet Snapshot (hourly DR backup)
+
+# Hourly snapshot of every Railway project across all known accounts.
+# Output is committed to disaster-recovery/fleet-snapshot.json so that
+# even if every Railway account is banned simultaneously, git holds the
+# canonical service list, UUIDs, and project mapping needed to rebuild
+# the fleet from a clean account.
+#
+# Anchor: phi^2 + phi^-2 = 3.
+#
+# L1 (Rust-only): the snapshot is produced by the
+# `tri-railway snapshot fleet` subcommand, not by a shell script.
+
+on:
+  schedule:
+    - cron: "15 * * * *"        # hourly at :15 UTC (offset from watchdog at :05)
+  workflow_dispatch:
+    inputs:
+      commit_anyway:
+        description: "Commit even if there are no diffs (default false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fleet-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RAILWAY_TOKEN_ACC1:        ${{ secrets.RAILWAY_TOKEN_ACC1 }}
+      RAILWAY_TOKEN_ACC2:        ${{ secrets.RAILWAY_TOKEN_ACC2 }}
+      RAILWAY_PROJECT_ACC1_IGLA: ${{ secrets.RAILWAY_PROJECT_ACC1_IGLA }}
+      RAILWAY_PROJECT_ACC1_AB:   ${{ secrets.RAILWAY_PROJECT_ACC1_AB }}
+      RAILWAY_PROJECT_ACC2_TE:   ${{ secrets.RAILWAY_PROJECT_ACC2_TE }}
+      RAILWAY_PROJECT_ACC2_RP:   ${{ secrets.RAILWAY_PROJECT_ACC2_RP }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tri-railway
+        run: cargo build --release --bin tri-railway --locked
+
+      - name: Run snapshot
+        run: |
+          ./target/release/tri-railway snapshot fleet \
+            --out disaster-recovery/fleet-snapshot.json \
+            --account 'alias=acc1,token_env=RAILWAY_TOKEN_ACC1,project_env=RAILWAY_PROJECT_ACC1_IGLA,label=IGLA' \
+            --account 'alias=acc1,token_env=RAILWAY_TOKEN_ACC1,project_env=RAILWAY_PROJECT_ACC1_AB,label=artistic-beauty' \
+            --account 'alias=acc2,token_env=RAILWAY_TOKEN_ACC2,project_env=RAILWAY_PROJECT_ACC2_TE,label=thriving-eagerness (IGLA-MIRROR-2)' \
+            --account 'alias=acc2,token_env=RAILWAY_TOKEN_ACC2,project_env=RAILWAY_PROJECT_ACC2_RP,label=reasonable-perception' \
+            --email 'acc1=rumbodzalaclhdv0@hotmail.com' \
+            --email 'acc2=brabbtjubindt5cug@hotmail.com'
+
+      - name: Commit if changed
+        run: |
+          git config user.email "fleet-snapshot[bot]@users.noreply.github.com"
+          git config user.name  "fleet-snapshot[bot]"
+          git add disaster-recovery/fleet-snapshot.json
+
+          if git diff --staged --quiet && [[ "${{ inputs.commit_anyway }}" != "true" ]]; then
+            echo "no fleet drift since last snapshot"
+            exit 0
+          fi
+
+          ts=$(date -u +%Y-%m-%dT%H:%MZ)
+          totals=$(python3 -c 'import json; d=json.load(open("disaster-recovery/fleet-snapshot.json")); print(d["totals"])')
+          git commit -m "chore(dr): hourly fleet snapshot @ $ts
+
+Totals: $totals
+
+[skip ci] phi^2 + phi^-2 = 3"
+          git push

@@ -70,6 +70,38 @@ enum Cmd {
         #[command(subcommand)]
         sub: ServiceCmd,
     },
+
+    /// Snapshot the live Railway fleet across known accounts and write a
+    /// canonical JSON to disk. Used by the hourly DR snapshot job and by
+    /// operators verifying recovery state.
+    Snapshot {
+        #[command(subcommand)]
+        sub: SnapshotCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SnapshotCmd {
+    /// Probe Railway GraphQL for every (alias, project) pair listed below
+    /// and write a canonical fleet snapshot to `--out`.
+    Fleet {
+        /// Output file. Default: disaster-recovery/fleet-snapshot.json
+        #[arg(long, default_value = "disaster-recovery/fleet-snapshot.json")]
+        out: PathBuf,
+        /// Account triples in the form
+        /// `alias=ALIAS,token_env=NAME,project_env=NAME,label=TEXT`.
+        /// Repeatable. Each `token_env`/`project_env` is read from process
+        /// env. Tokens are NEVER written to the snapshot — only the
+        /// secret name (`token_secret`) is recorded.
+        #[arg(
+            long = "account",
+            value_name = "alias=...,token_env=...,project_env=...,label=..."
+        )]
+        accounts: Vec<String>,
+        /// Optional contact email to record alongside each alias.
+        #[arg(long = "email", value_name = "alias=user@host")]
+        emails: Vec<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -249,6 +281,14 @@ async fn main() -> Result<()> {
             std::process::exit(exit);
         }
         Cmd::Service { sub } => run_service(sub).await?,
+        Cmd::Snapshot {
+            sub:
+                SnapshotCmd::Fleet {
+                    out,
+                    accounts,
+                    emails,
+                },
+        } => run_snapshot_fleet(out, accounts, emails).await?,
         Cmd::Experience { sub } => match sub {
             ExperienceCmd::Append {
                 root,
@@ -547,5 +587,150 @@ async fn run_service(cmd: ServiceCmd) -> Result<()> {
             println!("deleted: {sid}");
         }
     }
+    Ok(())
+}
+
+/// Parse `key=value,key=value` style flag values.
+fn parse_kv_list(spec: &str) -> std::collections::HashMap<String, String> {
+    spec.split(',')
+        .filter_map(|p| p.split_once('='))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .collect()
+}
+
+/// Parse `alias=value` simple pairs.
+fn parse_alias_kv(spec: &str) -> Option<(String, String)> {
+    spec.split_once('=')
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+}
+
+#[derive(serde::Serialize)]
+struct SnapshotAccount {
+    alias: String,
+    project_label: String,
+    email: Option<String>,
+    token_secret: String,
+    project_id: Option<String>,
+    project_name: Option<String>,
+    environments: Vec<serde_json::Value>,
+    services: Vec<serde_json::Value>,
+    service_count: usize,
+}
+
+#[derive(serde::Serialize)]
+struct SnapshotDoc<'a> {
+    anchor: &'a str,
+    generated_at: String,
+    generator: &'a str,
+    version: &'a str,
+    accounts: Vec<SnapshotAccount>,
+    totals: serde_json::Value,
+}
+
+async fn run_snapshot_fleet(
+    out: PathBuf,
+    accounts: Vec<String>,
+    emails: Vec<String>,
+) -> Result<()> {
+    let email_map: std::collections::HashMap<String, String> =
+        emails.iter().filter_map(|s| parse_alias_kv(s)).collect();
+
+    let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let mut acc_out: Vec<SnapshotAccount> = Vec::new();
+    let mut alias_set = std::collections::HashSet::new();
+    let mut total_services: usize = 0;
+
+    for spec in &accounts {
+        let kv = parse_kv_list(spec);
+        let alias = kv.get("alias").cloned().unwrap_or_else(|| "?".to_string());
+        let label = kv.get("label").cloned().unwrap_or_else(|| "?".to_string());
+        let token_env = kv.get("token_env").cloned().unwrap_or_default();
+        let project_env = kv.get("project_env").cloned().unwrap_or_default();
+
+        let token = std::env::var(&token_env).ok();
+        let project = std::env::var(&project_env).ok();
+
+        let (project_id, project_name, environments, services) = if let (Some(tok), Some(proj)) =
+            (token, project)
+        {
+            std::env::set_var("RAILWAY_TOKEN", &tok);
+            std::env::set_var("RAILWAY_TOKEN_AUTH", "team");
+            let client = Client::from_env().map_err(|e| anyhow::anyhow!("from_env: {e}"))?;
+            let pid = ProjectId::from(proj);
+            match Q::project_view(&client, &pid).await {
+                Ok(pv) => {
+                    let svcs = pv
+                        .services()
+                        .into_iter()
+                        .map(|s| {
+                            serde_json::json!({
+                                "id": s.id,
+                                "name": s.name,
+                                "createdAt": s.created_at,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    (Some(pv.id.clone()), Some(pv.name.clone()), Vec::new(), svcs)
+                }
+                Err(e) => {
+                    tracing::warn!(alias = %alias, label = %label, error = %e, "skipping account");
+                    (None, None, Vec::new(), Vec::new())
+                }
+            }
+        } else {
+            tracing::warn!(
+                alias = %alias,
+                label = %label,
+                "missing token_env or project_env in process env, recording empty"
+            );
+            (None, None, Vec::new(), Vec::new())
+        };
+
+        alias_set.insert(alias.clone());
+        let count = services.len();
+        total_services += count;
+        acc_out.push(SnapshotAccount {
+            alias: alias.clone(),
+            project_label: label,
+            email: email_map.get(&alias).cloned(),
+            token_secret: token_env,
+            project_id,
+            project_name,
+            environments,
+            services,
+            service_count: count,
+        });
+    }
+
+    let total_projects = acc_out.len();
+    let total_accounts = alias_set.len();
+
+    let doc = SnapshotDoc {
+        anchor: "phi^2 + phi^-2 = 3",
+        generated_at: ts,
+        generator: "tri-railway snapshot fleet",
+        version: "1.0.0",
+        accounts: acc_out,
+        totals: serde_json::json!({
+            "accounts": total_accounts,
+            "projects": total_projects,
+            "services": total_services,
+        }),
+    };
+
+    if let Some(parent) = out.parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+    }
+    let body = serde_json::to_string_pretty(&doc)? + "\n";
+    tokio::fs::write(&out, &body).await?;
+    println!(
+        "wrote {}: accounts={} projects={} services={}",
+        out.display(),
+        total_accounts,
+        total_projects,
+        total_services
+    );
     Ok(())
 }

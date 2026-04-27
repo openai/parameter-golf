@@ -1,0 +1,161 @@
+name: DR Deploy from template
+
+# Closes step 6 of the DR runbook. Reads railway-template.json and
+# deploys all services to the Railway account named by `account_alias`.
+# This is the GitHub-Actions path of the recovery flow; the web button
+# (template marketplace) and CLI path are documented in
+# docs/DISASTER_RECOVERY.md.
+#
+# Anchor: phi^2 + phi^-2 = 3.
+
+on:
+  workflow_dispatch:
+    inputs:
+      account_alias:
+        description: "Account to deploy into. Must match a token secret RAILWAY_TOKEN_<ALIAS>."
+        required: true
+        type: choice
+        options: [acc1, acc2, acc3]
+      project_name:
+        description: "Railway project name to create (or reuse)."
+        required: true
+        default: "IGLA-DR"
+      confirm:
+        description: 'Type "PHI" to confirm. Anchor: phi^2 + phi^-2 = 3.'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'PHI' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ALIAS:           ${{ inputs.account_alias }}
+      PROJECT_NAME:    ${{ inputs.project_name }}
+      RAILWAY_TOKEN:   ${{ inputs.account_alias == 'acc1' && secrets.RAILWAY_TOKEN_ACC1
+                       || inputs.account_alias == 'acc2' && secrets.RAILWAY_TOKEN_ACC2
+                       || inputs.account_alias == 'acc3' && secrets.RAILWAY_TOKEN_ACC3 || '' }}
+      RAILWAY_TOKEN_AUTH: team
+      RUST_LOG:        info
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanity-check token
+        run: |
+          if [[ -z "$RAILWAY_TOKEN" ]]; then
+            echo "::error::no token for alias=$ALIAS — set RAILWAY_TOKEN_${ALIAS^^} secret first"
+            exit 2
+          fi
+          curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -d '{"query":"{ projects { edges { node { id name } } } }"}' \
+              | jq -e '.data.projects.edges' > /dev/null
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tri-railway
+        run: cargo build --release --bin tri-railway --locked
+
+      - name: Provision project + services from railway-template.json
+        run: |
+          set -euo pipefail
+          # 1. Create or reuse project
+          PROJECT_ID=$(curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -d "{\"query\":\"query { projects { edges { node { id name } } } }\"}" \
+              | jq -r --arg n "$PROJECT_NAME" '.data.projects.edges[] | select(.node.name==$n) | .node.id' \
+              | head -n 1)
+          if [[ -z "$PROJECT_ID" ]]; then
+            PROJECT_ID=$(curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -d "{\"query\":\"mutation { projectCreate(input:{name:\\\"$PROJECT_NAME\\\"}){ id } }\"}" \
+                | jq -r '.data.projectCreate.id')
+            echo "created project $PROJECT_NAME = $PROJECT_ID"
+          else
+            echo "reusing project $PROJECT_NAME = $PROJECT_ID"
+          fi
+          ENV_ID=$(curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -d "{\"query\":\"query { project(id:\\\"$PROJECT_ID\\\"){ environments { edges { node { id name } } } } }\"}" \
+              | jq -r '.data.project.environments.edges[] | select(.node.name=="production") | .node.id')
+
+          # 2. Iterate services from railway-template.json
+          jq -c '.services[]' railway-template.json | while read -r svc; do
+            NAME=$(echo "$svc" | jq -r '.name')
+            IMAGE=$(echo "$svc" | jq -r '.source.image')
+            echo "::group::deploy $NAME ($IMAGE)"
+
+            # Create / reuse service
+            SVC_ID=$(curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -d "{\"query\":\"query { project(id:\\\"$PROJECT_ID\\\"){ services { edges { node { id name } } } } }\"}" \
+                | jq -r --arg n "$NAME" '.data.project.services.edges[] | select(.node.name==$n) | .node.id' | head -n 1)
+            if [[ -z "$SVC_ID" ]]; then
+              SVC_ID=$(curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+                  -H "Content-Type: application/json" \
+                  -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                  -d "{\"query\":\"mutation(\$i:ServiceCreateInput!){serviceCreate(input:\$i){id}}\",\"variables\":{\"i\":{\"projectId\":\"$PROJECT_ID\",\"name\":\"$NAME\",\"source\":{\"image\":\"$IMAGE\"}}}}" \
+                  | jq -r '.data.serviceCreate.id')
+              echo "  created $SVC_ID"
+            else
+              echo "  reusing $SVC_ID"
+            fi
+
+            # Default values for variables (only those with .default)
+            echo "$svc" | jq -r '.variables | to_entries[] | select(.value.default) | "\(.key)=\(.value.default)"' | while IFS= read -r kv; do
+              K="${kv%%=*}"; V="${kv#*=}"
+              curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+                  -H "Content-Type: application/json" \
+                  -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                  -d "{\"query\":\"mutation(\$i:VariableUpsertInput!){variableUpsert(input:\$i)}\",\"variables\":{\"i\":{\"projectId\":\"$PROJECT_ID\",\"environmentId\":\"$ENV_ID\",\"serviceId\":\"$SVC_ID\",\"name\":\"$K\",\"value\":\"$V\"}}}" \
+                  > /dev/null
+            done
+
+            # Trigger deploy
+            curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $RAILWAY_TOKEN" \
+                -d "{\"query\":\"mutation { serviceInstanceDeployV2(serviceId:\\\"$SVC_ID\\\", environmentId:\\\"$ENV_ID\\\") }\"}" \
+                | jq '.data'
+            echo "::endgroup::"
+          done
+
+          # 3. Persist the new mapping for the next snapshot
+          mkdir -p disaster-recovery
+          cat > disaster-recovery/last-restore.json <<JSON
+          {
+            "ts":            "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "alias":         "$ALIAS",
+            "project_name":  "$PROJECT_NAME",
+            "project_id":    "$PROJECT_ID",
+            "environment_id":"$ENV_ID"
+          }
+          JSON
+
+      - name: Commit last-restore.json
+        run: |
+          git config user.email "fleet-snapshot[bot]@users.noreply.github.com"
+          git config user.name  "fleet-snapshot[bot]"
+          git add disaster-recovery/last-restore.json
+          git diff --staged --quiet && exit 0 || true
+          git commit -m "chore(dr): record last restore (alias=${ALIAS}, project=${PROJECT_NAME})
+
+[skip ci] phi^2 + phi^-2 = 3"
+          git push

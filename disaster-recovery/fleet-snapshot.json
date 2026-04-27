@@ -1,0 +1,206 @@
+{
+  "anchor": "phi^2 + phi^-2 = 3",
+  "generated_at": "2026-04-27T16:03:34Z",
+  "generator": "tri-railway snapshot fleet",
+  "version": "1.0.0",
+  "accounts": [
+    {
+      "alias": "acc1",
+      "project_label": "IGLA",
+      "email": "rumbodzalaclhdv0@hotmail.com",
+      "token_secret": "RAILWAY_TOKEN_ACC1",
+      "project_id": "e4fe33bb-3b09-4842-9782-7d2dea1abc9b",
+      "project_name": "IGLA",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-27T06:11:12.110Z",
+          "id": "0f0a948f-c457-4f4c-b5c7-a5ef96fcf9e9",
+          "name": "trios-train-seed-100"
+        },
+        {
+          "createdAt": "2026-04-27T14:35:16.506Z",
+          "id": "10994ca5-3079-4d1f-81c4-4c4be0ac97b5",
+          "name": "igla-final-seed-44"
+        },
+        {
+          "createdAt": "2026-04-27T06:11:22.881Z",
+          "id": "20b0fcef-b6da-4853-94b7-b1cc27cbd406",
+          "name": "trios-train-seed-102"
+        },
+        {
+          "createdAt": "2026-04-27T11:35:27.500Z",
+          "id": "3abc18da-91d6-4377-8cf2-ebcdd6e6aae4",
+          "name": "trios-mcp-public"
+        },
+        {
+          "createdAt": "2026-04-27T11:10:39.900Z",
+          "id": "47b49b66-60b8-459a-a78d-843e43014b1e",
+          "name": "igla-trainer-seed-100"
+        },
+        {
+          "createdAt": "2026-04-27T10:43:24.662Z",
+          "id": "4c7aadec-48ab-47bc-8694-ee0ce8239ebf",
+          "name": "trios-train-seed-47"
+        },
+        {
+          "createdAt": "2026-04-26T14:04:28.033Z",
+          "id": "789f8d93-c999-4d82-a32b-93ea1bc5c066",
+          "name": "trios-train-seed-44"
+        },
+        {
+          "createdAt": "2026-04-27T11:12:28.986Z",
+          "id": "7941c83a-deba-4958-a658-754ddfeda2ab",
+          "name": "igla-trainer-seed-102"
+        },
+        {
+          "createdAt": "2026-04-26T14:04:43.559Z",
+          "id": "82924ac0-2279-494f-8a1d-d51a5b02bf08",
+          "name": "trios-train-seed-45"
+        },
+        {
+          "createdAt": "2026-04-27T11:12:29.101Z",
+          "id": "8479b05a-b42f-4adb-bea9-742a817d5985",
+          "name": "igla-trainer-seed-101"
+        },
+        {
+          "createdAt": "2026-04-27T14:35:16.543Z",
+          "id": "89e5243d-800a-4e9b-b2da-3299c0b9d619",
+          "name": "igla-final-seed-42"
+        },
+        {
+          "createdAt": "2026-04-24T09:01:52.727Z",
+          "id": "8b90e9a5-33cb-4a7d-b68e-658c6d183fca",
+          "name": "trios-dwagent"
+        },
+        {
+          "createdAt": "2026-04-27T06:11:20.601Z",
+          "id": "8e1c7858-5c38-43bc-8015-23c46aaa1ee2",
+          "name": "trios-train-seed-101"
+        },
+        {
+          "createdAt": "2026-04-26T14:03:56.760Z",
+          "id": "93f4a6bd-36a9-4c1b-99e7-308cdd862d2b",
+          "name": "trios-train-seed-43"
+        },
+        {
+          "createdAt": "2026-04-27T10:43:32.798Z",
+          "id": "cb10efd7-9bdb-44c3-91c3-a81a6ac38dbe",
+          "name": "trios-train-seed-48"
+        },
+        {
+          "createdAt": "2026-04-27T10:43:19.418Z",
+          "id": "d4d96b6a-a22c-47a6-8a73-6826a09874ec",
+          "name": "trios-train-seed-46"
+        },
+        {
+          "createdAt": "2026-04-27T14:35:16.569Z",
+          "id": "e9779d8f-88ce-47f2-a56d-60d7d84016c6",
+          "name": "igla-final-seed-43"
+        },
+        {
+          "createdAt": "2026-04-27T04:29:29.151Z",
+          "id": "f29473a2-09d6-4c18-bcc3-f5bb8cab2f42",
+          "name": "igla-trainer-seed-43"
+        }
+      ],
+      "service_count": 18
+    },
+    {
+      "alias": "acc1",
+      "project_label": "artistic-beauty",
+      "email": "rumbodzalaclhdv0@hotmail.com",
+      "token_secret": "RAILWAY_TOKEN_ACC1",
+      "project_id": "e6f02957-4703-45b1-bfbd-cbc04bbca149",
+      "project_name": "artistic-beauty",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-04T16:18:11.800Z",
+          "id": "2637f94c-dd87-413e-a659-b7d309e327c9",
+          "name": "t27"
+        }
+      ],
+      "service_count": 1
+    },
+    {
+      "alias": "acc2",
+      "project_label": "thriving-eagerness (IGLA-MIRROR-2)",
+      "email": "brabbtjubindt5cug@hotmail.com",
+      "token_secret": "RAILWAY_TOKEN_ACC2",
+      "project_id": "39d833c1-4cb6-4af9-b61b-c204b6733a98",
+      "project_name": "thriving-eagerness",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-22T12:55:53.385Z",
+          "id": "3a0bd62a-e36b-43a7-a1e5-0fc7349f28f1",
+          "name": "guacamole-railway"
+        },
+        {
+          "createdAt": "2026-04-27T14:34:23.001Z",
+          "id": "63a8a01d-59db-47ea-bb1b-f4f2c450865b",
+          "name": "iglaB-seed-43"
+        },
+        {
+          "createdAt": "2026-04-22T12:55:53.698Z",
+          "id": "916e3de8-88f2-4134-80ce-1da3a2d3af73",
+          "name": "Postgres"
+        },
+        {
+          "createdAt": "2026-04-22T12:55:53.353Z",
+          "id": "98092958-c0da-406d-96df-d2c25f98e13d",
+          "name": "guacd"
+        },
+        {
+          "createdAt": "2026-04-27T14:34:06.840Z",
+          "id": "c6675e56-64c6-4629-bf65-c4da77cda6e0",
+          "name": "iglaB-seed-42"
+        },
+        {
+          "createdAt": "2026-04-27T14:34:43.989Z",
+          "id": "f95cedf4-a4ef-4616-b561-82e017b31a99",
+          "name": "iglaB-seed-44"
+        }
+      ],
+      "service_count": 6
+    },
+    {
+      "alias": "acc2",
+      "project_label": "reasonable-perception",
+      "email": "brabbtjubindt5cug@hotmail.com",
+      "token_secret": "RAILWAY_TOKEN_ACC2",
+      "project_id": "12c508c7-1196-468d-b06d-d8de8cb77e93",
+      "project_name": "reasonable-perception",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-22T13:00:57.974Z",
+          "id": "a8a4914a-083d-410f-85f1-5efa61d15197",
+          "name": "Agents Anywhere"
+        },
+        {
+          "createdAt": "2026-04-21T10:37:11.339Z",
+          "id": "b0abd03e-ac0a-45e8-ab69-3f819dbb9321",
+          "name": "zeroclaw"
+        },
+        {
+          "createdAt": "2026-03-31T11:57:57.640Z",
+          "id": "e7c8d163-57d1-4d4f-8d1a-3909f92eec06",
+          "name": "function-bun"
+        },
+        {
+          "createdAt": "2026-04-21T09:54:19.910Z",
+          "id": "f932cb04-8d14-4a52-8941-e97106f6e159",
+          "name": "opencode"
+        }
+      ],
+      "service_count": 4
+    }
+  ],
+  "totals": {
+    "accounts": 2,
+    "projects": 4,
+    "services": 29
+  }
+}

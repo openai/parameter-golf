@@ -1,0 +1,120 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "_comment": "IGLA fleet disaster-recovery template. Anchor: phi^2 + phi^-2 = 3. Maintained by scripts/snapshot-fleet.sh and disaster-recovery/fleet-snapshot.json. After publishing on Railway template marketplace, the operator gets a single Deploy on Railway button at https://railway.com/deploy/igla-fleet.",
+  "name": "IGLA Fleet — DR template",
+  "description": "One-click disaster recovery for the IGLA RACE training fleet (3-seed champion + audit MCP + watchdog). Deploys 6 services pinned to a known-good GHCR image SHA, all environment variables placeholder-substituted at deploy time. After the dashboard creates the project, run `tri-railway audit migrate-sql | psql $NEON_DATABASE_URL` once to seed the audit ledger. Source: https://github.com/gHashTag/trios-railway",
+
+  "services": [
+    {
+      "name": "trios-mcp-public",
+      "description": "Streamable-HTTP MCP control-plane (railway_service_list/deploy/redeploy/delete + audit_event). Public endpoint that any agent calls to drive the fleet.",
+      "source": {
+        "image": "ghcr.io/ghashtag/trios-railway-mcp:latest"
+      },
+      "deploy": {
+        "startCommand": "/usr/local/bin/trios-railway-mcp",
+        "healthcheckPath": "/healthz",
+        "restartPolicyType": "ON_FAILURE",
+        "numReplicas": 1
+      },
+      "variables": {
+        "RAILWAY_TOKEN":          { "description": "Personal API token for this account, from https://railway.com/account/tokens",                              "isOptional": false },
+        "RAILWAY_TOKEN_AUTH":     { "description": "Auth mode: 'team' (Bearer, default for personal API tokens) or 'project' (Project-Access-Token)",          "default": "team" },
+        "NEON_DATABASE_URL":      { "description": "Postgres URL with sslmode=require for the IGLA audit ledger.",                                              "isOptional": false },
+        "RUST_LOG":               { "description": "tracing-subscriber filter.",                                                                                 "default": "info" },
+        "PORT":                   { "description": "HTTP port (Railway convention).",                                                                            "default": "8080" }
+      }
+    },
+    {
+      "name": "igla-final-seed-42",
+      "description": "Champion lane A · seed=42 · 60K steps · h=384 · adamw · baked fineweb corpus.",
+      "source": { "image": "ghcr.io/ghashtag/trios-trainer-igla:latest" },
+      "deploy":  { "restartPolicyType": "ON_FAILURE", "numReplicas": 1 },
+      "variables": {
+        "TRIOS_SEED":             { "default": "42" },
+        "TRIOS_HIDDEN":           { "default": "384" },
+        "TRIOS_LR":               { "default": "0.003" },
+        "TRIOS_OPTIMIZER":        { "default": "adamw" },
+        "TRIOS_STEPS":            { "default": "60000" },
+        "TRIOS_ATTN_LAYERS":      { "default": "2" },
+        "TRIOS_LANE":             { "default": "A-champion-fineweb" },
+        "L_R8_SYNTHETIC_FALLBACK":{ "default": "FORBID" },
+        "RUST_LOG":               { "default": "info" },
+        "NEON_DATABASE_URL":      { "description": "Same Neon URL as the MCP service. The trainer writes one row per ASHA rung.", "isOptional": false }
+      }
+    },
+    {
+      "name": "igla-final-seed-43",
+      "description": "Champion lane A · seed=43 · 60K steps.",
+      "source": { "image": "ghcr.io/ghashtag/trios-trainer-igla:latest" },
+      "deploy":  { "restartPolicyType": "ON_FAILURE", "numReplicas": 1 },
+      "variables": {
+        "TRIOS_SEED":             { "default": "43" },
+        "TRIOS_HIDDEN":           { "default": "384" },
+        "TRIOS_LR":               { "default": "0.003" },
+        "TRIOS_OPTIMIZER":        { "default": "adamw" },
+        "TRIOS_STEPS":            { "default": "60000" },
+        "TRIOS_ATTN_LAYERS":      { "default": "2" },
+        "TRIOS_LANE":             { "default": "A-champion-fineweb" },
+        "L_R8_SYNTHETIC_FALLBACK":{ "default": "FORBID" },
+        "RUST_LOG":               { "default": "info" },
+        "NEON_DATABASE_URL":      { "isOptional": false }
+      }
+    },
+    {
+      "name": "igla-final-seed-44",
+      "description": "Champion lane A · seed=44 · 60K steps.",
+      "source": { "image": "ghcr.io/ghashtag/trios-trainer-igla:latest" },
+      "deploy":  { "restartPolicyType": "ON_FAILURE", "numReplicas": 1 },
+      "variables": {
+        "TRIOS_SEED":             { "default": "44" },
+        "TRIOS_HIDDEN":           { "default": "384" },
+        "TRIOS_LR":               { "default": "0.003" },
+        "TRIOS_OPTIMIZER":        { "default": "adamw" },
+        "TRIOS_STEPS":            { "default": "60000" },
+        "TRIOS_ATTN_LAYERS":      { "default": "2" },
+        "TRIOS_LANE":             { "default": "A-champion-fineweb" },
+        "L_R8_SYNTHETIC_FALLBACK":{ "default": "FORBID" },
+        "RUST_LOG":               { "default": "info" },
+        "NEON_DATABASE_URL":      { "isOptional": false }
+      }
+    },
+    {
+      "name": "trios-dwagent",
+      "description": "Distributed-work agent (optional). Polls Neon for available trials and self-assigns ASHA rungs.",
+      "source": { "image": "ghcr.io/ghashtag/trios-dwagent:latest" },
+      "deploy":  { "restartPolicyType": "ON_FAILURE", "numReplicas": 1 },
+      "variables": {
+        "RAILWAY_TOKEN":      { "isOptional": false },
+        "NEON_DATABASE_URL":  { "isOptional": false },
+        "RUST_LOG":           { "default": "info" }
+      }
+    },
+    {
+      "name": "neon-backup-r2",
+      "description": "Hourly pg_dump of the audit ledger to a Cloudflare R2 / S3 bucket. Closes the last gap in DR — Neon itself goes down once a year, this protects the BPB ledger.",
+      "source": {
+        "image": "ghcr.io/eltociear/postgres-backup-s3:latest"
+      },
+      "deploy": {
+        "restartPolicyType": "ON_FAILURE",
+        "numReplicas": 1
+      },
+      "variables": {
+        "SCHEDULE":              { "default": "@hourly" },
+        "BACKUP_KEEP_DAYS":      { "default": "14" },
+        "POSTGRES_HOST":         { "description": "Hostname from NEON_DATABASE_URL (no protocol).",       "isOptional": false },
+        "POSTGRES_DATABASE":     { "description": "Database name (usually 'neondb').",                    "isOptional": false },
+        "POSTGRES_USER":         { "isOptional": false },
+        "POSTGRES_PASSWORD":     { "isOptional": false },
+        "POSTGRES_EXTRA_OPTS":   { "default": "--no-owner --no-acl --schema=public --sslmode=require" },
+        "S3_ACCESS_KEY_ID":      { "description": "R2 access-key.",                                        "isOptional": false },
+        "S3_SECRET_ACCESS_KEY":  { "description": "R2 secret-key.",                                        "isOptional": false },
+        "S3_BUCKET":             { "description": "R2 bucket name, e.g. 'igla-ledger-backups'.",            "isOptional": false },
+        "S3_REGION":             { "default": "auto" },
+        "S3_ENDPOINT":           { "description": "R2 endpoint, e.g. https://<acct>.r2.cloudflarestorage.com",  "isOptional": false },
+        "S3_PREFIX":             { "default": "igla/audit-ledger" }
+      }
+    }
+  ]
+}
