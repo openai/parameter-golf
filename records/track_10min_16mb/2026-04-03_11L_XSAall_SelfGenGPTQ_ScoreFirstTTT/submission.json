@@ -1,0 +1,25 @@
+{
+  "name": "Bharath",
+  "github": "Bharath-970",
+  "val_bpb": null,
+  "notes": "11L XSA-all (real KV-sharing from block 0) + Self-Generated GPTQ Calibration (activation-aware scale selection) + Score-First Causal TTT (legal: train on already-scored val tokens) + Int6 MLP+Attn GPTQ + EMA decay=0.999 + Partial RoPE 25% + Bigram20480 + LeakyReLU(0.5)^2 + doc-aware sliding-window stride=32 eval + warmdown5000.",
+  "techniques": [
+    "xsa_all_real_kv_sharing",
+    "selfgen_gptq_calibration",
+    "score_first_causal_ttt",
+    "int6_gptq_lite",
+    "ema_weight_averaging",
+    "partial_rope_25pct",
+    "bigram_hash_20480",
+    "leaky_relu_squared",
+    "doc_aware_sliding_eval_stride32",
+    "smeargate",
+    "muon_weight_decay",
+    "u_net_skip"
+  ],
+  "num_layers": 11,
+  "model_dim": 512,
+  "mlp_mult": 3.0,
+  "seq_len": 2048,
+  "eval_stride": 32
+}

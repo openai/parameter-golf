@@ -1,0 +1,27 @@
+{
+  "name": "Bharath",
+  "github": "Bharath-970",
+  "val_bpb": null,
+  "notes": "14L + XSA6 (last 6 layers share KV) + Int4 nibble MLP QAT + Int6 Attn + GPTQ-lite + EMA decay=0.999 + Partial RoPE 25% + Bigram20480 + Trigram10240 + LeakyReLU(0.5)^2 + Score-First TTT LoRA (rank=8) + warmdown5000. Pending training run on 8xH100.",
+  "techniques": [
+    "int4_nibble_mlp",
+    "qat_ste",
+    "xsa6_shared_kv",
+    "gptq_lite_clip_search",
+    "ema_weight_averaging",
+    "partial_rope_25pct",
+    "bigram_hash_20480",
+    "trigram_hash_10240",
+    "leaky_relu_squared",
+    "ttt_lora_rank8",
+    "score_first_ttt",
+    "smeargate",
+    "muon_weight_decay",
+    "u_net_skip"
+  ],
+  "num_layers": 14,
+  "model_dim": 512,
+  "mlp_mult": 3.5,
+  "seq_len": 2048,
+  "eval_stride": 0
+}
