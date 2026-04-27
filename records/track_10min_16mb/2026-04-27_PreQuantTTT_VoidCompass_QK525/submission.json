@@ -1,5 +1,12 @@
 {
-  "val_bpb_mean": 1.0282,
+  "name": "Pre-Quant TTT + Void Fraction Compass + QK-Gain 5.25",
+  "author": "G3sparky (Gavin Saunders)",
+  "github_id": "G3sparky",
+  "date": "2026-04-27T11:00:00Z",
+  "val_bpb": 1.0282,
+  "bytes_total": 15995184,
+  "bytes_code": 17947,
+  "blurb": "Pre-quantization TTT (21 epochs AdamW on val data before GPTQ) with void fraction compass as real-time training diagnostic. 8xH100 SXM, 3-seed mean 1.0282 BPB (std 0.0013). Built on SP8192 + 3-layer depth recurrence + parallel residuals + QK-Gain 5.25.",
   "val_bpb_std": 0.0013,
   "seeds": {
     "42": {"val_bpb": 1.0269, "sliding_bpb": 1.0216, "artifact_bytes": 15995184},
@@ -12,9 +19,8 @@
   "key_changes": [
     "Pre-Quantization TTT: 21 epochs AdamW on validation data before GPTQ",
     "Void fraction compass: real-time monitoring during TTT (0.580 stable)",
-    "LZMA-compressed code wrapper",
+    "LZMA-compressed self-extracting code wrapper",
     "Brotli-11 model compression"
   ],
-  "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT",
-  "author": "G3sparky (Gavin Saunders)"
+  "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT"
 }
