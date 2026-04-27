@@ -1,0 +1,41 @@
+{
+  "track": "10min_16mb",
+  "submission_type": "non_record",
+  "date": "2026-03-24",
+  "name": "11L XSA4 + EMA + GPTQ + FlashAttention-3",
+  "author": "NewyorkDev",
+  "github_id": "NewyorkDev",
+  "seed_results": {
+    "1337": {
+      "steps": 6233,
+      "ms_per_step": 96.28,
+      "wallclock_stop_val_bpb": 1.1433,
+      "post_ema_val_bpb": 1.1424,
+      "final_int6_roundtrip_val_bpb": 1.14704222,
+      "final_int6_sliding_window_exact_val_bpb": 1.12336724,
+      "artifact_bytes": 15853809,
+      "train_time_ms": 600075
+    }
+  },
+  "val_loss": 1.89675351,
+  "val_bpb": 1.12336724,
+  "artifact_bytes": 15853809,
+  "compressed_model_bytes": 15772843,
+  "code_bytes": 80966,
+  "hardware": "8xH100 SXM 80GB",
+  "software": "Python 3.11, PyTorch 2.4.1+cu124, Hopper FlashAttention 3 optional",
+  "techniques": [
+    "11-layer 512d GQA transformer",
+    "2048-token training and evaluation context",
+    "BigramHash(2048, 128) plus SmearGate token mixing",
+    "XSA on the last 4 layers",
+    "VE on layers 9 and 10",
+    "EMA before export",
+    "Late QAT enablement",
+    "Full GPTQ int6 export",
+    "zstd compression",
+    "Sliding-window exact evaluation"
+  ],
+  "run_command": "DATA_PATH=./data/datasets/fineweb10B_sp1024 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model SEED=1337 NUM_LAYERS=11 TRAIN_SEQ_LEN=2048 EVAL_SEQ_LEN=2048 TRAIN_BATCH_TOKENS=786432 VAL_LOSS_EVERY=4000 TRAIN_LOG_EVERY=500 MATRIX_LR=0.025 SCALAR_LR=0.025 TIED_EMBED_LR=0.035 MUON_MOMENTUM=0.99 MUON_MOMENTUM_WARMUP_START=0.92 MUON_MOMENTUM_WARMUP_STEPS=1500 MUON_WD=0.04 ADAM_WD=0.04 BIGRAM_VOCAB_SIZE=2048 BIGRAM_DIM=128 XSA_LAST_N=4 VE_ENABLED=1 VE_DIM=128 VE_LAYERS=9,10 SMEAR_INIT=-3.0 GPTQ_ENABLED=1 GPTQ_CALIBRATION_BATCHES=128 LATE_QAT_THRESHOLD=0.15 MAX_WALLCLOCK_SECONDS=600 torchrun --standalone --nproc_per_node=8 train_gpt.py",
+  "notes": "Single preserved official run log. Submitted as a non-record 10-minute entry; not claiming statistical significance for a new leaderboard record."
+}
