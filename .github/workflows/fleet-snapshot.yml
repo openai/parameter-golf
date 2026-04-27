@@ -82,9 +82,5 @@ jobs:
 
           ts=$(date -u +%Y-%m-%dT%H:%MZ)
           totals=$(python3 -c 'import json; d=json.load(open("disaster-recovery/fleet-snapshot.json")); print(d["totals"])')
-          git commit -m "chore(dr): hourly fleet snapshot @ $ts
-
-Totals: $totals
-
-[skip ci] phi^2 + phi^-2 = 3"
+          git commit -m "chore(dr): hourly fleet snapshot @ $ts -- Totals: $totals -- [skip ci] phi^2 + phi^-2 = 3"
           git push

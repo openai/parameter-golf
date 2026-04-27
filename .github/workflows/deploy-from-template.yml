@@ -155,7 +155,5 @@ jobs:
           git config user.name  "fleet-snapshot[bot]"
           git add disaster-recovery/last-restore.json
           git diff --staged --quiet && exit 0 || true
-          git commit -m "chore(dr): record last restore (alias=${ALIAS}, project=${PROJECT_NAME})
-
-[skip ci] phi^2 + phi^-2 = 3"
+          git commit -m "chore(dr): record last restore (alias=${ALIAS}, project=${PROJECT_NAME}) -- [skip ci] phi^2 + phi^-2 = 3"
           git push
