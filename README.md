@@ -40,12 +40,13 @@ These may be explored in future iterations.
   - XSA on artery `0` (the `1024` window artery)
   - `mlp_mult = 2`
   - `ctx = 16384`
+  - model_params = 27363132
 
-- Representative result from an `8xH100`, `10 min` run:
+- Result from an `8xH100`, `10 min` run:
   - `step = 3511`
-  - `final val_loss = 2.0275`
-  - `final val_bpb = 1.2008`
-  - `step_avg = 170.93 ms` (About 2× the latency of a dense model with the same number of parameters)
+  - `final val_loss = 2.0275` 
+  - `final val_bpb = 1.2008` (seems comparable performance to the best SP1024 record runs at the same #steps)
+  - `step_avg = 170.93 ms` (about 2× the latency of a dense model with the same params)
 
 ### Key Findings
 - Averaging predictions from parallel LM heads at validation performs better than using any individual artery head alone.
@@ -70,7 +71,7 @@ Model parameters scale roughly as `O(D^2)` as model width grows, because both:
 - the number of neurons scales with `D`, and
 - the input/output projections also scale with `D`.
 
-MoE introduces sparsity in the number of activated neurons. This work explores a different direction: making the hidden dimension itself structurally sparse by splitting it into multiple parallel subspaces, then selectively mixing them.
+MoE introduces sparsity in the number of activated neurons. This work explores a different direction: making the hidden dimension itself structurally sparse by splitting it into multiple parallel subspaces, then periodically mixing them.
 
 ---
 
