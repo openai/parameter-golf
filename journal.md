@@ -3,9 +3,9 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (PROMOTED 2026-04-26 21:55)**: exp 0038 single-seed **val_bpb 2.0259** (SEED=42 confirm queued as 0039). Same as 0035 architecture EXCEPT `MAMBA2_KILL_SELECTIVITY=1`: dt/B/C made input-INdependent (LTI block). +128 params/block (negligible). **Selectivity is NOT load-bearing at our regime — killing it improves val_bpb by 0.0158 vs 0035/0036 2-seed mean 2.0417.** Beats transformer-best 2.0869 by **-0.061 BPB**. Path: `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/`. **Mechanism story**: the win is from the Mamba-2 BLOCK structure (conv1d + gating-via-z + SSD-chunkwise + learned A_log/dt_bias), not from selectivity. See 2026-04-26 21:55 entry for full math + the speculative why-selectivity-hurts hypothesis. [transfer:medium — selectivity may recover at H100 20k-step where extra params get more training]
+- **Current best (PROMOTED 2026-04-26 22:30, 2-seed CONFIRMED)**: exp 0038/0039 2-seed mean **val_bpb 2.02723** (cross-seed σ_pair=0.0027). Same as 0035 architecture EXCEPT `MAMBA2_KILL_SELECTIVITY=1`: dt/B/C made input-INdependent (LTI block). +128 params/block (negligible). **Selectivity is NOT load-bearing at our regime — killing it improves val_bpb by 0.01448 vs 0035/0036 2-seed mean 2.04171, robust at 2-seed precision.** Beats transformer-best 2.0869 by **-0.060 BPB**. Path: `winners/2026-04-26_mamba2_lti_kill_selectivity_2of3_recur3x3_swiglu_mlp8_bigramhash/` (will update with 0039 trace). **Mechanism story**: the win is from the Mamba-2 BLOCK structure (conv1d + gating-via-z + SSD-chunkwise + learned A_log/dt_bias), not from selectivity. **Open mechanism question** (next experiment): is the kill-wins finding actually a *quant-protection* finding in disguise? Per walk 2026-04-26 22:22, the (dt, B, C) projections in full Mamba-2 come from in_proj's bf16-quantized weight, while kill's _B_const/_C_const are auto-fp32 (1D). Test: split in_proj, fp32-protect (dt, B, C) slices, re-run full-selective Mamba-2. [transfer:medium — selectivity may recover at H100 20k-step where extra params get more training, OR if quant is the root cause this transfers cleanly to H100 fp32]
 - **Superseded** (kept for trace):
-  - 0035/0036 (Mamba-2 selective 2-of-3): 2-seed mean 2.04171. `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Direction was right; mechanism story (selectivity) was wrong.
+  - 0035/0036 (Mamba-2 selective 2-of-3): 2-seed mean 2.04171. `winners/2026-04-26_mamba2_ssd_2of3_recur3x3_swiglu_mlp8_bigramhash/`. Direction was right; mechanism story (selectivity) was wrong — kill version (0038/0039) wins by 0.014 BPB.
   - 0032/0034 (Mamba-2 selective 1 of 3): 2-seed mean 2.06016. `winners/2026-04-26_mamba2_ssd_recur3x3_swiglu_mlp8_2attn_bigramhash/`
   - 0018-0024 (S4D-Lin sandwich + BigramHash): 4-seed mean 2.08389. `winners/2026-04-26_ssm_hybrid_recur3x3_swiglu_mlp8_2attn_bigramhash/`. Original "5σ" headline was overstated; 4-seed σ-multiple was 1.6σ vs transformer-best.
 - **Prior transformer-best (now superseded)**: exp 0062 val_bpb 2.08687 at `winners/2026-04-25_recur_3x3_swiglu_mlp8/`. Architecture is comparison-only (don't inherit recur+SwiGLU directly); schedule/optimizer/init defaults ARE inherited — see "Starting env.sh" bullet. Hybrid-composition details: grep `summaries/_archive_transformer/2026-04-25_overnight_session.md`.
@@ -92,6 +92,28 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 
 ## Entries (newest first)
+
+## 2026-04-26 22:30 EDT · exp 0039 · SEED=42 confirms kill-wins finding (2-seed Δ -0.014 BPB robust)
+
+**Question**: SEED=42 confirm of 0038's surprising kill-wins result. 0038 (LTI Mamba-2) at SEED=1337 was 2.0259, vs full Mamba-2 (0035/0036 mean 2.0417) by ~0.0158. Cross-seed σ for the full version was 0.0036 — would the kill version's win hold up at SEED=42, or was 0038 a lucky seed?
+
+**Setup**: env.sh forked from 0038, only diff is `SEED=42`. Predicted ~2.029 (= 0038 + ~0.003 typical seed noise).
+
+**Result**: val_bpb_post_quant = **2.02857** — within predicted band (2.029).
+
+| Variant | SEED=1337 | SEED=42 | 2-seed mean | Cross-seed Δ |
+|---|---|---|---|---|
+| Full Mamba-2 (0035/0036) | 2.03994 | 2.04349 | **2.04171** | 0.0036 |
+| Kill Mamba-2 (0038/0039) | 2.02590 | 2.02857 | **2.02723** | 0.0027 |
+| **Family-mean Δ** | -0.01404 | -0.01492 | **-0.01448** | — |
+
+Cross-seed Δ for the kill family is 0.0027 — *tighter* than the full family's 0.0036. So the kill family is at least as well-behaved variance-wise. Family-mean Δ = -0.01448 BPB. At family-floor σ_pair=0.0027 that's **5.4σ at 2-seed precision; robust by any reasonable threshold.**
+
+**Conclusion** [VERIFIED at 2-seed precision]: **the kill-wins finding is REAL.** Selectivity-killed Mamba-2 robustly beats full Mamba-2 by ~0.014 BPB at our regime. The mechanism story (Mamba-2 BLOCK structure, not selectivity) holds across seeds.
+
+**Updates**:
+- Promote 0038/0039 to formally supersede 0035/0036 (already direct-promoted 0038; now confirmed at 2-seed). 
+- Open mechanism question for next experiment: is the kill-wins effect actually a *quantization-protection* effect in disguise? See walk 2026-04-26 22:22. Specifically: in full Mamba-2, the per-token (dt, B, C) come from in_proj's bf16-quantized 2D weight. In kill Mamba-2, _B_const and _C_const are 1D → auto-fp32. The recurrence accumulates 1024 timesteps of dynamic-parameter contributions; if those are bf16 in full vs fp32 in kill, quant noise accumulates differently. **0041 (next): split in_proj into bf16-zx and fp32-protected dyn slices. Run full-selective Mamba-2 with fp32 dynamics. If val ≈ 2.025, quant noise was the dominant story. If val ≈ 2.040, selectivity is genuinely anti-load-bearing.** Either outcome is a strong writeup mechanism.
 
 ## 2026-04-26 21:55 EDT · exp 0038 · selectivity-killed Mamba-2 BEATS full Mamba-2 by 0.014 BPB — headline pivot
 
