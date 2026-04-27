@@ -851,8 +851,10 @@ def main() -> None:
     from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
-    enable_mem_efficient_sdp(False)
-    enable_math_sdp(False)
+    # Flash is unavailable on many Windows CUDA builds; without math/mem SDPA errors ("No available kernel").
+    sdp_fallback = bool(int(os.environ.get("ENABLE_MATH_SDP", "0"))) or sys.platform == "win32"
+    enable_mem_efficient_sdp(sdp_fallback)
+    enable_math_sdp(sdp_fallback)
 
     logfile = None
     if master_process:
