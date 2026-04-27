@@ -397,7 +397,7 @@ def _decompress(data,compressor):
 def serialize(h,base_model,code):
 	code_bytes=len(code.encode('utf-8'))
 	if h.is_main_process:torch.save(base_model.state_dict(),h.model_path);model_bytes=os.path.getsize(h.model_path);log(f"Serialized model: {model_bytes} bytes");log(f"Code size: {code_bytes} bytes")
-	sd_cpu={k:v.detach().cpu()for(k,v)in base_model.state_dict().items()};device=torch.device('cuda',h.local_rank);log('GPTQ:generating multi-temp AR calibration data...');t0=time.perf_counter();ar_tokens=generate_autoregressive_calib_multitemp(base_model,device,num_seqs=64,seq_len=h.train_seq_len,vocab_size=h.vocab_size,temperatures=[0.5,0.8,1.1,1.4],seq_counts=[8,24,24,8],batch_size=8,seed=h.seed);log(f"GPTQ:generated {len(ar_tokens)} sequences in {time.perf_counter()-t0:.1f}s");log('GPTQ:collecting Hessians from AR tokens...');t0=time.perf_counter();hessians=collect_hessians_from_tokens(base_model,ar_tokens,device);log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s");quant_result,quant_meta=gptq_mixed_quantize(sd_cpu,hessians,h);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=_compress(quant_raw,h.compressor);quant_file_bytes=len(quant_blob);bytes_total=quant_file_bytes+code_bytes
+	sd_cpu={k:v.detach().cpu()for(k,v)in base_model.state_dict().items()};device=torch.device('cuda',h.local_rank);log('GPTQ:generating multi-temp AR calibration data...');t0=time.perf_counter();ar_tokens=generate_autoregressive_calib_multitemp(base_model,device,num_seqs=64,seq_len=512,vocab_size=h.vocab_size,temperatures=[0.5,0.8,1.1,1.4],seq_counts=[8,24,24,8],batch_size=8,seed=h.seed);log(f"GPTQ:generated {len(ar_tokens)} sequences in {time.perf_counter()-t0:.1f}s");log('GPTQ:collecting Hessians from AR tokens...');t0=time.perf_counter();hessians=collect_hessians_from_tokens(base_model,ar_tokens,device);log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s");quant_result,quant_meta=gptq_mixed_quantize(sd_cpu,hessians,h);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=_compress(quant_raw,h.compressor);quant_file_bytes=len(quant_blob);bytes_total=quant_file_bytes+code_bytes
 	if h.is_main_process:
 		with open(h.quantized_model_path,'wb')as f:f.write(quant_blob)
 		log(f"Serialized model quantized+{h.compressor}: {quant_file_bytes} bytes");log(f"Total submission size quantized+{h.compressor}: {bytes_total} bytes")
@@ -530,7 +530,16 @@ def train_model(h,device,val_data):
 		if stop_after_step is None and reached_cap:stop_after_step=step
 	log(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=True);return base_model,compiled_model
 def train_and_eval(h,device):
-	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob('fineweb_train_*.bin')))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}")
+	if os.environ.get('SKIP_TRAINING','0')=='1':
+		log('SKIP_TRAINING=1: loading checkpoint...');device=torch.device('cuda',h.local_rank);base_model=GPT(h).to(device).bfloat16();restore_fp32_params(base_model);base_model.load_state_dict(torch.load(h.model_path,map_location=device),strict=True);base_model.looping_active=h.num_loops>0;serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+		if h.distributed:dist.barrier()
+		eval_model=deserialize(h,device)
+		if h.num_loops>0:eval_model.looping_active=True
+		compiled_model=torch.compile(eval_model,dynamic=False,fullgraph=True);timed_eval('quantized',eval_val,h,device,val_data,compiled_model)
+		if h.sliding_window_enabled:timed_eval('quantized_sliding_window',eval_val_sliding,h,device,val_data,eval_model)
+		return
+	device=torch.device('cuda',h.local_rank);base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
 	if h.distributed:dist.barrier()
 	eval_model=deserialize(h,device)
 	if h.num_loops>0:eval_model.looping_active=True
