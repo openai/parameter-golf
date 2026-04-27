@@ -1,0 +1,20 @@
+{
+  "val_bpb_mean": 1.0282,
+  "val_bpb_std": 0.0013,
+  "seeds": {
+    "42": {"val_bpb": 1.0269, "sliding_bpb": 1.0216, "artifact_bytes": 15995184},
+    "314": {"val_bpb": 1.0282, "sliding_bpb": 1.0228, "artifact_bytes": 15990432},
+    "999": {"val_bpb": 1.0295, "sliding_bpb": 1.0242, "artifact_bytes": 15990829}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 588,
+  "ttt_time_seconds": 239,
+  "key_changes": [
+    "Pre-Quantization TTT: 21 epochs AdamW on validation data before GPTQ",
+    "Void fraction compass: real-time monitoring during TTT (0.580 stable)",
+    "LZMA-compressed code wrapper",
+    "Brotli-11 model compression"
+  ],
+  "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT",
+  "author": "G3sparky (Gavin Saunders)"
+}
