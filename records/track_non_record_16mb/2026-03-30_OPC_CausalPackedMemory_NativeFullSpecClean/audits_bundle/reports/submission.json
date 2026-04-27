@@ -1,0 +1,84 @@
+{
+  "profile": "parameter-golf",
+  "verdict": "pass",
+  "submission": {
+    "repo_root": ".",
+    "submission_root": ".",
+    "track": null,
+    "name": "OPC causal packed-memory legal packet stress test"
+  },
+  "extracted_claims": {
+    "submission_json": {
+      "name": "OPC causal packed-memory legal packet stress test",
+      "track": "track_non_record_16mb",
+      "val_bpb": 2.48898442865273,
+      "pre_quant_val_bpb": 2.48898442865273,
+      "bytes_total": 6146877,
+      "bytes_model_int6_zlib": 2705939
+    },
+    "results_json": {
+      "val_bpb": 2.48898442865273,
+      "pre_quant_val_bpb": 2.48898442865273,
+      "bytes_total": 6146877,
+      "bytes_model_int6_zlib": 2705939
+    },
+    "readme": {
+      "name": "OPC causal packed-memory legal packet stress test"
+    },
+    "logs": {
+      "train.log": {
+        "path": "train.log"
+      }
+    },
+    "artifact_files": {
+      "model_artifact.npz": {
+        "bytes": 2705939,
+        "suffix": ".npz",
+        "looks_like_artifact": true
+      }
+    },
+    "code_files": [
+      "train_gpt.py"
+    ],
+    "patch": null
+  },
+  "checks": {
+    "presence": {
+      "pass": true,
+      "checked_count": 2,
+      "finding_count": 0
+    },
+    "claim_consistency": {
+      "pass": true,
+      "finding_count": 0
+    },
+    "artifact_bytes": {
+      "pass": true,
+      "artifact_count": 1,
+      "finding_count": 0
+    },
+    "protocol_shape": {
+      "pass": true,
+      "scanned_count": 1,
+      "finding_count": 0
+    },
+    "data_boundary_signals": {
+      "pass": true,
+      "scanned_count": 1,
+      "finding_count": 0
+    },
+    "reproducibility_surface": {
+      "pass": true,
+      "has_log": true,
+      "has_code": true,
+      "has_artifact": true,
+      "finding_count": 0
+    },
+    "patch_triage": {
+      "pass": null,
+      "present": false
+    }
+  },
+  "findings": [],
+  "alerts": []
+}

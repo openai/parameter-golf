@@ -1,0 +1,14 @@
+{
+  "fresh_process_full": {
+    "bpb": 2.48898442865273
+  },
+  "packed_artifact_full": {
+    "bpb": 2.48898442865273,
+    "artifact_bytes": 2705939
+  },
+  "replay": {
+    "total_loss_nats": 277494.23437665706,
+    "mean_loss_nats": 4.234225988413346,
+    "mean_bpb": 6.1086968354871045
+  }
+}
