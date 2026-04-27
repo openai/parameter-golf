@@ -4,7 +4,7 @@
 
 ## TL;DR
 
-Replace every learnable matrix `W` in the transformer with `W = W_random(seed) + U V^T`, where `W_random` is regenerated at runtime from a 32-bit seed (zero artifact bytes) and `U V^T` is a trainable low-rank adapter. At rank=2 everywhere on an **11-layer** transformer, this gives a **0.90 MB total submission artifact** (5.6% of the 16 MB cap), CUDA-verified at val_bpb **2.13131 ± 0.00465** (3-seed mean on 1×H100 SXM, sp1024 baseline architecture, 200 training steps × 65,536 tokens).
+Replace every learnable matrix `W` in the transformer with `W = W_random(seed) + U V^T`, where `W_random` is regenerated at runtime from a 32-bit seed (zero artifact bytes) and `U V^T` is a trainable low-rank adapter. At rank=2 everywhere on an **11-layer** transformer, this gives a **0.90 MB total submission artifact** (5.6% of the 16 MB cap), CUDA-verified at val_bpb **2.13131 ± 0.00465** (3-seed mean on 1×H100 SXM, sp1024 baseline architecture, 200 training steps × 524,288 tokens).
 
 The submission is in the spirit of the README's "Requests for PRs" item *"Learning adapters on random linear maps"*.
 
@@ -116,14 +116,14 @@ for SEED in 1337 314 999; do
   RUN_ID=randomadapter_11L_rank2_seed${SEED} \
     DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
     TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-    VOCAB_SIZE=1024 ITERATIONS=200 TRAIN_BATCH_TOKENS=65536 \
+    VOCAB_SIZE=1024 ITERATIONS=200 TRAIN_BATCH_TOKENS=524288 \
     NUM_LAYERS=11 RANDOM_ADAPTER_RANK=2 RANDOM_ADAPTER_SEED_BASE=7919 \
     SEED=${SEED} \
     torchrun --standalone --nproc_per_node=1 train_gpt.py
 done
 ```
 
-### CUDA verification numbers (1×H100 SXM, sp1024, 200 steps × 65,536 train tokens)
+### CUDA verification numbers (1×H100 SXM, sp1024, 200 steps × 524,288 train tokens)
 
 | Run | NUM_LAYERS | rank | model_params | post-quant val_bpb | Total submission |
 |---|---|---|---|---|---|
@@ -141,7 +141,7 @@ The submission's 3-seed mean comes from seeds 1337 / 314 / 999 (val_bpb = 2.1271
 
 Empirically: the 11L rank=2 corner is the Pareto floor of every rank/depth combination we have tested on CUDA, full stop.
 
-**Reproducibility hardening.** Three single-seed runs at 11L rank=2 on a different CUDA box (RTX 4070 Laptop, sm_89) — SEED=1337 → 2.2562, SEED=314 → 2.2671, SEED=999 → 2.2827 — give a 3-seed mean of **2.26867 ± 0.01332** there. The same-seed Runpod 1×H100 (sm_90) numbers are **2.13131 ± 0.00465**. The hardware-numerics gap is **+137.4 mbpb mean (per-seed range 129–146 mbpb)**, with the laptop's σ ~2.86× larger than Runpod's. Plausible root cause: sm_89 (Ada Lovelace Laptop) vs sm_90 (H100) bf16 matmul kernel numerics, plus possibly different `torch._inductor` kernel selections. We report **Runpod numbers as canonical** because Runpod is the maintainer-side eval environment.
+**Reproducibility hardening.** Three single-seed runs at 11L rank=2 on a different CUDA box (RTX 4070 Laptop, sm_89, `TRAIN_BATCH_TOKENS=65536`) — SEED=1337 → 2.2562, SEED=314 → 2.2671, SEED=999 → 2.2827 — give a 3-seed mean of **2.26867 ± 0.01332** there. The same-seed Runpod 1×H100 (sm_90, `TRAIN_BATCH_TOKENS=524288`) numbers are **2.13131 ± 0.00465**. The +137.4 mbpb gap is **a compound of two effects**: (a) hardware/numerics — sm_89 (Ada Lovelace Laptop) vs sm_90 (H100) bf16 matmul kernel paths, plus possibly different `torch._inductor` kernel selections; and (b) **8× difference in effective training data per step** (524,288 vs 65,536 tokens × 200 iterations). The two are not separately measured here. We report **Runpod numbers as canonical** because Runpod's batch + hardware combination is what the maintainer-side eval reproduces; the laptop runs were used as a cheap variance probe, not a hardware-isolated comparator.
 
 ## Compliance with submission rules
 
@@ -150,7 +150,7 @@ Empirically: the 11L rank=2 corner is the Pareto floor of every rank/depth combi
 - [x] Eval under 10 min: **verified on 1×H100 SXM** — full eval (final + post-quant int8+zlib roundtrip) finished in 20.9 s on 1×H100, including the 200-step training. Comfortably inside the 10-minute eval cap on 8×H100.
 - [x] No external dataset access during eval: standard sliding-window val on the bundled FineWeb val split.
 - [x] No validation-token peeking: no eval-time adaptation.
-- [x] Reproducible across seeds: 3-seed mean reported (seeds 1337 / 314 / 999), per-seed val_bpb 2.12716 / 2.13042 / 2.13634, σ ≈ 0.00465. As a non-record submission the strict 3-seed-mean p<0.01 vs SOTA bar doesn't apply, but the 3-seed mean is included to be transparent about variance.
+- [x] Reproducible across seeds: 3-seed mean reported (seeds 1337 / 314 / 999), per-seed val_bpb 2.12716 / 2.13042 / 2.13634, σ ≈ 0.00465. **σ scope:** this is the `SEED` axis (the model/optimiser RNG seed) at fixed `RANDOM_ADAPTER_SEED_BASE=7919`. The technique has a second noise axis — the random-base seed itself — which a separate xps sweep across `RANDOM_ADAPTER_SEED_BASE ∈ {1234, 5678, 7919, 9001, 12345}` measured at σ ≈ 0.030 (~6× larger than the train-seed σ on that hardware), with a 60 mbpb spread across base seeds. The reported headline σ understates the random-base axis; combined σ ≈ √(σ_train² + σ_base²) is the more conservative number for ranking against neighbouring submissions. As a non-record submission the strict 3-seed-mean p<0.01 vs SOTA bar doesn't apply, but the 3-seed mean is included to be transparent about variance.
 
 ## Limitations and honest caveats
 
@@ -159,7 +159,7 @@ Empirically: the 11L rank=2 corner is the Pareto floor of every rank/depth combi
 3. **rank=16 didn't help on the 9L family.** At sufficient depth, adapter capacity isn't the binding constraint at this scale; at higher widths or longer training it might be.
 4. **Random base recomputation has a small per-forward cost.** The marginal cost is one extra matmul per linear layer per forward, which is negligible compared to the existing two matmuls in the LoRA path. Eval on 1×H100 SXM completed in ~21 s; the rank=2 / 11L config is broadly the same compute class as the 9L baselines.
 5. **Numbers come from sp1024 baseline architecture, not sp8192/SOTA recipe.** The technique is principled enough that the *shape* of the trade-off should transfer, but absolute val_bpb at the SOTA scale would require a separate run. The submission is at the sp1024 / 200-step training scale.
-6. **RTX 4070 Laptop is consistently ~137 mbpb worse than 1×H100 at matched seeds.** The hardware-numerics gap is reproducible across all three seeds; we report Runpod 1×H100 numbers as canonical because that matches the maintainer-side eval environment.
+6. **RTX 4070 Laptop is consistently ~137 mbpb worse than 1×H100 at matched seeds — but it's a compound effect.** The 137 mbpb gap reflects both sm_89 vs sm_90 bf16 numerics *and* an 8× difference in `TRAIN_BATCH_TOKENS` (65,536 on the laptop probe vs 524,288 on Runpod). Hardware-isolated and batch-isolated components are not separately measured; the laptop runs were a cheap variance probe, not a hardware-isolated comparator. We report Runpod 1×H100 numbers as canonical because that matches the maintainer-side eval environment.
 
 ## Acknowledgements
 
