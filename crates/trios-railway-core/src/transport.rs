@@ -87,13 +87,14 @@ struct GraphQlError {
 impl Client {
     pub fn from_env() -> Result<Self, ClientError> {
         let token = std::env::var("RAILWAY_TOKEN").map_err(|_| ClientError::MissingToken)?;
-        // Heuristic: a UUID-shaped token (8-4-4-4-12, length 36) is
-        // overwhelmingly a project-access token in Railway. Account/team
-        // tokens are longer, opaque, and start with `rwt_` or similar.
-        let auth = if is_uuid_like(&token) {
-            AuthMode::Project
-        } else {
-            AuthMode::Team
+        // Allow operators to force the auth mode when the heuristic guesses
+        // wrong (Personal API tokens are also UUID-shaped but must use
+        // `Authorization: Bearer`, not `Project-Access-Token`).
+        let auth = match std::env::var("RAILWAY_TOKEN_AUTH").ok().as_deref() {
+            Some("team" | "bearer" | "personal") => AuthMode::Team,
+            Some("project") => AuthMode::Project,
+            _ if is_uuid_like(&token) => AuthMode::Project,
+            _ => AuthMode::Team,
         };
         Self::with_token_and_mode(token, auth)
     }

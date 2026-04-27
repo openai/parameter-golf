@@ -16,7 +16,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-use trios_railway_audit::migrations;
+use trios_railway_audit::{
+    detect, migrations, verdict as compute_verdict, AuditVerdict, LedgerRow, RealService,
+};
 use trios_railway_core::{
     mutations as M, queries as Q, Client, EnvironmentId, ProjectId, RailwayHash, ServiceId,
 };
@@ -125,6 +127,38 @@ enum ServiceCmd {
 enum AuditCmd {
     /// Print idempotent DDL for the Neon schema (issue #6).
     MigrateSql,
+    /// Run an online audit pass: list services, detect drift, compute Gate-2
+    /// verdict, seal an R7 triplet to the experience log. Exit codes:
+    /// 0 = Gate-2 PASS, 1 = drift detected (error severity), 2 = NOT YET.
+    Run {
+        /// Project to audit.
+        #[arg(long, env = "TRIOS_RAILWAY_PROJECT", default_value = IGLA_PROJECT_ID)]
+        project: String,
+        /// Gate-2 BPB target (Gate-2 = 1.85, IGLA = 1.50).
+        #[arg(long, default_value_t = 1.85_f64)]
+        target: f64,
+        /// Optional path to a JSONL ledger (one `LedgerRow`-like JSON per line).
+        /// If omitted, audit treats the ledger as empty and any seed-bearing
+        /// service will surface as `D1_ORPHAN_SERVICE` (warn, not error).
+        #[arg(long)]
+        ledger: Option<PathBuf>,
+        /// Print the verdict as JSON to stdout (in addition to text summary).
+        #[arg(long)]
+        json: bool,
+        /// Repo root for the experience log.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+    },
+    /// Compute Gate-2 verdict against an in-memory ledger snapshot. Useful
+    /// for cron jobs that already have a Neon snapshot serialized to JSONL.
+    Verdict {
+        /// Path to a JSONL ledger.
+        #[arg(long)]
+        ledger: PathBuf,
+        /// Gate-2 BPB target.
+        #[arg(long, default_value_t = 1.85_f64)]
+        target: f64,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -195,6 +229,25 @@ async fn main() -> Result<()> {
                 println!("{stmt};");
             }
         }
+        Cmd::Audit {
+            sub:
+                AuditCmd::Run {
+                    project,
+                    target,
+                    ledger,
+                    json,
+                    root,
+                },
+        } => {
+            let exit = run_audit(project, target, ledger, json, root).await?;
+            std::process::exit(exit);
+        }
+        Cmd::Audit {
+            sub: AuditCmd::Verdict { ledger, target },
+        } => {
+            let exit = cmd_audit_verdict(ledger, target).await?;
+            std::process::exit(exit);
+        }
         Cmd::Service { sub } => run_service(sub).await?,
         Cmd::Experience { sub } => match sub {
             ExperienceCmd::Append {
@@ -223,6 +276,170 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Parse a JSONL ledger file into `LedgerRow`s. Unrecognised lines are
+/// skipped with a warn-level trace. Empty path -> empty vec.
+async fn load_ledger(path: &std::path::Path) -> Result<Vec<LedgerRow>> {
+    let raw = tokio::fs::read_to_string(path).await?;
+    let mut out = Vec::new();
+    for (i, line) in raw.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<serde_json::Value>(line) {
+            Ok(v) => {
+                let seed = v.get("seed").and_then(serde_json::Value::as_i64);
+                let bpb = v.get("bpb").and_then(serde_json::Value::as_f64);
+                let digest = v
+                    .get("canonical_image_digest")
+                    .or_else(|| v.get("image_digest"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string);
+                if let (Some(seed), Some(bpb)) = (seed, bpb) {
+                    let Ok(seed_i32) = i32::try_from(seed) else {
+                        tracing::warn!(line_no = i + 1, seed, "seed out of i32 range");
+                        continue;
+                    };
+                    out.push(LedgerRow {
+                        seed: seed_i32,
+                        bpb,
+                        canonical_image_digest: digest,
+                    });
+                } else {
+                    tracing::warn!(line_no = i + 1, "ledger row missing seed/bpb");
+                }
+            }
+            Err(e) => tracing::warn!(line_no = i + 1, ?e, "ledger row not valid JSON"),
+        }
+    }
+    Ok(out)
+}
+
+/// Best-effort seed extraction from a service name like `trios-train-seed-43`
+/// or `igla-final-seed-44`.
+fn seed_from_name(name: &str) -> Option<i32> {
+    name.rsplit_once("seed-")
+        .and_then(|(_, tail)| tail.parse::<i32>().ok())
+}
+
+async fn run_audit(
+    project: String,
+    target: f64,
+    ledger_path: Option<PathBuf>,
+    json_out: bool,
+    root: PathBuf,
+) -> Result<i32> {
+    let client =
+        Client::from_env().map_err(|e| anyhow::anyhow!("RAILWAY_TOKEN not set or invalid: {e}"))?;
+    let token_fp = client.token_fingerprint();
+
+    let pid = ProjectId::from(project);
+    let pv = Q::project_view(&client, &pid).await?;
+
+    let real: Vec<RealService> = pv
+        .services()
+        .into_iter()
+        .map(|s| RealService {
+            service_id: ServiceId::from(s.id.clone()),
+            seed: seed_from_name(&s.name),
+            name: s.name,
+            last_log_excerpt: None,
+            last_bpb: None,
+            image_digest: None,
+        })
+        .collect();
+
+    let ledger = match ledger_path.as_deref() {
+        Some(p) => load_ledger(p).await?,
+        None => Vec::new(),
+    };
+
+    let events = detect(&real, &ledger);
+    let v = compute_verdict(&real, &events, target);
+
+    println!("project {} ({})", pv.name, pv.id);
+    println!("services: {}   ledger rows: {}", real.len(), ledger.len());
+    println!("target BPB:   {target}");
+    println!("drift events: {}", events.len());
+    for e in &events {
+        println!("  [{:?}] {:?} {}", e.severity, e.code, e.detail);
+    }
+    let label = match v {
+        AuditVerdict::Gate2Pass => "GATE-2 PASS",
+        AuditVerdict::NotYet => "NOT YET",
+        AuditVerdict::Drift => "DRIFT",
+    };
+    println!("verdict: {label}  (exit {})", v.exit_code());
+
+    if json_out {
+        let summary = serde_json::json!({
+            "project":      pv.id,
+            "project_name": pv.name,
+            "services":     real.len(),
+            "ledger_rows":  ledger.len(),
+            "target":       target,
+            "events":       events,
+            "verdict":      label,
+            "exit_code":    v.exit_code(),
+        });
+        println!("{summary}");
+    }
+
+    // R7 triplet for the audit pass itself.
+    let hash = RailwayHash::seal("audit", &pid, None, &token_fp);
+    let line = ExperienceLine::from_hash(
+        "GENERAL",
+        "DriftDoc",
+        "#9",
+        &format!(
+            "audit run target={target} services={} events={} verdict={label}",
+            real.len(),
+            events.len()
+        ),
+        match v {
+            AuditVerdict::Gate2Pass => "OK",
+            AuditVerdict::NotYet => "WAIT",
+            AuditVerdict::Drift => "FAIL",
+        },
+        "VERDICT",
+        &hash,
+    )?;
+    let path = append_line(&root.join(".trinity"), &line).await?;
+    tracing::info!(experience = %path.display(), "audit triplet sealed");
+
+    Ok(v.exit_code())
+}
+
+async fn cmd_audit_verdict(ledger_path: PathBuf, target: f64) -> Result<i32> {
+    let ledger = load_ledger(&ledger_path).await?;
+    // synthetic real services with one entry per ledger seed,
+    // pretending Railway reality matches the ledger 1:1.
+    let real: Vec<RealService> = ledger
+        .iter()
+        .map(|r| RealService {
+            service_id: ServiceId::from(format!("ledger-seed-{}", r.seed)),
+            name: format!("trios-train-seed-{}", r.seed),
+            seed: Some(r.seed),
+            last_log_excerpt: None,
+            last_bpb: Some(r.bpb),
+            image_digest: None,
+        })
+        .collect();
+    let events = detect(&real, &ledger);
+    let v = compute_verdict(&real, &events, target);
+    println!(
+        "verdict: {}  (rows={}, target={target}, exit={})",
+        match v {
+            AuditVerdict::Gate2Pass => "GATE-2 PASS",
+            AuditVerdict::NotYet => "NOT YET",
+            AuditVerdict::Drift => "DRIFT",
+        },
+        ledger.len(),
+        v.exit_code()
+    );
+    Ok(v.exit_code())
 }
 
 fn parse_var(s: &str) -> Result<(String, String)> {
