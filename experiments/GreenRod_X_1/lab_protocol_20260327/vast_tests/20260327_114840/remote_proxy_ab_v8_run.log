@@ -1,0 +1,109 @@
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+TORCH_READY 2.4.1+cu124 12.4 True 1
+logs/proxyab8_control_s1337_20260327_174331.txt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py", line 1890, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py", line 1423, in main
+[rank0]:     val_tokens = load_validation_tokens(args.val_files, val_seq_len)
+[rank0]:                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py", line 322, in load_validation_tokens
+[rank0]:     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+[rank0]:                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py", line 322, in <listcomp>
+[rank0]:     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+[rank0]:                         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py", line 406, in load_data_shard
+[rank0]:     raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+[rank0]: ValueError: Shard size mismatch for /workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/mini_data/fineweb_val_000000.bin: expected 124044716 bytes
+[rank0]:[W327 17:43:35.588772971 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+E0327 17:43:36.276000 139504401954624 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 12104) of binary: /opt/conda/bin/python3
+Traceback (most recent call last):
+  File "/opt/conda/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train_gpt_copy.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-27_17:43:36
+  host      : adcff9047ca5
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 12104)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+logs/proxyab8_a_xsa9_s1337_20260327_174331.txt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py", line 1890, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py", line 1423, in main
+[rank0]:     val_tokens = load_validation_tokens(args.val_files, val_seq_len)
+[rank0]:                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py", line 322, in load_validation_tokens
+[rank0]:     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+[rank0]:                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py", line 322, in <listcomp>
+[rank0]:     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+[rank0]:                         ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py", line 406, in load_data_shard
+[rank0]:     raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+[rank0]: ValueError: Shard size mismatch for /workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/mini_data/fineweb_val_000000.bin: expected 124044716 bytes
+[rank0]:[W327 17:43:40.322224731 ProcessGroupNCCL.cpp:1168] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+E0327 17:43:41.078000 125768159582016 torch/distributed/elastic/multiprocessing/api.py:833] failed (exitcode: 1) local_rank: 0 (pid: 12381) of binary: /opt/conda/bin/python3
+Traceback (most recent call last):
+  File "/opt/conda/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 348, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 133, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train_gpt_copy.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-27_17:43:41
+  host      : adcff9047ca5
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 12381)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+arm	seed	cap_step	cap_val_bpb	run_dir	log
+control	1337	-	-	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/control_s1337/train.log
+a_xsa9	1337	-	-	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337	/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331/runs/a_xsa9_s1337/train.log
+Mini-data A/B (val_bpb proxy)
+No valid candidate data. PROMOTE: none
+PROXY_ROOT=/workspace/parameter-golf-lab/experiments/GreenRod_X_1/lab_protocol_20260327/vast_tests/20260327_114840/proxy_ab_v8_20260327_174331

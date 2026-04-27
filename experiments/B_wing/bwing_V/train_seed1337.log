@@ -1,0 +1,119 @@
+============================================
+  B-WING V — 9-Prime + Cubric 3D + Fixed Mults
+  Seed: 1337
+  Fixed mults -> cubric refinement -> clip 0.95
+  CHANGE: 9 primes + cubric ON (stacked, not either/or)
+============================================
+W0326 06:58:22.607000 59027 torch/distributed/run.py:803]
+W0326 06:58:22.607000 59027 torch/distributed/run.py:803] *****************************************
+W0326 06:58:22.607000 59027 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0326 06:58:22.607000 59027 torch/distributed/run.py:803] *****************************************
+logs/b2c56a2a-8e7b-49e8-a985-468fc98b29d8.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+complementary_training:alpha=0.5
+model_params:26928220
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:leaky_relu_sq mlp_leaky_slope:0.5
+XSA:last_4 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0
+seed:1337
+ngram_eval:order=9 alpha=0.3 min_count=2 buckets=8388608
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9317 val_bpb:4.1054 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9343 train_time:148ms step_avg:147.99ms
+step:2/20000 train_loss:8.6212 train_time:230ms step_avg:114.83ms
+step:3/20000 train_loss:7.8208 train_time:316ms step_avg:105.45ms
+step:4/20000 train_loss:7.1065 train_time:403ms step_avg:100.64ms
+step:5/20000 train_loss:6.8531 train_time:489ms step_avg:97.72ms
+step:6/20000 train_loss:6.7963 train_time:574ms step_avg:95.68ms
+step:7/20000 train_loss:6.6788 train_time:660ms step_avg:94.27ms
+step:8/20000 train_loss:6.5597 train_time:746ms step_avg:93.20ms
+step:9/20000 train_loss:6.2556 train_time:831ms step_avg:92.35ms
+step:10/20000 train_loss:5.9364 train_time:917ms step_avg:91.68ms
+step:1000/20000 train_loss:2.2389 train_time:87831ms step_avg:87.83ms
+step:2000/20000 train_loss:2.0275 train_time:175846ms step_avg:87.92ms
+step:3000/20000 train_loss:2.1272 train_time:263855ms step_avg:87.95ms
+step:4000/20000 train_loss:1.9376 train_time:351781ms step_avg:87.95ms
+step:5000/20000 train_loss:2.0655 train_time:439690ms step_avg:87.94ms
+late_qat:enabled step:5074 scale:0.4998
+step:6000/20000 train_loss:1.9050 train_time:527550ms step_avg:87.93ms
+swa:start step:6200
+step:6822/20000 val_loss:1.9220 val_bpb:1.1383 train_time:600085ms step_avg:87.96ms
+stopping_early: wallclock_cap train_time:600085ms step:6822/20000
+peak memory allocated: 20677 MiB reserved: 20718 MiB
+gptq:calibrating with training data...
+gptq:calibrated 68 layers in 3.5s
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9204 val_bpb:1.1374 eval_time:2126ms
+Serialized model: 106047497 bytes
+Code size: 105978 bytes
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 15487333 bytes
+Total submission size int6+zstd: 15593311 bytes
+Total submission size int8+zlib: 15593311 bytes
+final_int5_roundtrip val_loss:1.9297 val_bpb:1.1429 eval_time:39444ms
+final_int5_roundtrip_exact val_loss:1.92973725 val_bpb:1.14289909
+final_int5_sliding_window val_loss:1.8898 val_bpb:1.1193 stride:64 eval_time:98943ms
+final_int5_sliding_window_exact val_loss:1.88984081 val_bpb:1.11927314
+final_int8_zlib_roundtrip_exact val_loss:1.88984081 val_bpb:1.11927314
+ngram_eval:chunks=60 chunk_tokens=1048576 windows=969088 shared_tables=True
+ngram_eval:chunk [1/60] bpb=1.128406 t=15s
+ngram_eval:chunk [2/60] bpb=1.212192 t=19s
+ngram_eval:chunk [3/60] bpb=1.236329 t=22s
+cubric3d:step=8 o2:avg=0.93 o3:avg=0.85 o4:avg=0.98 o5:avg=1.05 o6:avg=1.04 o7:avg=1.03 o8:avg=1.05 o9:avg=1.06
+ngram_eval:chunk [11/60] bpb=1.147661 t=51s
+cubric3d:step=16 o2:avg=0.87 o3:avg=0.69 o4:avg=0.99 o5:avg=1.14 o6:avg=1.12 o7:avg=1.13 o8:avg=1.13 o9:avg=1.15
+ngram_eval:chunk [21/60] bpb=0.875098 t=83s
+cubric3d:step=24 o2:avg=0.86 o3:avg=0.62 o4:avg=0.98 o5:avg=1.25 o6:avg=1.25 o7:avg=1.26 o8:avg=1.27 o9:avg=1.26
+ngram_eval:chunk [31/60] bpb=0.694500 t=112s
+cubric3d:step=32 o2:avg=0.86 o3:avg=0.62 o4:avg=0.98 o5:avg=1.28 o6:avg=1.32 o7:avg=1.30 o8:avg=1.30 o9:avg=1.31
+cubric3d:step=40 o2:avg=0.86 o3:avg=0.62 o4:avg=0.98 o5:avg=1.28 o6:avg=1.29 o7:avg=1.29 o8:avg=1.27 o9:avg=1.27
+ngram_eval:chunk [41/60] bpb=0.578262 t=140s
+cubric3d:step=48 o2:avg=0.86 o3:avg=0.62 o4:avg=0.98 o5:avg=1.28 o6:avg=1.29 o7:avg=1.29 o8:avg=1.27 o9:avg=1.26
+ngram_eval:chunk [51/60] bpb=0.503955 t=166s
+cubric3d:step=56 o2:avg=0.86 o3:avg=0.62 o4:avg=0.98 o5:avg=1.28 o6:avg=1.29 o7:avg=1.29 o8:avg=1.29 o9:avg=1.29
+ngram_eval:chunk [60/60] bpb=0.460012 t=199s
+cubric3d:final c_steps=60 cells=9x8=72
+  o2: [0.97 0.89 0.58 1.00 0.94 0.63 1.00 0.97 0.76]
+  o3: [0.63 0.53 0.48 0.63 0.56 0.51 0.67 0.81 0.71]
+  o4: [1.00 0.47 0.47 1.56 0.88 0.53 1.23 1.60 1.09]
+  o5: [0.91 0.48 0.48 2.00 1.70 0.56 1.80 1.97 1.60]
+  o6: [0.88 0.39 0.47 2.00 1.94 0.63 2.00 2.00 1.30]
+  o7: [0.94 0.30 0.44 2.00 2.00 0.71 2.00 2.00 1.27]
+  o8: [1.29 0.30 0.39 2.00 2.00 0.78 2.00 2.00 1.00]
+  o9: [1.37 0.30 0.30 2.00 2.00 0.30 2.00 2.00 1.55]
+final_int5_sliding_window_ngram9 val_loss:0.7769 val_bpb:0.4601 eval_time:205134ms
+final_int5_sliding_window_ngram9_exact val_loss:0.77691499 val_bpb:0.46013404
+============================================
+  DONE
+============================================
