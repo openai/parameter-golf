@@ -7,27 +7,14 @@ from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
 # Download casefold data from HuggingFace if not present
 def setup_casefold_data():
-    import os
-    data_dir = os.environ.get('DATA_DIR', './data/')
-    datasets_dir = os.path.join(data_dir, 'datasets', 'fineweb10B_sp10240_casefold')
-    tokenizer_dir = os.path.join(data_dir, 'tokenizers')
-    tokenizer_path = os.path.join(tokenizer_dir, 'fineweb_10240_casefold_bpe.model')
-    
-    if not os.path.exists(os.path.join(datasets_dir, 'fineweb_train_000000.bin')):
-        print("Downloading casefold data from HuggingFace...")
-        os.makedirs(tokenizer_dir, exist_ok=True)
-        from huggingface_hub import snapshot_download
-        snapshot_download(
-            repo_id="MissGlitterToken/sp10240_casefold",
-            repo_type="dataset",
-            local_dir=datasets_dir
-        )
-        # Copy tokenizer to correct location
-        import shutil
-        src = os.path.join(datasets_dir, 'fineweb_10240_casefold_bpe.model')
-        if os.path.exists(src):
-            shutil.copy(src, tokenizer_path)
-        print("Download complete!")
+    import os,shutil,glob as _g;from huggingface_hub import snapshot_download,hf_hub_download
+    d=os.environ.get('DATA_DIR','./data/');ds=os.path.join(d,'datasets','fineweb10B_sp10240_casefold');td=os.path.join(d,'tokenizers');tp=os.path.join(td,'fineweb_10240_casefold_bpe.model')
+    os.makedirs(td,exist_ok=True);os.makedirs(ds,exist_ok=True)
+    if not os.path.exists(os.path.join(ds,'fineweb_train_000000.bin')) or not _g.glob(os.path.join(ds,'fineweb_val_*.bin')):print('Downloading casefold data...');snapshot_download(repo_id='MissGlitterToken/sp10240_casefold',repo_type='dataset',local_dir=ds)
+    if not os.path.exists(tp):
+        src=os.path.join(ds,'fineweb_10240_casefold_bpe.model')
+        if os.path.exists(src):shutil.copy(src,tp)
+        else:hf_hub_download(repo_id='MissGlitterToken/sp10240_casefold',repo_type='dataset',filename='fineweb_10240_casefold_bpe.model',local_dir=td)
 
 setup_casefold_data()
 
