@@ -1,0 +1,12 @@
+{
+  "name": "nglain",
+  "github_id": "nglain",
+  "val_bpb": 1.2075,
+  "val_bpb_pre_quant": 1.2008,
+  "compressed_bytes": 15200000,
+  "training_seconds": 600,
+  "gpu_config": "8xH100 SXM",
+  "steps_completed": 7390,
+  "seed": 1337,
+  "description": "Systematic hyperparameter search: Muon optimizer tuning (lr=0.02, momentum=0.99, warmdown=3000) + ROPE_BASE=200000 + seq_len=4096. Found through 33 automated experiments across A40, 1xH100, 8xH100 with incremental technique screening."
+}
