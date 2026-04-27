@@ -1,0 +1,19 @@
+{
+    "author": "Agustin Blaumann",
+    "github_id": "blaumannagustin",
+    "name": "Depth Recurrence + TTT + Gradient Checkpointing",
+    "blurb": "Non-record submission exploring depth-recurrent transformers (3 unique blocks x 4 loops = 12 effective layers) with U-Net skip connections, test-time training, SWA, and gradient checkpointing for DDP compatibility. Partial 8xH100 run demonstrated convergence to train_loss 2.45 in 300 steps before being interrupted. Complete 1xH100 test achieved val_bpb 3.50 in 90 seconds with progressive loop training.",
+    "date": "2026-03-25T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": null,
+    "val_bpb": null,
+    "pre_quant_val_loss": 5.7435,
+    "pre_quant_val_bpb": 3.4016,
+    "step_stop": 300,
+    "wallclock_seconds": 536,
+    "bytes_total": null,
+    "bytes_model_int8_zlib": null,
+    "bytes_code": null,
+    "gpu": "8xH100 SXM (partial), 1xH100 SXM (complete)",
+    "notes": "Run interrupted by RunPod spend limit before final eval. 3-run statistical significance pending additional compute credits."
+}
