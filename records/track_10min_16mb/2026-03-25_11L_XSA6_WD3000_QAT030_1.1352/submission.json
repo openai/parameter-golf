@@ -1,0 +1,10 @@
+{
+  "author": "Muhammad Rifqi Haikal",
+  "github_id": "0xNoramiya",
+  "name": "11L XSA6 + Warmdown3000 + QAT@0.30",
+  "blurb": "Extended XSA to 6 layers, shortened warmdown to 3000 iters, raised late QAT threshold to 0.30. Built on SOTA stack (11L, Partial RoPE 16/64, LN Scale, EMA 0.997, GPTQ-lite, int6+zstd-22). Hyperparameters selected via 37 ablation experiments on RTX 4060 Ti.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 1.91677294,
+  "val_bpb": 1.13522391,
+  "bytes_total": 15883805
+}
