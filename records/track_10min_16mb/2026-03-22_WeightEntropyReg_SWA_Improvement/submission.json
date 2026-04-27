@@ -1,0 +1,19 @@
+{
+  "submission_name": "Weight Entropy Regularization: Improved SWA Averaging",
+  "authors": ["Matthew Ramirez"],
+  "track": "track_10min_16mb",
+  "val_bpb": null,
+  "is_sota": false,
+  "description": "Weight entropy regularization (loss += lambda * weight_entropy) has zero effect during normal training but improves SWA averaging by 0.028 BPB at step 8500, with gap still growing. Mechanism: lower-entropy weights are more consistent across checkpoints, making averaging more effective. 5 lines of code, zero extra parameters. Also includes negative results from 15 experiments: depth recurrence, Kronecker attention, skip-gram hash, entropy masking.",
+  "base_submission": "2026-03-20_10L_Int5MLP_MuonWD04_SWA50",
+  "techniques": [
+    "weight entropy regularization (lambda=0.002)",
+    "depth recurrence (3 configs: 3x4, 4x3, 2x6)",
+    "Kronecker-factorized Q/K projections",
+    "skip-gram hash features",
+    "entropy-based token masking (negative result)"
+  ],
+  "hardware": "1xH100 SXM 80GB",
+  "training_shards": 20,
+  "notes": "Entropy reg run interrupted at step 8500 (pod restart). Baseline completed 9717 steps at 1.154 BPB post-quant. Entropy reg at 1.149 pre-quant at step 8500 with ~1200 SWA steps remaining."
+}
