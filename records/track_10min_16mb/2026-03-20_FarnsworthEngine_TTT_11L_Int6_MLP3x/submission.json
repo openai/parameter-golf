@@ -1,0 +1,11 @@
+{
+  "author": "Farnsworth Tech",
+  "github_id": "timowhite88",
+  "name": "FarnsworthEngine v1: TTT + 11L Int6 MLP3x",
+  "blurb": "Test-Time Training (full-weight SGD on val data) stacked on 11L MLP3x Int6 with SmearGate, BigramHash, OrthoInit, Muon WD=0.04, SWA, FA3, NTK-RoPE, FP16 tied embeddings, sliding window eval stride=64.",
+  "date": "2026-03-20",
+  "val_loss": 1.90846763,
+  "val_bpb": 1.13030502,
+  "bytes_total": 15877181,
+  "bytes_code": 68212
+}
