@@ -1,0 +1,69 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "PR1787Base + SmearGate + LQER Asymmetric + PPM-D OMP byte mixture",
+  "blurb": "PR #1787 (nprime06) native base (CaseOps off — canonical SP8192) + SmearGate + LQER asymmetric rank-4 + PPM-D order-4 byte-level mixture (port from PR #1850, native gcc + OpenMP-parallelized C scoring). Strictly score-first byte-by-byte PPM updates after the NN logits are committed. 3-seed mean 1.03220 BPB beats merged SOTA PR #1493 (1.0810) by ~0.05 BPB.",
+  "date": "2026-04-27",
+  "track": "10min_16mb",
+  "val_loss": 0.71547,
+  "val_loss_std": 0.00045,
+  "val_bpb": 1.03220,
+  "val_bpb_std": 0.00064,
+  "seeds": [
+    314,
+    42,
+    1234
+  ],
+  "seed_results": {
+    "314": {
+      "val_loss": 0.71526352,
+      "val_bpb": 1.03190713,
+      "artifact_bytes": 15996077,
+      "steps": 4658,
+      "train_time_s": 596.087,
+      "eval_time_s": 297.9,
+      "post_ema_val_bpb": 1.07320027,
+      "ppm_only_bpb": 2.34028416,
+      "nn_byte_bpb": 1.10051710,
+      "ppm_gate_high_frac": 0.142408
+    },
+    "42": {
+      "val_loss": 0.71516270,
+      "val_bpb": 1.03176168,
+      "artifact_bytes": 15995309,
+      "steps": 4679,
+      "train_time_s": 596.083,
+      "eval_time_s": 124.3,
+      "post_ema_val_bpb": 1.07230567,
+      "ppm_only_bpb": 2.34028416,
+      "nn_byte_bpb": 1.10020163,
+      "ppm_gate_high_frac": 0.142408
+    },
+    "1234": {
+      "val_loss": 0.71597929,
+      "val_bpb": 1.03293977,
+      "artifact_bytes": 15998552,
+      "steps": 4675,
+      "train_time_s": 596.081,
+      "eval_time_s": 131.1,
+      "post_ema_val_bpb": 1.07353641,
+      "ppm_only_bpb": 2.34028416,
+      "nn_byte_bpb": 1.10175641,
+      "ppm_gate_high_frac": 0.142408
+    }
+  },
+  "artifact_bytes_mean": 15996646,
+  "artifact_bytes_max": 15998552,
+  "train_time_s_mean": 596.084,
+  "eval_time_s_mean": 184.4,
+  "hardware": "8xH100 80GB SXM",
+  "base_submission": "PR #1787 (nprime06) + PR #1850 PPM-D mechanism class",
+  "base_val_bpb": 1.0810,
+  "delta_vs_base_bpb": -0.04880,
+  "delta_vs_base_loss_nats": -0.12608,
+  "reproducibility_notes": "Self-contained train_gpt.py uses canonical SP8192 tokenizer (CASEOPS_ENABLED=0). PPM-D native C source is embedded as a string literal inside train_gpt.py and compiled at eval time via subprocess('gcc -O3 -march=native -fopenmp'). Requires gcc with OpenMP support on the eval host. Strictly score-first: NN logits per token are committed BEFORE PPM-D byte-by-byte context table updates (Issue #1017 Condition 3). PPM byte mixture is normalized over the full 256-byte alphabet per byte (Condition 2).",
+  "val_loss_nats_per_byte": 0.71547,
+  "val_loss_nats_per_byte_std": 0.00045,
+  "val_bpb_canonical_bytes_per_token": 3.7266,
+  "bytes_total": 15996646
+}
