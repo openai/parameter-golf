@@ -1,0 +1,25 @@
+{
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "name": "Baseline + EMA + Adaptive Export (Non-Record)",
+  "blurb": "Non-record run built on the strong Int6 MLP3x + SmearGate + BigramHash + Muon baseline, adding late-stage EMA and adaptive export-time pruning search. Final sliding-window roundtrip reaches 1.1725 val_bpb on 2xH100, but the artifact remains 449,881 bytes over the 16MB target.",
+  "date": "2026-03-22T00:00:00Z",
+  "val_loss": 1.97973856,
+  "val_bpb": 1.17251579,
+  "pre_quant_val_loss": 2.0093,
+  "pre_quant_val_bpb": 1.1900,
+  "step_stop": 3807,
+  "wallclock_seconds": 1200.112,
+  "eval_time_seconds": 613.676,
+  "bytes_total": 16399881,
+  "bytes_model_int6_zlib": 16342507,
+  "bytes_code": 57374,
+  "notes": {
+    "track": "non-record",
+    "meets_16mb_budget": false,
+    "budget_over_bytes": 449881,
+    "peak_memory_mib": 17070,
+    "world_size": 2,
+    "grad_accum_steps": 4
+  }
+}
