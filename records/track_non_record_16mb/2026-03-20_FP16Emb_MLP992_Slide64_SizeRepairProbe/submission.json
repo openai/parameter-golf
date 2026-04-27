@@ -1,0 +1,17 @@
+{
+  "author": "Qixuan",
+  "github_id": "THUQiXuan",
+  "name": "FP16 Embed + MLP992 Sliding-Window Size-Repair Probe",
+  "blurb": "Local 8xL20Z non-record probe that combines FP16 tied-embedding export, MLP_HIDDEN=992 size repair, and sliding-window evaluation at stride 64. The run completes cleanly under the 16,000,000-byte cap and is packaged as a bounded research submission draft with TTT intentionally skipped.",
+  "date": "2026-03-20T14:32:12Z",
+  "val_loss": 2.22232137,
+  "val_bpb": 1.31618558,
+  "pre_quant_val_loss": 2.2773,
+  "pre_quant_val_bpb": 1.3488,
+  "step_stop": 1600,
+  "wallclock_seconds": 143.948,
+  "eval_time_seconds": 138.547,
+  "bytes_total": 14424263,
+  "bytes_model_int8_zlib": 14358635,
+  "bytes_code": 65628
+}
