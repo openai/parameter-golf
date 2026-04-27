@@ -96,6 +96,34 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 06:35 EDT · 0060 · 3rd seed of middle-parallel; honest σ update
+
+**0060 (SEED=2024 of 0046)**: val 2.0079. Better than the 2-seed mean (2.01031) suggested.
+
+3-seed family: 0046 (1337) 2.0125, 0050 (42) 2.0081, 0060 (2024) 2.0079.
+- 3-seed mean: **2.00950**
+- 3-seed sample σ: 0.0027
+
+Updated comparison:
+- 0046/0050/0060 (middle-parallel) 3-seed mean: 2.00950 ± σ_mean=0.0016
+- 0051/0053/0056/0057 (triple-parallel) 4-seed mean: 2.00503 ± σ_mean=0.0015
+- Δ: -0.00447 (~2σ at joint precision)
+
+The triple-parallel still wins, but the margin is smaller than the initial 2-seed estimate (was -0.00571, now -0.00447). Honest revision: 2-seed estimates underestimated middle-parallel's actual value. Triple-parallel topology contribution is real but ~0.004 BPB rather than ~0.006.
+
+Updated decomposition stack (the writeup-ready version):
+
+| Component | val_bpb (n-seed) | Δ |
+|---|---|---|
+| Pure-attn 3-of-3 baseline (2-seed) | 2.08759 | (baseline) |
+| Mamba-2 BLOCK at 2-of-3 + BG (0035/0036, 2-seed) | 2.04171 | -0.046 |
+| Kill-Mamba-2 + BG (0038/0039, 2-seed) | 2.02723 | -0.060 |
+| Kill-Mamba-2 + no-BG (0042/0045, 2-seed) | 2.02193 | -0.066 |
+| Middle-parallel (3-seed mean) | 2.00950 | -0.078 |
+| **Triple-parallel (4-seed mean)** | **2.00503** | **-0.0826** |
+
+The story holds. Final number: -0.0826 BPB headline Δ.
+
 ## 2026-04-27 06:55 EDT · 0059 · final session checkpoint, pure-attn baseline 2-seed confirmed
 
 **0059 (SEED=42 of 0058)**: val 2.0877. 2-seed pure-attn baseline mean = **2.08759** (cross-seed Δ 0.0002, extremely tight).
