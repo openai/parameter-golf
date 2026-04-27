@@ -1,0 +1,12 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-20",
+  "name": "Competitive Stack",
+  "author": "Naledi",
+  "github_id": "nalediym",
+  "blurb": "Combined int6 STE QAT, BigramHash, SmearGate, OrthoInit, MLP 3x with tuned hyperparameters. 4xH100 SXM, 3509 steps. Model over 16MB with int8 export — needs int6 export.",
+  "val_loss": 2.03540926,
+  "val_bpb": 1.20548721,
+  "hardware": "4xH100 SXM",
+  "steps": 3509
+}
