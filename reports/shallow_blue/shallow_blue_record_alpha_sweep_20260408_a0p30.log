@@ -1,0 +1,5 @@
+final_int8_zlib_roundtrip_exact val_loss:2.07145173 val_bpb:1.22683039 eval_time:5743ms
+final_shallow_blue_eval docs:50000 positions:61921846 bytes:151022576 baseline_bpb:1.20567221 eval_time:267403ms
+final_shallow_blue_safe delta_bpb:-0.00220686 mixed_bpb:1.20346535 bits_saved:333285.58
+final_shallow_blue_probe delta_bpb:-0.00619109 mixed_bpb:1.19948112 bits_saved:934994.00 mean_alpha:0.124339 alpha_rows:11913994 boosted_rows:3542710 ngram_emitted:11913994 repeat_emitted:3493754
+final_shallow_blue_probe_exact val_bpb:1.19948112 delta_bpb:-0.00619109 elapsed_seconds:267.340
