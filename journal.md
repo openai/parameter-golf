@@ -96,6 +96,25 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 07:25 EDT · 0062 · OUTSIDE-EYES catch #2 — conv1d-as-BG-replacement hypothesis REFUTED
+
+**Setup**: outside-eyes flagged sharp prediction — if conv1d does BG's recall job, removing conv1d should leave BG's niche unfilled, so re-adding BG should HELP. 0062 = no-conv1d + BG (vs 0047 no-conv1d + no-BG val 2.1132).
+
+**Result**: val 2.1225. **BG SLIGHTLY HURTS even when conv1d is removed** (Δ +0.009 vs 0047).
+
+**Refinement of mechanism story**: conv1d's role is more specific than "recall mechanism." BG (xor-hashed bigram embeddings added to token embedding) and conv1d (depthwise width-4 causal conv on x_branch) do DIFFERENT things:
+- BG: token-level n-gram lookup, applied at embedding stage.
+- Conv1d: feature-level local-pattern computation in the SSM block's input branch, applied per-block.
+- They're NOT interchangeable. Removing conv1d removes a Mamba-2-specific feature-level operation that BG (operating at the token-embedding level) cannot substitute.
+
+**Updated journal narrative for "conv1d is THE recall organ"** (was 0047 entry):
+- More accurate: "conv1d is a load-bearing component of Mamba-2's recall pipeline. It provides feature-level local-pattern recognition that downstream LTI scan aggregates. BG provides token-level bigram lookup at a different stage. They're complementary in S4D-Lin (where BG helps because conv1d is absent) but redundant-with-overhead in Mamba-2 (where BG slightly hurts because conv1d already does similar work at a different abstraction)."
+- Even more nuanced after 0062: BG doesn't substitute for conv1d when conv1d is removed. Recall mechanism asymmetry across SSM families is real and conv1d ≠ BG.
+
+This is exactly the kind of honest refinement that strengthens the writeup — outside-eyes flagged it, sharp test resolved it directionally opposite to the simple hypothesis. Conv1d's role IS load-bearing (per 0047) but its mechanism is NOT "BG-equivalent local lookup."
+
+**Speculative finer interpretation**: conv1d's depthwise structure (per-channel kernels) means it learns CHANNEL-SPECIFIC local patterns, whereas BG provides a GLOBAL bigram-vocabulary signal. The channel-specific local-pattern function is what's load-bearing for Mamba-2's recall. BG can't replicate it because BG is one global signal added to all tokens uniformly (per channel via the BIGRAM_DIM lookup, but globally per-token-pair, not per-channel-context).
+
 ## 2026-04-27 07:00 EDT · 0061 · OUTSIDE-EYES catch resolved — outer-parallel is NOT the actual best
 
 **Setup**: outside-eyes review at 06:30 flagged that 0054 (outer-parallel single-seed val 2.0034) was *ahead* of 0051 family 4-seed mean 2.00503 — but never seed-confirmed. Possible the actual session-best was outer-parallel, not triple-parallel.
