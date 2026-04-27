@@ -844,9 +844,18 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-    grad_accum_steps = 8 // world_size
+    if "GRAD_ACCUM_STEPS" in os.environ:
+        # Manual override: lets single-GPU users bypass the 8//world_size formula.
+        # The default formula is designed for 8-GPU runs (each GPU gets grad_accum=1).
+        # On 1 GPU it gives grad_accum=8, forcing 8 tiny microsteps that leave the
+        # H100 87% idle. Set GRAD_ACCUM_STEPS=1 to use the full batch in one pass.
+        grad_accum_steps = int(os.environ["GRAD_ACCUM_STEPS"])
+        if grad_accum_steps < 1:
+            raise ValueError(f"GRAD_ACCUM_STEPS must be >= 1, got {grad_accum_steps}")
+    else:
+        if 8 % world_size != 0:
+            raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+        grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
