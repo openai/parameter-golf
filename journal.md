@@ -3,7 +3,7 @@
 ## Current threads
 
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
-- **Current best (PROMOTED 2026-04-27 02:55, 2-seed CONFIRMED)**: exp 0051/0053 2-seed mean **val_bpb 2.00460** (cross-seed σ_pair=0.0029) — TRIPLE-PARALLEL topology (every K=3 unique block is PARALLEL ATTN || kill-Mamba-2). Δ vs 0046/0050 (middle-parallel only) mean 2.01031 = -0.00571 (judgment threshold; direction held across seeds). Δ vs transformer-best 2.0869 = **-0.082 BPB**. Path: `winners/2026-04-27_triple_parallel_kill_mamba2_no_bigram_recur3x3/`. Step time 8.17 s/step. Artifact 15.18 MB (cap-tight). [transfer:high]
+- **Current best (PROMOTED 2026-04-27 06:00, 4-seed SENTINEL CONFIRMED)**: exp 0051/0053/0056/0057 **4-seed mean val_bpb 2.00503** (sample σ=0.0030, σ_mean=0.0015) — TRIPLE-PARALLEL topology (every K=3 unique block is PARALLEL ATTN || kill-Mamba-2). Δ vs 0046/0050 (middle-parallel only) mean 2.01031 = -0.00528 (~3.5σ at 4-seed precision). Δ vs transformer-best 2.0869 = **-0.082 BPB**. Path: `winners/2026-04-27_triple_parallel_kill_mamba2_no_bigram_recur3x3/`. Step time 8.17 s/step. Artifact 15.18 MB (cap-tight). Family σ stable at 0.003 across n=2,3,4 — no 0024-style widening. [transfer:high]
 - **Superseded** (kept for trace):
   - 0046/0050 (cross-class middle-parallel + kill-Mamba-2): 2-seed mean 2.01031. `winners/2026-04-27_kill_mamba2_middle_parallel_no_bigram_recur3x3_swiglu_mlp8/`. Triple-parallel (0051/0053) wins by -0.0057 at 2-seed precision.
   - 0042/0045 (kill-Mamba-2 + no-BG): 2-seed mean 2.02193. `winners/2026-04-27_kill_mamba2_no_bigram_2of3_recur3x3_swiglu_mlp8/`. Cross-class middle-parallel hybrid (0046) wins by -0.0094.
@@ -95,6 +95,32 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 
 ## Entries (newest first)
+
+## 2026-04-27 06:00 EDT · 4-seed sentinel of new winner — σ_mean=0.0015, family stable
+
+**Question** (per user "4-seed sentinel before final promote"): tighten the σ point estimate for the 0051 triple-parallel family. 2-seed σ_pair was 0.0029; need to see if 0024-style σ-widening occurs.
+
+**Setup**: 0056 (SEED=2024) and 0057 (SEED=31337) on the 0051 base, env-var-only forks.
+
+**Result**: 4-seed sample of 0051 family complete.
+
+| Seed | val_bpb |
+|---|---|
+| 1337 (0051) | 2.00170 |
+| 42 (0053) | 2.00750 |
+| 2024 (0056) | 2.00322 |
+| 31337 (0057) | 2.00770 |
+| **4-seed mean** | **2.00503** |
+| 4-seed sample σ | 0.0030 |
+| σ_mean (n=4) | 0.0015 |
+
+vs 0046/0050 (middle-parallel) 2-seed mean 2.01031: Δ = **-0.00528 BPB**, ~3.5σ at 4-seed precision.
+
+vs transformer-best 2.0869: Δ = **-0.082 BPB**.
+
+**Family σ remains stable** at 0.003 across n=2 (σ_pair=0.0029), n=3 (sample σ=0.0030), n=4 (sample σ=0.0030). No 0024-style σ-widening with the 4th seed (which was the seed that broke the BigramHash family at SEED=31337). The triple-parallel family is robust.
+
+**Conclusion**: 0051 family promote stands at 4-seed precision. **2.00503 is the formal SSM-best for this session.**
 
 ## 2026-04-27 04:55 EDT · session-wrap summary (overnight session, 8.5+ hours autonomous)
 

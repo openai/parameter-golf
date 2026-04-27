@@ -1,0 +1,26 @@
+{
+  "id": "0056_0056_triple_parallel_seed2024",
+  "parent": "0051_triple_parallel",
+  "created_at": "2026-04-27T08:26:20Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0009,
+    "val_bpb_post_quant": 2.00321874,
+    "val_loss_pre_quant": 3.4197,
+    "val_loss_post_quant": 3.42376378,
+    "quant_tax": 0.002319,
+    "step_avg_ms": 8169.24,
+    "num_steps": 200.0,
+    "artifact_bytes": 15191134.0,
+    "artifact_mb": 15.191,
+    "code_bytes": 78381.0,
+    "compression_ratio": 3.94
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
