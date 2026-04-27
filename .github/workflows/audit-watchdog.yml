@@ -42,7 +42,12 @@ jobs:
       ACC2_PROJECT:          ${{ secrets.RAILWAY_PROJECT_ACC2_TE }}
       RAILWAY_TOKEN_AUTH:    team
       RUST_LOG:              info
-      GH_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+      # Cross-repo writes: prefer the user-provided fine-grained PAT
+      # (TRIOS_REPO_PAT, scoped issues:write on gHashTag/trios). Fall back
+      # to the workflow's GITHUB_TOKEN, which can only post to the current
+      # repo. The comment / close steps are guarded with `if:` so missing
+      # PAT yields a green run with a clear log line, not a failure.
+      GH_TOKEN:              ${{ secrets.TRIOS_REPO_PAT || secrets.GITHUB_TOKEN }}
       TRIOS_REPO:            gHashTag/trios
       ISSUE:                 "143"
 
@@ -157,11 +162,21 @@ jobs:
           cat /tmp/comment.md
 
       - name: Comment on trios#143
-        if: ${{ inputs.skip_comment != 'true' }}
+        if: ${{ inputs.skip_comment != 'true' && env.HAS_PAT == 'true' }}
+        env:
+          HAS_PAT: ${{ secrets.TRIOS_REPO_PAT != '' }}
         run: gh issue comment "$ISSUE" --repo "$TRIOS_REPO" --body-file /tmp/comment.md
 
+      - name: Skip comment (no cross-repo PAT)
+        if: ${{ inputs.skip_comment != 'true' && secrets.TRIOS_REPO_PAT == '' }}
+        run: |
+          echo '::warning::TRIOS_REPO_PAT not set; cannot post to gHashTag/trios#143.'
+          echo '::warning::Add a fine-grained PAT with issues:write on gHashTag/trios as TRIOS_REPO_PAT.'
+          echo '----- comment that would have been posted -----'
+          cat /tmp/comment.md
+
       - name: Close #143 on GATE-2 PASS
-        if: ${{ steps.digest.outputs.combined == '0' && inputs.skip_comment != 'true' }}
+        if: ${{ steps.digest.outputs.combined == '0' && inputs.skip_comment != 'true' && secrets.TRIOS_REPO_PAT != '' }}
         run: |
           gh issue close "$ISSUE" --repo "$TRIOS_REPO" \
               --reason completed \
