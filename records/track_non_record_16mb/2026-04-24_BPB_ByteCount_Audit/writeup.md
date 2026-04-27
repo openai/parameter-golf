@@ -240,17 +240,22 @@ Verbatim from the PR #1734 closure comment by **yahya010**, 2026-04-19:
 > val_bpb=1.0108 corresponds to canonical val_bpb≈1.1873..."
 
 yahya010's quoted ratio (1.1746) was computed against his own #1734 LUT,
-which has two byte-counting differences from the #1727-style LUT: byte
-tokens are sized by `len("<0xXX>".encode("utf-8"))` (6 bytes) rather than
-1, and `sp.is_unused` tokens are not treated as boundary. Our tool's
-three `--scoring-mode` variants converge to 1.1671 on SP8192 fineweb val
-when applied to the #1727-style LUT shape; running yahya's LUT directly
-against the same val stream gives 1.1770 — within 0.2% of the quoted
-1.1746. Both characterizations describe the same underlying defect
-(leading-space bytes baked into the LUT and re-added at eval); the
-numerical correction to any particular PR depends on which flavour of
-LUT that PR uses. Full analysis in `audit/methodology.md` §4, and the
-per-property detection design in §5.
+which has two additional byte-counting differences from the #1727-style
+LUT: byte tokens are sized by `len("<0xXX>".encode("utf-8"))` (6 bytes)
+rather than 1, and `sp.is_unused` tokens are not treated as boundary.
+Our tool's three `--scoring-mode` variants converge to 1.1671 on SP8192
+fineweb val when applied to the #1727-style LUT shape. Running yahya's
+exact LUT (lines 206-219 of `train_gdn_7k.py`) against the same val
+stream and applying the same canonical/buggy formulation as the audit
+tool gives **1.1655**, not the quoted 1.1746. The 0.77% gap is in the
+opposite direction from what canonical-vs-buggy alone would predict and
+cannot be closed without yahya's exact `eval_val_sliding` pipeline,
+which we have not reverse-engineered. Both reported numbers describe
+the same underlying defect (leading-space bytes baked into the LUT and
+re-added at eval); the residual numerical disagreement remains
+unresolved. Full analysis and the empirical reproduction in
+`empirical_validation/run3_summary.md`. Methodology in `methodology.md`
+4, per-property detection design in §5.
 
 This audit extends yahya010's finding by:
 

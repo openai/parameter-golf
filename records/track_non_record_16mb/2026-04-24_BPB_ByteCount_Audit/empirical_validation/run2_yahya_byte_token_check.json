@@ -1,0 +1,21 @@
+{
+  "n_byte_tokens_in_vocab": 256,
+  "yahya_byte_count_distribution": {
+    "6": 256
+  },
+  "canonical_byte_count_distribution": {
+    "1": 256
+  },
+  "yahya_total_byte_token_bytes_vocab": 1536,
+  "canonical_total_byte_token_bytes_vocab": 256,
+  "n_byte_tokens_in_val": 269220,
+  "yahya_byte_token_contribution_in_val": 1615320,
+  "canonical_byte_token_contribution_in_val": 269220,
+  "delta_bytes_in_val": 1346100,
+  "verdict": "BUG_PRESENT",
+  "verdict_reasoning": "Yahya's code lacks an sp.is_byte branch. Byte tokens fall through to base_bytes[i] = len(piece.encode('utf-8')). For byte pieces of form '<0xNN>', that gives 6 (or similar). Canonical assigns 1. Across 256 byte tokens in vocab, yahya assigns 1536 bytes vs canonical 256. In val, byte tokens contribute 1,346,100 extra bytes to the canonical numerator.",
+  "yahya_code_snippet": "def build_sentencepiece_luts(sp, vocab_size, device):\n    base_bytes = torch.zeros(...)\n    for i in range(vocab_size):\n        piece = sp.id_to_piece(i)\n        raw = piece.encode('utf-8')\n        base_bytes[i] = len(raw)            # NO sp.is_byte branch -> bytes get utf-8 length of literal\n        if piece.startswith('\u2581'):\n            has_space[i] = True\n            base_bytes[i] = len(piece[1:].encode('utf-8')) + 1   # +1 bug\n        if sp.is_control(i) or sp.is_unknown(i):\n            is_boundary[i] = True            # missing sp.is_unused\n",
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+  "timestamp_utc": "2026-04-27T10:25:02.137436+00:00"
+}

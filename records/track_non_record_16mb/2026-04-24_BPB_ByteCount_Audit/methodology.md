@@ -170,11 +170,24 @@ above converge to 1.1671 on the same val data. The residual 0.75% gap is
   only `sp.is_control | sp.is_unknown`, so any `is_unused` tokens in val
   (or as predecessors) are scored normally.
 
-Running yahya's exact LUT against the same val stream gives
-`buggy = 177,828,845`, `canonical (sp.decode_ids-based) = 151,080,866`,
-ratio = 1.1770 — still 0.2% above the quoted 1.1746 but materially closer.
-The remaining residual is plausibly a rounding / val-shard-variant
-difference that we cannot resolve without the exact val shard yahya used.
+Running yahya's exact LUT (lines 206-219 of his `train_gdn_7k.py`)
+against the same val stream, with the same canonical/buggy formulation
+the audit tool applies, gives:
+`canonical = 152,576,975`, `buggy = 177,828,831`, ratio = **1.1655**
+(sliding-window-boundary-masked; the all-tokens variant gives the same
+ratio to 8 decimal places). This is 0.77% *below* yahya's quoted 1.1746,
+in the opposite direction one would expect if his quote were a clean
+buggy-vs-canonical computation on the same data. The byte-token bug in
+his LUT inflates his canonical denominator by 1,346,100 bytes relative
+to the #1727 LUT, which decreases the ratio rather than increasing it.
+
+The discrepancy between yahya's quoted 1.1746 and our reproduction's
+1.1655 cannot be closed from his code alone on our val. We have not
+reverse-engineered his `eval_val_sliding` to determine whether it
+applies a different scoring-token subset, a different boundary
+treatment, or other normalization. Possible causes (not investigated):
+val-shard variants, alternate stride/seq_len, or hand-quoted estimate.
+Empirical reproduction at `empirical_validation/run3_yahya_full_lut.py`.
 
 ### Which variant should a reviewer cite?
 
