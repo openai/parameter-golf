@@ -1,0 +1,28 @@
+{
+  "author": "Chris McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "11L LeakyReLU PerLayerLR LegalTTT 30ep",
+  "blurb": "11-layer depth-recurrence GPT with LeakyReLU(0.5)² (PR #518), per-layer LR for TTT (mlp.proj 3x, mlp.fc 0.5x, PR #481), intra-chunk cosine LR, VE128 (layers 9-10), Partial RoPE (16/64), legal score-first TTT (30ep SGD, freeze=2). 3-seed mean 1.13936 ± 0.0008. Trained on 4xA100.",
+  "date": "2026-03-23",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.92267394,
+  "val_bpb": 1.13871882,
+  "pre_ttt_val_loss": 1.9533,
+  "pre_ttt_val_bpb": 1.1569,
+  "step_stop": 5200,
+  "wallclock_seconds": 2509,
+  "eval_time_seconds": 3690,
+  "bytes_total": 15357245,
+  "bytes_model_int6_zstd": 15283215,
+  "bytes_code": 74030,
+  "gpu": "4xA100-40GB",
+  "seed": 7,
+  "seeds_tested": 3,
+  "seed_results": {
+    "1337": 1.13912231,
+    "42": 1.14024348,
+    "7": 1.13871882
+  },
+  "seed_mean": 1.13936154,
+  "seed_std": 0.00078
+}
