@@ -1,16 +1,16 @@
-# H-Net Dynamic Chunking — Path B (Attention-Only)
+# H-Net Dynamic Chunking — Attention-Only Variant
 
 *Pair-programmed with Claude (Anthropic). Architecture choices, training runs, and debugging direction are mine. Full attribution at the bottom.*
 
 Non-record submission, **unlimited-compute track** (~100 min on 1×A6000, not the 10-min/8×H100 budget). 
 
-Implements the dynamic-chunking module from H-Net (Hwang, Wang & Gu 2025, arxiv:[2507.07955](https://arxiv.org/abs/2507.07955)) on byte-level FineWeb-Edu, with Mamba-2 layers replaced by pre-norm Transformer blocks so the chunking idea can be evaluated in isolation.
+Implements the dynamic-chunking module from H-Net (Hwang, Wang & Gu 2025, arxiv:[2507.07955](https://arxiv.org/abs/2507.07955)) on byte-level FineWeb-Edu, with Mamba-2 layers replaced by pre-norm Transformer blocks. This evaluates dynamic chunking on a transformer backbone — it does *not* isolate the chunking contribution from Mamba's, since the routing module was co-designed with SSMs in the paper. A proper isolation would need a 2×2 ablation (Mamba ± chunking, Transformer ± chunking).
 
 **Result:** `val_bpb = 1.8838` after 10K steps (reproducible from the included `.ptz`). 16.27M params, 9.49MB compressed (well under 16MB cap).
 
 ## Summary of Choices
 
-1. **Path B (attention-only)** — no Mamba-2; isolates the chunking contribution, removes `mamba_ssm`/Triton dependency.
+1. **Path B (attention-only)** — no Mamba-2; tests dynamic chunking on a transformer backbone, removes `mamba_ssm`/Triton dependency. (Caveat: this is a backbone swap, not a clean ablation — see header.)
 2. **Single-stage chunking** — one routing module, one EMA pass; two-stage left for future work.
 3. **Byte-level vocab (260)** — the whole point of H-Net; pays ~6× token overhead vs BPE-sp1024.
 4. **Identity init for `W_q`/`W_k`** — at step 0 the router is raw cosine similarity of adjacent encoder states. Per goombalab/hnet `dc.py`.
@@ -33,7 +33,7 @@ bytes (B, L) → embed(260→256) → 3× Transformer (d=256, 4 heads)
 Loss: L_AR + 0.03 · L_ratio
 ```
 
-16,273,920 params. Pre-norm blocks throughout. Tied embedding/head. target_ratio = 1/6 (paper's English default).
+16,273,920 params. Pre-norm blocks throughout. Tied embedding/head. `target_ratio = 1/6` is the paper's English default; **not swept here due to compute budget**.
 
 ## Results
 
