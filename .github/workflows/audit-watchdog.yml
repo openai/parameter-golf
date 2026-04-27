@@ -68,17 +68,29 @@ jobs:
           RAILWAY_TOKEN: ${{ env.ACC1_TOKEN }}
         run: |
           set +e
+          # tri-railway prints its text summary AND a single-line JSON
+          # blob (with --json) to stdout, plus tracing-subscriber lines
+          # on stderr. Capture stdout to acc1.txt and stderr to acc1.log;
+          # then extract the JSON line by matching the last line that
+          # starts with '{' (the --json output is guaranteed to be on a
+          # single line ending with '}').
           ./target/release/tri-railway audit run \
               --project "$ACC1_PROJECT" \
               --target "$TARGET" \
               --json \
-              --root . > /tmp/acc1.txt 2>&1
-          echo "exit=$?" >> $GITHUB_OUTPUT
+              --root . > /tmp/acc1.txt 2> /tmp/acc1.log
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo '----- stdout -----'
           cat /tmp/acc1.txt
-          # Last line of stdout from --json is a single JSON object.
-          tail -n 1 /tmp/acc1.txt > /tmp/acc1.json
-          # Surface verdict for the next step.
-          jq -r '.verdict' /tmp/acc1.json >> $GITHUB_OUTPUT 2>/dev/null || true
+          echo '----- stderr (tracing) -----'
+          cat /tmp/acc1.log || true
+          # Pick the last line whose first non-space char is '{' — robust
+          # against text summary above and tracing being merged in.
+          grep -E '^\s*\{' /tmp/acc1.txt | tail -n 1 > /tmp/acc1.json
+          if [[ ! -s /tmp/acc1.json ]]; then
+            echo '{"error":"no JSON line in audit run output","verdict":"DRIFT","exit_code":1,"services":0,"events":[],"ledger_rows":0,"target":'"$TARGET"',"project":"'"$ACC1_PROJECT"'","project_name":"unknown"}' > /tmp/acc1.json
+          fi
+          jq -r '.verdict // "?"' /tmp/acc1.json >> "$GITHUB_OUTPUT" 2>/dev/null || true
 
       - name: Audit Acc2 / IGLA-MIRROR-2
         id: acc2
@@ -90,11 +102,17 @@ jobs:
               --project "$ACC2_PROJECT" \
               --target "$TARGET" \
               --json \
-              --root . > /tmp/acc2.txt 2>&1
-          echo "exit=$?" >> $GITHUB_OUTPUT
+              --root . > /tmp/acc2.txt 2> /tmp/acc2.log
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          echo '----- stdout -----'
           cat /tmp/acc2.txt
-          tail -n 1 /tmp/acc2.txt > /tmp/acc2.json
-          jq -r '.verdict' /tmp/acc2.json >> $GITHUB_OUTPUT 2>/dev/null || true
+          echo '----- stderr (tracing) -----'
+          cat /tmp/acc2.log || true
+          grep -E '^\s*\{' /tmp/acc2.txt | tail -n 1 > /tmp/acc2.json
+          if [[ ! -s /tmp/acc2.json ]]; then
+            echo '{"error":"no JSON line in audit run output","verdict":"DRIFT","exit_code":1,"services":0,"events":[],"ledger_rows":0,"target":'"$TARGET"',"project":"'"$ACC2_PROJECT"'","project_name":"unknown"}' > /tmp/acc2.json
+          fi
+          jq -r '.verdict // "?"' /tmp/acc2.json >> "$GITHUB_OUTPUT" 2>/dev/null || true
 
       - name: Build digest comment
         id: digest
