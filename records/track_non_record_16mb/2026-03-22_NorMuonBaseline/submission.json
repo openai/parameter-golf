@@ -1,0 +1,12 @@
+{
+  "author": "Steven-Shine Chen",
+  "github_id": "stevenshinechen",
+  "name": "NorMuon Baseline (1xH100)",
+  "blurb": "Non-record 1xH100 submission: Replaces Muon optimizer with NorMuon. val_loss=2.274, val_bpb=1.3458 on 1xH100, 10 minutes wall clock.",
+  "date": "2026-03-22T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.2724,
+  "val_bpb": 1.3458,
+  "wallclock_seconds": 600,
+  "gpu": "1xH100"
+}
