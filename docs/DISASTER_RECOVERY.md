@@ -6,7 +6,7 @@ This runbook lets you bring the IGLA training fleet back online **in
 under 15 minutes** after a Railway-account ban, payment lapse, or
 catastrophic project deletion.
 
-## TL;DR — three commands
+## TL;DR — three commands (or one chat sentence)
 
 ```bash
 # 1. Provision new Railway account, generate a fresh Personal API token.
@@ -17,6 +17,15 @@ gh secret set RAILWAY_TOKEN_ACC3 --repo gHashTag/trios-railway     # paste token
 # 3. Migrate the audit ledger schema (idempotent).
 ./target/release/tri-railway audit migrate-sql | psql "$NEON_DATABASE_URL"
 ```
+
+Or if `trios-railway-mcp` is reachable from your chat:
+
+```
+“восстанови флот на acc3, подтверждаю PHI”
+```
+
+The agent calls `railway_dr_restore` (path D below) and reports back
+when all 6 services are live.
 
 You are back online.
 
@@ -37,8 +46,9 @@ You are back online.
 
 ## Trigger paths
 
-You have **three** ways to recover. Use whichever is fastest given the
-state of your access.
+You have **four** ways to recover. Use whichever is fastest given the
+state of your access (chat → web → CI → shell, in increasing operator
+friction).
 
 ### A. Railway template button (web UI · ~5 min)
 
@@ -83,6 +93,62 @@ gh workflow run deploy-from-template.yml --repo gHashTag/trios-railway --ref mai
 The workflow reads `railway-template.json`, calls Railway GraphQL to
 create one project + N services, and writes the new IDs back to
 `disaster-recovery/last-restore.json`.
+
+### D. MCP chat (one sentence to any agent, ~5 min including build)
+
+The `trios-railway-mcp` server (deployed at `trios-mcp-public`) exposes
+two disaster-recovery tools that drive paths A–C above without you
+having to leave the chat or open the GitHub UI:
+
+| MCP tool                       | Effect                                                                                                                                |
+|--------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `railway_dr_snapshot`          | Triggers `fleet-snapshot.yml`, polls until completion, returns the diff of `disaster-recovery/fleet-snapshot.json` between two SHAs.  |
+| `railway_dr_restore`           | Triggers `deploy-from-template.yml` with the chosen `target_account` and `confirm: "PHI"`. Streams workflow logs back through MCP.    |
+
+In natural-language form (any MCP-aware client, e.g. the
+`trios-perplexity` endpoint):
+
+```
+operator: "сделай snapshot флота"
+agent:    → calls railway_dr_snapshot
+          ← returns { services: 29, drift: [...], run_id, commit_sha, html_url }
+
+operator: "восстанови флот на acc3, подтверждаю PHI"
+agent:    → calls railway_dr_restore { target_account: "acc3", confirm: "PHI" }
+          ← returns { deployed_services: […], template_url, run_id, html_url }
+```
+
+#### Safety invariants enforced server-side
+
+1. **`confirm` must equal exactly `"PHI"`** — any other string returns
+   `ToolError::SafetyGate` immediately, no fallback.
+2. **`target_account: "acc1"` is rejected.** DR may target `acc2` or
+   `acc3` only — prevents accidentally redeploying over the live IGLA
+   project. The error message tells you to use the dedicated
+   `railway_service_*` tools if a single-service redeploy on `acc1` is
+   what you actually wanted.
+3. **`TRIOS_REPO_PAT` must be set** in the MCP server's environment.
+   When missing, both tools fail fast with a one-line error pointing at
+   <https://github.com/settings/personal-access-tokens> and the
+   required scope (`actions:write` on `gHashTag/trios-railway`).
+4. **600-second hard timeout** on workflow polling. If a cold cargo
+   build pushes past 10 minutes, the tool returns `ToolError::Timeout`
+   with the live `run_id` so you can keep watching it on the GitHub
+   Actions UI without re-running.
+5. **Every successful tool call seals an R7 triplet** to
+   `.trinity/experience/<YYYYMMDD>.trinity` via the existing experience
+   writer, identical to the `railway_service_deploy` audit trail.
+
+#### Why path D is path D, not path A
+
+Chat is the lowest-friction entry point but also the easiest place to
+fat-finger a destructive command. The safety invariants above
+(especially `confirm == "PHI"` and the `acc1` block) make path D safe
+enough for production; the explicit ordering A→B→C→D in this runbook
+reflects "how much agency you give to the agent", not "speed". For an
+unattended rebuild after a 3 AM ban, you would script path B or C; for
+a quick recovery while you are already chatting with the agent, path D
+is identical in outcome and faster in wall-clock time.
 
 ## Required secrets for full recovery
 

@@ -11,6 +11,7 @@ repo. **Three trigger paths**, all documented in
 1. **Web button (above)** — published from [`railway-template.json`](railway-template.json). Provisions all 6 control-plane services (1 MCP + 3 champion seeds + dwagent + Neon backup-to-R2 sidecar).
 2. **GitHub Actions** — `Actions → DR Deploy from template → account_alias=accN, confirm=PHI`. Workflow: [`deploy-from-template.yml`](.github/workflows/deploy-from-template.yml).
 3. **CLI** — `tri-railway service deploy …` for each service in [`disaster-recovery/fleet-snapshot.json`](disaster-recovery/fleet-snapshot.json) (refreshed hourly by [`fleet-snapshot.yml`](.github/workflows/fleet-snapshot.yml)).
+4. **MCP chat** — say “восстанови флот на acc3, подтверждаю PHI” to any client connected to the `trios-railway-mcp` server. Tools: `railway_dr_snapshot`, `railway_dr_restore` (issue [#17](https://github.com/gHashTag/trios-railway/issues/17)).
 
 Fleet shape, audit ledger, and champion BPB rows survive any single-account ban
 — see the survives-table in [`docs/DISASTER_RECOVERY.md`](docs/DISASTER_RECOVERY.md).
