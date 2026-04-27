@@ -1,0 +1,11 @@
+{
+  "author": "Claude Haiku Autonomous Research",
+  "github_id": "parameter-golf-autoresearch",
+  "name": "Batch Optimization + MLP4 + RoPE100k",
+  "blurb": "Optimized training through: (1) batch size reduction 196k→98k enabling more steps within 600s window (+13.7%), (2) MLP multiplier increase 2→4 for wider FFN layers (+0.47%), (3) learning rate tuning matrix/scalar 0.04→0.035 (-0.32%), (4) warmdown schedule optimization 800→600 iters (+0.31%), (5) RoPE base adjustment 10k→100k for better positional encoding (+0.13%). Total improvement: 16.9% from 1.781→1.478 bpb.",
+  "date": "2026-03-22T05:46:00Z",
+  "val_loss": 2.49629198,
+  "val_bpb": 1.47844472,
+  "bytes_total": 8626187,
+  "bytes_code": 48069
+}
