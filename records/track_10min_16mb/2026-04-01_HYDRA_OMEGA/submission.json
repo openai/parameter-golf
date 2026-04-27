@@ -1,0 +1,6 @@
+{
+  "name": "HYDRA-OMEGA",
+  "description": "SLOT + GPTQ + TTT based parameter-efficient model",
+  "status": "work-in-progress",
+  "notes": "Training pending compute availability"
+}
