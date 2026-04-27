@@ -1,0 +1,18 @@
+{
+  "name": "11L XSA + TrigramHash + ValueResidual + GradQuant + TTT",
+  "author": "sunnypatneedi",
+  "date": "2026-03-22",
+  "track": "10min_16mb",
+  "base_prs": [486, 503],
+  "techniques": [
+    "XSA (all 11 layers)",
+    "TrigramHash(4096)",
+    "ValueResidual (ResFormer)",
+    "GradQuant (adaptive Int5/6/7)",
+    "AdamW TTT (30 epochs, cosine, per-layer LR)",
+    "Partial RoPE (16/64)",
+    "LN Scale (1/sqrt(layer+1))",
+    "EMA (0.997) + SWA (every 50)",
+    "SmearGate + BigramHash(4096)"
+  ]
+}
