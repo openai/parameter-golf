@@ -3,7 +3,43 @@
     {
       "name": "sp_bpe_1024",
       "dataset_suffix": "sp1024",
-      "vocab_size": 1024
+      "vocab_size": 1024,
+      "tokenizer_kind": "sentencepiece_bpe",
+      "model_path": "tokenizers/fineweb_1024_bpe.model",
+      "dataset_path": "datasets/fineweb10B_sp1024"
+    },
+    {
+      "name": "sp_bpe_8192",
+      "dataset_suffix": "sp8192",
+      "vocab_size": 8192,
+      "tokenizer_kind": "sentencepiece_bpe",
+      "model_path": "tokenizers/fineweb_8192_bpe.model",
+      "dataset_path": "datasets/fineweb10B_sp8192",
+      "notes": [
+        "Stable mainline tokenizer target."
+      ]
+    },
+    {
+      "name": "sp_bpe_7680",
+      "dataset_suffix": "sp7680",
+      "vocab_size": 7680,
+      "tokenizer_kind": "sentencepiece_bpe",
+      "model_path": "tokenizers/fineweb_7680_bpe.model",
+      "dataset_path": "datasets/fineweb10B_sp7680",
+      "notes": [
+        "Stable reduced-vocab experiment lane."
+      ]
+    },
+    {
+      "name": "sp_bpe_7168",
+      "dataset_suffix": "sp7168",
+      "vocab_size": 7168,
+      "tokenizer_kind": "sentencepiece_bpe",
+      "model_path": "tokenizers/fineweb_7168_bpe.model",
+      "dataset_path": "datasets/fineweb10B_sp7168",
+      "notes": [
+        "Stable reduced-vocab experiment lane."
+      ]
     }
   ]
 }

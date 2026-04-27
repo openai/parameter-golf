@@ -52,7 +52,10 @@ class Hyperparameters:
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_max_seqs: int = int(os.environ.get("VAL_MAX_SEQS", "0"))
+    final_val_max_seqs: int = int(os.environ.get("FINAL_VAL_MAX_SEQS", os.environ.get("VAL_MAX_SEQS", "0")))
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+    summary_every: int = int(os.environ.get("SUMMARY_EVERY", "0"))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
     train_seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", os.environ.get("TRAIN_MAX_SEQ_LEN", 1024)))
@@ -66,6 +69,8 @@ class Hyperparameters:
     warmup_steps: int = int(os.environ.get("WARMUP_STEPS", 20))
     warmdown_iters: int = int(os.environ.get("WARMDOWN_ITERS", 1200))
     max_wallclock_seconds: float = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    checkpoint_every: int = int(os.environ.get("CHECKPOINT_EVERY", "0"))
+    final_quant_eval: bool = bool(int(os.environ.get("FINAL_QUANT_EVAL", "1")))
 
     # Model (defaults match the current baseline setup).
     vocab_size: int = int(os.environ.get("VOCAB_SIZE", 1024))
@@ -95,6 +100,9 @@ class Hyperparameters:
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
+    summary_path: str = os.environ.get("SUMMARY_PATH", "")
+    checkpoint_path: str = os.environ.get("CHECKPOINT_PATH", "")
+    resume_from: str = os.environ.get("RESUME_FROM", "")
 
     @property
     def train_files(self) -> str:
@@ -118,6 +126,25 @@ class Hyperparameters:
         warmdown_ms = self.warmdown_iters * step_ms
         remaining_ms = max(1000.0 * self.max_wallclock_seconds - elapsed_ms, 0.0)
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+
+def atomic_pickle_dump(obj: object, path: Path) -> None:
+    tmp_path = path.with_name(path.name + ".tmp")
+    with tmp_path.open("wb") as f:
+        pickle.dump(obj, f, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(tmp_path, path)
+
+
+def atomic_json_dump(obj: dict[str, object], path: Path) -> None:
+    tmp_path = path.with_name(path.name + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp_path, path)
+
+
+def copy_mx_random_state() -> list[mx.array]:
+    return [mx.array(x) for x in mx.random.state]
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -253,6 +280,19 @@ class TokenStream:
             left -= k
         return chunks[0] if len(chunks) == 1 else np.concatenate(chunks, axis=0)
 
+    def state_dict(self) -> dict[str, int]:
+        return {
+            "epoch": self.epoch,
+            "file_idx": self.file_idx,
+            "pos": self.pos,
+        }
+
+    def load_state_dict(self, state: dict[str, int]) -> None:
+        self.epoch = int(state["epoch"])
+        self.file_idx = int(state["file_idx"])
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = int(state["pos"])
+
 
 class TokenLoader:
     def __init__(
@@ -271,6 +311,12 @@ class TokenLoader:
         x = chunk[:-1].reshape(-1, seq_len)
         y = chunk[1:].reshape(-1, seq_len)
         return mx.array(x, dtype=mx.int32), mx.array(y, dtype=mx.int32)
+
+    def state_dict(self) -> dict[str, int]:
+        return self.stream.state_dict()
+
+    def load_state_dict(self, state: dict[str, int]) -> None:
+        self.stream.load_state_dict(state)
 
 
 # ==============================================================================
@@ -481,6 +527,16 @@ class Muon:
             out[k] = p - lr * (g_ortho * scale).astype(p.dtype)
         return out
 
+    def state_dict(self) -> dict[str, object]:
+        return {
+            "keys": list(self.keys),
+            "buffers": {k: mx.array(v) for k, v in self.buffers.items()},
+        }
+
+    def load_state_dict(self, state: dict[str, object]) -> None:
+        self.keys = list(state["keys"])
+        self.buffers = {k: mx.array(v) for k, v in dict(state["buffers"]).items()}
+
 
 class SplitOptimizers:
     # - embeddings: Adam with the tied-embedding LR
@@ -537,6 +593,18 @@ class SplitOptimizers:
         updated.update(self.adam_scalar.apply_gradients(scalar_grads, scalar_params))
 
         model.update(tree_unflatten(list(updated.items())))
+
+    def state_dict(self) -> dict[str, object]:
+        return {
+            "muon": self.muon.state_dict(),
+            "adam_embed": self.adam_embed.state,
+            "adam_scalar": self.adam_scalar.state,
+        }
+
+    def load_state_dict(self, state: dict[str, object]) -> None:
+        self.muon.load_state_dict(dict(state["muon"]))
+        self.adam_embed.state = dict(state["adam_embed"])
+        self.adam_scalar.state = dict(state["adam_scalar"])
 
 # ==============================================================================
 # QUANTIZATION (INT8 + ZLIB)
@@ -765,6 +833,7 @@ def eval_val(
     base_bytes_lut: np.ndarray,
     has_leading_space_lut: np.ndarray,
     is_boundary_token_lut: np.ndarray,
+    max_seqs: int | None = None,
     log_fn: Callable[[str], None] | None = None,
 ) -> tuple[float, float]:
     # Validation computes two metrics:
@@ -779,6 +848,8 @@ def eval_val(
         )
     val_batch_seqs = val_batch_tokens // args.train_seq_len
     total_seqs = (val_tokens.size - 1) // args.train_seq_len
+    if max_seqs is not None and max_seqs > 0:
+        total_seqs = min(total_seqs, max_seqs)
     total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
     total_loss_sum = 0.0
     total_tokens = 0.0
@@ -840,6 +911,8 @@ def main() -> None:
     args = Hyperparameters()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = Path(args.summary_path) if args.summary_path else out_dir / "run_summary.json"
+    checkpoint_path = Path(args.checkpoint_path) if args.checkpoint_path else out_dir / "checkpoint_latest.pkl"
     logfile = out_dir / f"{args.run_id}.txt"
     print(logfile)
 
@@ -848,6 +921,39 @@ def main() -> None:
             print(msg)
         with logfile.open("a", encoding="utf-8") as f:
             print(msg, file=f)
+
+    best_val_bpb: float | None = None
+    best_val_loss: float | None = None
+    last_val_bpb: float | None = None
+    last_val_loss: float | None = None
+    last_train_loss: float | None = None
+
+    def write_summary(
+        *,
+        status: str,
+        step: int,
+        train_time_ms: float,
+        note: str | None = None,
+    ) -> None:
+        atomic_json_dump(
+            {
+                "run_id": args.run_id,
+                "status": status,
+                "step": step,
+                "iterations": args.iterations,
+                "train_time_ms": round(train_time_ms, 3),
+                "max_wallclock_seconds": args.max_wallclock_seconds,
+                "last_train_loss": last_train_loss,
+                "last_val_loss": last_val_loss,
+                "last_val_bpb": last_val_bpb,
+                "best_val_loss": best_val_loss,
+                "best_val_bpb": best_val_bpb,
+                "checkpoint_path": str(checkpoint_path) if checkpoint_path else None,
+                "resume_from": args.resume_from or None,
+                "note": note,
+            },
+            summary_path,
+        )
 
     code = Path(__file__).read_text(encoding="utf-8")
     log(code, console=False)
@@ -900,6 +1006,49 @@ def main() -> None:
     )
     opt = SplitOptimizers(model, args)
 
+    train_time_ms = 0.0
+    stop_after_step: int | None = None
+    step = 0
+
+    def save_checkpoint(reason: str) -> None:
+        checkpoint = {
+            "step": step,
+            "train_time_ms": train_time_ms,
+            "stop_after_step": stop_after_step,
+            "best_val_bpb": best_val_bpb,
+            "best_val_loss": best_val_loss,
+            "last_val_bpb": last_val_bpb,
+            "last_val_loss": last_val_loss,
+            "last_train_loss": last_train_loss,
+            "model_state": dict(tree_flatten(model.state)),
+            "optimizer_state": opt.state_dict(),
+            "train_loader_state": train_loader.state_dict(),
+            "mx_random_state": copy_mx_random_state(),
+        }
+        atomic_pickle_dump(checkpoint, checkpoint_path)
+        log(f"checkpoint_saved:{checkpoint_path} reason:{reason} step:{step}")
+        write_summary(status="running", step=step, train_time_ms=train_time_ms, note=f"checkpoint:{reason}")
+
+    if args.resume_from:
+        resume_path = Path(args.resume_from)
+        if not resume_path.is_file():
+            raise FileNotFoundError(f"RESUME_FROM does not exist: {resume_path}")
+        with resume_path.open("rb") as f:
+            checkpoint = pickle.load(f)
+        model.update(tree_unflatten(list(dict(checkpoint["model_state"]).items())))
+        opt.load_state_dict(dict(checkpoint["optimizer_state"]))
+        train_loader.load_state_dict(dict(checkpoint["train_loader_state"]))
+        mx.random.state = [mx.array(x) for x in checkpoint["mx_random_state"]]
+        step = int(checkpoint.get("step", 0))
+        train_time_ms = float(checkpoint.get("train_time_ms", 0.0))
+        stop_after_step = checkpoint.get("stop_after_step")
+        best_val_bpb = checkpoint.get("best_val_bpb")
+        best_val_loss = checkpoint.get("best_val_loss")
+        last_val_bpb = checkpoint.get("last_val_bpb")
+        last_val_loss = checkpoint.get("last_val_loss")
+        last_train_loss = checkpoint.get("last_train_loss")
+        log(f"resumed_from:{resume_path} step:{step} train_time:{train_time_ms:.0f}ms")
+
     # ==============================================================================
     # COMPILED TRAIN / EVAL FUNCTIONS (MLX)
     # ==============================================================================
@@ -942,6 +1091,14 @@ def main() -> None:
         f"val_batch_size:{args.val_batch_size} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log(
+        f"local_eval:val_max_seqs={args.val_max_seqs} final_val_max_seqs={args.final_val_max_seqs} "
+        f"final_quant_eval={args.final_quant_eval}"
+    )
+    log(
+        f"run_safety:summary_every={args.summary_every} checkpoint_every={args.checkpoint_every} "
+        f"checkpoint_path:{checkpoint_path}"
+    )
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
         f"optimizer:muon+adam muon_matrix_params:{len(opt.matrix_keys)} scalar_params:{len(opt.scalar_keys)} "
@@ -956,11 +1113,12 @@ def main() -> None:
         f"linear_weight:{model.blocks[0].attn.c_q.weight.dtype} "
         f"skip_weights:{model.skip_weights.dtype}"
     )
+    write_summary(status="running", step=step, train_time_ms=train_time_ms, note="startup")
 
     # ==============================================================================
     # TRAINING LOOP
     # ==============================================================================
-    if args.warmup_steps > 0:
+    if args.warmup_steps > 0 and step == 0:
         # Warmup should only prime MLX compile/allocation paths. Updating parameters here forces us
         # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
         # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
@@ -995,11 +1153,8 @@ def main() -> None:
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
 
-    train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
-    stop_after_step: int | None = None
     t0 = time.perf_counter()
-    step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
         if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
@@ -1012,13 +1167,21 @@ def main() -> None:
                 base_bytes_lut,
                 has_leading_space_lut,
                 is_boundary_token_lut,
+                max_seqs=args.final_val_max_seqs if last_step else args.val_max_seqs,
                 log_fn=log,
             )
+            last_val_loss = val_loss
+            last_val_bpb = val_bpb
+            if best_val_bpb is None or val_bpb < best_val_bpb:
+                best_val_bpb = val_bpb
+                best_val_loss = val_loss
+                log(f"best_val_update:step:{step} val_loss:{val_loss:.6f} val_bpb:{val_bpb:.6f}")
             if step % 25 == 0 or last_step:
                 log(
                     f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                     f"train_time:{train_time_ms:.0f}ms step_avg:{train_time_ms / max(step, 1):.2f}ms"
                 )
+            write_summary(status="running", step=step, train_time_ms=train_time_ms, note="validation")
             t0 = time.perf_counter()
         if last_step:
             if stop_after_step is not None and step < args.iterations:
@@ -1041,6 +1204,7 @@ def main() -> None:
         grads = tree_unflatten(list(accum.items()))
         grads = clip_grad_tree(grads, args.grad_clip_norm)
         train_loss_value = float(train_loss.item())
+        last_train_loss = train_loss_value
         opt.step(model, grads, step=step, lr_mul=lr_mul)
         mx.synchronize()
 
@@ -1053,6 +1217,10 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
                 f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
             )
+        if args.summary_every > 0 and (step <= 10 or step % args.summary_every == 0):
+            write_summary(status="running", step=step, train_time_ms=approx_train_time_ms, note="train_progress")
+        if args.checkpoint_every > 0 and step % args.checkpoint_every == 0:
+            save_checkpoint("periodic")
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
 
@@ -1062,6 +1230,14 @@ def main() -> None:
     # We always write a raw artifact and a quantized artifact, then validate the
     # quantized roundtrip directly by loading the dequantized tensors back into the
     # model and running one final validation pass.
+    if args.checkpoint_every > 0:
+        save_checkpoint("final")
+
+    if not args.final_quant_eval:
+        log("final_quant_eval:skipped")
+        write_summary(status="completed", step=step, train_time_ms=train_time_ms, note="final_quant_eval_skipped")
+        return
+
     out_path = out_dir / f"{args.run_id}_mlx_model.npz"
     flat_state = {k: v for k, v in tree_flatten(model.state)}
     mx.savez(str(out_path), **flat_state)
@@ -1093,11 +1269,13 @@ def main() -> None:
         base_bytes_lut,
         has_leading_space_lut,
         is_boundary_token_lut,
+        max_seqs=args.final_val_max_seqs,
         log_fn=log,
     )
     q_eval_ms = 1000.0 * (time.perf_counter() - q_t0)
     log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
     log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    write_summary(status="completed", step=step, train_time_ms=train_time_ms, note="final_quant_eval_completed")
 
 
 if __name__ == "__main__":

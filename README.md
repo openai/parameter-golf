@@ -88,6 +88,8 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 
 ## Getting Started
 
+For a preset-driven local/remote workflow with preflight checks, per-run output directories, and structured run comparison, see [WORKSPACE.md](WORKSPACE.md). For the public-frontier recipe ladder and named ablation presets, see [FRONTIER.md](FRONTIER.md). For RunPod / shared PyTorch-image setup, see [CLOUD_SETUP.md](CLOUD_SETUP.md).
+
 ### Training Your First Model (Mac with Apple Silicon)
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
@@ -141,13 +143,24 @@ You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make se
 
 3. Let's start with a 1xH100 pod. Deploy using the official Parameter Golf template: [Launch Template](https://console.runpod.io/deploy?template=y5cejece4j&ref=nl2r56th). Enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up. You should land in `/workspace/`.
 
-On your remote machine, clone the repo onto local disk. All Python dependencies are already pre-installed in the image.
+On your remote machine, clone the repo onto local disk.
 
 ```bash
 cd /workspace
 git clone https://github.com/openai/parameter-golf.git
 cd parameter-golf
+export PYTHONPATH=/workspace/parameter-golf${PYTHONPATH:+:$PYTHONPATH}
 ```
+
+If you are using the RunPod PyTorch image and want to run the frontier presets, do not reinstall torch on top of the image. Use the safe cloud setup path instead:
+
+```bash
+python3 scripts/check_frontier_env.py --allow-missing-flash-attn
+./scripts/install_cloud.sh
+python3 scripts/check_frontier_env.py
+```
+
+The baseline `train_gpt.py` path can still run with the image torch as-is. For the full cloud runbook, including FlashAttention checks, see [CLOUD_SETUP.md](CLOUD_SETUP.md).
 
 Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
 
@@ -173,7 +186,7 @@ By default, this command prints `train_loss` step logs during training and print
 
 For dataset export, tokenizer export, and docs-cache rebuild instructions, see [data/README.md](data/README.md).
 
-Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
+Evaluation will be in the RunPod environment with all packages installed. In this repo, `requirements.txt` is now the safe common dependency file without torch, `requirements-local.txt` is the self-managed stack that installs torch, and `requirements-cloud.txt` preserves an image-provided torch stack.
 
 ## FAQ
 

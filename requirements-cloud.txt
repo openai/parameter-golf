@@ -1,0 +1,3 @@
+# Shared/cloud image setup: preserve the image-provided torch stack.
+# FlashAttention is installed separately so torch version drift can be checked first.
+-r requirements-common.txt
