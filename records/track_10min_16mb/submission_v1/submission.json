@@ -1,0 +1,9 @@
+{
+    "author": "anderamondarainh-stack",
+    "github_id": "anderamondarainh-stack",
+    "val_bpb": null,
+    "date": "2026-04-04",
+    "summary": "SP4096 + depth recurrence (3,4,5) + MuonEq-R + MLP4x + BigramHash + EMA",
+    "base_pr": "baseline",
+    "notes": "stacking known improvements, no SLOT/TTT yet"
+}
