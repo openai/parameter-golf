@@ -93,6 +93,33 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-26 23:25 EDT · exp 0040 + 0041 · pure-LTI-3of3 hurts attention; quant-protection hypothesis was confused
+
+**Two experiments back-to-back, both informative.**
+
+### 0040: LTI Mamba-2 at 3-of-3 (no attention)
+**Question**: does the LTI Mamba-2 compound continue to 3-of-3 (drop the last attention block)?
+**Result**: val_bpb 2.0555 — Δ vs 0038 (2-of-3 + 1 attn) +0.030 (HURTS).
+**Interpretation**: LTI Mamba-2's per-head κ-scalar memory cannot fully replace attention's content-addressable recall. Mirror of S4D-Lin no-attn pattern (gap +0.061) but smaller magnitude — LTI Mamba-2 retains more recall capacity than LTI S4D-Lin, but not enough to make attention dispensable. **Compound trend (each Mamba-2 position adds ~0.02 BPB) DOES NOT continue to 3-of-3** — 1 attention block still earns its keep.
+**Plan's "partial-recall-loss" outcome (20% predicted) hit.**
+
+### 0041: protected-in_proj attempt — confused hypothesis
+**Question**: was 0038's kill-wins finding actually a quantization-protection finding in disguise? Test: split in_proj into bf16-zx and fp32-protected-dyn slices, run full-selective Mamba-2 with protected dynamics.
+**Result**: val_bpb_post_quant **2.1458** (pre-quant 2.1427) — far outside predicted [2.020, 2.045] band. Regression of +0.106 vs 0035 full Mamba-2.
+**Diagnosis**: my hypothesis was confused. **CONTROL_TENSOR_NAME_PATTERNS only affects post-train serialization (int8 quantization). Training is bf16 regardless.** So protecting in_proj's dyn slice doesn't change anything during training — training was already running bf16-noisy on those weights in 0035 too. The "quant noise on per-token dt/B/C" theory only would have applied at INFERENCE time, when bf16-stored weights get re-loaded. But 0035's pre-quant was already 2.0375 — so the issue isn't quant.
+
+**What 0041 actually measured**: the *training-side* effect of splitting one Linear layer into two. Pre-quant gap (2.04 → 2.14) shows the split itself broke training — likely Muon's Newton-Schulz scaling behaves differently on the wide-thin (144, 512) dyn slab vs the original (2192, 512) combined. Subagent verified bit-exact mathematical equivalence at fp32 (max diff = 0.0), so the issue is in optimizer interaction, not arithmetic. Not worth fixing — the experimental premise was wrong.
+
+**Implication for the kill-wins story**: 0041's regression doesn't refute the 0038/0039 kill-wins finding. The kill-wins effect is **NOT a quant-protection artifact** — it's genuine architectural. The mechanism remains "selectivity is anti-load-bearing at our regime" (or equivalently, "the Mamba-2 BLOCK structure does the work, not selectivity"). The walk's 22:22 quant-noise hypothesis is **REFUTED by my own confusion** — protection only matters post-quant, training was always bf16. Removing this hypothesis from the open-question list.
+
+**Updates**:
+- 0040 status: keep (informative on the recall-gap question, even though it regressed).
+- 0041 status: discard (broken experiment, wrong hypothesis).
+- Update Current threads: kill-wins is genuine architectural; quant-noise hypothesis refuted by my misunderstanding.
+- Open questions narrowed: still need to characterize WHY selectivity hurts at 200 steps. Remaining hypotheses (most plausible to least): under-training of dyn-feeding in_proj dims, capacity over-fit (too many channels for 5M tokens), init mismatch where selective contribution starts at zero and never grows.
+
+**Conclusion** [VERIFIED]: kill-wins finding (0038/0039) is robust and not explained by quantization. Will not pursue this hypothesis branch further. Next move (per take-a-walk note 22:22 secondary item): test BigramHash interaction — does removing BigramHash change which version wins? That cleanly tests whether selectivity's "job" was duplicating BigramHash's recall mechanism.
+
 ## 2026-04-26 22:30 EDT · exp 0039 · SEED=42 confirms kill-wins finding (2-seed Δ -0.014 BPB robust)
 
 **Question**: SEED=42 confirm of 0038's surprising kill-wins result. 0038 (LTI Mamba-2) at SEED=1337 was 2.0259, vs full Mamba-2 (0035/0036 mean 2.0417) by ~0.0158. Cross-seed σ for the full version was 0.0036 — would the kill version's win hold up at SEED=42, or was 0038 a lucky seed?
