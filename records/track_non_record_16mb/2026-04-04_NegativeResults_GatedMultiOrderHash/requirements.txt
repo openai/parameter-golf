@@ -1,0 +1,6 @@
+# FlashAttention / Hopper-specific kernels should be installed separately
+# in the standard Parameter Golf CUDA environment.
+sentencepiece
+datasets
+huggingface-hub
+tqdm
