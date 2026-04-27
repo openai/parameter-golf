@@ -106,3 +106,7 @@ huggingface_hub
 - PR #1835 for PPM mixture inspiration
 - Parameter Golf community for baseline implementations
 - HuggingFace for dataset hosting infrastructure
+##
+
+#Author Note:
+This submission is by Liva (original GitHub account: nothingLiva, PR1707). Due to unresolvable Git history tangles in my original fork's web interface, I am submitting this 0.82 run from this clean account to ensure a perfectly clean branch while preserving my previous 1.07 PR.
