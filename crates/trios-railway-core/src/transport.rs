@@ -12,6 +12,39 @@ use thiserror::Error;
 
 const ENDPOINT: &str = "https://backboard.railway.com/graphql/v2";
 
+/// True if `s` matches the canonical 8-4-4-4-12 hex UUID shape.
+fn is_uuid_like(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    if bytes.len() != 36 {
+        return false;
+    }
+    for (i, &b) in bytes.iter().enumerate() {
+        let is_dash = matches!(i, 8 | 13 | 18 | 23);
+        let ok = if is_dash {
+            b == b'-'
+        } else {
+            b.is_ascii_hexdigit()
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
+}
+
+/// Authorization style for the Railway GraphQL endpoint.
+///
+/// `team` (default) sends `Authorization: Bearer <token>` and works for
+/// account/team tokens. `project` sends `Project-Access-Token: <token>`
+/// and is required for project-scoped tokens (which is what the IGLA
+/// workspace token currently is).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AuthMode {
+    #[default]
+    Team,
+    Project,
+}
+
 #[derive(Debug, Error)]
 pub enum ClientError {
     #[error("RAILWAY_TOKEN not set")]
@@ -29,6 +62,7 @@ pub struct Client {
     http: reqwest::Client,
     endpoint: String,
     token: String,
+    auth: AuthMode,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,10 +87,25 @@ struct GraphQlError {
 impl Client {
     pub fn from_env() -> Result<Self, ClientError> {
         let token = std::env::var("RAILWAY_TOKEN").map_err(|_| ClientError::MissingToken)?;
-        Self::with_token(token)
+        // Heuristic: a UUID-shaped token (8-4-4-4-12, length 36) is
+        // overwhelmingly a project-access token in Railway. Account/team
+        // tokens are longer, opaque, and start with `rwt_` or similar.
+        let auth = if is_uuid_like(&token) {
+            AuthMode::Project
+        } else {
+            AuthMode::Team
+        };
+        Self::with_token_and_mode(token, auth)
     }
 
     pub fn with_token(token: impl Into<String>) -> Result<Self, ClientError> {
+        Self::with_token_and_mode(token, AuthMode::Team)
+    }
+
+    pub fn with_token_and_mode(
+        token: impl Into<String>,
+        auth: AuthMode,
+    ) -> Result<Self, ClientError> {
         let http = reqwest::Client::builder()
             .user_agent(concat!("trios-railway/", env!("CARGO_PKG_VERSION")))
             .build()?;
@@ -64,7 +113,13 @@ impl Client {
             http,
             endpoint: ENDPOINT.to_string(),
             token: token.into(),
+            auth,
         })
+    }
+
+    #[must_use]
+    pub fn auth_mode(&self) -> AuthMode {
+        self.auth
     }
 
     /// Override the endpoint; used by integration tests.
@@ -87,10 +142,12 @@ impl Client {
         T: for<'de> Deserialize<'de>,
     {
         let body = Request { query, variables };
-        let resp = self
-            .http
-            .post(&self.endpoint)
-            .bearer_auth(&self.token)
+        let req = self.http.post(&self.endpoint);
+        let req = match self.auth {
+            AuthMode::Team => req.bearer_auth(&self.token),
+            AuthMode::Project => req.header("Project-Access-Token", &self.token),
+        };
+        let resp = req
             .json(&body)
             .send()
             .await?
@@ -127,5 +184,13 @@ mod tests {
     fn with_token_constructs() {
         let c = Client::with_token("abc").unwrap();
         assert_eq!(c.token_fingerprint().len(), 8);
+        assert_eq!(c.auth_mode(), AuthMode::Team);
+    }
+
+    #[test]
+    fn project_token_detected_as_uuid() {
+        assert!(is_uuid_like("447e97bf-8c32-42c9-a585-c7e359f7458f"));
+        assert!(!is_uuid_like("rwt_abcd_not_a_uuid"));
+        assert!(!is_uuid_like("too-short"));
     }
 }

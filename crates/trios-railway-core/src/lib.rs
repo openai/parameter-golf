@@ -11,8 +11,10 @@
 
 pub mod hash;
 pub mod ids;
+pub mod mutations;
+pub mod queries;
 pub mod transport;
 
 pub use hash::RailwayHash;
 pub use ids::{DeployId, EnvironmentId, ProjectId, ServiceId};
-pub use transport::{Client, ClientError};
+pub use transport::{AuthMode, Client, ClientError};

@@ -17,8 +17,14 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use trios_railway_audit::migrations;
-use trios_railway_core::{ProjectId, RailwayHash, ServiceId};
+use trios_railway_core::{
+    mutations as M, queries as Q, Client, EnvironmentId, ProjectId, RailwayHash, ServiceId,
+};
 use trios_railway_experience::{append_line, ExperienceLine};
+
+const IGLA_PROJECT_ID: &str = "e4fe33bb-3b09-4842-9782-7d2dea1abc9b";
+const IGLA_PROD_ENV_ID: &str = "54e293b9-00a9-4102-814d-db151636d96e";
+const DEFAULT_TRAINER_IMAGE: &str = "ghcr.io/ghashtag/trios-trainer-igla:latest";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -52,6 +58,66 @@ enum Cmd {
     Experience {
         #[command(subcommand)]
         sub: ExperienceCmd,
+    },
+
+    /// Service operations against Railway (RW-02 + RW-03).
+    ///
+    /// Requires `RAILWAY_TOKEN` in the environment. UUID-shaped tokens
+    /// are auto-detected as project-access tokens.
+    Service {
+        #[command(subcommand)]
+        sub: ServiceCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ServiceCmd {
+    /// Print all services in the configured project.
+    List {
+        #[arg(long, env = "TRIOS_RAILWAY_PROJECT", default_value = IGLA_PROJECT_ID)]
+        project: String,
+    },
+    /// Create a new image-backed service named `--name` with `--image`,
+    /// upsert the variables, and trigger one redeploy. R7 audit triplet
+    /// is appended to the local experience log.
+    Deploy {
+        #[arg(long, env = "TRIOS_RAILWAY_PROJECT", default_value = IGLA_PROJECT_ID)]
+        project: String,
+        #[arg(long, env = "TRIOS_RAILWAY_ENV", default_value = IGLA_PROD_ENV_ID)]
+        environment: String,
+        /// Service name (e.g. `trios-train-seed-43`).
+        #[arg(long)]
+        name: String,
+        /// Docker image; defaults to the IGLA trainer image.
+        #[arg(long, default_value = DEFAULT_TRAINER_IMAGE)]
+        image: String,
+        /// `KEY=VALUE` env pairs to upsert. Repeatable.
+        #[arg(long = "var", value_name = "KEY=VALUE")]
+        vars: Vec<String>,
+        /// Reuse this existing service id instead of creating a new one.
+        #[arg(long)]
+        existing: Option<String>,
+        /// If set, only print what would happen.
+        #[arg(long)]
+        dry_run: bool,
+        /// Repo root for the experience log.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+    },
+    /// Trigger a redeploy of an existing service.
+    Redeploy {
+        #[arg(long, env = "TRIOS_RAILWAY_ENV", default_value = IGLA_PROD_ENV_ID)]
+        environment: String,
+        #[arg(long)]
+        service: String,
+    },
+    /// Permanently delete a service.
+    Delete {
+        #[arg(long)]
+        service: String,
+        /// Confirm the destruction with `--yes`.
+        #[arg(long)]
+        yes: bool,
     },
 }
 
@@ -129,6 +195,7 @@ async fn main() -> Result<()> {
                 println!("{stmt};");
             }
         }
+        Cmd::Service { sub } => run_service(sub).await?,
         Cmd::Experience { sub } => match sub {
             ExperienceCmd::Append {
                 root,
@@ -155,5 +222,113 @@ async fn main() -> Result<()> {
         },
     }
 
+    Ok(())
+}
+
+fn parse_var(s: &str) -> Result<(String, String)> {
+    let (k, v) = s
+        .split_once('=')
+        .ok_or_else(|| anyhow::anyhow!("variable `{s}` is not in KEY=VALUE form"))?;
+    if k.is_empty() {
+        anyhow::bail!("empty variable name in `{s}`");
+    }
+    Ok((k.to_string(), v.to_string()))
+}
+
+async fn run_service(cmd: ServiceCmd) -> Result<()> {
+    let client =
+        Client::from_env().map_err(|e| anyhow::anyhow!("RAILWAY_TOKEN not set or invalid: {e}"))?;
+    let token_fp = client.token_fingerprint();
+
+    match cmd {
+        ServiceCmd::List { project } => {
+            let pid = ProjectId::from(project);
+            let pv = Q::project_view(&client, &pid).await?;
+            println!("project {} ({})", pv.name, pv.id);
+            for s in pv.services() {
+                println!("  {}  {}  {}", s.id, s.name, s.created_at);
+            }
+        }
+        ServiceCmd::Deploy {
+            project,
+            environment,
+            name,
+            image,
+            vars,
+            existing,
+            dry_run,
+            root,
+        } => {
+            let pid = ProjectId::from(project);
+            let eid = EnvironmentId::from(environment);
+            let mut parsed = Vec::with_capacity(vars.len());
+            for v in &vars {
+                parsed.push(parse_var(v)?);
+            }
+
+            if dry_run {
+                println!("DRY RUN: would deploy {name} from {image}");
+                println!("  project   = {}", pid.as_str());
+                println!("  env       = {}", eid.as_str());
+                if let Some(eid) = &existing {
+                    println!("  reuse svc = {eid}");
+                }
+                for (k, v) in &parsed {
+                    println!("  var       = {k}={v}");
+                }
+                return Ok(());
+            }
+
+            let service_id: ServiceId = if let Some(eid) = existing {
+                ServiceId::from(eid)
+            } else {
+                let created = M::service_create(&client, &pid, &name).await?;
+                println!("created service {} ({})", created.name, created.id);
+                ServiceId::from(created.id)
+            };
+
+            M::service_instance_set_image(&client, &service_id, &eid, &image).await?;
+            println!("set image: {image}");
+
+            for (k, v) in &parsed {
+                M::variable_upsert(&client, &pid, &eid, &service_id, k, v).await?;
+                println!("  var: {k}=<{}>", v.len());
+            }
+
+            let deploy_id = M::service_redeploy(&client, &service_id, &eid).await?;
+            println!("redeploy triggered: {deploy_id}");
+
+            // R7 triplet to local experience log.
+            let hash = RailwayHash::seal("deploy", &pid, Some(&service_id), &token_fp);
+            let line = ExperienceLine::from_hash(
+                "GENERAL",
+                "RailRangerOne",
+                "#5",
+                &format!("deploy {name} image={image}"),
+                "OK",
+                "PUSH",
+                &hash,
+            )?;
+            let path = append_line(&root.join(".trinity"), &line).await?;
+            println!("experience: {}", path.display());
+        }
+        ServiceCmd::Redeploy {
+            environment,
+            service,
+        } => {
+            let eid = EnvironmentId::from(environment);
+            let sid = ServiceId::from(service);
+            let deploy_id = M::service_redeploy(&client, &sid, &eid).await?;
+            println!("redeploy triggered: {deploy_id}");
+        }
+        ServiceCmd::Delete { service, yes } => {
+            if !yes {
+                anyhow::bail!("refusing to delete service `{service}` without --yes");
+            }
+            let sid = ServiceId::from(service);
+            M::service_delete(&client, &sid).await?;
+            println!("deleted: {sid}");
+        }
+    }
     Ok(())
 }
