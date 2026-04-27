@@ -1,0 +1,12 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-01",
+  "name": "AR Self-Gen GPTQ + XSA-all + Per-Layer Hadamard ROTQ",
+  "author": "Arash",
+  "github_id": "vermissa0ss",
+  "val_bpb": 1.11290586,
+  "val_loss": 1.87908996,
+  "bytes_total": 15826148,
+  "hardware": "1xH100 80GB",
+  "blurb": "Non-record submission. Starts from the public AR self-generated GPTQ + XSA-all + BigramHash stack and adds rotation-aware GPTQ with per-layer Hadamard right-rotations on MLP matrices. Best export on a 1xH100/4800s run reached 1.11290586 sliding bpb at 15,826,148 bytes."
+}

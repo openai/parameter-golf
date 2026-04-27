@@ -1,0 +1,80 @@
+model_params:27067484
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_kernel:flashattn3
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:4800.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9271 val_bpb:4.1026 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9279 train_time:652ms step_avg:652.22ms
+step:2/20000 train_loss:8.6225 train_time:1243ms step_avg:621.68ms
+step:3/20000 train_loss:7.6539 train_time:1904ms step_avg:634.55ms
+step:4/20000 train_loss:7.3319 train_time:2548ms step_avg:636.98ms
+step:5/20000 train_loss:7.0682 train_time:3200ms step_avg:639.99ms
+step:6/20000 train_loss:7.0074 train_time:3847ms step_avg:641.21ms
+step:7/20000 train_loss:6.9721 train_time:4493ms step_avg:641.83ms
+step:8/20000 train_loss:6.7644 train_time:5146ms step_avg:643.20ms
+step:9/20000 train_loss:6.4777 train_time:5793ms step_avg:643.68ms
+step:10/20000 train_loss:6.1204 train_time:6441ms step_avg:644.09ms
+step:500/20000 train_loss:2.3192 train_time:325737ms step_avg:651.47ms
+step:1000/20000 train_loss:2.2598 train_time:651864ms step_avg:651.86ms
+step:1500/20000 train_loss:2.1287 train_time:978338ms step_avg:652.23ms
+step:2000/20000 train_loss:2.0470 train_time:1305273ms step_avg:652.64ms
+step:2500/20000 train_loss:2.0920 train_time:1632135ms step_avg:652.85ms
+step:3000/20000 train_loss:2.0749 train_time:1959198ms step_avg:653.07ms
+step:3500/20000 train_loss:2.0674 train_time:2286291ms step_avg:653.23ms
+step:4000/20000 train_loss:2.1350 train_time:2613343ms step_avg:653.34ms
+step:4000/20000 val_loss:2.0439 val_bpb:1.2105 train_time:2613392ms step_avg:653.35ms
+step:4500/20000 train_loss:2.1269 train_time:2940377ms step_avg:653.42ms
+step:5000/20000 train_loss:2.0362 train_time:3267311ms step_avg:653.46ms
+step:5500/20000 train_loss:2.0406 train_time:3594311ms step_avg:653.51ms
+step:6000/20000 train_loss:1.9402 train_time:3921190ms step_avg:653.53ms
+step:6500/20000 train_loss:2.0445 train_time:4247900ms step_avg:653.52ms
+swa:start step:6550
+late_qat:enabled step:6744 scale:0.1498
+step:7000/20000 train_loss:1.8408 train_time:4576477ms step_avg:653.78ms
+step:7341/20000 val_loss:1.9137 val_bpb:1.1334 train_time:4800390ms step_avg:653.91ms
+stopping_early: wallclock_cap train_time:4800390ms step:7341/20000
+peak memory allocated: 23002 MiB reserved: 23184 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9121 val_bpb:1.1325 eval_time:16505ms
+Serialized model: 106289590 bytes
+Code size: 118057 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 204.7s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+selective_prune: 4217763 ±1 candidates, unpruned=15.13MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15751544 bytes
+Rotation metadata bytes (logical): 0
+Total submission size int6+lzma: 15869601 bytes
+final_int6_roundtrip val_loss:1.9191 val_bpb:1.1366 eval_time:20641ms
+final_int6_roundtrip_exact val_loss:1.91911329 val_bpb:1.13660699
+final_int6_sliding_window val_loss:1.8792 val_bpb:1.1130 stride:64 eval_time:591478ms
+final_int6_sliding_window_exact val_loss:1.87918563 val_bpb:1.11296252
+final_int8_zlib_roundtrip_exact val_loss:1.87918563 val_bpb:1.11296252
