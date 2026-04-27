@@ -1,0 +1,57 @@
+{
+  "submission_name": "lr-warmdown-v1",
+  "author_name": "LS Lee",
+  "github_username": "intelligentiaomni",
+  "date": "2026-03-31",
+  "challenge": "OpenAI Parameter Golf",
+  "repo_base": "openai/parameter-golf",
+  "tweak_family": "lr-warmdown",
+  "summary": "Warmup and warmdown schedule tuning on top of the official baseline with baseline optimizer LR values held fixed.",
+  "is_sota_claim": false,
+  "baseline_reference": {
+    "name": "Naive Baseline",
+    "public_val_bpb": 1.2244,
+    "reproduced_val_bpb": 1.59422270
+  },
+  "results": {
+    "best_val_bpb": 1.56446831,
+    "mean_val_bpb": 1.56591334,
+    "std_val_bpb": 0.00144503,
+    "compressed_model_bytes": 9542029,
+    "counted_code_bytes": 47686,
+    "total_artifact_bytes": 9589715,
+    "wallclock_seconds": 581.264
+  },
+  "metric_alignment": {
+    "official_dataset": true,
+    "official_validation_split": true,
+    "official_tokenizer_or_proven_variant": true,
+    "artifact_size_checked": true,
+    "evaluation_rule_checked": true,
+    "proxy_metrics_not_used_as_submission_evidence": true
+  },
+  "experiment_definition": {
+    "one_change_only": true,
+    "architecture_changed": false,
+    "tokenizer_changed": false,
+    "dataset_logic_changed": false,
+    "evaluation_method_changed": false,
+    "schedule_changed": true,
+    "optimizer_lr_values_changed": false
+  },
+  "reproducibility": {
+    "num_confirming_runs": 2,
+    "logs": [
+      "run2.log",
+      "run3.log"
+    ],
+    "exact_command": "RUN_ID=lr_warmdown_v1_run2 DATA_PATH=./data/datasets/fineweb10B_sp1024 TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model VOCAB_SIZE=1024 WARMDOWN_ITERS=900 MAX_WALLCLOCK_SECONDS=580 python -m torch.distributed.run --standalone --nproc_per_node=1 train_gpt.py | tee lr_warmdown_v1_run2.log",
+    "seed_policy": "Default seed (SEED=1337) used for confirming runs."
+  },
+  "notes": [
+    "Replace all null and placeholder fields before submitting.",
+    "Do not claim improvement unless the official val_bpb improves on your reproduced baseline.",
+    "Keep the write-up focused on schedule tuning only.",
+    "Use WARMUP_STEPS and WARMDOWN_ITERS as the primary controlled knobs for this family."
+  ]
+}
