@@ -92,11 +92,6 @@ class Hyperparameters:
     swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "1")))
     swa_start_frac = float(os.environ.get("SWA_START_FRAC", 0.4))
     swa_every = int(os.environ.get("SWA_EVERY", 50))
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
-    ttt_rank = int(os.environ.get("TTT_RANK", 4))
-    ttt_steps = int(os.environ.get("TTT_STEPS", 3))
-    ttt_lr = float(os.environ.get("TTT_LR", 5e-4))
-
 # -----------------------------
 # MUON OPTIMIZER
 # -----------------------------
@@ -214,139 +209,6 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
     return tokens[: usable + 1]
-
-
-
-# ── LoRA TEST-TIME TRAINING ──────────────────────────────────
-# At eval time, for each validation chunk:
-#   1. Attach tiny LoRA adapters (rank=4) to all projections
-#   2. Train only the adapters on the chunk (3 steps, causal)
-#   3. Evaluate with adapted model
-#   4. Remove adapters, move to next chunk
-# This lets the model specialize to each document's style/topic.
-# Proven by @samacqua (Jan 2026): ~0.01-0.03 BPB improvement.
-
-class LoRAAdapter(nn.Module):
-    """Low-rank adapter: W_new = W_orig + alpha * A @ B"""
-    def __init__(self, orig_linear: nn.Module, rank: int = 4, alpha: float = 1.0):
-        super().__init__()
-        d_in = orig_linear.weight.size(1)
-        d_out = orig_linear.weight.size(0)
-        self.orig = orig_linear
-        self.lora_A = nn.Parameter(torch.randn(rank, d_in, device=orig_linear.weight.device, dtype=torch.float32) * 0.01)
-        self.lora_B = nn.Parameter(torch.zeros(d_out, rank, device=orig_linear.weight.device, dtype=torch.float32))
-        self.alpha = alpha / rank
-
-    def forward(self, x: Tensor) -> Tensor:
-        orig_out = self.orig(x)
-        lora_out = F.linear(F.linear(x, self.lora_A), self.lora_B) * self.alpha
-        return orig_out + lora_out.to(orig_out.dtype)
-
-
-def attach_lora_adapters(model: nn.Module, rank: int = 4) -> list[tuple[nn.Module, str, nn.Module]]:
-    """Attach LoRA adapters to all large linear layers. Returns list for cleanup."""
-    adapters = []
-    for parent_name, parent in model.named_modules():
-        for attr_name in list(vars(parent).keys()):
-            child = getattr(parent, attr_name, None)
-            if isinstance(child, (CastedLinear,)) and child.weight.numel() > 1024:
-                adapter = LoRAAdapter(child, rank=rank)
-                setattr(parent, attr_name, adapter)
-                adapters.append((parent, attr_name, child))
-    return adapters
-
-
-def remove_lora_adapters(adapters: list[tuple[nn.Module, str, nn.Module]]):
-    """Remove LoRA adapters and restore original layers."""
-    for parent, attr_name, orig_child in adapters:
-        setattr(parent, attr_name, orig_child)
-
-
-def eval_val_with_ttt(
-    args,
-    model: nn.Module,
-    rank: int,
-    world_size: int,
-    device: torch.device,
-    val_tokens: Tensor,
-    base_bytes_lut: Tensor,
-    has_leading_space_lut: Tensor,
-    is_boundary_token_lut: Tensor,
-    ttt_rank: int = 4,
-    ttt_steps: int = 3,
-    ttt_lr: float = 5e-4,
-) -> tuple[float, float]:
-    """Evaluate with LoRA TTT: adapt per-chunk, score, reset."""
-    seq_len = args.train_seq_len
-    stride = args.eval_stride
-    total_loss = torch.zeros((), device=device, dtype=torch.float64)
-    total_tokens = torch.zeros((), device=device, dtype=torch.float64)
-    total_bytes = torch.zeros((), device=device, dtype=torch.float64)
-
-    model.eval()
-    num_seqs = (val_tokens.numel() - 1 - seq_len) // stride + 1
-    seq_start = (num_seqs * rank) // world_size
-    seq_end = (num_seqs * (rank + 1)) // world_size
-
-    for seq_idx in range(seq_start, seq_end):
-        start = seq_idx * stride
-        end = start + seq_len + 1
-        if end > val_tokens.numel():
-            break
-        local = val_tokens[start:end].to(device=device, dtype=torch.int64)
-        x = local[:-1].unsqueeze(0)
-        y = local[1:].unsqueeze(0)
-
-        # Attach LoRA adapters
-        adapters = attach_lora_adapters(model, rank=ttt_rank)
-
-        # Train adapters on first half of chunk (causal — no data leakage)
-        half = seq_len // 2
-        if ttt_steps > 0 and half > 64:
-            lora_params = []
-            for parent, attr_name, _ in adapters:
-                adapter = getattr(parent, attr_name)
-                if isinstance(adapter, LoRAAdapter):
-                    lora_params.extend([adapter.lora_A, adapter.lora_B])
-            if lora_params:
-                opt = torch.optim.Adam(lora_params, lr=ttt_lr)
-                model.train()
-                for _ in range(ttt_steps):
-                    opt.zero_grad()
-                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        loss = model(x[:, :half], y[:, :half])
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(lora_params, 1.0)
-                    opt.step()
-                model.eval()
-
-        # Score full chunk with adapted model
-        with torch.inference_mode():
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                chunk_loss = model(x, y).detach()
-
-        n_tokens = float(y.numel())
-        total_loss += chunk_loss.to(torch.float64) * n_tokens
-        total_tokens += n_tokens
-
-        prev_ids = x.reshape(-1)
-        tgt_ids = y.reshape(-1)
-        tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
-        tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
-        total_bytes += tok_bytes.to(torch.float64).sum()
-
-        # Remove adapters, reset
-        remove_lora_adapters(adapters)
-
-    if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
-        dist.all_reduce(total_tokens, op=dist.ReduceOp.SUM)
-        dist.all_reduce(total_bytes, op=dist.ReduceOp.SUM)
-
-    val_loss = total_loss / total_tokens
-    bpt = val_loss.item() / math.log(2.0)
-    tpb = total_tokens.item() / total_bytes.item()
-    return float(val_loss.item()), float(bpt * tpb)
 
 
 def eval_val(
@@ -1403,5 +1265,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# fixes applied
-# tuned
