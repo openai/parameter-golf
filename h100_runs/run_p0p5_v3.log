@@ -1,0 +1,106 @@
+logs/3b06e3d4-85bc-4f73-b932-37d7cd2d6692.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:30807237
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+features: smeargate=True bigramhash=True value_residual=True gated_attn=True rope_dims=16 xsa_last_n=11 ve_dim=0 ve_layers=9,10 ln_scale=False ema=False(decay=0.997) swa=False(every=50,thresh=0.2) late_qat=True(time_frac=0.15) weight_decay=0.04 grad_clip=0.3
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9299 val_bpb:4.1043 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9309 train_time:675ms step_avg:674.90ms
+step:2/20000 train_loss:8.7521 train_time:1347ms step_avg:673.32ms
+step:3/20000 train_loss:7.7738 train_time:2139ms step_avg:712.88ms
+step:4/20000 train_loss:7.3016 train_time:2768ms step_avg:691.96ms
+step:5/20000 train_loss:7.0246 train_time:3413ms step_avg:682.64ms
+step:6/20000 train_loss:6.9196 train_time:4062ms step_avg:676.92ms
+step:7/20000 train_loss:6.6864 train_time:4819ms step_avg:688.50ms
+step:8/20000 train_loss:6.5625 train_time:5535ms step_avg:691.84ms
+step:9/20000 train_loss:6.2529 train_time:6184ms step_avg:687.15ms
+step:10/20000 train_loss:5.9626 train_time:6843ms step_avg:684.33ms
+step:200/20000 train_loss:2.6340 train_time:122045ms step_avg:610.22ms
+step:400/20000 train_loss:2.2605 train_time:243241ms step_avg:608.10ms
+step:600/20000 train_loss:2.3750 train_time:364144ms step_avg:606.91ms
+step:800/20000 train_loss:2.2023 train_time:485041ms step_avg:606.30ms
+step:842 QAT activated (time_frac=0.851, scale=0.4918)
+step:989/20000 val_loss:2.1120 val_bpb:1.2509 train_time:600579ms step_avg:607.26ms
+stopping_early: wallclock_cap train_time:600579ms step:989/20000
+peak memory allocated: 15803 MiB reserved: 15838 MiB
+raw model val_bpb:1.2509
+Using raw weights (val_bpb=1.2509)
+Serialized model: 119611839 bytes
+Code size: 79986 bytes
+Total submission size: 119691825 bytes
+Collecting Hessians for GPTQ...
+GPTQ: collecting Hessians for 66 layers with 256 calibration samples
+Traceback (most recent call last):
+  File "/workspace/parameter-golf/train_gpt.py", line 1883, in <module>
+    main()
+  File "/workspace/parameter-golf/train_gpt.py", line 1817, in main
+    hessians = collect_hessians(base_model, args, device, n_samples=256, log_fn=log0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt.py", line 560, in collect_hessians
+    model(x)
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt.py", line 1313, in forward
+    x, v_out = self.blocks[i](x, x0, v0, v_embed=v_embed_i)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt.py", line 1170, in forward
+    attn_out, v_out = self.attn(normed, v0, v_embed=v_embed)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/parameter-golf/train_gpt.py", line 1108, in forward
+    gate = torch.sigmoid(self.attn_gate(x))  # [B, T, H]
+                         ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float

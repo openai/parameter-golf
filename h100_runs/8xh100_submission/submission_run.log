@@ -1,0 +1,16 @@
+=== STARTING SEED 1337 ===
+SEED 1337 DONE
+=== STARTING SEED 42 ===
+SEED 42 DONE
+=== STARTING SEED 2024 ===
+SEED 2024 DONE
+ALL_SEEDS_DONE
+run_seed1337.log:raw model val_bpb:1.1488
+run_seed1337.log:final_int6_zstd_roundtrip_exact val_loss:1.96926465 val_bpb:1.16631310
+run_seed1337.log:legal_ttt_exact val_loss:1.95942649 val_bpb:1.16048581
+run_seed2024.log:raw model val_bpb:1.1461
+run_seed2024.log:final_int6_zstd_roundtrip_exact val_loss:1.96487518 val_bpb:1.16371340
+run_seed2024.log:legal_ttt_exact val_loss:1.95502125 val_bpb:1.15787677
+run_seed42.log:raw model val_bpb:1.1469
+run_seed42.log:final_int6_zstd_roundtrip_exact val_loss:1.96716306 val_bpb:1.16506842
+run_seed42.log:legal_ttt_exact val_loss:1.95617170 val_bpb:1.15855813
