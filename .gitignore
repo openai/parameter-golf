@@ -9,3 +9,10 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# clthuang
+local_docs
+local-docs/
+
+# Causal inference results (generated)
+results/causal/

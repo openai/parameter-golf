@@ -1,0 +1,80 @@
+==========================================
+RUNNING: r1_1_leakyrelu_11L_3x (Sun Apr  5 08:33:05 UTC 2026)
+==========================================
+step:400/20000 train_loss:2.4586 train_time:350987ms step_avg:877.47ms
+step:600/20000 train_loss:2.3766 train_time:522692ms step_avg:871.15ms
+step:690/20000 val_loss:2.3407 val_bpb:1.3863 train_time:600043ms step_avg:869.63ms
+stopping_early: wallclock_cap train_time:600043ms step:690/20000
+peak memory allocated: 13950 MiB reserved: 14544 MiB
+Serialized model: 104999543 bytes
+Code size: 52940 bytes
+Total submission size: 105052483 bytes
+Serialized model int8+zlib: 16888409 bytes (payload:26658144 raw_torch:26713113 payload_ratio:3.94x)
+Total submission size int8+zlib: 16941349 bytes
+final_int8_zlib_roundtrip val_loss:2.3497 val_bpb:1.3916 eval_time:30045ms
+final_int8_zlib_roundtrip_exact val_loss:2.34969424 val_bpb:1.39162128
+COMPLETED: r1_1_leakyrelu_11L_3x (Sun Apr  5 08:46:54 UTC 2026)
+
+==========================================
+RUNNING: r1_2_bigram (Sun Apr  5 08:46:54 UTC 2026)
+==========================================
+step:400/20000 train_loss:2.4547 train_time:354911ms step_avg:887.28ms
+step:600/20000 train_loss:2.3745 train_time:527342ms step_avg:878.90ms
+step:686/20000 val_loss:2.3398 val_bpb:1.3857 train_time:600601ms step_avg:875.51ms
+stopping_early: wallclock_cap train_time:600601ms step:686/20000
+peak memory allocated: 14034 MiB reserved: 14300 MiB
+Serialized model: 106049085 bytes
+Code size: 52940 bytes
+Total submission size: 106102025 bytes
+Serialized model int8+zlib: 16860456 bytes (payload:27188578 raw_torch:27244817 payload_ratio:3.90x)
+Total submission size int8+zlib: 16913396 bytes
+final_int8_zlib_roundtrip val_loss:2.3485 val_bpb:1.3909 eval_time:30214ms
+final_int8_zlib_roundtrip_exact val_loss:2.34850334 val_bpb:1.39091596
+COMPLETED: r1_2_bigram (Sun Apr  5 08:59:52 UTC 2026)
+
+==========================================
+RUNNING: r1_3_xsa (Sun Apr  5 08:59:52 UTC 2026)
+==========================================
+step:400/20000 train_loss:2.4477 train_time:350174ms step_avg:875.43ms
+step:600/20000 train_loss:2.3659 train_time:523943ms step_avg:873.24ms
+step:687/20000 val_loss:2.3302 val_bpb:1.3801 train_time:600038ms step_avg:873.42ms
+stopping_early: wallclock_cap train_time:600038ms step:687/20000
+peak memory allocated: 14046 MiB reserved: 14384 MiB
+Serialized model: 106049085 bytes
+Code size: 52940 bytes
+Total submission size: 106102025 bytes
+Serialized model int8+zlib: 16850225 bytes (payload:27188578 raw_torch:27244817 payload_ratio:3.90x)
+Total submission size int8+zlib: 16903165 bytes
+final_int8_zlib_roundtrip val_loss:2.3385 val_bpb:1.3850 eval_time:30628ms
+final_int8_zlib_roundtrip_exact val_loss:2.33852809 val_bpb:1.38500806
+COMPLETED: r1_3_xsa (Sun Apr  5 09:12:47 UTC 2026)
+
+==========================================
+RUNNING: r1_5_full (Sun Apr  5 09:12:47 UTC 2026)
+==========================================
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-05_09:13:52
+  host      : 9290d90321a3
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 21033)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+COMPLETED: r1_5_full (Sun Apr  5 09:13:52 UTC 2026)
+
+==========================================
+ALL R1 EXPERIMENTS COMPLETE (Sun Apr  5 09:13:52 UTC 2026)
+==========================================
+
+RESULTS SUMMARY:
+r1_1_leakyrelu_11L_3x:     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+final_int8_zlib_roundtrip_exact val_loss:2.34969424 val_bpb:1.39162128
+r1_2_bigram:     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+final_int8_zlib_roundtrip_exact val_loss:2.34850334 val_bpb:1.39091596
+r1_3_xsa:     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+final_int8_zlib_roundtrip_exact val_loss:2.33852809 val_bpb:1.38500806
+r1_5_full:     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")

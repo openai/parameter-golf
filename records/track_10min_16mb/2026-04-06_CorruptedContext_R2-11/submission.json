@@ -1,0 +1,21 @@
+{
+  "author": "clthuang",
+  "github_id": "clthuang",
+  "name": "Corrupted Context + EMA + QAT + Per-Group Int6 Bit-Packed",
+  "blurb": "11L/4x LeakyReLU(0.5)² (32.7M params) + BigramHash(3072,112) + XSA all 11 layers + Value Residual + U-Net skips + EMA(0.997) + 10% corrupted context + late QAT + per-group-64 int6 bit-packed quantization + lzma. Partial RoPE 16/64, warmdown=3500, Muon WD=0.04.",
+  "date": "2026-04-07",
+  "track": "10min_16mb",
+  "val_loss": -1,
+  "val_bpb": -1,
+  "val_loss_std": -1,
+  "val_bpb_std": -1,
+  "seeds": [42, 137, 256],
+  "seed_results": {
+    "42": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1},
+    "137": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1},
+    "256": {"val_loss": -1, "val_bpb": -1, "artifact_bytes": -1, "steps": -1, "step_avg_ms": -1}
+  },
+  "bytes_total": -1,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Corrupted context 10% + EMA(0.997) + late QAT + per-group-64 int6 bit-packed + lzma + 4x MLP + XSA-all + Partial RoPE + Muon WD=0.04"
+}

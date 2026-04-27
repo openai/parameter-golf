@@ -1,0 +1,24 @@
+[project]
+name = "parameter-golf"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.9"
+dependencies = [
+    "causal-learn>=0.1.4.4",
+    "datasets>=4.5.0",
+    "graphviz>=0.21",
+    "huggingface-hub>=1.7.2",
+    "kernels>=0.12.3",
+    "mlx>=0.29.3",
+    "networkx>=3.2.1",
+    "numpy>=2.0.2",
+    "pytest>=8.4.2",
+    "scipy>=1.13.1",
+    "sentencepiece>=0.2.1",
+    "setuptools>=82.0.1",
+    "statsmodels>=0.14.6",
+    "tiktoken>=0.12.0",
+    "torch>=2.8.0",
+    "tqdm>=4.67.3",
+    "typing-extensions==4.15.0",
+]
