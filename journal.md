@@ -96,6 +96,27 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 06:55 EDT · 0059 · final session checkpoint, pure-attn baseline 2-seed confirmed
+
+**0059 (SEED=42 of 0058)**: val 2.0877. 2-seed pure-attn baseline mean = **2.08759** (cross-seed Δ 0.0002, extremely tight).
+
+**Final headline numbers** (the writeup-ready stack):
+
+| Architecture | n-seed | val_bpb | Δ vs baseline |
+|---|---|---|---|
+| **Pure-attn 3-of-3 + recur+SwiGLU+mlp=8 + no-BG** (2-seed) | 2 | **2.08759** | (baseline) |
+| Mamba-2 BLOCK 2-of-3 + 1-attn + BG (0035/0036) | 2 | 2.04171 | -0.046 |
+| Kill-Mamba-2 + BG (0038/0039) | 2 | 2.02723 | -0.060 |
+| Kill-Mamba-2 + no-BG (0042/0045) | 2 | 2.02193 | -0.066 |
+| Cross-class middle-parallel hybrid (0046/0050) | 2 | 2.01031 | -0.077 |
+| **Triple-parallel cross-class hybrid** (0051/0053/0056/0057) | **4** | **2.00503** | **-0.0826** |
+
+Final session SSM-best: **2.00503 ± 0.0015** (4-seed sentinel σ_mean).
+
+Pure-attn baseline: **2.08759 ± 0.0001** (2-seed cross-seed Δ).
+
+**Headline Δ: -0.0826 BPB at joint 4+2-seed precision.**
+
 ## 2026-04-27 06:25 EDT · exp 0058 · pure-ATTN baseline anchors writeup decomposition
 
 **Question**: clean writeup baseline. How much do the SSM blocks (with topology + kill + no-BG) contribute on top of the schedule + recur+SwiGLU+mlp=8 + no-BG combination? Pure ATTN at all 3 K=3 unique positions, no SSM at all.
