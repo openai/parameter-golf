@@ -1,0 +1,50 @@
+{
+  "author": "Rithun KP",
+  "github_id": "rithunkp",
+  "name": "Competitive Baseline: 10L GQA + Mixed Int6/Int8 + SWA + Seq4096",
+  "blurb": "10-layer Transformer with Group Query Attention (8Q/4KV), mixed quantization (int6 for block weights, int8 for embeddings) with zstandard compression, 3x MLP expansion (hidden=1536), Stochastic Weight Averaging (ratio=0.4), Muon optimizer with decoupled weight decay (WD=0.04), AdamW for scalars/embeddings, seq_len=4096 for extended context, tied embeddings, trained on 8xH100 SXM in 600 seconds.",
+  "date": "2026-03-22T09:25:00Z",
+  "val_loss": 1.94782,
+  "val_bpb": 1.15361,
+  "val_loss_std": 0.00152,
+  "val_bpb_std": 0.00090,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {"val_loss": 1.94685, "val_bpb": 1.15303},
+    "42": {"val_loss": 1.94932, "val_bpb": 1.15450},
+    "7": {"val_loss": 1.94728, "val_bpb": 1.15329}
+  },
+  "pre_quant_val_loss": 1.9732,
+  "pre_quant_val_bpb": 1.1687,
+  "model_architecture": "Transformer with GQA",
+  "vocab_size": 1024,
+  "seq_len": 4096,
+  "num_layers": 10,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "mlp_dim": 1536,
+  "tie_embeddings": true,
+  "quantization": "mixed int6/int8 + zstandard",
+  "training_hyperparameters": {
+    "optimizer": "Muon (matrices) + AdamW (scalars/embeddings)",
+    "weight_decay": 0.04,
+    "swa_ratio": 0.4,
+    "learning_rates": {
+      "embed_lr": 0.6,
+      "matrix_lr": 0.04,
+      "scalar_lr": 0.04,
+      "head_lr": 0.008
+    },
+    "batch_size_tokens": 131072,
+    "num_gpus": 8,
+    "max_wallclock_seconds": 600
+  },
+  "step_stop": 7184,
+  "wallclock_seconds": 599.82,
+  "eval_time_seconds": 148.37,
+  "bytes_total": 15742891,
+  "bytes_model_compressed": 15693412,
+  "bytes_code": 49479
+}
