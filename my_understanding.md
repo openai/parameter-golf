@@ -134,9 +134,71 @@ def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -
 **Why:** Muon's core idea is: instead of using the raw gradient to update weight matrices, first **orthogonalize** it. This means the update direction has equal magnitude in all singular-value directions, preventing the optimizer from collapsing updates into the dominant gradient direction. This is the spectral version of "normalize your gradients" — but for matrices.
 
 - `a, b, c = (3.4445, -4.7750, 2.0315)` — These are the 5th-order polynomial coefficients for the Newton-Schulz iteration that converges to the matrix polar factor. They're pre-computed to maximize convergence speed.
-- `X /= X.norm() + eps` — Normalize first so the iteration starts in the convergence basin.
+- `X /= X.norm() + eps` — Normalize first so the iteration starts in the convergence basin. This works because `||X||_spectral <= ||X||_Frobenius`, so dividing by the Frobenius norm guarantees the spectral norm is <= 1, which is inside the convergence basin for these polynomial coefficients. See the spectral norm explanation below.
 - `transposed = G.size(0) > G.size(1)` — The iteration works better when the matrix is "wide" (more cols than rows). If tall, transpose, iterate, transpose back.
+
+#### What is the spectral norm?
+
+**The goal: find the spectral norm of a matrix A.**
+
+The spectral norm asks a simple question: what's the most `A` can stretch any vector? Mathematically: `||A||_2 = max(||Ax||_2 / ||x||_2)`. Both norms here are just regular vector L2 norms.
+
+**The problem: how do you find that maximum?**
+
+You can't test every possible vector. So we need a smarter route. When you square the definition, you get `||A||_2^2 = max(x^T A^T A x / x^T x)`. The matrix `A^T A` naturally appears because squaring the L2 norm of `Ax` introduces `A^T`. This expression is the Rayleigh quotient of `A^T A`, and its maximum equals the largest eigenvalue of `A^T A`.
+
+**So now we need eigenvalues of `A^T A`.**
+
+We find them by solving `det(A^T A - lambda * I) = 0`. The `lambda * I` only subtracts from the diagonal because the identity matrix is zero everywhere else. Solving the resulting polynomial gives us the eigenvalues.
+
+**How do these relate to singular values?**
+
+SVD says `A = U @ Sigma @ V^T` (rotate, stretch, rotate). Plugging into `A^T A` gives `V @ Sigma^2 @ V^T`. The middle `U` cancels (`U^T U = I`) because it appears next to itself. `V @ Sigma^2 @ V^T` is an eigendecomposition — `V` provides the eigenvectors, `Sigma^2` provides the eigenvalues. So the eigenvalues of `A^T A` equal the squared singular values.
+
+**Putting it all together:**
+
+spectral norm -> max stretch -> need largest eigenvalue of `A^T A` -> that eigenvalue equals `sigma_max^2` -> spectral norm = `sqrt(sigma_max^2)` = **`sigma_max`**
+
+The spectral norm of `A` is simply its largest singular value — its biggest stretching factor.
+
+**Why this matters here:** The Newton-Schulz iteration only converges when the spectral norm (largest singular value) of the input is within a certain range (~1.7 for these coefficients). The `X /= X.norm()` line divides by the Frobenius norm, which is `sqrt(s1^2 + s2^2 + ... + sk^2)`. Since the spectral norm is just `s_max`, and `s_max <= sqrt(s1^2 + s2^2 + ... + sk^2)`, dividing by the Frobenius norm guarantees the spectral norm drops to <= 1 — safely inside the convergence basin.
 - The inner loop computes `X_{k+1} = a*X_k + (b*A + c*A^2) @ X_k` where `A = X_k @ X_k^T`. After convergence, `X` is an orthogonal matrix that preserves the singular vectors of `G` but sets all singular values to 1.
+
+Great question. "Orthogonal" here doesn't mean making things 90° in a geometric sense you'd visualize. It means something specific and powerful for optimization.
+
+**What orthogonalization actually does in Muon:**
+
+You have a gradient matrix G (the direction the optimizer wants to update weights). G has an SVD: G = UΣVᵀ. Orthogonalizing G means replacing it with **UVᵀ** — you keep the rotations but **set all singular values to 1**. You throw away Σ entirely.
+
+Tying this back to our earlier discussion: Σ contains the singular values (the stretching factors). Some might be huge, some tiny. Orthogonalization says: "I don't care *how much* you want to stretch in each direction — I'll treat every direction equally."
+
+**Why this helps:**
+
+In normal SGD or Adam, if the gradient has one very large singular value and several small ones, the update is dominated by that one direction. The optimizer keeps hammering the same dominant direction while barely exploring others.Good question. Let me connect this to everything we've discussed.
+
+**What "orthogonalize the gradient" means in Muon:**
+
+Your gradient G is a matrix. It has an SVD: G = UΣVᵀ. The singular values in Σ might be wildly different — say σ₁ = 50, σ₂ = 0.3, σ₃ = 0.01. That means the gradient is screaming "move a LOT in direction 1" and whispering "barely move in direction 3."
+
+Orthogonalization replaces G with **UVᵀ** — it sets all singular values to 1. Now every direction gets equal weight.
+
+Here's a visual showing the difference:
+
+/home/raven/Pictures/Screenshots/Screenshot From 2026-03-22 19-53-31.png
+
+**Why this helps training:**
+
+With a raw gradient, if σ₁ = 50 and σ₂ = 0.3, the optimizer takes a huge step in direction 1 and a tiny step in direction 2. Over many iterations, it keeps hammering direction 1 while barely exploring direction 2. This is wasteful — direction 2 might be exactly where the loss landscape has a useful descent path, like an escape route from a saddle point.
+
+After orthogonalization, every direction gets an equal-sized step. The optimizer explores the full space uniformly. It's like the difference between a flashlight (one bright beam) and a lantern (equal light in all directions).
+
+**Where Newton-Schulz fits:**
+
+The "correct" way to orthogonalize is to compute the full SVD (G = UΣVᵀ), throw away Σ, and return UVᵀ. But SVD is expensive on GPUs. Newton-Schulz is an iterative method that approximates the same result using only matrix multiplications, which GPUs are extremely fast at, and can run stably in bfloat16.
+
+In practice, just 5 iterations of Newton-Schulz get close enough — the result isn't exactly UVᵀ but something like US'Vᵀ where the singular values are noisy values around 1 instead of exactly 1. That turns out to be good enough for training.
+
+So tying it all the way back: spectral norm measures maximum stretch → singular values are those stretch factors → orthogonalization sets all stretch factors to 1 → Newton-Schulz does this cheaply on GPUs → Muon uses this to make gradient updates treat all directions equally.
 
 ### `Muon` class (lines 114-170)
 
@@ -896,3 +958,33 @@ This is a competition-optimized GPT training script that packs an impressive amo
 13. **torch.compile warmup** with state reset for fair timing
 
 Every design choice serves the competition objective: minimize `BPB * (code_bytes + model_bytes)` within 10 minutes on a GPU.
+---
+Third, it is still an approximation. GPTQ is based on a local second-order Taylor picture. A later paper, First-Order Error Matters (2025/2026), argues that during progressive compensation the latent weights drift away from the original full-precision point, so the assumption that the first-order term stays negligible becomes flawed. In other words, even full-Hessian GPTQ is not “exact”; it is an elegant second-order approximation whose error model can break as quantization proceeds.
+
+Fourth, ordering matters, and the standard ordering is only heuristic. The later geometric analysis of GPTQ shows that the usual “act-order” heuristic only uses the diagonal of the Hessian, not the full matrix, and that finding an optimal order is NP-hard. That means “full Hessian” does not magically solve the sequencing problem; there is still a heuristic layer on top.
+
+Fifth, calibration data matters a lot, because the Hessian is estimated from activations. GPTQ’s original paper uses 128 random 2048-token C4 segments as calibration data, and later empirical work found that downstream performance can vary substantially with the choice of calibration data. So a full-Hessian estimate is only as good as the activation sample it is built from. That is especially relevant to the parameter-golf entry you linked, since its big novelty is replacing forbidden train/val calibration with self-generated text while keeping the stronger full-GPTQ quantizer.
+
+---
+
+ 3. SpQR-style per-weight mixed precision — Complex but powerful
+
+  Instead of "all MLP weights in layer 0-5 at int5," identify the specific 1-5% of
+   weights in each layer that cause the most quantization error and keep them in
+  fp16. The rest go to int5. This surgical approach wastes fewer bits on weights
+  that quantize fine and preserves quality for the sensitive ones.
+
+  The artifact size would be: 95% of weights at int5 + 5% at fp16. That's 0.95 ×
+  0.625 + 0.05 × 2.0 = 0.694 bytes per param. Only 11% larger than pure int5
+  (0.625), but much better quality.
+
+---
+
+  1. Weight pruning — zero out more weights. Zeros compress extremely well. The   
+  current selective pruning only triggers when the artifact exceeds TARGET_MB. If
+  we prune more aggressively (5-10% of weights instead of the current minimal     
+  pruning), the LZMA ratio improves. The quality cost of pruning 5% of smallest
+  weights is typically ~0.001 BPB.
+  2. zstd instead of LZMA — different compressor might hit a different ratio. The
+  current #1's earlier PRs used zstd-22. Worth trying.                            
+

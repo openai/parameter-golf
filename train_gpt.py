@@ -235,8 +235,7 @@ def eval_val(
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
     # Validation computes two metrics:
-    # - val_loss: token cross-entropy (natural log)
-    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    # - val_loss: token cross-entropy (natural log) - val_bpb: tokenizer-agnostic compression metric used by the challenge
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -340,6 +339,7 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
+    # Sinc we are doing one-scale for the entire tensor and not like before per-row, we don't need clipped.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
@@ -707,8 +707,8 @@ class GPT(nn.Module):
                 )
                 for _ in range(num_shared_blocks)
             ]
-        )
-        self.block_controls = nn.ModuleList([BlockControls(model_dim) for _ in range(num_layers)])
+        ) # 3 cores. Making it like Core A, B, C which is being shared using 'num_shared_blocks'.
+        self.block_controls = nn.ModuleList([BlockControls(model_dim) for _ in range(num_layers)]) # 9 controls. One per layer, each with its own norms, scales and residual mix.
         self.block_core_indices = self._build_block_core_indices()
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
@@ -741,6 +741,7 @@ class GPT(nn.Module):
         for i in range(self.num_encoder_layers):
             x = self.block_controls[i](x, x0, self.block_cores[self.block_core_indices[i]])
             skips.append(x)
+        
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
@@ -986,11 +987,12 @@ def main() -> None:
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
+        
         model.train()
         for warmup_step in range(args.warmup_steps):
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
-                if distributed:
+                if distributed: # on micro-step 7, DDP all-reduces so the GPUs have the same averaged gradients.
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
@@ -999,6 +1001,7 @@ def main() -> None:
             for opt in optimizers:
                 opt.step()
             zero_grad_all()
+            
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
         base_model.load_state_dict(initial_model_state, strict=True)
@@ -1068,7 +1071,7 @@ def main() -> None:
         train_loss /= grad_accum_steps
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
-        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum # momentum controls how much of the prev update direction carries in the next step. okay so this took a lot of time to understand (im getting dumber), but what these two lines say is basically that as "step" are increasing ie., heading towards the warmup_step limit (which would control step:0, warmup_step:500, would tend to increase from 0 -> 1) saying that as we are ending warmup steps, take those less and less into consideration, but rely heavily on the early step to allow exploration.
         for group in optimizer_muon.param_groups:
             group["momentum"] = muon_momentum
 
@@ -1123,9 +1126,15 @@ def main() -> None:
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    
+    # io.BytesIO is a fake file that lives in RAM (no disk yet).
+    # torch.save writes the pickle + tensor data into it.
+    # getvalue() extracts the raw bytes.
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
+    
+    # we need to do this because we compress it (quantized state dicts) before writing to disk & zlib.compress (level=9 is max compression but slow) takes bytes
     quant_blob = zlib.compress(quant_raw, level=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
@@ -1144,8 +1153,10 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
+    
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(

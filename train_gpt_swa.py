@@ -1821,7 +1821,8 @@ class _HessianGPT(nn.Module):
                  mlp_mult, tie_embeddings, logit_softcap, rope_base, qk_gain_init,
                  bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0,
                  rope_dims=0, ln_scale=False,
-                 ve_enabled=False, ve_dim=128, ve_layers="9,10"):
+                 ve_enabled=False, ve_dim=128, ve_layers="9,10",
+                 recur_layers=""):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
@@ -1864,6 +1865,21 @@ class _HessianGPT(nn.Module):
             self.ve_layer_scales = nn.ParameterList()
         self.final_norm = RMSNorm()
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+        loop_layers = [int(x) for x in recur_layers.split(",") if x.strip()]
+        self.recur_active = False
+        if loop_layers:
+            loop_start = min(loop_layers)
+            loop_end = max(loop_layers)
+            loop_seg = list(range(loop_start, loop_end + 1))
+            all_indices = list(range(loop_start)) + loop_seg + loop_seg + list(range(loop_end + 1, num_layers))
+            mid = len(all_indices) // 2
+            self._recur_encoder_indices = all_indices[:mid]
+            self._recur_decoder_indices = all_indices[mid:]
+            self._recur_num_skip = min(len(self._recur_encoder_indices), len(self._recur_decoder_indices))
+        else:
+            self._recur_encoder_indices = None
+            self._recur_decoder_indices = None
+            self._recur_num_skip = 0
     def _get_ve(self, layer_idx, input_ids, ve_cache):
         if self.ve_shared is None or layer_idx not in self.ve_layer_indices:
             return None
@@ -1880,14 +1896,18 @@ class _HessianGPT(nn.Module):
         x0 = x
         skips = []
         ve_cache = {}
-        for i in range(self.num_encoder_layers):
-            ve = self._get_ve(i, input_ids, ve_cache)
-            x = self.blocks[i](x, x0, v_embed=ve)
+        use_recur = self.recur_active and self._recur_encoder_indices is not None
+        enc_indices = self._recur_encoder_indices if use_recur else list(range(self.num_encoder_layers))
+        dec_indices = self._recur_decoder_indices if use_recur else [self.num_encoder_layers + i for i in range(self.num_decoder_layers)]
+        num_skips = self._recur_num_skip if use_recur else self.num_skip_weights
+        for bi in enc_indices:
+            ve = self._get_ve(bi, input_ids, ve_cache)
+            x = self.blocks[bi](x, x0, v_embed=ve)
             skips.append(x)
-        for i in range(self.num_decoder_layers):
-            bi = self.num_encoder_layers + i
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+        for j, bi in enumerate(dec_indices):
+            if j < num_skips and skips:
+                skip_idx = min(j, self.num_skip_weights - 1)
+                x = x + self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
         x = self.final_norm(x)
@@ -2485,6 +2505,7 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        recur_layers=args.recur_layers,
     ).to(device).bfloat16()
     for m in hessian_model.modules():
         if isinstance(m, CastedLinear):
@@ -2495,6 +2516,9 @@ def main() -> None:
         {k: v.to(device) for k, v in unbanked_sd.items() if k in hessian_model.state_dict()},
         strict=False,
     )
+    if args.recur_layers:
+        hessian_model.recur_active = True
+        log0(f"gptq:enabled recurrence on hessian_model (recur_layers={args.recur_layers})")
     # Autoregressive self-generated calibration (no external data)
     log0("gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...")
     base_model.load_state_dict(export_sd, strict=False)
