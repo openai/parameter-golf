@@ -1,0 +1,21 @@
+[package]
+name        = "trios-railway-audit"
+description = "Drift detector and audit ledger writer for trios-railway."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow     = { workspace = true }
+chrono     = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+uuid       = { workspace = true }
+tracing    = { workspace = true }
+trios-railway-core = { path = "../trios-railway-core" }

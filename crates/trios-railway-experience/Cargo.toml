@@ -1,0 +1,24 @@
+[package]
+name        = "trios-railway-experience"
+description = "Append-only .trinity/experience writer (L7 + L21)."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow    = { workspace = true }
+chrono    = { workspace = true }
+serde     = { workspace = true }
+serde_json = { workspace = true }
+tokio     = { workspace = true }
+tracing   = { workspace = true }
+trios-railway-core = { path = "../trios-railway-core" }
+
+[dev-dependencies]
+tempfile = "3.10"

@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: L1 — no shell scripts
+        run: |
+          set -euo pipefail
+          count=$(find . -name '*.sh' -not -path './.git/*' -not -path './target/*' | wc -l)
+          if [ "$count" -ne 0 ]; then
+            echo "L1 violation: $count .sh file(s) found"
+            find . -name '*.sh' -not -path './.git/*' -not -path './target/*'
+            exit 1
+          fi
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (warnings as errors)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build (release)
+        run: cargo build --release --locked
+
+      - name: Test
+        run: cargo test --all
