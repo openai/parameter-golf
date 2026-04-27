@@ -1,0 +1,7 @@
+{
+  "name": "Groupp09_HCMUS",
+  "github_id": "NGBao1608",
+  "val_bpb": 1.4705,
+  "artifact_size": 7468274,
+  "description": "EMA(0.997) + XSA last-3-layers + SmearGate + BigramHash(4096x128) + int8+zlib. Standard 9-layer transformer, dim=512. Non-record track."
+}

@@ -1,0 +1,11 @@
+{
+    "author": "Group09_HCMUS",
+    "github_id": "NGBao1608",
+    "name": "HCMUS: Value Residuals & Parallel Blocks",
+    "blurb": "9L 512d U-Net (4-5) featuring sigmoid-gated Value Residuals, Parallel Attention+MLP blocks, and Stochastic Depth (0.1). Includes EMA(0.997), XSA refinement, SmearGate, and BigramHash(4096). Compiled with int8+zlib compression. 17.6M params in 14.63MB. Trained for 20k steps on RTX Pro 6000.",
+    "date": "2026-04-23T11:30:00Z",
+    "val_loss": 2.03975077,
+    "val_bpb": 1.20805685,
+    "bytes_total": 14633147,
+    "bytes_code": 44897
+  }
