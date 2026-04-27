@@ -1,0 +1,152 @@
+name: IGLA Audit Watchdog (hourly)
+
+# Closes issue #16. Anchor: phi^2 + phi^-2 = 3.
+# Runs `tri-railway audit run` every hour against both clusters
+# (Acc1/IGLA + Acc2/IGLA-MIRROR-2), posts a one-line digest as a comment
+# on trios#143, and routes by exit code:
+#   0 = GATE-2 PASS  -> close #143 (L-R14)
+#   1 = DRIFT        -> red status comment + workflow fails
+#   2 = NOT YET      -> green digest comment, workflow passes
+
+on:
+  schedule:
+    - cron: "5 * * * *"          # 5 minutes past every hour, UTC
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "BPB target. Gate-2 = 1.85, IGLA = 1.50"
+        required: false
+        default: "1.85"
+      skip_comment:
+        description: "If 'true', do not comment on trios#143 (dry run)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  issues:   write   # cross-repo comment on trios#143
+
+concurrency:
+  group: audit-watchdog
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TARGET:                ${{ inputs.target || '1.85' }}
+      ACC1_TOKEN:            ${{ secrets.RAILWAY_TOKEN_ACC1 }}
+      ACC1_PROJECT:          ${{ secrets.RAILWAY_PROJECT_ACC1_IGLA }}
+      ACC2_TOKEN:            ${{ secrets.RAILWAY_TOKEN_ACC2 }}
+      ACC2_PROJECT:          ${{ secrets.RAILWAY_PROJECT_ACC2_TE }}
+      RAILWAY_TOKEN_AUTH:    team
+      RUST_LOG:              info
+      GH_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+      TRIOS_REPO:            gHashTag/trios
+      ISSUE:                 "143"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tri-railway
+        run: cargo build --release --bin tri-railway --locked
+
+      - name: Audit Acc1 / IGLA
+        id: acc1
+        env:
+          RAILWAY_TOKEN: ${{ env.ACC1_TOKEN }}
+        run: |
+          set +e
+          ./target/release/tri-railway audit run \
+              --project "$ACC1_PROJECT" \
+              --target "$TARGET" \
+              --json \
+              --root . > /tmp/acc1.txt 2>&1
+          echo "exit=$?" >> $GITHUB_OUTPUT
+          cat /tmp/acc1.txt
+          # Last line of stdout from --json is a single JSON object.
+          tail -n 1 /tmp/acc1.txt > /tmp/acc1.json
+          # Surface verdict for the next step.
+          jq -r '.verdict' /tmp/acc1.json >> $GITHUB_OUTPUT 2>/dev/null || true
+
+      - name: Audit Acc2 / IGLA-MIRROR-2
+        id: acc2
+        env:
+          RAILWAY_TOKEN: ${{ env.ACC2_TOKEN }}
+        run: |
+          set +e
+          ./target/release/tri-railway audit run \
+              --project "$ACC2_PROJECT" \
+              --target "$TARGET" \
+              --json \
+              --root . > /tmp/acc2.txt 2>&1
+          echo "exit=$?" >> $GITHUB_OUTPUT
+          cat /tmp/acc2.txt
+          tail -n 1 /tmp/acc2.txt > /tmp/acc2.json
+          jq -r '.verdict' /tmp/acc2.json >> $GITHUB_OUTPUT 2>/dev/null || true
+
+      - name: Build digest comment
+        id: digest
+        run: |
+          ts=$(date -u +%Y-%m-%dT%H:%MZ)
+          a1v=$(jq -r '.verdict      // "?"' /tmp/acc1.json)
+          a1s=$(jq -r '.services     // 0'   /tmp/acc1.json)
+          a1e=$(jq -r '.events|length // 0'  /tmp/acc1.json)
+          a1l=$(jq -r '.ledger_rows  // 0'   /tmp/acc1.json)
+          a2v=$(jq -r '.verdict      // "?"' /tmp/acc2.json)
+          a2s=$(jq -r '.services     // 0'   /tmp/acc2.json)
+          a2e=$(jq -r '.events|length // 0'  /tmp/acc2.json)
+          a2l=$(jq -r '.ledger_rows  // 0'   /tmp/acc2.json)
+          x1=${{ steps.acc1.outputs.exit }}
+          x2=${{ steps.acc2.outputs.exit }}
+
+          # Combined exit. PASS only when both clusters agree.
+          if [[ "$x1" == "1" || "$x2" == "1" ]]; then combined=1
+          elif [[ "$x1" == "0" && "$x2" == "0" ]]; then combined=0
+          else combined=2
+          fi
+          echo "combined=$combined" >> $GITHUB_OUTPUT
+
+          {
+            echo "## 🛰️ Audit Watchdog — $ts (target BPB $TARGET)"
+            echo ""
+            echo "| Cluster | Project | Services | Ledger rows | Drift events | Verdict | Exit |"
+            echo "|---|---|---:|---:|---:|---|---:|"
+            echo "| Acc1 / IGLA           | $ACC1_PROJECT | $a1s | $a1l | $a1e | $a1v | $x1 |"
+            echo "| Acc2 / IGLA-MIRROR-2  | $ACC2_PROJECT | $a2s | $a2l | $a2e | $a2v | $x2 |"
+            echo ""
+            echo "**Combined exit:** $combined  (0 = GATE-2 PASS · 1 = DRIFT · 2 = NOT YET)"
+            echo ""
+            echo "_Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}_"
+            echo ""
+            echo "phi^2 + phi^-2 = 3 · TRINITY · NEVER STOP"
+          } > /tmp/comment.md
+          cat /tmp/comment.md
+
+      - name: Comment on trios#143
+        if: ${{ inputs.skip_comment != 'true' }}
+        run: gh issue comment "$ISSUE" --repo "$TRIOS_REPO" --body-file /tmp/comment.md
+
+      - name: Close #143 on GATE-2 PASS
+        if: ${{ steps.digest.outputs.combined == '0' && inputs.skip_comment != 'true' }}
+        run: |
+          gh issue close "$ISSUE" --repo "$TRIOS_REPO" \
+              --reason completed \
+              --comment "🎯 GATE-2 PASS reached on both clusters at target BPB $TARGET. L-R14 closed. Closing per audit verdict (exit 0). phi^2 + phi^-2 = 3."
+
+      - name: Fail workflow on DRIFT
+        if: ${{ steps.digest.outputs.combined == '1' }}
+        run: |
+          echo "::error::DRIFT detected on at least one cluster (acc1=${{ steps.acc1.outputs.exit }}, acc2=${{ steps.acc2.outputs.exit }})"
+          exit 1
