@@ -1,0 +1,75 @@
+name: DR Restore — IGLA fleet (one click)
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_token:
+        description: "Set ONLY when restoring after a ban. Leave empty for a regular re-sync."
+        required: false
+        type: string
+      project_name:
+        description: "Railway project to create/reuse."
+        required: false
+        default: "IGLA"
+      champion_sha:
+        description: "Champion image SHA to pin (overrides default_tag in restore-fleet.json)."
+        required: false
+      confirm:
+        description: 'Type "PHI" to confirm. Anchor: phi^2 + phi^-2 = 3.'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    if: ${{ inputs.confirm == 'PHI' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RAILWAY_TOKEN:    ${{ inputs.new_token != '' && inputs.new_token || secrets.RAILWAY_TOKEN }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      GHCR_PAT:         ${{ secrets.GHCR_PAT }}
+      RUST_LOG:         info
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tri-railway
+        run: cargo build --release --bin tri-railway --locked
+
+      - name: Restore IGLA fleet from manifest
+        run: |
+          ./target/release/tri-railway restore \
+            --manifest restore-fleet.json \
+            --project-name "${{ inputs.project_name }}" \
+            ${{ inputs.champion_sha != '' && format('--champion-sha {0}', inputs.champion_sha) || '' }} \
+            --confirm
+
+      - name: Apply Neon audit DDL
+        if: env.NEON_DATABASE_URL != ''
+        run: ./target/release/tri-railway audit migrate-sql | psql "$NEON_DATABASE_URL"
+
+      - name: Append L7 experience line
+        run: |
+          ./target/release/tri-railway experience append \
+            --issue '#143' \
+            --phi-step EXPERIENCE \
+            --task "DR restore from manifest restore-fleet.json" \
+            --status OK \
+            --soul-name PhoenixOne \
+            --agent CI
+
+      - name: Run smoke check (gate, embargo, list)
+        run: |
+          ./target/release/tri-railway service list
+          ./target/release/tri-railway audit verify

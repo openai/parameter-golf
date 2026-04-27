@@ -1,0 +1,57 @@
+{
+  "$schema": "./schemas/restore-fleet.schema.json",
+  "anchor": "phi^2 + phi^-2 = 3",
+  "version": "1.0.0",
+  "project": {
+    "name": "IGLA",
+    "description": "IGLA RACE — anchor phi^2+phi^-2=3 — restored after DR event",
+    "default_environment": "production"
+  },
+  "image": {
+    "registry": "ghcr.io",
+    "repository": "ghashtag/trios-trainer-igla",
+    "default_tag": "latest",
+    "pin_policy": "by-sha-from-ledger"
+  },
+  "shared_vars": [
+    { "key": "RUST_LOG",         "value": "info" },
+    { "key": "TRIOS_HIDDEN",     "value": "384" },
+    { "key": "TRIOS_LR",         "value": "0.003" },
+    { "key": "TRIOS_OPTIMIZER",  "value": "adamw" },
+    { "key": "TRIOS_STEPS",      "value": "81000" },
+    { "key": "TRIOS_ATTN_LAYERS","value": "2" },
+    { "key": "L_R8_SYNTHETIC_FALLBACK", "value": "FORBID" },
+    { "key": "NEON_DATABASE_URL","value": "${secret:NEON_DATABASE_URL}" }
+  ],
+  "services": [
+    { "name": "trios-train-seed-42",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "42"  }] },
+    { "name": "trios-train-seed-43",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "43"  }] },
+    { "name": "trios-train-seed-44",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "44"  }] },
+    { "name": "trios-train-seed-45",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "45"  }] },
+    { "name": "trios-train-seed-46",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "46"  }] },
+    { "name": "trios-train-seed-47",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "47"  }] },
+    { "name": "trios-train-seed-48",   "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "48"  }] },
+    { "name": "trios-train-seed-100",  "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "100" }] },
+    { "name": "trios-train-seed-101",  "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "101" }] },
+    { "name": "trios-train-seed-102",  "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "102" }] },
+    { "name": "igla-trainer-seed-43",  "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "43"  }] },
+    { "name": "igla-trainer-seed-100", "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "100" }] },
+    { "name": "igla-trainer-seed-101", "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "101" }] },
+    { "name": "igla-trainer-seed-102", "kind": "trainer", "vars": [{ "key": "TRIOS_SEED", "value": "102" }] },
+    {
+      "name": "trios-mcp-public",
+      "kind": "mcp",
+      "image_override": { "registry": "ghcr.io", "repository": "ghashtag/trios-railway-mcp", "tag": "latest" },
+      "vars": [
+        { "key": "RAILWAY_TOKEN", "value": "${secret:RAILWAY_TOKEN}" },
+        { "key": "PORT",          "value": "8080" }
+      ]
+    },
+    { "name": "trios-dwagent", "kind": "agent", "vars": [] }
+  ],
+  "post_restore": {
+    "neon_ddl": "tri-railway audit migrate-sql",
+    "embargo_check": "trios-igla check ${champion_sha}",
+    "experience_line": "RAIL=restore @ project=${project_uuid_8c} service=ALL sha=${git_sha_8c} ts=${rfc3339}"
+  }
+}

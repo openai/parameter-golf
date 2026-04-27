@@ -1,5 +1,31 @@
 # trios-railway
 
+## Disaster Recovery — one click
+
+After a Railway ban or account loss, restore the entire IGLA fleet from this
+repo. Manifest: [`restore-fleet.json`](restore-fleet.json) · runbook:
+[`docs/DR.md`](docs/DR.md) · multi-account: [`docs/MULTI_ACCOUNT.md`](docs/MULTI_ACCOUNT.md).
+
+[![Deploy MCP on Railway](https://railway.com/button.svg)](https://railway.com/template/trios-railway-mcp)
+
+The button restores **only the control-plane** (the MCP server defined in
+[`Dockerfile.mcp`](Dockerfile.mcp) + [`template.json`](template.json)).
+Once the MCP is up, drive the rest from any agent:
+
+```bash
+# 16 trainer services + Neon DDL + L7 line, all in one command
+tri-railway restore \
+    --manifest restore-fleet.json \
+    --new-token "$RAILWAY_TOKEN_V2" \
+    --champion-sha 22bb11f \
+    --confirm
+```
+
+Or in GitHub: **Actions → DR Restore → Run workflow → confirm = PHI**.
+
+Anchor: `phi^2 + phi^-2 = 3`.
+
+
 Manage Railway services for the **IGLA** project (`e4fe33bb-3b09-4842-9782-7d2dea1abc9b`)
 + online audit, with the source of truth in `.trinity/experience/` and Neon.
 

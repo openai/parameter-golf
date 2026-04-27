@@ -1,0 +1,19 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "name": "trios-railway-mcp",
+  "description": "Streamable-HTTP MCP server for IGLA Railway fleet (anchor phi^2+phi^-2=3). Public endpoint that wraps Railway GraphQL: railway_service_list / deploy / redeploy / delete + Neon audit DDL + L7 experience writer.",
+  "build": { "builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.mcp" },
+  "deploy": {
+    "startCommand": "/usr/local/bin/trios-railway-mcp",
+    "healthcheckPath": "/healthz",
+    "restartPolicyType": "ON_FAILURE",
+    "numReplicas": 1
+  },
+  "envVars": {
+    "RAILWAY_TOKEN":      { "description": "Write-capable Railway API token. Required to create/delete services.", "isOptional": false },
+    "NEON_DATABASE_URL":  { "description": "Postgres URL for the IGLA audit ledger.", "isOptional": false },
+    "RUST_LOG":           { "description": "tracing-subscriber filter.", "default": "info" },
+    "PORT":               { "description": "HTTP port (Railway convention).", "default": "8080" },
+    "IGLA_PROJECT_UUID":  { "description": "Default project UUID. After DR-restore, fill with the new IGLA UUID.", "default": "e4fe33bb-3b09-4842-9782-7d2dea1abc9b" }
+  }
+}
