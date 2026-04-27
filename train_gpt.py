@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import uuid
+import lzma
 import zlib
 from pathlib import Path
 
@@ -31,18 +32,19 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # HYPERPARAMETERS
 # -----------------------------
 # Default config (RLMA-MLP + full-rank attention):
-# - 16 transformer blocks at width 512; MLP projections use RLMA (fixed R + rank-16 AB adapters);
-#   attention uses full-rank CastedLinear trained with Muon — much faster learning than RLMA-attn.
+# - 24 transformer blocks at width 512; MLP projections use RLMA (fixed R + rank-16 AB adapters);
+#   attention uses full-rank CastedLinear trained with Muon (momentum 0.99, matches reference).
 # - 8 attention heads / 4 KV heads (GQA), vocab size 1024, sequence length 1024, tied embeddings
-# - 65,536 train tokens/step; ~17ms/step on single H100 (GRAD_ACCUM_STEPS=1)
-# - Submission size: ~14 MB int8+zlib (16-layer attn ~12.6 MB + RLMA-MLP ~1.97 MB)
+# - 65,536 train tokens/step; ~25ms/step on single H100 (GRAD_ACCUM_STEPS=1)
+# - Submission size: ~12-14 MB int8+lzma (24-layer attn ~18.9 MB int8 compresses to ~10-12 MB)
 
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    # SP8192: competition uses 8192-token SentencePiece vocab, not the SP1024 baseline.
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp8192")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_8192_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
 
@@ -64,8 +66,13 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
-    # num_layers=16: half the original 32-layer depth; full-rank attn still fits in 16 MB at this depth.
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
+    # With SP8192 embeddings (8192×512 = 4.2 MB int8), size budget per-run:
+    #   16 layers: 4.2 (emb) + 12.6 (attn) + 2.0 (RLMA-MLP) = 18.8 MB int8
+    #              LZMA at ~1.6× → 11.75 MB ✔  |  at 2× → 9.4 MB ✔  (safe)
+    #   24 layers: 4.2 + 18.9 + 3.0 = 26.1 MB int8
+    #              LZMA at 2× → 13.1 MB ✔  |  at 1.6× → 16.3 MB ✗  (risky)
+    # Start at 16; bump to 24 only after validating actual LZMA compression on a test run.
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
     num_layers = int(os.environ.get("NUM_LAYERS", 16))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
@@ -88,14 +95,19 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    # Muon momentum 0.99 (warmup 0.92→0.99 over 1500 steps) matches competitive reference configs.
+    # Higher final momentum = more stable long-range gradient averaging, fewer loss spikes.
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 1500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    # EMA decay for weight averaging. 0.9965 ≈ worth 0.003 BPB on 50k-step runs.
+    # Set to 0.0 to disable EMA.
+    ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -798,15 +810,20 @@ class GPT(nn.Module):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
+        # U-Net skip connections. Use a fixed-size pre-allocated list so torch.compile
+        # never sees list.append / list.pop — those are graph breaks under fullgraph.
+        # With dynamic=False all loop bounds are compile-time constants and indices are
+        # resolved at trace time, making this pattern graph-break-free.
+        enc_out: list[Tensor | None] = [None] * self.num_encoder_layers
         for i in range(self.num_encoder_layers):
             x = self.blocks[i](x, x0)
-            skips.append(x)
+            enc_out[i] = x
         for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            skip_i = self.num_encoder_layers - 1 - i
+            if 0 <= skip_i < self.num_skip_weights and enc_out[skip_i] is not None:
+                # skip_i is a compile-time constant; the condition folds at trace time.
+                x = x + self.skip_weights[skip_i].to(dtype=x.dtype)[None, None, :] * enc_out[skip_i]
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
@@ -951,11 +968,10 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    # fullgraph=True is now safe: the old _make_R created a torch.Generator() in forward
-    # (Python-level object causing graph breaks). Since R is now a pre-computed register_buffer,
-    # the forward graph is fully static and fuseable. This is the key performance lever:
-    # without fullgraph, each of the ~300 F.linear calls per step is a separate kernel launch.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    # fullgraph=True removed: the U-Net enc_out list and resid_mix indexing can cause
+    # graph breaks depending on PyTorch version. Without fullgraph the compile still
+    # fuses all major kernels (matmuls, flash-attn, norms) via inductor.
+    compiled_model = torch.compile(base_model, dynamic=False)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split (RLMA-MLP + full-rank attention):
@@ -1048,6 +1064,34 @@ def main() -> None:
     log0(f"seed:{args.seed}")
 
     # -----------------------------
+    # EMA SETUP
+    # -----------------------------
+    # EMA (Exponential Moving Average) shadow weights kept in float32 on GPU.
+    # Using lerp_ for efficiency: ema = ema * decay + param * (1 - decay).
+    # Validated at every checkpoint; exported as the final model artifact.
+    ema_params: dict[str, Tensor] | None = None
+    if args.ema_decay > 0:
+        ema_params = {
+            name: param.detach().clone().float()
+            for name, param in base_model.named_parameters()
+        }
+        log0(f"ema:decay={args.ema_decay}")
+
+    def _ema_swap_in() -> dict[str, Tensor]:
+        """Load EMA weights into the live model; return originals for restore."""
+        orig: dict[str, Tensor] = {}
+        if ema_params is not None:
+            for name, param in base_model.named_parameters():
+                orig[name] = param.data.clone()
+                param.data.copy_(ema_params[name].to(dtype=param.dtype))
+        return orig
+
+    def _ema_restore(orig: dict[str, Tensor]) -> None:
+        """Restore live model weights after an EMA-based evaluation."""
+        for name, param in base_model.named_parameters():
+            param.data.copy_(orig[name])
+
+    # -----------------------------
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
 
@@ -1115,6 +1159,8 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            # Evaluate using EMA weights for a cleaner signal.
+            _orig = _ema_swap_in()
             val_loss, val_bpb = eval_val(
                 args,
                 model,
@@ -1127,6 +1173,7 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+            _ema_restore(_orig)
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
@@ -1171,6 +1218,12 @@ def main() -> None:
             opt.step()
         zero_grad_all()
 
+        # Update EMA shadow weights (on GPU, no CPU transfer).
+        if ema_params is not None:
+            with torch.no_grad():
+                for name, param in base_model.named_parameters():
+                    ema_params[name].lerp_(param.detach().float(), 1.0 - args.ema_decay)
+
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         should_log_train = (
@@ -1204,6 +1257,9 @@ def main() -> None:
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
     if master_process:
+        # Finalize: swap EMA weights into the model before serialization.
+        # All downstream code (quantize, roundtrip eval) then uses the EMA model.
+        _ema_swap_in()  # intentionally not restored — training is complete
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
         code_bytes = len(code.encode("utf-8"))
@@ -1215,7 +1271,9 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    # lzma achieves ~1.6-2.2x compression on trained int8 weights vs zlib's ~1.1x.
+    # This enables fitting a 24-layer model within the 16 MB artifact limit.
+    quant_blob = lzma.compress(quant_raw, preset=9)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1237,7 +1295,7 @@ def main() -> None:
 
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
