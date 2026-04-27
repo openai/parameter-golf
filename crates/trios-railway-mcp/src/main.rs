@@ -20,7 +20,7 @@
 
 mod tools;
 
-use std::net::SocketAddr;
+use std::net::{Ipv6Addr, SocketAddr};
 
 use anyhow::{Context, Result};
 use rmcp::transport::streamable_http_server::{
@@ -32,11 +32,18 @@ use crate::tools::TriosRailwayMcp;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Pre-tracing diagnostic line so Railway captures *something* even if
+    // the env filter swallows tracing output. R5 honesty: never silent.
+    println!(
+        "[trios-railway-mcp] boot: pid={}, exe ok",
+        std::process::id()
+    );
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
-        .with_writer(std::io::stderr)
+        .with_writer(std::io::stdout)
         .compact()
         .init();
 
@@ -44,9 +51,12 @@ async fn main() -> Result<()> {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8080);
-    let addr: SocketAddr = SocketAddr::from(([0, 0, 0, 0], port));
+    // Bind on IPv6 unspecified (`[::]`) so the Railway private-network proxy
+    // (IPv6-only) can reach us. Linux dual-stack also accepts IPv4 here.
+    let addr: SocketAddr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));
 
     tracing::info!(%addr, "trios-railway-mcp starting");
+    println!("[trios-railway-mcp] binding to {addr}");
 
     let mcp = StreamableHttpService::new(
         || Ok(TriosRailwayMcp::new()),
