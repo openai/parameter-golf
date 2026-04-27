@@ -65,6 +65,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 This submission focuses on architectural changes and compression-aware export rather than only tuning standard hyperparameters:
 
+* Intermediate transformer ablations showed layers 3 and 6 contributed lower marginal utility under the fixed 10-minute training budget, enabling selective attention removal.
 * Final-layer SSM replacement substitutes the final transformer attention block with a linear-time state-space module for sequence refinement.
 * Selective attention removal removes selected intermediate attention blocks to reduce compute and increase training throughput under fixed wallclock.
 * Heterogeneous MLP allocation assigns different expansion ratios to transformer and SSM blocks.
