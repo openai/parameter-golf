@@ -9,9 +9,9 @@
 | Seed | Steps | ms/step | Pre-quant val_bpb | Post-quant val_bpb | **Post-TTT val_bpb** | Artifact |
 |------|-------|---------|-------------------|--------------------|----------------------|----------|
 | 42   | 4,945 | 121.3   | 1.06396           | 1.07254            | **1.05989**          | 15,897,259 |
-| 0    | 4,932 | 121.7   | 1.06425           | 1.07407            | **1.06125**          | 15,900,947 |
-| 1234 | 4,917 | 122.0   | 1.06438           | 1.07478            | **1.06209**          | 15,907,550 |
-| **Mean** |       |         |                   |                    | **1.06108**          | 15,901,919 |
+| 0    | 4,932 | 121.7   | 1.06545           | 1.07407            | **1.06125**          | 15,900,947 |
+| 1234 | 4,917 | 122.0   | 1.06597           | 1.07478            | **1.06209**          | 15,907,550 |
+| **Mean** | **4,931** | **121.7** |                   |                    | **1.06108**          | 15,901,919 |
 
 3-seed std: 0.00090 BPB / 0.00198 nats. Each individual seed beats the 1.0810 leaderboard by ≥0.0185 BPB / ≥0.0405 nats.
 
@@ -21,25 +21,25 @@
 |-----------|---------|--------|
 | Layers | 11 (512d, 8 GQA heads, 4 KV heads) | Baseline |
 | MLP | 4× (2048) with LeakyReLU(0.5)² | [#493](https://github.com/openai/parameter-golf/pull/493) |
-| Fused MLP kernel | LeakyReLU-square Triton | [#1626](https://github.com/openai/parameter-golf/pull/1626) |
+| Fused MLP kernel | LeakyReLU-square Triton | [#1530](https://github.com/openai/parameter-golf/pull/1530) |
 | Attention | Standard FA3, GQA 2:1 | Baseline |
 | XSA | All 11 layers (`xsa_last_n=11`) | [#478](https://github.com/openai/parameter-golf/pull/478) |
 | RoPE | Partial (16/64 dims) + YaRN | [#315](https://github.com/openai/parameter-golf/pull/315) |
 | LN Scale | 1/√(layer+1) | [#315](https://github.com/openai/parameter-golf/pull/315) |
-| QK Gain init | 5.0 (per-head learned) | [#1019](https://github.com/openai/parameter-golf/pull/1019) |
+| QK Gain init | 5.0 (per-head learned) | concept from [#259](https://github.com/openai/parameter-golf/pull/259); 5.0 default from [#1276](https://github.com/openai/parameter-golf/pull/1276) |
 | U-Net skips | Encoder-decoder skip connections + skip gates | [#289](https://github.com/openai/parameter-golf/pull/289) |
-| Parallel decoder | 2-lane parallel from layer 8+, lane mix learned | [#1626](https://github.com/openai/parameter-golf/pull/1626) |
-| Depth recurrence | Loop layers 3-5 ×2 once `frac >= 0.35` | [#1019](https://github.com/openai/parameter-golf/pull/1019) |
-| Logit softcap | 30 | [#1019](https://github.com/openai/parameter-golf/pull/1019) |
+| Parallel decoder | 2-lane parallel from layer 8+, lane mix learned | [#1530](https://github.com/openai/parameter-golf/pull/1530) (parallel residuals) |
+| Depth recurrence | Loop layers 3-5, run 3× once `frac >= 0.35` | [#1344](https://github.com/openai/parameter-golf/pull/1344) |
+| Logit softcap | 30 | Gemma2-style; in upstream baseline |
 | **Sparse attention gate** | Narrow head-output gate, gate_window=12 | [#1787](https://github.com/openai/parameter-golf/pull/1787) |
 | **SmearGate** (BOS-fixed) | Position-mixing gate with `not_bos` mask | [#1667](https://github.com/openai/parameter-golf/pull/1667) + this work (BOS leak fix) |
 | **Polar-Express Newton-Schulz** | Muon, 5 steps, per-iter minimax tuples | [#1344](https://github.com/openai/parameter-golf/pull/1344) → [#1787](https://github.com/openai/parameter-golf/pull/1787) |
 | **MIN_LR floor** | 0.10 (warmdown LR floor) | [#1787](https://github.com/openai/parameter-golf/pull/1787) |
 | **Fused softcapped CE Triton kernel** | Single-pass training-only | [#1787](https://github.com/openai/parameter-golf/pull/1787) |
-| **LQER asymmetric int4** | Rank-4 quant-error correction on top-3 tensors | [#1530](https://github.com/openai/parameter-golf/pull/1530) → [#1797](https://github.com/openai/parameter-golf/pull/1797) |
-| **Per-group compression** | lrzip zpaq + simsort on hot tensors + brotli rest | [#1626](https://github.com/openai/parameter-golf/pull/1626) (pergroup port) |
-| Quantization | GPTQ int6 + int7 embed + int8-per-row attn-gate | [#1583](https://github.com/openai/parameter-golf/pull/1583) lineage |
-| TTT | Phased TTT eval, 3 phases, prefix=2500 docs, LoRA rank=80 | [#1667](https://github.com/openai/parameter-golf/pull/1667) → [#1729](https://github.com/openai/parameter-golf/pull/1729) |
+| **LQER asymmetric int4** | Rank-4 quant-error correction on top-3 tensors | [#1797](https://github.com/openai/parameter-golf/pull/1797) |
+| **Per-group compression** | lrzip zpaq + L1 similarity-sort row reordering on hot tensors + brotli on the remainder | **this work** — PR #1797's base only ships `lzma` / `brotli` compressors; this submission adds the per-group pipeline (`COMPRESSOR=pergroup`) |
+| Quantization | GPTQ int6 + int7 embed + int8-per-row attn-gate | int7 embed from [#1586](https://github.com/openai/parameter-golf/pull/1586); int8-per-row attn-gate from [#1736](https://github.com/openai/parameter-golf/pull/1736) (`GATED_ATTN_QUANT_GATE`) |
+| TTT | Phased TTT eval, 3 cumulative phases, LoRA per-doc reset | concept [#1610](https://github.com/openai/parameter-golf/pull/1610) → multi-phase global SGD [#1626](https://github.com/openai/parameter-golf/pull/1626) → adopted in [#1736](https://github.com/openai/parameter-golf/pull/1736) |
 | Tokenizer | sp8192 lossless caps caseops v1 reserved | [#1729](https://github.com/openai/parameter-golf/pull/1729) |
 
 ## SmearGate cross-document leak fix
@@ -59,15 +59,28 @@ x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
 
 Applied symmetrically in `_forward_hidden` and `forward_ttt` so training and TTT eval are leak-free.
 
+## Per-group compression
+
+The PR #1797 base only ships `lzma` / `brotli` compressors. This submission adds a per-group serializer (`COMPRESSOR=pergroup`) that:
+
+1. Buckets the int6 GPTQ tensors by role (`qo_bank`, `kv_bank`, `mlp_up_bank`, `mlp_down_bank`, etc.) so similarly-distributed weights compress together.
+2. For the rows of each "hot" 2D group, runs an L1 nearest-neighbour similarity sort (`_similarity_sort_l1`) before transposing — adjacent rows in the serialized stream are now numerically close, which gives the entropy coder much longer runs of small deltas. Permutation indices are stored as `uint16` and brotli-compressed alongside.
+3. Compresses each group blob with `lrzip -z -L 9` (ZPAQ context-mixing back-end). lrzip's long-range deduplication catches cross-tensor repetition that brotli's 24-bit window misses.
+4. Falls back to brotli for the remainder (state dict scaffolding, scales, LQER factors, gate tensors) and the code wrapper.
+
+Net effect on this stack: ~280 KB smaller artifact than `COMPRESSOR=brotli`, at the cost of ~75 s of additional serialize time (lrzip ZPAQ is slow). Decompression is fast enough to fit comfortably in the eval budget.
+
+`apt-get install lrzip` is required at runtime — the Python `subprocess.run` wrapper shells out to the binary.
+
 ## Hyperparameter stack
 
 9 overrides validated by greedy forward-selection on 8×H100 real fixed-step (`ITERATIONS=4950, MAX_WALLCLOCK_SECONDS=0`), seed 42:
 
 | hparam | value | default | rationale |
 |---|---|---|---|
-| MLP_CLIP_SIGMAS | 11.5 | 12.0 | tighter MLP clip → smaller GPTQ quant noise |
-| EMBED_CLIP_SIGMAS | 14.0 | 15.0 | tighter embed clip → smaller embed quant noise |
-| WARMDOWN_FRAC | 0.85 | 0.75 | longer high-LR phase, shorter warmdown |
+| MLP_CLIP_SIGMAS | 11.5 | 10.0 | looser MLP clip — empirically reduces total GPTQ quant error (preserves more outliers vs. coarser bulk) |
+| EMBED_CLIP_SIGMAS | 14.0 | 20.0 | substantially tighter embed clip → finer int7 granularity in the bulk of the embedding distribution |
+| WARMDOWN_FRAC | 0.85 | 0.75 | longer warmdown phase (starts at frac=0.15 instead of 0.25) with gentler decay slope |
 | BETA2 | 0.99 | 0.95 | larger Adam beta2, more stable gradient ema |
 | TTT_BETA2 | 0.99 | 0.999 | smaller TTT-Adam beta2, faster TTT adaptation |
 | TTT_WEIGHT_DECAY | 0.5 | 1.0 | weaker TTT weight decay during phased eval |
@@ -79,12 +92,12 @@ Applied symmetrically in `_forward_hidden` and `forward_ttt` so training and TTT
 
 | | |
 |---|---|
-| Training | 4920±15 steps in 600s on 8×H100 SXM (~121 ms/step), warmup=20, warmdown_frac=0.85, MIN_LR=0.10, MATRIX_LR=0.026, GRAD_CLIP_NORM=0.3 |
+| Training | 4931±14 steps in 600s on 8×H100 SXM (121.7 ms/step mean), warmup=20, warmdown_frac=0.85, MIN_LR=0.10, MATRIX_LR=0.026, GRAD_CLIP_NORM=0.3 |
 | Optimizer | Polar-Express Muon (5 steps) on matrix params; Adam (β1=0.9, β2=0.99) on tied embeddings (lr=0.03) and scalars (lr=0.02) |
 | EMA | decay=0.9965 |
 | Quantization | GPTQ int6 (matrix) + int7 (tied embed) with LQER asym int4 rank-4 correction on top-3 tensors |
 | Compression | per-group lrzip zpaq + simsort on hot tensors + brotli on remainder + brotli code wrapper |
-| TTT | Phased TTT, 3 phases × 833-doc cumulative prefix, prefix=2500 total, LoRA rank=80 on Q/K/V/O/MLP |
+| TTT | Phased TTT, 3 cumulative phases at doc-boundaries 833 / 1666 / 2500 (max prefix=2500 docs); LoRA rank=80 on Q/K/V/O/MLP + lm_head, per-doc reset |
 | Eval time | 455-509s of 600s budget (median 470s) |
 
 ## Requirements
@@ -136,13 +149,17 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 Implementation lineage stacks decisions from a long sequence of community PRs. Most directly:
 
-- [PR #1797](https://github.com/openai/parameter-golf/pull/1797) by @dexhunter — sparse attention head-output gate, MIN_LR floor, fused softcapped CE Triton kernel, Polar-Express Newton-Schulz tuples, LQER asymmetric int4. This submission's architecture is closest to PR #1797's, with the SmearGate cross-doc fix applied and 9 hparam values re-tuned via multi-seed greedy forward-selection on 8×H100 real.
+- [PR #1797](https://github.com/openai/parameter-golf/pull/1797) by @dexhunter — Smear Gate + LQER asymmetric rank-4 stacked on the PR #1787 base. This submission's architecture is closest to PR #1797's, with the SmearGate cross-doc fix applied and 9 hparam values re-tuned via multi-seed greedy forward-selection on 8×H100 real.
 - [PR #1787](https://github.com/openai/parameter-golf/pull/1787) by @nprime06 — Polar Express NS, MIN_LR=0.10, sparse attention gate, fused softcapped CE.
+- [PR #1736](https://github.com/openai/parameter-golf/pull/1736) — CaseOps + GatedAttn + QuantGate + Loop4-5 + PhasedTTT integration on top of PR #1530's stack.
 - [PR #1729](https://github.com/openai/parameter-golf/pull/1729) by @romeerp — sp8192 lossless caps caseops v1 reserved tokenizer + tapered weight decay infra.
-- [PR #1667](https://github.com/openai/parameter-golf/pull/1667) by @MarioPaerle / @classiclarryd — AttnOutGate / GatedAttn (G1) / SmearGate.
-- [PR #1626](https://github.com/openai/parameter-golf/pull/1626) — fused LeakyReLU-square MLP Triton kernel, parallel decoder, per-group compression port.
-- [PR #1530](https://github.com/openai/parameter-golf/pull/1530) — LQER asymmetric quant-error correction.
-- [PR #1344](https://github.com/openai/parameter-golf/pull/1344) — Polar-Express Newton-Schulz coefficients.
-- [PR #1019](https://github.com/openai/parameter-golf/pull/1019) — depth recurrence, partial RoPE, QK-Gain init, logit softcap.
-- [PR #478](https://github.com/openai/parameter-golf/pull/478) by @gowtham0992 — XSA-all.
+- [PR #1667](https://github.com/openai/parameter-golf/pull/1667) by @MarioPaerle — Reintroduced SmearGate (modded-nanogpt @classiclarryd style) + Attention Output Gate.
+- [PR #1626](https://github.com/openai/parameter-golf/pull/1626) by @dexhunter — Multi-phase global SGD phased-TTT.
+- [PR #1610](https://github.com/openai/parameter-golf/pull/1610) — VarLenAttn + originator of phased TTT (PhasingTTT).
+- [PR #1586](https://github.com/openai/parameter-golf/pull/1586) — Per-Layer Adaptive GPTQ Clip + int7 Embeddings + MATRIX_LR=0.026.
+- [PR #1530](https://github.com/openai/parameter-golf/pull/1530) by @samacqua — Variable-length attention, fused LeakyReLU² MLP Triton kernel, parallel residuals, doc-based LoRA TTT.
+- [PR #1344](https://github.com/openai/parameter-golf/pull/1344) — Polar-Express Newton-Schulz coefficients + depth recurrence (Loop4-5).
+- [PR #493](https://github.com/openai/parameter-golf/pull/493) — LeakyReLU² activation.
+- [PR #478](https://github.com/openai/parameter-golf/pull/478) by @gowtham0992 — XSA-all on all layers.
+- [PR #315](https://github.com/openai/parameter-golf/pull/315) — Partial RoPE + LN Scale.
 - [PR #289](https://github.com/openai/parameter-golf/pull/289) — U-Net skip connections.
