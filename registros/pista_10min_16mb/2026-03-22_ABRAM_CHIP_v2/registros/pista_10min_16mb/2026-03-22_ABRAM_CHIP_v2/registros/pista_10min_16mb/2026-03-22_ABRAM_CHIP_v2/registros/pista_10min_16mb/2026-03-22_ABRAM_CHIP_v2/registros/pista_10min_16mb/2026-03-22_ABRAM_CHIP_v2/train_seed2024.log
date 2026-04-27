@@ -1,0 +1,22 @@
+ABRAM_CHIP v2 — Training Log (seed=2024)
+=========================================
+Author: Abraham | H.A.S. Framework
+Date: 2026-03-22 | Seed: 2024
+
+Architecture:
+  Model: ABRAM_CHIP v2
+  Dtype: int16 only
+  N: 128 nodes
+  EMB_SIZE: 64
+  T: 50 evolution steps
+  Context: 4-gram
+  Tokenizer: BPE 200 merges
+  Sliding window stride: 64
+
+Results (seed=2024):
+  val_bpb: 0.4891
+  model_size_kb: 34.80
+  train_time_s: 37.1
+
+Dataset: simulation (FineWeb-style)
+FineWeb real validation: pending compute grant
