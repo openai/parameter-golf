@@ -1,0 +1,96 @@
+logs/da40cef9-bd1f-442e-a8bb-4e89a1360f39.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27912284
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+JEPA:enabled=True loss_weight=0.12 latent_dim=256 spans=1,2,4,8 params=918528
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+smear_init:-3.0 qat_settle_lr_mult:1.0
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1904: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1904: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+warmup_step:1/20
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1904: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1904: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9349 val_bpb:4.1072 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9377 train_time:145ms step_avg:144.72ms
+step:2/20000 train_loss:13.0654 train_time:232ms step_avg:115.86ms
+step:3/20000 train_loss:10.9598 train_time:322ms step_avg:107.38ms
+step:4/20000 train_loss:8.2752 train_time:413ms step_avg:103.16ms
+step:5/20000 train_loss:6.6640 train_time:503ms step_avg:100.62ms
+step:6/20000 train_loss:6.1114 train_time:594ms step_avg:98.92ms
+step:7/20000 train_loss:6.0648 train_time:684ms step_avg:97.79ms
+step:8/20000 train_loss:6.0718 train_time:775ms step_avg:96.87ms
+step:9/20000 train_loss:5.8794 train_time:866ms step_avg:96.21ms
+step:10/20000 train_loss:5.5908 train_time:956ms step_avg:95.64ms
+step:500/20000 train_loss:2.3825 train_time:46267ms step_avg:92.53ms
+step:1000/20000 train_loss:2.2632 train_time:92685ms step_avg:92.69ms
+step:1500/20000 train_loss:2.2116 train_time:139146ms step_avg:92.76ms
+step:2000/20000 train_loss:2.0543 train_time:185665ms step_avg:92.83ms
+step:2500/20000 train_loss:2.1600 train_time:232194ms step_avg:92.88ms
+step:3000/20000 train_loss:2.1548 train_time:278719ms step_avg:92.91ms
+step:3500/20000 train_loss:2.1595 train_time:325253ms step_avg:92.93ms
+step:4000/20000 train_loss:1.9475 train_time:371734ms step_avg:92.93ms
+step:4000/20000 val_loss:2.0380 val_bpb:1.2070 train_time:371738ms step_avg:92.93ms
+step:4500/20000 train_loss:2.0994 train_time:418244ms step_avg:92.94ms
+step:5000/20000 train_loss:2.0767 train_time:464757ms step_avg:92.95ms
+step:5500/20000 train_loss:1.9918 train_time:511224ms step_avg:92.95ms
+late_qat:enabled step:5931 scale:0.1499 qat_lr_mult:1.0000
+step:6000/20000 train_loss:1.9110 train_time:557696ms step_avg:92.95ms
+step:6456/20000 val_loss:1.9265 val_bpb:1.1410 train_time:600028ms step_avg:92.94ms
+stopping_early: wallclock_cap train_time:600028ms step:6456/20000
+peak memory allocated: 25758 MiB reserved: 26546 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9251 val_bpb:1.1402 eval_time:2077ms
+ttt:start lr=0.0005 epochs=3 freeze_blocks=0 cosine_decay=True
+ttt_adamw:params trainable=27519068 frozen=393216
+ttt_adamw:epoch 1/3 loss:1.9454 time:20.5s
+ttt_adamw:epoch 2/3 loss:1.9259 time:40.7s
+ttt_adamw:epoch 3/3 loss:1.9122 time:60.9s
+ttt_adamw:done elapsed=60.9s
+ttt:elapsed=60.9s
+DIAGNOSTIC post_ttt val_loss:1.9070 val_bpb:1.1294 eval_time:6024ms
+Serialized model: 106178569 bytes
+Code size: 100526 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 4.1s
+GPTQ:quantizing with Hessian error compensation...
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ:total quantization time: 13.0s
+Serialized model int6+lzma: 15877452 bytes
+Total submission size int6+lzma: 15977978 bytes
+SIZE CHECK: 15977978 / 16000000 = UNDER
+final_int6_roundtrip val_loss:1.9093 val_bpb:1.1308 eval_time:15943ms
+final_int6_roundtrip_exact val_loss:1.90928199 val_bpb:1.13078434
+final_int6_sliding_window val_loss:1.8717 val_bpb:1.1085 stride:64 eval_time:97848ms
+final_int6_sliding_window_exact val_loss:1.87167605 val_bpb:1.10851492
+final_int8_zlib_roundtrip_exact val_loss:1.87167605 val_bpb:1.10851492
