@@ -738,12 +738,13 @@ class Muon(torch.optim.Optimizer):
                     if pso_residual != 0.0:
                         recon = U @ core @ V.T
                         resid = m_eff - recon
-                        rms = resid.norm() / math.sqrt(max(1, resid.numel())) + pso_eps
-                        upd = upd + pso_residual * (resid / rms)
+                        resid_n = resid.norm() + pso_eps
+                        recon_n = upd.norm() + pso_eps
+                        upd = upd + pso_residual * (resid / resid_n) * recon_n
                     if pso_renormalize:
-                        rms = upd.norm() / math.sqrt(max(1, upd.numel())) + pso_eps
-                        upd = upd / rms
-                    upd = upd * (max(1, upd.size(0) / upd.size(1)) ** 0.5)
+                        upd_n = upd.norm() + pso_eps
+                        target_n = math.sqrt(max(upd.size(0), upd.size(1)))
+                        upd = upd * (target_n / upd_n)
                     updates_flat[curr : curr + p.numel()] = upd.reshape(-1).to(torch.bfloat16)
                 curr += p.numel()
             if distributed:
