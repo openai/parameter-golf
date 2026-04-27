@@ -31,7 +31,8 @@ Opus/
 
 | Date | Phase | Status |
 |------|-------|--------|
-| 2026-04-27 | Setup + reproduction | Not started — waiting on confirm to spend compute |
+| 2026-04-27 | Pre-flight (CPU only) | ✅ SOTA decoded, selective-TTT patch written and locally validated, all 6 experiments pre-specified, pod setup + repro scripts staged. **Ready for GPU.** |
+| 2026-04-27 | Day 1 reproduction | ⏳ Awaiting RunPod 1×H100 access |
 
 ## How to read this folder
 
