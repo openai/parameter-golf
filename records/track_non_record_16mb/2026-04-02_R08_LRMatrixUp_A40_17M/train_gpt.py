@@ -1,4 +1,4 @@
-"""
+﻿"""
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
 Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
@@ -53,7 +53,6 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.0))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
@@ -67,8 +66,6 @@ class Hyperparameters:
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
-    mlp_hidden = int(os.environ.get("MLP_HIDDEN", 0))
-    mlp_activation = os.environ.get("MLP_ACTIVATION", "relu2").lower()
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
@@ -88,7 +85,6 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    enable_compile = bool(int(os.environ.get("ENABLE_COMPILE", "1")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -197,7 +193,7 @@ def build_sentencepiece_luts(
             base_bytes_np[token_id] = 1
             continue
         piece = sp.id_to_piece(token_id)
-        if piece.startswith("▁"):
+        if piece.startswith("Γûü"):
             has_leading_space_np[token_id] = True
             piece = piece[1:]
         base_bytes_np[token_id] = len(piece.encode("utf-8"))
@@ -595,55 +591,30 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        use_gqa = self.num_kv_heads != self.num_heads
-        try:
-            y = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=None,
-                is_causal=True,
-                enable_gqa=use_gqa,
-            )
-        except TypeError:
-            # Older PyTorch builds do not expose enable_gqa; emulate by repeating KV heads.
-            if use_gqa:
-                repeat_factor = self.num_heads // self.num_kv_heads
-                k = k.repeat_interleave(repeat_factor, dim=1)
-                v = v.repeat_interleave(repeat_factor, dim=1)
-            y = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=None,
-                is_causal=True,
-            )
+        y = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
+        )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
 
 class MLP(nn.Module):
-    # Supports relu^2 baseline and optional SwiGLU gating.
-    def __init__(self, dim: int, mlp_mult: int, mlp_hidden: int = 0, activation: str = "relu2"):
+    # relu^2 MLP from the original modded-nanogpt setup
+    def __init__(self, dim: int, mlp_mult: int):
         super().__init__()
-        hidden = mlp_hidden if mlp_hidden > 0 else mlp_mult * dim
-        self.activation = activation
-        if self.activation == "swiglu":
-            self.fc = CastedLinear(dim, 2 * hidden, bias=False)
-        else:
-            self.fc = CastedLinear(dim, hidden, bias=False)
+        hidden = mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
 
     def forward(self, x: Tensor) -> Tensor:
-        h = self.fc(x)
-        if self.activation == "swiglu":
-            gate, value = h.chunk(2, dim=-1)
-            return self.proj(F.silu(gate) * value)
-        if self.activation == "relu2":
-            h = torch.relu(h)
-            return self.proj(h.square())
-        raise ValueError(f"Unsupported MLP_ACTIVATION: {self.activation}")
+        x = torch.relu(self.fc(x))
+        return self.proj(x.square())
 
 
 class Block(nn.Module):
@@ -653,8 +624,6 @@ class Block(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
-        mlp_hidden: int,
-        mlp_activation: str,
         rope_base: float,
         qk_gain_init: float,
     ):
@@ -662,7 +631,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult, mlp_hidden=mlp_hidden, activation=mlp_activation)
+        self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
@@ -685,8 +654,6 @@ class GPT(nn.Module):
         num_heads: int,
         num_kv_heads: int,
         mlp_mult: int,
-        mlp_hidden: int,
-        mlp_activation: str,
         tie_embeddings: bool,
         tied_embed_init_std: float,
         logit_softcap: float,
@@ -711,8 +678,6 @@ class GPT(nn.Module):
                     num_heads,
                     num_kv_heads,
                     mlp_mult,
-                    mlp_hidden,
-                    mlp_activation,
                     rope_base,
                     qk_gain_init,
                 )
@@ -768,8 +733,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    if args.enable_compile:
-        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -781,13 +745,9 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    grad_accum_steps_env = int(os.environ.get("GRAD_ACCUM_STEPS", "0"))
-    if grad_accum_steps_env > 0:
-        grad_accum_steps = grad_accum_steps_env
-    else:
-        if 8 % world_size != 0:
-            raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
-        grad_accum_steps = 8 // world_size
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required")
@@ -870,8 +830,6 @@ def main() -> None:
         num_heads=args.num_heads,
         num_kv_heads=args.num_kv_heads,
         mlp_mult=args.mlp_mult,
-        mlp_hidden=args.mlp_hidden,
-        mlp_activation=args.mlp_activation,
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
@@ -882,8 +840,8 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    run_model = torch.compile(base_model, dynamic=False, fullgraph=True) if args.enable_compile else base_model
-    model: nn.Module = DDP(run_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else run_model
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -939,8 +897,6 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    hidden_width = args.mlp_hidden if args.mlp_hidden > 0 else args.mlp_mult * args.model_dim
-    log0(f"mlp_activation:{args.mlp_activation} mlp_hidden:{hidden_width}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
@@ -951,7 +907,6 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"enable_compile:{args.enable_compile}")
     log0(f"seed:{args.seed}")
 
     # -----------------------------
@@ -967,10 +922,6 @@ def main() -> None:
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step: int, elapsed_ms: float) -> float:
-        if args.warmdown_frac > 0 and max_wallclock_ms is not None:
-            warmdown_ms = max_wallclock_ms * args.warmdown_frac
-            remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-            return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
         if args.warmdown_iters <= 0:
             return 1.0
         if max_wallclock_ms is None:
