@@ -125,13 +125,33 @@ fi
 if [[ ! -f "$VAL_SHARD" || ! -f "$TRAIN_SHARD" || ! -f "$TOKENIZER" ]]; then
     echo "==> Data prep needed (shards or tokenizer missing). Running download_hf_docs_and_tokenize.py..."
     echo "    This is one-time per network volume; takes ~30-60min on a 1xH100 pod."
+
+    # Disk-space safety: HF cache defaults to /root/.cache/huggingface (container
+    # disk, often only ~50GB) but the docs blob from willdepueoai/parameter-golf
+    # is ~48GB. If we don't redirect, hf_hub_download fails mid-fetch. Route the
+    # whole HF state tree to the network volume parent of $DATA_DIR so it
+    # persists across pod sessions and never hits the container disk.
+    if [[ -z "${HF_HOME:-}" ]]; then
+        export HF_HOME="$(cd "$(dirname "$DATA_DIR")/.." && pwd)/.hf_cache"
+        mkdir -p "$HF_HOME"
+        echo "    HF_HOME (auto-set): $HF_HOME"
+    else
+        echo "    HF_HOME (inherited): $HF_HOME"
+    fi
+
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        echo "    [DRY RUN] Would run: python data/download_hf_docs_and_tokenize.py"
+        echo "    [DRY RUN] Would run: python data/download_hf_docs_and_tokenize.py --output-root data"
     else
         if ! python -c "import huggingface_hub" 2>/dev/null; then
             pip install --quiet huggingface_hub
         fi
-        python data/download_hf_docs_and_tokenize.py 2>&1 | tee data_prep.log
+        # --output-root is REQUIRED by the upstream script. Layout it produces:
+        #   data/tokenizers/fineweb_1024_bpe.model
+        #   data/datasets/fineweb10B_sp1024/fineweb_{train,val}_*.bin
+        # Defaults for --repo-id (willdepueoai/parameter-golf) and --num-val-docs
+        # (sidecar-pinned, ~50k) are intentional — overriding either desyncs val_loss
+        # from the upstream 0.9485 baseline.
+        python data/download_hf_docs_and_tokenize.py --output-root data 2>&1 | tee data_prep.log
         if [[ ! -f "$VAL_SHARD" || ! -f "$TOKENIZER" ]]; then
             echo "FATAL: data prep finished but shards/tokenizer still missing — see data_prep.log" >&2
             exit 3
