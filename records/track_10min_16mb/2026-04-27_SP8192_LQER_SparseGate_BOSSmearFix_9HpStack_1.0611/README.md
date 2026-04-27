@@ -74,7 +74,7 @@ Net effect on this stack: ~280 KB smaller artifact than `COMPRESSOR=brotli`, at 
 
 ## Hyperparameter stack
 
-9 overrides validated by greedy forward-selection on 8×H100 real fixed-step (`ITERATIONS=4950, MAX_WALLCLOCK_SECONDS=0`), seed 42:
+9 overrides validated by greedy forward-selection on 8×H100 real fixed-step (`ITERATIONS=4950, MAX_WALLCLOCK_SECONDS=0`), seed 42. `ITERATIONS=4950, MAX_WALLCLOCK_SECONDS=0` were only for internal hyperparameter trials; the final submission used strict 600 s wallclock time and not fixed-step.
 
 | hparam | value | default | rationale |
 |---|---|---|---|
