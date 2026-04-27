@@ -1,0 +1,55 @@
+{
+  "author": "Kays Laouar",
+  "github_id": "",
+  "model_name": "TanHop",
+  "description": "Tangle-Steered Hopfield Language Model. PSL(2,Q) rational tangle representations as entropy-gated queries into a modern Hopfield memory at the U-Net bottleneck. 5.6M parameters on RTX 3060.",
+  "val_bpb": 1.69361,
+  "val_bpb_runs": [1.66445102, 1.71011620, 1.70626989],
+  "val_bpb_mean": 1.69361,
+  "val_bpb_std": 0.02533,
+  "n_runs": 3,
+  "seeds": [1337, 42, 7],
+  "hardware": "1x NVIDIA RTX 3060 8GB",
+  "max_wallclock_seconds": 600,
+  "model_params": 5597218,
+  "artifact_bytes": 6863395,
+  "artifact_bytes_breakdown": {
+    "model_int8_zlib": 6797568,
+    "code": 65827
+  },
+  "architecture": {
+    "type": "U-Net Transformer + TangleHopfield",
+    "num_layers": 8,
+    "model_dim": 256,
+    "num_heads": 4,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "seq_len": 256,
+    "vocab_size": 1024,
+    "tie_embeddings": true,
+    "hopfield_patterns": 256,
+    "tangle_dim": 68,
+    "tangle_generators": ["T", "S", "S_inv", "T_inv", "L", "R"]
+  },
+  "ablation": {
+    "baseline_val_bpb_runs": [1.76381008, 1.75675673, 1.74784061],
+    "baseline_val_bpb_mean": 1.75614,
+    "baseline_val_bpb_std": 0.00800,
+    "delta_bpb_mean": -0.06252,
+    "tangle_params": 124418,
+    "welch_t": 4.077,
+    "p_value": 0.0404,
+    "note": "Same script, ABLATION=1 env var disables Hopfield injection. Identical params, config, seeds."
+  },
+  "extended_run": {
+    "description": "4-hour run, seed=1337, same config, not converged at termination",
+    "steps": 17909,
+    "val_bpb_roundtrip": 1.49597495,
+    "val_bpb_unquantized": 1.4901,
+    "wall_seconds": 14400,
+    "note": "Still descending at step 17909. Architecture has substantial headroom beyond 10-min window."
+  },
+  "run_command_tanhop":   "ABLATION=0 RUN_ID=tanhop_run1   SEED=1337 MAX_WALLCLOCK_SECONDS=600 python train_tanhop.py",
+  "run_command_ablation": "ABLATION=1 RUN_ID=ablation_run1 SEED=1337 MAX_WALLCLOCK_SECONDS=600 python train_tanhop.py",
+  "notes": "First application of PSL(2,Q) rational tangle group representations as structured token priors in language modeling. TanHop achieves 0.063 bpb improvement over matched baseline (p=0.040, Welch t-test, 3 seeds). The entropy gate causes the tangle model to run faster per step (767ms vs 915ms) by bypassing Hopfield retrieval when uncertain, so the improvement comes from both better per-step learning and more steps in equivalent wall time."
+}
