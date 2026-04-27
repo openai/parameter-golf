@@ -1,0 +1,22 @@
+{
+  "val_bpb": 0.9581,
+  "val_loss": 1.617,
+  "bytes_total": 15730760,
+  "bytes_code": 92000,
+  "bytes_model": 15638760,
+  "num_params": 27137223,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 270,
+  "num_gpus": 8,
+  "gpu_type": "H100 SXM 80GB",
+  "eval_method": "score_first_ttt_4ep_adamw + sliding_window_stride64 + ngram_backoff_2_7_entropy_adaptive",
+  "quantization": "int6_per_row_zstd16",
+  "author": "Asukabot0",
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {"val_bpb": 0.9576, "artifact_bytes": 15721728},
+    "42": {"val_bpb": 0.9581, "artifact_bytes": 15702393},
+    "7": {"val_bpb": 0.9585, "artifact_bytes": 15768158}
+  },
+  "notes": "Score-first AdamW TTT (4 epochs, lr=0.0001, freeze first 2 blocks) + multi-order n-gram backoff (orders 2-7) with entropy-adaptive alpha. 11L XSA-all + LeakyReLU(0.5)^2 + Value Residual + Gated Attention."
+}
