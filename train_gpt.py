@@ -653,11 +653,12 @@ class RandomLinearAdapter(nn.Module):
         rng = torch.Generator()
         rng.manual_seed(seed)
         R = torch.randn(out_features, in_features, generator=rng) * (in_features ** -0.5)
-        self.register_buffer("R", R.half(), persistent=False)
+        # Store as bfloat16 — matches the model's autocast dtype, avoids fp16→bf16 cast per step.
+        self.register_buffer("R", R.bfloat16(), persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
-        # R is a buffer on the same device; cast to x's dtype for bf16 autocast compatibility.
-        Rx  = F.linear(x, self.R.to(x.dtype))
+        # R is bfloat16 on the same device; no dtype cast needed under bf16 autocast.
+        Rx  = F.linear(x, self.R)
         ABx = F.linear(F.linear(x, self.adapter_B), self.adapter_A)
         return Rx + ABx
 
