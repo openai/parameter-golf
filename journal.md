@@ -96,6 +96,30 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 06:25 EDT · exp 0058 · pure-ATTN baseline anchors writeup decomposition
+
+**Question**: clean writeup baseline. How much do the SSM blocks (with topology + kill + no-BG) contribute on top of the schedule + recur+SwiGLU+mlp=8 + no-BG combination? Pure ATTN at all 3 K=3 unique positions, no SSM at all.
+
+**Result**: val_bpb 2.0875 (single seed). Almost identical to prior transformer-best with BG (2.0869).
+
+**Decomposition for the writeup**:
+
+| Component | val_bpb | Δ |
+|---|---|---|
+| Pure-attn 3-of-3 + recur+SwiGLU+mlp=8 (no BG) (0058) | 2.0875 | (writeup baseline) |
+| **Triple-parallel cross-class hybrid (4-seed mean)** | **2.00503** | **-0.0825** |
+| Conv1d removal from Mamba-2 (0047) | 2.1132 | +0.026 above pure-attn baseline (Mamba-2 minus conv1d ≈ S4D-no-conv1d) |
+| Decomposing the -0.0825 contribution: |  |  |
+| - Add Mamba-2 BLOCK (0035/0036 vs equivalent prior-session pure-attn) | 2.04171 | -0.045 |
+| - Kill selectivity (0038/0039 vs 0035/0036) | 2.02723 | -0.014 |
+| - Remove BG (0042/0045 vs 0038/0039) | 2.02193 | -0.005 |
+| - Middle-parallel topology (0046/0050 vs 0042/0045) | 2.01031 | -0.012 |
+| - Triple-parallel (0051/0053/0056/0057 vs 0046/0050) | 2.00503 | -0.005 |
+
+**Total -0.0825 BPB** = -0.045 (BLOCK) + -0.014 (kill) + -0.005 (no BG) + -0.012 (middle-parallel) + -0.005 (triple-parallel). Numbers add up cleanly.
+
+**Conclusion**: 0058 is the clean baseline anchor. The SSM family wins at our regime are real (-0.082 BPB) and decomposable into 5 distinct levers, all individually verifiable.
+
 ## 2026-04-27 06:00 EDT · 4-seed sentinel of new winner — σ_mean=0.0015, family stable
 
 **Question** (per user "4-seed sentinel before final promote"): tighten the σ point estimate for the 0051 triple-parallel family. 2-seed σ_pair was 0.0029; need to see if 0024-style σ-widening occurs.
