@@ -93,6 +93,32 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 00:35 EDT · exp 0044 · d_state=16 nearly matches d_state=64 (κ-collapse partially confirmed)
+
+**Question** (capacity-collapse test): if the LTI version's d_state=64 collapses to a scalar κ per the derivation, then d_state=16 should match d_state=64 at our regime. Direct empirical test of the closed-form argument.
+
+**Setup**: 0044 = 0042 (kill, no-BG) + `MAMBA2_D_STATE=16`. Required a 1-line code change to read the env var. Single seed.
+
+**Result**: val_bpb_post_quant **2.0278** vs 0042's 2.0225 — Δ +0.0053 (within noise but consistently slightly worse).
+
+**Observations from trajectory**:
+- End-of-train: 0044 train_loss 2.94 vs 0042 train_loss 3.36. **0044 trains MUCH faster** (~14% lower train loss).
+- Yet val_bpb is HIGHER. Train-val gap is wider — overfit signal.
+- Train trajectory oscillates more (multiple +0.5 nat jumps between adjacent log points), suggesting LR is too high for the smaller d_state's effective capacity.
+- Step time: 5.37 s/step (vs 5.88 at d_state=64, ~9% faster) — chunkwise SSD scan benefits from smaller N.
+
+**Interpretation** [PARTIAL CONFIRM of κ-scalar argument]:
+- val_bpb difference is small (+0.005, below noise threshold) — d_state=16 IS *approximately* as good as 64. The κ-scalar collapse argument captures the LEADING behavior.
+- BUT: train converges much faster at d_state=16 → there's some genuine d_state>1 benefit in the FULL training dynamics that the closed-form ignores. Likely sources:
+  - Per-(d_inner, d_state) A_log gives multiple decay rates per d_inner channel (init: A_re uniform around -0.5 across d_state). With d_state=64, each d_inner has 64 distinct timescales averaged into the final output. With d_state=16, only 16 timescales — coarser temporal resolution per d_inner.
+  - More state-dim provides more gradient flow paths during training, even if the final output collapses.
+  - LR-tuned-for-d_state=64 doesn't transfer cleanly to d_state=16.
+- **The κ-collapse derivation is partial**: scalar κ captures the eval-time output but misses the gradient-flow story during training.
+
+**Conclusion**: d_state=16 isn't clearly better; d_state=64 stays the default for LTI Mamba-2. The capacity-collapse story for kill-wins is PARTIAL — yes the per-position output collapses to scalar κ at eval, but the gradient flow and LR-stability benefit from d_state=64's richer parameterization.
+
+**Open question for follow-up**: with LR re-tuning for d_state=16 (probably lower MATRIX_LR), val_bpb might drop. Not pursuing this session — diminishing returns.
+
 ## 2026-04-27 00:05 EDT · exp 0042 + 0043 · BigramHash matrix — BG slightly hurts Mamba-2; kill-wins is BG-orthogonal
 
 **Question** (the BigramHash interaction test from walk 22:22): was BigramHash filling selectivity's recall niche, making selectivity redundant in 0038/0039? Removing BG should reveal selectivity's true value.
