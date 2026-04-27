@@ -120,8 +120,8 @@ class Hyperparameters:
     # Novel architecture: professor/student phases (fixed schedule; see spec).
     phase1_frac = float(os.environ.get("PHASE1_FRAC", "0.20"))
     stabilization_frac = float(os.environ.get("STABILIZATION_FRAC", "0.02"))
-    phase1_seq_len = int(os.environ.get("PHASE1_SEQ_LEN", "2048"))
-    phase2_content_len = int(os.environ.get("PHASE2_CONTENT_LEN", "512"))
+    phase1_seq_len = int(os.environ.get("PHASE1_SEQ_LEN", "1024"))
+    phase2_content_len = int(os.environ.get("PHASE2_CONTENT_LEN", "1016"))
     cheat_prefix_len = int(os.environ.get("CHEAT_PREFIX_LEN", "8"))
     professor_layers = int(os.environ.get("PROFESSOR_LAYERS", "10"))
     student_layers = int(os.environ.get("STUDENT_LAYERS", "13"))
@@ -337,34 +337,26 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
 def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        # Matrices get one scale per row, which usually tracks output-channel
-        # ranges much better than a single tensor-wide scale.
-        clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
-            if t32.numel()
-            else torch.empty((t32.shape[0],), dtype=torch.float32)
-        )
-        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
-        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
-
-    # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
-    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+        # Per-row amax scaling (compiler friendly)
+        row_max = t32.abs().amax(dim=1).clamp_min(1e-12)
+        scale = (row_max / 127.0).to(dtype=INT8_PER_ROW_SCALE_DTYPE)
+        q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -127, 127).to(torch.int8).contiguous()
+        return q, scale.contiguous()
+    # Simple per-tensor scaling
+    amax = t32.abs().max().clamp_min(1e-12)
+    scale = (amax / 127.0).float()
+    q = torch.clamp(torch.round(t32 / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
-
 
 def quantize_intN_per_row(t: Tensor, clip_range: int) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
-        row_max = t32.abs().amax(dim=1)
-        scale = (row_max / clip_range).clamp_min(1e-12).to(torch.float16)
+        row_max = t32.abs().amax(dim=1).clamp_min(1e-12)
+        scale = (row_max / clip_range).to(torch.float16)
         q = torch.clamp(torch.round(t32 / scale.float()[:, None]), -(clip_range + 1), clip_range).to(torch.int8).contiguous()
         return q, scale.contiguous()
-    amax = t32.abs().max().item() if t32.numel() else 0.0
-    scale = torch.tensor(max(amax / clip_range, 1e-12), dtype=torch.float16)
+    amax = t32.abs().max().clamp_min(1e-12)
+    scale = (amax / clip_range).to(torch.float16)
     q = torch.clamp(torch.round(t32 / scale.float()), -(clip_range + 1), clip_range).to(torch.int8).contiguous()
     return q, scale
 
@@ -578,12 +570,14 @@ class DistributedTokenLoader:
 
     def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        # Round down to nearest multiple of seq_len to ensure reshape always works
+        local_tokens = (local_tokens // seq_len) * seq_len
         per_rank_span = local_tokens + 1
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
-        x = local[:-1].reshape(-1, seq_len)
-        y = local[1:].reshape(-1, seq_len)
+        x = local[:-1].view(-1, seq_len)
+        y = local[1:].view(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 # -----------------------------
@@ -650,41 +644,9 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
-def _attn_flash_or_sdpa(
-    q: Tensor,
-    k: Tensor,
-    v: Tensor,
-    use_flash: bool,
-    packed_cu_seqlens: Tensor | None,
-    max_seqlen: int | None,
-) -> Tensor:
-    """FlashAttention when available; varlen for packed phase-2 windows; else SDPA."""
-    bsz, nh, seqlen, hd = q.shape
-    if use_flash and flash_attn_func_fa is not None and packed_cu_seqlens is None:
-        # flash_attn_func: (B, T, H, D)
-        qf = q.transpose(1, 2).contiguous()
-        kf = k.transpose(1, 2).contiguous()
-        vf = v.transpose(1, 2).contiguous()
-        out = flash_attn_func_fa(qf, kf, vf, causal=True)
-        return out.transpose(1, 2).contiguous()
-    if use_flash and flash_attn_varlen_func_fa is not None and packed_cu_seqlens is not None:
-        # [B,H,T,D] -> [B*T, H, D] wrong - varlen needs [total_tokens, H, D]
-        qv = q.transpose(1, 2).reshape(bsz * seqlen, nh, hd)
-        kv = k.transpose(1, 2).reshape(bsz * seqlen, nh, hd)
-        vv = v.transpose(1, 2).reshape(bsz * seqlen, nh, hd)
-        ms = int(max_seqlen) if max_seqlen is not None else seqlen
-        out = flash_attn_varlen_func_fa(
-            qv,
-            kv,
-            vv,
-            packed_cu_seqlens,
-            packed_cu_seqlens,
-            ms,
-            ms,
-            causal=True,
-        )
-        return out.reshape(bsz, seqlen, nh, hd).transpose(1, 2).contiguous()
-    return F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
+def _attn_nitro(q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+    """Standard Causal Flash Attention (O(T) memory, O(T) speed)."""
+    return F.scaled_dot_product_attention(q, k, v, is_causal=True)
 
 
 class CausalSelfAttention(nn.Module):
@@ -717,31 +679,24 @@ class CausalSelfAttention(nn.Module):
         # === EVALUATION: SLIDING WINDOW + TTT ===  LoRA on Q/V (registered via GPT.init_eval_lora)
         self.eval_lora_rank = 0
 
-    def forward(
-        self,
-        x: Tensor,
-        use_flash_attn: bool = False,
-        packed_cu_seqlens: Tensor | None = None,
-        max_seqlen_packed: int | None = None,
-        packed_attn_mask: Tensor | None = None,
-    ) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = self.c_q(x).view(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).view(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).view(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        x0 = x
         if self.eval_lora_rank > 0 and getattr(self, "lora_q_a", None) is not None:
-            # LoRA params default to fp32; activations are often bf16 under autocast / .bfloat16().
-            lqa = self.lora_q_a.to(dtype=x.dtype)
-            lqb = self.lora_q_b.to(dtype=x.dtype)
-            delta_q = x @ lqa @ lqb
-            delta_q = delta_q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-            q = q + delta_q
+             lqa = self.lora_q_a.to(dtype=x.dtype)
+             lqb = self.lora_q_b.to(dtype=x.dtype)
+             delta_q = x @ lqa @ lqb
+             delta_q = delta_q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+             q = q + delta_q
         if self.eval_lora_rank > 0 and getattr(self, "lora_v_a", None) is not None:
-            lva = self.lora_v_a.to(dtype=x.dtype)
-            lvb = self.lora_v_b.to(dtype=x.dtype)
-            delta_v = x @ lva @ lvb
-            delta_v = delta_v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-            v = v + delta_v
+             lva = self.lora_v_a.to(dtype=x.dtype)
+             lvb = self.lora_v_b.to(dtype=x.dtype)
+             delta_v = x @ lva @ lvb
+             delta_v = delta_v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+             v = v + delta_v
         q = rms_norm_compat(q)
         k = rms_norm_compat(k)
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -752,17 +707,7 @@ class CausalSelfAttention(nn.Module):
             repeat = self.num_heads // self.num_kv_heads
             k = k.repeat_interleave(repeat, dim=1)
             v = v.repeat_interleave(repeat, dim=1)
-        if packed_attn_mask is not None:
-            # Some torch/GPU combinations cannot run fused SDPA kernels with non-null masks.
-            # Force math fallback here so phase-2 packed-mask attention is always available.
-            with torch.backends.cuda.sdp_kernel(
-                enable_flash=False,
-                enable_mem_efficient=False,
-                enable_math=True,
-            ):
-                y = F.scaled_dot_product_attention(q, k, v, attn_mask=packed_attn_mask)
-        else:
-            y = _attn_flash_or_sdpa(q, k, v, use_flash_attn, packed_cu_seqlens, max_seqlen_packed)
+        y = _attn_nitro(q, k, v)
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -830,24 +775,10 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
 
-    def forward(
-        self,
-        x: Tensor,
-        x0: Tensor,
-        use_flash_attn: bool = False,
-        packed_cu_seqlens: Tensor | None = None,
-        max_seqlen_packed: int | None = None,
-        packed_attn_mask: Tensor | None = None,
-    ) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(
-            self.attn_norm(x),
-            use_flash_attn=use_flash_attn,
-            packed_cu_seqlens=packed_cu_seqlens,
-            max_seqlen_packed=max_seqlen_packed,
-            packed_attn_mask=packed_attn_mask,
-        )
+        attn_out = self.attn(self.attn_norm(x))
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
@@ -915,15 +846,24 @@ class GPT(nn.Module):
         self.packed_cu_seqlens: Tensor | None = None
         self.max_seqlen_packed: int | None = None
         self.packed_attn_mask: Tensor | None = None
+        # Model is now fully static 1024 throughout
+        self.mask_initialized = True
         self.phase2_sequence_packing = False
-        self._init_weights()
+        self.apply(self._init_weights)
 
-    def _init_weights(self) -> None:
-        if not self.bigram_only and self.tie_embeddings:
-            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for module in self.modules():
-            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
+
+    def _init_weights(self, module) -> None:
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
+            else:
+                nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
 
     def embed_tokens(self, input_ids: Tensor) -> Tensor:
         if self.bigram_only:
@@ -945,20 +885,13 @@ class GPT(nn.Module):
         x = rms_norm_compat(x)
         x0 = x
         skips: list[Tensor] = []
-        use_f = self.use_flash_attn
-        pcu = self.packed_cu_seqlens
-        msp = self.max_seqlen_packed
-        bsz = x.size(0)
-        pam = None
-        if self.packed_attn_mask is not None:
-            pam = self.packed_attn_mask.expand(bsz, -1, -1, -1).to(dtype=torch.float32)
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0, use_f, pcu, msp, pam)
+            x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0, use_f, pcu, msp, pam)
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if return_pre_lm_hidden:
             return x
@@ -1111,11 +1044,13 @@ def eval_sliding_window_ttt(
         s0 = p + 1
     if not doc_spans:
         doc_spans = [(0, n)]
-    my_spans = doc_spans
+    # Split spans across ranks to parallelize validation
+    my_spans = [doc_spans[i] for i in range(rank, len(doc_spans), world_size)]
+    if not my_spans and rank == 0:
+        my_spans = doc_spans[:1] # Ensure at least rank 0 does something if spans < world_size
+
 
     inner = _unwrap_torch_compile(base_model)
-    if isinstance(model, DDP):
-        assert model.module is base_model, "eval_sliding_window_ttt: base_model must match DDP.module"
     gpt = _eager_mirror_for_eval(inner, device)
     lora_params = gpt.init_eval_lora(args.lora_rank, device)
     for p in gpt.parameters():
@@ -1132,26 +1067,11 @@ def eval_sliding_window_ttt(
 
     gpt.eval()
     gpt.use_cheat_prefix = True
-    gpt.use_flash_attn = False
-    gpt.packed_cu_seqlens = None
-    gpt.packed_attn_mask = build_phase2_packed_causal_mask(
-        args.cheat_prefix_len,
-        args.phase2_content_len,
-        args.num_pack_segments,
-        device,
-        torch.float32,
-    )
+    gpt.use_flash_attn = True
     if compressor_frozen is not None:
         compressor_frozen.eval()
 
-    dynamo_ctx = nullcontext()
-    if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False") and hasattr(torch, "_dynamo"):
-        try:
-            dynamo_ctx = torch._dynamo.disable()
-        except RuntimeError:
-            dynamo_ctx = nullcontext()
-
-    with dynamo_ctx, torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+    with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
         for s, e in my_spans:
             gpt.reset_eval_lora()
             rolling = rolling_cheat_init.to(device=device, dtype=torch.bfloat16).detach()
@@ -1270,9 +1190,8 @@ def build_phase2_packed_causal_mask(
     content_len: int,
     num_segments: int,
     device: torch.device,
-    dtype: torch.dtype,
 ) -> Tensor:
-    """Causal + block-diagonal over packed docs (tokens after cheat prefix)."""
+    """Causal + block-diagonal over packed docs (True = Keep, False = Mask)."""
     seg_len = content_len // num_segments
     T = cheat_len + content_len
     i = torch.arange(T, device=device).view(T, 1)
@@ -1287,10 +1206,7 @@ def build_phase2_packed_causal_mask(
     prefix_ok = j < cheat_len
     same_seg = (i >= cheat_len) & (j >= cheat_len) & (seg_row == seg_col)
     allowed = causal & (prefix_ok | same_seg)
-    neg = torch.tensor(float("-inf"), device=device, dtype=dtype)
-    z = torch.zeros(1, device=device, dtype=dtype)
-    out = torch.where(allowed, z, neg)
-    return out.view(1, 1, T, T)
+    return allowed # T x T
 
 
 def finalize_cheat_sheet_buffer(
@@ -1332,63 +1248,49 @@ def expand_to_student_layers(base_model: GPT, student_layers: int, device: torch
     base_model.num_decoder_layers = student_layers - base_model.num_encoder_layers
 
 
-def make_optimizers(
-    args: Hyperparameters,
-    base_model: GPT,
-    compressor: Compressor | None,
-    compressor_trainable: bool,
-) -> list[torch.optim.Optimizer]:
+def make_optimizers(args: Hyperparameters, base_model: GPT, compressor: Compressor, compressor_trainable: bool = True) -> dict[str, torch.optim.Optimizer]:
     block_named_params = list(base_model.blocks.named_parameters())
     matrix_params = [
         p
         for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        if p.ndim >= 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS) and p.requires_grad
     ]
     scalar_params = [
         p
         for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        if (p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and p.requires_grad
     ]
     if base_model.bigram is not None:
         scalar_params.extend(list(base_model.bigram.parameters()))
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     if compressor is not None and compressor_trainable:
-        scalar_params.extend(list(compressor.parameters()))
-    optimizer_tok = torch.optim.AdamW(
+        # Avoid double-counting if compressor was already in model (not the case here but safe)
+        cp = [p for p in compressor.parameters() if p.requires_grad]
+        scalar_params.extend(cp)
+
+    opt_tok = torch.optim.AdamW(
         [{"params": [base_model.tok_emb.weight], "lr": args.embed_lr, "base_lr": args.embed_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        weight_decay=args.weight_decay,
-        fused=True,
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.weight_decay, fused=True
     )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-        weight_decay=args.weight_decay,
+    opt_muon = Muon(
+        matrix_params, lr=args.matrix_lr, momentum=args.muon_momentum,
+        backend_steps=args.muon_backend_steps, weight_decay=args.weight_decay
     )
-    for group in optimizer_muon.param_groups:
+    for group in opt_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.AdamW(
+
+    opt_scalar = torch.optim.AdamW(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        weight_decay=args.weight_decay,
-        fused=True,
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.weight_decay, fused=True
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    res = {"tok": opt_tok, "muon": opt_muon, "scalar": opt_scalar}
     if base_model.lm_head is not None:
-        optimizer_head = torch.optim.AdamW(
+        res["head"] = torch.optim.AdamW(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            weight_decay=args.weight_decay,
-            fused=True,
+            betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.weight_decay, fused=True
         )
-        optimizers.insert(1, optimizer_head)
-    return optimizers
+    return res
 
 
 def lr_schedule_professor_student(
@@ -1516,6 +1418,8 @@ def main() -> None:
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
     val_tokens = load_validation_tokens(args.val_files, args.phase2_content_len)
+    if args.val_batch_size > 0 and args.val_batch_size < val_tokens.numel():
+        val_tokens = val_tokens[:args.val_batch_size + 1].contiguous()
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
@@ -1568,15 +1472,29 @@ def main() -> None:
     for mod_name, m in base_model.named_modules():
         if isinstance(m, CastedLinear):
             m._qat_param_name = mod_name + ".weight"
-    compiled_model = base_model
+    # Apply torch.compile ONCE before starting training to avoid mid-training recompilation.
+    # All future phase transitions use gradient zeroing instead of requires_grad toggling,
+    # so the autograd graph structure never changes.
+    if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False"):
+        try:
+            compiled_model = torch.compile(base_model)  # type: ignore[assignment]
+        except RuntimeError as e:
+            if "Dynamo is not supported on Python 3.12" in str(e):
+                print("Skipping torch.compile (Dynamo unsupported on Python 3.12+)")
+                compiled_model = base_model
+            else:
+                raise
+    else:
+        compiled_model = base_model
+    optimizer_dict = make_optimizers(args, base_model, compressor, True)
+    optimizers = list(optimizer_dict.values())
+    optimizer_muon = optimizer_dict["muon"]
+
     model: nn.Module = (
         DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True)
         if distributed
         else compiled_model
     )
-
-    optimizers = make_optimizers(args, base_model, compressor, True)
-    optimizer_muon = optimizers[1]
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
@@ -1657,6 +1575,38 @@ def main() -> None:
     compressor_frozen: Compressor | None = None
     packed_pm: Tensor | None = None
 
+    # Phase tracking for gradient zeroing (avoids requires_grad toggling / graph breaks).
+    # "phase1": all blocks + compressor trainable
+    # "stab":   only blocks 10-12 trainable, compressor frozen
+    # "phase2": all blocks trainable, compressor frozen
+    current_phase = "phase1"
+
+    # Pre-collect parameter sets for each freeze group (computed once, reused every step).
+    _compressor_params = set(compressor.parameters())
+    _block_0_9_params: set[nn.Parameter] = set()
+    for i in range(min(10, len(base_model.blocks))):
+        _block_0_9_params.update(base_model.blocks[i].parameters())
+    # Note: blocks 10-12 params will be added after expand_to_student_layers in transition.
+    _block_10_12_params: set[nn.Parameter] = set()
+
+    def _zero_frozen_grads() -> None:
+        """Zero out gradients for params that should be 'frozen' in the current phase.
+        This is mathematically equivalent to requires_grad=False but does not change
+        the autograd graph, so torch.compile never needs to recompile."""
+        if current_phase == "phase1":
+            # Everything trainable in phase1, nothing to zero
+            return
+        # Compressor is always frozen in phase2/stab
+        for p in _compressor_params:
+            if p.grad is not None:
+                p.grad = None
+        if current_phase == "stab":
+            # Blocks 0-9 frozen during stabilization
+            for p in _block_0_9_params:
+                if p.grad is not None:
+                    p.grad = None
+        # In "phase2" all blocks are trainable, only compressor is frozen (handled above)
+
     training_time_ms = 0.0
     stop_after_step: int | None = None
     torch.cuda.synchronize()
@@ -1685,45 +1635,36 @@ def main() -> None:
             if distributed:
                 dist.broadcast(cheat_buf, src=0)
             base_model.cheat_sheet_prefix.copy_(cheat_buf.to(device=device, dtype=base_model.cheat_sheet_prefix.dtype))
-            for p in compressor.parameters():
-                p.requires_grad = False
+            # NOTE: No requires_grad toggling here! We use gradient zeroing instead.
             expand_to_student_layers(base_model, args.student_layers, device)
+            # CRITICAL: Register the new student layers (10-12) with the optimizers!
+            new_matrix_params = []
+            new_scalar_params = []
+            for i in range(10, min(13, len(base_model.blocks))):
+                for name, p in base_model.blocks[i].named_parameters():
+                    if p.ndim >= 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS):
+                        new_matrix_params.append(p)
+                    else:
+                        new_scalar_params.append(p)
+            optimizer_dict["muon"].add_param_group({"params": new_matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr})
+            optimizer_dict["scalar"].add_param_group({"params": new_scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr})
+
+            # Update the block 10-12 param set now that student layers exist.
+            _block_10_12_params.clear()
+            for i in range(10, min(13, len(base_model.blocks))):
+                _block_10_12_params.update(base_model.blocks[i].parameters())
             for mod_name, m in base_model.named_modules():
                 if isinstance(m, CastedLinear):
                     m._qat_param_name = mod_name + ".weight"
-            for i in range(10):
-                for p in base_model.blocks[i].parameters():
-                    p.requires_grad = False
+            # UPDATE STATIC GRAPH MASK (Zero re-compilation!)
             base_model.use_cheat_prefix = True
-            base_model.use_flash_attn = True
-            packed_pm = build_phase2_packed_causal_mask(
-                args.cheat_prefix_len,
-                args.phase2_content_len,
-                args.num_pack_segments,
-                device,
-                torch.float32,
-            )
-            base_model.packed_attn_mask = packed_pm
-            if os.environ.get("TORCH_COMPILE", "1") not in ("0", "false", "False"):
-                try:
-                    base_model = torch.compile(base_model)  # type: ignore[assignment]
-                except RuntimeError as e:
-                    if "Dynamo is not supported on Python 3.12" in str(e):
-                        print("Skipping torch.compile for transition (Dynamo unsupported on Python 3.12+)")
-                    else:
-                        raise
-            model = (
-                DDP(base_model, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True)
-                if distributed
-                else base_model
-            )
-            optimizers = make_optimizers(args, base_model, compressor, False)
-            optimizer_muon = optimizers[1]
+
             compressor_frozen = copy.deepcopy(compressor).to(device).eval()
             for p in compressor_frozen.parameters():
                 p.requires_grad = False
+            current_phase = "stab"  # Start stabilization phase
             transition_done = True
-            log0("=== TRANSITION: torch.compile applied; phase 2 stabilization (layers 10-12 only) ===")
+            log0("=== TRANSITION: weight inheritance done; phase 2 stabilization (layers 10-12 only, gradient zeroing) ===")
 
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
@@ -1791,11 +1732,7 @@ def main() -> None:
             base_model.use_cheat_prefix = False
             base_model.use_flash_attn = False
             base_model.packed_attn_mask = None
-            for i in range(10):
-                for p in base_model.blocks[i].parameters():
-                    p.requires_grad = True
-            for p in compressor.parameters():
-                p.requires_grad = True
+            current_phase = "phase1"
         elif step < stab_end:
             ga = grad_accum_phase2
             sl = args.phase2_content_len
@@ -1803,14 +1740,7 @@ def main() -> None:
             base_model.use_cheat_prefix = True
             base_model.use_flash_attn = True
             base_model.packed_attn_mask = packed_pm
-            for i in range(10):
-                for p in base_model.blocks[i].parameters():
-                    p.requires_grad = False
-            for i in range(10, 13):
-                for p in base_model.blocks[i].parameters():
-                    p.requires_grad = True
-            for p in compressor.parameters():
-                p.requires_grad = False
+            current_phase = "stab"
         else:
             ga = grad_accum_phase2
             sl = args.phase2_content_len
@@ -1818,13 +1748,9 @@ def main() -> None:
             base_model.use_cheat_prefix = True
             base_model.use_flash_attn = True
             base_model.packed_attn_mask = packed_pm
-            for i in range(13):
-                for p in base_model.blocks[i].parameters():
-                    p.requires_grad = True
-            for p in compressor.parameters():
-                p.requires_grad = False
             if step == stab_end:
-                log0("=== PHASE 2 TRAINING: all layers unfrozen ===")
+                current_phase = "phase2"
+                log0("=== PHASE 2 TRAINING: all layers unfrozen (gradient zeroing) ===")
 
         scale = lr_schedule_professor_student(step, args.iterations, phase1_steps, args.warmup_steps, transition_warmup)
         grad_scale = 1.0 / ga
@@ -1838,6 +1764,9 @@ def main() -> None:
                 loss = model(x, y, train_compressor=train_comp)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
+        # Zero out gradients for "frozen" params based on current phase.
+        # This replaces requires_grad toggling and avoids torch.compile graph breaks.
+        _zero_frozen_grads()
         train_loss /= ga
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
